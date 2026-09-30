@@ -132,13 +132,23 @@ async function verifySQL(connection: SQLConnection, projection: Projection, engi
   return { verified: true, engine, receiptId: projection.receiptId, operation: projection.operation, projectionDigest: hash(projection), checks: ['typed-authorized-row-projection','registered-prepared-sql','exact-minor-unit-figures','receipt-arithmetic-conformance'] };
 }
 
-const SAFE_DUCKDB_CONFIG = { enable_external_access: 'false', autoinstall_known_extensions: 'false', autoload_known_extensions: 'false', allow_community_extensions: 'false', allow_unsigned_extensions: 'false', allow_persistent_secrets: 'false', enable_logging: 'false', threads: '1', memory_limit: '128MB', temp_directory: '', max_temp_directory_size: '0B', lock_configuration: 'true' };
+// Configure temporary storage before disabling external access: the pinned
+// native engine refuses even an empty temp-directory change once access is off.
+// enable_logging is not accepted by the C configuration API; verify its disabled
+// session state before exposing the connection, with the configuration locked.
+const SAFE_DUCKDB_CONFIG = { temp_directory: '', max_temp_directory_size: '0B', threads: '1', memory_limit: '128MB', autoinstall_known_extensions: 'false', autoload_known_extensions: 'false', allow_community_extensions: 'false', allow_unsigned_extensions: 'false', allow_persistent_secrets: 'false', enable_external_access: 'false', lock_configuration: 'true' };
 async function nativeConnection(): Promise<SQLConnection> {
   let api: any;
   try { const packageName = '@duckdb/node-api'; api = await import(packageName); }
   catch { throw new ChausarError('DUCKDB_UNAVAILABLE', 'Install and qualify the pinned DuckDB runtime before using production calculations.'); }
   const instance = await api.DuckDBInstance.create(':memory:', SAFE_DUCKDB_CONFIG);
-  const connection = await instance.connect(); const prepared = new Map<string, any>();
+  let connection: any;
+  try {
+    connection = await instance.connect();
+    const logging = (await connection.runAndReadAll("SELECT current_setting('enable_logging') AS enabled")).getRowObjectsJson();
+    check(logging.length === 1 && (logging[0].enabled === false || logging[0].enabled === 0), 'SQL_SANDBOX_UNSUPPORTED', 'The pinned DuckDB runtime must disable logging before verifying receipts.');
+  } catch (error) { connection?.closeSync(); if (typeof instance.closeSync === 'function') instance.closeSync(); throw error; }
+  const prepared = new Map<string, any>();
   return {
     async execute(sql, parameters = []) { let statement = prepared.get(sql); if (!statement) { statement = await connection.prepare(sql); prepared.set(sql, statement); } statement.bind(parameters); const reader = await statement.runAndReadAll(); return reader.getRowObjectsJson(); },
     close() { connection.closeSync(); if (typeof instance.closeSync === 'function') instance.closeSync(); },
@@ -184,7 +194,7 @@ export class DatabaseCalculator {
         child.stdin.on('error',() => {});
         child.on('close',code => {
           if (failure) return finish(failure);
-          try { const response = JSON.parse(output); if (!response.ok) throw new ChausarError(['DUCKDB_UNAVAILABLE','SQL_RESULT_MISMATCH','SQL_RESULT_INVALID','SQL_PRECISION_LIMIT'].includes(response.code) ? response.code : 'SQL_EXECUTION_FAILED','The database could not verify this receipt.'); check(code === 0 && response.result?.verified === true && response.result.engine === 'duckdb' && response.result.projectionDigest === hash(projection) && response.result.receiptId === projection.receiptId && response.result.operation === projection.operation,'SQL_RESULT_INVALID','The database worker returned an invalid receipt.'); finish(undefined,response.result); }
+          try { const response = JSON.parse(output); if (!response.ok) throw new ChausarError(['DUCKDB_UNAVAILABLE','SQL_RESULT_MISMATCH','SQL_RESULT_INVALID','SQL_PRECISION_LIMIT','SQL_SANDBOX_UNSUPPORTED'].includes(response.code) ? response.code : 'SQL_EXECUTION_FAILED','The database could not verify this receipt.'); check(code === 0 && response.result?.verified === true && response.result.engine === 'duckdb' && response.result.projectionDigest === hash(projection) && response.result.receiptId === projection.receiptId && response.result.operation === projection.operation,'SQL_RESULT_INVALID','The database worker returned an invalid receipt.'); finish(undefined,response.result); }
           catch (error) { finish(error instanceof ChausarError ? error : new ChausarError('SQL_EXECUTION_FAILED','The database worker returned an invalid result.')); }
         });
         child.stdin.end(payload);

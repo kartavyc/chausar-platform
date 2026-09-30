@@ -67,7 +67,9 @@ Once both native engines are available, the runner verifies:
 
 These tests establish normal native composition, arithmetic and transactional CAS when they actually execute. They do not establish power-loss durability, operating-system keychain protection, a signed packaged runtime, or crash recovery of the PostgreSQL server itself.
 
-## Evidence from this environment
+## Initial source-only evidence
+
+This section records the first, dependency-free run at commit `4ca43c`. The later approved D: qualification installed exact dependencies and executed native DuckDB and actual PGlite. See [native database qualification](native-database-qualification.md) for current results and the remaining PostgreSQL blocker. The initial missing-module observations below are historical.
 
 On Node `v24.13.1`, the focused suite executed **44 tests: 44 passed, 0 failed, 0 skipped**. This is JavaScript arithmetic, import behavior and safety-protocol evidence. The managed-pool preflight tests are explicitly mocks and make no native engine claim.
 
@@ -83,7 +85,7 @@ The focused tests use the existing `node` executable directly. No global tool wa
 
 ## Combined lane verification and remaining contracts
 
-The final source suite executed **274 tests: 274 passed, 0 failed, 0 skipped** using `node --test platform/tests/*.test.ts`. Syntax and JSON checks passed for **66 source files**; `git diff --check` passed. This records the tests registered in this environment, including dependency-refusal checks. It does not establish native database, installed Python, or TypeScript qualification. The native report records both database engines as `not-executed` and exits 1.
+The source suite executed **274 tests: 274 passed, 0 failed, 0 skipped** using `node --test platform/tests/*.test.ts`. Syntax and JSON checks passed for **66 source files**; `git diff --check` passed. This records source tests, including dependency-refusal checks. The initial native report records both database engines as `not-executed` and exits 1. The later report executes DuckDB successfully but still exits 1 because native PostgreSQL has not run. Installed Python and TypeScript qualification remain separate requirements.
 
 `PostgresDatabaseCalculator.connect()` opens an explicit loopback driver pool. `fromPool()` is a managed-pool injection path and always returns `engine: 'injected-sql'`. Registered queries use PostgreSQL exact `div(numeric,numeric)` for truncation toward zero, case-sensitive figure aliases, and date subtraction. DuckDB uses its existing `HUGEINT` integer quotient. Both projections retain exact integer strings and the same independently asserted receipt figures. Acquisition, session setup, statements and rollback share one deadline; an interrupted client is discarded rather than returned to its pool. Actual driver discard and temporary-table behavior still require the hard native gate. PostgreSQL's quotient semantics are documented in the [PostgreSQL mathematical functions reference](https://www.postgresql.org/docs/current/functions-math.html).
 
@@ -94,7 +96,7 @@ The full plan's remaining database/compiler requirements are retained:
 - Durable normalized relational claims and dictionary-generated schema/query artifacts are not implemented by this receipt-projection adapter. Authority still stores encrypted snapshots. Query text currently has registered dialect forms, rather than the plan's literal single-query-text acceptance.
 - Immutable event corrections and known-on replay are covered by application tests and the native composition harness. General interval claims remain incomplete: `validTo` is accepted but ignored by event selection, and separate effective-on versus event-period semantics require a parent contract decision.
 - Received calculations still need a reviewed settlement contract for pending source events. No new settled-status default was invented in this lane.
-- PGlite comparison, real PostgreSQL/DuckDB arithmetic and CAS, native crash/power-loss tests, and installed runtime qualification remain required before choosing a production default.
+- Actual PGlite comparison and native DuckDB arithmetic now have partial evidence in the linked qualification report. Real PostgreSQL arithmetic and CAS, cross-engine agreement, a qualified PGlite authority adapter, native crash/power-loss tests, and installed product runtime qualification remain required before choosing a production default.
 - Source-profile metadata records the requested vendor invariants and the 56-group catalogue, retaining QuickBooks. Local Shopify order regressions preserve draft/cancelled states, original-order recognition limits and explicit tax modes, and refuse embedded refunds without a reviewed transaction profile. Source-specific GraphQL/refund extraction, tax-inclusive allocation, AIS/26AS reconciliation, release-qualified Tally JSON, coherent Zoho installation fixtures and live source qualification remain incomplete. PhonePe Pulse collection/reuse remains on hold. See `docs/source-profile-invariants.md`; metadata presence does not implement these extractors.
 
 The original baseline was read-only. A task-owned clone of the validated bundle hosts the separate `codex/db-differential-20261001` worktree at base `100df1d3c3bdb8e7793d81e6590cd6145c617d3e`; the parent owns integration with published `3160d5a896b5fb3539405948671d530367cfe30d`. No shared engine, package manifest or state schema was edited.
