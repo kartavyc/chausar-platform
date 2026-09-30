@@ -60,7 +60,7 @@ export function inspectWasm(bytes: Uint8Array, memoryLimit: number): { imports: 
 function isolatedWasm(moduleBase64: string, manifest: PluginManifest, values: Record<string, number>): Promise<{ result: number; memoryPages: number }> {
   const worker = fileURLToPath(new URL('./wasm-worker.mjs', import.meta.url));
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--permission', `--allow-fs-read=${worker}`, '--max-old-space-size=32', worker], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' } });
+    const child = spawn(process.execPath, ['--permission', `--allow-fs-read=${worker}`, '--max-old-space-size=32', worker], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ELECTRON_RUN_AS_NODE: '1', SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' } });
     let output = ''; let errors = ''; let done = false;
     const finish = (error?: Error, value?: { result: number; memoryPages: number }) => { if (done) return; done = true; clearTimeout(timer); if (error) { child.kill(); reject(error); } else resolve(value!); };
     const timer = setTimeout(() => finish(new Error('PLUGIN_TIMEOUT')), manifest.timeoutMs);

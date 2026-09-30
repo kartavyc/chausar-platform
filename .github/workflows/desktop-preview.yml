@@ -1,0 +1,120 @@
+name: Desktop unsigned preview
+
+# Draft packaging workflow. Dispatch explicitly after a genuine lockfile is
+# committed and registry/Electron downloads are approved. No automatic trigger.
+on:
+  workflow_dispatch:
+    inputs:
+      build_preview:
+        description: 'Build unsigned demo artifacts on approved native runners'
+        type: boolean
+        required: true
+        default: false
+      use_existing_self_hosted:
+        description: 'Use only existing approved self-hosted native runners; required for private repositories'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    # Private hosted builds may be billable. Private repositories can run only
+    # on existing approved self-hosted runners explicitly selected by dispatch.
+    if: ${{ inputs.build_preview && (!github.event.repository.private || inputs.use_existing_self_hosted) }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - os: windows-2025
+            platform: win32
+            arch: x64
+            self_hosted: '["self-hosted", "windows", "x64"]'
+          - os: windows-11-arm
+            platform: win32
+            arch: arm64
+            self_hosted: '["self-hosted", "windows", "ARM64"]'
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+            self_hosted: '["self-hosted", "macOS", "x64"]'
+          - os: macos-15
+            platform: darwin
+            arch: arm64
+            self_hosted: '["self-hosted", "macOS", "ARM64"]'
+          - os: ubuntu-24.04
+            platform: linux
+            arch: x64
+            self_hosted: '["self-hosted", "linux", "x64"]'
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+            self_hosted: '["self-hosted", "linux", "ARM64"]'
+    runs-on: ${{ inputs.use_existing_self_hosted && fromJSON(matrix.self_hosted) || matrix.os }}
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          clean: false
+          path: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          architecture: ${{ matrix.arch }}
+          package-manager-cache: false
+      - name: Require genuine committed dependency lockfile
+        working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
+        run: |
+          node -e "const fs = require('node:fs'); if (!fs.existsSync('package-lock.json')) { console.error('Blocked: package-lock.json is absent. Generate and review a genuine lockfile through an approved npm install first.'); process.exit(1); }"
+      - name: Install locked dependencies without lifecycle scripts
+        working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install the pinned Electron distribution explicitly
+        working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
+        run: node node_modules/electron/install.js
+      - name: Check source and JSON syntax
+        working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
+        run: node scripts/check.mjs
+      - name: Verify packaging, desktop harness and updater contracts
+        working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
+        run: node --test platform/tests/desktop-*.test.ts platform/tests/updater.test.ts platform/tests/rollback.test.ts
+      - name: Smoke test the real demo worker through the desktop harness without a browser
+        working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
+        run: node scripts/desktop-smoke.mjs
+      - name: Smoke test the worker with Electron Node embedding without a browser
+        working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
+        run: node scripts/desktop-electron-smoke.mjs
+      - name: Check native preview prerequisites without launching Electron
+        working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
+        run: node scripts/desktop-package.mjs --mode preview --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --check
+      - name: Build unsigned demo installer and archive with publishing disabled
+        working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
+        run: node scripts/desktop-package.mjs --mode preview --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+      - name: Upload unsigned preview artifacts and checksum receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: chausar-unsigned-preview-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}/release/preview/*.exe
+            preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}/release/preview/*.zip
+            preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}/release/preview/*.dmg
+            preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}/release/preview/*.AppImage
+            preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}/release/preview/*.tar.gz
+            preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}/release/preview/packaging-receipt-*.json
+            preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}/package-lock.json
+          if-no-files-found: error
+          retention-days: 7
+
+# Artifact upload is workflow storage, not a release publication or an
+# updater feed. Native graphical launch, production runtimes, installer signing,
+# notarization, service persistence and backup/rollback qualification are separate.

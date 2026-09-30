@@ -97,6 +97,8 @@ export async function packagePreflight({ root = projectRoot, platform = process.
   let pkg;
   await check('exact dependency pins', async () => {
     pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+    const { compareVersions } = await import('../platform/runtime/updater.ts');
+    compareVersions(pkg.version, pkg.version);
     for (const [name, version] of Object.entries({ ...pkg.dependencies, ...pkg.devDependencies })) {
       if (typeof version !== 'string' || !exactVersion.test(version)) throw new Error(`dependency ${name} requires an exact release version`);
     }

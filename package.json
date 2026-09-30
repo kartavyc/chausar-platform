@@ -5,19 +5,35 @@
   "description": "Local business intelligence: every number has a receipt.",
   "type": "module",
   "main": "app/desktop/main.cjs",
-  "engines": { "node": ">=24.13.1" },
+  "engines": {
+    "node": ">=24.13.1"
+  },
   "scripts": {
     "start": "node platform/runtime/server.ts --demo",
     "start:production": "node platform/runtime/server.ts",
-    "desktop": "electron .",
+    "desktop": "node scripts/desktop-launch.mjs --demo",
     "test": "node --test platform/tests/*.test.ts",
     "check": "node scripts/check.mjs",
     "typecheck": "tsc --noEmit",
     "verify": "node scripts/check.mjs && node --test platform/tests/*.test.ts",
     "build": "node scripts/build.mjs",
-    "package": "node scripts/package-preflight.mjs && electron-builder --config app/desktop/builder.json",
-    "bench": "node scripts/bench.mjs"
+    "package": "node scripts/desktop-package.mjs --mode final",
+    "bench": "node scripts/bench.mjs",
+    "desktop:production": "node scripts/desktop-launch.mjs --production",
+    "desktop:check": "node scripts/desktop-launch.mjs --demo --check",
+    "desktop:smoke": "node scripts/desktop-smoke.mjs",
+    "package:preview": "node scripts/desktop-package.mjs --mode preview",
+    "package:check": "node scripts/desktop-package.mjs --mode preview --check"
   },
-  "dependencies": { "pg": "8.23.0", "@duckdb/node-api": "1.5.5-r.3" },
-  "devDependencies": { "electron": "44.4.5", "electron-builder": "26.0.12", "typescript": "5.9.3", "@types/node": "24.0.0", "@types/pg": "8.15.5" }
+  "dependencies": {
+    "pg": "8.23.0",
+    "@duckdb/node-api": "1.5.5-r.3"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.0.12",
+    "typescript": "5.9.3",
+    "@types/node": "24.0.0",
+    "@types/pg": "8.15.5"
+  }
 }

@@ -1,0 +1,36 @@
+{
+  "appId": "in.chausar.desktop.preview",
+  "productName": "Chausar Unsigned Preview",
+  "artifactName": "Chausar-Preview-${version}-${os}-${arch}.${ext}",
+  "directories": { "output": "release/preview" },
+  "asar": true,
+  "forceCodeSigning": false,
+  "npmRebuild": false,
+  "extraMetadata": {
+    "name": "chausar-preview",
+    "chausarPreview": true,
+    "chausarReleaseChannel": "unsigned-preview"
+  },
+  "files": [
+    "app/desktop/**/*",
+    "app/renderer/**/*",
+    "platform/runtime/**/*",
+    "platform/helpers/**/*",
+    "scripts/postgres-runtime.mjs",
+    "fixtures/**/*",
+    "package.json",
+    "node_modules/**/*"
+  ],
+  "asarUnpack": [
+    "node_modules/**/*",
+    "platform/runtime/**/*",
+    "platform/helpers/**/*",
+    "scripts/postgres-runtime.mjs"
+  ],
+  "extraResources": [],
+  "win": { "target": ["nsis", "zip"], "signAndEditExecutable": false },
+  "mac": { "target": ["dmg", "zip"], "identity": null, "hardenedRuntime": false, "notarize": false },
+  "linux": { "target": ["AppImage", "tar.gz"], "category": "Office" },
+  "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "runAfterFinish": false },
+  "publish": null
+}

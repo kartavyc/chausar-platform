@@ -1,25 +1,26 @@
-const { app, BrowserWindow, ipcMain, protocol, session, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, session, dialog, Tray, Menu, nativeImage } = require('electron');
 const { readFile, writeFile, mkdir, lstat } = require('node:fs/promises');
-const { fork } = require('node:child_process');
+const { EngineHarness } = require('./engine-harness.cjs');
+const { REQUEST_CHANNEL, STATUS_CHANNEL, validateRequest, assertTrustedSender, publicError } = require('./ipc-contract.cjs');
 const { join, resolve } = require('node:path');
-const { randomUUID, randomBytes } = require('node:crypto');
+const { randomBytes } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const { createServer } = require('node:net');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
-let window; let worker; let startup; let database; let stopping = false; const waiting = new Map();
+let window; let engine; let database; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
+const backgroundRequested = process.argv.includes('--background');
 const root = resolve(__dirname, '../..');
 const renderer = join(root, 'app/renderer');
 const engineRoot = app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked') : root;
-function stop() {
-  if (worker) { worker.disconnect(); worker = null; }
-  for (const item of waiting.values()) { clearTimeout(item.timeout); item.reject(new Error('Engine stopped.')); } waiting.clear();
-}
 async function startEngine() {
-  const demo = process.argv.includes('--demo');
-  const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_VAULT_DIRECTORY: join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0' };
+  const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  if (stopping) return;
+  const demo = metadata.chausarPreview === true || process.argv.includes('--demo'); demoMode = demo;
+  if (metadata.chausarPreview === true && process.argv.includes('--production')) throw new Error('This unsigned preview supports synthetic data only.');
+  const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0' };
   const binaries = app.isPackaged ? join(process.resourcesPath, 'runtime-binaries') : join(root, 'runtime-binaries');
   if (!demo && !environment.CHAUSAR_POSTGRES_URL) {
     const { startBundledPostgres } = await import(pathToFileURL(join(engineRoot, 'scripts/postgres-runtime.mjs')).href);
@@ -37,32 +38,23 @@ async function startEngine() {
     environment.CHAUSAR_POSTGRES_URL = `postgresql://chausar:${encodeURIComponent(password)}@127.0.0.1:${port}/postgres`;
   }
   if (!demo && !environment.CHAUSAR_PYTHON) environment.CHAUSAR_PYTHON = process.platform === 'win32' ? join(binaries, 'python/python.exe') : join(binaries, 'python/bin/python3');
-  worker = fork(join(engineRoot, 'platform/runtime/worker.ts'), [], {
-    execPath: process.execPath, execArgv: ['--experimental-strip-types'], windowsHide: true,
-    env: environment,
-    stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
-  });
-  startup = new Promise((resolveStart, reject) => {
-    const timeout = setTimeout(() => reject(new Error('The engine did not start.')), 15000);
-    worker.once('error', error => { clearTimeout(timeout); reject(error); });
-    worker.on('message', message => {
-      if (message.ready) { clearTimeout(timeout); resolveStart(); return; }
-      const pending = waiting.get(message.id); if (!pending) return; waiting.delete(message.id); clearTimeout(pending.timeout);
-      if (message.error) pending.reject(Object.assign(new Error(message.error.message), { code: message.error.code })); else pending.resolve(message.result);
-    });
-    worker.once('exit', () => { stop(); if (window && !window.isDestroyed()) window.webContents.send('chausar:engine-status', { healthy: false }); });
-  });
-  await startup;
+  if (stopping) return;
+  engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment });
+  engine.on('status', status => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); });
+  await engine.start();
 }
-function request(method, payload) {
-  return new Promise((resolveRequest, reject) => {
-    if (!worker?.connected) return reject(new Error('The engine is unavailable. Restart Chausar.'));
-    const id = randomUUID(); const timeout = setTimeout(() => { waiting.delete(id); reject(new Error('The request timed out. Inspect Activity before retrying an action.')); }, 120000);
-    waiting.set(id, { resolve: resolveRequest, reject, timeout }); worker.send({ id, method, payload });
-  });
+function createBackgroundTray() {
+  if (!backgroundRequested) return;
+  const icon = nativeImage.createFromPath(join(__dirname, 'icon.png'));
+  if (icon.isEmpty()) throw new Error('The background-mode tray icon is missing.');
+  tray = new Tray(icon);
+  tray.setToolTip(demoMode ? 'Chausar Preview — synthetic data' : 'Chausar');
+  const open = () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else createWindow(); };
+  tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Open Chausar', click: open }, { type: 'separator' }, { label: 'Quit Chausar and stop jobs', click: () => app.quit() }]));
+  tray.on('double-click', open);
 }
 function createWindow() {
-  window = new BrowserWindow({ width: 1380, height: 940, minWidth: 800, minHeight: 600, backgroundColor: '#f7f5ee', title: 'Chausar', show: false,
+  window = new BrowserWindow({ width: 1380, height: 940, minWidth: 800, minHeight: 600, backgroundColor: '#f7f5ee', title: demoMode ? 'Chausar Preview — synthetic data' : 'Chausar', show: false,
     webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, allowRunningInsecureContent: false, spellcheck: false },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -72,6 +64,7 @@ function createWindow() {
   window.on('closed', () => { window = null; });
 }
 if (singleInstance) app.whenReady().then(async () => {
+  if (stopping) return;
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith('chausar://app/') }));
@@ -82,22 +75,23 @@ if (singleInstance) app.whenReady().then(async () => {
     const ext = file.slice(file.lastIndexOf('.')); const data = await readFile(join(renderer, file));
     return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff' } });
   });
-  ipcMain.handle('chausar:request', async (event, input) => {
-    if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || event.senderFrame.url !== 'chausar://app/index.html') throw new Error('Request sender is not trusted.');
-    if (!input || typeof input.method !== 'string' || !/^[a-z]+\.[a-zA-Z]+$/.test(input.method) || Buffer.byteLength(JSON.stringify(input)) > 2_000_000) throw new Error('Invalid request.');
-    return request(input.method, input.payload ?? {});
+  ipcMain.handle(REQUEST_CHANNEL, async (event, input) => {
+    try {
+      assertTrustedSender(event, window?.webContents);
+      const request = validateRequest(input);
+      return { ok: true, result: await engine.request(request.method, request.payload) };
+    } catch (error) { return { ok: false, error: publicError(error) }; }
   });
-  try { await startEngine(); createWindow(); }
-  catch (error) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); }
+  try { startupTask = startEngine(); await startupTask; if (stopping) return; createBackgroundTray(); createWindow(); }
+  catch (error) { if (!stopping) { dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
-app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.focus(); } });
-app.on('activate', () => { if (!window && worker?.connected) createWindow(); });
-app.on('window-all-closed', () => { app.quit(); });
+app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); });
+app.on('activate', () => { if (!window && engine?.state === 'ready') createWindow(); });
+app.on('window-all-closed', () => { if (!backgroundRequested) app.quit(); });
 app.on('before-quit', event => {
   if (stopping) return;
   event.preventDefault(); stopping = true;
-  const active = worker;
-  const stopped = active ? new Promise(accept => { const timer = setTimeout(() => { active.kill(); accept(); }, 75000); active.once('exit', () => { clearTimeout(timer); accept(); }); }) : Promise.resolve();
-  stop();
-  stopped.then(() => database?.close()).catch(() => {}).finally(() => app.quit());
+  startupTask.catch(error => console.error(publicError(error).message)).then(() => engine?.stop()).then(result => {
+    if (result && !result.graceful) console.error('The engine required termination; unfinished actions need reconciliation.');
+  }).catch(error => console.error(publicError(error).message)).then(() => database?.close()).catch(error => console.error(publicError(error).message)).finally(() => { tray?.destroy(); app.quit(); });
 });

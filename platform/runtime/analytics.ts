@@ -174,7 +174,7 @@ export class DatabaseCalculator {
     const directory = await mkdtemp(join(tmpdir(),'chausar-sql-'));
     try {
       return await new Promise((accept,reject) => {
-        const child = spawn(process.execPath,[FILE,'--duckdb-worker'],{ cwd: directory, windowsHide: true, shell: false, stdio: ['pipe','pipe','pipe'], env: process.platform === 'win32' ? { SystemRoot: process.env.SystemRoot ?? 'C:\\Windows', TEMP: directory, TMP: directory } : { TMPDIR: directory } });
+        const child = spawn(process.execPath,[FILE,'--duckdb-worker'],{ cwd: directory, windowsHide: true, shell: false, stdio: ['pipe','pipe','pipe'], env: process.platform === 'win32' ? { ELECTRON_RUN_AS_NODE: '1', SystemRoot: process.env.SystemRoot ?? 'C:\\Windows', TEMP: directory, TMP: directory } : { ELECTRON_RUN_AS_NODE: '1', TMPDIR: directory } });
         let bytes = 0; let output = ''; let settled = false; let failure: ChausarError | undefined;
         const timer = setTimeout(() => { failure = new ChausarError('SQL_TIMEOUT','The database calculation exceeded its process deadline.'); child.kill('SIGKILL'); },this.options.operationTimeoutMs);
         const finish = (error?: Error, result?: DatabaseVerification) => { if (settled) return; settled = true; clearTimeout(timer); if (error) reject(error); else accept(result!); };

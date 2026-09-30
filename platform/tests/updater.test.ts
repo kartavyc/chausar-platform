@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign, createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, writeFile, rm, readdir, mkdir, symlink } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, readdir, mkdir, symlink, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -13,7 +13,7 @@ const keys=generateKeyPairSync('ed25519'),artifact=Buffer.from('A test artifact;
 const code=(expected:string)=>(error:any)=>error.code===expected;
 function manifest(version='1.1.0'):ReleaseManifest{return{schemaVersion:1,version,publishedAt:'2026-09-01T00:00:00.000Z',platform:process.platform as any,architecture:process.arch as any,url:'https://downloads.example.com/chausar.pkg',sha256:createHash('sha256').update(artifact).digest('hex'),size:artifact.length,minEngineVersion:'1.0.0',dataSchemaVersion:1,rollback:{supported:true,requiresBackup:true}};}
 function signature(value:ReleaseManifest){return sign(null,Buffer.from(canonicalReleaseManifest(value)),keys.privateKey).toString('base64url');}
-async function directory(t:any){const path=await mkdtemp(join(tmpdir(),'chausar-updater-test-'));t.after(()=>rm(path,{recursive:true,force:true}));return path;}
+async function directory(t:any){const path=await mkdtemp(join(await realpath(tmpdir()),'chausar-updater-test-'));t.after(()=>rm(path,{recursive:true,force:true}));return path;}
 function deadPid() {
   const child=spawnSync(process.execPath,['-e','process.stdout.write(String(process.pid))'],{windowsHide:true,shell:false,encoding:'utf8'});
   assert.equal(child.status,0,child.stderr);const pid=Number(child.stdout);assert.throws(()=>process.kill(pid,0),(error:any)=>error.code==='ESRCH');return pid;

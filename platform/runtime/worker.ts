@@ -1,6 +1,6 @@
 import { Engine } from './engine.ts';
 import { engineJobOptions } from './engine-jobs.ts';
-const engine = new Engine({ directory: process.env.CHAUSAR_VAULT_DIRECTORY ?? './data', demo: process.env.CHAUSAR_DEMO === '1', storage: process.env.CHAUSAR_DEMO === '1' ? 'experimental-file' : 'postgres', postgresUrl: process.env.CHAUSAR_POSTGRES_URL, pythonExecutable: process.env.CHAUSAR_PYTHON, updatePublicKey: process.env.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(process.env) });
+const engine = new Engine({ version: process.env.CHAUSAR_ENGINE_VERSION, directory: process.env.CHAUSAR_VAULT_DIRECTORY ?? './data', demo: process.env.CHAUSAR_DEMO === '1', storage: process.env.CHAUSAR_DEMO === '1' ? 'experimental-file' : 'postgres', postgresUrl: process.env.CHAUSAR_POSTGRES_URL, pythonExecutable: process.env.CHAUSAR_PYTHON, updatePublicKey: process.env.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(process.env) });
 const scheduler = setInterval(() => { void engine.tick().catch(error => reply({ kind: 'scheduler-error', code: (error as any).code ?? 'JOB_SCHEDULER_FAILED' })); }, 30000); scheduler.unref();
 function reply(value: unknown) { if (process.connected) process.send?.(value as any, () => {}); }
 process.on('message', async (message: any) => {

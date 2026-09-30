@@ -25,14 +25,15 @@ import { ConnectorService, type CredentialBroker } from './connectors.ts';
 import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
 import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
 import { AnalyticalHelper } from './helper.ts';
-import { ReleaseUpdater } from './updater.ts';
+import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 
-export type EngineOptions = { directory: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions };
+export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions };
 
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
   options: EngineOptions;
+  readonly version: string;
   vault: Vault | null = null;
   #baseContext: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
   #requestContext = new AsyncLocalStorage<Context>();
@@ -46,7 +47,7 @@ export class Engine {
   get context(): Context { return this.#requestContext.getStore() || this.#baseContext; }
   set context(value: Context) { this.#baseContext = { ...value }; }
   services: Record<string, any> = {};
-  constructor(options: EngineOptions) { this.options = { ...options, directory: resolve(options.directory) }; }
+  constructor(options: EngineOptions) { this.version = options.version ?? '0.1.0-preview.1'; compareVersions(this.version, this.version); this.options = { ...options, directory: resolve(options.directory) }; }
   contextForSession(token: string, channel: Context['channel'] = 'desktop'): Context { this.store(); return this.services.auth.authenticate(token, channel); }
   async withContext<T>(context: Context, work: () => T | Promise<T>): Promise<T> {
     const scoped = Object.freeze({ ...context }); if (this.vault) authorize(this.vault, scoped);
@@ -87,7 +88,7 @@ export class Engine {
     this.services.reports = new ReportService(store, calculationOptions);
     this.services.connectors = new ConnectorService(store, { credentialBroker: this.options.connectorCredentials });
     this.services.helper = new AnalyticalHelper({ executable: this.options.pythonExecutable });
-    if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: '0.1.0-preview.1', stageDirectory: resolve(this.options.directory, 'updates') });
+    if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: resolve(this.options.directory, 'updates') });
     this.services.trust = new TrustService(store);
     this.services.gateway = new ModelGateway(store);
     this.services.speech = new SpeechService(store);
@@ -160,7 +161,7 @@ export class Engine {
   }
   private async handleRequest(method: string, payload: any = {}): Promise<any> {
     check(typeof method === 'string' && method.length <= 80 && payload && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_REQUEST', 'Use a named request with an object payload.');
-    if (method === 'workspace.status') return { open: !!this.vault, workspace: this.vault?.read().workspace, storage: this.options.storage, experimental: !!this.options.demo, version: '0.1.0-preview.1' };
+    if (method === 'workspace.status') return { open: !!this.vault, workspace: this.vault?.read().workspace, storage: this.options.storage, experimental: !!this.options.demo, version: this.version };
     if (method === 'workspace.create') {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before creating another.');
       check(typeof payload.name === 'string' && payload.name.trim().length >= 2 && payload.name.length <= 100, 'INVALID_NAME', 'Give your business a name.');
@@ -312,7 +313,7 @@ export class Engine {
         const result = await s.helper.run(payload.operation, payload.input); authorize(store, ctx, 'admin');
         return { ...result, qualification: 'analytical-preview', financialReceipt: false, requiresHumanReview: true };
       }
-      case 'updates.status': authorize(store, ctx, 'admin'); return { configured: !!s.updater, version: '0.1.0-preview.1', installMode: 'manual-native-installer-required' };
+      case 'updates.status': authorize(store, ctx, 'admin'); return { configured: !!s.updater, version: this.version, installMode: 'manual-native-installer-required' };
       case 'updates.verify': authorize(store, ctx, 'admin'); check(!ctx.sourceTainted && s.updater, 'UPDATES_UNAVAILABLE', 'Configure a publisher-pinned release key in the engine.'); return s.updater.verify(payload.manifest, payload.signature);
       case 'updates.stage': authorize(store, ctx, 'admin'); check(!ctx.sourceTainted && s.updater && payload.confirmed === true, 'UPDATES_UNAVAILABLE', 'Review and explicitly confirm a publisher-signed update.'); return s.updater.stage(payload.manifest, payload.signature);
       case 'workspace.backup': {
