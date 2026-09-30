@@ -1,0 +1,63 @@
+{
+  "checkedAtUtc": "2026-09-30 23:33:02 UTC",
+  "branch": "codex/phone-companion-20261001",
+  "baselineCommit": "100df1d3c3bdb8e7793d81e6590cd6145c617d3e",
+  "remoteSameTreeBaseline": "3160d5a896b5fb3539405948671d530367cfe30d",
+  "scope": "Framework-neutral remote companion protocol and port correctness; no native shell or shared server wiring.",
+  "checks": {
+    "syntaxAndJson": {
+      "command": "node scripts/check.mjs",
+      "status": "passed",
+      "sourceFiles": 64
+    },
+    "newTests": {
+      "client": 26,
+      "cache": 17,
+      "approval": 22,
+      "channels": 4,
+      "total": 69,
+      "passed": 69,
+      "failed": 0
+    },
+    "adjacentExistingTests": {
+      "auth": 9,
+      "actions": 14,
+      "pluginsLearningMcp": 15,
+      "total": 38,
+      "passed": 38,
+      "failed": 0
+    },
+    "combined": {
+      "command": "node --test platform/tests/phone-client.test.ts platform/tests/phone-cache.test.ts platform/tests/phone-approval.test.ts platform/tests/phone-channels.test.ts platform/tests/auth.test.ts platform/tests/workflows-actions.test.ts platform/tests/workflows-plugins-learning-mcp.test.ts",
+      "total": 107,
+      "passed": 107,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "log": "docs/evidence/phone-companion-tests.txt"
+    },
+    "typecheck": {
+      "command": "node \"C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js\" run typecheck",
+      "status": "blocked",
+      "reason": "tsc is not installed in this dependency-free checkout; no network retry or package installation was attempted."
+    },
+    "originalCheckout": {
+      "commit": "100df1d3c3bdb8e7793d81e6590cd6145c617d3e",
+      "status": "clean; read-only baseline untouched"
+    }
+  },
+  "productionQualified": false,
+  "nativeBuilds": false,
+  "providerDelivery": false,
+  "deployment": false,
+  "remaining": [
+    "User native framework choice",
+    "Native/responsive UI",
+    "OS/browser secure key and credential adapters",
+    "TLS/device-proof transport",
+    "Durable pairing/request ledger and atomic engine/version adapter",
+    "Authenticated challenge-offer delivery",
+    "Sealed relay and opted-in WhatsApp/email adapters",
+    "Compiler/dependencies and real-device qualification"
+  ]
+}
