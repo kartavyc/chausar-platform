@@ -12,6 +12,7 @@ export interface EngineHarnessOptions {
   forkProcess?: (path: string, args: string[], options: Record<string, unknown>) => WorkerProcess;
   startupTimeoutMs?: number;
   requestTimeoutMs?: number;
+  lifecycleTimeoutMs?: number;
   shutdownTimeoutMs?: number;
   maxPending?: number;
 }
@@ -21,5 +22,6 @@ export class EngineHarness extends EventEmitter {
   waiting: Map<string, unknown>;
   start(): Promise<void>;
   request(method: string, payload?: Record<string, unknown>): Promise<unknown>;
+  updateJobLifecycle(state: Readonly<{ awake: boolean; windowOpen: boolean; backgroundEnabled: boolean }>): Promise<{ applied: true }>;
   stop(): Promise<{ graceful: boolean; forced: boolean; exitCode?: number | null }>;
 }

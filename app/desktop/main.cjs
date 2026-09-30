@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, protocol, session, dialog, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, session, dialog, Tray, Menu, nativeImage, powerMonitor } = require('electron');
 const { readFile, writeFile, mkdir, lstat } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
 const { REQUEST_CHANNEL, STATUS_CHANNEL, validateRequest, assertTrustedSender, publicError } = require('./ipc-contract.cjs');
@@ -11,10 +11,21 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standar
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
 let window; let engine; let database; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
+let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
 const root = resolve(__dirname, '../..');
 const renderer = join(root, 'app/renderer');
 const engineRoot = app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked') : root;
+function reportJobLifecycle() {
+  if (engine?.state !== 'ready') return Promise.resolve();
+  return engine.updateJobLifecycle({ awake: !stopping && hostAwake, windowOpen: !stopping && !!window && !window.isDestroyed(), backgroundEnabled: !stopping && backgroundRequested });
+}
+function lifecycleChanged() {
+  void reportJobLifecycle().catch(error => {
+    console.error(publicError(error).message);
+    if (!stopping) { dialog.showErrorBox('Chausar jobs stopped', 'The engine could not confirm the desktop state. Restart Chausar before running jobs.'); app.quit(); }
+  });
+}
 async function startEngine() {
   const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   if (stopping) return;
@@ -42,6 +53,7 @@ async function startEngine() {
   engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment });
   engine.on('status', status => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); });
   await engine.start();
+  await reportJobLifecycle();
 }
 function createBackgroundTray() {
   if (!backgroundRequested) return;
@@ -61,10 +73,14 @@ function createWindow() {
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.once('ready-to-show', () => window.show());
   window.loadURL('chausar://app/index.html');
-  window.on('closed', () => { window = null; });
+  window.on('closed', () => { window = null; lifecycleChanged(); });
+  lifecycleChanged();
 }
 if (singleInstance) app.whenReady().then(async () => {
   if (stopping) return;
+  hostAwake = true;
+  powerMonitor.on('suspend', () => { hostAwake = false; lifecycleChanged(); });
+  powerMonitor.on('resume', () => { hostAwake = true; lifecycleChanged(); });
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith('chausar://app/') }));
@@ -91,7 +107,7 @@ app.on('window-all-closed', () => { if (!backgroundRequested) app.quit(); });
 app.on('before-quit', event => {
   if (stopping) return;
   event.preventDefault(); stopping = true;
-  startupTask.catch(error => console.error(publicError(error).message)).then(() => engine?.stop()).then(result => {
+  startupTask.catch(error => console.error(publicError(error).message)).then(() => reportJobLifecycle()).catch(error => console.error(publicError(error).message)).then(() => engine?.stop()).then(result => {
     if (result && !result.graceful) console.error('The engine required termination; unfinished actions need reconciliation.');
   }).catch(error => console.error(publicError(error).message)).then(() => database?.close()).catch(error => console.error(publicError(error).message)).finally(() => { tray?.destroy(); app.quit(); });
 });

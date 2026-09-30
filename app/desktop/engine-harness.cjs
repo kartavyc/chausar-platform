@@ -7,9 +7,9 @@ const { validateRequest } = require('./ipc-contract.cjs');
 function failure(code, message) { return Object.assign(new Error(message), { code }); }
 // Main-process-owned worker lifecycle; a renderer never chooses paths or launch options.
 class EngineHarness extends EventEmitter {
-  constructor({ workerPath, environment, execPath = process.execPath, forkProcess = fork, startupTimeoutMs = 15_000, requestTimeoutMs = 120_000, shutdownTimeoutMs = 75_000, maxPending = 128 }) {
+  constructor({ workerPath, environment, execPath = process.execPath, forkProcess = fork, startupTimeoutMs = 15_000, requestTimeoutMs = 120_000, lifecycleTimeoutMs = 5_000, shutdownTimeoutMs = 75_000, maxPending = 128 }) {
     super();
-    this.options = { workerPath, environment, execPath, forkProcess, startupTimeoutMs, requestTimeoutMs, shutdownTimeoutMs, maxPending };
+    this.options = { workerPath, environment, execPath, forkProcess, startupTimeoutMs, requestTimeoutMs, lifecycleTimeoutMs, shutdownTimeoutMs, maxPending };
     this.worker = null; this.state = 'stopped'; this.waiting = new Map(); this.startup = null; this.shutdown = null;
   }
   status(state) { this.state = state; this.emit('status', Object.freeze({ state, healthy: state === 'ready' })); }
@@ -32,6 +32,7 @@ class EngineHarness extends EventEmitter {
           const pending = this.waiting.get(message.id); if (!pending) return;
           this.waiting.delete(message.id); clearTimeout(pending.timer);
           if (message.error) pending.reject(failure(typeof message.error.code === 'string' ? message.error.code : 'REQUEST_FAILED', typeof message.error.message === 'string' ? message.error.message : 'The engine request failed.'));
+          else if (pending.kind === 'host-lifecycle' && (message.kind !== 'host-lifecycle' || message.applied !== true || message.result?.applied !== true)) pending.reject(failure('INVALID_JOB_LIFECYCLE_ACK', 'The engine did not acknowledge its host lifecycle.'));
           else if (Object.hasOwn(message, 'result')) pending.resolve(message.result);
           else pending.reject(failure('INVALID_ENGINE_REPLY', 'The engine returned an invalid response.'));
         });
@@ -49,12 +50,28 @@ class EngineHarness extends EventEmitter {
   request(method, payload = {}) {
     let input;
     try { input = validateRequest({ method, payload }); } catch (error) { return Promise.reject(error); }
+    return this.#send(input, this.options.requestTimeoutMs);
+  }
+  // This host hook bypasses the renderer method contract and requires a correlated ACK.
+  updateJobLifecycle(state) {
+    if (!state || typeof state !== 'object' || Array.isArray(state) || Object.keys(state).length !== 3 || !['awake', 'windowOpen', 'backgroundEnabled'].every(key => typeof state[key] === 'boolean')) return Promise.reject(failure('INVALID_JOB_LIFECYCLE', 'Report explicit host awake, window and background state.'));
+    const input = { kind: 'host-lifecycle', state: { awake: state.awake, windowOpen: state.windowOpen, backgroundEnabled: state.backgroundEnabled } };
+    return this.#send(input, this.options.lifecycleTimeoutMs).catch(error => {
+      // Unknown lifecycle cannot keep dispatching work under a stale host state.
+      if (this.state === 'ready') {
+        this.status('failed'); this.failPending(error);
+        try { if (this.worker?.connected) this.worker.disconnect(); else this.worker?.kill(); } catch { try { this.worker?.kill(); } catch {} }
+      }
+      throw error;
+    });
+  }
+  #send(input, timeoutMs) {
     if (this.state !== 'ready' || !this.worker?.connected) return Promise.reject(failure('ENGINE_UNAVAILABLE', 'The engine is unavailable. Restart Chausar.'));
     if (this.waiting.size >= this.options.maxPending) return Promise.reject(failure('ENGINE_BUSY', 'Too many desktop requests are pending. Wait for them to finish.'));
     return new Promise((resolve, reject) => {
       const id = randomUUID();
-      const timer = setTimeout(() => { this.waiting.delete(id); reject(failure('REQUEST_TIMEOUT', 'The request timed out. Inspect Activity before retrying an action.')); }, this.options.requestTimeoutMs);
-      this.waiting.set(id, { resolve, reject, timer });
+      const timer = setTimeout(() => { this.waiting.delete(id); reject(input.kind === 'host-lifecycle' ? failure('JOB_LIFECYCLE_TIMEOUT', 'The engine did not acknowledge its host lifecycle in time.') : failure('REQUEST_TIMEOUT', 'The request timed out. Inspect Activity before retrying an action.')); }, timeoutMs);
+      this.waiting.set(id, { resolve, reject, timer, kind: input.kind });
       const sent = error => { if (!error || !this.waiting.has(id)) return; clearTimeout(timer); this.waiting.delete(id); reject(failure('ENGINE_SEND_FAILED', 'The request could not reach the engine.')); };
       try { this.worker.send({ id, ...input }, sent); } catch (error) { sent(error); }
     });

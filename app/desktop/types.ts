@@ -1,7 +1,17 @@
 import type { DesktopMethod } from './ipc-contract.cjs';
+import type { JobConfig } from '../../platform/runtime/jobs.ts';
+import type { MappingRecipe } from '../../platform/runtime/ingest.ts';
+import type { MappingReview, IndependentSourceTotals } from '../../platform/runtime/connector-framework/import.ts';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue; }
+type JobPayloadFields = Omit<JobConfig, 'input' | 'plan' | 'type'>;
+export type DesktopGoalJobConfig = JobPayloadFields & {
+  type: 'calculation-set' | 'evidence-review' | 'action-preparation';
+  input: JsonValue;
+  limits: NonNullable<JobConfig['limits']>;
+};
+export type DesktopJobConfig = (JobPayloadFields & { type: 'owner-brief'; input?: JsonValue }) | DesktopGoalJobConfig;
 type IdMethods = Extract<DesktopMethod, 'receipts.get' | 'sources.delete' | 'memory.undo' | 'actions.execute' | 'actions.reconcile' | 'jobs.pause' | 'jobs.resume' | 'jobs.run' | 'members.revoke' | 'models.approve' | 'speech.approve' | 'plugins.disable' | 'plugins.remove' | 'plugins.run'>;
 type DigestMethods = Extract<DesktopMethod, 'actions.approve' | 'jobs.approve' | 'plugins.enable'>;
 type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M in DigestMethods]: JsonObject & { id: string; digest: string } } & {
@@ -12,11 +22,25 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'workspace.delete': JsonObject & { confirmation: string };
   'conversation.ask': JsonObject & { question: string };
   'actions.revise': JsonObject & { id: string; payload: JsonObject };
+  'jobs.create': DesktopJobConfig;
+  'jobs.amend': { id: string; config: DesktopGoalJobConfig };
+  'jobs.cancel': { id: string };
+  'jobs.reconcile': { id: string };
+  'jobs.progress': { id: string };
+  'jobs.accept': { id: string; repeat?: boolean };
   'jobs.reject': JsonObject & { id: string; reason: string };
+  'connectors.read': { profileId: string };
+  'connectors.reviewMapping': { profileId: string; recipe: MappingRecipe; evidence: MappingReview['evidence'] };
+  'connectors.capture': { acquisitionId: string; reviewId: string; recipe: MappingRecipe; idempotencyKey: string };
+  'connectors.publish': { profileId: string; captureId: string; sourceTotals: IndependentSourceTotals };
+  'connectors.ready': { profileId: string };
+  'connectors.captureStatus': { profileId: string; captureId: string };
+  'connectors.releaseRead': { acquisitionId: string };
   'updates.verify': JsonObject & { manifest: JsonObject | string; signature: string };
   'updates.stage': JsonObject & { manifest: JsonObject | string; signature: string; confirmed: true };
 };
-export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPayloads ? RequiredPayloads[M] : JsonObject;
+type OptionalPayloads = { 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never> };
+export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
 export type DesktopResult<M extends DesktopMethod> = M extends 'workspace.status' ? { open: boolean; experimental: boolean; version: string; storage: string; workspace?: JsonObject } : unknown;
 export interface DesktopBridge {

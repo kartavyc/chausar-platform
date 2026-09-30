@@ -19,14 +19,16 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
   }
   class Harness extends EventEmitter {
-    state = 'ready'; options: any; stops = 0;
+    state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false;
     constructor(options: any) { super(); this.options = options; engines.push(this); }
     async start() {} async request(method: string) { return { method, experimental: true }; }
+    async updateJobLifecycle(state: any) { this.lifecycle.push(JSON.parse(JSON.stringify(state))); if (this.failLifecycle) { this.state = 'failed'; throw new Error('Lifecycle acknowledgement failed.'); } return { applied: true }; }
     async stop() { this.stops++; this.state = 'stopped'; return { graceful: true, forced: false }; }
   }
   class Tray extends EventEmitter { setToolTip() {} setContextMenu(menu: any) { menus.push(menu); } destroy() {} }
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
-  const electron = { app, BrowserWindow: Window, Tray, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle() {} }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const powerMonitor = new EventEmitter();
+  const electron = { app, BrowserWindow: Window, Tray, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle() {} }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
   if (postgresGate) source = source.replace("await import(pathToFileURL(join(engineRoot, 'scripts/postgres-runtime.mjs')).href)", '__postgresModule');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
@@ -38,7 +40,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     return require(name);
   }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, databaseCloses: () => databaseCloses };
+  return { app, windows, engines, menus, errors, handlers, powerMonitor, databaseCloses: () => databaseCloses };
 }
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
@@ -80,4 +82,33 @@ test('quit during bundled database startup closes the completed database before 
   const d = await desktop(['--production'], Promise.resolve(), gate);
   d.app.emit('before-quit', { preventDefault() {} }); await flush(); assert.equal(d.app.quits, 0);
   release(); await flush(); assert.equal(d.databaseCloses(), 1); assert.equal(d.app.quits, 1); assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0);
+});
+
+test('desktop reports actual window, background and sleep transitions before shutdown', async () => {
+  const d = await desktop(['--background']); const engine = d.engines[0];
+  assert.deepEqual(engine.lifecycle, [
+    { awake: true, windowOpen: false, backgroundEnabled: true },
+    { awake: true, windowOpen: true, backgroundEnabled: true },
+  ]);
+  d.powerMonitor.emit('suspend'); await flush();
+  assert.deepEqual(engine.lifecycle.at(-1), { awake: false, windowOpen: true, backgroundEnabled: true });
+  d.windows[0].emit('closed'); await flush();
+  assert.deepEqual(engine.lifecycle.at(-1), { awake: false, windowOpen: false, backgroundEnabled: true });
+  d.app.emit('window-all-closed'); assert.equal(d.app.quits, 0);
+  d.powerMonitor.emit('resume'); await flush();
+  assert.deepEqual(engine.lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: true });
+  d.app.emit('second-instance'); await flush();
+  assert.deepEqual(engine.lifecycle.at(-1), { awake: true, windowOpen: true, backgroundEnabled: true });
+  d.app.emit('before-quit', { preventDefault() {} }); await flush();
+  assert.deepEqual(engine.lifecycle.at(-1), { awake: false, windowOpen: false, backgroundEnabled: false });
+  assert.equal(engine.stops, 1);
+});
+
+test('foreground closure reports no background permission and failed acknowledgement quits visibly', async () => {
+  const d = await desktop([]); d.windows[0].emit('closed'); await flush();
+  assert.deepEqual(d.engines[0].lifecycle.at(-1), { awake: true, windowOpen: false, backgroundEnabled: false });
+  const failed = await desktop(['--background']); failed.engines[0].failLifecycle = true;
+  failed.powerMonitor.emit('suspend'); await flush();
+  assert.equal(failed.engines[0].state, 'failed'); assert.equal(failed.app.quits, 1);
+  assert.match(failed.errors[0], /could not confirm the desktop state/);
 });
