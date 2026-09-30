@@ -31,29 +31,30 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
     const adapter = new PostgresSnapshotAdapter(pool, vaultSlot, false); await adapter.initialize(); return adapter;
   }
   private async initialize() {
-    await this.#pool.query(`CREATE TABLE IF NOT EXISTS chausar_vault_authority (
+    await this.#pool.query(`CREATE TABLE IF NOT EXISTS public.chausar_vault_authority (
       slot TEXT PRIMARY KEY, revision BIGINT NOT NULL CHECK (revision >= 0),
       envelope JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`);
   }
   async load(): Promise<VaultEnvelope | null> {
-    const result = await this.#pool.query('SELECT revision, envelope FROM chausar_vault_authority WHERE slot = $1', [this.#slot]);
+    const result = await this.#pool.query('SELECT revision, envelope FROM public.chausar_vault_authority WHERE slot = $1', [this.#slot]);
     if (!result.rows.length) return null;
     const row = result.rows[0], envelope = typeof row.envelope === 'string' ? JSON.parse(row.envelope) : row.envelope;
-    if (Number(row.revision) !== envelope.revision) throw new ChausarError('CORRUPT_VAULT', 'The stored authority revision is inconsistent.');
+    if (!envelope || !Number.isSafeInteger(envelope.revision) || envelope.revision < 0 || String(row.revision) !== String(envelope.revision)) throw new ChausarError('CORRUPT_VAULT', 'The stored authority revision is inconsistent.');
     return envelope;
   }
   async commit(envelope: VaultEnvelope, expectedRevision: number | null): Promise<void> {
+    if (!envelope || !Number.isSafeInteger(envelope.revision) || envelope.revision < 0 || (expectedRevision !== null && (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0 || envelope.revision !== expectedRevision + 1))) throw new ChausarError('INVALID_REVISION', 'A replacement snapshot must advance its expected revision by exactly one.');
     const client = await this.#pool.connect();
     try {
       await client.query('BEGIN');
       // Advisory lock also serializes creation of a slot whose row does not yet exist.
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`chausar-vault:${this.#slot}`]);
-      const result = await client.query('SELECT revision FROM chausar_vault_authority WHERE slot = $1 FOR UPDATE', [this.#slot]);
+      const result = await client.query('SELECT revision FROM public.chausar_vault_authority WHERE slot = $1 FOR UPDATE', [this.#slot]);
       const current = result.rows.length ? Number(result.rows[0].revision) : null;
       if (current !== expectedRevision) throw new ChausarError('REVISION_CONFLICT', 'The workspace changed in another writer.');
-      if (expectedRevision === null) await client.query('INSERT INTO chausar_vault_authority (slot, revision, envelope) VALUES ($1, $2, $3::jsonb)', [this.#slot, envelope.revision, JSON.stringify(envelope)]);
-      else await client.query('UPDATE chausar_vault_authority SET revision = $2, envelope = $3::jsonb, updated_at = CURRENT_TIMESTAMP WHERE slot = $1 AND revision = $4', [this.#slot, envelope.revision, JSON.stringify(envelope), expectedRevision]);
+      if (expectedRevision === null) await client.query('INSERT INTO public.chausar_vault_authority (slot, revision, envelope) VALUES ($1, $2, $3::jsonb)', [this.#slot, envelope.revision, JSON.stringify(envelope)]);
+      else await client.query('UPDATE public.chausar_vault_authority SET revision = $2, envelope = $3::jsonb, updated_at = CURRENT_TIMESTAMP WHERE slot = $1 AND revision = $4', [this.#slot, envelope.revision, JSON.stringify(envelope), expectedRevision]);
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
     finally { client.release(); }
@@ -63,7 +64,7 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
     try {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`chausar-vault:${this.#slot}`]);
-      await client.query('DELETE FROM chausar_vault_authority WHERE slot = $1', [this.#slot]);
+      await client.query('DELETE FROM public.chausar_vault_authority WHERE slot = $1', [this.#slot]);
       await client.query('COMMIT');
     } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
     finally { client.release(); }

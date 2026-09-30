@@ -11,8 +11,9 @@ export type SQLConnection = {
   close(): Promise<void> | void;
   interrupt?(): void;
 };
-export type DatabaseCalculatorOptions = { connectionFactory?: () => Promise<SQLConnection>; operationTimeoutMs?: number; maxRows?: number };
-export type DatabaseVerification = { verified: true; engine: 'duckdb' | 'injected-sql'; receiptId: string; operation: string; projectionDigest: string; checks: string[] };
+export type SQLDialect = 'duckdb' | 'postgres';
+export type DatabaseCalculatorOptions = { connectionFactory?: (signal: AbortSignal) => Promise<SQLConnection>; sqlDialect?: SQLDialect; operationTimeoutMs?: number; maxRows?: number };
+export type DatabaseVerification = { verified: true; engine: 'duckdb' | 'postgres' | 'injected-sql'; receiptId: string; operation: string; projectionDigest: string; checks: string[] };
 type ProjectionRow = { id: string; kind: string; amount: string; date: string; due: string | null; invoice: string | null; customer: string | null };
 type Projection = { receiptId: string; operation: string; currency: string; definitions: { name: string; kind: string; sign: number }[]; rows: ProjectionRow[]; period: { from: string; to: string } | null; comparePeriod: { from: string; to: string } | null; onDate: string | null; priceChangeBps: string | null; expected: Record<string, string> };
 const FILE = fileURLToPath(import.meta.url);
@@ -61,6 +62,7 @@ function project(receipt: CalculationReceipt, maxRows: number): Projection {
   if (['margin', 'change', 'scenario'].includes(receipt.operation)) check(absoluteSum <= 10n ** 32n, 'SQL_PRECISION_LIMIT', 'Exact transformed SQL calculations reserve integer precision for basis points.');
   const current = period(receipt.period), compare = period(receipt.comparePeriod);
   if (receipt.operation === 'change') check(current && compare, 'SQL_PROJECTION_INVALID', 'Change verification needs both event periods.');
+  if (current && receipt.operation !== 'aging') check(rows.every(r => (r.date >= current.from && r.date <= current.to) || (receipt.operation === 'change' && compare && r.date >= compare.from && r.date <= compare.to)), 'SQL_PROJECTION_INVALID', 'Projected events must belong to a declared calculation period.');
   let onDate: string | null = null; let priceChangeBps: string | null = null;
   if (receipt.operation === 'aging') {
     check(date(receipt.assumptions?.onDate), 'SQL_PROJECTION_INVALID', 'Aging verification needs its explicit observation date.'); onDate = receipt.assumptions.onDate as string;
@@ -68,6 +70,7 @@ function project(receipt: CalculationReceipt, maxRows: number): Projection {
     const invoiceKind = definitions.find(d => d.name === 'billed')!.kind; const links = new Set<string>();
     for (const r of rows) {
       check(r.date <= onDate, 'SQL_PROJECTION_INVALID', 'Aging cannot count events after the observation date.');
+      check(BigInt(r.amount) >= 0n, 'SQL_PROJECTION_INVALID', 'Aging invoices, receipts and credits must be nonnegative event values.');
       if (r.kind === invoiceKind) { check(r.invoice && r.customer && r.due, 'SQL_PROJECTION_INVALID', 'Aging invoices need invoice, customer and due-date links.'); const key = JSON.stringify([r.invoice, r.customer]); check(!links.has(key), 'SQL_AMBIGUOUS_INVOICE', 'Distinct invoice claims cannot reuse one invoice/customer link.'); links.add(key); }
     }
   }
@@ -90,10 +93,26 @@ const NET_QUERY = `WITH ${METRICS}, totals AS (SELECT COALESCE(MAX(CASE WHEN nam
 const MARGIN_QUERY = `WITH ${METRICS}, totals AS (SELECT COALESCE(MAX(CASE WHEN name='earned' THEN value END),0) AS earned, COALESCE(MAX(CASE WHEN name='refunds' THEN value END),0) AS refunds, COALESCE(MAX(CASE WHEN name='costs' THEN value END),0) AS costs FROM metrics), calculated AS (SELECT earned,refunds,costs,earned-refunds AS net_sales,earned-refunds-costs AS contribution FROM totals) SELECT CAST(earned AS VARCHAR) AS earned,CAST(refunds AS VARCHAR) AS refunds,CAST(net_sales AS VARCHAR) AS netSales,CAST(costs AS VARCHAR) AS costs,CAST(contribution AS VARCHAR) AS contribution,CASE WHEN net_sales=0 THEN NULL ELSE CAST((contribution*CAST(10000 AS HUGEINT)) // net_sales AS VARCHAR) END AS marginBps FROM calculated`;
 const CHANGE_QUERY = `WITH totals AS (SELECT CAST(COALESCE(SUM(CASE WHEN r.event_date BETWEEN CAST($1 AS DATE) AND CAST($2 AS DATE) THEN r.amount_minor*d.sign ELSE 0 END),0) AS HUGEINT) AS current_value,CAST(COALESCE(SUM(CASE WHEN r.event_date BETWEEN CAST($3 AS DATE) AND CAST($4 AS DATE) THEN r.amount_minor*d.sign ELSE 0 END),0) AS HUGEINT) AS previous_value FROM receipt_definitions d LEFT JOIN receipt_rows r ON r.kind=d.kind WHERE d.name='earned') SELECT CAST(current_value AS VARCHAR) AS current,CAST(previous_value AS VARCHAR) AS previous,CAST(current_value-previous_value AS VARCHAR) AS change,CASE WHEN previous_value=0 THEN NULL ELSE CAST(((current_value-previous_value)*CAST(10000 AS HUGEINT)) // previous_value AS VARCHAR) END AS changeBps FROM totals`;
 const SCENARIO_QUERY = `WITH ${METRICS}, calculated AS (SELECT value AS baseline,(value*(CAST(10000 AS HUGEINT)+CAST($1 AS HUGEINT))) // CAST(10000 AS HUGEINT) AS scenario FROM metrics WHERE name='earned') SELECT CAST(baseline AS VARCHAR) AS baseline,CAST(scenario AS VARCHAR) AS scenario,CAST(scenario-baseline AS VARCHAR) AS change,CAST(CAST($1 AS HUGEINT) AS VARCHAR) AS priceChangeBps FROM calculated`;
-const AGING_QUERY = `WITH classified AS (SELECT r.*,d.name AS metric FROM receipt_rows r JOIN receipt_definitions d ON r.kind=d.kind WHERE r.event_date<=CAST($1 AS DATE)), linked AS (SELECT invoice_id,customer_id,SUM(amount_minor) AS credits FROM classified WHERE metric IN ('received','refunds') AND invoice_id IS NOT NULL GROUP BY invoice_id,customer_id), balances AS (SELECT i.due_date,i.amount_minor-COALESCE(l.credits,0) AS balance FROM classified i LEFT JOIN linked l ON i.invoice_id=l.invoice_id AND i.customer_id=l.customer_id WHERE i.metric='billed'), outstanding AS (SELECT GREATEST(balance,0) AS amount,GREATEST(-balance,0) AS excess,date_diff('day',due_date,CAST($1 AS DATE)) AS days FROM balances), summary AS (SELECT COALESCE(SUM(CASE WHEN days<=0 THEN amount ELSE 0 END),0) AS not_due,COALESCE(SUM(CASE WHEN days BETWEEN 1 AND 30 THEN amount ELSE 0 END),0) AS days_1_30,COALESCE(SUM(CASE WHEN days BETWEEN 31 AND 60 THEN amount ELSE 0 END),0) AS days_31_60,COALESCE(SUM(CASE WHEN days BETWEEN 61 AND 90 THEN amount ELSE 0 END),0) AS days_61_90,COALESCE(SUM(CASE WHEN days>90 THEN amount ELSE 0 END),0) AS over_90,COALESCE(SUM(amount),0) AS outstanding,COALESCE(SUM(excess),0)+(SELECT COALESCE(SUM(amount_minor),0) FROM classified WHERE metric IN ('received','refunds') AND invoice_id IS NULL) AS unallocated FROM outstanding) SELECT CAST(not_due AS VARCHAR) AS notDue,CAST(days_1_30 AS VARCHAR) AS days1to30,CAST(days_31_60 AS VARCHAR) AS days31to60,CAST(days_61_90 AS VARCHAR) AS days61to90,CAST(over_90 AS VARCHAR) AS over90,CAST(outstanding AS VARCHAR) AS outstanding,CAST(unallocated AS VARCHAR) AS unallocated FROM summary`;
+const AGING_QUERY = `WITH classified AS (SELECT r.*,d.name AS metric FROM receipt_rows r JOIN receipt_definitions d ON r.kind=d.kind WHERE r.event_date<=CAST($1 AS DATE)), linked AS (SELECT invoice_id,customer_id,SUM(amount_minor) AS credits FROM classified WHERE metric IN ('received','refunds') GROUP BY invoice_id,customer_id), balances AS (SELECT i.due_date,i.amount_minor-COALESCE(l.credits,0) AS balance FROM classified i LEFT JOIN linked l ON i.invoice_id=l.invoice_id AND i.customer_id=l.customer_id WHERE i.metric='billed'), outstanding AS (SELECT GREATEST(balance,0) AS amount,GREATEST(-balance,0) AS excess,date_diff('day',due_date,CAST($1 AS DATE)) AS days FROM balances), summary AS (SELECT COALESCE(SUM(CASE WHEN days<=0 THEN amount ELSE 0 END),0) AS not_due,COALESCE(SUM(CASE WHEN days BETWEEN 1 AND 30 THEN amount ELSE 0 END),0) AS days_1_30,COALESCE(SUM(CASE WHEN days BETWEEN 31 AND 60 THEN amount ELSE 0 END),0) AS days_31_60,COALESCE(SUM(CASE WHEN days BETWEEN 61 AND 90 THEN amount ELSE 0 END),0) AS days_61_90,COALESCE(SUM(CASE WHEN days>90 THEN amount ELSE 0 END),0) AS over_90,COALESCE(SUM(amount),0) AS outstanding,COALESCE(SUM(excess),0)+(SELECT COALESCE(SUM(c.amount_minor),0) FROM classified c WHERE c.metric IN ('received','refunds') AND NOT EXISTS (SELECT 1 FROM classified i WHERE i.metric='billed' AND i.invoice_id=c.invoice_id AND i.customer_id=c.customer_id)) AS unallocated FROM outstanding) SELECT CAST(not_due AS VARCHAR) AS "notDue",CAST(days_1_30 AS VARCHAR) AS "days1to30",CAST(days_31_60 AS VARCHAR) AS "days31to60",CAST(days_61_90 AS VARCHAR) AS "days61to90",CAST(over_90 AS VARCHAR) AS "over90",CAST(outstanding AS VARCHAR) AS outstanding,CAST(unallocated AS VARCHAR) AS unallocated FROM summary`;
 
-async function verifySQL(connection: SQLConnection, projection: Projection, engine: DatabaseVerification['engine']): Promise<DatabaseVerification> {
-  await connection.execute(CREATE_ROWS); await connection.execute(CREATE_DEFINITIONS);
+/** Compile only registered statements; caller data never enters SQL text. */
+function dialectSQL(sql: string, dialect: SQLDialect): string {
+  if (dialect === 'duckdb') return sql;
+  // PostgreSQL div(numeric,numeric) returns an exact quotient truncated toward
+  // zero. Ordinary numeric '/' can round near integer boundaries.
+  let compiled = sql.replaceAll('HUGEINT', 'NUMERIC(38,0)')
+    .replaceAll('(contribution*CAST(10000 AS NUMERIC(38,0))) // net_sales', 'div(contribution*CAST(10000 AS NUMERIC(38,0)), net_sales)')
+    .replaceAll('((current_value-previous_value)*CAST(10000 AS NUMERIC(38,0))) // previous_value', 'div((current_value-previous_value)*CAST(10000 AS NUMERIC(38,0)), previous_value)')
+    .replaceAll('(value*(CAST(10000 AS NUMERIC(38,0))+CAST($1 AS NUMERIC(38,0)))) // CAST(10000 AS NUMERIC(38,0))', 'div(value*(CAST(10000 AS NUMERIC(38,0))+CAST($1 AS NUMERIC(38,0))), CAST(10000 AS NUMERIC(38,0)))')
+    .replaceAll("date_diff('day',due_date,CAST($1 AS DATE))", '(CAST($1 AS DATE)-due_date)');
+  // Preserve case-sensitive receipt figure keys in PostgreSQL result metadata.
+  for (const name of ['netSales', 'marginBps', 'changeBps', 'priceChangeBps']) compiled = compiled.replaceAll(`AS ${name}`, `AS "${name}"`);
+  check(!compiled.includes('//') && !compiled.includes('HUGEINT'), 'SQL_DIALECT_UNSUPPORTED', 'The registered query has no exact PostgreSQL form.');
+  return compiled;
+}
+
+async function verifySQL(connection: SQLConnection, projection: Projection, engine: DatabaseVerification['engine'], dialect: SQLDialect = 'duckdb'): Promise<DatabaseVerification> {
+  await connection.execute(CREATE_ROWS + (dialect === 'postgres' ? ' ON COMMIT DROP' : '')); await connection.execute(CREATE_DEFINITIONS + (dialect === 'postgres' ? ' ON COMMIT DROP' : ''));
   for (const definition of projection.definitions) await connection.execute(INSERT_DEFINITION, [definition.name, definition.kind, definition.sign]);
   for (const row of projection.rows) await connection.execute(INSERT_ROW, [row.id, row.kind, row.amount, row.date, row.due, row.invoice, row.customer]);
   let sql: string; let parameters: (string | number | null)[]; let primary: string;
@@ -103,7 +122,7 @@ async function verifySQL(connection: SQLConnection, projection: Projection, engi
   else if (projection.operation === 'scenario') { sql = SCENARIO_QUERY; parameters = [projection.priceChangeBps]; primary = 'scenario'; }
   else if (projection.operation === 'aging') { sql = AGING_QUERY; parameters = [projection.onDate]; primary = 'outstanding'; }
   else { sql = SUM_QUERY; parameters = [projection.definitions[0].name]; primary = 'total'; }
-  const result = await connection.execute(sql, parameters);
+  const result = await connection.execute(dialectSQL(sql, dialect), parameters);
   check(result.length === 1 && result[0] && typeof result[0] === 'object', 'SQL_RESULT_INVALID', 'The SQL calculation must return one exact result row.');
   const computed: Record<string, string> = {};
   for (const [key,value] of Object.entries(result[0])) { if (value !== null) computed[key] = integer(value); }
@@ -128,18 +147,27 @@ async function nativeConnection(): Promise<SQLConnection> {
 }
 
 export class DatabaseCalculator {
-  options: Required<Pick<DatabaseCalculatorOptions,'operationTimeoutMs'|'maxRows'>> & Pick<DatabaseCalculatorOptions,'connectionFactory'>;
+  options: Required<Pick<DatabaseCalculatorOptions,'operationTimeoutMs'|'maxRows'|'sqlDialect'>> & Pick<DatabaseCalculatorOptions,'connectionFactory'>;
   constructor(options: DatabaseCalculatorOptions = {}) {
-    this.options = { ...options, operationTimeoutMs: options.operationTimeoutMs ?? 15000, maxRows: options.maxRows ?? 50000 };
+    this.options = { ...options, sqlDialect: options.sqlDialect ?? 'duckdb', operationTimeoutMs: options.operationTimeoutMs ?? 15000, maxRows: options.maxRows ?? 50000 };
+    check(['duckdb','postgres'].includes(this.options.sqlDialect) && (this.options.sqlDialect === 'duckdb' || !!this.options.connectionFactory), 'SQL_DIALECT_UNSUPPORTED', 'PostgreSQL requires an explicit trusted connection adapter.');
     check(Number.isInteger(this.options.operationTimeoutMs) && this.options.operationTimeoutMs >= 50 && this.options.operationTimeoutMs <= 30000 && Number.isInteger(this.options.maxRows) && this.options.maxRows > 0 && this.options.maxRows <= 100000, 'SQL_LIMIT_INVALID', 'Set bounded SQL execution and projection limits.');
   }
   async verify(receipt: CalculationReceipt): Promise<DatabaseVerification> {
     const projection = project(receipt, this.options.maxRows);
     if (!this.options.connectionFactory) return this.subprocess(projection);
-    const connection = await this.options.connectionFactory(); let timer: ReturnType<typeof setTimeout> | undefined;
-    const operation = verifySQL(connection, projection, 'injected-sql');
-    try { return await Promise.race([operation, new Promise<never>((_,reject) => { timer = setTimeout(() => { connection.interrupt?.(); reject(new ChausarError('SQL_TIMEOUT','The SQL calculation exceeded its execution budget.')); },this.options.operationTimeoutMs); })]); }
-    finally { if (timer) clearTimeout(timer); await connection.close(); }
+    const controller = new AbortController(); let connection: SQLConnection | undefined; let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_,reject) => { timer = setTimeout(() => { controller.abort(); connection?.interrupt?.(); reject(new ChausarError('SQL_TIMEOUT','The SQL calculation exceeded its execution budget.')); },this.options.operationTimeoutMs); });
+    const operation = (async () => {
+      connection = await this.options.connectionFactory!(controller.signal);
+      try {
+        check(!controller.signal.aborted, 'SQL_TIMEOUT', 'The SQL connection arrived after its execution deadline.');
+        return await verifySQL(connection, projection, 'injected-sql', this.options.sqlDialect);
+      } finally { if (controller.signal.aborted) connection.interrupt?.(); await connection.close(); }
+    })();
+    // Acquisition, session initialization, execution and cleanup share one budget.
+    try { return await Promise.race([operation, deadline]); }
+    finally { if (timer) clearTimeout(timer); }
   }
   private async subprocess(projection: Projection): Promise<DatabaseVerification> {
     const payload = JSON.stringify(projection); check(Buffer.byteLength(payload) <= MAX_BYTES, 'SQL_ROW_LIMIT', 'The SQL projection exceeds its transfer budget.');

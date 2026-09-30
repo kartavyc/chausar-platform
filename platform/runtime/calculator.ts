@@ -1,13 +1,14 @@
 import { authorize, audit, check, hash, newId, now, type Context, type Fact, type StateStore } from './contracts.ts';
 import { canSeeFact, currentAccess, selectFacts, validDate, validatePeriod, type FactFilter, type Period } from './memory.ts';
 import { OntologyService, type Definition } from './ontology.ts';
+import { formatMinor } from './currency.ts';
 
 export type CalculationRequest = FactFilter & { operation: string; comparePeriod?: Period; onDate?: string; assumptions?: { priceChangeBps: string } };
 export type Figure = { key: string; label: string; minor: string; display: string; unit: 'money' | 'basis-points'; currency?: string };
 export type ReceiptRow = { factId: string; entityId: string; sourceId: string; sourceRow: number; kind: string; amountMinor: string; validFrom: string; dueDate?: string; invoiceId?: string; customerId?: string; orderId?: string; status?: string; branch?: string; normalization?: { sourceCurrency: string; targetCurrency: string; rate: unknown } };
 export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown };
 export type CalculatorOptions = { verifier?: (receipt: CalculationReceipt) => Promise<unknown> };
-export function formatMoney(n: string | bigint, currency = 'INR') { const value = BigInt(n); const abs = value < 0n ? -value : value; const whole = String(abs / 100n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); return `${currency} ${value < 0n ? '-' : ''}${whole}.${String(abs % 100n).padStart(2, '0')}`; }
+export function formatMoney(n: string | bigint, currency = 'INR') { return formatMinor(n, currency); }
 export function sumMoney(values: string[]) { return String(values.reduce((sum, value) => { check(/^-?\d+$/.test(value), 'INVALID_MINOR_UNITS', 'Calculator amounts must be whole minor-unit strings.'); return sum + BigInt(value); }, 0n)); }
 const moneyFigure = (key: string, label: string, value: bigint, currency: string): Figure => ({ key, label, minor: String(value), display: formatMoney(value, currency), unit: 'money', currency });
 function bps(numerator: bigint, denominator: bigint): bigint | null { return denominator === 0n ? null : numerator * 10000n / denominator; }
@@ -50,14 +51,16 @@ export class CalculatorService {
     if (request.assumptions) check(operation.type === 'scenario', 'INVALID_CALCULATION', 'Assumptions are only accepted by the scenario calculation.');
     const definitions = dictionary.definitions.filter(d => operation.definitions.includes(d.name)); const relevantKinds = definitions.map(d => d.kind);
     const selection = selectFacts(this.store, ctx, { period: operation.type === 'aging' ? undefined : request.period, asOf: request.asOf, branch: request.branch, customerId: request.customerId, orderId: request.orderId, kinds: relevantKinds });
-    const excluded = [...selection.excluded]; const counted = new Map<string, Fact>();
+    const excluded = [...selection.excluded]; const counted = new Map<string, Fact>(); const missingMeasures = new Set<string>();
+    const selectedFactIds = new Set(selection.facts.map(f => f.id));
+    const conflictIds = new Set(selection.conflicts.map(c => JSON.stringify([c.kind, c.entityId])));
     const metric = (name: string, selected: Fact[] = selection.facts): bigint => {
       const d = definitions.find(def => def.name === name); check(d, 'MISSING_DEFINITION', 'A calculation refers to an unpublished definition.'); let total = 0n;
       for (const row of selected.filter(f => f.kind === d.kind)) {
         const status = String(row.fields.status ?? '');
         if (['cancelled', 'void', 'draft', 'bounced'].includes(status)) { excluded.push({ rowId: row.id, reason: `Status ${status} is excluded by the published counting rule.` }); continue; }
         const value = row.fields[d.field];
-        if (value === undefined || value === null) { check(d.nulls !== 'reject', 'MISSING_MEASURE_VALUE', `A ${d.name} fact is missing its required amount.`); excluded.push({ rowId: row.id, reason: 'A null amount is explicitly excluded by the dictionary.' }); continue; }
+        if (value === undefined || value === null) { check(d.nulls !== 'reject', 'MISSING_MEASURE_VALUE', `A ${d.name} fact is missing its required amount.`); missingMeasures.add(row.id); excluded.push({ rowId: row.id, reason: 'A null amount is explicitly excluded by the dictionary.' }); continue; }
         check(typeof value === 'string' && /^-?\d+$/.test(value), 'INVALID_MINOR_UNITS', 'Financial calculations require exact integer minor-unit strings.');
         check(row.fields.currency === d.currency, 'CURRENCY_MISMATCH', 'Unconverted currencies cannot be added.');
         const amount = BigInt(value); check(!['refunds', 'costs'].includes(d.name) || amount >= 0n, 'INVALID_EVENT_SIGN', 'Refunds and costs must be positive event values; corrections are separate versions.');
@@ -76,6 +79,8 @@ export class CalculatorService {
     } else if (operation.type === 'change') {
       check(request.period && request.comparePeriod, 'COMPARISON_REQUIRED', 'Give both current and comparison periods.');
       const prior = selectFacts(this.store, ctx, { ...request, period: request.comparePeriod, kinds: relevantKinds });
+      for (const fact of prior.facts) selectedFactIds.add(fact.id);
+      for (const conflict of prior.conflicts) conflictIds.add(JSON.stringify([conflict.kind, conflict.entityId]));
       const current = metric('earned'), previous = metric('earned', prior.facts); result = current - previous; excluded.push(...prior.excluded);
       figures.push(moneyFigure('current', 'Current earned revenue', current, dictionary.currency), moneyFigure('previous', 'Prior earned revenue', previous, dictionary.currency), moneyFigure('change', 'Measured change', result, dictionary.currency));
       const ratio = bps(result, previous); if (ratio !== null) figures.push({ key: 'changeBps', label: 'Change in basis points (truncated)', minor: String(ratio), display: `${ratio} bps`, unit: 'basis-points' });
@@ -92,11 +97,25 @@ export class CalculatorService {
       const buckets: Record<string, bigint> = { notDue: 0n, days1to30: 0n, days31to60: 0n, days61to90: 0n, over90: 0n }; let unallocated = 0n;
       metric('billed', ageRows); metric('received', ageRows); metric('refunds', ageRows);
       const usable = ageRows.filter(f => counted.has(f.id));
-      for (const f of usable.filter(f => f.kind === paymentDefinition.kind || f.kind === refundDefinition.kind)) if (!f.fields.invoiceId) unallocated += BigInt(String(f.fields.amountMinor));
-      for (const invoice of usable.filter(f => f.kind === invoiceDefinition.kind)) {
-        check(typeof invoice.fields.invoiceId === 'string' && validDate(invoice.fields.dueDate), 'AGING_LINK_REQUIRED', 'Every invoice needs an invoice id and an explicit due date for aging.');
-        const linked = usable.filter(f => f.kind !== invoiceDefinition.kind && f.fields.invoiceId === invoice.fields.invoiceId && f.fields.customerId === invoice.fields.customerId);
-        let outstanding = BigInt(String(invoice.fields.amountMinor)) - linked.reduce((s, f) => s + BigInt(String(f.fields.amountMinor)), 0n); if (outstanding < 0n) { unallocated += -outstanding; outstanding = 0n; }
+      check(definitions.every(d => (d.sign ?? 1) === 1 && d.field === 'amountMinor') && new Set(definitions.map(d => d.kind)).size === 3, 'AGING_DEFINITION_UNSUPPORTED', 'Aging requires distinct positively defined invoice, payment and refund amount measures.');
+      const invoiceLinks = new Set<string>(); const invoices = usable.filter(f => f.kind === invoiceDefinition.kind);
+      const link = (invoiceId: unknown, customerId: unknown) => typeof invoiceId === 'string' && invoiceId.length > 0 && typeof customerId === 'string' && customerId.length > 0 ? JSON.stringify([invoiceId, customerId]) : null;
+      for (const invoice of invoices) {
+        const key = link(invoice.fields.invoiceId, invoice.fields.customerId);
+        check(key && validDate(invoice.fields.dueDate), 'AGING_LINK_REQUIRED', 'Every invoice needs invoice, customer and due-date links for aging.');
+        check(!invoiceLinks.has(key), 'AGING_AMBIGUOUS_INVOICE', 'Distinct invoices cannot reuse an invoice/customer link.'); invoiceLinks.add(key);
+        check(BigInt(String(invoice.fields.amountMinor)) >= 0n, 'INVALID_EVENT_SIGN', 'Invoice values must be nonnegative; credit notes are separate events.');
+      }
+      const credits = new Map<string, bigint>();
+      for (const f of usable.filter(f => f.kind === paymentDefinition.kind || f.kind === refundDefinition.kind)) {
+        const amount = BigInt(String(f.fields.amountMinor)); check(amount >= 0n, 'INVALID_EVENT_SIGN', 'Aging receipts and credits must be nonnegative event values.');
+        const key = link(f.fields.invoiceId, f.fields.customerId);
+        if (!key || !invoiceLinks.has(key)) unallocated += amount;
+        else credits.set(key, (credits.get(key) ?? 0n) + amount);
+      }
+      for (const invoice of invoices) {
+        const key = link(invoice.fields.invoiceId, invoice.fields.customerId)!;
+        let outstanding = BigInt(String(invoice.fields.amountMinor)) - (credits.get(key) ?? 0n); if (outstanding < 0n) { unallocated += -outstanding; outstanding = 0n; }
         const days = Math.floor((Date.parse(onDate) - Date.parse(String(invoice.fields.dueDate))) / 86_400_000); const bucket = days <= 0 ? 'notDue' : days <= 30 ? 'days1to30' : days <= 60 ? 'days31to60' : days <= 90 ? 'days61to90' : 'over90'; buckets[bucket] += outstanding; result += outstanding;
       }
       for (const [key, value] of Object.entries(buckets)) figures.push(moneyFigure(key, { notDue: 'Not yet due', days1to30: 'Overdue one to thirty days', days31to60: 'Overdue thirty-one to sixty days', days61to90: 'Overdue sixty-one to ninety days', over90: 'Overdue more than ninety days' }[key]!, value, dictionary.currency));
@@ -106,16 +125,18 @@ export class CalculatorService {
     const importIds = state.imports.filter(i => i.rowIds?.some((id: string) => counted.has(id))).map(i => i.id);
     const allReconciled = rows.every(r => state.imports.some(i => i.coverage?.reconciled && i.rowIds?.includes(r.id)));
     const gaps: string[] = []; if (!allReconciled && rows.length) gaps.push('Some selected facts were entered directly and are not reconciled to a source report.');
-    if (selection.conflicts.length) gaps.push('Unresolved source conflicts were excluded from this total.');
+    if (conflictIds.size) gaps.push('Unresolved source conflicts were excluded from this total.');
+    if (missingMeasures.size) gaps.push('Some selected amounts are unknown and were excluded by the dictionary. This total is partial; missing amounts are not zero.');
     if (!rows.length) gaps.push('No visible facts were counted. An empty selection is not proof that the business activity was zero.');
     if (request.operation === 'margin') gaps.push('Contribution includes imported costs only. Missing freight, fees, advertising, overhead or tax treatment can change the economic result.');
+    const effectiveExcluded = excluded.filter(e => !counted.has(e.rowId) || e.reason !== 'Outside the requested event period.');
     const receipt: CalculationReceipt = {
       id: newId('receipt'), memberId: ctx.memberId, epoch: ctx.epoch, sourceIds: [...new Set(rows.map(r => r.sourceId))], operation: request.operation, createdAt: now(), asOf: selection.asOf,
       period: request.period ?? null, comparePeriod: request.comparePeriod ?? null, branch: request.branch ?? null, currency: dictionary.currency,
       ontologyVersion: dictionary.version, dictionaryHash: dictionary.hash, definitionHash: hash(definitions), definitions, figures, valueMinor: String(result), totalMinor: String(result), rowIds: rows.map(f => f.id),
       rows: rows.map(f => ({ factId: f.id, entityId: f.entityId, sourceId: f.sourceId, sourceRow: f.sourceRow, kind: f.kind, amountMinor: String(f.fields.amountMinor), validFrom: f.validFrom, branch: f.branch })),
-      exclusions: [...new Map(excluded.map(e => [`${e.rowId}:${e.reason}`, e])).values()],
-      coverage: { selectedRows: selection.facts.length, countedRows: rows.length, excludedRows: new Set(excluded.map(e => e.rowId)).size, unresolvedConflicts: selection.conflicts.length, importIds, completeness: selection.conflicts.length ? 'partial' : !rows.length ? 'empty' : allReconciled ? 'reconciled-imports' : 'unreconciled-facts', gaps },
+      exclusions: [...new Map(effectiveExcluded.map(e => [`${e.rowId}:${e.reason}`, e])).values()],
+      coverage: { selectedRows: selectedFactIds.size, countedRows: rows.length, excludedRows: new Set(effectiveExcluded.map(e => e.rowId)).size, unresolvedConflicts: conflictIds.size, importIds, completeness: conflictIds.size || missingMeasures.size ? 'partial' : !rows.length ? 'empty' : allReconciled ? 'reconciled-imports' : 'unreconciled-facts', gaps },
       assumptions, explanation: figures.map(f => `${f.label}: ${f.display}.`).join(' ') + (gaps.length ? ` Coverage: ${gaps.join(' ')}` : ''), stale: false, allowedNumbers: [],
     };
     for (const row of receipt.rows) { const fact = counted.get(row.factId)!; if (fact.fields._fx) row.normalization = { sourceCurrency: String(fact.fields._sourceCurrency), targetCurrency: dictionary.currency, rate: structuredClone(fact.fields._fx) }; }

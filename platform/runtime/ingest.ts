@@ -1,7 +1,8 @@
-import { authorize, audit, check, hash, minor, newId, now, type Context, type StateStore } from './contracts.ts';
+import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 import { currentAccess, insertFacts, validDate, type FactInput } from './memory.ts';
 import { OntologyService } from './ontology.ts';
 import { isNoResend } from './trust.ts';
+import { currencyMinorDigits, decimalMinor } from './currency.ts';
 
 export type ImportFormat = 'csv' | 'tally-xml' | 'zoho-json' | 'gst-json' | 'bank-csv' | 'shopify-json' | 'xlsx';
 export type Binding = { target: string; source?: string; constant?: string; type: 'string' | 'money' | 'date' | 'integer' | 'boolean'; nulls: 'reject' | 'omit' | 'zero'; values?: Record<string, string>; dateFormat?: 'ISO' | 'DMY' | 'YMD8'; moneyUnit?: 'major' | 'minor'; currency?: string; fx?: { numerator: string; denominator: string; rounding: 'exact' | 'half-up' } };
@@ -32,20 +33,21 @@ export function parseCsv(text: string): Record<string, string>[] {
   return rows.map((r, index) => { check(r.length === headers.length, 'CSV_WIDTH', `CSV row ${index + 2} has a different column count.`); return Object.fromEntries(headers.map((h, i) => [h, r[i]])); });
 }
 
-export function parseIndianMoney(input: unknown, unit: 'major' | 'minor' = 'major'): string {
+export function parseIndianMoney(input: unknown, unit: 'major' | 'minor' = 'major', currency = 'INR'): string {
   check(typeof input === 'string' || (typeof input === 'number' && Number.isSafeInteger(input)), 'INVALID_AMOUNT', 'Money values must be decimal text or safe integers.');
-  let text = String(input).trim().replace(/^(?:INR|Rs\.?|\u20b9)\s*/i, '').replaceAll(',', '');
+  currencyMinorDigits(currency);
+  let text = String(input).trim().replace(new RegExp(`^(?:${currency}${currency === 'INR' ? '|Rs\\.?|\\u20b9' : ''})\\s*`, 'i'), '').replaceAll(',', '');
   let credit = false;
   if (/\s+(Dr|Cr)$/i.test(text)) { credit = /Cr$/i.test(text); text = text.replace(/\s+(Dr|Cr)$/i, ''); }
-  const pieces = [...text.matchAll(/(\d+(?:\.\d{1,2})?)\s*(crore|lakh|lac|thousand)\b/gi)];
+  const pieces = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(crore|lakh|lac|thousand)\b/gi)];
   if (pieces.length) {
     check(pieces.map(p => p[0]).join(' ').replace(/\s+/g, '') === text.replace(/\s+/g, ''), 'INVALID_AMOUNT', 'Use numeric crore, lakh and thousand amounts with no ambiguous words.');
     const multipliers: Record<string, bigint> = { crore: 10_000_000n, lakh: 100_000n, lac: 100_000n, thousand: 1_000n };
-    const n = pieces.reduce((sum, p) => sum + BigInt(minor(p[1])) * multipliers[p[2].toLowerCase()], 0n);
+    const n = pieces.reduce((sum, p) => sum + BigInt(decimalMinor(p[1], currency)) * multipliers[p[2].toLowerCase()], 0n);
     return String(credit ? -n : n);
   }
   check(unit === 'major' || /^-?\d+$/.test(text), 'INVALID_AMOUNT', 'Minor units must be whole integers.');
-  const n = unit === 'minor' ? BigInt(text) : BigInt(minor(text));
+  const n = unit === 'minor' ? BigInt(text) : BigInt(decimalMinor(text, currency));
   return String(credit ? -n : n);
 }
 export function parseBankCsv(content: string, recipe: MappingRecipe): Record<string, unknown>[] {
@@ -53,10 +55,10 @@ export function parseBankCsv(content: string, recipe: MappingRecipe): Record<str
   check(Object.keys(layout).every(k => ['idField', 'dateField', 'descriptionField', 'debitField', 'creditField', 'balanceField', 'dateFormat', 'openingMinor', 'closingMinor', 'currency'].includes(k)) && /^-?\d+$/.test(layout.openingMinor) && /^-?\d+$/.test(layout.closingMinor), 'INVALID_BANK_LAYOUT', 'The bank layout needs exact source balances and named data fields.');
   let balance = BigInt(layout.openingMinor); const rows = parseCsv(content);
   const normalized = rows.map((row, index) => {
-    const debit = row[layout.debitField] ? BigInt(parseIndianMoney(row[layout.debitField])) : 0n; const credit = row[layout.creditField] ? BigInt(parseIndianMoney(row[layout.creditField])) : 0n;
+    const debit = row[layout.debitField] ? BigInt(parseIndianMoney(row[layout.debitField], 'major', layout.currency)) : 0n; const credit = row[layout.creditField] ? BigInt(parseIndianMoney(row[layout.creditField], 'major', layout.currency)) : 0n;
     check(debit >= 0n && credit >= 0n && (debit === 0n || credit === 0n), 'AMBIGUOUS_BANK_MOVEMENT', 'Every bank row must have one nonnegative debit or credit.');
     const movement = credit - debit; balance += movement;
-    check(row[layout.balanceField] !== undefined && balance === BigInt(parseIndianMoney(row[layout.balanceField])), 'BANK_BALANCE_MISMATCH', `Bank row ${index + 2} does not reconcile to its running balance.`);
+    check(row[layout.balanceField] !== undefined && balance === BigInt(parseIndianMoney(row[layout.balanceField], 'major', layout.currency)), 'BANK_BALANCE_MISMATCH', `Bank row ${index + 2} does not reconcile to its running balance.`);
     check(row[layout.idField], 'BANK_ID_REQUIRED', 'Every bank transaction needs a stable source reference; row positions cannot deduplicate exports.');
     return { id: row[layout.idField], kind: 'bank', date: parseDate(row[layout.dateField], layout.dateFormat), amount: String(movement), currency: layout.currency, customerId: '', invoiceId: '', orderId: '', dueDate: '', status: 'settled', description: row[layout.descriptionField] ?? '', branch: recipe.scope.branches[0] };
   });
@@ -127,12 +129,26 @@ export function parseZohoJson(content: string): Record<string, unknown>[] {
   const data = safeJson(content);
   check(data.page_context?.has_more_page !== true && data.complete !== false, 'INCOMPLETE_EXPORT', 'The Zoho export has more pages. Fetch all pages and report totals first.');
   const invoices = data.invoices ?? (Array.isArray(data) ? data : null); check(Array.isArray(invoices), 'INVALID_ZOHO_EXPORT', 'Expected a complete Zoho invoice export.');
-  return invoices.map((r: any) => { check(r.invoice_id && r.date && (r.sub_total !== undefined || r.subtotal !== undefined), 'MISSING_ZOHO_NET', 'Zoho needs invoice id, date and subtotal; gross totals cannot substitute for net revenue.'); return { id: String(r.invoice_id), kind: 'invoice', date: r.date, amount: r.sub_total ?? r.subtotal, currency: r.currency_code ?? 'INR', customerId: String(r.customer_id ?? ''), invoiceId: String(r.invoice_id), orderId: String(r.reference_number ?? ''), dueDate: r.due_date ?? '', status: r.status ?? '', description: r.notes ?? '', branch: String(r.branch_id ?? 'main') }; });
+  return invoices.map((r: any) => {
+    check(r.invoice_id && r.date && (r.sub_total !== undefined || r.subtotal !== undefined), 'MISSING_ZOHO_NET', 'Zoho needs invoice id, date and subtotal; gross totals cannot substitute for net revenue.');
+    check(typeof r.currency_code === 'string' && /^[A-Z]{3}$/.test(r.currency_code), 'MISSING_ZOHO_CURRENCY', 'Every Zoho invoice needs its explicit three-letter currency code.');
+    return { id: String(r.invoice_id), kind: 'invoice', date: r.date, amount: r.sub_total ?? r.subtotal, currency: r.currency_code, customerId: String(r.customer_id ?? ''), invoiceId: String(r.invoice_id), orderId: String(r.reference_number ?? ''), dueDate: r.due_date ?? '', status: r.status ?? '', description: r.notes ?? '', branch: String(r.branch_id ?? 'main') };
+  });
 }
 export function parseShopifyJson(content: string): Record<string, unknown>[] {
   const data = safeJson(content); check(data.complete !== false && !data.next_page, 'INCOMPLETE_EXPORT', 'Fetch all Shopify pages and report totals first.');
   const orders = data.orders ?? (Array.isArray(data) ? data : null); check(Array.isArray(orders), 'INVALID_SHOPIFY_EXPORT', 'Expected a complete Shopify order export.');
-  return orders.map((r: any) => { check(r.id && r.processed_at && r.subtotal_price !== undefined && (!r.presentment_currency || r.presentment_currency === r.currency), 'AMBIGUOUS_SHOPIFY_EXPORT', 'Orders need subtotal and a single explicit currency.'); return { id: String(r.id), kind: 'invoice', date: String(r.processed_at).slice(0, 10), amount: r.subtotal_price, currency: r.currency, customerId: String(r.customer?.id ?? 'guest'), invoiceId: String(r.id), orderId: String(r.id), dueDate: '', status: r.cancelled_at ? 'cancelled' : String(r.financial_status ?? ''), description: String(r.note ?? ''), branch: String(r.location_id ?? 'main') }; });
+  return orders.map((r: any) => {
+    check(r && typeof r === 'object' && !Array.isArray(r) && (!Object.hasOwn(r, '__typename') || ['Order', 'DraftOrder'].includes(r.__typename)), 'SHOPIFY_OBJECT_PROFILE_REQUIRED', 'The order profile cannot interpret other or ambiguous Shopify object types.');
+    for (const identity of [r.id, r.admin_graphql_api_id]) check(typeof identity !== 'string' || !identity.startsWith('gid://') || /^gid:\/\/shopify\/(?:Order|DraftOrder)\/[^/]+$/.test(identity), 'SHOPIFY_OBJECT_PROFILE_REQUIRED', 'Shopify global identifiers must identify Order or DraftOrder objects for this profile.');
+    check(!Object.hasOwn(r, 'draft') || typeof r.draft === 'boolean', 'SHOPIFY_SOURCE_STATE_REQUIRED', 'An explicit draft flag must be boolean; ambiguous source state cannot become a billed claim.');
+    check(r.id && r.processed_at && r.subtotal_price !== undefined && typeof r.currency === 'string' && /^[A-Z]{3}$/.test(r.currency) && (!r.presentment_currency || r.presentment_currency === r.currency), 'AMBIGUOUS_SHOPIFY_EXPORT', 'Orders need original subtotal and a single explicit currency.');
+    check(!Object.hasOwn(r, 'refunds') || (Array.isArray(r.refunds) && r.refunds.length === 0), 'SHOPIFY_REFUND_PROFILE_REQUIRED', 'Embedded refunds require a separate reviewed transaction profile; an original order total cannot establish net revenue or refunded money.');
+    check(['taxes_included', 'taxesIncluded'].some(taxFlag => Object.hasOwn(r, taxFlag)), 'SHOPIFY_TAX_PROFILE_REQUIRED', 'Shopify subtotals require an explicit source tax mode before importing tax-exclusive billed amounts.');
+    for (const taxFlag of ['taxes_included', 'taxesIncluded']) check(!Object.hasOwn(r, taxFlag) || r[taxFlag] === false, 'SHOPIFY_TAX_PROFILE_REQUIRED', 'Tax-inclusive or ambiguous Shopify subtotals require a reviewed tax allocation before importing tax-exclusive billed amounts.');
+    const draft = r.__typename === 'DraftOrder' || r.draft === true || [r.id, r.admin_graphql_api_id].some(value => typeof value === 'string' && value.startsWith('gid://shopify/DraftOrder/'));
+    return { id: String(r.id), kind: 'invoice', date: String(r.processed_at).slice(0, 10), amount: r.subtotal_price, currency: r.currency, customerId: String(r.customer?.id ?? 'guest'), invoiceId: String(r.id), orderId: String(r.id), dueDate: '', status: draft ? 'draft' : r.cancelled_at ? 'cancelled' : String(r.financial_status ?? ''), description: String(r.note ?? ''), branch: String(r.location_id ?? 'main') };
+  });
 }
 export function parseGstJson(content: string): Record<string, unknown>[] {
   const data = safeJson(content); const b2b = data.data?.docdata?.b2b ?? data.docdata?.b2b ?? data.b2b; check(Array.isArray(b2b), 'INVALID_GST_EXPORT', 'Expected the downloaded GSTR-2B B2B invoice section.');
@@ -183,21 +199,21 @@ function validateRecipe(recipe: MappingRecipe, store: StateStore, ctx: Context) 
     if (['entityId', 'kind', 'branch'].includes(binding.target)) check(binding.type === 'string', 'BINDING_TYPE_MISMATCH', 'Identity and scope bindings must be text.');
     if (['validFrom', 'validTo'].includes(binding.target)) check(binding.type === 'date', 'BINDING_TYPE_MISMATCH', 'Business date bindings must be typed dates.');
     if (binding.type === 'date') check(['ISO', 'DMY', 'YMD8'].includes(binding.dateFormat ?? ''), 'AMBIGUOUS_DATE', 'Every date binding needs an explicit date format.');
-    if (binding.type === 'money') check(binding.moneyUnit && binding.currency && /^[A-Z]{3}$/.test(binding.currency), 'AMBIGUOUS_MONEY', 'Every amount binding needs explicit units and currency.');
-    if (binding.fx) check(/^\d+$/.test(binding.fx.numerator) && /^\d+$/.test(binding.fx.denominator) && BigInt(binding.fx.denominator) > 0n && ['exact', 'half-up'].includes(binding.fx.rounding), 'INVALID_EXCHANGE_RATE', 'Exchange rates need exact positive numerator, denominator and rounding.');
+    if (binding.type === 'money') { check(['major','minor'].includes(binding.moneyUnit ?? '') && binding.currency && /^[A-Z]{3}$/.test(binding.currency), 'AMBIGUOUS_MONEY', 'Every amount binding needs explicit units and currency.'); currencyMinorDigits(binding.currency); }
+    if (binding.fx) check(/^\d+$/.test(binding.fx.numerator) && BigInt(binding.fx.numerator) > 0n && /^\d+$/.test(binding.fx.denominator) && BigInt(binding.fx.denominator) > 0n && ['exact', 'half-up'].includes(binding.fx.rounding), 'INVALID_EXCHANGE_RATE', 'Exchange rates need exact positive numerator, denominator and rounding.');
   }
   check(['entityId', 'kind', 'validFrom', 'amountMinor', 'currency'].every(t => targets.has(t)), 'MISSING_BINDING', 'Bind record identity, kind, date, amount and currency.');
   check(Array.isArray(recipe.allowedKinds) && recipe.allowedKinds.length && Array.isArray(recipe.allowedStatuses) && ['report', 'reject'].includes(recipe.onUnmapped), 'MISSING_ASSERTIONS', 'A recipe needs known kinds, statuses and a policy for unknown columns.');
 }
-function transform(value: unknown, b: Binding): unknown {
+function transform(value: unknown, b: Binding, targetCurrency: string): unknown {
   if (value === undefined || value === null || value === '') { if (b.nulls === 'omit') return undefined; if (b.nulls === 'zero' && ['money', 'integer'].includes(b.type)) return b.type === 'money' ? '0' : 0; check(false, 'MISSING_VALUE', `A required ${b.target} is missing.`); }
   if (b.values) { check(Object.hasOwn(b.values, String(value)), 'UNKNOWN_VALUE', `An unknown ${b.target} needs your mapping decision.`); value = b.values[String(value)]; }
   if (b.type === 'string') { check(['string', 'number', 'boolean'].includes(typeof value), 'INVALID_TEXT', 'Object values cannot become text bindings.'); return String(value); }
   if (b.type === 'date') return parseDate(value, b.dateFormat);
   if (b.type === 'integer') { check(/^-?\d+$/.test(String(value)) && Number.isSafeInteger(Number(value)), 'INVALID_INTEGER', 'An integer binding must be exact.'); return Number(value); }
   if (b.type === 'boolean') { check([true, false, 'true', 'false'].includes(value as any), 'INVALID_BOOLEAN', 'Use true or false.'); return value === true || value === 'true'; }
-  let amount = BigInt(parseIndianMoney(value, b.moneyUnit));
-  if (b.fx) { const numerator = amount * BigInt(b.fx.numerator), denominator = BigInt(b.fx.denominator), remainder = numerator % denominator; check(b.fx.rounding !== 'exact' || remainder === 0n, 'FX_PRECISION', 'The exchange rate would lose fractional minor units.'); amount = numerator / denominator; if (b.fx.rounding === 'half-up' && (remainder < 0n ? -remainder : remainder) * 2n >= denominator) amount += numerator < 0n ? -1n : 1n; }
+  let amount = BigInt(parseIndianMoney(value, b.moneyUnit, b.currency));
+  if (b.fx) { const numerator = amount * BigInt(b.fx.numerator) * 10n ** BigInt(currencyMinorDigits(targetCurrency)), denominator = BigInt(b.fx.denominator) * 10n ** BigInt(currencyMinorDigits(b.currency!)), remainder = numerator % denominator; check(b.fx.rounding !== 'exact' || remainder === 0n, 'FX_PRECISION', 'The exchange rate would lose fractional minor units.'); amount = numerator / denominator; if (b.fx.rounding === 'half-up' && (remainder < 0n ? -remainder : remainder) * 2n >= denominator) amount += numerator < 0n ? -1n : 1n; }
   return String(amount);
 }
 
@@ -208,6 +224,7 @@ export class ImportService {
     authorize(this.store, ctx, 'prepare'); currentAccess(this.store, ctx, undefined, input.sourceId);
     check(!isNoResend(this.store.read(), hash(input.content)), 'SOURCE_DELETED', 'This file was previously deleted. Its content cannot be imported under another source name.');
     const recipe = input.recipe ?? defaultRecipe(input.format); validateRecipe(recipe, this.store, ctx);
+    const dictionary = new OntologyService(this.store).current(ctx)!;
     if (input.installation) check(input.installation.company === recipe.scope.company && input.installation.edition === recipe.edition && (!recipe.scope.gstin || input.installation.gstin === recipe.scope.gstin), 'INSTALLATION_MISMATCH', 'This installation does not match the recipe company, edition or GST registration.');
     check(input.format !== 'xlsx', 'EXCEL_ADAPTER_REQUIRED', 'Excel needs the optional isolated XLSX adapter. Export CSV or use previewWorkbook with an installed parser.');
     let rows: Record<string, unknown>[];
@@ -224,13 +241,18 @@ export class ImportService {
     const identities = new Set<string>();
     rows.forEach((row, index) => {
       try {
-        const converted = Object.fromEntries(recipe.bindings.map(b => [b.target, transform(b.constant ?? row[b.source!], b)]).filter(([, value]) => value !== undefined));
+        for (const binding of recipe.bindings.filter(b => b.type === 'money')) check(binding.currency === dictionary.currency || !!binding.fx, 'CURRENCY_MISMATCH', 'Every money field needs the dictionary currency or an explicit exchange rate.');
+        const converted = Object.fromEntries(recipe.bindings.map(b => [b.target, transform(b.constant ?? row[b.source!], b, dictionary.currency)]).filter(([, value]) => value !== undefined));
+        if (input.format === 'shopify-json') {
+          check(converted.kind === 'invoice', 'SHOPIFY_RECOGNITION_PROFILE_REQUIRED', 'Original Shopify orders can establish billed claims only; earned sales and received money require separate reviewed evidence profiles.');
+          if (row.status === 'draft' || row.status === 'cancelled') check(converted.status === row.status, 'SHOPIFY_SOURCE_STATE_REQUIRED', 'Mapping recipes must preserve nonbillable Shopify draft and cancellation states.');
+        }
         check(recipe.allowedKinds.includes(String(converted.kind)), 'UNKNOWN_KIND', 'This record kind is outside the recipe.');
         check(converted.status === undefined || recipe.allowedStatuses.includes(String(converted.status)), 'UNKNOWN_STATUS', 'This status needs a mapping decision before importing.');
+        check(converted.amountMinor !== undefined && converted.amountMinor !== null, 'MISSING_MEASURE_VALUE', 'Every source row needs an explicit amount before its source total can be reconciled.');
         const branch = String(converted.branch ?? recipe.scope.branches[0]); check(recipe.scope.branches.includes(branch), 'OUTSIDE_SCOPE', 'The row belongs to a branch outside this recipe.'); currentAccess(this.store, ctx, branch, input.sourceId);
         check(!converted.company || converted.company === recipe.scope.company, 'OUTSIDE_COMPANY', 'This row belongs to another company.');
         check(!recipe.scope.gstin || !converted.gstin || converted.gstin === recipe.scope.gstin, 'OUTSIDE_GSTIN', 'This row belongs to another GST registration.');
-        const dictionary = new OntologyService(this.store).current(ctx)!;
         const amountBinding = recipe.bindings.find(b => b.target === 'amountMinor')!;
         check(converted.currency === amountBinding.currency, 'BINDING_CURRENCY_MISMATCH', 'The row currency differs from the amount binding; one recipe cannot silently mix currencies.');
         check(converted.currency === dictionary.currency || !!amountBinding.fx, 'CURRENCY_MISMATCH', 'Publish an explicit exchange rate; mixed currencies cannot be added.');
@@ -260,7 +282,15 @@ export class ImportService {
       authorize(this.store, ctx, 'prepare'); for (const f of preview.facts) currentAccess(this.store, ctx, f.branch, f.sourceId);
       const prior = state.imports.find(i => i.contentHash === preview.contentHash && i.recipeHash === preview.recipeHash && i.sourceId === input.sourceId);
       if (prior) return { ...structuredClone(prior), duplicate: true };
-      const records = insertFacts(state, preview.facts, now());
+      insertFacts(state, preview.facts, now());
+      // A source export includes unchanged claims as well as newly appended versions.
+      // Keep its complete lineage while preserving insertFacts' no-op deduplication.
+      const latestByIdentity = new Map(state.facts.filter(f => f.sourceId === input.sourceId).map(f => [JSON.stringify([f.kind, f.entityId]), f] as const));
+      const records = preview.facts.map(f => {
+        const stored = latestByIdentity.get(JSON.stringify([f.kind, f.entityId]));
+        check(stored, 'IMPORT_LINEAGE_INVALID', 'Every accepted source row must resolve to its stored claim.');
+        return stored;
+      });
       const imported = { id: newId('import'), at: now(), sourceId: input.sourceId, format: input.format, recipeHash: preview.recipeHash, contentHash: preview.contentHash, rowIds: records.map(f => f.id), coverage: preview.coverage, totalsMinor: preview.totalsMinor, expectedTotals: input.expectedTotals, unmappedFields: preview.unmappedFields, qualification: 'experimental' };
       state.imports.push(imported); state.learning.push({ id: newId('learning'), at: now(), category: 'mapping', recipeId: (input.recipe ?? defaultRecipe(input.format)).id, recipeHash: preview.recipeHash, decision: 'accepted', fieldNames: (input.recipe ?? defaultRecipe(input.format)).bindings.map(b => b.source).filter(Boolean), unmappedFields: preview.unmappedFields, reason: 'Source report totals reconciled.', shared: false });
       audit(state, 'source.imported', { importId: imported.id, sourceId: input.sourceId, rowCount: records.length }); return structuredClone(imported);
