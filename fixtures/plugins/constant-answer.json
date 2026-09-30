@@ -1,0 +1,14 @@
+{
+  "moduleBase64": "AGFzbQEAAAABBQFgAAF/AwIBAAcHAQNydW4AAAoGAQQAQSoL",
+  "manifest": {
+    "maxMemoryPages": 16,
+    "name": "Constant number demo",
+    "version": "1.0.0",
+    "runtime": "wasm",
+    "capabilities": [],
+    "id": "constant-answer",
+    "entrypoint": "run",
+    "timeoutMs": 1000,
+    "sourceIds": []
+  }
+}

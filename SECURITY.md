@@ -1,0 +1,21 @@
+# Security boundaries
+
+The engine owns workspace authority and secrets. Renderer and imported source text cannot supply executable queries, shell commands, subscription tokens or trusted calculated amounts. Ordinary financial operations use exact integer minor units. Registered SQL independently verifies production calculations over the already-authorized ephemeral projection before a receipt is stored.
+
+The vault uses scrypt-derived passphrase wrapping, an independent recovery wrapper and AES-256-GCM authenticated encryption. Raw workspace keys stay in the vault implementation. Backups are encrypted by default; a plaintext export requires explicit confirmation. The OS-keychain integration is a hook and has not been qualified against a native platform keychain. On Windows the account's filesystem permissions remain part of the boundary; Unix mode bits alone do not establish Windows ACL isolation.
+
+All member requests are checked against active membership, role, epoch, branch and source grants. Concurrent HTTP requests have isolated async contexts. Revocation during awaited work is rechecked before returning protected results. Lifecycle transitions refuse concurrent workspace replacement. Session issuance and direct member creation obey issuer role and branch ceilings; scoped administrators cannot delete inaccessible source branches. Whole-vault backups, exports and deletion require an unrestricted owner, and managed-copy cleanup is bound to the current workspace. Scheduled reports run under their job owner's scope; cached deliverables are reauthorized. Local bootstrap access requires possession of the startup pairing credential. A public server or hostile process controlling the owner's device is outside this preview's isolation guarantee.
+
+Only loopback HTTP is served, with exact Host/Origin and cross-site fetch checks, a bearer session, bounded JSON and an asset allowlist. The Electron renderer has sandboxing, context isolation, no Node integration, denied navigation and permissions, and a named IPC bridge. Native Electron runtime behavior has not been executed in this environment; source checks are not browser security certification.
+
+Imported workbook XML, values and PDF text remain tainted data. XLSX parsing refuses macros, external relationships, DTDs, executable formulas, traversal, archive inconsistencies and excessive allocation. PDF extraction returns an unverified analytical result, never a trusted financial receipt. The Python helper runs only registered operations under an explicit executable, isolated environment and process/input/output limits; Windows process limits are not an operating-system sandbox.
+
+WASM modules execute without WASI, JavaScript loading, filesystem/network/key imports or undeclared hosts, with bounded time and memory in a child process. Node permissions add another boundary. No claim of side-channel resistance or audited native sandboxing is made. Do not add unrestricted host functions to the plugin registry.
+
+Outbound model and speech requests require the current privacy policy and exact applicable approval. Receipts preserve the application payload and destination without authorization headers. Provider or official CLI internal prompts are outside application observation. Requests use one dispatch attempt; live accounts and installed CLI policy still require qualification.
+
+Actions bind approval to an exact digest and current authority. Interrupted or ambiguous writes become unknown and require target readback. The installed local action creates a draft only. Signed-update staging verifies a publisher-pinned Ed25519 manifest, target/version, artifact size and SHA-256; it never executes an unsigned fallback or installs itself automatically.
+
+Source deletion purges local derived records and the app's managed backups and exports. Copies outside the app and a remote provider's retained payloads must be handled by their owners. One-writer encrypted sync is experimental and must be configured against a qualified transport. No default remote sync, telemetry collector or learning exporter is installed.
+
+Keep vulnerability reports private to the repository owner until a reporting channel is established. Never include real credentials, business exports, vaults, recovery kits, provider payloads or private data in an issue or public test fixture.
