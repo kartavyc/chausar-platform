@@ -1,0 +1,534 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:chausar:corpus-intake-attempts:v1",
+  "title": "Stopped corpus intake attempts and retained reference receipts",
+  "description": "This contract cannot admit a corpus. Dataset hashes/sizes, observed rows and origins remain absent after blocked transfer; published metadata and retained reference captures are separate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "kind",
+    "recordedAt",
+    "preservedImplementationCommit",
+    "scope",
+    "artifacts",
+    "sources",
+    "actualCounts",
+    "nextStep"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": 1
+    },
+    "kind": {
+      "const": "blocked-corpus-intake-attempt-register"
+    },
+    "recordedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "preservedImplementationCommit": {
+      "const": "fe26fa945ccd847aad45310668853e67d0077f66"
+    },
+    "scope": {
+      "const": {
+        "targetIndependentConfigurationBundles": {
+          "minimum": 1500,
+          "maximum": 3000,
+          "status": "aspirational-research-target-not-acquired"
+        },
+        "requestedConnectorGroups": 56,
+        "genericDatasetsDoNotQualifyNamedAdapters": true,
+        "syntheticBundlesAdded": 0,
+        "noAccountsPaymentsLiveEffects": true
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/referenceArtifact"
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/blockedSource"
+      }
+    },
+    "actualCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "datasetAssetsAcquired",
+        "retainedDatasetBytes",
+        "coherentBusinessBooks",
+        "independentCompanyFamilies",
+        "independentConfigurationFamilies",
+        "namedAdaptersQualified",
+        "syntheticCasesAdded",
+        "primaryReferenceCaptures",
+        "derivedSchemaSpecifications",
+        "acquisitionAttemptReceipts",
+        "trackedReferenceAndReceiptBytes"
+      ],
+      "properties": {
+        "datasetAssetsAcquired": {
+          "const": 0
+        },
+        "retainedDatasetBytes": {
+          "const": 0
+        },
+        "coherentBusinessBooks": {
+          "const": 0
+        },
+        "independentCompanyFamilies": {
+          "const": 0
+        },
+        "independentConfigurationFamilies": {
+          "const": 0
+        },
+        "namedAdaptersQualified": {
+          "const": 0
+        },
+        "syntheticCasesAdded": {
+          "const": 0
+        },
+        "primaryReferenceCaptures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "derivedSchemaSpecifications": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "acquisitionAttemptReceipts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "trackedReferenceAndReceiptBytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "nextStep": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "referenceArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "representation",
+        "sourceUrl",
+        "sourceRevision",
+        "normalization",
+        "path",
+        "byteLength",
+        "sha256",
+        "originalHttpByteSha256"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "enum": [
+            "primary-license-reference",
+            "primary-source-reference",
+            "derived-schema-reference",
+            "acquisition-attempt-reference"
+          ]
+        },
+        "representation": {
+          "enum": [
+            "normalized-web-text",
+            "curated-web-metadata",
+            "curated-tool-outcome",
+            "authored-projection-plan"
+          ]
+        },
+        "sourceUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceRevision": {
+          "type": "string"
+        },
+        "normalization": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 1000,
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]|/(?=[A-Za-z0-9]))*$"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "originalHttpByteSha256": {
+          "type": "null",
+          "description": "No raw HTTP bytes were acquired. Hashes identify the retained normalized or curated reference representation."
+        }
+      }
+    },
+    "absentDataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "byteLength"
+      ],
+      "properties": {
+        "path": {
+          "type": "null"
+        },
+        "sha256": {
+          "type": "null"
+        },
+        "byteLength": {
+          "type": "null"
+        }
+      }
+    },
+    "blockedSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exactArtifactRevision",
+        "actualSchemaFingerprint",
+        "observedRowCount",
+        "privacyReview",
+        "origins",
+        "qualification",
+        "rightsTraining",
+        "id",
+        "title",
+        "publisher",
+        "sourceUrl",
+        "artifactDownloadUrl",
+        "sourceReferenceArtifactId",
+        "documentedSchemaArtifactId",
+        "sourceType",
+        "documentedMetadata",
+        "licence",
+        "rights",
+        "attribution",
+        "acquisition",
+        "limitations"
+      ],
+      "properties": {
+        "exactArtifactRevision": {
+          "type": "null"
+        },
+        "actualSchemaFingerprint": {
+          "type": "null"
+        },
+        "observedRowCount": {
+          "type": "null"
+        },
+        "privacyReview": {
+          "const": {
+            "state": "not-inspected",
+            "minimizationPerformed": false,
+            "anonymizationClaim": false,
+            "contactInformationIngested": false
+          }
+        },
+        "origins": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "assignedCompanyFamilyId",
+            "assignedTemplateFamilyId",
+            "assignedConfigurationFamilyId",
+            "holdoutAssignment",
+            "familyRule"
+          ],
+          "properties": {
+            "assignedCompanyFamilyId": {
+              "type": "null"
+            },
+            "assignedTemplateFamilyId": {
+              "type": "null"
+            },
+            "assignedConfigurationFamilyId": {
+              "type": "null"
+            },
+            "holdoutAssignment": {
+              "const": "unassigned"
+            },
+            "familyRule": {
+              "type": "string"
+            }
+          }
+        },
+        "qualification": {
+          "const": {
+            "state": "unqualified",
+            "coherentBusinessBook": false,
+            "namedAdapterIds": [],
+            "perOperationEvidence": [],
+            "arbitraryCompanyGuarantee": false
+          }
+        },
+        "rightsTraining": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "copyrightBasis",
+            "explicitTrainingTerms",
+            "pipelineAuthorization",
+            "dataDisclosedToModels"
+          ],
+          "properties": {
+            "copyrightBasis": {
+              "type": "string"
+            },
+            "explicitTrainingTerms": {
+              "const": false
+            },
+            "pipelineAuthorization": {
+              "const": "not-authorized-or-run"
+            },
+            "dataDisclosedToModels": {
+              "const": false
+            }
+          }
+        },
+        "id": {
+          "enum": [
+            "uci-online-retail",
+            "microsoft-adventureworks",
+            "microsoft-wide-world-importers"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "publisher": {
+          "type": "string"
+        },
+        "sourceUrl": {
+          "type": "string"
+        },
+        "artifactDownloadUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceReferenceArtifactId": {
+          "type": "string"
+        },
+        "documentedSchemaArtifactId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceType": {
+          "type": "string"
+        },
+        "documentedMetadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fileName",
+            "fileSizeText",
+            "rowCount",
+            "businessOrigins",
+            "verification"
+          ],
+          "properties": {
+            "fileName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "fileSizeText": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rowCount": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "businessOrigins": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "verification": {
+              "const": "documentation-only"
+            }
+          }
+        },
+        "licence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "spdx",
+            "version",
+            "status",
+            "textArtifactId",
+            "textRevision",
+            "exactArtifactApplicability",
+            "noticeRequirements"
+          ],
+          "properties": {
+            "spdx": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "textArtifactId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "textRevision": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "exactArtifactApplicability": {
+              "type": "string"
+            },
+            "noticeRequirements": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "rights": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "acquisition",
+            "reuse",
+            "redistribution",
+            "termsStatus"
+          ],
+          "properties": {
+            "acquisition": {
+              "type": "string"
+            },
+            "reuse": {
+              "type": "string"
+            },
+            "redistribution": {
+              "type": "string"
+            },
+            "termsStatus": {
+              "type": "string"
+            }
+          }
+        },
+        "attribution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "creator",
+            "citation",
+            "changes"
+          ],
+          "properties": {
+            "creator": {
+              "type": "string"
+            },
+            "citation": {
+              "type": "string"
+            },
+            "changes": {
+              "type": "string"
+            }
+          }
+        },
+        "acquisition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "attemptId",
+            "stopReason",
+            "stoppedEndpoint",
+            "terminal",
+            "noAlternateRoute",
+            "originalDataset",
+            "retainedDataset",
+            "actualRetainedDatasetBytes"
+          ],
+          "properties": {
+            "state": {
+              "const": "blocked"
+            },
+            "attemptId": {
+              "type": "string"
+            },
+            "stopReason": {
+              "type": "string"
+            },
+            "stoppedEndpoint": {
+              "type": "string"
+            },
+            "terminal": {
+              "const": true
+            },
+            "noAlternateRoute": {
+              "const": true
+            },
+            "originalDataset": {
+              "$ref": "#/$defs/absentDataset"
+            },
+            "retainedDataset": {
+              "$ref": "#/$defs/absentDataset"
+            },
+            "actualRetainedDatasetBytes": {
+              "const": 0
+            }
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

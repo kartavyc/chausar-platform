@@ -1,0 +1,78 @@
+{
+  "contractVersion": 1,
+  "kind": "documented-schema-and-minimization-plan",
+  "datasetId": "uci-online-retail",
+  "evidenceStatus": "documentation-only-not-observed",
+  "sourceReferenceArtifactId": "uci-source-reference",
+  "expectedWorksheetName": null,
+  "expectedWorksheetNameStatus": "unverified",
+  "expectedColumnOrderStatus": "unverified",
+  "columns": [
+    {
+      "sourceName": "InvoiceNo",
+      "documentedType": "categorical-identifier",
+      "retentionPlan": "retain-for-source-receipts",
+      "semanticLimits": "c marker indicates cancellation; no cash-refund proof"
+    },
+    {
+      "sourceName": "StockCode",
+      "documentedType": "categorical-product-identifier",
+      "retentionPlan": "retain-for-product-source-receipts",
+      "semanticLimits": "No ERP item/unit conversion demonstrated"
+    },
+    {
+      "sourceName": "Description",
+      "documentedType": "product-name-text",
+      "retentionPlan": "drop-before-retention",
+      "semanticLimits": "Free text is unnecessary; no content review performed"
+    },
+    {
+      "sourceName": "Quantity",
+      "documentedType": "integer",
+      "retentionPlan": "retain-exact-lexeme",
+      "semanticLimits": "No universal unit/pack-size definition"
+    },
+    {
+      "sourceName": "InvoiceDate",
+      "documentedType": "datetime",
+      "retentionPlan": "retain-original-cell-type-and-lexeme",
+      "semanticLimits": "Date/time encoding, date basis and timezone need observation"
+    },
+    {
+      "sourceName": "UnitPrice",
+      "documentedType": "continuous-decimal",
+      "retentionPlan": "retain-exact-decimal-lexeme",
+      "semanticLimits": "GBP unit price; tax inclusion and monetary precision unresolved"
+    },
+    {
+      "sourceName": "CustomerID",
+      "documentedType": "integer-customer-identifier",
+      "retentionPlan": "drop-before-retention",
+      "semanticLimits": "Pseudonymous identifier; not needed for initial product/date/amount checks"
+    },
+    {
+      "sourceName": "Country",
+      "documentedType": "customer-country",
+      "retentionPlan": "drop-before-retention",
+      "semanticLimits": "Customer attribute is unnecessary for initial checks"
+    }
+  ],
+  "allowedProjectedColumnNames": [
+    "InvoiceNo",
+    "StockCode",
+    "Quantity",
+    "InvoiceDate",
+    "UnitPrice"
+  ],
+  "exactDecimalPolicy": "Do not coerce UnitPrice, Quantity or Excel numeric date cells to IEEE-754 values; retain exact source lexical value and cell type; dates require an explicit calendar/profile before conversion.",
+  "admissionPrerequisites": [
+    "Permitted transfer capability; fresh source request/receipt, not a retry of this stopped attempt.",
+    "Record raw artifact hash/byte count without retaining an unnecessary unreviewed raw workbook; approve bounded transient/quarantine handling first.",
+    "Inspect package parts, worksheet names, actual headers/types, hidden sheets and external links before projection; reject unexpected contact or other identifying columns.",
+    "Drop CustomerID, Country and Description before retained corpus data; review remaining record linkage. Do not claim anonymization.",
+    "Record parser/build version, source-cell receipts, retained projection hash and byte count, rows/exclusions and schema fingerprint.",
+    "Preserve cancellation/negative-value states; refuse money/revenue claims lacking tax, status, date, units and independent source-total evidence."
+  ],
+  "privacyState": "not-inspected-not-redacted",
+  "qualificationState": "unqualified"
+}

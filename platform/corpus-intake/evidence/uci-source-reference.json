@@ -1,0 +1,46 @@
+{
+  "kind": "curated-public-source-reference",
+  "representation": "curated-metadata-from-web-extracted-text",
+  "recordedAt": "2026-09-30T23:40:04Z",
+  "sourceUrl": "https://archive.ics.uci.edu/dataset/352/online%2Bretail",
+  "publisher": "UCI Machine Learning Repository",
+  "title": "Online Retail",
+  "doi": "10.24432/C5BW33",
+  "sourceRevision": {
+    "datasetDonatedAt": "2015-11-05",
+    "httpEtag": null,
+    "sourceByteSha256": null
+  },
+  "citation": "Chen, D. (2015). Online Retail [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5BW33.",
+  "claims": {
+    "license": "CC-BY-4.0",
+    "licenseAppliesTo": "dataset",
+    "businessOriginsReported": 1,
+    "instancesReported": 541909,
+    "numberOfFeaturesReported": 6,
+    "columnNamesReported": [
+      "InvoiceNo",
+      "StockCode",
+      "Description",
+      "Quantity",
+      "InvoiceDate",
+      "UnitPrice",
+      "CustomerID",
+      "Country"
+    ],
+    "fileNameReported": "Online Retail.xlsx",
+    "fileSizeReported": "22.6 MB",
+    "businessDescription": "One UK-based non-store retailer",
+    "periodReported": {
+      "from": "2010-12-01",
+      "to": "2011-12-09"
+    },
+    "priceCurrencyReported": "GBP",
+    "cancellationMarkerReported": "InvoiceNo beginning with c"
+  },
+  "observationLimits": [
+    "All counts/schema are documentation-reported; workbook bytes, headers and rows were not inspected.",
+    "The official web page's creator contact information was deliberately omitted.",
+    "No source-system/version/configuration, tax basis, timezone, units or upstream accounting control reports were established."
+  ]
+}

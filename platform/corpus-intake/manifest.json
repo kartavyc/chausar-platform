@@ -1,0 +1,380 @@
+{
+  "contractVersion": 1,
+  "kind": "blocked-corpus-intake-attempt-register",
+  "recordedAt": "2026-09-30T23:40:04Z",
+  "preservedImplementationCommit": "fe26fa945ccd847aad45310668853e67d0077f66",
+  "scope": {
+    "targetIndependentConfigurationBundles": {
+      "minimum": 1500,
+      "maximum": 3000,
+      "status": "aspirational-research-target-not-acquired"
+    },
+    "requestedConnectorGroups": 56,
+    "genericDatasetsDoNotQualifyNamedAdapters": true,
+    "syntheticBundlesAdded": 0,
+    "noAccountsPaymentsLiveEffects": true
+  },
+  "artifacts": [
+    {
+      "id": "license-cc-by-4.0",
+      "role": "primary-license-reference",
+      "representation": "normalized-web-text",
+      "sourceUrl": "https://creativecommons.org/licenses/by/4.0/legalcode.txt",
+      "sourceRevision": "Attribution 4.0 International; upstream VCS/HTTP revision not exposed",
+      "normalization": "Extract all 354 consecutively numbered web-tool text lines; remove line labels; join with LF and final LF. This hash identifies retained normalized text, not original HTTP bytes.",
+      "path": "evidence/CC-BY-4.0.normalized.txt",
+      "byteLength": 18615,
+      "sha256": "2ade8c89b8bbe0d859b124a9e47032c8494022f43091e8278ae8e2554a292196",
+      "originalHttpByteSha256": null
+    },
+    {
+      "id": "uci-source-reference",
+      "role": "primary-source-reference",
+      "representation": "curated-web-metadata",
+      "sourceUrl": "https://archive.ics.uci.edu/dataset/352/online%2Bretail",
+      "sourceRevision": "Dataset donation reported 2015-11-05; no HTTP revision captured",
+      "normalization": "Curated documented metadata; creator email and page navigation omitted. No dataset rows.",
+      "path": "evidence/uci-source-reference.json",
+      "byteLength": 1623,
+      "sha256": "5fd1063cf0207bb178affdc03ba1ec5b423f10783c1ad6fd141b496e6e73f48c",
+      "originalHttpByteSha256": null
+    },
+    {
+      "id": "microsoft-source-reference",
+      "role": "primary-source-reference",
+      "representation": "curated-web-metadata",
+      "sourceUrl": "https://learn.microsoft.com/en-us/sql/samples/sql-samples-where-are?view=sql-server-ver17",
+      "sourceRevision": "Learn last updated reported 2026-07-20; exact repository/asset revision unverified",
+      "normalization": "Curated repository/sample/licence references; no SQL backup or personal tables.",
+      "path": "evidence/microsoft-source-reference.json",
+      "byteLength": 1521,
+      "sha256": "c6727c8bde6a4be4e976ba0892f927c9c71e4bceab3faf7e9228dd9eeca5dab0",
+      "originalHttpByteSha256": null
+    },
+    {
+      "id": "acquisition-attempt-receipts",
+      "role": "acquisition-attempt-reference",
+      "representation": "curated-tool-outcome",
+      "sourceUrl": null,
+      "sourceRevision": "Recorded 2026-09-30T23:40:04Z; tool outcome snapshot",
+      "normalization": "Retain endpoint, stage and exact returned error; remove internal tool reference IDs.",
+      "path": "evidence/acquisition-attempts.json",
+      "byteLength": 1723,
+      "sha256": "780e8ece33c8b56b9ba52e55804dfee63495efc6f243c1a553dcbc2b0ca1c247",
+      "originalHttpByteSha256": null
+    },
+    {
+      "id": "uci-documented-schema",
+      "role": "derived-schema-reference",
+      "representation": "authored-projection-plan",
+      "sourceUrl": "https://archive.ics.uci.edu/dataset/352/online%2Bretail",
+      "sourceRevision": "Derived from documentation; worksheet/header/row verification pending",
+      "normalization": "Eight documented columns and planned five-column projection; no observed data.",
+      "path": "schemas/uci-online-retail.documented-schema.json",
+      "byteLength": 3510,
+      "sha256": "5581b9a53f79b1c66665fc7fa6acb309167d92c9ab4d9bbf8b42784a3d721998",
+      "originalHttpByteSha256": null
+    }
+  ],
+  "sources": [
+    {
+      "exactArtifactRevision": null,
+      "actualSchemaFingerprint": null,
+      "observedRowCount": null,
+      "privacyReview": {
+        "state": "not-inspected",
+        "minimizationPerformed": false,
+        "anonymizationClaim": false,
+        "contactInformationIngested": false
+      },
+      "origins": {
+        "assignedCompanyFamilyId": null,
+        "assignedTemplateFamilyId": null,
+        "assignedConfigurationFamilyId": null,
+        "holdoutAssignment": "unassigned",
+        "familyRule": "All versions, mirrors, derivatives, subsets and alternate exports of one source stay in the same company and template/configuration origin; no row, invoice or customer split counts as a new company."
+      },
+      "qualification": {
+        "state": "unqualified",
+        "coherentBusinessBook": false,
+        "namedAdapterIds": [],
+        "perOperationEvidence": [],
+        "arbitraryCompanyGuarantee": false
+      },
+      "rightsTraining": {
+        "copyrightBasis": "Inference from CC BY 4.0 reproduction/adaptation and database extraction grants; not bespoke training consent",
+        "explicitTrainingTerms": false,
+        "pipelineAuthorization": "not-authorized-or-run",
+        "dataDisclosedToModels": false
+      },
+      "id": "uci-online-retail",
+      "title": "Online Retail",
+      "publisher": "UCI Machine Learning Repository",
+      "sourceUrl": "https://archive.ics.uci.edu/dataset/352/online%2Bretail",
+      "artifactDownloadUrl": "https://archive.ics.uci.edu/static/public/352/online%2Bretail.zip",
+      "sourceReferenceArtifactId": "uci-source-reference",
+      "documentedSchemaArtifactId": "uci-documented-schema",
+      "sourceType": "official-generic-transaction-dataset",
+      "documentedMetadata": {
+        "fileName": "Online Retail.xlsx",
+        "fileSizeText": "22.6 MB",
+        "rowCount": 541909,
+        "businessOrigins": 1,
+        "verification": "documentation-only"
+      },
+      "licence": {
+        "spdx": "CC-BY-4.0",
+        "version": "4.0 International",
+        "status": "dataset-licence-verified-from-official-metadata",
+        "textArtifactId": "license-cc-by-4.0",
+        "textRevision": "Version 4.0 International; normalized text snapshot recorded 2026-09-30T23:40:04Z; upstream revision/ETag unavailable",
+        "exactArtifactApplicability": "official-dataset-level-grant-artifact-bytes-not-inspected",
+        "noticeRequirements": [
+          "Retain supplied creator/notices, source URI/DOI, licence link and disclaimer when sharing.",
+          "Describe actual changes and retain prior modification notices; no endorsement.",
+          "Copyright/database permission does not supply privacy/personality or trademark/patent rights."
+        ]
+      },
+      "rights": {
+        "acquisition": "copyright-permission-with-attribution",
+        "reuse": "copyright-permission-with-attribution",
+        "redistribution": "copyright-permission-with-attribution",
+        "termsStatus": "Dataset page explicitly assigns CC BY 4.0. No login, payment or user details requested by the permitted read attempt."
+      },
+      "attribution": {
+        "creator": "Daqing Chen",
+        "citation": "Chen, D. (2015). Online Retail [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5BW33. CC BY 4.0: https://creativecommons.org/licenses/by/4.0/",
+        "changes": "No data acquired or transformed. Future retained projections must identify the actual dropped fields and other transformations."
+      },
+      "acquisition": {
+        "state": "blocked",
+        "attemptId": "uci-official-zip-download",
+        "stopReason": "public-read-tool-size-limit",
+        "stoppedEndpoint": "https://archive.ics.uci.edu/static/public/352/online%2Bretail.zip",
+        "terminal": true,
+        "noAlternateRoute": true,
+        "originalDataset": {
+          "path": null,
+          "sha256": null,
+          "byteLength": null
+        },
+        "retainedDataset": {
+          "path": null,
+          "sha256": null,
+          "byteLength": null
+        },
+        "actualRetainedDatasetBytes": 0
+      },
+      "limitations": [
+        "One documented retailer; actual rows, workbook structure, missingness and prices not inspected.",
+        "No independent configuration or template family has been established or assigned; holdout remains unassigned.",
+        "CustomerID/Country/Description are planned exclusions; no redaction or anonymization has occurred.",
+        "Cancellation markers do not establish cash refunds, fulfilled sales or settlement.",
+        "Tax inclusion, date/timezone/calendar, units, original source system and independent source totals remain unresolved.",
+        "Generic retail data supplies no qualification evidence for Tally or any named adapter."
+      ]
+    },
+    {
+      "exactArtifactRevision": null,
+      "actualSchemaFingerprint": null,
+      "observedRowCount": null,
+      "privacyReview": {
+        "state": "not-inspected",
+        "minimizationPerformed": false,
+        "anonymizationClaim": false,
+        "contactInformationIngested": false
+      },
+      "origins": {
+        "assignedCompanyFamilyId": null,
+        "assignedTemplateFamilyId": null,
+        "assignedConfigurationFamilyId": null,
+        "holdoutAssignment": "unassigned",
+        "familyRule": "All versions, mirrors, derivatives, subsets and alternate exports of one source stay in the same company and template/configuration origin; no row, invoice or customer split counts as a new company."
+      },
+      "qualification": {
+        "state": "unqualified",
+        "coherentBusinessBook": false,
+        "namedAdapterIds": [],
+        "perOperationEvidence": [],
+        "arbitraryCompanyGuarantee": false
+      },
+      "rightsTraining": {
+        "copyrightBasis": "Not established for the exact artifact",
+        "explicitTrainingTerms": false,
+        "pipelineAuthorization": "not-authorized-or-run",
+        "dataDisclosedToModels": false
+      },
+      "id": "microsoft-adventureworks",
+      "title": "AdventureWorks",
+      "publisher": "Microsoft",
+      "sourceUrl": "https://learn.microsoft.com/en-us/sql/samples/sql-samples-where-are?view=sql-server-ver17",
+      "artifactDownloadUrl": null,
+      "sourceReferenceArtifactId": "microsoft-source-reference",
+      "documentedSchemaArtifactId": null,
+      "sourceType": "official-generic-sample-database",
+      "documentedMetadata": {
+        "fileName": null,
+        "fileSizeText": null,
+        "rowCount": null,
+        "businessOrigins": null,
+        "verification": "documentation-only"
+      },
+      "licence": {
+        "spdx": "MIT",
+        "version": "MIT",
+        "status": "official-repository-claim-only",
+        "textArtifactId": null,
+        "textRevision": null,
+        "exactArtifactApplicability": "unverified",
+        "noticeRequirements": [
+          "Retain the exact applicable copyright and licence notices once acquired.",
+          "Review embedded/third-party component notices for the exact chosen asset."
+        ]
+      },
+      "rights": {
+        "acquisition": "not-reviewed-for-exact-artifact",
+        "reuse": "not-reviewed-for-exact-artifact",
+        "redistribution": "not-reviewed-for-exact-artifact",
+        "termsStatus": "Public Learn repository-wide MIT claim verified; exact asset and component notices not inspected"
+      },
+      "attribution": {
+        "creator": "Microsoft",
+        "citation": "AdventureWorks — Microsoft SQL Server samples, https://github.com/microsoft/sql-server-samples; exact release/notice pending.",
+        "changes": "No data acquired or transformed."
+      },
+      "acquisition": {
+        "state": "blocked",
+        "attemptId": "microsoft-public-repository-route",
+        "stopReason": "restricted-url",
+        "stoppedEndpoint": "https://github.com/microsoft/sql-server-samples/tree/master/samples/databases",
+        "terminal": true,
+        "noAlternateRoute": true,
+        "originalDataset": {
+          "path": null,
+          "sha256": null,
+          "byteLength": null
+        },
+        "retainedDataset": {
+          "path": null,
+          "sha256": null,
+          "byteLength": null
+        },
+        "actualRetainedDatasetBytes": 0
+      },
+      "limitations": [
+        "Exact backup/release hash, size, schema, source reports and applicable component notices remain unknown.",
+        "No native ERP connector semantics or unseen-company qualification.",
+        "Do not count SQL Server versions, generated copies or repeated exports as independent origins.",
+        "Table-level personal/contact data exclusion and bounded transient handling must be reviewed before retention."
+      ]
+    },
+    {
+      "exactArtifactRevision": null,
+      "actualSchemaFingerprint": null,
+      "observedRowCount": null,
+      "privacyReview": {
+        "state": "not-inspected",
+        "minimizationPerformed": false,
+        "anonymizationClaim": false,
+        "contactInformationIngested": false
+      },
+      "origins": {
+        "assignedCompanyFamilyId": null,
+        "assignedTemplateFamilyId": null,
+        "assignedConfigurationFamilyId": null,
+        "holdoutAssignment": "unassigned",
+        "familyRule": "All versions, mirrors, derivatives, subsets and alternate exports of one source stay in the same company and template/configuration origin; no row, invoice or customer split counts as a new company."
+      },
+      "qualification": {
+        "state": "unqualified",
+        "coherentBusinessBook": false,
+        "namedAdapterIds": [],
+        "perOperationEvidence": [],
+        "arbitraryCompanyGuarantee": false
+      },
+      "rightsTraining": {
+        "copyrightBasis": "Not established for the exact artifact",
+        "explicitTrainingTerms": false,
+        "pipelineAuthorization": "not-authorized-or-run",
+        "dataDisclosedToModels": false
+      },
+      "id": "microsoft-wide-world-importers",
+      "title": "WideWorldImporters",
+      "publisher": "Microsoft",
+      "sourceUrl": "https://learn.microsoft.com/en-us/sql/samples/sql-samples-where-are?view=sql-server-ver17",
+      "artifactDownloadUrl": null,
+      "sourceReferenceArtifactId": "microsoft-source-reference",
+      "documentedSchemaArtifactId": null,
+      "sourceType": "official-generic-sample-database",
+      "documentedMetadata": {
+        "fileName": null,
+        "fileSizeText": null,
+        "rowCount": null,
+        "businessOrigins": null,
+        "verification": "documentation-only"
+      },
+      "licence": {
+        "spdx": "MIT",
+        "version": "MIT",
+        "status": "official-repository-claim-only",
+        "textArtifactId": null,
+        "textRevision": null,
+        "exactArtifactApplicability": "unverified",
+        "noticeRequirements": [
+          "Retain the exact applicable copyright and licence notices once acquired.",
+          "Review embedded/third-party component notices for the exact chosen asset."
+        ]
+      },
+      "rights": {
+        "acquisition": "not-reviewed-for-exact-artifact",
+        "reuse": "not-reviewed-for-exact-artifact",
+        "redistribution": "not-reviewed-for-exact-artifact",
+        "termsStatus": "Public Learn repository-wide MIT claim verified; exact asset and component notices not inspected"
+      },
+      "attribution": {
+        "creator": "Microsoft",
+        "citation": "WideWorldImporters — Microsoft SQL Server samples, https://github.com/microsoft/sql-server-samples; exact release/notice pending.",
+        "changes": "No data acquired or transformed."
+      },
+      "acquisition": {
+        "state": "blocked",
+        "attemptId": "microsoft-public-repository-route",
+        "stopReason": "restricted-url",
+        "stoppedEndpoint": "https://github.com/microsoft/sql-server-samples/tree/master/samples/databases",
+        "terminal": true,
+        "noAlternateRoute": true,
+        "originalDataset": {
+          "path": null,
+          "sha256": null,
+          "byteLength": null
+        },
+        "retainedDataset": {
+          "path": null,
+          "sha256": null,
+          "byteLength": null
+        },
+        "actualRetainedDatasetBytes": 0
+      },
+      "limitations": [
+        "Exact backup/release hash, size, schema, source reports and applicable component notices remain unknown.",
+        "No native ERP connector semantics or unseen-company qualification.",
+        "Do not count SQL Server versions, generated copies or repeated exports as independent origins.",
+        "Table-level personal/contact data exclusion and bounded transient handling must be reviewed before retention."
+      ]
+    }
+  ],
+  "actualCounts": {
+    "datasetAssetsAcquired": 0,
+    "retainedDatasetBytes": 0,
+    "coherentBusinessBooks": 0,
+    "independentCompanyFamilies": 0,
+    "independentConfigurationFamilies": 0,
+    "namedAdaptersQualified": 0,
+    "syntheticCasesAdded": 0,
+    "primaryReferenceCaptures": 3,
+    "derivedSchemaSpecifications": 1,
+    "acquisitionAttemptReceipts": 1,
+    "trackedReferenceAndReceiptBytes": 26992
+  },
+  "nextStep": "Resume only with a permitted binary transfer capability and a fresh authorised intake attempt. Preserve source/licence receipts, bounded minimization, exact lexical decimals, schema observation and company/template-origin holdouts; do not retry stopped routes."
+}
