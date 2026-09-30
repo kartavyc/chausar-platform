@@ -1,0 +1,825 @@
+{
+  "contractVersion": 1,
+  "kind": "source-profile-requirements",
+  "reviewedAt": "2026-09-30T23:14:51Z",
+  "implementationBoundary": "Data-only guard requirements. The root compiler owns enforcement; unimplemented or unqualified vendor profiles must abstain. No arithmetic, SQL or executable snippets are embedded.",
+  "status": "unqualified",
+  "allRequestedGroupsRemainUnqualified": true,
+  "noVendorSamplesAcquired": true,
+  "referenceRevisions": "Public locators are mutable unless stated; observed API labels do not freeze content. Reverify on product/schema/terms drift.",
+  "references": [
+    {
+      "id": "REF-RAZORPAY-ORDER-V1",
+      "url": "https://razorpay.com/docs/api/orders/fetch-with-id/?preferred-country=IN",
+      "publisherScope": "Razorpay Orders API; India route",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "v1",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-RAZORPAY-REFUND-V1",
+      "url": "https://razorpay.com/docs/api/refunds/fetch-with-id/?preferred-country=IN",
+      "publisherScope": "Razorpay Refunds API; India route",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "v1",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-SHOPIFY-ORDER",
+      "url": "https://shopify.dev/docs/api/admin-graphql/latest/objects/order",
+      "publisherScope": "Shopify GraphQL Admin Order; latest is mutable",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "2026-07 displayed",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-SHOPIFY-REFUND",
+      "url": "https://shopify.dev/docs/api/admin-graphql/latest/objects/refund",
+      "publisherScope": "Shopify GraphQL Admin Refund",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "2026-07 displayed",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-SHOPIFY-TXN-STATUS",
+      "url": "https://shopify.dev/docs/api/admin-graphql/latest/enums/OrderTransactionStatus",
+      "publisherScope": "Shopify OrderTransactionStatus",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "2026-07 displayed",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-SHOPIFY-TXN-KIND",
+      "url": "https://shopify.dev/docs/api/admin-graphql/latest/enums/OrderTransactionKind",
+      "publisherScope": "Shopify OrderTransactionKind",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "2026-07 displayed",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-SHOPIFY-GENERATED-DATA",
+      "url": "https://shopify.dev/docs/apps/build/stores/generated-test-data",
+      "publisherScope": "Shopify generated development-store test data",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "Orders note applies to stores created after 2023-09-14",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-AIS-FAQ",
+      "url": "https://www.incometax.gov.in/iec/foportal/ais-faq",
+      "publisherScope": "Income Tax Department AIS/TIS; Form26AS overlap; assessment-year dependent",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": null,
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-TALLY-PRIME-7",
+      "url": "https://help.tallysolutions.com/release-notes-tallyprime-7-0/",
+      "publisherScope": "TallyPrime release7 JSON data exchange",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "7.0; released 2025-12-19",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-TALLY-XML",
+      "url": "https://help.tallysolutions.com/xml-integration/",
+      "publisherScope": "Tally XML messaging format; source release separately required",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": null,
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-PHONEPE-PULSE-GITHUB-LICENSE",
+      "url": "https://github.com/PhonePe/pulse/blob/main/LICENSE",
+      "publisherScope": "PhonePe official GitHub delivery; branch is mutable",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "CDLA-Permissive-2.0",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-PHONEPE-PULSE-WEBSITE-TERMS",
+      "url": "https://www.phonepe.com/pulse/terms-and-conditions/",
+      "publisherScope": "PhonePe Pulse website delivery; rights apply by channel",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": null,
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-ZOHO-BOOKS-V3-ORG",
+      "url": "https://www.zoho.com/books/api/v3/introduction/",
+      "publisherScope": "Zoho Books v3 organization and regional configuration",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "v3",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-ZOHO-BOOKS-V3-CREDIT-NOTES",
+      "url": "https://www.zoho.com/books/api/v3/credit-notes/",
+      "publisherScope": "Zoho Books v3 country-labelled fields and mixed request/response examples",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "v3",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    },
+    {
+      "id": "REF-PHONEPE-PULSE-DATASET-README",
+      "url": "https://github.com/PhonePe/pulse",
+      "publisherScope": "PhonePe official aggregate Dataset API scope and release restatement",
+      "reviewedAt": "2026-09-30T23:14:51Z",
+      "reviewMethod": "read-only-public-web",
+      "revision": {
+        "versionObserved": "Q1 2018-Q2 2026 stated current release",
+        "locatorMutable": true,
+        "contentSha256": null
+      },
+      "evidenceClass": "reference-schema-documentation",
+      "datasetAcquired": false
+    }
+  ],
+  "profiles": [
+    {
+      "profileId": "razorpay-orders-refunds-v1-india",
+      "groupId": "razorpay",
+      "scope": {
+        "product": "Razorpay",
+        "apiVersion": "v1",
+        "route": "orders-and-refunds",
+        "jurisdiction": "IN"
+      },
+      "status": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "assertions": [
+        {
+          "assertionId": "RZP-ORDER-PAID-IS-NOT-NET-RECEIPTS",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-RAZORPAY-ORDER-V1"
+          ],
+          "evidenceBasis": "documented-behavior",
+          "fieldPaths": [
+            "Order.status",
+            "Order.amount_paid",
+            "Order.amount_due"
+          ],
+          "trap": "Order paid state persists after an associated payment refund.",
+          "requiredGuard": {
+            "guardId": "separate-order-status-from-cash",
+            "parameters": {
+              "forbiddenSoleEvidence": [
+                "Order.status=paid"
+              ],
+              "requiredReceiptKinds": [
+                "captured-payment",
+                "linked-refund"
+              ],
+              "sourceTotalReconciliationRequired": true
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        },
+        {
+          "assertionId": "RZP-REFUND-FINAL-STATE-AND-IDENTITY",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-RAZORPAY-REFUND-V1"
+          ],
+          "evidenceBasis": "documented-behavior",
+          "fieldPaths": [
+            "Refund.id",
+            "Refund.payment_id",
+            "Refund.status",
+            "Refund.amount",
+            "Refund.currency"
+          ],
+          "trap": "Pending or failed refund is not the documented processed state.",
+          "requiredGuard": {
+            "guardId": "linked-refund-state",
+            "parameters": {
+              "acceptedRefundState": "processed",
+              "nonFinalStates": [
+                "pending"
+              ],
+              "failedStates": [
+                "failed"
+              ],
+              "unknownState": "abstain",
+              "requirePaymentLink": true,
+              "amountUnit": "currency-subunit"
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        }
+      ],
+      "qualificationEvidenceIds": [],
+      "vendorSampleAcquired": false,
+      "independentCompanyEvidence": false,
+      "arbitraryCompanyGuarantee": false
+    },
+    {
+      "profileId": "shopify-admin-order-refund-2026-07",
+      "groupId": "shopify",
+      "scope": {
+        "product": "Shopify",
+        "apiVersion": "2026-07-observed-not-immutable",
+        "route": "GraphQL-Admin",
+        "jurisdiction": "company-market-required"
+      },
+      "status": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "assertions": [
+        {
+          "assertionId": "SHOPIFY-ORDER-TOTAL-BASIS",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-SHOPIFY-ORDER"
+          ],
+          "evidenceBasis": "documented-behavior",
+          "fieldPaths": [
+            "Order.totalPriceSet",
+            "Order.currentTotalPriceSet",
+            "Order.taxesIncluded"
+          ],
+          "trap": "Original and current order totals have different return bases and include tax/discounts.",
+          "requiredGuard": {
+            "guardId": "explicit-order-total-basis",
+            "parameters": {
+              "fieldBasis": {
+                "Order.totalPriceSet": "before-returns",
+                "Order.currentTotalPriceSet": "after-returns"
+              },
+              "selectedBasisRequired": true,
+              "forbidRefundDoubleSubtraction": true,
+              "requireTaxDiscountDefinition": true
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        },
+        {
+          "assertionId": "SHOPIFY-MONEY-BAG-CURRENCY",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-SHOPIFY-ORDER",
+            "REF-SHOPIFY-REFUND"
+          ],
+          "evidenceBasis": "documented-behavior",
+          "fieldPaths": [
+            "MoneyBag.shopMoney",
+            "MoneyBag.presentmentMoney"
+          ],
+          "trap": "Shop and presentment values must retain their currency roles.",
+          "requiredGuard": {
+            "guardId": "currency-role-partition",
+            "parameters": {
+              "requiredMoneyRoleSelection": true,
+              "forbidMixedCurrencySum": true,
+              "requireCurrencyCode": true
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        },
+        {
+          "assertionId": "SHOPIFY-REFUND-MONEY-MOVED",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-SHOPIFY-REFUND",
+            "REF-SHOPIFY-TXN-STATUS",
+            "REF-SHOPIFY-TXN-KIND"
+          ],
+          "evidenceBasis": "documented-behavior",
+          "fieldPaths": [
+            "Refund.transactions",
+            "OrderTransaction.id",
+            "OrderTransaction.kind",
+            "OrderTransaction.status"
+          ],
+          "trap": "A Refund object alone does not prove returned money.",
+          "requiredGuard": {
+            "guardId": "successful-refund-transaction",
+            "parameters": {
+              "transactionStatus": "SUCCESS",
+              "transactionKind": "REFUND",
+              "requireRefundOrderLink": true,
+              "requireTransactionIdentity": true,
+              "otherStatus": "abstain-or-separate-non-movement-state",
+              "deduplicateTransactionReceipts": true
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        }
+      ],
+      "qualificationEvidenceIds": [],
+      "vendorSampleAcquired": false,
+      "independentCompanyEvidence": false,
+      "arbitraryCompanyGuarantee": false
+    },
+    {
+      "profileId": "shopify-generated-development-data",
+      "groupId": "shopify",
+      "scope": {
+        "product": "Shopify",
+        "apiVersion": "unselected",
+        "route": "generated-development-store",
+        "jurisdiction": "test-store"
+      },
+      "status": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "assertions": [
+        {
+          "assertionId": "SHOPIFY-DEMO-DRAFT-PROVENANCE",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-SHOPIFY-GENERATED-DATA"
+          ],
+          "evidenceBasis": "documented-behavior",
+          "fieldPaths": [
+            "source.origin",
+            "source.storeCreatedAt",
+            "source.resourceType"
+          ],
+          "trap": "Generated orders can be draft orders; demo records do not establish real business receipts.",
+          "requiredGuard": {
+            "guardId": "demo-draft-source-class",
+            "parameters": {
+              "origin": "vendor-generated-test-data",
+              "storeDateBoundary": "2023-09-14",
+              "requireResourceType": true,
+              "forbidDraftAsCompletedSale": true,
+              "forbidRealCompanyQualification": true,
+              "liveCompletionAuthorized": false
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        }
+      ],
+      "qualificationEvidenceIds": [],
+      "vendorSampleAcquired": false,
+      "independentCompanyEvidence": false,
+      "arbitraryCompanyGuarantee": false
+    },
+    {
+      "profileId": "income-tax-ais-tis-form26as",
+      "groupId": "form26as-ais",
+      "scope": {
+        "product": "AIS/TIS/Form26AS",
+        "apiVersion": "versioned-raw-schema-not-established",
+        "route": "authorized-file-import",
+        "jurisdiction": "IN-assessment-year-required"
+      },
+      "status": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "assertions": [
+        {
+          "assertionId": "AIS-VALUE-STAGES",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-AIS-FAQ"
+          ],
+          "evidenceBasis": "documented-behavior",
+          "fieldPaths": [],
+          "trap": "Reported, processed and accepted/source-confirmed values represent distinct states.",
+          "requiredGuard": {
+            "guardId": "tax-value-stage",
+            "parameters": {
+              "semanticRoles": [
+                "reported-by-source",
+                "processed-by-system",
+                "accepted-by-taxpayer-or-confirmed-by-source"
+              ],
+              "selectedStageRequired": true,
+              "forbidStageSubstitution": true,
+              "rawFieldSchemaEvidenceRequired": true
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        },
+        {
+          "assertionId": "AIS-26AS-OVERLAP",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-AIS-FAQ"
+          ],
+          "evidenceBasis": "conservative-inference-from-documented-overlap",
+          "fieldPaths": [],
+          "trap": "Both sources can describe TDS/TCS; adding observations can duplicate one transaction.",
+          "requiredGuard": {
+            "guardId": "cross-source-tax-identity",
+            "parameters": {
+              "requireAssessmentYear": true,
+              "requireSourceIdentityLinkage": true,
+              "forbidBlindAISPlus26ASSum": true,
+              "aggregationLevelRequired": true,
+              "ambiguousMatch": "abstain"
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        }
+      ],
+      "qualificationEvidenceIds": [],
+      "vendorSampleAcquired": false,
+      "independentCompanyEvidence": false,
+      "arbitraryCompanyGuarantee": false
+    },
+    {
+      "profileId": "tallyprime-native-json-7",
+      "groupId": "tally",
+      "scope": {
+        "product": "TallyPrime",
+        "apiVersion": "product-release-at-least-7-required",
+        "route": "native-JSON",
+        "jurisdiction": "company-required"
+      },
+      "status": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "assertions": [
+        {
+          "assertionId": "TALLY-NATIVE-JSON-RELEASE",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-TALLY-PRIME-7"
+          ],
+          "evidenceBasis": "documented-behavior",
+          "fieldPaths": [
+            "product.name",
+            "product.version",
+            "source.route"
+          ],
+          "trap": "Native JSON exchange is a release7 feature; older/unknown release cannot inherit that profile.",
+          "requiredGuard": {
+            "guardId": "product-release-route",
+            "parameters": {
+              "product": "TallyPrime",
+              "minimumNativeJsonRelease": "7.0",
+              "unknownRelease": "abstain",
+              "olderRelease": "invalidate",
+              "xmlProfileRequiresSeparateQualification": true
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        }
+      ],
+      "qualificationEvidenceIds": [],
+      "vendorSampleAcquired": false,
+      "independentCompanyEvidence": false,
+      "arbitraryCompanyGuarantee": false
+    },
+    {
+      "profileId": "tally-versioned-xml",
+      "groupId": "tally",
+      "scope": {
+        "product": "TallyPrime-or-Tally.ERP9-explicit",
+        "apiVersion": "installed-product-release-required",
+        "route": "XML",
+        "jurisdiction": "company-required"
+      },
+      "status": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "assertions": [
+        {
+          "assertionId": "TALLY-XML-MESSAGE-VERSION",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-TALLY-XML"
+          ],
+          "evidenceBasis": "documented-behavior",
+          "fieldPaths": [
+            "ENVELOPE.HEADER.VERSION",
+            "product.version"
+          ],
+          "trap": "XML message VERSION is not installed product release.",
+          "requiredGuard": {
+            "guardId": "separate-message-product-version",
+            "parameters": {
+              "forbidMessageVersionAsProductVersion": true,
+              "requireEditionReleaseRoute": true,
+              "requireCustomFieldSchema": true
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        }
+      ],
+      "qualificationEvidenceIds": [],
+      "vendorSampleAcquired": false,
+      "independentCompanyEvidence": false,
+      "arbitraryCompanyGuarantee": false
+    },
+    {
+      "profileId": "zoho-books-v3-organization-jurisdiction",
+      "groupId": "zoho-books",
+      "scope": {
+        "product": "Zoho Books",
+        "apiVersion": "v3",
+        "route": "organization-REST-or-export",
+        "jurisdiction": "must-be-selected"
+      },
+      "status": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "assertions": [
+        {
+          "assertionId": "ZOHO-COHERENT-ORGANIZATION-BUNDLE",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-ZOHO-BOOKS-V3-ORG"
+          ],
+          "evidenceBasis": "documented-behavior",
+          "fieldPaths": [
+            "organization_id",
+            "organization.currency_code",
+            "organization.time_zone",
+            "source.region"
+          ],
+          "trap": "Examples from separate organizations/configurations cannot establish coherent company books.",
+          "requiredGuard": {
+            "guardId": "coherent-company-jurisdiction",
+            "parameters": {
+              "requireOrganizationId": true,
+              "requireEditionJurisdiction": true,
+              "requireRegion": true,
+              "requireCompanyConfiguration": true,
+              "requireCompatibleSourceReports": true,
+              "forbidUnprovenExampleStitching": true
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        },
+        {
+          "assertionId": "ZOHO-COUNTRY-EDITION-FIELDS",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-ZOHO-BOOKS-V3-CREDIT-NOTES",
+            "REF-ZOHO-BOOKS-V3-ORG"
+          ],
+          "evidenceBasis": "documented-country-labels; coherence-conclusion-is-inference",
+          "fieldPaths": [
+            "CreditNote.gst_treatment",
+            "CreditNote.gst_no",
+            "CreditNote.vat_treatment",
+            "CreditNote.cfdi_usage",
+            "CreditNote.cfdi_reference_type"
+          ],
+          "trap": "API examples combine country-specific fields; schema demonstration is not a coherent company ledger.",
+          "requiredGuard": {
+            "guardId": "jurisdiction-specific-tax-fields",
+            "parameters": {
+              "documentedFieldJurisdictions": {
+                "gst_treatment": "IN",
+                "gst_no": "IN",
+                "vat_treatment": "GB",
+                "cfdi_usage": "MX",
+                "cfdi_reference_type": "MX"
+              },
+              "requireOrganizationCountryEdition": true,
+              "forbidCrossEditionExampleStitching": true,
+              "unknownJurisdiction": "abstain"
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        }
+      ],
+      "qualificationEvidenceIds": [],
+      "vendorSampleAcquired": false,
+      "independentCompanyEvidence": false,
+      "arbitraryCompanyGuarantee": false
+    },
+    {
+      "profileId": "phonepe-pulse-delivery-channel-rights",
+      "groupId": "phonepe-business",
+      "scope": {
+        "product": "PhonePe Pulse aggregate research data",
+        "apiVersion": "dataset-release-unselected",
+        "route": "GitHub-or-website-must-be-distinguished",
+        "jurisdiction": "rights-scope-pending"
+      },
+      "status": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "assertions": [
+        {
+          "assertionId": "PULSE-RIGHTS-CHANNEL-TENSION",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-PHONEPE-PULSE-GITHUB-LICENSE",
+            "REF-PHONEPE-PULSE-WEBSITE-TERMS"
+          ],
+          "evidenceBasis": "apparent-rights-tension-not-conclusive-legal-resolution",
+          "fieldPaths": [
+            "provenance.acquisitionChannel",
+            "provenance.artifactRevision",
+            "rights.useDecisions"
+          ],
+          "trap": "GitHub data license and website restrictions have different stated scopes; applicability is unresolved.",
+          "requiredGuard": {
+            "guardId": "rights-channel-admission",
+            "parameters": {
+              "acquisition": "hold",
+              "reuse": "hold",
+              "redistribution": "hold",
+              "training": "hold",
+              "requireExactArtifactDeliveryChannel": true,
+              "requireAccountablePermissionReview": true,
+              "forbidAggregatesAsMerchantBooks": true
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        },
+        {
+          "assertionId": "PULSE-AGGREGATE-RELEASE-LINEAGE",
+          "status": "unqualified",
+          "referenceIds": [
+            "REF-PHONEPE-PULSE-DATASET-README"
+          ],
+          "evidenceBasis": "documented-dataset-scope",
+          "fieldPaths": [
+            "provenance.datasetRelease",
+            "provenance.sourceFamily",
+            "provenance.aggregationLevel"
+          ],
+          "trap": "Aggregate/restated Pulse series is not merchant books or additive independent releases.",
+          "requiredGuard": {
+            "guardId": "aggregate-release-lineage",
+            "parameters": {
+              "forbidAggregateAsMerchantBooks": true,
+              "forbidUnreviewedCrossReleaseJoin": true,
+              "requireExactRelease": true,
+              "requireSourceFamily": true
+            },
+            "enforcement": "deterministic-required",
+            "onUnimplemented": "abstain",
+            "onMissingEvidence": "abstain",
+            "onContradictoryProfile": "invalidate"
+          },
+          "positiveAndNegativeCases": "required-not-yet-vendor-qualified"
+        }
+      ],
+      "qualificationEvidenceIds": [],
+      "vendorSampleAcquired": false,
+      "independentCompanyEvidence": false,
+      "arbitraryCompanyGuarantee": false
+    }
+  ]
+}

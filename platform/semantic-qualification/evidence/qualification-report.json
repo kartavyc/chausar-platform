@@ -1,0 +1,234 @@
+{
+  "contractVersion": 1,
+  "generatedAt": "2026-09-30T23:32:15.840Z",
+  "compilerVersion": "semantic-qualification/1.0.0",
+  "compilerBuildHash": "4ee00255281ce7fa931973c33841886a2fdbbfb9a09e7f0fd18b811ca5c5cca1",
+  "baseline": "100df1d3c3bdb8e7793d81e6590cd6145c617d3e",
+  "synthetic": {
+    "cases": 17,
+    "wholeBusinesses": 17,
+    "templateFamilies": 2,
+    "configurationFamilies": 2,
+    "tuning": 8,
+    "holdout": 9,
+    "correct": 17,
+    "failed": 0,
+    "qualified": 8,
+    "abstained": 9,
+    "acceptedWrong": 0
+  },
+  "ledger": {
+    "valid": true,
+    "entries": 119,
+    "head": "f3a32ea479e3b5e4e83b281933ee0b5c7fed1e2fd2103fe767dbf0f84058ab24"
+  },
+  "requestedConnectorGroups": 56,
+  "namedConnectorGroupsQualified": 0,
+  "externalDatasetsAcquired": 0,
+  "externalDatasetsAdmitted": 0,
+  "publicCandidates": 16,
+  "splitDisclosure": "public-synthetic",
+  "policy": "Refusal frequency here reflects deliberately adversarial fixtures, not real onboarding performance. No public sample guarantees arbitrary-company correctness.",
+  "countsPolicy": "Reference/schema documents, coherent business books, independent company/configuration/version/template origins and synthetic cases are distinct categories. Future corpus targets are aspirational, not available or qualified corpus counts.",
+  "liveVerified": false,
+  "productionQualified": false,
+  "arbitraryCompanyGuarantee": false,
+  "writebackQualified": false,
+  "limitations": [
+    "Only seven synthetic register operations have executable evidence.",
+    "All 56 named connector groups remain unqualified.",
+    "Public synthetic holdout is independently authored but disclosed, not sealed or real.",
+    "No authorized external business books, native adapter, live environment, dual-database SQL proof or financial writeback verified.",
+    "Source report metadata and local hash chains are not upstream publisher signatures."
+  ],
+  "results": [
+    {
+      "id": "tuning-retail-separated-events",
+      "split": "tuning",
+      "expected": "qualified",
+      "actual": "qualified",
+      "passed": true,
+      "issueCodes": [],
+      "operations": 7,
+      "qualification": "synthetic-qualified"
+    },
+    {
+      "id": "tuning-zero-and-large-money",
+      "split": "tuning",
+      "expected": "qualified",
+      "actual": "qualified",
+      "passed": true,
+      "issueCodes": [],
+      "operations": 7,
+      "qualification": "synthetic-qualified"
+    },
+    {
+      "id": "tuning-separated-currencies",
+      "split": "tuning",
+      "expected": "qualified",
+      "actual": "qualified",
+      "passed": true,
+      "issueCodes": [],
+      "operations": 7,
+      "qualification": "synthetic-qualified"
+    },
+    {
+      "id": "holdout-wholesale-independent",
+      "split": "holdout",
+      "expected": "qualified",
+      "actual": "qualified",
+      "passed": true,
+      "issueCodes": [],
+      "operations": 7,
+      "qualification": "synthetic-qualified"
+    },
+    {
+      "id": "holdout-crosscurrency-independent",
+      "split": "holdout",
+      "expected": "qualified",
+      "actual": "qualified",
+      "passed": true,
+      "issueCodes": [],
+      "operations": 7,
+      "qualification": "synthetic-qualified"
+    },
+    {
+      "id": "holdout-large-and-explicit-zero",
+      "split": "holdout",
+      "expected": "qualified",
+      "actual": "qualified",
+      "passed": true,
+      "issueCodes": [],
+      "operations": 7,
+      "qualification": "synthetic-qualified"
+    },
+    {
+      "id": "tuning-taxed-settled-cash",
+      "split": "tuning",
+      "expected": "qualified",
+      "actual": "qualified",
+      "passed": true,
+      "issueCodes": [],
+      "operations": 7,
+      "qualification": "synthetic-qualified"
+    },
+    {
+      "id": "holdout-taxed-settled-cash",
+      "split": "holdout",
+      "expected": "qualified",
+      "actual": "qualified",
+      "passed": true,
+      "issueCodes": [],
+      "operations": 7,
+      "qualification": "synthetic-qualified"
+    },
+    {
+      "id": "tuning-null-amount-abstains",
+      "split": "tuning",
+      "expected": "abstained",
+      "actual": "abstained",
+      "passed": true,
+      "issueCodes": [
+        "MISSING_VALUE"
+      ],
+      "operations": 7,
+      "qualification": "unqualified"
+    },
+    {
+      "id": "holdout-null-tax-abstains",
+      "split": "holdout",
+      "expected": "abstained",
+      "actual": "abstained",
+      "passed": true,
+      "issueCodes": [
+        "MISSING_VALUE"
+      ],
+      "operations": 7,
+      "qualification": "unqualified"
+    },
+    {
+      "id": "holdout-unknown-status-abstains",
+      "split": "holdout",
+      "expected": "abstained",
+      "actual": "abstained",
+      "passed": true,
+      "issueCodes": [
+        "UNKNOWN_STATE"
+      ],
+      "operations": 7,
+      "qualification": "unqualified"
+    },
+    {
+      "id": "tuning-impossible-date-abstains",
+      "split": "tuning",
+      "expected": "abstained",
+      "actual": "abstained",
+      "passed": true,
+      "issueCodes": [
+        "INVALID_DATE"
+      ],
+      "operations": 7,
+      "qualification": "unqualified"
+    },
+    {
+      "id": "holdout-refund-without-link-abstains",
+      "split": "holdout",
+      "expected": "abstained",
+      "actual": "abstained",
+      "passed": true,
+      "issueCodes": [
+        "REFUND_LINK_MISSING"
+      ],
+      "operations": 7,
+      "qualification": "unqualified"
+    },
+    {
+      "id": "tuning-cumulative-refund-limit-abstains",
+      "split": "tuning",
+      "expected": "abstained",
+      "actual": "abstained",
+      "passed": true,
+      "issueCodes": [
+        "REFUND_LIMIT"
+      ],
+      "operations": 7,
+      "qualification": "unqualified"
+    },
+    {
+      "id": "holdout-unconfigured-currency-abstains",
+      "split": "holdout",
+      "expected": "abstained",
+      "actual": "abstained",
+      "passed": true,
+      "issueCodes": [
+        "CURRENCY_UNCONFIGURED"
+      ],
+      "operations": 7,
+      "qualification": "unqualified"
+    },
+    {
+      "id": "tuning-inexact-money-abstains",
+      "split": "tuning",
+      "expected": "abstained",
+      "actual": "abstained",
+      "passed": true,
+      "issueCodes": [
+        "INEXACT_DECIMAL"
+      ],
+      "operations": 7,
+      "qualification": "unqualified"
+    },
+    {
+      "id": "holdout-inexact-quantity-abstains",
+      "split": "holdout",
+      "expected": "abstained",
+      "actual": "abstained",
+      "passed": true,
+      "issueCodes": [
+        "INEXACT_DECIMAL"
+      ],
+      "operations": 7,
+      "qualification": "unqualified"
+    }
+  ]
+}
