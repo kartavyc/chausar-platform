@@ -159,6 +159,7 @@ export class JobService {
   async accept(context: Context, id: string, repeat = false): Promise<Job> {
     return this.store.update(state => {
       const job = this.find(state, id); this.owner(state, context, job); check(context.memberId === job.ownerId && context.epoch === job.ownerEpoch && context.role === job.ownerRole, 'JOB_OWNER_REQUIRED', 'Only the pinned owner may accept the result.'); check(!context.sourceTainted && context.channel !== 'phone', 'APP_ACCEPTANCE_REQUIRED', 'Accept delivered work inside the app.'); check(job.status === 'awaiting-acceptance', 'INVALID_JOB_STATE', 'A human can accept a delivered result.');
+      if (job.plan) check(this.deliverableGuard?.(context, structuredClone(job)) === true, 'JOB_EVIDENCE_REVOKED', 'Accept only currently accessible evidence for this exact objective.');
       job.ledger.push({ at: this.timestamp(), event: 'accepted' }); job.status = 'accepted';
       if (repeat && job.runs < job.stopRule.maxRuns && this.clock() < Date.parse(job.stopRule.deadline)) { const periods = Math.max(1, Math.floor((this.clock() - Date.parse(job.nextRunAt)) / job.intervalMs) + 1); job.nextRunAt = new Date(Date.parse(job.nextRunAt) + periods * job.intervalMs).toISOString(); job.status = 'scheduled'; delete job.approval; if (job.execution) (job.archivedExecutions ??= []).push(job.execution); delete job.execution; delete job.deliverable; }
       audit(state, 'job.accepted', { jobId: id, repeat }); return this.view(context, job);

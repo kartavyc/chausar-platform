@@ -16,6 +16,8 @@ import { AuthService } from './auth.ts';
 import { SyncService, type SyncOptions } from './sync.ts';
 import { ActionService } from './actions.ts';
 import { JobService } from './jobs.ts';
+import { createEngineJobRunner, type EngineJobOptions, type JobLifecycle } from './engine-jobs.ts';
+import type { Job } from './jobs.ts';
 import { PluginService } from './plugins.ts';
 import { LearningService } from './learning.ts';
 import { MCPService } from './mcp.ts';
@@ -26,7 +28,7 @@ import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater } from './updater.ts';
 import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 
-export type EngineOptions = { directory: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string };
+export type EngineOptions = { directory: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions };
 
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
@@ -39,6 +41,8 @@ export class Engine {
   #activeRequests = 0;
   #closing = false;
   #idleWaiters = new Set<() => void>();
+  // Unknown host state is closed to scheduled dispatch. Only a trusted host sets it.
+  #jobLifecycle: JobLifecycle = { awake: false, windowOpen: false, backgroundEnabled: false };
   get context(): Context { return this.#requestContext.getStore() || this.#baseContext; }
   set context(value: Context) { this.#baseContext = { ...value }; }
   services: Record<string, any> = {};
@@ -92,6 +96,7 @@ export class Engine {
     this.services.actions = new ActionService(store, this.builtinActions(store));
     this.services.jobs = new JobService(store, { deliverableGuard: (ctx: Context, job: any) => {
       if (!job.deliverable) return true;
+      if (job.plan) return this.services.jobRunner?.canRelease(ctx, job) === true;
       const ids = job.deliverable.result?.receiptIds;
       if (!Array.isArray(ids) || ids.length === 0) return false;
       try { ids.forEach((id: string) => this.services.calculator.receipt(ctx, id));
@@ -99,6 +104,7 @@ export class Engine {
         return (job.deliverable.result?.decisions ?? []).every((item: any) => currentDecisions.has(item.id));
       } catch { return false; }
     } });
+    if (this.options.durableJobs) this.services.jobRunner = createEngineJobRunner(store, this.services.jobs, this.services.actions, calculationOptions, this.options.durableJobs);
     this.services.plugins = new PluginService(store, {});
     this.services.learning = new LearningService(store);
     this.services.mcp = new MCPService(store, { calculations: [{
@@ -122,6 +128,10 @@ export class Engine {
     return [{ id: 'local', title: 'Chausar local workspace', operations: { 'reminder-draft': draft } }];
   }
   async close() {
+    check(!this.#activeRequests && !this.#transition, 'VAULT_BUSY', 'Drain pending engine requests before closing its authority.');
+    await this.closeVault();
+  }
+  private async closeVault() {
     this.services.gateway?.clearCredentials(); this.services.speech?.clearCredentials();
     for (const staged of this.#stagedVaults) await staged.close(); this.#stagedVaults.clear();
     if (this.vault) { await this.vault.close(); this.vault = null; this.services = {}; }
@@ -129,15 +139,16 @@ export class Engine {
   async shutdown(timeoutMs = 70000) {
     check(Number.isSafeInteger(timeoutMs) && timeoutMs >= 100 && timeoutMs <= 75000, 'INVALID_SHUTDOWN_LIMIT', 'Use a bounded engine shutdown deadline.');
     this.#closing = true;
+    this.services.jobRunner?.interruptActive();
     if (this.#activeRequests || this.#transition) await new Promise<void>((accept, reject) => {
       const finished = () => { clearTimeout(timer); this.#idleWaiters.delete(finished); accept(); };
       const timer = setTimeout(() => { this.#idleWaiters.delete(finished); reject(new Error('Engine shutdown exceeded its deadline; unfinished actions require reconciliation.')); }, timeoutMs);
       this.#idleWaiters.add(finished);
     });
-    await this.close();
+    await this.closeVault();
   }
   private notifyIdle() { if (!this.#activeRequests && !this.#transition) for (const finished of this.#idleWaiters) finished(); }
-  private async attachSafely(vault: Vault) { try { this.attach(vault); await this.services.actions.recoverInterrupted(this.context); } catch (error) { await vault.close(); this.vault = null; this.services = {}; throw error; } }
+  private async attachSafely(vault: Vault) { try { this.attach(vault); await this.services.actions.recoverInterrupted(this.context); await this.services.jobRunner?.recoverInterrupted(this.context); } catch (error) { await vault.close(); this.vault = null; this.services = {}; throw error; } }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
     const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete']);
@@ -170,7 +181,7 @@ export class Engine {
       check(!rel.startsWith('..') && !isAbsolute(rel) && rel.endsWith('.backup'), 'INVALID_PATH', 'Choose a managed backup file.');
       const folder = payload.folder ?? 'restored'; await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage: await this.adapter(folder) })); return { workspace: this.store().read().workspace };
     }
-    if (method === 'workspace.lock') { if (this.vault) authorize(this.vault, this.context, 'admin'); await this.close(); return { locked: true }; }
+    if (method === 'workspace.lock') { if (this.vault) authorize(this.vault, this.context, 'admin'); await this.closeVault(); return { locked: true }; }
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
     const s = this.services;
     switch (method) {
@@ -245,10 +256,23 @@ export class Engine {
       case 'actions.execute': return s.actions.execute(ctx, payload.id);
       case 'actions.reconcile': return s.actions.reconcile(ctx, payload.id);
       case 'jobs.list': return s.jobs.list(ctx);
-      case 'jobs.create': check(payload.type === 'owner-brief', 'JOB_TYPE_UNSUPPORTED', 'The installed runner supports owner-brief jobs. Choose that type explicitly.'); return s.jobs.create(ctx, payload);
+      case 'jobs.types': return { types: ['owner-brief', ...(s.jobRunner ? [...s.jobRunner.runners.keys()] : [])], configured: !!s.jobRunner, policy: this.options.durableJobs ? { maxActiveJobs: this.options.durableJobs.maxActiveJobs, leaseMs: this.options.durableJobs.leaseMs } : null, localOnly: true, externalEffects: 'prepare-only', lifecycle: { ...this.#jobLifecycle } };
+      case 'jobs.create': {
+        if (payload.type === 'owner-brief') return this.createBriefJob(ctx, payload);
+        check(['calculation-set', 'evidence-review', 'action-preparation'].includes(payload.type), 'JOB_TYPE_UNSUPPORTED', 'Choose an installed goal type explicitly.');
+        return this.jobRunner().create(ctx, payload);
+      }
+      case 'jobs.amend': return this.jobRunner().amend(ctx, payload.id, payload.config);
+      case 'jobs.cancel': return this.typedJob(payload.id) ? this.jobRunner().cancel(ctx, payload.id) : s.jobs.cancel(ctx, payload.id);
+      case 'jobs.reconcile': return this.jobRunner().reconcile(ctx, payload.id);
+      case 'jobs.progress': return this.jobRunner().progress(ctx, payload.id);
       case 'jobs.pause': return s.jobs.pause(ctx, payload.id);
       case 'jobs.resume': return s.jobs.resume(ctx, payload.id);
-      case 'jobs.accept': return s.jobs.accept(ctx, payload.id, payload.repeat === true);
+      case 'jobs.accept': {
+        const job = s.jobs.find(store.read(), payload.id); s.jobs.owner(store.read(), ctx, job);
+        if (job.plan) check(this.jobRunner().canRelease(ctx, job), 'JOB_EVIDENCE_REVOKED', 'Review currently accessible evidence before accepting this result.');
+        return s.jobs.accept(ctx, payload.id, payload.repeat === true);
+      }
       case 'jobs.approve': return s.jobs.approve(ctx, payload.id, payload.digest);
       case 'jobs.reject': return s.jobs.reject(ctx, payload.id, payload.reason);
       case 'jobs.run': return this.runJob(payload.id);
@@ -300,13 +324,15 @@ export class Engine {
         const folder = join(this.options.directory, 'exports'); await mkdir(folder, { recursive: true }); const path = join(folder, `chausar-${store.read().workspace.id}-${Date.now()}.${payload.plaintext ? 'json' : 'vault'}`);
         await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
       }
-      case 'workspace.delete': this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.'); const removed = await this.purgeManagedCopies(); await store.delete(); await this.close(); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      case 'workspace.delete': this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.'); const removed = await this.purgeManagedCopies(); await store.delete(); await this.closeVault(); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
       default: throw new Error(`Unknown request: ${method}`);
     }
   }
   private async runJob(id: string) {
     const configured = this.store().read().jobs.find((item: any) => item.id === id);
-    check(configured?.type === 'owner-brief', 'JOB_TYPE_UNSUPPORTED', 'This job has no installed runner. Only owner-brief jobs are available.');
+    check(configured, 'NOT_FOUND', 'Job not found.');
+    if (configured.plan) return this.jobRunner().run(this.context, id);
+    check(configured.type === 'owner-brief', 'JOB_TYPE_UNSUPPORTED', 'This job has no installed runner.');
     check(this.context.memberId === configured.ownerId || this.context.role === 'owner', 'JOB_OWNER_REQUIRED', 'Only the job owner or workspace owner can run this job.');
     const owner = this.store().read().members.find(member => member.id === configured.ownerId);
     check(owner?.active && owner.epoch === configured.ownerEpoch && owner.role === configured.ownerRole, 'JOB_OWNER_REVOKED', 'The job owner changed or was revoked.');
@@ -317,7 +343,7 @@ export class Engine {
     const completed = await this.services.jobs.complete(jobContext, id, job.lease, { kind: 'brief', result, at: now() }, '0');
     // The scheduler may administer another member's run, but does not disclose
     // that member's cached report to a different requesting identity.
-    if (this.context.memberId !== owner.id) { const { deliverable, ...metadata } = completed; return metadata; }
+    if (this.context.memberId !== owner.id) return { id: completed.id, status: completed.status };
     return completed;
   }
   private workbookBytes(payload: any): Uint8Array {
@@ -356,13 +382,39 @@ export class Engine {
     return removed;
   }
   private requireWorkspaceOwner(ctx: Context) { const member = authorize(this.store(), ctx, 'admin'); check(member.role === 'owner' && member.branches.includes('*'), 'FORBIDDEN', 'Only an unrestricted workspace owner can copy or delete the entire vault.'); }
+  private jobRunner() { check(this.services.jobRunner, 'JOB_POLICY_REQUIRED', 'Configure explicit worker, active-job and lease policy before creating typed goals.'); return this.services.jobRunner; }
+  private createBriefJob(ctx: Context, payload: any) {
+    check(payload.plan === undefined, 'INVALID_JOB_PLAN', 'The installed runner creates its own plan.');
+    if (!this.options.durableJobs) return this.services.jobs.create(ctx, payload);
+    const store = this.store(); const limit = this.options.durableJobs.maxActiveJobs;
+    const capped = new JobService({ read: () => store.read(), update: change => store.update(state => {
+      check(state.jobs.filter((job: Job) => !['accepted', 'cancelled', 'revoked', 'stopped'].includes(job.status) || job.execution?.attempts.some(attempt => ['dispatched', 'unknown'].includes(attempt.status))).length < limit, 'ACTIVE_JOB_LIMIT', 'The configured active job ceiling is reached.');
+      return change(state);
+    }) }, { deliverableGuard: this.services.jobs.deliverableGuard });
+    return capped.create(ctx, payload);
+  }
+  private typedJob(id: string): boolean { return !!this.services.jobs.find(this.store().read(), id).plan; }
+  /** Trusted process-host hook, deliberately absent from renderer/member RPCs. */
+  updateJobLifecycle(host: JobLifecycle) {
+    check(host && ['awake', 'windowOpen', 'backgroundEnabled'].every(key => typeof (host as any)[key] === 'boolean') && Object.keys(host).length === 3, 'INVALID_JOB_LIFECYCLE', 'Report explicit host awake, window and background state.');
+    this.#jobLifecycle = { ...host };
+  }
   async tick() {
-    if (this.#closing || this.#transition || !this.vault || !this.vault.read().policy.autonomy) return [];
+    const host = { ...this.#jobLifecycle };
+    if (this.#closing || this.#transition || !this.vault || !this.vault.read().policy.autonomy || !host.awake || (!host.windowOpen && !host.backgroundEnabled)) return [];
     this.#activeRequests++;
     try {
-    const due = this.vault.read().jobs.filter((job: any) => (['scheduled', 'approval-blocked'].includes(job.status) && Date.parse(job.nextRunAt) <= Date.now()) || (job.status === 'running' && job.lease && Date.parse(job.lease.expiresAt) <= Date.now()));
+    const due = this.vault.read().jobs.filter((job: Job) => !job.plan && (host.windowOpen || job.background === true) && ((['scheduled', 'approval-blocked'].includes(job.status) && Date.parse(job.nextRunAt) <= Date.now()) || (job.status === 'running' && job.lease && Date.parse(job.lease.expiresAt) <= Date.now())));
     const results = [];
     for (const job of due) { try { results.push(await this.runJob(job.id)); } catch (error) { results.push({ id: job.id, error: (error as Error).message }); } }
+    if (this.services.jobRunner) for (const member of this.vault.read().members.filter(member => member.active && ['owner', 'cofounder'].includes(member.role))) {
+      const ownerContext: Context = { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' };
+      try {
+        const ran: Job[] = await this.services.jobRunner.tick(ownerContext, host);
+        // A multi-owner scheduler releases receipts only to their pinned owner.
+        for (const job of ran) results.push(this.context.memberId === job.ownerId && this.context.epoch === job.ownerEpoch && this.context.role === job.ownerRole ? this.services.jobs.view(this.context, this.services.jobs.find(this.vault.read(), job.id)) : { id: job.id, status: job.status });
+      } catch (error) { results.push({ error: { code: (error as any).code ?? 'JOB_SCHEDULER_FAILED' } }); }
+    }
     return results;
     } finally { this.#activeRequests--; this.notifyIdle(); }
   }

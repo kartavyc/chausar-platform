@@ -196,6 +196,7 @@ test('scheduler calculates each brief under its owner and never exposes another 
   assert.equal(net(broad), '100000');
   assert.ok(!(await engine.requestAs(readerContext, 'jobs.list')).some((job: any) => job.id === ownerJob.id), 'A main-only viewer cannot read the owner-wide saved brief.');
   const scopedJob = await engine.requestAs(cofounderContext, 'jobs.create', configuration);
+  engine.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
   const schedulerResults = await engine.tick();
   assert.ok(schedulerResults.every((result: any) => !result.deliverable), 'The owner scheduler returns status metadata for another member job.');
   const saved = (await engine.requestAs(cofounderContext, 'jobs.list')).find((job: any) => job.id === scopedJob.id);

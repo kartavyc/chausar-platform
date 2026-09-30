@@ -37,8 +37,10 @@ export class DurableJobRunner {
   jobs: JobService; runners: Map<string, GoalRunner<any>>; providers: Map<string, GoalProvider>; options: RunnerOptions;
   private busy = false;
   private signals = new Map<string, AbortController>();
+  private readbacks = new Set<AbortController>();
+  private interruptors = new Set<() => void>();
   constructor(jobs: JobService, runners: GoalRunner<any>[], providers: GoalProvider[], options: RunnerOptions) {
-    check(Number.isSafeInteger(options.maxActiveJobs) && options.maxActiveJobs > 0 && Number.isSafeInteger(options.leaseMs) && options.leaseMs >= 100 && options.leaseMs <= 300000 && typeof options.networkAvailable === 'function', 'INVALID_JOB_RUNNER', 'Supply explicit active-job, lease and transport policy.');
+    check(typeof options.workerId === 'string' && options.workerId.length >= 1 && options.workerId.length <= 100 && Number.isSafeInteger(options.maxActiveJobs) && options.maxActiveJobs > 0 && Number.isSafeInteger(options.leaseMs) && options.leaseMs >= 100 && options.leaseMs <= 300000 && typeof options.networkAvailable === 'function', 'INVALID_JOB_RUNNER', 'Supply explicit worker, active-job, lease and transport policy.');
     this.jobs = jobs; this.options = options; this.runners = new Map(); this.providers = new Map();
     for (const runner of runners) { check(/^[a-z][a-z0-9-]{0,63}$/.test(runner.type) && runner.version.length > 0 && !this.runners.has(runner.type) && typeof runner.release === 'function', 'INVALID_JOB_RUNNER', 'Install unique versioned runners with current release checks.'); this.runners.set(runner.type, runner); }
     for (const provider of providers) { check(/^[a-z][a-z0-9-]{0,63}$/.test(provider.id) && !this.providers.has(provider.id) && ['read-only', 'prepare-action'].includes(provider.kind) && ['local', 'remote'].includes(provider.transport) && typeof provider.model === 'boolean', 'INVALID_JOB_PROVIDER', 'Install explicit read or action-preparation providers.'); if (provider.kind === 'read-only') { check(typeof provider.dispatch === 'function' && typeof provider.reconcile === 'function', 'INVALID_JOB_PROVIDER', 'Every dispatched provider needs readback.'); check(provider.transport === 'local' || typeof provider.authorize === 'function', 'INVALID_JOB_PROVIDER', 'Remote providers need an explicit current read and exact egress authority.'); } else check(provider.transport === 'local' && !provider.model && options.actions, 'INVALID_JOB_PROVIDER', 'Action previews use the local ActionService.'); this.providers.set(provider.id, provider); }
@@ -83,7 +85,7 @@ export class DurableJobRunner {
   }
   /** A release guard for the host's JobService. Rechecks the recorded results for this runner. */
   canRelease(context: Context, job: Job): boolean {
-    try { this.scope(this.jobs.store.read(), context, job); check(job.execution && job.execution.objectiveRevision === job.revision, 'JOB_EVIDENCE_REVOKED', 'The result belongs to an obsolete objective.'); this.results(context, job); return job.plan!.steps.every(step => this.latest(job, step.id)?.status === 'verified'); } catch { return false; }
+    try { this.scope(this.jobs.store.read(), context, job); check(job.execution && job.execution.objectiveRevision === job.revision && job.plan && job.execution.planDigest === digest(job.plan) && job.digest === this.jobs.identity(job) && this.runner(job.type).version === job.plan.runnerVersion, 'JOB_EVIDENCE_REVOKED', 'The result belongs to an obsolete objective or runner.'); this.results(context, job); return job.plan.steps.every(step => this.latest(job, step.id)?.status === 'verified'); } catch { return false; }
   }
   progress(context: Context, id: string) {
     const raw = this.raw(id); this.scope(this.jobs.store.read(), context, raw); const job = this.jobs.view(context, raw);
@@ -169,9 +171,12 @@ export class DurableJobRunner {
     const job = this.raw(request.key.split(':revision:')[0]);
     const timeoutMs = Math.min(request.step.durationMs, Date.parse(job.stopRule.deadline) - this.jobs.clock(), job.limits!.durationMs - (this.jobs.clock() - Date.parse(job.execution!.startedAt)));
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const expiry = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => { controller.abort(); reject(new ChausarError('JOB_PROVIDER_TIMEOUT', 'The provider reached its admitted deadline. Its consumption requires readback.')); }, Math.max(1, timeoutMs)); });
-    try { return await Promise.race([provider.kind === 'prepare-action' ? this.preview(request) : provider.dispatch(request), expiry]); }
-    finally { if (timer) clearTimeout(timer); }
+    let aborted!: () => void;
+    let stopped!: () => void;
+    const interruption = new Promise<never>((_resolve, reject) => { stopped = () => reject(new ChausarError('JOB_HOST_INTERRUPTED', 'The host is stopping; unfinished work requires readback.')); this.interruptors.add(stopped); aborted = () => { if (controller.signal.reason?.code === 'JOB_HOST_INTERRUPTED') stopped(); }; controller.signal.addEventListener('abort', aborted, { once: true }); if (controller.signal.aborted) aborted(); });
+    const expiry = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => { reject(new ChausarError('JOB_PROVIDER_TIMEOUT', 'The provider reached its admitted deadline. Its consumption requires readback.')); controller.abort(); }, Math.max(1, timeoutMs)); });
+    try { return await Promise.race([provider.kind === 'prepare-action' ? this.preview(request) : provider.dispatch(request), expiry, interruption]); }
+    finally { if (timer) clearTimeout(timer); controller.signal.removeEventListener('abort', aborted); this.interruptors.delete(stopped); }
   }
   async run(context: Context, id: string): Promise<Job> {
     check(!this.busy, 'JOB_WORKER_BUSY', 'The single local worker is busy.'); this.busy = true;
@@ -213,7 +218,8 @@ export class DurableJobRunner {
     sourceAccess(state, context, job.execution!.sourceIds);
     const step = job.execution!.plan.steps.find(s => s.id === attempt.stepId)!; const provider = this.providers.get(step.provider); check(provider, 'JOB_PROVIDER_UNAVAILABLE', 'Restore the declared readback provider.');
     check(provider.transport === 'local' || this.options.networkAvailable(), 'JOB_NETWORK_UNAVAILABLE', 'Readback needs the configured transport.');
-    const request = this.request(context, job, step, attempt.key, new AbortController().signal);
+    const controller = new AbortController();
+    const request = this.request(context, job, step, attempt.key, controller.signal);
     let readback: Reconciliation;
     if (provider.kind === 'prepare-action') {
       const actions = this.options.actions!; const input = step.input as unknown as PrepareAction;
@@ -222,7 +228,15 @@ export class DurableJobRunner {
       if (action) { actions.access(state, context, action); check(canonical(action.payload) === canonical(json(operation.validate(json(input.payload)))) && canonical(action.sourceIds) === canonical([...new Set(input.sourceIds ?? job.execution!.sourceIds)].sort()), 'JOB_PREVIEW_CHANGED', 'The saved action no longer matches its original exact preview.'); }
       readback = action ? { outcome: 'verified', id: action.id, settlement: this.previewResult(action, job.execution!.sourceTainted) } : { outcome: 'absent', id: attempt.key, spentMinor: '0', modelUnits: 0, durationMs: 0, actionExposureMinor: '0' };
     }
-    else { provider.authorize?.(state, context, request, 'readback'); readback = await provider.reconcile(request); }
+    else {
+      provider.authorize?.(state, context, request, 'readback');
+      this.readbacks.add(controller);
+      let timer: ReturnType<typeof setTimeout> | undefined; let aborted!: () => void;
+      const interruption = new Promise<never>((_resolve, reject) => { aborted = () => reject(new ChausarError('JOB_READBACK_INTERRUPTED', 'Readback was interrupted; its outcome remains unknown.')); controller.signal.addEventListener('abort', aborted, { once: true }); });
+      const expiry = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => { reject(new ChausarError('JOB_READBACK_TIMEOUT', 'Readback reached its admitted time ceiling; its outcome remains unknown.')); controller.abort(); }, step.durationMs); });
+      try { readback = await Promise.race([provider.reconcile(request), expiry, interruption]); }
+      finally { if (timer) clearTimeout(timer); controller.signal.removeEventListener('abort', aborted); this.readbacks.delete(controller); controller.abort(); }
+    }
     this.jobs.owner(this.jobs.store.read(), context, this.raw(id));
     sourceAccess(this.jobs.store.read(), context, job.execution!.sourceIds);
     if (provider.kind === 'read-only') provider.authorize?.(this.jobs.store.read(), context, request, 'readback');
@@ -236,6 +250,8 @@ export class DurableJobRunner {
     return this.jobs.view(context, this.raw(id));
   }
   async cancel(context: Context, id: string) { const job = await this.jobs.cancel(context, id); this.signals.get(id)?.abort(); return job; }
+  /** Signals are advisory; the durable journal retains every unresolved exposure. */
+  interruptActive() { for (const stop of this.interruptors) stop(); for (const signal of [...this.signals.values(), ...this.readbacks]) signal.abort(new ChausarError('JOB_HOST_INTERRUPTED', 'The host is stopping; unfinished work requires readback.')); }
   /** Call only after acquiring the host's exclusive vault lock and before scheduling work. */
   async recoverInterrupted(context: Context) {
     check(!this.busy, 'JOB_WORKER_BUSY', 'Recovery is only available before the worker starts.');
