@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "profile": "independent-local-analytical-verification",
+  "syntheticInputsOnly": true,
+  "environment": {
+    "node": "24.13.1",
+    "python": { "status": "executed", "version": "3.12.14", "isolatedMode": true },
+    "pdfplumber": { "status": "executed", "supported": true }
+  },
+  "testRuns": [
+    {
+      "command": "node --test platform/tests/analytics.test.ts platform/tests/helper.test.ts",
+      "configuration": "CHAUSAR_PYTHON supplied explicitly at execution; no machine-specific path retained",
+      "exitCode": 0,
+      "passed": 16,
+      "failed": 0,
+      "skipped": 0,
+      "coverage": {
+        "injectedSqlExecutor": 7,
+        "nativeDuckDbUnavailableRefusal": 1,
+        "injectedHelperTransport": 3,
+        "actualPythonHelpers": 5
+      }
+    },
+    {
+      "command": "node --test platform/tests/acceptance.test.ts",
+      "testVersion": "initial six-case run; subsequent scheduler privacy additions are recorded below",
+      "exitCode": 0,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "coverage": [
+        "vault creation, exact reconciliation, dictionary, calculations, receipt, decision, exact approved draft, recovery and restore",
+        "branch-scoped reads and current-epoch revocation",
+        "source deletion, managed-copy purge and renamed-content resurrection refusal",
+        "changed action payload and tainted approval refusal",
+        "read-only MCP exact scalar minor units and rejected write/SQL requests",
+        "disabled and enabled WASM plus import/capability/taint abuse refusal"
+      ]
+    },
+    {
+      "command": "node --test --test-name-pattern 'scheduler calculates|saved broad receipt' platform/tests/acceptance.test.ts",
+      "exitCode": 0,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "coverage": [
+        "owner-wide saved job content cannot leak to a branch viewer even with omitted sourceIds",
+        "main10000 and west90000 preserve scoped cofounder10000 when the base-owner scheduler runs",
+        "source revocation withholds the cached brief"
+      ]
+    },
+    {
+      "command": "node --test --test-name-pattern 'scheduler calculates' platform/tests/acceptance.test.ts",
+      "exitCode": 0,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "coverage": [
+        "latest scheduler privacy and revocation regression",
+        "main-only cofounder cannot delete a mixed main/west source",
+        "denied cross-branch deletion preserves owner earned100000"
+      ]
+    }
+  ],
+  "pythonChecks": {
+    "sourceCompilation": "passed",
+    "forecast": "actual exact rational trend and held-out baseline tests",
+    "allocation": "actual exact non-greedy optimum and bounded-units tests",
+    "pdf": "actual one-page synthetic PDF text extraction and malformed PDF refusal",
+    "resultQualification": "analytical preview; not a financial calculation receipt",
+    "windowsResourceLimits": "CPU/address-space resource limits not enforced by the Python resource module on Windows; parent timeout and transfer limits exercised"
+  },
+  "nativeIntegrations": {
+    "duckdb": {
+      "status": "notRun",
+      "reason": "Native DuckDB dependency unavailable. Injected SQL tests and a missing-dependency refusal do not establish native SQL arithmetic."
+    },
+    "postgresql": {
+      "status": "notRun",
+      "databaseChecksExecuted": 0,
+      "reason": "No explicitly configured empty disposable database. The PostgreSQL verifier refused missing disposable configuration."
+    },
+    "postgresqlDuckDbComposition": { "status": "notRun" },
+    "strictTypeScriptCompiler": { "status": "notRun", "reason": "TypeScript compiler unavailable; Node syntax checks are not typechecking." }
+  },
+  "limits": [
+    "These are synthetic local checks, not customer deployment qualification.",
+    "No external model, hosted service, source credential or operational database was used.",
+    "The isolated trusted Python subprocess is not a certified operating-system sandbox.",
+    "The recovered enterprise connected profile was not replayed by these checks."
+  ]
+}

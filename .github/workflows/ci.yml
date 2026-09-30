@@ -1,0 +1,49 @@
+name: Open verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: open-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          package-manager-cache: false
+      - name: Install pinned dependencies without lifecycle scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Check source and JSON syntax
+        run: node scripts/check.mjs
+      - name: Typecheck runtime and tests
+        run: npm run typecheck
+      - name: Run repository open tests and capture benchmark receipt
+        run: node scripts/bench.mjs --output results/factory-bench.json
+      - name: Upload open-test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-test-report-${{ matrix.os }}
+          path: results/factory-bench.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  # This workflow verifies the open repository only. It neither signs releases nor
+  # qualifies real customer connectors, hosted services, PostgreSQL, or hidden/sealed tests.

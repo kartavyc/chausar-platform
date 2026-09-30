@@ -1,0 +1,117 @@
+import { createPublicKey, createHash, verify as verifySignature, type KeyObject } from 'node:crypto';
+import { open, readFile, lstat, rename, unlink, link } from 'node:fs/promises';
+import { join, isAbsolute } from 'node:path';
+import { isIP } from 'node:net';
+import { check, newId } from './contracts.ts';
+import { safeDirectory } from './vault.ts';
+import { acquireProcessLock } from './process-lock.ts';
+import { boundedHttp, type BoundedHttp, type HttpRequest } from './connectors.ts';
+
+const MAX_ARTIFACT = 256 * 1024 * 1024;
+export type ReleaseManifest = {
+  schemaVersion:1; version:string; publishedAt:string; platform:'win32'|'linux'|'darwin'; architecture:'x64'|'arm64';
+  url:string; sha256:string; size:number; minEngineVersion:string; dataSchemaVersion:number;
+  rollback:{ supported:boolean; requiresBackup:true };
+};
+const FIELDS = ['schemaVersion','version','publishedAt','platform','architecture','url','sha256','size','minEngineVersion','dataSchemaVersion','rollback'].sort();
+function exactKeys(value:any, keys:string[]) { check(value && typeof value === 'object' && !Array.isArray(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort()), 'INVALID_MANIFEST', 'The release manifest has unexpected or missing fields.'); }
+function versionParts(value:string) {
+  check(typeof value === 'string' && value.length <= 100 && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*))?$/.test(value), 'INVALID_VERSION', 'Use an explicit semantic version without build metadata.');
+  const [base, ...pre] = value.split('-'), numbers = base.split('.').map(Number), prerelease = pre.length ? pre.join('-').split('.') : [];
+  check(numbers.every(Number.isSafeInteger) && prerelease.every(part => !/^\d+$/.test(part) || part === '0' || !part.startsWith('0')), 'INVALID_VERSION', 'Version components must be unambiguous.');
+  return { numbers, prerelease };
+}
+export function compareVersions(left:string,right:string):number {
+  const a = versionParts(left), b = versionParts(right);
+  for (let i=0;i<3;i++) if (a.numbers[i] !== b.numbers[i]) return Math.sign(a.numbers[i]-b.numbers[i]);
+  if (!a.prerelease.length || !b.prerelease.length) return a.prerelease.length === b.prerelease.length ? 0 : a.prerelease.length ? -1 : 1;
+  for (let i=0;i<Math.max(a.prerelease.length,b.prerelease.length);i++) {
+    const x=a.prerelease[i], y=b.prerelease[i]; if(x===y) continue; if(x===undefined)return -1;if(y===undefined)return 1;
+    const xn=/^\d+$/.test(x),yn=/^\d+$/.test(y);
+    if(xn&&yn)return BigInt(x)<BigInt(y)?-1:1;if(xn!==yn)return xn?-1:1;return x<y?-1:1;
+  }
+  return 0;
+}
+function canonical(value:any):string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if(Array.isArray(value))return '['+value.map(canonical).join(',')+']';
+  return '{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+canonical(value[key])).join(',')+'}';
+}
+/** Canonical sorted JSON; this exact byte sequence is the Ed25519 signing payload. */
+export function canonicalReleaseManifest(manifest:ReleaseManifest):string { return canonical(manifest); }
+function validateManifest(value:any):asserts value is ReleaseManifest {
+  exactKeys(value,FIELDS); exactKeys(value.rollback,['supported','requiresBackup']);
+  check(value.schemaVersion===1 && typeof value.rollback.supported==='boolean' && value.rollback.requiresBackup===true, 'INVALID_MANIFEST','A version-one manifest must require a vault backup before installation.');
+  versionParts(value.version); versionParts(value.minEngineVersion);
+  check(typeof value.publishedAt==='string' && Number.isFinite(Date.parse(value.publishedAt)) && new Date(value.publishedAt).toISOString()===value.publishedAt && Date.parse(value.publishedAt)<=Date.now()+300000, 'INVALID_MANIFEST','The release needs a canonical publication timestamp.');
+  check(['win32','linux','darwin'].includes(value.platform) && ['x64','arm64'].includes(value.architecture) && /^[a-f0-9]{64}$/.test(value.sha256) && Number.isSafeInteger(value.size) && value.size>0 && value.size<=MAX_ARTIFACT && Number.isSafeInteger(value.dataSchemaVersion) && value.dataSchemaVersion>0 && value.dataSchemaVersion<=1000, 'INVALID_MANIFEST','The release platform, digest, size, or data version is invalid.');
+  let url:URL;try{url=new URL(value.url);}catch{check(false,'INVALID_RELEASE_URL','Use an explicit HTTPS artifact URL.');}
+  const host=url!.hostname.replace(/^\[|\]$/g,'');
+  check(url!.protocol==='https:' && !url!.username && !url!.password && !url!.hash && (!url!.port||url!.port==='443') && !isIP(host) && host.includes('.') && !/(?:^|\.)(localhost|local|internal|test)$/.test(host) && value.url===url!.href, 'INVALID_RELEASE_URL','Release artifacts must use canonical public HTTPS URLs without credentials.');
+}
+async function regular(path:string):Promise<boolean> {
+  try { const stat=await lstat(path);check(stat.isFile()&&!stat.isSymbolicLink(),'UNSAFE_STAGE','The staging path must be a regular file without symbolic links.');return true; }
+  catch(error:any){if(error.code==='ENOENT')return false;throw error;}
+}
+async function writeStaged(path:string,bytes:Uint8Array,replace=false) {
+  const temporary=path+'.'+newId('stage')+'.tmp',file=await open(temporary,'wx',0o600);
+  try {await file.writeFile(bytes);await file.sync();await file.close();if(replace){await regular(path);await rename(temporary,path);}else{await link(temporary,path);await unlink(temporary);}}
+  catch(error){await file.close().catch(()=>{});await unlink(temporary).catch(()=>{});throw error;}
+}
+function digest(bytes:Uint8Array){return createHash('sha256').update(bytes).digest('hex');}
+export class ReleaseUpdater {
+  #key:KeyObject;
+  #version:string;
+  #directory:string;
+  #http:BoundedHttp;
+  constructor(options:{publicKey:string|KeyObject;version:string;stageDirectory:string;http?:BoundedHttp}) {
+    this.#key=typeof options.publicKey==='string'?createPublicKey(options.publicKey):options.publicKey;
+    check(this.#key.type==='public' && this.#key.asymmetricKeyType==='ed25519','INVALID_UPDATE_KEY','Pin an explicit Ed25519 release public key.');
+    versionParts(options.version);check(isAbsolute(options.stageDirectory),'UNSAFE_STAGE','Choose an absolute private staging directory.');
+    this.#version=options.version;this.#directory=options.stageDirectory;this.#http=options.http??boundedHttp;
+  }
+  verify(manifest:ReleaseManifest|string,signature:string):ReleaseManifest {
+    const value=this.#authenticate(manifest,signature);
+    check(compareVersions(value.version,this.#version)>0,'RELEASE_DOWNGRADE_REFUSED','The release must be newer than the running version.');
+    check(compareVersions(this.#version,value.minEngineVersion)>=0,'INCOMPATIBLE_ENGINE','Install an intermediate compatible engine before this release.');
+    return value;
+  }
+  #authenticate(manifest:ReleaseManifest|string,signature:string):ReleaseManifest {
+    let value:any;
+    check(typeof manifest !== 'string' || Buffer.byteLength(manifest) <= 65536, 'INVALID_MANIFEST', 'The signed manifest exceeds its byte limit.');
+    try{value=typeof manifest==='string'?JSON.parse(manifest):structuredClone(manifest);}catch{check(false,'INVALID_MANIFEST','The signed manifest is not valid JSON data.');}
+    validateManifest(value);
+    const payload=canonicalReleaseManifest(value);
+    check(typeof manifest!=='string'||manifest===payload,'NONCANONICAL_MANIFEST','Verify the exact canonical signing payload, without duplicate keys or alternate encodings.');
+    check(typeof signature==='string' && signature.length === 86 && /^[A-Za-z0-9_-]+$/.test(signature),'INVALID_RELEASE_SIGNATURE','A release requires a detached base64url Ed25519 signature.');
+    const bytes=Buffer.from(signature,'base64url');
+    check(bytes.length===64 && bytes.toString('base64url')===signature && verifySignature(null,Buffer.from(payload),this.#key,bytes),'INVALID_RELEASE_SIGNATURE','The release signature is invalid.');
+    check(value.platform===process.platform && value.architecture===process.arch,'INCOMPATIBLE_PLATFORM','This signed artifact targets a different operating system or architecture.');
+    return Object.freeze({...value,rollback:Object.freeze({...value.rollback})});
+  }
+  async stage(manifest:ReleaseManifest|string,signature:string) {
+    const verified=this.verify(manifest,signature),directory=await safeDirectory(this.#directory,true),lockPath=join(directory,'stage.lock');
+    const lock=await acquireProcessLock(lockPath,{busyCode:'UPDATE_BUSY',changedCode:'UPDATE_LOCK_CHANGED',unsafeCode:'UNSAFE_STAGE'});
+    try {
+      const pendingPath=join(directory,'pending-release.json');
+      if(await regular(pendingPath)) {
+        check((await lstat(pendingPath)).size<=65536,'UNSAFE_STAGE','The pending release record exceeds its limit.');const raw=await readFile(pendingPath,'utf8');
+        const pending=JSON.parse(raw),prior=this.#authenticate(pending.manifest,pending.signature);
+        check(compareVersions(verified.version,prior.version)>=0,'RELEASE_DOWNGRADE_REFUSED','A newer signed release has already been staged.');
+        if(compareVersions(verified.version,prior.version)===0)check(canonicalReleaseManifest(verified)===canonicalReleaseManifest(prior),'RELEASE_VERSION_CONFLICT','The same version was signed with different release contents.');
+      }
+      const request:HttpRequest={url:verified.url,method:'GET',headers:{Accept:'application/octet-stream'},maxBytes:verified.size,timeoutMs:60000,redirect:'error'};
+      const response=await this.#http(request);
+      check(response.status===200 && (!response.url||response.url===verified.url),'RELEASE_FETCH_REFUSED','The release download failed or redirected.');
+      const bytes=typeof response.body==='string'?Buffer.from(response.body):Buffer.from(response.body);
+      check(bytes.length===verified.size && bytes.length<=MAX_ARTIFACT && digest(bytes)===verified.sha256,'RELEASE_HASH_MISMATCH','The staged artifact length or SHA-256 does not match the signed manifest.');
+      const artifactPath=join(directory,`release-${verified.version}-${verified.sha256.slice(0,16)}.artifact`);
+      if(await regular(artifactPath)) {check((await lstat(artifactPath)).size===verified.size,'UNSAFE_STAGE','An existing staged artifact was modified.');const existing=await readFile(artifactPath);check(existing.length===verified.size&&digest(existing)===verified.sha256,'UNSAFE_STAGE','An existing staged artifact was modified.');}
+      else await writeStaged(artifactPath,bytes);
+      const rollback={fromVersion:verified.version,toVersion:this.#version,automatic:false,requiresVaultBackup:true,requiresVerifiedPreviousPackage:true,requiresNativeInstaller:true,dataSchemaVersion:verified.dataSchemaVersion};
+      const record={manifest:verified,signature,artifactPath,baseVersion:this.#version,rollback,verifiedAt:new Date().toISOString(),installed:false};
+      await writeStaged(pendingPath,Buffer.from(JSON.stringify(record)),true);
+      return {...record,staged:true,installMode:'manual-native-installer-required',unsignedFallbackAllowed:false};
+    } finally {await lock.release();}
+  }
+}

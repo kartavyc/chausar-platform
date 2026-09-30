@@ -1,0 +1,7 @@
+**/node_modules/
+**/.local/
+**/evidence/
+**/__pycache__/
+**/.env
+**/.env.*
+**/*.log
