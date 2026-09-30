@@ -1,0 +1,42 @@
+# Durable goals: integration contract
+
+This change extends `JobService` with a single local `DurableJobRunner`, explicit typed `GoalRunner` and `GoalProvider` ports, and generic `calculation-set` / `evidence-review` goal definitions. It installs no provider, timer, hosted service, model route, native background service, or customer workflow. The existing owner-brief path continues to pass its tests.
+
+## Host wiring owned by the parent
+
+1. Construct `DurableJobRunner` using the same `StateStore` / `JobService` already owned by Engine. Install explicitly qualified providers and goal definitions. Supply the worker ID, active-job ceiling, lease duration and network-availability function; no price or active-job policy default is chosen.
+2. Preserve the existing brief result guard. For a typed goal, use `runner.canRelease(context, job)` as the `JobService.deliverableGuard`. Every runner supplies a current evidence/source release check. Job views withhold all intermediate settlement payloads and independently check original execution scopes before exposing saved plans.
+3. After the host acquires its exclusive vault lock and opens the authoritative state, call `recoverInterrupted` before any scheduler dispatch. Do not call recovery against another active owner of the same work. The runner is not a second coordinator.
+4. Route explicit `jobs.create`, `jobs.run`, `jobs.amend`, `jobs.cancel`, `jobs.reconcile` and `jobs.progress` requests to the typed host for its installed types. Route acceptance/rejection/approval to `JobService`. Runs require the pinned owner's exact role and epoch; do not lend an unrestricted owner context to a scoped job. Use per-owner scheduling contexts and keep results private.
+5. Extend the existing host tick with `runner.tick(ownerContext, { awake, windowOpen, backgroundEnabled })`. The host supplies truthful lifecycle state. Background is off by default globally and per new mandate; window closure cannot imply consent. No execution occurs when the host reports asleep. An OS service, home-box host or hosted provider needs separately integrated lifecycle/transport policy.
+6. Cancellation of currently running work should use the runner's `cancel` method so its provider signal is also aborted. The retained durable journal remains authoritative even if a provider ignores that signal. Coordinate graceful engine shutdown with pending requests; watchdogs enforce each admitted step and run/deadline bound.
+
+Engine, server, worker, renderer, package manifests, storage schema and security services are intentionally unchanged in this branch. Their wiring is an integration obligation, not completed product availability.
+
+## Durable execution and budgets
+
+The approved identity binds goal, validated JSON input, runner version, complete plan, original objective obligations, child contributions, resource ceilings, tested routes, allowed actions, owner identity, recurrence anchor and revision. Inputs and configuration are copied before asynchronous admission. Objective amendment fences old work, invalidates its delivery/approval, and preserves the original plan and source scope for uncertain readback. Changing the pinned owner is not implicitly accepted.
+
+The existing store transaction reserves the whole bounded run allowance before execution. Each admitted step durably records its maximum exposure before provider invocation and consumes that shared allowance; children never receive copied balances. Money uses integer minor currency units. Model units, measured execution time, wall-time deadline and action exposure have explicit independent ceilings. Providers report actual bounded settlement; this change chooses no conversion, tariff or model pricing policy.
+
+One authoritative operation key combines job, objective revision, scheduled occurrence and step identity. Lease replacement does not change it. Only one step may be unresolved. Verified settlement replay checks exact result/cost identity and does not charge again. Interrupted/dispatched, timed-out, paused, cancelled, deleted or revoked work keeps uncertain consumption reserved. A confirmed verified/absent readback accounts for cost before releasing residual exposure. Absence pauses for human review; it does not trigger an automatic retry. A replacement objective is required to explicitly retry an attempted absent/failed step.
+
+The existing interval schedule retains `latest` (run once after missing time) and `skip` policies. Accepted repetition advances to the next future interval and resets run output/approval. Pending acceptance and rejected output cannot be reset by mandate approval. Rejection leaves a reviewable paused result; amendment is the explicit path to change/retry it. Only the pinned owner accepts or rejects a result in the app.
+
+Network-dependent steps wait without an attempt while ready local contributions continue. A later tick with connectivity resumes the same occurrence and verified work. Missing permissions, changed runner versions, unsupported routes, invalid evidence and equivalent attempted steps remain blocked; they do not automatically loop. Required child results and every declared original obligation must be proved before delivery. `progress` names unfinished contributions and uncertain attempts with their reconciliation owner.
+
+## Provider and action boundaries
+
+Installed providers are trusted host ports, not untrusted plugin code. Remote ports must supply a synchronous `authorize(state, context, exactRequest, mode)` callback, checked before admission, immediately before dispatch and before/after readback. Bind this port to the existing connector read grants and exact outbound/model gateway authority. A tested route or mandate approval cannot replace a ModelGateway payload approval. Synthetic authorization callbacks in tests authorize only fake in-process fixtures.
+
+Every read provider implements readback with `unknown`, proven `verified`, or proven `absent` outcomes. It must honor stable operation identities, return bounded settled costs and verified evidence, obey AbortSignal, and never perform an external write under a read-provider registration. A timeout is an unknown outcome, not proof of cancellation. Reconciliation does not dispatch the original request again.
+
+The built-in `prepare-action` port only calls `ActionService.prepare` for an exact operation in the mandate catalogue and its original source scope. It exposes no approve or execute operation. External messages, money, deletions and irreversible actions keep the existing exact human approval and independent readback requirements. Recovery reads the original stored action preview without preparing it again or depending on the amended write catalogue. The preview explicitly reports `businessSuccess: false`.
+
+## Evidence and outstanding qualification
+
+The deterministic new suites cover both generic goals; mandatory contributions; typed evidence substitution; conserved budget exhaustion; atomic concurrency; lost settlement and action-preview acknowledgement; recovery before/after dispatch; operation identity and no double charge; cancellation and late responses; changed objectives/source grants; pinned-owner acceptance; background/catch-up; network restoration; exact egress authority; and provider watchdogs.
+
+This is foundation coverage with synthetic ports. Parent integration still needs concrete ready-made workflow selection and hidden-shop qualification, published resource/pricing caps, actual provider/model qualification and readback guarantees, calendar/timezone/overlap semantics, owner replacement policy, provider sandbox/egress enforcement, installed native background/home-box/hosted lifecycle, and PostgreSQL/power-loss/restore drills. The full product scope remains open until these are implemented and qualified.
+
+Environment: Node 24.13.1 works directly. The safe npm invocation is `node 'C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js'`; its PowerShell shim chooses an unavailable roaming-prefix CLI. No global tooling changed. Typechecking needs local TypeScript/@types dependencies; an offline cache read was denied and was not retried. Library IDs resolved to `CHAUSAR-ARCHITECTURE.md`, `CHAUSAR-LIVE-BUILD-PLAN.md` and `CHAUSAR-LIVE-QUESTLOG.html`. The current Library helper could not run because Python is unavailable; relevant text was read through Library, but local byte identity could not be verified.
