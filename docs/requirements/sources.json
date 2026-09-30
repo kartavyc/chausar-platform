@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "assessedImplementationCommit": "3160d5a896b5fb3539405948671d530367cfe30d",
+  "sources": [
+    {
+      "path": "docs/specs/CHAUSAR-LIVE-QUESTLOG.html",
+      "sourceKind": "user-attached Library file",
+      "libraryFileId": "libfile_7d0650e81b608191bdbc0ca48b08ee03",
+      "fileId": "file_00000000a71481fd85e5a809d66241de",
+      "versionId": null,
+      "reportedBytes": 1018566,
+      "localSourceBytes": 1018566,
+      "sha256": "0079c9a763e1fc09b5e1a1b17c47372eeb14110da41ba41005a2b95733dba39a",
+      "lineCount": 562,
+      "completeTextRead": true,
+      "textMatchesArchivedSourceAfterNewlineNormalization": true,
+      "localLibraryMaterialization": "failed: helper download failed; not retried",
+      "notes": "Local source is the validated archived Git file checked out with local Git newline conversion; attachment was independently read in full through Library and text matched after CRLF/terminal-newline normalization. Do not represent it as a materialized Library byte copy."
+    },
+    {
+      "path": "docs/specs/CHAUSAR-ARCHITECTURE.md",
+      "sourceKind": "user-attached Library file",
+      "libraryFileId": "libfile_ccfe1d9fee9c8191aa54de1e93e9549f",
+      "fileId": "file_000000007de881fd9866ee353e44622b",
+      "versionId": null,
+      "reportedBytes": 37196,
+      "localSourceBytes": 37649,
+      "sha256": "deaf0f4fa6483bfa8803114d47eed37846be148164266b3378acf622cbf05575",
+      "lineCount": 453,
+      "completeTextRead": true,
+      "textMatchesArchivedSourceAfterNewlineNormalization": true,
+      "localLibraryMaterialization": "failed: helper download failed; not retried",
+      "notes": "Local source is the validated archived Git file checked out with local Git newline conversion; attachment was independently read in full through Library and text matched after CRLF/terminal-newline normalization. Do not represent it as a materialized Library byte copy."
+    },
+    {
+      "path": "docs/specs/CHAUSAR-LIVE-BUILD-PLAN.md",
+      "sourceKind": "user-attached Library file",
+      "libraryFileId": "libfile_db67faa278948191adeb352f06c2f714",
+      "fileId": "file_00000000ebc481fdb9aae1f3e10a4454",
+      "versionId": null,
+      "reportedBytes": 251530,
+      "localSourceBytes": 252871,
+      "sha256": "457726fd9a7ab55122e5b0bbfef86a78fbcc4ef9ef7e8c0e136031a0c60ce778",
+      "lineCount": 1341,
+      "completeTextRead": true,
+      "textMatchesArchivedSourceAfterNewlineNormalization": true,
+      "localLibraryMaterialization": "failed: helper download failed; not retried",
+      "notes": "Local source is the validated archived Git file checked out with local Git newline conversion; attachment was independently read in full through Library and text matched after CRLF/terminal-newline normalization. Do not represent it as a materialized Library byte copy."
+    },
+    {
+      "path": "docs/specs/CHAUSAR-FINAL-IN-DEPTH-PLAN.md",
+      "sourceKind": "referenced source requirement from kartavyc/chausar-v1",
+      "sourceUrl": "https://github.com/kartavyc/chausar-v1/blob/main/CHAUSAR-FINAL-IN-DEPTH-PLAN.md",
+      "sourceBlob": "45ffe48c222334aecb53ae3d8c360d35479af0ec",
+      "sha256": "eca71ae4a25f53b6c6e8e5a81538081764a107f188ce6c82c269f68fa26204a6",
+      "localSourceBytes": 341190,
+      "lineCount": 3105,
+      "notes": "The recovered source blob exactly matches the referenced v1 requirement blob. v1 implementation is not imported."
+    },
+    {
+      "path": "docs/specs/GAP-REGISTER.md",
+      "sourceKind": "referenced source requirement from kartavyc/chausar-v1",
+      "sourceUrl": "https://github.com/kartavyc/chausar-v1/blob/main/research/gap-analysis-2026-09-29/GAP-REGISTER.md",
+      "sourceBlob": "214b99baf3e64eddfd95864797b124f081630dc6",
+      "sha256": "cc753e54c2b52c67e604adbc0952b6f31f39a043c19736f6285b213acb7d1fa0",
+      "localSourceBytes": 219709,
+      "lineCount": 480,
+      "notes": "Requirement/audit register only. Historical v1 statuses do not establish new implementation completion; blocked security audit is not rerun."
+    }
+  ]
+}

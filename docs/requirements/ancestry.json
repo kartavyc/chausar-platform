@@ -1,0 +1,13 @@
+{
+  "initialRemote": "76cdb7f23fee0df3ee74c78c6954380e1dd3d843",
+  "publishedBaseline": "3160d5a896b5fb3539405948671d530367cfe30d",
+  "recoveredLocal": "100df1d3c3bdb8e7793d81e6590cd6145c617d3e",
+  "matchingTree": "5a29858ff0a8207b018a4da07cfe180913196a4e",
+  "branch": "integration/full-scope",
+  "integrationHead": "3160d5a896b5fb3539405948671d530367cfe30d",
+  "exactRemoteObjectsImported": true,
+  "signedInitialCommitPreserved": true,
+  "networkCommandUsed": false,
+  "recoveredRootPreservedUnderLocalMain": true,
+  "originalCheckoutModified": false
+}

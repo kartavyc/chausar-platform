@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "integrationBranch": "integration/full-scope",
+  "integrationBaseline": "3160d5a896b5fb3539405948671d530367cfe30d",
+  "originalRecoveredBaseline": "100df1d3c3bdb8e7793d81e6590cd6145c617d3e",
+  "expectedCommittedLanes": {
+    "jobs": "01a0f486-0154-7342-a57e-633166d2b04d",
+    "database": "01a0f486-6fa6-712a-a0a6-0f9d3c577067",
+    "desktopPackaging": "01a0f486-dc76-72f2-a851-2b7802010073",
+    "connectorFramework": "01a0f488-773a-757d-8481-76aecc39c069",
+    "semanticQualification": "01a0f48d-ce2e-7768-81fc-8f99e7d0d057"
+  },
+  "receivedCommittedLaneRevisions": [
+    {
+      "lane": "jobs",
+      "sourceCommit": "48cf6a248b220f7d3502cd14d1e1ed75be06c373",
+      "importedCommit": "8c611338d4225e51e72028154b22f9db72fd25d9",
+      "source": "parent-supplied committed format-patch export",
+      "paths": 7,
+      "productWiring": "in progress; not established by reported unit tests"
+    },
+    {
+      "lane": "connectorFramework",
+      "sourceCommit": "af089b75de85b8a07025f29970f609449aefc338",
+      "importedCommit": "94952b5819183046d23b125af5e58d9f8a6e3ef3",
+      "source": "parent-supplied committed format-patch export",
+      "paths": 13,
+      "productWiring": "in progress; no 56-adapter qualification claim"
+    }
+  ],
+  "uncommittedLaneWorkImported": false,
+  "securityReview": {
+    "task": "01a0f482-b96a-7247-be93-ede357af904c",
+    "status": "blocked-unverified",
+    "reason": "Platform cybersecurity-risk restriction; do not retry or reroute the blocked audit."
+  },
+  "releaseAcceptance": "unverified",
+  "externalCustomerEffects": false,
+  "liveDeploymentPerformed": false,
+  "spendingApproval": "All spending and credentials must be handled through parent.",
+  "publicationRule": "Inspect current main, preserve existing work, advance without force-push."
+}
