@@ -7,11 +7,11 @@ Chausar has two packaging paths. The unsigned preview runs the explicitly experi
 | Unsigned demo preview | `app/desktop/builder.preview.json` | `in.chausar.desktop.preview`, `chausar-preview`, Chausar Unsigned Preview | `chausarPreview: true`; demo only, with its own user-data identity | Disabled |
 | Final release candidate | `app/desktop/builder.json` | `in.chausar.desktop` | Production; genuine vendored runtimes and signing prerequisites required | Disabled by the local command |
 
-Preview metadata chooses demo mode even when a packaged application is started without command-line arguments. Development launches require `--demo` explicitly. This distinction prevents an unsigned preview installer from silently selecting a production database or reading a production vault. No preview update feed is configured, and an unsigned preview receipt is never an updater release manifest.
+Preview metadata chooses demo mode even when a packaged application is started without command-line arguments. Development launches require `--demo` explicitly. This distinction prevents an unsigned preview artifact from silently selecting a production database or reading a production vault. No preview update feed is configured, and an unsigned preview receipt is never an updater release manifest.
 
 ## Local commands
 
-Use Node 24.13.1 or later and run commands from the repository root. `scripts/desktop-package.mjs` invokes the pinned, installed electron-builder CLI with Node, without `npx`, a global CLI, shell interpolation, dependency installation, or installer execution. It rejects an OS or architecture that does not match the host. Build each target on its native machine.
+Use Node 24.13.1 or later and run commands from the repository root. `scripts/desktop-package.mjs` invokes the pinned, installed electron-builder CLI with Node, without `npx`, a global CLI, shell interpolation, or dependency installation. Windows preview uses ZIP only; final NSIS builds execute a generated installer internally to extract the uninstaller, so final packaging also needs approval for that execution. It rejects an OS or architecture that does not match the host. Build each target on its native machine.
 
 Read-only checks work before packaging dependencies are available and explain the missing prerequisites:
 
@@ -23,10 +23,10 @@ node scripts/desktop-launch.mjs --demo --check
 
 After approved dependency setup, build a preview using the command matching the host:
 
-| Host | Command | Installer and archive |
+| Host | Command | Artifact formats |
 | --- | --- | --- |
-| Windows x64 | `node scripts/desktop-package.mjs --mode preview --platform win32 --arch x64` | NSIS `.exe`, `.zip` |
-| Windows arm64 | `node scripts/desktop-package.mjs --mode preview --platform win32 --arch arm64` | NSIS `.exe`, `.zip` |
+| Windows x64 | `node scripts/desktop-package.mjs --mode preview --platform win32 --arch x64` | Portable `.zip`; NSIS remains uncompleted |
+| Windows arm64 | `node scripts/desktop-package.mjs --mode preview --platform win32 --arch arm64` | Portable `.zip`; NSIS remains uncompleted |
 | macOS Intel | `node scripts/desktop-package.mjs --mode preview --platform darwin --arch x64` | `.dmg`, `.zip` |
 | macOS Apple silicon | `node scripts/desktop-package.mjs --mode preview --platform darwin --arch arm64` | `.dmg`, `.zip` |
 | Linux x64 | `node scripts/desktop-package.mjs --mode preview --platform linux --arch x64` | `.AppImage`, `.tar.gz` |
@@ -34,9 +34,13 @@ After approved dependency setup, build a preview using the command matching the 
 
 Add `--dir` to create only an unpacked application for review. Outputs stay under `release/preview`; filenames contain the version, operating system and architecture. A successful build writes `packaging-receipt-<platform>-<arch>.json`. Installer and archive entries contain the byte size and SHA-256 of the actual produced files. A receipt explicitly says unsigned, unpublished and unqualified for production. Every build requires its output directory to be absent or empty, including final and unpacked builds; review and move or archive previous output before rebuilding. The script never removes existing evidence.
 
-The repository currently has no genuine npm lockfile and no installed packaging dependencies. This environment has not run an installer build. An operator with approved registry access must generate and review a real `package-lock.json`, then use `npm ci --ignore-scripts --no-audit --no-fund`. The lockfile must contain the exact direct pins and npm's real registry integrity records. Do not hand-write a lockfile, fabricate hashes or create executable placeholders. Electron's distribution download is a separate explicit step: `node node_modules/electron/install.js`. electron-builder can also need its upstream packaging-tool downloads; approve those network operations before building on a local machine. The script never performs these setup operations itself.
+At the desktop-lane validation snapshot, the repository has no genuine npm lockfile and no installed packaging dependencies. This environment has not run an installer build. An operator with approved registry access must generate and review a real `package-lock.json`, then use `npm ci --ignore-scripts --no-audit --no-fund`. The lockfile must contain the exact direct pins and npm's real registry integrity records. Do not hand-write a lockfile, fabricate hashes or create executable placeholders. Electron's distribution download is a separate explicit step: `node node_modules/electron/install.js`. Preview config binds `electronDist` to the validated local `node_modules/electron/dist` and checks its version file and executable architecture, avoiding builder's second Electron download path. ZIP packaging still invokes genuine installed native build utilities (app-builder/7-Zip). Final NSIS additionally needs upstream NSIS 3.0.4.1 and nsis-resources 3.4.1 downloads, and generated-installer execution; approve those operations on a permitted build machine before final packaging. The script never performs these setup operations itself.
 
 On the inspected Windows machine, the npm wrapper searches an absent roaming-profile CLI even though the Node installation contains npm. The read-only invocation `node "C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js" --version` works. If that exact bundled path exists, it can be used for an approved local npm operation; it does not justify changing global tools or bypassing a denied network operation.
+
+The development launcher starts the validated native executable directly with a bounded argument list. It clears inherited Electron Node mode and npm distribution selectors, so the npm loader cannot redirect the validated path or automatically install a missing binary during launch. This command still opens the native app and requires an environment where GUI execution is approved; it has not been run here.
+
+See [the exact Windows prerequisites and dependency blocker](windows-preview-prerequisites.md) and [portable production runtime sources](desktop-runtime-prerequisites.md). The separate Windows source kit runs check/smoke using an existing Node installation; it contains no Electron or native runtimes.
 
 ## CI preview matrix
 

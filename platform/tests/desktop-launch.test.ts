@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const modulePath = '../../scripts/desktop-launch.mjs';
-const { desktopLaunchArguments, desktopLaunchPrerequisites } = await import(modulePath);
+const { desktopLaunchArguments, desktopLaunchPrerequisites, desktopLaunchEnvironment } = await import(modulePath);
 
 test('desktop launcher requires an explicit mode and accepts no arbitrary Electron flags', () => {
   assert.deepEqual(desktopLaunchArguments(['--demo', '--background', '--check']), { demo: true, background: true, checkOnly: true });
@@ -20,4 +20,10 @@ test('launcher fails closed on missing, mismatched or redirected local Electron 
   const path = join(root, 'node_modules/electron/package.json');
   await writeFile(path, JSON.stringify({ version: '1.0.0', bin: 'cli.js' })); await assert.rejects(desktopLaunchPrerequisites(root), /exact project pin/);
   await writeFile(path, JSON.stringify({ version: '44.4.5', bin: '../../outside.js' })); await assert.rejects(desktopLaunchPrerequisites(root), /inside its installed package/);
+});
+
+test('native launch cannot inherit Node mode or redirect the verified distribution through npm install selectors', () => {
+  const environment = { PATH: 'installed-tools', CHAUSAR_HOME: 'app-owned-data', ELECTRON_RUN_AS_NODE: '1', ELECTRON_OVERRIDE_DIST_PATH: 'outside', ELECTRON_INSTALL_PLATFORM: 'linux', ELECTRON_INSTALL_ARCH: 'arm64', npm_config_arch: 'arm64', npm_config_platform: 'linux' };
+  assert.deepEqual(desktopLaunchEnvironment(environment), { PATH: 'installed-tools', CHAUSAR_HOME: 'app-owned-data' });
+  assert.equal(environment.ELECTRON_OVERRIDE_DIST_PATH, 'outside');
 });

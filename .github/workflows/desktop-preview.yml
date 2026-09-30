@@ -85,6 +85,9 @@ jobs:
       - name: Check source and JSON syntax
         working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
         run: node scripts/check.mjs
+      - name: Strict TypeScript check using the locked local compiler
+        working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
+        run: node node_modules/typescript/bin/tsc --noEmit
       - name: Verify packaging, desktop harness and updater contracts
         working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
         run: node --test platform/tests/desktop-*.test.ts platform/tests/updater.test.ts platform/tests/rollback.test.ts
@@ -97,7 +100,7 @@ jobs:
       - name: Check native preview prerequisites without launching Electron
         working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
         run: node scripts/desktop-package.mjs --mode preview --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --check
-      - name: Build unsigned demo installer and archive with publishing disabled
+      - name: Build unsigned demo artifacts (Windows ZIP only) with publishing disabled
         working-directory: preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}
         run: node scripts/desktop-package.mjs --mode preview --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
       - name: Upload unsigned preview artifacts and checksum receipt
@@ -105,7 +108,6 @@ jobs:
         with:
           name: chausar-unsigned-preview-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
-            preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}/release/preview/*.exe
             preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}/release/preview/*.zip
             preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}/release/preview/*.dmg
             preview-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}-${{ matrix.arch }}/release/preview/*.AppImage

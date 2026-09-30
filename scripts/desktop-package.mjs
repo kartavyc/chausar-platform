@@ -13,7 +13,7 @@ const previewOutput = 'release/preview';
 const flags = { win32: '--win', darwin: '--mac', linux: '--linux' };
 const binaryPaths = { win32: 'electron.exe', darwin: 'Electron.app/Contents/MacOS/Electron', linux: 'electron' };
 const artifactOS = { win32: 'win', darwin: 'mac', linux: 'linux' };
-const artifactExtensions = { win32: ['exe', 'zip'], darwin: ['dmg', 'zip'], linux: ['AppImage', 'tar.gz'] };
+const artifactExtensions = { win32: ['zip'], darwin: ['dmg', 'zip'], linux: ['AppImage', 'tar.gz'] };
 
 function inside(root, path) {
   const result = relative(root, path);
@@ -61,6 +61,18 @@ export async function validateElectronExecutable(path, platform, architecture) {
       } else throw new Error('Electron must be a macOS Mach-O executable');
     }
   } finally { await handle.close(); }
+}
+/** Validate the supplied dist without importing electron, which can automatically download a missing binary. */
+export async function validateLocalElectronDistribution(electronRoot, version, platform, architecture) {
+  const dist = join(electronRoot, 'dist'), info = await lstat(dist);
+  if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Electron dist must be a real local directory');
+  const versionPath = join(dist, 'version');
+  await regular(versionPath);
+  if ((await readFile(versionPath, 'utf8')).trim().replace(/^v/, '') !== version) throw new Error('Electron dist version differs from the exact project pin');
+  const pathFile = join(electronRoot, 'path.txt');
+  await regular(pathFile);
+  if ((await readFile(pathFile, 'utf8')).trim() !== binaryPaths[platform]) throw new Error('the installed Electron distribution must match the target platform');
+  await validateElectronExecutable(join(dist, binaryPaths[platform]), platform, architecture);
 }
 function nodeVersionSupported(version) {
   const [major, minor, patch] = version.split('.').map(Number);
@@ -118,9 +130,10 @@ function validatePreviewConfig(config) {
   if (config.forceCodeSigning !== false || config.win?.signAndEditExecutable !== false || config.mac?.identity !== null || config.mac?.notarize !== false || config.mac?.hardenedRuntime !== false) throw new Error('preview config must disable native signing, identity discovery and notarization');
   if (config.publish !== null || config.npmRebuild !== false || config.extraResources?.length !== 0 || config.directories?.output !== previewOutput) throw new Error('preview must disable publishing, dependency rebuilds and native runtime resources and use release/preview');
   if (config.extends !== undefined || Object.keys(config).some(name => /^(before|after|artifactBuild|onNodeModule)/.test(name))) throw new Error('preview cannot inherit final configuration or execute custom build hooks');
-  const expected = { win: ['nsis', 'zip'], mac: ['dmg', 'zip'], linux: ['AppImage', 'tar.gz'] };
+  if (config.electronDist !== 'node_modules/electron/dist') throw new Error('preview must use the verified local Electron distribution instead of another download');
+  const expected = { win: ['zip'], mac: ['dmg', 'zip'], linux: ['AppImage', 'tar.gz'] };
   for (const [key, targets] of Object.entries(expected)) {
-    if (JSON.stringify(config[key]?.target) !== JSON.stringify(targets)) throw new Error(`preview ${key} targets must match the documented installer and archive formats`);
+    if (JSON.stringify(config[key]?.target) !== JSON.stringify(targets)) throw new Error(`preview ${key} targets must match the documented formats; Windows preview is ZIP only`);
   }
   for (const glob of ['app/desktop/**/*', 'app/renderer/**/*', 'platform/runtime/**/*', 'fixtures/**/*', 'node_modules/**/*']) {
     if (!config.files?.includes(glob)) throw new Error(`preview package is missing ${glob}`);
@@ -171,7 +184,7 @@ async function dependencyPrerequisites(root, platform) {
   const electronRoot = join(root, 'node_modules', 'electron');
   const executable = (await readFile(join(electronRoot, 'path.txt'), 'utf8')).trim();
   if (executable !== binaryPaths[platform]) throw new Error('the installed Electron distribution must match the target platform');
-  await validateElectronExecutable(join(electronRoot, 'dist', executable), platform, process.arch);
+  await validateLocalElectronDistribution(electronRoot, pkg.devDependencies.electron, platform, process.arch);
   return { cliPath, version: pkg.version };
 }
 
@@ -230,7 +243,7 @@ export async function validateDesktopPackagingOutput({ root = projectRoot, plan 
   return { receiptPath, expectedArtifacts };
 }
 
-/** Packaging only. There is no installer execution or release/update publication step. */
+/** Windows preview uses ZIP without NSIS. Final NSIS builds can execute their generated installer while extracting the uninstaller. No release/update publication is performed. */
 export async function packageDesktop({ root = projectRoot, plan = createDesktopPackagePlan(), environment = process.env, checkOnly = false } = {}) {
   const prerequisites = await desktopPackagePrerequisites({ root, plan, environment });
   if (!prerequisites.ok || checkOnly) return { ...prerequisites, packaged: false, checkOnly };

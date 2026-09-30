@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 // A variable import allows Node's native TypeScript test runner to exercise the JS CLI without a TS emit step.
 const modulePath = '../../scripts/desktop-package.mjs';
-const { createDesktopPackagePlan, parseDesktopPackageArguments, desktopPackagingEnvironment, desktopPackagePrerequisites, packageDesktop, validateElectronExecutable, validateDesktopPackagingOutput } = await import(modulePath);
+const { createDesktopPackagePlan, parseDesktopPackageArguments, desktopPackagingEnvironment, desktopPackagePrerequisites, packageDesktop, validateElectronExecutable, validateLocalElectronDistribution, validateDesktopPackagingOutput } = await import(modulePath);
 const preview = JSON.parse(await readFile(new URL('../../app/desktop/builder.preview.json', import.meta.url), 'utf8'));
 const final = JSON.parse(await readFile(new URL('../../app/desktop/builder.json', import.meta.url), 'utf8'));
 const pkg = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
@@ -89,7 +89,10 @@ test('preview metadata, resources and native signing settings are distinct from 
   assert.equal(preview.forceCodeSigning, false);
   assert.deepEqual(preview.extraResources, []);
   assert.equal(preview.npmRebuild, false);
-  assert.equal(preview.nsis.runAfterFinish, false);
+  assert.deepEqual(preview.win.target, ['zip']);
+  assert.equal(preview.electronDist, 'node_modules/electron/dist');
+  assert.equal(preview.nsis, undefined);
+  assert.deepEqual(final.win.target, ['nsis']);
 });
 
 test('preview preflight is read-only and identifies missing local dependencies without requiring signing keys', async t => {
@@ -118,6 +121,8 @@ test('preview checks refuse accidental final signing, runtime bundling, inherita
     { ...preview, extends: './builder.json' },
     { ...preview, afterPack: 'unexpected-hook.cjs' },
     { ...preview, npmRebuild: true },
+    { ...preview, electronDist: 'https://example.invalid/electron' },
+    { ...preview, win: { ...preview.win, target: ['nsis', 'zip'] } },
   ];
   for (const config of variants) {
     const result = await desktopPackagePrerequisites({ root: await fixture(t, config), environment: {} });
@@ -167,7 +172,8 @@ test('read-only native header validation refuses wrong Windows architecture and 
 test('freshness checks preserve previous receipts and interrupted artifacts and never relabel stale output', async t => {
   const root = await fixture(t), plan = createDesktopPackagePlan();
   const fresh = await validateDesktopPackagingOutput({ root, plan, version: pkg.version });
-  assert.equal(fresh.expectedArtifacts.length, 2);
+  assert.equal(fresh.expectedArtifacts.length, process.platform === 'win32' ? 1 : 2);
+  if (process.platform === 'win32') assert.match(fresh.expectedArtifacts[0], /-win-(x64|arm64)\.zip$/);
   await mkdir(join(root, 'release/preview'), { recursive: true });
   const previousReceipt = 'previous qualification evidence';
   await writeFile(fresh.receiptPath, previousReceipt);
@@ -199,4 +205,19 @@ test('final executable leftovers and interrupted unpacked directories block rebu
   await mkdir(join(other, 'release/preview', `${process.platform}-unpacked`), { recursive: true });
   await assert.rejects(validateDesktopPackagingOutput({ root: other, plan: previewPlan, version: pkg.version }), /output directory is not empty/);
   assert.deepEqual(await readdir(join(other, 'release/preview')), [`${process.platform}-unpacked`]);
+});
+
+test('local Electron distribution validation checks version without importing or executing Electron', async t => {
+  const root = await fixture(t), electronRoot = join(root, 'unit-test-electron'), dist = join(electronRoot, 'dist');
+  await mkdir(dist, { recursive: true });
+  // Disposable PE headers model only validation. They are never used as a release distribution.
+  const bytes = Buffer.alloc(4096); bytes.write('MZ', 0); bytes.writeUInt32LE(128, 60); bytes.write('PE\0\0', 128); bytes.writeUInt16LE(0x8664, 132);
+  await writeFile(join(dist, 'electron.exe'), bytes);
+  await writeFile(join(electronRoot, 'path.txt'), 'electron.exe');
+  await writeFile(join(dist, 'version'), '44.4.5');
+  await validateLocalElectronDistribution(electronRoot, '44.4.5', 'win32', 'x64');
+  await assert.rejects(validateLocalElectronDistribution(electronRoot, '44.4.6', 'win32', 'x64'), /dist version differs/);
+  await assert.rejects(validateLocalElectronDistribution(electronRoot, '44.4.5', 'win32', 'arm64'), /architecture differs/);
+  await writeFile(join(electronRoot, 'path.txt'), 'other.exe');
+  await assert.rejects(validateLocalElectronDistribution(electronRoot, '44.4.5', 'win32', 'x64'), /target platform/);
 });
