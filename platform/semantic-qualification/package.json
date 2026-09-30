@@ -1,0 +1,10 @@
+{
+  "name": "@chausar/semantic-qualification",
+  "version": "0.1.0-synthetic",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic synthetic qualification with explicit rights, independent controls and scoped evidence",
+  "exports": "./src/index.ts",
+  "engines": { "node": ">=24.13.1" },
+  "scripts": { "test": "node --test tests/*.test.ts", "qualify": "node run-suite.ts" }
+}

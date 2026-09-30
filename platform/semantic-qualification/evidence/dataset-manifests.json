@@ -1,0 +1,1787 @@
+[
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "tuning-retail-separated-events-dataset-v1",
+      "title": "tuning-retail-separated-events",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/tuning-retail-separated-events/rows.json",
+          "sha256": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/tuning-retail-separated-events/report.json",
+          "sha256": "68da20b4f318ee74ee485591a9e9ec5d98390333c2c6cbfe0472fea4499f20e5",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/tuning-retail-separated-events/golden.json",
+          "sha256": "0c0e1fe933537f185ba90c8b3c93cfce46a6c741586b019794019f2b9a8852d0",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-retail-separated-events/pack.json",
+            "sha256": "330566d1eb67e100f5a1f2faa1bc58536f8631f565c5f1ae96845db19898e9eb",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-retail-separated-events/rules.json",
+            "sha256": "2bed5d3c6e4de5396807aa5b03f17183b08776b1e91cd740d81193aab483ef30",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "tuning-zero-and-large-money-dataset-v1",
+      "title": "tuning-zero-and-large-money",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/tuning-zero-and-large-money/rows.json",
+          "sha256": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/tuning-zero-and-large-money/report.json",
+          "sha256": "1ae26b83b51ab9eae0b44ae9bdfb689be3318b5d9c09b5f3736dc05475b32fc4",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/tuning-zero-and-large-money/golden.json",
+          "sha256": "080f14e1c9dee4743cdca61a53b9a14c01f5809a5541b85be0c2fe8b281f475b",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-zero-and-large-money/pack.json",
+            "sha256": "330566d1eb67e100f5a1f2faa1bc58536f8631f565c5f1ae96845db19898e9eb",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-zero-and-large-money/rules.json",
+            "sha256": "9415d16ad383d00293d5c3d2102561aac7abb17816a97f302ad120ed0e249c10",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "tuning-separated-currencies-dataset-v1",
+      "title": "tuning-separated-currencies",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/tuning-separated-currencies/rows.json",
+          "sha256": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/tuning-separated-currencies/report.json",
+          "sha256": "28c9b588fd46049c633aa0022b22f1f641b8622b29453666dd4e9f1020bbddd3",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/tuning-separated-currencies/golden.json",
+          "sha256": "63e78f45a108bc6e830bb1d49d21daff7dba2dd18b7df7a9246b66aa4667d1df",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-separated-currencies/pack.json",
+            "sha256": "330566d1eb67e100f5a1f2faa1bc58536f8631f565c5f1ae96845db19898e9eb",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-separated-currencies/rules.json",
+            "sha256": "32041a545637b931d52852839c4c5111be3c4480b8920ca1951b9da84f3aa1f9",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "holdout-wholesale-independent-dataset-v1",
+      "title": "holdout-wholesale-independent",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/holdout-wholesale-independent/rows.json",
+          "sha256": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/holdout-wholesale-independent/report.json",
+          "sha256": "7d443e6a5b7097d4ddeddc6ce7ad9ea10c722ce14b81b523c275d18990922d16",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/holdout-wholesale-independent/golden.json",
+          "sha256": "3e135defc027e8acd6264a355b82e961be1fa1ec848facd4743b18630e56ba56",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-wholesale-independent/pack.json",
+            "sha256": "d755ebdefe5508f3e7e04c89ada8d95f00618749bde416e27d2fd6688ad88859",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-wholesale-independent/rules.json",
+            "sha256": "542957e7d2e61d22479e41b0d49b64350b26d47293fd2e340c5b4424710588a1",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "holdout-crosscurrency-independent-dataset-v1",
+      "title": "holdout-crosscurrency-independent",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/holdout-crosscurrency-independent/rows.json",
+          "sha256": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/holdout-crosscurrency-independent/report.json",
+          "sha256": "0071340132242ad4a29dbf38c47ba16aa2820ddf40b692b4cf7eacd0f62c1b83",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/holdout-crosscurrency-independent/golden.json",
+          "sha256": "6ebaf6fadc980ea8f7e3578f124edfbe8cc201d100ee579e6d726e9ea51d6888",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-crosscurrency-independent/pack.json",
+            "sha256": "d755ebdefe5508f3e7e04c89ada8d95f00618749bde416e27d2fd6688ad88859",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-crosscurrency-independent/rules.json",
+            "sha256": "a07c509b877fa8663a74312d5900a2b41dcfa31ad13da2e97f1cf4cfe2e16001",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "holdout-large-and-explicit-zero-dataset-v1",
+      "title": "holdout-large-and-explicit-zero",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/holdout-large-and-explicit-zero/rows.json",
+          "sha256": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/holdout-large-and-explicit-zero/report.json",
+          "sha256": "2c1024a667a93dabe46b85d073d02022f75d61aebe36428af50f8ad1bab96af5",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/holdout-large-and-explicit-zero/golden.json",
+          "sha256": "d3dc7864916bef05ec9a8853555764adb615973bb5e8826f4b45d316cb17b616",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-large-and-explicit-zero/pack.json",
+            "sha256": "d755ebdefe5508f3e7e04c89ada8d95f00618749bde416e27d2fd6688ad88859",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-large-and-explicit-zero/rules.json",
+            "sha256": "292a3a11b2d32fb9e3c4151b8971aec050f11cf7e8fc997711760bd7d034ca49",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "tuning-taxed-settled-cash-dataset-v1",
+      "title": "tuning-taxed-settled-cash",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/tuning-taxed-settled-cash/rows.json",
+          "sha256": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/tuning-taxed-settled-cash/report.json",
+          "sha256": "66b80e97e51b4593c2c0fd2cdae2fc7ebd8bab5fe3c40827a46a79d4019e45bf",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/tuning-taxed-settled-cash/golden.json",
+          "sha256": "a8f739db7dd53f602d98d83879e80b539ec5833b9696f539eb3e467a518abac1",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-taxed-settled-cash/pack.json",
+            "sha256": "330566d1eb67e100f5a1f2faa1bc58536f8631f565c5f1ae96845db19898e9eb",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-taxed-settled-cash/rules.json",
+            "sha256": "1026653633c6cae6418a6407d8bd26f355fd241176671260fc2f9a63ab328c42",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "holdout-taxed-settled-cash-dataset-v1",
+      "title": "holdout-taxed-settled-cash",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/holdout-taxed-settled-cash/rows.json",
+          "sha256": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/holdout-taxed-settled-cash/report.json",
+          "sha256": "9ec62d3da364cee6021a9c9921023c27251a76c5ab6526de62d46bd927e555d6",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/holdout-taxed-settled-cash/golden.json",
+          "sha256": "0bd383edcfb476506ef4bf44ce57f2c374f158b325c658a53eb8b08d70e34cbf",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-taxed-settled-cash/pack.json",
+            "sha256": "d755ebdefe5508f3e7e04c89ada8d95f00618749bde416e27d2fd6688ad88859",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-taxed-settled-cash/rules.json",
+            "sha256": "64448915ed6b8fdfe91210d66d632155c6e8272d89eaa0361e91728ed539cd64",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "tuning-null-amount-abstains-dataset-v1",
+      "title": "tuning-null-amount-abstains",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/tuning-null-amount-abstains/rows.json",
+          "sha256": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/tuning-null-amount-abstains/report.json",
+          "sha256": "52ae0b7409c305e4469f1844b6fcb712c081fd5b1f59cf8cb58930186f5c2cbb",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/tuning-null-amount-abstains/golden.json",
+          "sha256": "1fb06c1c595fe9381f8bacdf7116de6725d7e64cb73248e90e26a57682d44574",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-null-amount-abstains/pack.json",
+            "sha256": "330566d1eb67e100f5a1f2faa1bc58536f8631f565c5f1ae96845db19898e9eb",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-null-amount-abstains/rules.json",
+            "sha256": "ff2db814622d09542cff3b5d5dbd3e5771635b563fed3b9a4e9f7fd3b6b79cfe",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "holdout-null-tax-abstains-dataset-v1",
+      "title": "holdout-null-tax-abstains",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/holdout-null-tax-abstains/rows.json",
+          "sha256": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/holdout-null-tax-abstains/report.json",
+          "sha256": "a594b8bdeb3bfdee1334a94edd46dac0513cc806220572aa17377f7fc2f2aff5",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/holdout-null-tax-abstains/golden.json",
+          "sha256": "3b935236b8a9cc1595c2b0eb2ff2ecdbc3fe3c9dcae48c6b939fae03aef5895d",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-null-tax-abstains/pack.json",
+            "sha256": "d755ebdefe5508f3e7e04c89ada8d95f00618749bde416e27d2fd6688ad88859",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-null-tax-abstains/rules.json",
+            "sha256": "060bea6b89632eb19a2c7e8332bfaaceaf45c993fc4aebc4c28d24ce7d0a91a1",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "holdout-unknown-status-abstains-dataset-v1",
+      "title": "holdout-unknown-status-abstains",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/holdout-unknown-status-abstains/rows.json",
+          "sha256": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/holdout-unknown-status-abstains/report.json",
+          "sha256": "d757a2d30c10459d83999353463a1b28e1cb8213adf6ac5ae45d37385f122408",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/holdout-unknown-status-abstains/golden.json",
+          "sha256": "e1cc24061f8d598b645cb5acfe678dd0c59f9c7f32e4016a5edaf84e65d2d230",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-unknown-status-abstains/pack.json",
+            "sha256": "d755ebdefe5508f3e7e04c89ada8d95f00618749bde416e27d2fd6688ad88859",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-unknown-status-abstains/rules.json",
+            "sha256": "f5f153c9f5853c6ffa967c7c390d1f44778dd74b6ed94a84de2f87aa56df542e",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "tuning-impossible-date-abstains-dataset-v1",
+      "title": "tuning-impossible-date-abstains",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/tuning-impossible-date-abstains/rows.json",
+          "sha256": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/tuning-impossible-date-abstains/report.json",
+          "sha256": "bab3eb0a53a5f6c00ca7c5cc9fc4d18f0362b32408ef1b05a393b89c8e342289",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/tuning-impossible-date-abstains/golden.json",
+          "sha256": "62f37e0f3d4f445f67fc22720b0bb89c2c0a18b069e87b9077343693ad80dac0",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-impossible-date-abstains/pack.json",
+            "sha256": "330566d1eb67e100f5a1f2faa1bc58536f8631f565c5f1ae96845db19898e9eb",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-impossible-date-abstains/rules.json",
+            "sha256": "12a58ab90aede3fcf7eb566328c1ea26d607c761ad5ab57c758327ea83d6604a",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "holdout-refund-without-link-abstains-dataset-v1",
+      "title": "holdout-refund-without-link-abstains",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/holdout-refund-without-link-abstains/rows.json",
+          "sha256": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/holdout-refund-without-link-abstains/report.json",
+          "sha256": "cf55aff321d152cd8ed6553ecac5e1d210796bc9b4d37d86326dbcc13356a446",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/holdout-refund-without-link-abstains/golden.json",
+          "sha256": "c5297e366aaa2cf7c545ad484e1fccb1ab44912ddc6e4dbf8aa276f5c458e8c0",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-refund-without-link-abstains/pack.json",
+            "sha256": "d755ebdefe5508f3e7e04c89ada8d95f00618749bde416e27d2fd6688ad88859",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-refund-without-link-abstains/rules.json",
+            "sha256": "308234d90005d52a7ec844b9d52632e4542bde29ce70adbc4720630b0a8009c8",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+      "title": "tuning-cumulative-refund-limit-abstains",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/tuning-cumulative-refund-limit-abstains/rows.json",
+          "sha256": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/tuning-cumulative-refund-limit-abstains/report.json",
+          "sha256": "c4997d671eba2050d32b2d7f7e7112e796b6146744fd7a4a971106c6d7c3ef90",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/tuning-cumulative-refund-limit-abstains/golden.json",
+          "sha256": "066cbf4c8f0b865967ed0ac8ec5216aaf6d295f322c3bf59d06963b9bcc61b84",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-cumulative-refund-limit-abstains/pack.json",
+            "sha256": "330566d1eb67e100f5a1f2faa1bc58536f8631f565c5f1ae96845db19898e9eb",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-cumulative-refund-limit-abstains/rules.json",
+            "sha256": "1b81c0c14ffbaba9a643e6004273eb35a252634e17832047c377006aec061b7a",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "holdout-unconfigured-currency-abstains-dataset-v1",
+      "title": "holdout-unconfigured-currency-abstains",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/holdout-unconfigured-currency-abstains/rows.json",
+          "sha256": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/holdout-unconfigured-currency-abstains/report.json",
+          "sha256": "92ec570e15bc025641fb52b4376f57ace81c6f61597bbf5a25fc1c27e46a037a",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/holdout-unconfigured-currency-abstains/golden.json",
+          "sha256": "787cc4a6d369ced320d694aaa5cb63f5ae32c7bdd3199b02392a73ec30d7df50",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-unconfigured-currency-abstains/pack.json",
+            "sha256": "d755ebdefe5508f3e7e04c89ada8d95f00618749bde416e27d2fd6688ad88859",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-unconfigured-currency-abstains/rules.json",
+            "sha256": "b2b04eeea13c0753da132f528fa5922d813f8e6266f6eed35c01442a1a7ffb45",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "tuning-inexact-money-abstains-dataset-v1",
+      "title": "tuning-inexact-money-abstains",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/tuning-inexact-money-abstains/rows.json",
+          "sha256": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/tuning-inexact-money-abstains/report.json",
+          "sha256": "9f93a534417deabd09ad0ad434a19014a4210399d80457cf0e438f6e2e384735",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/tuning-inexact-money-abstains/golden.json",
+          "sha256": "1c558c0f37bdfb251ebe6955b9b7f7716b71ed3a6697d8f6e028f5b30f49d2dd",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-inexact-money-abstains/pack.json",
+            "sha256": "330566d1eb67e100f5a1f2faa1bc58536f8631f565c5f1ae96845db19898e9eb",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/tuning-inexact-money-abstains/rules.json",
+            "sha256": "f1f2801e00d98558e4b09efa361473ad7b960eb7ae02644d40dddeb1da46dd09",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  },
+  {
+    "manifest": {
+      "contractVersion": 1,
+      "id": "holdout-inexact-quantity-abstains-dataset-v1",
+      "title": "holdout-inexact-quantity-abstains",
+      "origin": "synthetic",
+      "category": "synthetic-cases",
+      "source": {
+        "publisher": "Independent synthetic fixture lane",
+        "url": null,
+        "retrievedAt": "2026-09-30T23:32:14.735Z",
+        "productVersion": "1"
+      },
+      "rights": {
+        "status": "allowed",
+        "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+        "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+        "permittedUses": [
+          "qualification"
+        ],
+        "personalData": "none",
+        "permissions": {
+          "acquisition": "allowed",
+          "reuse": "allowed",
+          "redistribution": "unknown",
+          "training": "unknown"
+        }
+      },
+      "artifacts": [
+        {
+          "path": "synthetic/holdout-inexact-quantity-abstains/rows.json",
+          "sha256": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+          "role": "source-rows"
+        },
+        {
+          "path": "synthetic/holdout-inexact-quantity-abstains/report.json",
+          "sha256": "38e346a6ea9bb63488210a5cd390d5695e09e21278b472795488d89db73af6f2",
+          "role": "source-report"
+        },
+        {
+          "path": "synthetic/holdout-inexact-quantity-abstains/golden.json",
+          "sha256": "d7357068a7a4c6f9458e5937123f908f758cdd3e1326663229daeea71a0957b3",
+          "role": "golden-cases"
+        }
+      ],
+      "limitations": [
+        "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+      ]
+    },
+    "provenance": [
+      {
+        "contractVersion": 1,
+        "id": "synthetic-register-independent-v1",
+        "title": "Independent authored fixture, mapping and company-rule dossier",
+        "origin": "synthetic",
+        "category": "reference-schema",
+        "source": {
+          "publisher": "Independent synthetic fixture lane",
+          "url": null,
+          "retrievedAt": "2026-09-30T23:32:14.735Z",
+          "productVersion": "1"
+        },
+        "rights": {
+          "status": "allowed",
+          "license": "Task-authorized synthetic qualification only; no distribution or training authorization asserted",
+          "evidence": "User authorized synthetic businesses first. These are newly authored fictional records and hand-worked controls, with no real vendor data or personal information.",
+          "permittedUses": [
+            "qualification"
+          ],
+          "personalData": "none",
+          "permissions": {
+            "acquisition": "allowed",
+            "reuse": "allowed",
+            "redistribution": "unknown",
+            "training": "unknown"
+          }
+        },
+        "artifacts": [
+          {
+            "path": "synthetic/synthetic-cases.ts",
+            "sha256": "d85bbe900d4c67db568c1e0e06f47d1de24f19781c7808e2924442efc50bd93b",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/semantic-assertions.ts",
+            "sha256": "e27f68237536dca7a378625347b74965d6f03c653338e08a1a9c78c54fe4c8c7",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-inexact-quantity-abstains/pack.json",
+            "sha256": "d755ebdefe5508f3e7e04c89ada8d95f00618749bde416e27d2fd6688ad88859",
+            "role": "schema-reference"
+          },
+          {
+            "path": "synthetic/holdout-inexact-quantity-abstains/rules.json",
+            "sha256": "b43e8d98049838d2291f47757e7faac23c448e68891aa26d182708085ee793d8",
+            "role": "authorization"
+          }
+        ],
+        "limitations": [
+          "Public synthetic compiler fixtures only. No real installation, named vendor, sealed holdout or arbitrary-company onboarding qualification."
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,990 @@
+{
+  "contractVersion": 1,
+  "kind": "public-source-candidate-registry",
+  "observedAt": "2026-09-30T23:07:00Z",
+  "admittedExternalDatasetCount": 0,
+  "rightsPolicy": "Discovery candidates are never DatasetManifest admission receipts. All intended dataset uses remain blocked until exact-artifact permission evidence is reviewed.",
+  "scope": {
+    "requestedOriginalPlanGroups": 50,
+    "requestedAdditions": [
+      "Khatabook",
+      "OkCredit",
+      "myBillBook",
+      "BharatPe",
+      "Petpooja",
+      "Form26AS/AIS"
+    ],
+    "requestedTotalGroups": 56,
+    "quickBooksRetained": true,
+    "baselineRegistryCount": 50,
+    "baselineAlreadyContains": [
+      "mybillbook",
+      "income-tax"
+    ],
+    "baselineCountIsNotOriginalPlanCoverage": true,
+    "sourcePlanGitCommit": "f4ffd7d409b782de03bad234ed6dcbd420062507"
+  },
+  "candidates": [
+    {
+      "id": "tally-official-integration",
+      "system": "tally-prime",
+      "publisher": "Tally Solutions",
+      "productVersion": "TallyPrime; release 7.0 JSON exchange documented",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "XML / JSON / ODBC documentation",
+      "sourceUrls": [
+        "https://help.tallysolutions.com/getting-started-with-tally-integrations/",
+        "https://help.tallysolutions.com/xml-integration/",
+        "https://help.tallysolutions.com/release-notes-tallyprime-7-0/"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "Guide describes adapting integration examples but does not establish rights for a redistributed qualification corpus, model disclosure or future training; footer reserves rights.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Official guide describes integration samples with XML tags, TDL snippets and configuration guidance; adaptation for integration is described.",
+        "XML VERSION refers to messaging format, not proof of the source application's product version.",
+        "Release 7.0 notes date the release to 2025-12-19 and document JSON import/export in addition to XML/Excel.",
+        "No complete licensed business export plus independent source reports was established."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": "tally"
+    },
+    {
+      "id": "zoho-books-official-v3",
+      "system": "zoho-books",
+      "publisher": "Zoho Corporation",
+      "productVersion": "Zoho Books API v3; organization edition and region unresolved",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "REST / documentation examples / OpenAPI discovery",
+      "sourceUrls": [
+        "https://www.zoho.com/books/api/v3/introduction/",
+        "https://www.zoho.com/books/api/v3/invoices/",
+        "https://www.zoho.com/books/api/v3/openapi-all.zip",
+        "https://www.zoho.com/books/api/v3/credit-notes/"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "Public API documentation and downloadable specification link establish discovery; sample-data reuse, retention, redistribution and training grants were not established.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Official introduction lists organization-scoped API requests and independent organization currency/timezone.",
+        "Data-center endpoint domains differ; region and organization are configuration, not universal defaults.",
+        "Official OpenAPI ZIP link was discovered, not downloaded or admitted; invoice page exceeded the web fetch limit.",
+        "No licensed reusable company dataset or source reconciliation reports was established.",
+        "Credit Notes docs country-label GST fields India, VAT treatment UK, CFDI fields Mexico; combined API examples are schema demonstrations, not coherent company books."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": "zoho-books"
+    },
+    {
+      "id": "quickbooks-official-v3-schema",
+      "system": "quickbooks",
+      "publisher": "Intuit",
+      "productVersion": "QuickBooks V3 Java SDK snapshot; QBO/QBW and locale must be separated",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "XSD / SDK schema; sandbox discovery",
+      "sourceUrls": [
+        "https://github.com/intuit/QuickBooks-V3-Java-SDK/blob/c4d5dfad23ffebf0302356876d0dc389708513a9/ipp-v3-java-data/src/main/xsd/Finance.xsd",
+        "https://github.com/intuit/QuickBooks-V3-Java-SDK/blob/c4d5dfad23ffebf0302356876d0dc389708513a9/LICENSE.txt",
+        "https://developer.intuit.com/app/developer/qbo/docs/develop/sandboxes"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": {
+        "gitCommit": "c4d5dfad23ffebf0302356876d0dc389708513a9",
+        "gitBlobSha": "9d477413e9c3cb64c29f34845ae80d0134142214",
+        "localSha256": null
+      },
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "Apache-2.0 is established for the SDK source; it is not permission for arbitrary sandbox/company exports. No sample-specific dataset grant was established.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Finance.xsd defines GlobalTaxCalculation TaxInclusive, TaxExcluded and NotApplicable; absent optional fields require explicit missing-state policy.",
+        "TxnDate is xs:date; CurrencyRef is a reference; ExchangeRate is xs:decimal with multicurrency-specific meaning.",
+        "CreditMemo and RefundReceipt are distinct schema constructs; locale and product applicability are documented within the schema.",
+        "Sandbox documentation returned a JavaScript stub; no account was created and no sandbox data was accessed."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": "quickbooks"
+    },
+    {
+      "id": "erpnext-official-v15-demo",
+      "system": "erpnext",
+      "publisher": "Frappe Technologies and Contributors",
+      "productVersion": "ERPNext version-15 branch snapshot",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "DocType JSON / GPL demo generator; dataset not admitted",
+      "sourceUrls": [
+        "https://github.com/frappe/erpnext/blob/4cea6a7f839286b69dd30b38b0991e6ae234dac5/erpnext/accounts/doctype/sales_invoice/sales_invoice.json",
+        "https://github.com/frappe/erpnext/blob/4cea6a7f839286b69dd30b38b0991e6ae234dac5/erpnext/accounts/doctype/sales_taxes_and_charges/sales_taxes_and_charges.json",
+        "https://github.com/frappe/erpnext/blob/4cea6a7f839286b69dd30b38b0991e6ae234dac5/erpnext/setup/demo.py",
+        "https://github.com/frappe/erpnext/blob/4cea6a7f839286b69dd30b38b0991e6ae234dac5/license.txt"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": {
+        "gitCommit": "4cea6a7f839286b69dd30b38b0991e6ae234dac5",
+        "gitBlobSha": "b21fb96546a94536cfdcc13b78647515f6ec1523",
+        "localSha256": null
+      },
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "GPL-3.0 source license and explicit demo.py header established. This is not a blanket grant for customer exports, unrelated demo datasets or generated output. No qualification dataset admitted.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Sales Invoice DocType defines posting_date, currency, conversion_rate, is_return, return_against and explicit status states.",
+        "Sales Taxes and Charges defines included_in_print_rate as tax already included in the print/basic rate.",
+        "demo.py has an explicit GPL v3 file header; upstream demo_data directory is a discovery lead.",
+        "The generator is software source, not independent company holdout evidence; generated-output and exact JSON fixture rights still need review."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": null
+    },
+    {
+      "id": "odoo-official-v18-account-demo",
+      "system": "odoo",
+      "publisher": "Odoo",
+      "productVersion": "Odoo Community 18.0 account module snapshot",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "Module manifest / XML demo / generator discovery",
+      "sourceUrls": [
+        "https://github.com/odoo/odoo/blob/e61552f858cbb78554b61c755485306c4df25ee7/addons/account/__manifest__.py",
+        "https://github.com/odoo/odoo/blob/e61552f858cbb78554b61c755485306c4df25ee7/addons/account/demo/account_demo.xml",
+        "https://github.com/odoo/odoo/blob/e61552f858cbb78554b61c755485306c4df25ee7/LICENSE"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": {
+        "gitCommit": "e61552f858cbb78554b61c755485306c4df25ee7",
+        "gitBlobSha": "5260bcea73efab40ad413cb8b7fa7c3b314a925b",
+        "localSha256": null
+      },
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "LGPL-3 is established for the account module source artifact. Review exact fixture/generator-output scope and obligations before copying into another licensed corpus; no customer dataset rights inferred.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Account manifest explicitly references demo/account_demo.xml and states LGPL-3.",
+        "XML demo artifact contains configuration/reference records, not a complete invoice-and-source-total qualification corpus.",
+        "Root LICENSE identifies LGPL v3 and warns that some source files carry other GPL-compatible licenses.",
+        "Community version and module license do not imply Enterprise/Odoo Online data permissions."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": null
+    },
+    {
+      "id": "khatabook-official-export-discovery",
+      "system": "khatabook",
+      "publisher": "Khatabook",
+      "productVersion": "Versioned export schema unverified; app listing updated 2026-09-24 is not a schema version",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "Report export; PDF statement described by terms search snippet",
+      "sourceUrls": [
+        "https://khatabook.com/terms",
+        "https://play.google.com/store/apps/details?id=com.vaibhavkalpe.android.khatabook"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "Sample-specific reuse grants not established. Terms body unavailable; do not infer authorization from export capability or snippet.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Official app listing confirms item-wise report export.",
+        "Terms search snippet describes users sharing PDF statements/reminders; full terms text was not readable.",
+        "No sample corpus or stable field schema established."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": "khatabook"
+    },
+    {
+      "id": "okcredit-official-statement-discovery",
+      "system": "okcredit",
+      "publisher": "OkCredit",
+      "productVersion": "Export schema version unverified",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "PDF customer/account statements",
+      "sourceUrls": [
+        "https://okcredit.in/",
+        "https://okcredit.in/terms"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "Terms clauses 7.8-8 restrict copying/systematic retrieval, database compilation and commercial Content use and reserve IP. No public qualification corpus grant established.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Official site describes customer ledger, monthly collection reports and shareable/downloadable PDF statements.",
+        "No public versioned statement schema or sample dataset established."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": "okcredit"
+    },
+    {
+      "id": "mybillbook-official-report-discovery",
+      "system": "mybillbook",
+      "publisher": "FloBiz / myBillBook",
+      "productVersion": "Schema revision unverified",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "PDF statements / financial reports; XLSX item import documentation",
+      "sourceUrls": [
+        "https://knowledge.mybillbook.in/articles/1989927-how-to-view-and-share-party-statements-on-mybillbook",
+        "https://knowledge.mybillbook.in/articles/9707273-comprehensive-financial-reporting-daily-summary-balance-sheet-and-pandl-statement",
+        "https://knowledge.mybillbook.in/articles/0441947-how-to-add-items-in-bulk-using-mybillbook",
+        "https://mybillbook.in/web/terms"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "Terms sections 17-18 reserve product/content rights and require permission for reproduction/commercial exploitation. User ownership of uploaded Content is not public dataset permission.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Official guides describe PDF party statements and balance-sheet reports.",
+        "Item-import XLSX guide names Item Name, Sales Price and Purchase Price; optional HSN/SAC, GST rate and stock quantity.",
+        "Item-import format is not evidence of complete books or export semantics."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": "mybillbook"
+    },
+    {
+      "id": "bharatpe-official-discovery",
+      "system": "bharatpe",
+      "publisher": "BharatPe",
+      "productVersion": "Merchant statement version unverified",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "Unverified",
+      "sourceUrls": [
+        "https://bharatpe.com/"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "No sample-specific license established; do not infer rights or file formats from inaccessible routes or unofficial tutorials.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Official homepage inspected.",
+        "Candidate product/developer/legal routes returned errors or homepage fallbacks; no statement format, versioned schema or sample established."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": "bharatpe"
+    },
+    {
+      "id": "petpooja-official-report-discovery",
+      "system": "petpooja",
+      "publisher": "Petpooja",
+      "productVersion": "Report schema version unverified",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "Downloadable reports; extensions unverified",
+      "sourceUrls": [
+        "https://www.petpooja.com/poss/reports-and-analytics",
+        "https://www.petpooja.com/terms-and-conditions"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "Terms reserve Content/IP rights and define reports/usage data as Content. Customer or API-partner service grants do not establish public dataset rights.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Official page describes sales, item-consumption and online-order reports and owner-controlled report access.",
+        "Report file extensions/schema versions not established.",
+        "Third-party Apiary V2.1.0 title is an unconfirmed discovery lead and cannot establish official source behavior."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": "petpooja"
+    },
+    {
+      "id": "ais-tis-official-format-discovery",
+      "system": "form26as-ais",
+      "publisher": "Income Tax Department / CBDT",
+      "productVersion": "AIS/TIS versioned JSON schema unverified",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "PDF / JSON / CSV; category Excel documentation",
+      "sourceUrls": [
+        "https://www.incometax.gov.in/iec/foportal/ais-faq",
+        "https://www.incometaxindia.gov.in/annual-information-statement",
+        "https://www.incometaxindia.gov.in/copyright-policy"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "CBDT website copyright policy permits accurate attributed website-material reproduction with exceptions. That is not a taxpayer-export dataset or training license and is not assumed to govern other portal operators.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "AIS FAQ documents PDF/JSON/CSV and AIS Parts A/B; TIS category aggregates have processed/accepted values.",
+        "Whole-report and category/detail export formats differ; retain exact report route.",
+        "Actual taxpayer exports require login; no taxpayer records accessed."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": "form26as-ais"
+    },
+    {
+      "id": "form26as-official-format-discovery",
+      "system": "form26as-ais",
+      "publisher": "Income Tax Department / TRACES",
+      "productVersion": "FAQ reviewed 2026-03-31; tutorials 2016; report/assessment-year revisions must remain separate",
+      "artifactClass": "schema-or-sample-discovery-candidate",
+      "format": "HTML view / PDF / text / Excel; historical caret-delimited text",
+      "sourceUrls": [
+        "https://traces61contents.tdscpc.gov.in/en/faq-taxpayer-26AS-general.html",
+        "https://traces61contents.tdscpc.gov.in/docs/E-Tutorial%20Form%2026AS-Annual%20Tax%20Statement.pdf",
+        "https://traces61contents.tdscpc.gov.in/docs/E-Tutorial%20-%20Procedure%20of%20Converting%20Form%2026AS%20Text%20File%20to%20Excel%20File.pdf"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "sample-data-rights-unresolved",
+        "evidence": "No sample-specific taxpayer fixture, redistribution or training license established; masked illustrations alone do not establish corpus rights.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Official FAQ documents export formats; report sections differ by assessment year.",
+        "2016 tutorial documents caret-delimited text to Excel conversion and illustrative masked screenshots.",
+        "Older/newer references differ on report terminology and thresholds; no single current schema asserted.",
+        "No taxpayer exports or tutorial images copied into fixtures."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Public documentation and developer examples do not establish arbitrary-company correctness.",
+        "No source rows, source-report corpus or independent real-company holdout was admitted by this research."
+      ],
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": "form26as-ais"
+    },
+    {
+      "id": "uci-online-retail",
+      "system": "generic-business-data",
+      "publisher": "UCI Machine Learning Repository / Daqing Chen",
+      "productVersion": "Dataset DOI 10.24432/C5BW33; original Online Retail",
+      "artifactClass": "generic-business-data-discovery-candidate",
+      "format": "Release-specific sample database or spreadsheet",
+      "sourceUrls": [
+        "https://archive.ics.uci.edu/dataset/352/online+retail",
+        "https://creativecommons.org/licenses/by/4.0/"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": true,
+      "rights": {
+        "status": "discovery-only",
+        "license": "CC-BY-4.0",
+        "evidence": "Primary UCI dataset License section explicitly applies CC BY 4.0 to this dataset; qualification admission still requires artifact/intake review.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "UCI explicitly licenses this dataset under CC BY 4.0 and lists Online Retail.xlsx.",
+        "Metadata describes one UK retailer's 2010-2011 transactions; InvoiceNo starting c indicates cancellation and UnitPrice uses sterling.",
+        "CustomerID is an identifier: do not claim personalData none from public availability.",
+        "Retain attribution, license linkage and change notices."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Generic dataset; cannot qualify vendor product/version semantics.",
+        "No binary/source rows downloaded; sensitive-data intake, exact release, lineage and source-report review remain incomplete.",
+        "One public sample does not establish arbitrary-company or independent ERP-installation correctness."
+      ],
+      "licenseEvidenceStatus": "explicit-dataset-grant-located",
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": null
+    },
+    {
+      "id": "microsoft-wide-world-importers",
+      "system": "generic-business-data",
+      "publisher": "Microsoft",
+      "productVersion": "Wide World Importers v1.0 release lead; exact backup not selected",
+      "artifactClass": "generic-business-data-discovery-candidate",
+      "format": "Release-specific sample database or spreadsheet",
+      "sourceUrls": [
+        "https://learn.microsoft.com/en-us/sql/samples/wide-world-importers-what-is?view=sql-server-ver17",
+        "https://github.com/microsoft/sql-server-samples/blob/master/license.txt",
+        "https://www.naturalearthdata.com/about/terms-of-use/"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "MIT-with-component-review-pending",
+        "evidence": "Database-specific MIT linkage and Natural Earth public-domain evidence established. Unidentified data.gov components and exact release scope prevent fully clearing the uninspected corpus.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Official Learn Terms of use links sample database and sample code to the MIT repository license.",
+        "MIT requires copyright and permission notices.",
+        "Overview identifies data.gov and Natural Earth components; Natural Earth terms place map data in public domain.",
+        "Exact release/component inventory and data.gov source-specific rights remain unresolved."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Generic dataset; cannot qualify vendor product/version semantics.",
+        "No binary/source rows downloaded; sensitive-data intake, exact release, lineage and source-report review remain incomplete.",
+        "One public sample does not establish arbitrary-company or independent ERP-installation correctness."
+      ],
+      "licenseEvidenceStatus": "scope-review-pending",
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": null
+    },
+    {
+      "id": "microsoft-adventureworks",
+      "system": "generic-business-data",
+      "publisher": "Microsoft",
+      "productVersion": "AdventureWorks; exact backup/release not selected",
+      "artifactClass": "generic-business-data-discovery-candidate",
+      "format": "Release-specific sample database or spreadsheet",
+      "sourceUrls": [
+        "https://github.com/microsoft/sql-server-samples",
+        "https://github.com/microsoft/sql-server-samples/tree/master/samples/databases/adventure-works",
+        "https://github.com/microsoft/sql-server-samples/blob/master/license.txt"
+      ],
+      "observedAt": "2026-09-30T23:07:00Z",
+      "revision": null,
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "MIT-stated-at-repository-level-scope-pending",
+        "evidence": "Repository-level sample MIT licensing established; exact backup/artifact and extracted-row redistribution scope require review under this strict standard.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "unreviewed",
+          "reuse": "unreviewed",
+          "retrieval": "unreviewed",
+          "retention": "unreviewed",
+          "parsing": "unreviewed",
+          "modelDisclosure": "unreviewed",
+          "evaluation": "unreviewed",
+          "derivedTemplates": "unreviewed",
+          "redistribution": "unreviewed",
+          "futureTraining": "unreviewed"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "findings": [
+        "Official repository identifies AdventureWorks sample databases and states all samples/templates are MIT.",
+        "Install script describes fictitious data; this is provenance, not a separate reuse grant.",
+        "Exact backup/data-row license bridge and component review remain pending."
+      ],
+      "requiredBeforeAdmission": [
+        "Identify exact artifact, revision, publisher and installation/source-family lineage.",
+        "Establish reviewed permission evidence for each intended use; code licensing is not blanket dataset permission.",
+        "Inspect sensitive data in restricted intake and preserve transformation lineage.",
+        "Capture compatible company configuration, source cut and independent source reports.",
+        "Qualify each version/configuration/route/operation against independent holdouts."
+      ],
+      "limitations": [
+        "Generic dataset; cannot qualify vendor product/version semantics.",
+        "No binary/source rows downloaded; sensitive-data intake, exact release, lineage and source-report review remain incomplete.",
+        "One public sample does not establish arbitrary-company or independent ERP-installation correctness."
+      ],
+      "licenseEvidenceStatus": "scope-review-pending",
+      "evidenceOrigin": "primary-official-reference",
+      "requestedGroupId": null
+    },
+    {
+      "id": "phonepe-pulse-aggregate-discovery",
+      "system": "phonepe-pulse",
+      "requestedGroupId": "phonepe-business",
+      "publisher": "PhonePe",
+      "productVersion": "Dataset API release unselected; README currently Q1 2018-Q2 2026",
+      "artifactClass": "aggregate-research-data-discovery-candidate",
+      "format": "Repository Dataset API aggregates; no files acquired",
+      "sourceUrls": [
+        "https://github.com/PhonePe/pulse",
+        "https://github.com/PhonePe/pulse/blob/main/LICENSE",
+        "https://www.phonepe.com/pulse/terms-and-conditions/"
+      ],
+      "observedAt": "2026-09-30T23:19:18Z",
+      "revision": {
+        "gitCommit": null,
+        "localSha256": null,
+        "locatorMutable": true
+      },
+      "status": "discovery-only",
+      "qualificationState": "unqualified",
+      "sampleSpecificRightsEstablished": false,
+      "rights": {
+        "status": "discovery-only",
+        "license": "CDLA-Permissive-2.0-repository; website-terms-scope-unresolved",
+        "evidence": "Repository data license permits use/modification/sharing with agreement-text condition and unrestricted computational Results. Website permits limited noncommercial use, forbids derivatives/external correlation and requires consent for commercial use. Different stated delivery scopes are not reconciled; this is apparent rights tension, not a definitive overriding-law determination.",
+        "permittedUses": [],
+        "personalData": "unreviewed",
+        "useDecisions": {
+          "acquisition": "hold",
+          "reuse": "hold",
+          "retrieval": "hold",
+          "retention": "hold",
+          "parsing": "hold",
+          "modelDisclosure": "hold",
+          "evaluation": "hold",
+          "derivedTemplates": "hold",
+          "redistribution": "hold",
+          "futureTraining": "hold"
+        }
+      },
+      "localArtifactPaths": [],
+      "sourceDatasetReceipt": null,
+      "evidenceOrigin": "primary-official-reference",
+      "findings": [
+        "Pulse data is aggregate ecosystem research, not merchant transaction books.",
+        "README warns against combining restated current series with previously published releases.",
+        "CDLA repository scope does not automatically license all Pulse website content/branding."
+      ],
+      "requiredBeforeAdmission": [
+        "Select exact artifact/release and delivery channel.",
+        "Resolve applicable permission scope for each intended use with accountable review.",
+        "Inspect sensitive data and third-party components.",
+        "Preserve restatement/source-family lineage; do not use as independent merchant-book qualification."
+      ],
+      "limitations": [
+        "No vendor sample acquisition or merchant-company qualification.",
+        "No arbitrary-company semantic guarantee."
+      ]
+    }
+  ],
+  "evidenceClasses": {
+    "referenceSchemaDocs": "Metadata and links only; not source-company qualification.",
+    "coherentBusinessBooks": "None acquired; require compatible transactions/configuration/control reports.",
+    "independentFamilies": "None acquired; hold out entire company and template/configuration/source-family origins.",
+    "syntheticCases": "Separate first-party synthetic manifests maintained by the executable harness; cannot establish vendor prevalence or arbitrary-company correctness."
+  },
+  "aspirationalBundleCount": {
+    "range": [
+      1500,
+      3000
+    ],
+    "status": "planning-target-only",
+    "acquiredCount": 0,
+    "note": "No dataset, coherent bundle or independent installation count is inferred from a link or schema file."
+  },
+  "counts": {
+    "candidateRecords": 16,
+    "requestedAdditionGroups": 6,
+    "admittedExternalDatasets": 0,
+    "acquiredCoherentBusinessBundles": 0,
+    "independentRealCompanyFamilies": 0,
+    "rightsWithExplicitDatasetGrantLocated": 1
+  },
+  "lastReviewedAt": "2026-09-30T23:19:18Z"
+}

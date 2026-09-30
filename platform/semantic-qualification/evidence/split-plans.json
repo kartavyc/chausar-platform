@@ -1,0 +1,3096 @@
+[
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "c95117e7fedb3cf8009050c51e51f1d0ae60e09cb88d604a6399def641cb2b0d",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "c95117e7fedb3cf8009050c51e51f1d0ae60e09cb88d604a6399def641cb2b0d",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "c95117e7fedb3cf8009050c51e51f1d0ae60e09cb88d604a6399def641cb2b0d",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "97fe8df369b010d0ed412e3ee2d6bc6b47a13bab53403feda4d28ab2ac38bc5b",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "97fe8df369b010d0ed412e3ee2d6bc6b47a13bab53403feda4d28ab2ac38bc5b",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "97fe8df369b010d0ed412e3ee2d6bc6b47a13bab53403feda4d28ab2ac38bc5b",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "c95117e7fedb3cf8009050c51e51f1d0ae60e09cb88d604a6399def641cb2b0d",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "97fe8df369b010d0ed412e3ee2d6bc6b47a13bab53403feda4d28ab2ac38bc5b",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "c95117e7fedb3cf8009050c51e51f1d0ae60e09cb88d604a6399def641cb2b0d",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "97fe8df369b010d0ed412e3ee2d6bc6b47a13bab53403feda4d28ab2ac38bc5b",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "97fe8df369b010d0ed412e3ee2d6bc6b47a13bab53403feda4d28ab2ac38bc5b",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "c95117e7fedb3cf8009050c51e51f1d0ae60e09cb88d604a6399def641cb2b0d",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "97fe8df369b010d0ed412e3ee2d6bc6b47a13bab53403feda4d28ab2ac38bc5b",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "c95117e7fedb3cf8009050c51e51f1d0ae60e09cb88d604a6399def641cb2b0d",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "97fe8df369b010d0ed412e3ee2d6bc6b47a13bab53403feda4d28ab2ac38bc5b",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "c95117e7fedb3cf8009050c51e51f1d0ae60e09cb88d604a6399def641cb2b0d",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  },
+  {
+    "contractVersion": 1,
+    "id": "whole-company-and-template-split-v1",
+    "mappingFingerprint": "97fe8df369b010d0ed412e3ee2d6bc6b47a13bab53403feda4d28ab2ac38bc5b",
+    "reviewer": "Independent golden_fixtures lane; source expectations authored without mapper access",
+    "tuning": [
+      {
+        "businessId": "synthetic-tuning-retail",
+        "datasetId": "tuning-retail-separated-events-dataset-v1",
+        "rowsHash": "b7d7913a4861593e38bbdb29c9498d81e498f9d374ad6f583f08de9c8455f28a",
+        "origins": {
+          "business": "synthetic-tuning-retail",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-exact-money",
+        "datasetId": "tuning-zero-and-large-money-dataset-v1",
+        "rowsHash": "beccadb33b6a27a6b8fa73ccd425ccea75779859c2e86c81eafdd5b646cd5dde",
+        "origins": {
+          "business": "synthetic-tuning-exact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-currencies",
+        "datasetId": "tuning-separated-currencies-dataset-v1",
+        "rowsHash": "ba6997f9ce284bb21b051e81c70e768727f9e4cfacdfbd1b0f3c595813cffccf",
+        "origins": {
+          "business": "synthetic-tuning-currencies",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-taxed-cash",
+        "datasetId": "tuning-taxed-settled-cash-dataset-v1",
+        "rowsHash": "da3d4d6799d45c8f2e4415b111e9ee09fc5b8273ebd6d682f956a7c67e744509",
+        "origins": {
+          "business": "synthetic-tuning-taxed-cash",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-missing-amount",
+        "datasetId": "tuning-null-amount-abstains-dataset-v1",
+        "rowsHash": "9112ff44f2992a60c2e72b8616c4eb89a44bb8db60511661f143d038533e9c1d",
+        "origins": {
+          "business": "synthetic-tuning-missing-amount",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-impossible-date",
+        "datasetId": "tuning-impossible-date-abstains-dataset-v1",
+        "rowsHash": "db8d3d463063ea66a717681419fcfbacf5844cf1b2af9ccc1ba06c0da3ed46ce",
+        "origins": {
+          "business": "synthetic-tuning-impossible-date",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-refund-overflow",
+        "datasetId": "tuning-cumulative-refund-limit-abstains-dataset-v1",
+        "rowsHash": "046283fa54b6ebf6c78732c339997e0242f39649d7022905a167e5c540761cee",
+        "origins": {
+          "business": "synthetic-tuning-refund-overflow",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      },
+      {
+        "businessId": "synthetic-tuning-inexact-money",
+        "datasetId": "tuning-inexact-money-abstains-dataset-v1",
+        "rowsHash": "36644e63e3b82443b6b36f7163bf692f6190a9da2581b88fbb4de25ba8ce82a4",
+        "origins": {
+          "business": "synthetic-tuning-inexact-money",
+          "template": "tuning-source-v1",
+          "configuration": "tax-exclusive"
+        }
+      }
+    ],
+    "holdout": [
+      {
+        "businessId": "synthetic-holdout-wholesale",
+        "datasetId": "holdout-wholesale-independent-dataset-v1",
+        "rowsHash": "ab641e564b9a63d580882ce14c5ae5e3064574a4b91c3f613daf59ba24ce98da",
+        "origins": {
+          "business": "synthetic-holdout-wholesale",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-crosscurrency",
+        "datasetId": "holdout-crosscurrency-independent-dataset-v1",
+        "rowsHash": "66a01269801673fb0a58bd8349e1b5339239ac118208ef9908b5c2bdadb74a5b",
+        "origins": {
+          "business": "synthetic-holdout-crosscurrency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-large-money",
+        "datasetId": "holdout-large-and-explicit-zero-dataset-v1",
+        "rowsHash": "455e80d66711112797f471041c9a2596995a58f421b79f60049347c2f2621ef7",
+        "origins": {
+          "business": "synthetic-holdout-large-money",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-taxed-cash",
+        "datasetId": "holdout-taxed-settled-cash-dataset-v1",
+        "rowsHash": "6cc100ec1dfc9847deae949c8e507fc14acddd0caa9ca057f2372f0e7dfb10e2",
+        "origins": {
+          "business": "synthetic-holdout-taxed-cash",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-missing-tax",
+        "datasetId": "holdout-null-tax-abstains-dataset-v1",
+        "rowsHash": "829944061b84befd3795b43ef15dbe97350e481a96d024acf84d2cd3fea2f8ca",
+        "origins": {
+          "business": "synthetic-holdout-missing-tax",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unknown-state",
+        "datasetId": "holdout-unknown-status-abstains-dataset-v1",
+        "rowsHash": "0a9e1813feec817ba9a6f1c2fd6af2fe53d3f7df05af6b3cd05e8a65af6f6123",
+        "origins": {
+          "business": "synthetic-holdout-unknown-state",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-orphan-refund",
+        "datasetId": "holdout-refund-without-link-abstains-dataset-v1",
+        "rowsHash": "8205d4b586d6ab8ccf0739cd9675edf9658d8d98102f91676da82af52f35f63d",
+        "origins": {
+          "business": "synthetic-holdout-orphan-refund",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-unconfigured-currency",
+        "datasetId": "holdout-unconfigured-currency-abstains-dataset-v1",
+        "rowsHash": "bc380f13781558397bb67c79b7608f80a22859999b75c76283fe3495c77a6801",
+        "origins": {
+          "business": "synthetic-holdout-unconfigured-currency",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      },
+      {
+        "businessId": "synthetic-holdout-inexact-quantity",
+        "datasetId": "holdout-inexact-quantity-abstains-dataset-v1",
+        "rowsHash": "59bb20827ba30f9ceb88ca2e058556bcc754b371dc8a467b4ba9b56cae8de802",
+        "origins": {
+          "business": "synthetic-holdout-inexact-quantity",
+          "template": "holdout-inclusive-dmy-v1",
+          "configuration": "holdout-inclusive-dmy-v1"
+        }
+      }
+    ],
+    "disclosure": "public-synthetic",
+    "evidence": "Business, template and configuration origins are wholly disjoint. The two independently declared synthetic templates exercise the compiler against their own explicit packs. This public fixture split is not sealed, real or a learned-mapper generalization claim."
+  }
+]

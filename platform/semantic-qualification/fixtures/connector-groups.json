@@ -1,0 +1,951 @@
+{
+  "contractVersion": 1,
+  "kind": "requested-connector-group-register",
+  "originalGroupCount": 50,
+  "addedGroupCount": 6,
+  "totalGroupCount": 56,
+  "fullDepthWritebackSelection": "pending-user-selection",
+  "qualificationPolicy": "A listed group is a requirement, not support evidence. Qualify per version, configuration, route, artifact and operation; all groups start unqualified.",
+  "source": {
+    "url": "https://github.com/kartavyc/chausar-v1/blob/f4ffd7d409b782de03bad234ed6dcbd420062507/CHAUSAR-LIVE-BUILD-PLAN.md#6-the-systems",
+    "gitCommit": "f4ffd7d409b782de03bad234ed6dcbd420062507",
+    "gitBlobSha": "bb00dbfcbf440ae4211d3cbb4c49f6ecc3025d01",
+    "section": "6. The systems",
+    "line": 1209,
+    "scopeOverride": "User accepted original 50 plus six additions, retains QuickBooks; supersedes historical proposal to drop it."
+  },
+  "baselineComparison": {
+    "baselineCommit": "100df1d3c3bdb8e7793d81e6590cd6145c617d3e",
+    "registryPath": "platform/runtime/connectors.ts",
+    "registryCount": 50,
+    "alreadyContains": [
+      "mybillbook",
+      "income-tax"
+    ],
+    "note": "Baseline registry uses different product grouping and is not original plan coverage. Tally and bank families are split; several original plan groups are absent. No duplicate additions or silent substitutions."
+  },
+  "originalFamilyCounts": {
+    "books-billing": 7,
+    "money": 7,
+    "compliance": 2,
+    "selling": 8,
+    "customers-marketing": 8,
+    "work-files": 5,
+    "people-payroll": 4,
+    "shipping-stock": 4,
+    "support-subscriptions-product-build": 5
+  },
+  "groups": [
+    {
+      "id": "tally",
+      "name": "Tally",
+      "family": "books-billing",
+      "origin": "original-plan",
+      "variants": [
+        "TallyPrime",
+        "Tally.ERP 9"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "zoho-books",
+      "name": "Zoho Books",
+      "family": "books-billing",
+      "origin": "original-plan",
+      "variants": [
+        "Zoho Books"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "vyapar",
+      "name": "Vyapar",
+      "family": "books-billing",
+      "origin": "original-plan",
+      "variants": [
+        "Vyapar"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "busy",
+      "name": "Busy",
+      "family": "books-billing",
+      "origin": "original-plan",
+      "variants": [
+        "Busy"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "marg",
+      "name": "Marg",
+      "family": "books-billing",
+      "origin": "original-plan",
+      "variants": [
+        "Marg"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "quickbooks",
+      "name": "QuickBooks",
+      "family": "books-billing",
+      "origin": "original-plan",
+      "variants": [
+        "QuickBooks"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "xero",
+      "name": "Xero",
+      "family": "books-billing",
+      "origin": "original-plan",
+      "variants": [
+        "Xero"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "razorpay",
+      "name": "Razorpay",
+      "family": "money",
+      "origin": "original-plan",
+      "variants": [
+        "Razorpay"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "cashfree",
+      "name": "Cashfree",
+      "family": "money",
+      "origin": "original-plan",
+      "variants": [
+        "Cashfree"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "payu",
+      "name": "PayU",
+      "family": "money",
+      "origin": "original-plan",
+      "variants": [
+        "PayU"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe",
+      "family": "money",
+      "origin": "original-plan",
+      "variants": [
+        "Stripe"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "bank-statements",
+      "name": "Bank statements",
+      "family": "money",
+      "origin": "original-plan",
+      "variants": [
+        "Any bank PDF",
+        "Any bank CSV",
+        "Any bank Excel"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "paytm-business",
+      "name": "Paytm for Business",
+      "family": "money",
+      "origin": "original-plan",
+      "variants": [
+        "Paytm for Business"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "phonepe-business",
+      "name": "PhonePe Business",
+      "family": "money",
+      "origin": "original-plan",
+      "variants": [
+        "PhonePe Business"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "gst-downloads",
+      "name": "GST portal GSTR downloads",
+      "family": "compliance",
+      "origin": "original-plan",
+      "variants": [
+        "GST portal GSTR downloads"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "e-invoice-eway-gsp",
+      "name": "E-invoice and e-way bill through a GST service provider",
+      "family": "compliance",
+      "origin": "original-plan",
+      "variants": [
+        "E-invoice",
+        "E-way bill"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "shopify",
+      "name": "Shopify",
+      "family": "selling",
+      "origin": "original-plan",
+      "variants": [
+        "Shopify"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "woocommerce",
+      "name": "WooCommerce",
+      "family": "selling",
+      "origin": "original-plan",
+      "variants": [
+        "WooCommerce"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "amazon-seller",
+      "name": "Amazon Seller Central",
+      "family": "selling",
+      "origin": "original-plan",
+      "variants": [
+        "Amazon Seller Central"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "flipkart-seller",
+      "name": "Flipkart Seller Hub",
+      "family": "selling",
+      "origin": "original-plan",
+      "variants": [
+        "Flipkart Seller Hub"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "meesho",
+      "name": "Meesho",
+      "family": "selling",
+      "origin": "original-plan",
+      "variants": [
+        "Meesho"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "instamojo",
+      "name": "Instamojo",
+      "family": "selling",
+      "origin": "original-plan",
+      "variants": [
+        "Instamojo"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "swiggy-zomato-partner",
+      "name": "Swiggy and Zomato partner",
+      "family": "selling",
+      "origin": "original-plan",
+      "variants": [
+        "Swiggy partner",
+        "Zomato partner"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "quick-commerce-seller",
+      "name": "Quick-commerce seller panels",
+      "family": "selling",
+      "origin": "original-plan",
+      "variants": [
+        "Blinkit",
+        "Zepto",
+        "Instamart"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "zoho-crm",
+      "name": "Zoho CRM",
+      "family": "customers-marketing",
+      "origin": "original-plan",
+      "variants": [
+        "Zoho CRM"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "hubspot",
+      "name": "HubSpot",
+      "family": "customers-marketing",
+      "origin": "original-plan",
+      "variants": [
+        "HubSpot"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "meta-ads",
+      "name": "Meta Ads",
+      "family": "customers-marketing",
+      "origin": "original-plan",
+      "variants": [
+        "Meta Ads"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "google-ads",
+      "name": "Google Ads",
+      "family": "customers-marketing",
+      "origin": "original-plan",
+      "variants": [
+        "Google Ads"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "google-analytics",
+      "name": "Google Analytics",
+      "family": "customers-marketing",
+      "origin": "original-plan",
+      "variants": [
+        "Google Analytics"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "mailchimp",
+      "name": "Mailchimp",
+      "family": "customers-marketing",
+      "origin": "original-plan",
+      "variants": [
+        "Mailchimp"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "youtube-analytics",
+      "name": "YouTube Analytics",
+      "family": "customers-marketing",
+      "origin": "original-plan",
+      "variants": [
+        "YouTube Analytics"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "instagram-insights",
+      "name": "Instagram Insights",
+      "family": "customers-marketing",
+      "origin": "original-plan",
+      "variants": [
+        "Instagram Insights"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "google-workspace",
+      "name": "Google Workspace",
+      "family": "work-files",
+      "origin": "original-plan",
+      "variants": [
+        "Sheets",
+        "Drive",
+        "Calendar",
+        "Gmail"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "microsoft-365",
+      "name": "Microsoft 365",
+      "family": "work-files",
+      "origin": "original-plan",
+      "variants": [
+        "Excel",
+        "OneDrive",
+        "Outlook"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "family": "work-files",
+      "origin": "original-plan",
+      "variants": [
+        "Notion"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "family": "work-files",
+      "origin": "original-plan",
+      "variants": [
+        "Slack"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "whatsapp-business",
+      "name": "WhatsApp Business",
+      "family": "work-files",
+      "origin": "original-plan",
+      "variants": [
+        "WhatsApp Business"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "keka",
+      "name": "Keka",
+      "family": "people-payroll",
+      "origin": "original-plan",
+      "variants": [
+        "Keka"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "zoho-payroll",
+      "name": "Zoho Payroll",
+      "family": "people-payroll",
+      "origin": "original-plan",
+      "variants": [
+        "Zoho Payroll"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "greythr",
+      "name": "GreytHR",
+      "family": "people-payroll",
+      "origin": "original-plan",
+      "variants": [
+        "GreytHR"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "razorpayx-payroll",
+      "name": "RazorpayX Payroll",
+      "family": "people-payroll",
+      "origin": "original-plan",
+      "variants": [
+        "RazorpayX Payroll"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "shiprocket",
+      "name": "Shiprocket",
+      "family": "shipping-stock",
+      "origin": "original-plan",
+      "variants": [
+        "Shiprocket"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "delhivery",
+      "name": "Delhivery",
+      "family": "shipping-stock",
+      "origin": "original-plan",
+      "variants": [
+        "Delhivery"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "zoho-inventory",
+      "name": "Zoho Inventory",
+      "family": "shipping-stock",
+      "origin": "original-plan",
+      "variants": [
+        "Zoho Inventory"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "unicommerce",
+      "name": "Unicommerce",
+      "family": "shipping-stock",
+      "origin": "original-plan",
+      "variants": [
+        "Unicommerce"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "freshdesk",
+      "name": "Freshdesk",
+      "family": "support-subscriptions-product-build",
+      "origin": "original-plan",
+      "variants": [
+        "Freshdesk"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "wati-interakt",
+      "name": "WATI or Interakt",
+      "family": "support-subscriptions-product-build",
+      "origin": "original-plan",
+      "variants": [
+        "WATI",
+        "Interakt"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "chargebee",
+      "name": "Chargebee",
+      "family": "support-subscriptions-product-build",
+      "origin": "original-plan",
+      "variants": [
+        "Chargebee"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "posthog",
+      "name": "PostHog",
+      "family": "support-subscriptions-product-build",
+      "origin": "original-plan",
+      "variants": [
+        "PostHog"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "family": "support-subscriptions-product-build",
+      "origin": "original-plan",
+      "variants": [
+        "GitHub"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "khatabook",
+      "name": "Khatabook",
+      "family": "books-billing",
+      "origin": "user-addition",
+      "variants": [
+        "Khatabook"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "okcredit",
+      "name": "OkCredit",
+      "family": "books-billing",
+      "origin": "user-addition",
+      "variants": [
+        "OkCredit"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "mybillbook",
+      "name": "myBillBook",
+      "family": "books-billing",
+      "origin": "user-addition",
+      "variants": [
+        "myBillBook"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "bharatpe",
+      "name": "BharatPe",
+      "family": "money",
+      "origin": "user-addition",
+      "variants": [
+        "BharatPe"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "petpooja",
+      "name": "Petpooja",
+      "family": "selling",
+      "origin": "user-addition",
+      "variants": [
+        "Petpooja"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    },
+    {
+      "id": "form26as-ais",
+      "name": "Form 26AS / AIS",
+      "family": "compliance",
+      "origin": "user-addition",
+      "variants": [
+        "Form 26AS",
+        "AIS",
+        "TIS"
+      ],
+      "qualification": "unqualified",
+      "operations": {
+        "import": "unqualified",
+        "read": "unqualified",
+        "write": "unqualified"
+      },
+      "evidenceIds": []
+    }
+  ]
+}
