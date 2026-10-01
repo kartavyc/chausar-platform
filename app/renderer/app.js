@@ -308,7 +308,7 @@ async function renderConversation() {
   function paintMessages() { const hasMessages = state.messages.length > 0; intro.hidden = hasMessages; messages.hidden = !hasMessages; messages.replaceChildren(...state.messages.map(message => message.role === 'user' ? h('div', { class: 'message message-user' }, message.text) : h('article', { class: 'message message-assistant' }, h('div', { class: 'message-heading' }, h('img', { src: './assets/icon.svg', alt: '', width: 18, height: 18 }), 'Chausar', badge(message.error ? 'Could not complete' : 'Engine result', message.error ? 'danger' : '')), message.error ? notice(message.error, 'error') : renderAnswer(message.data)))); if (hasMessages) setTimeout(() => messages.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50); }
   paintConversationMessages = paintMessages; paintMessages();
   const aside = h('aside', { class: 'conversation-aside' }, h('section', { class: 'panel context-panel' }, h('div', { class: 'context-head' }, icon('layers'), 'Workspace context'), ...[['Sources', sourceCount], ['Memory', memoryCount == null ? 'Not yet checked' : `${memoryCount} facts`], ['Dictionary', dashboard.ontology?.pack || dashboard.dictionary?.label || 'Not yet published'], ['Model disclosure', { nothing: 'Nothing leaves', shape: 'Shape only', samples: 'Approved samples' }[policy.send] || 'Check Trust panel']].map(([label, value]) => h('div', { class: 'context-row' }, h('span', {}, label), h('strong', {}, value))), h('p', { class: 'context-foot' }, sourceCount ? 'Answers use the records and meanings currently in your vault.' : 'Import a source and publish a dictionary to begin answering business questions.'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('sources') }, 'Manage sources', icon('arrow'))), h('div', { class: 'trust-callout' }, h('h3', {}, icon('shield'), 'A number deserves proof.'), h('p', {}, 'Arithmetic runs in ordinary software. Open a receipt to inspect the rows, scope, definitions, and omissions.'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('trust') }, 'Your trust settings', icon('arrow'))), h('div', { class: 'side-section' }, h('h3', {}, 'Pick up where you left off'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('decisions') }, icon('compass'), 'Decision log'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('jobs') }, icon('calendar'), 'Recurring jobs'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('activity') }, icon('activity'), 'Workspace activity')));
-  return h('div', {}, pageHead('Conversation', 'A question, a calculation, and the evidence behind it.', [button('Recent answers', showConversationHistory, 'secondary', 'clock'), button('Daily brief', () => navigate('brief'), 'secondary', 'sun')]), outcomes[0].status === 'rejected' ? notice(outcomes[0].reason.message, 'error') : null, h('div', { class: 'conversation-layout' }, h('section', { class: 'panel conversation-panel' }, intro, messages, h('div', { class: 'composer-wrap' }, continuationHost, composer, h('div', { class: 'composer-help' }, h('span', {}, icon('shield'), 'Private by your rules. Check every result.'), h('span', {}, 'Ctrl + Enter to ask')))), aside));
+  return h('div', {}, pageHead('Conversation', 'A question, a calculation, and the evidence behind it.', [button('Recent answers', showConversationHistory, 'secondary', 'clock'), button('Older calculations', showUnpinnedAnswerRecovery, 'secondary', 'refresh'), button('Daily brief', () => navigate('brief'), 'secondary', 'sun')]), outcomes[0].status === 'rejected' ? notice(outcomes[0].reason.message, 'error') : null, h('div', { class: 'conversation-layout' }, h('section', { class: 'panel conversation-panel' }, intro, messages, h('div', { class: 'composer-wrap' }, continuationHost, composer, h('div', { class: 'composer-help' }, h('span', {}, icon('shield'), 'Private by your rules. Check every result.'), h('span', {}, 'Ctrl + Enter to ask')))), aside));
 }
 function renderAnswer(data, continuationReference) { if (!data) return notice('The engine returned no result. Try again or inspect Activity.', 'warn'); if (data.kind === 'synthesized-conversation') return renderSynthesizedConversation(data); if (data.kind === 'grounded-conversation') return renderGroundedConversation(data, continuationReference); if (data.kind === 'business-context') return renderBusinessContextAnswer(data); const text = data.text || data.answer?.text || data.explanation || data.summary || data.message || data.clarification || (typeof data.answer === 'string' ? data.answer : null); const receiptId = data.receiptId || data.receipt?.id || data.calculation?.receiptId || (data.figures ? data.id : null); const result = data.result || data.calculation || data.answer || data; const figures = result.figures || data.receipt?.figures || []; const operations = result?.metrics || result?.values; const body = h('div', {}, text ? h('p', {}, text) : h('p', {}, ['unsupported', 'not-supported', 'clarify'].includes(data.status) ? data.reason || 'This question needs an operation that is not available yet.' : 'The engine completed this request. Its exact result and evidence are below.'), data.amountMinor != null || result.amountMinor != null || result.valueMinor != null ? h('div', { class: 'result-number' }, amount(data.amountMinor ?? result.amountMinor ?? result.valueMinor, result.currency)) : null, figures.length ? h('div', { class: 'results-grid section-gap' }, figures.map(figure => h('div', { class: 'result-value' }, h('div', { class: 'result-label' }, figure.label || figure.key), h('strong', {}, figure.display || (figure.minor != null ? amount(figure.minor, figure.currency) : stringify(figure.value)))))) : null, operations && typeof operations === 'object' ? h('div', { class: 'results-grid section-gap' }, Object.entries(operations).map(([key, value]) => h('div', { class: 'result-value' }, h('div', { class: 'result-label' }, key.replaceAll('_', ' ')), h('strong', {}, value?.amountMinor != null ? amount(value.amountMinor, value.currency) : typeof value === 'object' ? stringify(value) : String(value))))) : null, data.limitations?.length ? notice(data.limitations.join(' '), 'warn') : null, data.stale ? notice('This receipt is stale. Rerun the calculation against current knowledge.', 'warn') : null, details(data), h('div', { class: 'message-actions' }, typeof data.clarification === 'string' && continuationReference?.continuationAvailable !== false && (continuationReference?.id || data.modelReceiptId) ? button('Continue this question', event => run(event.currentTarget, () => selectConversationContinuation(continuationReference || { modelReceiptId: data.modelReceiptId })), 'secondary small', 'arrow') : null, receiptId ? button('Open calculation receipt', () => showReceipt(receiptId), 'secondary small', 'file') : null, data.preview?.id || data.status === 'preview' ? button('Review outbound request', () => reviewOutbound(data.preview || data), 'secondary small', 'shield') : null, button('Save result', () => saveText('chausar-answer.json', data), 'ghost small', 'download'))); return body; }
 function renderGroundedConversation(data, savedReference, allowSynthesis = true) {
@@ -407,6 +407,104 @@ async function showBusinessContextReceipt(id) {
   catch (error) { if (generation === state.generation) { clearSavedEvidence(); toast(error.message, true); } }
 }
 async function showReceipt(id) { const generation = state.generation; try { const result = await request('receipts.get', { id, receiptId: id }); if (generation !== state.generation) return; const data = result.receipt || result; savedEvidenceModal('Calculation receipt', h('div', { class: 'stack' }, h('div', {}, h('div', { class: 'eyebrow' }, data.operation || 'Deterministic calculation'), h('p', { class: 'receipt-id mono' }, data.id || id)), data.amountMinor != null ? h('div', { class: 'result-number' }, amount(data.amountMinor, data.currency)) : null, h('dl', { class: 'key-value' }, h('dt', {}, 'Period'), h('dd', {}, stringify(data.period || data.scope?.period || 'All imported periods')), h('dt', {}, 'Rows'), h('dd', {}, data.rowCount ?? data.rows?.length ?? data.includedRows?.length ?? 'See exact record'), h('dt', {}, 'Dictionary'), h('dd', {}, data.definitionVersion || data.ontologyRevision || data.definitionId || 'See exact record')), details(data, 'Rows, definitions, scope, exclusions, and integrity checks'), button('Save receipt', () => saveText(`chausar-receipt-${id}.json`, data), 'secondary', 'download')), true); } catch (error) { if (generation === state.generation) { clearSavedEvidence(); toast(error.message, true); } } }
+async function showUnpinnedAnswerRecovery() {
+  const generation = state.generation, evidenceGeneration = state.evidenceGeneration;
+  try {
+    const answers = await request('trials.savedQuestions', {});
+    if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration) return;
+    const unpinned = answers.filter(answer => answer.request && !Object.hasOwn(answer.request, 'asOf'));
+    const body = h('div', { class: 'stack' }, notice('These older saved requests have no retained knowledge cutoff. Choose a new time scope to create a separate calculation. Their original records stay unchanged.'),
+      ...unpinned.map(answer => h('section', { class: 'panel' }, h('h3', {}, answer.request.operation),
+        h('p', { class: 'mono small' }, answer.id), details(answer.request, 'Original saved request'),
+        button('Review fresh calculation', event => run(event.currentTarget, () => reviewUnpinnedAnswerRecovery(answer.id, dialog)), 'secondary', 'refresh'),
+        button('Check earlier fresh requests', event => run(event.currentTarget, () => showIssuedAnswerRecoveries(answer.id, dialog)), 'secondary', 'file'))),
+      unpinned.length ? notice('Keeping these unpinned originals still blocks whole-workspace retrospective promotion.', 'warn')
+        : h('p', {}, 'No currently available unpinned saved calculation requests were found.'));
+    const dialog = savedEvidenceModal('Older calculations', body);
+  } catch (error) { if (generation === state.generation) { clearSavedEvidence(); toast(error.message, true); } }
+}
+async function showIssuedAnswerRecoveries(answerId, parentDialog) {
+  const generation = state.generation, evidenceGeneration = state.evidenceGeneration;
+  const page = await request('answers.recovery.list', { answerId });
+  if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration || !savedEvidenceDialogs.has(parentDialog)) return;
+  savedEvidenceModal('Earlier fresh calculation requests', h('div', { class: 'stack' },
+    notice('This readback finds the same issued requests after reopen. It never executes a calculation or chooses a new time.'),
+    ...(page.items || []).map(item => h('section', { class: 'panel' }, h('p', { class: 'mono small' }, item.newRequestId),
+      badge(item.status, item.status === 'completed' ? 'good' : 'warn'),
+      item.status === 'completed' ? h('div', {}, notice('Separate fresh calculation; the original answer remains unchanged.'),
+        renderAnswer(item.receipt), details(item.lineage, 'Retained fresh lineage'))
+        : notice(item.message || 'This request is prepared. No fresh result is committed; review the exact issued request before any explicit execution.', 'warn'),
+      details(item, 'Exact issued-request readback'))),
+    !(page.items || []).length ? h('p', {}, 'No current issued requests were found for this older answer.') : null,
+    notice('The preserved unpinned original still blocks retrospective promotion.', 'warn')));
+}
+async function reviewUnpinnedAnswerRecovery(answerId, parentDialog) {
+  const generation = state.generation, evidenceGeneration = state.evidenceGeneration;
+  const review = await request('answers.recovery.review', { answerId });
+  if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration || !savedEvidenceDialogs.has(parentDialog)) return;
+  const knownOn = input('text', '', { required: true, placeholder: 'ISO timestamp with Z or a timezone offset' });
+  const periodMode = select([['', 'Choose the event-date scope'], ['period', 'Use a new event-date period'], ['all', 'Include all event dates']], '');
+  const from = input('date'), to = input('date'), compareFrom = input('date'), compareTo = input('date'), onDate = input('date');
+  const confirmed = checkField('I understand this creates a fresh calculation and preserves the original answer.');
+  const operation = review.originalRequest.operation;
+  let prepared = false;
+  const resultHost = h('div'), fields = [notice(review.message),
+    details(review.originalRequest, 'Original request: filters and operation are retained'),
+    field('New known-on timestamp', knownOn, 'Enter your chosen instant explicitly, including seconds and a timezone. No historical cutoff is inferred.'),
+    field('New event-date scope', periodMode), h('div', { class: 'inline-fields' }, field('New period from', from), field('New period to', to)),
+    operation === 'change' ? h('div', { class: 'inline-fields' }, field('New comparison from', compareFrom), field('New comparison to', compareTo)) : null,
+    operation === 'aging' ? field('New aging reference date', onDate) : null, confirmed.node,
+    notice('The original unpinned request remains preserved and still blocks retrospective promotion. This fresh result is not a replay of that answer.', 'warn')];
+  const f = form(fields, 'Review exact fresh request', async () => {
+    if (!current()) return;
+    if (prepared) throw new Error('This fresh request has already been issued. Inspect its result or close this review before declaring another.');
+    if (!confirmed.control.checked) throw new Error('Confirm that this is a separate fresh calculation.');
+    if (!knownOn.value.trim() || !periodMode.value) throw new Error('Declare the new known-on timestamp and event-date scope.');
+    let period = null;
+    if (periodMode.value === 'period') {
+      if (!from.value || !to.value) throw new Error('Choose both new event-period dates.');
+      period = { from: from.value, to: to.value };
+    } else if (from.value || to.value) throw new Error('Clear period dates when explicitly choosing all event dates.');
+    let comparePeriod = null;
+    if (operation === 'change') {
+      if (!period || !compareFrom.value || !compareTo.value) throw new Error('Choose both new event and comparison periods.');
+      comparePeriod = { from: compareFrom.value, to: compareTo.value };
+    }
+    if (operation === 'aging' && !onDate.value) throw new Error('Choose the new aging date.');
+    const timeScope = { asOf: knownOn.value.trim(), period, comparePeriod, onDate: operation === 'aging' ? onDate.value : null };
+    const issued = await request('answers.recovery.prepare', { answerId, source: review.source,
+      reviewedEvidencePin: review.reviewedEvidencePin, timeScope, confirmedNewCalculation: true });
+    if (!current()) return;
+    prepared = true;
+    for (const control of [knownOn, periodMode, from, to, compareFrom, compareTo, onDate, confirmed.control]) control.disabled = true;
+    const readback = async () => {
+      const result = await request('answers.recovery.get', { newRequestId: issued.newRequestId });
+      if (!current()) return;
+      if (result.status !== 'completed') {
+        resultHost.replaceChildren(notice(result.message || 'The request is prepared but no fresh result is committed. Reopen and inspect after any uncertain outcome.', 'warn'), details(result)); return;
+      }
+      resultHost.replaceChildren(notice('Fresh calculation completed. The original answer and receipt remain unchanged.'),
+        renderAnswer(result.receipt), details(result.lineage, 'Separate fresh-calculation lineage'),
+        notice('The preserved unpinned original still blocks retrospective promotion.', 'warn'));
+    };
+    const execute = button('Create this fresh calculation', event => run(event.currentTarget, async () => {
+      if (!current()) return;
+      try { await request('answers.recovery.execute', { newRequestId: issued.newRequestId, preparationDigest: issued.preparationDigest }); }
+      catch (error) {
+        if (current()) resultHost.replaceChildren(notice(error.message, 'warn'),
+          button('Check issued request', e => run(e.currentTarget, readback), 'secondary', 'refresh'));
+        return;
+      }
+      if (current()) await readback();
+    }), '', 'check');
+    resultHost.replaceChildren(h('h3', {}, 'Exact fresh calculation'), details(issued.preparation.request, 'New declared request'),
+      details(issued.dictionary, 'Current published dictionary'), h('p', { class: 'mono small' }, issued.newRequestId),
+      execute, button('Check issued request', event => run(event.currentTarget, readback), 'secondary', 'refresh'));
+  });
+  const dialog = savedEvidenceModal('Fresh calculation from an older answer', h('div', { class: 'stack' }, f, resultHost));
+  const current = () => generation === state.generation && evidenceGeneration === state.evidenceGeneration
+    && savedEvidenceDialogs.has(parentDialog) && savedEvidenceDialogs.has(dialog);
+}
 async function reviewOutbound(preview, parentDialog) {
   const generation = state.generation, evidenceGeneration = state.evidenceGeneration, continuationGeneration = state.continuationGeneration;
   const synthesis = preview.purpose === 'conversation-synthesis';

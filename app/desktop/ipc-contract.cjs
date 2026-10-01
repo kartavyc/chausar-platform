@@ -12,6 +12,7 @@ const METHODS = Object.freeze([
   'sync.status', 'sync.identity', 'sync.enable', 'sync.trust', 'sync.preview', 'sync.approve', 'sync.push', 'sync.pull',
   'sync.writer.status', 'sync.writer.review', 'sync.reconcile',
   'dashboard.get', 'conversation.ask', 'conversation.history', 'conversation.get', 'conversation.continuation', 'conversation.synthesis.preview', 'conversation.synthesis.run', 'business.context.receipt', 'business.profile.record', 'business.profile.history', 'business.profile.remove', 'calculation.run', 'receipts.get',
+  'answers.recovery.review', 'answers.recovery.prepare', 'answers.recovery.execute', 'answers.recovery.get', 'answers.recovery.list',
   'analysis.bridge.publish', 'analysis.bridge.profiles', 'analysis.bridge.run', 'analysis.bridge.get',
   'investigations.create', 'investigations.get', 'investigations.list', 'investigations.advance', 'investigations.resume', 'investigations.pause', 'investigations.revise', 'investigations.cancel', 'investigations.capsule', 'investigations.drilldown', 'research.search',
   'sources.list', 'sources.delete', 'sources.preview', 'sources.import', 'sources.catalogue', 'sources.groups', 'sources.fetch', 'sources.recipe', 'sources.accept', 'sources.workbook', 'sources.workbookPreview', 'sources.workbookImport',

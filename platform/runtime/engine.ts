@@ -8,6 +8,9 @@ import { ImportService, importPublicRecord, seedDemo } from './ingest.ts';
 import { MemoryService } from './memory.ts';
 import { canSeeFact } from './memory.ts';
 import { CalculatorService, type CalculatorOptions } from './calculator.ts';
+import { explainAnswerRecovery, prepareAnswerRecovery, assertPreparedAnswerRecoveryCurrent, completeAnswerRecovery,
+  type AnswerRecoveryEvidence, type AnswerRecoverySource, type AnswerRecoveryTimeScope, type PreparedAnswerRecovery,
+  type CompletedAnswerRecovery } from './answer-recovery.ts';
 import { ForecastService } from './forecast-service.ts';
 import { AlertsService } from './alerts.ts';
 import { ReportService, type ReportOptions } from './reports.ts';
@@ -59,6 +62,16 @@ export type ConversationContinuation = { schemaVersion: 1; turnId: string; origi
   sourceIds: string[]; requestScope: BusinessContextManifest['request'] | Record<string, unknown>; digest: string;
   exchanges?: { question: string; clarification: string }[] };
 
+type AnswerRecoveryRecord = { id: string; type: 'answer-recovery-request-v1'; workspaceId: string; memberId: string; epoch: number;
+  at: string; preparation: PreparedAnswerRecovery; evidencePin: string; dictionary: { hash: string; version: number };
+  status: 'prepared' | 'completed'; lineage?: CompletedAnswerRecovery; integrity: string };
+function answerRecoveryRecordIntegrity(record: Omit<AnswerRecoveryRecord, 'integrity'> | AnswerRecoveryRecord) {
+  // Other output-management flows may add staleness labels. Those labels grant no recovery authority.
+  return hash({ id: record.id, type: record.type, workspaceId: record.workspaceId, memberId: record.memberId, epoch: record.epoch,
+    at: record.at, preparation: record.preparation, evidencePin: record.evidencePin, dictionary: record.dictionary,
+    status: record.status, lineage: record.lineage ?? null });
+}
+
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
   options: EngineOptions;
@@ -72,6 +85,8 @@ export class Engine {
   #closing = false;
   #idleWaiters = new Set<() => void>();
   #searchAdapter: Promise<PostgresInvestigationSearch> | null = null;
+  #unknownAnswerRecoveries = new Set<string>();
+  #answerRecoveryExecutions = new Map<string, Promise<void>>();
   // Unknown host state is closed to scheduled dispatch. Only a trusted host sets it.
   #jobLifecycle: JobLifecycle = { awake: false, windowOpen: false, backgroundEnabled: false };
   get context(): Context { return this.#requestContext.getStore() || this.#baseContext; }
@@ -287,6 +302,7 @@ export class Engine {
     const applicationDirectory = await safeDirectory(this.options.directory);
     this.vault = vault; const owner = vault.read().members.find(m => m.id === 'owner' && m.active && m.role === 'owner');
     check(owner, 'OWNER_REQUIRED', 'No current owner is available for this vault.');
+    this.#unknownAnswerRecoveries.clear();
     this.context = { memberId: owner.id, role: owner.role, epoch: owner.epoch, channel: 'desktop' };
     const store: StateStore = vault;
     this.services.ontology = new OntologyService(store);
@@ -653,6 +669,58 @@ export class Engine {
         const result = await s.businessProfile.remove(ctx, payload.id); const removed = await this.purgeManagedCopies(); return { ...result, copiesRemoved: removed };
       }
       case 'calculation.run': return s.calculator.calculate(ctx, payload);
+      case 'answers.recovery.review': {
+        const input = this.journalPayload(payload, ['answerId'], ['answerId'], 'INVALID_ANSWER_RECOVERY');
+        const resolved = this.answerRecoveryEvidence(ctx, input.answerId, store);
+        return { ...explainAnswerRecovery(resolved.evidence), originalRequest: resolved.evidence.answer.request,
+          reviewedEvidencePin: resolved.evidencePin, dictionary: resolved.dictionary,
+          retrospectivePromotion: 'still-blocked-by-preserved-unpinned-original' };
+      }
+      case 'answers.recovery.prepare': {
+        const input = this.journalPayload(payload, ['answerId', 'source', 'reviewedEvidencePin', 'timeScope', 'confirmedNewCalculation'],
+          ['answerId', 'source', 'reviewedEvidencePin', 'timeScope', 'confirmedNewCalculation'], 'INVALID_ANSWER_RECOVERY');
+        check(typeof input.reviewedEvidencePin === 'string' && /^[a-f0-9]{64}$/.test(input.reviewedEvidencePin),
+          'INVALID_ANSWER_RECOVERY', 'Review the exact current source evidence before preparing a fresh calculation.');
+        const id = await store.update(state => {
+          const view = this.answerRecoveryView(state), resolved = this.answerRecoveryEvidence(ctx, input.answerId, view);
+          check(input.reviewedEvidencePin === resolved.evidencePin, 'ANSWER_RECOVERY_EVIDENCE_CHANGED', 'Current evidence or access changed after review. Review again.');
+          const newRequestId = newId('answer_recovery');
+          const preparation = prepareAnswerRecovery(resolved.evidence, { version: 1, newRequestId,
+            source: input.source as AnswerRecoverySource, timeScope: input.timeScope as AnswerRecoveryTimeScope,
+            confirmedNewCalculation: input.confirmedNewCalculation as true });
+          this.answerRecoveryCalculator(view).consumerGuard?.(ctx, structuredClone(preparation.request));
+          const record: Omit<AnswerRecoveryRecord, 'integrity'> = { id: newRequestId, type: 'answer-recovery-request-v1',
+            workspaceId: state.workspace.id, memberId: ctx.memberId, epoch: ctx.epoch, at: now(), preparation,
+            evidencePin: resolved.evidencePin, dictionary: resolved.dictionary, status: 'prepared' };
+          state.answers.push({ ...record, integrity: answerRecoveryRecordIntegrity(record) });
+          audit(state, 'answer-recovery.prepared', { newRequestId, originalAnswerId: preparation.source.originalAnswerId,
+            preparationDigest: preparation.digest });
+          return newRequestId;
+        });
+        return this.answerRecoveryRead(ctx, id);
+      }
+      case 'answers.recovery.get': {
+        const input = this.journalPayload(payload, ['newRequestId'], ['newRequestId'], 'INVALID_ANSWER_RECOVERY');
+        return this.answerRecoveryRead(ctx, input.newRequestId);
+      }
+      case 'answers.recovery.list': {
+        const input = this.journalPayload(payload, ['answerId'], ['answerId'], 'INVALID_ANSWER_RECOVERY');
+        this.answerRecoveryEvidence(ctx, input.answerId, store);
+        return { items: store.read().answers.filter(record => record.type === 'answer-recovery-request-v1'
+          && record.preparation?.source.originalAnswerId === input.answerId && record.memberId === ctx.memberId && record.epoch === ctx.epoch)
+          .map(record => {
+            try { return this.answerRecoveryRead(ctx, record.id); }
+            catch (error) {
+              if (!(error instanceof ChausarError)) throw error;
+              return { newRequestId: record.id, status: 'unavailable', code: error.code, message: error.message,
+                historicalReplay: false, grantsAuthority: false };
+            }
+          }) };
+      }
+      case 'answers.recovery.execute': {
+        const input = this.journalPayload(payload, ['newRequestId', 'preparationDigest'], ['newRequestId', 'preparationDigest'], 'INVALID_ANSWER_RECOVERY');
+        return this.executeAnswerRecovery(ctx, input.newRequestId, input.preparationDigest);
+      }
       case 'forecasts.evaluate': return s.forecasts.evaluate(ctx, payload);
       case 'forecasts.get': {
         const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_FORECAST');
@@ -885,6 +953,133 @@ export class Engine {
     // that member's cached report to a different requesting identity.
     if (this.context.memberId !== owner.id) return { id: completed.id, status: completed.status };
     return completed;
+  }
+  private answerRecoveryOwner(ctx: Context, view: StateStore) {
+    const member = authorize(view, ctx, 'admin');
+    check(member.role === 'owner' && ctx.channel === 'desktop' && !ctx.sourceTainted,
+      'ANSWER_RECOVERY_OWNER_REQUIRED', 'Only the current owner in the untainted app can review and create this fresh calculation.');
+  }
+  private answerRecoveryView(state: State): StateStore {
+    // Calculator writes affect only this candidate. The caller performs ONE Vault.update commit;
+    // this store never re-enters the non-reentrant Vault guard or commits a partial receipt.
+    return { read: () => structuredClone(state), update: async change => await change(state) };
+  }
+  private answerRecoveryCalculator(view: StateStore) {
+    const configured = this.services.calculator as CalculatorService;
+    const connectors = new EngineConnectorService(view, this.options.connectorRuntime);
+    return new CalculatorService(view, {
+      ...(configured.verifier ? { verifier: configured.verifier } : {}),
+      consumerGuard: (ctx, request) => connectors.assertCalculationReady(ctx, request),
+      receiptGuard: (ctx, receipt) => connectors.assertReceiptReady(ctx, receipt),
+    });
+  }
+  private answerRecoveryEvidence(ctx: Context, answerId: unknown, view: StateStore) {
+    this.answerRecoveryOwner(ctx, view);
+    check(typeof answerId === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(answerId), 'INVALID_ANSWER_RECOVERY', 'Choose one saved answer.');
+    const state = view.read(), matches = state.answers.filter(answer => answer.id === answerId), answer = matches[0];
+    check(matches.length === 1 && answer.request && typeof answer.receiptId === 'string'
+      && state.receipts.filter(receipt => receipt.id === answer.receiptId).length === 1,
+      'ANSWER_RECOVERY_SOURCE_CHANGED', 'The exact original answer and private receipt are unavailable.');
+    const calculator = this.answerRecoveryCalculator(view), receipt = calculator.receipt(ctx, answer.receiptId);
+    const evidence: AnswerRecoveryEvidence = { workspaceId: state.workspace.id,
+      answer: { id: answer.id, receiptId: answer.receiptId, request: structuredClone(answer.request) }, receipt };
+    explainAnswerRecovery(evidence);
+    calculator.consumerGuard?.(ctx, structuredClone(answer.request));
+    const current = new OntologyService(view).current(ctx);
+    check(current, 'DICTIONARY_REQUIRED', 'Publish current business definitions before preparing a fresh calculation.');
+    // Exclude unrelated output/audit appends and the issuing record itself. Every input,
+    // meaning, retained connector binding and current authority dependency stays pinned.
+    const evidencePin = hash({ vaultId: this.store().vaultId, workspaceId: state.workspace.id,
+      memberId: ctx.memberId, epoch: ctx.epoch, originalAnswer: answer, originalReceipt: receipt,
+      ontology: state.ontology, facts: state.facts, imports: state.imports, sourceRules: state.sourceRules,
+      merges: state.merges, tombstones: state.tombstones, members: state.members, policy: state.policy });
+    return { evidence, evidencePin, dictionary: { hash: current.hash, version: current.version } };
+  }
+  private answerRecoveryRecord(ctx: Context, newRequestId: unknown, view: StateStore) {
+    this.answerRecoveryOwner(ctx, view);
+    check(typeof newRequestId === 'string' && /^answer_recovery_[A-Za-z0-9_-]{1,160}$/.test(newRequestId),
+      'INVALID_ANSWER_RECOVERY', 'Use a host-issued fresh calculation request.');
+    const state = view.read(), records = state.answers.filter(answer => answer.id === newRequestId), record = records[0] as AnswerRecoveryRecord;
+    check(records.length === 1 && record?.type === 'answer-recovery-request-v1' && record.workspaceId === state.workspace.id
+      && record.memberId === ctx.memberId && record.epoch === ctx.epoch && record.preparation?.newRequestId === newRequestId
+      && ['prepared', 'completed'].includes(record.status) && record.integrity === answerRecoveryRecordIntegrity(record),
+      'ANSWER_RECOVERY_REQUEST_UNAVAILABLE', 'This exact issued request is unavailable under your current private ownership.');
+    const resolved = this.answerRecoveryEvidence(ctx, record.preparation.source.originalAnswerId, view);
+    assertPreparedAnswerRecoveryCurrent(resolved.evidence, record.preparation);
+    return { record, resolved };
+  }
+  private answerRecoveryRead(ctx: Context, newRequestId: unknown) {
+    const view = this.store(), { record, resolved } = this.answerRecoveryRecord(ctx, newRequestId, view);
+    const base = { newRequestId: record.id, preparationDigest: record.preparation.digest,
+      interpretation: 'new-calculation-with-declared-time-scope', historicalReplay: false, grantsAuthority: false,
+      preservesOriginalRecords: true, retrospectivePromotion: 'still-blocked-by-preserved-unpinned-original' };
+    if (record.status === 'prepared') {
+      if (this.#unknownAnswerRecoveries.has(record.id)) return { ...base, status: 'outcome-unknown', requiresReopen: true,
+        message: 'The commit acknowledgement is unknown. Lock and reopen this workspace, then inspect this issued request before explicitly retrying.' };
+      check(record.evidencePin === resolved.evidencePin, 'ANSWER_RECOVERY_EVIDENCE_CHANGED', 'Evidence or access changed. Review and prepare a separate fresh request.');
+      this.answerRecoveryCalculator(view).consumerGuard?.(ctx, structuredClone(record.preparation.request));
+      return { ...base, status: 'prepared', preparation: structuredClone(record.preparation), dictionary: record.dictionary };
+    }
+    check(record.lineage, 'ANSWER_RECOVERY_RESULT_CHANGED', 'The completed request lacks its retained lineage.');
+    const state = view.read(), answers = state.answers.filter(answer => answer.id === record.lineage!.newAnswerId), answer = answers[0];
+    check(answers.length === 1 && answer?.newRequestId === record.id && answer.interpretation === base.interpretation
+      && state.receipts.filter(receipt => receipt.id === record.lineage!.newReceiptId).length === 1,
+      'ANSWER_RECOVERY_RESULT_CHANGED', 'The separate fresh answer and receipt are unavailable.');
+    const receipt = this.answerRecoveryCalculator(view).receipt(ctx, record.lineage.newReceiptId);
+    const result = { answer: { id: answer.id, receiptId: answer.receiptId, request: structuredClone(answer.request) }, receipt };
+    const lineage = completeAnswerRecovery(resolved.evidence, record.preparation, result);
+    check(hash(lineage) === hash(record.lineage), 'ANSWER_RECOVERY_RESULT_CHANGED', 'The retained completed lineage does not match its exact issued result.');
+    return { ...base, status: 'completed', lineage: structuredClone(lineage), answer: result.answer, receipt };
+  }
+  private async executeAnswerRecovery(ctx: Context, newRequestId: unknown, preparationDigest: unknown) {
+    check(typeof preparationDigest === 'string' && /^[a-f0-9]{64}$/.test(preparationDigest), 'INVALID_ANSWER_RECOVERY', 'Confirm the exact reviewed preparation digest.');
+    const vault = this.store(), issued = this.answerRecoveryRecord(ctx, newRequestId, vault);
+    check(issued.record.preparation.digest === preparationDigest, 'ANSWER_RECOVERY_PREPARATION_CHANGED', 'Review this exact issued preparation before execution.');
+    if (issued.record.status === 'completed') return this.answerRecoveryRead(ctx, newRequestId);
+    check(!this.#unknownAnswerRecoveries.has(issued.record.id), 'ANSWER_RECOVERY_OUTCOME_UNKNOWN', 'Lock and reopen, then inspect this issued request. Do not repeat an ambiguous calculation.');
+    const pending = this.#answerRecoveryExecutions.get(issued.record.id);
+    if (pending) { await pending; return this.answerRecoveryRead(ctx, newRequestId); }
+    let completed!: () => void, failed!: (error: unknown) => void;
+    const completion = new Promise<void>((resolveCompletion, rejectCompletion) => { completed = resolveCompletion; failed = rejectCompletion; });
+    void completion.catch(() => {}); // The issuing request still reports its own failure.
+    this.#answerRecoveryExecutions.set(issued.record.id, completion);
+    let calculated = false;
+    try {
+      await vault.update(async state => {
+        const view = this.answerRecoveryView(state), { record, resolved } = this.answerRecoveryRecord(ctx, newRequestId, view);
+        check(record.preparation.digest === preparationDigest, 'ANSWER_RECOVERY_PREPARATION_CHANGED', 'The issued preparation changed before commit.');
+        if (record.status === 'completed') return; // A concurrent exact retry observes the same result.
+        check(record.evidencePin === resolved.evidencePin, 'ANSWER_RECOVERY_EVIDENCE_CHANGED', 'Current evidence or access changed before execution. Review again.');
+        const calculator = this.answerRecoveryCalculator(view);
+        const receipt = await calculator.calculate(ctx, structuredClone(record.preparation.request)); calculated = true;
+        const fresh = state.answers.filter(answer => answer.receiptId === receipt.id);
+        check(fresh.length === 1, 'ANSWER_RECOVERY_RESULT_CHANGED', 'The fresh calculation must retain one separate answer.');
+        // Re-resolve the original after verification and calculator candidate writes.
+        const after = this.answerRecoveryEvidence(ctx, record.preparation.source.originalAnswerId, view);
+        check(after.evidencePin === record.evidencePin, 'ANSWER_RECOVERY_EVIDENCE_CHANGED', 'Original evidence or current authority changed during execution.');
+        const result = { answer: { id: fresh[0].id, receiptId: receipt.id, request: structuredClone(fresh[0].request) },
+          receipt: calculator.receipt(ctx, receipt.id) };
+        const lineage = completeAnswerRecovery(after.evidence, record.preparation, result);
+        fresh[0].newRequestId = record.id; fresh[0].interpretation = lineage.interpretation;
+        const persisted = state.answers.find(answer => answer.id === record.id) as AnswerRecoveryRecord;
+        persisted.status = 'completed'; persisted.lineage = structuredClone(lineage); persisted.integrity = answerRecoveryRecordIntegrity(persisted);
+        audit(state, 'answer-recovery.completed', { newRequestId: record.id, originalAnswerId: lineage.source.originalAnswerId,
+          newAnswerId: lineage.newAnswerId, newReceiptId: lineage.newReceiptId, historicalReplay: false });
+      });
+      completed();
+    } catch (error) {
+      // Once a candidate result exists, an error may be an adapter's lost commit acknowledgement.
+      // This handle refuses another computation until reopen resolves durable authority.
+      if (calculated) {
+        this.#unknownAnswerRecoveries.add(issued.record.id);
+        const unknown = new ChausarError('ANSWER_RECOVERY_OUTCOME_UNKNOWN', 'The fresh calculation commit acknowledgement is unknown. Lock and reopen, then inspect this issued request; do not automatically retry.');
+        failed(unknown); throw unknown;
+      }
+      failed(error); throw error;
+    } finally {
+      this.#answerRecoveryExecutions.delete(issued.record.id);
+    }
+    return this.answerRecoveryRead(ctx, newRequestId);
   }
   private journalPayload(value: unknown, allowed: readonly string[], required: readonly string[], code: string): Record<string, unknown> {
     check(value !== null && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value)), code, 'Use a journal object payload.');
