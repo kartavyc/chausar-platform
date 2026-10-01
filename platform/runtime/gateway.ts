@@ -20,7 +20,11 @@ export type RouteConfig = {
   outputPerMillionMinor?: string; credentialEnv?: string; label?: string;
 };
 export type AnalyticalPlan = { operation: string; period?: { from: string; to: string }; branch?: string; customerId?: string; clarification?: string };
-export type ModelRequest = { question: string; purpose?: 'analysis' | 'business-context' | 'conversation'; questionDisclosure?: 'verbatim'; routeId?: string; sourceIds?: string[]; samples?: { factId: string; fields?: string[] }[]; profileSamples?: { claimId: string }[]; branch?: string; asOf?: string; onDate?: string; period?: { from: string; to: string }; previewId?: string; approvalId?: string };
+export type ModelRequest = { question: string; purpose?: 'analysis' | 'business-context' | 'conversation'; questionDisclosure?: 'verbatim'; continuationId?: string; routeId?: string; sourceIds?: string[]; samples?: { factId: string; fields?: string[] }[]; profileSamples?: { claimId: string }[]; branch?: string; asOf?: string; onDate?: string; period?: { from: string; to: string }; previewId?: string; approvalId?: string };
+/** Local authority metadata from the trusted host; RPC accepts only its turn ID. */
+export type GatewayConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
+  sourceIds: string[]; requestScope: BusinessContextRequest | Record<string, unknown>; digest: string;
+  exchanges?: { question: string; clarification: string }[] };
 export type GatewayResult = { kind: 'analysis'; plan: AnalyticalPlan; answer?: never; selection?: never; receipt: any }
   | { kind: 'business-context'; plan?: never; answer: ReturnType<typeof renderBusinessAnswer>; selection: BusinessSelection; receipt: any }
   | { kind: 'conversation'; plan: ConversationPlan; answer?: never; selection?: never; receipt: any };
@@ -35,6 +39,8 @@ export type GatewayOptions = {
   codexCli?: { capabilities: CodexCliCapabilityProfile; mode: 'synthetic-fixture' | 'local-cli' };
   /** Installed local readiness guard. A model/RPC cannot qualify business evidence. */
   businessContext?: BusinessContextHooks;
+  /** Resolve current retained authority locally, including exact consumed-receipt readback. */
+  conversationContinuation?: (context: Context, turnId: string, view: StateStore, resolvedByModelReceiptId?: string) => GatewayConversationContinuation;
 };
 
 const PRIORITY: Record<RouteKind, number> = { 'codex-cli': 0, 'claude-cli': 1, 'openai-responses': 2, 'openai-compatible': 3, ollama: 4, managed: 5 };
@@ -117,6 +123,89 @@ function businessRequest(request: Partial<ModelRequest>): BusinessContextRequest
 
 function validDay(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+}
+
+const CONTINUATION_INVALID = 'INVALID_CONVERSATION_CONTINUATION';
+const CONTINUATION_STALE = 'CONVERSATION_CONTINUATION_STALE';
+function continuationId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(value);
+}
+function continuationObject(value: unknown, allowed: string[], required: string[] = []): asserts value is Record<string, unknown> {
+  check(value !== null && typeof value === 'object' && !Array.isArray(value)
+    && [Object.prototype, null].includes(Object.getPrototypeOf(value)), CONTINUATION_INVALID, 'The retained continuation needs plain local metadata.');
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  check(Object.getOwnPropertySymbols(value).length === 0 && Object.keys(descriptors).every(key => allowed.includes(key)
+    && descriptors[key].enumerable && Object.hasOwn(descriptors[key], 'value')) && required.every(key => Object.hasOwn(descriptors, key)),
+  CONTINUATION_INVALID, 'The retained continuation has missing or computed fields.');
+}
+function continuationArray(value: unknown, limit: number): asserts value is unknown[] {
+  check(Array.isArray(value) && Object.getPrototypeOf(value) === Array.prototype && value.length <= limit
+    && Object.getOwnPropertySymbols(value).length === 0, CONTINUATION_INVALID, 'The retained continuation exceeds its bounded list contract.');
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  check(Object.keys(descriptors).length === value.length + 1 && Array.from({ length: value.length }, (_, index) => descriptors[String(index)])
+    .every(descriptor => descriptor?.enumerable && Object.hasOwn(descriptor, 'value')), CONTINUATION_INVALID, 'The retained continuation list has missing or computed entries.');
+}
+function continuationSources(value: unknown): asserts value is string[] {
+  continuationArray(value, 64);
+  check(value.every(id => typeof id === 'string' && id.length > 0 && id.length <= 200) && new Set(value).size === value.length,
+    CONTINUATION_INVALID, 'The retained continuation needs bounded unique source IDs.');
+}
+function continuationText(value: unknown, limit: number): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.length <= limit;
+}
+function validateContinuation(raw: unknown, id: string): GatewayConversationContinuation {
+  const keys = ['schemaVersion', 'turnId', 'originalQuestion', 'clarification', 'sourceIds', 'requestScope', 'digest'];
+  continuationObject(raw, [...keys, 'exchanges'], keys);
+  check(raw.schemaVersion === 1 && raw.turnId === id && continuationId(raw.turnId)
+    && continuationText(raw.originalQuestion, 8000) && continuationText(raw.clarification, 500)
+    && typeof raw.digest === 'string' && /^[a-f0-9]{64}$/.test(raw.digest), CONTINUATION_INVALID, 'The retained continuation has invalid identity or text.');
+  continuationSources(raw.sourceIds);
+  const scope = raw.requestScope;
+  continuationObject(scope, ['sourceIds', 'branch', 'asOf', 'onDate', 'period']);
+  if (Object.hasOwn(scope, 'sourceIds')) {
+    continuationSources(scope.sourceIds);
+    check(hash([...scope.sourceIds].sort()) === hash([...raw.sourceIds].sort()), CONTINUATION_INVALID, 'The retained continuation source scope does not match its authority.');
+  }
+  if (Object.hasOwn(scope, 'branch')) check(continuationText(scope.branch, 200), CONTINUATION_INVALID, 'The retained branch is invalid.');
+  if (Object.hasOwn(scope, 'asOf')) check(typeof scope.asOf === 'string' && scope.asOf.length <= 64 && Number.isFinite(Date.parse(scope.asOf)), CONTINUATION_INVALID, 'The retained known-on timestamp is invalid.');
+  if (Object.hasOwn(scope, 'onDate')) check(validDay(scope.onDate), CONTINUATION_INVALID, 'The retained business date is invalid.');
+  if (Object.hasOwn(scope, 'period')) {
+    continuationObject(scope.period, ['from', 'to'], ['from', 'to']);
+    check(validDay(scope.period.from) && validDay(scope.period.to) && scope.period.from <= scope.period.to, CONTINUATION_INVALID, 'The retained period is invalid.');
+  }
+  if (Object.hasOwn(raw, 'exchanges')) {
+    continuationArray(raw.exchanges, 8);
+    for (const exchange of raw.exchanges) {
+      continuationObject(exchange, ['question', 'clarification'], ['question', 'clarification']);
+      check(continuationText(exchange.question, 8000) && continuationText(exchange.clarification, 500), CONTINUATION_INVALID, 'A retained clarification exchange has invalid text.');
+    }
+  }
+  const { digest, ...body } = raw;
+  check(Buffer.byteLength(JSON.stringify(raw)) <= 131072 && hash(body) === digest, CONTINUATION_INVALID, 'The exact retained continuation is oversized or changed.');
+  return structuredClone(raw) as GatewayConversationContinuation;
+}
+function sameContinuationScope(key: keyof BusinessContextRequest, left: unknown, right: unknown): boolean {
+  if (key === 'sourceIds') {
+    continuationSources(left); continuationSources(right);
+    return hash([...left].sort()) === hash([...right].sort());
+  }
+  if (key === 'asOf') return typeof left === 'string' && typeof right === 'string' && Number.isFinite(Date.parse(left))
+    && Number.isFinite(Date.parse(right)) && new Date(left).toISOString() === new Date(right).toISOString();
+  if (key === 'period') return isRecord(left) && isRecord(right) && left.from === right.from && left.to === right.to
+    && Object.keys(left).length === 2 && Object.keys(right).length === 2;
+  return hash(left) === hash(right);
+}
+function continuationRequest(request: Partial<ModelRequest>, retained: GatewayConversationContinuation): BusinessContextRequest {
+  const scope = retained.requestScope as BusinessContextRequest;
+  const selected = scope.sourceIds ?? retained.sourceIds;
+  if (request.sourceIds !== undefined) check(sameContinuationScope('sourceIds', request.sourceIds, selected), CONTINUATION_STALE, 'Keep the exact retained source selection for this continuation.');
+  const result: BusinessContextRequest = { sourceIds: [...selected].sort() };
+  for (const key of ['branch', 'asOf', 'onDate', 'period'] as const) {
+    if (scope[key] !== undefined && request[key] !== undefined) check(sameContinuationScope(key, request[key], scope[key]), CONTINUATION_STALE, 'The continuation conflicts with its retained review scope.');
+    const value = scope[key] ?? request[key];
+    if (value !== undefined) Object.assign(result, { [key]: structuredClone(value) });
+  }
+  return result;
 }
 export function validatePlan(value: unknown, operations: string[], selectors: { branches?: string[]; customerIds?: string[] } = {}): AnalyticalPlan {
   check(value && typeof value === 'object' && !Array.isArray(value), 'INVALID_PLAN', 'The model did not return an analytical plan.');
@@ -251,6 +340,7 @@ function modelReceiptRetained(state: State, receipt: any): boolean {
 
 export class ModelGateway {
   store: StateStore; options: GatewayOptions; #credentials = new Map<string, string>();
+  #continuationResolutions = new Set<string>();
   constructor(store: StateStore, options: GatewayOptions = {}) {
     this.store = store;
     this.options = { ...options, ...(options.codexCli ? { codexCli: structuredClone(options.codexCli) } : {}) };
@@ -303,8 +393,47 @@ export class ModelGateway {
     authorize({ read: () => state, update: this.store.update.bind(this.store) }, context); const route = id ? state.routes.find(r => r.id === id && r.enabled) : [...state.routes].filter(r => r.enabled).sort((a, b) => a.priority - b.priority)[0];
     check(route, 'MODEL_NOT_CONFIGURED', 'Configure an installed CLI, API key, or local model.'); return structuredClone(route);
   }
+  #resolveContinuation(context: Context, id: string, view: StateStore, resolvedByModelReceiptId?: string) {
+    check(continuationId(id), CONTINUATION_INVALID, 'Choose one bounded retained continuation ID.');
+    const resolver = this.options.conversationContinuation;
+    check(resolver, 'CONVERSATION_CONTINUATION_UNAVAILABLE', 'This retained clarification is unavailable.');
+    const key = JSON.stringify([context.memberId, context.epoch, id]);
+    check(this.#continuationResolutions.size < 8 && !this.#continuationResolutions.has(key), CONTINUATION_INVALID, 'The retained clarification chain is cyclic or exceeds eight authority checks.');
+    this.#continuationResolutions.add(key);
+    try { return validateContinuation(resolver(context, id, view, resolvedByModelReceiptId), id); }
+    finally { this.#continuationResolutions.delete(key); }
+  }
+  #assertContinuationCurrent(context: Context, preview: any, view: StateStore, route: any) {
+    if (preview.purpose !== 'conversation') {
+      check(preview.continuationId === undefined && preview.continuation === undefined && preview.continuationDigest === undefined,
+        CONTINUATION_STALE, 'Retained clarification disclosure requires the conversation planner.'); return;
+    }
+    let content: any;
+    try {
+      const input = route.kind.endsWith('-cli') ? preview.payload.slice(preview.instructions.length + 1)
+        : ['ollama', 'openai-compatible'].includes(route.kind) ? JSON.parse(preview.payload).messages[1].content : JSON.parse(preview.payload).input;
+      content = JSON.parse(input);
+    } catch { throw new ChausarError('PAYLOAD_CHANGED', 'The reviewed conversation disclosure changed.'); }
+    check(content?.question === preview.naturalQuestion && content.questionDisclosure === 'verbatim', 'PAYLOAD_CHANGED', 'The exact reviewed reply changed.');
+    const hasContinuation = preview.continuationId !== undefined || preview.continuation !== undefined || preview.continuationDigest !== undefined
+      || content.continuation !== undefined || content.continuationDisclosure !== undefined;
+    if (!hasContinuation) return;
+    check(continuationId(preview.continuationId) && preview.continuationDisclosure === 'verbatim' && content.continuationDisclosure === 'verbatim',
+      CONTINUATION_STALE, 'The exact retained continuation selection changed.');
+    const saved = validateContinuation(preview.continuation, preview.continuationId);
+    check(saved.digest === preview.continuationDigest && isRecord(preview.requestScope) && preview.requestScopeDigest === hash(preview.requestScope)
+      && hash(preview.requestScope) === hash(preview.businessContext?.request), CONTINUATION_STALE, 'The retained continuation or reviewed private scope changed.');
+    const { originalQuestion, clarification, exchanges } = saved;
+    check(isRecord(content.continuation) && hash(content.continuation) === hash({ originalQuestion, clarification, ...(exchanges !== undefined ? { exchanges } : {}) }),
+      CONTINUATION_STALE, 'The reviewed retained objective and clarification changed.');
+    const current = this.#resolveContinuation(context, preview.continuationId, view, preview.id);
+    check(current.digest === saved.digest && hash(current) === hash(saved), CONTINUATION_STALE, 'The current retained clarification changed. Create a new exact preview.');
+    continuationRequest(preview.requestScope, current);
+    assertSourceAccess(view.read(), context, current.sourceIds);
+  }
   async preview(context: Context, request: ModelRequest) {
     authorize(this.store, context, 'prepare');
+    check(!Object.hasOwn(request, 'continuation'), CONTINUATION_INVALID, 'Only a retained turn ID may select trusted local continuation text.');
     check(typeof request.question === 'string' && request.question.trim().length > 0 && request.question.length <= 10000, 'INVALID_QUESTION', 'Use a question between one and 10000 characters.');
     const state = this.store.read(); check(state.policy.send !== 'nothing', 'SEND_DISABLED', 'Your privacy policy sends nothing to models. Use the local calculator or change your send policy.');
     const unified = request.purpose === 'conversation';
@@ -312,9 +441,14 @@ export class ModelGateway {
       check(typeof request.routeId === 'string' && request.routeId.length > 0, 'MODEL_ROUTE_REQUIRED', 'Choose the exact model route for this conversation.');
       check(request.questionDisclosure === 'verbatim', 'QUESTION_DISCLOSURE_REQUIRED', 'Review and explicitly approve the original question separately from evidence Shape.');
       check(request.samples === undefined && request.profileSamples === undefined, 'INVALID_SAMPLE', 'The conversation planner uses bounded evidence structure, not automatic sample values.');
-    } else check(request.questionDisclosure === undefined, 'INVALID_QUESTION_DISCLOSURE', 'Original-question disclosure belongs to the reviewed conversation planner.');
+    } else {
+      check(request.questionDisclosure === undefined, 'INVALID_QUESTION_DISCLOSURE', 'Original-question disclosure belongs to the reviewed conversation planner.');
+      check(request.continuationId === undefined, CONTINUATION_INVALID, 'Retained clarification disclosure requires the conversation planner.');
+    }
+    const continuation = request.continuationId !== undefined ? this.#resolveContinuation(context, request.continuationId, this.store) : undefined;
+    const scope = continuation ? continuationRequest(request, continuation) : businessRequest(request);
     const purpose = unified ? 'conversation' : conversationPurpose(request.question, request.purpose);
-    const manifest = purpose === 'business-context' || unified ? buildBusinessContext(this.store, context, businessRequest(request), this.options.businessContext) : undefined;
+    const manifest = purpose === 'business-context' || unified ? buildBusinessContext(this.store, context, scope, this.options.businessContext) : undefined;
     const route = this.#route(context, request.routeId); const sourceIds = manifest ? manifest.sourceIds : [...new Set(request.sourceIds || visibleFacts(this.store, context, request.sourceIds).map(f => f.sourceId))];
     const facts = visibleFacts(this.store, context, sourceIds); assertSourceAccess(state, context, sourceIds);
     const operations = operationCatalog(state); check(manifest || operations.length > 0, 'NO_APPROVED_OPERATIONS', 'Publish tested dictionary operations before asking a model for a plan.'); const branches = [...new Set(facts.map(f => f.branch).filter(Boolean))] as string[];
@@ -340,7 +474,9 @@ export class ModelGateway {
     const plannerSelectors = unified && state.policy.send === 'shape' ? { branches: [], customerIds: [] } : { branches, customerIds };
     const plannerContext = { manifest: manifest!, operations, selectors: plannerSelectors };
     const publishedCalculations = unified ? publishedCalculationCatalog(state, operations) : undefined;
-    const content = unified ? { question: request.question, questionDisclosure: 'verbatim', definitionDisclosure: 'published', publishedCalculations,
+    const content = unified ? { question: request.question, questionDisclosure: 'verbatim', ...(continuation ? { continuationDisclosure: 'verbatim',
+      continuation: { originalQuestion: continuation.originalQuestion, clarification: continuation.clarification,
+        ...(continuation.exchanges !== undefined ? { exchanges: continuation.exchanges } : {}) } } : {}), definitionDisclosure: 'published', publishedCalculations,
       tools: [{ name: 'business.describe', description: 'Select cited current business claims and preserve documented unknowns.' },
         { name: 'calculator.calculate', description: 'Run an approved deterministic calculation locally and retain its exact receipt.', operations }],
       evidence: { business: businessContextDisclosure(manifest!, 'shape'), calculator: { shape,
@@ -362,13 +498,17 @@ export class ModelGateway {
       || Boolean(manifest && state.policy.send === 'samples' && request.profileSamples?.length));
     const record = { id: newId('model_preview'), kind: 'model-preview', status: 'preview', createdAt: now(), at: now(), memberId: context.memberId, epoch: context.epoch, routeId: route.id, routeRevision: route.revision,
       purpose, questionHash: hash(unified ? request.question : request.question.trim()), ...(unified ? { questionDisclosure: 'verbatim', naturalQuestion: request.question, questionDisclosureWarning: 'The complete question is included separately from evidence Shape. Review it for private names, amounts and instructions before approving.',
-        definitionDisclosure: 'published', publishedCalculations, definitionDisclosureWarning: 'Published calculation labels, definitions and parameter meanings are included separately from evidence Shape. Review definition text for private names, amounts and instructions before approving this exact payload.' } : {}), requestScope: businessRequest(request), profileSamplesHash: hash(request.profileSamples ?? []), schema, schemaDigest: hash(schema), instructions,
+        definitionDisclosure: 'published', publishedCalculations, definitionDisclosureWarning: 'Published calculation labels, definitions and parameter meanings are included separately from evidence Shape. Review definition text for private names, amounts and instructions before approving this exact payload.' } : {}),
+      ...(continuation ? { continuationId: continuation.turnId, continuationDigest: continuation.digest, continuation,
+        continuationDisclosure: 'verbatim', continuationDisclosureWarning: 'The complete retained original objective, clarification and any prior exchanges are included separately from evidence Shape, with your exact current reply. Review all prior text for private names, amounts and instructions before approving this exact payload.',
+        requestScopeDigest: hash(manifest!.request) } : {}), requestScope: continuation ? structuredClone(manifest!.request) : scope,
+      profileSamplesHash: hash(request.profileSamples ?? []), schema, schemaDigest: hash(schema), instructions,
       ...(manifest ? { businessContext: manifest, contextDigest: manifest.digest, rowIds: manifest.rowIds, profileIds: manifest.profileIds } : {}),
       sourceIds, factIds: facts.map(f => f.id), factDigest: hash(facts), operations, selectors: unified ? plannerSelectors : { branches, customerIds }, payload, digest, endpoint: route.endpoint,
       approvalRequired, send: state.policy.send, trustFingerprint: trustFingerprint(state, context, sourceIds),
       receiptBoundary: route.kind.endsWith('-cli') ? 'application-to-official-cli' : 'application-to-provider-http', providerPayloadObserved: !route.kind.endsWith('-cli'),
       costReservedMinor: '0', estimatedCostMinor: route.maxCostMinor, costCurrency: 'INR', experimental: true };
-    return this.store.update(s => { const view = { read: () => s, update: this.store.update.bind(this.store) }; authorize(view, context, 'prepare'); if (manifest) assertBusinessContextCurrent(view, context, manifest, this.options.businessContext); s.modelReceipts.push(record); return structuredClone(record); });
+    return this.store.update(s => { const view = { read: () => s, update: this.store.update.bind(this.store) }; authorize(view, context, 'prepare'); if (manifest) assertBusinessContextCurrent(view, context, manifest, this.options.businessContext); this.#assertContinuationCurrent(context, record, view, route); s.modelReceipts.push(record); return structuredClone(record); });
   }
   async approveOutbound(context: Context, previewId: string) {
     authorize(this.store, context, 'approve'); check(context.channel !== 'phone', 'APP_APPROVAL_REQUIRED', 'Approve model data transfers inside the app.');
@@ -399,10 +539,17 @@ export class ModelGateway {
     if (preview.purpose === 'business-context' || preview.purpose === 'conversation') {
       check(preview.businessContext?.digest === preview.contextDigest, 'BUSINESS_CONTEXT_STALE', 'The exact context binding changed.');
       assertBusinessContextCurrent(view, context, preview.businessContext, this.options.businessContext);
+      if (preview.businessContext.request.sourceIds !== undefined) assertSourceAccess(state, context, preview.businessContext.request.sourceIds);
       if (preview.purpose === 'conversation') check(preview.questionDisclosure === 'verbatim' && typeof preview.naturalQuestion === 'string'
         && hash(preview.naturalQuestion) === preview.questionHash, 'PAYLOAD_CHANGED', 'The reviewed original question changed.');
     }
+    this.#assertContinuationCurrent(context, preview, view, route);
     const current = state.modelReceipts.find(r => r.id === preview.id);
+    const continuationKeys = ['continuationId', 'continuationDigest', 'continuation', 'continuationDisclosure', 'requestScopeDigest'];
+    if ([preview, current].some(record => continuationKeys.some(key => record?.[key] !== undefined))) {
+      const binding = (record: any) => Object.fromEntries([...continuationKeys, 'requestScope'].map(key => [key, record?.[key]]));
+      check(current && hash(binding(current)) === hash(binding(preview)), CONTINUATION_STALE, 'The stored continuation review changed.');
+    }
     if (preview.approvalRequired && (current?.status === 'dispatching' || preview.purpose === 'conversation' && current?.status === 'completed')) {
       const approval = state.modelReceipts.find(a => a.id === current.approvalId && a.kind === 'outbound-approval');
       const approver = state.members.find(m => m.id === approval?.approverId);
@@ -425,6 +572,7 @@ export class ModelGateway {
   }
   async execute(context: Context, request: Partial<ModelRequest> & { previewId?: string }): Promise<GatewayResult> {
     authorize(this.store, context, 'prepare');
+    check(!Object.hasOwn(request, 'continuation'), CONTINUATION_INVALID, 'Only a retained turn ID may select trusted local continuation text.');
     const preview = request.previewId ? structuredClone(this.store.read().modelReceipts.find(r => r.id === request.previewId)) : await this.preview(context, request as ModelRequest);
     check(preview && preview.status === 'preview', 'PREVIEW_NOT_FOUND', 'An unused model preview is required.');
     check(!['business-context', 'conversation'].includes(preview.purpose) || request.samples === undefined, 'INVALID_SAMPLE', 'Context previews cannot be reused with raw fact sample selections.');
@@ -435,8 +583,10 @@ export class ModelGateway {
     if (request.purpose !== undefined) check(request.purpose === preview.purpose, 'PREVIEW_REQUEST_CHANGED', 'The requested purpose changed after preview.');
     if (request.questionDisclosure !== undefined) check(request.questionDisclosure === preview.questionDisclosure, 'PREVIEW_REQUEST_CHANGED', 'Original-question disclosure changed after preview.');
     if (request.routeId !== undefined) check(request.routeId === preview.routeId, 'PREVIEW_REQUEST_CHANGED', 'The requested route changed after preview.');
+    check(request.continuationId === preview.continuationId, 'PREVIEW_REQUEST_CHANGED', 'Use the exact retained continuation ID reviewed in this preview.');
     for (const key of ['sourceIds', 'branch', 'asOf', 'onDate', 'period'] as const) if (request[key] !== undefined)
-      check(preview.requestScope && Object.hasOwn(preview.requestScope, key) && hash(request[key]) === hash(preview.requestScope[key]), 'PREVIEW_REQUEST_CHANGED', 'Use the exact scope reviewed in this preview.');
+      check(preview.requestScope && Object.hasOwn(preview.requestScope, key) && (preview.continuationId !== undefined
+        ? sameContinuationScope(key, request[key], preview.requestScope[key]) : hash(request[key]) === hash(preview.requestScope[key])), 'PREVIEW_REQUEST_CHANGED', 'Use the exact scope reviewed in this preview.');
     if (request.profileSamples !== undefined) check(hash(request.profileSamples) === preview.profileSamplesHash, 'PREVIEW_REQUEST_CHANGED', 'The selected disclosure samples changed after preview.');
     let route = this.#assertCurrent(context, preview); const cli = route.kind.endsWith('-cli');
     let processPort = this.options.process || defaultProcess;
