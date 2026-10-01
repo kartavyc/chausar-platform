@@ -238,10 +238,14 @@ test('acceptance: source authority revoked while provider is in flight withholds
 });
 
 test('acceptance requirement: full wording typed in the composer reaches the reviewed planner verbatim', async t => {
-  const question = '  Please describe this business.  ', trimmed = question.trim();
+  const question = '  Please describe this business.\nKeep the words exactly as I typed them—please.  ', trimmed = question.trim();
   const f = await fixture(t, { [question]: { calls: ['business.describe'] }, [trimmed]: { calls: ['business.describe'] } });
   await turn(f, question);
   assert.equal((await f.calls())[0].input.question, question, 'The advertised exact original question must survive the composer.');
+  const messages = f.h.renderer.state.messages.length;
+  await f.h.ask(' \n\t ');
+  assert.equal(f.h.renderer.state.messages.length, messages, 'Whitespace-only text is not a conversational turn.');
+  assert.equal((await f.calls()).length, 1);
 });
 
 test('acceptance requirement: clarification and all-tool-error turns remain user-visible after reopening', async t => {
@@ -277,12 +281,49 @@ test('acceptance requirement: revoking source access removes cached composer evi
   const { answer } = await turn(f, question), compositeId = answer.id;
   assert.ok(f.h.renderer.state.messages.some((message: any) => message.data?.id === compositeId));
   await f.h.renderer.request('trust.update', { allowedSources: ['other-synthetic-source'] });
+  assert.equal(descendants(f.h.app).some(node => node.textContent?.includes('"totalMinor": "30000"')), false,
+    'Revocation must erase the currently mounted body immediately.');
+  assert.equal(f.h.renderer.state.messages.length, 0);
   assert.deepEqual(await f.h.exposed.request('conversation.history'), { items: [] });
   await assert.rejects(f.h.exposed.request('conversation.get', { id: compositeId }), { code: 'CONVERSATION_NOT_FOUND' });
   await assert.rejects(f.h.exposed.request('receipts.get', { id: answer.results[0].answer.id }));
   const rerendered = await f.h.renderer.renderConversation();
   assert.equal(descendants(rerendered).some(node => node.textContent?.includes('"totalMinor": "30000"')), false,
     'Previously permitted invoice body remains visible when revisiting Conversation after source revocation.');
+});
+
+test('acceptance: revisiting Conversation rechecks cached evidence after authority changes outside the renderer', async t => {
+  const question = 'Show our currently permitted invoice evidence.';
+  const f = await fixture(t, { [question]: { calls: ['billed'] } });
+  await turn(f, question);
+  await f.request('trust.update', { allowedSources: ['other-synthetic-source'] });
+  const current = await f.h.renderer.renderConversation();
+  assert.equal(descendants(current).some(node => node.textContent?.includes('"totalMinor": "30000"')), false);
+  assert.equal(f.h.renderer.state.messages.length, 0);
+  assert.equal((await f.calls()).length, 1, 'Revalidation must not invoke another provider.');
+});
+
+test('acceptance: a completed worker answer delayed across renderer authority revocation never becomes visible', async t => {
+  const question = 'Explain the business and billed invoices before a permission change.';
+  const f = await fixture(t, { [question]: { calls: ['business.describe', 'billed'] } });
+  let enter!: () => void, release!: () => void;
+  const held = new Promise<void>(resolve => { enter = resolve; }), released = new Promise<void>(resolve => { release = resolve; });
+  const h = await harness({ mount: true, dispatch: async (method, payload) => {
+    const result = await f.request(method, payload);
+    if (method === 'conversation.ask') { enter(); await released; }
+    return result;
+  } });
+  h.renderer.state.workspace = f.h.renderer.state.workspace;
+  const pending = turn(f, question, h);
+  await held;
+  await h.renderer.request('trust.update', { allowedSources: ['other-synthetic-source'] });
+  release(); const result = await pending;
+  assert.equal(result.answer, undefined);
+  assert.equal(h.renderer.state.messages.length, 0);
+  assert.equal(hasText(h.app, question), false);
+  assert.equal(descendants(h.body).some(node => node.textContent?.includes('"totalMinor": "30000"')), false);
+  assert.equal(descendants(h.body).some(node => node.tagName === 'dialog'), false);
+  assert.equal((await f.calls()).length, 1);
 });
 
 for (const provider of ['ollama', 'openai-compatible']) {

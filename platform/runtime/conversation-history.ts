@@ -6,14 +6,14 @@ import { CONVERSATION_PLAN_MAX_CALLS } from './conversation-planner.ts';
 import { canSeeFact } from './memory.ts';
 import { assertSourceAccess } from './trust.ts';
 
-export type ConversationHistoryKind = 'business-context' | 'calculation' | 'grounded-conversation';
+export type ConversationHistoryKind = 'business-context' | 'calculation' | 'grounded-conversation' | 'clarification';
 export type ConversationHistoryItem = { id: string; at: string; question: string; kind: ConversationHistoryKind; receiptId: string };
 export type ConversationHistoryPage = { items: ConversationHistoryItem[]; nextCursor?: string };
 export type ConversationHistoryAnswer = Omit<ConversationHistoryItem, 'receiptId'> & { answer: any };
 export type ConversationHistoryOptions = {
   assertBusinessContext: (ctx: Context, manifest: BusinessContextManifest, view: StateStore) => unknown;
   receipt: (ctx: Context, id: string, view: StateStore) => CalculationReceipt;
-  /** Installed gateway current-authority guard; required only for composite history. */
+  /** Installed gateway current-authority guard; required for composite and clarification history. */
   assertModelReceipt?: (ctx: Context, id: string, view: StateStore) => unknown;
 };
 export type ConversationResultReference = { tool: 'business.describe' | 'calculator.calculate'; answerId: string };
@@ -106,7 +106,8 @@ export class ConversationHistoryService {
       && (input.limit === undefined || Number.isInteger(input.limit) && input.limit >= 1 && input.limit <= 50), 'INVALID_HISTORY_REQUEST', 'Choose a history page of one to fifty answers.');
     check(input.cursor === undefined || reference(input.cursor), 'INVALID_HISTORY_CURSOR', 'This history cursor is unavailable.');
     const candidates = view.read().conversations.filter(record => plain(record) && record.memberId === ctx.memberId && timestamp(record.at)
-      && (record.kind === 'business-context-answer' || record.kind === 'calculation-answer' || record.kind === 'conversation-tools-answer' || record.role === 'user' && reference(record.resultId)))
+      && (record.kind === 'business-context-answer' || record.kind === 'calculation-answer' || record.kind === 'conversation-tools-answer'
+        || record.kind === 'conversation-clarification-answer' || record.role === 'user' && reference(record.resultId)))
       .sort((a, b) => b.at.localeCompare(a.at) || String(b.id).localeCompare(String(a.id)));
     let start = 0;
     if (input.cursor !== undefined) {
@@ -144,6 +145,8 @@ export class ConversationHistoryService {
       let kind: ConversationHistoryKind, receiptId: string, answer: any;
       if (record.kind === 'conversation-tools-answer') {
         answer = this.compositeAnswer(view, ctx, record); kind = 'grounded-conversation'; receiptId = answer.receipt.id;
+      } else if (record.kind === 'conversation-clarification-answer') {
+        answer = this.clarificationAnswer(view, ctx, record); kind = 'clarification'; receiptId = record.modelReceiptId;
       } else if (record.kind === 'business-context-answer') {
         check(record.epoch === ctx.epoch, UNAVAILABLE, 'This saved answer is unavailable.');
         this.options.assertBusinessContext(ctx, record.manifest, view);
@@ -176,7 +179,7 @@ export class ConversationHistoryService {
     check(answer.id === record.id && answer.kind === 'grounded-conversation' && answer.modelReceiptId === record.modelReceiptId
       && answer.receipt.id === record.id && answer.receipt.kind === 'conversation-tool-receipt' && answer.receipt.modelReceiptId === record.modelReceiptId
       && Array.isArray(answer.results) && answer.results.length >= 1 && answer.results.length <= CONVERSATION_PLAN_MAX_CALLS
-      && Array.isArray(record.resultRefs) && record.resultRefs.length >= 1 && record.resultRefs.length <= answer.results.length
+      && Array.isArray(record.resultRefs) && record.resultRefs.length <= answer.results.length
       && same(record.resultRefs, answer.receipt.resultRefs), UNAVAILABLE, 'This saved answer is unavailable.');
     const refs = record.resultRefs as ConversationResultReference[];
     for (const ref of refs) {
@@ -184,21 +187,9 @@ export class ConversationHistoryService {
       check(['business.describe', 'calculator.calculate'].includes(ref.tool) && reference(ref.answerId), UNAVAILABLE, 'This saved answer is unavailable.');
     }
     check(new Set(refs.map(ref => ref.answerId)).size === refs.length, UNAVAILABLE, 'This saved answer is unavailable.');
-    const state = view.read(), model = this.options.assertModelReceipt(ctx, record.modelReceiptId, view);
-    check(plain(model) && model.id === record.modelReceiptId && model.kind === 'model-preview' && model.status === 'completed' && model.purpose === 'conversation'
-      && model.memberId === ctx.memberId && model.epoch === ctx.epoch && model.naturalQuestion === record.question && ids(model.sourceIds) && ids(model.factIds)
-      && (model.rowIds === undefined || ids(model.rowIds)) && model.plan?.kind === 'execute' && Array.isArray(model.plan.calls)
+    const state = view.read(), { model, sources, rows } = this.modelEvidence(view, ctx, record);
+    check(model.plan?.kind === 'execute' && Array.isArray(model.plan.calls)
       && model.plan.calls.length === answer.results.length, UNAVAILABLE, 'This saved answer is unavailable.');
-    const models = state.modelReceipts.filter(item => item?.id === model.id);
-    check(models.length === 1 && same(models[0], model), UNAVAILABLE, 'This saved answer is unavailable.');
-    this.retained(view, model.createdAt); this.retained(view, model.completedAt);
-    assertSourceAccess(state, ctx, model.sourceIds);
-    const sources = new Set<string>(model.sourceIds), rows = new Set<string>([...model.factIds, ...(model.rowIds ?? [])]);
-    for (const rowId of rows) {
-      const fact = state.facts.find(item => item.id === rowId);
-      check(fact && !fact.deletedAt && !state.tombstones.some(item => item.factId === rowId) && canSeeFact(view, ctx, fact), UNAVAILABLE, 'This saved answer is unavailable.');
-      this.retained(view, fact.learnedAt); sources.add(fact.sourceId);
-    }
     let index = 0;
     for (const [resultIndex, result] of answer.results.entries()) {
       check(plain(result) && ['business.describe', 'calculator.calculate'].includes(result.tool)
@@ -224,8 +215,38 @@ export class ConversationHistoryService {
         rows.add(rowId); sources.add(fact.sourceId);
       }
     }
+    // With no child references, every result must have passed the strict error branch.
     check(index === refs.length && sameIds(record.sourceIds, sources) && sameIds(record.rowIds, rows), UNAVAILABLE, 'This saved answer is unavailable.');
     return json(answer);
+  }
+  private clarificationAnswer(view: StateStore, ctx: Context, record: any) {
+    exact(record, ['id', 'kind', 'at', 'memberId', 'epoch', 'question', 'answer', 'modelReceiptId', 'sourceIds', 'rowIds', 'integrity']);
+    const answer = record.answer;
+    exact(answer, ['clarification', 'modelReceiptId']);
+    const { model, sources, rows } = this.modelEvidence(view, ctx, record);
+    check(model.plan?.kind === 'clarification' && Array.isArray(model.plan.calls) && model.plan.calls.length === 0
+      && typeof answer.clarification === 'string' && answer.clarification === model.plan.clarification
+      && answer.modelReceiptId === model.id && sameIds(record.sourceIds, sources) && sameIds(record.rowIds, rows), UNAVAILABLE, 'This saved answer is unavailable.');
+    return json(answer);
+  }
+  private modelEvidence(view: StateStore, ctx: Context, record: any) {
+    check(record.epoch === ctx.epoch && typeof record.integrity === 'string' && reference(record.modelReceiptId)
+      && typeof this.options.assertModelReceipt === 'function', UNAVAILABLE, 'This saved answer is unavailable.');
+    const state = view.read(), model = this.options.assertModelReceipt(ctx, record.modelReceiptId, view);
+    check(plain(model) && model.id === record.modelReceiptId && model.kind === 'model-preview' && model.status === 'completed' && model.purpose === 'conversation'
+      && model.memberId === ctx.memberId && model.epoch === ctx.epoch && model.naturalQuestion === record.question && ids(model.sourceIds) && ids(model.factIds)
+      && (model.rowIds === undefined || ids(model.rowIds)), UNAVAILABLE, 'This saved answer is unavailable.');
+    const models = state.modelReceipts.filter(item => item?.id === model.id);
+    check(models.length === 1 && same(models[0], model), UNAVAILABLE, 'This saved answer is unavailable.');
+    this.retained(view, model.createdAt); this.retained(view, model.completedAt);
+    assertSourceAccess(state, ctx, model.sourceIds);
+    const sources = new Set<string>(model.sourceIds), rows = new Set<string>([...model.factIds, ...(model.rowIds ?? [])]);
+    for (const rowId of rows) {
+      const fact = state.facts.find(item => item.id === rowId);
+      check(fact && !fact.deletedAt && !state.tombstones.some(item => item.factId === rowId) && canSeeFact(view, ctx, fact), UNAVAILABLE, 'This saved answer is unavailable.');
+      this.retained(view, fact.learnedAt); sources.add(fact.sourceId);
+    }
+    return { model, sources, rows };
   }
   private businessAnswer(view: StateStore, ctx: Context, record: any) {
     const manifest = record.manifest as BusinessContextManifest, answer = record.answer;

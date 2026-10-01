@@ -1,8 +1,11 @@
 /* Local session credentials stay in memory. Engine values are never trusted HTML or executable code. */
 const app = document.getElementById('app');
-const state = { page: 'conversation', workspace: null, status: null, token: null, messages: [], routeId: '', routes: [], dashboard: null, generation: 0, menuOpen: false, backups: [] };
+const state = { page: 'conversation', workspace: null, status: null, token: null, messages: [], routeId: '', routes: [], dashboard: null, generation: 0, evidenceGeneration: 0, menuOpen: false, backups: [] };
 const savedEvidenceDialogs = new Set();
 function clearSavedEvidence() { for (const dialog of savedEvidenceDialogs) { dialog.replaceChildren(); dialog.close(); dialog.remove(); } savedEvidenceDialogs.clear(); }
+const evidenceChanges = new Set(['trust.update', 'members.revoke', 'models.configure', 'sources.delete', 'sources.import', 'sources.accept', 'sources.workbookImport', 'memory.correct', 'memory.merge', 'memory.undo', 'memory.precedence', 'ontology.publish', 'workspace.create', 'workspace.open', 'workspace.lock', 'workspace.delete', 'workspace.recover', 'workspace.restore']);
+let paintConversationMessages;
+function clearConversationEvidence() { state.evidenceGeneration++; state.messages = []; state.dashboard = null; clearSavedEvidence(); paintConversationMessages?.(); }
 function savedEvidenceModal(title, content) { const dialog = modal(title, content, true); savedEvidenceDialogs.add(dialog); dialog.addEventListener('close', () => { dialog.replaceChildren(); savedEvidenceDialogs.delete(dialog); }); return dialog; }
 const startupPairing = captureStartupSession();
 state.token = startupPairing.token;
@@ -66,23 +69,44 @@ function amount(value, currency = 'INR') { if (value == null) return 'Not calcul
 function toMinor(value) { const text = String(value).trim().replaceAll(',', ''); if (!/^-?\d+(\.\d{1,2})?$/.test(text)) throw new Error('Enter an amount with at most two decimal places.'); const negative = text.startsWith('-'); const [whole, fraction = ''] = text.replace(/^-/, '').split('.'); return String((BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))) * (negative ? -1n : 1n)); }
 function toast(text, error = false) { const node = h('div', { class: `toast ${error ? 'error' : ''}`, role: error ? 'alert' : 'status' }, icon(error ? 'info' : 'check'), text); node.append(h('button', { type: 'button', 'aria-label': 'Dismiss notification', onclick: () => node.remove() }, '×')); document.getElementById('notifications').append(node); setTimeout(() => node.remove(), error ? 10000 : 5500); }
 async function request(method, payload = {}) {
-  let result;
-  if (window.chausar?.request) result = await window.chausar.request(method, payload);
-  else {
-    if (!state.token) throw Object.assign(new Error('Pair this browser with your local engine first.'), { code: 'UNAUTHENTICATED' });
-    const response = await fetch('/api/rpc', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.token}` }, body: JSON.stringify({ method, payload }) });
-    result = await response.json();
-    if (response.status === 401) state.token = null;
-    if (!response.ok && !result.error) throw Object.assign(new Error(result.message || `The local engine returned HTTP ${response.status}.`), { code: response.status === 401 ? 'UNAUTHENTICATED' : 'HTTP_ERROR' });
+  const evidenceGeneration = state.evidenceGeneration;
+  try {
+    let result;
+    if (window.chausar?.request) result = await window.chausar.request(method, payload);
+    else {
+      if (!state.token) throw Object.assign(new Error('Pair this browser with your local engine first.'), { code: 'UNAUTHENTICATED' });
+      const response = await fetch('/api/rpc', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.token}` }, body: JSON.stringify({ method, payload }) });
+      result = await response.json();
+      if (response.status === 401) state.token = null;
+      if (!response.ok && !result.error) throw Object.assign(new Error(result.message || `The local engine returned HTTP ${response.status}.`), { code: response.status === 401 ? 'UNAUTHENTICATED' : 'HTTP_ERROR' });
+    }
+    if (result?.error) {
+      const e = new Error(typeof result.error === 'string' ? result.error : result.error.message || result.error.code || 'The engine could not complete the request.');
+      e.code = result.error.code;
+      throw e;
+    }
+    if (evidenceChanges.has(method)) clearConversationEvidence();
+    else if (evidenceGeneration !== state.evidenceGeneration) throw Object.assign(new Error('The evidence or permissions changed while this request was pending. Open the current answer again.'), { code: 'EVIDENCE_CHANGED' });
+    return result && Object.hasOwn(result, 'result') ? result.result : result;
+  } catch (error) {
+    if (['ACCESS_REVOKED', 'VAULT_LOCKED', 'UNAUTHENTICATED', 'CONVERSATION_NOT_FOUND', 'RECEIPT_NOT_FOUND', 'BUSINESS_CONTEXT_STALE', 'PREVIEW_STALE', 'ROUTE_REVOKED', 'APPROVAL_REVOKED', 'MODEL_RESULT_UNAVAILABLE', 'EVIDENCE_CHANGED'].includes(error.code)) clearConversationEvidence();
+    if (!window.chausar?.request && error.code === 'UNAUTHENTICATED') { state.token = null; renderPairing(error.message); }
+    throw error;
   }
-  if (result?.error) {
-    const e = new Error(typeof result.error === 'string' ? result.error : result.error.message || result.error.code || 'The engine could not complete the request.');
-    e.code = result.error.code;
-    if (['ACCESS_REVOKED', 'VAULT_LOCKED', 'UNAUTHENTICATED'].includes(e.code)) clearSavedEvidence();
-    if (!window.chausar?.request && e.code === 'UNAUTHENTICATED') { state.token = null; renderPairing(e.message); }
-    throw e;
+}
+async function currentConversationAnswer(data) {
+  if (data?.kind === 'grounded-conversation') return data.results?.some(result => result.answer) ? (await request('conversation.get', { id: data.id })).answer : data;
+  if (data?.kind === 'business-context' && data.receipt?.id) return request('business.context.receipt', { id: data.receipt.id });
+  if (data?.receipt?.id) return { ...data, receipt: await request('receipts.get', { id: data.receipt.id }) };
+  if (data?.figures && data.id) return request('receipts.get', { id: data.id });
+  return data;
+}
+async function refreshConversationEvidence() {
+  for (const message of [...state.messages]) {
+    if (message.role !== 'assistant' || !message.data || message.data.preview) continue;
+    try { message.data = await currentConversationAnswer(message.data); }
+    catch { clearConversationEvidence(); return; }
   }
-  return result && Object.hasOwn(result, 'result') ? result.result : result;
 }
 async function run(buttonNode, action) { const previous = buttonNode.disabled; buttonNode.disabled = true; buttonNode.setAttribute('aria-busy', 'true'); try { return await action(); } catch (error) { toast(error.message || String(error), true); return undefined; } finally { buttonNode.disabled = previous; buttonNode.removeAttribute('aria-busy'); } }
 function field(label, control, help = '') { const id = control.id || `field_${crypto.randomUUID()}`; control.id = id; return h('div', { class: 'field' }, h('label', { for: id }, label), control, help ? h('small', {}, help) : null); }
@@ -167,20 +191,24 @@ async function navigate(id) { state.page = id; state.menuOpen = false; document.
 async function showWorkspace() { const name = state.workspace?.name || 'My workspace'; const dialog = modal('Your workspace', h('div', { class: 'stack' }, h('dl', { class: 'key-value' }, h('dt', {}, 'Business'), h('dd', {}, name), h('dt', {}, 'Storage'), h('dd', {}, 'Encrypted vault on this computer'), h('dt', {}, 'Mode'), h('dd', {}, state.workspace?.demo ? 'Labelled sample business' : 'Your business')), state.status?.path ? h('p', { class: 'small mono muted' }, state.status.path) : null, h('div', { class: 'toolbar' }, button('Back up vault', async event => run(event.currentTarget, async () => { const data = await request('workspace.backup', {}); if(data.path) state.backups.push(data.path); downloadResult(data, 'chausar-vault-backup.json'); }), 'secondary', 'download'), button('Export encrypted workspace', async event => run(event.currentTarget, async () => { const data = await request('workspace.export', { confirmed: true, plaintext: false }); downloadResult(data, 'chausar-workspace-export.vault'); }), 'secondary', 'download'), button('Lock vault', async event => run(event.currentTarget, async () => { await request('workspace.lock'); dialog.close(); state.workspace = null; state.messages = []; state.dashboard = null; renderSetup(); }), 'secondary', 'lock')), notice('Backups and this export remain encrypted. Keep your recovery kit separately.'), details(state.status, 'Workspace status'), button('Delete this vault', () => showVaultDelete(dialog), 'danger small'))); }
 
 async function renderConversation() {
+  await refreshConversationEvidence();
   const outcomes = await Promise.allSettled([request('dashboard.get'), request('models.list')]); state.dashboard = outcomes[0].status === 'fulfilled' ? outcomes[0].value : null; state.routes = outcomes[1].status === 'fulfilled' ? list(outcomes[1].value, ['routes', 'models']) : []; const dashboard = state.dashboard || {}; const sourceCount = dashboard.sourceCount ?? (typeof dashboard.sources === 'number' ? dashboard.sources : dashboard.sources?.length) ?? dashboard.counts?.sources ?? 0; const memoryCount = dashboard.factCount ?? dashboard.facts?.length ?? dashboard.counts?.facts; const policy = dashboard.policy || {};
   const question = h('textarea', { rows: 2, placeholder: 'Ask something about your business…', required: true, 'aria-label': 'Your business question' }); const route = select([['', 'Local calculator'], ...state.routes.map(r => [r.id, `${r.kind?.includes('codex') ? 'Codex' : r.kind?.includes('claude') ? 'Claude' : r.model || r.kind} · ${r.model || r.name || r.id}`])], state.routeId); route.setAttribute('aria-label', 'Model route'); route.addEventListener('change', () => { state.routeId = route.value; }); const messages = h('div', { class: 'messages' }); const intro = h('div', { class: 'conversation-intro' }, h('div', { class: 'welcome-icon' }, icon('spark')), h('div', { class: 'eyebrow' }, 'A little more clarity, every day'), h('h2', { class: 'welcome-title' }, 'What would you like', h('br'), 'to know about your business?'), h('p', { class: 'welcome-copy' }, 'Your books, your business meanings, and a calculation you can check. Start with a question. We will show our working.'), h('div', { class: 'prompt-grid' }, [['layers', 'What was billed?', 'Check invoice totals and their source rows.'], ['clock', 'What was receivable aging?', 'Review receivables using a chosen date.'], ['compass', 'What was margin?', 'Read revenue and cost under your dictionary.'], ['sun', 'Show me today’s brief', 'Open the daily picture of your workspace.']].map(([symbol, prompt, help]) => h('button', { class: 'prompt-card', type: 'button', onclick: () => { if (symbol === 'sun') navigate('brief'); else { question.value = prompt; question.focus(); } } }, icon(symbol), h('strong', {}, prompt), h('small', {}, help)))));
   const send = h('button', { class: 'button small', type: 'submit' }, icon('up'), 'Ask Chausar');
   const composer = h('form', { class: 'composer', onsubmit: async event => {
-    event.preventDefault(); const text = question.value.trim(); if (!text) return;
+    event.preventDefault(); const text = question.value; if (!text.trim() || send.disabled) return;
     const generation = state.generation, routeId = route.value;
-    question.value = ''; state.messages.push({ role: 'user', text }); paintMessages(); send.disabled = true;
+    send.disabled = true;
     try {
+      await refreshConversationEvidence();
+      if (generation !== state.generation) return;
+      question.value = ''; state.messages.push({ role: 'user', text }); paintMessages();
       const payload = { question: text, ...(routeId ? { routeId, purpose: 'conversation', questionDisclosure: 'verbatim' } : {}) };
       const preview = routeId ? await request('models.preview', payload) : null;
       if (generation !== state.generation) return;
       const answer = preview ? { status: 'preview', text: 'This request needs your approval before any model disclosure. Review the exact payload and destination.',
         preview: { ...preview, question: text, purpose: 'conversation', questionDisclosure: 'verbatim' } }
-        : await request('conversation.ask', payload);
+        : await currentConversationAnswer(await request('conversation.ask', payload));
       if (generation !== state.generation) return;
       state.messages.push({ role: 'assistant', data: answer });
     } catch (error) { if (generation === state.generation) state.messages.push({ role: 'assistant', error: error.message || String(error) }); }
@@ -188,7 +216,7 @@ async function renderConversation() {
   } }, question, h('div', { class: 'composer-footer' }, h('div', { class: 'toolbar' }, route, button('Calculate directly', showCalculator, 'ghost small', 'grid')), send));
   question.addEventListener('keydown', event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); composer.requestSubmit(); } });
   function paintMessages() { const hasMessages = state.messages.length > 0; intro.hidden = hasMessages; messages.hidden = !hasMessages; messages.replaceChildren(...state.messages.map(message => message.role === 'user' ? h('div', { class: 'message message-user' }, message.text) : h('article', { class: 'message message-assistant' }, h('div', { class: 'message-heading' }, h('img', { src: './assets/icon.svg', alt: '', width: 18, height: 18 }), 'Chausar', badge(message.error ? 'Could not complete' : 'Engine result', message.error ? 'danger' : '')), message.error ? notice(message.error, 'error') : renderAnswer(message.data)))); if (hasMessages) setTimeout(() => messages.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50); }
-  paintMessages();
+  paintConversationMessages = paintMessages; paintMessages();
   const aside = h('aside', { class: 'conversation-aside' }, h('section', { class: 'panel context-panel' }, h('div', { class: 'context-head' }, icon('layers'), 'Workspace context'), ...[['Sources', sourceCount], ['Memory', memoryCount == null ? 'Not yet checked' : `${memoryCount} facts`], ['Dictionary', dashboard.ontology?.pack || dashboard.dictionary?.label || 'Not yet published'], ['Model disclosure', { nothing: 'Nothing leaves', shape: 'Shape only', samples: 'Approved samples' }[policy.send] || 'Check Trust panel']].map(([label, value]) => h('div', { class: 'context-row' }, h('span', {}, label), h('strong', {}, value))), h('p', { class: 'context-foot' }, sourceCount ? 'Answers use the records and meanings currently in your vault.' : 'Import a source and publish a dictionary to begin answering business questions.'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('sources') }, 'Manage sources', icon('arrow'))), h('div', { class: 'trust-callout' }, h('h3', {}, icon('shield'), 'A number deserves proof.'), h('p', {}, 'Arithmetic runs in ordinary software. Open a receipt to inspect the rows, scope, definitions, and omissions.'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('trust') }, 'Your trust settings', icon('arrow'))), h('div', { class: 'side-section' }, h('h3', {}, 'Pick up where you left off'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('decisions') }, icon('compass'), 'Decision log'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('jobs') }, icon('calendar'), 'Recurring jobs'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('activity') }, icon('activity'), 'Workspace activity')));
   return h('div', {}, pageHead('Conversation', 'A question, a calculation, and the evidence behind it.', [button('Recent answers', showConversationHistory, 'secondary', 'clock'), button('Daily brief', () => navigate('brief'), 'secondary', 'sun')]), outcomes[0].status === 'rejected' ? notice(outcomes[0].reason.message, 'error') : null, h('div', { class: 'conversation-layout' }, h('section', { class: 'panel conversation-panel' }, intro, messages, h('div', { class: 'composer-wrap' }, composer, h('div', { class: 'composer-help' }, h('span', {}, icon('shield'), 'Private by your rules. Check every result.'), h('span', {}, 'Ctrl + Enter to ask')))), aside));
 }
@@ -212,7 +240,7 @@ async function showConversationHistory() {
       if (!active || generation !== state.generation) return;
       host.replaceChildren(...[notice('Saved answers are shown only while their evidence remains available under your current access.'),
         ...(page.items || []).map(item => h('section', { class: 'panel' }, h('p', {}, item.question),
-          badge({ 'grounded-conversation': 'Grounded conversation', 'business-context': 'Business description', calculation: 'Calculation' }[item.kind] || 'Saved answer'),
+          badge({ 'grounded-conversation': 'Grounded conversation', 'business-context': 'Business description', calculation: 'Calculation', clarification: 'Clarification' }[item.kind] || 'Saved answer'),
           h('p', { class: 'muted small' }, formatDate(item.at)),
           button('Open saved answer', () => showSavedConversation(item.id, dialog), 'secondary small', 'file'))),
         !(page.items || []).length ? h('p', { class: 'muted' }, 'No saved answers are currently available.') : null,
@@ -269,8 +297,8 @@ async function reviewOutbound(preview) {
       submitted = true;
       const approval = await request('models.approve', { id: preview.id });
       if (!active || generation !== state.generation) return;
-      const result = await request('conversation.ask', { previewId: preview.id, approvalId: approval.id, question,
-        routeId: preview.routeId, ...(conversation ? { purpose: 'conversation', questionDisclosure: 'verbatim' } : {}) });
+      const result = await currentConversationAnswer(await request('conversation.ask', { previewId: preview.id, approvalId: approval.id, question,
+        routeId: preview.routeId, ...(conversation ? { purpose: 'conversation', questionDisclosure: 'verbatim' } : {}) }));
       if (!active || generation !== state.generation) return;
       dialog.close(); state.messages.push({ role: 'assistant', data: result }); await navigate('conversation');
     });
