@@ -69,7 +69,7 @@ function formatDate(value) { if (!value) return 'Not recorded'; const d = new Da
 function amount(value, currency = 'INR') { if (value == null) return 'Not calculated'; try { const n = BigInt(value); const abs = n < 0n ? -n : n; return `${currency === 'INR' ? '₹' : currency + ' '}${n < 0n ? '−' : ''}${(abs / 100n).toLocaleString('en-IN')}.${String(abs % 100n).padStart(2, '0')}`; } catch { return String(value); } }
 function toMinor(value) { const text = String(value).trim().replaceAll(',', ''); if (!/^-?\d+(\.\d{1,2})?$/.test(text)) throw new Error('Enter an amount with at most two decimal places.'); const negative = text.startsWith('-'); const [whole, fraction = ''] = text.replace(/^-/, '').split('.'); return String((BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))) * (negative ? -1n : 1n)); }
 function toast(text, error = false) { const node = h('div', { class: `toast ${error ? 'error' : ''}`, role: error ? 'alert' : 'status' }, icon(error ? 'info' : 'check'), text); node.append(h('button', { type: 'button', 'aria-label': 'Dismiss notification', onclick: () => node.remove() }, '×')); document.getElementById('notifications').append(node); setTimeout(() => node.remove(), error ? 10000 : 5500); }
-async function request(method, payload = {}) {
+async function request(method, payload = {}, invalidateEvidenceOnError = true) {
   const evidenceGeneration = state.evidenceGeneration;
   try {
     let result;
@@ -91,23 +91,29 @@ async function request(method, payload = {}) {
     return result && Object.hasOwn(result, 'result') ? result.result : result;
   } catch (error) {
     if (['CONVERSATION_CONTINUATION_RESOLVED', 'CONVERSATION_CONTINUATION_LIMIT'].includes(error.code) && method === 'conversation.continuation' && state.continuation?.id === payload.id) clearContinuationSelection();
-    if (['ACCESS_REVOKED', 'VAULT_LOCKED', 'UNAUTHENTICATED', 'CONVERSATION_NOT_FOUND', 'RECEIPT_NOT_FOUND', 'BUSINESS_CONTEXT_STALE', 'PREVIEW_STALE', 'ROUTE_REVOKED', 'APPROVAL_REVOKED', 'MODEL_RESULT_UNAVAILABLE', 'EVIDENCE_CHANGED', 'CONVERSATION_CONTINUATION_UNAVAILABLE', 'CONVERSATION_CONTINUATION_STALE', 'INVALID_CONVERSATION_CONTINUATION', 'PREVIEW_REQUEST_CHANGED', 'MODEL_RECEIPT_EXPIRED', 'SOURCE_REVOKED', 'FORBIDDEN', 'PAYLOAD_CHANGED'].includes(error.code)) clearConversationEvidence();
+    if (invalidateEvidenceOnError && ['ACCESS_REVOKED', 'VAULT_LOCKED', 'UNAUTHENTICATED', 'CONVERSATION_NOT_FOUND', 'RECEIPT_NOT_FOUND', 'BUSINESS_CONTEXT_STALE', 'PREVIEW_STALE', 'ROUTE_REVOKED', 'APPROVAL_REVOKED', 'MODEL_RESULT_UNAVAILABLE', 'EVIDENCE_CHANGED', 'CONVERSATION_CONTINUATION_UNAVAILABLE', 'CONVERSATION_CONTINUATION_STALE', 'INVALID_CONVERSATION_CONTINUATION', 'PREVIEW_REQUEST_CHANGED', 'MODEL_RECEIPT_EXPIRED', 'SOURCE_REVOKED', 'FORBIDDEN', 'PAYLOAD_CHANGED'].includes(error.code)) clearConversationEvidence();
     if (!window.chausar?.request && error.code === 'UNAUTHENTICATED') { state.token = null; renderPairing(error.message); }
     throw error;
   }
 }
-async function currentConversationAnswer(data) {
-  if (data?.kind === 'grounded-conversation') return data.results?.some(result => result.answer) ? (await request('conversation.get', { id: data.id })).answer : data;
-  if (data?.kind === 'business-context' && data.receipt?.id) return request('business.context.receipt', { id: data.receipt.id });
-  if (data?.receipt?.id) return { ...data, receipt: await request('receipts.get', { id: data.receipt.id }) };
-  if (data?.figures && data.id) return request('receipts.get', { id: data.id });
+async function currentConversationAnswer(data, invalidateEvidenceOnError = true) {
+  const read = (method, payload) => request(method, payload, invalidateEvidenceOnError);
+  if (data?.kind === 'grounded-conversation') return data.results?.some(result => result.answer) ? (await read('conversation.get', { id: data.id })).answer : data;
+  if (data?.kind === 'business-context' && data.receipt?.id) return read('business.context.receipt', { id: data.receipt.id });
+  if (data?.receipt?.id) return { ...data, receipt: await read('receipts.get', { id: data.receipt.id }) };
+  if (data?.figures && data.id) return read('receipts.get', { id: data.id });
   return data;
 }
 async function refreshConversationEvidence() {
   for (const message of [...state.messages]) {
     if (message.role !== 'assistant' || !message.data || message.data.preview) continue;
-    try { message.data = await currentConversationAnswer(message.data); }
-    catch { clearConversationEvidence(); return; }
+    try { message.data = await currentConversationAnswer(message.data, false); }
+    catch (error) {
+      // Capture intent before the refresh owns its cleanup. Access loss or a concurrent change still cancels the question.
+      const prior = { evidenceGeneration: state.evidenceGeneration, continuationGeneration: state.continuationGeneration,
+        recoverable: ['CONVERSATION_NOT_FOUND', 'RECEIPT_NOT_FOUND', 'BUSINESS_CONTEXT_STALE', 'MODEL_RESULT_UNAVAILABLE', 'MODEL_RECEIPT_EXPIRED'].includes(error.code) };
+      clearConversationEvidence(); return prior;
+    }
   }
 }
 async function readConversationContinuation(id) {
@@ -132,6 +138,7 @@ async function refreshSelectedContinuation() {
 }
 async function selectConversationContinuation(reference, parentDialog = reference.parentDialog, closeDialogs = true, preserveSelectionUntilChecked = false) {
   if (!preserveSelectionUntilChecked) clearContinuationSelection();
+  else state.continuationGeneration++;
   const generation = state.generation, evidenceGeneration = state.evidenceGeneration, continuationGeneration = state.continuationGeneration;
   const current = () => generation === state.generation && evidenceGeneration === state.evidenceGeneration && continuationGeneration === state.continuationGeneration && (!parentDialog || savedEvidenceDialogs.has(parentDialog));
   let id = reference.id;
@@ -251,18 +258,22 @@ async function renderConversation() {
   const send = h('button', { class: 'button small', type: 'submit' }, icon('up'), 'Ask Chausar');
   const composer = h('form', { class: 'composer', onsubmit: async event => {
     event.preventDefault(); const text = question.value; if (!text.trim() || send.disabled) return;
-    const generation = state.generation, evidenceGeneration = state.evidenceGeneration, continuationGeneration = state.continuationGeneration, selected = state.continuation, routeId = route.value;
+    const generation = state.generation, selected = state.continuation, routeId = route.value;
+    let evidenceGeneration = state.evidenceGeneration, continuationGeneration = state.continuationGeneration;
     send.disabled = true;
     try {
-      await refreshConversationEvidence();
+      const refreshed = await refreshConversationEvidence();
+      const clearedOldEvidence = !selected && !state.continuation && refreshed?.recoverable && refreshed.evidenceGeneration === evidenceGeneration
+        && refreshed.continuationGeneration === continuationGeneration;
+      if (clearedOldEvidence) { evidenceGeneration = state.evidenceGeneration; continuationGeneration = state.continuationGeneration; }
       if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration || continuationGeneration !== state.continuationGeneration) return;
       const continuation = selected ? await refreshSelectedContinuation() : null;
-      if (generation !== state.generation || continuationGeneration !== state.continuationGeneration || (selected && !continuation)) return;
+      if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration || continuationGeneration !== state.continuationGeneration || (selected && !continuation)) return;
       if (continuation && !routeId) throw new Error('Choose a model route to continue this question, or start a new question for the local calculator.');
       question.value = ''; state.messages.push({ role: 'user', text }); paintMessages();
       const payload = { question: text, ...(routeId ? { routeId, purpose: 'conversation', questionDisclosure: 'verbatim' } : {}), ...(continuation ? { continuationId: continuation.id } : {}) };
       const preview = routeId ? await request('models.preview', payload) : null;
-      if (generation !== state.generation || continuationGeneration !== state.continuationGeneration) return;
+      if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration || continuationGeneration !== state.continuationGeneration) return;
       const answer = preview ? { status: 'preview', text: 'This request needs your approval before any model disclosure. Review the exact payload and destination.',
         preview: { ...preview, question: text, purpose: 'conversation', questionDisclosure: 'verbatim', ...(continuation ? { continuationId: continuation.id } : {}) } }
         : await currentConversationAnswer(await request('conversation.ask', payload));
