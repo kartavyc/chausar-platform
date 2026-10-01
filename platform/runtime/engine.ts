@@ -49,13 +49,25 @@ import type { PrivateTrialRecipeEvidence } from './private-trial-contracts.ts';
 import { producerReplacementPins, producerReplacementOutputDigest, publishProducerReplacement } from './producer-replacement.ts';
 import { WorkspaceInterchangeHost } from './workspace-interchange-host.ts';
 import { createWorkspaceInterchangeLocalPorts } from './workspace-interchange-local.ts';
+import { WorkspaceBackupV2Host, type WorkspaceBackupV2Budgets, type WorkspaceBackupV2ExternalKeyRequirement } from './workspace-backup-v2.ts';
+import { createWorkspaceBackupV2LocalPorts, type WorkspaceBackupV2FilesystemBudgets } from './workspace-backup-local.ts';
 import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
 import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
 
-export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort } };
+export type EngineBackupCustodyOptions = {
+  budgets?: WorkspaceBackupV2Budgets; filesystemBudgets?: WorkspaceBackupV2FilesystemBudgets;
+  externalKeyRequirements?: WorkspaceBackupV2ExternalKeyRequirement[];
+  /** Trusted installed host capability, never supplied by an RPC payload. */
+  withCompleteOwner?<T>(context: Context, historical: State, work: (assertCurrent: () => void) => Promise<T>): Promise<T>;
+};
+export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions };
+// Operational admission ceilings reject the complete operation; no namespace is truncated.
+const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32 * 1024 * 1024,
+  maxEntryBytes: 16 * 1024 * 1024, maxTotalEntryBytes: 16 * 1024 * 1024, maxEntries: 4096, maxJsonDepth: 128, maxJsonNodes: 200_000 };
+const defaultBackupFilesystemBudgets: WorkspaceBackupV2FilesystemBudgets = { maxFiles: 8192, maxBytes: 128 * 1024 * 1024, maxDepth: 16 };
 
 /** Trusted host result. Identifiers and private scope are not automatic outbound disclosure. */
 export type ConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
@@ -356,6 +368,35 @@ export class Engine {
       assertCompleteOwner: async (ctx, historical) => this.interchangeOwner(ctx, historical) });
     this.services.interchangeLocal = interchangeLocal;
     this.services.interchange = new WorkspaceInterchangeHost(interchangeLocal.ports);
+    if (vault.storageKind === 'experimental-file') {
+      const backup = this.options.backupCustody;
+      const budgets = backup?.budgets ?? defaultBackupBudgets;
+      const backupLocal = createWorkspaceBackupV2LocalPorts({ vault, applicationDirectory, budgets,
+        filesystemBudgets: backup?.filesystemBudgets ?? defaultBackupFilesystemBudgets,
+        externalKeyRequirements: backup?.externalKeyRequirements ?? [{ provider: 'other', namespace: 'operator/credential-wrappers',
+          requirement: 'Retain the operator passphrase or recovery credential separately. Encrypted wrappers do not include that credential.' }],
+        assertCompleteOwner: async (ctx, historical) => this.backupCompleteOwner(ctx, historical),
+        withCompleteOwner: async (ctx, historical, work) => vault.withCustodyWriterAdmission(async assertVault => {
+          const admission = async (assertAdditional: () => void) => {
+            const assertCurrent = () => {
+              check(this.options.backupCustody === backup, 'BACKUP_HOST_CONFIGURATION_CHANGED', 'Installed custody admission changed during publication.');
+              assertVault(); this.backupCompleteOwner(ctx, historical);
+              check(assertAdditional() === undefined, 'BACKUP_HOST_GUARD', 'Held readiness admission must be synchronous and complete.');
+            };
+            assertCurrent(); const result = await work(assertCurrent); assertCurrent(); return result;
+          };
+          if (!backup?.withCompleteOwner) return admission(() => {});
+          let calls = 0;
+          const result = await backup.withCompleteOwner(structuredClone(ctx), structuredClone(historical), async assertAdditional => {
+            check(++calls === 1 && typeof assertAdditional === 'function', 'BACKUP_HOST_GUARD', 'Use one held installed readiness admission.');
+            return admission(assertAdditional);
+          });
+          check(calls === 1, 'BACKUP_HOST_GUARD', 'Installed admission did not execute the backup publication.'); return result;
+        }),
+      });
+      this.services.backupLocal = backupLocal;
+      this.services.backupV2 = new WorkspaceBackupV2Host(backupLocal.ports, budgets);
+    }
     this.services.alerts = new AlertsService(store, { calculatorOptions: view => {
       const connectors = connectorForView(view);
       return {
@@ -521,6 +562,32 @@ export class Engine {
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
     const s = this.services;
     switch (method) {
+      case 'workspace.backup.v2.create': return this.backupHost().create(ctx, this.journalPayload(payload,
+        ['destinationId', 'confirmed'], ['destinationId', 'confirmed'], 'INVALID_BACKUP_REQUEST') as Parameters<WorkspaceBackupV2Host['create']>[1]);
+      case 'workspace.backup.v2.read': return this.backupHost().read(ctx, this.journalPayload(payload,
+        ['backupId'], ['backupId'], 'INVALID_BACKUP_REQUEST') as Parameters<WorkspaceBackupV2Host['read']>[1]);
+      case 'workspace.backup.v2.restoreInert': {
+        const input = this.journalPayload(payload, ['backupId', 'targetId', 'reviewedDigest', 'confirmed'],
+          ['backupId', 'targetId', 'reviewedDigest', 'confirmed'], 'INVALID_BACKUP_REQUEST');
+        check(input.confirmed === true, 'CONFIRMATION_REQUIRED', 'Confirm the exact reviewed archive and separate closed copy.');
+        return this.backupHost().restoreInert(ctx, { backupId: input.backupId as string, targetId: input.targetId as string, reviewedDigest: input.reviewedDigest as string });
+      }
+      case 'workspace.backup.v2.readRestored': return this.backupHost().readRestored(ctx, this.journalPayload(payload,
+        ['backupId', 'targetId', 'creationId', 'reviewedDigest'], ['backupId', 'targetId', 'creationId', 'reviewedDigest'], 'INVALID_BACKUP_REQUEST') as Parameters<WorkspaceBackupV2Host['readRestored']>[1]);
+      case 'workspace.backup.v2.inspectRestored': {
+        const input = this.journalPayload(payload, ['backupId', 'targetId', 'reviewedDigest'],
+          ['backupId', 'targetId', 'reviewedDigest'], 'INVALID_BACKUP_REQUEST');
+        const host = this.backupHost(); const reviewed = await host.read(ctx, { backupId: input.backupId as string });
+        check(input.reviewedDigest === reviewed.summary.archiveDigest, 'BACKUP_REVIEW_CHANGED', 'Inspect the exact reviewed archive digest.');
+        const identity = await s.backupLocal.restoredIdentity(ctx, input.targetId);
+        check(identity.archiveDigest === reviewed.summary.archiveDigest, 'BACKUP_TARGET_CHANGED', 'The reserved copy belongs to a different archive.');
+        return host.readRestored(ctx, { backupId: input.backupId as string, targetId: identity.targetId,
+          creationId: identity.creationId, reviewedDigest: reviewed.summary.archiveDigest });
+      }
+      case 'workspace.backup.v2.diagnostics': {
+        this.journalPayload(payload, [], [], 'INVALID_BACKUP_REQUEST'); this.backupHost(); this.backupCompleteOwner(ctx, store.read());
+        return s.backupLocal.diagnostics();
+      }
       case 'workspace.interchange.export': return s.interchange.export(ctx, this.journalPayload(payload,
         ['destinationId', 'confirmed'], ['destinationId', 'confirmed'], 'INVALID_INTERCHANGE_REQUEST'));
       case 'workspace.interchange.prepare': return s.interchange.prepare(ctx, this.journalPayload(payload,
@@ -1132,6 +1199,26 @@ export class Engine {
     assertSourceAccess(current, ctx, sourceIds);
     check(historical.facts.every(fact => canSeeFact(this.store(), ctx, fact)), 'INTERCHANGE_READ_SCOPE_REQUIRED', 'Workspace copying requires current access to every retained historical row.');
     const managedSourceIds = [...new Set<string>(current.imports.filter(item => ['connector-capture-v1', 'connector-consumer-binding-v1'].includes(item.type)).map(item => item.sourceId).filter((id): id is string => typeof id === 'string'))];
+    this.services.connectorRuntime.assertBusinessEvidenceReady(ctx, { sourceIds, managedSourceIds, factIds: [], profileIds: [], request: {} });
+  }
+  private backupHost(): WorkspaceBackupV2Host {
+    check(this.services.backupV2 instanceof WorkspaceBackupV2Host, 'BACKUP_STORAGE_PROFILE_REQUIRED',
+      'This storage profile requires its separately reviewed complete encrypted-custody implementation.');
+    return this.services.backupV2;
+  }
+  private backupCompleteOwner(ctx: Context, historical: State) {
+    this.requireWorkspaceOwner(ctx);
+    check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Complete encrypted archive custody requires the untainted desktop owner.');
+    const current = this.store().read();
+    const sourceIds = [...new Set<string>([...historical.facts.map(fact => fact.sourceId),
+      ...historical.imports.map(item => item.sourceId).filter((id): id is string => typeof id === 'string')])];
+    assertSourceAccess(current, ctx, sourceIds);
+    check(historical.facts.every(fact => canSeeFact(this.store(), ctx, fact)), 'BACKUP_READ_SCOPE_REQUIRED', 'Current access must cover every retained historical row.');
+    const managedSourceIds = [...new Set<string>([...current.imports, ...historical.imports]
+      .filter(item => ['connector-capture-v1', 'connector-consumer-binding-v1'].includes(item.type))
+      .map(item => item.sourceId).filter((id): id is string => typeof id === 'string'))];
+    check((this.options.sync === undefined && managedSourceIds.length === 0) || typeof this.options.backupCustody?.withCompleteOwner === 'function',
+      'BACKUP_HELD_READINESS_REQUIRED', 'Configured sync and managed sources require installed held owner/source/readiness admission through archive publication.');
     this.services.connectorRuntime.assertBusinessEvidenceReady(ctx, { sourceIds, managedSourceIds, factIds: [], profileIds: [], request: {} });
   }
   private privatePromotionImpact(ctx: Context, state = this.store().read(), strategy?: 'prospective' | 'retrospective') {

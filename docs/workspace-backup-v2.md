@@ -36,7 +36,9 @@ Use `createWorkspaceBackupV2Host(ports, budgets)` once in trusted root construct
 
 ```ts
 await host.create(context, { destinationId, confirmed: true });
+await host.read(context, { backupId });
 await host.restoreInert(context, { backupId, targetId, reviewedDigest });
+await host.readRestored(context, { backupId, targetId, creationId, reviewedDigest });
 ```
 
 No public method accepts a path, constructor capability, callback, storage adapter, credential, or filesystem port. Root selects and authenticates the managed locations and credential flow.
@@ -46,6 +48,12 @@ No public method accepts a path, constructor capability, callback, storage adapt
 `custody.create(context, record, assertCurrent)` atomically retains the complete archive and a separately encrypted/authenticated custody pin without overwrite. It must invoke `assertCurrent` immediately before publication. The pin binds record/creation identity, caller context, complete source pin, and archive digest. `custody.read` authenticates both retained ciphertexts and their durable record binding. `custody.remove` compares exact creation/archive/pin digests and removes only that owned creation. If create rejects, the port must already have removed its staging and partial output, including a publication followed by lost acknowledgement. A rejection is never permission to adopt a partial record.
 
 Restore first reopens authenticated archive/pin custody, compares the reviewed digest, calls root's current `assertRestoreOwner`, and cryptographically authenticates every original envelope through `authenticateArchive`. It does not require a surviving live source Vault, but it rechecks the retained archive issuance and current root owner during each restore fence.
+
+`read(context, { backupId })` returns `WorkspaceBackupV2Readback`: `{ summary, creationId, sourcePin }`. The creation identity is the durable **backup custody** creation, and `sourcePin` is the complete independently authenticated pin. The host validates exact payload shape, requires the untainted desktop owner, verifies committed independent archive/pin custody and measured ciphertext sizes, checks current root owner/source access and readiness through `assertRestoreOwner`, and authenticates the entire original authority and all archived private artifacts. It rereads the exact issuance and measurements before and after archive authentication and checks owner access before and after awaited custody reads.
+
+`readRestored(context, { backupId, targetId, creationId, reviewedDigest })` returns `WorkspaceBackupV2RestoredReadback`: `{ receipt, summary, sourcePin }`. Its input creation identity is the durable **inert restore** creation from `restoreInert`, and its reviewed digest must match the exact source archive. After authenticated source readback, the host reads the restored target twice, compares its exact original archive string, full independent source pin, and complete target/creation/entry/byte/inert receipt, and rechecks current source issuance and owner after each target read. Neither output contains archive bodies, authority plaintext, credentials, data keys, or filesystem paths. Reads are reversible and never delete failed or changed custody.
+
+Public readback has no transient candidate cache and can run through a newly constructed host after process restart when root's durable committed ports and current ownership/access remain valid. Root's `restore.readRestored` must reopen its durable binding under exclusion and authenticate the target/reservation physical identity, current owner/readiness, exact complete original ciphertext, and still-inert/unadmitted state on every call. A receipt alone cannot certify a replaced target. Readback is evidence for review; a later admission must hold its own actual target and authority fence. Changed source, epoch, archive/pin/ciphertext, measurement, reservation, target, or binding must refuse.
 
 `withTarget` executes its callback exactly once under an exclusive physical target lease and a current root owner/epoch admission fence held through actual publication. The host rechecks current owner both before and after awaiting retained custody reads, but asynchronous checks alone cannot replace that held root admission fence. The target must be a distinct root-managed empty location, with zero authority records, zero private artifact records, and no unexpected wider entries. `assertEmpty` re-enumerates actual emptiness; `assertCurrent` retains exclusive target identity and ownership after publication. Root must reject symbolic/hard links, a replaced directory, changed reservations, and a target that becomes nonempty.
 
@@ -61,7 +69,7 @@ The original encrypted authority is evidence of historical State. The host canno
 
 ## Focused verification
 
-`platform/tests/workspace-backup-v2.test.ts` uses only synthetic temporary sources and empty targets. It proves exact envelope/artifact byte roundtrip and actual v1 passphrase/recovery authentication, demonstrates failure after sorting nested wrappers, retains control/terminal private records, exercises independent-pin refusal after coherent attacker rehash, enforces explicit budgets, and checks source/target/publication/readback/lease-exit cleanup. Host transaction tests use the declared `test-fixture` custody qualification; they do not qualify installed filesystem transactions or native PostgreSQL custody.
+`platform/tests/workspace-backup-v2.test.ts` uses only synthetic temporary sources and empty targets. It proves exact envelope/artifact byte roundtrip and actual v1 passphrase/recovery authentication, demonstrates failure after sorting nested wrappers, retains control/terminal private records, exercises independent-pin refusal after coherent attacker rehash, enforces explicit budgets, and checks source/target/publication/readback/lease-exit cleanup. Public readback tests reconstruct hosts against retained fixture ports, verify detached metadata, and refuse malformed or changed source/target/binding/measurement/epoch data. Host transaction and reconstructed-host tests use the declared `test-fixture` custody qualification; they do not qualify actual process restart, installed filesystem transactions or native PostgreSQL custody.
 
 ```powershell
 node --test platform/tests/workspace-backup-v2.test.ts

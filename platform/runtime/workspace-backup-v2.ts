@@ -379,6 +379,7 @@ export type WorkspaceBackupV2HostPorts = {
   withSource<T>(context: Context, expected: WorkspaceBackupV2SourcePin | null, work: (lease: WorkspaceBackupV2SourceLease) => Promise<T>): Promise<T>;
   withTarget<T>(context: Context, input: { targetId: string }, work: (lease: WorkspaceBackupV2TargetLease) => Promise<T>): Promise<T>;
   authenticateArchive(context: Context, archive: WorkspaceBackupV2Archive): Promise<void>;
+  /** Recheck CURRENT untainted unrestricted owner/epoch, source binding/access and custody readiness. */
   assertRestoreOwner(context: Context, source: WorkspaceBackupV2Source): Promise<void>;
   custody: {
     create(context: Context, record: WorkspaceBackupV2CustodyRecord, assertCurrent: () => Promise<void>): Promise<WorkspaceBackupV2Measurement>;
@@ -387,6 +388,8 @@ export type WorkspaceBackupV2HostPorts = {
   };
   restore: {
     restoreAtomic(context: Context, input: { creationId: string; target: WorkspaceBackupV2EmptyTarget; archive: WorkspaceBackupV2Archive }, assertEmptyCurrent: () => Promise<void>): Promise<WorkspaceBackupV2RestoreReceipt>;
+    /** Reopen durable committed custody under exclusion; authenticate target/reservation physical identity,
+     * complete original bytes, current owner/readiness, and still-inert/unadmitted state on EVERY read. */
     readRestored(context: Context, input: { targetId: string; creationId: string }): Promise<{ content: string; receipt: WorkspaceBackupV2RestoreReceipt }>;
     rollback(context: Context, input: { targetId: string; creationId: string; expectedArchiveDigest: string }): Promise<void>;
   };
@@ -397,6 +400,13 @@ export type WorkspaceBackupV2Summary = {
   namespaces: WorkspaceBackupV2Namespace[]; externalKeyRequirements: WorkspaceBackupV2ExternalKeyRequirement[];
   measurement: WorkspaceBackupV2Measurement;
 };
+export type WorkspaceBackupV2Readback = {
+  summary: WorkspaceBackupV2Summary; creationId: string; sourcePin: WorkspaceBackupV2SourcePin;
+};
+export type WorkspaceBackupV2RestoredReadback = {
+  receipt: WorkspaceBackupV2RestoreReceipt; summary: WorkspaceBackupV2Summary; sourcePin: WorkspaceBackupV2SourcePin;
+};
+type AuthenticatedCustody = { retained: WorkspaceBackupV2CustodyRecord & { measurement: WorkspaceBackupV2Measurement }; archive: WorkspaceBackupV2Archive };
 async function completed(work: () => Promise<void>) {
   const result: unknown = await work();
   requireValue(result === undefined, 'BACKUP_HOST_GUARD', 'Trusted backup guards must complete without deferred admission values.');
@@ -442,6 +452,51 @@ export class WorkspaceBackupV2Host {
       encryptedEntryBytes: archive.pin.authority.bytes + archive.pin.artifacts.reduce((sum, item) => sum + item.bytes, 0),
       scope: SCOPE, fullWorkspacePortable: false, inert: true, activation: 'root-only', namespaces: structuredClone(archive.pin.namespaces),
       externalKeyRequirements: structuredClone(archive.pin.externalKeyRequirements), measurement: structuredClone(measurement) };
+  }
+  #readOwner(context: Context) {
+    requireValue(context.channel === 'desktop' && context.role === 'owner' && !context.sourceTainted,
+      'APP_APPROVAL_REQUIRED', 'Authenticated backup readback requires the current untainted desktop owner.');
+  }
+  async #assertReadCurrent(context: Context, backupId: string, initial: AuthenticatedCustody) {
+    await completed(() => this.#ports.assertRestoreOwner(structuredClone(context), structuredClone(initial.archive.pin.source)));
+    const current = await this.#read(context, backupId);
+    requireValue(equal(current.retained, initial.retained, this.#budget), 'BACKUP_SOURCE_CHANGED', 'Authenticated backup issuance or measured ciphertext custody changed during readback.');
+    await completed(() => this.#ports.assertRestoreOwner(structuredClone(context), structuredClone(initial.archive.pin.source)));
+  }
+  async #authenticatedRead(context: Context, backupId: string, reviewedDigest?: string) {
+    const initial = await this.#read(context, backupId);
+    if (reviewedDigest !== undefined) requireValue(initial.archive.digest === reviewedDigest, 'BACKUP_REVIEW_CHANGED', 'The reviewed archive digest changed.');
+    await this.#assertReadCurrent(context, backupId, initial);
+    await completed(() => this.#ports.authenticateArchive(structuredClone(context), structuredClone(initial.archive)));
+    await this.#assertReadCurrent(context, backupId, initial);
+    return initial;
+  }
+  /** Durable authenticated metadata readback; returns no archive bytes, authority plaintext, key or path. */
+  async read(contextInput: Context, input: { backupId: string }): Promise<WorkspaceBackupV2Readback> {
+    exact(input, ['backupId']); const payload = structuredClone(input), context = structuredClone(contextInput);
+    requireValue(id(payload.backupId), 'BACKUP_REVIEW_REQUIRED', 'Choose one explicit managed encrypted backup identity.'); this.#readOwner(context);
+    const initial = await this.#authenticatedRead(context, payload.backupId);
+    return { summary: this.#summary(payload.backupId, initial.archive, initial.retained.measurement), creationId: initial.retained.pin.creationId,
+      sourcePin: structuredClone(initial.archive.pin) };
+  }
+  /** Reopens committed inert target custody across restart; this read cannot attach or activate authority. */
+  async readRestored(contextInput: Context, input: { backupId: string; targetId: string; creationId: string; reviewedDigest: string }): Promise<WorkspaceBackupV2RestoredReadback> {
+    exact(input, ['backupId', 'targetId', 'creationId', 'reviewedDigest']); const payload = structuredClone(input), context = structuredClone(contextInput);
+    requireValue(id(payload.backupId) && id(payload.targetId) && id(payload.creationId) && digest(payload.reviewedDigest),
+      'BACKUP_REVIEW_REQUIRED', 'Read one exact managed inert target creation and reviewed backup digest.'); this.#readOwner(context);
+    const initial = await this.#authenticatedRead(context, payload.backupId, payload.reviewedDigest), archive = initial.archive;
+    const expected: WorkspaceBackupV2RestoreReceipt = { targetId: payload.targetId, creationId: payload.creationId, archiveDigest: archive.digest,
+      sourcePin: structuredClone(archive.pin), entries: archive.pin.artifacts.length + 1,
+      bytes: archive.pin.authority.bytes + archive.pin.artifacts.reduce((sum, item) => sum + item.bytes, 0), inert: true, activation: 'root-only' };
+    const checkedTarget = async () => {
+      const restored = await this.#ports.restore.readRestored(structuredClone(context), { targetId: payload.targetId, creationId: payload.creationId });
+      exact(restored, ['content', 'receipt']); const checked = validateWorkspaceBackupV2(restored.content, archive.pin, this.#budget);
+      requireValue(checked.digest === archive.digest && restored.content === initial.retained.content && equal(restored.receipt, expected, this.#budget),
+        'BACKUP_PARTIAL_RESTORE', 'Committed inert target differs from the exact original archive, source pin or complete creation receipt.');
+    };
+    await checkedTarget(); await this.#assertReadCurrent(context, payload.backupId, initial);
+    await checkedTarget(); await this.#assertReadCurrent(context, payload.backupId, initial);
+    return { receipt: structuredClone(expected), summary: this.#summary(payload.backupId, archive, initial.retained.measurement), sourcePin: structuredClone(archive.pin) };
   }
   async create(contextInput: Context, input: { destinationId: string; confirmed: true }): Promise<WorkspaceBackupV2Summary> {
     exact(input, ['destinationId', 'confirmed']); const payload = structuredClone(input), context = structuredClone(contextInput);

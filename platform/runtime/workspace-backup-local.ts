@@ -169,6 +169,19 @@ export class WorkspaceBackupV2LocalCustody {
     const path = join(this.#options.applicationDirectory, targetId);
     check(resolve(path) !== resolve(this.#options.vault.directory), 'BACKUP_TARGET_IDENTITY', 'Source and target physical locations must be distinct.'); return path;
   }
+  /** Explicit read-only discovery after a whole RPC acknowledgement was lost. */
+  async restoredIdentity(context: Context, targetId: string) {
+    return this.#snapshot(context, () => this.#locked('targets', this.targetPath(targetId), async () => {
+      await this.#guard(context, this.#options.vault.read());
+      const { reservation } = await this.#reservation(context, targetId);
+      check(reservation.state === 'restored' && typeof reservation.creationId === 'string'
+        && idPattern.test(reservation.creationId) && typeof reservation.archiveDigest === 'string',
+        'BACKUP_TARGET_NOT_COMMITTED', 'This exact reserved target has no committed inert restore to inspect.');
+      const value = await this.#readRestoredUnlocked(context, { targetId, creationId: reservation.creationId });
+      await this.#guard(context, this.#options.vault.read());
+      return { targetId, creationId: value.receipt.creationId, archiveDigest: value.receipt.archiveDigest };
+    }));
+  }
   #vaultBudget(includeOwnPublications = false) {
     const b = this.#options.budgets, fs = this.#options.filesystemBudgets;
     return includeOwnPublications ? { maxEntryBytes: Math.min(fs.maxBytes, 64 * 1024 * 1024), maxTotalEntryBytes: fs.maxBytes, maxArtifacts: fs.maxFiles }

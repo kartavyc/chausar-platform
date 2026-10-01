@@ -2,6 +2,8 @@
 const app = document.getElementById('app');
 const state = { page: 'conversation', workspace: null, status: null, token: null, messages: [], routeId: '', routes: [], dashboard: null, generation: 0, evidenceGeneration: 0, continuation: null, continuationGeneration: 0, menuOpen: false, backups: [] };
 const savedEvidenceDialogs = new Set();
+const archiveEvidenceDialogs = new Set();
+function clearArchiveEvidence() { for (const dialog of archiveEvidenceDialogs) { dialog.replaceChildren(); dialog.close(); dialog.remove(); } archiveEvidenceDialogs.clear(); }
 function clearSavedEvidence() { for (const dialog of savedEvidenceDialogs) { dialog.replaceChildren(); dialog.close(); dialog.remove(); } savedEvidenceDialogs.clear(); }
 const evidenceChanges = new Set(['trust.update', 'members.revoke', 'models.configure', 'sources.delete', 'sources.import', 'sources.accept', 'sources.workbookImport', 'memory.correct', 'memory.merge', 'memory.undo', 'memory.precedence', 'ontology.publish', 'workspace.create', 'workspace.open', 'workspace.lock', 'workspace.delete', 'workspace.recover', 'workspace.restore']);
 let paintConversationMessages, paintContinuationSelection;
@@ -257,8 +259,159 @@ function showVaultDelete(parentDialog) {
 function renderShell() { state.menuOpen = false; const workspaceButton = h('button', { class: 'workspace-switch', type: 'button', onclick: showWorkspace }, h('span', { class: 'workspace-icon' }, icon('folder')), h('div', {}, h('div', { class: 'workspace-name' }, state.workspace?.name || 'My workspace'), h('div', { class: 'workspace-local' }, state.workspace?.demo ? 'Sample business · local vault' : 'Encrypted local vault'))); const navigation = h('nav', { class: 'nav', 'aria-label': 'Workspace navigation' }); for (let i = 0; i < nav.length; i++) { if ([0, 2, 5, 8].includes(i)) navigation.append(h('div', { class: 'nav-label' }, { 0: 'Workspace', 2: 'Business knowledge', 5: 'Work & decisions', 8: 'Controls' }[i])); const [id, title, symbol] = nav[i]; navigation.append(h('button', { class: `nav-button ${id === state.page ? 'active' : ''}`, type: 'button', 'data-page': id, 'aria-current': id === state.page ? 'page' : null, onclick: () => navigate(id) }, icon(symbol), title, id === state.page ? h('span', { class: 'nav-dot' }) : null)); } const shell = h('div', { class: 'shell', id: 'shell' }, h('aside', { class: 'sidebar' }, brand(), workspaceButton, navigation, h('div', { class: 'sidebar-bottom' }, h('div', { class: 'safety-line' }, icon('lock'), 'Your vault. Your rules.'), h('div', { class: 'build-label' }, 'Experimental · checked capabilities inside'))), h('div', { class: 'main' }, h('header', { class: 'topbar' }, h('div', { class: 'breadcrumb' }, h('button', { class: 'icon-button mobile-menu', type: 'button', 'aria-label': 'Toggle navigation', onclick: () => { state.menuOpen = !state.menuOpen; shell.classList.toggle('menu-open', state.menuOpen); } }, icon('menu')), h('span', {}, state.workspace?.name || 'My workspace'), h('span', {}, '/'), h('span', { id: 'current-page' }, nav.find(n => n[0] === state.page)?.[1])), h('div', { class: 'topbar-right' }, state.workspace?.demo ? badge('SAMPLE BUSINESS', 'warn') : null, h('span', { class: 'status-chip' }, 'Local workspace'), h('button', { class: 'icon-button', type: 'button', title: 'Refresh current page', 'aria-label': 'Refresh current page', onclick: () => navigate(state.page) }, icon('refresh')), h('button', { class: 'avatar', type: 'button', title: 'Workspace and vault', 'aria-label': 'Workspace and vault', onclick: showWorkspace }, 'K'))), h('main', { class: 'page', id: 'page-content', tabindex: '-1' })));
   app.replaceChildren(shell); navigate(state.page);
 }
-async function navigate(id) { state.page = id; state.menuOpen = false; document.getElementById('shell')?.classList.remove('menu-open'); for (const b of document.querySelectorAll('.nav-button')) { const active = b.dataset.page === id; b.classList.toggle('active', active); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); } document.getElementById('current-page').textContent = nav.find(n => n[0] === id)?.[1] || id; const page = document.getElementById('page-content'); const generation = ++state.generation; page.replaceChildren(h('div', { class: 'loading', role: 'status' }, 'Reading your workspace…')); const views = { conversation: renderConversation, brief: renderBrief, sources: renderSources, dictionary: renderDictionary, memory: renderMemory, decisions: renderDecisions, actions: renderActions, jobs: renderJobs, trust: renderTrust, models: renderModels, plugins: renderPlugins, activity: renderActivity }; try { const content = await views[id](); if (generation === state.generation) { page.replaceChildren(content); page.append(h('div', { class: 'footer-note' }, icon('shield'), 'Every result comes from your local engine.')); } } catch (error) { if (generation === state.generation) page.replaceChildren(pageHead(nav.find(n => n[0] === id)?.[1] || id, 'The engine could not load this view.'), notice(error.message || String(error), 'error'), button('Try again', () => navigate(id), 'secondary', 'refresh')); } }
-async function showWorkspace() { const name = state.workspace?.name || 'My workspace'; const dialog = modal('Your workspace', h('div', { class: 'stack' }, h('dl', { class: 'key-value' }, h('dt', {}, 'Business'), h('dd', {}, name), h('dt', {}, 'Storage'), h('dd', {}, 'Encrypted vault on this computer'), h('dt', {}, 'Mode'), h('dd', {}, state.workspace?.demo ? 'Labelled sample business' : 'Your business')), state.status?.path ? h('p', { class: 'small mono muted' }, state.status.path) : null, h('div', { class: 'toolbar' }, button('Back up vault', async event => run(event.currentTarget, async () => { const data = await request('workspace.backup', {}); if(data.path) state.backups.push(data.path); downloadResult(data, 'chausar-vault-backup.json'); }), 'secondary', 'download'), button('Export encrypted workspace', async event => run(event.currentTarget, async () => { const data = await request('workspace.export', { confirmed: true, plaintext: false }); downloadResult(data, 'chausar-workspace-export.vault'); }), 'secondary', 'download'), button('Lock vault', async event => run(event.currentTarget, async () => { await request('workspace.lock'); dialog.close(); state.workspace = null; state.messages = []; state.dashboard = null; renderSetup(); }), 'secondary', 'lock')), notice('Backups and this export remain encrypted. Keep your recovery kit separately.'), details(state.status, 'Workspace status'), button('Delete this vault', () => showVaultDelete(dialog), 'danger small'))); }
+async function navigate(id) { clearArchiveEvidence(); state.page = id; state.menuOpen = false; document.getElementById('shell')?.classList.remove('menu-open'); for (const b of document.querySelectorAll('.nav-button')) { const active = b.dataset.page === id; b.classList.toggle('active', active); if (active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); } document.getElementById('current-page').textContent = nav.find(n => n[0] === id)?.[1] || id; const page = document.getElementById('page-content'); const generation = ++state.generation; page.replaceChildren(h('div', { class: 'loading', role: 'status' }, 'Reading your workspace…')); const views = { conversation: renderConversation, brief: renderBrief, sources: renderSources, dictionary: renderDictionary, memory: renderMemory, decisions: renderDecisions, actions: renderActions, jobs: renderJobs, trust: renderTrust, models: renderModels, plugins: renderPlugins, activity: renderActivity }; try { const content = await views[id](); if (generation === state.generation) { page.replaceChildren(content); page.append(h('div', { class: 'footer-note' }, icon('shield'), 'Every result comes from your local engine.')); } } catch (error) { if (generation === state.generation) page.replaceChildren(pageHead(nav.find(n => n[0] === id)?.[1] || id, 'The engine could not load this view.'), notice(error.message || String(error), 'error'), button('Try again', () => navigate(id), 'secondary', 'refresh')); } }
+async function showWorkspace() { const name = state.workspace?.name || 'My workspace'; const dialog = modal('Your workspace', h('div', { class: 'stack' }, h('dl', { class: 'key-value' }, h('dt', {}, 'Business'), h('dd', {}, name), h('dt', {}, 'Storage'), h('dd', {}, 'Encrypted vault on this computer'), h('dt', {}, 'Mode'), h('dd', {}, state.workspace?.demo ? 'Labelled sample business' : 'Your business')), state.status?.path ? h('p', { class: 'small mono muted' }, state.status.path) : null, h('div', { class: 'toolbar' }, button('Back up vault', async event => run(event.currentTarget, async () => { const data = await request('workspace.backup', {}); if(data.path) state.backups.push(data.path); downloadResult(data, 'chausar-vault-backup.json'); }), 'secondary', 'download'), button('Export encrypted workspace', async event => run(event.currentTarget, async () => { const data = await request('workspace.export', { confirmed: true, plaintext: false }); downloadResult(data, 'chausar-workspace-export.vault'); }), 'secondary', 'download'), button('Encrypted archive', showEncryptedArchive, 'secondary', 'lock'), button('Lock vault', async event => run(event.currentTarget, async () => { await request('workspace.lock'); dialog.close(); state.workspace = null; state.messages = []; state.dashboard = null; renderSetup(); }), 'secondary', 'lock')), notice('Backups and this export remain encrypted. Keep your recovery kit separately.'), details(state.status, 'Workspace status'), button('Delete this vault', () => showVaultDelete(dialog), 'danger small'))); }
+
+function archiveReference(control, label) {
+  const value = control.value;
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(value)) throw new Error(`${label} must be a managed ID of 1–100 letters, numbers, underscores or hyphens. Do not enter a file path.`);
+  return value;
+}
+function archiveReadbackCheck(condition) {
+  if (!condition) throw Object.assign(new Error('BACKUP_READBACK_MISMATCH: The archive readback does not match the exact managed IDs, digest or source evidence. Inspect the existing record before any further action.'), { code: 'BACKUP_READBACK_MISMATCH' });
+}
+function archiveSummaryCheck(summary, backupId) {
+  archiveReadbackCheck(summary?.recordId === backupId && /^[a-f0-9]{64}$/.test(summary.archiveDigest)
+    && summary.fullWorkspacePortable === false && summary.inert === true && summary.activation === 'root-only'
+    && summary.scope === 'authority-and-all-typed-private-artifacts' && Array.isArray(summary.namespaces)
+    && Array.isArray(summary.externalKeyRequirements) && summary.source && Number.isSafeInteger(summary.entries)
+    && Number.isSafeInteger(summary.encryptedEntryBytes));
+}
+function archivePinCheck(record, backupId) {
+  archiveSummaryCheck(record?.summary, backupId);
+  const pin = record.sourcePin, summary = record.summary;
+  archiveReadbackCheck(pin?.format === 'chausar.backup-source-pin.v2' && pin.scope === summary.scope && pin.fullWorkspacePortable === false
+    && stringify(pin.source) === stringify(summary.source) && stringify(pin.namespaces) === stringify(summary.namespaces)
+    && stringify(pin.externalKeyRequirements) === stringify(summary.externalKeyRequirements));
+}
+function archiveReceiptCheck(receipt, summary, pin, targetId, creationId) {
+  archiveReadbackCheck(receipt?.targetId === targetId && /^[A-Za-z0-9_-]{1,100}$/.test(receipt.creationId)
+    && (!creationId || receipt.creationId === creationId) && receipt.archiveDigest === summary.archiveDigest
+    && stringify(receipt.sourcePin) === stringify(pin) && receipt.entries === summary.entries
+    && receipt.bytes === summary.encryptedEntryBytes && receipt.inert === true && receipt.activation === 'root-only');
+}
+function archiveDisclosure(summary) {
+  return h('div', { class: 'stack' }, notice('This archive contains encrypted workspace authority and typed private artifacts. It is not a complete portable workspace. Any copy stays closed; this screen cannot activate it.'),
+    h('dl', { class: 'key-value' }, h('dt', {}, 'Archive ID'), h('dd', { class: 'mono' }, summary.recordId), h('dt', {}, 'Reviewed digest'), h('dd', { class: 'mono' }, summary.archiveDigest),
+      h('dt', {}, 'Encrypted entries'), h('dd', {}, summary.entries), h('dt', {}, 'Encrypted entry bytes'), h('dd', {}, summary.encryptedEntryBytes)),
+    h('h3', {}, 'What is outside this archive'), summary.namespaces.some(item => item.disposition === 'outside-archive')
+      ? h('ul', {}, summary.namespaces.filter(item => item.disposition === 'outside-archive').map(item => h('li', {}, `${item.namespace}: ${item.requirement} (${item.entries} entries, ${item.bytes} bytes).`)))
+      : h('p', {}, 'The engine reports no outside-archive namespace in this capture. Separate access and key requirements still apply.'),
+    h('h3', {}, 'Separate keys and access'), notice('Keep recovery credentials and required external access separately. Do not enter or copy credentials into this screen.'),
+    summary.externalKeyRequirements.length ? h('ul', {}, summary.externalKeyRequirements.map(item => h('li', {}, `${item.namespace} (${item.provider}): ${item.requirement}`))) : h('p', {}, 'No external key requirement was reported for this capture.'),
+    details(summary, 'Exact archive scope and measurement'));
+}
+function showEncryptedArchive() {
+  const generation = state.generation, evidenceGeneration = state.evidenceGeneration;
+  const reviewHost = h('div'), receiptHost = h('div'), diagnosticsHost = h('div');
+  const createId = input('text', '', { 'aria-label': 'New archive ID', autocomplete: 'off' });
+  const createConsent = checkField('I confirm creation of this encrypted archive in the chosen managed slot.');
+  const readId = input('text', '', { 'aria-label': 'Existing archive ID', autocomplete: 'off' });
+  const copyBackup = input('text', '', { 'aria-label': 'Copy archive ID', autocomplete: 'off' });
+  const copyTarget = input('text', '', { 'aria-label': 'Existing copy ID', autocomplete: 'off' });
+  const copyDigest = input('text', '', { 'aria-label': 'Existing copy archive digest', readonly: true });
+  const copyCreation = input('text', '', { 'aria-label': 'Exact copy creation ID', autocomplete: 'off' });
+  let createAttempted = false, reviewSequence = 0, copyReadSequence = 0;
+  let copyReference = null;
+  const attemptedTargets = new Set();
+  const failure = error => { const code = error.code || 'REQUEST_FAILED', message = error.message || 'The engine refused this request.'; return message.startsWith(`${code}:`) ? message : `${code}: ${message}`; };
+  const discardCopy = () => { copyReadSequence++; copyReference = null; receiptHost.replaceChildren(); copyDigest.value = ''; copyCreation.value = ''; };
+  copyBackup.addEventListener('input', discardCopy); copyBackup.addEventListener('change', discardCopy);
+  copyTarget.addEventListener('input', discardCopy); copyTarget.addEventListener('change', discardCopy);
+  const discardReview = () => { reviewSequence++; discardCopy(); reviewHost.replaceChildren(); copyBackup.value = ''; };
+  readId.addEventListener('input', discardReview); readId.addEventListener('change', discardReview);
+  const current = () => {
+    if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration || !savedEvidenceDialogs.has(dialog)) {
+      dialog.replaceChildren(); dialog.close();
+      throw Object.assign(new Error('Workspace evidence or access changed. Open Encrypted archive again and read the current record.'), { code: 'EVIDENCE_CHANGED' });
+    }
+  };
+  const read = async (method, payload) => {
+    current();
+    try { const result = await request(method, payload); current(); return result; }
+    catch (error) {
+      // Archive-specific authority/custody refusals also revoke retained archive metadata.
+      if (/^(SOURCE_|CONNECTOR_|SEMANTIC_)/.test(error.code || '') || ['APP_APPROVAL_REQUIRED', 'BACKUP_SOURCE_CHANGED', 'BACKUP_READ_SCOPE_REQUIRED', 'BACKUP_HOST_CUSTODY', 'BACKUP_PARTIAL_RESTORE', 'BACKUP_TARGET_CHANGED', 'BACKUP_HOST_CONFIGURATION_CHANGED', 'BACKUP_HELD_READINESS_REQUIRED'].includes(error.code)) clearConversationEvidence();
+      const notified = !savedEvidenceDialogs.has(dialog);
+      if (notified) toast(failure(error), true);
+      throw Object.assign(new Error(failure(error)), { code: error.code, notified });
+    }
+  };
+  const renderReceipt = record => {
+    receiptHost.replaceChildren(notice('Closed encrypted copy verified. It remains inert and has not become an active workspace.'), archiveDisclosure(record.summary), details(record.receipt, 'Exact closed-copy receipt'), details(record.sourcePin, 'Exact source evidence pin'));
+    copyCreation.value = record.receipt.creationId;
+  };
+  const showReview = async backupId => {
+    current(); const sequence = ++reviewSequence; copyReadSequence++; reviewHost.replaceChildren(); receiptHost.replaceChildren();
+    const reviewed = await read('workspace.backup.v2.read', { backupId });
+    current(); if (sequence !== reviewSequence) return;
+    archivePinCheck(reviewed, backupId); archiveReadbackCheck(/^[A-Za-z0-9_-]{1,100}$/.test(reviewed.creationId));
+    const target = input('text', '', { 'aria-label': 'New closed copy ID', autocomplete: 'off' });
+    const digest = input('text', reviewed.summary.archiveDigest, { 'aria-label': 'Reviewed archive digest', readonly: true });
+    const consent = checkField('I confirm creating a closed encrypted copy of this exact reviewed archive.');
+    reviewHost.replaceChildren(archiveDisclosure(reviewed.summary), details({ creationId: reviewed.creationId, sourcePin: reviewed.sourcePin }, 'Authenticated archive issuance'),
+      form([field('New managed copy ID', target, 'Choose an unused managed slot, not a folder or file path.'), field('Exact archive digest from authenticated readback', digest), consent.node], 'Create closed copy once', async () => {
+        current(); if (sequence !== reviewSequence) throw new Error('Read the current archive again.');
+        const targetId = archiveReference(target, 'Copy ID'), reviewedDigest = reviewed.summary.archiveDigest;
+        if (!consent.control.checked) throw new Error('Confirm the closed-copy creation first.');
+        if (attemptedTargets.has(targetId)) throw new Error('This copy ID was already attempted. Inspect the existing closed copy; do not repeat its creation.');
+        const copySequence = ++copyReadSequence;
+        attemptedTargets.add(targetId); copyReference = { backupId, targetId, reviewedDigest, sourcePin: reviewed.sourcePin };
+        copyBackup.value = backupId; copyTarget.value = targetId; copyDigest.value = reviewedDigest; copyCreation.value = ''; receiptHost.replaceChildren();
+        let acknowledged = false;
+        try {
+          // Read-only re-resolution before the explicit write; root still performs all admission at publication.
+          const latest = await read('workspace.backup.v2.read', { backupId });
+          current(); if (sequence !== reviewSequence) throw new Error('The archive review changed while the read was pending.');
+          archivePinCheck(latest, backupId); archiveReadbackCheck(stringify(latest) === stringify(reviewed));
+          const receipt = await read('workspace.backup.v2.restoreInert', { backupId, targetId, reviewedDigest, confirmed: true }); acknowledged = true;
+          archiveReceiptCheck(receipt, reviewed.summary, reviewed.sourcePin, targetId);
+          if (sequence === reviewSequence && copySequence === copyReadSequence) copyCreation.value = receipt.creationId;
+          const record = await read('workspace.backup.v2.readRestored', { backupId, targetId, creationId: receipt.creationId, reviewedDigest });
+          archivePinCheck(record, backupId); archiveReceiptCheck(record.receipt, reviewed.summary, reviewed.sourcePin, targetId, receipt.creationId);
+          archiveReadbackCheck(stringify(record.summary) === stringify(reviewed.summary) && stringify(record.sourcePin) === stringify(reviewed.sourcePin));
+          archiveReadbackCheck(stringify(record.receipt) === stringify(receipt)); current(); if (sequence !== reviewSequence || copySequence !== copyReadSequence) return;
+          renderReceipt(record);
+        } catch (error) { throw new Error(`${failure(error)} ${acknowledged ? 'Copy creation was acknowledged, but its readback is incomplete.' : 'Copy creation was not verified.'} Use Inspect existing closed copy with the retained archive ID and copy ID. Its reviewed digest is retained. No creation retry was sent.`); }
+      }));
+  };
+  const createForm = form([field('New managed archive ID', createId, 'Choose an unused managed slot. No file path, storage settings or credentials are accepted here.'), createConsent.node], 'Create encrypted archive once', async () => {
+    current(); const destinationId = archiveReference(createId, 'Archive ID');
+    if (!createConsent.control.checked) throw new Error('Confirm encrypted archive creation first.');
+    if (createAttempted) throw new Error('Archive creation was already attempted. Use Read archive by ID to inspect the chosen slot; do not repeat creation.');
+    createAttempted = true; readId.value = destinationId; const sequence = ++reviewSequence; reviewHost.replaceChildren(); receiptHost.replaceChildren();
+    let acknowledged = false;
+    try { const summary = await read('workspace.backup.v2.create', { destinationId, confirmed: true }); acknowledged = true; archiveSummaryCheck(summary, destinationId); if (sequence === reviewSequence) await showReview(destinationId); }
+    catch (error) { throw new Error(`${failure(error)} ${acknowledged ? 'Archive creation was acknowledged, but its readback is incomplete.' : 'Archive creation was not verified.'} Use Read archive by ID with ${destinationId}. No creation retry was sent.`); }
+  });
+  const readForm = form([field('Managed archive ID', readId, 'Use the exact ID chosen at creation, including after a lost response or restart.')], 'Read archive by ID', async () => { await showReview(archiveReference(readId, 'Archive ID')); });
+  const inspectCopy = async knownCreation => {
+    current(); const sequence = ++copyReadSequence; receiptHost.replaceChildren();
+    const backupId = archiveReference(copyBackup, 'Archive ID'), targetId = archiveReference(copyTarget, 'Copy ID');
+    const creationId = knownCreation ? archiveReference(copyCreation, 'Creation ID') : null;
+    let selected = copyReference?.backupId === backupId && copyReference.targetId === targetId ? copyReference : null;
+    if (!selected) {
+      const archive = await read('workspace.backup.v2.read', { backupId }); archivePinCheck(archive, backupId);
+      current(); if (sequence !== copyReadSequence) return;
+      selected = { backupId, targetId, reviewedDigest: archive.summary.archiveDigest, sourcePin: archive.sourcePin };
+      copyReference = selected; copyDigest.value = selected.reviewedDigest;
+    }
+    const reviewedDigest = selected.reviewedDigest;
+    const record = await read(knownCreation ? 'workspace.backup.v2.readRestored' : 'workspace.backup.v2.inspectRestored', knownCreation ? { backupId, targetId, creationId, reviewedDigest } : { backupId, targetId, reviewedDigest });
+    archivePinCheck(record, backupId); archiveReadbackCheck(record.summary.archiveDigest === reviewedDigest);
+    archiveReadbackCheck(stringify(record.sourcePin) === stringify(selected.sourcePin));
+    archiveReceiptCheck(record.receipt, record.summary, record.sourcePin, targetId, creationId);
+    current(); if (sequence !== copyReadSequence) return; renderReceipt(record);
+  };
+  const copyReadForm = form([field('Managed archive ID', copyBackup), field('Managed closed copy ID', copyTarget), field('Archive digest from authenticated readback', copyDigest),
+    notice('Readback only. Inspect an existing copy after a lost response or restart. This never creates, retries, opens or activates a workspace.'),
+    field('Exact creation ID (for receipt readback)', copyCreation), button('Read exact copy receipt', async event => run(event.currentTarget, async () => { try { await inspectCopy(true); } catch (error) { if (!error.notified) throw error; } }), 'secondary')], 'Inspect existing closed copy', async () => { await inspectCopy(false); });
+  const dialog = savedEvidenceModal('Encrypted archive', h('div', { class: 'stack' }, notice('The current workspace owner must have access to all retained records. The engine may refuse unsupported storage or custody profiles.'),
+    h('h3', {}, 'Create an archive'), createForm, h('h3', {}, 'Read an existing archive'), readForm, reviewHost,
+    h('h3', {}, 'Read an existing closed copy'), copyReadForm, receiptHost,
+    button('Read archive diagnostics', async event => run(event.currentTarget, async () => { try { const diagnostic = await read('workspace.backup.v2.diagnostics', {}); current(); diagnosticsHost.replaceChildren(details(diagnostic, 'Engine archive diagnostics')); } catch (error) { if (!error.notified) throw error; } }), 'secondary'), diagnosticsHost));
+  archiveEvidenceDialogs.add(dialog); dialog.addEventListener('close', () => archiveEvidenceDialogs.delete(dialog));
+}
 
 async function renderConversation() {
   const renderGeneration = state.generation;

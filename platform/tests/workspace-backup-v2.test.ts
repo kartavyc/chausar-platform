@@ -188,7 +188,9 @@ function hostFixture(capture: WorkspaceBackupV2Capture, state: ReturnType<Vault[
   const records = new Map<string, WorkspaceBackupV2CustodyRecord>(), targets = new Map<string, { content: string; receipt: WorkspaceBackupV2RestoreReceipt }>();
   const faults = { sourceChanged: false, sourceChangeOnCreate: false, sourceExit: false, targetExit: false, targetNonempty: false, targetChangeOnRestore: false, partialReceipt: false,
     restoreReadback: false, createReadback: false, remove: false, rollback: false, skipCreatePublicationFence: false, skipRestorePublicationFence: false,
-    failArchiveAuthentication: false, ownerRevoked: false, ownerRevokedOnRead: false, deferredOwner: false, sourceCallback: 1, targetCallback: 1 };
+    failArchiveAuthentication: false, ownerRevoked: false, ownerRevokedOnRead: false, deferredOwner: false, sourceNotReady: false,
+    changeCreationOnAuthentication: false, changeMeasurementAfterAuthentication: false, targetChangesOnSecondRead: false,
+    sourceCallback: 1, targetCallback: 1 };
   const events: string[] = [];
   const lease: WorkspaceBackupV2SourceLease = { independentlyEnumerated: true, state, capture,
     async assertCurrent() { events.push('source-current'); if (faults.sourceChanged) throw new ChausarError('TEST_SOURCE_CHANGED', 'Synthetic source changed.'); },
@@ -204,15 +206,22 @@ function hostFixture(capture: WorkspaceBackupV2Capture, state: ReturnType<Vault[
         async assertCurrent() { events.push('target-current'); if (faults.targetChangeOnRestore) throw new ChausarError('TEST_TARGET_CHANGED', 'Synthetic physical target changed.'); },
         async assertEmpty() { events.push('target-empty'); assert.equal(targets.has(input.targetId), false); } });
       if (faults.targetExit) throw new ChausarError('TEST_TARGET_EXIT', 'Synthetic target exit failed.'); return result as never; },
-    async assertRestoreOwner() { events.push('restore-owner'); if (faults.ownerRevoked) throw new ChausarError('TEST_OWNER_REVOKED', 'Synthetic owner epoch changed.'); },
-    async authenticateArchive() { events.push('authenticate-archive'); if (faults.failArchiveAuthentication) throw new ChausarError('TEST_AUTHENTICATION', 'Synthetic authentication failed.'); },
+    async assertRestoreOwner(_context, source) { events.push('restore-owner'); assert.deepEqual(source, capture.source);
+      if (faults.sourceChanged) throw new ChausarError('TEST_SOURCE_CHANGED', 'Synthetic source changed.');
+      if (faults.sourceNotReady) throw new ChausarError('TEST_SOURCE_NOT_READY', 'Synthetic source is not ready.');
+      if (faults.ownerRevoked) throw new ChausarError('TEST_OWNER_REVOKED', 'Synthetic owner epoch changed.'); },
+    async authenticateArchive() { events.push('authenticate-archive'); if (faults.failArchiveAuthentication) throw new ChausarError('TEST_AUTHENTICATION', 'Synthetic authentication failed.');
+      if (faults.changeCreationOnAuthentication) for (const record of records.values()) record.pin.creationId = 'changed_creation'; },
     custody: {
       async create(_context, record, assertCurrent) { if (!faults.skipCreatePublicationFence) await assertCurrent();
         assert.equal(records.has(record.pin.recordId), false); events.push('create'); records.set(record.pin.recordId, structuredClone(record));
         if (faults.sourceChangeOnCreate) faults.sourceChanged = true; return structuredClone(measurement); },
       async read(_context, recordId) { assert.ok(records.has(recordId)); const retained = structuredClone(records.get(recordId)!);
         if (faults.ownerRevokedOnRead && events.includes('restore-owner')) faults.ownerRevoked = true;
-        if (faults.createReadback) retained.pin.creationId = 'different_creation'; return { ...retained, measurement: structuredClone(measurement) }; },
+        if (faults.createReadback) retained.pin.creationId = 'different_creation';
+        const measured = structuredClone(measurement);
+        if (faults.changeMeasurementAfterAuthentication && events.includes('authenticate-archive')) measured.archiveCiphertextBytes++;
+        return { ...retained, measurement: measured }; },
       async remove(_context, input) { events.push('remove'); if (faults.remove) throw new Error('Synthetic cleanup unavailable.');
         const record = records.get(input.recordId)!; assert.equal(record.pin.creationId, input.creationId); assert.equal(record.pin.archiveDigest, input.expectedArchiveDigest);
         assert.equal(sha(canonical(record.pin)), input.expectedPinDigest); records.delete(input.recordId); },
@@ -226,6 +235,8 @@ function hostFixture(capture: WorkspaceBackupV2Capture, state: ReturnType<Vault[
         targets.set(receipt.targetId, { content: encodeWorkspaceBackupV2(input.archive, budget), receipt: structuredClone(receipt) });
         return faults.partialReceipt ? { ...receipt, entries: receipt.entries - 1 } : receipt; },
       async readRestored(_context, input) { const retained = structuredClone(targets.get(input.targetId)!);
+        events.push('read-restored');
+        if (faults.targetChangesOnSecondRead && events.filter(event => event === 'read-restored').length === 2) retained.receipt.bytes--;
         if (faults.restoreReadback) retained.receipt.creationId = 'different_creation'; return retained; },
       async rollback(_context, input) { events.push('rollback'); if (faults.rollback) throw new Error('Synthetic rollback unavailable.');
         const record = targets.get(input.targetId)!; assert.equal(record.receipt.creationId, input.creationId); assert.equal(record.receipt.archiveDigest, input.expectedArchiveDigest);
@@ -233,7 +244,7 @@ function hostFixture(capture: WorkspaceBackupV2Capture, state: ReturnType<Vault[
     },
   };
   const host = createWorkspaceBackupV2Host(ports, budget);
-  return { host, faults, records, targets, events };
+  return { host, ports, faults, records, targets, events };
 }
 
 test('host holds source and empty-target guards through exact authenticated inert custody readback', async t => {
@@ -308,4 +319,87 @@ test('root source/target leases must invoke callbacks exactly once and clean pri
     const { host, faults, targets } = hostFixture(capture, vault.read()), summary = await host.create(context, { destinationId: 'backup', confirmed: true }); faults.targetCallback = targetCallback;
     await assert.rejects(host.restoreInert(context, { backupId: 'backup', targetId: 'target', reviewedDigest: summary.archiveDigest }), { code: 'BACKUP_HOST_CUSTODY' }); assert.equal(targets.size, 0);
   }
+});
+
+test('authenticated public readback reopens committed custody through reconstructed hosts and returns metadata only', async t => {
+  const { capture, vault, passphrase, root } = await fixture(t), fixtureHost = hostFixture(capture, vault.read());
+  const summary = await fixtureHost.host.create(context, { destinationId: 'backup', confirmed: true });
+  const reopened = createWorkspaceBackupV2Host(fixtureHost.ports, budget), backup = await reopened.read(context, { backupId: 'backup' });
+  const retained = fixtureHost.records.get('backup')!;
+  assert.deepEqual(backup, { summary, creationId: retained.pin.creationId, sourcePin: retained.pin.sourcePin });
+  const receipt = await reopened.restoreInert(context, { backupId: 'backup', targetId: 'target', reviewedDigest: summary.archiveDigest });
+  const reconstructed = createWorkspaceBackupV2Host(fixtureHost.ports, budget);
+  const restored = await reconstructed.readRestored(context, { backupId: 'backup', targetId: 'target', creationId: receipt.creationId, reviewedDigest: summary.archiveDigest });
+  assert.deepEqual(restored, { receipt, summary, sourcePin: retained.pin.sourcePin });
+  assert.equal(restored.receipt.inert, true); assert.equal(restored.receipt.activation, 'root-only');
+  assert.equal(restored.summary.measurement.qualification, 'test-fixture');
+  for (const output of [backup, restored]) {
+    const text = JSON.stringify(output);
+    for (const forbidden of ['authorityBase64', 'dataBase64', 'ciphertext', 'Synthetic fork secret', 'Synthetic archive secret', passphrase, root]) {
+      assert.equal(text.includes(forbidden), false, forbidden);
+    }
+  }
+});
+
+test('public backup read refuses malformed payloads, stale contexts, unavailable source readiness and unauthenticated archives', async t => {
+  const { capture, vault } = await fixture(t), fixtureHost = hostFixture(capture, vault.read());
+  await fixtureHost.host.create(context, { destinationId: 'backup', confirmed: true });
+  await assert.rejects(fixtureHost.host.read(context, { backupId: 'backup', path: '../caller-selected' } as never), { code: 'BACKUP_SHAPE' });
+  await assert.rejects(fixtureHost.host.read(context, { backupId: '../caller-selected' }), { code: 'BACKUP_REVIEW_REQUIRED' });
+  for (const deniedContext of [{ ...context, channel: 'phone' as const }, { ...context, sourceTainted: true }, { ...context, role: 'viewer' as const }]) {
+    await assert.rejects(fixtureHost.host.read(deniedContext, { backupId: 'backup' }), { code: 'APP_APPROVAL_REQUIRED' });
+  }
+  await assert.rejects(fixtureHost.host.read({ ...context, epoch: 2 }, { backupId: 'backup' }), { code: 'BACKUP_HOST_CUSTODY' });
+  for (const [fault, code] of [['sourceNotReady', 'TEST_SOURCE_NOT_READY'], ['sourceChanged', 'TEST_SOURCE_CHANGED'],
+    ['ownerRevoked', 'TEST_OWNER_REVOKED'], ['failArchiveAuthentication', 'TEST_AUTHENTICATION']] as const) {
+    const current = hostFixture(capture, vault.read()); await current.host.create(context, { destinationId: 'backup', confirmed: true }); current.faults[fault] = true;
+    await assert.rejects(current.host.read(context, { backupId: 'backup' }), { code }); assert.equal(current.events.includes('remove'), false);
+  }
+  const malformed = structuredClone(fixtureHost.records.get('backup')!); malformed.pin.sourcePin.source.vaultId = 'different_source'; fixtureHost.records.set('backup', malformed);
+  await assert.rejects(fixtureHost.host.read(context, { backupId: 'backup' }), { code: 'BACKUP_SOURCE_CHANGED' });
+  malformed.pin.sourcePin.source.vaultId = capture.source.vaultId; malformed.content = malformed.content.slice(0, -1);
+  await assert.rejects(fixtureHost.host.read(context, { backupId: 'backup' }), { code: 'BACKUP_JSON' });
+});
+
+test('public backup read rechecks exact issuance, measurements and owner epoch after awaited authentication', async t => {
+  const { capture, vault } = await fixture(t);
+  for (const [fault, code] of [['changeCreationOnAuthentication', 'BACKUP_SOURCE_CHANGED'],
+    ['changeMeasurementAfterAuthentication', 'BACKUP_SOURCE_CHANGED'], ['ownerRevokedOnRead', 'TEST_OWNER_REVOKED']] as const) {
+    const current = hostFixture(capture, vault.read()); await current.host.create(context, { destinationId: 'backup', confirmed: true }); current.faults[fault] = true;
+    await assert.rejects(current.host.read(context, { backupId: 'backup' }), { code });
+    assert.equal(current.records.size, 1); assert.equal(current.events.includes('remove'), false);
+  }
+});
+
+test('public inert target readback refuses changed complete target bytes, pins, receipts and late binding changes', async t => {
+  const { capture, vault } = await fixture(t), current = hostFixture(capture, vault.read());
+  const summary = await current.host.create(context, { destinationId: 'backup', confirmed: true });
+  const receipt = await current.host.restoreInert(context, { backupId: 'backup', targetId: 'target', reviewedDigest: summary.archiveDigest });
+  const input = { backupId: 'backup', targetId: 'target', creationId: receipt.creationId, reviewedDigest: summary.archiveDigest };
+  await assert.rejects(current.host.readRestored(context, { ...input, ports: {} } as never), { code: 'BACKUP_SHAPE' });
+  await assert.rejects(current.host.readRestored(context, { ...input, targetId: '../caller-selected' }), { code: 'BACKUP_REVIEW_REQUIRED' });
+  await assert.rejects(current.host.readRestored(context, { ...input, reviewedDigest: 'f'.repeat(64) }), { code: 'BACKUP_REVIEW_CHANGED' });
+  await assert.rejects(current.host.readRestored(context, { ...input, creationId: 'different_creation' }), { code: 'BACKUP_PARTIAL_RESTORE' });
+  const baseline = structuredClone(current.targets.get('target')!);
+  const changes: { name: string; change(value: typeof baseline): void }[] = [
+    { name: 'target identity', change: value => { value.receipt.targetId = 'different_target'; } },
+    { name: 'creation binding', change: value => { value.receipt.creationId = 'different_creation'; } },
+    { name: 'archive digest binding', change: value => { value.receipt.archiveDigest = 'f'.repeat(64); } },
+    { name: 'source pin binding', change: value => { value.receipt.sourcePin.source.enumerationId = 'changed_enumeration'; } },
+    { name: 'partial entry receipt', change: value => { value.receipt.entries--; } },
+    { name: 'partial byte receipt', change: value => { value.receipt.bytes--; } },
+    { name: 'activated target', change: value => { value.receipt.inert = false as never; } },
+    { name: 'truncated target archive', change: value => { value.content = value.content.slice(0, -1); } },
+    { name: 'coherent wrong target source', change: value => { const archive = JSON.parse(value.content) as WorkspaceBackupV2Archive;
+      archive.pin.source.workspaceId = 'different_workspace'; value.content = reseal(archive); } },
+  ];
+  for (const changed of changes) {
+    const altered = structuredClone(baseline); changed.change(altered); current.targets.set('target', altered);
+    await assert.rejects(current.host.readRestored(context, input), (error: unknown) => error instanceof ChausarError, changed.name);
+    assert.equal(current.events.includes('rollback'), false, changed.name);
+  }
+  current.targets.set('target', baseline); current.events.length = 0; current.faults.targetChangesOnSecondRead = true;
+  await assert.rejects(current.host.readRestored(context, input), { code: 'BACKUP_PARTIAL_RESTORE' });
+  assert.equal(current.events.filter(event => event === 'read-restored').length, 2);
+  assert.equal(current.events.includes('rollback'), false);
 });
