@@ -113,6 +113,14 @@
       "importedCommit": "eadfc6e",
       "documentationCorrection": "72515fa",
       "productWiring": "React Native iOS/Android launcher source, responsive web source preview and portable controller/adapters joined. Native dependencies/builds/device acceptance and live pairing remain unverified."
+    },
+    {
+      "lane": "codexCliNativeHost",
+      "sourceCommit": "46bfe968a66d92f3823ca3086d72a807ddd38078",
+      "importedCommit": "db01590bdb4b318103702f3365e4d69372e1086d",
+      "reviewedControlsCorrection": "ea69ae47ffa9bd818cf97b54001c96541eb9b0a2",
+      "installedHelpParserCorrection": "6bc410479c4d713c4f20b62caa7f7db5648cbde9",
+      "productWiring": "Both normal server and desktop worker constructors verify pinned public CLI evidence and exact native binary; process gateway rechecks the hash before dispatch. Native metadata uses supported tool controls; no account grant or extra inference."
     }
   ],
   "uncommittedLaneWorkImported": false,
@@ -149,13 +157,13 @@
     }
   ],
   "publicationCapability": {
-    "lastVerifiedRemoteMain": "3f93ac8f7374b3b1dedcecf2f8b3d3f1ec7dd5e4",
+    "lastVerifiedRemoteMain": "508fda83fc3281a8bd0ee5c2c9810b56c284585b",
     "status": "private-main-checkpoint-published-and-both-push-ci-jobs-passed",
     "repositoryPrivate": true,
     "finalRemoteHeadRefreshRequired": true,
     "forcePush": false,
     "publicationMethod": "Supported bounded normal Git push with existing authentication from an account-owned verified-bundle copy; no trust changes.",
-    "ciEvidence": "https://github.com/kartavyc/chausar-platform/actions/runs/36801143042"
+    "ciEvidence": "https://github.com/kartavyc/chausar-platform/actions/runs/36804278735"
   },
   "dependencyRecovery": {
     "approvedStaging": "D:/Chausar/build-tools",
@@ -225,7 +233,7 @@
     "sourcePreviewCommand": "npm run phone:preview",
     "evidence": "docs/evidence/phone-ui-join-checks.json"
   },
-  "updatedAt": "2026-10-01T02:04:55.435Z",
+  "updatedAt": "2026-10-01T02:27:16.336Z",
   "integratedEngineMilestone": {
     "status": "verified-local-synthetic-engine",
     "sourceCommit": "503d44ed6ea3425c90f332f5327d850d922260ba",
@@ -263,11 +271,11 @@
   ],
   "modelAuthentication": {
     "localProviderDecision": "User selected standard Codex CLI underneath the local build, CLI-managed normal ChatGPT sign-in; Luna only if the actual account supports it.",
-    "localProviderImplementation": "Protocol/Gateway/Engine/public HTTP synthetic flow implemented; official native CLI interface and existing ChatGPT status verified; native app/provider activation and completed account inference remain unqualified.",
+    "localProviderImplementation": "Normal server and worker constructors wired to pinned exact-binary installed-help profile; actual constructor verification passed. Synthetic public HTTP provider flow passed. Full Chausar-to-native-provider inference remains unverified.",
     "officialSIWC": "not registered; no OAuth grant authorized or completed",
-    "commercialSubscriptionAccess": "unverified; do not claim CLI or legacy app-server commercial access",
-    "accountSpecificModelDiscovery": "No entitlement-qualified catalogue obtained by this coordinator.",
-    "completedAccountInference": "One bounded gpt-6-luna attempt failed HTTP400; no completed turn, no usage returned, no retry or fallback.",
+    "commercialSubscriptionAccess": "unverified; no CLI eligibility claim for commercial/hosted use",
+    "accountSpecificModelDiscovery": "No entitlement-qualified complete catalogue claimed; one requested account route succeeded.",
+    "completedAccountInference": "Dedicated approved newer 0.159.2 CLI invocation requested gpt-6-luna, completed one synthetic turn exit0 with usage and no observed tools. Served model not independently attested. Historical older0.154 HTTP400 receipt retained.",
     "automaticPaidFallback": false,
     "credentialCopying": false,
     "backendApiEndpointsUsed": false,
@@ -276,8 +284,9 @@
     "capabilitiesFromRpc": false,
     "hostInterfaceEvidenceRequired": true,
     "officialInterfaceDocumentationReviewed": true,
-    "nativeHelpVersion": "codex-cli 0.154.0",
-    "evidence": "docs/verification/local-cli-access-attempt.json"
+    "nativeHelpVersion": "codex-cli 0.159.2",
+    "evidence": "docs/verification/native-cli-host.json",
+    "nativeChausarProviderTurnQualified": false
   },
   "integratedCliCheckpoint": {
     "checkedCommit": "2ef321affbc7daedf1f2c153a7d33ce23ccc846b",
@@ -315,5 +324,32 @@
     "nativePhoneBuilds": "unverified",
     "enterpriseTypeScript": "22 diagnostics await genuine packages; no new compiler pass",
     "dedicatedSecurityReview": "blocked-unverified"
+  },
+  "integratedNativeCliHostCheckpoint": {
+    "checkedCommit": "6bc410479c4d713c4f20b62caa7f7db5648cbde9",
+    "checkedTree": "b0e84aa897e75d5641554ffe4362b17c73984ce3",
+    "aggregateTests": {
+      "pass": 870,
+      "fail": 0,
+      "skipped": 0
+    },
+    "testFiles": 63,
+    "strictApplicationSemanticTypeScriptPassed": true,
+    "strictPortablePhoneTypeScriptPassed": true,
+    "syntaxSourceFiles": 163,
+    "windowsHeadlessWorkerPassed": true,
+    "actualNativeConstructorsPassed": true,
+    "inferencePerformedByCoordinator": false,
+    "nativeChausarProviderTurnQualified": false,
+    "evidence": "docs/verification/native-cli-host.json"
+  },
+  "nativeDesktopAcceptance": {
+    "sourceCheckpointOfUserRun": "3f93ac8f7374b3b1dedcecf2f8b3d3f1ec7dd5e4",
+    "provenance": "Parent relayed actual user-operated preview results; desktop lane owns receipts and repair.",
+    "embeddedWorker": "passed including graceful shutdown",
+    "guiOpened": true,
+    "conversation": "failed: Use JSON values in the request",
+    "repair": "pending desktop lane optional-payload patch; no renderer redesign selected",
+    "endToEndQualified": false
   }
 }

@@ -1,0 +1,150 @@
+{
+  "checkedCommit": "6bc410479c4d713c4f20b62caa7f7db5648cbde9",
+  "startedAt": "2026-10-01T02:25:36.758Z",
+  "node": "24.13.1",
+  "platform": "win32",
+  "arch": "x64",
+  "results": [
+    {
+      "name": "syntax-json",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator local log; SHA256 above.",
+      "logSha256": "5d6c35fc3c64174492c94ca583415ddaad684ae81607c744d1b3f1307c0791d2"
+    },
+    {
+      "name": "strict-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator local log; SHA256 above.",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "portable-phone-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator local log; SHA256 above.",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "aggregate-tests",
+      "exitCode": 0,
+      "passed": true,
+      "log": "docs/verification/native-cli-host-tests.tap",
+      "logSha256": "64d21bfce882eb8c921f05eb0fdef6c19c27ac9248d36793c50d35a4e1e10a48",
+      "tests": 870,
+      "suites": 0,
+      "pass": 870,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "durationMs": 60047.1529
+    },
+    {
+      "name": "windows-headless-worker",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator local log; SHA256 above.",
+      "logSha256": "3eac79785f8c266a02685fffd547cae352cd702d47363af6a9c603b435fe6b42"
+    }
+  ],
+  "releaseAcceptance": "unverified",
+  "dedicatedSecurityReview": "blocked-unverified",
+  "scope": "Actual combined local synthetic Engine/RPC, worker, fixture, and contract checks. No overall native, hosted, vendor, production-database, or security release pass.",
+  "finishedAt": "2026-10-01T02:26:57.938Z",
+  "passed": true,
+  "checkedTree": "b0e84aa897e75d5641554ffe4362b17c73984ce3",
+  "testFiles": 63,
+  "syntaxSourceFiles": 163,
+  "nativeConstructor": {
+    "receiptSha256": "5e3c5702b33c38058b1cd976c88e77235afb9fb436c3afc99a38da70e62c0ef9",
+    "sourceCommit": "6bc410479c4d713c4f20b62caa7f7db5648cbde9",
+    "cliVersion": "0.159.2",
+    "binarySha256": "cbafb6422bca005b94c12d105b1a16a0474219e24ea4893f85846409c464f5a1",
+    "manifestSha256": "ad9667d33b304904b884bcd811bd9134c0f74875192b60d643fb680fbc98021f",
+    "proof": [
+      {
+        "entrypoint": "server",
+        "actualFilesystemEvidenceVerified": true,
+        "exactNativeBinaryHashVerified": true,
+        "installedHelpProfileInjected": true
+      },
+      {
+        "entrypoint": "worker",
+        "actualFilesystemEvidenceVerified": true,
+        "exactNativeBinaryHashVerified": true,
+        "installedHelpProfileInjected": true
+      }
+    ],
+    "nativeCliExecuted": false,
+    "inferencePerformed": false,
+    "serverListening": false,
+    "workerReadyAnnounced": false
+  },
+  "transientNativeFeatureEvidence": {
+    "receiptSha256": "331fb7ee830f236dafb1182cab03202b7a8256360ec2489ce6cd2be2332dd09a",
+    "stdoutSha256": "82e68324070d27cc2000e6d82b3266a5013630ec7cd4c1ea700dcf54a9ff7281",
+    "exitCode": 0,
+    "stderrBytes": 0,
+    "configuredDisabledFeatures": [
+      "view_image",
+      "image_generation",
+      "sleep_tool",
+      "tool_suggest",
+      "request_permissions_tool",
+      "shell_tool",
+      "apps",
+      "multi_agent",
+      "hooks",
+      "memories",
+      "goals",
+      "skill_mcp_dependency_install"
+    ],
+    "allCurrentConfiguredFeaturesFalseInListing": true,
+    "originalAllOverridesAdmissionPassed": false,
+    "retainedUnifiedExec": true,
+    "fullNativeToolRegistryAttested": false
+  },
+  "separateAccountInference": {
+    "producer": "Dedicated diagnosis lane, one explicit user-approved invocation; not rerun by integration coordinator.",
+    "receiptSha256": "083a7851a68c27e0d4db1f4c3d7a411770cca5f7e2456dcc36d3f35147e69c67",
+    "startedAt": "2026-10-01T02:03:00.135Z",
+    "finishedAt": "2026-10-01T02:03:09.872Z",
+    "cliVersion": "0.159.2",
+    "binarySha256": "cbafb6422bca005b94c12d105b1a16a0474219e24ea4893f85846409c464f5a1",
+    "requestedModel": "gpt-6-luna",
+    "invocationCount": 1,
+    "completedTurnCount": 1,
+    "exitCode": 0,
+    "usage": [
+      {
+        "input_tokens": 9200,
+        "cached_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 20,
+        "reasoning_output_tokens": 0
+      }
+    ],
+    "syntheticResult": {
+      "synthetic": true,
+      "answer": 4
+    },
+    "toolEventsObserved": 0,
+    "configurationWarnings": 2,
+    "ignoredHistoricalKey": "tools.view_image",
+    "servedModelIndependentlyAttested": false,
+    "paidFallback": false,
+    "modelSubstitution": false,
+    "furtherInferenceAuthorized": false
+  },
+  "nativeChausarProviderTurnQualified": false,
+  "nativeDesktopConversationAcceptance": "Failed in older user-run 3f93 preview; optional JSON IPC payload repair is owned by the desktop lane and is not in this checkpoint.",
+  "nativePhoneBuildQualified": false,
+  "enterpriseTypeScriptPassed": false,
+  "credentialsReadOrCopied": false,
+  "writesOnDDrive": false,
+  "packageAcquisition": false,
+  "persistentSettingsChanged": false,
+  "finalDocumentationSourceEquivalenceRequired": true
+}
