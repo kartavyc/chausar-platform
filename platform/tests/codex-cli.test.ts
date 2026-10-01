@@ -76,7 +76,12 @@ test('synthetic arguments retain exact schema path, explicit model and CLI-owned
   const args = buildCodexCliArguments('synthetic-model', schemaPath, syntheticProfile);
   assert.equal(args[args.indexOf('--output-schema') + 1], schemaPath); assert.equal(args[args.indexOf('--model') + 1], 'synthetic-model');
   assert.equal(args.at(-1), '-'); assert.ok(args.includes('forced_login_method="chatgpt"')); assert.ok(args.includes('model_provider="openai"'));
-  assert.ok(args.includes('features.shell_tool=false')); assert.ok(args.includes('features.unified_exec=false'));
+  assert.ok(args.includes('features.shell_tool=false'));
+  for (const name of ['view_image', 'image_generation', 'sleep_tool', 'tool_suggest', 'request_permissions_tool']) assert.ok(args.includes(`features.${name}=false`));
+  assert.ok(args.includes('project_doc_max_bytes=0')); assert.ok(args.includes('history.persistence="none"'));
+  assert.equal(args.includes('tools.view_image=false'), false, 'The native0.159.2 receipt proves the legacy key is ignored.');
+  assert.equal(args.includes('features.unified_exec=false'), false, 'A forced shell implementation is not the shell admission switch.');
+  assert.equal(args.includes('--ignore-rules'), false, 'Preserve the installed CLI execution rules.');
   assert.equal(args.some(value => value.includes('model_providers.openai') || value === '--oss' || value === '--yolo'), false);
 });
 test('synthetic missing flags, configuration keys, stdin or read-only support refuse argument construction', () => {

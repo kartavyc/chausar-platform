@@ -219,8 +219,8 @@ test('synthetic correctly pinned version text cannot contradict its executable v
 });
 
 for (const [label, content] of [
-  ['required flag missing', help.replace('      --ignore-rules\r\n', '')],
-  ['flag appears only in prose', help.replace('      --ignore-rules', 'Synthetic prose mentions --ignore-rules')],
+  ['required flag missing', help.replace('      --json\r\n', '')],
+  ['flag appears only in prose', help.replace('      --json', 'Synthetic prose mentions --json')],
   ['stdin unsupported', help.replace('instructions are read from stdin', 'instructions are unavailable')],
   ['read-only sandbox missing', help.replace('read-only, ', '')],
 ] as const) {
@@ -362,7 +362,7 @@ for (const entrypoint of entrypoints) {
   for (const [label, alter] of [
     ['missing evidence', (f: ReturnType<typeof syntheticEvidence>) => { delete f.environment.CHAUSAR_CODEX_CLI_EVIDENCE_SHA256; }],
     ['tampered evidence', (f: ReturnType<typeof syntheticEvidence>) => { f.files.set(f.manifestPath, Buffer.from('synthetic tampering')); }],
-    ['unsupported interface', (f: ReturnType<typeof syntheticEvidence>) => { f.repinArtifact('execHelp', help.replace('      --ignore-rules\r\n', '')); }],
+    ['unsupported interface', (f: ReturnType<typeof syntheticEvidence>) => { f.repinArtifact('execHelp', help.replace('      --json\r\n', '')); }],
   ] as const) {
     test(`synthetic ${entrypoint.label} factory refuses ${label} before constructing an Engine`, async () => {
       const f = syntheticEvidence(); alter(f);

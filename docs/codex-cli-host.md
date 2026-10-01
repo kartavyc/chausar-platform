@@ -94,10 +94,24 @@ must not be reused for another binary. Refresh and repin the manifest when the
 executable or snapshots change.
 
 The recorded 0.159.2 Luna invocation is separate inference evidence supplied by
-the diagnosis lane; this implementation does not run another inference. Its
-`tools.view_image` ignored-key warning needs a provider contract correction before
-that key can truthfully be declared supported. A successful version-matched
-0.159.2 feature listing is now recorded by the host evidence lane; it must be
-packaged and pinned with the matching version/help artifacts. Older feature evidence
-cannot qualify the newer executable. This lane creates no personal installation manifest or
-account/model grant.
+the diagnosis lane; this implementation does not run another inference. The adapter
+uses the version-matched `features.view_image` control instead of the ignored
+`tools.view_image` key, and disables the supported image-generation, sleep,
+tool-suggestion and permission-request features. It preserves execution rules,
+uses the read-only sandbox, bounds project instructions to zero bytes and disables
+CLI transcript history. Authentication remains CLI-owned.
+
+Public `features list` output from the exact reviewed 0.159.2 binary confirmed
+these controls and the parent `shell_tool` control false under transient overrides,
+with no stderr. The same output retained `unified_exec=true` despite a false
+override. The adapter therefore does not claim that override disables execution.
+The [pinned current OpenAI source](https://github.com/openai/codex/blob/cda82a2c6853b484e0ba56d38f13902adfb2a6a1/codex-rs/core/src/tools/spec_plan.rs)
+gates registration of both shell implementations on `shell_tool`, before selecting
+an implementation. This source interpretation and public feature metadata are
+interface evidence, not an attestation of a native turn's complete tool registry.
+Unexpected tool items still refuse plan release. No OS policy or managed
+requirements are changed.
+
+Package and pin the successful version-matched listing with matching version/help
+artifacts. Older feature evidence cannot qualify the newer executable. Personal
+installation manifests remain host-local; no account/model grant is created.

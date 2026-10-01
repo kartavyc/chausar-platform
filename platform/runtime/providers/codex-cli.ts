@@ -16,15 +16,19 @@ export type CodexCliCapabilityProfile = {
 };
 
 export const CODEX_CLI_FLAGS = Object.freeze([
-  '--ignore-user-config', '--ignore-rules', '--ephemeral', '--skip-git-repo-check',
+  '--ignore-user-config', '--ephemeral', '--skip-git-repo-check',
   '--sandbox', '--json', '--model', '--output-schema', '--config',
 ]);
-// Only ordinary CLI config keys documented in the current official reference.
-// Built-in provider definitions are reserved; do not override openai retry keys.
+// Ordinary documented keys and version-matched public feature controls.
+// shell_tool is the parent admission switch for both shell implementations;
+// unified_exec can be forced on by managed policy and is not a disable boundary.
+// Preserve execution rules and CLI-owned auth; never override provider retry keys.
 export const CODEX_CLI_CONFIG = Object.freeze([
   'approval_policy="never"', 'forced_login_method="chatgpt"', 'model_provider="openai"',
-  'web_search="disabled"', 'tools.view_image=false', 'features.shell_tool=false',
-  'features.unified_exec=false', 'features.apps=false', 'features.multi_agent=false',
+  'web_search="disabled"', 'project_doc_max_bytes=0', 'history.persistence="none"',
+  'features.view_image=false', 'features.image_generation=false', 'features.sleep_tool=false',
+  'features.tool_suggest=false', 'features.request_permissions_tool=false',
+  'features.shell_tool=false', 'features.apps=false', 'features.multi_agent=false',
   'features.hooks=false', 'features.memories=false', 'features.goals=false',
   'features.skill_mcp_dependency_install=false',
 ]);
@@ -75,7 +79,7 @@ export function buildCodexCliArguments(model: string, schemaPath: string, profil
   assertCapabilities(profile);
   check(typeof model === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(model), 'INVALID_ROUTE', 'Select an explicit model identifier.');
   check(typeof schemaPath === 'string' && isAbsolute(schemaPath) && schemaPath.length <= 4096 && !/[\0\r\n]/.test(schemaPath), 'INVALID_SCHEMA', 'Use an absolute schema-file path.');
-  return ['exec', '--ignore-user-config', '--ignore-rules', '--ephemeral', '--skip-git-repo-check',
+  return ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check',
     '--sandbox', 'read-only', '--json', '--model', model, '--output-schema', schemaPath,
     ...CODEX_CLI_CONFIG.flatMap(value => ['--config', value]), '-'];
 }
