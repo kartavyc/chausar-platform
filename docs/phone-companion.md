@@ -168,8 +168,10 @@ checks before it can become a decision. Expired or revoked envelopes cannot be e
   distribution. [React Native environment](https://reactnative.dev/docs/set-up-your-environment),
   [Apple account guidance](https://developer.apple.com/help/account/basics/about-your-developer-account),
   [Android publishing](https://developer.android.com/studio/publish).
-- TypeScript typecheck after permitted dependency provisioning. The direct installed npm
-  CLI works, but this checkout has no installed `tsc`. No shell network retry or dependency
+- Native TSX typecheck after permitted React Native dependency provisioning. The reviewed
+  integration passes strict app and all-shared portable companion checks with actual
+  TypeScript 5.9.3 dependencies reused read-only from the parent's allocation. React Native
+  dependencies and toolchains remain absent. No shell network retry or dependency
   installation was attempted. Native builds, browser/device visual QA, provider delivery
   and production end-to-end behavior have not been qualified.
 
@@ -193,8 +195,11 @@ reconciliation. Adjacent existing auth/action/plugin/MCP tests remain green. See
 first-commit receipt. The second-commit checks and 164 passing tests are recorded in
 `docs/evidence/phone-apps-checks.json` and `docs/evidence/phone-apps-tests.txt`. They include
 controller workflows, HTTP adapter mocks, browser storage transaction fixtures and the
-loopback preview module graph. TypeScript/TSX compilation, native builds and browser/device
-visual qualification have not run. No Android or iOS binary was built.
+loopback preview module graph. Those files preserve the producer's historical results.
+The reviewed integration's 127 focused phone tests, strict app and all-shared portable
+TypeScript checks, and native grammar/XML checks are recorded in
+`docs/evidence/phone-ui-join-checks.json`. Native TSX typechecking, native builds and
+browser/device visual qualification have not run. No Android or iOS binary was built.
 
 Run locally:
 
@@ -202,6 +207,7 @@ Run locally:
 node scripts/check.mjs
 node --test platform/tests/phone-client.test.ts platform/tests/phone-cache.test.ts platform/tests/phone-approval.test.ts platform/tests/phone-channels.test.ts platform/tests/auth.test.ts platform/tests/workflows-actions.test.ts platform/tests/workflows-plugins-learning-mcp.test.ts
 node 'C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js' run typecheck
+node node_modules/typescript/bin/tsc --noEmit --pretty false --project app/companion/tsconfig.portable.json
 ```
 
 Start the immediately runnable web preview from the repository root:
