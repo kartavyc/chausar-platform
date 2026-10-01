@@ -287,7 +287,8 @@ async function reviewOutbound(preview) {
     h('dl', { class: 'key-value' }, h('dt', {}, 'Destination'), h('dd', {}, preview.endpoint || preview.routeId),
       h('dt', {}, 'Source context disclosure'), h('dd', {}, { shape: 'Shape', samples: 'Approved samples', nothing: 'Nothing' }[preview.send] || 'See exact preview'),
       h('dt', {}, 'Payload digest'), h('dd', { class: 'mono' }, preview.digest || 'See exact preview')),
-    details(preview.payload, 'Exact outbound payload'), details(preview, 'Reviewed evidence and transfer'), consent.node);
+    details(preview.payload, 'Exact outbound payload'), details(preview, 'Reviewed evidence and transfer'),
+    typeof preview.definitionDisclosureWarning === 'string' && preview.definitionDisclosureWarning ? notice(preview.definitionDisclosureWarning, 'warn') : null, consent.node);
   let submitted = false;
   const approve = button('Approve and send once', async event => {
     await run(event.currentTarget, async () => {
