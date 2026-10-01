@@ -44,6 +44,12 @@ export type VaultWriterGuard = <T>(input: { state: State; vaultId: string },
   work: (assertCurrent: () => void) => Promise<{ result: T; committedState: State; rollback?: () => void }>) => Promise<T>;
 type Common = { directory: string; storage: Storage; keychain?: KeychainHook; writerGuard?: VaultWriterGuard };
 export type CreateVaultOptions = Common & { passphrase: string; name: string; demo?: boolean };
+export type VaultBootstrapBudgets = { maxStateBytes: number; maxJsonDepth: number; maxJsonNodes: number; maxRecords: number };
+/** Trusted constructor capability only: State must come from validated WorkspaceActivationHost publication. */
+export type CreateBootstrapVaultOptions = Common & {
+  passphrase: string; state: State; expectedStateDigest: string; expectedWorkspaceId: string; expectedOwnerId: string;
+  budgets: VaultBootstrapBudgets;
+};
 export type OpenVaultOptions = Common & { passphrase: string };
 export type RecoverVaultOptions = Common & { recoveryCode: string; newPassphrase: string };
 export type RestoreVaultOptions = Common & { backupFile: string } & ({ passphrase: string } | { recoveryCode: string; newPassphrase: string });
@@ -96,6 +102,124 @@ function validateEnvelope(value: any): asserts value is VaultEnvelope {
 function validateState(value: any): asserts value is State {
   if (!value || value.schemaVersion !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 0 || typeof value.workspace?.id !== 'string' || typeof value.workspace?.name !== 'string' || !Array.isArray(value.members) || !value.policy) throw new Error('Invalid authority snapshot');
   for (const name of ['facts','imports','receipts','answers','decisions','actions','jobs','learning','plugins','modelReceipts','activity','conflicts','merges','tombstones','conversations','routes','sessions','unsupported','schedules','sourceRules']) if (!Array.isArray(value[name])) throw new Error('Invalid authority collection');
+}
+const stateCollections = ['facts', 'imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning', 'plugins',
+  'modelReceipts', 'activity', 'conflicts', 'merges', 'tombstones', 'conversations', 'routes', 'sessions', 'unsupported', 'schedules', 'sourceRules'] as const;
+const inertBootstrapCollections = ['receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning', 'plugins', 'modelReceipts',
+  'activity', 'conversations', 'routes', 'sessions', 'unsupported', 'schedules'] as const;
+const bootstrapId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
+function bootstrapExact(value: unknown, keys: string[]): asserts value is Record<string, any> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(value)) || Reflect.ownKeys(value).length !== keys.length
+    || Object.keys(value).sort().join('\0') !== [...keys].sort().join('\0')
+    || !Object.values(Object.getOwnPropertyDescriptors(value)).every(item => item.enumerable && 'value' in item))
+    fail('BOOTSTRAP_STATE_INVALID', 'Fresh bootstrap requires exact reviewed lossless fields.');
+}
+/** Bounded lossless JSON in ORIGINAL insertion order, which is part of the activation State hash. */
+function bootstrapJson(value: unknown, budget: VaultBootstrapBudgets): string {
+  let nodes = 0, bytes = 0; const parts: string[] = [], active = new Set<object>();
+  const append = (text: string) => {
+    bytes += Buffer.byteLength(text, 'utf8');
+    if (bytes > budget.maxStateBytes) fail('BOOTSTRAP_LIMIT', 'Fresh bootstrap exceeds its explicit State byte budget.'); parts.push(text);
+  };
+  const string = (text: string) => {
+    if (Buffer.byteLength(text, 'utf8') > budget.maxStateBytes - bytes) fail('BOOTSTRAP_LIMIT', 'A bootstrap string exceeds its remaining byte budget.');
+    append(JSON.stringify(text));
+  };
+  const visit = (item: unknown, depth: number) => {
+    if (++nodes > budget.maxJsonNodes || depth > budget.maxJsonDepth) fail('BOOTSTRAP_LIMIT', 'Fresh bootstrap exceeds its explicit JSON node or depth budget.');
+    if (typeof item === 'string') { string(item); return; }
+    if (item === null || typeof item === 'boolean') { append(JSON.stringify(item)); return; }
+    if (typeof item === 'number') {
+      if (!Number.isFinite(item) || Object.is(item, -0)) fail('BOOTSTRAP_STATE_INVALID', 'Fresh bootstrap numbers must survive JSON without loss.');
+      append(JSON.stringify(item)); return;
+    }
+    if (typeof item !== 'object' || !item || active.has(item)) fail('BOOTSTRAP_STATE_INVALID', 'Fresh bootstrap requires acyclic complete JSON values.');
+    active.add(item);
+    if (Array.isArray(item)) {
+      if (item.length > budget.maxJsonNodes - nodes) fail('BOOTSTRAP_LIMIT', 'A bootstrap array exceeds its remaining node budget.');
+      if (Object.getPrototypeOf(item) !== Array.prototype || Reflect.ownKeys(item).length !== item.length + 1 || Object.keys(item).length !== item.length
+        || !Object.entries(Object.getOwnPropertyDescriptors(item)).every(([key, field]) => key === 'length' || field.enumerable && 'value' in field))
+        fail('BOOTSTRAP_STATE_INVALID', 'Sparse, extended or accessor-backed bootstrap arrays are refused.');
+      append('['); item.forEach((child, index) => { if (index) append(','); visit(child, depth + 1); }); append(']');
+    } else {
+      const keys = Object.keys(item), fields = Object.getOwnPropertyDescriptors(item);
+      if (keys.length > budget.maxJsonNodes - nodes) fail('BOOTSTRAP_LIMIT', 'A bootstrap object exceeds its remaining node budget.');
+      if (![Object.prototype, null].includes(Object.getPrototypeOf(item)) || Reflect.ownKeys(item).length !== keys.length
+        || !Object.values(fields).every(field => field.enumerable && 'value' in field)) fail('BOOTSTRAP_STATE_INVALID', 'Hidden, prototype or accessor-backed bootstrap fields are refused.');
+      append('{'); keys.forEach((key, index) => { if (index) append(','); string(key); append(':'); visit(fields[key].value, depth + 1); }); append('}');
+    }
+    active.delete(item);
+  };
+  visit(value, 0); return parts.join('');
+}
+function freshBootstrapState(options: CreateBootstrapVaultOptions): State {
+  const budget = options.budgets;
+  bootstrapExact(budget, ['maxStateBytes', 'maxJsonDepth', 'maxJsonNodes', 'maxRecords']);
+  if (!Object.values(budget).every(value => Number.isSafeInteger(value) && value > 0)
+    || budget.maxStateBytes > MAX_BYTES / 2 || budget.maxJsonDepth > 256)
+    fail('BOOTSTRAP_LIMIT', 'Supply explicit positive bounded bootstrap byte, JSON and record budgets.');
+  if (!bootstrapId(options.expectedWorkspaceId) || !bootstrapId(options.expectedOwnerId)
+    || typeof options.expectedStateDigest !== 'string' || !/^[a-f0-9]{64}$/.test(options.expectedStateDigest))
+    fail('BOOTSTRAP_PIN_REQUIRED', 'Use independently reviewed constructor State, workspace and fresh owner pins.');
+  const text = bootstrapJson(options.state, budget);
+  if (hash(text) !== options.expectedStateDigest) fail('BOOTSTRAP_STATE_CHANGED', 'The exact ordered State differs from its independently reviewed digest.');
+  const state = JSON.parse(text) as State;
+  bootstrapExact(state, ['schemaVersion', 'revision', 'workspace', 'members', 'policy', 'ontology', ...stateCollections]);
+  bootstrapExact(state.workspace, ['id', 'name', 'currency', 'demo', 'createdAt']);
+  if (state.schemaVersion !== 1 || state.revision !== 0 || state.workspace.demo !== true || state.workspace.id !== options.expectedWorkspaceId
+    || typeof state.workspace.name !== 'string' || !state.workspace.name.trim() || state.workspace.name.length > 200
+    || typeof state.workspace.currency !== 'string' || !state.workspace.currency || state.workspace.currency.length > 32 || /[\x00-\x1f]/.test(state.workspace.currency)
+    || typeof state.workspace.createdAt !== 'string' || state.workspace.createdAt.length > 64 || !Number.isFinite(Date.parse(state.workspace.createdAt)))
+    fail('BOOTSTRAP_STATE_INVALID', 'Fresh bootstrap requires exact synthetic schema-one revision-zero workspace authority.');
+  if (!Array.isArray(state.members) || state.members.length !== 1) fail('BOOTSTRAP_OWNER_INVALID', 'Fresh bootstrap requires one independently allocated owner.');
+  const owner = state.members[0]; bootstrapExact(owner, ['id', 'name', 'role', 'active', 'epoch', 'branches']);
+  if (owner.id !== options.expectedOwnerId || owner.role !== 'owner' || owner.active !== true || !Number.isSafeInteger(owner.epoch) || owner.epoch <= 0
+    || typeof owner.name !== 'string' || !owner.name.trim() || owner.name.length > 200 || !Array.isArray(owner.branches)
+    || owner.branches.length !== 1 || owner.branches[0] !== '*') fail('BOOTSTRAP_OWNER_INVALID', 'Fresh bootstrap must retain the exact fresh unrestricted active owner pin.');
+  bootstrapExact(state.policy, ['send', 'autonomy', 'allowedSources', 'retentionDays', 'sharing']);
+  const allowed = state.policy.allowedSources;
+  if (state.policy.send !== 'nothing' || state.policy.autonomy !== false || state.policy.sharing !== false
+    || !Number.isInteger(state.policy.retentionDays) || state.policy.retentionDays < 1 || state.policy.retentionDays > 3650
+    || !Array.isArray(allowed) || !allowed.length || !allowed.every(bootstrapId) || allowed.includes('*') || new Set(allowed).size !== allowed.length)
+    fail('BOOTSTRAP_POLICY_INVALID', 'Fresh bootstrap requires no-send, no-autonomy, no-sharing and explicit distinct source grants.');
+  let records = 1;
+  for (const name of stateCollections) {
+    if (!Array.isArray(state[name])) fail('BOOTSTRAP_STATE_INVALID', 'Every fresh bootstrap store must be an explicit JSON array.');
+    records += state[name].length;
+    if (!Number.isSafeInteger(records) || records > budget.maxRecords) fail('BOOTSTRAP_LIMIT', 'Fresh bootstrap exceeds its explicit complete record budget.');
+  }
+  if (inertBootstrapCollections.some(name => state[name].length !== 0)) fail('BOOTSTRAP_RUNTIME_AUTHORITY', 'Historical runtime authority collections must be empty in fresh bootstrap.');
+  return state;
+}
+/** Artifact envelopes have only two object levels and string leaves; reject ambiguous duplicate JSON fields. */
+function archivedEnvelopeJson(text: string) {
+  let offset = 0, fields = 0;
+  const whitespace = () => { while (/[\x20\t\r\n]/.test(text[offset] ?? '\0')) offset++; };
+  const string = () => {
+    if (text[offset] !== '"') throw new Error('Artifact string required'); const start = offset++;
+    while (offset < text.length) { const token = text[offset++]; if (token === '\\') offset++; else if (token === '"') return JSON.parse(text.slice(start, offset)) as string; }
+    throw new Error('Incomplete artifact string');
+  };
+  const object = (depth: number) => {
+    if (depth > 1 || text[offset++] !== '{') throw new Error('Artifact object required');
+    whitespace(); const keys = new Set<string>();
+    if (text[offset] === '}') { offset++; return; }
+    while (true) {
+      const key = string();
+      if (keys.has(key) || ++fields > 9) throw new Error('Duplicate or unbounded artifact fields'); keys.add(key);
+      whitespace(); if (text[offset++] !== ':') throw new Error('Artifact field separator required'); whitespace();
+      if (text[offset] === '{') object(depth + 1); else string(); whitespace();
+      const end = text[offset++]; if (end === '}') return; if (end !== ',') throw new Error('Artifact object separator required'); whitespace();
+    }
+  };
+  try {
+    whitespace(); object(0); whitespace(); if (offset !== text.length) throw new Error('Trailing artifact bytes');
+    const value = JSON.parse(text);
+    if (Object.keys(value).sort().join(',') !== 'ciphertext,format,id,purpose,valueDigest,vaultId'
+      || !value.ciphertext || typeof value.ciphertext !== 'object' || Array.isArray(value.ciphertext)
+      || Object.keys(value.ciphertext).sort().join(',') !== 'data,nonce,tag') throw new Error('Unreviewed artifact envelope fields');
+  } catch { fail('ARTIFACT_AUTHENTICATION_FAILED', 'Archived artifact JSON requires complete unique exact envelope fields.'); }
 }
 function encodeSnapshot(state: State, envelope: Omit<VaultEnvelope, 'snapshot'>, key: Uint8Array): VaultEnvelope {
   validateState(state);
@@ -228,6 +352,58 @@ export class Vault implements StateStore {
       try { if (committed) await adapter.delete(); }
       finally {
         if (id) await options.keychain?.remove(id).catch(() => {});
+        try { await lock.release(); } finally { await adapter.close?.(); }
+      }
+      throw error;
+    }
+  }
+  /** Constructor-only fresh authority from an independently validated activation publication. Never an RPC State input. */
+  static async createBootstrap(options: CreateBootstrapVaultOptions): Promise<{ vault: Vault; recoveryCode: string }> {
+    const secret = options.passphrase, storage = options.storage, keychain = options.keychain, writerGuard = options.writerGuard;
+    let state: State, directory: string, adapter: EncryptedSnapshotAdapter, lock: Lock;
+    try {
+      passphrase(secret); state = freshBootstrapState(options);
+      directory = await safeDirectory(options.directory, true);
+      if ((await readdir(directory)).length) fail('BOOTSTRAP_TARGET_NOT_EMPTY', 'Fresh bootstrap requires an explicitly empty target directory.');
+      adapter = adapterFor(directory, storage); lock = await takeLock(directory);
+    } catch (error) { await closeTransferred(storage); throw error; }
+    let key: Buffer | undefined, committed = false, id: string | undefined, envelope: VaultEnvelope | undefined, publicationCalls = 0;
+    try {
+      if ((await readdir(directory)).some(name => name !== 'writer.lock') || await adapter.load())
+        fail('BOOTSTRAP_TARGET_NOT_EMPTY', 'Fresh bootstrap requires zero target authority and no unrelated entries.');
+      key = randomBytes(32); id = randomUUID();
+      const recoveryCode = `CHR-${randomBytes(32).toString('base64url')}`;
+      const [primary, recovery] = await Promise.all([wrap(secret, key, id, 'passphrase'), wrap(recoveryCode, key, id, 'recovery')]);
+      envelope = encodeSnapshot(state, { format: FORMAT, id, revision: 0, passphrase: primary, recovery }, key);
+      const publish = async (assertCurrent: () => void) => {
+        if (++publicationCalls !== 1 || typeof assertCurrent !== 'function') fail('BOOTSTRAP_GUARD', 'Root must execute one held fresh bootstrap publication.');
+        if ((await readdir(directory)).some(name => name !== 'writer.lock')) fail('BOOTSTRAP_TARGET_NOT_EMPTY', 'Fresh target acquired an unrelated entry before publication.');
+        const admission = () => { const result: unknown = assertCurrent(); if (result !== undefined) fail('BOOTSTRAP_GUARD', 'Fresh publication admission must assert synchronously without a deferred result.'); };
+        admission(); let acknowledgementFailure: unknown;
+        try { await adapter.commit(envelope!, null); } catch (error) { acknowledgementFailure = error; }
+        const actual = await adapter.load();
+        if (!actual || JSON.stringify(actual) !== JSON.stringify(envelope) || hash(decodeSnapshot(actual, key!)) !== hash(state)) {
+          if (acknowledgementFailure) throw acknowledgementFailure;
+          fail('BOOTSTRAP_READBACK', 'Fresh authority did not read back as the exact independently pinned revision-zero State.');
+        }
+        committed = true; admission(); return { result: undefined, committedState: structuredClone(state) };
+      };
+      if (writerGuard) await writerGuard({ state: structuredClone(state), vaultId: id }, publish);
+      else await publish(() => {});
+      if (!committed || publicationCalls !== 1) fail('BOOTSTRAP_READBACK', 'Root did not publish and read back the exact fresh authority.');
+      if (keychain) await keychain.store(id, Uint8Array.from(key));
+      return { vault: new Vault(directory, adapter, lock, key, envelope, state, keychain, writerGuard), recoveryCode };
+    } catch (error) {
+      try {
+        if (committed) {
+          const actual = await adapter.load();
+          if (!actual || JSON.stringify(actual) !== JSON.stringify(envelope)) fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Failed bootstrap authority changed and cannot be removed automatically.');
+          await adapter.delete();
+          if (await adapter.load()) fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Failed bootstrap retains unresolved fresh authority custody.');
+        }
+      } finally {
+        key?.fill(0);
+        if (id) await keychain?.remove(id).catch(() => {});
         try { await lock.release(); } finally { await adapter.close?.(); }
       }
       throw error;
@@ -436,6 +612,44 @@ export class Vault implements StateStore {
       totalBytes += bytes.byteLength;
     }
     return structuredClone(state);
+  }
+  /** Snapshot-only cryptographic authentication of exact archived bytes, even after their original files are removed. */
+  async authenticateArchivedArtifacts(input: { sourceVaultId: string; artifacts: { ref: PrivateArtifactRef; bytes: Uint8Array }[] },
+    budget: VaultEncryptedCustodyBudgets): Promise<(PrivateArtifactRef & { value: unknown })[]> {
+    this.#custodyBudgets(budget);
+    const exact = (value: unknown, keys: string[]) => value && typeof value === 'object' && !Array.isArray(value)
+      && [Object.prototype, null].includes(Object.getPrototypeOf(value)) && Reflect.ownKeys(value).length === keys.length
+      && Object.keys(value).sort().join('\0') === [...keys].sort().join('\0')
+      && Object.values(Object.getOwnPropertyDescriptors(value)).every(field => field.enumerable && 'value' in field);
+    if (!exact(input, ['sourceVaultId', 'artifacts'])
+      || input.sourceVaultId !== this.#envelope.id || !Array.isArray(input.artifacts) || input.artifacts.length === 0)
+      fail('ARTIFACT_AUTHENTICATION_FAILED', 'Supply exact archived artifact bytes bound to this unlocked source Vault.');
+    if (input.artifacts.length > budget.maxArtifacts) fail('ARTIFACT_LIMIT', 'Archived artifact count exceeds its explicit budget.');
+    if (Object.getPrototypeOf(input.artifacts) !== Array.prototype || Object.keys(input.artifacts).length !== input.artifacts.length
+      || Reflect.ownKeys(input.artifacts).length !== input.artifacts.length + 1
+      || !Object.entries(Object.getOwnPropertyDescriptors(input.artifacts)).every(([key, field]) => key === 'length' || field.enumerable && 'value' in field))
+      fail('ARTIFACT_AUTHENTICATION_FAILED', 'Archived artifact entries require a complete ordinary array without hidden or accessor fields.');
+    const result: (PrivateArtifactRef & { value: unknown })[] = [], identities = new Set<string>(); let total = 0;
+    for (const item of input.artifacts) {
+      if (!exact(item, ['ref', 'bytes']) || !exact(item.ref, ['id', 'purpose', 'valueDigest', 'diskBytes'])
+        || !['private-trial', 'workspace-interchange'].includes(item.ref.purpose) || typeof item.ref.id !== 'string'
+        || !/^[A-Za-z0-9_-]{1,180}$/.test(item.ref.id) || !/^[a-f0-9]{64}$/.test(item.ref.valueDigest)
+        || !Number.isSafeInteger(item.ref.diskBytes) || item.ref.diskBytes <= 0)
+        fail('ARTIFACT_AUTHENTICATION_FAILED', 'Archived artifact references require exact typed identity, digest and byte fields.');
+      const id = `${item.ref.purpose}/${item.ref.id}`.toLowerCase();
+      if (identities.has(id)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Duplicate or filesystem-case-alias archived artifact identities are refused.'); identities.add(id);
+      if (!(item.bytes instanceof Uint8Array) || !item.bytes.byteLength || item.bytes.byteLength > budget.maxEntryBytes
+        || item.bytes.byteLength > budget.maxTotalEntryBytes - total) fail('ARTIFACT_LIMIT', 'Archived artifacts exceed their explicit entry or total byte budget.');
+      const bytes = Buffer.from(item.bytes), text = bytes.toString('utf8');
+      if (!Buffer.from(text, 'utf8').equals(bytes) || bytes.byteLength !== item.ref.diskBytes)
+        fail('ARTIFACT_AUTHENTICATION_FAILED', 'Archived artifact UTF-8 bytes or exact disk measurement differ.');
+      archivedEnvelopeJson(text);
+      const authenticated = this.#authenticateArtifactRaw(text, item.ref);
+      if (authenticated.diskBytes !== item.ref.diskBytes || authenticated.valueDigest !== item.ref.valueDigest)
+        fail('ARTIFACT_AUTHENTICATION_FAILED', 'Archived ciphertext differs from its independently supplied encrypted reference.');
+      const { bytes: encryptedBytes, ...value } = authenticated; result.push(value); total += bytes.byteLength;
+    }
+    return result;
   }
   /** Host-only encrypted custody. This API is never an RPC or renderer key port. */
   readArtifact(input: { id: string; purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef & { value: unknown }> {

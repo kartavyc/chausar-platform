@@ -7,8 +7,8 @@ import { acquireProcessLock } from './process-lock.ts';
 import { safeDirectory, Vault, type PrivateArtifactRef } from './vault.ts';
 import { canonicalInterchangeJson, interchangeDigest, readHistoricalWorkspaceState } from './workspace-interchange.ts';
 import { proveEmptyWorkspaceTarget } from './workspace-import-candidate.ts';
-import type { EmptyTargetInspection, WorkspaceImportCandidate } from './workspace-interchange-contracts.ts';
-import type { WorkspaceInterchangeHostPorts, WorkspaceInterchangeSourceLease } from './workspace-interchange-host.ts';
+import type { EmptyTargetInspection, WorkspaceImportCandidate, WorkspaceInventory } from './workspace-interchange-contracts.ts';
+import type { WorkspaceInterchangeSourceLease } from './workspace-interchange-host.ts';
 import type { AuthenticatedActivationCandidate, WorkspaceActivationAuthority, WorkspaceActivationCommit,
   WorkspaceActivationPorts, WorkspaceActivationReadback } from './workspace-activation.ts';
 
@@ -33,6 +33,7 @@ type Journal = { format: 'chausar.activation-local-journal.v1'; phase: 'attempte
   sourceVaultId: string; sourceWorkspaceId: string; journalVaultId: string; reservation: Reservation; reservationRef: PrivateArtifactRef;
   record: WorkspaceActivationCommit['record']; claim: Claim; bootstrap?: PrivateArtifactRef; evidence?: PrivateArtifactRef;
   files?: { path: string; witness: Witness }[]; directories?: string[];
+  staging?: {name: string; physical: Physical};
   liveDirectory?: Physical; qualification?: 'test-fixture' | 'encrypted-local-host' };
 
 /** Reviewed root capabilities. They are never RPC inputs and have no memory/default implementation. */
@@ -41,7 +42,8 @@ export type WorkspaceActivationLocalOptions = {
   /** Separately unlocked durable control Vault. Do not add unclassified artifacts to the source inventory. */
   journalVault: Vault;
   applicationDirectory: string;
-  source: Pick<WorkspaceInterchangeHostPorts, 'withSource'>;
+  source: {withSource<T>(context: Context, expected: WorkspaceInventory | null,
+    work: (lease: WorkspaceInterchangeSourceLease) => Promise<T>, candidateId?: string): Promise<T>};
   candidates: {
     read(context: Context, candidateId: string): Promise<AuthenticatedActivationCandidate>;
     /** Hold the issuer's exact creation-instance exclusion through the entire callback; read must not reacquire it. */
@@ -248,7 +250,7 @@ export class WorkspaceActivationLocalCustody {
           }
           return value;
       }));
-    });
+    }, pins.candidateId);
     check(sourceCalls === 1 && candidateCalls === 1, 'ACTIVATION_ROOT_GUARD', 'Root capabilities did not complete the held callback.');
     return result as T;
   }
@@ -309,6 +311,8 @@ export class WorkspaceActivationLocalCustody {
     await this.#write(claimId(claim.sourceVaultId, claim.candidateCreationId), claim, null);
     const stagingParent = await safeDirectory(join(this.#options.applicationDirectory, '.workspace-activation-control', 'staging'), true);
     const staging = join(stagingParent, `attempt_${randomUUID()}`); await mkdir(staging, { mode: 0o700 });
+    journal = {...journal, staging: {name: relative(stagingParent, staging), physical: physical(await lstat(staging, {bigint: true}))}};
+    ref = await this.#write(ref.id, journal, ref.valueDigest);
     // Unfinished staging is deliberately retained for explicit root inspection, never adopted by a later attempt.
     const bootstrap = await this.#write(`wal_${sha(record.activationId)}_bootstrap`, { record, state: publication.state, authority: publication.authority }, null);
     const evidence = await this.#write(`wal_${sha(record.activationId)}_evidence`, publication.evidence, null);

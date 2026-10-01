@@ -13,6 +13,10 @@ export type WorkspaceInterchangeSourceLease = {
   ready: boolean;
   state: State;
   artifacts: ArtifactCapture;
+  /** Root-authenticated archived inventory used for an archive-derived candidate.
+   * state above remains CURRENT authority. Historical capture grants no membership,
+   * session or source access; current guards are still mandatory throughout. */
+  authenticatedHistoricalCapture?: {state: State; artifacts: ArtifactCapture};
   /** CURRENT complete owner, source/row scope and consumer readiness; never historical membership alone. */
   assertCompleteOwner(context: Context, historicalState: State): Promise<void>;
   /** Re-read the captured authority/artifact/access fence. Refuse expiry or ambiguity. */

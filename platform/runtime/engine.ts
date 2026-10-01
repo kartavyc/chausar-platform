@@ -51,6 +51,7 @@ import { WorkspaceInterchangeHost } from './workspace-interchange-host.ts';
 import { createWorkspaceInterchangeLocalPorts } from './workspace-interchange-local.ts';
 import { WorkspaceBackupV2Host, type WorkspaceBackupV2Budgets, type WorkspaceBackupV2ExternalKeyRequirement } from './workspace-backup-v2.ts';
 import { createWorkspaceBackupV2LocalPorts, type WorkspaceBackupV2FilesystemBudgets } from './workspace-backup-local.ts';
+import { EngineWorkspaceActivation, type EngineWorkspaceActivationOptions } from './workspace-activation-engine.ts';
 import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
 import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
 import { AnalyticalHelper } from './helper.ts';
@@ -63,7 +64,11 @@ export type EngineBackupCustodyOptions = {
   /** Trusted installed host capability, never supplied by an RPC payload. */
   withCompleteOwner?<T>(context: Context, historical: State, work: (assertCurrent: () => void) => Promise<T>): Promise<T>;
 };
-export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions };
+export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
+  /** Trusted local composition capabilities. Never supplied by an RPC or archive. */
+  workspaceActivation?: EngineWorkspaceActivationOptions;
+  workspaceAuthority?: {workspaceId: string; ownerId: string; vaultId?: string};
+};
 // Operational admission ceilings reject the complete operation; no namespace is truncated.
 const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32 * 1024 * 1024,
   maxEntryBytes: 16 * 1024 * 1024, maxTotalEntryBytes: 16 * 1024 * 1024, maxEntries: 4096, maxJsonDepth: 128, maxJsonNodes: 200_000 };
@@ -263,8 +268,21 @@ export class Engine {
   async requestAs(context: Context, method: string, payload: any = {}): Promise<any> { return this.withContext(context, () => this.request(method, payload)); }
   bootstrapContext(): Context {
     if (!this.vault) return { ...this.#baseContext };
-    const member = this.vault.read().members.find(m => m.id === 'owner' && m.active && m.role === 'owner');
+    const member = this.currentWorkspaceOwner(this.vault);
     check(member, 'OWNER_REQUIRED', 'The local workspace owner is no longer available.'); return { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' };
+  }
+  private currentWorkspaceOwner(vault: Vault) {
+    const state = vault.read(), authority = this.options.workspaceAuthority;
+    check(!authority || state.workspace.id === authority.workspaceId, 'WORKSPACE_AUTHORITY_CHANGED', 'The trusted launch workspace differs from actual encrypted custody.');
+    check(!authority?.vaultId || vault.vaultId === authority.vaultId, 'WORKSPACE_AUTHORITY_CHANGED', 'The actual Vault differs from the independently pinned launch identity.');
+    return state.members.find(m => m.id === (authority?.ownerId ?? 'owner') && m.active && m.role === 'owner');
+  }
+  /** Local host launch only: a separately paired Engine/server, explicit fresh
+   * credential on workspace.open, and no historical routes/session tokens. */
+  async activatedWorkspaceEngine(context: Context, activationId: string): Promise<Engine> {
+    const selected = await this.activationHost().inspectOpenTarget(context, activationId);
+    return new Engine({directory: selected.directory, version: this.version, demo: true, storage: 'experimental-file',
+      workspaceAuthority: {workspaceId: selected.workspaceId, ownerId: selected.ownerId, vaultId: selected.vaultId}});
   }
   private store(): Vault { check(this.vault, 'VAULT_LOCKED', 'Open your workspace first.'); return this.vault; }
   private writerGuard(): VaultWriterGuard | undefined {
@@ -312,8 +330,9 @@ export class Engine {
     // configured root under the same no-symlink checks before comparing scope
     // (Windows may spell the same directory with a short-name alias).
     const applicationDirectory = await safeDirectory(this.options.directory);
-    this.vault = vault; const owner = vault.read().members.find(m => m.id === 'owner' && m.active && m.role === 'owner');
+    const owner = this.currentWorkspaceOwner(vault);
     check(owner, 'OWNER_REQUIRED', 'No current owner is available for this vault.');
+    this.vault = vault; delete this.services.workspaceActivation;
     this.#unknownAnswerRecoveries.clear();
     this.context = { memberId: owner.id, role: owner.role, epoch: owner.epoch, channel: 'desktop' };
     const store: StateStore = vault;
@@ -371,7 +390,13 @@ export class Engine {
     if (vault.storageKind === 'experimental-file') {
       const backup = this.options.backupCustody;
       const budgets = backup?.budgets ?? defaultBackupBudgets;
+      let installedActivation: EngineWorkspaceActivation | undefined;
       const backupLocal = createWorkspaceBackupV2LocalPorts({ vault, applicationDirectory, budgets,
+        ...(this.options.workspaceActivation ? {workspaceActivation: {journalVault: this.options.workspaceActivation.journalVault,
+          inspectCurrentLive: async (input: Parameters<EngineWorkspaceActivation['inspectCurrentLive']>[0]) => {
+            check(installedActivation, 'ACTIVATION_ROOT_REQUIRED', 'Complete the trusted activation composition before live custody inspection.');
+            await installedActivation.inspectCurrentLive(input);
+          }}} : {}),
         filesystemBudgets: backup?.filesystemBudgets ?? defaultBackupFilesystemBudgets,
         externalKeyRequirements: backup?.externalKeyRequirements ?? [{ provider: 'other', namespace: 'operator/credential-wrappers',
           requirement: 'Retain the operator passphrase or recovery credential separately. Encrypted wrappers do not include that credential.' }],
@@ -396,6 +421,24 @@ export class Engine {
       });
       this.services.backupLocal = backupLocal;
       this.services.backupV2 = new WorkspaceBackupV2Host(backupLocal.ports, budgets);
+      const activation = this.options.workspaceActivation;
+      if (activation) {
+        check(this.options.demo === true && this.options.sync === undefined
+          && !vault.read().imports.some(item => typeof item.type === 'string' && item.type.startsWith('connector-')),
+        'ACTIVATION_SOURCE_PROFILE', 'This joined activation profile supports explicitly approved synthetic local sources; sync and managed connector activation need their separate qualified profiles.');
+        installedActivation = new EngineWorkspaceActivation({...activation, sourceVault: vault, applicationDirectory,
+          backup: backupLocal, interchange: interchangeLocal,
+          backupPolicy: {approvedSyntheticWorkspaceIds: [...activation.policy.approvedSyntheticWorkspaceIds], backupBudgets: budgets,
+            maxMaterialUtf8Bytes: activation.policy.budgets.maxCandidateBytes, maxCandidateUtf8Bytes: activation.policy.budgets.maxCandidateBytes},
+          assertCompleteOwner: async (ctx, historical) => {
+            check(this.options.workspaceActivation === activation && this.options.sync === undefined,
+              'ACTIVATION_HOST_CONFIGURATION_CHANGED', 'Installed activation admission changed during custody.');
+            this.backupCompleteOwner(ctx, historical);
+            check(!this.store().read().imports.some(item => typeof item.type === 'string' && item.type.startsWith('connector-')),
+              'ACTIVATION_SOURCE_PROFILE', 'Current managed connector imports need a separately qualified activation profile.');
+          }});
+        this.services.workspaceActivation = installedActivation;
+      }
     }
     this.services.alerts = new AlertsService(store, { calculatorOptions: view => {
       const connectors = connectorForView(view);
@@ -588,6 +631,25 @@ export class Engine {
         this.journalPayload(payload, [], [], 'INVALID_BACKUP_REQUEST'); this.backupHost(); this.backupCompleteOwner(ctx, store.read());
         return s.backupLocal.diagnostics();
       }
+      case 'workspace.activation.target.create': {
+        const input = this.journalPayload(payload, ['targetId', 'confirmed'], ['targetId', 'confirmed'], 'INVALID_ACTIVATION_REQUEST');
+        check(input.confirmed === true && typeof input.targetId === 'string', 'CONFIRMATION_REQUIRED', 'Confirm a new empty managed activation target.');
+        return this.activationHost().createTarget(ctx, input.targetId);
+      }
+      case 'workspace.activation.target.get': return this.activationHost().inspectTarget(ctx,
+        this.journalPayload(payload, ['targetId'], ['targetId'], 'INVALID_ACTIVATION_REQUEST').targetId as string);
+      case 'workspace.backup.activation.prepare': return this.activationHost().bridge.prepare(ctx, this.journalPayload(payload,
+        ['backupId', 'materialId', 'inertTargetId', 'inertCreationId', 'candidateId', 'targetId', 'reviewedArchiveDigest', 'confirmed'],
+        ['backupId', 'materialId', 'inertTargetId', 'inertCreationId', 'candidateId', 'targetId', 'reviewedArchiveDigest', 'confirmed'], 'INVALID_ACTIVATION_REQUEST') as Parameters<EngineWorkspaceActivation['bridge']['prepare']>[1]);
+      case 'workspace.backup.activation.inspect': return (await this.activationHost().bridge.inspect(ctx,
+        this.journalPayload(payload, ['candidateId'], ['candidateId'], 'INVALID_ACTIVATION_REQUEST') as Parameters<EngineWorkspaceActivation['bridge']['inspect']>[1])).review;
+      case 'workspace.activation.review': return this.activationHost().activation.review(ctx, this.journalPayload(payload,
+        ['candidateId', 'reviewedDigest'], ['candidateId', 'reviewedDigest'], 'INVALID_ACTIVATION_REQUEST') as Parameters<EngineWorkspaceActivation['activation']['review']>[1]);
+      case 'workspace.activation.execute': return this.activationHost().activation.activate(ctx, this.journalPayload(payload,
+        ['candidateId', 'reviewedDigest', 'projectionDigest', 'activationId', 'confirmed'],
+        ['candidateId', 'reviewedDigest', 'projectionDigest', 'activationId', 'confirmed'], 'INVALID_ACTIVATION_REQUEST') as Parameters<EngineWorkspaceActivation['activation']['activate']>[1]);
+      case 'workspace.activation.get': return this.activationHost().activation.resolve(ctx, this.journalPayload(payload,
+        ['activationId'], ['activationId'], 'INVALID_ACTIVATION_REQUEST') as Parameters<EngineWorkspaceActivation['activation']['resolve']>[1]);
       case 'workspace.interchange.export': return s.interchange.export(ctx, this.journalPayload(payload,
         ['destinationId', 'confirmed'], ['destinationId', 'confirmed'], 'INVALID_INTERCHANGE_REQUEST'));
       case 'workspace.interchange.prepare': return s.interchange.prepare(ctx, this.journalPayload(payload,
@@ -1205,6 +1267,11 @@ export class Engine {
     check(this.services.backupV2 instanceof WorkspaceBackupV2Host, 'BACKUP_STORAGE_PROFILE_REQUIRED',
       'This storage profile requires its separately reviewed complete encrypted-custody implementation.');
     return this.services.backupV2;
+  }
+  private activationHost(): EngineWorkspaceActivation {
+    check(this.services.workspaceActivation instanceof EngineWorkspaceActivation, 'ACTIVATION_ROOT_REQUIRED',
+      'Install the reviewed synthetic local activation, actual encrypted journal and fresh credential capability in the trusted host.');
+    return this.services.workspaceActivation;
   }
   private backupCompleteOwner(ctx: Context, historical: State) {
     this.requireWorkspaceOwner(ctx);

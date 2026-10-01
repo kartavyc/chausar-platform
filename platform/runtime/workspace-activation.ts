@@ -237,7 +237,10 @@ export class WorkspaceActivationHost {
         && typeof lease.commit === 'function' && typeof lease.readback === 'function', 'ACTIVATION_ROOT_REQUIRED', 'Root must issue exactly one complete held activation transaction.');
       check(lease.source.ready === true, 'INTERCHANGE_NOT_READY', 'Complete current source and consumer inventory is not ready.');
       const state = structuredClone(lease.source.state); owner(context, state);
-      const capture = captureWorkspaceInterchange(state, structuredClone(lease.source.artifacts));
+      const historicalCapture = lease.source.authenticatedHistoricalCapture;
+      const capture = historicalCapture
+        ? captureWorkspaceInterchange(structuredClone(historicalCapture.state), structuredClone(historicalCapture.artifacts))
+        : captureWorkspaceInterchange(state, structuredClone(lease.source.artifacts));
       check(equal(capture.inventory, checked.pin.inventory), 'INTERCHANGE_AUTHORITY_CHANGED', 'Current independent source inventory differs from candidate issuance.');
       check(equal(lease.target, checked.pin.target), 'INTERCHANGE_TARGET_CHANGED', 'Actual reserved physical target proof or generation changed.');
       proveEmptyWorkspaceTarget(lease.target);

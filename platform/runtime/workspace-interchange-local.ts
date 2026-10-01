@@ -634,6 +634,17 @@ export class WorkspaceInterchangeLocalCustody {
     return { content: archiveValue.content as string, pin: structuredClone(pinValue.pin) as WorkspaceInterchangeCustodyRecord['pin'],
       measurement: this.#measure(archive, pin), binding, commit: refIdentity(commit) };
   }
+  /** Root composition only: caller already owns the actual Vault snapshot. */
+  withRecordReader<T>(context: Context, recordId: string,
+    work: (read: () => Promise<WorkspaceInterchangeCustodyRecord & {measurement: WorkspaceInterchangeCustodyMeasurement}>) => Promise<T>): Promise<T> {
+    check(plainId.test(recordId), 'INTERCHANGE_HOST_RECORD', 'Read one managed record identity.');
+    // This operation also refuses a caller outside the real snapshot scope.
+    return this.#options.vault.captureEncryptedCustody({maxArtifacts: MAX_FILES, maxEntryBytes: MAX_BYTES, maxTotalEntryBytes: MAX_BYTES}).then(() =>
+      this.#locked('records', `${this.#options.vault.vaultId}:${recordId}`, () => work(async () => {
+        await this.#guard(context, this.#options.vault.read()); const value = await this.#readUnlocked(context, recordId);
+        await this.#guard(context, this.#options.vault.read()); return {content: value.content, pin: value.pin, measurement: value.measurement};
+      })));
+  }
   async #read(context: Context, recordId: string) {
     const started = performance.now();
     check(plainId.test(recordId), 'INTERCHANGE_HOST_RECORD', 'Use one explicit local custody record identity.');
