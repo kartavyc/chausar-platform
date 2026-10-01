@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import type { TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import type { AlertCreate, AlertEvaluate, AlertEvaluation, BusinessAlert } from '../../runtime/alerts-contracts.ts';
 import type { CalculationReceipt } from '../../runtime/calculator.ts';
 import type { Context } from '../../runtime/contracts.ts';
@@ -16,7 +16,6 @@ export const SOURCE = 'synthetic-public-alert-sales';
 export const PASSWORD = 'Synthetic public alerts disposable passphrase';
 export const MINUTE = 60_000;
 const HOST_START = Date.parse('2026-09-30T12:00:00.000Z');
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const OWNER: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const HEADER = 'id,kind,date,amount,currency,branch,status,description\n';
 const recipe: MappingRecipe = {
@@ -36,14 +35,17 @@ const recipe: MappingRecipe = {
 // Facts, source controls, reconciliations and receipts all enter by public RPC.
 export async function fixture(t: TestContext, excludeNulls = false) {
   t.mock.timers.enable({ apis: ['Date'], now: HOST_START });
-  const directory = await mkdtemp(join(ROOT, '.alerts-public-acceptance-'));
-  if (process.platform === 'win32') assert.match(directory, /^C:[\\/]/i);
+  const temporaryRoot = await realpath(tmpdir()), prefix = '.alerts-public-acceptance-';
+  if (process.platform === 'win32') assert.match(temporaryRoot, /^C:[\\/]/i);
+  const directory = await mkdtemp(join(temporaryRoot, prefix));
   const options = { directory, demo: true, storage: 'experimental-file' as const };
   let engine = new Engine(options), currentContext = OWNER;
   t.after(async () => {
     await engine.close();
-    const target = resolve(directory), child = relative(ROOT, target);
-    assert.ok(child && !child.startsWith('..') && !isAbsolute(child), 'Cleanup stays within this C-scoped repository.');
+    const target = await realpath(directory), child = relative(temporaryRoot, target);
+    assert.equal(target, resolve(directory)); assert.equal(dirname(target), temporaryRoot);
+    assert.ok(child && !child.startsWith('..') && !isAbsolute(child) && basename(target).startsWith(prefix),
+      'Cleanup stays inside its exact temporary parent and prefix.');
     await rm(target, { recursive: true, force: true });
   });
   const h = await harness({ dispatch: (method, payload) => engine.requestAs(currentContext, method, payload) });

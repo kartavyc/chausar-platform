@@ -1,7 +1,7 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { Engine, type EngineOptions } from '../runtime/engine.ts';
@@ -66,7 +66,7 @@ function deferred() {
 }
 
 async function fixture(t: TestContext, options: { jobs?: boolean; missingAdmission?: boolean } = {}) {
-  const temporaryRoot = resolve(tmpdir());
+  const temporaryRoot = await realpath(tmpdir());
   if (process.platform === 'win32') assert.match(temporaryRoot, /^C:\\/i, 'All fixture writes must remain on C.');
   const directory = await mkdtemp(join(temporaryRoot, 'chausar-sync-engine-'));
   const engines = new Set<Engine>(), apps = new Set<ReturnType<typeof createLocalServer>>();

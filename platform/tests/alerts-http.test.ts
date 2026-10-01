@@ -1,8 +1,8 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Engine } from '../runtime/engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
@@ -13,14 +13,14 @@ import type { DictionaryDraft } from '../runtime/ontology.ts';
 // Actual paired Engine HTTP, import/calculation receipts and AES-GCM reopening.
 // All business data and thresholds are synthetic owner inputs. Experimental file
 // persistence is not native PostgreSQL, named connector or installed-app evidence.
-const repository = fileURLToPath(new URL('../../', import.meta.url));
 const passphrase = 'Synthetic receipt-backed alert HTTP fixture passphrase';
 const sourceId = 'synthetic-http-alert-books';
 const period = { from: '2026-09-01', to: '2026-09-30' };
 
 async function fixture(t: TestContext) {
-  if (process.platform === 'win32') assert.match(repository, /^C:[\\/]/i);
-  const directory = await mkdtemp(join(repository, '.alerts-http-'));
+  const temporaryRoot = await realpath(tmpdir()), prefix = '.alerts-http-';
+  if (process.platform === 'win32') assert.match(temporaryRoot, /^C:[\\/]/i);
+  const directory = await mkdtemp(join(temporaryRoot, prefix));
   let providerCalls = 0, lastCut = 0, snapshotOrdinal = 0;
   const engine = new Engine({ directory, demo: true, storage: 'experimental-file',
     gateway: { http: async () => { providerCalls++; throw new Error('A local receipt-backed alert must not dispatch a model.'); } } });
@@ -28,10 +28,10 @@ async function fixture(t: TestContext) {
   assert.equal(new URL(origin).hostname, '127.0.0.1');
   t.after(async () => {
     await app.close();
-    const target = resolve(directory), scope = relative(resolve(repository), target);
-    assert.ok(scope && !scope.startsWith('..') && !isAbsolute(scope)
-      && target.startsWith(join(resolve(repository), '.alerts-http-')),
-    'Fixture cleanup stays inside its C-scoped repository.');
+    const target = await realpath(directory), scope = relative(temporaryRoot, target);
+    assert.equal(target, resolve(directory)); assert.equal(dirname(target), temporaryRoot);
+    assert.ok(scope && !scope.startsWith('..') && !isAbsolute(scope) && basename(target).startsWith(prefix),
+      'Fixture cleanup stays inside its exact temporary parent and prefix.');
     await rm(target, { recursive: true, force: true });
   });
   const paired = await fetch(`${origin}/api/session`, { headers: { authorization: `Bearer ${token}` } });

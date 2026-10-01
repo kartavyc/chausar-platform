@@ -1,8 +1,8 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { AlertsService, type AlertCreate, type AlertEvaluate, type BusinessAlert } from '../runtime/alerts.ts';
 import { CalculatorService, type CalculationReceipt } from '../runtime/calculator.ts';
 import type { Context } from '../runtime/contracts.ts';
@@ -18,18 +18,19 @@ const period = { from: '2026-09-01', to: '2026-09-30' };
 const sourceId = 'synthetic-alert-source';
 const password = 'synthetic alerts acceptance passphrase';
 const minute = 60_000;
-const repository = fileURLToPath(new URL('../../', import.meta.url));
-
 async function fixture(t: TestContext, nulls: 'reject' | 'exclude' = 'reject') {
-  // Keep all generated snapshots in this C-only worktree, regardless of TEMP/TMP settings.
-  if (process.platform === 'win32') assert.match(repository, /^C:[\\/]/i);
-  const directory = await mkdtemp(join(repository, '.alerts-acceptance-'));
+  // A checkout can be read from another drive; generated snapshots stay in the
+  // existing canonical temporary root, checked before any directory is created.
+  const temporaryRoot = await realpath(tmpdir()), prefix = '.alerts-acceptance-';
+  if (process.platform === 'win32') assert.match(temporaryRoot, /^C:[\\/]/i);
+  const directory = await mkdtemp(join(temporaryRoot, prefix));
   let vault: Vault | undefined;
   t.after(async () => {
     await vault?.close();
-    const target = resolve(directory), scope = relative(resolve(repository), target);
-    assert.ok(scope.length > 0 && !scope.startsWith('..') && !isAbsolute(scope),
-      'Acceptance cleanup must stay inside its repository directory.');
+    const target = await realpath(directory), scope = relative(temporaryRoot, target);
+    assert.equal(target, resolve(directory)); assert.equal(dirname(target), temporaryRoot);
+    assert.ok(scope.length > 0 && !scope.startsWith('..') && !isAbsolute(scope)
+      && basename(target).startsWith(prefix), 'Acceptance cleanup stays inside its exact temporary parent and prefix.');
     await rm(target, { recursive: true, force: true });
   });
   vault = (await Vault.create({ directory, storage: 'experimental-file', passphrase: password,
