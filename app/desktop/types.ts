@@ -1,5 +1,9 @@
 import type { DesktopMethod } from './ipc-contract.cjs';
 import type { JobConfig } from '../../platform/runtime/jobs.ts';
+import type { ForecastRequest, SavedForecastEvaluation } from '../../platform/runtime/forecast-contracts.ts';
+import type { AlertCreate, AlertEvaluate, BusinessAlert, AlertEvaluation } from '../../platform/runtime/alerts-contracts.ts';
+import type { SyncWriterReview, SyncWriterStatus } from '../../platform/runtime/sync-writer-admission.ts';
+import type { SyncService } from '../../platform/runtime/sync.ts';
 import type { CalendarDefinition } from '../../platform/runtime/calendar.ts';
 import type { MappingRecipe } from '../../platform/runtime/ingest.ts';
 import type { MappingReview, IndependentSourceTotals } from '../../platform/runtime/connector-framework/import.ts';
@@ -89,6 +93,14 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'investigations.revise': InvestigationRevisionInput & { id: string };
   'investigations.drilldown': { id: string; receiptId: string; offset: number; limit: number };
   'research.search': InvestigationSearchRequest;
+  'forecasts.evaluate': ForecastRequest;
+  'forecasts.get': { id: string };
+  'alerts.create': AlertCreate;
+  'alerts.publish': { id: string; expectedRevision: number };
+  'alerts.evaluate': AlertEvaluate & { id: string };
+  'alerts.get': { id: string };
+  'sync.writer.review': SyncWriterReview;
+  'sync.reconcile': { previewId: string };
   'actions.revise': JsonObject & { id: string; payload: JsonObject };
   'jobs.create': DesktopJobConfig;
   'jobs.amend': { id: string; config: DesktopGoalJobConfig };
@@ -119,6 +131,9 @@ type OptionalPayloads = { 'conversation.history': { limit?: number; cursor?: str
 export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
 export type DesktopResult<M extends DesktopMethod> =
+  M extends 'forecasts.evaluate' | 'forecasts.get' ? SavedForecastEvaluation :
+  M extends 'alerts.create' | 'alerts.publish' | 'alerts.get' ? BusinessAlert : M extends 'alerts.evaluate' ? AlertEvaluation : M extends 'alerts.list' ? BusinessAlert[] :
+  M extends 'sync.writer.status' | 'sync.writer.review' ? SyncWriterStatus : M extends 'sync.reconcile' ? Awaited<ReturnType<SyncService['reconcile']>> :
   M extends 'conversation.history' ? ReturnType<ConversationHistoryService['list']> : M extends 'conversation.get' ? ReturnType<ConversationHistoryService['get']> :
   M extends 'conversation.continuation' ? import('../../platform/runtime/engine.ts').ConversationContinuation :
   M extends 'conversation.synthesis.preview' ? DesktopConversationSynthesisPreview : M extends 'conversation.synthesis.run' ? DesktopConversationSynthesisResult :

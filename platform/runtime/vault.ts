@@ -26,7 +26,10 @@ export interface KeychainHook {
   remove(vaultId: string): Promise<void>;
 }
 type Storage = 'experimental-file' | EncryptedSnapshotAdapter;
-type Common = { directory: string; storage: Storage; keychain?: KeychainHook };
+/** Trusted host admission, held through the actual authority commit. No RPC port. */
+export type VaultWriterGuard = <T>(input: { state: State; vaultId: string },
+  work: (assertCurrent: () => void) => Promise<{ result: T; committedState: State; rollback?: () => void }>) => Promise<T>;
+type Common = { directory: string; storage: Storage; keychain?: KeychainHook; writerGuard?: VaultWriterGuard };
 export type CreateVaultOptions = Common & { passphrase: string; name: string; demo?: boolean };
 export type OpenVaultOptions = Common & { passphrase: string };
 export type RecoverVaultOptions = Common & { recoveryCode: string; newPassphrase: string };
@@ -176,10 +179,16 @@ export class Vault implements StateStore {
   #shutdown?: Promise<void>;
   #transaction = new AsyncLocalStorage<boolean>();
   #keychain?: KeychainHook;
+  #writerGuard?: VaultWriterGuard;
   readonly directory: string;
   readonly storageKind: 'postgres' | 'experimental-file';
-  private constructor(directory: string, adapter: EncryptedSnapshotAdapter, lock: Lock, key: Buffer, envelope: VaultEnvelope, state: State, keychain?: KeychainHook) {
-    this.directory = directory; this.storageKind = adapter.kind; this.#adapter = adapter; this.#lock = lock; this.#key = key; this.#envelope = envelope; this.#state = state; this.#keychain = keychain;
+  private constructor(directory: string, adapter: EncryptedSnapshotAdapter, lock: Lock, key: Buffer, envelope: VaultEnvelope, state: State, keychain?: KeychainHook, writerGuard?: VaultWriterGuard) {
+    this.directory = directory; this.storageKind = adapter.kind; this.#adapter = adapter; this.#lock = lock; this.#key = key; this.#envelope = envelope; this.#state = state; this.#keychain = keychain; this.#writerGuard = writerGuard;
+  }
+  /** Public identity metadata only; keys and encrypted wrappers stay private. */
+  get vaultId(): string { this.#ready(); return this.#envelope.id; }
+  private async guarded<T>(work: (assertCurrent: () => void) => Promise<{ result: T; committedState: State }>): Promise<T> {
+    return this.#writerGuard ? this.#writerGuard({ state: structuredClone(this.#state), vaultId: this.#envelope.id }, work) : (await work(() => {})).result;
   }
   static async create(options: CreateVaultOptions): Promise<{ vault: Vault; recoveryCode: string }> {
     let directory: string, adapter: EncryptedSnapshotAdapter, lock: Lock;
@@ -199,7 +208,7 @@ export class Vault implements StateStore {
       await adapter.commit(envelope, null);
       committed = true;
       if (options.keychain) await options.keychain.store(id, Uint8Array.from(key));
-      return { vault: new Vault(directory, adapter, lock, key, envelope, state, options.keychain), recoveryCode };
+      return { vault: new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard), recoveryCode };
     } catch (error) {
       key?.fill(0);
       try { if (committed) await adapter.delete(); }
@@ -216,10 +225,13 @@ export class Vault implements StateStore {
     const vault = await Vault.unlock(options, options.recoveryCode, true);
     try {
       const wrapper = await wrap(options.newPassphrase, vault.#key, vault.#envelope.id, 'passphrase');
-      const draft = structuredClone(vault.#state); draft.revision++;
-      const envelope = encodeSnapshot(draft, { ...vault.#envelope, passphrase: wrapper, revision: draft.revision }, vault.#key);
-      await vault.#adapter.commit(envelope, vault.#state.revision);
-      vault.#state = draft; vault.#envelope = envelope;
+      await vault.guarded(async assertCurrent => {
+        const draft = structuredClone(vault.#state); draft.revision++;
+        const envelope = encodeSnapshot(draft, { ...vault.#envelope, passphrase: wrapper, revision: draft.revision }, vault.#key);
+        assertCurrent(); await vault.#adapter.commit(envelope, vault.#state.revision);
+        vault.#state = draft; vault.#envelope = envelope;
+        return { result: undefined, committedState: vault.read() };
+      });
       return vault;
     } catch (error) { await vault.close(); throw error; }
   }
@@ -234,7 +246,7 @@ export class Vault implements StateStore {
       const envelope = await adapter.load(); validateEnvelope(envelope);
       key = await unwrap(secret, recovery ? envelope.recovery : envelope.passphrase, envelope.id, recovery ? 'recovery' : 'passphrase');
       const state = decodeSnapshot(envelope, key);
-      return new Vault(directory, adapter, lock, key, envelope, state, options.keychain);
+      return new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard);
     } catch { key?.fill(0); await lock.release(); await adapter.close?.(); return fail('UNLOCK_FAILED', 'Unable to unlock vault. Check your credential or restore a valid backup.'); }
   }
   static async restore(options: RestoreVaultOptions): Promise<Vault> {
@@ -260,7 +272,7 @@ export class Vault implements StateStore {
       if (await adapter.load()) fail('VAULT_EXISTS', 'Restore requires an empty vault location.');
       await adapter.commit(envelope, null);
       if (options.keychain) await options.keychain.store(envelope.id, Uint8Array.from(key!));
-      return new Vault(directory, adapter, lock, key!, envelope, state, options.keychain);
+      return new Vault(directory, adapter, lock, key!, envelope, state, options.keychain, options.writerGuard);
     } catch (error) { key!.fill(0); await lock.release(); await adapter.close?.(); throw error; }
   }
   #ready() { if (this.#closed || this.#closing) fail('VAULT_CLOSED', 'The vault is closed.'); }
@@ -272,15 +284,17 @@ export class Vault implements StateStore {
   }
   update<T>(change: (state: State) => T | Promise<T>): Promise<T> {
     if (this.#transaction.getStore()) return Promise.reject(new ChausarError('REENTRANT_TRANSACTION', 'Nested vault transactions are not supported.'));
-    return this.#enqueue(() => this.#transaction.run(true, async () => {
+    return this.#enqueue(() => this.#transaction.run(true, () => this.guarded(async assertCurrent => {
       const draft = structuredClone(this.#state), result = await change(draft);
       if (draft.workspace.id !== this.#state.workspace.id) fail('INVALID_STATE', 'A transaction cannot change workspace identity.');
       draft.revision = this.#state.revision + 1;
       const envelope = encodeSnapshot(draft, { ...this.#envelope, revision: draft.revision }, this.#key);
-      await this.#adapter.commit(envelope, this.#state.revision);
+      assertCurrent(); await this.#adapter.commit(envelope, this.#state.revision);
       this.#state = structuredClone(draft); this.#envelope = envelope;
-      return result;
-    }));
+      // close/delete mark the handle closing before draining already accepted updates.
+      // The committed authority remains available internally while public reads are shut.
+      return { result, committedState: structuredClone(this.#state) };
+    })));
   }
   backup(target: string): Promise<string> {
     return this.#enqueue(async () => { await atomicWrite(target, JSON.stringify({ backupFormat: 'chausar.backup.v1', envelope: this.#envelope }), false); return target; });
@@ -294,7 +308,10 @@ export class Vault implements StateStore {
     this.#ready(); this.#closing = true;
     this.#shutdown = (async () => {
       await this.#chain;
-      try { await this.#adapter.delete(); await this.#keychain?.remove(this.#envelope.id); }
+      try { await this.guarded(async assertCurrent => {
+        assertCurrent(); await this.#adapter.delete(); await this.#keychain?.remove(this.#envelope.id);
+        return { result: undefined, committedState: structuredClone(this.#state) };
+      }); }
       finally { await this.#finish(); }
     })();
     return this.#shutdown;

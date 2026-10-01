@@ -7,6 +7,8 @@ import type { Context, State, StateStore } from './contracts.ts';
 import { assertSourceAccess, trustFingerprint } from './trust.ts';
 import { Vault, safeDirectory } from './vault.ts';
 import type { RestoreVaultOptions } from './vault.ts';
+import type { SyncWriterAdmission } from './sync-writer-admission.ts';
+import { reconcileSyncPublication } from './sync-publication-recovery.ts';
 
 export type SyncHead = { recordHash: string; workspaceId: string; vaultId: string; revision: number; sequence: number; fence: number };
 export type SyncLease = { deviceId: string; memberId: string; epoch: number; fence: number; expiresAt: string; token: string };
@@ -20,7 +22,7 @@ export interface SyncTransport {
   put(input: { lease: SyncLease; expectedHeadHash: string | null; recordHash: string; snapshot: SyncSnapshot; now: string }): Promise<SyncHead>;
   get(recordHash: string): Promise<SyncSnapshot | null>;
 }
-export type SyncOptions = { transport?: SyncTransport; deviceId?: string; signerId?: string; signingKey?: KeyObject | string; trustedSigners?: Record<string, { publicKey: KeyObject | string; memberId: string; epoch: number }>; vault?: Pick<Vault, 'backup' | 'directory'>; enabled?: boolean; clock?: () => Date; leaseTtlMs?: number; workspaceId?: string; mode?: 'single-writer' | 'multi-writer' };
+export type SyncOptions = { transport?: SyncTransport; deviceId?: string; signerId?: string; signingKey?: KeyObject | string; trustedSigners?: Record<string, { publicKey: KeyObject | string; memberId: string; epoch: number }>; vault?: Pick<Vault, 'backup' | 'directory'> & { readonly vaultId?: string }; enabled?: boolean; clock?: () => Date; leaseTtlMs?: number; workspaceId?: string; mode?: 'single-writer' | 'multi-writer'; writerAdmission?: SyncWriterAdmission; requireWriterAdmission?: boolean };
 
 function signedBody(snapshot: SyncSnapshot): string { const { signature: _, ...body } = snapshot; return JSON.stringify(body); }
 export function snapshotHash(snapshot: SyncSnapshot): string { return hash(snapshot); }
@@ -49,6 +51,18 @@ export class SyncService {
     for (const [id, identity] of Object.entries(options.trustedSigners || {})) this.#trusted.set(id, { ...identity, publicKey: typeof identity.publicKey === 'string' ? createPublicKey(identity.publicKey) : identity.publicKey });
   }
   #time(): Date { return this.options.clock?.() || new Date(); }
+  async #writerTransportOperation<T>(context: Context, vaultId: string, work: () => Promise<T>): Promise<T> {
+    const admission = this.options.writerAdmission;
+    if (!admission) {
+      check(!this.options.requireWriterAdmission, 'SYNC_WRITER_ADMISSION_REQUIRED', 'Device publication requires separate reviewed writer admission.');
+      return work();
+    }
+    check(admission.deviceId === this.deviceId, 'SYNC_WRITER_ADMISSION_REQUIRED', 'Writer admission must bind this configured device.');
+    check(this.options.signingKey && this.options.deviceId && this.options.signerId, 'SYNC_DEVICE_CONFIGURATION_REQUIRED', 'Configure a persistent broker-supplied signing key and reviewed device identity before publication.');
+    return admission.run({ state: this.store.read(), vaultId, context }, async assertCurrent => {
+      assertCurrent(); const result = await work(); return { result, committedState: this.store.read() };
+    });
+  }
   #transport(context: Context): SyncTransport {
     const member = authorize(this.store, context, 'admin'); check(member.branches.includes('*'), 'SYNC_SCOPE_DENIED', 'Encrypted full-vault sync requires every branch.');
     assertSourceAccess(this.store.read(), context, [...new Set(this.store.read().facts.map(f => f.sourceId))]);
@@ -57,6 +71,11 @@ export class SyncService {
     return this.options.transport;
   }
   status(context: Context) { authorize(this.store, context); return { enabled: this.#enabled, deviceId: this.deviceId, transport: this.options.transport?.kind || null, mode: 'single-writer', experimental: true, verification: 'no-real-second-device-test', liveAuthorityOverwrite: false }; }
+  /** Trusted Engine only: synchronous rollback of volatile settings within admission's lock. */
+  configurationCheckpoint(): () => void {
+    const enabled = this.#enabled, trusted = new Map(this.#trusted);
+    return () => { this.#enabled = enabled; this.#trusted = new Map(trusted); };
+  }
   enable(context: Context, enabled: boolean) { authorize(this.store, context, 'admin'); check(typeof enabled === 'boolean', 'INVALID_SYNC_SETTING', 'Sync enablement must be boolean.'); this.#enabled = enabled; return this.status(context); }
   identity(context: Context) { authorize(this.store, context, 'admin'); return { deviceId: this.deviceId, signerId: this.signerId, publicKey: this.#publicKey.export({ format: 'pem', type: 'spki' }).toString() }; }
   trustDevice(context: Context, identity: { signerId: string; publicKey: string; memberId: string; epoch: number }) {
@@ -107,18 +126,41 @@ export class SyncService {
     const transport = this.#transport(context); const preview = structuredClone(this.store.read().modelReceipts.find(r => r.id === input.previewId && r.kind === 'sync-preview'));
     check(preview?.status === 'preview', 'PREVIEW_NOT_FOUND', 'Create an unused encrypted sync preview first.'); this.#current(context, preview);
     const approval = this.#approvalCurrent(context, preview, input.approvalId); check(!approval.used, 'ALREADY_SENT', 'Sync approvals are consumed once.');
-    const lease = await transport.acquireLease({ deviceId: this.deviceId, memberId: context.memberId, epoch: context.epoch, now: this.#time().toISOString(), ttlMs: this.options.leaseTtlMs || 60000 });
+    const lease = await this.#writerTransportOperation(context, preview.vaultId, () => transport.acquireLease({ deviceId: this.deviceId, memberId: context.memberId, epoch: context.epoch, now: this.#time().toISOString(), ttlMs: this.options.leaseTtlMs || 60000 }));
     this.#approvalCurrent(context, preview, input.approvalId); check(lease && lease.deviceId === this.deviceId && lease.memberId === context.memberId && lease.epoch === context.epoch && Number.isSafeInteger(lease.fence) && lease.fence > 0 && Date.parse(lease.expiresAt) > this.#time().getTime(), 'WRITER_LEASE_DENIED', 'Another device holds the writer lease or the lease expired.');
     const body = { format: 'chausar.sync.v1' as const, workspaceId: preview.workspaceId, vaultId: preview.vaultId, revision: preview.revision, sequence: preview.sequence, fence: lease.fence, deviceId: this.deviceId, signerId: this.signerId,
       memberId: context.memberId, epoch: context.epoch, createdAt: this.#time().toISOString(), previousHash: preview.expectedHeadHash, ciphertextBase64: preview.payloadBase64, ciphertextDigest: preview.digest };
     const snapshot: SyncSnapshot = { ...body, signature: sign(null, Buffer.from(JSON.stringify(body)), this.#signingKey).toString('base64url') }; const recordHash = snapshotHash(snapshot);
-    await this.store.update(state => { this.#approvalCurrent(context, preview, input.approvalId); const current = state.modelReceipts.find(r => r.id === preview.id); const grant = state.modelReceipts.find(r => r.id === input.approvalId); check(current?.status === 'preview' && grant && !grant.used, 'ALREADY_SENT', 'This encrypted snapshot was already submitted.'); current.status = 'dispatching'; grant.used = true; current.recordHash = recordHash; current.fence = lease.fence; });
+    const publicationExpectation = { recordHash, workspaceId: preview.workspaceId, vaultId: preview.vaultId, revision: preview.revision,
+      sequence: preview.sequence, fence: lease.fence, expectedHeadHash: preview.expectedHeadHash };
+    await this.store.update(state => { this.#approvalCurrent(context, preview, input.approvalId); const current = state.modelReceipts.find(r => r.id === preview.id); const grant = state.modelReceipts.find(r => r.id === input.approvalId); check(current?.status === 'preview' && grant && !grant.used, 'ALREADY_SENT', 'This encrypted snapshot was already submitted.'); current.status = 'dispatching'; grant.used = true; current.recordHash = recordHash; current.fence = lease.fence; current.publicationExpectation = structuredClone(publicationExpectation); current.publicationExpectationDigest = hash(publicationExpectation); });
     try {
       this.#approvalCurrent(context, preview, input.approvalId); check(Date.parse(lease.expiresAt) > this.#time().getTime(), 'WRITER_LEASE_EXPIRED', 'The writer lease expired before publication.');
-      const head = await transport.put({ lease, expectedHeadHash: preview.expectedHeadHash, recordHash, snapshot, now: this.#time().toISOString() });
+      const head = await this.#writerTransportOperation(context, preview.vaultId, () => {
+        this.#approvalCurrent(context, preview, input.approvalId);
+        return transport.put({ lease, expectedHeadHash: preview.expectedHeadHash, recordHash, snapshot, now: this.#time().toISOString() });
+      });
       this.#approvalCurrent(context, preview, input.approvalId); check(head.recordHash === recordHash && head.revision === preview.revision && head.sequence === preview.sequence && head.fence === lease.fence, 'SYNC_HEAD_MISMATCH', 'The transport did not commit the expected fenced head.');
       return this.store.update(state => { this.#approvalCurrent(context, preview, input.approvalId); const receipt = state.modelReceipts.find(r => r.id === preview.id); check(receipt, 'SYNC_REVOKED', 'The sync request is no longer available.'); receipt.status = 'completed'; receipt.completedAt = now(); receipt.head = head; delete receipt.payloadBase64; audit(state, 'sync.push.completed', { recordHash, revision: head.revision, fence: head.fence }); return { head, receipt: structuredClone(receipt), experimental: true }; });
     } catch (error) { await this.store.update(state => { const receipt = state.modelReceipts.find(r => r.id === preview.id); if (receipt) { receipt.status = 'failed'; receipt.errorCode = error instanceof ChausarError ? error.code : 'SYNC_FAILED'; receipt.remoteOutcome = 'unknown-until-head-reconciliation'; delete receipt.payloadBase64; } }); if (error instanceof ChausarError) throw error; throw new ChausarError('SYNC_FAILED', 'Encrypted publication failed without a retry.'); }
+  }
+  async reconcile(context: Context, previewId: string) {
+    const transport = this.#transport(context), state = this.store.read();
+    const receipt = state.modelReceipts.find(r => r.id === previewId && r.kind === 'sync-preview');
+    check(receipt && ['dispatching', 'failed', 'completed'].includes(receipt.status)
+      && receipt.memberId === context.memberId && receipt.epoch === context.epoch && receipt.deviceId === this.deviceId,
+    'SYNC_RECONCILIATION_UNAVAILABLE', 'Inspect only an existing publication receipt for your current device and access.');
+    assertSourceAccess(state, context, receipt.sourceIds);
+    const expected = receipt.publicationExpectation;
+    check(expected && receipt.publicationExpectationDigest === hash(expected)
+      && expected.recordHash === receipt.recordHash && expected.workspaceId === receipt.workspaceId && expected.vaultId === receipt.vaultId
+      && expected.revision === receipt.revision && expected.sequence === receipt.sequence && expected.fence === receipt.fence
+      && expected.expectedHeadHash === receipt.expectedHeadHash,
+    'SYNC_RECONCILIATION_UNAVAILABLE', 'The original publication expectation is missing or changed.');
+    const result = await reconcileSyncPublication(transport, structuredClone(expected));
+    this.#transport(context); assertSourceAccess(this.store.read(), context, receipt.sourceIds);
+    check(this.store.read().modelReceipts.some(r => r.id === receipt.id && hash(r.publicationExpectation) === receipt.publicationExpectationDigest), 'SYNC_RECONCILIATION_UNAVAILABLE', 'The publication receipt changed during readback.');
+    return { previewId, ...result, readOnly: true, receiptUpdated: false, signerVerification: 'not-performed-no-restore' as const };
   }
   #verify(snapshot: SyncSnapshot, recordHash: string) {
     check(snapshot?.format === 'chausar.sync.v1' && snapshotHash(snapshot) === recordHash && hash(snapshot.ciphertextBase64) === snapshot.ciphertextDigest, 'SYNC_CORRUPT', 'The encrypted snapshot digest does not match.');

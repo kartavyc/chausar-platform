@@ -1,13 +1,15 @@
 import { resolve, join, relative, isAbsolute } from 'node:path';
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Vault } from './vault.ts';
+import { Vault, type VaultWriterGuard } from './vault.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
 import { ImportService, seedDemo } from './ingest.ts';
 import { MemoryService } from './memory.ts';
 import { canSeeFact } from './memory.ts';
 import { CalculatorService, type CalculatorOptions } from './calculator.ts';
+import { ForecastService } from './forecast-service.ts';
+import { AlertsService } from './alerts.ts';
 import { ReportService, type ReportOptions } from './reports.ts';
 import { createJournalExecutionResolver } from './journal-execution.ts';
 import { BridgeService, type BridgeServiceOptions } from './bridge-service.ts';
@@ -26,6 +28,7 @@ import { buildBusinessContext, assertBusinessContextCurrent, renderBusinessAnswe
 import { SpeechService } from './speech.ts';
 import { AuthService } from './auth.ts';
 import { SyncService, type SyncOptions } from './sync.ts';
+import { writerStateDigest, type SyncWriterAdmission, type SyncWriterReview } from './sync-writer-admission.ts';
 import { ActionService } from './actions.ts';
 import { JobService } from './jobs.ts';
 import { createEngineJobRunner, type EngineJobOptions, type JobLifecycle } from './engine-jobs.ts';
@@ -43,7 +46,7 @@ import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 
-export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort } };
+export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort } };
 
 /** Trusted host result. Identifiers and private scope are not automatic outbound disclosure. */
 export type ConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
@@ -231,6 +234,33 @@ export class Engine {
     check(member, 'OWNER_REQUIRED', 'The local workspace owner is no longer available.'); return { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' };
   }
   private store(): Vault { check(this.vault, 'VAULT_LOCKED', 'Open your workspace first.'); return this.vault; }
+  private writerGuard(): VaultWriterGuard | undefined {
+    if (this.options.sync === undefined) return undefined;
+    return (input, work) => {
+      const admission = this.options.sync?.writerAdmission;
+      check(admission && admission.deviceId === this.options.sync?.deviceId, 'SYNC_WRITER_ADMISSION_REQUIRED', 'Configured sync requires a reviewed writer admission bound to this device.');
+      return admission.run({ ...input, context: this.context }, work);
+    };
+  }
+  private async writerStatus() {
+    const vault = this.store(), admission = this.options.sync?.writerAdmission;
+    if (!admission || admission.deviceId !== this.options.sync?.deviceId) return {
+      readonly: true, reason: 'SYNC_WRITER_ADMISSION_REQUIRED', available: false,
+      fence: 0, stateDigest: writerStateDigest(vault.read()), localStateDigest: writerStateDigest(vault.read()), grant: null,
+      qualification: 'local-cooperative-process-only',
+    };
+    return { ...await admission.status({ state: vault.read(), vaultId: vault.vaultId, context: this.context }), available: true };
+  }
+  private async writerConfiguration<T>(work: () => T): Promise<T> {
+    const vault = this.store(), guard = this.writerGuard();
+    check(guard, 'SYNC_WRITER_ADMISSION_REQUIRED', 'Configure reviewed writer admission before changing device sync.');
+    return guard({ state: vault.read(), vaultId: vault.vaultId }, async assertCurrent => {
+      assertCurrent();
+      const rollback = this.services.sync.configurationCheckpoint();
+      try { const result = work(); return { result, committedState: vault.read(), rollback }; }
+      catch (error) { rollback(); throw error; }
+    });
+  }
   private async adapter(folder = 'main') {
     if (this.options.storage === 'experimental-file' && this.options.demo) return 'experimental-file' as const;
     check(this.options.storage === 'postgres' && this.options.postgresUrl, 'DATABASE_REQUIRED', 'Production requires configured PostgreSQL. File storage is available only in the explicitly experimental demo.');
@@ -262,6 +292,7 @@ export class Engine {
       receiptGuard: (ctx, receipt) => connectorRuntime.assertReceiptReady(ctx, receipt),
     };
     this.services.calculator = new CalculatorService(store, calculationOptions);
+    this.services.forecasts = new ForecastService(store, calculationOptions);
     // Execution resolution is a trusted host port, never a route or RPC setting.
     const reportOptions: ReportOptions = { ...calculationOptions, executionReceipt: (ctx, id, view) => {
       const resolver = this.options.reports?.executionReceipt ?? createJournalExecutionResolver(this.services.actions);
@@ -277,6 +308,13 @@ export class Engine {
     if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: resolve(this.options.directory, 'updates') });
     this.services.trust = new TrustService(store);
     const connectorForView = (view: StateStore) => view === store ? connectorRuntime : new EngineConnectorService(view, this.options.connectorRuntime);
+    this.services.alerts = new AlertsService(store, { calculatorOptions: view => {
+      const connectors = connectorForView(view);
+      return {
+        consumerGuard: (ctx, request) => connectors.assertCalculationReady(ctx, request),
+        receiptGuard: (ctx, receipt) => connectors.assertReceiptReady(ctx, receipt),
+      };
+    } });
     const businessContextHooks: BusinessContextHooks = { assertEvidenceReady: (ctx, refs, view = store) => {
       this.options.gateway?.businessContext?.assertEvidenceReady?.(ctx, refs, view);
       return connectorForView(view).assertBusinessEvidenceReady(ctx, refs);
@@ -303,7 +341,7 @@ export class Engine {
       synthesisCodec: this.options.synthesis ?? this.options.gateway?.synthesisCodec ?? installedConversationSynthesisCodec });
     this.services.speech = new SpeechService(store);
     this.services.auth = new AuthService(store);
-    this.services.sync = new SyncService(store, { ...this.options.sync, vault });
+    this.services.sync = new SyncService(store, { ...this.options.sync, vault, requireWriterAdmission: true });
     this.services.actions = new ActionService(store, this.builtinActions(store));
     this.services.jobs = new JobService(store, { clock: this.options.durableJobs?.clock,
       calendarRules: this.options.jobCalendar?.rules, calendarBounds: this.options.jobCalendar?.bounds,
@@ -387,7 +425,13 @@ export class Engine {
     await this.closeVault();
   }
   private notifyIdle() { if (!this.#activeRequests && !this.#transition) for (const finished of this.#idleWaiters) finished(); }
-  private async attachSafely(vault: Vault) { try { this.attach(vault); await this.services.actions.recoverInterrupted(this.context); await this.services.jobRunner?.recoverInterrupted(this.context); } catch (error) { await vault.close(); this.vault = null; this.services = {}; throw error; } }
+  private async attachSafely(vault: Vault) { try {
+    this.attach(vault);
+    // Read-only devices may inspect/review enrollment without mutating recovery
+    // state. A reviewed writer later performs ordinary recovery on reopen.
+    if (this.options.sync !== undefined && (await this.writerStatus()).readonly) return;
+    await this.services.actions.recoverInterrupted(this.context); await this.services.jobRunner?.recoverInterrupted(this.context);
+  } catch (error) { await vault.close(); this.vault = null; this.services = {}; throw error; } }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
     const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete']);
@@ -401,6 +445,7 @@ export class Engine {
     check(typeof method === 'string' && method.length <= 80 && payload && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_REQUEST', 'Use a named request with an object payload.');
     if (method === 'workspace.status') return { open: !!this.vault, workspace: this.vault?.read().workspace, storage: this.options.storage, experimental: !!this.options.demo, version: this.version };
     if (method === 'workspace.create') {
+      check(this.options.sync === undefined, 'SYNC_EXISTING_WORKSPACE_REQUIRED', 'Create a local workspace before enrolling its exact identity in device sync.');
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before creating another.');
       check(typeof payload.name === 'string' && payload.name.trim().length >= 2 && payload.name.length <= 100, 'INVALID_NAME', 'Give your business a name.');
       const pack = payload.pack ?? 'ecommerce'; check(new OntologyService({ read: () => { throw new Error('No vault'); }, update: async () => { throw new Error('No vault'); } }).packs().some(p => p.pack === pack), 'UNKNOWN_PACK', 'Choose an available business starter pack.');
@@ -411,14 +456,14 @@ export class Engine {
         return { workspace: this.store().read().workspace, recoveryKit: result.recoveryCode, recoveryCode: result.recoveryCode, experimental: !!this.options.demo };
       } catch (error) { await result.vault.delete(); this.vault = null; this.services = {}; throw error; }
     }
-    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? payload.path ?? 'main'; await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage: await this.adapter(folder) })); return { workspace: this.store().read().workspace }; }
-    if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); await this.attachSafely(await Vault.recover({ directory: this.workspacePath(payload.folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage: await this.adapter(payload.folder) })); return { workspace: this.store().read().workspace }; }
+    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? payload.path ?? 'main'; await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
+    if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); await this.attachSafely(await Vault.recover({ directory: this.workspacePath(payload.folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage: await this.adapter(payload.folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
     if (method === 'workspace.restore') {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before restoring.');
       check(typeof payload.backupFile === 'string', 'INVALID_PATH', 'Choose a backup from this app.');
       const backupRoot = resolve(this.options.directory, 'backups'); const backupFile = resolve(backupRoot, payload.backupFile); const rel = relative(backupRoot, backupFile);
       check(!rel.startsWith('..') && !isAbsolute(rel) && rel.endsWith('.backup'), 'INVALID_PATH', 'Choose a managed backup file.');
-      const folder = payload.folder ?? 'restored'; await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage: await this.adapter(folder) })); return { workspace: this.store().read().workspace };
+      const folder = payload.folder ?? 'restored'; await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace };
     }
     if (method === 'workspace.lock') { if (this.vault) authorize(this.vault, this.context, 'admin'); await this.closeVault(); return { locked: true }; }
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
@@ -429,13 +474,30 @@ export class Engine {
       case 'auth.session': return s.auth.issueSession(ctx, payload.memberId ?? ctx.memberId, payload.ttlMs);
       case 'auth.revoke': return payload.inviteId ? s.auth.revokeInvite(ctx, payload.inviteId) : s.auth.revokeSession(ctx, payload.sessionId ?? payload.id);
       case 'auth.sessions': return s.auth.sessions(ctx);
-      case 'sync.status': authorize(store, ctx, 'admin'); return s.sync.status(ctx);
+      case 'sync.status': authorize(store, ctx, 'admin'); return { ...s.sync.status(ctx), writerAdmission: await this.writerStatus() };
+      case 'sync.writer.status': this.journalPayload(payload, [], [], 'INVALID_SYNC_REQUEST'); authorize(store, ctx, 'admin'); return this.writerStatus();
+      case 'sync.writer.review': {
+        authorize(store, ctx, 'admin');
+        check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Review the exact device writer grant in the untainted app.');
+        const input = this.journalPayload(payload, ['expectedFence', 'expectedStateDigest', 'deviceId', 'memberId', 'epoch', 'expiresAt', 'reason'], ['expectedFence', 'expectedStateDigest', 'deviceId', 'memberId', 'epoch', 'expiresAt', 'reason'], 'INVALID_SYNC_REQUEST');
+        const admission = this.options.sync?.writerAdmission;
+        check(admission && admission.deviceId === this.options.sync?.deviceId, 'SYNC_WRITER_ADMISSION_REQUIRED', 'Configure exact reviewed device writer admission first.');
+        return admission.review(ctx, store.read(), store.vaultId, input as SyncWriterReview);
+      }
       case 'sync.identity': return s.sync.identity(ctx);
-      case 'sync.enable': return s.sync.enable(ctx, payload.enabled);
-      case 'sync.trust': return s.sync.trustDevice(ctx, payload);
+      case 'sync.enable': return this.writerConfiguration(() => {
+        if (payload.enabled) check(this.options.sync?.signingKey && this.options.sync?.deviceId && this.options.sync?.signerId, 'SYNC_DEVICE_CONFIGURATION_REQUIRED', 'Configure a persistent broker-supplied signing key and reviewed device identity before publication.');
+        return s.sync.enable(ctx, payload.enabled);
+      });
+      case 'sync.trust': return this.writerConfiguration(() => s.sync.trustDevice(ctx, payload));
       case 'sync.preview': return s.sync.preview(ctx);
       case 'sync.approve': return s.sync.approve(ctx, payload.id ?? payload.previewId);
       case 'sync.push': return s.sync.push(ctx, payload);
+      case 'sync.reconcile': {
+        const input = this.journalPayload(payload, ['previewId'], ['previewId'], 'INVALID_SYNC_REQUEST');
+        check(typeof input.previewId === 'string' && input.previewId.length > 0 && input.previewId.length <= 200, 'INVALID_SYNC_REQUEST', 'Choose one existing publication receipt.');
+        return s.sync.reconcile(ctx, input.previewId);
+      }
       case 'sync.pull': {
         authorize(store, ctx, 'admin'); const folder = payload.folder ?? 'sync-staged';
         const staged = await s.sync.pull(ctx, { directory: this.workspacePath(folder), passphrase: payload.passphrase, recoveryCode: payload.recoveryCode, newPassphrase: payload.newPassphrase, expectedWorkspaceId: payload.expectedWorkspaceId, storage: await this.adapter(folder) });
@@ -523,6 +585,25 @@ export class Engine {
         const result = await s.businessProfile.remove(ctx, payload.id); const removed = await this.purgeManagedCopies(); return { ...result, copiesRemoved: removed };
       }
       case 'calculation.run': return s.calculator.calculate(ctx, payload);
+      case 'forecasts.evaluate': return s.forecasts.evaluate(ctx, payload);
+      case 'forecasts.get': {
+        const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_FORECAST');
+        check(typeof input.id === 'string' && input.id.length > 0 && input.id.length <= 200, 'INVALID_FORECAST', 'Choose one saved forecast evaluation.');
+        return s.forecasts.get(ctx, input.id);
+      }
+      case 'alerts.create': return s.alerts.create(ctx, payload);
+      case 'alerts.list': this.journalPayload(payload, [], [], 'INVALID_ALERT'); return s.alerts.list(ctx);
+      case 'alerts.get': {
+        const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_ALERT'); return s.alerts.get(ctx, input.id);
+      }
+      case 'alerts.publish': {
+        const input = this.journalPayload(payload, ['id', 'expectedRevision'], ['id', 'expectedRevision'], 'INVALID_ALERT');
+        const { id, ...update } = input; return s.alerts.publish(ctx, id, update);
+      }
+      case 'alerts.evaluate': {
+        const input = this.journalPayload(payload, ['id', 'expectedRevision', 'observationId', 'observedAt', 'receiptId', 'missingReason', 'correction'], ['id', 'expectedRevision', 'observationId', 'observedAt'], 'INVALID_ALERT');
+        const { id, ...update } = input; return s.alerts.evaluate(ctx, id, update);
+      }
       case 'analysis.bridge.publish': return s.bridge.publish(ctx, payload);
       case 'analysis.bridge.profiles': this.journalPayload(payload, [], [], 'BRIDGE_PROFILE_INVALID'); return s.bridge.profiles(ctx);
       case 'analysis.bridge.run': return s.bridge.run(ctx, payload);

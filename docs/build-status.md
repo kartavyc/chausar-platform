@@ -2,7 +2,13 @@
 
 Release `0.1.0-preview.1` implements a runnable local desktop architecture preview and includes the separate recovered enterprise engine. The full supplied plans are retained in `docs/specs/`; their complete production acceptance contract is not certified by this release.
 
-## Executed evidence
+## Published source checkpoints
+
+The recovered baseline below is historical evidence for the initial preview. Later integration checkpoints have their own source-pinned reports. Published commit `0546c85d3323b96ce8257f2bb1f637d6d2f47190` passed 1611 combined app/semantic tests, root strict TypeScript, portable phone TypeScript, syntax/JSON and the Windows headless worker. Its Windows and Ubuntu GitHub CI jobs also passed. It joins saved investigations to durable jobs; these source checks do not certify the complete release.
+
+The next connected local-file sync, writer admission, forecast and alert slice is described in [its milestone](connected-sync-forecast-alert-milestone.md). Final aggregate counts and commit/tree identifiers belong to the exact frozen coordinator report and CI run. Each public synthetic flow keeps live providers, customer sources, GUI qualification and full release acceptance separate.
+
+## Recovered baseline evidence (historical)
 
 | Check | Actual result |
 |---|---|
@@ -22,11 +28,11 @@ Release `0.1.0-preview.1` implements a runnable local desktop architecture previ
 | Native installers, publisher signing and rollback | Not executed; runtime binaries/certificates not provided; packaging fails closed |
 | Enterprise connected engine | Source recovered and syntax inspected; new connected database run not executed |
 
-`docs/evidence/factory-bench.json` records current full-suite counts and explicit production non-qualification. Historical enterprise evidence is not used as current test output. CI produces its own report on each commit.
+`docs/evidence/factory-bench.json` records the recovered baseline's counts and explicit production non-qualification. Historical enterprise evidence is not used as current test output. CI produces its own report on each commit.
 
 ## Release gates still open
 
-Install pinned dependencies and generate/review the root lockfile; run strict TypeScript checking; exercise real DuckDB and a fresh disposable PostgreSQL cluster. Stage authentic vendor runtimes with an integrity inventory. Then qualify Electron startup and shutdown, windows, recoverability, platform ACLs, native keychain, installer signing, update staging and actual rollback on each supported OS.
+Pinned engine dependencies are installed from the operator's verified local acquisition, and root plus portable phone strict TypeScript have passed on integrated checkpoints. A separate native PostgreSQL/DuckDB worker recorded 110 passing checks on its exact database qualification scope; these are historical lane evidence, not a fresh all-feature native run. PGlite concurrency/reopening qualification failed and supplies no default-storage recommendation. Separate enterprise checking still lacks its required packages in the last reported run. Stage authentic vendor runtimes with an integrity inventory, then qualify Electron startup and shutdown, windows, recoverability, platform ACLs, native keychain, installer signing, update staging and actual rollback on each supported OS. The dedicated security review remains blocked and unverified.
 
 Live-source support requires real hidden-business fixture reconciliation and upstream control totals for each system, edition, company and operation. External model quality, official CLI versions/policy, speech, provider cost reconciliation and transport one-writer semantics require separate evidence. Current drafts, sample factories and catalogue records cannot grant those capabilities.
 
