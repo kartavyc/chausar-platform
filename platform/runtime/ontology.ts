@@ -1,10 +1,11 @@
 import { authorize, audit, check, hash, now, type Context, type StateStore } from './contracts.ts';
+import { compileSingleSum, type CompiledSingleSum } from './compiled-calculation.ts';
 
 export type FieldType = 'string' | 'money' | 'date' | 'integer' | 'boolean';
 export type Definition = { name: string; label: string; meaning: string; kind: string; field: string; currency: string; nulls: 'exclude' | 'reject'; sign?: 1 | -1 };
 export type DictionaryDraft = { pack: string; label: string; currency: string; gstMode: 'regular' | 'composition' | 'unregistered'; fields: Record<string, FieldType>; definitions: Definition[] };
 export type Operation = { id: string; label: string; type: 'sum' | 'margin' | 'aging' | 'change' | 'scenario'; definitions: string[]; parameters: string[] };
-export type Dictionary = DictionaryDraft & { version: number; publishedAt: string; publishedBy: string; hash: string; operations: Operation[]; schema: Record<string, FieldType>; checks: { required: string[]; currency: string; nullRules: Record<string, string> } };
+export type Dictionary = DictionaryDraft & { version: number; publishedAt: string; publishedBy: string; hash: string; operations: Operation[]; compiledSums?: CompiledSingleSum[]; schema: Record<string, FieldType>; checks: { required: string[]; currency: string; nullRules: Record<string, string> } };
 
 const fields: Record<string, FieldType> = {
   amountMinor: 'money', taxMinor: 'money', customerId: 'string', customerName: 'string', invoiceId: 'string', orderId: 'string', dueDate: 'date', status: 'string', quantity: 'integer', unit: 'string', currency: 'string', company: 'string', gstin: 'string', pan: 'string', description: 'string', costType: 'string', accountClass: 'string', bankReference: 'string',
@@ -64,7 +65,9 @@ export function compileDictionary(draft: DictionaryDraft, version = 1, published
     sumOperations.push({ id: 'scenario', label: 'Price scenario', type: 'scenario', definitions: ['earned'], parameters: ['period', 'asOf', 'branch', 'customerId', 'assumptions'] });
   }
   check(new Set(sumOperations.map(o => o.id)).size === sumOperations.length, 'RESERVED_MEASURE', 'A measure uses a generated calculation name.');
-  const content = { ...structuredClone(draft), version, publishedAt, publishedBy, operations: sumOperations, schema: { ...draft.fields }, checks: { required: ['entityId', 'validFrom', 'currency'], currency: draft.currency, nullRules: Object.fromEntries(draft.definitions.map(d => [d.name, d.nulls])) } };
+  const compiledSums = sumOperations.filter(o => o.type === 'sum' && o.definitions.length === 1)
+    .map(o => compileSingleSum(o, draft.definitions.find(d => d.name === o.definitions[0])!, version));
+  const content = { ...structuredClone(draft), version, publishedAt, publishedBy, operations: sumOperations, compiledSums, schema: { ...draft.fields }, checks: { required: ['entityId', 'validFrom', 'currency'], currency: draft.currency, nullRules: Object.fromEntries(draft.definitions.map(d => [d.name, d.nulls])) } };
   return { ...content, hash: hash(content) };
 }
 

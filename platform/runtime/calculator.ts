@@ -2,11 +2,12 @@ import { authorize, audit, check, hash, newId, now, type Context, type Fact, typ
 import { canSeeFact, currentAccess, selectFacts, validDate, validatePeriod, type FactFilter, type Period } from './memory.ts';
 import { OntologyService, type Definition } from './ontology.ts';
 import { formatMinor } from './currency.ts';
+import { assertCompiledSingleSum, compileSingleSum, type CompiledCalculationBinding, type CompiledSingleSum } from './compiled-calculation.ts';
 
 export type CalculationRequest = FactFilter & { operation: string; comparePeriod?: Period; onDate?: string; assumptions?: { priceChangeBps: string } };
 export type Figure = { key: string; label: string; minor: string; display: string; unit: 'money' | 'basis-points'; currency?: string };
-export type ReceiptRow = { factId: string; entityId: string; sourceId: string; sourceRow: number; kind: string; amountMinor: string; validFrom: string; dueDate?: string; invoiceId?: string; customerId?: string; orderId?: string; status?: string; branch?: string; normalization?: { sourceCurrency: string; targetCurrency: string; rate: unknown } };
-export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown };
+export type ReceiptRow = { factId: string; entityId: string; sourceId: string; sourceRow: number; kind: string; amountMinor: string; measureField?: string; validFrom: string; dueDate?: string; invoiceId?: string; customerId?: string; orderId?: string; status?: string; branch?: string; normalization?: { sourceCurrency: string; targetCurrency: string; rate: unknown } };
+export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; compiledCalculation?: CompiledCalculationBinding; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown };
 export type CalculatorOptions = {
   verifier?: (receipt: CalculationReceipt) => Promise<unknown>;
   consumerGuard?: (context: Context, request: CalculationRequest) => void;
@@ -57,6 +58,17 @@ export class CalculatorService {
     if (request.comparePeriod) check(operation.type === 'change', 'INVALID_CALCULATION', 'Comparison periods are only accepted by the change calculation.');
     if (request.assumptions) check(operation.type === 'scenario', 'INVALID_CALCULATION', 'Assumptions are only accepted by the scenario calculation.');
     const definitions = dictionary.definitions.filter(d => operation.definitions.includes(d.name)); const relevantKinds = definitions.map(d => d.kind);
+    let compiledSum: CompiledSingleSum | undefined;
+    if (operation.type === 'sum' && operation.definitions.length === 1) {
+      check(definitions.length === 1, 'COMPILED_SUM_MISMATCH', 'A published sum must resolve exactly one definition.');
+      if (dictionary.compiledSums === undefined) compiledSum = compileSingleSum(operation, definitions[0], dictionary.version);
+      else {
+        check(Array.isArray(dictionary.compiledSums), 'COMPILED_SUM_MISMATCH', 'The published compiler catalogue is invalid.');
+        const matches = dictionary.compiledSums.filter(sum => sum?.operationId === operation.id);
+        check(matches.length === 1, 'COMPILED_SUM_MISMATCH', 'The published sum needs exactly one retained compiler artifact.');
+        assertCompiledSingleSum(matches[0], operation.id, definitions[0], dictionary.version); compiledSum = matches[0];
+      }
+    }
     const selection = selectFacts(this.store, ctx, { period: operation.type === 'aging' ? undefined : request.period, asOf: request.asOf, branch: request.branch, customerId: request.customerId, orderId: request.orderId, kinds: relevantKinds });
     const excluded = [...selection.excluded]; const counted = new Map<string, Fact>(); const missingMeasures = new Set<string>();
     const selectedFactIds = new Set(selection.facts.map(f => f.id));
@@ -77,7 +89,7 @@ export class CalculatorService {
     };
     const figures: Figure[] = []; let result = 0n; const assumptions: Record<string, unknown> = {};
     if (operation.type === 'sum') {
-      result = metric(operation.definitions[0]); if (request.operation === 'net_sales') result -= metric('refunds');
+      result = metric(operation.definitions[0]); if (request.operation === 'net_sales' && !compiledSum) result -= metric('refunds');
       figures.push(moneyFigure('total', operation.label, result, dictionary.currency));
     } else if (operation.type === 'margin') {
       const earned = metric('earned'), refunds = metric('refunds'), costs = metric('costs'); const net = earned - refunds; result = net - costs;
@@ -135,18 +147,19 @@ export class CalculatorService {
     if (conflictIds.size) gaps.push('Unresolved source conflicts were excluded from this total.');
     if (missingMeasures.size) gaps.push('Some selected amounts are unknown and were excluded by the dictionary. This total is partial; missing amounts are not zero.');
     if (!rows.length) gaps.push('No visible facts were counted. An empty selection is not proof that the business activity was zero.');
-    if (request.operation === 'margin') gaps.push('Contribution includes imported costs only. Missing freight, fees, advertising, overhead or tax treatment can change the economic result.');
+    if (operation.type === 'margin') gaps.push('Contribution includes imported costs only. Missing freight, fees, advertising, overhead or tax treatment can change the economic result.');
     const effectiveExcluded = excluded.filter(e => !counted.has(e.rowId) || e.reason !== 'Outside the requested event period.');
     const receipt: CalculationReceipt = {
       id: newId('receipt'), memberId: ctx.memberId, epoch: ctx.epoch, sourceIds: [...new Set(rows.map(r => r.sourceId))], operation: request.operation, createdAt: now(), asOf: selection.asOf,
       period: request.period ?? null, comparePeriod: request.comparePeriod ?? null, branch: request.branch ?? null, currency: dictionary.currency,
       ontologyVersion: dictionary.version, dictionaryHash: dictionary.hash, definitionHash: hash(definitions), definitions, figures, valueMinor: String(result), totalMinor: String(result), rowIds: rows.map(f => f.id),
-      rows: rows.map(f => ({ factId: f.id, entityId: f.entityId, sourceId: f.sourceId, sourceRow: f.sourceRow, kind: f.kind, amountMinor: String(f.fields.amountMinor), validFrom: f.validFrom, branch: f.branch })),
+      ...(compiledSum ? { compiledCalculation: { dictionaryHash: dictionary.hash, sum: structuredClone(compiledSum) } } : {}),
+      rows: rows.map(f => ({ factId: f.id, entityId: f.entityId, sourceId: f.sourceId, sourceRow: f.sourceRow, kind: f.kind, amountMinor: String(f.fields[compiledSum?.moneyField ?? 'amountMinor']), ...(compiledSum ? { measureField: compiledSum.moneyField } : {}), validFrom: f.validFrom, branch: f.branch })),
       exclusions: [...new Map(effectiveExcluded.map(e => [`${e.rowId}:${e.reason}`, e])).values()],
       coverage: { selectedRows: selectedFactIds.size, countedRows: rows.length, excludedRows: new Set(effectiveExcluded.map(e => e.rowId)).size, unresolvedConflicts: conflictIds.size, importIds, completeness: conflictIds.size || missingMeasures.size ? 'partial' : !rows.length ? 'empty' : allReconciled ? 'reconciled-imports' : 'unreconciled-facts', gaps },
       assumptions, explanation: figures.map(f => `${f.label}: ${f.display}.`).join(' ') + (gaps.length ? ` Coverage: ${gaps.join(' ')}` : ''), stale: false, allowedNumbers: [],
     };
-    for (const row of receipt.rows) { const fact = counted.get(row.factId)!; if (fact.fields._fx) row.normalization = { sourceCurrency: String(fact.fields._sourceCurrency), targetCurrency: dictionary.currency, rate: structuredClone(fact.fields._fx) }; }
+    for (const row of receipt.rows) { const fact = counted.get(row.factId)!; if (fact.fields._fx && (!row.measureField || row.measureField === 'amountMinor')) row.normalization = { sourceCurrency: String(fact.fields._sourceCurrency), targetCurrency: dictionary.currency, rate: structuredClone(fact.fields._fx) }; }
     for (const row of receipt.rows) { const fact = counted.get(row.factId)!; row.validFrom = fact.validFrom; for (const field of ['dueDate', 'invoiceId', 'customerId', 'orderId', 'status'] as const) if (typeof fact.fields[field] === 'string') row[field] = fact.fields[field]; }
     receipt.allowedNumbers = [...new Set([...figures.flatMap(f => [f.minor, ...numericTokens(f.display)]), String(rows.length), String(receipt.coverage.excludedRows), ...numericTokens(JSON.stringify({ period: receipt.period, comparePeriod: receipt.comparePeriod, asOf: receipt.asOf, onDate: assumptions.onDate }))])];
     numberGuard(receipt.explanation, receipt);
