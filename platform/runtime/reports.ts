@@ -1,9 +1,16 @@
-import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
+import { authorize, audit, check, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
 import { CalculatorService, numberGuard, formatMoney, type CalculationReceipt, type CalculationRequest, type CalculatorOptions } from './calculator.ts';
-import { currentAccess, validDate } from './memory.ts';
+import { canSeeFact, currentAccess, validDate } from './memory.ts';
+import { assertSourceAccess } from './trust.ts';
+import { confirmDecision as confirmJournal, draftDecision as draftJournal, dueDecisions as dueJournal, journalContentReceiptIds, journalExecutionSnapshot, reviseDecision as reviseJournal, reviewDecision as reviewJournal, type JournalContent, type JournalDecision, type JournalDraft, type JournalExecutionReceipt, type JournalObservation, type JournalReview } from './decision-journal.ts';
 
 export type DecisionInput = { text: string; reviewDate: string; receiptIds?: string[]; hypotheses?: string[]; branch?: string };
 export type DecisionReview = { outcome: 'accepted' | 'rejected' | 'continue' | 'completed'; notes?: string };
+export type JournalDecisionReview = { outcome: JournalReview['outcome']; notes?: string; observation: JournalObservation; nextReviewDate?: string };
+export type ReportOptions = CalculatorOptions & {
+  /** Trusted host resolver: existence, current access and effect interpretation stay with the execution service. */
+  executionReceipt?: (ctx: Context, id: string, view: StateStore) => JournalExecutionReceipt;
+};
 export type ComplianceEntry = { title: string; dueDate: string; sourceUrl: string; publishedAt: string; reviewedBy: string };
 const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 function forecastValue(series: bigint[]): bigint {
@@ -12,10 +19,129 @@ function forecastValue(series: bigint[]): bigint {
   const slopeNumerator = count * sumXY - sumX * sumY;
   return (sumY * denominator + slopeNumerator * (count * count - sumX)) / (count * denominator);
 }
+function stateView(state: State): StateStore {
+  return { read: () => structuredClone(state), update: async () => { throw new Error('The journal authorization view is read-only.'); } };
+}
+function record(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
+function richRecord(value: unknown): value is Record<string, unknown> { return record(value) && Object.hasOwn(value, 'revision'); }
+function journalRecord(value: unknown): value is JournalDecision {
+  return richRecord(value) && Number.isSafeInteger(value.revision) && typeof value.ownerId === 'string' && Array.isArray(value.options) && Array.isArray(value.assumptions) && record(value.expectedOutcome) && Array.isArray(value.receipts) && Array.isArray(value.revisions) && Array.isArray(value.reviews) && Array.isArray(value.receiptIds) && Array.isArray(value.sourceIds) && Array.isArray(value.rowIds);
+}
+function observationIds(observation: JournalObservation): { receipts: string[]; executions: string[] } {
+  check(record(observation) && Array.isArray(observation.measurements) && Array.isArray(observation.executionReceiptIds), 'INVALID_REVIEW', 'Supply explicit measurement and execution reference lists.');
+  const receipts = observation.measurements.map(ref => {
+    check(record(ref) && typeof ref.receiptId === 'string' && ref.receiptId.trim().length > 0, 'INVALID_REFERENCE', 'Measurements need a receipt ID.'); return ref.receiptId;
+  });
+  check(observation.executionReceiptIds.every(id => typeof id === 'string' && id.trim().length > 0), 'INVALID_REVIEW', 'Execution receipt IDs must be nonblank references.');
+  return { receipts: [...new Set(receipts)], executions: [...new Set(observation.executionReceiptIds)] };
+}
+function payload(value: unknown, keys: string[], code: string) {
+  check(record(value) && Object.keys(value).every(key => keys.includes(key)), code, 'Unknown journal properties are refused.');
+}
+function detached<T>(value: T, code: string): T {
+  try { return structuredClone(value); } catch { check(false, code, 'Journal requests must be plain data.'); }
+}
 export class ReportService {
   store: StateStore;
   calculator: CalculatorService;
-  constructor(store: StateStore, options: CalculatorOptions = {}) { this.store = store; this.calculator = new CalculatorService(store, options); }
+  options: ReportOptions;
+  constructor(store: StateStore, options: ReportOptions = {}) { this.store = store; this.options = options; this.calculator = new CalculatorService(store, options); }
+  private calculatorAt(view: StateStore) { return new CalculatorService(view, this.options); }
+  private receiptAt(view: StateStore, ctx: Context, id: string): CalculationReceipt {
+    const receipt = this.calculatorAt(view).receipt(ctx, id);
+    assertSourceAccess(view.read(), ctx, receipt.sourceIds);
+    return receipt;
+  }
+  private ownerAt(view: StateStore, ctx: Context, content: JournalContent) {
+    currentAccess(view, ctx, content.branch);
+    const owner = view.read().members.find(member => member.id === content.ownerId);
+    check(owner?.active && (!content.branch || owner.branches.includes('*') || owner.branches.includes(content.branch)), 'INVALID_DECISION_OWNER', 'Choose a current active owner with access to the decision branch.');
+  }
+  private executionAt(view: StateStore, ctx: Context, ids: string[]): JournalExecutionReceipt[] {
+    return ids.map(id => {
+      check(this.options.executionReceipt, 'EXECUTION_RECEIPT_UNAVAILABLE', 'Execution references need the trusted execution-service resolver.');
+      const evidence = journalExecutionSnapshot(this.options.executionReceipt({ ...ctx }, id, view));
+      check(evidence.id === id, 'INVALID_EXECUTION_RECEIPT', 'The resolved execution record differs from its requested ID.');
+      this.executionAccess(view, ctx, evidence);
+      return evidence;
+    });
+  }
+  private executionAccess(view: StateStore, ctx: Context, evidence: JournalExecutionReceipt) {
+    const state = view.read(); assertSourceAccess(state, ctx, evidence.sourceIds);
+    for (const rowId of evidence.rowIds) {
+      const fact = state.facts.find(row => row.id === rowId);
+      check(fact && !fact.deletedAt && canSeeFact(view, ctx, fact), 'EXECUTION_RECEIPT_FORBIDDEN', 'Execution evidence includes a row outside your current access.');
+    }
+  }
+  private journalAccess(view: StateStore, ctx: Context, value: JournalDecision): CalculationReceipt[] {
+    authorize(view, ctx); this.ownerAt(view, ctx, value);
+    const state = view.read(); assertSourceAccess(state, ctx, value.sourceIds);
+    value.receipts.forEach(receipt => assertSourceAccess(state, ctx, receipt.sourceIds));
+    const ids = [...new Set([...value.receiptIds, ...value.receipts.map(receipt => receipt.id)])];
+    const receipts = ids.map(id => this.receiptAt(view, ctx, id));
+    const executionIds = [...new Set(value.reviews.flatMap(review => observationIds(review.observation).executions))];
+    value.reviews.forEach(review => (review.executionReceipts ?? []).forEach(evidence => this.executionAccess(view, ctx, journalExecutionSnapshot(evidence))));
+    this.executionAt(view, ctx, executionIds);
+    return receipts;
+  }
+  private journalAt(state: State, ctx: Context, id: string) {
+    const view = stateView(state); authorize(view, ctx, 'prepare');
+    const value: unknown = state.decisions.find(item => item.id === id);
+    check(value, 'DECISION_NOT_FOUND', 'This decision is unavailable under your current access.');
+    check(journalRecord(value), 'JOURNAL_DECISION_REQUIRED', 'This operation needs a rich journal decision.');
+    const receipts = this.journalAccess(view, ctx, value);
+    return { view, value, receipts };
+  }
+  draftDecision(ctx: Context, content: JournalContent): JournalDraft {
+    const view = stateView(this.store.read()); authorize(view, ctx, 'prepare');
+    const ids = journalContentReceiptIds(content); this.ownerAt(view, ctx, content);
+    return draftJournal(content, ids.map(id => this.receiptAt(view, ctx, id)));
+  }
+  async confirmDecision(ctx: Context, draft: JournalDraft, input: { reviewedDigest: string }): Promise<JournalDecision> {
+    authorize(this.store, ctx, 'prepare'); payload(input, ['reviewedDigest'], 'INVALID_CONFIRMATION');
+    const request = detached({ draft, input, ctx }, 'INVALID_DRAFT');
+    return this.store.update(state => {
+      const view = stateView(state); authorize(view, request.ctx, 'prepare');
+      const ids = journalContentReceiptIds(request.draft.content); this.ownerAt(view, request.ctx, request.draft.content);
+      const receipts = ids.map(id => this.receiptAt(view, request.ctx, id));
+      const candidate = confirmJournal(request.draft, { reviewedDigest: request.input.reviewedDigest, id: newId('decision'), actorId: request.ctx.memberId, at: now(), receipts });
+      state.decisions.push(candidate); audit(state, 'decision.created', { decisionId: candidate.id, reviewDate: candidate.reviewDate, revision: candidate.revision, journal: true, memberId: request.ctx.memberId });
+      return structuredClone(candidate);
+    });
+  }
+  async reviseDecision(ctx: Context, id: string, content: JournalContent, input: { expectedRevision: number; reason: string }): Promise<JournalDecision> {
+    authorize(this.store, ctx, 'prepare'); payload(input, ['expectedRevision', 'reason'], 'INVALID_REVISION');
+    const request = detached({ id, content, input, ctx }, 'INVALID_REVISION');
+    return this.store.update(state => {
+      const { view, value } = this.journalAt(state, request.ctx, request.id);
+      const ids = journalContentReceiptIds(request.content); this.ownerAt(view, request.ctx, request.content);
+      const receipts = ids.map(receiptId => this.receiptAt(view, request.ctx, receiptId));
+      const candidate = reviseJournal(value, request.content, { ...request.input, actorId: request.ctx.memberId, at: now(), receipts });
+      state.decisions[state.decisions.findIndex(item => item.id === request.id)] = candidate;
+      audit(state, 'decision.revised', { decisionId: candidate.id, revision: candidate.revision, memberId: request.ctx.memberId });
+      return structuredClone(candidate);
+    });
+  }
+  async reviewJournalDecision(ctx: Context, id: string, review: JournalDecisionReview, input: { expectedRevision: number }): Promise<JournalDecision> {
+    authorize(this.store, ctx, 'prepare'); payload(input, ['expectedRevision'], 'INVALID_REVIEW');
+    const request = detached({ id, review, input, ctx }, 'INVALID_REVIEW');
+    return this.store.update(state => {
+      const { view, value } = this.journalAt(state, request.ctx, request.id);
+      const refs = observationIds(request.review.observation);
+      const receipts = refs.receipts.map(receiptId => this.receiptAt(view, request.ctx, receiptId));
+      const executions = this.executionAt(view, request.ctx, refs.executions);
+      const candidate = reviewJournal(value, request.review, { expectedRevision: request.input.expectedRevision, actorId: request.ctx.memberId, at: now(), receipts });
+      if (executions.length) candidate.reviews[candidate.reviews.length - 1].executionReceipts = executions;
+      state.decisions[state.decisions.findIndex(item => item.id === request.id)] = candidate;
+      audit(state, 'decision.reviewed', { decisionId: candidate.id, outcome: request.review.outcome, revision: candidate.revision, memberId: request.ctx.memberId });
+      return structuredClone(candidate);
+    });
+  }
+  dueDecisions(ctx: Context, filter: { dueOn?: string; branch?: string } = {}) {
+    authorize(this.store, ctx); currentAccess(this.store, ctx, filter.branch);
+    if (filter.dueOn !== undefined) check(validDate(filter.dueOn), 'INVALID_DATE', 'Give a valid due-on date.');
+    return dueJournal(this.decisions(ctx), filter);
+  }
   async report(ctx: Context, type: 'lender' | 'bank' | 'investor' | 'ca', request: Omit<CalculationRequest, 'operation'> = {}) {
     authorize(this.store, ctx); check(['lender', 'bank', 'investor', 'ca'].includes(type), 'UNKNOWN_REPORT', 'Choose a lender, investor or accountant report.');
     const ids = this.calculator.catalog(ctx).map(o => o.id); const wanted = type === 'ca' ? ['billed', 'received', 'earned', 'refunds', 'purchases', 'aging'] : ['billed', 'received', 'net_sales', 'margin', 'aging'];
@@ -41,17 +167,22 @@ export class ReportService {
     currentAccess(this.store, ctx, input.branch); const receipts = (input.receiptIds ?? []).map(id => this.calculator.receipt(ctx, id));
     check(!receipts.some(r => r.stale), 'STALE_EVIDENCE', 'Recalculate stale evidence before attaching it to a decision.');
     check(!input.hypotheses || input.hypotheses.every(h => typeof h === 'string' && h.length <= 5000), 'INVALID_HYPOTHESIS', 'Hypotheses are separate labelled text.');
-    return this.store.update(state => { authorize(this.store, ctx, 'prepare'); (input.receiptIds ?? []).forEach(id => this.calculator.receipt(ctx, id)); const decision = { id: newId('decision'), ...structuredClone(input), text: input.text.trim(), receiptIds: input.receiptIds ?? [], hypotheses: input.hypotheses ?? [], rowIds: [...new Set(receipts.flatMap(r => r.rowIds))], createdAt: now(), by: ctx.memberId, status: 'open', reviews: [] }; state.decisions.push(decision); audit(state, 'decision.created', { decisionId: decision.id, reviewDate: input.reviewDate }); return structuredClone(decision); });
+    return this.store.update(state => { const view = stateView(state); authorize(view, ctx, 'prepare'); currentAccess(view, ctx, input.branch); const currentReceipts = (input.receiptIds ?? []).map(id => this.calculatorAt(view).receipt(ctx, id)); check(!currentReceipts.some(receipt => receipt.stale), 'STALE_EVIDENCE', 'Recalculate stale evidence before attaching it to a decision.'); const decision = { id: newId('decision'), ...structuredClone(input), text: input.text.trim(), receiptIds: input.receiptIds ?? [], hypotheses: input.hypotheses ?? [], rowIds: [...new Set(currentReceipts.flatMap(r => r.rowIds))], createdAt: now(), by: ctx.memberId, status: 'open', reviews: [] }; state.decisions.push(decision); audit(state, 'decision.created', { decisionId: decision.id, reviewDate: input.reviewDate }); return structuredClone(decision); });
   }
   decisions(ctx: Context, filter: { dueOn?: string; branch?: string } = {}) {
-    authorize(this.store, ctx); currentAccess(this.store, ctx, filter.branch); if (filter.dueOn) check(validDate(filter.dueOn), 'INVALID_DATE', 'Give a valid due-on date.');
-    const items = this.store.read().decisions.filter(d => !d.branch || !filter.branch || d.branch === filter.branch).filter(d => !filter.dueOn || (d.reviewDate <= filter.dueOn && d.status === 'open'));
-    return structuredClone(items.filter(d => { try { currentAccess(this.store, ctx, d.branch); (d.receiptIds ?? []).forEach((id: string) => this.calculator.receipt(ctx, id)); return true; } catch { return false; } }));
+    authorize(this.store, ctx); currentAccess(this.store, ctx, filter.branch); if (filter.dueOn !== undefined) check(validDate(filter.dueOn), 'INVALID_DATE', 'Give a valid due-on date.');
+    const view = stateView(this.store.read()); const items = view.read().decisions.filter(d => !d.branch || !filter.branch || d.branch === filter.branch).filter(d => !filter.dueOn || (d.reviewDate <= filter.dueOn && d.status === 'open'));
+    return structuredClone(items.filter(d => { try { if (richRecord(d)) { check(journalRecord(d), 'INVALID_DECISION', 'This journal record is invalid.'); this.journalAccess(view, ctx, d); } else { currentAccess(view, ctx, d.branch); (d.receiptIds ?? []).forEach((id: string) => this.calculatorAt(view).receipt(ctx, id)); } return true; } catch { return false; } }));
   }
   async reviewDecision(ctx: Context, id: string, review: DecisionReview) {
     authorize(this.store, ctx, 'prepare'); check(['accepted', 'rejected', 'continue', 'completed'].includes(review.outcome) && Object.keys(review).every(k => ['outcome', 'notes'].includes(k)), 'INVALID_REVIEW', 'Choose a declared decision outcome.');
-    const available = this.decisions(ctx).find(d => d.id === id); check(available, 'DECISION_NOT_FOUND', 'This decision is unavailable under your current access.');
-    return this.store.update(state => { authorize(this.store, ctx, 'prepare'); check(this.decisions(ctx).some(d => d.id === id), 'DECISION_NOT_FOUND', 'Decision access changed.'); const d = state.decisions.find(d => d.id === id)!; d.reviews.push({ ...structuredClone(review), at: now(), by: ctx.memberId }); d.status = review.outcome === 'continue' ? 'open' : 'closed'; audit(state, 'decision.reviewed', { decisionId: id, outcome: review.outcome }); return structuredClone(d); });
+    const view = stateView(this.store.read()); const available = view.read().decisions.find(d => {
+      if (d.id !== id) return false;
+      try { currentAccess(view, ctx, d.branch); (d.receiptIds ?? []).forEach((receiptId: string) => this.receiptAt(view, ctx, receiptId)); return true; } catch { return false; }
+    });
+    check(available, 'DECISION_NOT_FOUND', 'This decision is unavailable under your current access.');
+    check(!richRecord(available), 'JOURNAL_REVIEW_REQUIRED', 'Review a rich journal with an explicit observation and expected revision.');
+    return this.store.update(state => { const view = stateView(state); authorize(view, ctx, 'prepare'); const d = state.decisions.find(item => item.id === id); check(d, 'DECISION_NOT_FOUND', 'Decision access changed.'); check(!richRecord(d), 'JOURNAL_REVIEW_REQUIRED', 'Review a rich journal with an explicit observation and expected revision.'); currentAccess(view, ctx, d.branch); (d.receiptIds ?? []).forEach((receiptId: string) => this.calculatorAt(view).receipt(ctx, receiptId)); d.reviews.push({ ...structuredClone(review), at: now(), by: ctx.memberId }); d.status = review.outcome === 'continue' ? 'open' : 'closed'; audit(state, 'decision.reviewed', { decisionId: id, outcome: review.outcome }); return structuredClone(d); });
   }
   async setComplianceCalendar(ctx: Context, entries: ComplianceEntry[], version: string) {
     authorize(this.store, ctx, 'admin'); check(version.length > 0 && entries.every(e => e.title && validDate(e.dueDate) && /^https:\/\//.test(e.sourceUrl) && Number.isFinite(Date.parse(e.publishedAt)) && e.reviewedBy), 'UNVERIFIED_CALENDAR', 'Calendar dates must come from a linked publication and a named human review.');
