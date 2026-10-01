@@ -253,6 +253,7 @@ export class Engine {
   }
   private async writerConfiguration<T>(work: () => T): Promise<T> {
     const vault = this.store(), guard = this.writerGuard();
+    authorize(vault, this.context, 'admin');
     check(guard, 'SYNC_WRITER_ADMISSION_REQUIRED', 'Configure reviewed writer admission before changing device sync.');
     return guard({ state: vault.read(), vaultId: vault.vaultId }, async assertCurrent => {
       assertCurrent();
@@ -475,7 +476,7 @@ export class Engine {
       case 'auth.revoke': return payload.inviteId ? s.auth.revokeInvite(ctx, payload.inviteId) : s.auth.revokeSession(ctx, payload.sessionId ?? payload.id);
       case 'auth.sessions': return s.auth.sessions(ctx);
       case 'sync.status': authorize(store, ctx, 'admin'); return { ...s.sync.status(ctx), writerAdmission: await this.writerStatus() };
-      case 'sync.writer.status': this.journalPayload(payload, [], [], 'INVALID_SYNC_REQUEST'); authorize(store, ctx, 'admin'); return this.writerStatus();
+      case 'sync.writer.status': authorize(store, ctx, 'admin'); this.journalPayload(payload, [], [], 'INVALID_SYNC_REQUEST'); return this.writerStatus();
       case 'sync.writer.review': {
         authorize(store, ctx, 'admin');
         check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Review the exact device writer grant in the untainted app.');
@@ -494,6 +495,7 @@ export class Engine {
       case 'sync.approve': return s.sync.approve(ctx, payload.id ?? payload.previewId);
       case 'sync.push': return s.sync.push(ctx, payload);
       case 'sync.reconcile': {
+        authorize(store, ctx, 'admin');
         const input = this.journalPayload(payload, ['previewId'], ['previewId'], 'INVALID_SYNC_REQUEST');
         check(typeof input.previewId === 'string' && input.previewId.length > 0 && input.previewId.length <= 200, 'INVALID_SYNC_REQUEST', 'Choose one existing publication receipt.');
         return s.sync.reconcile(ctx, input.previewId);

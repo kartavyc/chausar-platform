@@ -91,7 +91,7 @@ test('revoking a member during an awaited HTTP request withholds the result unde
 test('HTTP encrypted sync requires administrators and a configured transport, and stays experimental', async t => {
   const { rpc, member } = await fixture(t);
   const viewer = await member('Sync reader', 'viewer', ['*']);
-  for (const method of ['sync.status', 'sync.identity', 'sync.enable', 'sync.preview', 'sync.approve', 'sync.push', 'sync.pull', 'sync.trust']) {
+  for (const method of ['sync.status', 'sync.identity', 'sync.enable', 'sync.preview', 'sync.approve', 'sync.push', 'sync.pull', 'sync.trust', 'sync.writer.status', 'sync.writer.review', 'sync.reconcile']) {
     assert.equal((await rpc(method, { enabled: true }, viewer.token)).status, 403, method);
   }
   const status = await rpc('sync.status'); assert.equal(status.status, 200);
@@ -99,7 +99,10 @@ test('HTTP encrypted sync requires administrators and a configured transport, an
   assert.equal(status.result.verification, 'no-real-second-device-test');
   assert.equal((await rpc('sync.preview')).error.code, 'SYNC_DISABLED');
   const identity = await rpc('sync.identity'); assert.equal(identity.status, 200); assert.match(identity.result.publicKey, /^-----BEGIN PUBLIC KEY-----/); assert.equal(identity.result.privateKey, undefined);
-  assert.equal((await rpc('sync.enable', { enabled: true })).status, 200);
+  const enable = await rpc('sync.enable', { enabled: true });
+  assert.equal(enable.status, 400);
+  assert.equal(enable.error.code, 'SYNC_WRITER_ADMISSION_REQUIRED');
+  assert.equal((await rpc('sync.status')).result.enabled, false);
   assert.equal((await rpc('sync.preview')).error.code, 'SYNC_DISABLED');
 });
 
