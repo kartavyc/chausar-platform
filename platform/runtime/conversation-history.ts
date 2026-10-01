@@ -123,8 +123,14 @@ export class ConversationHistoryService {
   }
   get(ctx: Context, id: string): ConversationHistoryAnswer {
     const view = this.snapshot(); authorize(view, ctx);
-    const matches = reference(id) ? view.read().conversations.filter(record => record?.id === id) : [];
-    const saved = matches.length === 1 ? this.admit(view, ctx, matches[0]) : undefined;
+    // Fresh clarification replies expose their model receipt, not the retained turn ID.
+    // Resolve only that exact kind; every alias still passes the full admission guards.
+    const matches = reference(id) ? view.read().conversations.filter(record => record?.id === id
+      || record?.kind === 'conversation-clarification-answer' && record.modelReceiptId === id) : [];
+    const saved = matches.length === 1 && (matches[0].kind !== 'conversation-clarification-answer'
+      || view.read().conversations.filter(record => record?.id === matches[0].modelReceiptId
+        || record?.kind === 'conversation-clarification-answer' && record.modelReceiptId === matches[0].modelReceiptId).length === 1)
+      ? this.admit(view, ctx, matches[0]) : undefined;
     check(saved, UNAVAILABLE, 'This saved answer is unavailable under current access.');
     const { receiptId: ignored, ...item } = saved.item; return { ...item, answer: structuredClone(saved.answer) };
   }

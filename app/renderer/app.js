@@ -107,7 +107,19 @@ async function currentConversationAnswer(data, invalidateEvidenceOnError = true)
 async function refreshConversationEvidence() {
   for (const message of [...state.messages]) {
     if (message.role !== 'assistant' || !message.data || message.data.preview) continue;
-    try { message.data = await currentConversationAnswer(message.data, false); }
+    try {
+      const data = message.data;
+      // Retained turns require current authority even without a successful child receipt.
+      if (data.kind === 'grounded-conversation' || (typeof data.clarification === 'string' && typeof data.modelReceiptId === 'string')) {
+        let id = data.id;
+        if (data.kind !== 'grounded-conversation') {
+          // Prefer the newest turn's canonical ID; older replies use the guarded alias without scanning history.
+          const recent = await request('conversation.history', { limit: 1 }, false);
+          id = (recent.items || []).find(item => item.kind === 'clarification' && item.receiptId === data.modelReceiptId)?.id || data.modelReceiptId;
+        }
+        message.data = (await request('conversation.get', { id }, false)).answer;
+      } else message.data = await currentConversationAnswer(data, false);
+    }
     catch (error) {
       // Capture intent before the refresh owns its cleanup. Access loss or a concurrent change still cancels the question.
       const prior = { evidenceGeneration: state.evidenceGeneration, continuationGeneration: state.continuationGeneration,
