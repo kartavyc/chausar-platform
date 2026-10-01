@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -36,16 +36,18 @@ jobs:
       - name: Typecheck runtime and tests
         run: npm run typecheck
       - name: Run repository open tests and capture benchmark receipt
-        run: node scripts/bench.mjs --shard=${{ matrix.shard }}/4 --output results/factory-bench.json
+        run: node scripts/bench.mjs --shard=${{ matrix.shard }}/5 --output results/factory-bench.json
       - name: Upload open-test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: open-test-report-${{ matrix.os }}-shard-${{ matrix.shard }}-of-4
+          name: open-test-report-${{ matrix.os }}-shard-${{ matrix.shard }}-of-5
           path: results/factory-bench.json
           if-no-files-found: warn
           retention-days: 14
 
   # This workflow verifies the open repository only. It neither signs releases nor
   # qualifies real customer connectors, hosted services, PostgreSQL, or hidden/sealed tests.
-  # Each OS requires all four shards to pass. A shard receipt is not a full-suite result.
+  # Each OS requires all five shards to pass. The four ordinary groups remain
+  # stable; the independent activation suite has its own fifth shard. Every test
+  # file belongs to exactly one group. A shard receipt is not a full-suite result.
