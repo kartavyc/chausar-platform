@@ -11,6 +11,7 @@ import { CalculatorService, type CalculatorOptions } from './calculator.ts';
 import { ReportService } from './reports.ts';
 import { TrustService, sourceAllowed } from './trust.ts';
 import { ModelGateway } from './gateway.ts';
+import type { GatewayOptions } from './gateway.ts';
 import { SpeechService } from './speech.ts';
 import { AuthService } from './auth.ts';
 import { SyncService, type SyncOptions } from './sync.ts';
@@ -29,7 +30,7 @@ import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 
-export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions };
+export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions };
 
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
@@ -97,7 +98,7 @@ export class Engine {
     this.services.helper = new AnalyticalHelper({ executable: this.options.pythonExecutable });
     if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: resolve(this.options.directory, 'updates') });
     this.services.trust = new TrustService(store);
-    this.services.gateway = new ModelGateway(store);
+    this.services.gateway = new ModelGateway(store, this.options.gateway);
     this.services.speech = new SpeechService(store);
     this.services.auth = new AuthService(store);
     this.services.sync = new SyncService(store, { ...this.options.sync, vault });
