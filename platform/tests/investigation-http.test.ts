@@ -245,3 +245,13 @@ test('paired HTTP pinned investigation rejects current dictionary and source cha
   assert.equal(sourceDenied.body.error.code, 'INVESTIGATION_SCOPE_CHANGED'); assert.equal(sourceValue.engine.vault!.read().receipts.length, 0);
   assert.equal(dictionaryValue.providerCalls(), 0); assert.equal(sourceValue.providerCalls(), 0);
 });
+
+test('paired HTTP private search exposes absent native database capability without substituting fixture results', async t => {
+  const value = await fixture(t), asOf = new Date().toISOString();
+  const created = await value.rpc('investigations.create', plan(asOf)); assert.equal(created.status, 'open');
+  const result = await value.raw('research.search', { method: 'simple-token-conjunction-v1', query: 'August',
+    bounds: { maxDocuments: 10, maxTextBytes: 65536, maxMatches: 10 } });
+  assert.notEqual(result.status, 200); assert.equal(result.body.error.code, 'SEARCH_DATABASE_REQUIRED');
+  assert.equal(result.body.result, undefined); assert.equal(JSON.stringify(result.body).includes(created.objective), false);
+  assert.equal(value.providerCalls(), 0);
+});
