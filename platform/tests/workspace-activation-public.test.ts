@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test, {type TestContext} from 'node:test';
 import {createHash} from 'node:crypto';
-import {mkdtemp, readFile, readdir, realpath, rm} from 'node:fs/promises';
+import {mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, isAbsolute, join, relative} from 'node:path';
 import {Engine, type EngineOptions} from '../runtime/engine.ts';
@@ -351,4 +351,101 @@ test('actual public inert archive activates a fresh Vault/Engine and produces th
     await f.close(restarted);
     await assertCurrentMeasurement(f.directory, await f.source.rpc<WorkspaceActivationSummary>('workspace.activation.get', {activationId}), activated);
     assert.equal(await retainedCandidate(f.journal), candidateText);
+  });
+
+test('actual owned export change during bootstrap refuses acknowledgement while retaining the committed activation',
+  {timeout: 180_000}, async t => {
+    const f = await fixture(t);
+    await f.enable();
+    const exportsDirectory = join(f.directory, 'exports');
+    await mkdir(exportsDirectory, {recursive: true});
+    assert.equal(dirname(await realpath(exportsDirectory)), f.directory);
+    const exportPath = join(exportsDirectory, `chausar-${f.historical.workspace.id}-731590.json`);
+    const before = '{"fixture":"synthetic-namespace-before"}\n';
+    const changed = '{"fixture":"synthetic-namespace-change"}\n';
+    assert.equal(Buffer.byteLength(before), Buffer.byteLength(changed));
+    assert.notEqual(sha(before), sha(changed));
+    await writeFile(exportPath, before, {flag: 'wx'});
+    assert.equal(dirname(await realpath(exportPath)), await realpath(exportsDirectory));
+    await f.source.rpc('workspace.activation.target.create', {targetId, confirmed: true});
+    const bridge = await f.source.rpc<WorkspaceBackupActivationReview>('workspace.backup.activation.prepare', f.selection);
+    metadata(bridge);
+    const candidateText = await retainedCandidate(f.journal);
+    const candidateCiphertextPath = join(f.journal.directory, 'private-artifacts', 'workspace-interchange',
+      `${artifactId('wac', candidateId, 'archive')}.encrypted.json`);
+    const backupCiphertextPath = join(f.source.engine.vault!.directory, 'private-artifacts', 'workspace-interchange',
+      `${artifactId('wb2', backupId, 'archive')}.encrypted.json`);
+    const inertContainerPath = join(f.directory, inertTargetId, 'backup.inert.json');
+    const originalCandidateCiphertext = await readFile(candidateCiphertextPath);
+    const originalBackupCiphertext = await readFile(backupCiphertextPath);
+    const originalInertContainer = await readFile(inertContainerPath);
+    const request = {candidateId, reviewedDigest: bridge.reviewedDigest};
+    const review = await f.source.rpc('workspace.activation.review', request); metadata(review);
+    assert.equal(await readFile(exportPath, 'utf8'), before);
+    const capability = f.source.engine.options.workspaceActivation;
+    assert.ok(capability);
+    let changes = 0, credentialCalls = 0;
+    f.source.engine.options.workspaceActivation = {...capability, targetPassphrase: async authority => {
+      credentialCalls++;
+      const credential = await capability.targetPassphrase(authority);
+      if (changes === 0) {
+        assert.equal(await readFile(exportPath, 'utf8'), before);
+        await writeFile(exportPath, changed);
+        changes++;
+      }
+      return credential;
+    }};
+    // Attach captures trusted constructor capabilities; no RPC installs the callback.
+    await f.reattach();
+    const execute = {...request, projectionDigest: review.projectionDigest, activationId, confirmed: true};
+    await f.source.refuse('workspace.activation.execute', execute, ['ACTIVATION_COMMIT_UNKNOWN']);
+    assert.ok(credentialCalls > 0); assert.equal(changes, 1);
+    assert.equal(await readFile(exportPath, 'utf8'), changed);
+    assert.deepEqual(await readFile(candidateCiphertextPath), originalCandidateCiphertext);
+    assert.deepEqual(await readFile(backupCiphertextPath), originalBackupCiphertext);
+    assert.deepEqual(await readFile(inertContainerPath), originalInertContainer);
+    assert.equal(await retainedCandidate(f.journal), candidateText);
+    const backup = await f.source.engine.vault!.readArtifact({id: artifactId('wb2', backupId, 'archive'), purpose: 'workspace-interchange'});
+    assert.equal((backup.value as {content: string}).content, f.archiveText);
+    assertOriginalCiphertexts(f.original, workspaceBackupV2Bytes(validateWorkspaceBackupV2(f.archiveText,
+      f.reviewedBackup.sourcePin, budgets), budgets));
+    assert.deepEqual(f.source.engine.vault!.read(), f.historical);
+    const attempt = await f.journal.readArtifact({id: artifactId('wal', activationId, 'attempt'), purpose: 'workspace-interchange'});
+    const committed = attempt.value as {phase: string; record: {activationId: string; candidateId: string;
+      candidateCreationId: string; targetId: string; projectionDigest: string; workspaceId: string}};
+    assert.equal(committed.phase, 'committed', 'Boundary refusal must retain the actual committed journal.');
+    assert.equal(committed.record.activationId, activationId); assert.equal(committed.record.candidateId, candidateId);
+    assert.equal(committed.record.candidateCreationId, bridge.candidateCreationId);
+    assert.equal(committed.record.targetId, targetId); assert.equal(committed.record.projectionDigest, review.projectionDigest);
+    assert.equal(committed.record.workspaceId, review.workspaceId);
+    const targetDirectory = join(f.directory, targetId);
+    assert.deepEqual((await readdir(targetDirectory)).sort(),
+      ['activation-bootstrap.encrypted.json', 'activation-evidence.encrypted.json', 'live'].sort());
+    const paths = ['activation-bootstrap.encrypted.json', 'activation-evidence.encrypted.json',
+      join('live', 'main', 'authority.encrypted.json')];
+    const targetCiphertexts = await Promise.all(paths.map(path => readFile(join(targetDirectory, path))));
+    assert.ok(targetCiphertexts.every(bytes => bytes.length > 0));
+    for (const [index, part] of ['bootstrap', 'evidence'].entries()) {
+      const retained = await readFile(join(f.journal.directory, 'private-artifacts', 'workspace-interchange',
+        `${artifactId('wal', activationId, part)}.encrypted.json`));
+      assert.deepEqual(targetCiphertexts[index], retained, 'Published inert files must retain exact authenticated journal ciphertext.');
+    }
+    // The changed owned export is now stable. Inspection starts a new boundary;
+    // it authenticates the retained commit without replaying or rolling it back.
+    const resolved = await f.source.rpc<WorkspaceActivationSummary>('workspace.activation.get', {activationId}); metadata(resolved);
+    assert.equal(resolved.status, 'committed'); assert.equal(resolved.activationId, activationId);
+    assert.equal(resolved.targetId, targetId); assert.equal(resolved.candidateId, candidateId);
+    assert.equal(resolved.projectionDigest, review.projectionDigest); assert.equal(resolved.workspaceId, review.workspaceId);
+    assert.equal(resolved.ciphertextBytes, targetCiphertexts.reduce((total, bytes) => total + bytes.length, 0));
+    await f.source.refuse('workspace.activation.execute', execute, ['INTERCHANGE_TARGET_NOT_EMPTY']);
+    assert.equal(changes, 1);
+    await f.restart();
+    assert.deepEqual(await f.source.rpc('workspace.activation.get', {activationId}), resolved);
+    assert.equal(await retainedCandidate(f.journal), candidateText);
+    assert.equal(await readFile(exportPath, 'utf8'), changed);
+    assert.deepEqual(await readFile(backupCiphertextPath), originalBackupCiphertext);
+    assert.deepEqual(await readFile(candidateCiphertextPath), originalCandidateCiphertext);
+    const reopenedAttempt = await f.journal.readArtifact({id: attempt.id, purpose: 'workspace-interchange'});
+    assert.deepEqual(reopenedAttempt, attempt);
+    await f.source.refuse('workspace.activation.execute', execute, ['INTERCHANGE_TARGET_NOT_EMPTY']);
   });
