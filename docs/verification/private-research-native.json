@@ -1,0 +1,96 @@
+{
+  "suite": "native-private-investigations-journals-and-search",
+  "sourceCommit": "78b53d29ba2c07c4c9f4af4e74bc890212f06a2e",
+  "passed": true,
+  "checks": [
+    {
+      "name": "native-literal-address-identity-readback",
+      "passed": true,
+      "evidence": "native-postgresql-actual-identity",
+      "raw_address": "127.0.0.1/32",
+      "host_address": "127.0.0.1",
+      "port": 54473
+    },
+    {
+      "name": "native-simple-token-oracle:2-matches",
+      "passed": true,
+      "evidence": "native-postgresql-actual-token-search",
+      "matchedDocuments": 2
+    },
+    {
+      "name": "native-simple-token-oracle:1-matches",
+      "passed": true,
+      "evidence": "native-postgresql-actual-token-search",
+      "matchedDocuments": 1
+    },
+    {
+      "name": "native-simple-token-oracle:0-matches",
+      "passed": true,
+      "evidence": "native-postgresql-actual-token-search",
+      "matchedDocuments": 0
+    },
+    {
+      "name": "native-search-overflow-empty-terms-and-empty-authorized-corpus",
+      "passed": true,
+      "evidence": "native-postgresql-no-persistent-public-index"
+    },
+    {
+      "name": "production-owner-declared-bridge-with-native-money-receipts",
+      "passed": true,
+      "evidence": "native-duckdb-receipts-and-declared-experimental-javascript-bridge",
+      "baselineMinor": "100",
+      "comparisonMinor": "240",
+      "changeMinor": "140"
+    },
+    {
+      "name": "production-native-search-finds-authorized-investigation-and-journal",
+      "passed": true,
+      "evidence": "native-postgresql-and-actual-engine-http",
+      "matchedDocuments": 2
+    },
+    {
+      "name": "production-reopen-resume-capsule-drilldown-and-bridge-readback",
+      "passed": true,
+      "evidence": "native-postgresql-encrypted-reopen-and-default-native-duckdb",
+      "julyCollectionsMinor": "30000",
+      "augustCollectionsMinor": "15000",
+      "augustInvoicesMinor": "70000"
+    },
+    {
+      "name": "production-lineage-deletion-removes-searchable-private-documents",
+      "passed": true,
+      "evidence": "native-postgresql-and-actual-engine-http"
+    },
+    {
+      "name": "production-owned-workspace-deletion",
+      "passed": true,
+      "evidence": "native-postgresql-encrypted-authority"
+    }
+  ],
+  "blockers": [],
+  "engines": {
+    "postgres": "native-executed",
+    "duckdb": "native-executed"
+  },
+  "scope": "Synthetic production Engine HTTP with PostgreSQL encrypted authority, default native DuckDB calculations, owner-declared descriptive bridge, persisted private investigation and journal, actual PostgreSQL simple-token search, reopen and lineage deletion. No provider, vendor, enterprise, installer, causal or full-release qualification.",
+  "supervision": {
+    "sourceCommit": "78b53d29ba2c07c4c9f4af4e74bc890212f06a2e",
+    "gateSha256": "353020bff465f573fcb5cd06aa18fb133047e2164a0b00ea1f6585ebbc1e45e3",
+    "supervisorSha256": "7a13a3356281ad607305be214497b6eb7dc349727826a85947d2fa1ae112c537",
+    "rawReportSha256": "da856217e883b98f0a770b6831daabc424bcd7dfa60f86a8d9c892edfab4c3b3",
+    "lifecycleSha256": "c3ff6f7b3e1f82e4a0b941c239a5ee851ca1fa3bdc3d338ce3a1d8c0ff0831d2",
+    "serverStopped": true,
+    "generatedBytes": 51622591,
+    "noDownloads": true,
+    "writesOnDDrive": false,
+    "toolsReadOnly": true,
+    "previousRun": {
+      "sourceCommit": "9fdb6f48ddb634943d33edc67a4b119de2fd1eb5",
+      "passed": false,
+      "reason": "SEARCH_SERVER_IDENTITY_INVALID",
+      "serverStopped": true,
+      "generatedBytes": 50056578,
+      "correction": "PostgreSQL inet::text returns a network mask; host(inet_server_addr()) pins the exact literal host. Native identity readback below confirms both forms."
+    }
+  }
+}
