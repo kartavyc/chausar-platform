@@ -270,12 +270,37 @@ test('actual Engine requestAs refuses non-desktop and source-tainted journal wri
   noJournalWrite(f.engine, before);
 });
 
-test('HTTP execution references remain unavailable by default and RPC cannot supply a resolver', async t => {
+test('HTTP unknown execution references refuse and RPC cannot supply a resolver', async t => {
   const f = await fixture(t), saved = await f.confirmed(), id = text(saved.id), before = currentVault(f.engine).read();
   const review = { outcome: 'completed', observation: observation({ executionReceiptIds: ['synthetic-host-evidence'] }) };
-  refused(await f.rpc('decisions.journal.review', { id, expectedRevision: 1, review }), 'EXECUTION_RECEIPT_UNAVAILABLE'); noJournalWrite(f.engine, before);
+  refused(await f.rpc('decisions.journal.review', { id, expectedRevision: 1, review }), 'EXECUTION_RECEIPT_NOT_FOUND'); noJournalWrite(f.engine, before);
   refused(await f.rpc('decisions.journal.review', { id, expectedRevision: 1, review, executionReceipt: { verified: true } }), 'INVALID_REVIEW'); noJournalWrite(f.engine, before);
   refused(await f.rpc('decisions.journal.review', { id, expectedRevision: 1, review: { ...review, executionReceipts: [{ id: 'synthetic-host-evidence', verified: true }] } }), 'INVALID_REVIEW'); noJournalWrite(f.engine, before);
+});
+
+test('paired HTTP actual local draft effect joins the journal as verified execution without claiming business achievement', async t => {
+  const f = await fixture(t), saved = await f.confirmed(), journalId = text(saved.id);
+  const action = successRecord(await f.rpc('actions.prepare', { connector: 'local', operation: 'reminder-draft', sourceIds: ['source-base'],
+    payload: { invoiceId: 'synthetic-invoice-target', text: 'Synthetic reminder draft only. No message is sent.' }, idempotencyKey: 'synthetic-journal-effect' }));
+  const actionId = text(action.id), digest = text(action.digest);
+  let before = currentVault(f.engine).read();
+  refused(await f.rpc('decisions.journal.review', { id: journalId, expectedRevision: 1, review: { outcome: 'continue', observation: observation({ executionReceiptIds: [actionId] }) } }), 'EXECUTION_EFFECT_UNVERIFIED');
+  noJournalWrite(f.engine, before);
+  successRecord(await f.rpc('actions.approve', { id: actionId, digest }));
+  const executed = successRecord(await f.rpc('actions.execute', { id: actionId, digest }));
+  assert.equal(executed.status, 'verified'); assert.equal(executed.businessSuccess, false);
+  const reviewed = successRecord(await f.rpc('decisions.journal.review', { id: journalId, expectedRevision: 1,
+    review: { outcome: 'continue', observation: observation({ state: 'pending', executionReceiptIds: [actionId] }) } }));
+  assert.equal(reviewed.revision, 2);
+  const review = records(reviewed.reviews)[0], effect = records(review.executionReceipts)[0], snapshot = record(effect.snapshot);
+  assert.equal(effect.id, actionId); assert.deepEqual(effect.sourceIds, ['source-base']); assert.deepEqual(effect.rowIds, []);
+  assert.equal(record(snapshot.executionVerification).state, 'verified'); assert.equal(snapshot.providerReportedBusinessSuccess, false); assert.equal(snapshot.businessOutcome, 'not-assessed');
+  assert.equal(record(review.observation).state, 'pending'); assert.equal(snapshot.payload, undefined); assert.equal(snapshot.result, undefined);
+  successRecord(await f.rpc('workspace.lock')); successRecord(await f.rpc('workspace.open', { passphrase: PASSPHRASE }));
+  const reopened = successRecords(await f.rpc('decisions.list')).find(item => item.id === journalId); assert.ok(reopened);
+  assert.equal(record(records(records(reopened.reviews)[0].executionReceipts)[0].snapshot).businessOutcome, 'not-assessed');
+  await currentVault(f.engine).update(state => { state.sourceRules.push({ sourceId: 'source-base', allow: false }); });
+  assert.deepEqual(successRecords(await f.rpc('decisions.list')), []);
 });
 
 test('trusted Engine host resolver retains authoritative execution snapshots while human outcome and business success stay separate', async t => {

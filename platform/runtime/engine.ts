@@ -9,6 +9,7 @@ import { MemoryService } from './memory.ts';
 import { canSeeFact } from './memory.ts';
 import { CalculatorService, type CalculatorOptions } from './calculator.ts';
 import { ReportService, type ReportOptions } from './reports.ts';
+import { createJournalExecutionResolver } from './journal-execution.ts';
 import { TrustService, sourceAllowed } from './trust.ts';
 import { ModelGateway } from './gateway.ts';
 import type { GatewayOptions } from './gateway.ts';
@@ -98,7 +99,10 @@ export class Engine {
     };
     this.services.calculator = new CalculatorService(store, calculationOptions);
     // Execution resolution is a trusted host port, never a route or RPC setting.
-    this.services.reports = new ReportService(store, { ...calculationOptions, executionReceipt: this.options.reports?.executionReceipt });
+    this.services.reports = new ReportService(store, { ...calculationOptions, executionReceipt: (ctx, id, view) => {
+      const resolver = this.options.reports?.executionReceipt ?? createJournalExecutionResolver(this.services.actions);
+      return resolver(ctx, id, view);
+    } });
     this.services.connectors = new ConnectorService(store, { credentialBroker: this.options.connectorCredentials });
     this.services.helper = new AnalyticalHelper({ executable: this.options.pythonExecutable });
     if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: resolve(this.options.directory, 'updates') });

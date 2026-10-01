@@ -114,7 +114,7 @@ test('real desktop harness persists the synthetic journal lifecycle and refuses 
   await assert.rejects(harness.request('decisions.journal.revise', { id: decisionId, content, reason: 'Bad revision', expectedRevision: '1' }), code('REVISION_CONFLICT'));
   await assert.rejects(harness.request('decisions.journal.review', { id: decisionId, expectedRevision: 1, review: { outcome: 'completed', observation }, executionReceipt: {} }), code('INVALID_REVIEW'));
   await assert.rejects(harness.request('decisions.journal.review', { id: decisionId, expectedRevision: 1,
-    review: { outcome: 'completed', observation: { ...observation, executionReceiptIds: ['synthetic-unresolved-execution'] } } }), code('EXECUTION_RECEIPT_UNAVAILABLE'));
+    review: { outcome: 'completed', observation: { ...observation, executionReceiptIds: ['synthetic-unresolved-execution'] } } }), code('EXECUTION_RECEIPT_NOT_FOUND'));
   const concurrent = await Promise.allSettled([
     harness.request('decisions.journal.revise', { id: decisionId, expectedRevision: 1, content: { ...content, text: 'Synthetic revised terms.' }, reason: 'Review a changed premise.' }),
     harness.request('decisions.journal.review', { id: decisionId, expectedRevision: 1, review: { outcome: 'continue', observation } }),
