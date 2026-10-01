@@ -8,7 +8,7 @@ export type BusinessContextRequest = { sourceIds?: string[]; branch?: string; as
 export type BusinessEvidenceRefs = { sourceIds: string[]; managedSourceIds: string[]; factIds: string[]; profileIds: string[]; request: BusinessContextRequest };
 export type BusinessEvidenceReadiness = { qualifiedSourceIds: string[] };
 /** Installed engine hook only. Callers and models cannot supply qualification evidence. */
-export type BusinessContextHooks = { assertEvidenceReady?: (context: Context, refs: BusinessEvidenceRefs) => BusinessEvidenceReadiness | void };
+export type BusinessContextHooks = { assertEvidenceReady?: (context: Context, refs: BusinessEvidenceRefs, view?: StateStore) => BusinessEvidenceReadiness | void };
 export type BusinessCitation = {
   id: string; kind: 'workspace' | 'dictionary' | 'fact' | 'profile'; referenceId: string; path: string; contentHash: string;
   sourceId?: string; factId?: string; sourceRow?: number; branch?: string; validFrom?: string; validTo?: string | null; learnedAt?: string;
@@ -145,7 +145,7 @@ export function buildBusinessContext(store: StateStore, ctx: Context, input: Bus
   let qualified = false;
   check(!managedSourceIds.length || hooks.assertEvidenceReady, 'BUSINESS_EVIDENCE_UNQUALIFIED', 'Managed source evidence requires its installed current readiness gate.');
   if ((records.length || managedSourceIds.length) && hooks.assertEvidenceReady) {
-    const readiness = hooks.assertEvidenceReady(ctx, structuredClone(refs));
+    const readiness = hooks.assertEvidenceReady(ctx, structuredClone(refs), store);
     const qualifiedIds = readiness?.qualifiedSourceIds ?? [];
     check(Array.isArray(qualifiedIds) && new Set(qualifiedIds).size === qualifiedIds.length && qualifiedIds.every(id => typeof id === 'string' && managedSourceIds.includes(id)), 'BUSINESS_EVIDENCE_UNQUALIFIED', 'Readiness may qualify only explicitly managed source identifiers.');
     check(managedSourceIds.every(id => qualifiedIds.includes(id)), 'BUSINESS_EVIDENCE_UNQUALIFIED', 'Every selected managed source requires current qualified readiness.');

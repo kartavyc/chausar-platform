@@ -53,3 +53,17 @@ export type ConversationSynthesisBinding = {
 
 /** Pure worker boundary. Transport, approval, authority and persistence are host-owned. */
 export type SynthesisCurrentTextResolver = (ref: SynthesisRef) => string;
+
+/** Host-installed codec, supplied by the isolated pure synthesis module. */
+export type ConversationSynthesisCodec = {
+  instructions: string;
+  schema: (summary: GroundedToolSummary) => unknown;
+  validate: (raw: unknown, summary: GroundedToolSummary) => GroundedSynthesisOutput;
+  materialize: (output: GroundedSynthesisOutput, summary: GroundedToolSummary, resolve: SynthesisCurrentTextResolver) => { paragraphs: string[] };
+};
+
+/** Current local authority returned by the Engine's installed resolver only. */
+export type GatewaySynthesisAuthority = {
+  summary: GroundedToolSummary; binding: ConversationSynthesisBinding;
+  sourceIds: string[]; factIds: string[]; rowIds: string[];
+};

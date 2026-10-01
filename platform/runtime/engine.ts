@@ -19,6 +19,9 @@ import { ModelGateway } from './gateway.ts';
 import type { GatewayOptions } from './gateway.ts';
 import { conversationPurpose } from './conversation-purpose.ts';
 import { ConversationHistoryService, createCalculationAnswerRecord, conversationRecordIntegrity } from './conversation-history.ts';
+import { ConversationSynthesisHost } from './conversation-synthesis-host.ts';
+import { installedConversationSynthesisCodec } from './conversation-synthesis-codec.ts';
+import type { ConversationSynthesisCodec } from './conversation-synthesis-contract.ts';
 import { buildBusinessContext, assertBusinessContextCurrent, renderBusinessAnswer, BusinessProfileService, type BusinessContextHooks, type BusinessContextManifest } from './conversation-context.ts';
 import { SpeechService } from './speech.ts';
 import { AuthService } from './auth.ts';
@@ -40,7 +43,7 @@ import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 
-export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort } };
+export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort } };
 
 /** Trusted host result. Identifiers and private scope are not automatic outbound disclosure. */
 export type ConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
@@ -273,19 +276,31 @@ export class Engine {
     this.services.helper = new AnalyticalHelper({ executable: this.options.pythonExecutable });
     if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: resolve(this.options.directory, 'updates') });
     this.services.trust = new TrustService(store);
-    const businessContextHooks: BusinessContextHooks = { assertEvidenceReady: (ctx, refs) => {
-      this.options.gateway?.businessContext?.assertEvidenceReady?.(ctx, refs);
-      return connectorRuntime.assertBusinessEvidenceReady(ctx, refs);
+    const connectorForView = (view: StateStore) => view === store ? connectorRuntime : new EngineConnectorService(view, this.options.connectorRuntime);
+    const businessContextHooks: BusinessContextHooks = { assertEvidenceReady: (ctx, refs, view = store) => {
+      this.options.gateway?.businessContext?.assertEvidenceReady?.(ctx, refs, view);
+      return connectorForView(view).assertBusinessEvidenceReady(ctx, refs);
     } };
     this.services.businessContextHooks = businessContextHooks;
     this.services.conversationHistory = new ConversationHistoryService(store, {
       assertBusinessContext: (ctx, manifest, view) => assertBusinessContextCurrent(view, ctx, manifest, businessContextHooks),
-      receipt: (ctx, id, view) => new CalculatorService(view, calculationOptions).receipt(ctx, id),
+      receipt: (ctx, id, view) => new CalculatorService(view, {
+        receiptGuard: (currentCtx, receipt) => connectorForView(view).assertReceiptReady(currentCtx, receipt),
+      }).receipt(ctx, id),
       assertModelReceipt: (ctx, id, view) => this.services.gateway.assertConversationReceipt(ctx, id, view),
+      assertSynthesisAnswer: (ctx, record, view) => this.services.synthesisHost.assertRecord(ctx, record, view),
+    });
+    this.services.synthesisHost = new ConversationSynthesisHost(store, {
+      history: view => new ConversationHistoryService(view, this.services.conversationHistory.options),
+      planner: (ctx, id, view) => this.services.gateway.assertConversationReceipt(ctx, id, view),
+      synthesis: (ctx, id, view) => this.services.gateway.assertSynthesisReceipt(ctx, id, view),
+      codec: () => this.options.synthesis ?? this.options.gateway?.synthesisCodec ?? installedConversationSynthesisCodec,
     });
     this.services.businessProfile = new BusinessProfileService(store);
     this.services.gateway = new ModelGateway(store, { ...this.options.gateway, businessContext: businessContextHooks,
-      conversationContinuation: (ctx, id, view, resolvedBy) => this.conversationContinuation(ctx, id, view, resolvedBy) });
+      conversationContinuation: (ctx, id, view, resolvedBy) => this.conversationContinuation(ctx, id, view, resolvedBy),
+      conversationSynthesis: (ctx, id, view) => this.services.synthesisHost.resolve(ctx, id, view),
+      synthesisCodec: this.options.synthesis ?? this.options.gateway?.synthesisCodec ?? installedConversationSynthesisCodec });
     this.services.speech = new SpeechService(store);
     this.services.auth = new AuthService(store);
     this.services.sync = new SyncService(store, { ...this.options.sync, vault });
@@ -450,7 +465,7 @@ export class Engine {
         let modelReceiptId: string | undefined;
         if (payload.routeId) {
           const gatewayResult = await s.gateway.execute(ctx, { ...payload, purpose });
-          check(gatewayResult.kind !== 'conversation', 'PREVIEW_REQUEST_CHANGED', 'Use the exact conversation mode reviewed in the model preview.');
+          check(gatewayResult.kind !== 'conversation' && gatewayResult.kind !== 'conversation-synthesis', 'PREVIEW_REQUEST_CHANGED', 'Use the exact conversation mode reviewed in the model preview.');
           if (gatewayResult.kind === 'business-context') { result = gatewayResult.answer; businessManifest = gatewayResult.receipt.businessContext; modelReceiptId = gatewayResult.receipt.id; }
           else { const plan = gatewayResult.plan; if (plan.clarification || !plan.operation) return plan; result = await s.calculator.calculate(ctx, plan); }
         } else if (purpose === 'business-context') {
@@ -461,6 +476,25 @@ export class Engine {
           result = renderBusinessAnswer(store, ctx, businessManifest, { claimIds: businessManifest.claims.map(claim => claim.id), unknownCategories: businessManifest.unknownCategories }, s.businessContextHooks);
         } else { const { question, purpose: ignoredPurpose, routeId, previewId, approvalId, ...filters } = payload; result = await s.calculator.ask(ctx, payload.question, filters); }
         return (await this.retainConversationAnswer(ctx, payload.question, result, businessManifest, modelReceiptId)).answer;
+      }
+      case 'conversation.synthesis.preview': {
+        const input = this.journalPayload(payload, ['id', 'routeId'], ['id'], 'INVALID_SYNTHESIS');
+        check(typeof input.id === 'string' && input.id.length > 0 && input.id.length <= 200, 'INVALID_SYNTHESIS', 'Choose one current retained tool turn.');
+        s.synthesisHost.codec();
+        const authority = s.synthesisHost.resolve(ctx, input.id);
+        const planner = s.gateway.assertConversationReceipt(ctx, authority.binding.plannerModelReceiptId);
+        check(input.routeId === undefined || input.routeId === planner.routeId, 'SYNTHESIS_ROUTE_CHANGED', 'Use the exact reviewed planning route for this final answer.');
+        return s.gateway.preview(ctx, { question: authority.summary.question, purpose: 'conversation-synthesis',
+          questionDisclosure: 'verbatim', toolTurnId: authority.binding.toolTurnId, routeId: planner.routeId });
+      }
+      case 'conversation.synthesis.run': {
+        const input = this.journalPayload(payload, ['id', 'previewId', 'approvalId'], ['id', 'previewId', 'approvalId'], 'INVALID_SYNTHESIS');
+        check([input.id, input.previewId, input.approvalId].every(value => typeof value === 'string' && value.length > 0 && value.length <= 200),
+          'INVALID_SYNTHESIS', 'Choose the exact tool turn, reviewed preview and one-use approval.');
+        const result = await s.gateway.execute(ctx, { purpose: 'conversation-synthesis', toolTurnId: input.id,
+          previewId: input.previewId, approvalId: input.approvalId });
+        check(result.kind === 'conversation-synthesis', 'PREVIEW_REQUEST_CHANGED', 'Use a separately reviewed final-answer preview.');
+        return s.synthesisHost.retain(ctx, result.receipt.id);
       }
       case 'conversation.history': return s.conversationHistory.list(ctx, payload);
       case 'conversation.continuation': {

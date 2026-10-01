@@ -2,6 +2,8 @@
 
 Source base: `5d7575751f09367a8266c6424b54f627221d5c22`, tree `e1f59ff2646baa452026ff64dd8956059ede012a`. This published checkpoint executes local tools but has no model-authored final synthesis. The contract here is preparatory; it does not add a provider call or qualify a complete conversation.
 
+The subsequent coordinator implementation is described in `conversation-synthesis.md`. The worker module `20fb1dee969cf7c66bf48d2b66ae0b273789b5da` is now joined through the host-owned codec adapter; this document preserves the original handoff boundary and source-base evidence.
+
 ## Ownership
 
 Parent gateway worker `01a0f62e-3801-733e-b61c-596d5c5b1048` owns a **new** `platform/runtime/conversation-synthesis.ts` and dedicated new tests. Do not edit Engine, ModelGateway, existing planner/history, renderer, IPC, manifests, or this contract. Coordinator owns those integrations in `integration/conversation-synthesis-from5d`, worktree `task/luna-synthesis-engine`. Main and the clean published worktree stay unchanged.

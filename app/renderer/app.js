@@ -91,13 +91,14 @@ async function request(method, payload = {}, invalidateEvidenceOnError = true) {
     return result && Object.hasOwn(result, 'result') ? result.result : result;
   } catch (error) {
     if (['CONVERSATION_CONTINUATION_RESOLVED', 'CONVERSATION_CONTINUATION_LIMIT'].includes(error.code) && method === 'conversation.continuation' && state.continuation?.id === payload.id) clearContinuationSelection();
-    if (invalidateEvidenceOnError && ['ACCESS_REVOKED', 'VAULT_LOCKED', 'UNAUTHENTICATED', 'CONVERSATION_NOT_FOUND', 'RECEIPT_NOT_FOUND', 'BUSINESS_CONTEXT_STALE', 'PREVIEW_STALE', 'ROUTE_REVOKED', 'APPROVAL_REVOKED', 'MODEL_RESULT_UNAVAILABLE', 'EVIDENCE_CHANGED', 'CONVERSATION_CONTINUATION_UNAVAILABLE', 'CONVERSATION_CONTINUATION_STALE', 'INVALID_CONVERSATION_CONTINUATION', 'PREVIEW_REQUEST_CHANGED', 'MODEL_RECEIPT_EXPIRED', 'SOURCE_REVOKED', 'FORBIDDEN', 'PAYLOAD_CHANGED'].includes(error.code)) clearConversationEvidence();
+    if (invalidateEvidenceOnError && ['ACCESS_REVOKED', 'VAULT_LOCKED', 'UNAUTHENTICATED', 'CONVERSATION_NOT_FOUND', 'RECEIPT_NOT_FOUND', 'BUSINESS_CONTEXT_STALE', 'PREVIEW_STALE', 'ROUTE_REVOKED', 'APPROVAL_REVOKED', 'MODEL_RESULT_UNAVAILABLE', 'EVIDENCE_CHANGED', 'CONVERSATION_CONTINUATION_UNAVAILABLE', 'CONVERSATION_CONTINUATION_STALE', 'INVALID_CONVERSATION_CONTINUATION', 'PREVIEW_REQUEST_CHANGED', 'MODEL_RECEIPT_EXPIRED', 'SOURCE_REVOKED', 'FORBIDDEN', 'PAYLOAD_CHANGED', 'SYNTHESIS_UNAVAILABLE', 'SYNTHESIS_STALE'].includes(error.code)) clearConversationEvidence();
     if (!window.chausar?.request && error.code === 'UNAUTHENTICATED') { state.token = null; renderPairing(error.message); }
     throw error;
   }
 }
 async function currentConversationAnswer(data, invalidateEvidenceOnError = true) {
   const read = (method, payload) => request(method, payload, invalidateEvidenceOnError);
+  if (data?.kind === 'synthesized-conversation') return (await read('conversation.get', { id: data.id })).answer;
   if (data?.kind === 'grounded-conversation') return data.results?.some(result => result.answer) ? (await read('conversation.get', { id: data.id })).answer : data;
   if (data?.kind === 'business-context' && data.receipt?.id) return read('business.context.receipt', { id: data.receipt.id });
   if (data?.receipt?.id) return { ...data, receipt: await read('receipts.get', { id: data.receipt.id }) };
@@ -110,9 +111,9 @@ async function refreshConversationEvidence() {
     try {
       const data = message.data;
       // Retained turns require current authority even without a successful child receipt.
-      if (data.kind === 'grounded-conversation' || (typeof data.clarification === 'string' && typeof data.modelReceiptId === 'string')) {
+      if (data.kind === 'grounded-conversation' || data.kind === 'synthesized-conversation' || (typeof data.clarification === 'string' && typeof data.modelReceiptId === 'string')) {
         let id = data.id;
-        if (data.kind !== 'grounded-conversation') {
+        if (data.kind !== 'grounded-conversation' && data.kind !== 'synthesized-conversation') {
           // Prefer the newest turn's canonical ID; older replies use the guarded alias without scanning history.
           const recent = await request('conversation.history', { limit: 1 }, false);
           id = (recent.items || []).find(item => item.kind === 'clarification' && item.receiptId === data.modelReceiptId)?.id || data.modelReceiptId;
@@ -309,15 +310,43 @@ async function renderConversation() {
   const aside = h('aside', { class: 'conversation-aside' }, h('section', { class: 'panel context-panel' }, h('div', { class: 'context-head' }, icon('layers'), 'Workspace context'), ...[['Sources', sourceCount], ['Memory', memoryCount == null ? 'Not yet checked' : `${memoryCount} facts`], ['Dictionary', dashboard.ontology?.pack || dashboard.dictionary?.label || 'Not yet published'], ['Model disclosure', { nothing: 'Nothing leaves', shape: 'Shape only', samples: 'Approved samples' }[policy.send] || 'Check Trust panel']].map(([label, value]) => h('div', { class: 'context-row' }, h('span', {}, label), h('strong', {}, value))), h('p', { class: 'context-foot' }, sourceCount ? 'Answers use the records and meanings currently in your vault.' : 'Import a source and publish a dictionary to begin answering business questions.'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('sources') }, 'Manage sources', icon('arrow'))), h('div', { class: 'trust-callout' }, h('h3', {}, icon('shield'), 'A number deserves proof.'), h('p', {}, 'Arithmetic runs in ordinary software. Open a receipt to inspect the rows, scope, definitions, and omissions.'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('trust') }, 'Your trust settings', icon('arrow'))), h('div', { class: 'side-section' }, h('h3', {}, 'Pick up where you left off'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('decisions') }, icon('compass'), 'Decision log'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('jobs') }, icon('calendar'), 'Recurring jobs'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('activity') }, icon('activity'), 'Workspace activity')));
   return h('div', {}, pageHead('Conversation', 'A question, a calculation, and the evidence behind it.', [button('Recent answers', showConversationHistory, 'secondary', 'clock'), button('Daily brief', () => navigate('brief'), 'secondary', 'sun')]), outcomes[0].status === 'rejected' ? notice(outcomes[0].reason.message, 'error') : null, h('div', { class: 'conversation-layout' }, h('section', { class: 'panel conversation-panel' }, intro, messages, h('div', { class: 'composer-wrap' }, continuationHost, composer, h('div', { class: 'composer-help' }, h('span', {}, icon('shield'), 'Private by your rules. Check every result.'), h('span', {}, 'Ctrl + Enter to ask')))), aside));
 }
-function renderAnswer(data, continuationReference) { if (!data) return notice('The engine returned no result. Try again or inspect Activity.', 'warn'); if (data.kind === 'grounded-conversation') return renderGroundedConversation(data); if (data.kind === 'business-context') return renderBusinessContextAnswer(data); const text = data.text || data.answer?.text || data.explanation || data.summary || data.message || data.clarification || (typeof data.answer === 'string' ? data.answer : null); const receiptId = data.receiptId || data.receipt?.id || data.calculation?.receiptId || (data.figures ? data.id : null); const result = data.result || data.calculation || data.answer || data; const figures = result.figures || data.receipt?.figures || []; const operations = result?.metrics || result?.values; const body = h('div', {}, text ? h('p', {}, text) : h('p', {}, ['unsupported', 'not-supported', 'clarify'].includes(data.status) ? data.reason || 'This question needs an operation that is not available yet.' : 'The engine completed this request. Its exact result and evidence are below.'), data.amountMinor != null || result.amountMinor != null || result.valueMinor != null ? h('div', { class: 'result-number' }, amount(data.amountMinor ?? result.amountMinor ?? result.valueMinor, result.currency)) : null, figures.length ? h('div', { class: 'results-grid section-gap' }, figures.map(figure => h('div', { class: 'result-value' }, h('div', { class: 'result-label' }, figure.label || figure.key), h('strong', {}, figure.display || (figure.minor != null ? amount(figure.minor, figure.currency) : stringify(figure.value)))))) : null, operations && typeof operations === 'object' ? h('div', { class: 'results-grid section-gap' }, Object.entries(operations).map(([key, value]) => h('div', { class: 'result-value' }, h('div', { class: 'result-label' }, key.replaceAll('_', ' ')), h('strong', {}, value?.amountMinor != null ? amount(value.amountMinor, value.currency) : typeof value === 'object' ? stringify(value) : String(value))))) : null, data.limitations?.length ? notice(data.limitations.join(' '), 'warn') : null, data.stale ? notice('This receipt is stale. Rerun the calculation against current knowledge.', 'warn') : null, details(data), h('div', { class: 'message-actions' }, typeof data.clarification === 'string' && continuationReference?.continuationAvailable !== false && (continuationReference?.id || data.modelReceiptId) ? button('Continue this question', event => run(event.currentTarget, () => selectConversationContinuation(continuationReference || { modelReceiptId: data.modelReceiptId })), 'secondary small', 'arrow') : null, receiptId ? button('Open calculation receipt', () => showReceipt(receiptId), 'secondary small', 'file') : null, data.preview?.id || data.status === 'preview' ? button('Review outbound request', () => reviewOutbound(data.preview || data), 'secondary small', 'shield') : null, button('Save result', () => saveText('chausar-answer.json', data), 'ghost small', 'download'))); return body; }
-function renderGroundedConversation(data) {
+function renderAnswer(data, continuationReference) { if (!data) return notice('The engine returned no result. Try again or inspect Activity.', 'warn'); if (data.kind === 'synthesized-conversation') return renderSynthesizedConversation(data); if (data.kind === 'grounded-conversation') return renderGroundedConversation(data, continuationReference); if (data.kind === 'business-context') return renderBusinessContextAnswer(data); const text = data.text || data.answer?.text || data.explanation || data.summary || data.message || data.clarification || (typeof data.answer === 'string' ? data.answer : null); const receiptId = data.receiptId || data.receipt?.id || data.calculation?.receiptId || (data.figures ? data.id : null); const result = data.result || data.calculation || data.answer || data; const figures = result.figures || data.receipt?.figures || []; const operations = result?.metrics || result?.values; const body = h('div', {}, text ? h('p', {}, text) : h('p', {}, ['unsupported', 'not-supported', 'clarify'].includes(data.status) ? data.reason || 'This question needs an operation that is not available yet.' : 'The engine completed this request. Its exact result and evidence are below.'), data.amountMinor != null || result.amountMinor != null || result.valueMinor != null ? h('div', { class: 'result-number' }, amount(data.amountMinor ?? result.amountMinor ?? result.valueMinor, result.currency)) : null, figures.length ? h('div', { class: 'results-grid section-gap' }, figures.map(figure => h('div', { class: 'result-value' }, h('div', { class: 'result-label' }, figure.label || figure.key), h('strong', {}, figure.display || (figure.minor != null ? amount(figure.minor, figure.currency) : stringify(figure.value)))))) : null, operations && typeof operations === 'object' ? h('div', { class: 'results-grid section-gap' }, Object.entries(operations).map(([key, value]) => h('div', { class: 'result-value' }, h('div', { class: 'result-label' }, key.replaceAll('_', ' ')), h('strong', {}, value?.amountMinor != null ? amount(value.amountMinor, value.currency) : typeof value === 'object' ? stringify(value) : String(value))))) : null, data.limitations?.length ? notice(data.limitations.join(' '), 'warn') : null, data.stale ? notice('This receipt is stale. Rerun the calculation against current knowledge.', 'warn') : null, details(data), h('div', { class: 'message-actions' }, typeof data.clarification === 'string' && continuationReference?.continuationAvailable !== false && (continuationReference?.id || data.modelReceiptId) ? button('Continue this question', event => run(event.currentTarget, () => selectConversationContinuation(continuationReference || { modelReceiptId: data.modelReceiptId })), 'secondary small', 'arrow') : null, receiptId ? button('Open calculation receipt', () => showReceipt(receiptId), 'secondary small', 'file') : null, data.preview?.id || data.status === 'preview' ? button('Review outbound request', () => reviewOutbound(data.preview || data), 'secondary small', 'shield') : null, button('Save result', () => saveText('chausar-answer.json', data), 'ghost small', 'download'))); return body; }
+function renderGroundedConversation(data, savedReference, allowSynthesis = true) {
   const labels = { 'business.describe': 'Business description', 'calculator.calculate': 'Calculation' };
   return h('div', { class: 'stack' },
     ...(data.results || []).map(result => h('section', { class: 'panel' },
       h('h3', {}, labels[result.tool] || result.tool || 'Tool result'),
       result.error ? notice(`${result.error.code}: ${result.error.message}`, 'error')
         : result.answer ? renderAnswer(result.answer) : notice('The tool returned no answer.', 'warn'))),
-    details({ modelReceiptId: data.modelReceiptId, receipt: data.receipt }, 'Conversation evidence binding'));
+    details({ modelReceiptId: data.modelReceiptId, receipt: data.receipt }, 'Conversation evidence binding'),
+    allowSynthesis && data.id ? button('Review final answer', event => run(event.currentTarget, () => reviewFinalAnswer(data.id, savedReference?.parentDialog)), 'secondary small', 'shield') : null);
+}
+function renderSynthesizedConversation(data) {
+  return h('div', { class: 'stack' },
+    (data.paragraphs || []).map(paragraph => h('p', {}, paragraph)),
+    (data.cautions || []).map(caution => notice(caution.text, 'warn')),
+    h('details', { class: 'json-details' }, h('summary', {}, 'Tool results and receipts'), renderGroundedConversation(data.tools, null, false)),
+    Array.isArray(data.references) ? details(data.references, 'Final answer citations') : null,
+    details(data.receipt, 'Final answer evidence binding'),
+    button('Save result', () => saveText('chausar-final-answer.json', data), 'ghost small', 'download'));
+}
+async function currentSynthesisTools(id) {
+  const item = await request('conversation.get', { id });
+  if (item.answer?.kind !== 'grounded-conversation' || item.answer.id !== id) {
+    clearConversationEvidence();
+    throw new Error('This tool turn is no longer available for a final answer. Open a current saved answer.');
+  }
+  return item.answer;
+}
+async function reviewFinalAnswer(id, parentDialog) {
+  const generation = state.generation, evidenceGeneration = state.evidenceGeneration, continuationGeneration = state.continuationGeneration;
+  const current = () => generation === state.generation && evidenceGeneration === state.evidenceGeneration && continuationGeneration === state.continuationGeneration && (!parentDialog || savedEvidenceDialogs.has(parentDialog));
+  await currentSynthesisTools(id);
+  if (!current()) return;
+  const preview = await request('conversation.synthesis.preview', { id });
+  if (!current()) return;
+  if (preview?.purpose !== 'conversation-synthesis' || preview.toolTurnId !== id) throw new Error('The final answer preview is unavailable. Create a new preview.');
+  await reviewOutbound(preview, parentDialog);
 }
 async function showConversationHistory() {
   const generation = state.generation;
@@ -329,7 +358,7 @@ async function showConversationHistory() {
       if (!active || generation !== state.generation) return;
       host.replaceChildren(...[notice('Saved answers are shown only while their evidence remains available under your current access.'),
         ...(page.items || []).map(item => h('section', { class: 'panel' }, h('p', {}, item.question),
-          badge({ 'grounded-conversation': 'Grounded conversation', 'business-context': 'Business description', calculation: 'Calculation', clarification: 'Clarification' }[item.kind] || 'Saved answer'),
+          badge({ 'synthesized-conversation': 'Final answer', 'grounded-conversation': 'Grounded conversation', 'business-context': 'Business description', calculation: 'Calculation', clarification: 'Clarification' }[item.kind] || 'Saved answer'),
           h('p', { class: 'muted small' }, formatDate(item.at)),
           button('Open saved answer', () => showSavedConversation(item.id, dialog), 'secondary small', 'file'),
           item.kind === 'clarification' ? button('Continue this question', event => run(event.currentTarget, () => selectConversationContinuation({ id: item.id }, dialog)), 'secondary small', 'arrow') : null)),
@@ -378,19 +407,28 @@ async function showBusinessContextReceipt(id) {
   catch (error) { if (generation === state.generation) { clearSavedEvidence(); toast(error.message, true); } }
 }
 async function showReceipt(id) { const generation = state.generation; try { const result = await request('receipts.get', { id, receiptId: id }); if (generation !== state.generation) return; const data = result.receipt || result; savedEvidenceModal('Calculation receipt', h('div', { class: 'stack' }, h('div', {}, h('div', { class: 'eyebrow' }, data.operation || 'Deterministic calculation'), h('p', { class: 'receipt-id mono' }, data.id || id)), data.amountMinor != null ? h('div', { class: 'result-number' }, amount(data.amountMinor, data.currency)) : null, h('dl', { class: 'key-value' }, h('dt', {}, 'Period'), h('dd', {}, stringify(data.period || data.scope?.period || 'All imported periods')), h('dt', {}, 'Rows'), h('dd', {}, data.rowCount ?? data.rows?.length ?? data.includedRows?.length ?? 'See exact record'), h('dt', {}, 'Dictionary'), h('dd', {}, data.definitionVersion || data.ontologyRevision || data.definitionId || 'See exact record')), details(data, 'Rows, definitions, scope, exclusions, and integrity checks'), button('Save receipt', () => saveText(`chausar-receipt-${id}.json`, data), 'secondary', 'download')), true); } catch (error) { if (generation === state.generation) { clearSavedEvidence(); toast(error.message, true); } } }
-async function reviewOutbound(preview) {
+async function reviewOutbound(preview, parentDialog) {
   const generation = state.generation, evidenceGeneration = state.evidenceGeneration, continuationGeneration = state.continuationGeneration;
-  const continuationId = typeof preview.continuationId === 'string' && preview.continuationId ? preview.continuationId : null;
+  const synthesis = preview.purpose === 'conversation-synthesis';
+  const toolTurnId = synthesis && typeof preview.toolTurnId === 'string' && preview.toolTurnId ? preview.toolTurnId : null;
+  if (synthesis) {
+    if (preview.send !== 'samples' || !toolTurnId || typeof preview.synthesisDisclosureWarning !== 'string' || !preview.synthesisDisclosureWarning.trim()) { toast('The final answer requires Approved samples, its disclosure warning and a current tool turn. Create a new preview.', true); return; }
+    try { await currentSynthesisTools(toolTurnId); }
+    catch (error) { toast(error.message, true); return; }
+    if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration || continuationGeneration !== state.continuationGeneration) return;
+  }
+  const continuationId = !synthesis && typeof preview.continuationId === 'string' && preview.continuationId ? preview.continuationId : null;
   const selectionForPreview = state.continuation?.id === continuationId ? state.continuation : null;
   if (continuationId) {
     try { await readConversationContinuation(continuationId); }
     catch (error) { if (error.code !== 'CONVERSATION_CONTINUATION_RESOLVED' || state.continuation?.id === continuationId) clearContinuationSelection(); toast(error.message, true); return; }
     if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration || continuationGeneration !== state.continuationGeneration) return;
   }
+  if (parentDialog && !savedEvidenceDialogs.has(parentDialog)) return;
   let active = true;
-  const question = typeof preview.question === 'string' ? preview.question : '';
+  const question = typeof preview.question === 'string' ? preview.question : typeof preview.naturalQuestion === 'string' ? preview.naturalQuestion : '';
   const conversation = preview.purpose === 'conversation';
-  const consent = checkField('I approve sending this exact question and payload to the displayed model endpoint once.');
+  const consent = checkField(synthesis ? 'I separately approve sending this exact question, admitted claims and derived tool values to the displayed model endpoint once for the final answer.' : 'I approve sending this exact question and payload to the displayed model endpoint once.');
   const body = h('div', { class: 'stack' },
     h('section', {}, h('h3', {}, 'Your exact question'), h('pre', { class: 'json-view' }, question)),
     conversation ? notice('Your full question is a separate verbatim disclosure. Shape limits the source context; it does not remove names or details you type in your question.') : null,
@@ -399,7 +437,8 @@ async function reviewOutbound(preview) {
       h('dt', {}, 'Payload digest'), h('dd', { class: 'mono' }, preview.digest || 'See exact preview')),
     details(preview.payload, 'Exact outbound payload'), details(preview, 'Reviewed evidence and transfer'),
     typeof preview.continuationDisclosureWarning === 'string' && preview.continuationDisclosureWarning ? notice(preview.continuationDisclosureWarning, 'warn') : null,
-    typeof preview.definitionDisclosureWarning === 'string' && preview.definitionDisclosureWarning ? notice(preview.definitionDisclosureWarning, 'warn') : null, consent.node);
+    typeof preview.definitionDisclosureWarning === 'string' && preview.definitionDisclosureWarning ? notice(preview.definitionDisclosureWarning, 'warn') : null,
+    synthesis ? notice(preview.synthesisDisclosureWarning, 'warn') : null, consent.node);
   let submitted = false;
   const approve = button('Approve and send once', async event => {
     await run(event.currentTarget, async () => {
@@ -407,18 +446,19 @@ async function reviewOutbound(preview) {
       if (!consent.control.checked) throw new Error('Review the question and payload and tick the approval box first.');
       if (!question.trim()) throw new Error('The exact reviewed question is unavailable. Create a new preview.');
       submitted = true;
+      if (synthesis) await currentSynthesisTools(toolTurnId);
       if (continuationId) await readConversationContinuation(continuationId);
-      if (!active || generation !== state.generation || (continuationId && continuationGeneration !== state.continuationGeneration)) return;
+      if (!active || generation !== state.generation || ((continuationId || synthesis) && continuationGeneration !== state.continuationGeneration)) return;
       const approval = await request('models.approve', { id: preview.id });
-      if (!active || generation !== state.generation || (continuationId && continuationGeneration !== state.continuationGeneration)) return;
-      const retained = await request('conversation.ask', { previewId: preview.id, approvalId: approval.id, question,
+      if (!active || generation !== state.generation || ((continuationId || synthesis) && continuationGeneration !== state.continuationGeneration)) return;
+      const retained = synthesis ? await request('conversation.synthesis.run', { id: toolTurnId, previewId: preview.id, approvalId: approval.id }) : await request('conversation.ask', { previewId: preview.id, approvalId: approval.id, question,
         routeId: preview.routeId, ...(conversation ? { purpose: 'conversation', questionDisclosure: 'verbatim' } : {}), ...(continuationId ? { continuationId } : {}) });
-      const selectionUnchanged = !continuationId || continuationGeneration === state.continuationGeneration;
+      const selectionUnchanged = (!continuationId && !synthesis) || continuationGeneration === state.continuationGeneration;
       if (continuationId && selectionUnchanged && state.continuation === selectionForPreview) clearContinuationSelection();
       if (!active || generation !== state.generation || !selectionUnchanged) return;
       const completionContinuationGeneration = state.continuationGeneration;
       const result = await currentConversationAnswer(retained);
-      if (!active || generation !== state.generation || (continuationId && completionContinuationGeneration !== state.continuationGeneration)) return;
+      if (!active || generation !== state.generation || ((continuationId || synthesis) && completionContinuationGeneration !== state.continuationGeneration)) return;
       dialog.close(); state.messages.push({ role: 'assistant', data: result }); await navigate('conversation');
     });
     event.currentTarget.disabled = submitted;

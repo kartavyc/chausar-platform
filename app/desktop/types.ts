@@ -5,16 +5,46 @@ import type { MappingRecipe } from '../../platform/runtime/ingest.ts';
 import type { MappingReview, IndependentSourceTotals } from '../../platform/runtime/connector-framework/import.ts';
 import type { JournalContent, JournalDecision, JournalDraft } from '../../platform/runtime/decision-journal.ts';
 import type { JournalDecisionReview } from '../../platform/runtime/reports.ts';
-import type { BusinessProfileInput } from '../../platform/runtime/conversation-context.ts';
+import type { BusinessProfileInput, renderBusinessAnswer } from '../../platform/runtime/conversation-context.ts';
+import type { CalculationReceipt } from '../../platform/runtime/calculator.ts';
 import type { BridgeProfileDefinition, BridgeProfileRecord, BridgeRunRequest, BridgeRecord } from '../../platform/runtime/bridge-service.ts';
 import type { InvestigationCreate, Investigation, InvestigationRevisionInput, InvestigationCapsule, InvestigationDrilldown } from '../../platform/runtime/investigation-contracts.ts';
 import type { InvestigationSearchRequest } from '../../platform/runtime/investigation-search.ts';
 import type { ResearchSearchService } from '../../platform/runtime/research-search.ts';
-import type { ConversationHistoryService } from '../../platform/runtime/conversation-history.ts';
+import type { ConversationHistoryService, ConversationResultReference } from '../../platform/runtime/conversation-history.ts';
 import type { ModelRequest } from '../../platform/runtime/gateway.ts';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue; }
+export type DesktopConversationSynthesisPreview = {
+  id: string; kind: 'model-preview'; status: 'preview'; purpose: 'conversation-synthesis';
+  toolTurnId: string; naturalQuestion: string; question?: string; synthesisDisclosureWarning: string;
+  payload: string; digest: string; routeId: string; endpoint?: string; approvalRequired: boolean;
+  send: 'samples';
+  receiptBoundary: 'application-to-official-cli' | 'application-to-provider-http'; providerPayloadObserved: boolean;
+  estimatedCostMinor?: string; costCurrency?: string;
+};
+type DesktopBusinessAnswer = ReturnType<typeof renderBusinessAnswer> & {
+  id: string;
+  receipt: { id: string; kind: 'business-context-receipt'; contextDigest: string; financialCalculation: false;
+    sourceIds: string[]; rowIds: string[]; modelReceiptId?: string };
+};
+export type DesktopGroundedConversation = {
+  id: string; kind: 'grounded-conversation'; modelReceiptId: string;
+  results: Array<
+    { tool: 'business.describe'; answer: DesktopBusinessAnswer; error?: never }
+    | { tool: 'calculator.calculate'; answer: CalculationReceipt; error?: never }
+    | { tool: ConversationResultReference['tool']; error: { code: string; message: string }; answer?: never }
+  >;
+  receipt: { id: string; kind: 'conversation-tool-receipt'; modelReceiptId: string; resultRefs: ConversationResultReference[] };
+};
+export type DesktopConversationSynthesisResult = {
+  id: string; kind: 'synthesized-conversation'; paragraphs: string[]; cautions: { ref: string; text: string }[];
+  references: { evidenceRefs: string[]; answerIds: string[]; receiptIds: string[]; citationIds: string[] }[];
+  tools: DesktopGroundedConversation;
+  receipt: { id: string; kind: 'conversation-synthesis-receipt'; toolTurnId: string; plannerModelReceiptId: string;
+    synthesisModelReceiptId: string; inputDigest: string; outputDigest: string };
+};
 type JobPayloadFields = Omit<JobConfig, 'input' | 'plan' | 'type'>;
 export type DesktopGoalJobConfig = JobPayloadFields & {
   type: 'calculation-set' | 'evidence-review' | 'action-preparation';
@@ -34,6 +64,8 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'models.preview': ModelRequest;
   'conversation.get': { id: string };
   'conversation.continuation': { id: string };
+  'conversation.synthesis.preview': { id: string; routeId?: string };
+  'conversation.synthesis.run': { id: string; previewId: string; approvalId: string };
   'business.context.receipt': { id: string };
   'business.profile.record': BusinessProfileInput;
   'business.profile.remove': { id: string };
@@ -82,6 +114,7 @@ export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'rea
 export type DesktopResult<M extends DesktopMethod> =
   M extends 'conversation.history' ? ReturnType<ConversationHistoryService['list']> : M extends 'conversation.get' ? ReturnType<ConversationHistoryService['get']> :
   M extends 'conversation.continuation' ? import('../../platform/runtime/engine.ts').ConversationContinuation :
+  M extends 'conversation.synthesis.preview' ? DesktopConversationSynthesisPreview : M extends 'conversation.synthesis.run' ? DesktopConversationSynthesisResult :
   M extends 'analysis.bridge.publish' ? BridgeProfileRecord : M extends 'analysis.bridge.profiles' ? BridgeProfileRecord[] :
   M extends 'analysis.bridge.run' | 'analysis.bridge.get' ? BridgeRecord :
   M extends 'investigations.list' ? Investigation[] : M extends 'investigations.capsule' ? InvestigationCapsule :

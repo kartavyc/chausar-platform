@@ -6,7 +6,7 @@ import { CONVERSATION_PLAN_MAX_CALLS } from './conversation-planner.ts';
 import { canSeeFact } from './memory.ts';
 import { assertSourceAccess } from './trust.ts';
 
-export type ConversationHistoryKind = 'business-context' | 'calculation' | 'grounded-conversation' | 'clarification';
+export type ConversationHistoryKind = 'business-context' | 'calculation' | 'grounded-conversation' | 'synthesized-conversation' | 'clarification';
 export type ConversationHistoryItem = { id: string; at: string; question: string; kind: ConversationHistoryKind; receiptId: string };
 export type ConversationHistoryPage = { items: ConversationHistoryItem[]; nextCursor?: string };
 export type ConversationHistoryAnswer = Omit<ConversationHistoryItem, 'receiptId'> & { answer: any };
@@ -15,6 +15,8 @@ export type ConversationHistoryOptions = {
   receipt: (ctx: Context, id: string, view: StateStore) => CalculationReceipt;
   /** Installed gateway current-authority guard; required for composite and clarification history. */
   assertModelReceipt?: (ctx: Context, id: string, view: StateStore) => unknown;
+  /** Installed host admission: current tools, both model receipts and exact local rendering. */
+  assertSynthesisAnswer?: (ctx: Context, record: unknown, view: StateStore) => unknown;
 };
 export type ConversationResultReference = { tool: 'business.describe' | 'calculator.calculate'; answerId: string };
 export type CalculationAnswerRecord = {
@@ -107,7 +109,7 @@ export class ConversationHistoryService {
     check(input.cursor === undefined || reference(input.cursor), 'INVALID_HISTORY_CURSOR', 'This history cursor is unavailable.');
     const candidates = view.read().conversations.filter(record => plain(record) && record.memberId === ctx.memberId && timestamp(record.at)
       && (record.kind === 'business-context-answer' || record.kind === 'calculation-answer' || record.kind === 'conversation-tools-answer'
-        || record.kind === 'conversation-clarification-answer' || record.role === 'user' && reference(record.resultId)))
+        || record.kind === 'conversation-synthesis-answer' || record.kind === 'conversation-clarification-answer' || record.role === 'user' && reference(record.resultId)))
       .sort((a, b) => b.at.localeCompare(a.at) || String(b.id).localeCompare(String(a.id)));
     let start = 0;
     if (input.cursor !== undefined) {
@@ -149,7 +151,10 @@ export class ConversationHistoryService {
       this.retained(view, record.at);
       if (record.integrity !== undefined) check(typeof record.integrity === 'string' && record.integrity === conversationRecordIntegrity(record), UNAVAILABLE, 'This saved answer is unavailable.');
       let kind: ConversationHistoryKind, receiptId: string, answer: any;
-      if (record.kind === 'conversation-tools-answer') {
+      if (record.kind === 'conversation-synthesis-answer') {
+        check(record.epoch === ctx.epoch && typeof this.options.assertSynthesisAnswer === 'function', UNAVAILABLE, 'This saved final answer is unavailable.');
+        answer = this.options.assertSynthesisAnswer(ctx, record, view); kind = 'synthesized-conversation'; receiptId = answer.receipt.id;
+      } else if (record.kind === 'conversation-tools-answer') {
         answer = this.compositeAnswer(view, ctx, record); kind = 'grounded-conversation'; receiptId = answer.receipt.id;
       } else if (record.kind === 'conversation-clarification-answer') {
         answer = this.clarificationAnswer(view, ctx, record); kind = 'clarification'; receiptId = record.modelReceiptId;

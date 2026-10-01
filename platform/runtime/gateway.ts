@@ -11,6 +11,7 @@ import type { CodexCliCapabilityProfile } from './providers/codex-cli.ts';
 import { conversationPurpose } from './conversation-purpose.ts';
 import { CONVERSATION_PLANNER_INSTRUCTIONS, conversationPlannerSchema, validateConversationPlan, type ConversationPlan } from './conversation-planner.ts';
 import { buildBusinessContext, assertBusinessContextCurrent, businessContextDisclosure, validateBusinessSelection, renderBusinessAnswer, type BusinessContextHooks, type BusinessContextManifest, type BusinessContextRequest, type BusinessSelection } from './conversation-context.ts';
+import type { ConversationSynthesisCodec, GatewaySynthesisAuthority, GroundedSynthesisOutput } from './conversation-synthesis-contract.ts';
 
 export const DEFAULT_OPERATIONS = ['billed', 'received', 'earned', 'refunds', 'costs', 'purchases', 'revenue', 'net_sales', 'margin', 'order-margin', 'aging', 'change', 'scenario'];
 export type RouteKind = 'codex-cli' | 'claude-cli' | 'openai-responses' | 'openai-compatible' | 'ollama' | 'managed';
@@ -20,14 +21,15 @@ export type RouteConfig = {
   outputPerMillionMinor?: string; credentialEnv?: string; label?: string;
 };
 export type AnalyticalPlan = { operation: string; period?: { from: string; to: string }; branch?: string; customerId?: string; clarification?: string };
-export type ModelRequest = { question: string; purpose?: 'analysis' | 'business-context' | 'conversation'; questionDisclosure?: 'verbatim'; continuationId?: string; routeId?: string; sourceIds?: string[]; samples?: { factId: string; fields?: string[] }[]; profileSamples?: { claimId: string }[]; branch?: string; asOf?: string; onDate?: string; period?: { from: string; to: string }; previewId?: string; approvalId?: string };
+export type ModelRequest = { question: string; purpose?: 'analysis' | 'business-context' | 'conversation' | 'conversation-synthesis'; questionDisclosure?: 'verbatim'; continuationId?: string; toolTurnId?: string; routeId?: string; sourceIds?: string[]; samples?: { factId: string; fields?: string[] }[]; profileSamples?: { claimId: string }[]; branch?: string; asOf?: string; onDate?: string; period?: { from: string; to: string }; previewId?: string; approvalId?: string };
 /** Local authority metadata from the trusted host; RPC accepts only its turn ID. */
 export type GatewayConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
   sourceIds: string[]; requestScope: BusinessContextRequest | Record<string, unknown>; digest: string;
   exchanges?: { question: string; clarification: string }[] };
 export type GatewayResult = { kind: 'analysis'; plan: AnalyticalPlan; answer?: never; selection?: never; receipt: any }
   | { kind: 'business-context'; plan?: never; answer: ReturnType<typeof renderBusinessAnswer>; selection: BusinessSelection; receipt: any }
-  | { kind: 'conversation'; plan: ConversationPlan; answer?: never; selection?: never; receipt: any };
+  | { kind: 'conversation'; plan: ConversationPlan; answer?: never; selection?: never; receipt: any }
+  | { kind: 'conversation-synthesis'; output: GroundedSynthesisOutput; plan?: never; answer?: never; selection?: never; receipt: any };
 export type HttpRequest = { endpoint: string; method: 'POST'; headers: Record<string, string>; body: string; redirect: 'error'; timeoutMs: number };
 export type HttpResult = { status: number; body: string; endpoint?: string; requestId?: string };
 export type ProcessRequest = { command: string; args: string[]; cwd: string; env: Record<string, string>; stdin: string; timeoutMs: number; schema: unknown };
@@ -41,6 +43,9 @@ export type GatewayOptions = {
   businessContext?: BusinessContextHooks;
   /** Resolve current retained authority locally, including exact consumed-receipt readback. */
   conversationContinuation?: (context: Context, turnId: string, view: StateStore, resolvedByModelReceiptId?: string) => GatewayConversationContinuation;
+  /** Current admitted tool projection and pure codec are installed only by the host. */
+  conversationSynthesis?: (context: Context, toolTurnId: string, view: StateStore) => GatewaySynthesisAuthority;
+  synthesisCodec?: ConversationSynthesisCodec;
 };
 
 const PRIORITY: Record<RouteKind, number> = { 'codex-cli': 0, 'claude-cli': 1, 'openai-responses': 2, 'openai-compatible': 3, ollama: 4, managed: 5 };
@@ -119,6 +124,55 @@ function businessRequest(request: Partial<ModelRequest>): BusinessContextRequest
   return { ...(request.sourceIds !== undefined ? { sourceIds: request.sourceIds } : {}), ...(request.branch !== undefined ? { branch: request.branch } : {}),
     ...(request.asOf !== undefined ? { asOf: request.asOf } : {}), ...(request.onDate !== undefined ? { onDate: request.onDate } : {}),
     ...(request.period !== undefined ? { period: request.period } : {}) };
+}
+
+function modelPayload(route: any, instructions: string, input: string, schema: unknown, schemaName: string): string {
+  if (route.kind.endsWith('-cli')) return `${instructions}\n${input}`;
+  if (route.kind === 'ollama') return JSON.stringify({ model: route.model, messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }], stream: false, format: schema, options: { num_predict: route.maxOutputTokens }, tools: [] });
+  if (route.kind === 'openai-compatible') return JSON.stringify({ model: route.model, messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }], tools: [], tool_choice: 'none', max_completion_tokens: route.maxOutputTokens, response_format: { type: 'json_schema', json_schema: { name: schemaName, strict: false, schema } } });
+  return JSON.stringify({ model: route.model, instructions, input, tools: [], tool_choice: 'none', store: false, max_output_tokens: route.maxOutputTokens, text: { format: { type: 'json_schema', name: schemaName, strict: false, schema } } });
+}
+
+const SYNTHESIS_INVALID = 'INVALID_SYNTHESIS_REQUEST';
+const SYNTHESIS_MARKERS = ['toolTurnId', 'synthesisAuthority', 'synthesisSummary', 'synthesisBinding', 'synthesisDisclosure', 'synthesisOutputWire', 'synthesisOutput'];
+function synthesisJson(value: unknown): void {
+  const seen = new Set<object>(); let nodes = 0;
+  function walk(item: unknown, depth: number) {
+    check(++nodes <= 20000 && depth <= 32, SYNTHESIS_INVALID, 'The synthesis contract exceeds its bounded structure.');
+    if (item === null || typeof item === 'boolean') return;
+    if (typeof item === 'string') { check(item.length <= 32768, SYNTHESIS_INVALID, 'Synthesis text exceeds its exact transfer bound.'); return; }
+    if (typeof item === 'number') { check(Number.isSafeInteger(item), SYNTHESIS_INVALID, 'Synthesis metadata requires bounded integers.'); return; }
+    check(item !== null && typeof item === 'object' && !seen.has(item)
+      && (Array.isArray(item) ? Object.getPrototypeOf(item) === Array.prototype : [Object.prototype, null].includes(Object.getPrototypeOf(item))),
+    SYNTHESIS_INVALID, 'Synthesis metadata must be plain acyclic JSON.');
+    check(Object.getOwnPropertySymbols(item).length === 0, SYNTHESIS_INVALID, 'Synthesis metadata has unsupported fields.');
+    seen.add(item);
+    const descriptors = Object.getOwnPropertyDescriptors(item);
+    if (Array.isArray(item)) check(item.length <= 8192 && Object.keys(descriptors).length === item.length + 1
+      && Array.from({ length: item.length }, (_, index) => descriptors[String(index)]).every(descriptor => descriptor?.enumerable && Object.hasOwn(descriptor, 'value')),
+      SYNTHESIS_INVALID, 'Synthesis lists require bounded complete entries.');
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+      if (Array.isArray(item) && key === 'length') continue;
+      check(descriptor.enumerable && Object.hasOwn(descriptor, 'value') && !['__proto__', 'prototype', 'constructor'].includes(key),
+        SYNTHESIS_INVALID, 'Synthesis metadata cannot contain computed fields.');
+      walk(descriptor.value, depth + 1);
+    }
+    seen.delete(item);
+  }
+  walk(value, 0);
+  check(Buffer.byteLength(JSON.stringify(value)) <= 262144, SYNTHESIS_INVALID, 'The synthesis authority exceeds its exact transfer bound.');
+}
+function synthesisObject(value: unknown, keys: string[], required = keys): asserts value is Record<string, any> {
+  check(isRecord(value) && Object.keys(value).every(key => keys.includes(key)) && required.every(key => Object.hasOwn(value, key)),
+    SYNTHESIS_INVALID, 'Synthesis authority has missing or undeclared fields.');
+}
+function synthesisIds(value: unknown, limit = 8192): asserts value is string[] {
+  check(Array.isArray(value) && value.length <= limit && value.every(id => typeof id === 'string' && id.length > 0 && id.length <= 200)
+    && new Set(value).size === value.length, SYNTHESIS_INVALID, 'Synthesis authority needs bounded unique references.');
+}
+function synthesisRequest(request: Partial<ModelRequest>) {
+  const allowed = ['question', 'purpose', 'questionDisclosure', 'routeId', 'toolTurnId', 'previewId', 'approvalId'];
+  check(Object.keys(request).every(key => allowed.includes(key)), SYNTHESIS_INVALID, 'Synthesis accepts only an admitted tool turn and its exact disclosure review.');
 }
 
 function validDay(value: unknown): value is string {
@@ -341,6 +395,7 @@ function modelReceiptRetained(state: State, receipt: any): boolean {
 export class ModelGateway {
   store: StateStore; options: GatewayOptions; #credentials = new Map<string, string>();
   #continuationResolutions = new Set<string>();
+  #synthesisResolutions = new Set<string>();
   constructor(store: StateStore, options: GatewayOptions = {}) {
     this.store = store;
     this.options = { ...options, ...(options.codexCli ? { codexCli: structuredClone(options.codexCli) } : {}) };
@@ -431,11 +486,126 @@ export class ModelGateway {
     continuationRequest(preview.requestScope, current);
     assertSourceAccess(view.read(), context, current.sourceIds);
   }
-  async preview(context: Context, request: ModelRequest) {
+  #synthesisCodec(): ConversationSynthesisCodec {
+    const codec = this.options.synthesisCodec;
+    check(codec && typeof codec.instructions === 'string' && codec.instructions.trim().length > 0 && codec.instructions.length <= 32768
+      && typeof codec.schema === 'function' && typeof codec.validate === 'function' && typeof codec.materialize === 'function',
+    'SYNTHESIS_UNAVAILABLE', 'The trusted host has not installed the complete synthesis contract.');
+    return codec;
+  }
+  #resolveSynthesis(context: Context, id: string, view: StateStore): GatewaySynthesisAuthority {
+    check(continuationId(id), SYNTHESIS_INVALID, 'Select one bounded admitted tool-turn ID.');
+    const resolve = this.options.conversationSynthesis;
+    check(typeof resolve === 'function', 'SYNTHESIS_UNAVAILABLE', 'Current admitted synthesis evidence is unavailable.');
+    this.#synthesisCodec();
+    const key = JSON.stringify([context.memberId, context.epoch, id]);
+    check(this.#synthesisResolutions.size < 8 && !this.#synthesisResolutions.has(key), 'SYNTHESIS_STALE', 'The synthesis authority chain is cyclic or exceeds its bound.');
+    this.#synthesisResolutions.add(key);
+    try {
+      const authority = resolve(context, id, view);
+      synthesisJson(authority); synthesisObject(authority, ['summary', 'binding', 'sourceIds', 'factIds', 'rowIds']);
+      synthesisIds(authority.sourceIds, 64); synthesisIds(authority.factIds); synthesisIds(authority.rowIds);
+      synthesisObject(authority.summary, ['schemaVersion', 'question', 'results', 'evidence', 'citationRefs']);
+      check(authority.summary.schemaVersion === 1 && continuationText(authority.summary.question, 10000), SYNTHESIS_INVALID, 'Synthesis requires the exact bounded retained objective.');
+      synthesisObject(authority.binding, ['toolTurnId', 'plannerModelReceiptId', 'toolResultsDigest', 'inputDigest', 'evidence']);
+      const binding = authority.binding;
+      check(binding.toolTurnId === id && continuationId(binding.plannerModelReceiptId)
+        && typeof binding.toolResultsDigest === 'string' && /^[a-f0-9]{64}$/.test(binding.toolResultsDigest)
+        && binding.inputDigest === hash(authority.summary) && Array.isArray(binding.evidence), SYNTHESIS_INVALID, 'The current synthesis binding does not match its exact input.');
+      check(Array.isArray(authority.summary.results) && Array.isArray(authority.summary.evidence), SYNTHESIS_INVALID, 'The synthesis summary needs admitted ordered results.');
+      for (const result of authority.summary.results) synthesisObject(result, ['ref', 'tool', 'status', 'evidenceRefs']);
+      for (const evidence of authority.summary.evidence) check(isRecord(evidence), SYNTHESIS_INVALID, 'Synthesis evidence requires plain reference descriptors.');
+      const resultRefs = authority.summary.results.map(result => result.ref), evidenceRefs = authority.summary.evidence.map(evidence => evidence.ref);
+      synthesisIds(resultRefs, 4); synthesisIds(evidenceRefs, 256);
+      const boundRefs: string[] = [];
+      for (const evidence of binding.evidence) {
+        synthesisObject(evidence, ['ref', 'resultRef', 'answerId', 'evidenceHash', 'renderText', 'receiptId', 'figureKey', 'citationIds'],
+          ['ref', 'resultRef', 'answerId', 'evidenceHash', 'renderText']);
+        const descriptor = authority.summary.evidence.find(item => item.ref === evidence.ref);
+        check(descriptor && descriptor.resultRef === evidence.resultRef && resultRefs.includes(evidence.resultRef)
+          && continuationId(evidence.answerId) && typeof evidence.evidenceHash === 'string' && /^[a-f0-9]{64}$/.test(evidence.evidenceHash)
+          && typeof evidence.renderText === 'string' && evidence.renderText.length <= 32768, SYNTHESIS_INVALID, 'A synthesis reference has no exact local evidence binding.');
+        if (evidence.receiptId !== undefined) check(continuationId(evidence.receiptId), SYNTHESIS_INVALID, 'A synthesis receipt reference is invalid.');
+        if (evidence.figureKey !== undefined) check(typeof evidence.figureKey === 'string' && evidence.figureKey.length > 0 && evidence.figureKey.length <= 200, SYNTHESIS_INVALID, 'A synthesis figure reference is invalid.');
+        if (evidence.citationIds !== undefined) synthesisIds(evidence.citationIds, 256);
+        boundRefs.push(evidence.ref);
+      }
+      synthesisIds(boundRefs, 256);
+      check(hash([...boundRefs].sort()) === hash([...evidenceRefs].sort()), SYNTHESIS_INVALID, 'Every synthesis alias needs one exact local binding.');
+      assertSourceAccess(view.read(), context, authority.sourceIds);
+      const visibleIds = new Set(visibleFacts(view, context, authority.sourceIds).map(fact => fact.id));
+      check([...authority.factIds, ...authority.rowIds].every(id => visibleIds.has(id)), 'SYNTHESIS_STALE', 'Current synthesis fact authority is unavailable.');
+      synthesisJson(this.#synthesisCodec().schema(structuredClone(authority.summary)));
+      return structuredClone(authority);
+    } finally { this.#synthesisResolutions.delete(key); }
+  }
+  #assertSynthesisCurrent(context: Context, preview: any, view: StateStore, route: any) {
+    check(view.read().policy.send === 'samples', 'SYNTHESIS_DISCLOSURE_REQUIRED', 'Private synthesis claim text requires samples policy and a separate exact approval.');
+    check(continuationId(preview.toolTurnId) && preview.questionDisclosure === 'verbatim' && preview.synthesisDisclosure === 'admitted-tool-summary'
+      && preview.approvalRequired === true && preview.send === 'samples' && continuationText(preview.synthesisDisclosureWarning, 4096)
+      && typeof preview.naturalQuestion === 'string' && hash(preview.naturalQuestion) === preview.questionHash,
+    'SYNTHESIS_STALE', 'The exact synthesis objective or tool-turn selection changed.');
+    synthesisJson(preview.synthesisAuthority);
+    synthesisObject(preview.synthesisAuthority, ['summary', 'binding', 'sourceIds', 'factIds', 'rowIds']);
+    check(isRecord(preview.synthesisSummary) && isRecord(preview.synthesisBinding), 'SYNTHESIS_STALE', 'The stored synthesis projection is unavailable.');
+    check(preview.synthesisAuthorityDigest === hash(preview.synthesisAuthority) && preview.synthesisAuthority?.binding?.toolTurnId === preview.toolTurnId
+      && hash({ summary: preview.synthesisSummary, binding: preview.synthesisBinding }) === hash({ summary: preview.synthesisAuthority.summary, binding: preview.synthesisAuthority.binding })
+      && preview.synthesisInputDigest === hash(preview.synthesisSummary) && preview.naturalQuestion === preview.synthesisSummary.question,
+    'SYNTHESIS_STALE', 'The exact synthesis evidence binding changed.');
+    let content: unknown;
+    try {
+      const input = route.kind.endsWith('-cli') ? preview.payload.slice(preview.instructions.length + 1)
+        : ['ollama', 'openai-compatible'].includes(route.kind) ? JSON.parse(preview.payload).messages[1].content : JSON.parse(preview.payload).input;
+      content = JSON.parse(input);
+    } catch { throw new ChausarError('PAYLOAD_CHANGED', 'The reviewed synthesis disclosure changed.'); }
+    check(hash(content) === hash(preview.synthesisSummary), 'SYNTHESIS_STALE', 'The outbound synthesis summary does not match its exact review.');
+    const codec = this.#synthesisCodec(), schema = codec.schema(structuredClone(preview.synthesisSummary)); synthesisJson(schema);
+    check(codec.instructions === preview.instructions && hash(schema) === preview.schemaDigest, 'SYNTHESIS_STALE', 'The installed synthesis output contract changed.');
+    const current = this.#resolveSynthesis(context, preview.toolTurnId, view);
+    check(hash(current) === preview.synthesisAuthorityDigest && hash(current.sourceIds) === hash(preview.sourceIds)
+      && hash(current.factIds) === hash(preview.factIds) && hash(current.rowIds) === hash(preview.rowIds),
+    'SYNTHESIS_STALE', 'Current admitted tool results changed. Build a fresh exact synthesis preview.');
+    const records = view.read().modelReceipts.filter(item => item?.id === preview.id), saved = records[0];
+    const keys = ['purpose', 'routeId', 'routeRevision', 'endpoint', 'approvalRequired', 'send', 'factDigest', 'trustFingerprint', 'questionDisclosure',
+      'toolTurnId', 'synthesisAuthority', 'synthesisAuthorityDigest', 'synthesisSummary', 'synthesisBinding', 'synthesisInputDigest',
+      'synthesisDisclosure', 'synthesisDisclosureWarning', 'naturalQuestion', 'questionHash', 'sourceIds', 'factIds', 'rowIds', 'payload', 'digest', 'schema', 'schemaDigest', 'instructions'];
+    const binding = (record: any) => Object.fromEntries(keys.map(key => [key, record?.[key]]));
+    check(records.length === 1 && hash(binding(saved)) === hash(binding(preview)), 'SYNTHESIS_STALE', 'The stored synthesis review changed.');
+  }
+  async #previewSynthesis(context: Context, request: ModelRequest): Promise<any> {
+    synthesisRequest(request);
+    check(this.store.read().policy.send === 'samples', 'SYNTHESIS_DISCLOSURE_REQUIRED', 'Private synthesis claim text requires samples policy and a separate exact approval.');
+    check(typeof request.routeId === 'string' && request.routeId.length > 0, 'MODEL_ROUTE_REQUIRED', 'Choose the exact model route for synthesis.');
+    check(request.questionDisclosure === 'verbatim', 'QUESTION_DISCLOSURE_REQUIRED', 'Review the exact synthesis objective separately from evidence Shape.');
+    const authority = this.#resolveSynthesis(context, request.toolTurnId!, this.store);
+    check(request.question === authority.summary.question, 'PREVIEW_REQUEST_CHANGED', 'Review the exact admitted objective for this synthesis.');
+    const route = this.#route(context, request.routeId), codec = this.#synthesisCodec();
+    const summary = authority.summary, schema = codec.schema(structuredClone(summary)); synthesisJson(schema);
+    const instructions = codec.instructions, payload = modelPayload(route, instructions, JSON.stringify(summary), schema, 'grounded_conversation_synthesis');
+    check(Buffer.byteLength(payload) <= 262144, 'PAYLOAD_TOO_LARGE', 'The exact synthesis payload is too large.');
+    const digest = hash(payload), state = this.store.read(); check(!isNoResend(state, digest), 'NO_RESEND', 'This deleted or expired payload cannot be sent again.');
+    const record = { id: newId('model_preview'), kind: 'model-preview', status: 'preview', purpose: 'conversation-synthesis',
+      createdAt: now(), at: now(), memberId: context.memberId, epoch: context.epoch, routeId: route.id, routeRevision: route.revision, endpoint: route.endpoint,
+      questionDisclosure: 'verbatim', naturalQuestion: request.question, questionHash: hash(request.question), toolTurnId: request.toolTurnId,
+      synthesisAuthority: authority, synthesisAuthorityDigest: hash(authority), synthesisSummary: summary, synthesisBinding: authority.binding,
+      synthesisInputDigest: hash(summary), synthesisDisclosure: 'admitted-tool-summary',
+      synthesisDisclosureWarning: 'The exact retained original objective, admitted claim text and derived tool summary are included separately from evidence Shape. Review private names, business details and instructions before approving this separate synthesis transfer once.',
+      sourceIds: authority.sourceIds, factIds: authority.factIds, rowIds: authority.rowIds,
+      factDigest: hash(visibleFacts(this.store, context, authority.sourceIds)), trustFingerprint: trustFingerprint(state, context, authority.sourceIds),
+      schema, schemaDigest: hash(schema), instructions, payload, digest, approvalRequired: true, send: state.policy.send,
+      receiptBoundary: route.kind.endsWith('-cli') ? 'application-to-official-cli' : 'application-to-provider-http', providerPayloadObserved: !route.kind.endsWith('-cli'),
+      costReservedMinor: '0', estimatedCostMinor: route.maxCostMinor, costCurrency: 'INR', experimental: true };
+    return this.store.update(current => {
+      current.modelReceipts.push(record); this.#assertCurrent(context, record, current); return structuredClone(record);
+    });
+  }
+  async preview(context: Context, request: ModelRequest): Promise<any> {
     authorize(this.store, context, 'prepare');
     check(!Object.hasOwn(request, 'continuation'), CONTINUATION_INVALID, 'Only a retained turn ID may select trusted local continuation text.');
     check(typeof request.question === 'string' && request.question.trim().length > 0 && request.question.length <= 10000, 'INVALID_QUESTION', 'Use a question between one and 10000 characters.');
     const state = this.store.read(); check(state.policy.send !== 'nothing', 'SEND_DISABLED', 'Your privacy policy sends nothing to models. Use the local calculator or change your send policy.');
+    if (request.purpose === 'conversation-synthesis') return this.#previewSynthesis(context, request);
+    check(request.toolTurnId === undefined, SYNTHESIS_INVALID, 'Tool-turn references belong to the separately reviewed synthesis mode.');
     const unified = request.purpose === 'conversation';
     if (unified) {
       check(typeof request.routeId === 'string' && request.routeId.length > 0, 'MODEL_ROUTE_REQUIRED', 'Choose the exact model route for this conversation.');
@@ -487,11 +657,7 @@ export class ModelGateway {
     const schema = unified ? conversationPlannerSchema(plannerContext) : manifest ? businessSelectionSchema(manifest) : planSchema(operations);
     const instructions = unified ? `${CONVERSATION_PLANNER_INSTRUCTIONS} ${DEFINITION_INSTRUCTIONS}` : manifest ? BUSINESS_INSTRUCTIONS : INSTRUCTIONS;
     const schemaName = unified ? 'grounded_conversation_plan' : manifest ? 'business_context_selection' : 'analytical_plan';
-    const input = JSON.stringify(content); let payload: string;
-    if (route.kind.endsWith('-cli')) payload = `${instructions}\n${input}`;
-    else if (route.kind === 'ollama') payload = JSON.stringify({ model: route.model, messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }], stream: false, format: schema, options: { num_predict: route.maxOutputTokens }, tools: [] });
-    else if (route.kind === 'openai-compatible') payload = JSON.stringify({ model: route.model, messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }], tools: [], tool_choice: 'none', max_completion_tokens: route.maxOutputTokens, response_format: { type: 'json_schema', json_schema: { name: schemaName, strict: false, schema } } });
-    else payload = JSON.stringify({ model: route.model, instructions, input, tools: [], tool_choice: 'none', store: false, max_output_tokens: route.maxOutputTokens, text: { format: { type: 'json_schema', name: schemaName, strict: false, schema } } });
+    const payload = modelPayload(route, instructions, JSON.stringify(content), schema, schemaName);
     check(Buffer.byteLength(payload) <= 262144, 'PAYLOAD_TOO_LARGE', 'The model payload is too large.');
     const digest = hash(payload); check(!isNoResend(state, digest), 'NO_RESEND', 'This deleted or expired payload cannot be sent again.');
     const local = route.kind === 'ollama'; const approvalRequired = unified || !local && (Boolean(context.sourceTainted) || facts.length > 0 || Boolean(request.sourceIds?.length)
@@ -519,7 +685,7 @@ export class ModelGateway {
       const origin = state.members.find(m => m.id === preview.memberId); check(origin?.active && origin.epoch === preview.epoch, 'ACCESS_REVOKED', 'The requesting account has changed.');
       const originContext = { memberId: origin.id, role: origin.role, epoch: origin.epoch };
       check(preview.trustFingerprint === trustFingerprint(state, originContext, preview.sourceIds), 'PREVIEW_STALE', 'Privacy settings changed. Create a new preview.');
-      if (preview.purpose === 'business-context' || preview.purpose === 'conversation') this.#assertCurrent(originContext, preview, state);
+      if (['business-context', 'conversation', 'conversation-synthesis'].includes(preview.purpose)) this.#assertCurrent(originContext, preview, state);
       const approval = { id: newId('outbound_approval'), kind: 'outbound-approval', previewId, digest: preview.digest, routeId: preview.routeId, endpoint: preview.endpoint,
         approverId: context.memberId, approverEpoch: context.epoch, createdAt: now(), expiresAt: new Date(Date.now() + 300000).toISOString(), used: false };
       state.modelReceipts.push(approval); audit(state, 'model.outbound.approved', { previewId, digest: preview.digest, memberId: context.memberId }); return structuredClone(approval);
@@ -527,6 +693,7 @@ export class ModelGateway {
   }
   #assertCurrent(context: Context, preview: any, state = this.store.read()) {
     const view = { read: () => state, update: this.store.update.bind(this.store) }; authorize(view, context, 'prepare');
+    if (SYNTHESIS_MARKERS.some(key => preview[key] !== undefined)) check(preview.purpose === 'conversation-synthesis', 'SYNTHESIS_STALE', 'The synthesis receipt purpose changed.');
     check(modelReceiptRetained(state, preview), 'MODEL_RECEIPT_EXPIRED', 'This model disclosure is outside current retention. Create a fresh preview.');
     check(preview.memberId === context.memberId && preview.epoch === context.epoch, 'FORBIDDEN', 'This model preview belongs to another account.');
     const route = this.#route(context, preview.routeId, state); check(route.revision === preview.routeRevision && route.endpoint === preview.endpoint, 'ROUTE_REVOKED', 'The route changed after preview.');
@@ -544,13 +711,14 @@ export class ModelGateway {
         && hash(preview.naturalQuestion) === preview.questionHash, 'PAYLOAD_CHANGED', 'The reviewed original question changed.');
     }
     this.#assertContinuationCurrent(context, preview, view, route);
+    if (preview.purpose === 'conversation-synthesis') this.#assertSynthesisCurrent(context, preview, view, route);
     const current = state.modelReceipts.find(r => r.id === preview.id);
     const continuationKeys = ['continuationId', 'continuationDigest', 'continuation', 'continuationDisclosure', 'requestScopeDigest'];
     if ([preview, current].some(record => continuationKeys.some(key => record?.[key] !== undefined))) {
       const binding = (record: any) => Object.fromEntries([...continuationKeys, 'requestScope'].map(key => [key, record?.[key]]));
       check(current && hash(binding(current)) === hash(binding(preview)), CONTINUATION_STALE, 'The stored continuation review changed.');
     }
-    if (preview.approvalRequired && (current?.status === 'dispatching' || preview.purpose === 'conversation' && current?.status === 'completed')) {
+    if (preview.approvalRequired && (current?.status === 'dispatching' || ['conversation', 'conversation-synthesis'].includes(preview.purpose) && current?.status === 'completed')) {
       const approval = state.modelReceipts.find(a => a.id === current.approvalId && a.kind === 'outbound-approval');
       const approver = state.members.find(m => m.id === approval?.approverId);
       const approvalWasCurrent = current.status === 'completed'
@@ -570,15 +738,29 @@ export class ModelGateway {
     check(hash(plan) === record.conversationPlanDigest && hash(record.plan) === record.conversationPlanDigest, 'PAYLOAD_CHANGED', 'The admitted conversation plan changed.');
     return structuredClone(record);
   }
+  /** Read-only current authority for a separately approved stage-two response. */
+  assertSynthesisReceipt(context: Context, id: string, view: StateStore = this.store) {
+    const state = view.read(), records = state.modelReceipts.filter(item => item?.id === id), record = records[0];
+    check(records.length === 1 && record?.kind === 'model-preview' && record.purpose === 'conversation-synthesis' && record.status === 'completed',
+      'SYNTHESIS_UNAVAILABLE', 'One completed current synthesis receipt is required.');
+    this.#assertCurrent(context, record, state);
+    synthesisJson(record.synthesisOutputWire); synthesisJson(record.synthesisOutput);
+    const output = this.#synthesisCodec().validate(structuredClone(record.synthesisOutputWire), structuredClone(record.synthesisSummary)); synthesisJson(output);
+    check(hash(record.synthesisOutputWire) === record.synthesisOutputWireDigest && hash(output) === record.synthesisOutputDigest
+      && hash(record.synthesisOutput) === record.synthesisOutputDigest, 'PAYLOAD_CHANGED', 'The admitted synthesis output changed.');
+    return structuredClone(record);
+  }
   async execute(context: Context, request: Partial<ModelRequest> & { previewId?: string }): Promise<GatewayResult> {
     authorize(this.store, context, 'prepare');
     check(!Object.hasOwn(request, 'continuation'), CONTINUATION_INVALID, 'Only a retained turn ID may select trusted local continuation text.');
     const preview = request.previewId ? structuredClone(this.store.read().modelReceipts.find(r => r.id === request.previewId)) : await this.preview(context, request as ModelRequest);
     check(preview && preview.status === 'preview', 'PREVIEW_NOT_FOUND', 'An unused model preview is required.');
+    if (preview.purpose === 'conversation-synthesis') synthesisRequest(request);
+    check(request.toolTurnId === preview.toolTurnId, 'PREVIEW_REQUEST_CHANGED', 'Use the exact admitted tool-turn ID reviewed for synthesis.');
     check(!['business-context', 'conversation'].includes(preview.purpose) || request.samples === undefined, 'INVALID_SAMPLE', 'Context previews cannot be reused with raw fact sample selections.');
     if (request.question !== undefined) {
       check(typeof request.question === 'string', 'INVALID_QUESTION', 'The reviewed question must be plain text.');
-      check(hash(preview.purpose === 'conversation' ? request.question : request.question.trim()) === preview.questionHash, 'PREVIEW_REQUEST_CHANGED', 'Use the exact question reviewed in this preview.');
+      check(hash(['conversation', 'conversation-synthesis'].includes(preview.purpose) ? request.question : request.question.trim()) === preview.questionHash, 'PREVIEW_REQUEST_CHANGED', 'Use the exact question reviewed in this preview.');
     }
     if (request.purpose !== undefined) check(request.purpose === preview.purpose, 'PREVIEW_REQUEST_CHANGED', 'The requested purpose changed after preview.');
     if (request.questionDisclosure !== undefined) check(request.questionDisclosure === preview.questionDisclosure, 'PREVIEW_REQUEST_CHANGED', 'Original-question disclosure changed after preview.');
@@ -643,14 +825,25 @@ export class ModelGateway {
       }
       this.#assertCurrent(context, preview);
       const parsed = parseProviderOutput(route.kind, cli ? (result as ProcessResult).stdout : (result as HttpResult).body);
+      if (preview.purpose === 'conversation-synthesis') synthesisJson(parsed.value);
+      const synthesisOutput = preview.purpose === 'conversation-synthesis'
+        ? this.#synthesisCodec().validate(structuredClone(parsed.value), structuredClone(preview.synthesisSummary)) : undefined;
+      if (preview.purpose === 'conversation-synthesis') {
+        synthesisJson(synthesisOutput); synthesisObject(synthesisOutput, ['schemaVersion', 'paragraphs', 'cautionRefs']);
+        check(synthesisOutput.schemaVersion === 1 && Array.isArray(synthesisOutput.paragraphs) && Array.isArray(synthesisOutput.cautionRefs),
+          SYNTHESIS_INVALID, 'The installed synthesis validator did not return its declared output contract.');
+      }
       const conversationPlan = preview.purpose === 'conversation' ? validateConversationPlan(parsed.value, { manifest: preview.businessContext, operations: preview.operations, selectors: preview.selectors }) : undefined;
       const selection = preview.purpose === 'business-context' ? validateBusinessSelection(parsed.value, preview.businessContext) : undefined;
       const answer = selection ? renderBusinessAnswer(this.store, context, preview.businessContext, selection, this.options.businessContext) : undefined;
-      const plan = selection || conversationPlan ? undefined : validatePlan(parsed.value, preview.operations, preview.selectors); const costMinor = actualCost(route, parsed.usage);
+      const plan = selection || conversationPlan || synthesisOutput ? undefined : validatePlan(parsed.value, preview.operations, preview.selectors); const costMinor = actualCost(route, parsed.usage);
       const receipt = await this.store.update(state => {
         this.#assertCurrent(context, preview, state); const current = state.modelReceipts.find(r => r.id === preview.id); check(current?.status === 'dispatching', 'RESULT_REVOKED', 'The model result is no longer valid.');
         current.status = 'completed'; current.completedAt = now();
-        if (selection) { current.selection = selection; current.answerDigest = hash(answer); } else current.plan = conversationPlan ?? plan;
+        if (selection) { current.selection = selection; current.answerDigest = hash(answer); }
+        else if (synthesisOutput) { current.synthesisOutputWire = structuredClone(parsed.value); current.synthesisOutputWireDigest = hash(parsed.value);
+          current.synthesisOutput = synthesisOutput; current.synthesisOutputDigest = hash(synthesisOutput); }
+        else current.plan = conversationPlan ?? plan;
         if (conversationPlan) { current.conversationPlanWire = structuredClone(parsed.value); current.conversationPlanDigest = hash(conversationPlan); }
         current.actualCostMinor = costMinor; current.costMeasured = costMinor !== null; current.responseHash = hash(cli ? (result as ProcessResult).stdout : (result as HttpResult).body);
         if (costMinor !== null && BigInt(costMinor) > BigInt(current.costReservedMinor)) {
@@ -659,6 +852,7 @@ export class ModelGateway {
         current.providerRequestId = cli ? undefined : (result as HttpResult).requestId; current.costStatus = costMinor === null ? 'reserved-estimate-cost-unavailable' : 'measured-at-configured-rates';
         audit(state, 'model.dispatch.completed', { receiptId: preview.id, ...(plan ? { operation: plan.operation } : { purpose: preview.purpose, contextDigest: preview.contextDigest }) }); return structuredClone(current);
       });
+      if (synthesisOutput) return { kind: 'conversation-synthesis', output: synthesisOutput, receipt };
       if (conversationPlan) return { kind: 'conversation', plan: conversationPlan, receipt };
       if (selection && answer) return { kind: 'business-context', selection, answer, receipt };
       check(plan, 'INVALID_PLAN', 'The model did not return an analytical plan.');
@@ -670,10 +864,14 @@ export class ModelGateway {
   }
   receipts(context: Context) {
     const member = authorize(this.store, context); const state = this.store.read(); const facts = visibleFacts(this.store, context); const visibleIds = new Set(facts.map(f => f.id));
+    const view = { read: () => state, update: this.store.update.bind(this.store) };
     return structuredClone(state.modelReceipts.filter(r => modelReceiptRetained(state, r)
       && (['owner', 'cofounder'].includes(member.role) || r.memberId === member.id) &&
       (!r.sourceIds || r.sourceIds.every((id: unknown) => typeof id === 'string' && sourceAllowed(state, context, id)))
-      && (!r.factIds || r.factIds.every((id: unknown) => typeof id === 'string' && visibleIds.has(id)))));
+      && (!r.factIds || r.factIds.every((id: unknown) => typeof id === 'string' && visibleIds.has(id)))
+      && (r.purpose !== 'conversation-synthesis' && !SYNTHESIS_MARKERS.some(key => r[key] !== undefined) || (() => { try {
+        if (r.status === 'completed') this.assertSynthesisReceipt(context, r.id, view); else this.#assertCurrent(context, r, state); return true;
+      } catch { return false; } })())));
   }
   clearCredentials() { this.#credentials.clear(); }
 }
