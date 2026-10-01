@@ -1,0 +1,98 @@
+{
+  "checkedAtUtc": "2026-10-01 01:40:19 UTC",
+  "branch": "integration/phone-ui-join",
+  "integrationBase": "3f93ac8f7374b3b1dedcecf2f8b3d3f1ec7dd5e4",
+  "producerCommit": "795714e190fc021fed0c2a0382c12559320fc131",
+  "producerProtocolBase": "bfe3a0876bbc0673db52063eb81e05a6636986ed",
+  "scope": "Reviewed native and responsive web UI follow-up, portable companion controller/adapters/browser storage, phone client/cache extensions and loopback source preview.",
+  "excludedProducerPaths": ["package.json"],
+  "joinCorrections": [
+    "Preserve current integrated typed PhoneClient response overloads during three-way application",
+    "Keep snapshot pairing status a literal discriminant",
+    "Use an explicit .ts type import in the portable native view helper",
+    "Propagate loopback test server-close callback errors",
+    "Expose native offline saved brief catalogue only for a cached session and no busy work",
+    "Describe native demo snapshots as synthetic memory-only data",
+    "Track the Android wrapper launcher as executable for Unix provisioning; its wrapper JAR remains absent"
+  ],
+  "checks": {
+    "phoneTests": {
+      "command": "node --test --test-reporter=tap platform/tests/phone-client.test.ts platform/tests/phone-cache.test.ts platform/tests/phone-approval.test.ts platform/tests/phone-channels.test.ts platform/tests/phone-browser-store.test.ts platform/tests/phone-companion-adapters.test.ts platform/tests/phone-companion-controller.test.ts platform/tests/phone-web-preview.test.ts",
+      "passed": 127,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0,
+      "limitation": "Portable protocol/controller logic, mocked HTTPS fetch, synthetic transport, asynchronous IndexedDB transaction fixture with real Node WebCrypto and local loopback assets. No live relay, device or browser render."
+    },
+    "changedLoopbackTest": {
+      "command": "node --test platform/tests/phone-web-preview.test.ts",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0,
+      "reason": "Focused recheck after server-close callback type correction; not additional tests to add to the 127 total."
+    },
+    "strictAppTypecheck": {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --pretty false",
+      "compilerVersion": "5.9.3",
+      "status": "passed",
+      "exitCode": 0
+    },
+    "strictPortableCompanionTypecheck": {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --pretty false --project app/companion/tsconfig.portable.json",
+      "compilerVersion": "5.9.3",
+      "status": "passed",
+      "exitCode": 0,
+      "coverage": "All companion shared source including browser runtime, native portable view helper and phone tests; real installed Node declarations; no fake React Native types.",
+      "excluded": "React Native TSX/components/runtime and Android/iOS native compilation; native package dependencies are absent."
+    },
+    "sourceSyntaxAndJson": {
+      "command": "node scripts/check.mjs",
+      "status": "passed",
+      "sourceFiles": 153,
+      "limitation": "Node syntax checks exclude TSX, Kotlin, Swift and Gradle compilation. JSON files in app/platform/scripts are parsed; this evidence JSON was separately parsed."
+    },
+    "nativeGrammar": {
+      "method": "Actual installed TypeScript parser createSourceFile parseDiagnostics",
+      "files": 6,
+      "diagnostics": 0,
+      "limitation": "Grammar only; no React Native type resolution, bundle, render or platform build."
+    },
+    "nativeXml": {
+      "method": "PowerShell XmlDocument parsing of Android XML and iOS plist/storyboard/privacy/scheme source",
+      "files": 10,
+      "failed": 0,
+      "limitation": "Structured source only; no Android or Xcode toolchain."
+    }
+  },
+  "dependencyReuse": {
+    "readOnlySource": "D:/Chausar/build-tools/project-dependencies/20261001000938489/node_modules",
+    "consumerLocalJunction": "node_modules",
+    "downloads": false,
+    "dDriveWrites": false,
+    "nativeDependenciesInstalled": false
+  },
+  "qualification": {
+    "nativeTsxTypecheck": false,
+    "metroBundle": false,
+    "androidBuild": false,
+    "iosBuild": false,
+    "browserVisualQa": false,
+    "deviceVisualQa": false,
+    "livePairing": false,
+    "productionQualified": false,
+    "securityAudit": "blocked by existing platform restriction; not retried",
+    "githubWrites": false
+  },
+  "remaining": [
+    "Native React/React Native and native TypeScript-config dependencies, reviewed lockfile and actual TSX typecheck/Metro bundle",
+    "Android JDK/SDK/NDK/Gradle and missing wrapper JAR, physical device or provisioned emulator, native compilation and visual acceptance",
+    "Existing Mac/Xcode/Ruby/CocoaPods and iOS device or simulator qualification; Windows cannot build iOS",
+    "Native protected credential/device-key/encrypted-cache, document picker and connectivity host adapters",
+    "Live scoped pairing/revocation/request ledger, approval.list and receipt reader plus proposed signed HTTPS RPC server wiring",
+    "Keep new reversible-internal phone decision policy distinct from the baseline message-only phone policy; no action execution from the decision reference",
+    "Live browser bootstrap/protected credentials and actual browser IndexedDB persistence qualification",
+    "Foreground restart unresolved request-ID journal/list without persisted replay bodies or approval tokens",
+    "Coordinate any permitted future dependencies/toolchain provisioning within the shared 4 GB D: budget; this join performs none"
+  ]
+}

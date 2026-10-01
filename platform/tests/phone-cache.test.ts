@@ -256,3 +256,89 @@ test('malformed or excessive opaque storage indexes are cleared and cannot bypas
     assert.equal(storage.records.size, 0);
   }
 });
+
+test('list recovers briefs after restart in newest-first order without persisting plaintext metadata', async () => {
+  const { cache, storage, keys, advance, time } = await fixture();
+  await cache.put(binding, brief('older', 'Private older summary')); advance(1);
+  const newerInput = { ...brief('newer', 'Private newer summary'), credential: 'NO_CREDENTIAL', approval: { token: 'NO_APPROVAL_TOKEN' } };
+  await cache.put(binding, newerInput);
+  const persisted = [...storage.records].map(([id, bytes]) => [id, bytes.slice()] as const);
+  const restarted = new EncryptedBriefCache({ crypto, storage, keys, now: time });
+  const snapshots = await restarted.list(binding);
+  assert.deepEqual(snapshots.map(snapshot => snapshot.id), ['newer', 'older']);
+  assert.deepEqual([...storage.records], persisted);
+  assert.equal(storage.records.size, 2);
+  for (const [id, bytes] of storage.records) {
+    assert.match(id, /^[a-f0-9]{64}$/);
+    const text = new TextDecoder().decode(bytes);
+    for (const privateValue of ['older', 'newer', 'Private older summary', 'Private newer summary', 'NO_CREDENTIAL', 'NO_APPROVAL_TOKEN', 'cachedAt', 'expiresAt']) {
+      assert.equal(id.includes(privateValue) || text.includes(privateValue), false);
+    }
+  }
+  snapshots[0].receiptIds.push('localMutation'); snapshots[0].summary = 'changed'; snapshots.pop();
+  const secondList = await restarted.list(binding);
+  assert.deepEqual(secondList.map(snapshot => snapshot.id), ['newer', 'older']);
+  assert.deepEqual(secondList[0].receiptIds, ['receipt1']);
+  assert.equal(secondList[0].summary, 'Private newer summary');
+  assert.deepEqual(Object.keys(secondList[0]).sort(), ['cachedAt', 'expiresAt', 'generatedAt', 'id', 'receiptIds', 'summary', 'title', 'version', 'workspaceId'].sort());
+});
+
+test('list removes expired, tampered, and wrong-binding snapshots while returning valid current-binding briefs', async () => {
+  const { cache, storage, keys, advance } = await fixture({ ttlMs: 1000 });
+  await cache.put(binding, brief('expired')); advance(200);
+  await cache.put(binding, brief('valid'));
+  const tamperedId = await recordKey(binding, 'tampered');
+  const payload = { ...brief('tampered'), cachedAt: new Date(initialTime + 200).toISOString(), expiresAt: new Date(initialTime + 1200).toISOString() };
+  const tampered = await encryptedPayload(binding, 'tampered', payload, keys.key!); tampered[35] ^= 1;
+  await storage.set(tamperedId, tampered);
+  const other = { ...binding, epoch: 2 };
+  const otherId = await recordKey(other, 'otherBinding');
+  await storage.set(otherId, await encryptedPayload(other, 'otherBinding', { ...payload, id: 'otherBinding' }, keys.key!));
+  advance(800);
+  assert.deepEqual((await cache.list(binding)).map(snapshot => snapshot.id), ['valid']);
+  assert.equal(storage.records.size, 1);
+  assert.equal(storage.records.has(tamperedId), false); assert.equal(storage.records.has(otherId), false);
+  advance(200);
+  assert.deepEqual(await cache.list(binding), []); assert.equal(storage.records.size, 0);
+});
+
+test('list respects tighter entry and byte budgets after restart, evicting oldest snapshots', async () => {
+  const { cache, storage, keys, time, advance } = await fixture();
+  for (const id of ['oldest', 'middle', 'newest']) { await cache.put(binding, brief(id, 'x'.repeat(400))); advance(1); }
+  const countBound = new EncryptedBriefCache({ crypto, storage, keys, now: time, maxEntries: 2 });
+  assert.deepEqual((await countBound.list(binding)).map(snapshot => snapshot.id), ['newest', 'middle']);
+  assert.equal(storage.records.size, 2);
+  const byteBound = new EncryptedBriefCache({ crypto, storage, keys, now: time, maxRecordBytes: 1024, maxTotalBytes: 1024 });
+  assert.deepEqual((await byteBound.list(binding)).map(snapshot => snapshot.id), ['newest']);
+  assert.equal(storage.records.size, 1);
+  assert.equal([...storage.records.values()].reduce((sum, bytes) => sum + bytes.byteLength, 0) <= 1024, true);
+});
+
+test('list reports a locked or unavailable key without recreating it or revealing adapter diagnostics', async () => {
+  const { cache, storage, keys } = await fixture(); await cache.put(binding, brief());
+  const protectedKey = keys.key; keys.key = undefined;
+  await assert.rejects(cache.list(binding), invalid);
+  assert.equal(storage.records.size, 1); assert.equal(keys.key, undefined);
+  keys.key = protectedKey;
+  assert.equal((await cache.list(binding))[0].id, 'brief1');
+  keys.getKey = () => { throw new Error('private platform key details'); };
+  await assert.rejects(cache.list(binding), invalid);
+  assert.equal(storage.records.size, 1);
+});
+
+test('list serializes with writes and revocation cleanup, and validates scope and storage index', async () => {
+  const { cache, storage, keys } = await fixture();
+  let release!: () => void; let entered!: () => void;
+  const paused = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  const normalSet = storage.set.bind(storage);
+  storage.set = async (id, bytes) => { entered(); await paused; await normalSet(id, bytes); };
+  const put = cache.put(binding, brief()); await started;
+  const list = cache.list(binding); const clear = cache.clear(); const afterClear = cache.list(binding);
+  release(); await put;
+  assert.equal((await list)[0].id, 'brief1'); await clear;
+  assert.deepEqual(await afterClear, []); assert.equal(storage.records.size, 0); assert.equal(keys.key, undefined);
+  await assert.rejects(cache.list({ ...binding, epoch: 0 }), invalid);
+  storage.list = async () => ['plaintext-brief-index'];
+  await assert.rejects(cache.list(binding), invalid);
+});

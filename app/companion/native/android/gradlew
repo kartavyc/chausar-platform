@@ -1,0 +1,15 @@
+#!/bin/sh
+# Source-only bootstrap. The coordinator must provision the Gradle wrapper JAR.
+set -eu
+APP_HOME=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+WRAPPER_JAR="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+if [ ! -f "$WRAPPER_JAR" ]; then
+  echo "Gradle wrapper JAR is absent. Follow native/README.md toolchain prerequisites." >&2
+  exit 1
+fi
+if [ -n "${JAVA_HOME:-}" ]; then
+  JAVA_COMMAND="$JAVA_HOME/bin/java"
+else
+  JAVA_COMMAND=java
+fi
+exec "$JAVA_COMMAND" -classpath "$WRAPPER_JAR" org.gradle.wrapper.GradleWrapperMain "$@"

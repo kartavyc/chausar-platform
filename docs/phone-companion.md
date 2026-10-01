@@ -3,9 +3,10 @@
 This branch adds a framework-neutral TypeScript companion protocol, client lifecycle,
 encrypted brief cache, atomic approval reference service, and messaging/relay contracts.
 It is a remote client: calculations, books, connector credentials and action execution
-remain on the desktop/home-box/hosted engine. Native apps and responsive screens are
-the user-approved next UI layer; their framework choice is still pending with the parent.
-No native shell or framework dependency was added.
+remain on the desktop/home-box/hosted engine. The user selected React Native + TypeScript.
+The second commit adds actual iOS/Android launcher projects, native screens/navigation,
+and a responsive DOM web client. They share a screen controller and the portable client.
+The default preview uses clearly labelled synthetic endpoints. Live pairing is not wired.
 
 The source is the clean local baseline `100df1d3c3bdb8e7793d81e6590cd6145c617d3e`.
 Published private main `3160d5a896b5fb3539405948671d530367cfe30d` has the same tree
@@ -28,20 +29,12 @@ The spec still places chat in the app and restricts phone approvals to simple re
 changes inside the workspace. Money, external messages and destructive actions open the
 desktop. This implementation retains that scope pending any explicit later product choice.
 
-## Native choices for the parent to ask in simple English
+## Selected native client
 
-| Choice | Meaning and stack fit |
-|---|---|
-| React Native + TypeScript (recommended) | One shared iPhone/Android app. Uses the same language as the existing engine and this client logic. Native screens must still be built: the existing Electron renderer is plain JavaScript/DOM, with no React interface to reuse. |
-| Flutter | One shared phone app with a consistent interface. Adds Dart, so client logic needs translating or equivalent generated contracts. |
-| SwiftUI + Kotlin/Compose | Separate native apps with direct platform control. Two interfaces and client implementations to maintain. |
-
-Official references: [React Native TypeScript](https://reactnative.dev/docs/typescript),
-[Flutter architecture](https://docs.flutter.dev/resources/architectural-overview),
-[SwiftUI](https://developer.apple.com/swiftui/),
-[Compose](https://developer.android.com/compose).
-All choices preserve the remote-engine architecture. The recommended choice is based on
-sharing TypeScript logic, not existing native UI code.
+React Native + TypeScript shares the phone protocol/controller between iOS and Android.
+The desktop Electron renderer remains plain JavaScript/DOM; no desktop framework was
+replaced. The native dependency manifest is isolated at `app/companion/native/package.json`.
+See its README for exact template references and Android/iOS build prerequisites.
 
 ## Added implementation
 
@@ -52,6 +45,11 @@ sharing TypeScript logic, not existing native UI code.
 | `platform/runtime/phone/cache.ts` | AES-256-GCM brief snapshots, protected nonexportable key port, opaque dedicated storage port, identity-bound authenticated data, bounded retention and eviction. |
 | `platform/runtime/phone/approval.ts` | Portable reference service with an injected durable atomic ledger. Current owner/device/session/action/catalogue checks and one-use token consumption happen in one transaction. It records decisions and never executes an action. |
 | `platform/runtime/phone/channels.ts` | Generic opted-in WhatsApp/email notifications, fixed HELP/STOP/app replies, token-free paired-page links and sealed relay-envelope contracts. No provider sends. |
+| `app/companion/shared/controller.ts` | Stable immutable screen snapshots, pairing, saved/current briefs, chat/proof, uploads, decisions, activity/cancel and device removal. Client subscriptions expose in-flight requests before responses arrive. |
+| `app/companion/shared/adapters.ts` | Explicit live-host ports, device-signed fixed HTTPS RPC adapter, and browser IndexedDB storage for opaque encrypted bytes/nonexportable keys. Proposed endpoint awaits coordinator wiring. |
+| `app/companion/shared/preview.ts` | Synthetic endpoint fixtures. No model, business engine, provider or live credential is used. |
+| `app/companion/native/` | React Native shell and eight screens, Android Kotlin project and iOS Swift/Xcode project. Default native cache/session is synthetic and memory-only; live hosts inject protected adapters. |
+| `app/companion/web/` / `scripts/phone-web-preview.mjs` | Responsive web screens and temporary loopback preview. Browser WebCrypto encrypts saved briefs in IndexedDB; synthetic session stays memory-only. |
 
 Use `PhoneClient.restore()` at app startup, then `reconnect()` when online. Restore always
 sets validation-required, never paired authority. Every online request calls session
@@ -99,6 +97,7 @@ Use a fixed remote protocol adapter that implements only these methods:
 | `brief.list` / `brief.read` | Read current accessible owner briefs/report receipts; project only declared fields. Authorize current source/branch scope before reading. |
 | `chat.start` | App channels only. Route through `conversation.ask` and existing model disclosure/receipt checks. Store request idempotency/outcome durably and return only scoped proof-backed results. |
 | `upload.begin` / `.chunk` / `.finish` | Bounded staging tied to current identity, TTL and request ID; checksum/MIME validation and cleanup. Bridge to managed ingest preview/confirmation without treating content as instructions. |
+| `approval.list` | Freshly authenticated, bounded approval inbox for this identity; only approval ID/title. This new typed method is needed by both clients. |
 | `approval.inspect` | Freshly authenticated delivery/redemption of a desktop-issued offer for this exact target session. Return a one-time challenge in the body only. Never recover a raw token from its hash. |
 | `approval.submit` | Delegate to the atomic reference service and map its durable receipt to this request ID. No action execution from the phone handler. |
 | `request.status` / `request.cancel` | Identity-bound durable request ledger. Cancellation acknowledges actual server state; a write/decision already committed may have succeeded. Never retry an uncertain external action. |
@@ -144,13 +143,16 @@ checks before it can become a decision. Expired or revoked envelopes cannot be e
 
 ## Remaining implementation and qualification
 
-- User framework choice, then native iOS/Android screens and responsive web screens for
-  pairing, briefs/proof, chat, uploads/confirmation, decisions, pending/unknown/cancel and
-  device removal. Those screens are approved scope, not yet implemented in this lane.
-- TLS transport with device-key proof and scoped secure credential adapters. iOS/Android
+- Wire the supplied fixed HTTPS transport to the coordinator's authenticated companion
+  endpoint. `/api/companion/rpc` is a proposed adapter path, not an existing live route.
+  Direct trusted API requests use HTTPS/device proof; any untrusted store-and-forward relay
+  must use the sealed relay contract before live data is routed through it.
+- iOS/Android
   protected key/storage bridges must satisfy the portable WebCrypto/key contracts and
   destructive erasure behavior. A Node nonexportable key fixture does not prove OS keystore
-  persistence. Web needs its browser-specific credential and key/storage policy.
+  persistence. The native default demonstrates offline synthetic reading in the current
+  process only. Browser storage has a tested transaction fixture; real browser/device
+  storage and a protected live credential policy still need qualification.
 - Durable server pairing/request ledger, atomic action/version adapter and authenticated
   challenge-offer delivery, relay sealing/collection, upload staging/cleanup, and opt-in
   channel adapters. Preserve this fixed API; do not permit arbitrary engine method names.
@@ -158,7 +160,10 @@ checks before it can become a decision. Expired or revoked envelopes cannot be e
   during reconnect. Full app restart recovery needs a durable server list/journal of
   unresolved IDs (without replay bodies or tokens); this branch does not persist such a
   journal or run background retries.
-- Native SDK/device checks and offline/reconnect/device-loss UX qualification. iOS needs
+- Native dependency resolution/lockfile, SDK/device checks and offline/reconnect/device-loss
+  UX qualification. The coordinator must allocate free dependencies/toolchains on D: within
+  the user's total 4 GB allowance before any download. No D: writes/downloads occurred here.
+  iOS needs
   Mac/Xcode; Android needs SDK/JDK tooling. Signing/provisioning/store accounts come before
   distribution. [React Native environment](https://reactnative.dev/docs/set-up-your-environment),
   [Apple account guidance](https://developer.apple.com/help/account/basics/about-your-developer-account),
@@ -170,17 +175,26 @@ checks before it can become a decision. Expired or revoked envelopes cannot be e
 
 No vendor accounts, keys, push services, paid CI/store submission, real WhatsApp/email
 messages or deployment were created. Prior network/browser-launch denials were respected.
-No separate security audit was recreated.
+
+Remaining choices in simple English: use small native bridges or a vetted community
+package for protected device keys, encrypted brief storage and the file picker; qualify
+Android on an existing phone or a provisioned emulator; qualify iOS on an existing Mac
+simulator or device. Manual foreground checks work now. Notifications can be considered
+later; no push vendor, hosted provider, account or paid service was chosen. The parent
+coordinates relay hosting and any future WhatsApp/email provider decision.
 
 ## Verification
 
-The four new focused suites test client lifecycle/races, encryption retention/erasure,
+The focused suites test client lifecycle/races, encryption retention/erasure,
 atomic single-use/version/identity decisions, and messaging/relay contracts. The approval
 suite includes an actual `PhoneClient` to reference-service flow and lost-response
 reconciliation. Adjacent existing auth/action/plugin/MCP tests remain green. See
 `docs/evidence/phone-companion-checks.json` and `docs/evidence/phone-companion-tests.txt` for the
-final receipt. The full native/database factory suite was not run; synthetic port tests
-do not establish production qualification.
+first-commit receipt. The second-commit checks and 164 passing tests are recorded in
+`docs/evidence/phone-apps-checks.json` and `docs/evidence/phone-apps-tests.txt`. They include
+controller workflows, HTTP adapter mocks, browser storage transaction fixtures and the
+loopback preview module graph. TypeScript/TSX compilation, native builds and browser/device
+visual qualification have not run. No Android or iOS binary was built.
 
 Run locally:
 
@@ -189,3 +203,15 @@ node scripts/check.mjs
 node --test platform/tests/phone-client.test.ts platform/tests/phone-cache.test.ts platform/tests/phone-approval.test.ts platform/tests/phone-channels.test.ts platform/tests/auth.test.ts platform/tests/workflows-actions.test.ts platform/tests/workflows-plugins-learning-mcp.test.ts
 node 'C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js' run typecheck
 ```
+
+Start the immediately runnable web preview from the repository root:
+
+```powershell
+node scripts/phone-web-preview.mjs
+```
+
+Manually open `http://127.0.0.1:4368`, pair with `DEMO-COMPANION`, and stop with Ctrl+C.
+This requires Node 24.13.1+ and a browser with WebCrypto and IndexedDB. It starts no desktop
+engine and installs no service. The loopback server cannot be opened directly from a phone.
+No browser launch was attempted here. Native Metro/device instructions and prerequisites
+are in `app/companion/native/README.md`.

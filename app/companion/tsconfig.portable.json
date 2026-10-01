@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "shared/**/*.ts",
+    "native/src/ui/view-helpers.ts",
+    "../../platform/tests/phone-*.test.ts"
+  ]
+}

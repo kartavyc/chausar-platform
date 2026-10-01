@@ -1,0 +1,17 @@
+node_modules/
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+android/gradle/wrapper/gradle-wrapper.jar
+ios/Pods/
+ios/build/
+ios/.xcode.env.local
+ios/**/*.xcuserstate
+ios/**/xcuserdata/
+*.keystore
+*.jks
+*.mobileprovision
+*.p12
+*.cer

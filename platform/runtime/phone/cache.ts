@@ -137,6 +137,40 @@ export class EncryptedBriefCache implements BriefCache {
     });
   }
 
+  /** Enumerates authenticated read-only snapshots without a plaintext brief index. */
+  async list(binding: DeviceBinding): Promise<CachedBrief[]> {
+    requirePhone(validBinding(binding), 'CACHE_INVALID');
+    const owner = allowedBinding(binding);
+    return this.serial(async () => {
+      const ids = await this.entries();
+      if (ids.length === 0) return [];
+      // A locked key is reported before touching records, allowing the platform
+      // to unlock it later without making encrypted data into session authority.
+      const key = await this.encryptionKey(owner);
+      const time = this.time();
+      const retained: { id: string; size: number; brief: CachedBrief }[] = [];
+      for (const id of ids) {
+        const bytes = await this.storage.get(id);
+        if (!bytes) continue;
+        let cached: CachedBrief | undefined;
+        try { cached = await this.decode(owner, id, bytes, key, time); }
+        catch { await this.storage.remove(id); continue; }
+        if (cached) retained.push({ id, size: bytes.byteLength, brief: cached });
+        else await this.storage.remove(id);
+      }
+      retained.sort((a, b) => Date.parse(b.brief.cachedAt) - Date.parse(a.brief.cachedAt) || a.brief.id.localeCompare(b.brief.id));
+      let total = retained.reduce((sum, record) => sum + record.size, 0);
+      // A restart can select stricter budgets than the writer used. Keep the
+      // newest authenticated records and remove older excess before returning.
+      while (retained.length > this.maxEntries || total > this.maxTotalBytes) {
+        const oldest = retained.pop();
+        requirePhone(oldest, 'CACHE_INVALID');
+        await this.storage.remove(oldest.id); total -= oldest.size;
+      }
+      return retained.map(record => record.brief);
+    });
+  }
+
   clear(): Promise<void> {
     return this.serial(async () => {
       // Attempt both erasure paths even if an adapter fails. A failed clear is

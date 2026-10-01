@@ -29,6 +29,7 @@ export class PhoneClient {
   private validationRevision = 0;
   private challenges = new Map<string, ApprovalChallenge>();
   private credentialWrites = Promise.resolve();
+  private readonly listeners = new Set<() => void>();
   constructor(options: { channel: AppChannel; transport: PhoneTransport; credentials: PhoneCredentialStore; cache: BriefCache; clock?: () => number; crypto?: Crypto }) {
     requirePhone(['ios', 'android', 'web'].includes(options.channel), 'CHANNEL_FORBIDDEN');
     this.channel = options.channel; this.transport = options.transport; this.credentials = options.credentials;
@@ -36,9 +37,12 @@ export class PhoneClient {
   }
   /** Renderable state deliberately omits credentials, challenge tokens and uploaded content. */
   snapshot() {
-    const pairing = this.pairing.status === 'paired' && Date.parse(this.pairing.authority.expiresAt) <= this.clock() ? { status: 'validation-required', binding: this.pairing.authority.binding } : this.pairing;
+    const pairing = this.pairing.status === 'paired' && Date.parse(this.pairing.authority.expiresAt) <= this.clock() ? { status: 'validation-required' as const, binding: this.pairing.authority.binding } : this.pairing;
     return structuredClone({ pairing, connection: this.connection, requests: [...this.requests.values()] });
   }
+  /** Foreground views can observe reservations and cancellations while IO is pending. */
+  subscribe(listener: () => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
+  private changed() { for (const listener of this.listeners) { try { listener(); } catch { /* An observer cannot change request delivery semantics. */ } } }
   private persist(change: () => Promise<void>) { const task = this.credentialWrites.then(change); this.credentialWrites = task.catch(() => {}); return task; }
   private invalidate() {
     this.generation += 1;
@@ -50,11 +54,13 @@ export class PhoneClient {
     this.invalidate(); this.connection = 'offline';
     if (this.grant) this.pairing = { status: 'validation-required', binding: structuredClone(this.grant.authority.binding) };
     else if (this.pairing.status === 'pairing') this.pairing = { status: 'unpaired' };
+    this.changed();
   }
   private async forget(status: 'revoked' | 'expired' | 'unpaired') {
     const binding = this.grant?.authority.binding; this.invalidate(); this.grant = undefined;
     this.pairing = status === 'unpaired' ? { status } : { status, ...(binding ? { binding } : {}) };
     this.requests.clear(); this.requestKinds.clear(); this.requestRevisions.clear(); this.stopped.clear(); this.startedRemote.clear(); this.requestControllers.clear();
+    this.changed();
     // Clear both even when one adapter fails; expose a fixed code, never adapter error text.
     const cleared = await Promise.allSettled([this.persist(() => this.credentials.clear()), this.cache.clear()]);
     requirePhone(cleared.every(item => item.status === 'fulfilled'), 'CACHE_INVALID');
@@ -69,6 +75,7 @@ export class PhoneClient {
     requirePhone(validAuthority(restored.authority, Date.parse(restored.authority.validatedAt)) && Date.parse(restored.authority.validatedAt) <= this.clock(), 'INVALID_RESPONSE');
     this.grant = { credential: restored.credential, authority: copyAuthority(restored.authority) };
     this.pairing = { status: 'validation-required', binding: structuredClone(restored.authority.binding) };
+    this.changed();
     if (!validAuthority(restored.authority, this.clock())) await this.forget('expired');
   }
   private async call<M extends keyof PhoneMethods>(method: M, input: PhoneMethods[M]['input'], credential = this.grant?.credential, operationId?: string): Promise<PhoneMethods[M]['output']> {
@@ -97,6 +104,7 @@ export class PhoneClient {
     requirePhone(this.connection !== 'offline', 'OFFLINE');
     const validation = ++this.validationRevision; const generation = this.generation;
     this.pairing = { status: 'validation-required', binding: copyBinding(this.grant.authority.binding) };
+    this.changed();
     try {
       const grant = this.grant; const requestedAt = this.clock(); const result = await this.call('session.validate', {});
       requirePhone(validation === this.validationRevision, 'VALIDATION_REQUIRED');
@@ -108,6 +116,7 @@ export class PhoneClient {
       requirePhone(validAuthority(result.authority, this.clock()) && Date.parse(result.authority.validatedAt) >= requestedAt - 30000 && sameBinding(grant.authority.binding, result.authority.binding) && grant.authority.sessionId === result.authority.sessionId, 'INVALID_RESPONSE');
       this.grant = { credential: grant.credential, authority: copyAuthority(result.authority) };
       this.pairing = { status: 'paired', authority: copyAuthority(result.authority) }; this.connection = 'online';
+      this.changed();
       return copyAuthority(result.authority);
     } catch (error) {
       if (this.grant && validation === this.validationRevision && generation === this.generation) this.disconnect();
@@ -123,7 +132,7 @@ export class PhoneClient {
   }
   async reconnect() {
     this.invalidate(); this.connection = 'connecting';
-    if (!this.grant) { this.pairing = { status: 'unpaired' }; this.connection = 'online'; return; }
+    if (!this.grant) { this.pairing = { status: 'unpaired' }; this.connection = 'online'; this.changed(); return; }
     await this.validate();
     // Reconcile IDs only. No chat, upload body or approval is replayed.
     for (const state of [...this.requests.values()]) if (['pending', 'unknown', 'cancelling'].includes(state.status)) await this.refreshRequest(state.requestId);
@@ -131,6 +140,7 @@ export class PhoneClient {
   async pair(input: PhoneMethods['pairing.accept']['input']) {
     requirePhone(input.channel === this.channel && isId(input.deviceId) && typeof input.inviteCode === 'string' && input.inviteCode.length >= 8 && input.inviteCode.length <= 4096 && typeof input.devicePublicKey === 'string' && input.devicePublicKey.length > 0 && input.devicePublicKey.length <= 4096 && typeof input.proof === 'string' && input.proof.length > 0 && input.proof.length <= 4096, 'INVALID_REQUEST');
     requirePhone(!this.grant && this.pairing.status !== 'pairing', 'REQUEST_EXISTS'); this.pairing = { status: 'pairing' };
+    this.changed();
     const generation = this.generation;
     try {
       const request = { inviteCode: input.inviteCode, deviceId: input.deviceId, channel: input.channel, devicePublicKey: input.devicePublicKey, proof: input.proof };
@@ -141,7 +151,7 @@ export class PhoneClient {
       requirePhone(generation === this.generation, 'VALIDATION_REQUIRED');
       this.grant = safeGrant; this.pairing = { status: 'validation-required', binding: copyBinding(grant.authority.binding) };
       await this.validate();
-    } catch (error) { if (generation === this.generation && !this.grant) this.pairing = { status: 'unpaired' }; throw publicError(error); }
+    } catch (error) { if (generation === this.generation && !this.grant) { this.pairing = { status: 'unpaired' }; this.changed(); } throw publicError(error); }
   }
   /** Online revocation is acknowledged by the server; a failed request is not success. */
   async revoke() {
@@ -153,6 +163,18 @@ export class PhoneClient {
     const authority = await this.fresh('brief.read'); const briefs = await this.call('brief.list', {});
     requirePhone(Array.isArray(briefs) && briefs.length <= 100 && briefs.every(brief => validBrief(brief) && brief.workspaceId === authority.binding.workspaceId), 'INVALID_RESPONSE');
     return briefs.map(copyBrief);
+  }
+  async listCachedBriefs() {
+    requirePhone(this.grant, 'UNPAIRED'); const generation = this.generation; const binding = copyBinding(this.grant.authority.binding);
+    const briefs = this.cache.list ? await this.cache.list(binding) : [];
+    requirePhone(generation === this.generation && this.grant && sameBinding(binding, this.grant.authority.binding), 'VALIDATION_REQUIRED');
+    requirePhone(Array.isArray(briefs) && briefs.length <= 50 && briefs.every(brief => validBrief(brief) && brief.workspaceId === binding.workspaceId && Date.parse(brief.expiresAt) > this.clock()), 'CACHE_INVALID');
+    return structuredClone(briefs);
+  }
+  async listApprovals() {
+    await this.fresh('approval.simple'); const items = await this.call('approval.list', {});
+    requirePhone(Array.isArray(items) && items.length <= 100 && items.every(item => item && isId(item.approvalId) && typeof item.title === 'string' && item.title.length <= 200), 'INVALID_RESPONSE');
+    return items.map(item => ({ approvalId: item.approvalId, title: item.title }));
   }
   async readBrief(briefId: string): Promise<BriefView> {
     requirePhone(isId(briefId), 'INVALID_REQUEST');
@@ -170,7 +192,7 @@ export class PhoneClient {
   private reserve(requestId: string, kind: 'chat' | 'upload' | 'approval', target?: string) {
     requirePhone(isId(requestId), 'INVALID_REQUEST'); requirePhone(!this.requests.has(requestId), 'REQUEST_EXISTS');
     requirePhone(this.requests.size < 100, 'INVALID_REQUEST'); this.requests.set(requestId, { status: 'pending', requestId }); this.requestKinds.set(requestId, { kind, generation: this.generation, ...(target ? { target } : {}) });
-    return this.nextRequestRevision(requestId);
+    const revision = this.nextRequestRevision(requestId); this.changed(); return revision;
   }
   private nextRequestRevision(requestId: string) { const revision = ++this.requestSerial; this.requestRevisions.set(requestId, revision); return revision; }
   private response(expectedId: string, result: RemoteRequest<ChatAnswer>, revision: number): RemoteRequest<ChatAnswer>;
@@ -204,9 +226,9 @@ export class PhoneClient {
       safe = { status: 'succeeded', requestId: expectedId, result: structuredClone(output) };
     } else if (result.status === 'failed') safe = { status: 'failed', requestId: expectedId, code: result.code };
     else safe = { status: result.status, requestId: expectedId };
-    this.requests.set(expectedId, safe); return safe;
+    this.requests.set(expectedId, safe); this.changed(); return safe;
   }
-  private unknown(requestId: string, revision: number) { if (this.requests.has(requestId) && this.requestRevisions.get(requestId) === revision && !['succeeded', 'cancelled', 'failed'].includes(this.requests.get(requestId)?.status ?? '')) this.requests.set(requestId, { status: 'unknown', requestId }); }
+  private unknown(requestId: string, revision: number) { if (this.requests.has(requestId) && this.requestRevisions.get(requestId) === revision && !['succeeded', 'cancelled', 'failed'].includes(this.requests.get(requestId)?.status ?? '')) { this.requests.set(requestId, { status: 'unknown', requestId }); this.changed(); } }
   async chat(requestId: string, question: string): Promise<RemoteRequest<ChatAnswer>> {
     requirePhone(typeof question === 'string' && question.trim().length > 0 && question.length <= 8000, 'INVALID_REQUEST');
     await this.fresh('chat'); const revision = this.reserve(requestId, 'chat');
@@ -262,8 +284,9 @@ export class PhoneClient {
     const state = this.requests.get(requestId); requirePhone(state && ['pending', 'unknown', 'cancelling'].includes(state.status), 'INVALID_REQUEST');
     const revision = this.nextRequestRevision(requestId);
     this.stopped.add(requestId); for (const controller of this.requestControllers.get(requestId) ?? []) controller.abort();
-    if (!this.startedRemote.has(requestId)) { const cancelled = { status: 'cancelled' as const, requestId }; this.requests.set(requestId, cancelled); return cancelled; }
+    if (!this.startedRemote.has(requestId)) { const cancelled = { status: 'cancelled' as const, requestId }; this.requests.set(requestId, cancelled); this.changed(); return cancelled; }
     this.requests.set(requestId, { status: 'cancelling', requestId });
+    this.changed();
     try { await this.fresh(); return this.response(requestId, await this.call('request.cancel', { requestId }), revision); }
     catch (error) { this.unknown(requestId, revision); throw publicError(error); }
   }

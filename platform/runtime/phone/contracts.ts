@@ -64,6 +64,7 @@ export type PhoneMethods = {
   'upload.chunk': { input: { uploadId: string; offset: number; bytes: Uint8Array }; output: { nextOffset: number } };
   'upload.finish': { input: { requestId: string; uploadId: string; sha256: string }; output: RemoteRequest<UploadReceipt> };
   'approval.inspect': { input: { approvalId: string }; output: ApprovalChallenge };
+  'approval.list': { input: Record<string, never>; output: { approvalId: string; title: string }[] };
   'approval.submit': { input: ApprovalDecision; output: RemoteRequest<ApprovalReceipt> };
   'request.status': { input: { requestId: string }; output: RemoteRequest<RequestResult> };
   'request.cancel': { input: { requestId: string }; output: RemoteRequest<RequestResult> };
@@ -80,6 +81,7 @@ export interface PhoneCredentialStore {
 export interface BriefCache {
   put(binding: DeviceBinding, brief: Brief): Promise<void>;
   read(binding: DeviceBinding, briefId: string): Promise<CachedBrief | undefined>;
+  list?(binding: DeviceBinding): Promise<CachedBrief[]>;
   clear(): Promise<void>;
 }
 export type PhoneErrorCode = 'OFFLINE' | 'VALIDATION_REQUIRED' | 'ACCESS_REVOKED' | 'SESSION_EXPIRED' | 'UNPAIRED' | 'INVALID_RESPONSE' | 'INVALID_REQUEST' | 'CHANNEL_FORBIDDEN' | 'CAPABILITY_FORBIDDEN' | 'APPROVAL_EXPIRED' | 'APPROVAL_USED' | 'PREVIEW_CHANGED' | 'OPEN_DESKTOP' | 'REQUEST_EXISTS' | 'TRANSPORT_UNKNOWN' | 'CACHE_INVALID';

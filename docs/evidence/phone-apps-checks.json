@@ -1,0 +1,47 @@
+{
+  "checkedAtUtc": "2026-10-01 00:03:49 UTC",
+  "branch": "codex/phone-companion-20261001",
+  "baseCommit": "bfe3a0876bbc0673db52063eb81e05a6636986ed",
+  "baselineCommit": "100df1d3c3bdb8e7793d81e6590cd6145c617d3e",
+  "scope": "React Native iOS/Android source projects and screens, shared companion controller/adapters, responsive web loopback developer preview. Live server wiring belongs to coordinator.",
+  "framework": "User-selected React Native + TypeScript",
+  "checks": {
+    "syntaxAndJson": { "command": "node scripts/check.mjs", "status": "passed", "sourceFiles": 82, "limitation": "The repository source checker excludes TSX, Kotlin, Swift and Gradle compilation." },
+    "nativeStructuredSources": { "status": "passed", "xmlPlistStoryboardSchemePrivacyFiles": 10, "jsonFiles": 3, "method": "PowerShell XML/JSON parsers, module-name and Xcode object/resource/scheme reference review", "limitation": "Source structure only; no native toolchain or render." },
+    "phoneTests": { "client": 26, "cache": 22, "approval": 22, "channels": 4, "screenController": 20, "httpAndLiveAdapters": 16, "browserStoreFixture": 8, "loopbackWebPreview": 8, "total": 126, "passed": 126, "failed": 0 },
+    "adjacentExistingTests": { "auth": 9, "actions": 14, "pluginsLearningMcp": 15, "total": 38, "passed": 38, "failed": 0 },
+    "combined": {
+      "command": "node --test platform/tests/phone-client.test.ts platform/tests/phone-cache.test.ts platform/tests/phone-approval.test.ts platform/tests/phone-channels.test.ts platform/tests/phone-companion-controller.test.ts platform/tests/phone-companion-adapters.test.ts platform/tests/phone-browser-store.test.ts platform/tests/phone-web-preview.test.ts platform/tests/auth.test.ts platform/tests/workflows-actions.test.ts platform/tests/workflows-plugins-learning-mcp.test.ts",
+      "total": 164, "passed": 164, "failed": 0, "cancelled": 0, "skipped": 0, "log": "docs/evidence/phone-apps-tests.txt",
+      "limitation": "Synthetic endpoints, mocked fetch, asynchronous IndexedDB transaction fixture and real Node WebCrypto; no live relay/provider/device qualification. Loopback server was exercised by tests, not a launched browser."
+    },
+    "typecheck": {
+      "status": "blocked",
+      "commands": ["node C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js run typecheck", "node C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js --prefix app/companion/native run typecheck"],
+      "reason": "Both commands report tsc is not installed. No dependency download or policy bypass attempted."
+    },
+    "previewCli": { "command": "node scripts/phone-web-preview.mjs --help", "status": "passed" },
+    "originalCheckout": { "status": "clean and untouched" }
+  },
+  "platformsActuallyBuilt": { "android": false, "ios": false, "webBundle": false, "webLoopbackAssetsAndRuntimeGraphServed": true },
+  "browserVisualQa": false,
+  "livePairing": false,
+  "productionQualified": false,
+  "downloads": false,
+  "dDriveWrites": false,
+  "vendorAccountsKeysPushOrPaidServices": false,
+  "providerMessages": false,
+  "deployment": false,
+  "remaining": [
+    "Coordinator D:/Chausar/build-tools/qualification allocation within total 4 GB before any dependency/toolchain download",
+    "Permitted project dependency resolution/lockfiles, full TypeScript/TSX typecheck and Metro bundle",
+    "Android JDK/SDK/NDK/Gradle including wrapper JAR; Android device/simulator build and visual checks",
+    "Existing Mac/Xcode/CocoaPods toolchain; iOS simulator build and visual checks",
+    "Native protected credentials/device key/WebCrypto-compatible encrypted cache, real picker and connectivity host adapters",
+    "Coordinator pairing/revocation/request ledger, scoped receipts, approval.list and atomic operation/version wiring",
+    "Proposed signed HTTPS RPC /api/companion/rpc wire format integration and any sealed relay implementation",
+    "Live browser bootstrap and protected credential policy; real browser IndexedDB/key persistence qualification",
+    "Foreground restart unresolved-ID journal/list without storing replay bodies or approval tokens",
+    "Any later hosting, notification or opted-in channel provider choices via coordinator"
+  ]
+}
