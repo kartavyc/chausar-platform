@@ -90,6 +90,29 @@
       "paths": 5,
       "source": "parent-supplied committed patch",
       "productWiring": "Actual PostgreSQL JSONB wrapper ordering fix joined. Producer native PostgreSQL18.6/DuckDBv1.5.5 arithmetic/encrypted Vault composition gate110/110passed. PGlite failed; no default engine selected."
+    },
+    {
+      "lane": "calendarFollowup",
+      "sourceCommit": "a531e40080f0f184888a77ce31cc9cecf7f5214f",
+      "reviewedJoin": "e4f4c22be1b0a284e1eab591141d40d416c5a334",
+      "integrationWiring": "9c96d92",
+      "reviewedCorrection": "06079d54e98ef5e9bc01f8b4115ab89cf7bc1929",
+      "importedCorrection": "13e9f64",
+      "desktopBridge": "dc19f447ad569edb5d5e733f1355e1a2a9274665",
+      "productWiring": "Explicit trusted calendar ports and common clock; public and desktop typed preview/configure/pause/resume with revision checks; exact synthetic HTTP scheduled receipt; coalesced provenance and final admission expiry guard. No default business policies or OS/cloud scheduler."
+    },
+    {
+      "lane": "desktopRuntimeClosure",
+      "sourceCommit": "2ba2a8058d5e46308584ff9da2672359b07f9235",
+      "productWiring": "Both packaging manifests include actual semantic-qualification source and complete production dependency closure; native artifact execution is separately unverified."
+    },
+    {
+      "lane": "nativePhoneUi",
+      "sourceCommit": "795714e190fc021fed0c2a0382c12559320fc131",
+      "reviewedJoin": "5d4a2cc73b46b30e2f889bcd268f662d5b0988b3",
+      "importedCommit": "eadfc6e",
+      "documentationCorrection": "72515fa",
+      "productWiring": "React Native iOS/Android launcher source, responsive web source preview and portable controller/adapters joined. Native dependencies/builds/device acceptance and live pairing remain unverified."
     }
   ],
   "uncommittedLaneWorkImported": false,
@@ -126,16 +149,13 @@
     }
   ],
   "publicationCapability": {
-    "lastVerifiedRemoteMain": "3160d5a896b5fb3539405948671d530367cfe30d",
-    "status": "authorized-preparing-through-current-GitHub-connector",
+    "lastVerifiedRemoteMain": "3f93ac8f7374b3b1dedcecf2f8b3d3f1ec7dd5e4",
+    "status": "private-main-checkpoint-published-and-both-push-ci-jobs-passed",
     "repositoryPrivate": true,
-    "permissions": [
-      "push",
-      "admin"
-    ],
     "finalRemoteHeadRefreshRequired": true,
     "forcePush": false,
-    "shellNetworkSubstitutionUsed": false
+    "publicationMethod": "Supported bounded normal Git push with existing authentication from an account-owned verified-bundle copy; no trust changes.",
+    "ciEvidence": "https://github.com/kartavyc/chausar-platform/actions/runs/36801143042"
   },
   "dependencyRecovery": {
     "approvedStaging": "D:/Chausar/build-tools",
@@ -197,9 +217,15 @@
   "phone": {
     "nativeFramework": "React Native with TypeScript",
     "actionWiring": "pending approval-policy decision",
-    "unresolvedApprovalPolicy": "Baseline permits message-impact phone approvals; new companion permits only reversible internal changes."
+    "unresolvedApprovalPolicy": "Baseline permits message-impact phone approvals; new companion permits only reversible internal changes.",
+    "sourceUiImplemented": true,
+    "portableTypeScriptPassed": true,
+    "nativeBuildQualified": false,
+    "livePairingQualified": false,
+    "sourcePreviewCommand": "npm run phone:preview",
+    "evidence": "docs/evidence/phone-ui-join-checks.json"
   },
-  "updatedAt": "2026-10-01T01:16:29.186Z",
+  "updatedAt": "2026-10-01T02:04:55.435Z",
   "integratedEngineMilestone": {
     "status": "verified-local-synthetic-engine",
     "sourceCommit": "503d44ed6ea3425c90f332f5327d850d922260ba",
@@ -233,25 +259,15 @@
       "lane": "accountingAdapters",
       "commit": "39d15618baf91684c72d0718b5c5c52da9131167",
       "status": "verified full-history bundle and standalone patch, not applied; source/semantic translation still required; every named vendor operation unqualified"
-    },
-    {
-      "lane": "calendar",
-      "commit": "a531e40080f0f184888a77ce31cc9cecf7f5214f",
-      "status": "not applied; queue after engine checkpoint"
-    },
-    {
-      "lane": "nativePhoneUI",
-      "commit": "795714e190fc021fed0c2a0382c12559320fc131",
-      "status": "not applied; no actual Android/iOS build; action-policy conflict unresolved"
     }
   ],
   "modelAuthentication": {
     "localProviderDecision": "User selected standard Codex CLI underneath the local build, CLI-managed normal ChatGPT sign-in; Luna only if the actual account supports it.",
-    "localProviderImplementation": "implemented protocol/Gateway/Engine/public HTTP synthetic flow; native CLI/account/model/inference remains unverified",
+    "localProviderImplementation": "Protocol/Gateway/Engine/public HTTP synthetic flow implemented; official native CLI interface and existing ChatGPT status verified; native app/provider activation and completed account inference remain unqualified.",
     "officialSIWC": "not registered; no OAuth grant authorized or completed",
     "commercialSubscriptionAccess": "unverified; do not claim CLI or legacy app-server commercial access",
-    "accountSpecificModelDiscovery": "not executed",
-    "completedAccountInference": "not executed",
+    "accountSpecificModelDiscovery": "No entitlement-qualified catalogue obtained by this coordinator.",
+    "completedAccountInference": "One bounded gpt-6-luna attempt failed HTTP400; no completed turn, no usage returned, no retry or fallback.",
     "automaticPaidFallback": false,
     "credentialCopying": false,
     "backendApiEndpointsUsed": false,
@@ -260,8 +276,8 @@
     "capabilitiesFromRpc": false,
     "hostInterfaceEvidenceRequired": true,
     "officialInterfaceDocumentationReviewed": true,
-    "nativeHelpVersion": "unverified; executable unresolved and native location probes stopped on access denial",
-    "evidence": "docs/verification/local-codex-cli.json"
+    "nativeHelpVersion": "codex-cli 0.154.0",
+    "evidence": "docs/verification/local-cli-access-attempt.json"
   },
   "integratedCliCheckpoint": {
     "checkedCommit": "2ef321affbc7daedf1f2c153a7d33ce23ccc846b",
@@ -279,5 +295,25 @@
     "nativeProviderQualified": false,
     "enterpriseTypeScriptPassed": false,
     "enterpriseDiagnostics": 22
+  },
+  "integratedCalendarPhoneCheckpoint": {
+    "checkedCommit": "68590c8f6c33cf673cb6cf76c87f055e4de54df4",
+    "checkedTree": "d046d42b1a3e53d5ece13f4f9c0aebfc77efd536",
+    "aggregateTests": {
+      "pass": 805,
+      "fail": 0,
+      "skipped": 0
+    },
+    "testFiles": 61,
+    "strictApplicationSemanticTypeScriptPassed": true,
+    "strictPortablePhoneTypeScriptPassed": true,
+    "syntaxSourceFiles": 160,
+    "actualCalendarHttpTests": 5,
+    "windowsHeadlessWorkerPassed": true,
+    "evidence": "docs/verification/calendar-phone.json",
+    "fullProductRelease": "unverified",
+    "nativePhoneBuilds": "unverified",
+    "enterpriseTypeScript": "22 diagnostics await genuine packages; no new compiler pass",
+    "dedicatedSecurityReview": "blocked-unverified"
   }
 }

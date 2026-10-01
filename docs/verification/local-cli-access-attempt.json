@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-01T01:42:19.957Z",
+  "scope": "One current standard Windows laptop CLI route only; unknown Hermes VPS workaround was not inspected.",
+  "cli": {
+    "version": "codex-cli 0.154.0",
+    "binarySha256": "be96b992178b1e467c225800da0d65f2c86d5eba1ef0b14632f65db381cbdfde",
+    "execHelpSha256": "0e82cfde0122715250e93dc65866caa956b2ac5b9d0b20ec4ad4f9e81486509e",
+    "requiredExecFlagsAdvertised": true,
+    "selectedFeatureNamesAdvertised": true,
+    "loginStatus": "chatgpt"
+  },
+  "inference": {
+    "requestedModel": "gpt-6-luna",
+    "processInvocations": 1,
+    "promptBytes": 101,
+    "promptSha256": "816d88668b0b39251c93b5db70bd13a3850afd94d31e44da5a9d0fb2898b161f",
+    "elapsedMs": 6779,
+    "exitCode": 1,
+    "completedTurn": false,
+    "httpStatus": 400,
+    "errorType": "invalid_request_error",
+    "exactError": "The 'gpt-6-luna' model is not supported when using Codex with a ChatGPT account.",
+    "usageReturned": false,
+    "accountEntitlementQualified": false
+  },
+  "authenticationMode": "existing-cli-managed-chatgpt",
+  "apiKeyEnvironmentExcluded": true,
+  "paidFallback": false,
+  "alternateModelFallback": false,
+  "newSignInOrGrant": false,
+  "credentialsReadOrCopied": false,
+  "furtherInferencePerformedByThisCoordinator": false,
+  "preservedExecutionRules": true,
+  "separateFollowup": "The parent approved one newer installed 0.159.2 CLI attempt in the dedicated diagnosis lane; its result is separate from this 0.154.0 receipt.",
+  "privateBusinessInput": false,
+  "writesOnDDrive": false,
+  "primaryDocumentation": [
+    "https://learn.chatgpt.com/docs/models",
+    "https://learn.chatgpt.com/docs/config-file/config-reference"
+  ]
+}

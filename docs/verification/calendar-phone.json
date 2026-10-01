@@ -1,0 +1,91 @@
+{
+  "checkedCommit": "68590c8f6c33cf673cb6cf76c87f055e4de54df4",
+  "startedAt": "2026-10-01T02:03:18.481Z",
+  "node": "24.13.1",
+  "platform": "win32",
+  "arch": "x64",
+  "results": [
+    {
+      "name": "syntax-json",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator local log; SHA256 above.",
+      "logSha256": "dac8e7ba37b3c8484cf97327d491eb3339875ba155ab6ac2363973d28f9d3bb0"
+    },
+    {
+      "name": "strict-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator local log; SHA256 above.",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "portable-phone-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator local log; SHA256 above.",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "aggregate-tests",
+      "exitCode": 0,
+      "passed": true,
+      "log": "docs/verification/calendar-phone-tests.tap",
+      "logSha256": "07be33086320ee5c11ae73e52c25944914991fb08bed2f47baed0c5f2396bcf0",
+      "tests": 805,
+      "suites": 0,
+      "pass": 805,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "durationMs": 62548.6046
+    },
+    {
+      "name": "windows-headless-worker",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator local log; SHA256 above.",
+      "logSha256": "3eac79785f8c266a02685fffd547cae352cd702d47363af6a9c603b435fe6b42"
+    }
+  ],
+  "releaseAcceptance": "unverified",
+  "dedicatedSecurityReview": "blocked-unverified",
+  "scope": "Actual combined local synthetic Engine/RPC, worker, fixture, and contract checks. No overall native, hosted, vendor, production-database, or security release pass.",
+  "finishedAt": "2026-10-01T02:04:45.420Z",
+  "passed": true,
+  "checkedTree": "d046d42b1a3e53d5ece13f4f9c0aebfc77efd536",
+  "testFiles": 61,
+  "syntaxSourceFiles": 160,
+  "actualCalendarHttpTests": 5,
+  "calendarRegressionTests": 66,
+  "portablePhoneTests": 127,
+  "nativePhoneBuildQualified": false,
+  "liveCompanionPairingQualified": false,
+  "originalPublishedCheckpointCi": {
+    "observedUtc": "2026-10-01 01:32:08 UTC",
+    "runId": 36801143042,
+    "event": "push",
+    "headSha": "3f93ac8f7374b3b1dedcecf2f8b3d3f1ec7dd5e4",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/kartavyc/chausar-platform/actions/runs/36801143042",
+    "jobs": [
+      {
+        "id": 110175535644,
+        "name": "verify (windows-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 110175535880,
+        "name": "verify (ubuntu-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "source": "GitHub Actions run/jobs read-only connector",
+    "rerunRequested": false
+  },
+  "finalDocumentationSourceEquivalenceRequired": true
+}
