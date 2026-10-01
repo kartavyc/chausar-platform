@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import ipcContract, { type DesktopMethod } from '../../app/desktop/ipc-contract.cjs';
+import type { PreparedAction } from '../runtime/actions.ts';
 import type { CalculationReceipt } from '../runtime/calculator.ts';
 import { confirmDecision, draftDecision, reviewDecision, type JournalContent, type JournalDecision } from '../runtime/decision-journal.ts';
 
@@ -122,12 +123,23 @@ const CONTENT: JournalContent = { text: 'Keep distributor terms and review the o
     window: { from: '2026-10-01', to: '2026-10-10' }, maturityDate: '2026-10-15', lagRule: 'Wait until the declared maturity.', uncertainty: ['Concurrent activity can affect the result.'] },
   reviewDate: '2026-10-15', hypotheses: ['No cause has been measured.'], branch: 'main' };
 function richDecision(): JournalDecision { const draft = draftDecision(CONTENT, [BASE]); return confirmDecision(draft, { reviewedDigest: draft.digest, id: 'decision-rich', actorId: 'owner', at: '2026-10-01T08:00:00.000Z', receipts: [BASE] }); }
+// A synthetic already-settled local reminder draft. This fixture proves DOM/IPC
+// behavior only; it neither executes an action nor qualifies a real host resolver.
+function verifiedEffect(id = 'action-synthetic-local-draft', attemptId = 'attempt-synthetic-local-draft'): PreparedAction {
+  const readback = { verified: true, businessSuccess: false, externalId: 'draft-synthetic-local',
+    data: { id: 'draft-synthetic-local', kind: 'reminder-draft', status: 'drafted', delivered: false } };
+  return { id, connector: 'local', operation: 'reminder-draft', payload: { invoiceId: 'invoice-synthetic', text: 'A synthetic local reminder draft.' },
+    sourceIds: [], idempotencyKey: 'synthetic-local-reminder-key', digest: 'e'.repeat(64), revision: 1,
+    createdBy: 'owner', createdEpoch: 1, createdAt: '2026-10-01T08:00:00.000Z', impact: 'reversible', status: 'verified', businessSuccess: false,
+    attempts: [{ id: attemptId, startedAt: '2026-10-01T08:01:00.000Z', finishedAt: '2026-10-01T08:01:01.000Z', outcome: 'verified', readback: structuredClone(readback) }],
+    readback: structuredClone(readback) };
+}
 const LEGACY = { id: 'decision-legacy', text: 'Legacy choice remains readable.', reviewDate: '2026-10-05', receiptIds: [], hypotheses: [], status: 'open', reviews: [] };
 type WireCall = { method: DesktopMethod; payload: Record<string, unknown> };
 type Renderer = { state: Record<string, unknown>; renderDecisions(): Promise<Element>; showJournalEditor(decision?: JournalDecision): unknown; showJournalReview(decision: JournalDecision): unknown; showJournalHistory(decision: JournalDecision): unknown };
 function isRenderer(value: unknown): value is Renderer { return isRecord(value) && isRecord(value.state) && ['renderDecisions', 'showJournalEditor', 'showJournalReview', 'showJournalHistory'].every(key => typeof value[key] === 'function'); }
 
-async function harness(options: { decisions?: unknown[]; conflict?: 'review' | 'revise' } = {}) {
+async function harness(options: { decisions?: unknown[]; conflict?: 'review' | 'revise'; actions?: unknown[]; executionRefusal?: string } = {}) {
   const calls: WireCall[] = [], wires: unknown[] = [], rejected: { code: string; message: string }[] = [];
   let current: Record<string, unknown> = { ...richDecision() }, conflicted = false;
   let latestDraft: Record<string, unknown> | undefined;
@@ -138,6 +150,7 @@ async function harness(options: { decisions?: unknown[]; conflict?: 'review' | '
     if (journalFields[method]) exactKeys(payload, journalFields[method]);
     switch (method) {
       case 'decisions.list': return decisions();
+      case 'actions.list': exactKeys(payload, []); return options.actions ?? [];
       case 'dashboard.get': return { context: { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' }, calculations: [BASE, MEASURED], policy: { send: 'nothing' }, sources: 2, factCount: 3 };
       case 'trust.get': return { policy: { send: 'nothing' }, members: [{ id: 'owner', name: 'Workspace owner', role: 'owner', active: true, epoch: 1, branches: ['*'] },
         { id: 'decision-owner', name: 'Decision owner', role: 'accountant', active: true, epoch: 1, branches: ['main'] },
@@ -148,6 +161,9 @@ async function harness(options: { decisions?: unknown[]; conflict?: 'review' | '
       case 'decisions.journal.confirm': assert.ok(latestDraft); assert.deepEqual(payload, { draft: latestDraft, reviewedDigest: latestDraft.digest }); return { ...current, text: record(latestDraft.content).text };
       case 'decisions.journal.revise':
       case 'decisions.journal.review': {
+        if (method === 'decisions.journal.review' && options.executionRefusal) {
+          throw Object.assign(new Error('Synthetic execution evidence refusal; the effect reference is unavailable under current access.'), { code: options.executionRefusal });
+        }
         if (options.conflict === method.split('.').at(-1) && !conflicted) {
           conflicted = true; current = { ...current, revision: 2, text: 'Another member changed the stored record.' };
           throw Object.assign(new Error('The decision changed. Reload it before writing.'), { code: 'REVISION_CONFLICT' });
@@ -256,6 +272,62 @@ test('actual journal review requires explicit declarations and submits exact mea
     measurements: [{ receiptId: MEASURED.id, figureKey: 'earned' }], notes: 'A declared observation without a causal conclusion.',
     uncertainty: ['Coverage can change.', 'No causality established.'], concurrentInterventions: ['Another campaign overlapped.'], executionReceiptIds: [] }, nextReviewDate: '2026-11-01' } });
   assert.equal(h.rejected.length, 0);
+});
+
+for (const selected of ['action', 'attempt'] as const) {
+  test(`actual journal review links an explicitly chosen ${selected} record without executing it or assessing business success`, async () => {
+    const effect = verifiedEffect(), h = await harness({ actions: [effect] }); await h.renderer.showJournalReview(richDecision());
+    const dialog = modal(h.body), form = find(dialog, node => node.tagName === 'form');
+    const picker = control(form, 'Execution evidence reference'); assert.equal(picker.value, '');
+    assert.deepEqual(picker.children.map(option => option.value), ['', effect.id, effect.attempts[0].id]);
+    assert.ok(dialog.textContent.includes('business outcome not assessed'));
+    assert.ok(!dialog.textContent.includes('A synthetic local reminder draft.'), 'Payload and readback contents are not shown as journal evidence.');
+    await set(form, 'Review outcome', 'continue'); await set(form, 'Observation state', 'pending');
+    await set(form, 'Observation notes', 'Effect readback is distinct from a human outcome assessment.');
+    const id = selected === 'action' ? effect.id : effect.attempts[0].id; await set(form, 'Execution evidence reference', id);
+    await form.dispatch('submit'); await settle();
+    const writes = h.calls.filter(call => call.method === 'decisions.journal.review'); assert.equal(writes.length, 1);
+    const observation = record(record(writes[0].payload.review).observation);
+    assert.deepEqual(observation.executionReceiptIds, [id]); assert.equal(observation.state, 'pending'); assert.deepEqual(observation.measurements, []);
+    assert.equal(h.calls.filter(call => call.method === 'actions.execute' || call.method === 'actions.reconcile').length, 0);
+    assert.equal(h.rejected.length, 0);
+  });
+}
+
+test('actual execution picker excludes malformed, ambiguous and unsettled records and rejects a forged reference before IPC', async () => {
+  const effect = verifiedEffect(), malformed: unknown[] = [null, { status: 'verified' }];
+  const prepared = verifiedEffect('prepared', 'prepared-attempt'); prepared.status = 'prepared'; malformed.push(prepared);
+  const missing = verifiedEffect('missing', 'missing-attempt'); delete missing.readback; malformed.push(missing);
+  const different = verifiedEffect('different', 'different-attempt'); different.attempts[0].readback = { verified: true, businessSuccess: true }; malformed.push(different);
+  const absent = verifiedEffect('absent', 'absent-attempt'); absent.readback!.absent = true; absent.attempts[0].readback!.absent = true; malformed.push(absent);
+  const mismatch = verifiedEffect('business-mismatch', 'business-mismatch-attempt'); mismatch.businessSuccess = true; malformed.push(mismatch);
+  const multiple = verifiedEffect('multiple', 'multiple-attempt'); multiple.attempts.push({ ...multiple.attempts[0], id: 'second-attempt' }); malformed.push(multiple);
+  const duplicate = verifiedEffect('duplicate', 'duplicate-attempt'); malformed.push(duplicate, structuredClone(duplicate));
+  malformed.push(verifiedEffect('collision', 'collision'), verifiedEffect('cross-action', 'shared-id'), verifiedEffect('shared-id', 'cross-attempt'));
+  const h = await harness({ actions: [effect, ...malformed] }); await h.renderer.showJournalReview(richDecision());
+  const form = find(modal(h.body), node => node.tagName === 'form'); assert.equal(controls(form, 'Execution evidence reference').length, 1);
+  await set(form, 'Review outcome', 'continue'); await set(form, 'Observation state', 'pending');
+  await set(form, 'Execution evidence reference', 'fabricated-receipt'); await form.dispatch('submit'); await settle();
+  assert.equal(h.calls.filter(call => call.method === 'decisions.journal.review').length, 0);
+  assert.ok(form.textContent.includes('Choose an existing execution evidence reference.'));
+  await set(form, 'Execution evidence reference', ''); await form.dispatch('submit'); await settle();
+  const write = h.calls.find(call => call.method === 'decisions.journal.review'); assert.ok(write);
+  assert.deepEqual(record(record(write.payload.review).observation).executionReceiptIds, []);
+  assert.equal(h.rejected.length, 0);
+});
+
+test('current backend execution refusal preserves the selected reference and typed review without retry or inferred success', async () => {
+  const effect = verifiedEffect(), h = await harness({ actions: [effect], executionRefusal: 'EXECUTION_RECEIPT_FORBIDDEN' });
+  await h.renderer.showJournalReview(richDecision()); const dialog = modal(h.body), form = find(dialog, node => node.tagName === 'form');
+  await set(form, 'Review outcome', 'continue'); await set(form, 'Observation state', 'pending');
+  await set(form, 'Observation notes', 'Keep this human assessment while access is rechecked.');
+  await set(form, 'Execution evidence reference', effect.attempts[0].id); await form.dispatch('submit'); await settle();
+  assert.equal(h.calls.filter(call => call.method === 'decisions.journal.review').length, 1);
+  assert.equal(h.rejected.at(-1)?.code, 'EXECUTION_RECEIPT_FORBIDDEN'); assert.equal(dialog.open, true);
+  assert.equal(control(form, 'Observation notes').value, 'Keep this human assessment while access is rechecked.');
+  assert.equal(control(form, 'Execution evidence reference').value, effect.attempts[0].id); assert.equal(control(form, 'Observation state').value, 'pending');
+  assert.ok(form.textContent.includes('Synthetic execution evidence refusal'));
+  assert.equal(h.calls.filter(call => call.method === 'actions.execute' || call.method === 'actions.reconcile').length, 0);
 });
 
 for (const kind of ['review', 'revise'] as const) {

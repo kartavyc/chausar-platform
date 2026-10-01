@@ -571,7 +571,8 @@ async function showJournalEditor(decision) {
 }
 async function showJournalReview(decision) {
   try {
-    const assets = await journalAssets(decision), loaded = { current: decision }, conflict = h('div');
+    const [assets, actionRecords] = await Promise.all([journalAssets(decision), request('actions.list')]);
+    const loaded = { current: decision }, conflict = h('div'), executions = journalExecutionPicker(list(actionRecords, ['actions']));
     const outcome = select([['', 'Choose a review outcome'], ['continue', 'Continue and keep watching'], ['accepted', 'Accept the choice'], ['rejected', 'Reject the choice'], ['completed', 'Complete the review']], '');
     const observationState = select([['', 'Choose an observation state'], ['pending', 'Pending observation'], ['observable', 'Observable result'], ['inconclusive', 'Inconclusive'],
       ['achieved', 'Achieved (human assessment)'], ['not-achieved', 'Not achieved (human assessment)'], ['amended', 'Amended observation']], '');
@@ -581,12 +582,13 @@ async function showJournalReview(decision) {
     const reviewForm = form([field('Review outcome', outcome), field('Observation state', observationState), field('Observation notes', notes),
       field('Observation uncertainty (one per line)', uncertainty), field('Concurrent interventions (one per line)', interventions),
       panel('Observed measurements', 'Select exact figures from saved receipts. Empty means no measurement is attached.', measurements.node),
+      executions.node,
       field('Next review date (optional)', nextDate, 'Only a continuing review can set a next date.'), conflict], 'Save journal review', async () => {
       if (loaded.blocked) throw new Error('Review the current record and choose Use reloaded revision before saving your preserved assessment.');
       if (!outcome.value || !observationState.value) throw new Error('Choose an explicit review outcome and observation state.');
       const review = { outcome: outcome.value, ...(nextDate.value ? { nextReviewDate: nextDate.value } : {}),
         observation: { state: observationState.value, measurements: measurements.read(), notes: notes.value.trim(),
-          uncertainty: journalLines(uncertainty.value), concurrentInterventions: journalLines(interventions.value), executionReceiptIds: [] } };
+          uncertainty: journalLines(uncertainty.value), concurrentInterventions: journalLines(interventions.value), executionReceiptIds: executions.read() } };
       try {
         await request('decisions.journal.review', { id: loaded.current.id, review, expectedRevision: loaded.current.revision });
         dialog.close(); toast('Human journal assessment saved.'); await journalRefreshPage();
@@ -597,6 +599,65 @@ async function showJournalReview(decision) {
       journalContentView(decision), reviewForm), true);
     return dialog;
   } catch (error) { toast(error.message, true); }
+}
+function journalExecutionReadbackKey(value) {
+  const visiting = new Set();
+  function normalized(item, depth = 0) {
+    if (depth > 32) throw new Error('Malformed recorded readback.');
+    if (item === null || typeof item === 'string' || typeof item === 'boolean') return item;
+    if (typeof item === 'number' && Number.isFinite(item)) return item;
+    if (!item || typeof item !== 'object' || visiting.has(item)) throw new Error('Malformed recorded readback.');
+    visiting.add(item);
+    const result = Array.isArray(item) ? item.map(entry => normalized(entry, depth + 1)) : Object.fromEntries(
+      Object.keys(item).sort().filter(key => item[key] !== undefined).map(key => [key, normalized(item[key], depth + 1)]));
+    visiting.delete(item); return result;
+  }
+  return JSON.stringify(normalized(value));
+}
+function journalExecutionPicker(actions) {
+  const nonblank = value => typeof value === 'string' && value.trim().length > 0;
+  const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const counts = new Map();
+  function count(id) { if (nonblank(id)) counts.set(id, (counts.get(id) || 0) + 1); }
+  for (const action of actions) {
+    if (!record(action)) continue;
+    count(action.id);
+    if (Array.isArray(action.attempts)) action.attempts.forEach(attempt => { if (record(attempt)) count(attempt.id); });
+  }
+  const candidates = actions.filter(action => {
+    if (!record(action) || action.status !== 'verified' || !nonblank(action.id) || !nonblank(action.connector) || !nonblank(action.operation)
+      || !Array.isArray(action.attempts) || action.attempts.length !== 1) return false;
+    const attempt = action.attempts[0], back = action.readback;
+    if (!record(attempt) || !nonblank(attempt.id) || !nonblank(attempt.finishedAt) || !Number.isFinite(Date.parse(attempt.finishedAt))
+      || attempt.outcome !== 'verified' || !record(back) || !record(attempt.readback)
+      || back.verified !== true || attempt.readback.verified !== true
+      || typeof back.businessSuccess !== 'boolean' || typeof attempt.readback.businessSuccess !== 'boolean'
+      || action.businessSuccess !== back.businessSuccess
+      || back.absent === true || attempt.readback.absent === true
+      || counts.get(action.id) !== 1 || counts.get(attempt.id) !== 1) return false;
+    try { return journalExecutionReadbackKey(back) === journalExecutionReadbackKey(attempt.readback); } catch { return false; }
+  });
+  const selections = candidates.map(action => {
+    const attempt = action.attempts[0];
+    const control = select([['', 'No execution link'], [action.id, 'Use action record (preferred)'], [attempt.id, 'Use recorded attempt']], '');
+    return { action, attempt, control };
+  });
+  return { node: panel('Existing effect readbacks', 'Optional stored evidence. The engine rechecks each selected reference when the review is saved.',
+    selections.length ? h('div', { class: 'stack' }, selections.map(({ action, attempt, control }) =>
+      h('article', { class: 'panel stack' }, h('h3', {}, action.connector + ' / ' + action.operation),
+        h('p', { class: 'note' }, 'Effect readback; business outcome not assessed'),
+        h('p', { class: 'receipt-id' }, 'Action: ' + action.id + ' / Attempt: ' + attempt.id),
+        field('Execution evidence reference', control), h('p', { class: 'note' }, 'Read back ' + formatDate(attempt.finishedAt)))))
+      : h('p', { class: 'note' }, 'No unambiguous verified readback records are available. You can review without an execution link.')),
+    read() {
+      const ids = [];
+      for (const { action, attempt, control } of selections) {
+        if (!control.value) continue;
+        if (control.value !== action.id && control.value !== attempt.id) throw new Error('Choose an existing execution evidence reference.');
+        ids.push(control.value);
+      }
+      return [...new Set(ids)];
+    } };
 }
 function showJournalHistory(decision) {
   return modal('Journal history', h('div', { class: 'stack' }, journalContentView(decision), journalReceiptView(decision.receipts),
