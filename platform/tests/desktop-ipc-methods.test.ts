@@ -10,7 +10,8 @@ const connectorMethods = [
   'connectors.publish', 'connectors.ready', 'connectors.captureStatus', 'connectors.releaseRead',
 ] as const;
 const addedJobMethods = ['jobs.types', 'jobs.amend', 'jobs.cancel', 'jobs.reconcile', 'jobs.progress'] as const;
-type RequestMethod = typeof connectorMethods[number] | typeof addedJobMethods[number] | 'jobs.create' | 'jobs.accept' | 'sources.groups';
+const calendarMethods = ['jobs.calendar.preview', 'jobs.calendar.configure', 'jobs.calendar.pause', 'jobs.calendar.resume'] as const;
+type RequestMethod = typeof connectorMethods[number] | typeof addedJobMethods[number] | typeof calendarMethods[number] | 'jobs.create' | 'jobs.accept' | 'sources.groups';
 
 const recipe = {
   version: 1, id: 'reviewed-mapping', system: 'fixture', edition: '1',
@@ -30,6 +31,14 @@ const requests = {
   'jobs.reconcile': { id: 'job-fixture' },
   'jobs.progress': { id: 'job-fixture' },
   'jobs.accept': { id: 'job-fixture', repeat: true },
+  'jobs.calendar.preview': { id: 'job-fixture' },
+  'jobs.calendar.pause': { id: 'job-fixture' },
+  'jobs.calendar.resume': { id: 'job-fixture' },
+  'jobs.calendar.configure': { id: 'job-fixture', expectedScheduleRevision: 1, expectedObjectiveRevision: 1, replacement: 'replace-immediately',
+    definition: { version: 1, basis: 'calendar', timeZone: 'UTC', rulesRevision: 'synthetic-rules-v1', effectiveFrom: '2026-10-01T00:00:00.000Z',
+      recurrence: { kind: 'once', atLocal: '2026-10-01T09:00' }, dst: { gap: 'reject', overlap: 'reject' },
+      excludedResolvedDates: [], holidays: { kind: 'include' }, missed: { kind: 'skip', graceMs: 1000 }, overlap: 'defer', identityBasis: 'local-date-time',
+      stop: { until: '2026-10-02T00:00:00.000Z', maxNominalOccurrences: 1 }, revisionPolicy: 'idle-only' } },
   'connectors.profiles': {},
   'connectors.read': { profileId: 'profile-fixture' },
   'connectors.reviewMapping': { profileId: 'profile-fixture', recipe, evidence: { reportId: 'report-fixture', sha256: 'a'.repeat(64) } },
@@ -58,7 +67,7 @@ test('desktop jobs and connectors whitelist covers exactly the actual dispatch m
     assert.ok(dispatched.length > 0, `${namespace} needs real dispatcher cases.`);
     assert.deepEqual(METHODS.filter((method: string) => method.startsWith(`${namespace}.`)).sort(), [...new Set(dispatched)].sort());
   }
-  for (const method of [...addedJobMethods, ...connectorMethods]) assert.ok(METHODS.includes(method), `${method} must reach the engine.`);
+  for (const method of [...addedJobMethods, ...calendarMethods, ...connectorMethods]) assert.ok(METHODS.includes(method), `${method} must reach the engine.`);
 });
 
 test('desktop forwards new connector and job payloads without changing JSON values', () => {
@@ -79,7 +88,7 @@ test('desktop retains legacy source requests and refuses invented connector or j
   assert.ok(sourceMethods.includes('sources.groups'), 'The planned family catalogue must be publicly dispatched.');
   assert.deepEqual(METHODS.filter((method: string) => method.startsWith('sources.')).sort(), [...new Set(sourceMethods)].sort());
   for (const method of sourceMethods) assert.deepEqual(validateRequest({ method, payload: {} }), { method, payload: {} });
-  for (const method of ['connectors.install', 'connectors.readBytes', 'jobs.executePlan']) {
+  for (const method of ['connectors.install', 'connectors.readBytes', 'jobs.executePlan', 'jobs.calendar.installRules']) {
     assert.throws(() => validateRequest({ method, payload: {} }), (error: any) => error.code === 'INVALID_REQUEST');
   }
 });

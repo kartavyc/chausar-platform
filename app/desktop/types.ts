@@ -1,5 +1,6 @@
 import type { DesktopMethod } from './ipc-contract.cjs';
 import type { JobConfig } from '../../platform/runtime/jobs.ts';
+import type { CalendarDefinition } from '../../platform/runtime/calendar.ts';
 import type { MappingRecipe } from '../../platform/runtime/ingest.ts';
 import type { MappingReview, IndependentSourceTotals } from '../../platform/runtime/connector-framework/import.ts';
 
@@ -28,6 +29,10 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'jobs.reconcile': { id: string };
   'jobs.progress': { id: string };
   'jobs.accept': { id: string; repeat?: boolean };
+  'jobs.calendar.preview': { id: string };
+  'jobs.calendar.pause': { id: string };
+  'jobs.calendar.resume': { id: string };
+  'jobs.calendar.configure': { id: string; definition: CalendarDefinition; expectedScheduleRevision: number; expectedObjectiveRevision: number; replacement: 'replace-immediately' };
   'jobs.reject': JsonObject & { id: string; reason: string };
   'connectors.read': { profileId: string };
   'connectors.reviewMapping': { profileId: string; recipe: MappingRecipe; evidence: MappingReview['evidence'] };

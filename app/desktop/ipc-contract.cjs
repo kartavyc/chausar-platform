@@ -15,6 +15,7 @@ const METHODS = Object.freeze([
   'decisions.list', 'decisions.create', 'decisions.review', 'reports.get', 'reports.brief', 'reports.forecast',
   'actions.list', 'actions.catalogue', 'actions.prepare', 'actions.approve', 'actions.revise', 'actions.execute', 'actions.reconcile',
   'jobs.list', 'jobs.types', 'jobs.create', 'jobs.amend', 'jobs.cancel', 'jobs.reconcile', 'jobs.progress', 'jobs.pause', 'jobs.resume', 'jobs.accept', 'jobs.approve', 'jobs.reject', 'jobs.run',
+  'jobs.calendar.preview', 'jobs.calendar.configure', 'jobs.calendar.pause', 'jobs.calendar.resume',
   'trust.get', 'trust.update', 'members.list', 'members.add', 'members.revoke',
   'models.list', 'models.configure', 'models.preview', 'models.approve', 'models.test',
   'speech.list', 'speech.configure', 'speech.preview', 'speech.approve', 'speech.transcribe', 'activity.list',
