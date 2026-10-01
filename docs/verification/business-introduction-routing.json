@@ -1,0 +1,100 @@
+{
+  "schema": "chausar.business-introduction-routing-evidence.v1",
+  "checkedSource": "b41bf51889b13f9c0f4669331b9ceafbbab4262f",
+  "problem": "Exact native question what is this business about entered unsupported financial calculation.",
+  "redBeforeFix": {
+    "tests": 3,
+    "failures": 3,
+    "seams": [
+      "pure classifier",
+      "public HTTP actual Engine",
+      "actual renderer/preload/native host-Node worker"
+    ],
+    "recordedDuring": "2026-10-01"
+  },
+  "local": {
+    "passed": true,
+    "node": "24.13.1",
+    "platform": "win32",
+    "results": [
+      {
+        "name": "syntax-json",
+        "exitCode": 0,
+        "passed": true,
+        "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-business-introduction-checks\\syntax-json.log",
+        "logSha256": "697455e13eddea93a6f231c7368e2d34de4de8a33aa6dd6a7ec2f688ea900ef1"
+      },
+      {
+        "name": "strict-typescript",
+        "exitCode": 0,
+        "passed": true,
+        "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-business-introduction-checks\\strict-typescript.log",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "portable-phone-typescript",
+        "exitCode": 0,
+        "passed": true,
+        "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-business-introduction-checks\\portable-phone-typescript.log",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "aggregate-tests",
+        "exitCode": 0,
+        "passed": true,
+        "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-business-introduction-checks\\aggregate-tests.log",
+        "logSha256": "c78e9f8dc9549759df842bb68f823b7f397e74e17d7bef12df4760eaa511c05a",
+        "tests": 1238,
+        "suites": 0,
+        "pass": 1238,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "durationMs": 95985.6562
+      },
+      {
+        "name": "windows-headless-worker",
+        "exitCode": 0,
+        "passed": true,
+        "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-business-introduction-checks\\windows-headless-worker.log",
+        "logSha256": "3eac79785f8c266a02685fffd547cae352cd702d47363af6a9c603b435fe6b42"
+      }
+    ]
+  },
+  "focusedRegressionTests": 35,
+  "portableSource": {
+    "passed": true,
+    "baseline": "2fa8dd76e8a10c7e3d87c8618edfbb6d72259f86",
+    "testedCorrection": "b41bf51889b13f9c0f4669331b9ceafbbab4262f",
+    "patchPath": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\business-introduction-portable.patch",
+    "patchSha256": "095c84ecbe111f62b26da3ccfd0c58a15a257457f98fd3ccdf000e9592cf2f92",
+    "previousRuntimeSha256": "8d0e6fc52f5d096b54281b159d7d4be9b0772cd1f2bb478b0e7d3d083f7d5422",
+    "patchedGitBlob": "2eba3ee13e10359283ff06687f19e4ce3f69fdb2",
+    "fixtureSha256": "7f66f6b70e4c1db1ec24d23dc13a1cf441e304655ff9a2f1ab8ca03a7a0ae17d",
+    "rendererSha256": "f179f187c787b73fef5a02190c2744ce802c146956c94b5bd36b26418183af73",
+    "workerSha256": "580f6c0ef2c67435fd9f4be97509fb43ab7a206e746537970eacb7627a0a2f47",
+    "assertions": [
+      "exact question and five paraphrases",
+      "actual shipped renderer and native worker",
+      "context citations, unknowns and retained receipt",
+      "mixed financial intent refuses context",
+      "subsequent billed receipt 300000"
+    ],
+    "portableModified": false,
+    "writesOnDDrive": false,
+    "guiLaunched": false,
+    "liveProviderCalls": 0,
+    "scope": "Disposable C: source worktree, host Node 24.13.1; not Electron GUI or user-native acceptance."
+  },
+  "nativeGuiAcceptance": "unverified-awaiting-refreshed-portable-and-user-retest",
+  "liveProviderCalls": 0,
+  "writesOnDDrive": false,
+  "runningPortableModified": false,
+  "financialGatePreserved": true,
+  "sourceReadinessAndAuthorityQualificationUnchanged": true,
+  "vendorGroupsQualified": 0,
+  "realExternalCorpusAdmitted": 0,
+  "fullQuestAcceptance": "unverified-no-completed-quest-signoff",
+  "dedicatedSecurityReview": "blocked-unverified"
+}

@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: actual local question reaches the host-Node worker and subsequent billed question succeeds
+ok 1 - actual local question reaches the host-Node worker and subsequent billed question succeeds
+  ---
+  duration_ms: 1283.2012
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1572.4494
