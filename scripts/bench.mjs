@@ -13,7 +13,9 @@ if (args.length) {
 const destination = resolve(root, requestedOutput); const inside = relative(root, destination);
 if (!requestedOutput || isAbsolute(inside) || inside === '..' || inside.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || !destination.endsWith('.json')) throw new Error('Benchmark output must be a JSON file within this repository.');
 const startedAt = new Date().toISOString();
-const command = ['--test', '--test-reporter=tap', 'platform/tests/*.test.ts'];
+// Bound simultaneous vault/KDF fixtures consistently with local qualification.
+// The Windows runner exhausted the unchanged ten-minute limit at default concurrency.
+const command = ['--test', '--test-reporter=tap', '--test-concurrency=1', 'platform/tests/*.test.ts'];
 const outcome = await new Promise((fulfill) => {
   const child = spawn(process.execPath, command, { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = ''; let stderr = ''; let truncated = false; let settled = false; let timeout = false;
