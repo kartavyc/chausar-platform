@@ -4,7 +4,7 @@ import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import vm from 'node:vm';
 import { randomUUID, createHash } from 'node:crypto';
 
@@ -138,17 +138,34 @@ test('actual local question reaches the host-Node worker and subsequent billed q
   const directory = await mkdtemp(join(tmpdir(),'chausar-renderer-worker-'));
   const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => ['path','systemroot','windir','temp','tmp','userprofile'].includes(name.toLowerCase())));
   const engine = new EngineHarness({ workerPath: join(root,'platform/runtime/worker.ts'), environment: { ...environment, CHAUSAR_ENGINE_VERSION: '0.1.0-preview.1', CHAUSAR_VAULT_DIRECTORY: directory, CHAUSAR_DEMO: '1', CHAUSAR_UPDATE_PUBLIC_KEY: '' } });
-  t.after(async () => { await engine.stop(); await rm(directory,{recursive:true,force:true}); });
+  t.after(async () => {
+    await engine.stop();
+    const target = resolve(directory), child = relative(resolve(tmpdir()), target);
+    assert.ok(child && child !== '..' && !child.startsWith('..' + sep) && !isAbsolute(child));
+    assert.ok(basename(target).startsWith('chausar-renderer-worker-'));
+    await rm(target,{recursive:true,force:true});
+  });
   await engine.start();
   // This is a disposable synthetic fixture passphrase, unrelated to any user's vault.
   await engine.request('workspace.create',{name:'Synthetic IPC fixture',folder:'fixture',passphrase:'synthetic-fixture-only',demo:true});
   const h = await harness({ dispatch: (method,payload) => engine.request(method,payload) });
   await h.ask('what is the business about');
   assert.equal(h.rejected.length, 0); assert.equal(h.renderer.state.messages.at(-1).error, undefined);
-  assert.ok(h.renderer.state.messages.at(-1).data);
+  assert.equal(h.renderer.state.messages.at(-1).data.supported, false);
+  assert.equal(h.renderer.state.messages.at(-1).data.receipt, null);
   await h.ask('What was billed?');
   assert.equal(h.rejected.length, 0); assert.equal(h.renderer.state.messages.at(-1).error, undefined);
-  assert.ok(h.renderer.state.messages.at(-1).data);
+  const answer = h.renderer.state.messages.at(-1).data;
+  assert.equal(answer.supported, true);
+  assert.equal(answer.receipt.operation, 'billed');
+  assert.equal(answer.receipt.currency, 'INR');
+  // The authored synthetic CSV contains two invoices, INR1000 and INR2000.
+  assert.equal(answer.receipt.totalMinor, '300000');
+  assert.equal(answer.receipt.rowIds.length, 2);
+  const retained = await engine.request('receipts.get', { id: answer.receipt.id });
+  assert.equal(retained.id, answer.receipt.id);
+  assert.equal(retained.totalMinor, '300000');
+  assert.deepEqual(retained.rowIds, answer.receipt.rowIds);
   assert.deepEqual(h.calls.filter(call => call.method === 'conversation.ask').map(call => call.payload),[{question:'what is the business about'},{question:'What was billed?'}]);
   const stopped = await engine.stop(); assert.equal(stopped.graceful,true);
 });
