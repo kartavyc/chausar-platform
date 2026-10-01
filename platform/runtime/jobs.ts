@@ -47,12 +47,20 @@ export class JobService {
       else if (!old) c.records.push({ ...decision.occurrence, status: decision.status, scheduleRevision: c.revision, objectiveRevision: job.revision, at: this.timestamp(), reason: decision.reason });
     }
   }
-  private calendarStopAudit(job: Job, reason: string) {
+  private calendarStopAudit(job: Job, reason: string, at: number) {
     if (!job.calendar) return;
     try {
-      const evaluation = this.calendarEvaluation(job, Math.min(this.clock(), calendarInstant(job.calendar.definition.stop.until)));
-      this.calendarDecisions(job, { ...evaluation, decisions: [...evaluation.decisions, ...evaluation.selected.map(occurrence => ({ occurrence, status: 'skipped' as const, reason }))] });
+      const evaluation = this.calendarEvaluation(job, Math.min(at, Date.parse(job.stopRule.deadline), calendarInstant(job.calendar.definition.stop.until)));
+      this.calendarDecisions(job, { ...evaluation, decisions: [
+        ...evaluation.decisions.map(decision => ['coalesced', 'deferred'].includes(decision.status) ? { ...decision, status: 'skipped' as const, reason } : decision),
+        ...evaluation.selected.map(occurrence => ({ occurrence, status: 'skipped' as const, reason })),
+      ] });
     } catch (error) { job.ledger.push({ at: this.timestamp(), event: 'calendar-audit-blocked', reason: (error as { code?: string }).code ?? 'CALENDAR_UNQUALIFIED' }); }
+  }
+  private stopExpired(job: Job, at = this.clock()): boolean {
+    if (job.runs >= job.stopRule.maxRuns || at >= Date.parse(job.stopRule.deadline)) { this.calendarStopAudit(job, 'mandate-expired', at); job.status = 'stopped'; job.ledger.push({ at: this.timestamp(), event: 'stop-rule' }); return true; }
+    if (job.calendar && at >= calendarInstant(job.calendar.definition.stop.until)) { this.calendarStopAudit(job, 'schedule-expired', at); job.status = 'stopped'; job.ledger.push({ at: this.timestamp(), event: 'calendar-expired' }); return true; }
+    return false;
   }
   /** Prospective calendar edits are qualified while idle and separately bind the current objective. */
   async configureCalendar(context: Context, id: string, definition: CalendarDefinition, expectedScheduleRevision: number, expectedObjectiveRevision: number, replacement: 'replace-immediately'): Promise<Job> {
@@ -168,9 +176,8 @@ export class JobService {
         check(job.lease && Date.parse(job.lease.expiresAt) <= this.clock(), 'JOB_BUSY', 'Another worker holds this job.'); if (this.interrupt(job, 'scheduled', 'lease-expired') === 'outcome-unknown') return this.view(context, job);
       }
       check(!['paused', 'revoked', 'accepted', 'cancelled', 'stopped', 'awaiting-acceptance', 'outcome-unknown', 'runner-blocked'].includes(job.status), 'JOB_NOT_RUNNABLE', 'This job is paused, stopped, unresolved or awaiting acceptance.');
-      if (job.runs >= job.stopRule.maxRuns || this.clock() >= Date.parse(job.stopRule.deadline)) { this.calendarStopAudit(job, 'mandate-expired'); job.status = 'stopped'; job.ledger.push({ at: this.timestamp(), event: 'stop-rule' }); return this.view(context, job); }
+      if (this.stopExpired(job)) return this.view(context, job);
       if (job.calendar) {
-        if (this.clock() >= calendarInstant(job.calendar.definition.stop.until)) { this.calendarStopAudit(job, 'schedule-expired'); job.status = 'stopped'; job.ledger.push({ at: this.timestamp(), event: 'calendar-expired' }); return this.view(context, job); }
         if (job.calendar.objectiveRevision !== job.revision) { job.status = 'runner-blocked'; job.ledger.push({ at: this.timestamp(), event: 'calendar-objective-changed' }); return this.view(context, job); }
         if (job.calendar.paused && !job.calendar.current) return this.view(context, job);
       }
@@ -182,6 +189,7 @@ export class JobService {
       let calendarEvaluation: CalendarEvaluation | undefined;
       if (job.calendar && !job.calendar.current) {
         try { calendarEvaluation = this.calendarEvaluation(job); } catch (error) { job.status = 'runner-blocked'; job.ledger.push({ at: this.timestamp(), event: 'blocked', reason: (error as { code?: string }).code ?? 'CALENDAR_UNQUALIFIED' }); return this.view(context, job); }
+        if (this.stopExpired(job)) return this.view(context, job);
         if (!calendarEvaluation.selected.length) { this.calendarDecisions(job, calendarEvaluation); job.nextRunAt = calendarEvaluation.nextRunAt ?? job.calendar.definition.stop.until; if (!calendarEvaluation.nextRunAt) { job.status = 'stopped'; job.ledger.push({ at: this.timestamp(), event: 'calendar-exhausted' }); } return this.view(context, job); }
       } else check(this.clock() >= Date.parse(job.nextRunAt), 'JOB_NOT_DUE', 'This job is not due.');
       if (!job.calendar && !job.execution && job.catchup === 'skip' && this.clock() - Date.parse(job.nextRunAt) > job.graceMs) {
@@ -191,15 +199,24 @@ export class JobService {
       check(job.digest === this.identity(job), 'PREVIEW_CHANGED', 'The mandate changed. Review it again.');
       const runCost = (job.execution?.attempts ?? []).reduce((sum, attempt) => sum + amount(attempt.settlement?.spentMinor ?? '0'), 0n);
       const reserve = amount(job.reserveMinor) - runCost;
+      if (this.stopExpired(job)) return this.view(context, job);
       if (amount(job.spentMinor) + amount(job.reservedMinor) + reserve > amount(job.budgetMinor)) { job.status = 'budget-blocked'; job.ledger.push({ at: this.timestamp(), event: 'budget-exhausted' }); return this.view(context, job); }
+      let admittedCalendar: JobCalendar | undefined;
+      let admittedOccurrence: JobCalendar['records'][number] | undefined;
       if (job.calendar && calendarEvaluation) {
-        this.calendarDecisions(job, calendarEvaluation); const c = job.calendar; const occurrence = calendarEvaluation.selected[0]; const prior = c.records.find(x => x.id === occurrence.id);
-        if (prior) { check(prior.status === 'deferred', 'CALENDAR_OCCURRENCE_CONSUMED', 'This business period was already consumed.'); Object.assign(prior, occurrence); prior.status = 'admitted'; prior.at = this.timestamp(); prior.scheduleRevision = c.revision; prior.objectiveRevision = job.revision; delete prior.reason; }
-        else c.records.push({ ...occurrence, status: 'admitted', scheduleRevision: c.revision, objectiveRevision: job.revision, at: this.timestamp(), ...(calendarEvaluation.representedIds.length ? { representedIds: calendarEvaluation.representedIds } : {}) });
-        c.current = occurrence.id; job.nextRunAt = occurrence.instant!; job.ledger.push({ at: this.timestamp(), event: 'calendar-admitted', reason: occurrence.id });
+        // Prepare the bounded audit work separately so expiry cannot persist a partial coalescing/claim.
+        const candidate = { ...job, calendar: structuredClone(job.calendar) };
+        this.calendarDecisions(candidate, calendarEvaluation); const c = candidate.calendar; const occurrence = calendarEvaluation.selected[0]; const prior = c.records.find(x => x.id === occurrence.id);
+        if (prior) { check(prior.status === 'deferred', 'CALENDAR_OCCURRENCE_CONSUMED', 'This business period was already consumed.'); Object.assign(prior, occurrence); prior.status = 'admitted'; prior.at = this.timestamp(); prior.scheduleRevision = c.revision; prior.objectiveRevision = job.revision; delete prior.reason; if (calendarEvaluation.representedIds.length) prior.representedIds = [...calendarEvaluation.representedIds]; else delete prior.representedIds; }
+        else c.records.push({ ...occurrence, status: 'admitted', scheduleRevision: c.revision, objectiveRevision: job.revision, at: this.timestamp(), ...(calendarEvaluation.representedIds.length ? { representedIds: [...calendarEvaluation.representedIds] } : {}) });
+        c.current = occurrence.id; admittedCalendar = c; admittedOccurrence = prior ?? c.records[c.records.length - 1];
       }
-      job.fence += 1; job.reservedMinor = String(amount(job.reservedMinor) + reserve);
-      job.lease = { token: newId('lease'), workerId, fence: job.fence, expiresAt: new Date(this.clock() + leaseMs).toISOString(), reservedMinor: String(reserve), chargedMinor: '0' }; job.status = 'running'; job.ledger.push({ at: this.timestamp(), event: 'reserved', fence: job.fence, amountMinor: String(reserve) }); return this.view(context, job);
+      const reservedMinor = String(amount(job.reservedMinor) + reserve);
+      const admittedAt = this.clock(); if (this.stopExpired(job, admittedAt)) return this.view(context, job);
+      const admissionTimestamp = new Date(admittedAt).toISOString();
+      if (admittedCalendar && admittedOccurrence) { admittedOccurrence.at = admissionTimestamp; job.calendar = admittedCalendar; job.nextRunAt = admittedOccurrence.instant!; job.ledger.push({ at: admissionTimestamp, event: 'calendar-admitted', reason: admittedOccurrence.id }); }
+      job.fence += 1; job.reservedMinor = reservedMinor;
+      job.lease = { token: newId('lease'), workerId, fence: job.fence, expiresAt: new Date(admittedAt + leaseMs).toISOString(), reservedMinor: String(reserve), chargedMinor: '0' }; job.status = 'running'; job.ledger.push({ at: admissionTimestamp, event: 'reserved', fence: job.fence, amountMinor: String(reserve) }); return this.view(context, job);
     });
   }
   async charge(context: Context, id: string, lease: Pick<Lease, 'token' | 'workerId' | 'fence'>, chargeMinor: string): Promise<Job> {

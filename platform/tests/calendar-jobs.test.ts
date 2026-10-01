@@ -5,8 +5,10 @@ import type { State, StateStore, Context } from '../runtime/contracts.ts';
 import { JobService } from '../runtime/jobs.ts';
 import { DurableJobRunner } from '../runtime/job-runner.ts';
 import type { GoalProvider, GoalRunner, ProviderRequest } from '../runtime/job-runner.ts';
-import type { GoalPlan, ProviderSettlement } from '../runtime/job-protocol.ts';
+import type { GoalExecution, GoalPlan, ProviderSettlement } from '../runtime/job-protocol.ts';
+import { digest } from '../runtime/actions.ts';
 import { IntlCalendarRules } from '../runtime/calendar-zone.ts';
+import type { CalendarRules } from '../runtime/calendar-zone.ts';
 import type { CalendarDefinition } from '../runtime/calendar.ts';
 
 class Store implements StateStore {
@@ -62,6 +64,125 @@ test('future pause leaves current uncertainty and readback authority intact', as
   assert.equal(unknown.status, 'outcome-unknown'); assert.equal(unknown.reservedMinor, '10'); const key = unknown.execution!.attempts[0].key;
   await f.jobs.pauseCalendar(owner, job.id); const readback = await f.restart().reconcile(owner, job.id); assert.equal(readback.reservedMinor, '0'); assert.equal(readback.spentMinor, '10'); assert.equal(readback.execution!.attempts[0].key, key);
   const result = await f.runner.run(owner, job.id); assert.equal(result.status, 'awaiting-acceptance'); assert.equal(f.calls.length, 1);
+});
+
+test('coalesced execution and output retain the exact admitted periods across crash, readback and later due slots', async () => {
+  const f = setup('2024-01-03T09:00:00.000Z');
+  const job = await f.runner.create(owner, { ...f.config, calendar: calendar({ missed: { kind: 'coalesce' } }) });
+  const representedIds = ['2024-01-01', '2024-01-02', '2024-01-03'].map(period => digest({ jobId: job.id, period, fold: 0 }));
+  const admitted = await f.jobs.acquire(owner, job.id, 'synthetic-crashed-worker');
+  assert.equal(admitted.execution, undefined);
+  assert.equal(admitted.calendar!.current, representedIds[2]);
+  assert.deepEqual(admitted.calendar!.records.find(record => record.id === representedIds[2])!.representedIds, representedIds);
+  assert.deepEqual(admitted.calendar!.records.filter(record => record.status === 'coalesced').map(record => record.id), representedIds.slice(0, 2));
+
+  f.at('2024-01-04T09:00:00.000Z');
+  const restart = f.restart(); await restart.recoverInterrupted(owner); f.store.failSettlement = true;
+  const unknown = await restart.run(owner, job.id);
+  assert.equal(unknown.status, 'outcome-unknown');
+  assert.equal(unknown.execution!.scheduledFor, '2024-01-03T09:00:00.000Z');
+  assert.deepEqual(unknown.execution!.calendar!.representedIds, representedIds);
+  const key = unknown.execution!.attempts[0].key;
+  assert.equal(key, `${job.id}:revision:1:occurrence:${representedIds[2]}:step:inspect`);
+
+  const recovered = f.restart(); await recovered.recoverInterrupted(owner);
+  assert.equal((await recovered.run(owner, job.id)).status, 'outcome-unknown');
+  const readback = await recovered.reconcile(owner, job.id);
+  assert.equal(readback.execution!.attempts[0].key, key);
+  assert.deepEqual(readback.execution!.calendar!.representedIds, representedIds);
+  const delivered = await recovered.run(owner, job.id);
+  assert.equal(delivered.status, 'awaiting-acceptance');
+  const output = delivered.deliverable as { calendar: NonNullable<GoalExecution['calendar']>; result: { synthetic: boolean } };
+  assert.equal(output.result.synthetic, true);
+  assert.deepEqual(output.calendar, delivered.execution!.calendar);
+  assert.deepEqual(output.calendar.representedIds, representedIds);
+  assert.equal(output.calendar.occurrenceId, representedIds[2]);
+  assert.equal(f.calls.length, 1);
+  assert.equal(delivered.spentMinor, '10'); assert.equal(delivered.reservedMinor, '0');
+
+  delivered.execution!.calendar!.representedIds!.push('caller-mutated-view');
+  output.calendar.representedIds!.push('caller-mutated-output');
+  const reread = f.jobs.list(owner)[0];
+  assert.deepEqual(reread.execution!.calendar!.representedIds, representedIds);
+  assert.deepEqual((reread.deliverable as typeof output).calendar.representedIds, representedIds);
+  await f.jobs.accept(owner, job.id, true);
+  assert.deepEqual(f.jobs.list(owner)[0].archivedExecutions![0].calendar!.representedIds, representedIds);
+  const next = await recovered.run(owner, job.id);
+  const laterId = digest({ jobId: job.id, period: '2024-01-04', fold: 0 });
+  assert.deepEqual(next.execution!.calendar!.representedIds, [laterId]);
+  assert.equal(f.calls.length, 2);
+});
+
+test('prospective coalescing of a retained deferred business period persists its represented identity', async () => {
+  const f = setup('2024-01-03T09:00:00.000Z');
+  const job = await f.runner.create(owner, { ...f.config, calendar: calendar({ missed: { kind: 'catch-up', maxPerPass: 1, overflow: 'retain' } }) });
+  const first = await f.runner.run(owner, job.id);
+  const deferred = first.calendar!.records.find(record => record.requestedLocal === '2024-01-03T09:00')!;
+  assert.equal(deferred.status, 'deferred'); assert.equal(deferred.representedIds, undefined);
+  await f.jobs.accept(owner, job.id, true);
+  const revised = calendar({ effectiveFrom: '2024-01-03T09:01:00.000Z',
+    recurrence: { kind: 'daily', startDate: '2024-01-01', at: '11:00', everyDays: 1 }, missed: { kind: 'coalesce' } });
+  await f.jobs.configureCalendar(owner, job.id, revised, 1, 1, 'replace-immediately');
+  f.at('2024-01-03T11:00:00.000Z');
+  const delivered = await f.restart().run(owner, job.id);
+  const record = delivered.calendar!.records.find(value => value.id === deferred.id)!;
+  assert.equal(delivered.status, 'awaiting-acceptance'); assert.equal(record.status, 'delivered');
+  assert.equal(record.requestedLocal, '2024-01-03T11:00'); assert.equal(record.scheduleRevision, 2);
+  assert.deepEqual(record.representedIds, [deferred.id]);
+  assert.equal(delivered.execution!.calendar!.occurrenceId, deferred.id);
+  assert.deepEqual(delivered.execution!.calendar!.representedIds, [deferred.id]);
+  assert.deepEqual((delivered.deliverable as { calendar: NonNullable<GoalExecution['calendar']> }).calendar, delivered.execution!.calendar);
+  assert.equal(f.calls[1], `${job.id}:revision:1:occurrence:${deferred.id}:step:inspect`);
+});
+
+test('early mandate expiry preserves coalesced unknown exposure and allows its original readback', async () => {
+  const f = setup('2024-01-03T09:00:00.000Z');
+  const job = await f.runner.create(owner, { ...f.config, calendar: calendar({ missed: { kind: 'coalesce' } }),
+    stopRule: { maxRuns: 5, deadline: '2024-01-04T09:00:00.000Z' } });
+  f.store.failSettlement = true; const unknown = await f.runner.run(owner, job.id);
+  assert.equal(unknown.status, 'outcome-unknown');
+  const records = unknown.calendar!.records; const key = unknown.execution!.attempts[0].key;
+  const representedIds = unknown.execution!.calendar!.representedIds;
+  assert.equal(representedIds!.length, 3);
+  f.at('2024-01-05T09:00:00.000Z'); const restart = f.restart(); await restart.recoverInterrupted(owner);
+  const waiting = await restart.run(owner, job.id);
+  assert.equal(waiting.status, 'outcome-unknown'); assert.equal(waiting.reservedMinor, '10'); assert.equal(waiting.spentMinor, '0');
+  assert.deepEqual(waiting.calendar!.records, records);
+  const readback = await restart.reconcile(owner, job.id);
+  assert.equal(readback.execution!.attempts[0].key, key); assert.equal(readback.reservedMinor, '0'); assert.equal(readback.spentMinor, '10');
+  const stopped = await restart.run(owner, job.id);
+  assert.equal(stopped.status, 'stopped'); assert.deepEqual(stopped.calendar!.records.slice(0, 3), records);
+  assert.deepEqual(stopped.execution!.calendar!.representedIds, representedIds);
+  assert.equal(stopped.calendar!.current, records.find(record => record.status === 'admitted')!.id);
+  assert.equal(stopped.calendar!.records[3].requestedLocal, '2024-01-04T09:00');
+  assert.equal(stopped.calendar!.records[3].status, 'skipped'); assert.equal(stopped.calendar!.records[3].reason, 'mandate-expired');
+  assert.equal(stopped.deliverable, undefined); assert.equal(f.calls.length, 1);
+});
+
+test('permitted persisted calendar journals do not inherit the job input payload ceiling on repeat admission', async () => {
+  const day = 86400000; const start = Date.parse('2024-01-01T00:00:00.000Z'); const until = start + 10000 * day;
+  const f = setup(new Date(until - day + 9 * 3600000).toISOString());
+  // Explicit fixed-UTC fixture rules keep this 10,000-slot journal test independent of ICU search/cache costs.
+  const fixedUtc: CalendarRules = { revision: 'synthetic-fixed-utc-2024-2052', minYear: 2024, maxYear: 2052,
+    canonicalZone: zone => { assert.equal(zone, 'UTC'); return zone; },
+    localAt: (instant, zone) => { assert.equal(zone, 'UTC'); return new Date(instant).toISOString().slice(0, 16); },
+    candidates: (local, zone) => { assert.equal(zone, 'UTC'); return [Date.parse(`${local}:00.000Z`)]; } };
+  f.jobs.calendarRules = fixedUtc; f.jobs.calendarBounds = { maxNominalSlots: 10000, maxCalendarDays: 10000 };
+  const job = await f.runner.create(owner, { ...f.config,
+    calendar: calendar({ rulesRevision: fixedUtc.revision, stop: { until: new Date(until).toISOString(), maxNominalOccurrences: 10000 },
+      missed: { kind: 'catch-up', maxPerPass: 1, overflow: 'retain' } }),
+    stopRule: { maxRuns: 5, deadline: new Date(until + day).toISOString() } });
+  const first = await f.runner.run(owner, job.id);
+  assert.equal(first.status, 'awaiting-acceptance'); assert.equal(first.calendar!.records.length, 10000);
+  assert.ok(Buffer.byteLength(JSON.stringify(first.calendar)) > 2 * 1024 * 1024);
+  await f.jobs.accept(owner, job.id, true);
+  const second = await f.restart().run(owner, job.id);
+  assert.equal(second.status, 'awaiting-acceptance'); assert.equal(second.calendar!.records.length, 10000);
+  assert.equal(second.execution!.scheduledFor, '2024-01-02T09:00:00.000Z');
+  assert.equal(second.calendar!.records.filter(record => record.status === 'accepted').length, 1);
+  assert.equal(second.calendar!.records.filter(record => record.status === 'delivered').length, 1);
+  assert.equal(second.calendar!.records.filter(record => record.status === 'deferred').length, 9998);
+  assert.equal(second.spentMinor, '20'); assert.equal(second.reservedMinor, '0'); assert.equal(f.calls.length, 2);
 });
 
 test('defer retains missed periods while skip logs only periods due during active acceptance', async () => {

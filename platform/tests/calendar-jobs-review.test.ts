@@ -135,6 +135,102 @@ test('calendar review: expiry records skipped periods while authorizing no catch
   }
 });
 
+test('calendar review: clock crossing either cutoff during rules evaluation stops before admission or reservation', async () => {
+  for (const cutoff of ['mandate', 'calendar'] as const) {
+    const f = fixture();
+    const until = cutoff === 'calendar' ? '2024-01-01T09:01:00.000Z' : '2024-01-01T09:02:00.000Z';
+    const deadline = cutoff === 'mandate' ? '2024-01-01T09:01:00.000Z' : '2024-01-01T09:02:00.000Z';
+    const job = await f.runner.create(owner, { ...f.config, stopRule: { maxRuns: 5, deadline },
+      calendar: definition({ stop: { until, maxNominalOccurrences: 1 } }) });
+    f.at('2024-01-01T09:00:00.000Z');
+    let advanced = false;
+    f.jobs.calendarRules = { revision: rules.revision, minYear: rules.minYear, maxYear: rules.maxYear,
+      canonicalZone: zone => rules.canonicalZone(zone), localAt: (instant, zone) => rules.localAt(instant, zone),
+      candidates: (local, zone) => {
+        const result = rules.candidates(local, zone);
+        if (!advanced) { advanced = true; f.at(cutoff === 'mandate' ? deadline : until); }
+        return result;
+      } };
+    const stopped = await f.jobs.acquire(owner, job.id, 'synthetic-slow-calendar-rules');
+    assert.equal(advanced, true); assert.equal(stopped.status, 'stopped');
+    assert.ok(stopped.ledger.some(entry => entry.event === (cutoff === 'mandate' ? 'stop-rule' : 'calendar-expired')));
+    assert.equal(stopped.calendar!.records.length, 1);
+    assert.equal(stopped.calendar!.records[0].status, 'skipped');
+    assert.equal(stopped.calendar!.records[0].reason, cutoff === 'mandate' ? 'mandate-expired' : 'schedule-expired');
+    assert.equal(stopped.calendar!.current, undefined);
+    assert.equal(stopped.fence, 0); assert.equal(stopped.lease, undefined); assert.equal(stopped.execution, undefined);
+    assert.equal(stopped.reservedMinor, '0'); assert.equal(stopped.spentMinor, '0'); assert.equal(stopped.runs, 0);
+    assert.ok(stopped.ledger.every(entry => !['reserved', 'calendar-admitted'].includes(entry.event)));
+    assert.equal(f.calls.length, 0);
+  }
+});
+
+test('calendar review: elapsed mandate also rechecks its deadline after identity validation', async () => {
+  const f = fixture(); const { calendar: unused, ...config } = f.config;
+  const job = await f.runner.create(owner, { ...config, stopRule: { maxRuns: 5, deadline: '2024-01-01T09:01:00.000Z' },
+    nextRunAt: '2024-01-01T09:00:00.000Z', intervalMs: 86400000, catchup: 'latest', graceMs: 60000 });
+  f.at('2024-01-01T09:00:00.000Z');
+  const identity = f.jobs.identity.bind(f.jobs);
+  f.jobs.identity = value => { const result = identity(value); f.at('2024-01-01T09:01:00.000Z'); return result; };
+  const stopped = await f.jobs.acquire(owner, job.id, 'synthetic-slow-identity');
+  assert.equal(stopped.status, 'stopped'); assert.ok(stopped.ledger.some(entry => entry.event === 'stop-rule'));
+  assert.equal(stopped.calendar, undefined); assert.equal(stopped.fence, 0); assert.equal(stopped.lease, undefined);
+  assert.equal(stopped.reservedMinor, '0'); assert.equal(stopped.spentMinor, '0'); assert.equal(stopped.runs, 0);
+  assert.ok(stopped.ledger.every(entry => entry.event !== 'reserved')); assert.equal(f.calls.length, 0);
+});
+
+test('calendar review: cutoff during decision preparation applies only a stopped audit and no candidate claim', async () => {
+  for (const cutoff of ['mandate', 'calendar'] as const) {
+    const f = fixture(); const expiry = '2024-01-03T09:01:00.000Z';
+    const job = await f.runner.create(owner, { ...f.config,
+      stopRule: { maxRuns: 5, deadline: cutoff === 'mandate' ? expiry : '2024-01-07T00:00:00.000Z' },
+      calendar: definition({ missed: { kind: 'coalesce' },
+        stop: { until: cutoff === 'calendar' ? expiry : '2024-01-06T00:00:00.000Z', maxNominalOccurrences: 5 } }) });
+    f.at('2024-01-03T09:00:00.000Z');
+    const evaluate = f.jobs.calendarEvaluation.bind(f.jobs); const timestamp = f.jobs.timestamp.bind(f.jobs);
+    let firstEvaluation = true; let pendingAuditWrite = false; let advanced = false;
+    f.jobs.calendarEvaluation = (value, at) => {
+      const result = evaluate(value, at);
+      if (firstEvaluation) { firstEvaluation = false; pendingAuditWrite = true; }
+      return result;
+    };
+    f.jobs.timestamp = () => {
+      if (pendingAuditWrite) { pendingAuditWrite = false; advanced = true; f.at(expiry); }
+      return timestamp();
+    };
+    const stopped = await f.jobs.acquire(owner, job.id, 'synthetic-slow-audit-preparation');
+    assert.equal(advanced, true); assert.equal(stopped.status, 'stopped');
+    assert.equal(stopped.calendar!.records.length, 3);
+    assert.ok(stopped.calendar!.records.every(record => record.status === 'skipped' && record.reason === `${cutoff === 'mandate' ? 'mandate' : 'schedule'}-expired`));
+    assert.equal(stopped.calendar!.current, undefined); assert.equal(stopped.fence, 0); assert.equal(stopped.lease, undefined);
+    assert.equal(stopped.execution, undefined); assert.equal(stopped.reservedMinor, '0'); assert.equal(stopped.spentMinor, '0');
+    assert.ok(stopped.ledger.every(entry => !['reserved', 'calendar-admitted'].includes(entry.event))); assert.equal(f.calls.length, 0);
+  }
+});
+
+test('calendar review: early mandate expiry skips unclaimed coalesce and retained intent only within its cutoff', async () => {
+  const policies: CalendarDefinition['missed'][] = [{ kind: 'coalesce' }, { kind: 'catch-up', maxPerPass: 1, overflow: 'retain' }];
+  for (const missed of policies) {
+    const f = fixture();
+    const job = await f.runner.create(owner, { ...f.config, calendar: definition({ missed }),
+      stopRule: { maxRuns: 5, deadline: '2024-01-03T09:00:00.000Z' } });
+    f.at('2024-01-01T09:00:00.000Z'); await f.runner.run(owner, job.id); await f.jobs.accept(owner, job.id, true);
+    const historical = f.jobs.list(owner)[0].calendar!.records[0];
+    assert.equal(historical.status, 'accepted');
+    f.at('2024-01-05T09:00:00.000Z');
+    const stopped = await f.jobs.acquire(owner, job.id, 'synthetic-late-wake');
+    assert.equal(stopped.status, 'stopped');
+    assert.deepEqual(stopped.calendar!.records[0], historical);
+    assert.deepEqual(stopped.calendar!.records.slice(1).map(record => ({ local: record.requestedLocal, status: record.status, reason: record.reason })).sort((a, b) => a.local.localeCompare(b.local)), [
+      { local: '2024-01-02T09:00', status: 'skipped', reason: 'mandate-expired' },
+      { local: '2024-01-03T09:00', status: 'skipped', reason: 'mandate-expired' },
+    ]);
+    assert.equal(stopped.calendar!.current, undefined);
+    assert.equal(stopped.lease, undefined); assert.equal(stopped.reservedMinor, '0'); assert.equal(stopped.spentMinor, '10');
+    assert.equal(stopped.runs, 1); assert.equal(f.calls.length, 1);
+  }
+});
+
 test('calendar review: immediate replacement requires explicit policy and preserves the retired rule across a blackout', async () => {
   const f = fixture(); const job = await f.runner.create(owner, f.config);
   const next = definition({ effectiveFrom: '2024-01-04T00:00:00.000Z', recurrence: { kind: 'daily', startDate: '2024-01-04', at: '10:00', everyDays: 1 },
