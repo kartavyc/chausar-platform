@@ -1,0 +1,36 @@
+# Hindi and English synthetic benchmark: method v1
+
+This open, authored fixture checks deterministic calculations, saved receipts and refusals through the existing public Engine API. It implements the bounded source benchmark portion of `LIVE-D10-B13` / `GAP-ONT-35`. A passing run qualifies this fixture contract only. It does not establish model quality, Hindi understanding, production readiness or a text-to-SQL comparison.
+
+## Questions and two tracks
+
+`fixtures/bilingual-benchmark/v1/questions.json` contains 40 cases, each with an English question, a Hindi question, an explicit request, literal answer/refusal expectations and worked explanations in both languages. The 80 observations are split as follows:
+
+| Track, per language | Expected answers | Expected refusals |
+| --- | ---: | ---: |
+| Authored typed requests, English | 17 | 14 |
+| Authored typed requests, Hindi | 17 | 14 |
+| Actual local question parser, English | 5 | 4 |
+| Actual local question parser, Hindi | 0 | 9 |
+
+The typed track sends the same author-selected `calculation.run` request for each language; one case uses `receipts.get`. Its questions label the intended business meaning. No model interprets them, and the two language observations are dependent repetitions. The parser track submits each original question to `conversation.ask` without a model route. The current small English grammar refuses every included Hindi question. Those expected refusals record the present language gap; they are not successful Hindi answers.
+
+## Evidence and scoring
+
+The hand-authored CSV files contain a 12-row shop and one large exact-money event. Controls are 885500 paise across the shop's 12 imported rows and 9007199254740993 paise for the large event. These are source control sums, not revenue. The runner imports through the public API, verifies reconciliation and duplicate-import idempotency, then uses disposable synthetic workspaces with current owner/viewer/source permissions.
+
+An answer must match exact integer minor units, the complete figure set, contributing entity identities and coverage. Applicable cases also require exclusions, assumptions and limitations. The runner reads each receipt back through `receipts.get`, compares its current dictionary/version/definitions, and checks row linkage, period, comparison period, branch, counted-row consistency and non-stale status. Refusals must match their exact error code or unsupported-question object and must not retain a completed calculation.
+
+`right`, `wrong` and `refused` are disjoint observed outcomes. Every observed refusal counts as `refused`, including an unexpected or incorrectly coded refusal. Separate `correct`, `incorrect`, `matchedRefusals` and `unexpectedRefusals` fields determine whether expectations matched. Scores are reported per language and per track; zero incorrect observations is the pass condition.
+
+## Reproduce and limits
+
+With the repository's existing Node runtime (24.13.1 or newer), from this source copy run:
+
+```sh
+node scripts/bilingual-benchmark.mjs --output results/bilingual-benchmark.json
+```
+
+Choose an unused relative JSON destination: the runner refuses overwriting. On Windows the source and owned disposable scratch workspaces must be on C. The report hashes UTF-8 question/CSV/method text with CRLF normalized to LF, plus stable dictionary semantics. This preserves fingerprints across Git line-ending settings. Its semantic run digest excludes generated identities, absolute scratch paths and wall-clock creation/publication/as-of timestamps; raw execution timestamps remain disclosed.
+
+Provider transports fail closed and the runner checks zero dispatches and zero model receipts. Hidden/sealed datasets and the attack pack are excluded. This run uses experimental file storage; native storage, GUI, clean-machine and public-release-candidate proof are not run. Public distribution, independent qualification and the blocked security audit remain separate gates. `GAP-ONT-30` measure interchange is pending a pinned, reviewed schema and is not exercised here.

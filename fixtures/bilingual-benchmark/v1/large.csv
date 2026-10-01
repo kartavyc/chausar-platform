@@ -1,0 +1,2 @@
+id,kind,date,amount,currency,customerId,invoiceId,orderId,dueDate,status,description,branch
+large-sale,sale,2026-09-01,90071992547409.93,INR,large-customer,,large-order,,delivered,Exact amount above Number safe integer limit,main

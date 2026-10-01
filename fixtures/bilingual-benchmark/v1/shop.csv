@@ -1,0 +1,13 @@
+id,kind,date,amount,currency,customerId,invoiceId,orderId,dueDate,status,description,branch
+order-a,sale,2026-09-01,1250.25,INR,customer-a,invoice-a,order-a,,delivered,Delivered goods,main
+order-b,sale,2026-09-30,799.75,INR,customer-b,invoice-b,order-b,,delivered,Delivered goods,west
+refund-a,refund,2026-09-05,125.00,INR,customer-a,invoice-a,order-a,,settled,Returned goods,main
+cost-a,cost,2026-09-01,500.00,INR,customer-a,invoice-a,order-a,,settled,Goods cost,main
+cost-b,cost,2026-09-01,80.00,INR,customer-a,invoice-a,order-a,,settled,Shipping cost,main
+invoice-a,invoice,2026-09-02,2200.00,INR,customer-a,invoice-a,order-a,2026-09-15,unpaid,Billed goods,main
+payment-a,payment,2026-09-06,1100.00,INR,customer-a,invoice-a,order-a,,settled,Settled receipt,main
+payment-cancelled,payment,2026-09-07,900.00,INR,customer-a,invoice-a,order-a,,cancelled,Cancelled receipt,main
+sale-draft,sale,2026-09-08,700.00,INR,customer-a,,draft-order,,draft,Draft order,main
+sale-cancelled,sale,2026-09-09,500.00,INR,customer-a,,cancelled-order,,cancelled,Cancelled order,main
+sale-before,sale,2026-08-31,300.00,INR,customer-a,,prior-order,,delivered,Prior month delivery,main
+sale-after,sale,2026-10-01,400.00,INR,customer-b,,next-order,,delivered,Next month delivery,west

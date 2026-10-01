@@ -1,0 +1,1364 @@
+{
+  "schema": "chausar.bilingual-synthetic-package.v1",
+  "version": 1,
+  "fixtureOrigin": "authored-synthetic",
+  "hiddenDatasetsIncluded": false,
+  "sealedDatasetsIncluded": false,
+  "attackPackIncluded": false,
+  "cases": [
+    {
+      "id": "billed",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "How much was invoiced in September?",
+        "hi": "सितंबर में कितनी राशि के बिल बने?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "billed",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "billed",
+        "valueMinor": "220000",
+        "currency": "INR",
+        "figures": {
+          "total": "220000"
+        },
+        "entities": [
+          "invoice-a"
+        ],
+        "completeness": "reconciled-imports"
+      },
+      "worked": {
+        "en": "Only invoice-a counts: INR 2,200.00 = 220000 paise. Delivery and cash are separate events.",
+        "hi": "केवल invoice-a गिनें: 2,200.00 रुपये = 220000 पैसे। डिलीवरी और नकद अलग घटनाएँ हैं।"
+      }
+    },
+    {
+      "id": "received",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "How much settled cash arrived in September?",
+        "hi": "सितंबर में कितना निपटाया गया नकद मिला?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "received",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "received",
+        "valueMinor": "110000",
+        "currency": "INR",
+        "figures": {
+          "total": "110000"
+        },
+        "entities": [
+          "payment-a"
+        ],
+        "completeness": "reconciled-imports",
+        "excludedEntities": [
+          "payment-cancelled"
+        ]
+      },
+      "worked": {
+        "en": "INR 1,100.00 = 110000 paise. The INR 900.00 cancelled payment is excluded.",
+        "hi": "1,100.00 रुपये = 110000 पैसे। रद्द किया गया 900.00 रुपये का भुगतान न गिनें।"
+      }
+    },
+    {
+      "id": "earned",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "What did delivered orders earn in September?",
+        "hi": "सितंबर में डिलीवर किए गए ऑर्डरों से कितनी कमाई हुई?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "earned",
+        "valueMinor": "205000",
+        "currency": "INR",
+        "figures": {
+          "total": "205000"
+        },
+        "entities": [
+          "order-a",
+          "order-b"
+        ],
+        "completeness": "reconciled-imports",
+        "excludedEntities": [
+          "sale-before",
+          "sale-after",
+          "sale-draft",
+          "sale-cancelled"
+        ]
+      },
+      "worked": {
+        "en": "1250.25 + 799.75 = INR 2050.00, or 205000 paise. Draft/cancelled orders and adjacent months are excluded.",
+        "hi": "1250.25 + 799.75 = 2050.00 रुपये, यानी 205000 पैसे। ड्राफ्ट, रद्द ऑर्डर और दूसरे महीनों को न गिनें।"
+      }
+    },
+    {
+      "id": "refunds",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "How much was refunded in September?",
+        "hi": "सितंबर में कितनी राशि वापस की गई?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "refunds",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "refunds",
+        "valueMinor": "12500",
+        "currency": "INR",
+        "figures": {
+          "total": "12500"
+        },
+        "entities": [
+          "refund-a"
+        ],
+        "completeness": "reconciled-imports"
+      },
+      "worked": {
+        "en": "The credit note is positive INR 125.00 = 12500 paise; net sales deducts it once.",
+        "hi": "क्रेडिट नोट धनात्मक 125.00 रुपये = 12500 पैसे है; शुद्ध बिक्री में इसे एक बार घटाएँ।"
+      }
+    },
+    {
+      "id": "costs",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "What imported costs belong to September?",
+        "hi": "सितंबर के आयात किए गए खर्च कितने हैं?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "costs",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "costs",
+        "valueMinor": "58000",
+        "currency": "INR",
+        "figures": {
+          "total": "58000"
+        },
+        "entities": [
+          "cost-a",
+          "cost-b"
+        ],
+        "completeness": "reconciled-imports"
+      },
+      "worked": {
+        "en": "500.00 + 80.00 = INR 580.00 = 58000 paise. Unimported overhead is unknown.",
+        "hi": "500.00 + 80.00 = 580.00 रुपये = 58000 पैसे। आयात न किए गए अन्य खर्च अज्ञात हैं।"
+      }
+    },
+    {
+      "id": "net-sales",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "What were September net sales after refunds?",
+        "hi": "वापसी घटाने के बाद सितंबर की शुद्ध बिक्री कितनी थी?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "net_sales",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "net_sales",
+        "valueMinor": "192500",
+        "currency": "INR",
+        "figures": {
+          "total": "192500"
+        },
+        "entities": [
+          "order-a",
+          "order-b",
+          "refund-a"
+        ],
+        "completeness": "reconciled-imports"
+      },
+      "worked": {
+        "en": "2050.00 - 125.00 = INR 1925.00 = 192500 paise. No invoice or payment is added.",
+        "hi": "2050.00 - 125.00 = 1925.00 रुपये = 192500 पैसे। बिल या भुगतान को न जोड़ें।"
+      }
+    },
+    {
+      "id": "margin",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "What was September contribution and its percentage?",
+        "hi": "सितंबर का योगदान और उसका प्रतिशत कितना था?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "margin",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "margin",
+        "valueMinor": "134500",
+        "currency": "INR",
+        "figures": {
+          "earned": "205000",
+          "refunds": "12500",
+          "netSales": "192500",
+          "costs": "58000",
+          "contribution": "134500",
+          "marginBps": "6987"
+        },
+        "entities": [
+          "order-a",
+          "order-b",
+          "refund-a",
+          "cost-a",
+          "cost-b"
+        ],
+        "completeness": "reconciled-imports",
+        "requiredGap": "Contribution includes imported costs only."
+      },
+      "worked": {
+        "en": "192500 - 58000 = 134500 paise. Truncate (134500 * 10000) / 192500 = 6987 bps (69.87%). This is contribution on imported costs, not full accounting profit.",
+        "hi": "192500 - 58000 = 134500 पैसे। (134500 * 10000) / 192500 को पूर्णांक तक काटें: 6987 बेसिस पॉइंट (69.87%)। यह आयात किए गए खर्चों पर योगदान है, पूरा लेखा लाभ नहीं।"
+      }
+    },
+    {
+      "id": "aging",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "What invoice balance was overdue at September 30?",
+        "hi": "30 सितंबर को बिल की कितनी राशि बकाया थी?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "aging",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        },
+        "onDate": "2026-09-30"
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "aging",
+        "valueMinor": "97500",
+        "currency": "INR",
+        "figures": {
+          "notDue": "0",
+          "days1to30": "97500",
+          "days31to60": "0",
+          "days61to90": "0",
+          "over90": "0",
+          "outstanding": "97500",
+          "unallocated": "0"
+        },
+        "entities": [
+          "invoice-a",
+          "payment-a",
+          "refund-a"
+        ],
+        "completeness": "reconciled-imports",
+        "excludedEntities": [
+          "payment-cancelled"
+        ],
+        "assumptions": {
+          "onDate": "2026-09-30"
+        }
+      },
+      "worked": {
+        "en": "220000 - 110000 - 12500 = 97500 paise. Due September 15 gives 15 overdue days on September 30, in days1to30.",
+        "hi": "220000 - 110000 - 12500 = 97500 पैसे। देय तारीख 15 सितंबर है, इसलिए 30 सितंबर को 15 दिन बकाया: days1to30।"
+      }
+    },
+    {
+      "id": "change",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "How much did September earned sales change from August?",
+        "hi": "अगस्त से सितंबर की अर्जित बिक्री कितनी बदली?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "change",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        },
+        "comparePeriod": {
+          "from": "2026-08-01",
+          "to": "2026-08-31"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "change",
+        "valueMinor": "175000",
+        "currency": "INR",
+        "figures": {
+          "current": "205000",
+          "previous": "30000",
+          "change": "175000",
+          "changeBps": "58333"
+        },
+        "entities": [
+          "order-a",
+          "order-b",
+          "sale-before"
+        ],
+        "completeness": "reconciled-imports",
+        "assumptions": {
+          "causalStatus": "Measured change is not a causal explanation. Causes require separate evidence; no hypothesis is asserted as a fact."
+        }
+      },
+      "worked": {
+        "en": "205000 - 30000 = 175000 paise. Truncate (175000 * 10000) / 30000 = 58333 bps. This measured change proves no cause.",
+        "hi": "205000 - 30000 = 175000 पैसे। (175000 * 10000) / 30000 काटने पर 58333 बेसिस पॉइंट। यह मापा बदलाव किसी कारण को सिद्ध नहीं करता।"
+      }
+    },
+    {
+      "id": "price-scenario",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "What if prices rose 10% with unchanged volume?",
+        "hi": "मात्रा समान रखते हुए कीमतें 10% बढ़ें तो क्या होगा?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "scenario",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        },
+        "assumptions": {
+          "priceChangeBps": "1000"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "scenario",
+        "valueMinor": "225500",
+        "currency": "INR",
+        "figures": {
+          "baseline": "205000",
+          "scenario": "225500",
+          "change": "20500",
+          "priceChangeBps": "1000"
+        },
+        "entities": [
+          "order-a",
+          "order-b"
+        ],
+        "completeness": "reconciled-imports",
+        "assumptions": {
+          "priceChangeBps": "1000",
+          "volume": "Held constant",
+          "rounding": "Truncate fractional minor units toward zero",
+          "status": "Scenario only. Source facts are unchanged."
+        }
+      },
+      "worked": {
+        "en": "205000 * (10000 + 1000) / 10000 = 225500 paise, change 20500. Assumption: fixed volume. No forecast or source mutation.",
+        "hi": "205000 * (10000 + 1000) / 10000 = 225500 पैसे; बदलाव 20500। मात्रा स्थिर मानें। यह पूर्वानुमान या स्रोत में बदलाव नहीं है।"
+      }
+    },
+    {
+      "id": "main-branch",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "How much did main-branch deliveries earn?",
+        "hi": "मुख्य शाखा की डिलीवरी से कितनी कमाई हुई?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        },
+        "branch": "main"
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "earned",
+        "valueMinor": "125025",
+        "currency": "INR",
+        "figures": {
+          "total": "125025"
+        },
+        "entities": [
+          "order-a"
+        ],
+        "completeness": "reconciled-imports"
+      },
+      "worked": {
+        "en": "Only main order-a is visible: INR 1250.25 = 125025 paise. West is excluded before aggregation.",
+        "hi": "केवल मुख्य शाखा का order-a: 1250.25 रुपये = 125025 पैसे। पश्चिमी शाखा को जोड़ने से पहले बाहर रखें।"
+      }
+    },
+    {
+      "id": "viewer-scope",
+      "fixture": "viewer-main",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "What September earned amount can a main-only viewer see?",
+        "hi": "केवल मुख्य शाखा का पाठक सितंबर की कितनी अर्जित राशि देख सकता है?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "earned",
+        "valueMinor": "125025",
+        "currency": "INR",
+        "figures": {
+          "total": "125025"
+        },
+        "entities": [
+          "order-a"
+        ],
+        "completeness": "reconciled-imports"
+      },
+      "worked": {
+        "en": "Current branch grants restrict the implicit total to order-a: 125025 paise; west remains invisible.",
+        "hi": "वर्तमान शाखा अनुमति कुल को order-a के 125025 पैसे तक सीमित करती है; पश्चिमी शाखा अदृश्य रहती है।"
+      }
+    },
+    {
+      "id": "first-day",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "What was earned on the first inclusive day?",
+        "hi": "अवधि के पहले शामिल दिन कितनी कमाई हुई?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-01"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "earned",
+        "valueMinor": "125025",
+        "currency": "INR",
+        "figures": {
+          "total": "125025"
+        },
+        "entities": [
+          "order-a"
+        ],
+        "completeness": "reconciled-imports"
+      },
+      "worked": {
+        "en": "The September 1 boundary is inclusive; order-a alone is 125025 paise.",
+        "hi": "1 सितंबर की सीमा शामिल है; केवल order-a के 125025 पैसे गिनें।"
+      }
+    },
+    {
+      "id": "last-day",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "What was earned on the last inclusive day?",
+        "hi": "अवधि के अंतिम शामिल दिन कितनी कमाई हुई?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-30",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "earned",
+        "valueMinor": "79975",
+        "currency": "INR",
+        "figures": {
+          "total": "79975"
+        },
+        "entities": [
+          "order-b"
+        ],
+        "completeness": "reconciled-imports"
+      },
+      "worked": {
+        "en": "The September 30 boundary is inclusive; order-b alone is 79975 paise.",
+        "hi": "30 सितंबर की सीमा शामिल है; केवल order-b के 79975 पैसे गिनें।"
+      }
+    },
+    {
+      "id": "customer-scope",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "What did customer-a deliveries earn in September?",
+        "hi": "सितंबर में customer-a की डिलीवरी से कितनी कमाई हुई?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        },
+        "customerId": "customer-a"
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "earned",
+        "valueMinor": "125025",
+        "currency": "INR",
+        "figures": {
+          "total": "125025"
+        },
+        "entities": [
+          "order-a"
+        ],
+        "completeness": "reconciled-imports"
+      },
+      "worked": {
+        "en": "Filter customer-a before aggregation: order-a 125025 paise. Draft and cancelled records are excluded.",
+        "hi": "जोड़ने से पहले customer-a चुनें: order-a के 125025 पैसे। ड्राफ्ट और रद्द रिकॉर्ड बाहर रखें।"
+      }
+    },
+    {
+      "id": "empty-period",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "What does the empty July selection show?",
+        "hi": "जुलाई के खाली चयन से क्या पता चलता है?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-07-01",
+          "to": "2026-07-31"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "earned",
+        "valueMinor": "0",
+        "currency": "INR",
+        "figures": {
+          "total": "0"
+        },
+        "entities": [],
+        "completeness": "empty",
+        "requiredGap": "An empty selection is not proof that the business activity was zero."
+      },
+      "worked": {
+        "en": "No July source rows exist. The numeric aggregate is 0 with empty coverage; this does not establish zero business activity.",
+        "hi": "जुलाई के स्रोत रिकॉर्ड नहीं हैं। संख्यात्मक जोड़ 0 और कवरेज खाली है; इससे व्यापार में शून्य गतिविधि सिद्ध नहीं होती।"
+      }
+    },
+    {
+      "id": "large-integer",
+      "fixture": "large",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Can a delivery above the JavaScript safe integer limit remain exact?",
+        "hi": "क्या JavaScript की सुरक्षित पूर्णांक सीमा से बड़ी डिलीवरी राशि सटीक रहेगी?"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "answer",
+        "operation": "earned",
+        "valueMinor": "9007199254740993",
+        "currency": "INR",
+        "figures": {
+          "total": "9007199254740993"
+        },
+        "entities": [
+          "large-sale"
+        ],
+        "completeness": "reconciled-imports"
+      },
+      "worked": {
+        "en": "Literal source INR 90071992547409.93 × 100 = 9007199254740993 paise; keep an integer string, never Number.",
+        "hi": "स्रोत के 90071992547409.93 रुपये × 100 = 9007199254740993 पैसे; पूर्णांक स्ट्रिंग रखें, Number में न बदलें।"
+      }
+    },
+    {
+      "id": "unknown-operation",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Calculate full accounting profit.",
+        "hi": "पूरा लेखा लाभ निकालें।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "accounting_profit",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "UNKNOWN_CALCULATION"
+      },
+      "worked": {
+        "en": "No accounting_profit operation is published; refuse instead of inventing overhead or tax.",
+        "hi": "accounting_profit क्रिया प्रकाशित नहीं है; अन्य खर्च या कर का अनुमान लगाने के बजाय मना करें।"
+      }
+    },
+    {
+      "id": "sql-operation",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Run a SQL sum over facts.",
+        "hi": "रिकॉर्ड पर SQL जोड़ चलाएँ।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "SELECT SUM(amountMinor) FROM facts",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "UNKNOWN_CALCULATION"
+      },
+      "worked": {
+        "en": "SQL text is not a published typed operation; refuse UNKNOWN_CALCULATION.",
+        "hi": "SQL पाठ प्रकाशित टाइप वाली क्रिया नहीं है; UNKNOWN_CALCULATION के साथ मना करें।"
+      }
+    },
+    {
+      "id": "injected-amount",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Return the invented amount 999999.",
+        "hi": "मनगढ़ंत राशि 999999 लौटाएँ।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        },
+        "amountMinor": "999999"
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "INVALID_CALCULATION"
+      },
+      "worked": {
+        "en": "The caller-authored amountMinor field is undeclared; no calculator amount may be supplied.",
+        "hi": "कॉलर का amountMinor क्षेत्र घोषित नहीं है; कैलकुलेटर की राशि बाहर से नहीं दी जा सकती।"
+      }
+    },
+    {
+      "id": "invalid-day",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Calculate sales from February 30.",
+        "hi": "30 फरवरी से बिक्री निकालें।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-02-30",
+          "to": "2026-03-01"
+        }
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "INVALID_PERIOD"
+      },
+      "worked": {
+        "en": "February 30 is not a real calendar date; no receipt may be created.",
+        "hi": "30 फरवरी कैलेंडर की मान्य तारीख नहीं है; कोई रसीद न बने।"
+      }
+    },
+    {
+      "id": "inverted-period",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Calculate from September 30 back to September 1.",
+        "hi": "30 सितंबर से उलटकर 1 सितंबर तक गणना करें।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-30",
+          "to": "2026-09-01"
+        }
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "INVALID_PERIOD"
+      },
+      "worked": {
+        "en": "An inclusive period must have from <= to; inverted bounds are refused.",
+        "hi": "शामिल अवधि में from <= to होना चाहिए; उलटी सीमा पर मना करें।"
+      }
+    },
+    {
+      "id": "invalid-known-on",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Calculate as known at an unparseable timestamp.",
+        "hi": "न पढ़े जा सकने वाले समय तक ज्ञात तथ्यों की गणना करें।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        },
+        "asOf": "not-a-timestamp"
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "INVALID_ASOF"
+      },
+      "worked": {
+        "en": "The string not-a-timestamp is not a parseable known-on time; refuse INVALID_ASOF.",
+        "hi": "not-a-timestamp पढ़े जा सकने वाला ज्ञात समय नहीं है; INVALID_ASOF के साथ मना करें।"
+      }
+    },
+    {
+      "id": "missing-scenario",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Calculate a price scenario without an assumption.",
+        "hi": "धारणा के बिना कीमत का परिदृश्य निकालें।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "scenario",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "SCENARIO_REQUIRED"
+      },
+      "worked": {
+        "en": "An explicit integer priceChangeBps assumption is required; none was supplied.",
+        "hi": "पूर्णांक priceChangeBps की स्पष्ट धारणा चाहिए; यहाँ कोई धारणा नहीं दी गई।"
+      }
+    },
+    {
+      "id": "scenario-limit",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Model a price increase beyond the declared range.",
+        "hi": "घोषित सीमा से अधिक कीमत वृद्धि का परिदृश्य निकालें।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "scenario",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        },
+        "assumptions": {
+          "priceChangeBps": "100001"
+        }
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "SCENARIO_LIMIT"
+      },
+      "worked": {
+        "en": "100001 basis points exceeds the published maximum 100000; refuse SCENARIO_LIMIT.",
+        "hi": "100001 बेसिस पॉइंट प्रकाशित अधिकतम 100000 से अधिक हैं; SCENARIO_LIMIT के साथ मना करें।"
+      }
+    },
+    {
+      "id": "missing-comparison",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Calculate change without a comparison period.",
+        "hi": "तुलना अवधि के बिना बदलाव निकालें।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "change",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "COMPARISON_REQUIRED"
+      },
+      "worked": {
+        "en": "Current and comparison periods are both mandatory; comparison was not supplied.",
+        "hi": "वर्तमान और तुलना अवधि दोनों चाहिए; यहाँ तुलना अवधि नहीं दी गई।"
+      }
+    },
+    {
+      "id": "invalid-aging-day",
+      "fixture": "shop",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Age invoices at February 30.",
+        "hi": "30 फरवरी को बिलों का बकाया समय निकालें।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "aging",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        },
+        "onDate": "2026-02-30"
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "INVALID_AGING_DATE"
+      },
+      "worked": {
+        "en": "February 30 cannot be an aging cutoff date; refuse INVALID_AGING_DATE.",
+        "hi": "30 फरवरी बकाया गणना की तारीख नहीं हो सकती; INVALID_AGING_DATE के साथ मना करें।"
+      }
+    },
+    {
+      "id": "forbidden-branch",
+      "fixture": "viewer-main",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Show west to a main-only viewer.",
+        "hi": "केवल मुख्य शाखा के पाठक को पश्चिमी शाखा दिखाएँ।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        },
+        "branch": "west"
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "FORBIDDEN_BRANCH"
+      },
+      "worked": {
+        "en": "The current main-only viewer cannot select west. Refuse before any branch total is returned.",
+        "hi": "वर्तमान मुख्य शाखा का पाठक पश्चिमी शाखा नहीं चुन सकता। कोई शाखा कुल लौटाने से पहले मना करें।"
+      }
+    },
+    {
+      "id": "revoked-source",
+      "fixture": "source-revoked",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Recalculate explicitly selected data after source access was revoked.",
+        "hi": "स्रोत अनुमति हटने के बाद स्पष्ट चुने हुए डेटा की फिर गणना करें।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        },
+        "sourceIds": [
+          "bilingual-synthetic-shop-v1"
+        ]
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "SOURCE_REVOKED"
+      },
+      "worked": {
+        "en": "The explicit sourceIds scope is currently revoked; cached authority cannot permit use.",
+        "hi": "स्पष्ट sourceIds की अनुमति वर्तमान में हट गई है; पुरानी अनुमति से उपयोग नहीं हो सकता।"
+      }
+    },
+    {
+      "id": "revoked-member",
+      "fixture": "member-revoked",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Calculate using a revoked member session.",
+        "hi": "हटाए गए सदस्य के सत्र से गणना करें।"
+      },
+      "method": "calculation.run",
+      "payload": {
+        "operation": "earned",
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "ACCESS_REVOKED"
+      },
+      "worked": {
+        "en": "A revoked member/epoch is invalid before any number or source detail can be returned.",
+        "hi": "हटाए गए सदस्य की अनुमति किसी राशि या स्रोत विवरण से पहले अमान्य है।"
+      }
+    },
+    {
+      "id": "private-receipt",
+      "fixture": "other-receipt-owner",
+      "track": "authored-typed-request",
+      "question": {
+        "en": "Open another member's saved receipt.",
+        "hi": "दूसरे सदस्य की सहेजी हुई रसीद खोलें।"
+      },
+      "method": "receipts.get",
+      "payload": {},
+      "expected": {
+        "kind": "refusal",
+        "mechanism": "error-code",
+        "code": "RECEIPT_FORBIDDEN"
+      },
+      "worked": {
+        "en": "A saved private receipt is bound to the creating member and epoch; another valid member must be refused.",
+        "hi": "सहेजी निजी रसीद बनाने वाले सदस्य और अनुमति से जुड़ी है; दूसरे मान्य सदस्य को मना करें।"
+      }
+    },
+    {
+      "id": "parser-billed",
+      "fixture": "shop",
+      "track": "local-question-parser",
+      "question": {
+        "en": "What was billed?",
+        "hi": "कितनी राशि के बिल बने?"
+      },
+      "method": "conversation.ask",
+      "payload": {
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "en": {
+          "kind": "answer",
+          "operation": "billed",
+          "valueMinor": "220000",
+          "currency": "INR",
+          "figures": {
+            "total": "220000"
+          },
+          "entities": [
+            "invoice-a"
+          ],
+          "completeness": "reconciled-imports"
+        },
+        "hi": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        }
+      },
+      "worked": {
+        "en": "Local English literal grammar chooses billed; invoice-a totals 220000 paise.",
+        "hi": "अर्थ बिलों के 220000 पैसे है। स्थानीय व्याकरण हिंदी को नहीं पढ़ता: supported:false और receipt:null अपेक्षित हैं।"
+      }
+    },
+    {
+      "id": "parser-received",
+      "fixture": "shop",
+      "track": "local-question-parser",
+      "question": {
+        "en": "What was received?",
+        "hi": "कितना नकद मिला?"
+      },
+      "method": "conversation.ask",
+      "payload": {
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "en": {
+          "kind": "answer",
+          "operation": "received",
+          "valueMinor": "110000",
+          "currency": "INR",
+          "figures": {
+            "total": "110000"
+          },
+          "entities": [
+            "payment-a"
+          ],
+          "completeness": "reconciled-imports",
+          "excludedEntities": [
+            "payment-cancelled"
+          ]
+        },
+        "hi": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        }
+      },
+      "worked": {
+        "en": "Local English literal grammar chooses received; settled payment-a totals 110000 paise.",
+        "hi": "अर्थ निपटाए भुगतान के 110000 पैसे है। स्थानीय हिंदी प्रश्न पर supported:false और receipt:null अपेक्षित हैं।"
+      }
+    },
+    {
+      "id": "parser-earned",
+      "fixture": "shop",
+      "track": "local-question-parser",
+      "question": {
+        "en": "What was earned?",
+        "hi": "कितनी अर्जित कमाई हुई?"
+      },
+      "method": "conversation.ask",
+      "payload": {
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "en": {
+          "kind": "answer",
+          "operation": "earned",
+          "valueMinor": "205000",
+          "currency": "INR",
+          "figures": {
+            "total": "205000"
+          },
+          "entities": [
+            "order-a",
+            "order-b"
+          ],
+          "completeness": "reconciled-imports"
+        },
+        "hi": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        }
+      },
+      "worked": {
+        "en": "Local English literal grammar chooses earned; delivered orders total 205000 paise.",
+        "hi": "अर्थ डिलीवरी के 205000 पैसे है। स्थानीय हिंदी प्रश्न पर supported:false और receipt:null अपेक्षित हैं।"
+      }
+    },
+    {
+      "id": "parser-refunds",
+      "fixture": "shop",
+      "track": "local-question-parser",
+      "question": {
+        "en": "What were refunds?",
+        "hi": "कितनी राशि वापस हुई?"
+      },
+      "method": "conversation.ask",
+      "payload": {
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "en": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        },
+        "hi": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        }
+      },
+      "worked": {
+        "en": "This exact English wording is outside the small literal grammar (what were); expect the unsupported-question object.",
+        "hi": "स्थानीय हिंदी प्रश्न के लिए supported:false और receipt:null अपेक्षित हैं; मूल अर्थ वापसी के 12500 पैसे है।"
+      }
+    },
+    {
+      "id": "parser-net-sales",
+      "fixture": "shop",
+      "track": "local-question-parser",
+      "question": {
+        "en": "What was net sales?",
+        "hi": "शुद्ध बिक्री कितनी थी?"
+      },
+      "method": "conversation.ask",
+      "payload": {
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "en": {
+          "kind": "answer",
+          "operation": "net_sales",
+          "valueMinor": "192500",
+          "currency": "INR",
+          "figures": {
+            "total": "192500"
+          },
+          "entities": [
+            "order-a",
+            "order-b",
+            "refund-a"
+          ],
+          "completeness": "reconciled-imports"
+        },
+        "hi": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        }
+      },
+      "worked": {
+        "en": "Local English literal grammar chooses net_sales: 205000 - 12500 = 192500 paise.",
+        "hi": "अर्थ 205000 - 12500 = 192500 पैसे है। स्थानीय हिंदी प्रश्न पर supported:false और receipt:null अपेक्षित हैं।"
+      }
+    },
+    {
+      "id": "parser-margin",
+      "fixture": "shop",
+      "track": "local-question-parser",
+      "question": {
+        "en": "What was margin?",
+        "hi": "योगदान कितना था?"
+      },
+      "method": "conversation.ask",
+      "payload": {
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "en": {
+          "kind": "answer",
+          "operation": "margin",
+          "valueMinor": "134500",
+          "currency": "INR",
+          "figures": {
+            "earned": "205000",
+            "refunds": "12500",
+            "netSales": "192500",
+            "costs": "58000",
+            "contribution": "134500",
+            "marginBps": "6987"
+          },
+          "entities": [
+            "order-a",
+            "order-b",
+            "refund-a",
+            "cost-a",
+            "cost-b"
+          ],
+          "completeness": "reconciled-imports",
+          "requiredGap": "Contribution includes imported costs only."
+        },
+        "hi": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        }
+      },
+      "worked": {
+        "en": "Local English literal grammar chooses margin: 192500 - 58000 = 134500 paise; 6987 truncated bps.",
+        "hi": "अर्थ योगदान 134500 पैसे और 6987 बेसिस पॉइंट है। स्थानीय हिंदी प्रश्न पर supported:false और receipt:null अपेक्षित हैं।"
+      }
+    },
+    {
+      "id": "parser-ambiguous",
+      "fixture": "shop",
+      "track": "local-question-parser",
+      "question": {
+        "en": "How are sales doing?",
+        "hi": "बिक्री कैसी चल रही है?"
+      },
+      "method": "conversation.ask",
+      "payload": {
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "en": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        },
+        "hi": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        }
+      },
+      "worked": {
+        "en": "No exact published operation is selected by this open-ended wording; refuse rather than guess.",
+        "hi": "खुले प्रश्न से कोई निश्चित प्रकाशित क्रिया नहीं चुनी जाती; अनुमान लगाने के बजाय मना करें।"
+      }
+    },
+    {
+      "id": "parser-profit",
+      "fixture": "shop",
+      "track": "local-question-parser",
+      "question": {
+        "en": "What is full accounting profit?",
+        "hi": "पूरा लेखा लाभ कितना है?"
+      },
+      "method": "conversation.ask",
+      "payload": {
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "en": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        },
+        "hi": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        }
+      },
+      "worked": {
+        "en": "There is no published accounting-profit operation, and missing period expenses are unknown.",
+        "hi": "लेखा लाभ की क्रिया प्रकाशित नहीं है और बाकी खर्च अज्ञात हैं; प्रश्न पर मना करें।"
+      }
+    },
+    {
+      "id": "parser-causal",
+      "fixture": "shop",
+      "track": "local-question-parser",
+      "question": {
+        "en": "Why did sales change?",
+        "hi": "बिक्री क्यों बदली?"
+      },
+      "method": "conversation.ask",
+      "payload": {
+        "period": {
+          "from": "2026-09-01",
+          "to": "2026-09-30"
+        }
+      },
+      "expected": {
+        "en": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        },
+        "hi": {
+          "kind": "refusal",
+          "mechanism": "unsupported-question",
+          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+        }
+      },
+      "worked": {
+        "en": "A question about cause is not a typed measured-change operation; no causal proof is available.",
+        "hi": "कारण का प्रश्न मापे बदलाव की टाइप वाली क्रिया नहीं है; कारण का प्रमाण उपलब्ध नहीं है।"
+      }
+    }
+  ]
+}
