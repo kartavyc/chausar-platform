@@ -1,5 +1,7 @@
 # Native database differential qualification
 
+The approved Windows qualification now executed native PostgreSQL 18.6 and DuckDB v1.5.5: **110 checks passed, exit 0**. See [completed native qualification](postgresql-native-qualification.md). Earlier missing-dependency observations below remain explicitly historical. Actual PGlite still fails its independent-instance ownership gate; no production default is selected.
+
 `node scripts/verify-database-differential.mjs` is a hard qualification gate. It compares independently hand-worked answers against the JavaScript calculator, the production native DuckDB worker, and the native PostgreSQL analytical adapter. It also runs `CalculatorService` with both native verifiers on a real PostgreSQL-backed encrypted `Vault`. Missing dependencies or an unconfigured disposable PostgreSQL database cause a nonzero exit. The runner never converts those conditions into a passing test, a skip, or an injected SQL executor.
 
 The database roles remain explicit: PostgreSQL authority storage contains encrypted snapshots. PostgreSQL analytical verification uses private transactional temporary row projections, which are rolled back. DuckDB analytical verification uses a disposable process and in-memory projection. This does not introduce a persistent normalized claim schema, qualify PGlite, or select a default database.

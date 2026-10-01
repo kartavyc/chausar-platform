@@ -1,5 +1,7 @@
 # Native database qualification after approved D: staging
 
+**Historical partial report:** This records the first D: phase, before the portable PostgreSQL download and server run. The parent clarified the download authorization, and the later native PostgreSQL/DuckDB gate passed all 110 checks after a scoped JSONB envelope fix. See [completed PostgreSQL native qualification](postgresql-native-qualification.md) for current results. The earlier download hold and PostgreSQL nonexecution below are superseded; the PGlite ownership blocker remains.
+
 Native DuckDB receipt arithmetic passed. Actual PGlite SQL and orderly persistence probes completed, but competing instances demonstrated an unsafe ownership condition. Native PostgreSQL has not executed. No production default is selected, and both qualification runners intentionally exit 1 for their remaining blockers.
 
 ## Actual engines and proof boundaries

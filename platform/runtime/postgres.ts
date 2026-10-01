@@ -4,6 +4,18 @@ import type { EncryptedSnapshotAdapter, VaultEnvelope } from './vault.ts';
 type Client = { query(sql: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }>; release(): void };
 export type PostgresPool = { query(sql: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }>; connect(): Promise<Client>; end(): Promise<void> };
 export type PostgresOptions = { host: '127.0.0.1' | '::1'; port: number; user: string; database: string; password: string; vaultSlot: string; maxConnections?: number };
+function exactObjectFields(value: any, fields: string[]) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== fields.length || !fields.every(field => Object.hasOwn(value, field))) throw new ChausarError('CORRUPT_VAULT', 'The stored key wrapper shape is inconsistent.');
+}
+/** JSONB reorders nested object keys. Restore the existing v1 wrapper order
+ * produced by Vault before its unchanged GCM AAD serialization. Reject extra
+ * fields rather than silently omitting authenticated metadata. */
+function orderedWrapper(value: any): VaultEnvelope['passphrase'] {
+  exactObjectFields(value, ['salt', 'kdf', 'ciphertext']);
+  exactObjectFields(value.ciphertext, ['nonce', 'tag', 'data']);
+  if (typeof value.salt !== 'string' || value.kdf !== 'scrypt-32768-8-1' || !['nonce', 'tag', 'data'].every(field => typeof value.ciphertext[field] === 'string')) throw new ChausarError('CORRUPT_VAULT', 'The stored key wrapper fields are inconsistent.');
+  return { salt: value.salt, kdf: value.kdf, ciphertext: { nonce: value.ciphertext.nonce, tag: value.ciphertext.tag, data: value.ciphertext.data } };
+}
 /** Durable production adapter. Only authenticated ciphertext enters PostgreSQL. */
 export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
   readonly kind = 'postgres' as const;
@@ -41,7 +53,7 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
     if (!result.rows.length) return null;
     const row = result.rows[0], envelope = typeof row.envelope === 'string' ? JSON.parse(row.envelope) : row.envelope;
     if (!envelope || !Number.isSafeInteger(envelope.revision) || envelope.revision < 0 || String(row.revision) !== String(envelope.revision)) throw new ChausarError('CORRUPT_VAULT', 'The stored authority revision is inconsistent.');
-    return envelope;
+    return { ...envelope, passphrase: orderedWrapper(envelope.passphrase), recovery: orderedWrapper(envelope.recovery) };
   }
   async commit(envelope: VaultEnvelope, expectedRevision: number | null): Promise<void> {
     if (!envelope || !Number.isSafeInteger(envelope.revision) || envelope.revision < 0 || (expectedRevision !== null && (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0 || envelope.revision !== expectedRevision + 1))) throw new ChausarError('INVALID_REVISION', 'A replacement snapshot must advance its expected revision by exactly one.');
