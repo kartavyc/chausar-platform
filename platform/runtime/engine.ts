@@ -10,6 +10,10 @@ import { canSeeFact } from './memory.ts';
 import { CalculatorService, type CalculatorOptions } from './calculator.ts';
 import { ReportService, type ReportOptions } from './reports.ts';
 import { createJournalExecutionResolver } from './journal-execution.ts';
+import { BridgeService, type BridgeServiceOptions } from './bridge-service.ts';
+import { InvestigationService } from './investigations.ts';
+import { PostgresInvestigationSearch } from './investigation-search.ts';
+import { ResearchSearchService, type ResearchSearchPort } from './research-search.ts';
 import { TrustService, sourceAllowed } from './trust.ts';
 import { ModelGateway } from './gateway.ts';
 import type { GatewayOptions } from './gateway.ts';
@@ -35,7 +39,7 @@ import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 
-export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds } };
+export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort } };
 
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
@@ -49,6 +53,7 @@ export class Engine {
   #activeRequests = 0;
   #closing = false;
   #idleWaiters = new Set<() => void>();
+  #searchAdapter: Promise<PostgresInvestigationSearch> | null = null;
   // Unknown host state is closed to scheduled dispatch. Only a trusted host sets it.
   #jobLifecycle: JobLifecycle = { awake: false, windowOpen: false, backgroundEnabled: false };
   get context(): Context { return this.#requestContext.getStore() || this.#baseContext; }
@@ -99,10 +104,15 @@ export class Engine {
     };
     this.services.calculator = new CalculatorService(store, calculationOptions);
     // Execution resolution is a trusted host port, never a route or RPC setting.
-    this.services.reports = new ReportService(store, { ...calculationOptions, executionReceipt: (ctx, id, view) => {
+    const reportOptions: ReportOptions = { ...calculationOptions, executionReceipt: (ctx, id, view) => {
       const resolver = this.options.reports?.executionReceipt ?? createJournalExecutionResolver(this.services.actions);
       return resolver(ctx, id, view);
-    } });
+    } };
+    this.services.reports = new ReportService(store, reportOptions);
+    this.services.bridge = new BridgeService(store, { calculator: calculationOptions, ...this.options.bridge });
+    this.services.investigations = new InvestigationService(store, calculationOptions);
+    this.services.research = new ResearchSearchService(store, { calculator: calculationOptions, reports: reportOptions,
+      adapter: () => this.privateSearchAdapter() });
     this.services.connectors = new ConnectorService(store, { credentialBroker: this.options.connectorCredentials });
     this.services.helper = new AnalyticalHelper({ executable: this.options.pythonExecutable });
     if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: resolve(this.options.directory, 'updates') });
@@ -160,8 +170,25 @@ export class Engine {
   private async closeVault() {
     this.services.connectorRuntime?.close();
     this.services.gateway?.clearCredentials(); this.services.speech?.clearCredentials();
+    if (this.#searchAdapter) {
+      const pending = this.#searchAdapter; this.#searchAdapter = null;
+      const adapter = await pending.catch(() => null); await adapter?.close();
+    }
     for (const staged of this.#stagedVaults) await staged.close(); this.#stagedVaults.clear();
     if (this.vault) { await this.vault.close(); this.vault = null; this.services = {}; }
+  }
+  private async privateSearchAdapter(): Promise<ResearchSearchPort> {
+    if (this.options.research?.search) return this.options.research.search;
+    check(this.options.storage === 'postgres' && this.options.postgresUrl, 'SEARCH_DATABASE_REQUIRED',
+      'Private token search requires configured local PostgreSQL; no fallback search engine is selected.');
+    if (!this.#searchAdapter) {
+      const url = new URL(this.options.postgresUrl);
+      check(['postgresql:', 'postgres:'].includes(url.protocol), 'INVALID_POSTGRES_CONFIG', 'Use a local PostgreSQL connection URL.');
+      this.#searchAdapter = PostgresInvestigationSearch.connect({ host: url.hostname.replace(/^\[|\]$/g, '') as '127.0.0.1' | '::1',
+        port: Number(url.port || 5432), user: decodeURIComponent(url.username), password: decodeURIComponent(url.password),
+        database: decodeURIComponent(url.pathname.slice(1)) }).catch(error => { this.#searchAdapter = null; throw error; });
+    }
+    return this.#searchAdapter;
   }
   async shutdown(timeoutMs = 70000) {
     check(Number.isSafeInteger(timeoutMs) && timeoutMs >= 100 && timeoutMs <= 75000, 'INVALID_SHUTDOWN_LIMIT', 'Use a bounded engine shutdown deadline.');
@@ -281,6 +308,35 @@ export class Engine {
         const result = await s.businessProfile.remove(ctx, payload.id); const removed = await this.purgeManagedCopies(); return { ...result, copiesRemoved: removed };
       }
       case 'calculation.run': return s.calculator.calculate(ctx, payload);
+      case 'analysis.bridge.publish': return s.bridge.publish(ctx, payload);
+      case 'analysis.bridge.profiles': this.journalPayload(payload, [], [], 'BRIDGE_PROFILE_INVALID'); return s.bridge.profiles(ctx);
+      case 'analysis.bridge.run': return s.bridge.run(ctx, payload);
+      case 'analysis.bridge.get': {
+        const input = this.journalPayload(payload, ['id'], ['id'], 'BRIDGE_REFERENCE_INVALID'); return s.bridge.get(ctx, input);
+      }
+      case 'investigations.create': return s.investigations.create(ctx, payload);
+      case 'investigations.list': this.journalPayload(payload, [], [], 'INVALID_INVESTIGATION'); return s.investigations.list(ctx);
+      case 'investigations.get':
+      case 'investigations.capsule': {
+        const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_INVESTIGATION');
+        return method === 'investigations.get' ? s.investigations.get(ctx, input.id) : s.investigations.capsule(ctx, input.id);
+      }
+      case 'investigations.advance':
+      case 'investigations.resume':
+      case 'investigations.cancel':
+      case 'investigations.pause':
+      case 'investigations.revise': {
+        const keys = method === 'investigations.revise' ? ['id', 'expectedRevision', 'reason', 'objective', 'hypotheses', 'budget']
+          : method === 'investigations.pause' ? ['id', 'expectedRevision', 'reason'] : ['id', 'expectedRevision'];
+        const required = ['id', 'expectedRevision', ...(['investigations.pause', 'investigations.revise'].includes(method) ? ['reason'] : [])];
+        const input = this.journalPayload(payload, keys, required, 'INVALID_INVESTIGATION');
+        const { id, ...update } = input; return s.investigations[method.slice('investigations.'.length)](ctx, id, update);
+      }
+      case 'investigations.drilldown': {
+        const input = this.journalPayload(payload, ['id', 'receiptId', 'offset', 'limit'], ['id', 'receiptId', 'offset', 'limit'], 'INVALID_INVESTIGATION');
+        const { id, ...page } = input; return s.investigations.drilldown(ctx, id, page);
+      }
+      case 'research.search': return s.research.search(ctx, payload);
       case 'receipts.get': return s.calculator.receipt(ctx, payload.id);
       case 'sources.list': return this.visibleImports();
       case 'sources.delete': { const result = await s.trust.deleteSource(ctx, payload.id); const removed = await this.purgeManagedCopies(); return { ...result, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' }; }

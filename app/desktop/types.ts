@@ -6,6 +6,10 @@ import type { MappingReview, IndependentSourceTotals } from '../../platform/runt
 import type { JournalContent, JournalDecision, JournalDraft } from '../../platform/runtime/decision-journal.ts';
 import type { JournalDecisionReview } from '../../platform/runtime/reports.ts';
 import type { BusinessProfileInput } from '../../platform/runtime/conversation-context.ts';
+import type { BridgeProfileDefinition, BridgeProfileRecord, BridgeRunRequest, BridgeRecord } from '../../platform/runtime/bridge-service.ts';
+import type { InvestigationCreate, Investigation, InvestigationRevisionInput, InvestigationCapsule, InvestigationDrilldown } from '../../platform/runtime/investigation-contracts.ts';
+import type { InvestigationSearchRequest } from '../../platform/runtime/investigation-search.ts';
+import type { ResearchSearchService } from '../../platform/runtime/research-search.ts';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue; }
@@ -28,6 +32,19 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'business.context.receipt': { id: string };
   'business.profile.record': BusinessProfileInput;
   'business.profile.remove': { id: string };
+  'analysis.bridge.publish': { id: string; expectedRevision: number; definition: BridgeProfileDefinition };
+  'analysis.bridge.run': BridgeRunRequest;
+  'analysis.bridge.get': { id: string };
+  'investigations.create': InvestigationCreate;
+  'investigations.get': { id: string };
+  'investigations.capsule': { id: string };
+  'investigations.advance': { id: string; expectedRevision: number };
+  'investigations.resume': { id: string; expectedRevision: number };
+  'investigations.cancel': { id: string; expectedRevision: number };
+  'investigations.pause': { id: string; expectedRevision: number; reason: string };
+  'investigations.revise': InvestigationRevisionInput & { id: string };
+  'investigations.drilldown': { id: string; receiptId: string; offset: number; limit: number };
+  'research.search': InvestigationSearchRequest;
   'actions.revise': JsonObject & { id: string; payload: JsonObject };
   'jobs.create': DesktopJobConfig;
   'jobs.amend': { id: string; config: DesktopGoalJobConfig };
@@ -54,10 +71,16 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'updates.verify': JsonObject & { manifest: JsonObject | string; signature: string };
   'updates.stage': JsonObject & { manifest: JsonObject | string; signature: string; confirmed: true };
 };
-type OptionalPayloads = { 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
+type OptionalPayloads = { 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
 export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
-export type DesktopResult<M extends DesktopMethod> = M extends 'workspace.status' ? { open: boolean; experimental: boolean; version: string; storage: string; workspace?: JsonObject } : M extends 'decisions.journal.draft' ? JournalDraft : M extends 'decisions.journal.confirm' | 'decisions.journal.revise' | 'decisions.journal.review' ? JournalDecision : M extends 'decisions.journal.due' ? Array<JournalDecision | JsonObject> : unknown;
+export type DesktopResult<M extends DesktopMethod> =
+  M extends 'analysis.bridge.publish' ? BridgeProfileRecord : M extends 'analysis.bridge.profiles' ? BridgeProfileRecord[] :
+  M extends 'analysis.bridge.run' | 'analysis.bridge.get' ? BridgeRecord :
+  M extends 'investigations.list' ? Investigation[] : M extends 'investigations.capsule' ? InvestigationCapsule :
+  M extends 'investigations.drilldown' ? InvestigationDrilldown : M extends 'investigations.create' | 'investigations.get' | 'investigations.advance' | 'investigations.resume' | 'investigations.cancel' | 'investigations.pause' | 'investigations.revise' ? Investigation :
+  M extends 'research.search' ? Awaited<ReturnType<ResearchSearchService['search']>> :
+  M extends 'workspace.status' ? { open: boolean; experimental: boolean; version: string; storage: string; workspace?: JsonObject } : M extends 'decisions.journal.draft' ? JournalDraft : M extends 'decisions.journal.confirm' | 'decisions.journal.revise' | 'decisions.journal.review' ? JournalDecision : M extends 'decisions.journal.due' ? Array<JournalDecision | JsonObject> : unknown;
 export interface DesktopBridge {
   request<M extends DesktopMethod>(method: M, ...args: M extends keyof RequiredPayloads ? [payload: DesktopPayload<M>] : [payload?: DesktopPayload<M>]): Promise<DesktopResult<M>>;
   onEngineStatus(callback: (status: EngineStatus) => void): () => void;
