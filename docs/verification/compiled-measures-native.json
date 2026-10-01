@@ -1,0 +1,260 @@
+{
+  "suite": "native-compiled-single-definition-measures",
+  "sourceCommit": "f5b18f2e049b5af7283e63cb035243c2d201c8d7",
+  "passed": true,
+  "checks": [
+    {
+      "name": "pristine-dedicated-loopback-postgresql-identity",
+      "passed": true,
+      "evidence": "native-postgresql",
+      "serverVersion": "18.6"
+    },
+    {
+      "name": "custom-bank-sum:javascript-literal-answer",
+      "passed": true,
+      "evidence": "javascript-independent-literal-answer",
+      "expectedMinor": "75"
+    },
+    {
+      "name": "custom-bank-sum:duckdb-literal-answer",
+      "passed": true,
+      "evidence": "native-duckdb",
+      "expectedMinor": "75",
+      "projectionDigest": "7138c86c6a16da4c28c427a403acde543f03032d780a6dc1e277279286f67abd"
+    },
+    {
+      "name": "custom-bank-sum:duckdb-tampered-answer",
+      "passed": true,
+      "evidence": "native-duckdb"
+    },
+    {
+      "name": "custom-bank-sum:postgres-literal-answer",
+      "passed": true,
+      "evidence": "native-postgres",
+      "expectedMinor": "75",
+      "projectionDigest": "7138c86c6a16da4c28c427a403acde543f03032d780a6dc1e277279286f67abd"
+    },
+    {
+      "name": "custom-bank-sum:postgres-tampered-answer",
+      "passed": true,
+      "evidence": "native-postgres"
+    },
+    {
+      "name": "negative-definition-sign:javascript-literal-answer",
+      "passed": true,
+      "evidence": "javascript-independent-literal-answer",
+      "expectedMinor": "-75"
+    },
+    {
+      "name": "negative-definition-sign:duckdb-literal-answer",
+      "passed": true,
+      "evidence": "native-duckdb",
+      "expectedMinor": "-75",
+      "projectionDigest": "b26738fb6631cbc5643b4f63becc3011870b45a16ca8e372cfb07c21df6c120c"
+    },
+    {
+      "name": "negative-definition-sign:duckdb-tampered-answer",
+      "passed": true,
+      "evidence": "native-duckdb"
+    },
+    {
+      "name": "negative-definition-sign:postgres-literal-answer",
+      "passed": true,
+      "evidence": "native-postgres",
+      "expectedMinor": "-75",
+      "projectionDigest": "b26738fb6631cbc5643b4f63becc3011870b45a16ca8e372cfb07c21df6c120c"
+    },
+    {
+      "name": "negative-definition-sign:postgres-tampered-answer",
+      "passed": true,
+      "evidence": "native-postgres"
+    },
+    {
+      "name": "alternate-fee-field:javascript-literal-answer",
+      "passed": true,
+      "evidence": "javascript-independent-literal-answer",
+      "expectedMinor": "500"
+    },
+    {
+      "name": "alternate-fee-field:duckdb-literal-answer",
+      "passed": true,
+      "evidence": "native-duckdb",
+      "expectedMinor": "500",
+      "projectionDigest": "cdb802ac960d8ab275cc7dff34668ec3232d974591efa3d4b6a5053b8d865fe6"
+    },
+    {
+      "name": "alternate-fee-field:duckdb-tampered-answer",
+      "passed": true,
+      "evidence": "native-duckdb"
+    },
+    {
+      "name": "alternate-fee-field:postgres-literal-answer",
+      "passed": true,
+      "evidence": "native-postgres",
+      "expectedMinor": "500",
+      "projectionDigest": "cdb802ac960d8ab275cc7dff34668ec3232d974591efa3d4b6a5053b8d865fe6"
+    },
+    {
+      "name": "alternate-fee-field:postgres-tampered-answer",
+      "passed": true,
+      "evidence": "native-postgres"
+    },
+    {
+      "name": "exact-above-safe-integer:javascript-literal-answer",
+      "passed": true,
+      "evidence": "javascript-independent-literal-answer",
+      "expectedMinor": "900719925474099400"
+    },
+    {
+      "name": "exact-above-safe-integer:duckdb-literal-answer",
+      "passed": true,
+      "evidence": "native-duckdb",
+      "expectedMinor": "900719925474099400",
+      "projectionDigest": "deb0aa118b6ea37dbbec0582cc36bf18bdbf7725bba36a4f774a6a209b7f1a87"
+    },
+    {
+      "name": "exact-above-safe-integer:duckdb-tampered-answer",
+      "passed": true,
+      "evidence": "native-duckdb"
+    },
+    {
+      "name": "exact-above-safe-integer:postgres-literal-answer",
+      "passed": true,
+      "evidence": "native-postgres",
+      "expectedMinor": "900719925474099400",
+      "projectionDigest": "deb0aa118b6ea37dbbec0582cc36bf18bdbf7725bba36a4f774a6a209b7f1a87"
+    },
+    {
+      "name": "exact-above-safe-integer:postgres-tampered-answer",
+      "passed": true,
+      "evidence": "native-postgres"
+    },
+    {
+      "name": "decimal-38-maximum:javascript-literal-answer",
+      "passed": true,
+      "evidence": "javascript-independent-literal-answer",
+      "expectedMinor": "99999999999999999999999999999999999999"
+    },
+    {
+      "name": "decimal-38-maximum:duckdb-literal-answer",
+      "passed": true,
+      "evidence": "native-duckdb",
+      "expectedMinor": "99999999999999999999999999999999999999",
+      "projectionDigest": "0096288ee177ecbd6eece8f202636f63e29a1aa10dfb073936256f2b5f17a25d"
+    },
+    {
+      "name": "decimal-38-maximum:duckdb-tampered-answer",
+      "passed": true,
+      "evidence": "native-duckdb"
+    },
+    {
+      "name": "decimal-38-maximum:postgres-literal-answer",
+      "passed": true,
+      "evidence": "native-postgres",
+      "expectedMinor": "99999999999999999999999999999999999999",
+      "projectionDigest": "0096288ee177ecbd6eece8f202636f63e29a1aa10dfb073936256f2b5f17a25d"
+    },
+    {
+      "name": "decimal-38-maximum:postgres-tampered-answer",
+      "passed": true,
+      "evidence": "native-postgres"
+    },
+    {
+      "name": "unknown-fee-excluded:javascript-literal-answer",
+      "passed": true,
+      "evidence": "javascript-independent-literal-answer",
+      "expectedMinor": "125"
+    },
+    {
+      "name": "unknown-fee-excluded:duckdb-literal-answer",
+      "passed": true,
+      "evidence": "native-duckdb",
+      "expectedMinor": "125",
+      "projectionDigest": "30acf1c19a9df483bc068cf02f46a5ff3285e4e63d70b7cb5b7b4e20037d70e6"
+    },
+    {
+      "name": "unknown-fee-excluded:duckdb-tampered-answer",
+      "passed": true,
+      "evidence": "native-duckdb"
+    },
+    {
+      "name": "unknown-fee-excluded:postgres-literal-answer",
+      "passed": true,
+      "evidence": "native-postgres",
+      "expectedMinor": "125",
+      "projectionDigest": "30acf1c19a9df483bc068cf02f46a5ff3285e4e63d70b7cb5b7b4e20037d70e6"
+    },
+    {
+      "name": "unknown-fee-excluded:postgres-tampered-answer",
+      "passed": true,
+      "evidence": "native-postgres"
+    },
+    {
+      "name": "unknown-fee-rejected:required-value-refusal",
+      "passed": true,
+      "evidence": "javascript-contract-refusal-before-native-sql",
+      "reason": "MISSING_MEASURE_VALUE"
+    },
+    {
+      "name": "production-http-author-publish-bank-import-and-catalog",
+      "passed": true,
+      "evidence": "native-postgresql-encrypted-authority-and-actual-http",
+      "sourceQualification": "experimental-synthetic"
+    },
+    {
+      "name": "production-http-custom-bank-sum-and-native-proofs",
+      "passed": true,
+      "evidence": "production-default-native-duckdb-and-native-postgresql",
+      "expectedMinor": "10025"
+    },
+    {
+      "name": "production-http-authority-keeps-synthetic-plaintext-encrypted",
+      "passed": true,
+      "evidence": "native-postgresql-encrypted-snapshot"
+    },
+    {
+      "name": "production-http-reopen-preserves-compiled-receipt-and-native-recalculation",
+      "passed": true,
+      "evidence": "native-postgresql-reopen-and-default-native-duckdb"
+    },
+    {
+      "name": "production-http-owned-workspace-deletion",
+      "passed": true,
+      "evidence": "native-postgresql-encrypted-authority"
+    }
+  ],
+  "blockers": [],
+  "engines": {
+    "duckdb": "native-executed",
+    "postgres": "native-executed"
+  },
+  "scope": "Literal authored single-definition sum vectors against JavaScript, native DuckDB and native PostgreSQL; production Engine HTTP import/catalog/run/receipt/reopen with PostgreSQL encrypted authority and default native DuckDB. No vendor, provider, enterprise, installer or full-release qualification.",
+  "evidenceOrigin": "Actual bounded coordinator native run against the exact pinned source; synthetic data only.",
+  "rawReportSha256": "5ebee6e5b2e39ced0dcb8f9ea8fcedd9b170ab2bdf8405ee7126b63b253cabde",
+  "lifecycleSha256": "55ade371fb8c09c3a21de8c721fc8139485b30f5b8776732091223154b0719c6",
+  "nativeGateSha256": "848a3f607df83e2dcda7eddae234f9c0d4fcd4eb9a52dc5dd942a74c036b4ad5",
+  "binaryVersion": "postgres (PostgreSQL) 18.6",
+  "archiveSha256": "1df55002afe95b945d934c078b13e82c1603fa546731e511d068aa983b4ead28",
+  "binarySha256": {
+    "postgres.exe": "14817df435104dcfe05ad8343fda200930abf778553ab60154bd285aea6833e1",
+    "initdb.exe": "e2b30e9d223f05ca0dc1219798d805bbdb8ab4bd29ab59c70956bf7f41219e57",
+    "pg_ctl.exe": "3cdb444b7067d824d8c6b2626aaf8688163ef0b001734c1a8a6502cdccde23bb"
+  },
+  "dependencyVersions": {
+    "pg": "8.23.0",
+    "duckdbNodeApi": "1.5.5-r.3"
+  },
+  "runBytes": 50773502,
+  "serverStopped": true,
+  "generatedStateLocation": "Fresh run-owned C: workspace; existing D: tools read only.",
+  "dedicatedSecurityReview": "blocked-unverified",
+  "externalCorpusAcquired": 0,
+  "namedConnectorGroupsQualified": 0,
+  "priorQualificationRun": {
+    "sourceCommit": "5ca5b92f3a62ac60419e853be2001eed224ac987",
+    "passed": false,
+    "failedCheck": "decimal-38-maximum:duckdb-tampered-answer",
+    "cause": "The test incremented the maximum to an unsupported 39-digit figure; the runtime correctly refused the projection.",
+    "correction": "Wrong-answer probe now moves toward zero. A local regression distinguishes in-range SQL mismatch from pre-acquisition overflow refusal."
+  }
+}
