@@ -19,6 +19,8 @@ import { ActionService } from './actions.ts';
 import { JobService } from './jobs.ts';
 import { createEngineJobRunner, type EngineJobOptions, type JobLifecycle } from './engine-jobs.ts';
 import type { Job } from './jobs.ts';
+import type { CalendarRules } from './calendar-zone.ts';
+import type { CalendarBounds } from './calendar.ts';
 import { PluginService } from './plugins.ts';
 import { LearningService } from './learning.ts';
 import { MCPService } from './mcp.ts';
@@ -30,7 +32,7 @@ import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 
-export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions };
+export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds } };
 
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
@@ -103,7 +105,9 @@ export class Engine {
     this.services.auth = new AuthService(store);
     this.services.sync = new SyncService(store, { ...this.options.sync, vault });
     this.services.actions = new ActionService(store, this.builtinActions(store));
-    this.services.jobs = new JobService(store, { deliverableGuard: (ctx: Context, job: any) => {
+    this.services.jobs = new JobService(store, { clock: this.options.durableJobs?.clock,
+      calendarRules: this.options.jobCalendar?.rules, calendarBounds: this.options.jobCalendar?.bounds,
+      deliverableGuard: (ctx: Context, job: any) => {
       if (!job.deliverable) return true;
       if (job.plan) return this.services.jobRunner?.canRelease(ctx, job) === true;
       const ids = job.deliverable.result?.receiptIds;
@@ -276,13 +280,31 @@ export class Engine {
       case 'actions.execute': return s.actions.execute(ctx, payload.id);
       case 'actions.reconcile': return s.actions.reconcile(ctx, payload.id);
       case 'jobs.list': return s.jobs.list(ctx);
-      case 'jobs.types': return { types: ['owner-brief', ...(s.jobRunner ? [...s.jobRunner.runners.keys()] : [])], configured: !!s.jobRunner, policy: this.options.durableJobs ? { maxActiveJobs: this.options.durableJobs.maxActiveJobs, leaseMs: this.options.durableJobs.leaseMs } : null, localOnly: true, externalEffects: 'prepare-only', lifecycle: { ...this.#jobLifecycle } };
+      case 'jobs.types': return { types: ['owner-brief', ...(s.jobRunner ? [...s.jobRunner.runners.keys()] : [])], configured: !!s.jobRunner, policy: this.options.durableJobs ? { maxActiveJobs: this.options.durableJobs.maxActiveJobs, leaseMs: this.options.durableJobs.leaseMs } : null, calendar: this.options.jobCalendar ? { configured: true, rulesRevision: this.options.jobCalendar.rules.revision, minYear: this.options.jobCalendar.rules.minYear, maxYear: this.options.jobCalendar.rules.maxYear, bounds: { ...this.options.jobCalendar.bounds } } : { configured: false }, localOnly: true, externalEffects: 'prepare-only', lifecycle: { ...this.#jobLifecycle } };
       case 'jobs.create': {
-        if (payload.type === 'owner-brief') return this.createBriefJob(ctx, payload);
+        if (payload.type === 'owner-brief') {
+          check(!Object.hasOwn(payload, 'calendar'), 'CALENDAR_RUNNER_REQUIRED', 'Calendar schedules require an installed typed goal runner.');
+          return this.createBriefJob(ctx, payload);
+        }
         check(['calculation-set', 'evidence-review', 'action-preparation'].includes(payload.type), 'JOB_TYPE_UNSUPPORTED', 'Choose an installed goal type explicitly.');
         return this.jobRunner().create(ctx, payload);
       }
       case 'jobs.amend': return this.jobRunner().amend(ctx, payload.id, payload.config);
+      case 'jobs.calendar.preview': {
+        const job = s.jobs.find(store.read(), payload.id); s.jobs.owner(store.read(), ctx, job);
+        check(job.plan, 'CALENDAR_RUNNER_REQUIRED', 'Calendar schedules require an installed typed goal runner.');
+        this.jobRunner().runner(job.type);
+        return s.jobs.calendarEvaluation(job);
+      }
+      case 'jobs.calendar.configure': {
+        const job = s.jobs.find(store.read(), payload.id); s.jobs.owner(store.read(), ctx, job);
+        check(job.plan, 'CALENDAR_RUNNER_REQUIRED', 'Calendar schedules require an installed typed goal runner.');
+        this.jobRunner().runner(job.type);
+        return s.jobs.configureCalendar(ctx, payload.id, payload.definition,
+          payload.expectedScheduleRevision, payload.expectedObjectiveRevision, payload.replacement);
+      }
+      case 'jobs.calendar.pause': return s.jobs.pauseCalendar(ctx, payload.id);
+      case 'jobs.calendar.resume': return s.jobs.resumeCalendar(ctx, payload.id);
       case 'jobs.cancel': return this.typedJob(payload.id) ? this.jobRunner().cancel(ctx, payload.id) : s.jobs.cancel(ctx, payload.id);
       case 'jobs.reconcile': return this.jobRunner().reconcile(ctx, payload.id);
       case 'jobs.progress': return this.jobRunner().progress(ctx, payload.id);
@@ -412,7 +434,7 @@ export class Engine {
     const capped = new JobService({ read: () => store.read(), update: change => store.update(state => {
       check(state.jobs.filter((job: Job) => !['accepted', 'cancelled', 'revoked', 'stopped'].includes(job.status) || job.execution?.attempts.some(attempt => ['dispatched', 'unknown'].includes(attempt.status))).length < limit, 'ACTIVE_JOB_LIMIT', 'The configured active job ceiling is reached.');
       return change(state);
-    }) }, { deliverableGuard: this.services.jobs.deliverableGuard });
+    }) }, { clock: this.services.jobs.clock, deliverableGuard: this.services.jobs.deliverableGuard });
     return capped.create(ctx, payload);
   }
   private typedJob(id: string): boolean { return !!this.services.jobs.find(this.store().read(), id).plan; }
@@ -426,7 +448,7 @@ export class Engine {
     if (this.#closing || this.#transition || !this.vault || !this.vault.read().policy.autonomy || !host.awake || (!host.windowOpen && !host.backgroundEnabled)) return [];
     this.#activeRequests++;
     try {
-    const due = this.vault.read().jobs.filter((job: Job) => !job.plan && (host.windowOpen || job.background === true) && ((['scheduled', 'approval-blocked'].includes(job.status) && Date.parse(job.nextRunAt) <= Date.now()) || (job.status === 'running' && job.lease && Date.parse(job.lease.expiresAt) <= Date.now())));
+    const due = this.vault.read().jobs.filter((job: Job) => !job.plan && (host.windowOpen || job.background === true) && ((['scheduled', 'approval-blocked'].includes(job.status) && Date.parse(job.nextRunAt) <= this.services.jobs.clock()) || (job.status === 'running' && job.lease && Date.parse(job.lease.expiresAt) <= this.services.jobs.clock())));
     const results = [];
     for (const job of due) { try { results.push(await this.runJob(job.id)); } catch (error) { results.push({ id: job.id, error: (error as Error).message }); } }
     if (this.services.jobRunner) for (const member of this.vault.read().members.filter(member => member.active && ['owner', 'cofounder'].includes(member.role))) {

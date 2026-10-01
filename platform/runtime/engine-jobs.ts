@@ -10,6 +10,8 @@ import { JobService } from './jobs.ts';
 export type EngineJobOptions = {
   workerId: string; maxActiveJobs: number; leaseMs: number;
   networkAvailable: () => boolean;
+  /** Trusted host clock; fixtures explicitly label synthetic time. */
+  clock?: () => number;
 };
 export type JobLifecycle = { awake: boolean; windowOpen: boolean; backgroundEnabled: boolean };
 type OperationRecord = {
