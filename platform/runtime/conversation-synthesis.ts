@@ -10,6 +10,24 @@ const INVALID = 'INVALID_CONVERSATION_SYNTHESIS';
 const MAX_INPUT_BYTES = 65536;
 const MAX_OUTPUT_BYTES = 32768;
 const NUMERIC_PROSE = /[\p{N}\p{Sc}%+=<>]|\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|lakh|crore|half|quarter|twice|double|doubled|triple|tripled|percent|percentage|rupees?|dollars?|euros?|pounds?|yen|yuan|INR|USD|EUR|GBP|JPY)\b/iu;
+const CURRENCY_CODES = new Set(Intl.supportedValuesOf('currency'));
+// Some currency codes are ordinary English words. Lower/mixed-case prose may use those words;
+// an uppercase code or explicit denomination assertion still belongs in a local slot.
+const CURRENCY_WORDS = new Set(['ALL', 'TRY', 'CUP', 'PEN', 'TOP', 'MAD', 'GEL', 'COP', 'BOB', 'ANG', 'SOS', 'BAM', 'RON', 'RUB', 'ERN']);
+const currencyNames = new Intl.DisplayNames(['en'], { type: 'currency' });
+const CURRENCY_NAMES = new RegExp('\\b(?:' + [...CURRENCY_CODES].map(code => currencyNames.of(code)!
+  .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')s?\\b', 'iu');
+const MEASURE_PROSE = /\b(?:basis[\s-]+points?|bps|bp|cents?|paise|paisa|francs?)\b/iu;
+function unboundMeasure(prose: string, admittedCurrencies: Set<string>): boolean {
+  if (MEASURE_PROSE.test(prose) || CURRENCY_NAMES.test(prose)) return true;
+  for (const token of prose.matchAll(/\b[a-z]{3}\b/giu)) {
+    const code = token[0].toUpperCase();
+    if (!CURRENCY_CODES.has(code) && !admittedCurrencies.has(code)) continue;
+    const denomination = /\b(?:currency(?:\s+code)?(?:\s+(?:is|was))?|denominated\s+in|denomination(?:\s+(?:is|was))?|unit(?:\s+(?:is|was))?)\s*[:=]?\s*$/iu.test(prose.slice(0, token.index));
+    if (!CURRENCY_WORDS.has(code) || token[0] === code || denomination) return true;
+  }
+  return false;
+}
 const LOCATOR_OR_CODE = /(?:https?:|file:|mailto:|www\.|```|\]\s*\(|<|>)/iu;
 const normalizedProse = (value: string) => value.normalize('NFKC').replace(/\p{Default_Ignorable_Code_Point}/gu, '');
 const ref = (value: unknown): value is string => typeof value === 'string' && /^[a-z][a-z0-9_-]{0,63}$/i.test(value);
@@ -125,6 +143,8 @@ export function validateConversationSynthesis(raw: unknown, summary: GroundedToo
   validateSummary(summary); bounded(raw, MAX_OUTPUT_BYTES);
   exact(raw, ['schemaVersion', 'paragraphs', 'cautionRefs']);
   const evidence = new Map(summary.evidence.map(item => [item.ref, item]));
+  const admittedCurrencies = new Set(summary.evidence.filter(item => item.kind === 'figure' && item.unit === 'money')
+    .map(item => (item as Extract<SynthesisEvidence, { kind: 'figure' }>).currency!));
   const cautions = summary.evidence.filter(item => item.kind === 'caution').map(item => item.ref);
   check(raw.schemaVersion === 1 && Array.isArray(raw.paragraphs) && raw.paragraphs.length > 0 && raw.paragraphs.length <= 8
     && references(raw.cautionRefs, 64) && sameRefs(raw.cautionRefs, cautions), INVALID, 'Synthesis must preserve every required caution exactly.');
@@ -139,7 +159,8 @@ export function validateConversationSynthesis(raw: unknown, summary: GroundedToo
       if (part.kind === 'text') {
         exact(part, ['kind', 'text']);
         check(typeof part.text === 'string' && part.text.length > 0 && part.text.length <= 1200
-          && !NUMERIC_PROSE.test(normalizedProse(part.text)) && !LOCATOR_OR_CODE.test(normalizedProse(part.text)), INVALID, 'Amounts, currencies, dates and counts require local slots; prose cannot emit locators or code.');
+          && !NUMERIC_PROSE.test(normalizedProse(part.text)) && !unboundMeasure(normalizedProse(part.text), admittedCurrencies)
+          && !LOCATOR_OR_CODE.test(normalizedProse(part.text)), INVALID, 'Amounts, currencies, measures, dates and counts require local slots; prose cannot emit locators or code.');
         if (part.text.trim()) meaningful = true;
       } else {
         exact(part, ['kind', 'ref']);
@@ -150,7 +171,7 @@ export function validateConversationSynthesis(raw: unknown, summary: GroundedToo
     }
     check(meaningful, INVALID, 'A grounded paragraph cannot be empty.');
     const prose = normalizedProse(paragraph.parts.map((part: any) => part.kind === 'text' ? part.text : ' ').join(''));
-    check(!NUMERIC_PROSE.test(prose) && !LOCATOR_OR_CODE.test(prose), INVALID, 'Adjacent prose parts cannot introduce numeric assertions, code or locators.');
+    check(!NUMERIC_PROSE.test(prose) && !unboundMeasure(prose, admittedCurrencies) && !LOCATOR_OR_CODE.test(prose), INVALID, 'Adjacent prose parts cannot introduce numeric or measure assertions, code or locators.');
   }
   check(summary.results.every(result => {
     const substantive = result.evidenceRefs.filter(id => ['claim', 'figure'].includes(evidence.get(id)!.kind));
