@@ -1,0 +1,11 @@
+# Local Codex CLI source checkpoint
+
+The user's standard local Codex CLI choice is wired through trusted host GatewayOptions and EngineOptions. The documented native CLI owns ChatGPT authentication; the application copies no login tokens and injects no API key. An actual installed CLI/help profile is required for native mode. Synthetic profiles require an explicitly injected fixture port and cannot reach the default process. Public RPC cannot supply trusted evidence or a process.
+
+Checked source: 2ef321affbc7daedf1f2c153a7d33ce23ccc846b, tree 31da106013cb7adf031d30141c65d3df006e8442. All **677 tests pass**, zero failures/skips, across 52 test files. Strict application and semantic TypeScript, 135-file syntax validation and Windows headless worker smoke pass. The separate enterprise dependency-contract tests pass 2/2; its compiler remains blocked with 22 diagnostics until genuine declared packages are provided.
+
+Six actual paired-loopback HTTP fixtures prove preview/approval where required, one completed model plan and an independently expected saved synthetic earned receipt of 250000 minor units. Missing completion, failed turn, nonzero exit and forged RPC evidence withhold results without fallback or resend. Receipts hash exact application stdin/CLI response and preserve providerPayloadObserved=false; the hidden vendor payload is not observed.
+
+[Report](verification/local-codex-cli.json), [complete joined TAP](verification/local-codex-cli-tests.tap), [adapter/interface details](codex-cli-adapter.md), and [actual public-flow fixtures](../platform/tests/codex-cli-engine.test.ts). The earlier [636-test engine/native checkpoint](integrated-engine-milestone.md) remains historical evidence.
+
+This is source and synthetic protocol evidence. Actual native CLI/version/help, CLI-owned sign-in, account/model access including Luna, native completed inference, effective managed controls/internal retries and commercial eligibility remain unverified. Native executable probes were stopped after Windows access denied; authentication/session files were not read. No provider inference, dependency acquisition, GUI launch or D: write was performed by this lane. Desktop installers/native phone/hosted acceptance remain separate; dedicated security review remains blocked.

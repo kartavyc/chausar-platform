@@ -119,6 +119,10 @@
     {
       "commit": "503d44ed6ea3425c90f332f5327d850d922260ba",
       "feature": "Strictly typed public RPC/companion/provider boundaries and current async/receipt validation; expanded semantic program and test compiler coverage."
+    },
+    {
+      "commit": "4aa8fb32e9787e9f399b8e6490cc3b92d1ee7c59",
+      "feature": "Trusted local Codex CLI profile/process, completed-turn parsing, Engine injection and public synthetic model-plan-to-calculator receipt; no native account qualification."
     }
   ],
   "publicationCapability": {
@@ -195,7 +199,7 @@
     "actionWiring": "pending approval-policy decision",
     "unresolvedApprovalPolicy": "Baseline permits message-impact phone approvals; new companion permits only reversible internal changes."
   },
-  "updatedAt": "2026-10-01T00:39:45.085Z",
+  "updatedAt": "2026-10-01T01:16:29.186Z",
   "integratedEngineMilestone": {
     "status": "verified-local-synthetic-engine",
     "sourceCommit": "503d44ed6ea3425c90f332f5327d850d922260ba",
@@ -243,13 +247,37 @@
   ],
   "modelAuthentication": {
     "localProviderDecision": "User selected standard Codex CLI underneath the local build, CLI-managed normal ChatGPT sign-in; Luna only if the actual account supports it.",
-    "localProviderImplementation": "scoped isolated adapter task pending; no working inference claim",
+    "localProviderImplementation": "implemented protocol/Gateway/Engine/public HTTP synthetic flow; native CLI/account/model/inference remains unverified",
     "officialSIWC": "not registered; no OAuth grant authorized or completed",
     "commercialSubscriptionAccess": "unverified; do not claim CLI or legacy app-server commercial access",
     "accountSpecificModelDiscovery": "not executed",
     "completedAccountInference": "not executed",
     "automaticPaidFallback": false,
     "credentialCopying": false,
-    "backendApiEndpointsUsed": false
+    "backendApiEndpointsUsed": false,
+    "actualSyntheticPublicHttpChecks": 6,
+    "adapterFixtureChecks": 33,
+    "capabilitiesFromRpc": false,
+    "hostInterfaceEvidenceRequired": true,
+    "officialInterfaceDocumentationReviewed": true,
+    "nativeHelpVersion": "unverified; executable unresolved and native location probes stopped on access denial",
+    "evidence": "docs/verification/local-codex-cli.json"
+  },
+  "integratedCliCheckpoint": {
+    "checkedCommit": "2ef321affbc7daedf1f2c153a7d33ce23ccc846b",
+    "checkedTree": "31da106013cb7adf031d30141c65d3df006e8442",
+    "aggregateTests": {
+      "pass": 677,
+      "fail": 0,
+      "skipped": 0
+    },
+    "testFiles": 52,
+    "strictApplicationSemanticTypeScriptPassed": true,
+    "syntaxSourceFiles": 135,
+    "windowsHeadlessWorkerPassed": true,
+    "actualPublicHttpSyntheticReceiptMinor": "250000",
+    "nativeProviderQualified": false,
+    "enterpriseTypeScriptPassed": false,
+    "enterpriseDiagnostics": 22
   }
 }
