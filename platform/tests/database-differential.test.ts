@@ -39,7 +39,7 @@ test('disposable database acknowledgement is exact and mandatory before URL acce
   for (const value of [undefined, '', '0', 'true', 'yes']) {
     assert.throws(() => disposablePostgresConfiguration({ CHAUSAR_TEST_DATABASE_URL: validUrl, CHAUSAR_TEST_DATABASE_DISPOSABLE: value }), { code: 'DISPOSABLE_DATABASE_REQUIRED' });
   }
-  assert.throws(() => disposablePostgresConfiguration({ get CHAUSAR_TEST_DATABASE_URL() { throw Error('URL must not be accessed'); } }), { code: 'DISPOSABLE_DATABASE_REQUIRED' });
+  assert.throws(() => disposablePostgresConfiguration({ get CHAUSAR_TEST_DATABASE_URL(): never { throw Error('URL must not be accessed'); } }), { code: 'DISPOSABLE_DATABASE_REQUIRED' });
 });
 
 test('literal loopback hosts, dedicated database and explicit port boundaries', () => {

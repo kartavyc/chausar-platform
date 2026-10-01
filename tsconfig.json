@@ -13,6 +13,9 @@
   "include": [
     "platform/runtime/**/*.ts",
     "platform/tests/**/*.ts",
+    "platform/semantic-qualification/src/**/*.ts",
+    "platform/semantic-qualification/tests/**/*.ts",
+    "platform/semantic-qualification/run-suite.ts",
     "app/desktop/**/*.ts",
     "app/desktop/**/*.cts"
   ]

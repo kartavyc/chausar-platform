@@ -104,6 +104,10 @@ function processEnv(route: any): Record<string, string> {
   return result;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function parseProviderOutput(kind: RouteKind, body: string): { value: unknown; usage?: any } {
   check(Buffer.byteLength(body) <= 1048576, 'RESPONSE_TOO_LARGE', 'The model returned too much data.');
   let data: any;
@@ -118,8 +122,24 @@ function parseProviderOutput(kind: RouteKind, body: string): { value: unknown; u
     if (kind === 'claude-cli') return { value: data.structured_output || JSON.parse(data.result), usage: data.usage };
     if (kind === 'ollama') { check(!data.message?.tool_calls?.length, 'MODEL_TOOL_ATTEMPT', 'The model requested a tool.'); return { value: JSON.parse(data.message?.content || data.response), usage: { input_tokens: data.prompt_eval_count, output_tokens: data.eval_count } }; }
     if (kind === 'openai-responses' || kind === 'managed') {
-      check(!data.output?.some(o => o.type !== 'message' && o.type !== 'reasoning'), 'MODEL_TOOL_ATTEMPT', 'The model returned a tool or action.');
-      const text = data.output_text || data.output?.flatMap(o => o.content || []).filter(c => c.type === 'output_text').map(c => c.text).join('');
+      const output: unknown = data.output;
+      check(output == null || Array.isArray(output), 'INVALID_PLAN', 'The model returned an invalid output list.');
+      const items: unknown[] = output ?? [];
+      check(items.every(item => isRecord(item) && (item.type === 'message' || item.type === 'reasoning')), 'MODEL_TOOL_ATTEMPT', 'The model returned a tool or action.');
+      let text: unknown = data.output_text;
+      if (!text) text = items.flatMap(item => {
+        check(isRecord(item), 'INVALID_PLAN', 'The model returned an invalid output item.');
+        const content: unknown = item.content;
+        check(content == null || Array.isArray(content), 'INVALID_PLAN', 'The model returned invalid message content.');
+        const chunks: unknown[] = content ?? [];
+        return chunks.flatMap(chunk => {
+          check(isRecord(chunk), 'INVALID_PLAN', 'The model returned invalid message content.');
+          if (chunk.type !== 'output_text') return [];
+          check(typeof chunk.text === 'string', 'INVALID_PLAN', 'The model returned invalid plan text.');
+          return [chunk.text];
+        });
+      }).join('');
+      check(typeof text === 'string', 'INVALID_PLAN', 'The model returned invalid plan text.');
       return { value: JSON.parse(text), usage: data.usage };
     }
     check(data.choices?.length === 1 && !data.choices[0].message?.tool_calls?.length && !data.choices[0].message?.function_call, 'MODEL_TOOL_ATTEMPT', 'The model must return a single plan without tools.');
@@ -141,7 +161,10 @@ export class ModelGateway {
     const allowed = ['id', 'kind', 'model', 'endpoint', 'command', 'enabled', 'budgetMinor', 'maxCostMinor', 'maxOutputTokens', 'inputPerMillionMinor', 'outputPerMillionMinor', 'credentialEnv', 'label'];
     check(Object.keys(config).every(k => allowed.includes(k)), 'INVALID_ROUTE', 'Unknown route field; credentials must use the credential broker.');
     check(Object.hasOwn(PRIORITY, config.kind) && typeof config.model === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(config.model), 'INVALID_ROUTE', 'The route needs a kind and explicit model identifier.');
-    for (const key of ['budgetMinor', 'maxCostMinor', 'inputPerMillionMinor', 'outputPerMillionMinor']) if (config[key] !== undefined) check(typeof config[key] === 'string' && /^\d{1,30}$/.test(config[key]), 'INVALID_BUDGET', 'Costs and budgets use integer paise strings.');
+    for (const key of ['budgetMinor', 'maxCostMinor', 'inputPerMillionMinor', 'outputPerMillionMinor'] as const) {
+      const value = config[key];
+      if (value !== undefined) check(typeof value === 'string' && /^\d{1,30}$/.test(value), 'INVALID_BUDGET', 'Costs and budgets use integer paise strings.');
+    }
     if (config.maxOutputTokens !== undefined) check(Number.isInteger(config.maxOutputTokens) && config.maxOutputTokens >= 64 && config.maxOutputTokens <= 4096, 'INVALID_ROUTE', 'Output token limits must be between 64 and 4096.');
     if (config.credentialEnv) check(/^CHAUSAR_[A-Z0-9_]+$/.test(config.credentialEnv), 'INVALID_ROUTE', 'Use a dedicated CHAUSAR credential environment variable.');
     if (secret !== undefined) check(typeof secret === 'string' && secret.length > 0 && secret.length <= 8192 && !/[\r\n]/.test(secret), 'INVALID_CREDENTIAL', 'The supplied API credential is invalid.');
@@ -186,7 +209,7 @@ export class ModelGateway {
     const samples: any[] = [];
     if (state.policy.send === 'samples') {
       check(!request.samples || (Array.isArray(request.samples) && request.samples.length <= 5), 'SAMPLE_LIMIT', 'Model samples are limited to five rows.');
-      const selected = request.samples || facts.slice(0, 3).map(f => ({ factId: f.id }));
+      const selected: NonNullable<ModelRequest['samples']> = request.samples || facts.slice(0, 3).map(f => ({ factId: f.id }));
       for (const selection of selected) {
         const fact = facts.find(f => f.id === selection.factId); check(fact, 'SOURCE_REVOKED', 'A selected sample is not visible to your account.');
         const names = selection.fields || Object.keys(fact.fields);
@@ -309,7 +332,7 @@ export class ModelGateway {
   receipts(context: Context) {
     const member = authorize(this.store, context); const state = this.store.read(); const facts = visibleFacts(this.store, context); const visibleIds = new Set(facts.map(f => f.id));
     return structuredClone(state.modelReceipts.filter(r => (['owner', 'cofounder'].includes(member.role) || r.memberId === member.id) &&
-      (!r.sourceIds || r.sourceIds.every(id => sourceAllowed(state, context, id))) && (!r.factIds || r.factIds.every(id => visibleIds.has(id)))));
+      (!r.sourceIds || r.sourceIds.every((id: unknown) => typeof id === 'string' && sourceAllowed(state, context, id))) && (!r.factIds || r.factIds.every((id: unknown) => typeof id === 'string' && visibleIds.has(id)))));
   }
   clearCredentials() { this.#credentials.clear(); }
 }

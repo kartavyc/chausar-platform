@@ -4,16 +4,19 @@ import { resolve } from 'node:path';
 import { initialState, hash } from '../runtime/contracts.ts';
 import type { State, StateStore, Context } from '../runtime/contracts.ts';
 import { SpeechService } from '../runtime/speech.ts';
+import type { SpeechOptions } from '../runtime/speech.ts';
 import { TrustService } from '../runtime/trust.ts';
 
 class MemoryStore implements StateStore { state: State = initialState('Speech workspace'); read() { return this.state; } async update<T>(change: (state: State) => T | Promise<T>): Promise<T> { return await change(this.state); } }
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1 };
 const code = (name: string) => (e: any) => e.code === name;
 const audioBase64 = Buffer.from('RIFF synthetic audio fixture').toString('base64');
-async function uploadFixture(http: any) {
+async function uploadFixture(http: NonNullable<SpeechOptions['http']>) {
   const store = new MemoryStore(); store.state.policy.send = 'samples'; const speech = new SpeechService(store, { http });
   const provider = await speech.configure(owner, { id: 'api-speech', kind: 'api-upload', model: 'whisper-1', endpoint: 'https://api.example.com/v1/audio/transcriptions', ratePerMinuteMinor: '100', budgetMinor: '1000' }, 'speech-api-secret');
-  const preview = await speech.preview(owner, { providerId: provider.id, audioBase64, mimeType: 'audio/wav', durationMs: 90000 }); const approval = await speech.approve(owner, preview.id); return { store, speech, provider, preview, approval };
+  const preview = await speech.preview(owner, { providerId: provider.id, audioBase64, mimeType: 'audio/wav', durationMs: 90000 });
+  assert.ok('payloadBase64' in preview); assert.equal(preview.receiptBoundary, 'application-to-provider-http');
+  const approval = await speech.approve(owner, preview.id); return { store, speech, provider, preview, approval };
 }
 
 test('browser transcript is text input with provider/network disclosure and no API dispatch', async () => {

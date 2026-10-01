@@ -1,4 +1,4 @@
-import { authorize, check, newId, type Context, type State, type StateStore } from './contracts.ts';
+import { authorize, check, ChausarError, newId, type Context, type State, type StateStore } from './contracts.ts';
 import { digest } from './actions.ts';
 import { assertSourceAccess, sourceAllowed, trustFingerprint } from './trust.ts';
 import { validatePeriod } from './memory.ts';
@@ -43,6 +43,17 @@ export type EngineConnectorOptions = {
   semanticGate?: ConnectorSemanticPort | ((store: StateStore) => ConnectorSemanticPort);
   clock?: ReadClock;
   custody?: { maximumPendingReads: number; maximumBytes: number; ttlMs: number };
+};
+/** Literal RPC methods retain their actual service result; dynamic dispatch returns the result union. */
+export type EngineConnectorRpcResults = {
+  'connectors.profiles': ReturnType<EngineConnectorService['profiles']>;
+  'connectors.read': Awaited<ReturnType<EngineConnectorService['read']>>;
+  'connectors.reviewMapping': Awaited<ReturnType<EngineConnectorService['reviewMapping']>>;
+  'connectors.capture': Awaited<ReturnType<EngineConnectorService['capture']>>;
+  'connectors.publish': Awaited<ReturnType<EngineConnectorService['publish']>>;
+  'connectors.ready': ReturnType<EngineConnectorService['ready']>;
+  'connectors.captureStatus': ReturnType<EngineConnectorService['captureStatus']>;
+  'connectors.releaseRead': ReturnType<EngineConnectorService['releaseRead']>;
 };
 type RuntimeProfile = {
   profile: EngineConnectorProfile; digest: string; authority: ReadAuthorityScope; importer: CursorImportService;
@@ -324,7 +335,19 @@ export class EngineConnectorService {
     // Rechecks every managed source domain, including scopes whose rows were empty or excluded.
     this.assertCalculationReady(ctx, { operation: receipt.operation, period: receipt.period ?? undefined, comparePeriod: receipt.comparePeriod ?? undefined, branch: receipt.branch ?? undefined });
   }
-  async request(ctx: Context, method: string, payload: any = {}) {
+  captureStatus(ctx: Context, profileId: string, captureId: string) {
+    const runtime = this.#runtime(profileId), capture = runtime.importer.get(ctx, captureId); this.#assertBinding(ctx, runtime, capture);
+    return publicCapture(capture, bindingFor(this.#store.read(), capture.id));
+  }
+  releaseRead(ctx: Context, acquisitionId: string) {
+    authorize(this.#store, ctx); const pending = this.#pending.get(acquisitionId);
+    check(pending && pending.context.memberId === ctx.memberId && pending.context.epoch === ctx.epoch && pending.context.role === ctx.role,
+      'CONNECTOR_READ_OWNER_MISMATCH', 'Release your own current acquisition.');
+    this.#dropRead(acquisitionId); return { released: true };
+  }
+  request<Method extends keyof EngineConnectorRpcResults>(ctx: Context, method: Method, payload?: unknown): Promise<EngineConnectorRpcResults[Method]>;
+  request(ctx: Context, method: string, payload?: unknown): Promise<EngineConnectorRpcResults[keyof EngineConnectorRpcResults]>;
+  async request(ctx: Context, method: string, payload: any = {}): Promise<EngineConnectorRpcResults[keyof EngineConnectorRpcResults]> {
     const fields: Record<string, string[]> = {
       'connectors.profiles': [], 'connectors.read': ['profileId'], 'connectors.reviewMapping': ['profileId', 'recipe', 'evidence'],
       'connectors.capture': ['acquisitionId', 'reviewId', 'recipe', 'idempotencyKey'], 'connectors.publish': ['profileId', 'captureId', 'sourceTotals'],
@@ -339,16 +362,9 @@ export class EngineConnectorService {
       case 'connectors.capture': return this.capture(ctx, payload);
       case 'connectors.publish': return this.publish(ctx, payload.profileId, payload.captureId, payload.sourceTotals);
       case 'connectors.ready': return this.ready(ctx, payload.profileId);
-      case 'connectors.captureStatus': {
-        const runtime = this.#runtime(payload.profileId), capture = runtime.importer.get(ctx, payload.captureId); this.#assertBinding(ctx, runtime, capture);
-        return publicCapture(capture, bindingFor(this.#store.read(), capture.id));
-      }
-      case 'connectors.releaseRead': {
-        authorize(this.#store, ctx); const pending = this.#pending.get(payload.acquisitionId);
-        check(pending && pending.context.memberId === ctx.memberId && pending.context.epoch === ctx.epoch && pending.context.role === ctx.role,
-          'CONNECTOR_READ_OWNER_MISMATCH', 'Release your own current acquisition.');
-        this.#dropRead(payload.acquisitionId); return { released: true };
-      }
+      case 'connectors.captureStatus': return this.captureStatus(ctx, payload.profileId, payload.captureId);
+      case 'connectors.releaseRead': return this.releaseRead(ctx, payload.acquisitionId);
+      default: throw new ChausarError('INVALID_CONNECTOR_REQUEST', 'Use only the named connector method parameters.');
     }
   }
   close() { this.#closed = true; for (const controller of this.#controllers) controller.abort(); for (const key of this.#pending.keys()) this.#dropRead(key); }

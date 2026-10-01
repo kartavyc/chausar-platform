@@ -95,11 +95,12 @@ export class JobService {
   async resume(context: Context, id: string): Promise<Job> { return this.store.update(state => { const job = this.find(state, id); this.owner(state, context, job); check(!context.sourceTainted && context.channel !== 'phone', 'TAINTED_JOB', 'Resume mandates inside the app.'); check(['paused', 'approval-blocked', 'budget-blocked', 'runner-blocked', 'network-wait'].includes(job.status) && !job.execution?.attempts.some(a => ['dispatched', 'unknown'].includes(a.status)), 'INVALID_JOB_STATE', 'Only a resolved paused or blocked job may resume.'); check(!job.deliverable, 'INVALID_JOB_STATE', 'Accept or reject the saved result first.'); job.status = 'scheduled'; job.ledger.push({ at: this.timestamp(), event: 'resumed' }); return this.view(context, job); }); }
   async remove(context: Context, id: string): Promise<Job> { return this.store.update(state => { const job = this.find(state, id); this.owner(state, context, job); this.interrupt(job, 'stopped', 'deleted'); audit(state, 'job.deleted', { jobId: id }); return this.view(context, job); }); }
   async cancel(context: Context, id: string): Promise<Job> { return this.store.update(state => { const job = this.find(state, id); this.owner(state, context, job); this.interrupt(job, 'cancelled', 'cancelled'); audit(state, 'job.cancelled', { jobId: id }); return this.view(context, job); }); }
-  interrupt(job: Job, status: 'scheduled' | 'paused' | 'cancelled' | 'revoked' | 'stopped', event: string) {
+  interrupt(job: Job, status: 'scheduled' | 'paused' | 'cancelled' | 'revoked' | 'stopped', event: string): Job['status'] {
     const unresolved = job.execution?.attempts.filter(a => ['dispatched', 'unknown'].includes(a.status)) ?? [];
     if (unresolved.length) { for (const attempt of unresolved) { attempt.status = 'unknown'; attempt.reason = event; } job.execution!.afterReconcile = status; delete job.lease; job.status = ['cancelled', 'revoked', 'stopped'].includes(status) ? status : 'outcome-unknown'; }
     else { this.release(job); job.status = status; }
     job.fence += 1; job.ledger.push({ at: this.timestamp(), event, fence: job.fence });
+    return job.status;
   }
   release(job: Job) { if (job.lease) { job.reservedMinor = String(amount(job.reservedMinor) - (amount(job.lease.reservedMinor) - amount(job.lease.chargedMinor))); delete job.lease; } }
   validateLease(job: Job, lease: Pick<Lease, 'token' | 'workerId' | 'fence'>) { check(job.status === 'running' && job.lease?.token === lease.token && job.lease.workerId === lease.workerId && job.fence === lease.fence && Date.parse(job.lease.expiresAt) > this.clock(), 'STALE_LEASE', 'The worker lease expired or was fenced off.'); }
@@ -114,7 +115,7 @@ export class JobService {
       const owner = state.members.find(m => m.id === job.ownerId);
       if (!owner?.active || owner.epoch !== job.ownerEpoch || owner.role !== job.ownerRole) { this.interrupt(job, 'revoked', 'revoked'); return this.view(context, job); }
       if (job.status === 'running') {
-        check(job.lease && Date.parse(job.lease.expiresAt) <= this.clock(), 'JOB_BUSY', 'Another worker holds this job.'); this.interrupt(job, 'scheduled', 'lease-expired'); if (job.status === 'outcome-unknown') return this.view(context, job);
+        check(job.lease && Date.parse(job.lease.expiresAt) <= this.clock(), 'JOB_BUSY', 'Another worker holds this job.'); if (this.interrupt(job, 'scheduled', 'lease-expired') === 'outcome-unknown') return this.view(context, job);
       }
       check(!['paused', 'revoked', 'accepted', 'cancelled', 'stopped', 'awaiting-acceptance', 'outcome-unknown', 'runner-blocked'].includes(job.status), 'JOB_NOT_RUNNABLE', 'This job is paused, stopped, unresolved or awaiting acceptance.');
       if (job.runs >= job.stopRule.maxRuns || this.clock() >= Date.parse(job.stopRule.deadline)) { job.status = 'stopped'; job.ledger.push({ at: this.timestamp(), event: 'stop-rule' }); return this.view(context, job); }

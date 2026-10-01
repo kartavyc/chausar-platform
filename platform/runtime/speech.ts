@@ -11,13 +11,15 @@ export type SpeechProvider = { id?: string; kind: 'browser-transcript' | 'local-
 export type SpeechInput = { providerId: string; audioBase64?: string; mimeType?: string; durationMs?: number; transcript?: string; browserProvider?: string; sourceIds?: string[] };
 export type SpeechOptions = { http?: (request: { endpoint: string; headers: Record<string, string>; body: Uint8Array; redirect: 'error'; timeoutMs: number }) => Promise<{ status: number; body: string; endpoint?: string; requestId?: string }>; process?: (request: ProcessRequest) => Promise<ProcessResult>; credentialBroker?: (id: string) => string | undefined | Promise<string | undefined> };
 
-const ALLOWED_MIME = ['audio/wav', 'audio/mpeg', 'audio/mp4', 'audio/webm', 'audio/ogg'];
+const AUDIO_EXTENSIONS = { 'audio/wav': 'wav', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'audio/ogg': 'ogg' } as const;
+type AudioMime = keyof typeof AUDIO_EXTENSIONS;
+function isAudioMime(value: unknown): value is AudioMime { return typeof value === 'string' && Object.hasOwn(AUDIO_EXTENSIONS, value); }
 function parseAudio(base64: string | undefined): Buffer {
   check(typeof base64 === 'string' && base64.length > 0 && base64.length <= 12000000 && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64), 'INVALID_AUDIO', 'Supply a supported audio recording under nine megabytes.');
   const data = Buffer.from(base64, 'base64'); check(data.length > 0 && data.toString('base64') === base64, 'INVALID_AUDIO', 'Audio encoding was invalid.'); return data;
 }
-function multipart(audio: Buffer, mime: string, model: string, boundary: string): Buffer {
-  const extension = { 'audio/wav': 'wav', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'audio/ogg': 'ogg' }[mime];
+function multipart(audio: Buffer, mime: AudioMime, model: string, boundary: string): Buffer {
+  const extension = AUDIO_EXTENSIONS[mime];
   return Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\n${model}\r\n--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="recording.${extension}"\r\nContent-Type: ${mime}\r\n\r\n`), audio, Buffer.from(`\r\n--${boundary}--\r\n`)]);
 }
 async function upload(request: { endpoint: string; headers: Record<string, string>; body: Uint8Array; redirect: 'error'; timeoutMs: number }) {
@@ -36,7 +38,7 @@ export class SpeechService {
     check(Object.keys(config).every(k => ['id', 'kind', 'label', 'endpoint', 'command', 'model', 'ratePerMinuteMinor', 'budgetMinor', 'credentialEnv', 'enabled'].includes(k)), 'INVALID_SPEECH_PROVIDER', 'Unknown speech provider configuration.');
     if (config.kind === 'api-upload') { check(typeof config.model === 'string' && /^[A-Za-z0-9_.-]{1,128}$/.test(config.model), 'INVALID_SPEECH_PROVIDER', 'Configure an explicit transcription model.'); validateEndpoint(config.endpoint || 'https://api.openai.com/v1/audio/transcriptions', 'openai-responses'); }
     if (config.kind === 'local-command') check(typeof config.command === 'string' && isAbsolute(config.command) && /(?:^|[\\/])whisper-cli(?:\.exe)?$/.test(config.command) && typeof config.model === 'string' && isAbsolute(config.model), 'INVALID_SPEECH_PROVIDER', 'Choose absolute paths to your installed whisper.cpp whisper-cli executable and model file.');
-    for (const key of ['ratePerMinuteMinor', 'budgetMinor']) if (config[key] !== undefined) check(typeof config[key] === 'string' && /^\d{1,30}$/.test(config[key]), 'INVALID_BUDGET', 'Speech costs use integer paise strings.');
+    for (const key of ['ratePerMinuteMinor', 'budgetMinor'] as const) if (config[key] !== undefined) check(typeof config[key] === 'string' && /^\d{1,30}$/.test(config[key]), 'INVALID_BUDGET', 'Speech costs use integer paise strings.');
     if (config.credentialEnv) check(/^CHAUSAR_[A-Z0-9_]+$/.test(config.credentialEnv), 'INVALID_CREDENTIAL', 'Use a dedicated CHAUSAR credential environment variable.');
     if (secret !== undefined) check(config.kind === 'api-upload' && typeof secret === 'string' && secret.length <= 8192 && !/[\r\n]/.test(secret), 'INVALID_CREDENTIAL', 'Only API upload takes an API key.');
     const id = config.id || newId('speech_provider'); const previous = this.#providers.get(id);
@@ -56,12 +58,13 @@ export class SpeechService {
       return this.store.update(state => { authorize(this.store, context, 'prepare'); state.modelReceipts.push(record); return structuredClone(record); });
     }
     check(Number.isSafeInteger(input.durationMs) && input.durationMs! > 0 && input.durationMs! <= 300000, 'INVALID_AUDIO', 'Give the recording duration, up to five minutes.');
-    check(ALLOWED_MIME.includes(input.mimeType || ''), 'INVALID_AUDIO', 'Use wav, mp3, mp4, webm, or ogg audio.');
+    const mimeType = input.mimeType;
+    check(isAudioMime(mimeType), 'INVALID_AUDIO', 'Use wav, mp3, mp4, webm, or ogg audio.');
     if (provider.kind === 'local-command') check(['audio/wav', 'audio/mpeg', 'audio/ogg'].includes(input.mimeType!), 'INVALID_AUDIO', 'The local whisper.cpp adapter supports wav, mp3, and ogg recordings.');
     const audio = parseAudio(input.audioBase64);
     if (provider.kind === 'api-upload') check(this.store.read().policy.send === 'samples', 'SEND_DISABLED', 'Audio upload requires the samples privacy setting and an exact upload approval.');
     const boundary = `chausar-${newId('audio')}`;
-    const bytes = provider.kind === 'api-upload' ? multipart(audio, input.mimeType!, provider.model!, boundary) : audio;
+    const bytes = provider.kind === 'api-upload' ? multipart(audio, mimeType, provider.model!, boundary) : audio;
     const digest = hash(bytes.toString('base64')); check(!isNoResend(this.store.read(), digest), 'NO_RESEND', 'This deleted recording cannot be uploaded again.');
     const record = { id: newId('speech_preview'), kind: 'speech-preview', status: 'preview', createdAt: now(), memberId: context.memberId, epoch: context.epoch,
       providerId: provider.id, providerRevision: provider.revision, sourceIds, trustFingerprint: trustFingerprint(this.store.read(), context, sourceIds), payloadBase64: bytes.toString('base64'), digest,
@@ -124,7 +127,8 @@ export class SpeechService {
         check((!result.endpoint || result.endpoint === preview.endpoint) && !(result.status >= 300 && result.status < 400), 'REDIRECT_REFUSED', 'Speech redirects are refused.'); check(result.status >= 200 && result.status < 300, 'SPEECH_FAILED', 'The speech provider failed without a retry.');
         let body: any; try { body = JSON.parse(result.body); } catch { throw new ChausarError('INVALID_TRANSCRIPT', 'Speech provider returned invalid JSON.'); } transcript = body.text;
       } else {
-        directory = await mkdtemp(join(tmpdir(), 'chausar-speech-')); const extension = { 'audio/wav': 'wav', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'audio/ogg': 'ogg' }[preview.mimeType]; const audioPath = join(directory, `recording.${extension}`); await writeFile(audioPath, Buffer.from(preview.payloadBase64, 'base64'), { mode: 0o600 });
+        const mimeType: unknown = preview.mimeType; check(isAudioMime(mimeType), 'INVALID_AUDIO', 'Use a supported recording type.');
+        directory = await mkdtemp(join(tmpdir(), 'chausar-speech-')); const extension = AUDIO_EXTENSIONS[mimeType]; const audioPath = join(directory, `recording.${extension}`); await writeFile(audioPath, Buffer.from(preview.payloadBase64, 'base64'), { mode: 0o600 });
         this.#current(context, preview);
         const result = await (this.options.process || defaultProcess)({ command: provider.command!, args: ['-m', provider.model!, '-f', audioPath, '-nt', '-np', '-nf', '-l', 'auto'], cwd: directory, env: { PATH: process.env.PATH || '', SystemRoot: process.env.SystemRoot || '' }, stdin: '', timeoutMs: 120000, schema: {} });
         check(result.exitCode === 0, 'SPEECH_FAILED', 'The local speech command failed without a retry.'); transcript = result.stdout.trim();

@@ -389,7 +389,7 @@ export class ConnectorReadDispatcher {
       return result;
     } catch (error) {
       if (error instanceof ConnectorReadError) throw error;
-      refuse(error instanceof Error && error.message === 'READ_CLOCK_INVALID' ? 'READ_CLOCK_INVALID' : 'READ_CONTRACT_INVALID');
+      return refuse(error instanceof Error && error.message === 'READ_CLOCK_INVALID' ? 'READ_CLOCK_INVALID' : 'READ_CONTRACT_INVALID');
     }
   }
 }

@@ -70,7 +70,7 @@ export class TrustService {
     if (patch.send !== undefined) check(['nothing', 'shape', 'samples'].includes(patch.send), 'INVALID_POLICY', 'Choose nothing, shape, or samples.');
     if (patch.allowedSources !== undefined) check(Array.isArray(patch.allowedSources) && patch.allowedSources.every(s => typeof s === 'string' && s.length > 0), 'INVALID_POLICY', 'Source grants must be named.');
     if (patch.retentionDays !== undefined) check(Number.isInteger(patch.retentionDays) && patch.retentionDays >= 1 && patch.retentionDays <= 3650, 'INVALID_POLICY', 'Retention must be between one and 3650 days.');
-    for (const k of ['autonomy', 'sharing']) if (patch[k] !== undefined) check(typeof patch[k] === 'boolean', 'INVALID_POLICY', 'Privacy switches must be boolean.');
+    for (const k of ['autonomy', 'sharing'] as const) if (patch[k] !== undefined) check(typeof patch[k] === 'boolean', 'INVALID_POLICY', 'Privacy switches must be boolean.');
     return this.store.update(state => {
       authorize(this.store, context, 'admin'); state.policy = { ...state.policy, ...structuredClone(patch) };
       audit(state, 'trust.policy.changed', { memberId: context.memberId, fields: Object.keys(patch) }); return structuredClone(state.policy);

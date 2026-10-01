@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fork } from 'node:child_process';
+import type { ForkOptions, SpawnOptions } from 'node:child_process';
 import { mkdtemp, rm, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,10 +11,11 @@ import { Engine } from '../runtime/engine.ts';
 const password = 'fixture-worker-passphrase-2026';
 const september = { from: '2026-09-01', to: '2026-09-30' };
 async function childEngine(directory: string) {
-  const child = fork(fileURLToPath(new URL('../runtime/worker.ts', import.meta.url)), [], {
+  const options: ForkOptions & Pick<SpawnOptions, 'windowsHide'> = {
     execPath: process.execPath, execArgv: [], windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
     env: { ...process.env, CHAUSAR_VAULT_DIRECTORY: directory, CHAUSAR_DEMO: '1' },
-  });
+  };
+  const child = fork(fileURLToPath(new URL('../runtime/worker.ts', import.meta.url)), [], options);
   const pending = new Map<string, { resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   let sequence = 0;
   const ready = new Promise<void>((resolve, reject) => {

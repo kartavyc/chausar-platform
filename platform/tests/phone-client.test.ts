@@ -66,7 +66,7 @@ test('restored credentials provide cached reading only; all authority requires o
 });
 test('pairing stores an opaque grant, then validates; diagnostic state omits credentials', async () => {
   const f = fixture(); f.credentials.value = undefined; await f.client.reconnect(); await f.client.pair(pairInput);
-  assert.equal(f.client.snapshot().pairing.status, 'paired'); assert.equal(f.credentials.value?.credential, f.grant().credential);
+  assert.equal(f.client.snapshot().pairing.status, 'paired'); assert.equal((await f.credentials.load())?.credential, f.grant().credential);
   assert.equal(JSON.stringify(f.client.snapshot()).includes(f.grant().credential), false);
   assert.deepEqual(f.transport.methods, ['pairing.accept', 'session.validate']);
 });
@@ -118,6 +118,16 @@ test('lost approval acknowledgment can only be reconciled by request ID', async 
   await assert.rejects(f.client.decideApproval('decide1', 'approval1', 'approve'), { code: 'TRANSPORT_UNKNOWN' });
   f.transport.handler = (method, input, options) => method === 'request.status' ? { status: 'succeeded', requestId: input.requestId, result: { approvalId: 'approval1', actionId: 'action1', decision: 'approved', decidedAt: new Date(f.clock()).toISOString() } } : original(method, input, options);
   await f.client.reconnect(); assert.equal(f.client.snapshot().requests[0].status, 'succeeded'); assert.equal(f.transport.methods.filter(m => m === 'approval.submit').length, 1);
+});
+
+test('a malformed approval receipt remains unknown instead of claiming success or replaying approval', async () => {
+  const f = await connected(); await f.client.inspectApproval('approval1'); const original = f.transport.handler;
+  f.transport.handler = (method, input, options) => method === 'approval.submit'
+    ? { status: 'succeeded', requestId: input.requestId, result: { approvalId: 'approval1', actionId: 'action1', decision: 'approved', decidedAt: 0 } }
+    : original(method, input, options);
+  await assert.rejects(f.client.decideApproval('decide1', 'approval1', 'approve'), { code: 'INVALID_RESPONSE' });
+  assert.equal(f.client.snapshot().requests[0].status, 'unknown');
+  assert.equal(f.transport.methods.filter(method => method === 'approval.submit').length, 1);
 });
 test('expired challenge and desktop-only operations have no approval submission', async () => {
   const f = await connected(); await f.client.inspectApproval('approval1'); f.advance(300001);

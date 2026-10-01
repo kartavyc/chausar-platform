@@ -72,14 +72,14 @@ export class PhoneClient {
     if (!validAuthority(restored.authority, this.clock())) await this.forget('expired');
   }
   private async call<M extends keyof PhoneMethods>(method: M, input: PhoneMethods[M]['input'], credential = this.grant?.credential, operationId?: string): Promise<PhoneMethods[M]['output']> {
-    requirePhone(this.connection !== 'offline', 'OFFLINE');
+    requirePhone(this.isConnected(), 'OFFLINE');
     if (operationId) requirePhone(this.requests.has(operationId) && this.requestKinds.get(operationId)?.generation === this.generation && !this.stopped.has(operationId), 'VALIDATION_REQUIRED');
     const generation = this.generation; const controller = new AbortController(); this.active.add(controller);
     if (operationId) { const controllers = this.requestControllers.get(operationId) ?? new Set<AbortController>(); controllers.add(controller); this.requestControllers.set(operationId, controllers); }
     try {
       if (operationId) this.startedRemote.add(operationId);
       const result = await this.transport.request(method, input, { ...(credential ? { credential } : {}), signal: controller.signal });
-      requirePhone(generation === this.generation && !controller.signal.aborted && this.connection !== 'offline', 'VALIDATION_REQUIRED');
+      requirePhone(generation === this.generation && !controller.signal.aborted && this.isConnected(), 'VALIDATION_REQUIRED');
       return result;
     } catch (error) {
       if (generation !== this.generation || controller.signal.aborted) throw new PhoneError('VALIDATION_REQUIRED');
@@ -90,6 +90,7 @@ export class PhoneClient {
       this.disconnect(); throw new PhoneError('TRANSPORT_UNKNOWN');
     } finally { this.active.delete(controller); if (operationId) this.requestControllers.get(operationId)?.delete(controller); }
   }
+  private isConnected() { return this.connection !== 'offline'; }
   /** Every request obtains fresh online validation. A restored grant is never authority. */
   async validate() {
     requirePhone(this.grant, 'UNPAIRED');
@@ -172,21 +173,35 @@ export class PhoneClient {
     return this.nextRequestRevision(requestId);
   }
   private nextRequestRevision(requestId: string) { const revision = ++this.requestSerial; this.requestRevisions.set(requestId, revision); return revision; }
-  private response<T extends RequestResult>(expectedId: string, result: RemoteRequest<T>, revision: number): RemoteRequest<T> {
+  private response(expectedId: string, result: RemoteRequest<ChatAnswer>, revision: number): RemoteRequest<ChatAnswer>;
+  private response(expectedId: string, result: RemoteRequest<UploadReceipt>, revision: number): RemoteRequest<UploadReceipt>;
+  private response(expectedId: string, result: RemoteRequest<ApprovalReceipt>, revision: number): RemoteRequest<ApprovalReceipt>;
+  private response(expectedId: string, result: RemoteRequest<RequestResult>, revision: number): RemoteRequest<RequestResult>;
+  private response(expectedId: string, result: RemoteRequest<RequestResult>, revision: number): RemoteRequest<RequestResult> {
     requirePhone(this.requests.has(expectedId) && this.requestRevisions.get(expectedId) === revision, 'VALIDATION_REQUIRED');
     requirePhone(!!result && result.requestId === expectedId && ['pending', 'unknown', 'succeeded', 'cancelled', 'failed'].includes(result.status), 'INVALID_RESPONSE');
     if (result.status === 'failed') requirePhone(knownCodes.has(result.code), 'INVALID_RESPONSE');
-    let safe: RemoteRequest<T>;
+    let safe: RemoteRequest<RequestResult>;
     if (result.status === 'succeeded') {
       const r = result.result;
       const descriptor = this.requestKinds.get(expectedId);
-      requirePhone(isRecord(r) && (
-        (descriptor?.kind === 'chat' && 'conversationId' in r && isId(r.conversationId) && typeof r.text === 'string' && r.text.length <= 64000 && Array.isArray(r.receiptIds) && r.receiptIds.length <= 100 && r.receiptIds.every(isId)) ||
-        (descriptor?.kind === 'upload' && 'uploadId' in r && isId(r.uploadId) && isId(r.sourceId) && r.status === 'awaiting-confirmation' && r.sourceTainted === true) ||
-        (descriptor?.kind === 'approval' && 'approvalId' in r && r.approvalId === descriptor.target && isId(r.actionId) && ['approved', 'rejected'].includes(r.decision as string) && Number.isFinite(Date.parse(r.decidedAt as string)))
-      ), 'INVALID_RESPONSE');
-      const output = descriptor?.kind === 'chat' ? { conversationId: r.conversationId, text: r.text, receiptIds: r.receiptIds } : descriptor?.kind === 'upload' ? { uploadId: r.uploadId, sourceId: r.sourceId, status: 'awaiting-confirmation', sourceTainted: true } : { approvalId: r.approvalId, actionId: r.actionId, decision: r.decision, decidedAt: r.decidedAt };
-      safe = { status: 'succeeded', requestId: expectedId, result: structuredClone(output) as T };
+      requirePhone(isRecord(r), 'INVALID_RESPONSE');
+      let output: RequestResult;
+      if (descriptor?.kind === 'chat') {
+        requirePhone('conversationId' in r && isId(r.conversationId) && typeof r.text === 'string' && r.text.length <= 64000
+          && Array.isArray(r.receiptIds) && r.receiptIds.length <= 100 && r.receiptIds.every(isId), 'INVALID_RESPONSE');
+        output = { conversationId: r.conversationId, text: r.text, receiptIds: r.receiptIds };
+      } else if (descriptor?.kind === 'upload') {
+        requirePhone('uploadId' in r && isId(r.uploadId) && isId(r.sourceId) && r.status === 'awaiting-confirmation'
+          && r.sourceTainted === true, 'INVALID_RESPONSE');
+        output = { uploadId: r.uploadId, sourceId: r.sourceId, status: 'awaiting-confirmation', sourceTainted: true };
+      } else {
+        requirePhone(descriptor?.kind === 'approval' && 'approvalId' in r && isId(r.approvalId) && r.approvalId === descriptor.target
+          && isId(r.actionId) && (r.decision === 'approved' || r.decision === 'rejected') && typeof r.decidedAt === 'string'
+          && Number.isFinite(Date.parse(r.decidedAt)), 'INVALID_RESPONSE');
+        output = { approvalId: r.approvalId, actionId: r.actionId, decision: r.decision, decidedAt: r.decidedAt };
+      }
+      safe = { status: 'succeeded', requestId: expectedId, result: structuredClone(output) };
     } else if (result.status === 'failed') safe = { status: 'failed', requestId: expectedId, code: result.code };
     else safe = { status: result.status, requestId: expectedId };
     this.requests.set(expectedId, safe); return safe;

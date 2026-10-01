@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { initialState, now, hash } from '../runtime/contracts.ts';
 import type { State, StateStore, Context } from '../runtime/contracts.ts';
 import { ModelGateway, validatePlan, operationCatalog } from '../runtime/gateway.ts';
+import type { GatewayOptions } from '../runtime/gateway.ts';
 import { TrustService, visibleFacts } from '../runtime/trust.ts';
 
 class MemoryStore implements StateStore {
@@ -17,7 +18,7 @@ function fixture() {
   return store;
 }
 function response(plan = { operation: 'earned' }) { return { status: 200, endpoint: 'https://api.example.com/v1/responses', body: JSON.stringify({ output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(plan) }] }], usage: { input_tokens: 100, output_tokens: 20 } }) }; }
-async function configured(store: MemoryStore, http: any) {
+async function configured(store: MemoryStore, http: NonNullable<GatewayOptions['http']>) {
   const gateway = new ModelGateway(store, { http }); await gateway.configureRoute(owner, { id: 'api', kind: 'openai-responses', model: 'explicit-model', endpoint: 'https://api.example.com/v1/responses', maxCostMinor: '100', budgetMinor: '10000' }, 'api-secret-value'); return gateway;
 }
 async function approved(gateway: ModelGateway, question = 'What revenue did Sensitive Name earn 12345678900?') {
