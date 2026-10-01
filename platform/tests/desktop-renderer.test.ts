@@ -21,11 +21,15 @@ class Element {
   tagName: string; children: Element[]; attributes: Record<string,string>; listeners: Map<string, ((event: any) => unknown)[]>; value: string; checked: boolean; disabled: boolean; className: string; classList: { add(): void; remove(): void; toggle(): void }; parent?: Element; id?: string; textContent?: string;
   constructor(tag: string) { this.tagName = tag; this.children = []; this.attributes = {}; this.listeners = new Map(); this.value = ''; this.checked = false; this.disabled = false; this.className = ''; this.classList = { add() {}, remove() {}, toggle() {} }; }
   setAttribute(key: string, value: unknown) { this.attributes[key] = String(value); if (key === 'value') this.value = String(value); if (key === 'id') this.id = String(value); }
-  append(...children: Element[]) { for (const child of children) { child.parent = this; this.children.push(child); } if (this.tagName === 'select' && this.children.length === children.length && children.length) this.value = children[0].value; }
-  replaceChildren(...children: Element[]) { this.children = []; this.append(...children); }
+  removeAttribute(key: string) { delete this.attributes[key]; }
+  append(...children: (Element | string | null | undefined)[]) { for (const child of children) { const node = child instanceof Element ? child : Object.assign(new Element('#text'), { textContent: String(child) }); node.parent = this; this.children.push(node); } if (this.tagName === 'select' && this.children.length === children.length && children.length) this.value = this.children[0].value; }
+  replaceChildren(...children: (Element | string | null | undefined)[]) { this.children = []; this.append(...children); }
   addEventListener(name: string, handler: (event: any) => unknown) { const handlers = this.listeners.get(name) || []; handlers.push(handler); this.listeners.set(name, handlers); }
   async dispatch(name: string) { for (const handler of this.listeners.get(name) || []) await handler({ preventDefault() {}, currentTarget: this, target: this }); }
-  focus() {} remove() {} scrollIntoView() {} showModal() {} close() {}
+  focus() {} scrollIntoView() {}
+  remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = undefined; }
+  showModal() { this.attributes.open = ''; }
+  close() { delete this.attributes.open; void this.dispatch('close'); }
 }
 function descendants(node: Element): Element[] { return [node, ...node.children.flatMap(descendants)]; }
 function find(node: Element, predicate: (node: Element) => boolean) { const found = descendants(node).find(predicate); assert.ok(found, 'Expected actual renderer control to be present.'); return found; }
@@ -58,18 +62,19 @@ async function harness({ failureQuestion, dispatch, routes = [], preview } : { f
   vm.runInNewContext(preloadSource, { require: (name: string) => { assert.equal(name, 'electron'); return { ipcRenderer, contextBridge: { exposeInMainWorld(name: string, api: any) { assert.equal(name, 'chausar'); exposed = api; } } }; } }, { filename: join(root, 'app/desktop/preload.cjs') });
   assert.ok(exposed);
   const body = new Element('body'), app = new Element('div'), notifications = new Element('div');
-  const document = { body, createElement: (tag: string) => new Element(tag), createTextNode: (value: unknown) => Object.assign(new Element('#text'), { textContent: String(value) }), createElementNS: (namespaceURI: string, tag: string) => Object.assign(new Element(tag), { namespaceURI }), getElementById: (id: string) => id === 'app' ? app : id === 'notifications' ? notifications : null, querySelectorAll: () => [] };
+  body.append(app, notifications);
+  const document = { body, createElement: (tag: string) => new Element(tag), createTextNode: (value: unknown) => Object.assign(new Element('#text'), { textContent: String(value) }), createElementNS: (namespaceURI: string, tag: string) => Object.assign(new Element(tag), { namespaceURI }), getElementById: (id: string) => descendants(body).find(node => node.id === id) || (id === 'app' ? app : id === 'notifications' ? notifications : null), querySelectorAll: () => [] };
   const context: any = { document, Node: Element, window: { chausar: exposed, location: { origin: 'chausar://app', hash: '', pathname: '/index.html', search: '' }, history: { replaceState() {} }, addEventListener() {} }, crypto: { randomUUID }, URL, URLSearchParams, structuredClone, console, setTimeout: () => 0, clearTimeout() {}, fetch() { throw new Error('Unexpected HTTP path in desktop boundary regression.'); } };
   assert.match(rendererSource, /\bboot\(\);\s*$/);
   // Disable only automatic boot; execute all actual renderer functions, including request/composer.
-  vm.runInNewContext(rendererSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__test = { request, renderConversation, renderAnswer, showCalculator, state };', context, { filename: join(root, 'app/renderer/app.js') });
+  vm.runInNewContext(rendererSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__test = { request, renderConversation, renderAnswer, showCalculator, showWorkspace, state, showConversationHistory: typeof showConversationHistory === "function" ? showConversationHistory : undefined, showSavedConversation: typeof showSavedConversation === "function" ? showSavedConversation : undefined };', context, { filename: join(root, 'app/renderer/app.js') });
   const renderer = context.__test;
   const page = await renderer.renderConversation();
   const composer = find(page, node => node.tagName === 'form' && node.className === 'composer');
   const question = find(composer, node => node.tagName === 'textarea');
   const submit = find(composer, node => node.tagName === 'button' && node.attributes.type === 'submit');
   async function ask(text: string) { question.value = text; await composer.dispatch('submit'); }
-  return { renderer, exposed, calls, wires, rejected, body, page, composer, question, submit, ask };
+  return { renderer, exposed, calls, wires, rejected, body, app, notifications, page, composer, question, submit, ask };
 }
 
 test('actual local composer submits ordinary question through actual preload and strict clone boundary', async t => {
@@ -207,4 +212,197 @@ test('actual local question reaches the host-Node worker and subsequent billed q
   assert.deepEqual(retained.rowIds, answer.receipt.rowIds);
   assert.deepEqual(h.calls.filter(call => call.method === 'conversation.ask').map(call => call.payload), [...introductions, mixedQuestion, 'What was billed?'].map(question => ({ question })));
   const stopped = await engine.stop(); assert.equal(stopped.graceful,true);
+});
+
+const savedPassphrase = 'Synthetic saved native answer fixture only';
+const savedSourceId = 'synthetic-native-history-invoices';
+const savedPeriod = { from: '2026-09-01', to: '2026-09-30' };
+const savedIntroQuestion = 'what is this business about';
+const savedBilledQuestion = 'What was billed?';
+async function savedWorkerFixture(t: any) {
+  const { EngineHarness } = require(join(root, 'app/desktop/engine-harness.cjs'));
+  const base = resolve(tmpdir()), directory = await mkdtemp(join(base, 'chausar-saved-renderer-worker-'));
+  const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => ['path', 'systemroot', 'windir', 'temp', 'tmp', 'userprofile'].includes(name.toLowerCase())));
+  const options = { workerPath: join(root, 'platform/runtime/worker.ts'), environment: { ...environment,
+    CHAUSAR_ENGINE_VERSION: '0.1.0-preview.1', CHAUSAR_VAULT_DIRECTORY: directory, CHAUSAR_DEMO: '1', CHAUSAR_UPDATE_PUBLIC_KEY: '' } };
+  let engine = new EngineHarness(options);
+  const workers = [engine];
+  t.after(async () => {
+    for (const worker of workers) await worker.stop();
+    const target = resolve(directory), child = relative(base, target);
+    assert.ok(child && child !== '..' && !child.startsWith('..' + sep) && !isAbsolute(child));
+    assert.ok(basename(target).startsWith('chausar-saved-renderer-worker-'));
+    await rm(target, { recursive: true, force: true });
+  });
+  await engine.start();
+  const created = await engine.request('workspace.create', { name: 'Synthetic saved answers', folder: 'saved-native', passphrase: savedPassphrase, demo: false, pack: 'ecommerce' });
+  const imported = await engine.request('sources.import', {
+    sourceId: savedSourceId, format: 'csv',
+    content: 'id,kind,date,amount,currency,branch,status,description\nseptember-one,invoice,2026-09-02,100.00,INR,main,issued,Literal selected invoice one\nseptember-two,invoice,2026-09-03,200.00,INR,main,issued,Literal selected invoice two\naugust-outside,invoice,2026-08-02,900.00,INR,main,issued,Outside the explicit September period',
+    expectedTotals: { rowCount: 3, amountMinor: '120000' },
+    recipe: { version: 1, id: 'synthetic-native-saved-invoices', system: 'synthetic-csv', edition: '1',
+      scope: { company: 'Synthetic saved answers', branches: ['main'] },
+      bindings: [{ target: 'entityId', source: 'id', type: 'string', nulls: 'reject' },
+        { target: 'kind', source: 'kind', type: 'string', nulls: 'reject' },
+        { target: 'validFrom', source: 'date', type: 'date', dateFormat: 'ISO', nulls: 'reject' },
+        { target: 'amountMinor', source: 'amount', type: 'money', moneyUnit: 'major', currency: 'INR', nulls: 'reject' },
+        ...['currency', 'branch', 'status', 'description'].map(field => ({ target: field, source: field, type: 'string', nulls: 'reject' }))],
+      allowedKinds: ['invoice'], allowedStatuses: ['issued'], onUnmapped: 'reject' } });
+  assert.equal(imported.coverage.reconciled, true); assert.equal(imported.rowIds.length, 3);
+  assert.deepEqual(await engine.request('models.list'), []);
+  assert.equal((await engine.request('trust.get')).policy.send, 'nothing');
+  async function restart() {
+    assert.equal((await engine.stop()).graceful, true);
+    engine = new EngineHarness(options); workers.push(engine); await engine.start();
+    await engine.request('workspace.open', { folder: 'saved-native', passphrase: savedPassphrase });
+  }
+  return { get engine() { return engine; }, directory, imported, workspace: created.workspace, restart,
+    request: (method: string, payload: Record<string, unknown> = {}) => engine.request(method, payload) };
+}
+const hasText = (node: Element, text: string) => descendants(node).some(child => child.textContent === text);
+function dialogFor(h: Awaited<ReturnType<typeof harness>>, title: string) {
+  return find(h.body, node => node.tagName === 'dialog' && hasText(node, title));
+}
+function namedButton(node: Element, label: string) { return find(node, child => child.tagName === 'button' && hasText(child, label)); }
+async function openHistoryEntry(h: Awaited<ReturnType<typeof harness>>, question: string) {
+  const dialog = dialogFor(h, 'Recent answers');
+  let row = find(dialog, node => node.textContent === question);
+  while (!descendants(row).some(node => node.tagName === 'button' && hasText(node, 'Open saved answer'))) {
+    assert.ok(row.parent, 'Saved question must have its actual open button.'); row = row.parent;
+  }
+  await namedButton(row, 'Open saved answer').dispatch('click');
+  return dialogFor(h, 'Saved answer');
+}
+async function savedAnswers(h: Awaited<ReturnType<typeof harness>>, value: Awaited<ReturnType<typeof savedWorkerFixture>>) {
+  h.renderer.state.workspace = value.workspace;
+  await h.ask(savedIntroQuestion);
+  const intro = h.renderer.state.messages.at(-1).data;
+  assert.equal(intro.kind, 'business-context'); assert.equal(intro.receipt.financialCalculation, false);
+  assert.equal(intro.status, 'unknown'); assert.equal(intro.unknowns.length, 5); assert.ok(intro.citations.length > 0);
+  const billed = await h.renderer.request('conversation.ask', { question: savedBilledQuestion, period: savedPeriod, branch: 'main', asOf: new Date().toISOString() });
+  assert.equal(billed.supported, true); assert.equal(billed.receipt.totalMinor, '30000');
+  assert.deepEqual(billed.receipt.period, savedPeriod); assert.equal(billed.receipt.rowIds.length, 2);
+  assert.ok(billed.receipt.rowIds.every((id: string) => value.imported.rowIds.includes(id)));
+  assert.equal(h.calls.some(call => ['conversation.history', 'conversation.get', 'models.preview'].includes(call.method)), false);
+  await namedButton(h.page, 'Recent answers').dispatch('click');
+  assert.equal(descendants(dialogFor(h, 'Recent answers')).some(node => node.tagName === '#text' && ['null', 'undefined'].includes(node.textContent || '')), false);
+  const history = await h.renderer.request('conversation.history', { limit: 20 });
+  assert.equal(history.items.length, 2); assert.equal(history.nextCursor, undefined);
+  const contextItem = history.items.find((item: any) => item.kind === 'business-context');
+  const calculationItem = history.items.find((item: any) => item.kind === 'calculation');
+  assert.ok(contextItem && calculationItem);
+  assert.equal(contextItem.question, savedIntroQuestion); assert.equal(contextItem.receiptId, intro.receipt.id);
+  assert.equal(calculationItem.question, savedBilledQuestion); assert.equal(calculationItem.receiptId, billed.receipt.id);
+  for (const item of history.items) { assert.ok(Number.isFinite(Date.parse(item.at))); assert.deepEqual(Object.keys(item).sort(), ['at', 'id', 'kind', 'question', 'receiptId']); }
+  assert.deepEqual((await h.renderer.request('conversation.get', { id: contextItem.id })).answer, intro);
+  assert.deepEqual((await h.renderer.request('conversation.get', { id: calculationItem.id })).answer, billed);
+  return { intro, billed, history, contextItem, calculationItem };
+}
+
+test('actual renderer recent answers reopens exact intro and explicit-period calculation through encrypted lock and fresh native worker', async t => {
+  const value = await savedWorkerFixture(t), h = await harness({ dispatch: value.request });
+  const saved = await savedAnswers(h, value);
+  const contextDialog = await openHistoryEntry(h, savedIntroQuestion);
+  assert.ok(hasText(contextDialog, saved.intro.unknowns[0].message));
+  await namedButton(contextDialog, 'Open business context receipt').dispatch('click');
+  assert.ok(descendants(dialogFor(h, 'Business context receipt')).some(node => node.textContent?.includes(saved.intro.contextDigest)));
+  contextDialog.close(); dialogFor(h, 'Business context receipt').close();
+  const billedDialog = await openHistoryEntry(h, savedBilledQuestion);
+  assert.ok(descendants(billedDialog).some(node => node.textContent?.includes('"totalMinor": "30000"')));
+  await namedButton(billedDialog, 'Open calculation receipt').dispatch('click');
+  assert.ok(hasText(dialogFor(h, 'Calculation receipt'), saved.billed.receipt.id));
+  const encrypted = await readFile(join(value.directory, 'saved-native', 'authority.encrypted.json'), 'utf8');
+  const envelope = JSON.parse(encrypted); assert.ok(envelope.snapshot); assert.equal(encrypted.includes(savedBilledQuestion), false);
+  assert.equal(encrypted.includes('Literal selected invoice one'), false);
+  await h.renderer.showWorkspace(); await namedButton(dialogFor(h, 'Your workspace'), 'Lock vault').dispatch('click');
+  assert.equal(h.renderer.state.messages.length, 0); assert.equal(descendants(h.body).some(node => node.tagName === 'dialog'), false);
+  await assert.rejects(h.renderer.request('conversation.get', { id: saved.calculationItem.id }), { code: 'VAULT_LOCKED' });
+  await h.renderer.request('workspace.open', { folder: 'saved-native', passphrase: savedPassphrase });
+  assert.deepEqual((await h.renderer.request('conversation.get', { id: saved.calculationItem.id })).answer, saved.billed);
+  await value.restart();
+  const fresh = await harness({ dispatch: value.request }); fresh.renderer.state.workspace = value.workspace;
+  assert.equal(fresh.renderer.state.messages.length, 0);
+  assert.equal(fresh.calls.some(call => ['conversation.history', 'conversation.get'].includes(call.method)), false);
+  await namedButton(fresh.page, 'Recent answers').dispatch('click');
+  assert.deepEqual(await fresh.renderer.request('conversation.history', { limit: 20 }), saved.history);
+  assert.deepEqual((await fresh.renderer.request('conversation.get', { id: saved.contextItem.id })).answer, saved.intro);
+  assert.deepEqual((await fresh.renderer.request('conversation.get', { id: saved.calculationItem.id })).answer, saved.billed);
+  const reopened = await openHistoryEntry(fresh, savedBilledQuestion);
+  await namedButton(reopened, 'Open calculation receipt').dispatch('click');
+  assert.deepEqual(await fresh.renderer.request('receipts.get', { id: saved.billed.receipt.id }), saved.billed.receipt);
+  assert.equal(fresh.rejected.length, 0);
+});
+
+test('actual native worker current source revocation and deletion remove saved answers without stale renderer bodies', async t => {
+  const value = await savedWorkerFixture(t), h = await harness({ dispatch: value.request });
+  const saved = await savedAnswers(h, value);
+  await openHistoryEntry(h, savedBilledQuestion);
+  await h.renderer.request('trust.update', { allowedSources: ['another-explicit-source'] });
+  assert.deepEqual(await h.renderer.request('conversation.history', { limit: 20 }), { items: [] });
+  for (const item of saved.history.items) await assert.rejects(h.renderer.request('conversation.get', { id: item.id }), { code: 'CONVERSATION_NOT_FOUND' });
+  await h.renderer.showSavedConversation(saved.calculationItem.id);
+  assert.equal(descendants(h.body).some(node => node.tagName === 'dialog'), false);
+  assert.equal(descendants(h.body).some(node => node.textContent?.includes('"totalMinor": "30000"')), false);
+  await h.renderer.request('trust.update', { allowedSources: [savedSourceId] });
+  assert.deepEqual((await h.renderer.request('conversation.get', { id: saved.calculationItem.id })).answer, saved.billed);
+  await h.renderer.request('sources.delete', { id: savedSourceId });
+  await value.restart();
+  const fresh = await harness({ dispatch: value.request }); fresh.renderer.state.workspace = value.workspace;
+  await namedButton(fresh.page, 'Recent answers').dispatch('click');
+  assert.deepEqual(await fresh.renderer.request('conversation.history', { limit: 20 }), { items: [] });
+  for (const item of saved.history.items) await assert.rejects(fresh.renderer.request('conversation.get', { id: item.id }), { code: 'CONVERSATION_NOT_FOUND' });
+  await fresh.renderer.showSavedConversation(saved.calculationItem.id);
+  assert.equal(descendants(fresh.body).some(node => node.tagName === 'dialog'), false);
+  assert.equal(descendants(fresh.body).some(node => node.textContent?.includes('"totalMinor": "30000"')), false);
+  await assert.rejects(fresh.renderer.request('receipts.get', { id: saved.billed.receipt.id }), { code: 'RECEIPT_NOT_FOUND' });
+});
+
+test('actual renderer discards a late saved-answer reply after the real native worker vault lock', async t => {
+  const value = await savedWorkerFixture(t); let hold = false;
+  let entered!: () => void, release!: () => void;
+  const replyHeld = new Promise<void>(resolve => { entered = resolve; });
+  const replyRelease = new Promise<void>(resolve => { release = resolve; });
+  const h = await harness({ dispatch: async (method, payload) => {
+    const answer = await value.request(method, payload);
+    if (hold && method === 'conversation.get') { entered(); await replyRelease; }
+    return answer;
+  } });
+  const saved = await savedAnswers(h, value);
+  for (const dialog of descendants(h.body).filter(node => node.tagName === 'dialog')) dialog.close();
+  hold = true; const opening = h.renderer.showSavedConversation(saved.calculationItem.id);
+  await replyHeld;
+  await h.renderer.showWorkspace(); await namedButton(dialogFor(h, 'Your workspace'), 'Lock vault').dispatch('click');
+  release(); await opening;
+  assert.equal(h.renderer.state.messages.length, 0); assert.equal(h.renderer.state.workspace, null);
+  assert.equal(descendants(h.body).some(node => node.tagName === 'dialog'), false);
+  assert.equal(descendants(h.body).some(node => node.textContent?.includes('"totalMinor": "30000"')), false);
+  assert.equal(h.calls.filter(call => call.method === 'conversation.get').at(-1).payload.id, saved.calculationItem.id);
+  assert.equal(h.rejected.length, 0, 'The delayed success came from the real worker; renderer authority generation suppresses it.');
+});
+
+test('actual renderer discards a late older-history page after its Recent answers dialog closes', async t => {
+  const value = await savedWorkerFixture(t);
+  let entered!: () => void, release!: () => void;
+  const replyHeld = new Promise<void>(resolve => { entered = resolve; });
+  const replyRelease = new Promise<void>(resolve => { release = resolve; });
+  const h = await harness({ dispatch: async (method, payload) => {
+    const result = await value.request(method, payload);
+    if (method === 'conversation.history' && typeof payload.cursor === 'string') { entered(); await replyRelease; }
+    return result;
+  } });
+  h.renderer.state.workspace = value.workspace;
+  // Real successful asks create enough saved records for the actual 20-item UI page.
+  for (let index = 0; index < 21; index++) await h.ask(savedIntroQuestion);
+  assert.equal(h.calls.some(call => call.method === 'conversation.history'), false);
+  await namedButton(h.page, 'Recent answers').dispatch('click');
+  const dialog = dialogFor(h, 'Recent answers');
+  const paging = namedButton(dialog, 'Older answers').dispatch('click');
+  try {
+    await replyHeld;
+    await find(dialog, node => node.tagName === 'button' && node.attributes['aria-label'] === 'Close dialog').dispatch('click');
+  } finally { release(); await paging; }
+  assert.equal(dialog.children.length, 0, 'A closed saved-evidence dialog retains no body after a delayed real page reply.');
+  assert.equal(descendants(h.body).some(node => node.tagName === 'dialog'), false);
+  assert.equal(typeof h.calls.filter(call => call.method === 'conversation.history').at(-1).payload.cursor, 'string');
+  assert.equal(h.rejected.length, 0);
 });

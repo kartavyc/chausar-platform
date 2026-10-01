@@ -10,6 +10,7 @@ import type { BridgeProfileDefinition, BridgeProfileRecord, BridgeRunRequest, Br
 import type { InvestigationCreate, Investigation, InvestigationRevisionInput, InvestigationCapsule, InvestigationDrilldown } from '../../platform/runtime/investigation-contracts.ts';
 import type { InvestigationSearchRequest } from '../../platform/runtime/investigation-search.ts';
 import type { ResearchSearchService } from '../../platform/runtime/research-search.ts';
+import type { ConversationHistoryService } from '../../platform/runtime/conversation-history.ts';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue; }
@@ -29,6 +30,7 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'workspace.restore': JsonObject & { backupFile: string; passphrase: string; folder?: string };
   'workspace.delete': JsonObject & { confirmation: string };
   'conversation.ask': JsonObject & { question: string };
+  'conversation.get': { id: string };
   'business.context.receipt': { id: string };
   'business.profile.record': BusinessProfileInput;
   'business.profile.remove': { id: string };
@@ -71,10 +73,11 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'updates.verify': JsonObject & { manifest: JsonObject | string; signature: string };
   'updates.stage': JsonObject & { manifest: JsonObject | string; signature: string; confirmed: true };
 };
-type OptionalPayloads = { 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
+type OptionalPayloads = { 'conversation.history': { limit?: number; cursor?: string }; 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
 export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
 export type DesktopResult<M extends DesktopMethod> =
+  M extends 'conversation.history' ? ReturnType<ConversationHistoryService['list']> : M extends 'conversation.get' ? ReturnType<ConversationHistoryService['get']> :
   M extends 'analysis.bridge.publish' ? BridgeProfileRecord : M extends 'analysis.bridge.profiles' ? BridgeProfileRecord[] :
   M extends 'analysis.bridge.run' | 'analysis.bridge.get' ? BridgeRecord :
   M extends 'investigations.list' ? Investigation[] : M extends 'investigations.capsule' ? InvestigationCapsule :

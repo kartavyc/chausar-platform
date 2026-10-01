@@ -18,6 +18,7 @@ import { TrustService, sourceAllowed } from './trust.ts';
 import { ModelGateway } from './gateway.ts';
 import type { GatewayOptions } from './gateway.ts';
 import { conversationPurpose } from './conversation-purpose.ts';
+import { ConversationHistoryService, createCalculationAnswerRecord, conversationRecordIntegrity } from './conversation-history.ts';
 import { buildBusinessContext, assertBusinessContextCurrent, renderBusinessAnswer, BusinessProfileService, type BusinessContextHooks, type BusinessContextManifest } from './conversation-context.ts';
 import { SpeechService } from './speech.ts';
 import { AuthService } from './auth.ts';
@@ -122,6 +123,10 @@ export class Engine {
       return connectorRuntime.assertBusinessEvidenceReady(ctx, refs);
     } };
     this.services.businessContextHooks = businessContextHooks;
+    this.services.conversationHistory = new ConversationHistoryService(store, {
+      assertBusinessContext: (ctx, manifest, view) => assertBusinessContextCurrent(view, ctx, manifest, businessContextHooks),
+      receipt: (ctx, id, view) => new CalculatorService(view, calculationOptions).receipt(ctx, id),
+    });
     this.services.businessProfile = new BusinessProfileService(store);
     this.services.gateway = new ModelGateway(store, { ...this.options.gateway, businessContext: businessContextHooks });
     this.services.speech = new SpeechService(store);
@@ -294,16 +299,30 @@ export class Engine {
           result = { ...result, id, receipt: { id, kind: 'business-context-receipt', contextDigest: manifest.digest, financialCalculation: false, sourceIds: manifest.sourceIds, rowIds: manifest.rowIds, ...(modelReceiptId ? { modelReceiptId } : {}) } };
           await store.update(state => {
             const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx); assertBusinessContextCurrent(view, ctx, manifest, s.businessContextHooks);
-            state.conversations.push({ id, kind: 'business-context-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: payload.question, manifest, answer: structuredClone(result), sourceIds: manifest.sourceIds, rowIds: manifest.rowIds, profileIds: manifest.profileIds });
+            const record = { id, kind: 'business-context-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: payload.question, manifest, answer: structuredClone(result), sourceIds: manifest.sourceIds, rowIds: manifest.rowIds, profileIds: manifest.profileIds };
+            state.conversations.push({ ...record, integrity: conversationRecordIntegrity(record) });
           });
-        } else await store.update(state => { state.conversations.push({ id: newId('message'), at: now(), memberId: ctx.memberId, question: payload.question, resultId: result.id ?? result.receipt?.id, role: 'user' }); });
+        } else await store.update(state => {
+          const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx);
+          const receiptId = result.receipt?.id ?? (result.figures ? result.id : undefined);
+          if (receiptId) {
+            const receipt = s.conversationHistory.currentReceipt(ctx, receiptId, view);
+            state.conversations.push(createCalculationAnswerRecord(ctx, payload.question, result, receipt));
+          } else state.conversations.push({ id: newId('message'), at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: payload.question, role: 'user' });
+        });
         return result;
+      }
+      case 'conversation.history': return s.conversationHistory.list(ctx, payload);
+      case 'conversation.get': {
+        const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_HISTORY_REFERENCE');
+        return s.conversationHistory.get(ctx, input.id);
       }
       case 'business.context.receipt': {
         check(typeof payload.id === 'string', 'INVALID_REFERENCE', 'Choose a saved business context receipt.');
         const saved = store.read().conversations.find(item => item.kind === 'business-context-answer' && item.id === payload.id);
         check(saved && saved.memberId === ctx.memberId && saved.epoch === ctx.epoch, 'RECEIPT_NOT_FOUND', 'This business context receipt is unavailable to the current account.');
-        assertBusinessContextCurrent(store, ctx, saved.manifest, s.businessContextHooks); return structuredClone(saved.answer);
+        assertBusinessContextCurrent(store, ctx, saved.manifest, s.businessContextHooks);
+        return s.conversationHistory.get(ctx, payload.id).answer;
       }
       case 'business.profile.record': {
         check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_PROFILE_REQUIRED', 'Record explicit business descriptions inside the app.');
