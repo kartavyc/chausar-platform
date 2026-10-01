@@ -136,8 +136,8 @@ function verifiedEffect(id = 'action-synthetic-local-draft', attemptId = 'attemp
 }
 const LEGACY = { id: 'decision-legacy', text: 'Legacy choice remains readable.', reviewDate: '2026-10-05', receiptIds: [], hypotheses: [], status: 'open', reviews: [] };
 type WireCall = { method: DesktopMethod; payload: Record<string, unknown> };
-type Renderer = { state: Record<string, unknown>; renderDecisions(): Promise<Element>; showJournalEditor(decision?: JournalDecision): unknown; showJournalReview(decision: JournalDecision): unknown; showJournalHistory(decision: JournalDecision): unknown };
-function isRenderer(value: unknown): value is Renderer { return isRecord(value) && isRecord(value.state) && ['renderDecisions', 'showJournalEditor', 'showJournalReview', 'showJournalHistory'].every(key => typeof value[key] === 'function'); }
+type Renderer = { state: Record<string, unknown>; renderBrief(): Promise<Element>; renderDecisions(): Promise<Element>; showJournalEditor(decision?: JournalDecision): unknown; showJournalReview(decision: JournalDecision): unknown; showJournalHistory(decision: JournalDecision): unknown };
+function isRenderer(value: unknown): value is Renderer { return isRecord(value) && isRecord(value.state) && ['renderBrief', 'renderDecisions', 'showJournalEditor', 'showJournalReview', 'showJournalHistory'].every(key => typeof value[key] === 'function'); }
 
 async function harness(options: { decisions?: unknown[]; conflict?: 'review' | 'revise'; actions?: unknown[]; executionRefusal?: string } = {}) {
   const calls: WireCall[] = [], wires: unknown[] = [], rejected: { code: string; message: string }[] = [];
@@ -150,6 +150,7 @@ async function harness(options: { decisions?: unknown[]; conflict?: 'review' | '
     if (journalFields[method]) exactKeys(payload, journalFields[method]);
     switch (method) {
       case 'decisions.list': return decisions();
+      case 'reports.brief': exactKeys(payload, []); return { report: { sections: [] }, decisions: decisions() };
       case 'actions.list': exactKeys(payload, []); return options.actions ?? [];
       case 'dashboard.get': return { context: { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' }, calculations: [BASE, MEASURED], policy: { send: 'nothing' }, sources: 2, factCount: 3 };
       case 'trust.get': return { policy: { send: 'nothing' }, members: [{ id: 'owner', name: 'Workspace owner', role: 'owner', active: true, epoch: 1, branches: ['*'] },
@@ -193,7 +194,7 @@ async function harness(options: { decisions?: unknown[]; conflict?: 'review' | '
   const context: Record<string, unknown> = { document, Node: Element, window: { chausar: exposed, location: { origin: 'chausar://app', hash: '', pathname: '/index.html', search: '' }, history: { replaceState() {} }, addEventListener() {} },
     crypto: { randomUUID }, URL, URLSearchParams, structuredClone, console, setTimeout: () => 0, clearTimeout() {}, fetch() { throw new Error('Unexpected network in synthetic desktop renderer tests.'); } };
   assert.match(rendererSource, /\bboot\(\);\s*$/);
-  vm.runInNewContext(rendererSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__journalTest = { renderDecisions, showJournalEditor, showJournalReview, showJournalHistory, state };', context, { filename: join(root, 'app/renderer/app.js') });
+  vm.runInNewContext(rendererSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__journalTest = { renderBrief, renderDecisions, showJournalEditor, showJournalReview, showJournalHistory, state };', context, { filename: join(root, 'app/renderer/app.js') });
   assert.ok(isRenderer(context.__journalTest)); const renderer = context.__journalTest;
   renderer.state.page = 'decisions'; renderer.state.workspace = { name: 'Synthetic journal UI', demo: true };
   renderer.state.dashboard = { calculations: [BASE, MEASURED], context: { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' } };
@@ -388,4 +389,32 @@ test('actual decision page retains legacy recording and review alongside rich jo
   await set(reviewForm, 'Review outcome', 'completed'); await set(reviewForm, 'Review notes', 'A legacy human review.'); await reviewForm.dispatch('submit'); await settle();
   assert.deepEqual(h.calls.find(call => call.method === 'decisions.review')?.payload, { id: LEGACY.id, outcome: 'completed', notes: 'A legacy human review.' });
   assert.equal(h.rejected.length, 0);
+});
+
+test('actual Daily Brief rich Review submits the named journal review and loaded revision through preload', async () => {
+  const h = await harness(), decision = richDecision(); h.renderer.state.page = 'brief';
+  h.page.replaceChildren(await h.renderer.renderBrief());
+  const row = ancestorWith(find(h.page, node => node.tagName === 'h3' && node.textContent === decision.text), node => node.className.split(/\s+/).includes('list-row'));
+  await click(row, 'Review'); const dialog = modal(h.body, 'Review journal entry'), form = find(dialog, node => node.tagName === 'form');
+  await set(form, 'Review outcome', 'continue'); await set(form, 'Observation state', 'pending');
+  await set(form, 'Observation notes', 'A human review opened from the daily brief.');
+  await form.dispatch('submit'); await settle();
+  const writes = h.calls.filter(call => call.method === 'decisions.journal.review'); assert.equal(writes.length, 1);
+  assert.deepEqual(writes[0].payload, { id: decision.id, expectedRevision: decision.revision, review: { outcome: 'continue', observation: {
+    state: 'pending', measurements: [], notes: 'A human review opened from the daily brief.', uncertainty: [], concurrentInterventions: [], executionReceiptIds: [] } } });
+  assert.deepEqual(records(h.wires).filter(wire => wire.method === 'decisions.journal.review'), [{ method: writes[0].method, payload: writes[0].payload }]);
+  assert.equal(h.calls.filter(call => call.method === 'decisions.review').length, 0); assert.equal(dialog.open, false);
+  assert.equal(h.rejected.length, 0);
+});
+
+test('actual Daily Brief legacy Review retains the legacy review request through preload', async () => {
+  const h = await harness(); h.renderer.state.page = 'brief'; h.page.replaceChildren(await h.renderer.renderBrief());
+  const row = ancestorWith(find(h.page, node => node.tagName === 'h3' && node.textContent === LEGACY.text), node => node.className.split(/\s+/).includes('list-row'));
+  await click(row, 'Review'); const form = find(modal(h.body, 'Review a decision'), node => node.tagName === 'form');
+  await set(form, 'Review outcome', 'completed'); await set(form, 'Review notes', 'A legacy review opened from the daily brief.');
+  await form.dispatch('submit'); await settle();
+  const writes = h.calls.filter(call => call.method === 'decisions.review'); assert.equal(writes.length, 1);
+  assert.deepEqual(writes[0].payload, { id: LEGACY.id, outcome: 'completed', notes: 'A legacy review opened from the daily brief.' });
+  assert.deepEqual(records(h.wires).filter(wire => wire.method === 'decisions.review'), [{ method: writes[0].method, payload: writes[0].payload }]);
+  assert.equal(h.calls.filter(call => call.method === 'decisions.journal.review').length, 0); assert.equal(h.rejected.length, 0);
 });
