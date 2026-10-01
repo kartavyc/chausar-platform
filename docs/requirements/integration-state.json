@@ -224,15 +224,20 @@
     }
   ],
   "publicationCapability": {
-    "lastVerifiedRemoteMain": "93f34f8c6e5b0baa342b901231d3c1e35561f424",
-    "status": "private-main-checkpoint-published-and-both-push-ci-jobs-passed",
-    "repositoryPrivate": true,
-    "finalRemoteHeadRefreshRequired": true,
-    "forcePush": false,
-    "publicationMethod": "Supported bounded normal Git push with existing authentication from an account-owned verified-bundle copy; no trust changes.",
-    "ciEvidence": "https://github.com/kartavyc/chausar-platform/actions/runs/36811033964",
-    "ciConclusion": "failure",
-    "ciFailureFollowUp": "Clock fixture corrected and explicit stale-lease refusal regression added; fresh CI pending publication."
+    "status": "checked-source-ready-for-authorized-private-publication",
+    "method": "Bounded ordinary Git with existing authorization, fresh remote head check and no force push.",
+    "lastVerifiedMain": "5c0d738afab0fc023850c429beba2768106e21e0",
+    "lastVerifiedCi": {
+      "runId": 36812252524,
+      "conclusion": "success",
+      "platforms": [
+        "Windows",
+        "Ubuntu"
+      ],
+      "repositoryTestsEach": 1064
+    },
+    "newCiStatus": "not-yet-run",
+    "sourceAfterGate": "Only the four recorded documentation/evidence paths may change."
   },
   "dependencyRecovery": {
     "approvedStaging": "D:/Chausar/build-tools",
@@ -483,5 +488,22 @@
       "businessIntroduction": "Retained exact source path at2fa8dd7: paired HTTP and actual renderer/preload/host worker grounded business context, visible unknowns, separate context receipt; financial calculation remains exact."
     },
     "evidence": "docs/verification/daily-brief-clock.json"
+  },
+  "compiledMeasureMilestone": {
+    "checkedSourceCommit": "0ca40d0f475952d46537f75dc922a845db574599",
+    "localTests": 1167,
+    "testFiles": 85,
+    "strictAppSemanticTypescript": "passed",
+    "strictPortablePhoneTypescript": "passed",
+    "windowsHeadlessWorker": "passed",
+    "nativeChecks": 37,
+    "nativeSourceCommit": "f5b18f2e049b5af7283e63cb035243c2d201c8d7",
+    "scope": "Compiler-bound single-definition money sums, faithful row-field projection, generic prepared native SQL and public private-receipt flow.",
+    "evidence": "docs/verification/compiled-measures.json",
+    "nativeEvidence": "docs/verification/compiled-measures-native.json",
+    "fullReleaseAcceptance": "unverified",
+    "dedicatedSecurityReview": "blocked-unverified",
+    "externalCorpusAcquired": 0,
+    "namedConnectorGroupsQualified": 0
   }
 }

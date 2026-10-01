@@ -1,0 +1,83 @@
+{
+  "checkedCommit": "0ca40d0f475952d46537f75dc922a845db574599",
+  "startedAt": "2026-10-01T04:14:27.308Z",
+  "node": "24.13.1",
+  "platform": "win32",
+  "arch": "x64",
+  "tests": 85,
+  "results": [
+    {
+      "name": "syntax-json",
+      "exitCode": 0,
+      "passed": true,
+      "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-compiled-measures-complete-checks\\syntax-json.log",
+      "logSha256": "10e415362edbb502e2c7284729575cfb1fbb59e414e530dac29f6b6b2705039f"
+    },
+    {
+      "name": "strict-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-compiled-measures-complete-checks\\strict-typescript.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "portable-phone-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-compiled-measures-complete-checks\\portable-phone-typescript.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "aggregate-tests",
+      "exitCode": 0,
+      "passed": true,
+      "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-compiled-measures-complete-checks\\aggregate-tests.log",
+      "logSha256": "dc41e7cb3997c630466d81d3932b56c4c64ce859455469a1fa17bfe9e90db60c",
+      "tests": 1167,
+      "suites": 0,
+      "pass": 1167,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "durationMs": 78225.2911
+    },
+    {
+      "name": "windows-headless-worker",
+      "exitCode": 0,
+      "passed": true,
+      "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-compiled-measures-complete-checks\\windows-headless-worker.log",
+      "logSha256": "3eac79785f8c266a02685fffd547cae352cd702d47363af6a9c603b435fe6b42"
+    }
+  ],
+  "releaseAcceptance": "unverified",
+  "dedicatedSecurityReview": "blocked-unverified",
+  "scope": "Actual combined local synthetic Engine/RPC, worker, fixture, and contract checks. No overall native, hosted, vendor, production-database, or security release pass.",
+  "finishedAt": "2026-10-01T04:16:09.597Z",
+  "passed": true,
+  "nativeVerification": {
+    "report": "compiled-measures-native.json",
+    "checkedSourceCommit": "f5b18f2e049b5af7283e63cb035243c2d201c8d7",
+    "checks": 37,
+    "passed": true,
+    "engines": {
+      "duckdb": "native-executed",
+      "postgres": "native-executed"
+    },
+    "sourceAfterNativeCheck": "One evidence JSON file only; runtime and gate source unchanged."
+  },
+  "externalCorpusAcquired": 0,
+  "namedConnectorGroupsQualified": 0,
+  "newCiStatus": "not-yet-run",
+  "previousVerifiedMain": "5c0d738afab0fc023850c429beba2768106e21e0",
+  "previousCi": {
+    "runId": 36812252524,
+    "conclusion": "success",
+    "platforms": [
+      "Windows",
+      "Ubuntu"
+    ],
+    "repositoryTestsEach": 1064
+  },
+  "questAcceptance": "No new end-to-end user sign-off. Full scope and independent qualification blockers retained."
+}
