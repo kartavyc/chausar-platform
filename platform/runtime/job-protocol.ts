@@ -24,6 +24,7 @@ export type StepAttempt = {
   settlement?: ProviderSettlement; reconciliationId?: string; reason?: string;
 };
 export type GoalExecution = {
+  calendar?: { occurrenceId: string; scheduleRevision: number; requestedLocal: string; resolvedLocal: string; fold: number; rulesRevision: string };
   plan: GoalPlan; type: string; sourceIds: string[];
   run: number; objectiveRevision: number; scheduledFor: string; planDigest: string;
   startedAt: string; attempts: StepAttempt[]; meters: GoalLimits;

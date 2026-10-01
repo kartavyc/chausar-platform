@@ -3,8 +3,12 @@ import type { Context, State, StateStore } from './contracts.ts';
 import { current, digest, sourceAccess, canonical } from './actions.ts';
 import { json, validatePlan } from './job-protocol.ts';
 import type { GoalPlan, GoalLimits, GoalExecution } from './job-protocol.ts';
+import { evaluateCalendar, validateCalendar, calendarInstant } from './calendar.ts';
+import type { CalendarDefinition, CalendarBounds, CalendarEvaluation, JobCalendar } from './calendar.ts';
+import type { CalendarRules } from './calendar-zone.ts';
 
 export type JobConfig = {
+  calendar?: CalendarDefinition;
   input?: unknown; plan?: GoalPlan; limits?: GoalLimits; allowedActions?: string[]; testedRoutes?: string[]; background?: boolean;
   type?: string;
   goal: string; ownerId?: string; budgetMinor: string; reserveMinor?: string;
@@ -13,6 +17,7 @@ export type JobConfig = {
 };
 export type Lease = { token: string; workerId: string; fence: number; expiresAt: string; reservedMinor: string; chargedMinor: string };
 export type Job = {
+  calendar?: JobCalendar;
   input?: unknown; plan?: GoalPlan; limits?: GoalLimits; allowedActions?: string[]; testedRoutes?: string[]; background?: boolean; execution?: GoalExecution; archivedExecutions?: GoalExecution[];
   type?: string;
   id: string; goal: string; ownerId: string; ownerEpoch: number; ownerRole: Context['role']; budgetMinor: string; reserveMinor: string; spentMinor: string; reservedMinor: string;
@@ -25,11 +30,54 @@ export type Job = {
 function amount(value: unknown): bigint { check(typeof value === 'string' && /^(0|[1-9]\d*)$/.test(value), 'INVALID_BUDGET', 'Budgets use non-negative integer paise.'); return BigInt(value); }
 export class JobService {
   store: StateStore; clock: () => number;
+  calendarRules?: CalendarRules; calendarBounds?: CalendarBounds;
   deliverableGuard?: (context: Context, job: Job) => boolean;
-  constructor(store: StateStore, options: { clock?: () => number; deliverableGuard?: (context: Context, job: Job) => boolean } = {}) { this.store = store; this.clock = options.clock ?? Date.now; this.deliverableGuard = options.deliverableGuard; }
+  constructor(store: StateStore, options: { clock?: () => number; deliverableGuard?: (context: Context, job: Job) => boolean; calendarRules?: CalendarRules; calendarBounds?: CalendarBounds } = {}) { this.store = store; this.clock = options.clock ?? Date.now; this.deliverableGuard = options.deliverableGuard; this.calendarRules = options.calendarRules; this.calendarBounds = options.calendarBounds && json(options.calendarBounds); }
   timestamp() { return new Date(this.clock()).toISOString(); }
   find(state: State, id: string): Job { const job = state.jobs.find(j => j.id === id); check(job, 'NOT_FOUND', 'Job not found.'); return job; }
-  identity(job: Job) { return digest({ ...(job.type ? { type: job.type } : {}), ...(job.scheduleAnchor ? { scheduleAnchor: job.scheduleAnchor } : {}), ...(job.plan ? { input: job.input, plan: job.plan, limits: job.limits, allowedActions: job.allowedActions, testedRoutes: job.testedRoutes, background: job.background } : {}), goal: job.goal, ownerId: job.ownerId, ownerEpoch: job.ownerEpoch, budgetMinor: job.budgetMinor, reserveMinor: job.reserveMinor, stopRule: job.stopRule, intervalMs: job.intervalMs, catchup: job.catchup, graceMs: job.graceMs, requiresApproval: job.requiresApproval, sourceIds: job.sourceIds, revision: job.revision }); }
+  identity(job: Job) { return digest({ ...(job.type ? { type: job.type } : {}), ...(job.calendar ? { calendar: { definition: job.calendar.definition, revision: job.calendar.revision, objectiveRevision: job.calendar.objectiveRevision, digest: job.calendar.digest } } : {}), ...(job.scheduleAnchor ? { scheduleAnchor: job.scheduleAnchor } : {}), ...(job.plan ? { input: job.input, plan: job.plan, limits: job.limits, allowedActions: job.allowedActions, testedRoutes: job.testedRoutes, background: job.background } : {}), goal: job.goal, ownerId: job.ownerId, ownerEpoch: job.ownerEpoch, budgetMinor: job.budgetMinor, reserveMinor: job.reserveMinor, stopRule: job.stopRule, intervalMs: job.intervalMs, catchup: job.catchup, graceMs: job.graceMs, requiresApproval: job.requiresApproval, sourceIds: job.sourceIds, revision: job.revision }); }
+  private calendarPorts() { check(this.calendarRules && this.calendarBounds, 'CALENDAR_RULES_REQUIRED', 'Install explicit time-zone rules and evaluation bounds.'); return { rules: this.calendarRules, bounds: this.calendarBounds }; }
+  calendarEvaluation(job: Job, at = this.clock()): CalendarEvaluation { check(job.calendar, 'CALENDAR_REQUIRED', 'This mandate has no calendar schedule.'); return evaluateCalendar(job.calendar.definition, { ...this.calendarPorts(), jobId: job.id, now: at, records: job.calendar.records, skipOverlapWindows: job.calendar.skipOverlapWindows }); }
+  calendarDispatchValid(job: Job) { if (!job.calendar) return; const c = job.calendar; check(c.objectiveRevision === job.revision && c.digest === digest(c.definition) && c.definition.rulesRevision === this.calendarPorts().rules.revision && c.current && job.execution?.calendar?.occurrenceId === c.current && job.execution.calendar.scheduleRevision === c.revision, 'CALENDAR_AUTHORITY_CHANGED', 'The reviewed calendar, rules or admitted objective changed.'); check(this.clock() < calendarInstant(c.definition.stop.until), 'JOB_STOP_RULE', 'The calendar dispatch mandate expired.'); }
+  private calendarDecisions(job: Job, evaluation: CalendarEvaluation) {
+    const c = job.calendar!;
+    for (const decision of evaluation.decisions) {
+      const old = c.records.find(x => x.id === decision.occurrence.id);
+      if (old?.status === 'deferred') { old.status = decision.status; old.reason = decision.reason; old.at = this.timestamp(); }
+      else if (!old) c.records.push({ ...decision.occurrence, status: decision.status, scheduleRevision: c.revision, objectiveRevision: job.revision, at: this.timestamp(), reason: decision.reason });
+    }
+  }
+  private calendarStopAudit(job: Job, reason: string) {
+    if (!job.calendar) return;
+    try {
+      const evaluation = this.calendarEvaluation(job, Math.min(this.clock(), calendarInstant(job.calendar.definition.stop.until)));
+      this.calendarDecisions(job, { ...evaluation, decisions: [...evaluation.decisions, ...evaluation.selected.map(occurrence => ({ occurrence, status: 'skipped' as const, reason }))] });
+    } catch (error) { job.ledger.push({ at: this.timestamp(), event: 'calendar-audit-blocked', reason: (error as { code?: string }).code ?? 'CALENDAR_UNQUALIFIED' }); }
+  }
+  /** Prospective calendar edits are qualified while idle and separately bind the current objective. */
+  async configureCalendar(context: Context, id: string, definition: CalendarDefinition, expectedScheduleRevision: number, expectedObjectiveRevision: number, replacement: 'replace-immediately'): Promise<Job> {
+    check(replacement === 'replace-immediately', 'CALENDAR_REVISION_POLICY_REQUIRED', 'Explicitly replace the old idle definition now; the new effectiveFrom is its coverage start, not a delayed activation.');
+    const clean = validateCalendar(definition, this.calendarPorts().rules, this.calendarPorts().bounds);
+    return this.store.update(state => {
+      const job = this.find(state, id); this.owner(state, context, job);
+      check(context.memberId === job.ownerId && context.epoch === job.ownerEpoch && context.role === job.ownerRole && !context.sourceTainted && context.channel !== 'phone', 'APP_APPROVAL_REQUIRED', 'Only the pinned owner may revise a schedule inside the app.');
+      check(job.revision === expectedObjectiveRevision && (job.calendar?.revision ?? 0) === expectedScheduleRevision, 'CALENDAR_REVISION_CHANGED', 'Review the current objective and schedule revisions.');
+      check(!['accepted', 'cancelled', 'revoked', 'stopped'].includes(job.status) && !job.lease && !job.execution && !job.deliverable && (!job.calendar?.current || job.calendar.objectiveRevision !== job.revision), 'CALENDAR_NOT_IDLE', 'Resolve and accept the current occurrence before editing its calendar.');
+      check(calendarInstant(clean.effectiveFrom) >= this.clock(), 'CALENDAR_RETROACTIVE_REVISION', 'Schedule revisions need an explicit prospective effective instant.');
+      check(this.clock() < Date.parse(job.stopRule.deadline) && job.runs < job.stopRule.maxRuns, 'JOB_STOP_RULE', 'An expired mandate cannot acquire a new schedule.');
+      const old = job.calendar; if (old?.current) { const record = old.records.find(x => x.id === old.current)!; record.status = 'obsolete'; record.reason = 'objective-changed'; delete old.current; }
+      const c: JobCalendar = { definition: clean, revision: expectedScheduleRevision + 1, objectiveRevision: job.revision, digest: digest(clean), paused: old?.paused ?? false, records: old?.records ?? [], skipOverlapWindows: old?.skipOverlapWindows ?? [], retiredDefinitions: [...(old?.retiredDefinitions ?? []), ...(old ? [{ definition: old.definition, revision: old.revision, objectiveRevision: old.objectiveRevision, replacedAt: this.timestamp() }] : [])] };
+      // A stable business identity policy cannot be changed to evade existing tombstones.
+      check(!old || old.definition.identityBasis === clean.identityBasis, 'CALENDAR_IDENTITY_CHANGED', 'Business-period identity is immutable for this mandate. Create a separately reviewed mandate to change it.');
+      check(!old || (old.definition.dst.overlap === 'both') === (clean.dst.overlap === 'both'), 'CALENDAR_IDENTITY_CHANGED', 'Single-run versus both-fold multiplicity is immutable for this mandate.');
+      job.calendar = c; const evaluation = this.calendarEvaluation(job); job.nextRunAt = evaluation.nextRunAt ?? clean.stop.until; job.scheduleAnchor = clean.effectiveFrom; delete job.approval; job.status = 'scheduled'; job.digest = this.identity(job);
+      job.ledger.push({ at: this.timestamp(), event: 'calendar-revised', reason: `replace-immediately; schedule ${c.revision}; objective ${job.revision}; new coverage ${clean.effectiveFrom}` }); audit(state, 'job.calendar-revised', { jobId: id, scheduleRevision: c.revision, objectiveRevision: job.revision, replacement, effectiveFrom: clean.effectiveFrom }); return this.view(context, job);
+    });
+  }
+  /** This controls future claims only. Generic pause/cancel separately interrupt current work. */
+  async pauseCalendar(context: Context, id: string): Promise<Job> { return this.setCalendarPause(context, id, true); }
+  async resumeCalendar(context: Context, id: string): Promise<Job> { return this.setCalendarPause(context, id, false); }
+  private async setCalendarPause(context: Context, id: string, paused: boolean): Promise<Job> { return this.store.update(state => { const job = this.find(state, id); this.owner(state, context, job); check(context.memberId === job.ownerId && context.epoch === job.ownerEpoch && context.role === job.ownerRole && !context.sourceTainted && context.channel !== 'phone', 'APP_APPROVAL_REQUIRED', 'The pinned owner controls future calendar claims inside the app.'); check(job.calendar && !['accepted', 'cancelled', 'revoked', 'stopped'].includes(job.status), 'INVALID_JOB_STATE', 'A terminal mandate cannot resume its calendar.'); job.calendar.paused = paused; job.ledger.push({ at: this.timestamp(), event: paused ? 'calendar-paused' : 'calendar-resumed' }); return this.view(context, job); }); }
   owner(state: State, context: Context, job: Job) {
     current(state, context, 'approve'); check(context.memberId === job.ownerId || context.role === 'owner', 'JOB_OWNER_REQUIRED', 'Only its owner or the workspace owner may control this job.');
     sourceAccess(state, context, job.sourceIds);
@@ -60,6 +108,7 @@ export class JobService {
   }
   async create(context: Context, config: JobConfig): Promise<Job> {
     config = json(config);
+    if (Object.hasOwn(config, 'calendar')) { check(['nextRunAt', 'intervalMs', 'catchup', 'graceMs'].every(key => !Object.hasOwn(config, key)), 'AMBIGUOUS_JOB_SCHEDULE', 'Supply either an explicit calendar or an elapsed interval schedule.'); config.calendar = validateCalendar(config.calendar!, this.calendarPorts().rules, this.calendarPorts().bounds); }
     check(config.type === undefined || (typeof config.type === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(config.type)), 'INVALID_JOB_TYPE', 'Use a named installed runner type.');
     check(!context.sourceTainted, 'TAINTED_JOB', 'Imported text cannot create an autonomous mandate.');
     check(typeof config.goal === 'string' && config.goal.trim().length >= 5 && config.goal.length <= 2000, 'INVALID_GOAL', 'A job needs a concrete goal.');
@@ -78,7 +127,8 @@ export class JobService {
       const sourceIds = [...new Set(config.sourceIds ?? [])].sort(); sourceAccess(state, context, sourceIds); sourceAccess(state, { memberId: member.id, role: member.role, epoch: member.epoch }, sourceIds);
       const job: Job = { id: newId('job'), goal: config.goal.trim(), ownerId: member.id, ownerEpoch: member.epoch, ownerRole: member.role, budgetMinor: String(budget), reserveMinor: String(reservation), spentMinor: '0', reservedMinor: '0', stopRule: structuredClone(config.stopRule), nextRunAt, intervalMs, catchup, graceMs, requiresApproval: config.requiresApproval === true, sourceIds, revision: 1, digest: '', runs: 0, fence: 0, status: 'scheduled', createdAt: this.timestamp(), ledger: [{ at: this.timestamp(), event: 'created' }] };
       if (config.type) job.type = config.type;
-      job.scheduleAnchor = nextRunAt;
+      if (config.calendar) { job.calendar = { definition: config.calendar, revision: 1, objectiveRevision: 1, digest: digest(config.calendar), paused: false, records: [], skipOverlapWindows: [], retiredDefinitions: [] }; const evaluation = this.calendarEvaluation(job); job.nextRunAt = evaluation.nextRunAt ?? config.calendar.stop.until; }
+      job.scheduleAnchor = config.calendar?.effectiveFrom ?? nextRunAt;
       if (config.plan) { job.input = json(config.input); job.plan = json(config.plan); job.limits = json(config.limits!); job.allowedActions = [...new Set(config.allowedActions!)].sort(); job.testedRoutes = [...new Set(config.testedRoutes!)].sort(); job.background = config.background; }
       job.digest = this.identity(job); state.jobs.push(job); audit(state, 'job.created', { jobId: job.id, ownerId: member.id, budgetMinor: job.budgetMinor }); return this.view(context, job);
     });
@@ -118,14 +168,23 @@ export class JobService {
         check(job.lease && Date.parse(job.lease.expiresAt) <= this.clock(), 'JOB_BUSY', 'Another worker holds this job.'); if (this.interrupt(job, 'scheduled', 'lease-expired') === 'outcome-unknown') return this.view(context, job);
       }
       check(!['paused', 'revoked', 'accepted', 'cancelled', 'stopped', 'awaiting-acceptance', 'outcome-unknown', 'runner-blocked'].includes(job.status), 'JOB_NOT_RUNNABLE', 'This job is paused, stopped, unresolved or awaiting acceptance.');
-      if (job.runs >= job.stopRule.maxRuns || this.clock() >= Date.parse(job.stopRule.deadline)) { job.status = 'stopped'; job.ledger.push({ at: this.timestamp(), event: 'stop-rule' }); return this.view(context, job); }
+      if (job.runs >= job.stopRule.maxRuns || this.clock() >= Date.parse(job.stopRule.deadline)) { this.calendarStopAudit(job, 'mandate-expired'); job.status = 'stopped'; job.ledger.push({ at: this.timestamp(), event: 'stop-rule' }); return this.view(context, job); }
+      if (job.calendar) {
+        if (this.clock() >= calendarInstant(job.calendar.definition.stop.until)) { this.calendarStopAudit(job, 'schedule-expired'); job.status = 'stopped'; job.ledger.push({ at: this.timestamp(), event: 'calendar-expired' }); return this.view(context, job); }
+        if (job.calendar.objectiveRevision !== job.revision) { job.status = 'runner-blocked'; job.ledger.push({ at: this.timestamp(), event: 'calendar-objective-changed' }); return this.view(context, job); }
+        if (job.calendar.paused && !job.calendar.current) return this.view(context, job);
+      }
       if (!state.policy.autonomy) { job.status = 'approval-blocked'; job.ledger.push({ at: this.timestamp(), event: 'autonomy-disabled' }); return this.view(context, job); }
       if (job.requiresApproval) {
         const approval = job.approval; const approver = approval && state.members.find(m => m.id === approval.memberId);
         if (!approval || approval.digest !== this.identity(job) || approval.revision !== job.revision || !approver?.active || approver.epoch !== approval.epoch || approver.role !== approval.role) { job.status = 'approval-blocked'; job.ledger.push({ at: this.timestamp(), event: 'approval-required' }); return this.view(context, job); }
       }
-      check(this.clock() >= Date.parse(job.nextRunAt), 'JOB_NOT_DUE', 'This job is not due.');
-      if (!job.execution && job.catchup === 'skip' && this.clock() - Date.parse(job.nextRunAt) > job.graceMs) {
+      let calendarEvaluation: CalendarEvaluation | undefined;
+      if (job.calendar && !job.calendar.current) {
+        try { calendarEvaluation = this.calendarEvaluation(job); } catch (error) { job.status = 'runner-blocked'; job.ledger.push({ at: this.timestamp(), event: 'blocked', reason: (error as { code?: string }).code ?? 'CALENDAR_UNQUALIFIED' }); return this.view(context, job); }
+        if (!calendarEvaluation.selected.length) { this.calendarDecisions(job, calendarEvaluation); job.nextRunAt = calendarEvaluation.nextRunAt ?? job.calendar.definition.stop.until; if (!calendarEvaluation.nextRunAt) { job.status = 'stopped'; job.ledger.push({ at: this.timestamp(), event: 'calendar-exhausted' }); } return this.view(context, job); }
+      } else check(this.clock() >= Date.parse(job.nextRunAt), 'JOB_NOT_DUE', 'This job is not due.');
+      if (!job.calendar && !job.execution && job.catchup === 'skip' && this.clock() - Date.parse(job.nextRunAt) > job.graceMs) {
         const missed = Math.floor((this.clock() - Date.parse(job.nextRunAt)) / job.intervalMs) + 1;
         job.nextRunAt = new Date(Date.parse(job.nextRunAt) + missed * job.intervalMs).toISOString(); job.status = 'scheduled'; job.ledger.push({ at: this.timestamp(), event: 'catchup-skipped', reason: `${missed} due runs skipped` }); return this.view(context, job);
       }
@@ -133,6 +192,12 @@ export class JobService {
       const runCost = (job.execution?.attempts ?? []).reduce((sum, attempt) => sum + amount(attempt.settlement?.spentMinor ?? '0'), 0n);
       const reserve = amount(job.reserveMinor) - runCost;
       if (amount(job.spentMinor) + amount(job.reservedMinor) + reserve > amount(job.budgetMinor)) { job.status = 'budget-blocked'; job.ledger.push({ at: this.timestamp(), event: 'budget-exhausted' }); return this.view(context, job); }
+      if (job.calendar && calendarEvaluation) {
+        this.calendarDecisions(job, calendarEvaluation); const c = job.calendar; const occurrence = calendarEvaluation.selected[0]; const prior = c.records.find(x => x.id === occurrence.id);
+        if (prior) { check(prior.status === 'deferred', 'CALENDAR_OCCURRENCE_CONSUMED', 'This business period was already consumed.'); Object.assign(prior, occurrence); prior.status = 'admitted'; prior.at = this.timestamp(); prior.scheduleRevision = c.revision; prior.objectiveRevision = job.revision; delete prior.reason; }
+        else c.records.push({ ...occurrence, status: 'admitted', scheduleRevision: c.revision, objectiveRevision: job.revision, at: this.timestamp(), ...(calendarEvaluation.representedIds.length ? { representedIds: calendarEvaluation.representedIds } : {}) });
+        c.current = occurrence.id; job.nextRunAt = occurrence.instant!; job.ledger.push({ at: this.timestamp(), event: 'calendar-admitted', reason: occurrence.id });
+      }
       job.fence += 1; job.reservedMinor = String(amount(job.reservedMinor) + reserve);
       job.lease = { token: newId('lease'), workerId, fence: job.fence, expiresAt: new Date(this.clock() + leaseMs).toISOString(), reservedMinor: String(reserve), chargedMinor: '0' }; job.status = 'running'; job.ledger.push({ at: this.timestamp(), event: 'reserved', fence: job.fence, amountMinor: String(reserve) }); return this.view(context, job);
     });
@@ -154,6 +219,7 @@ export class JobService {
       if (job.plan) { const verified = new Set(job.execution?.attempts.filter(a => a.status === 'verified').map(a => a.stepId)); check(job.execution?.objectiveRevision === job.revision && job.execution.planDigest === digest(job.plan) && job.plan.steps.every(step => verified.has(step.id)) && [...job.plan.children, ...job.plan.obligations].every(group => group.requiredStepIds.every(stepId => verified.has(stepId))), 'JOB_INCOMPLETE', 'Required child results or original objective obligations are missing.'); }
       check(totalCost >= amount(job.lease!.chargedMinor) && totalCost <= amount(job.lease!.reservedMinor), 'BUDGET_EXCEEDED', 'The final cost must fit its reservation and include earlier charges.');
       const additional = totalCost - amount(job.lease!.chargedMinor); job.spentMinor = String(amount(job.spentMinor) + additional); job.reservedMinor = String(amount(job.reservedMinor) - additional); job.lease!.chargedMinor = String(totalCost); this.release(job);
+      if (job.calendar?.current) job.calendar.records.find(x => x.id === job.calendar!.current)!.status = 'delivered';
       job.runs += 1; job.deliverable = clean; job.status = 'awaiting-acceptance'; job.ledger.push({ at: this.timestamp(), event: 'delivered', fence: lease.fence, amountMinor: String(totalCost) }); audit(state, 'job.delivered', { jobId: id, spentMinor: job.spentMinor }); return this.view(context, job);
     });
   }
@@ -162,7 +228,8 @@ export class JobService {
       const job = this.find(state, id); this.owner(state, context, job); check(context.memberId === job.ownerId && context.epoch === job.ownerEpoch && context.role === job.ownerRole, 'JOB_OWNER_REQUIRED', 'Only the pinned owner may accept the result.'); check(!context.sourceTainted && context.channel !== 'phone', 'APP_ACCEPTANCE_REQUIRED', 'Accept delivered work inside the app.'); check(job.status === 'awaiting-acceptance', 'INVALID_JOB_STATE', 'A human can accept a delivered result.');
       if (job.plan) check(this.deliverableGuard?.(context, structuredClone(job)) === true, 'JOB_EVIDENCE_REVOKED', 'Accept only currently accessible evidence for this exact objective.');
       job.ledger.push({ at: this.timestamp(), event: 'accepted' }); job.status = 'accepted';
-      if (repeat && job.runs < job.stopRule.maxRuns && this.clock() < Date.parse(job.stopRule.deadline)) { const periods = Math.max(1, Math.floor((this.clock() - Date.parse(job.nextRunAt)) / job.intervalMs) + 1); job.nextRunAt = new Date(Date.parse(job.nextRunAt) + periods * job.intervalMs).toISOString(); job.status = 'scheduled'; delete job.approval; if (job.execution) (job.archivedExecutions ??= []).push(job.execution); delete job.execution; delete job.deliverable; }
+      if (job.calendar?.current) { const c = job.calendar; const record = c.records.find(x => x.id === c.current)!; record.status = 'accepted'; if (c.definition.overlap === 'skip') c.skipOverlapWindows.push({ from: record.at, to: this.timestamp() }); delete c.current; }
+      if (repeat && job.runs < job.stopRule.maxRuns && this.clock() < Date.parse(job.stopRule.deadline) && (!job.calendar || this.clock() < calendarInstant(job.calendar.definition.stop.until))) { if (job.calendar) job.nextRunAt = this.timestamp(); else { const periods = Math.max(1, Math.floor((this.clock() - Date.parse(job.nextRunAt)) / job.intervalMs) + 1); job.nextRunAt = new Date(Date.parse(job.nextRunAt) + periods * job.intervalMs).toISOString(); } job.status = 'scheduled'; delete job.approval; if (job.execution) (job.archivedExecutions ??= []).push(job.execution); delete job.execution; delete job.deliverable; }
       audit(state, 'job.accepted', { jobId: id, repeat }); return this.view(context, job);
     });
   }

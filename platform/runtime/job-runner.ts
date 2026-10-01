@@ -56,12 +56,13 @@ export class DurableJobRunner {
     const store = this.jobs.store;
     const capped = new JobService({ read: () => store.read(), update: change => store.update(state => {
       check(state.jobs.filter((job: Job) => !['accepted', 'cancelled', 'revoked', 'stopped'].includes(job.status) || job.execution?.attempts.some(a => ['dispatched', 'unknown'].includes(a.status))).length < this.options.maxActiveJobs, 'ACTIVE_JOB_LIMIT', 'The configured active job ceiling is reached.'); return change(state);
-    }) }, { clock: this.jobs.clock, deliverableGuard: this.jobs.deliverableGuard });
+    }) }, { clock: this.jobs.clock, deliverableGuard: this.jobs.deliverableGuard, calendarRules: this.jobs.calendarRules, calendarBounds: this.jobs.calendarBounds });
     return capped.create(context, { ...config, input, plan, background: config.background ?? false, allowedActions: config.allowedActions ?? [], testedRoutes: config.testedRoutes ?? [] });
   }
   /** Authorized objective replacement fences prior work; its uncertain effects keep their original plan. */
   async amend(context: Context, id: string, config: Omit<JobConfig, 'plan'> & { type: string }): Promise<Job> {
     config = json(config);
+    check(config.calendar === undefined, 'CALENDAR_SEPARATE_REVISION', 'Revise calendars separately while the objective is idle.');
     check(!context.sourceTainted && context.channel !== 'phone', 'APP_APPROVAL_REQUIRED', 'Amend objectives inside the app.');
     const runner = this.runner(config.type); const input = json(runner.validate(json(config.input))); const plan = json(runner.plan(input));
     check(config.limits && plan.runnerVersion === runner.version && typeof config.goal === 'string' && config.goal.trim().length >= 5 && config.goal.length <= 2000, 'INVALID_JOB_PLAN', 'An amended objective needs a concrete goal and pinned plan.');
@@ -72,6 +73,7 @@ export class DurableJobRunner {
       const job = this.jobs.find(state, id); this.jobs.owner(state, context, job); check(context.memberId === job.ownerId && context.epoch === job.ownerEpoch && context.role === job.ownerRole, 'JOB_OWNER_REQUIRED', 'Only the pinned owner may replace the objective.');
       check(!['cancelled', 'revoked', 'stopped', 'accepted'].includes(job.status), 'INVALID_JOB_STATE', 'A terminal mandate cannot be revived.');
       check(config.ownerId === undefined || config.ownerId === job.ownerId, 'JOB_OWNER_REQUIRED', 'Owner replacement needs a separate ownership decision.');
+      check(!job.calendar || ['nextRunAt', 'intervalMs', 'catchup', 'graceMs'].every(key => !Object.hasOwn(config, key)), 'AMBIGUOUS_JOB_SCHEDULE', 'Calendar objectives cannot acquire elapsed-interval settings.');
       const intervalMs = config.intervalMs ?? job.intervalMs; const catchup = config.catchup ?? job.catchup; const graceMs = config.graceMs ?? job.graceMs; const nextRunAt = config.nextRunAt ?? job.nextRunAt;
       check(Number.isSafeInteger(intervalMs) && intervalMs >= 1000 && intervalMs <= 31536000000 && ['latest', 'skip'].includes(catchup) && Number.isSafeInteger(graceMs) && graceMs >= 0 && graceMs <= intervalMs && Number.isFinite(Date.parse(nextRunAt)), 'INVALID_SCHEDULE', 'Supply a valid amended interval, due time and catch-up rule.');
       check(money(config.budgetMinor) >= money(job.spentMinor) + money(job.reservedMinor), 'INVALID_BUDGET', 'An amendment cannot remove spent or unresolved capacity.');
@@ -114,8 +116,10 @@ export class DurableJobRunner {
     this.jobs.release(job); job.fence += 1; job.status = status;
     job.ledger.push({ at: this.jobs.timestamp(), event: 'blocked', reason });
   }
+  private operationKey(job: Job, step: GoalStep) { return `${job.id}:revision:${job.revision}:occurrence:${job.execution!.calendar?.occurrenceId ?? job.execution!.scheduledFor}:step:${step.id}`; }
   private dispatchCheck(state: State, context: Context, job: Job, lease: LeaseIdentity) {
     this.scope(state, context, job);
+    this.jobs.calendarDispatchValid(job);
     check(job.plan && job.execution && job.execution.objectiveRevision === job.revision && job.execution.planDigest === digest(job.plan) && job.digest === this.jobs.identity(job) && this.runner(job.type).version === job.plan.runnerVersion, 'JOB_RUNNER_CHANGED', 'The objective or installed runner changed.');
     check(state.policy.autonomy, 'AUTONOMY_DISABLED', 'Autonomy was disabled.');
     check(this.jobs.clock() < Date.parse(job.stopRule.deadline) && job.runs < job.stopRule.maxRuns && this.jobs.clock() - Date.parse(job.execution.startedAt) < job.limits!.durationMs, 'JOB_STOP_RULE', 'The mandate stop or wall-time ceiling was reached.');
@@ -134,7 +138,7 @@ export class DurableJobRunner {
       check(!job.execution!.attempts.some(a => ['dispatched', 'unknown'].includes(a.status)), 'JOB_STEP_ALREADY_ATTEMPTED', 'Resolve the single dispatched step before admitting another.');
       const meters = job.execution!.meters;
       check(money(step.reserveMinor) <= money(job.lease!.reservedMinor) - money(job.lease!.chargedMinor) && meters.modelUnits + step.modelUnits <= job.limits!.modelUnits && meters.durationMs + step.durationMs <= job.limits!.durationMs && money(meters.actionExposureMinor) + money(step.actionExposureMinor) <= money(job.limits!.actionExposureMinor), 'JOB_BUDGET_EXHAUSTED', 'The next step exceeds the remaining admitted capacity.');
-      const key = `${job.id}:revision:${job.revision}:occurrence:${job.execution!.scheduledFor}:step:${step.id}`;
+      const key = this.operationKey(job, step);
       const attempt: StepAttempt = { stepId: step.id, key, attempt: 1, fence: lease.fence, status: 'dispatched', reservedMinor: step.reserveMinor, startedAt: this.jobs.timestamp() };
       job.execution!.attempts.push(attempt); job.ledger.push({ at: this.jobs.timestamp(), event: 'step-dispatched', fence: lease.fence, amountMinor: step.reserveMinor, reason: step.id }); audit(state, 'job.step-dispatched', { jobId: id, key, stepId: step.id }); return json(attempt);
     });
@@ -169,7 +173,7 @@ export class DurableJobRunner {
   private previewResult(action: PreparedAction, sourceTainted: boolean): ProviderSettlement { return { result: { value: { actionId: action.id, digest: action.digest, status: action.status, businessSuccess: false }, informationClass: 'action-preview', evidenceIds: [action.id], sourceTainted }, spentMinor: '0', modelUnits: 0, durationMs: 0, actionExposureMinor: '0' }; }
   private async boundedDispatch(provider: GoalProvider, request: ProviderRequest, controller: AbortController): Promise<ProviderSettlement> {
     const job = this.raw(request.key.split(':revision:')[0]);
-    const timeoutMs = Math.min(request.step.durationMs, Date.parse(job.stopRule.deadline) - this.jobs.clock(), job.limits!.durationMs - (this.jobs.clock() - Date.parse(job.execution!.startedAt)));
+    const timeoutMs = Math.min(request.step.durationMs, Date.parse(job.stopRule.deadline) - this.jobs.clock(), job.calendar ? Date.parse(job.calendar.definition.stop.until) - this.jobs.clock() : Infinity, job.limits!.durationMs - (this.jobs.clock() - Date.parse(job.execution!.startedAt)));
     let timer: ReturnType<typeof setTimeout> | undefined;
     let aborted!: () => void;
     let stopped!: () => void;
@@ -186,15 +190,15 @@ export class DurableJobRunner {
       check(initial.plan, 'INVALID_JOB_PLAN', 'This job needs a typed plan.');
       if (initial.status === 'outcome-unknown') return this.jobs.view(context, initial);
       const acquired = await this.jobs.acquire(context, id, this.options.workerId, this.options.leaseMs); if (acquired.status !== 'running' || !acquired.lease) return acquired; lease = acquired.lease;
-      await this.jobs.store.update(state => { const job = this.jobs.find(state, id); this.jobs.validateLease(job, lease!); job.execution ??= { plan: json(job.plan!), type: job.type!, sourceIds: [...job.sourceIds], run: job.runs + 1, objectiveRevision: job.revision, scheduledFor: job.nextRunAt, planDigest: digest(job.plan), startedAt: this.jobs.timestamp(), attempts: [], meters: { modelUnits: 0, durationMs: 0, actionExposureMinor: '0' }, sourceTainted: false }; });
+      await this.jobs.store.update(state => { const job = this.jobs.find(state, id); this.jobs.validateLease(job, lease!); const c = job.calendar, occurrence = c?.records.find(x => x.id === c.current); job.execution ??= { ...(c && occurrence ? { calendar: { occurrenceId: occurrence.id, scheduleRevision: occurrence.scheduleRevision, requestedLocal: occurrence.requestedLocal, resolvedLocal: occurrence.resolvedLocal!, fold: occurrence.fold, rulesRevision: c.definition.rulesRevision } } : {}), plan: json(job.plan!), type: job.type!, sourceIds: [...job.sourceIds], run: job.runs + 1, objectiveRevision: job.revision, scheduledFor: occurrence?.instant ?? job.nextRunAt, planDigest: digest(job.plan), startedAt: this.jobs.timestamp(), attempts: [], meters: { modelUnits: 0, durationMs: 0, actionExposureMinor: '0' }, sourceTainted: false }; });
       controller = new AbortController(); this.signals.set(id, controller);
       heartbeat = setInterval(() => { void this.jobs.heartbeat(context, id, lease!, this.options.leaseMs).catch(() => controller?.abort()); }, Math.max(25, Math.floor(this.options.leaseMs / 3))); heartbeat.unref();
       while (true) {
         const job = this.raw(id); this.scope(this.jobs.store.read(), context, job); const results = this.results(context, job);
         const pending = job.plan!.steps.filter(item => this.latest(job, item.id)?.status !== 'verified');
         const step = pending.find(item => item.dependencies.every(dependency => results[dependency.stepId]?.informationClass === dependency.informationClass && (!dependency.evidenceRequired || results[dependency.stepId].evidenceIds.length > 0)) && (this.providers.get(item.provider)?.transport === 'local' || this.options.networkAvailable())) ?? pending[0];
-        if (!step) { await this.jobs.store.update(state => { this.dispatchCheck(state, context, this.jobs.find(state, id), lease!); }); const runner = this.runner(job.type); const value = json(runner.deliver(runner.validate(job.input), results)); return await this.jobs.complete(context, id, lease, { kind: job.type!, objectiveRevision: job.revision, scheduledFor: job.execution!.scheduledFor, result: value }, this.raw(id).lease!.chargedMinor); }
-        const request = this.request(context, job, step, `${job.id}:revision:${job.revision}:occurrence:${job.execution!.scheduledFor}:step:${step.id}`, controller.signal); const attempt = await this.begin(context, id, lease, step, request); activeKey = attempt.key;
+        if (!step) { await this.jobs.store.update(state => { this.dispatchCheck(state, context, this.jobs.find(state, id), lease!); }); const runner = this.runner(job.type); const value = json(runner.deliver(runner.validate(job.input), results)); return await this.jobs.complete(context, id, lease, { ...(job.execution!.calendar ? { calendar: job.execution!.calendar } : {}), kind: job.type!, objectiveRevision: job.revision, scheduledFor: job.execution!.scheduledFor, result: value }, this.raw(id).lease!.chargedMinor); }
+        const request = this.request(context, job, step, this.operationKey(job, step), controller.signal); const attempt = await this.begin(context, id, lease, step, request); activeKey = attempt.key;
         const provider = this.providers.get(step.provider)!;
         // Recheck synchronously at the invocation boundary after the admission commit resolves.
         check(!controller.signal.aborted, 'JOB_CANCELLED', 'The admitted step was cancelled before dispatch.');
@@ -264,7 +268,7 @@ export class DurableJobRunner {
   /** The host reports awake/window state; closed-laptop execution requires an explicitly separate host. */
   async tick(context: Context, host: { awake: boolean; windowOpen: boolean; backgroundEnabled: boolean }) {
     if (!host.awake || (!host.windowOpen && !host.backgroundEnabled) || !this.jobs.store.read().policy.autonomy || this.busy) return [];
-    const jobs = this.jobs.list(context).filter(job => job.plan && (host.windowOpen || job.background === true) && ((['scheduled', 'approval-blocked'].includes(job.status) && Date.parse(job.nextRunAt) <= this.jobs.clock()) || (job.status === 'network-wait' && this.options.networkAvailable()) || (job.status === 'running' && job.lease && Date.parse(job.lease.expiresAt) <= this.jobs.clock())));
+    const jobs = this.jobs.list(context).filter(job => job.plan && (!job.calendar?.paused || job.calendar.current) && (host.windowOpen || job.background === true) && ((['scheduled', 'approval-blocked'].includes(job.status) && Date.parse(job.nextRunAt) <= this.jobs.clock()) || (job.status === 'network-wait' && this.options.networkAvailable()) || (job.status === 'running' && job.lease && Date.parse(job.lease.expiresAt) <= this.jobs.clock())));
     const results: Job[] = []; for (const job of jobs) results.push(await this.run(context, job.id)); return results;
   }
 }
