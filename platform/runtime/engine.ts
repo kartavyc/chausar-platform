@@ -1,7 +1,7 @@
 import { resolve, join, relative, isAbsolute } from 'node:path';
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Vault, type VaultWriterGuard } from './vault.ts';
+import { Vault, safeDirectory, type VaultWriterGuard } from './vault.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
 import { ImportService, importPublicRecord, seedDemo } from './ingest.ts';
@@ -280,7 +280,11 @@ export class Engine {
     const path = resolve(this.options.directory, name); const rel = relative(this.options.directory, path);
     check(!rel.startsWith('..') && !isAbsolute(rel), 'INVALID_PATH', 'Workspace path is outside the vault folder.'); return path;
   }
-  private attach(vault: Vault) {
+  private async attach(vault: Vault) {
+    // Vault paths are canonicalized when opened. Resolve the independently
+    // configured root under the same no-symlink checks before comparing scope
+    // (Windows may spell the same directory with a short-name alias).
+    const applicationDirectory = await safeDirectory(this.options.directory);
     this.vault = vault; const owner = vault.read().members.find(m => m.id === 'owner' && m.active && m.role === 'owner');
     check(owner, 'OWNER_REQUIRED', 'No current owner is available for this vault.');
     this.context = { memberId: owner.id, role: owner.role, epoch: owner.epoch, channel: 'desktop' };
@@ -332,7 +336,7 @@ export class Engine {
       resolvePromotionImpact: (ctx, _fork, _evaluation, strategy) => this.privatePromotionImpact(ctx, this.store().read(), strategy),
       promoteAtomic: (ctx, publication) => this.promotePrivateTrial(ctx, publication),
     });
-    const interchangeLocal = createWorkspaceInterchangeLocalPorts({ vault, applicationDirectory: this.options.directory,
+    const interchangeLocal = createWorkspaceInterchangeLocalPorts({ vault, applicationDirectory,
       assertCompleteOwner: async (ctx, historical) => this.interchangeOwner(ctx, historical) });
     this.services.interchangeLocal = interchangeLocal;
     this.services.interchange = new WorkspaceInterchangeHost(interchangeLocal.ports);
@@ -454,7 +458,7 @@ export class Engine {
   }
   private notifyIdle() { if (!this.#activeRequests && !this.#transition) for (const finished of this.#idleWaiters) finished(); }
   private async attachSafely(vault: Vault) { try {
-    this.attach(vault);
+    await this.attach(vault);
     // Read-only devices may inspect/review enrollment without mutating recovery
     // state. A reviewed writer later performs ordinary recovery on reopen.
     if (this.options.sync !== undefined && (await this.writerStatus()).readonly) return;
@@ -483,7 +487,7 @@ export class Engine {
       const pack = payload.pack ?? 'ecommerce'; check(new OntologyService({ read: () => { throw new Error('No vault'); }, update: async () => { throw new Error('No vault'); } }).packs().some(p => p.pack === pack), 'UNKNOWN_PACK', 'Choose an available business starter pack.');
       const result = await Vault.create({ directory: this.workspacePath(payload.folder), passphrase: payload.passphrase, name: payload.name.trim(), demo: !!payload.demo, storage: await this.adapter(payload.folder) });
       try {
-        this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
+        await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
         if (payload.demo) await seedDemo(this.store(), this.context);
         return { workspace: this.store().read().workspace, recoveryKit: result.recoveryCode, recoveryCode: result.recoveryCode, experimental: !!this.options.demo };
       } catch (error) { await result.vault.delete(); this.vault = null; this.services = {}; throw error; }

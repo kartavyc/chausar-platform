@@ -57,12 +57,13 @@ function boundedPublicSummary(value: unknown) {
   assert.equal(text.includes('=1+1 literal'), false); assert.equal(text.includes('हिन्दी literal'), false);
 }
 
-async function setup(t: TestContext) {
+async function setup(t: TestContext, alternateRootSpelling = false) {
   const parent = await realpath(tmpdir());
   if (process.platform === 'win32') assert.match(parent, /^C:\\/i);
   const directory = await mkdtemp(join(parent, 'chausar-interchange-public-'));
   let providerCalls = 0;
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file',
+  const configuredDirectory = alternateRootSpelling && process.platform === 'win32' ? directory.toUpperCase() : directory;
+  const engine = new Engine({ directory: configuredDirectory, demo: true, storage: 'experimental-file',
     gateway: { http: async () => { providerCalls++; throw new Error('No live provider in this explicitly synthetic interchange acceptance.'); } } });
   const app = createLocalServer(engine);
   t.after(async () => {
@@ -127,6 +128,14 @@ async function setup(t: TestContext) {
   return { engine, rpc, raw, directory, receipts, custodyDirectory, ciphertextFiles, assertMeasured, exportAndPrepare,
     providerCalls: () => providerCalls, target: join(directory, PREPARE.targetId) };
 }
+
+test('actual Engine custody canonicalizes an independently configured Windows directory spelling before scope checks', async t => {
+  const value = await setup(t, true);
+  const exported = await value.rpc('workspace.interchange.export', EXPORT) as WorkspaceInterchangeHostSummary;
+  await value.assertMeasured(exported);
+  assert.equal(value.engine.vault!.directory, await realpath(join(value.directory, 'main')));
+  assert.equal(value.providerCalls(), 0);
+});
 
 test('actual public HTTP encrypted export/candidate survives lock/reopen/exact review and discard without target activation', async t => {
   const value = await setup(t), original = value.engine.vault!.read();

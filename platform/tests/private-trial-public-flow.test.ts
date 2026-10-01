@@ -184,6 +184,11 @@ for (const dependency of ['unpinned', 'other-member'] as const) test(`public ret
   const evaluated = await value.rpc('trials.evaluate', { trialId: created.trialId });
   const additional = await value.rpc('calculation.run', { operation: 'billed', sourceIds: [sourceId],
     ...(dependency === 'other-member' ? { asOf: new Date().toISOString() } : {}) }, otherBearer);
+  if (dependency === 'unpinned') {
+    // A deliberately retained legacy fixture, not a new unpinned public request.
+    // The current calculator now captures every newly resolved receipt cut.
+    await value.engine.vault!.update(state => { const legacy = state.answers.find(answer => answer.receiptId === additional.id)!; delete legacy.request.asOf; });
+  }
   const dependencyAnswer = value.engine.vault!.read().answers.find(answer => answer.receiptId === additional.id)!;
   const bindingBefore = await value.engine.vault!.readArtifact({ id: `${created.trialId}-binding`, purpose: 'private-trial' });
   const stateBefore = value.engine.vault!.read();
