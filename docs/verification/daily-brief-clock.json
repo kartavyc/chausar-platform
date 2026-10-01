@@ -1,0 +1,299 @@
+{
+  "checkedCommit": "d6a7258cd52817601947083e75aee33f5461af9c",
+  "startedAt": "2026-10-01T03:44:30.893Z",
+  "node": "24.13.1",
+  "platform": "win32",
+  "arch": "x64",
+  "tests": 82,
+  "results": [
+    {
+      "name": "syntax-json",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator-local log; exact SHA256 retained.",
+      "logSha256": "503059d144477c2451dbbf34e695c14ee55cabd5be0303c4c25c423782e567f7"
+    },
+    {
+      "name": "strict-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator-local log; exact SHA256 retained.",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "portable-phone-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator-local log; exact SHA256 retained.",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "aggregate-tests",
+      "exitCode": 0,
+      "passed": true,
+      "log": "docs/verification/daily-brief-clock-tests.tap",
+      "logSha256": "69d5788bee169d4d5ea358574f36baca1d90f23eb64a2f450870474c4fb6e853",
+      "tests": 1144,
+      "suites": 0,
+      "pass": 1144,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "durationMs": 73366.8161
+    },
+    {
+      "name": "windows-headless-worker",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator-local log; exact SHA256 retained.",
+      "logSha256": "3eac79785f8c266a02685fffd547cae352cd702d47363af6a9c603b435fe6b42"
+    }
+  ],
+  "releaseAcceptance": "unverified",
+  "dedicatedSecurityReview": "blocked-unverified",
+  "scope": "Actual combined local synthetic Engine/RPC, worker, fixture, and contract checks. No overall native, hosted, vendor, production-database, or security release pass.",
+  "finishedAt": "2026-10-01T03:46:08.534Z",
+  "passed": true,
+  "checkedTree": "5a3de3f4e5dea12fa5b92cc2267b7eb938fcf661",
+  "testFiles": 82,
+  "syntaxSourceFiles": 195,
+  "previousCi": {
+    "runId": 36811033964,
+    "headSha": "93f34f8c6e5b0baa342b901231d3c1e35561f424",
+    "htmlUrl": "https://github.com/kartavyc/chausar-platform/actions/runs/36811033964",
+    "status": "completed",
+    "conclusion": "failure",
+    "jobs": [
+      {
+        "id": 110205915521,
+        "name": "verify (ubuntu-latest)",
+        "status": "completed",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-01T03:33:14Z",
+            "completed_at": "2026-10-01T03:33:15Z"
+          },
+          {
+            "name": "Run actions/checkout@v5",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-01T03:33:15Z",
+            "completed_at": "2026-10-01T03:33:17Z"
+          },
+          {
+            "name": "Run actions/setup-node@v6",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-01T03:33:17Z",
+            "completed_at": "2026-10-01T03:33:22Z"
+          },
+          {
+            "name": "Install pinned dependencies without lifecycle scripts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-01T03:33:22Z",
+            "completed_at": "2026-10-01T03:33:44Z"
+          },
+          {
+            "name": "Check source and JSON syntax",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-01T03:33:44Z",
+            "completed_at": "2026-10-01T03:33:49Z"
+          },
+          {
+            "name": "Typecheck runtime and tests",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-01T03:33:49Z",
+            "completed_at": "2026-10-01T03:33:56Z"
+          },
+          {
+            "name": "Run repository open tests and capture benchmark receipt",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-01T03:33:56Z",
+            "completed_at": "2026-10-01T03:35:03Z"
+          },
+          {
+            "name": "Upload open-test report",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-01T03:35:03Z",
+            "completed_at": "2026-10-01T03:35:04Z"
+          },
+          {
+            "name": "Post Run actions/setup-node@v6",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-01T03:35:04Z",
+            "completed_at": "2026-10-01T03:35:04Z"
+          },
+          {
+            "name": "Post Run actions/checkout@v5",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-01T03:35:04Z",
+            "completed_at": "2026-10-01T03:35:04Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-01T03:35:04Z",
+            "completed_at": "2026-10-01T03:35:04Z"
+          }
+        ]
+      },
+      {
+        "id": 110205915760,
+        "name": "verify (windows-latest)",
+        "status": "completed",
+        "conclusion": "failure",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-01T03:33:15Z",
+            "completed_at": "2026-10-01T03:33:17Z"
+          },
+          {
+            "name": "Run actions/checkout@v5",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-01T03:33:17Z",
+            "completed_at": "2026-10-01T03:33:27Z"
+          },
+          {
+            "name": "Run actions/setup-node@v6",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-01T03:33:27Z",
+            "completed_at": "2026-10-01T03:33:43Z"
+          },
+          {
+            "name": "Install pinned dependencies without lifecycle scripts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-01T03:33:43Z",
+            "completed_at": "2026-10-01T03:34:35Z"
+          },
+          {
+            "name": "Check source and JSON syntax",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-01T03:34:35Z",
+            "completed_at": "2026-10-01T03:34:44Z"
+          },
+          {
+            "name": "Typecheck runtime and tests",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-01T03:34:44Z",
+            "completed_at": "2026-10-01T03:34:51Z"
+          },
+          {
+            "name": "Run repository open tests and capture benchmark receipt",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 7,
+            "started_at": "2026-10-01T03:34:51Z",
+            "completed_at": "2026-10-01T03:36:34Z"
+          },
+          {
+            "name": "Upload open-test report",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-01T03:36:34Z",
+            "completed_at": "2026-10-01T03:36:36Z"
+          },
+          {
+            "name": "Post Run actions/setup-node@v6",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 15,
+            "started_at": "2026-10-01T03:36:36Z",
+            "completed_at": "2026-10-01T03:36:36Z"
+          },
+          {
+            "name": "Post Run actions/checkout@v5",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-01T03:36:36Z",
+            "completed_at": "2026-10-01T03:36:37Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-01T03:36:37Z",
+            "completed_at": "2026-10-01T03:36:37Z"
+          }
+        ]
+      }
+    ],
+    "localCombinedPassed": 1141,
+    "ubuntuRepositoryCounts": {
+      "pass": 1061,
+      "fail": 0,
+      "skipped": 0
+    },
+    "windowsRepositoryCounts": {
+      "pass": 1060,
+      "fail": 1,
+      "skipped": 0
+    },
+    "failingTest": "actual public HTTP RPC reaches captured facts, receipts and durable jobs; quarantine blocks reuse after reopen",
+    "failure": "expected awaiting-acceptance, actual runner-blocked",
+    "uploadedWindowsReport": {
+      "artifactId": 11139593523,
+      "localPath": "github-publication/ci-36811033964/ci-36811033964-windows-report.zip",
+      "bytes": 49025,
+      "sha256": "25e8b480d7c0b247fe170e01a1c7f5bec67cc05d59581c87f5365c3b08051485"
+    },
+    "reportTransferSucceededWithSupportedPermissions": true,
+    "productionFencingUnchanged": true,
+    "fixInProgress": "Bind public success fixture to explicit synthetic host clock and add deterministic expired-admission refusal regression."
+  },
+  "dailyBriefSourceCommit": "c82f087727d049dfa1da2b666cf4588798a128b5",
+  "importedDailyBriefCommit": "d6a7258cd52817601947083e75aee33f5461af9c",
+  "clockFixtureCommit": "a3291cfa8ee92b5571a182584fa625fd65e76dc7",
+  "productEvidence": {
+    "dailyBrief": "Real renderBrief/preload/strict clone rich and legacy Review routing, with exact journal revision.",
+    "leaseFencing": "Public HTTP connector/job success uses an explicit synthetic clock; a separate actual committed-admission expiry refuses with STALE_LEASE, no execution or job receipt. Production lease checks unchanged.",
+    "businessIntroduction": "Retained exact source path at2fa8dd7: paired HTTP and actual renderer/preload/host worker grounded business context, visible unknowns, separate context receipt; financial calculation remains exact."
+  },
+  "nativeGuiProviderAcceptance": "unverified",
+  "finalInstaller": "unverified",
+  "namedVendorQualification": "unqualified",
+  "enterpriseTypeScript": "genuine missing enterprise packages; no pass claim",
+  "newCiStatus": "not-yet-run",
+  "fullProductComplete": false,
+  "finalDocumentationSourceEquivalenceRequired": true
+}

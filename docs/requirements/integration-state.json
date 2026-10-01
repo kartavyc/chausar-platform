@@ -182,6 +182,12 @@
       "sourceCommit": "02aa4cca9eda6961a9e2d0f08a05961eed6480cf",
       "importedCommit": "2fa8dd76e8a10c7e3d87c8618edfbb6d72259f86",
       "productWiring": "Actual renderer/preload optional action/attempt selection, conservative candidates and backend refusal retain typed fields; no execution or outcome inference."
+    },
+    {
+      "lane": "dailyBriefJournalReview",
+      "sourceCommit": "c82f087727d049dfa1da2b666cf4588798a128b5",
+      "importedCommit": "d6a7258cd52817601947083e75aee33f5461af9c",
+      "productWiring": "Real renderBrief/preload/strict clone rich and legacy Review routing, with exact journal revision."
     }
   ],
   "uncommittedLaneWorkImported": false,
@@ -218,13 +224,15 @@
     }
   ],
   "publicationCapability": {
-    "lastVerifiedRemoteMain": "0424ce11da4e8a6ad1f911adb3c5deadabeaede6",
+    "lastVerifiedRemoteMain": "93f34f8c6e5b0baa342b901231d3c1e35561f424",
     "status": "private-main-checkpoint-published-and-both-push-ci-jobs-passed",
     "repositoryPrivate": true,
     "finalRemoteHeadRefreshRequired": true,
     "forcePush": false,
     "publicationMethod": "Supported bounded normal Git push with existing authentication from an account-owned verified-bundle copy; no trust changes.",
-    "ciEvidence": "https://github.com/kartavyc/chausar-platform/actions/runs/36806828661"
+    "ciEvidence": "https://github.com/kartavyc/chausar-platform/actions/runs/36811033964",
+    "ciConclusion": "failure",
+    "ciFailureFollowUp": "Clock fixture corrected and explicit stale-lease refusal regression added; fresh CI pending publication."
   },
   "dependencyRecovery": {
     "approvedStaging": "D:/Chausar/build-tools",
@@ -294,7 +302,7 @@
     "sourcePreviewCommand": "npm run phone:preview",
     "evidence": "docs/evidence/phone-ui-join-checks.json"
   },
-  "updatedAt": "2026-10-01T03:31:20.484Z",
+  "updatedAt": "2026-10-01T03:47:50.964Z",
   "integratedEngineMilestone": {
     "status": "verified-local-synthetic-engine",
     "sourceCommit": "503d44ed6ea3425c90f332f5327d850d922260ba",
@@ -454,5 +462,26 @@
     },
     "fullProductRelease": "unverified",
     "evidence": "docs/verification/business-journal.json"
+  },
+  "integratedDailyBriefClockCheckpoint": {
+    "checkedCommit": "d6a7258cd52817601947083e75aee33f5461af9c",
+    "checkedTree": "5a3de3f4e5dea12fa5b92cc2267b7eb938fcf661",
+    "aggregateTests": {
+      "pass": 1144,
+      "fail": 0,
+      "skipped": 0
+    },
+    "testFiles": 82,
+    "syntaxSourceFiles": 195,
+    "strictApplicationSemanticTypeScriptPassed": true,
+    "strictPortablePhoneTypeScriptPassed": true,
+    "windowsHeadlessWorkerPassed": true,
+    "productionLeaseChecksUnchanged": true,
+    "sourceFeaturesImplemented": {
+      "dailyBrief": "Real renderBrief/preload/strict clone rich and legacy Review routing, with exact journal revision.",
+      "leaseFencing": "Public HTTP connector/job success uses an explicit synthetic clock; a separate actual committed-admission expiry refuses with STALE_LEASE, no execution or job receipt. Production lease checks unchanged.",
+      "businessIntroduction": "Retained exact source path at2fa8dd7: paired HTTP and actual renderer/preload/host worker grounded business context, visible unknowns, separate context receipt; financial calculation remains exact."
+    },
+    "evidence": "docs/verification/daily-brief-clock.json"
   }
 }
