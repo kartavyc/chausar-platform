@@ -338,7 +338,282 @@ async function renderMemory() { const result = await request('memory.list'); con
 function showCorrection(fact) { const fields = h('textarea', { class: 'code', spellcheck: false, required: true }, stringify(fact.fields || {})); const dialog = modal('Correct a fact', form([h('p', { class: 'note' }, `${fact.entityId || fact.id} · ${fact.kind || 'fact'} · source ${fact.sourceId || 'unknown'}`), field('Corrected fields (JSON)', fields, 'The engine creates a new version and records when it learned this correction.')], 'Save correction', async () => { let value; try { value = JSON.parse(fields.value); } catch { throw new Error('Enter valid JSON for the corrected fields.'); } const result = await request('memory.correct', { id: fact.id, fields: value }); dialog.close(); toast('Correction recorded with a new learned time.'); navigate('memory'); viewRecord('Memory correction', result); })); }
 function showMerge() { const ids = h('textarea', { rows: 4, required: true, placeholder: 'One entity ID per line' }); const target = input('text', '', { required: true, placeholder: 'Canonical entity ID' }); const resultHost = h('div'); modal('Merge duplicate entities', h('div', { class: 'stack' }, notice('Merge only entities you have verified are the same. The engine keeps an undo record.'), form([field('Entity IDs to merge', ids), field('Canonical target entity', target)], 'Merge entities', async () => { const result = await request('memory.merge', { entityIds: ids.value.split(/[\n,]/).map(v => v.trim()).filter(Boolean), targetId: target.value.trim() }); resultHost.replaceChildren(details(result), button('Undo this merge', async event => run(event.currentTarget, async () => { await request('memory.undo', { id: result.id || result.merge?.id }); resultHost.replaceChildren(notice('Merge undone.')); navigate('memory'); }), 'secondary')); toast('Entities merged. Keep the merge record for undo.'); navigate('memory'); }), resultHost)); }
 
-async function renderDecisions() { const result = await request('decisions.list'); const decisions = list(result, ['decisions']); return h('div', {}, pageHead('Decisions', 'Keep the choice, its evidence, and a date to look back. Make your reasoning easier to revisit.', [button('Record a decision', showDecision, '', 'plus')]), panel('The decision log', 'Your recorded choices and their review status.', decisions.length ? h('div', {}, decisions.map(decision => h('article', { class: 'list-row' }, h('div', { class: 'row-symbol' }, icon('compass')), h('div', { class: 'row-main' }, h('h3', { class: 'row-title' }, decision.text || titleOf(decision)), h('p', { class: 'row-description' }, `Review ${decision.reviewDate || 'date not set'}${decision.createdAt ? ' · Recorded ' + formatDate(decision.createdAt) : ''}`), h('div', { class: 'toolbar section-gap' }, badge(decision.reviews?.at(-1)?.outcome || decision.outcome || (decision.status === 'closed' ? 'Reviewed' : 'Awaiting review'), decision.status === 'closed' ? 'neutral' : ''), (decision.receiptIds || []).map(id => button('Evidence receipt', () => showReceipt(id), 'ghost small', 'file'))), details(decision)), h('div', { class: 'row-actions' }, button('Review', () => reviewDecision(decision), 'secondary small', 'check'))))) : empty('A good decision leaves a trail', 'Record what you chose, the evidence you used, and when you will review it.', button('Record first decision', showDecision, 'secondary', 'plus'), 'compass'))); }
+async function renderDecisions() {
+  const rows = h('div'), dueOn = input('date'), branch = input('text');
+  function renderRows(items) {
+    rows.replaceChildren(items.length ? h('div', {}, items.map(decision => {
+      const rich = Object.hasOwn(decision, 'revision');
+      return h('article', { class: 'list-row' }, h('div', { class: 'row-symbol' }, icon('compass')),
+        h('div', { class: 'row-main' }, h('h3', { class: 'row-title' }, decision.text || titleOf(decision)),
+          h('p', { class: 'row-description' }, 'Review ' + (decision.reviewDate || 'date not set')),
+          h('div', { class: 'toolbar section-gap' }, badge(decision.status === 'closed' ? 'Closed' : 'Open'),
+            badge(rich ? 'Journal revision ' + decision.revision : 'Simple decision', 'neutral'),
+            (decision.receiptIds || []).map(id => button('Evidence receipt', () => showReceipt(id), 'ghost small', 'file'))),
+          rich ? h('details', {}, h('summary', {}, 'Choice and expected outcome'), journalContentView(decision)) : details(decision)),
+        h('div', { class: 'row-actions' }, rich ? [
+          button('Review journal', () => showJournalReview(decision), 'secondary small', 'check'),
+          button('Revise journal', () => showJournalEditor(decision), 'secondary small'),
+          button('History', () => showJournalHistory(decision), 'ghost small', 'clock'),
+        ] : button('Review', () => reviewDecision(decision), 'secondary small', 'check')));
+    })) : empty('No decisions in this view', 'Record a choice or adjust the filters.', button('Create journal entry', () => showJournalEditor(), 'secondary', 'plus'), 'compass'));
+  }
+  renderRows(list(await request('decisions.list'), ['decisions']));
+  const filters = form([h('div', { class: 'inline-fields' }, field('Due on (optional)', dueOn), field('Branch filter (optional)', branch))], 'Apply review filters', async () => {
+    const payload = {};
+    if (dueOn.value) payload.dueOn = dueOn.value;
+    if (branch.value.trim()) payload.branch = branch.value.trim();
+    renderRows(list(await request('decisions.journal.due', payload)));
+  });
+  return h('div', {}, pageHead('Decisions', 'Keep the choice, its evidence, and a date to look back.', [
+    button('Create journal entry', () => showJournalEditor(), '', 'plus'), button('Record a decision', showDecision, 'secondary', 'plus'),
+  ]), panel('Review filters', 'A due date shows open records due on or before that date. Blank filters include closed records.',
+    h('div', { class: 'stack' }, filters, button('Show all decisions', async event => run(event.currentTarget, async () => {
+      const current = list(await request('decisions.list')); dueOn.value = ''; branch.value = ''; renderRows(current);
+    }), 'ghost small', 'refresh'))), h('div', { class: 'section-gap' }, panel('The decision log', 'Simple decisions and evidence-linked journal entries.', rows)));
+}
+function journalLines(value) { return String(value || '').split('\n').map(line => line.trim()).filter(Boolean); }
+function journalWire(value) { return JSON.parse(JSON.stringify(value)); }
+async function journalRefreshPage() {
+  if (state.page === 'decisions' && document.getElementById('page-content')) await navigate('decisions');
+}
+async function journalAssets(decision) {
+  const [dashboard, trust, sourceRecords] = await Promise.all([request('dashboard.get'), request('trust.get'), request('sources.list')]);
+  const receipts = new Map();
+  for (const value of [...list(dashboard.calculations), ...(decision?.receipts || [])]) {
+    const receipt = value?.receipt || value;
+    if (typeof receipt?.id === 'string' && Array.isArray(receipt.figures) && !receipts.has(receipt.id)) receipts.set(receipt.id, receipt);
+  }
+  const names = new Map(list(sourceRecords).map(source => [source.sourceId || source.id, source.name || source.title || source.sourceId || source.id]));
+  return { receipts: [...receipts.values()],
+    sources: [...new Set([...receipts.values()].flatMap(receipt => receipt.sourceIds || []))].map(id => [id, names.get(id) || id]),
+    members: list(trust.members).filter(member => member.active === true && typeof member.id === 'string') };
+}
+function journalEvidencePicker(assets, reference, measurement = false) {
+  const available = measurement ? assets.receipts.filter(receipt => !Object.hasOwn(receipt.assumptions || {}, 'priceChangeBps')) : assets.receipts;
+  const source = select([['', 'All accessible sources'], ...assets.sources], ''), receipt = select([]), figure = select([]);
+  function updateFigures(key = '') {
+    const current = available.find(value => value.id === receipt.value);
+    figure.replaceChildren(h('option', { value: '' }, measurement ? 'Choose a measured figure' : 'Whole receipt'),
+      ...(current?.figures || []).map(value => h('option', { value: value.key }, value.label + ': ' + (value.display || value.minor || 'Recorded figure'))));
+    figure.value = key;
+  }
+  function updateReceipts(id = '') {
+    const selected = available.filter(value => !source.value || value.sourceIds?.includes(source.value));
+    receipt.replaceChildren(h('option', { value: '' }, 'Choose a saved receipt'), ...selected.map(value =>
+      h('option', { value: value.id }, value.operation + ' - ' + (value.period ? value.period.from + ' to ' + value.period.to : 'All imported periods') + (value.stale ? ' - stale' : ''))));
+    receipt.value = selected.some(value => value.id === id) ? id : ''; updateFigures();
+  }
+  source.addEventListener('change', () => updateReceipts(receipt.value)); receipt.addEventListener('change', () => updateFigures());
+  updateReceipts(reference?.receiptId || ''); updateFigures(reference?.figureKey || '');
+  return { node: h('div', { class: 'stack' }, field('Source', source), field('Saved receipt', receipt), field(measurement ? 'Measured figure' : 'Figure (optional)', figure)),
+    read() {
+      if (!receipt.value) { if (measurement) throw new Error('Choose a saved receipt for each measurement.'); return null; }
+      const current = available.find(value => value.id === receipt.value);
+      if (!current) throw new Error('Choose a currently available saved receipt.');
+      if (measurement && !figure.value) throw new Error('Choose an exact measured figure.');
+      if (figure.value && !current.figures.some(value => value.key === figure.value)) throw new Error('Choose a figure on the selected receipt.');
+      return { receiptId: receipt.value, ...(figure.value ? { figureKey: figure.value } : {}) };
+    } };
+}
+function journalEvidenceList(assets, references = [], measurement = false) {
+  const rows = [], host = h('div', { class: 'stack' });
+  function add(reference) {
+    const picker = journalEvidencePicker(assets, reference, measurement), row = { picker, node: null };
+    row.node = h('div', { class: 'panel stack' }, picker.node, button('Remove ' + (measurement ? 'measurement' : 'evidence'), () => {
+      rows.splice(rows.indexOf(row), 1); row.node.remove();
+    }, 'ghost small'));
+    rows.push(row); host.append(row.node);
+  }
+  references.forEach(add);
+  return { node: h('div', { class: 'stack' }, host, button(measurement ? 'Add measurement' : 'Add evidence', () => add(), 'secondary small', 'plus')),
+    read: () => rows.map(row => row.picker.read()).filter(Boolean) };
+}
+function journalContentView(content) {
+  const expected = content.expectedOutcome || {};
+  return h('div', { class: 'stack' }, h('p', {}, content.text || ''),
+    h('dl', { class: 'key-value' }, h('dt', {}, 'Owner'), h('dd', {}, content.ownerId || 'Not recorded'),
+      h('dt', {}, 'Branch'), h('dd', {}, content.branch || 'Unscoped'), h('dt', {}, 'Review date'), h('dd', {}, content.reviewDate || 'Not recorded'),
+      h('dt', {}, 'Expected outcome'), h('dd', {}, expected.description || ''),
+      h('dt', {}, 'Measure / population'), h('dd', {}, (expected.measure || '') + ' / ' + (expected.population || '')),
+      h('dt', {}, 'Outcome window'), h('dd', {}, (expected.window?.from || '') + ' to ' + (expected.window?.to || '')),
+      h('dt', {}, 'Maturity / lag'), h('dd', {}, (expected.maturityDate || '') + ' - ' + (expected.lagRule || ''))),
+    h('div', {}, h('h3', {}, 'Options'), (content.options || []).map(option => h('div', { class: 'list-row' }, h('div', {},
+      h('strong', {}, option.label + (option.id === content.selectedOptionId ? ' - chosen' : '')), h('p', {}, option.reason),
+      h('p', { class: 'note' }, (option.evidence || []).map(ref => ref.receiptId + (ref.figureKey ? ' / ' + ref.figureKey : '')).join(', ')))))),
+    h('div', {}, h('h3', {}, 'Assumptions'), (content.assumptions || []).map(value => h('p', {}, value.text + ' - ' + value.status,
+      h('span', { class: 'note' }, ' ' + (value.evidence || []).map(ref => ref.receiptId + (ref.figureKey ? ' / ' + ref.figureKey : '')).join(', '))))),
+    h('div', {}, h('h3', {}, 'Uncertainty'), (expected.uncertainty || []).map(value => h('p', {}, value))),
+    h('div', {}, h('h3', {}, 'Hypotheses'), (content.hypotheses || []).map(value => h('p', {}, value))));
+}
+function journalReceiptView(receipts) {
+  return h('div', { class: 'stack' }, (receipts || []).map(receipt => panel(receipt.operation || 'Saved calculation', receipt.id,
+    h('div', { class: 'stack' }, h('p', { class: 'note' }, (receipt.period ? receipt.period.from + ' to ' + receipt.period.to : 'All imported periods') + ' - Known on ' + (receipt.asOf || 'not recorded')),
+      h('p', { class: 'note' }, 'Sources: ' + (receipt.sourceIds || []).join(', ')),
+      (receipt.figures || []).map(value => h('p', {}, value.label + ': ' + (value.display || value.minor || 'Recorded figure'))),
+      receipt.stale ? badge('Historical receipt - stale', 'warn') : null, h('p', { class: 'note' }, receipt.explanation || ''),
+      button('Open saved receipt', () => showReceipt(receipt.id), 'ghost small', 'file')))));
+}
+async function journalConflict(error, loaded, host) {
+  if (error.code !== 'REVISION_CONFLICT') throw error;
+  loaded.blocked = true;
+  const current = list(await request('decisions.list')).find(value => value.id === loaded.current.id);
+  if (!current || !Object.hasOwn(current, 'revision')) {
+    host.replaceChildren(notice('This record is no longer available under your current access. Your proposal is still in the form.', 'error')); return;
+  }
+  host.replaceChildren(notice('Another change was saved. Your typed proposal is preserved. Review the current record below before using its revision.', 'warn'),
+    journalContentView(current), button('Use reloaded revision', () => {
+      loaded.current = current; loaded.blocked = false;
+      host.replaceChildren(notice('Loaded revision ' + current.revision + '. Review your preserved proposal before saving again.'), journalContentView(current));
+    }, 'secondary', 'refresh'));
+}
+function journalPreview(draft, onConfirmed) {
+  const exact = journalWire(draft), consent = checkField('I reviewed this decision and its exact evidence.');
+  const confirm = button('Confirm journal entry', async event => run(event.currentTarget, async () => {
+    if (!consent.control.checked) throw new Error('Review this draft and explicitly confirm its evidence.');
+    const saved = await request('decisions.journal.confirm', { draft: exact, reviewedDigest: exact.digest });
+    dialog.close(); await onConfirmed(saved);
+  }), '', 'check');
+  confirm.disabled = true; consent.control.addEventListener('change', () => { confirm.disabled = !consent.control.checked; });
+  const dialog = modal('Review journal draft', h('div', { class: 'stack' },
+    notice('This draft is not saved. Confirm only after reviewing the choice and its exact evidence.'),
+    journalContentView(exact.content), journalReceiptView(exact.receipts), consent.node, confirm), true);
+  return dialog;
+}
+async function showJournalEditor(decision) {
+  try {
+    const assets = await journalAssets(decision), current = decision || {}, expected = current.expectedOutcome || {};
+    const loaded = { current: decision }, conflict = h('div');
+    const text = h('textarea', { rows: 4, required: true, maxlength: 5000, value: current.text || '' });
+    const owner = select([['', 'Choose a current decision owner'], ...assets.members.map(member => [member.id, member.name || member.id])], current.ownerId || '');
+    owner.setAttribute('required', '');
+    const branch = input('text', current.branch || ''), reviewDate = input('date', current.reviewDate || '', { required: true });
+    const description = h('textarea', { required: true, value: expected.description || '' });
+    const measure = input('text', expected.measure || '', { required: true }), population = input('text', expected.population || '', { required: true });
+    const from = input('date', expected.window?.from || '', { required: true }), to = input('date', expected.window?.to || '', { required: true });
+    const maturity = input('date', expected.maturityDate || '', { required: true }), lag = h('textarea', { required: true, value: expected.lagRule || '' });
+    const uncertainty = h('textarea', { rows: 3, value: (expected.uncertainty || []).join('\n') });
+    const hypotheses = h('textarea', { rows: 3, value: (current.hypotheses || []).join('\n') });
+    const baseline = journalEvidencePicker(assets, expected.baseline);
+    const chosen = select([['', 'Choose an option']], ''), options = [], assumptions = [];
+    const optionsHost = h('div', { class: 'stack' }), assumptionsHost = h('div', { class: 'stack' });
+    chosen.setAttribute('required', '');
+    let optionSequence = 0, assumptionSequence = 0;
+    const identities = new Set([...(current.options || []).map(value => value.id), ...(current.assumptions || []).map(value => value.id)]);
+    function identity(kind) {
+      let id;
+      do { id = kind + '-' + (kind === 'option' ? ++optionSequence : ++assumptionSequence); } while (identities.has(id));
+      identities.add(id); return id;
+    }
+    function updateChosen() {
+      const selected = chosen.value;
+      chosen.replaceChildren(h('option', { value: '' }, 'Choose an option'),
+        ...options.map((row, index) => h('option', { value: row.id }, row.label.value || 'Option ' + (index + 1) + ' (name needed)')));
+      chosen.value = options.some(row => row.id === selected) ? selected : '';
+    }
+    function addOption(value = {}) {
+      const row = { id: value.id || identity('option'), label: input('text', value.label || '', { required: true }),
+        reason: h('textarea', { required: true, rows: 3, value: value.reason || '' }), evidence: journalEvidenceList(assets, value.evidence || []), node: null };
+      row.label.addEventListener('input', updateChosen);
+      row.node = panel('Option ' + (options.length + 1), '', h('div', { class: 'stack' }, field('Option label', row.label), field('Option reason', row.reason), row.evidence.node,
+        button('Remove option', () => { options.splice(options.indexOf(row), 1); row.node.remove(); updateChosen(); }, 'ghost small')));
+      options.push(row); optionsHost.append(row.node); updateChosen();
+    }
+    function addAssumption(value = {}) {
+      const row = { id: value.id || identity('assumption'), text: h('textarea', { required: true, rows: 3, value: value.text || '' }),
+        status: select([['', 'Choose an assumption status'], ['unverified', 'Unverified'], ['human-declared', 'Human declared']], value.status || ''),
+        evidence: journalEvidenceList(assets, value.evidence || []), node: null };
+      row.status.setAttribute('required', '');
+      row.node = panel('Assumption ' + (assumptions.length + 1), '', h('div', { class: 'stack' }, field('Assumption statement', row.text), field('Assumption status', row.status), row.evidence.node,
+        button('Remove assumption', () => { assumptions.splice(assumptions.indexOf(row), 1); row.node.remove(); }, 'ghost small')));
+      assumptions.push(row); assumptionsHost.append(row.node);
+    }
+    if (current.options?.length) current.options.forEach(addOption); else addOption();
+    (current.assumptions || []).forEach(addAssumption); chosen.value = current.selectedOptionId || '';
+    const reason = input('text', '', { required: true });
+    function readContent() {
+      if (!assets.members.some(member => member.id === owner.value)) throw new Error('Choose a current authorized decision owner.');
+      if (!options.some(row => row.id === chosen.value)) throw new Error('Explicitly choose one of your options.');
+      const base = baseline.read();
+      return { text: text.value.trim(), ownerId: owner.value, ...(branch.value.trim() ? { branch: branch.value.trim() } : {}),
+        options: options.map(row => ({ id: row.id, label: row.label.value.trim(), reason: row.reason.value.trim(), evidence: row.evidence.read() })),
+        assumptions: assumptions.map(row => ({ id: row.id, text: row.text.value.trim(), status: row.status.value, evidence: row.evidence.read() })),
+        selectedOptionId: chosen.value, reviewDate: reviewDate.value, hypotheses: journalLines(hypotheses.value),
+        expectedOutcome: { description: description.value.trim(), measure: measure.value.trim(), population: population.value.trim(),
+          ...(base ? { baseline: base } : {}), window: { from: from.value, to: to.value }, maturityDate: maturity.value,
+          lagRule: lag.value.trim(), uncertainty: journalLines(uncertainty.value) } };
+    }
+    const fields = [field('Decision statement', text), h('div', { class: 'inline-fields' }, field('Decision owner', owner), field('Branch (optional)', branch)),
+      field('Review date', reviewDate), optionsHost, button('Add option', () => addOption(), 'secondary small', 'plus'), field('Chosen option', chosen),
+      assumptionsHost, button('Add assumption', () => addAssumption(), 'secondary small', 'plus'), field('Hypotheses (one per line)', hypotheses),
+      field('Expected outcome', description), h('div', { class: 'inline-fields' }, field('Outcome measure', measure), field('Outcome population', population)),
+      h('div', { class: 'inline-fields' }, field('Window from', from), field('Window to', to)), field('Maturity date', maturity), field('Lag rule', lag),
+      field('Outcome uncertainty (one per line)', uncertainty), panel('Baseline evidence (optional)', 'Select a saved receipt and optionally a figure.', baseline.node),
+      ...(decision ? [field('Revision reason', reason), conflict] : [])];
+    const editor = form(fields, decision ? 'Save journal revision' : 'Preview journal draft', async () => {
+      if (loaded.blocked) throw new Error('Review the current record and choose Use reloaded revision before saving your preserved proposal.');
+      const content = readContent();
+      if (!decision) {
+        const draft = await request('decisions.journal.draft', { content });
+        journalPreview(draft, async () => { dialog.close(); toast('Journal entry confirmed.'); await journalRefreshPage(); });
+      } else {
+        if (!reason.value.trim()) throw new Error('Explain why this decision is being revised.');
+        try {
+          await request('decisions.journal.revise', { id: loaded.current.id, content, expectedRevision: loaded.current.revision, reason: reason.value.trim() });
+          dialog.close(); toast('Journal revision saved.'); await journalRefreshPage();
+        } catch (error) { await journalConflict(error, loaded, conflict); }
+      }
+    });
+    const dialog = modal(decision ? 'Revise journal entry' : 'Create journal entry', h('div', { class: 'stack' },
+      notice('Saved evidence supports the record. Expected outcomes and uncertainty are your declarations, not a proof of impact.'),
+      !assets.members.length ? notice('No current owner choices are available under your access. An authorized member must provide the owner selection.', 'warn') : null, editor), true);
+    return dialog;
+  } catch (error) { toast(error.message, true); }
+}
+async function showJournalReview(decision) {
+  try {
+    const assets = await journalAssets(decision), loaded = { current: decision }, conflict = h('div');
+    const outcome = select([['', 'Choose a review outcome'], ['continue', 'Continue and keep watching'], ['accepted', 'Accept the choice'], ['rejected', 'Reject the choice'], ['completed', 'Complete the review']], '');
+    const observationState = select([['', 'Choose an observation state'], ['pending', 'Pending observation'], ['observable', 'Observable result'], ['inconclusive', 'Inconclusive'],
+      ['achieved', 'Achieved (human assessment)'], ['not-achieved', 'Not achieved (human assessment)'], ['amended', 'Amended observation']], '');
+    outcome.setAttribute('required', ''); observationState.setAttribute('required', '');
+    const notes = h('textarea', { rows: 4 }), uncertainty = h('textarea', { rows: 3 }), interventions = h('textarea', { rows: 3 });
+    const nextDate = input('date'), measurements = journalEvidenceList(assets, [], true);
+    const reviewForm = form([field('Review outcome', outcome), field('Observation state', observationState), field('Observation notes', notes),
+      field('Observation uncertainty (one per line)', uncertainty), field('Concurrent interventions (one per line)', interventions),
+      panel('Observed measurements', 'Select exact figures from saved receipts. Empty means no measurement is attached.', measurements.node),
+      field('Next review date (optional)', nextDate, 'Only a continuing review can set a next date.'), conflict], 'Save journal review', async () => {
+      if (loaded.blocked) throw new Error('Review the current record and choose Use reloaded revision before saving your preserved assessment.');
+      if (!outcome.value || !observationState.value) throw new Error('Choose an explicit review outcome and observation state.');
+      const review = { outcome: outcome.value, ...(nextDate.value ? { nextReviewDate: nextDate.value } : {}),
+        observation: { state: observationState.value, measurements: measurements.read(), notes: notes.value.trim(),
+          uncertainty: journalLines(uncertainty.value), concurrentInterventions: journalLines(interventions.value), executionReceiptIds: [] } };
+      try {
+        await request('decisions.journal.review', { id: loaded.current.id, review, expectedRevision: loaded.current.revision });
+        dialog.close(); toast('Human journal assessment saved.'); await journalRefreshPage();
+      } catch (error) { await journalConflict(error, loaded, conflict); }
+    });
+    const dialog = modal('Review journal entry', h('div', { class: 'stack' },
+      notice('A measured figure proves its exact value. It does not establish causality or verify an achieved outcome.'),
+      journalContentView(decision), reviewForm), true);
+    return dialog;
+  } catch (error) { toast(error.message, true); }
+}
+function showJournalHistory(decision) {
+  return modal('Journal history', h('div', { class: 'stack' }, journalContentView(decision), journalReceiptView(decision.receipts),
+    panel('Revisions', 'Earlier content stays attached to its revision reason.', h('div', { class: 'stack' }, (decision.revisions || []).map(revision =>
+      h('details', {}, h('summary', {}, 'Changed revision ' + revision.fromRevision + ' - ' + revision.reason),
+        h('p', { class: 'note' }, formatDate(revision.at) + ' - ' + revision.by), journalContentView(revision.before))))),
+    panel('Reviews', 'Human assessments, exact measurements and concurrent interventions.', h('div', { class: 'stack' }, (decision.reviews || []).map(review =>
+      h('details', {}, h('summary', {}, review.outcome + ' - revision ' + review.atRevision),
+        h('p', { class: 'note' }, formatDate(review.at) + ' - ' + review.by + ' - human-declared assessment'),
+        h('p', {}, 'Observation: ' + review.observation?.state), h('p', {}, review.observation?.notes || ''),
+        h('p', {}, 'Uncertainty: ' + (review.observation?.uncertainty || []).join('; ')),
+        h('p', {}, 'Concurrent interventions: ' + (review.observation?.concurrentInterventions || []).join('; ')),
+        h('p', {}, 'Review date: ' + review.priorReviewDate + (review.nextReviewDate ? ' to ' + review.nextReviewDate : '')),
+        (review.measuredFigures || []).map(value => h('p', {}, value.receiptId + ' - ' + value.figure.label + ': ' + (value.figure.display || value.figure.minor))),
+        journalContentView(review.content))))),
+    notice('Execution links require a verified workspace resolver. This interface does not infer an execution success.')), true);
+}
 function showDecision() { const text = h('textarea', { rows: 5, required: true, placeholder: 'What have you decided, and why?' }); const reviewDate = input('date', '', { required: true }); const receiptIds = input('text', '', { placeholder: 'Receipt IDs separated by commas' }); const hypotheses = h('textarea', { rows: 3, placeholder: 'One hypothesis per line' }); const dialog = modal('Record a decision', form([field('Your choice and reasoning', text), field('Review date', reviewDate), field('Evidence receipt IDs (optional)', receiptIds, 'Use IDs from the calculation receipts that informed your choice.'), field('What would change your mind? (optional)', hypotheses)], 'Record decision', async () => { const result = await request('decisions.create', { text: text.value.trim(), reviewDate: reviewDate.value, receiptIds: receiptIds.value.split(',').map(v => v.trim()).filter(Boolean), hypotheses: hypotheses.value.split('\n').map(v => v.trim()).filter(Boolean) }); dialog.close(); toast('Decision recorded.'); navigate('decisions'); viewRecord('Recorded decision', result); })); }
 function reviewDecision(decision) { const outcome = select([['continue', 'Continue and keep watching'], ['accepted', 'Accept the evidence'], ['rejected', 'Reject the original choice'], ['completed', 'Mark the decision complete']]); const notes = h('textarea', { rows: 4, placeholder: 'What did you learn?' }); const dialog = modal('Review a decision', h('div', { class: 'stack' }, h('p', { class: 'note' }, decision.text || titleOf(decision)), form([field('Review outcome', outcome), field('Review notes', notes)], 'Save review', async () => { await request('decisions.review', { id: decision.id, outcome: outcome.value, notes: notes.value }); dialog.close(); toast('Decision review saved.'); navigate('decisions'); }))); }
 
