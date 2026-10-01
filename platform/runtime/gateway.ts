@@ -423,8 +423,8 @@ export class ModelGateway {
     const saved = validateContinuation(preview.continuation, preview.continuationId);
     check(saved.digest === preview.continuationDigest && isRecord(preview.requestScope) && preview.requestScopeDigest === hash(preview.requestScope)
       && hash(preview.requestScope) === hash(preview.businessContext?.request), CONTINUATION_STALE, 'The retained continuation or reviewed private scope changed.');
-    const { originalQuestion, clarification, exchanges } = saved;
-    check(isRecord(content.continuation) && hash(content.continuation) === hash({ originalQuestion, clarification, ...(exchanges !== undefined ? { exchanges } : {}) }),
+    const { turnId, originalQuestion, clarification, exchanges } = saved;
+    check(isRecord(content.continuation) && hash(content.continuation) === hash({ turnId, originalQuestion, clarification, ...(exchanges !== undefined ? { exchanges } : {}) }),
       CONTINUATION_STALE, 'The reviewed retained objective and clarification changed.');
     const current = this.#resolveContinuation(context, preview.continuationId, view, preview.id);
     check(current.digest === saved.digest && hash(current) === hash(saved), CONTINUATION_STALE, 'The current retained clarification changed. Create a new exact preview.');
@@ -475,7 +475,7 @@ export class ModelGateway {
     const plannerContext = { manifest: manifest!, operations, selectors: plannerSelectors };
     const publishedCalculations = unified ? publishedCalculationCatalog(state, operations) : undefined;
     const content = unified ? { question: request.question, questionDisclosure: 'verbatim', ...(continuation ? { continuationDisclosure: 'verbatim',
-      continuation: { originalQuestion: continuation.originalQuestion, clarification: continuation.clarification,
+      continuation: { turnId: continuation.turnId, originalQuestion: continuation.originalQuestion, clarification: continuation.clarification,
         ...(continuation.exchanges !== undefined ? { exchanges: continuation.exchanges } : {}) } } : {}), definitionDisclosure: 'published', publishedCalculations,
       tools: [{ name: 'business.describe', description: 'Select cited current business claims and preserve documented unknowns.' },
         { name: 'calculator.calculate', description: 'Run an approved deterministic calculation locally and retain its exact receipt.', operations }],

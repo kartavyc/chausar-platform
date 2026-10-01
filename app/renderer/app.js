@@ -1,11 +1,12 @@
 /* Local session credentials stay in memory. Engine values are never trusted HTML or executable code. */
 const app = document.getElementById('app');
-const state = { page: 'conversation', workspace: null, status: null, token: null, messages: [], routeId: '', routes: [], dashboard: null, generation: 0, evidenceGeneration: 0, menuOpen: false, backups: [] };
+const state = { page: 'conversation', workspace: null, status: null, token: null, messages: [], routeId: '', routes: [], dashboard: null, generation: 0, evidenceGeneration: 0, continuation: null, continuationGeneration: 0, menuOpen: false, backups: [] };
 const savedEvidenceDialogs = new Set();
 function clearSavedEvidence() { for (const dialog of savedEvidenceDialogs) { dialog.replaceChildren(); dialog.close(); dialog.remove(); } savedEvidenceDialogs.clear(); }
 const evidenceChanges = new Set(['trust.update', 'members.revoke', 'models.configure', 'sources.delete', 'sources.import', 'sources.accept', 'sources.workbookImport', 'memory.correct', 'memory.merge', 'memory.undo', 'memory.precedence', 'ontology.publish', 'workspace.create', 'workspace.open', 'workspace.lock', 'workspace.delete', 'workspace.recover', 'workspace.restore']);
-let paintConversationMessages;
-function clearConversationEvidence() { state.evidenceGeneration++; state.messages = []; state.dashboard = null; clearSavedEvidence(); paintConversationMessages?.(); }
+let paintConversationMessages, paintContinuationSelection;
+function clearContinuationSelection() { state.continuationGeneration++; state.continuation = null; paintContinuationSelection?.(); }
+function clearConversationEvidence() { state.evidenceGeneration++; state.messages = []; state.dashboard = null; clearContinuationSelection(); clearSavedEvidence(); paintConversationMessages?.(); }
 function savedEvidenceModal(title, content) { const dialog = modal(title, content, true); savedEvidenceDialogs.add(dialog); dialog.addEventListener('close', () => { dialog.replaceChildren(); savedEvidenceDialogs.delete(dialog); }); return dialog; }
 const startupPairing = captureStartupSession();
 state.token = startupPairing.token;
@@ -89,7 +90,8 @@ async function request(method, payload = {}) {
     else if (evidenceGeneration !== state.evidenceGeneration) throw Object.assign(new Error('The evidence or permissions changed while this request was pending. Open the current answer again.'), { code: 'EVIDENCE_CHANGED' });
     return result && Object.hasOwn(result, 'result') ? result.result : result;
   } catch (error) {
-    if (['ACCESS_REVOKED', 'VAULT_LOCKED', 'UNAUTHENTICATED', 'CONVERSATION_NOT_FOUND', 'RECEIPT_NOT_FOUND', 'BUSINESS_CONTEXT_STALE', 'PREVIEW_STALE', 'ROUTE_REVOKED', 'APPROVAL_REVOKED', 'MODEL_RESULT_UNAVAILABLE', 'EVIDENCE_CHANGED'].includes(error.code)) clearConversationEvidence();
+    if (['CONVERSATION_CONTINUATION_RESOLVED', 'CONVERSATION_CONTINUATION_LIMIT'].includes(error.code) && method === 'conversation.continuation' && state.continuation?.id === payload.id) clearContinuationSelection();
+    if (['ACCESS_REVOKED', 'VAULT_LOCKED', 'UNAUTHENTICATED', 'CONVERSATION_NOT_FOUND', 'RECEIPT_NOT_FOUND', 'BUSINESS_CONTEXT_STALE', 'PREVIEW_STALE', 'ROUTE_REVOKED', 'APPROVAL_REVOKED', 'MODEL_RESULT_UNAVAILABLE', 'EVIDENCE_CHANGED', 'CONVERSATION_CONTINUATION_UNAVAILABLE', 'CONVERSATION_CONTINUATION_STALE', 'INVALID_CONVERSATION_CONTINUATION', 'PREVIEW_REQUEST_CHANGED', 'MODEL_RECEIPT_EXPIRED', 'SOURCE_REVOKED', 'FORBIDDEN', 'PAYLOAD_CHANGED'].includes(error.code)) clearConversationEvidence();
     if (!window.chausar?.request && error.code === 'UNAUTHENTICATED') { state.token = null; renderPairing(error.message); }
     throw error;
   }
@@ -107,6 +109,54 @@ async function refreshConversationEvidence() {
     try { message.data = await currentConversationAnswer(message.data); }
     catch { clearConversationEvidence(); return; }
   }
+}
+async function readConversationContinuation(id) {
+  const descriptor = await request('conversation.continuation', { id });
+  if (descriptor?.schemaVersion !== 1 || descriptor.turnId !== id || typeof descriptor.originalQuestion !== 'string' || typeof descriptor.clarification !== 'string') {
+    clearContinuationSelection();
+    throw new Error('This clarification is no longer available. Open a current saved answer.');
+  }
+  return descriptor;
+}
+async function refreshSelectedContinuation() {
+  const selection = state.continuation;
+  if (!selection) return null;
+  const generation = state.generation, evidenceGeneration = state.evidenceGeneration, continuationGeneration = state.continuationGeneration;
+  selection.descriptor = null; paintContinuationSelection?.();
+  try {
+    const descriptor = await readConversationContinuation(selection.id);
+    if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration || continuationGeneration !== state.continuationGeneration || state.continuation !== selection) return null;
+    selection.descriptor = descriptor; paintContinuationSelection?.();
+    return selection;
+  } catch (error) { if (state.continuation === selection) clearContinuationSelection(); throw error; }
+}
+async function selectConversationContinuation(reference, parentDialog = reference.parentDialog, closeDialogs = true, preserveSelectionUntilChecked = false) {
+  if (!preserveSelectionUntilChecked) clearContinuationSelection();
+  const generation = state.generation, evidenceGeneration = state.evidenceGeneration, continuationGeneration = state.continuationGeneration;
+  const current = () => generation === state.generation && evidenceGeneration === state.evidenceGeneration && continuationGeneration === state.continuationGeneration && (!parentDialog || savedEvidenceDialogs.has(parentDialog));
+  let id = reference.id;
+  if (!id) {
+    let cursor;
+    for (let pageNumber = 0; pageNumber < 5 && !id; pageNumber++) {
+      const page = await request('conversation.history', { limit: 20, ...(cursor ? { cursor } : {}) });
+      if (!current()) return;
+      id = (page.items || []).find(item => item.kind === 'clarification' && item.receiptId === reference.modelReceiptId)?.id;
+      cursor = page.nextCursor;
+      if (!cursor) break;
+    }
+  }
+  if (!id) throw new Error('This clarification is no longer available. Open a current saved answer.');
+  const item = await request('conversation.get', { id });
+  if (!current()) return;
+  if (typeof item.answer?.clarification !== 'string' || (reference.modelReceiptId && item.answer.modelReceiptId !== reference.modelReceiptId)) throw new Error('This saved answer is no longer a pending clarification.');
+  const descriptor = await readConversationContinuation(id);
+  if (!current()) return;
+  if (preserveSelectionUntilChecked) clearContinuationSelection();
+  state.continuation = { id, descriptor, evidenceGeneration };
+  if (closeDialogs) clearSavedEvidence();
+  if (state.page !== 'conversation') await navigate('conversation');
+  else paintContinuationSelection?.();
+  return state.continuation;
 }
 async function run(buttonNode, action) { const previous = buttonNode.disabled; buttonNode.disabled = true; buttonNode.setAttribute('aria-busy', 'true'); try { return await action(); } catch (error) { toast(error.message || String(error), true); return undefined; } finally { buttonNode.disabled = previous; buttonNode.removeAttribute('aria-busy'); } }
 function field(label, control, help = '') { const id = control.id || `field_${crypto.randomUUID()}`; control.id = id; return h('div', { class: 'field' }, h('label', { for: id }, label), control, help ? h('small', {}, help) : null); }
@@ -130,7 +180,7 @@ async function boot() {
 }
 function brand() { return h('div', { class: 'brand' }, h('img', { src: './assets/icon.svg', alt: '', width: 32, height: 32 }), h('div', {}, h('div', { class: 'brand-word' }, 'chausar'), h('div', { class: 'brand-tag' }, 'Always know.'))); }
 function renderPairing(error = '') {
-  clearSavedEvidence();
+  clearContinuationSelection(); clearSavedEvidence();
   state.workspace = null; state.status = null; state.messages = []; state.dashboard = null; state.generation++;
   document.querySelectorAll('dialog').forEach(dialog => dialog.remove());
   const code = input('password', '', { required: true, maxlength: 2048, autocomplete: 'off', spellcheck: 'false', placeholder: 'Paste a session code or local pairing link' });
@@ -146,7 +196,7 @@ function renderPairing(error = '') {
   code.focus();
 }
 function renderSetup(error = '') {
-  clearSavedEvidence(); state.workspace = null; state.messages = []; state.dashboard = null; state.generation++;
+  clearContinuationSelection(); clearSavedEvidence(); state.workspace = null; state.messages = []; state.dashboard = null; state.generation++;
   let mode = 'create'; const formHost = h('div');
   const createTab = button('Create a vault', () => { mode = 'create'; renderVaultForm(); }); const openTab = button('Open a vault', () => { mode = 'open'; renderVaultForm(); }); createTab.className = 'selected'; openTab.className = '';
   const renderVaultForm = () => { createTab.classList.toggle('selected', mode === 'create'); openTab.classList.toggle('selected', mode === 'open'); const name = input('text', mode === 'open' ? 'main' : '', { required: true, autocomplete: 'organization', placeholder: mode === 'create' ? 'e.g. Your company' : 'e.g. main' }); const folder = input('text', 'main', { required: true, pattern: '[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}', placeholder: 'main' }); const passphrase = input('password', '', { required: true, minlength: mode === 'create' ? 12 : 1, autocomplete: mode === 'create' ? 'new-password' : 'current-password', placeholder: 'Your vault passphrase' }); const confirm = input('password', '', { required: true, minlength: 12, autocomplete: 'new-password', placeholder: 'Repeat your passphrase' }); const demo = checkField('Include the clearly labelled sample business', state.status?.experimental === true, 'Synthetic records only.'); const fields = [field(mode === 'create' ? 'Business name' : 'Workspace folder', name, mode === 'open' ? 'Use the short folder name you chose at creation. The default is main.' : '')]; if (mode === 'create') fields.push(field('Workspace folder', folder, 'A short name containing letters, numbers, hyphens or underscores.')); fields.push(field('Passphrase', passphrase, mode === 'create' ? 'Use at least 12 characters. The engine encrypts your vault before writing it.' : '')); if (mode === 'create') fields.push(field('Confirm passphrase', confirm), demo.node); const f = form(fields, mode === 'create' ? 'Create my vault' : 'Unlock vault', async () => { if (mode === 'create' && passphrase.value !== confirm.value) throw new Error('The two passphrases do not match.'); const result = await request(`workspace.${mode}`, mode === 'create' ? { name: name.value.trim(), folder: folder.value.trim(), passphrase: passphrase.value, demo: demo.control.checked } : { folder: name.value.trim(), passphrase: passphrase.value }); passphrase.value = ''; confirm.value = ''; const status = await request('workspace.status'); state.status = status; state.workspace = result.workspace || status.workspace || { name: name.value.trim(), demo: demo.control.checked }; const kit = result.recoveryKit || result.recoveryKey || result.recoveryCode; if (kit) showRecoveryKit(kit, result); else renderShell(); }); formHost.replaceChildren(f); };
@@ -191,36 +241,52 @@ async function navigate(id) { state.page = id; state.menuOpen = false; document.
 async function showWorkspace() { const name = state.workspace?.name || 'My workspace'; const dialog = modal('Your workspace', h('div', { class: 'stack' }, h('dl', { class: 'key-value' }, h('dt', {}, 'Business'), h('dd', {}, name), h('dt', {}, 'Storage'), h('dd', {}, 'Encrypted vault on this computer'), h('dt', {}, 'Mode'), h('dd', {}, state.workspace?.demo ? 'Labelled sample business' : 'Your business')), state.status?.path ? h('p', { class: 'small mono muted' }, state.status.path) : null, h('div', { class: 'toolbar' }, button('Back up vault', async event => run(event.currentTarget, async () => { const data = await request('workspace.backup', {}); if(data.path) state.backups.push(data.path); downloadResult(data, 'chausar-vault-backup.json'); }), 'secondary', 'download'), button('Export encrypted workspace', async event => run(event.currentTarget, async () => { const data = await request('workspace.export', { confirmed: true, plaintext: false }); downloadResult(data, 'chausar-workspace-export.vault'); }), 'secondary', 'download'), button('Lock vault', async event => run(event.currentTarget, async () => { await request('workspace.lock'); dialog.close(); state.workspace = null; state.messages = []; state.dashboard = null; renderSetup(); }), 'secondary', 'lock')), notice('Backups and this export remain encrypted. Keep your recovery kit separately.'), details(state.status, 'Workspace status'), button('Delete this vault', () => showVaultDelete(dialog), 'danger small'))); }
 
 async function renderConversation() {
+  const renderGeneration = state.generation;
   await refreshConversationEvidence();
-  const outcomes = await Promise.allSettled([request('dashboard.get'), request('models.list')]); state.dashboard = outcomes[0].status === 'fulfilled' ? outcomes[0].value : null; state.routes = outcomes[1].status === 'fulfilled' ? list(outcomes[1].value, ['routes', 'models']) : []; const dashboard = state.dashboard || {}; const sourceCount = dashboard.sourceCount ?? (typeof dashboard.sources === 'number' ? dashboard.sources : dashboard.sources?.length) ?? dashboard.counts?.sources ?? 0; const memoryCount = dashboard.factCount ?? dashboard.facts?.length ?? dashboard.counts?.facts; const policy = dashboard.policy || {};
-  const question = h('textarea', { rows: 2, placeholder: 'Ask something about your business…', required: true, 'aria-label': 'Your business question' }); const route = select([['', 'Local calculator'], ...state.routes.map(r => [r.id, `${r.kind?.includes('codex') ? 'Codex' : r.kind?.includes('claude') ? 'Claude' : r.model || r.kind} · ${r.model || r.name || r.id}`])], state.routeId); route.setAttribute('aria-label', 'Model route'); route.addEventListener('change', () => { state.routeId = route.value; }); const messages = h('div', { class: 'messages' }); const intro = h('div', { class: 'conversation-intro' }, h('div', { class: 'welcome-icon' }, icon('spark')), h('div', { class: 'eyebrow' }, 'A little more clarity, every day'), h('h2', { class: 'welcome-title' }, 'What would you like', h('br'), 'to know about your business?'), h('p', { class: 'welcome-copy' }, 'Your books, your business meanings, and a calculation you can check. Start with a question. We will show our working.'), h('div', { class: 'prompt-grid' }, [['layers', 'What was billed?', 'Check invoice totals and their source rows.'], ['clock', 'What was receivable aging?', 'Review receivables using a chosen date.'], ['compass', 'What was margin?', 'Read revenue and cost under your dictionary.'], ['sun', 'Show me today’s brief', 'Open the daily picture of your workspace.']].map(([symbol, prompt, help]) => h('button', { class: 'prompt-card', type: 'button', onclick: () => { if (symbol === 'sun') navigate('brief'); else { question.value = prompt; question.focus(); } } }, icon(symbol), h('strong', {}, prompt), h('small', {}, help)))));
+  if (renderGeneration !== state.generation) return h('div');
+  try { await refreshSelectedContinuation(); } catch (error) { toast(error.message, true); }
+  if (renderGeneration !== state.generation) return h('div');
+  const outcomes = await Promise.allSettled([request('dashboard.get'), request('models.list')]); if (renderGeneration !== state.generation) return h('div'); state.dashboard = outcomes[0].status === 'fulfilled' ? outcomes[0].value : null; state.routes = outcomes[1].status === 'fulfilled' ? list(outcomes[1].value, ['routes', 'models']) : []; const dashboard = state.dashboard || {}; const sourceCount = dashboard.sourceCount ?? (typeof dashboard.sources === 'number' ? dashboard.sources : dashboard.sources?.length) ?? dashboard.counts?.sources ?? 0; const memoryCount = dashboard.factCount ?? dashboard.facts?.length ?? dashboard.counts?.facts; const policy = dashboard.policy || {};
+  const question = h('textarea', { rows: 2, placeholder: 'Ask something about your business…', required: true, 'aria-label': 'Your business question' }); const route = select([['', 'Local calculator'], ...state.routes.map(r => [r.id, `${r.kind?.includes('codex') ? 'Codex' : r.kind?.includes('claude') ? 'Claude' : r.model || r.kind} · ${r.model || r.name || r.id}`])], state.routeId); route.setAttribute('aria-label', 'Model route'); route.addEventListener('change', () => { state.routeId = route.value; }); const messages = h('div', { class: 'messages' }); const intro = h('div', { class: 'conversation-intro' }, h('div', { class: 'welcome-icon' }, icon('spark')), h('div', { class: 'eyebrow' }, 'A little more clarity, every day'), h('h2', { class: 'welcome-title' }, 'What would you like', h('br'), 'to know about your business?'), h('p', { class: 'welcome-copy' }, 'Your books, your business meanings, and a calculation you can check. Start with a question. We will show our working.'), h('div', { class: 'prompt-grid' }, [['layers', 'What was billed?', 'Check invoice totals and their source rows.'], ['clock', 'What was receivable aging?', 'Review receivables using a chosen date.'], ['compass', 'What was margin?', 'Read revenue and cost under your dictionary.'], ['sun', 'Show me today’s brief', 'Open the daily picture of your workspace.']].map(([symbol, prompt, help]) => h('button', { class: 'prompt-card', type: 'button', onclick: () => { if (symbol === 'sun') navigate('brief'); else { clearContinuationSelection(); question.value = prompt; question.focus(); } } }, icon(symbol), h('strong', {}, prompt), h('small', {}, help)))));
   const send = h('button', { class: 'button small', type: 'submit' }, icon('up'), 'Ask Chausar');
   const composer = h('form', { class: 'composer', onsubmit: async event => {
     event.preventDefault(); const text = question.value; if (!text.trim() || send.disabled) return;
-    const generation = state.generation, routeId = route.value;
+    const generation = state.generation, evidenceGeneration = state.evidenceGeneration, continuationGeneration = state.continuationGeneration, selected = state.continuation, routeId = route.value;
     send.disabled = true;
     try {
       await refreshConversationEvidence();
-      if (generation !== state.generation) return;
+      if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration || continuationGeneration !== state.continuationGeneration) return;
+      const continuation = selected ? await refreshSelectedContinuation() : null;
+      if (generation !== state.generation || continuationGeneration !== state.continuationGeneration || (selected && !continuation)) return;
+      if (continuation && !routeId) throw new Error('Choose a model route to continue this question, or start a new question for the local calculator.');
       question.value = ''; state.messages.push({ role: 'user', text }); paintMessages();
-      const payload = { question: text, ...(routeId ? { routeId, purpose: 'conversation', questionDisclosure: 'verbatim' } : {}) };
+      const payload = { question: text, ...(routeId ? { routeId, purpose: 'conversation', questionDisclosure: 'verbatim' } : {}), ...(continuation ? { continuationId: continuation.id } : {}) };
       const preview = routeId ? await request('models.preview', payload) : null;
-      if (generation !== state.generation) return;
+      if (generation !== state.generation || continuationGeneration !== state.continuationGeneration) return;
       const answer = preview ? { status: 'preview', text: 'This request needs your approval before any model disclosure. Review the exact payload and destination.',
-        preview: { ...preview, question: text, purpose: 'conversation', questionDisclosure: 'verbatim' } }
+        preview: { ...preview, question: text, purpose: 'conversation', questionDisclosure: 'verbatim', ...(continuation ? { continuationId: continuation.id } : {}) } }
         : await currentConversationAnswer(await request('conversation.ask', payload));
       if (generation !== state.generation) return;
       state.messages.push({ role: 'assistant', data: answer });
     } catch (error) { if (generation === state.generation) state.messages.push({ role: 'assistant', error: error.message || String(error) }); }
     finally { send.disabled = false; if (generation === state.generation) { paintMessages(); question.focus(); } }
   } }, question, h('div', { class: 'composer-footer' }, h('div', { class: 'toolbar' }, route, button('Calculate directly', showCalculator, 'ghost small', 'grid')), send));
+  const continuationHost = h('section', { class: 'panel stack', 'aria-label': 'Selected clarification' });
+  paintContinuationSelection = () => {
+    const selection = state.continuation, descriptor = selection?.evidenceGeneration === state.evidenceGeneration ? selection.descriptor : null;
+    continuationHost.hidden = !descriptor;
+    continuationHost.replaceChildren(...(descriptor ? [h('h3', {}, 'Continue this question'), h('div', {}, h('strong', {}, 'Original question'), h('pre', { class: 'json-view' }, descriptor.originalQuestion)),
+      h('div', {}, h('strong', {}, 'Clarification'), h('p', {}, descriptor.clarification)),
+      button('Start a new question', () => { clearContinuationSelection(); question.focus(); }, 'secondary small')] : []));
+  };
+  paintContinuationSelection();
   question.addEventListener('keydown', event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); composer.requestSubmit(); } });
   function paintMessages() { const hasMessages = state.messages.length > 0; intro.hidden = hasMessages; messages.hidden = !hasMessages; messages.replaceChildren(...state.messages.map(message => message.role === 'user' ? h('div', { class: 'message message-user' }, message.text) : h('article', { class: 'message message-assistant' }, h('div', { class: 'message-heading' }, h('img', { src: './assets/icon.svg', alt: '', width: 18, height: 18 }), 'Chausar', badge(message.error ? 'Could not complete' : 'Engine result', message.error ? 'danger' : '')), message.error ? notice(message.error, 'error') : renderAnswer(message.data)))); if (hasMessages) setTimeout(() => messages.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50); }
   paintConversationMessages = paintMessages; paintMessages();
   const aside = h('aside', { class: 'conversation-aside' }, h('section', { class: 'panel context-panel' }, h('div', { class: 'context-head' }, icon('layers'), 'Workspace context'), ...[['Sources', sourceCount], ['Memory', memoryCount == null ? 'Not yet checked' : `${memoryCount} facts`], ['Dictionary', dashboard.ontology?.pack || dashboard.dictionary?.label || 'Not yet published'], ['Model disclosure', { nothing: 'Nothing leaves', shape: 'Shape only', samples: 'Approved samples' }[policy.send] || 'Check Trust panel']].map(([label, value]) => h('div', { class: 'context-row' }, h('span', {}, label), h('strong', {}, value))), h('p', { class: 'context-foot' }, sourceCount ? 'Answers use the records and meanings currently in your vault.' : 'Import a source and publish a dictionary to begin answering business questions.'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('sources') }, 'Manage sources', icon('arrow'))), h('div', { class: 'trust-callout' }, h('h3', {}, icon('shield'), 'A number deserves proof.'), h('p', {}, 'Arithmetic runs in ordinary software. Open a receipt to inspect the rows, scope, definitions, and omissions.'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('trust') }, 'Your trust settings', icon('arrow'))), h('div', { class: 'side-section' }, h('h3', {}, 'Pick up where you left off'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('decisions') }, icon('compass'), 'Decision log'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('jobs') }, icon('calendar'), 'Recurring jobs'), h('button', { class: 'link-button', type: 'button', onclick: () => navigate('activity') }, icon('activity'), 'Workspace activity')));
-  return h('div', {}, pageHead('Conversation', 'A question, a calculation, and the evidence behind it.', [button('Recent answers', showConversationHistory, 'secondary', 'clock'), button('Daily brief', () => navigate('brief'), 'secondary', 'sun')]), outcomes[0].status === 'rejected' ? notice(outcomes[0].reason.message, 'error') : null, h('div', { class: 'conversation-layout' }, h('section', { class: 'panel conversation-panel' }, intro, messages, h('div', { class: 'composer-wrap' }, composer, h('div', { class: 'composer-help' }, h('span', {}, icon('shield'), 'Private by your rules. Check every result.'), h('span', {}, 'Ctrl + Enter to ask')))), aside));
+  return h('div', {}, pageHead('Conversation', 'A question, a calculation, and the evidence behind it.', [button('Recent answers', showConversationHistory, 'secondary', 'clock'), button('Daily brief', () => navigate('brief'), 'secondary', 'sun')]), outcomes[0].status === 'rejected' ? notice(outcomes[0].reason.message, 'error') : null, h('div', { class: 'conversation-layout' }, h('section', { class: 'panel conversation-panel' }, intro, messages, h('div', { class: 'composer-wrap' }, continuationHost, composer, h('div', { class: 'composer-help' }, h('span', {}, icon('shield'), 'Private by your rules. Check every result.'), h('span', {}, 'Ctrl + Enter to ask')))), aside));
 }
-function renderAnswer(data) { if (!data) return notice('The engine returned no result. Try again or inspect Activity.', 'warn'); if (data.kind === 'grounded-conversation') return renderGroundedConversation(data); if (data.kind === 'business-context') return renderBusinessContextAnswer(data); const text = data.text || data.answer?.text || data.explanation || data.summary || data.message || data.clarification || (typeof data.answer === 'string' ? data.answer : null); const receiptId = data.receiptId || data.receipt?.id || data.calculation?.receiptId || (data.figures ? data.id : null); const result = data.result || data.calculation || data.answer || data; const figures = result.figures || data.receipt?.figures || []; const operations = result?.metrics || result?.values; const body = h('div', {}, text ? h('p', {}, text) : h('p', {}, ['unsupported', 'not-supported', 'clarify'].includes(data.status) ? data.reason || 'This question needs an operation that is not available yet.' : 'The engine completed this request. Its exact result and evidence are below.'), data.amountMinor != null || result.amountMinor != null || result.valueMinor != null ? h('div', { class: 'result-number' }, amount(data.amountMinor ?? result.amountMinor ?? result.valueMinor, result.currency)) : null, figures.length ? h('div', { class: 'results-grid section-gap' }, figures.map(figure => h('div', { class: 'result-value' }, h('div', { class: 'result-label' }, figure.label || figure.key), h('strong', {}, figure.display || (figure.minor != null ? amount(figure.minor, figure.currency) : stringify(figure.value)))))) : null, operations && typeof operations === 'object' ? h('div', { class: 'results-grid section-gap' }, Object.entries(operations).map(([key, value]) => h('div', { class: 'result-value' }, h('div', { class: 'result-label' }, key.replaceAll('_', ' ')), h('strong', {}, value?.amountMinor != null ? amount(value.amountMinor, value.currency) : typeof value === 'object' ? stringify(value) : String(value))))) : null, data.limitations?.length ? notice(data.limitations.join(' '), 'warn') : null, data.stale ? notice('This receipt is stale. Rerun the calculation against current knowledge.', 'warn') : null, details(data), h('div', { class: 'message-actions' }, receiptId ? button('Open calculation receipt', () => showReceipt(receiptId), 'secondary small', 'file') : null, data.preview?.id || data.status === 'preview' ? button('Review outbound request', () => reviewOutbound(data.preview || data), 'secondary small', 'shield') : null, button('Save result', () => saveText('chausar-answer.json', data), 'ghost small', 'download'))); return body; }
+function renderAnswer(data, continuationReference) { if (!data) return notice('The engine returned no result. Try again or inspect Activity.', 'warn'); if (data.kind === 'grounded-conversation') return renderGroundedConversation(data); if (data.kind === 'business-context') return renderBusinessContextAnswer(data); const text = data.text || data.answer?.text || data.explanation || data.summary || data.message || data.clarification || (typeof data.answer === 'string' ? data.answer : null); const receiptId = data.receiptId || data.receipt?.id || data.calculation?.receiptId || (data.figures ? data.id : null); const result = data.result || data.calculation || data.answer || data; const figures = result.figures || data.receipt?.figures || []; const operations = result?.metrics || result?.values; const body = h('div', {}, text ? h('p', {}, text) : h('p', {}, ['unsupported', 'not-supported', 'clarify'].includes(data.status) ? data.reason || 'This question needs an operation that is not available yet.' : 'The engine completed this request. Its exact result and evidence are below.'), data.amountMinor != null || result.amountMinor != null || result.valueMinor != null ? h('div', { class: 'result-number' }, amount(data.amountMinor ?? result.amountMinor ?? result.valueMinor, result.currency)) : null, figures.length ? h('div', { class: 'results-grid section-gap' }, figures.map(figure => h('div', { class: 'result-value' }, h('div', { class: 'result-label' }, figure.label || figure.key), h('strong', {}, figure.display || (figure.minor != null ? amount(figure.minor, figure.currency) : stringify(figure.value)))))) : null, operations && typeof operations === 'object' ? h('div', { class: 'results-grid section-gap' }, Object.entries(operations).map(([key, value]) => h('div', { class: 'result-value' }, h('div', { class: 'result-label' }, key.replaceAll('_', ' ')), h('strong', {}, value?.amountMinor != null ? amount(value.amountMinor, value.currency) : typeof value === 'object' ? stringify(value) : String(value))))) : null, data.limitations?.length ? notice(data.limitations.join(' '), 'warn') : null, data.stale ? notice('This receipt is stale. Rerun the calculation against current knowledge.', 'warn') : null, details(data), h('div', { class: 'message-actions' }, typeof data.clarification === 'string' && continuationReference?.continuationAvailable !== false && (continuationReference?.id || data.modelReceiptId) ? button('Continue this question', event => run(event.currentTarget, () => selectConversationContinuation(continuationReference || { modelReceiptId: data.modelReceiptId })), 'secondary small', 'arrow') : null, receiptId ? button('Open calculation receipt', () => showReceipt(receiptId), 'secondary small', 'file') : null, data.preview?.id || data.status === 'preview' ? button('Review outbound request', () => reviewOutbound(data.preview || data), 'secondary small', 'shield') : null, button('Save result', () => saveText('chausar-answer.json', data), 'ghost small', 'download'))); return body; }
 function renderGroundedConversation(data) {
   const labels = { 'business.describe': 'Business description', 'calculator.calculate': 'Calculation' };
   return h('div', { class: 'stack' },
@@ -242,7 +308,8 @@ async function showConversationHistory() {
         ...(page.items || []).map(item => h('section', { class: 'panel' }, h('p', {}, item.question),
           badge({ 'grounded-conversation': 'Grounded conversation', 'business-context': 'Business description', calculation: 'Calculation', clarification: 'Clarification' }[item.kind] || 'Saved answer'),
           h('p', { class: 'muted small' }, formatDate(item.at)),
-          button('Open saved answer', () => showSavedConversation(item.id, dialog), 'secondary small', 'file'))),
+          button('Open saved answer', () => showSavedConversation(item.id, dialog), 'secondary small', 'file'),
+          item.kind === 'clarification' ? button('Continue this question', event => run(event.currentTarget, () => selectConversationContinuation({ id: item.id }, dialog)), 'secondary small', 'arrow') : null)),
         !(page.items || []).length ? h('p', { class: 'muted' }, 'No saved answers are currently available.') : null,
         page.nextCursor ? button('Older answers', event => run(event.currentTarget, () => load(page.nextCursor)), 'secondary', 'clock') : null].filter(Boolean));
       if (!dialog) { dialog = savedEvidenceModal('Recent answers', host); dialog.addEventListener('close', () => { active = false; }); }
@@ -255,8 +322,21 @@ async function showSavedConversation(id, parentDialog) {
   try {
     const item = await request('conversation.get', { id });
     if (generation !== state.generation || (parentDialog && !savedEvidenceDialogs.has(parentDialog))) return;
-    savedEvidenceModal('Saved answer', h('div', { class: 'stack' }, h('p', {}, item.question),
-      h('p', { class: 'muted small' }, formatDate(item.at)), renderAnswer(item.answer)));
+    let continuationAvailable = true, continuationNotice;
+    if (typeof item.answer?.clarification === 'string' && item.answer.modelReceiptId) {
+      try {
+        const pendingSelection = await selectConversationContinuation({ id }, parentDialog, false, true);
+        if (!pendingSelection) return;
+      } catch (error) {
+        if (!['CONVERSATION_CONTINUATION_RESOLVED', 'CONVERSATION_CONTINUATION_LIMIT'].includes(error.code)) throw error;
+        continuationAvailable = false;
+        if (error.code === 'CONVERSATION_CONTINUATION_LIMIT') continuationNotice = error.message;
+      }
+      if (generation !== state.generation || (parentDialog && !savedEvidenceDialogs.has(parentDialog))) return;
+    }
+    const reference = { id, continuationAvailable };
+    reference.parentDialog = savedEvidenceModal('Saved answer', h('div', { class: 'stack' }, h('p', {}, item.question),
+      h('p', { class: 'muted small' }, formatDate(item.at)), continuationNotice ? notice(continuationNotice, 'warn') : null, renderAnswer(item.answer, reference)));
   } catch (error) { if (generation === state.generation) { clearSavedEvidence(); toast(error.message, true); } }
 }
 function renderBusinessContextAnswer(data) {
@@ -276,7 +356,14 @@ async function showBusinessContextReceipt(id) {
 }
 async function showReceipt(id) { const generation = state.generation; try { const result = await request('receipts.get', { id, receiptId: id }); if (generation !== state.generation) return; const data = result.receipt || result; savedEvidenceModal('Calculation receipt', h('div', { class: 'stack' }, h('div', {}, h('div', { class: 'eyebrow' }, data.operation || 'Deterministic calculation'), h('p', { class: 'receipt-id mono' }, data.id || id)), data.amountMinor != null ? h('div', { class: 'result-number' }, amount(data.amountMinor, data.currency)) : null, h('dl', { class: 'key-value' }, h('dt', {}, 'Period'), h('dd', {}, stringify(data.period || data.scope?.period || 'All imported periods')), h('dt', {}, 'Rows'), h('dd', {}, data.rowCount ?? data.rows?.length ?? data.includedRows?.length ?? 'See exact record'), h('dt', {}, 'Dictionary'), h('dd', {}, data.definitionVersion || data.ontologyRevision || data.definitionId || 'See exact record')), details(data, 'Rows, definitions, scope, exclusions, and integrity checks'), button('Save receipt', () => saveText(`chausar-receipt-${id}.json`, data), 'secondary', 'download')), true); } catch (error) { if (generation === state.generation) { clearSavedEvidence(); toast(error.message, true); } } }
 async function reviewOutbound(preview) {
-  const generation = state.generation;
+  const generation = state.generation, evidenceGeneration = state.evidenceGeneration, continuationGeneration = state.continuationGeneration;
+  const continuationId = typeof preview.continuationId === 'string' && preview.continuationId ? preview.continuationId : null;
+  const selectionForPreview = state.continuation?.id === continuationId ? state.continuation : null;
+  if (continuationId) {
+    try { await readConversationContinuation(continuationId); }
+    catch (error) { if (error.code !== 'CONVERSATION_CONTINUATION_RESOLVED' || state.continuation?.id === continuationId) clearContinuationSelection(); toast(error.message, true); return; }
+    if (generation !== state.generation || evidenceGeneration !== state.evidenceGeneration || continuationGeneration !== state.continuationGeneration) return;
+  }
   let active = true;
   const question = typeof preview.question === 'string' ? preview.question : '';
   const conversation = preview.purpose === 'conversation';
@@ -288,6 +375,7 @@ async function reviewOutbound(preview) {
       h('dt', {}, 'Source context disclosure'), h('dd', {}, { shape: 'Shape', samples: 'Approved samples', nothing: 'Nothing' }[preview.send] || 'See exact preview'),
       h('dt', {}, 'Payload digest'), h('dd', { class: 'mono' }, preview.digest || 'See exact preview')),
     details(preview.payload, 'Exact outbound payload'), details(preview, 'Reviewed evidence and transfer'),
+    typeof preview.continuationDisclosureWarning === 'string' && preview.continuationDisclosureWarning ? notice(preview.continuationDisclosureWarning, 'warn') : null,
     typeof preview.definitionDisclosureWarning === 'string' && preview.definitionDisclosureWarning ? notice(preview.definitionDisclosureWarning, 'warn') : null, consent.node);
   let submitted = false;
   const approve = button('Approve and send once', async event => {
@@ -296,11 +384,18 @@ async function reviewOutbound(preview) {
       if (!consent.control.checked) throw new Error('Review the question and payload and tick the approval box first.');
       if (!question.trim()) throw new Error('The exact reviewed question is unavailable. Create a new preview.');
       submitted = true;
+      if (continuationId) await readConversationContinuation(continuationId);
+      if (!active || generation !== state.generation || (continuationId && continuationGeneration !== state.continuationGeneration)) return;
       const approval = await request('models.approve', { id: preview.id });
-      if (!active || generation !== state.generation) return;
-      const result = await currentConversationAnswer(await request('conversation.ask', { previewId: preview.id, approvalId: approval.id, question,
-        routeId: preview.routeId, ...(conversation ? { purpose: 'conversation', questionDisclosure: 'verbatim' } : {}) }));
-      if (!active || generation !== state.generation) return;
+      if (!active || generation !== state.generation || (continuationId && continuationGeneration !== state.continuationGeneration)) return;
+      const retained = await request('conversation.ask', { previewId: preview.id, approvalId: approval.id, question,
+        routeId: preview.routeId, ...(conversation ? { purpose: 'conversation', questionDisclosure: 'verbatim' } : {}), ...(continuationId ? { continuationId } : {}) });
+      const selectionUnchanged = !continuationId || continuationGeneration === state.continuationGeneration;
+      if (continuationId && selectionUnchanged && state.continuation === selectionForPreview) clearContinuationSelection();
+      if (!active || generation !== state.generation || !selectionUnchanged) return;
+      const completionContinuationGeneration = state.continuationGeneration;
+      const result = await currentConversationAnswer(retained);
+      if (!active || generation !== state.generation || (continuationId && completionContinuationGeneration !== state.continuationGeneration)) return;
       dialog.close(); state.messages.push({ role: 'assistant', data: result }); await navigate('conversation');
     });
     event.currentTarget.disabled = submitted;

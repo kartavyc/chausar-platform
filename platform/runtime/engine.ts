@@ -44,7 +44,8 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
 
 /** Trusted host result. Identifiers and private scope are not automatic outbound disclosure. */
 export type ConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
-  sourceIds: string[]; requestScope: BusinessContextManifest['request'] | Record<string, unknown>; digest: string };
+  sourceIds: string[]; requestScope: BusinessContextManifest['request'] | Record<string, unknown>; digest: string;
+  exchanges?: { question: string; clarification: string }[] };
 
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
@@ -66,7 +67,7 @@ export class Engine {
   services: Record<string, any> = {};
   constructor(options: EngineOptions) { this.version = options.version ?? '0.1.0-preview.1'; compareVersions(this.version, this.version); this.options = { ...options, directory: resolve(options.directory) }; }
   /** Resolve retained objective text only through current private authority. No inference or resend. */
-  conversationContinuation(ctx: Context, id: string, view: StateStore = this.store()): ConversationContinuation {
+  conversationContinuation(ctx: Context, id: string, view: StateStore = this.store(), resolvedByModelReceiptId?: string): ConversationContinuation {
     authorize(view, ctx);
     const state = view.read(), records = state.conversations.filter(record => record?.id === id), record = records[0];
     const unavailable = 'CONVERSATION_CONTINUATION_UNAVAILABLE';
@@ -87,10 +88,40 @@ export class Engine {
       ...rowIds.map(rowId => state.facts.find(fact => fact.id === rowId)?.sourceId).filter((value): value is string => typeof value === 'string')])].sort();
     check(hash(record.rowIds) === hash(rowIds) && hash(record.sourceIds) === hash(sourceIds), unavailable, 'This pending clarification is unavailable.');
     assertSourceAccess(state, ctx, sourceIds);
-    check(!state.conversations.some(item => item?.kind === 'conversation-continuation-resolved' && item.continuationId === id), unavailable, 'This clarification has already been continued.');
-    const body = { schemaVersion: 1 as const, turnId: id, originalQuestion: record.question, clarification: model.plan.clarification,
-      sourceIds, requestScope: structuredClone(model.businessContext.request) };
+    const resolutions = state.conversations.filter(item => item?.kind === 'conversation-continuation-resolved' && item.continuationId === id);
+    if (resolutions.length) {
+      const resolution = resolutions[0], answers = state.conversations.filter(item => item?.id === resolution.answerId), answer = answers[0];
+      check(resolutions.length === 1 && resolution.memberId === ctx.memberId && resolution.epoch === ctx.epoch && resolution.integrity === conversationRecordIntegrity(resolution)
+        && answers.length === 1 && answer.memberId === ctx.memberId && answer.epoch === ctx.epoch && answer.modelReceiptId === resolution.modelReceiptId
+        && answer.integrity === conversationRecordIntegrity(answer), unavailable, 'This clarification has already been continued.');
+      check(resolvedByModelReceiptId !== undefined, 'CONVERSATION_CONTINUATION_RESOLVED', 'This clarification has already been answered. Start a new question.');
+      check(typeof resolvedByModelReceiptId === 'string' && resolution.modelReceiptId === resolvedByModelReceiptId, unavailable, 'This clarification has already been continued by a different turn.');
+    }
+    // Preserve selected zero-row sources separately from observed fact lineage.
+    const selectedSourceIds = [...(model.businessContext.request.sourceIds ?? model.sourceIds)].sort();
+    assertSourceAccess(state, ctx, selectedSourceIds);
+    const prior = model.continuation, exchanges = [...(prior?.exchanges ?? (prior ? [{ question: prior.originalQuestion, clarification: prior.clarification }] : [])),
+      { question: record.question, clarification: model.plan.clarification }];
+    check(exchanges.length <= 8, 'CONVERSATION_CONTINUATION_LIMIT', 'This clarification chain is full. Start a new question.');
+    const body = { schemaVersion: 1 as const, turnId: id, originalQuestion: prior?.originalQuestion ?? record.question, clarification: model.plan.clarification,
+      exchanges, sourceIds: selectedSourceIds, requestScope: structuredClone(model.businessContext.request) };
+    check(Buffer.byteLength(JSON.stringify(body)) <= 65536, 'CONVERSATION_CONTINUATION_LIMIT', 'This clarification context is too long. Start a new question.');
     return { ...body, digest: hash(body) };
+  }
+  private resolveContinuationTurn(ctx: Context, model: any, answerId: string, state: ReturnType<StateStore['read']>) {
+    if (model.continuationId === undefined) return;
+    const store = this.store(), view = { read: () => state, update: store.update.bind(store) };
+    // The resulting answer and consumption marker commit together. Failure leaves the objective pending.
+    const continuation = this.conversationContinuation(ctx, model.continuationId, view);
+    check(continuation.digest === model.continuationDigest && hash(continuation) === hash(model.continuation),
+      'CONVERSATION_CONTINUATION_UNAVAILABLE', 'The pending objective changed before this turn could be retained.');
+    const answer = state.conversations.find(item => item?.id === answerId);
+    check(answer && answer.modelReceiptId === model.id && answer.memberId === ctx.memberId && answer.epoch === ctx.epoch,
+      'CONVERSATION_CONTINUATION_UNAVAILABLE', 'Retain the resulting turn before resolving its clarification.');
+    const record = { id: newId('conversation_resolution'), kind: 'conversation-continuation-resolved', at: now(), memberId: ctx.memberId, epoch: ctx.epoch,
+      continuationId: model.continuationId, answerId, modelReceiptId: model.id,
+      sourceIds: [...new Set<string>([...continuation.sourceIds, ...answer.sourceIds])].sort(), rowIds: [...answer.rowIds] };
+    state.conversations.push({ ...record, integrity: conversationRecordIntegrity(record) });
   }
   private async retainConversationAnswer(ctx: Context, question: string, answer: any, manifest?: BusinessContextManifest, modelReceiptId?: string) {
     const store = this.store(), s = this.services;
@@ -133,6 +164,7 @@ export class Engine {
         const record = { id, kind: 'conversation-clarification-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: request.question,
           answer, modelReceiptId: current.id, sourceIds, rowIds };
         state.conversations.push({ ...record, integrity: conversationRecordIntegrity(record) });
+        this.resolveContinuationTurn(ctx, current, id, state);
       });
       return answer;
     }
@@ -148,7 +180,7 @@ export class Engine {
           // Source admission precedes version/conflict resolution and arithmetic.
           // Empty reviewed scopes stay empty; they never mean "all visible".
           check(model.businessContext?.request && hash(model.sourceIds) === hash(model.businessContext.sourceIds), 'TOOL_SCOPE_CHANGED', 'The calculation source scope no longer matches the reviewed manifest.');
-          const scope = model.businessContext.request, args: any = { ...call.args, sourceIds: [...model.sourceIds] };
+          const scope = model.businessContext.request, args: any = { ...call.args, sourceIds: [...(model.businessContext.request.sourceIds ?? model.sourceIds)] };
           for (const key of ['period', 'branch'] as const) if (scope[key] !== undefined) {
             check(args[key] === undefined || hash(args[key]) === hash(scope[key]), 'TOOL_SCOPE_CHANGED', 'The calculation must use the exact reviewed scope.'); args[key] = scope[key];
           }
@@ -180,6 +212,7 @@ export class Engine {
       const record = { id, kind: 'conversation-tools-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: request.question,
         answer, resultRefs, modelReceiptId: model.id, sourceIds, rowIds };
       state.conversations.push({ ...record, integrity: conversationRecordIntegrity(record) });
+      this.resolveContinuationTurn(ctx, model, id, state);
     });
     return answer;
   }
@@ -251,7 +284,8 @@ export class Engine {
       assertModelReceipt: (ctx, id, view) => this.services.gateway.assertConversationReceipt(ctx, id, view),
     });
     this.services.businessProfile = new BusinessProfileService(store);
-    this.services.gateway = new ModelGateway(store, { ...this.options.gateway, businessContext: businessContextHooks });
+    this.services.gateway = new ModelGateway(store, { ...this.options.gateway, businessContext: businessContextHooks,
+      conversationContinuation: (ctx, id, view, resolvedBy) => this.conversationContinuation(ctx, id, view, resolvedBy) });
     this.services.speech = new SpeechService(store);
     this.services.auth = new AuthService(store);
     this.services.sync = new SyncService(store, { ...this.options.sync, vault });
@@ -402,6 +436,8 @@ export class Engine {
       }
       case 'conversation.ask': {
         check(typeof payload.question === 'string' && payload.question.trim().length > 0 && payload.question.length <= 8000, 'INVALID_QUESTION', 'Ask a short business question.');
+        check(payload.continuationId === undefined || payload.purpose === 'conversation' && typeof payload.routeId === 'string' && payload.routeId.length > 0,
+          'MODEL_ROUTE_REQUIRED', 'Choose and review a model route to continue this question.');
         if (payload.purpose === 'conversation') {
           check(typeof payload.routeId === 'string' && payload.routeId.length > 0 && payload.questionDisclosure === 'verbatim', 'MODEL_ROUTE_REQUIRED', 'Choose a model route and review the original question before sending it.');
           const result = await s.gateway.execute(ctx, payload);
@@ -427,6 +463,11 @@ export class Engine {
         return (await this.retainConversationAnswer(ctx, payload.question, result, businessManifest, modelReceiptId)).answer;
       }
       case 'conversation.history': return s.conversationHistory.list(ctx, payload);
+      case 'conversation.continuation': {
+        const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_HISTORY_REFERENCE');
+        check(typeof input.id === 'string' && input.id.length > 0 && input.id.length <= 200, 'INVALID_HISTORY_REFERENCE', 'Choose one saved clarification.');
+        return this.conversationContinuation(ctx, input.id);
+      }
       case 'conversation.get': {
         const input = this.journalPayload(payload, ['id'], ['id'], 'INVALID_HISTORY_REFERENCE');
         return s.conversationHistory.get(ctx, input.id);

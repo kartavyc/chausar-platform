@@ -33,6 +33,7 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'conversation.ask': ModelRequest;
   'models.preview': ModelRequest;
   'conversation.get': { id: string };
+  'conversation.continuation': { id: string };
   'business.context.receipt': { id: string };
   'business.profile.record': BusinessProfileInput;
   'business.profile.remove': { id: string };
@@ -80,6 +81,7 @@ export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPa
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
 export type DesktopResult<M extends DesktopMethod> =
   M extends 'conversation.history' ? ReturnType<ConversationHistoryService['list']> : M extends 'conversation.get' ? ReturnType<ConversationHistoryService['get']> :
+  M extends 'conversation.continuation' ? import('../../platform/runtime/engine.ts').ConversationContinuation :
   M extends 'analysis.bridge.publish' ? BridgeProfileRecord : M extends 'analysis.bridge.profiles' ? BridgeProfileRecord[] :
   M extends 'analysis.bridge.run' | 'analysis.bridge.get' ? BridgeRecord :
   M extends 'investigations.list' ? Investigation[] : M extends 'investigations.capsule' ? InvestigationCapsule :

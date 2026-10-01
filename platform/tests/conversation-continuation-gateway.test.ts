@@ -65,7 +65,7 @@ test('continuation preview reviews the old objective, clarification and exact la
   const retained = descriptor(), run = await fixture(retained), preview = await run.gateway.preview(owner, input());
   const wire = content(preview.payload);
   assert.equal(wire.question, REPLY); assert.equal(wire.questionDisclosure, 'verbatim');
-  assert.deepEqual(wire.continuation, { originalQuestion: OBJECTIVE, clarification: CLARIFICATION });
+  assert.deepEqual(wire.continuation, { turnId: retained.turnId, originalQuestion: OBJECTIVE, clarification: CLARIFICATION });
   assert.equal(wire.continuationDisclosure, 'verbatim');
   assert.equal(preview.naturalQuestion, REPLY); assert.equal(preview.questionHash, hash(REPLY));
   assert.equal(preview.continuationId, retained.turnId); assert.equal(preview.continuationDigest, retained.digest);
