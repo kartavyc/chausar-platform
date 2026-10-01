@@ -121,6 +121,13 @@
       "reviewedControlsCorrection": "ea69ae47ffa9bd818cf97b54001c96541eb9b0a2",
       "installedHelpParserCorrection": "6bc410479c4d713c4f20b62caa7f7db5648cbde9",
       "productWiring": "Both normal server and desktop worker constructors verify pinned public CLI evidence and exact native binary; process gateway rechecks the hash before dispatch. Native metadata uses supported tool controls; no account grant or extra inference."
+    },
+    {
+      "lane": "desktopOptionalJsonPayload",
+      "sourceCommit": "946e091553cdad75f5ff0a6c015faf3dd9d5a9bb",
+      "importedCommit": "13525954517220b3f73f09a9ecec1b59514350cb",
+      "checkedRegression": "cfeb1f02d18736ad70d619fab430b98caa857253",
+      "productWiring": "Actual conversation composer omits absent routeId before native IPC. Strict validator unchanged. Actual renderer/preload/clone/host-worker synthetic regression asserts unsupported general question and exact retained billed receipt. Native GUI retest pending."
     }
   ],
   "uncommittedLaneWorkImported": false,
@@ -157,13 +164,13 @@
     }
   ],
   "publicationCapability": {
-    "lastVerifiedRemoteMain": "508fda83fc3281a8bd0ee5c2c9810b56c284585b",
+    "lastVerifiedRemoteMain": "52b846de195712c318364c08abc91974287a61d4",
     "status": "private-main-checkpoint-published-and-both-push-ci-jobs-passed",
     "repositoryPrivate": true,
     "finalRemoteHeadRefreshRequired": true,
     "forcePush": false,
     "publicationMethod": "Supported bounded normal Git push with existing authentication from an account-owned verified-bundle copy; no trust changes.",
-    "ciEvidence": "https://github.com/kartavyc/chausar-platform/actions/runs/36804278735"
+    "ciEvidence": "https://github.com/kartavyc/chausar-platform/actions/runs/36806054895"
   },
   "dependencyRecovery": {
     "approvedStaging": "D:/Chausar/build-tools",
@@ -233,7 +240,7 @@
     "sourcePreviewCommand": "npm run phone:preview",
     "evidence": "docs/evidence/phone-ui-join-checks.json"
   },
-  "updatedAt": "2026-10-01T02:27:16.336Z",
+  "updatedAt": "2026-10-01T02:36:23.911Z",
   "integratedEngineMilestone": {
     "status": "verified-local-synthetic-engine",
     "sourceCommit": "503d44ed6ea3425c90f332f5327d850d922260ba",
@@ -349,7 +356,28 @@
     "embeddedWorker": "passed including graceful shutdown",
     "guiOpened": true,
     "conversation": "failed: Use JSON values in the request",
-    "repair": "pending desktop lane optional-payload patch; no renderer redesign selected",
-    "endToEndQualified": false
+    "repair": "joined source946e091 with exact renderer/worker receipt regression; parent desktop worker owns older portable artifact update after user closes it",
+    "endToEndQualified": false,
+    "serializationSourceFixed": true,
+    "nativeRetest": "pending",
+    "generalBusinessConversation": "unsupported calculator response; remains open"
+  },
+  "integratedDesktopJsonCheckpoint": {
+    "checkedCommit": "cfeb1f02d18736ad70d619fab430b98caa857253",
+    "checkedTree": "27f8c7eb500fe0a5a47daca8a0341bf0a397d25c",
+    "aggregateTests": {
+      "pass": 878,
+      "fail": 0,
+      "skipped": 0
+    },
+    "testFiles": 64,
+    "syntaxSourceFiles": 164,
+    "strictApplicationSemanticTypeScriptPassed": true,
+    "strictPortablePhoneTypeScriptPassed": true,
+    "windowsHeadlessWorkerPassed": true,
+    "actualSyntheticRendererWorkerReceiptMinor": "300000",
+    "nativeGuiAcceptance": "pending user retest",
+    "generalConversation": "unsupported calculator response; not implemented by this serialization correction",
+    "evidence": "docs/verification/desktop-json.json"
   }
 }
