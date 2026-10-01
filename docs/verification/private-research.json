@@ -1,0 +1,78 @@
+{
+  "checkedCommit": "a0db4458d44953e0a0e3a87cb4eca6fa382ed8cb",
+  "startedAt": "2026-10-01T04:46:57.125Z",
+  "node": "24.13.1",
+  "platform": "win32",
+  "arch": "x64",
+  "tests": 93,
+  "results": [
+    {
+      "name": "syntax-json",
+      "exitCode": 0,
+      "passed": true,
+      "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-private-research-complete-checks\\syntax-json.log",
+      "logSha256": "697455e13eddea93a6f231c7368e2d34de4de8a33aa6dd6a7ec2f688ea900ef1"
+    },
+    {
+      "name": "strict-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-private-research-complete-checks\\strict-typescript.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "portable-phone-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-private-research-complete-checks\\portable-phone-typescript.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "aggregate-tests",
+      "exitCode": 0,
+      "passed": true,
+      "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-private-research-complete-checks\\aggregate-tests.log",
+      "logSha256": "696604bd38edfb1881bc3bb557910ccfff8da5233840c23b1deac478790449ec",
+      "tests": 1237,
+      "suites": 0,
+      "pass": 1237,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "durationMs": 91429.4009
+    },
+    {
+      "name": "windows-headless-worker",
+      "exitCode": 0,
+      "passed": true,
+      "log": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\integration-private-research-complete-checks\\windows-headless-worker.log",
+      "logSha256": "3eac79785f8c266a02685fffd547cae352cd702d47363af6a9c603b435fe6b42"
+    }
+  ],
+  "releaseAcceptance": "unverified",
+  "dedicatedSecurityReview": "blocked-unverified",
+  "scope": "Actual combined local synthetic Engine/RPC, worker, fixture, and contract checks. No overall native, hosted, vendor, production-database, or security release pass.",
+  "finishedAt": "2026-10-01T04:48:53.637Z",
+  "passed": true,
+  "milestone": {
+    "checkedSourceCommit": "a0db4458d44953e0a0e3a87cb4eca6fa382ed8cb",
+    "checkedTree": "10bc7374c6d7b58196ed89f5b15fda505e98bce9",
+    "localTests": 1237,
+    "testFiles": 93,
+    "syntaxSourceFiles": 215,
+    "strictAppSemanticTypescript": "passed",
+    "strictPortablePhoneTypescript": "passed",
+    "windowsHeadlessWorker": "passed",
+    "nativeGroupedChecks": 10,
+    "nativeSourceCommit": "78b53d29ba2c07c4c9f4af4e74bc890212f06a2e",
+    "nativeSourceUnchanged": true,
+    "scope": "Declared descriptive bridge; revision-checked private persisted investigation; exact bounded PostgreSQL token search of current authorized investigation and journal projection.",
+    "evidence": "docs/verification/private-research.json",
+    "nativeEvidence": "docs/verification/private-research-native.json",
+    "fullReleaseAcceptance": "unverified",
+    "dedicatedSecurityReview": "blocked-unverified",
+    "externalCorpusAcquired": 0,
+    "namedConnectorGroupsQualified": 0
+  }
+}

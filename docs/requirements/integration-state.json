@@ -188,6 +188,29 @@
       "sourceCommit": "c82f087727d049dfa1da2b666cf4588798a128b5",
       "importedCommit": "d6a7258cd52817601947083e75aee33f5461af9c",
       "productWiring": "Real renderBrief/preload/strict clone rich and legacy Review routing, with exact journal revision."
+    },
+    {
+      "lane": "declaredDescriptiveBridge",
+      "sourceCommits": [
+        "6c1216c",
+        "a1e39cc",
+        "6e4078d"
+      ],
+      "productWiring": "Actual Engine/RPC and native money receipts; explicit owner-published convention, exact scope and residuals, current raw-factor/source/branch bindings. Declared experimental; managed factors require separate admission."
+    },
+    {
+      "lane": "savedPrivateInvestigations",
+      "sourceCommit": "74a9ddb57b7f25f807ac16d349ec23b94ab0f1c1",
+      "productWiring": "Actual private Engine HTTP/worker lifecycle, atomic next-step receipt, exact revision/cut/definition/scope pins, bounded measured-vs-hypothesis capsule, encrypted PostgreSQL full reopen/resume and lineage erasure."
+    },
+    {
+      "lane": "privatePostgresSearch",
+      "sourceCommits": [
+        "e2732ca52c4f3581f540d765fc677a2f9a5dfce0",
+        "812b5b1cf2d235ff4b069832f4dc760d7182a41a",
+        "9677e4185d41774f6a4c93729cec93d3a1c0cfa1"
+      ],
+      "productWiring": "Native simple-token conjunction, complete bounded authorized projection, current host join and release recheck, lazy local pool lifecycle; no universal absence, ranked truncation or semantic recall claim."
     }
   ],
   "uncommittedLaneWorkImported": false,
@@ -501,6 +524,26 @@
     "scope": "Compiler-bound single-definition money sums, faithful row-field projection, generic prepared native SQL and public private-receipt flow.",
     "evidence": "docs/verification/compiled-measures.json",
     "nativeEvidence": "docs/verification/compiled-measures-native.json",
+    "fullReleaseAcceptance": "unverified",
+    "dedicatedSecurityReview": "blocked-unverified",
+    "externalCorpusAcquired": 0,
+    "namedConnectorGroupsQualified": 0
+  },
+  "privateResearchMilestone": {
+    "checkedSourceCommit": "a0db4458d44953e0a0e3a87cb4eca6fa382ed8cb",
+    "checkedTree": "10bc7374c6d7b58196ed89f5b15fda505e98bce9",
+    "localTests": 1237,
+    "testFiles": 93,
+    "syntaxSourceFiles": 215,
+    "strictAppSemanticTypescript": "passed",
+    "strictPortablePhoneTypescript": "passed",
+    "windowsHeadlessWorker": "passed",
+    "nativeGroupedChecks": 10,
+    "nativeSourceCommit": "78b53d29ba2c07c4c9f4af4e74bc890212f06a2e",
+    "nativeSourceUnchanged": true,
+    "scope": "Declared descriptive bridge; revision-checked private persisted investigation; exact bounded PostgreSQL token search of current authorized investigation and journal projection.",
+    "evidence": "docs/verification/private-research.json",
+    "nativeEvidence": "docs/verification/private-research-native.json",
     "fullReleaseAcceptance": "unverified",
     "dedicatedSecurityReview": "blocked-unverified",
     "externalCorpusAcquired": 0,

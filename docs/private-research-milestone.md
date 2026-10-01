@@ -1,0 +1,15 @@
+# Private research source checkpoint
+
+Checked implementation: `a0db4458d44953e0a0e3a87cb4eca6fa382ed8cb`. Final publication adds documentation/evidence only; source-equivalence artifacts verify the exact relation. Native source `78b53d29ba2c07c4c9f4af4e74bc890212f06a2e` has identical application, tests and gate code; its next commit records native evidence only.
+
+The full-plan declared change bridge and saved private investigation paths now run through named Engine/desktop RPCs. The owner explicitly publishes quantity, unit, product identity, grain, realized-price convention, allocation, rounding and incomplete-factor handling. Literal 100 to 240 minor-unit receipts yield volume 100, price 20, interaction 20 and zero residual; scope changes, missing factors and rounding remain separate. Results describe the measured change and remain experimental/source-unqualified.
+
+Private investigations retain an ordered plan, explicit knowledge cut, current meanings, scope, evidence pins and writer revisions. The measured July/August collections 30000/15000 and separate August invoices 70000 survive full encrypted close/reopen/resume without repeating completed work. Exact bounded capsules retain labelled owner guesses and counterevidence. Actual local PostgreSQL token search joins current authorized valid investigations and journal records, refuses overflow and changed authority, and preserves current lineage deletion. No universal absence or causal inference is claimed.
+
+Validation: **1237/1237 combined local tests** across 93 files, zero failures/skips/cancelled/todo; strict app/semantic and portable-phone TypeScript, syntax/JSON and Windows headless worker passed. **10/10 separate grouped native checks** passed using actual PostgreSQL 18.6 authority/search and native DuckDB calculations. Both disposable runs stopped; the first identity-parser failure and corrected host-address readback remain recorded. Existing D: tools were read only and all generated data/logs stayed under fresh C: workspace directories. The separate owned search-pool failure regression proves actual Vault closure and lock release.
+
+[Combined evidence](verification/private-research.json), [native evidence](verification/private-research-native.json), [TAP](verification/private-research-tests.tap), [source-backed scope and interfaces](private-research-integration.md), [full-scope questlog](requirements/current-questlog.md).
+
+CI for this new source snapshot has not run before publication. Prior private main bfcc9a4 passed Windows and Ubuntu CI; fresh terminal publication/CI receipts supersede this prepublication observation.
+
+No full quest sign-off, running portable refresh, selected UI redesign, user-vault modification, native installer/GUI/device, named connector/provider, hosted/enterprise or release security pass is claimed. Acquired external corpus and qualified named groups remain **0**; dedicated security review is blocked-unverified. Full 56-group, Windows/macOS/Linux, React Native iOS/Android, hosted and enterprise scope stays intact. Parent owns pending minimal concepts, native user retest and write-back choices.
