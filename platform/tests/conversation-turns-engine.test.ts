@@ -96,8 +96,8 @@ test('all-tool-error composite is signed and stored with empty resultRefs throug
   assert.deepEqual(record.answer, answer); assert.equal(record.modelReceiptId, preview.id);
   assert.equal(record.integrity, conversationRecordIntegrity(record));
   assert.deepEqual(record.sourceIds, ['source-a', 'source-b']); assert.equal(record.rowIds.length, 2);
+  assert.deepEqual((await f.engine.request('conversation.get', { id: answer.id })).answer, answer);
   assert.equal(f.providerCalls, 1);
-  // Public history admission is owned by the independent history/renderer patch.
 });
 
 test('clarification retains verbatim objective and current guarded continuation after encrypted reopen without dispatch', async t => {
@@ -108,7 +108,10 @@ test('clarification retains verbatim objective and current guarded continuation 
   const record = f.engine.vault!.read().conversations.find(record => record.modelReceiptId === answer.modelReceiptId);
   assert.equal(record.question, question); assert.deepEqual(record.answer, answer);
   assert.equal(record.integrity, conversationRecordIntegrity(record));
-  const continuation = f.engine.conversationContinuation(f.engine.context, record.id);
+  const history = await f.engine.request('conversation.history'), item = history.items.find((item: any) => item.kind === 'clarification');
+  assert.ok(item); assert.equal(item.question, question); assert.equal(item.receiptId, answer.modelReceiptId);
+  assert.deepEqual((await f.engine.request('conversation.get', { id: item.id })).answer, answer);
+  const continuation = f.engine.conversationContinuation(f.engine.context, item.id);
   assert.equal(continuation.originalQuestion, question); assert.equal(continuation.clarification, clarification.clarification);
   assert.deepEqual(continuation.sourceIds, ['source-a']); assert.deepEqual(continuation.requestScope.sourceIds, ['source-a']);
   assert.equal(f.providerCalls, 1);

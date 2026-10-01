@@ -63,7 +63,7 @@ Proposed exact Gateway seam for the external owner to confirm: `ModelRequest.con
 
 The next reviewed preview must separately show the prior original objective, clarification and current reply in the exact payload. Request and receipt bind continuation ID/digest, question, current source/branch/period scope and route. A changed continuation or changed current scope must invalidate dispatch. No old private text is sent because the user merely types a fresh question. UI continuation selection is explicit, including after reopening; new approval covers the full outgoing prior text and reply.
 
-Still to join: Gateway preview/dispatch support, public history/UI admission, consuming a pending turn only after a durable resulting turn, and bounded multi-clarification chains. These are not claimed implemented by the host resolver alone. Parent must relay this contract to Tasks 15/17 before their patches are merged; source publication/package release remains paused until joined independent acceptance passes.
+The committed Task 15 reader/renderer repair and Task 17 gateway repair are now joined, including the renderer's separate published-definition warning. Still to join for continuation: Gateway preview/dispatch support, explicit UI continuation selection, consuming a pending turn only after a durable resulting turn, and bounded multi-clarification chains. These are not claimed implemented by the host resolver alone. Parent must coordinate the proposed continuation seam before further source writers begin; source publication/package release remains paused until joined independent acceptance passes.
 
 ## Evidence
 
