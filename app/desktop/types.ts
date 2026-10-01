@@ -46,9 +46,16 @@ export type DesktopConversationSynthesisResult = {
     synthesisModelReceiptId: string; inputDigest: string; outputDigest: string };
 };
 type JobPayloadFields = Omit<JobConfig, 'input' | 'plan' | 'type'>;
-export type DesktopGoalJobConfig = JobPayloadFields & {
+export type DesktopInvestigationJobInput = {
+  investigationId: string;
+  expectedRevision: number;
+  steps: { stepId: string; reserveMinor: string; durationMs: number }[];
+  finalize?: { reserveMinor: string; durationMs: number };
+};
+export type DesktopGoalJobConfig = JobPayloadFields & ({
   type: 'calculation-set' | 'evidence-review' | 'action-preparation';
   input: JsonValue;
+} | { type: 'private-investigation'; input: DesktopInvestigationJobInput }) & {
   limits: NonNullable<JobConfig['limits']>;
 };
 export type DesktopJobConfig = (JobPayloadFields & { type: 'owner-brief'; input?: JsonValue }) | DesktopGoalJobConfig;

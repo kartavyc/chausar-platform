@@ -9,14 +9,17 @@ import type { Binding, ImportInput, MappingRecipe } from '../runtime/ingest.ts';
 import type { DictionaryDraft } from '../runtime/ontology.ts';
 import type { Investigation, InvestigationCreate } from '../runtime/investigations.ts';
 import type { JobConfig } from '../runtime/jobs.ts';
+import type { StepAttempt } from '../runtime/job-protocol.ts';
 
 const passphrase = 'Synthetic private investigation job HTTP fixture passphrase';
 const sourceId = 'synthetic-private-job-invoices-and-payments';
 const july = { from: '2026-07-01', to: '2026-07-31' };
 const august = { from: '2026-08-01', to: '2026-08-31' };
 // Explicit synthetic host settings, not product spending or scheduling defaults.
+// File encryption and exact capsule validation use real wall time; short-lease
+// heartbeat and expiry regressions use a controllable trusted fixture clock.
 const hostPolicy = { workerId: 'synthetic-investigation-http-worker', maxActiveJobs: 12,
-  leaseMs: 1000, networkAvailable: () => false };
+  leaseMs: 10000, networkAvailable: () => false };
 const importInput: ImportInput & { recipe: MappingRecipe } = {
   sourceId, format: 'csv',
   content: 'id,kind,date,amount,currency,branch,status,description\njuly-invoice,invoice,2026-07-02,500.00,INR,main,issued,Separate invoice evidence\njuly-payment,payment,2026-07-03,300.00,INR,main,settled,Literal July collections\naugust-invoice,invoice,2026-08-02,700.00,INR,main,issued,Retained counterevidence\naugust-payment,payment,2026-08-03,150.00,INR,main,settled,Literal August collections',
@@ -114,7 +117,10 @@ async function references(value: Awaited<ReturnType<typeof fixture>>, asOf: stri
 const operations = (value: Awaited<ReturnType<typeof fixture>>) => value.engine.vault!.read().answers.filter(item => item.kind === 'private-investigation-job-operation-v1');
 const receipts = (value: Awaited<ReturnType<typeof fixture>>) => value.engine.vault!.read().receipts;
 async function measuredDelivery(value: Awaited<ReturnType<typeof fixture>>, job: any, original: Investigation, bearer?: string) {
-  assert.equal(job.status, 'awaiting-acceptance'); assert.equal(job.deliverable.kind, 'private-investigation');
+  assert.equal(job.status, 'awaiting-acceptance', JSON.stringify({ status: job.status,
+    ledger: job.ledger?.map((item: { event: string; reason?: string }) => ({ event: item.event, reason: item.reason })),
+    attempts: job.execution?.attempts.map((item: { status: string; reason?: string }) => ({ status: item.status, reason: item.reason })) }));
+  assert.equal(job.deliverable.kind, 'private-investigation');
   const delivered = job.deliverable.result;
   assert.equal(delivered.kind, 'private-investigation-deliverable-v1'); assert.equal(delivered.investigationId, original.id);
   assert.equal(delivered.interpretation, 'measured-results-and-owner-hypotheses');
@@ -166,7 +172,7 @@ test('paired HTTP investigation job recovers lost settlement through encrypted r
   // The real adapter has already committed the measured receipt and plan progress.
   vault.update = change => update(async state => {
     const result = await change(state);
-    if (loseSettlement && state.jobs.some(item => item.id === job.id && item.execution?.attempts.some(attempt => attempt.status === 'verified'))) {
+    if (loseSettlement && state.jobs.some(item => item.id === job.id && item.execution?.attempts.some((attempt: StepAttempt) => attempt.status === 'verified'))) {
       loseSettlement = false; throw new Error('Labelled synthetic private-job settlement commit loss');
     }
     return result;

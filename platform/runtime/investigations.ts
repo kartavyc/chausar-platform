@@ -186,18 +186,36 @@ export class InvestigationService {
   async advanceCorrelated(ctx: Context, id: string, input: InvestigationWrite, correlation?: InvestigationAdvanceCorrelation): Promise<Investigation> {
     ctx = detached(ctx);
     this.writer(this.store, ctx); const supplied = detached(input); closed(supplied, ['expectedRevision']);
-    return this.store.update(async state => {
+    const prepare = (state: State) => {
       const current = view(state); this.writer(current, ctx); const value = this.at(current, ctx, id); this.expected(value, supplied);
       correlation?.before(state, detached(value)); const before = detached(value);
       check(value.status === 'open', 'INVESTIGATION_NOT_OPEN', 'Resume a paused investigation before advancing its saved plan.');
       const step = value.steps.find(s => s.state === 'pending'); check(step, 'INVESTIGATION_COMPLETE', 'Every persisted step is already measured.');
       value.revision++;
-      if (this.pauseForBudget(current, ctx, value, step)) {
-        const saved = this.commit(state, value); correlation?.after(state, before, detached(saved)); return saved;
-      }
-      const receipt = await this.calculator(current).calculate(ctx, detached(step.request));
-      this.writer(current, ctx); this.at(current, ctx, id);
+      return { current, value, before, step, paused: this.pauseForBudget(current, ctx, value, step) };
+    };
+    // Verification may await an exact database calculation. Keep that wait off the
+    // serialized writer queue so lease heartbeats and owner changes can proceed.
+    // The detached calculation cannot publish a receipt or an investigation step.
+    const snapshot = detached(this.store.read()), prepared = prepare(snapshot);
+    if (prepared.paused) return this.store.update(state => {
+      const { value, before, paused } = prepare(state);
+      check(paused, 'INVESTIGATION_BUDGET_CHANGED', 'Reopen the investigation after its budget changed.');
+      const saved = this.commit(state, value); correlation?.after(state, before, detached(saved)); return saved;
+    });
+    const receipt = await this.calculator(prepared.current).calculate(ctx, detached(prepared.step.request));
+    const answer = snapshot.answers.find(a => a.receiptId === receipt.id);
+    check(answer, 'INVESTIGATION_RECEIPT_CHANGED', 'The prepared calculation needs its exact answer record.');
+    return this.store.update(state => {
+      // Re-read current access, definitions, full source scope, receipt pins and
+      // revision instead of overwriting the state (including renewed leases).
+      const { current, value, before, step, paused } = prepare(state);
+      check(!paused && step.id === prepared.step.id, 'INVESTIGATION_BUDGET_CHANGED', 'The saved next step or its budget changed while measuring.');
       check(receipt.definitionHash === step.definitionHash, 'INVESTIGATION_RECEIPT_CHANGED', 'The measured step differs from its authored definition.');
+      check(!state.receipts.some(r => r.id === receipt.id), 'INVESTIGATION_RECEIPT_CHANGED', 'The prepared receipt identity is already present.');
+      state.receipts.push(detached(receipt)); state.answers.push(detached(answer));
+      this.receiptAt(current, ctx, value, receipt.id);
+      audit(state, 'calculation.completed', { receiptId: receipt.id, operation: receipt.operation, rowCount: receipt.rows.length });
       step.state = 'completed'; step.receipt = pin(receipt); value.receiptPins.push(step.receipt); this.roots(value);
       if (value.steps.every(s => s.state === 'completed')) value.status = 'complete';
       this.pauseForBudget(current, ctx, value); const saved = this.commit(state, value);

@@ -4,6 +4,8 @@ The independent suite is `platform/tests/investigation-job-http.test.ts`. It use
 
 Each mandate declares its saved objective, source roots, remaining step identities, resource ceilings, spending reservation, stop rule, schedule, background permission, tested routes and allowed actions. The fixture explicitly enables autonomy and disables outbound model disclosure. Any attempted provider HTTP call fails the test.
 
+The coordinator join adds public Engine admission and the desktop job input type. The HTTP fixture declares a ten-second host lease for real file-encryption/capsule-validation work. Its original one-second wall-clock lease expired under laptop load; the expiration guard correctly blocked delivery. No production lease guard was relaxed. Separate deterministic serialized-store tests exercise renewal during suspended verification, in-flight owner/source changes and competing continuations using a controlled trusted fixture clock. These fixture capacities are not product defaults.
+
 The suite checks:
 
 | Boundary | Independent evidence |

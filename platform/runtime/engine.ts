@@ -635,7 +635,7 @@ export class Engine {
           check(!Object.hasOwn(payload, 'calendar'), 'CALENDAR_RUNNER_REQUIRED', 'Calendar schedules require an installed typed goal runner.');
           return this.createBriefJob(ctx, payload);
         }
-        check(['calculation-set', 'evidence-review', 'action-preparation'].includes(payload.type), 'JOB_TYPE_UNSUPPORTED', 'Choose an installed goal type explicitly.');
+        check(['calculation-set', 'evidence-review', 'action-preparation', 'private-investigation'].includes(payload.type), 'JOB_TYPE_UNSUPPORTED', 'Choose an installed goal type explicitly.');
         return this.jobRunner().create(ctx, payload);
       }
       case 'jobs.amend': return this.jobRunner().amend(ctx, payload.id, payload.config);
