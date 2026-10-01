@@ -3,6 +3,7 @@ import { currentAccess, insertFacts, validDate, type FactInput } from './memory.
 import { OntologyService } from './ontology.ts';
 import { isNoResend } from './trust.ts';
 import { currencyMinorDigits, decimalMinor } from './currency.ts';
+import { appendLearningDecision, type DecisionInput, type ImportDecisionIdentity } from './learning.ts';
 
 export type ImportFormat = 'csv' | 'tally-xml' | 'zoho-json' | 'gst-json' | 'bank-csv' | 'shopify-json' | 'xlsx';
 export type Binding = { target: string; source?: string; constant?: string; type: 'string' | 'money' | 'date' | 'integer' | 'boolean'; nulls: 'reject' | 'omit' | 'zero'; values?: Record<string, string>; dateFormat?: 'ISO' | 'DMY' | 'YMD8'; moneyUnit?: 'major' | 'minor'; currency?: string; fx?: { numerator: string; denominator: string; rounding: 'exact' | 'half-up' } };
@@ -217,6 +218,27 @@ function transform(value: unknown, b: Binding, targetCurrency: string): unknown 
   return String(amount);
 }
 
+// Canonical target names describe structure; source headers/values never enter learning previews.
+const learningFields: Record<string, string> = { invoiceId: 'invoice_id', customerId: 'customer_id', validFrom: 'date', dueDate: 'due_date', amountMinor: 'amount', taxMinor: 'tax', currency: 'currency', account: 'account', debit: 'debit', credit: 'credit', sku: 'sku', quantity: 'quantity', status: 'status', description: 'description', orderId: 'order_id', paymentId: 'payment_id', bankReference: 'bank_reference', branch: 'branch' };
+function importDecision(input: ImportInput, choice: 'accepted' | 'rejected', codes: string[]): DecisionInput {
+  const recipe = input.recipe ?? defaultRecipe(input.format);
+  const reasonCode: DecisionInput['reasonCode'] = choice === 'accepted' || codes.some(code => /^SOURCE_(?:ROW_MISMATCH|TOTAL_MISMATCH|TOTALS_REQUIRED)$/.test(code)) ? 'reconciliation'
+    : codes.includes('DUPLICATE_SOURCE_ROW') ? 'duplicate_record' : codes.includes('CURRENCY_MISMATCH') ? 'currency_mismatch'
+    : codes.some(code => ['AMBIGUOUS_DATE', 'INVALID_DATE'].includes(code)) ? 'date_format'
+    : codes.some(code => ['UNMAPPED_FIELDS', 'UNKNOWN_BINDING', 'AMBIGUOUS_BINDING'].includes(code)) ? 'ambiguous_field' : 'unsupported_shape';
+  const fields: NonNullable<DecisionInput['fields']> = [];
+  for (const binding of Array.isArray(recipe?.bindings) ? recipe.bindings.slice(0, 1000) : []) {
+    const name = Object.hasOwn(learningFields, binding?.target) ? learningFields[binding.target] : undefined; const type = binding?.type === 'money' ? 'decimal' : binding?.type;
+    if (name && ['string', 'integer', 'decimal', 'date', 'boolean'].includes(type)) fields.push({ name, type: type as NonNullable<DecisionInput['fields']>[number]['type'] });
+  }
+  return { kind: 'mapping', choice, reasonCode, fields, reportShape: input.format === 'bank-csv' ? 'bank-statement' : 'ledger', sourceIds: [input.sourceId] };
+}
+function importIdentity(input: ImportInput, id: string, contentHash: string, recipeHash: string, outcome: 'accepted' | 'rejected'): ImportDecisionIdentity {
+  const recipe = input.recipe ?? defaultRecipe(input.format);
+  return { id, sourceId: input.sourceId, branches: [...new Set(Array.isArray(recipe?.scope?.branches) ? recipe.scope.branches.filter(branch => typeof branch === 'string' && branch.length > 0) : [])].sort(),
+    format: ['csv', 'tally-xml', 'zoho-json', 'gst-json', 'bank-csv', 'shopify-json', 'xlsx'].includes(input.format) ? input.format : 'unsupported', contentHash, recipeHash, outcome, qualification: 'experimental' };
+}
+
 export class ImportService {
   store: StateStore;
   constructor(store: StateStore) { this.store = store; }
@@ -273,9 +295,18 @@ export class ImportService {
     return { accepted: errors.length === 0, errors, unmappedFields, facts, totalsMinor, coverage: { sourceRows: rows.length, importedRows: facts.length, rejectedRows: rows.length - facts.length, expectedRows: expected?.rowCount ?? null, reconciled: errors.length === 0 }, sourceId: input.sourceId, contentHash: hash(input.content), recipeHash: hash(recipe), format: input.format, qualification: 'experimental', question: errors.length ? 'Confirm the first reported mapping or source-total issue before accepting this file.' : null };
   }
   async commit(ctx: Context, input: ImportInput) {
-    authorize(this.store, ctx, 'prepare'); const preview = this.preview(ctx, input);
+    ctx = { ...ctx }; input = structuredClone(input); authorize(this.store, ctx, 'prepare');
+    check(input && typeof input.sourceId === 'string' && input.sourceId.length > 0 && typeof input.content === 'string', 'INVALID_IMPORT', 'An import needs its explicit source identifier and file content.');
+    let preview: ImportPreview;
+    try { preview = this.preview(ctx, input); }
+    catch (error) {
+      if (['ACCESS_REVOKED', 'FORBIDDEN', 'FORBIDDEN_BRANCH', 'SOURCE_REVOKED', 'SOURCE_DELETED'].includes((error as any)?.code)) throw error;
+      // Only an admitted source/author can retain a refusal; denied or deleted input gains no new evidence.
+      await this.refusal(ctx, input, [typeof (error as any)?.code === 'string' ? (error as any).code : 'UNSUPPORTED_SHAPE']);
+      throw error;
+    }
     if (!preview.accepted) {
-      await this.store.update(state => { authorize(this.store, ctx, 'prepare'); currentAccess(this.store, ctx, undefined, input.sourceId); state.learning.push({ id: newId('learning'), at: now(), category: 'mapping', sourceId: input.sourceId, recipeId: (input.recipe ?? defaultRecipe(input.format)).id, recipeHash: preview.recipeHash, decision: 'rejected', fieldNames: (input.recipe ?? defaultRecipe(input.format)).bindings.map(b => b.source).filter(Boolean), unmappedFields: preview.unmappedFields, reasonCodes: [...new Set(preview.errors.map(e => e.code))], shared: false }); audit(state, 'source.import-refused', { sourceId: input.sourceId, reasonCodes: preview.errors.map(e => e.code) }); });
+      await this.refusal(ctx, input, preview.errors.map(e => e.code));
       check(false, 'IMPORT_REFUSED', preview.errors.map(e => `${e.code}: ${e.message}`).join(' '));
     }
     return this.store.update(state => {
@@ -292,8 +323,19 @@ export class ImportService {
         return stored;
       });
       const imported = { id: newId('import'), at: now(), sourceId: input.sourceId, format: input.format, recipeHash: preview.recipeHash, contentHash: preview.contentHash, rowIds: records.map(f => f.id), coverage: preview.coverage, totalsMinor: preview.totalsMinor, expectedTotals: input.expectedTotals, unmappedFields: preview.unmappedFields, qualification: 'experimental' };
-      state.imports.push(imported); state.learning.push({ id: newId('learning'), at: now(), category: 'mapping', recipeId: (input.recipe ?? defaultRecipe(input.format)).id, recipeHash: preview.recipeHash, decision: 'accepted', fieldNames: (input.recipe ?? defaultRecipe(input.format)).bindings.map(b => b.source).filter(Boolean), unmappedFields: preview.unmappedFields, reason: 'Source report totals reconciled.', shared: false });
+      state.imports.push(imported);
+      appendLearningDecision(state, ctx, importDecision(input, 'accepted', []), { rowIds: imported.rowIds, importIdentity: importIdentity(input, imported.id, imported.contentHash, imported.recipeHash, 'accepted') });
       audit(state, 'source.imported', { importId: imported.id, sourceId: input.sourceId, rowCount: records.length }); return structuredClone(imported);
+    });
+  }
+  private async refusal(ctx: Context, input: ImportInput, codes: string[]) {
+    // A validation failure is recorded separately from the rejected import, which writes no facts/import row.
+    // Authorization failure and deletion remain fail-closed even if they race a queued transaction.
+    await this.store.update(state => {
+      authorize(this.store, ctx, 'prepare'); currentAccess(this.store, ctx, undefined, input.sourceId);
+      check(typeof input.content === 'string' && !isNoResend(state, hash(input.content)), 'SOURCE_DELETED', 'Deleted content cannot create new learning evidence.');
+      const event = appendLearningDecision(state, ctx, importDecision(input, 'rejected', codes), { importIdentity: importIdentity(input, newId('importattempt'), hash(input.content), hash(input.recipe ?? defaultRecipe(input.format)), 'rejected') });
+      audit(state, 'source.import-refused', { eventId: event.id, sourceId: input.sourceId, reasonCode: event.input.reasonCode });
     });
   }
   async previewWorkbook(ctx: Context, input: Omit<ImportInput, 'format' | 'content'> & { bytes: Uint8Array }) {
