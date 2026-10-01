@@ -82,6 +82,14 @@
       "productWiring": "Portable source preview tooling imported; not an Electron executable or native installer.",
       "paths": 10,
       "source": "parent-supplied committed patch"
+    },
+    {
+      "lane": "postgresNativeCompletion",
+      "sourceCommit": "41cedac8dbf631ccc85850209c4b4e928cebe256",
+      "importedCommit": "f31bea9049ae467bfcda0ec84977912d5e44d7f7",
+      "paths": 5,
+      "source": "parent-supplied committed patch",
+      "productWiring": "Actual PostgreSQL JSONB wrapper ordering fix joined. Producer native PostgreSQL18.6/DuckDBv1.5.5 arithmetic/encrypted Vault composition gate110/110passed. PGlite failed; no default engine selected."
     }
   ],
   "uncommittedLaneWorkImported": false,
@@ -107,6 +115,10 @@
     {
       "commit": "9f05be221880fb69171503277dc9aa69feb5da1e",
       "feature": "Actual semantic admission joined to trusted connector publication and guarded public consumers"
+    },
+    {
+      "commit": "503d44ed6ea3425c90f332f5327d850d922260ba",
+      "feature": "Strictly typed public RPC/companion/provider boundaries and current async/receipt validation; expanded semantic program and test compiler coverage."
     }
   ],
   "publicationCapability": {
@@ -131,7 +143,7 @@
     "operatorScript": "D:/Chausar/build-tools/prepare-project-dependencies.mjs",
     "operatorScriptSha256": "4b27e332c0be71caa38db7184d0a0223188fcd8e655beb1ea7be94cb4f7910af",
     "operatorStage": "20261001000938489",
-    "operatorInstallation": "awaiting user-run completion receipt",
+    "operatorInstallation": "completed; actual receipt/lock/source pins and35installed identities/tarballs independently verified",
     "operatorLocalRegressionTests": {
       "pass": 26,
       "fail": 0,
@@ -145,7 +157,11 @@
       "filesystemWrites": false
     },
     "correctedCause": "Only pg-int8@1.0.1 omitted optional unpackedSize; the existing SHA512-verified archive supplies a bounded size without acquisition. Malformed present sizes, changed origins/integrity or absent supported cached bytes still refuse.",
-    "fullInstallerToolchain": "unverified; exact official-only source policy still refuses upstream installer Git node-gyp source. Installer requirement retained."
+    "fullInstallerToolchain": "unverified; exact official-only source policy still refuses upstream installer Git node-gyp source. Installer requirement retained.",
+    "verifiedInstalledEntries": 35,
+    "typeScriptVersion": "5.9.3",
+    "projectLocalLink": "D:/Chausar/build-tools/project-dependencies/20261001000938489/node_modules",
+    "packageAcquisitionByCoordinator": false
   },
   "connectorScope": {
     "approvedGroups": 56,
@@ -179,11 +195,11 @@
     "actionWiring": "pending approval-policy decision",
     "unresolvedApprovalPolicy": "Baseline permits message-impact phone approvals; new companion permits only reversible internal changes."
   },
-  "updatedAt": "2026-10-01T00:26:42.363Z",
+  "updatedAt": "2026-10-01T00:39:45.085Z",
   "integratedEngineMilestone": {
     "status": "verified-local-synthetic-engine",
-    "sourceCommit": "9f05be221880fb69171503277dc9aa69feb5da1e",
-    "sourceTree": "9c67d593f6f409cf0a02131bb87ecf6064071495",
+    "sourceCommit": "503d44ed6ea3425c90f332f5327d850d922260ba",
+    "sourceTree": "2d53555cd2c92e1d03807de9acd0ab1ab2aad769",
     "evidence": "docs/verification/integrated-engine.json",
     "aggregateTap": "docs/verification/aggregate-tests.tap",
     "actualPublicFlow": "Local HTTP read -> human mapping review -> trusted capture -> independent source totals + real semantic qualifier/holdout gate -> exact calculation -> conversation question -> retained receipt -> durable calculation job -> vault reopen -> quarantine refuses reuse.",
@@ -191,20 +207,22 @@
     "liveVerified": false,
     "writebackQualified": false,
     "vaultAuthority": "experimental-file synthetic fixture; not PostgreSQL qualification",
-    "syntaxSourceFiles": 131,
+    "syntaxSourceFiles": 132,
     "aggregateTests": {
-      "pass": 633,
+      "pass": 636,
       "fail": 0,
       "skipped": 0
     },
     "portableSourceBuild": "passed",
     "windowsHeadlessWorker": "passed; graceful shutdown; GUI not executed",
-    "typeScript": "unrun-awaiting-user-dependencies",
+    "typeScript": "passed for root app and all semantic program/tests under strict original compiler settings",
     "nativeInstallers": "unverified",
     "macOSLinuxRuntime": "unverified",
     "nativeAndroidIOS": "unverified",
     "fullProductRelease": "unverified",
-    "securityReview": "blocked-unverified"
+    "securityReview": "blocked-unverified",
+    "nativeDatabase": "Producer actual110/110nativePostgreSQL/DuckDBchecks passed on the exact joinedPostgres adapter; qualified arithmetic and ordinary encrypted Vault composition only",
+    "enterpriseTypeScript": "attempted separately; failed missing declaredTemporal/Express/Zod/OpenAIdependencies and relateddiagnostics; unqualified"
   },
   "queuedAfterMilestone": [
     {
@@ -222,5 +240,16 @@
       "commit": "795714e190fc021fed0c2a0382c12559320fc131",
       "status": "not applied; no actual Android/iOS build; action-policy conflict unresolved"
     }
-  ]
+  ],
+  "modelAuthentication": {
+    "localProviderDecision": "User selected standard Codex CLI underneath the local build, CLI-managed normal ChatGPT sign-in; Luna only if the actual account supports it.",
+    "localProviderImplementation": "scoped isolated adapter task pending; no working inference claim",
+    "officialSIWC": "not registered; no OAuth grant authorized or completed",
+    "commercialSubscriptionAccess": "unverified; do not claim CLI or legacy app-server commercial access",
+    "accountSpecificModelDiscovery": "not executed",
+    "completedAccountInference": "not executed",
+    "automaticPaidFallback": false,
+    "credentialCopying": false,
+    "backendApiEndpointsUsed": false
+  }
 }

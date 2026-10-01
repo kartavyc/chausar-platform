@@ -1,6 +1,6 @@
 {
-  "checkedCommit": "9f05be221880fb69171503277dc9aa69feb5da1e",
-  "startedAt": "2026-10-01T00:09:50.659Z",
+  "checkedCommit": "503d44ed6ea3425c90f332f5327d850d922260ba",
+  "startedAt": "2026-10-01T00:36:05.048Z",
   "node": "24.13.1",
   "platform": "win32",
   "arch": "x64",
@@ -9,56 +9,88 @@
       "name": "syntax-json",
       "exitCode": 0,
       "passed": true,
-      "log": "Syntax and JSON validation passed for 131 source files.",
-      "logSha256": "47f6c2872dd2ec49ca163614b00fa9f8dbc4d4d990e247447396c5a2aac6b87e"
+      "logSha256": "7dd2df1107864ea0a7634d14192e34ba3ec9edbf08da64ee4c632fe03e441e39"
+    },
+    {
+      "name": "strict-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
       "name": "aggregate-tests",
       "exitCode": 0,
       "passed": true,
       "log": "docs/verification/aggregate-tests.tap",
-      "logSha256": "7ea3f29c2eca4db2d42c446ffa3762f7d1c42dbfd7900bbb9aa110451e19df69",
-      "tests": 633,
+      "logSha256": "78ff49c47b0c38524f30d488176516ccb287357f400509ff051cc19dc75ccb3a",
+      "tests": 636,
       "suites": 0,
-      "pass": 633,
+      "pass": 636,
       "fail": 0,
       "cancelled": 0,
       "skipped": 0,
       "todo": 0,
-      "durationMs": 44234.4575
+      "durationMs": 43518.9404
+    },
+    {
+      "name": "windows-headless-worker",
+      "exitCode": 0,
+      "passed": true,
+      "logSha256": "3eac79785f8c266a02685fffd547cae352cd702d47363af6a9c603b435fe6b42"
     }
   ],
   "releaseAcceptance": "unverified",
   "dedicatedSecurityReview": "blocked-unverified",
   "scope": "Actual combined local synthetic Engine/RPC, worker, fixture, and contract checks. No overall native, hosted, vendor, production-database, or security release pass.",
-  "finishedAt": "2026-10-01T00:10:45.127Z",
+  "finishedAt": "2026-10-01T00:37:04.219Z",
   "passed": true,
-  "testFiles": 49,
-  "checkedTree": "9c67d593f6f409cf0a02131bb87ecf6064071495",
-  "additionalChecks": {
-    "portableSourceBuild": {
-      "passed": true,
-      "nativeInstaller": false
-    },
-    "windowsWorkerSmoke": {
-      "passed": true,
-      "syntheticOnly": true,
-      "guiExecuted": false,
-      "gracefulShutdown": true
-    }
+  "testFiles": 50,
+  "checkedTree": "2d53555cd2c92e1d03807de9acd0ab1ab2aad769",
+  "typeScriptCoverage": {
+    "configuration": "tsconfig.json",
+    "version": "5.9.3",
+    "strict": true,
+    "compilerOptionsWeakened": false,
+    "programs": [
+      "platform/runtime",
+      "platform/tests",
+      "platform/semantic-qualification/src",
+      "platform/semantic-qualification/tests",
+      "platform/semantic-qualification/run-suite.ts",
+      "app/desktop TypeScript declarations"
+    ],
+    "immutableEvidenceArchives": "Hash-pinned .ts artifact snapshots are data; their original relative imports are not runnable modules and their bytes are unchanged."
   },
+  "separateProjectChecks": [
+    {
+      "project": "enterprise/platform",
+      "configuration": "enterprise/platform/tsconfig.json",
+      "attempted": true,
+      "exitCode": 2,
+      "passed": false,
+      "diagnostics": 22,
+      "reason": "Separate package declared dependencies absent from engine-scoped install; no fake provider type declarations supplied.",
+      "logSha256": "a566e863adb19082e65d3678e25b4fe432d9a10a78c96feae526a41193ff680e"
+    }
+  ],
+  "portableSourceBuild": {
+    "passed": true,
+    "nativeInstaller": false
+  },
+  "nativeDatabaseEvidence": "docs/verification/native-postgres-duckdb.json",
   "unrun": [
-    "Strict TypeScript",
-    "Native PostgreSQL/dual-database final qualification",
     "Electron GUI",
     "Signed installers",
     "macOS/Linux runtime",
     "Native Android/iOS builds",
     "Hosted/enterprise release acceptance",
-    "Live vendor/model qualification"
+    "Live vendor/model qualification",
+    "SIWC registration/OAuth/model discovery/inference"
   ],
   "blocked": [
-    "Dedicated release security review"
+    "Dedicated release security review",
+    "Full installer official-only dependency source graph",
+    "Enterprise package dependency/type validation"
   ],
   "finalDocumentationSourceEquivalenceRequired": true
 }

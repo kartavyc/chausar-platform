@@ -1,0 +1,461 @@
+{
+  "passed": true,
+  "source": "Actual producer D-drive native report; check-name/status projection preserves the raw report by SHA256 reference",
+  "rawReportSha256": "2752679e35e91f2fe7f13c2efd1ea9363aa4fed304d4478f44fe4747657cc55b",
+  "committedAdapterLFSourceSha256": "efe914a34b3912439bcd384132b5674cd7e307f6805f948d8589720fdf239663",
+  "nativeStagedAdapterCRLFSourceSha256": "aea01838e5db7d42ce8b1e742c00652e6c00b372322443d624ca76d13d29ed39",
+  "adapterRepresentationDifference": "Only CRLF versus Git LF; normalized source bytes match, raw byte identity is not claimed.",
+  "sourceCommit": "41cedac8dbf631ccc85850209c4b4e928cebe256",
+  "importedCommit": "f31bea9049ae467bfcda0ec84977912d5e44d7f7",
+  "checks": [
+    {
+      "name": "shop-billed",
+      "passed": true
+    },
+    {
+      "name": "shop-received",
+      "passed": true
+    },
+    {
+      "name": "shop-earned",
+      "passed": true
+    },
+    {
+      "name": "shop-revenue",
+      "passed": true
+    },
+    {
+      "name": "shop-refunds",
+      "passed": true
+    },
+    {
+      "name": "shop-costs",
+      "passed": true
+    },
+    {
+      "name": "shop-purchases",
+      "passed": true
+    },
+    {
+      "name": "shop-net_sales",
+      "passed": true
+    },
+    {
+      "name": "shop-margin",
+      "passed": true
+    },
+    {
+      "name": "shop-aging",
+      "passed": true
+    },
+    {
+      "name": "sum-above-javascript-safe-integer",
+      "passed": true
+    },
+    {
+      "name": "sum-at-decimal-38-maximum",
+      "passed": true
+    },
+    {
+      "name": "large-margin-ratio-must-not-round-up",
+      "passed": true
+    },
+    {
+      "name": "negative-margin-truncates-toward-zero",
+      "passed": true
+    },
+    {
+      "name": "zero-margin-denominator-omits-ratio",
+      "passed": true
+    },
+    {
+      "name": "negative-change-truncates-toward-zero",
+      "passed": true
+    },
+    {
+      "name": "zero-change-denominator-omits-ratio",
+      "passed": true
+    },
+    {
+      "name": "prior-source-conflict-makes-comparison-partial",
+      "passed": true
+    },
+    {
+      "name": "overlapping-periods-retain-distinct-lineage",
+      "passed": true
+    },
+    {
+      "name": "negative-scenario-truncates-toward-zero",
+      "passed": true
+    },
+    {
+      "name": "scenario-preserves-large-integer-and-fractional-minor-unit",
+      "passed": true
+    },
+    {
+      "name": "aging-payment-fanout-surplus-and-orphans",
+      "passed": true
+    },
+    {
+      "name": "aging-unmatched-links-are-unallocated",
+      "passed": true
+    },
+    {
+      "name": "aging-inclusive-bucket-boundaries",
+      "passed": true
+    },
+    {
+      "name": "explicit-zero-is-a-counted-fact",
+      "passed": true
+    },
+    {
+      "name": "empty-selection-is-a-coverage-gap",
+      "passed": true
+    },
+    {
+      "name": "missing-amount-explicitly-excluded",
+      "passed": true
+    },
+    {
+      "name": "all-amounts-unknown-remains-partial",
+      "passed": true
+    },
+    {
+      "name": "conflicting-claims-are-not-zero-evidence",
+      "passed": true
+    },
+    {
+      "name": "duplicate-claims-count-once",
+      "passed": true
+    },
+    {
+      "name": "missing-amount-rejected",
+      "passed": true
+    },
+    {
+      "name": "unconverted-currency-rejected",
+      "passed": true
+    },
+    {
+      "name": "duplicate-invoice-link-rejected",
+      "passed": true
+    },
+    {
+      "name": "missing-customer-link-rejected",
+      "passed": true
+    },
+    {
+      "name": "duckdb-native-smoke",
+      "passed": true
+    },
+    {
+      "name": "dedicated-postgresql-identity-empty-public-and-search-path",
+      "passed": true
+    },
+    {
+      "name": "postgres-native-smoke",
+      "passed": true
+    },
+    {
+      "name": "duckdb:shop-billed",
+      "passed": true
+    },
+    {
+      "name": "postgres:shop-billed",
+      "passed": true
+    },
+    {
+      "name": "duckdb:shop-received",
+      "passed": true
+    },
+    {
+      "name": "postgres:shop-received",
+      "passed": true
+    },
+    {
+      "name": "duckdb:shop-earned",
+      "passed": true
+    },
+    {
+      "name": "postgres:shop-earned",
+      "passed": true
+    },
+    {
+      "name": "duckdb:shop-revenue",
+      "passed": true
+    },
+    {
+      "name": "postgres:shop-revenue",
+      "passed": true
+    },
+    {
+      "name": "duckdb:shop-refunds",
+      "passed": true
+    },
+    {
+      "name": "postgres:shop-refunds",
+      "passed": true
+    },
+    {
+      "name": "duckdb:shop-costs",
+      "passed": true
+    },
+    {
+      "name": "postgres:shop-costs",
+      "passed": true
+    },
+    {
+      "name": "duckdb:shop-purchases",
+      "passed": true
+    },
+    {
+      "name": "postgres:shop-purchases",
+      "passed": true
+    },
+    {
+      "name": "duckdb:shop-net_sales",
+      "passed": true
+    },
+    {
+      "name": "postgres:shop-net_sales",
+      "passed": true
+    },
+    {
+      "name": "duckdb:shop-margin",
+      "passed": true
+    },
+    {
+      "name": "postgres:shop-margin",
+      "passed": true
+    },
+    {
+      "name": "duckdb:shop-aging",
+      "passed": true
+    },
+    {
+      "name": "postgres:shop-aging",
+      "passed": true
+    },
+    {
+      "name": "duckdb:sum-above-javascript-safe-integer",
+      "passed": true
+    },
+    {
+      "name": "postgres:sum-above-javascript-safe-integer",
+      "passed": true
+    },
+    {
+      "name": "duckdb:sum-at-decimal-38-maximum",
+      "passed": true
+    },
+    {
+      "name": "postgres:sum-at-decimal-38-maximum",
+      "passed": true
+    },
+    {
+      "name": "duckdb:large-margin-ratio-must-not-round-up",
+      "passed": true
+    },
+    {
+      "name": "postgres:large-margin-ratio-must-not-round-up",
+      "passed": true
+    },
+    {
+      "name": "duckdb:negative-margin-truncates-toward-zero",
+      "passed": true
+    },
+    {
+      "name": "postgres:negative-margin-truncates-toward-zero",
+      "passed": true
+    },
+    {
+      "name": "duckdb:zero-margin-denominator-omits-ratio",
+      "passed": true
+    },
+    {
+      "name": "postgres:zero-margin-denominator-omits-ratio",
+      "passed": true
+    },
+    {
+      "name": "duckdb:negative-change-truncates-toward-zero",
+      "passed": true
+    },
+    {
+      "name": "postgres:negative-change-truncates-toward-zero",
+      "passed": true
+    },
+    {
+      "name": "duckdb:zero-change-denominator-omits-ratio",
+      "passed": true
+    },
+    {
+      "name": "postgres:zero-change-denominator-omits-ratio",
+      "passed": true
+    },
+    {
+      "name": "duckdb:prior-source-conflict-makes-comparison-partial",
+      "passed": true
+    },
+    {
+      "name": "postgres:prior-source-conflict-makes-comparison-partial",
+      "passed": true
+    },
+    {
+      "name": "duckdb:overlapping-periods-retain-distinct-lineage",
+      "passed": true
+    },
+    {
+      "name": "postgres:overlapping-periods-retain-distinct-lineage",
+      "passed": true
+    },
+    {
+      "name": "duckdb:negative-scenario-truncates-toward-zero",
+      "passed": true
+    },
+    {
+      "name": "postgres:negative-scenario-truncates-toward-zero",
+      "passed": true
+    },
+    {
+      "name": "duckdb:scenario-preserves-large-integer-and-fractional-minor-unit",
+      "passed": true
+    },
+    {
+      "name": "postgres:scenario-preserves-large-integer-and-fractional-minor-unit",
+      "passed": true
+    },
+    {
+      "name": "duckdb:aging-payment-fanout-surplus-and-orphans",
+      "passed": true
+    },
+    {
+      "name": "postgres:aging-payment-fanout-surplus-and-orphans",
+      "passed": true
+    },
+    {
+      "name": "duckdb:aging-unmatched-links-are-unallocated",
+      "passed": true
+    },
+    {
+      "name": "postgres:aging-unmatched-links-are-unallocated",
+      "passed": true
+    },
+    {
+      "name": "duckdb:aging-inclusive-bucket-boundaries",
+      "passed": true
+    },
+    {
+      "name": "postgres:aging-inclusive-bucket-boundaries",
+      "passed": true
+    },
+    {
+      "name": "duckdb:explicit-zero-is-a-counted-fact",
+      "passed": true
+    },
+    {
+      "name": "postgres:explicit-zero-is-a-counted-fact",
+      "passed": true
+    },
+    {
+      "name": "duckdb:empty-selection-is-a-coverage-gap",
+      "passed": true
+    },
+    {
+      "name": "postgres:empty-selection-is-a-coverage-gap",
+      "passed": true
+    },
+    {
+      "name": "duckdb:missing-amount-explicitly-excluded",
+      "passed": true
+    },
+    {
+      "name": "postgres:missing-amount-explicitly-excluded",
+      "passed": true
+    },
+    {
+      "name": "duckdb:all-amounts-unknown-remains-partial",
+      "passed": true
+    },
+    {
+      "name": "postgres:all-amounts-unknown-remains-partial",
+      "passed": true
+    },
+    {
+      "name": "duckdb:conflicting-claims-are-not-zero-evidence",
+      "passed": true
+    },
+    {
+      "name": "postgres:conflicting-claims-are-not-zero-evidence",
+      "passed": true
+    },
+    {
+      "name": "duckdb:duplicate-claims-count-once",
+      "passed": true
+    },
+    {
+      "name": "postgres:duplicate-claims-count-once",
+      "passed": true
+    },
+    {
+      "name": "duckdb:duplicate-invoice-projection-refused",
+      "passed": true
+    },
+    {
+      "name": "duckdb:tampered-answer-refused",
+      "passed": true
+    },
+    {
+      "name": "postgres:duplicate-invoice-projection-refused",
+      "passed": true
+    },
+    {
+      "name": "postgres:tampered-answer-refused",
+      "passed": true
+    },
+    {
+      "name": "exact-source-decimals-idempotent-import-and-native-calculator-composition",
+      "passed": true
+    },
+    {
+      "name": "explicit-exact-currency-conversion-retains-source-lineage",
+      "passed": true
+    },
+    {
+      "name": "immutable-bitemporal-correction-and-stale-answer",
+      "passed": true
+    },
+    {
+      "name": "authority-table-stores-encrypted-envelope-and-current-revision",
+      "passed": true
+    },
+    {
+      "name": "real-postgresql-concurrent-creation-cas",
+      "passed": true
+    },
+    {
+      "name": "real-postgresql-concurrent-update-cas",
+      "passed": true
+    },
+    {
+      "name": "reopen-preserves-claims-history-and-import-idempotency",
+      "passed": true
+    },
+    {
+      "name": "encrypted-backup-restores-corrected-history-in-fresh-postgresql-slot",
+      "passed": true
+    },
+    {
+      "name": "restored-slot-deletion",
+      "passed": true
+    }
+  ],
+  "engines": {
+    "duckdb": "native-executed",
+    "postgres": "native-executed"
+  },
+  "scope": "Independent hand-worked JavaScript, native DuckDB and native PostgreSQL arithmetic; PostgreSQL encrypted Vault composition. No PGlite qualification or default-engine choice.",
+  "pgliteQualified": false,
+  "defaultEngineChosen": false,
+  "packagedRuntimeQualified": false,
+  "crashPowerLossRecoveryQualified": false
+}
