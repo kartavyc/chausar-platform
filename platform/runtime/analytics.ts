@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ChausarError, check, hash } from './contracts.ts';
 import type { CalculationReceipt } from './calculator.ts';
+import { assertCompiledSingleSum } from './compiled-calculation.ts';
 
 export type SQLConnection = {
   execute(sql: string, parameters?: (string | number | null)[]): Promise<Record<string, unknown>[]>;
@@ -13,9 +14,9 @@ export type SQLConnection = {
 };
 export type SQLDialect = 'duckdb' | 'postgres';
 export type DatabaseCalculatorOptions = { connectionFactory?: (signal: AbortSignal) => Promise<SQLConnection>; sqlDialect?: SQLDialect; operationTimeoutMs?: number; maxRows?: number };
-export type DatabaseVerification = { verified: true; engine: 'duckdb' | 'postgres' | 'injected-sql'; receiptId: string; operation: string; projectionDigest: string; checks: string[] };
+export type DatabaseVerification = { verified: true; engine: 'duckdb' | 'postgres' | 'injected-sql'; receiptId: string; operation: string; projectionDigest: string; compiledDigest?: string; checks: string[] };
 type ProjectionRow = { id: string; kind: string; amount: string; date: string; due: string | null; invoice: string | null; customer: string | null };
-type Projection = { receiptId: string; operation: string; currency: string; definitions: { name: string; kind: string; sign: number }[]; rows: ProjectionRow[]; period: { from: string; to: string } | null; comparePeriod: { from: string; to: string } | null; onDate: string | null; priceChangeBps: string | null; expected: Record<string, string> };
+type Projection = { receiptId: string; operation: string; currency: string; compiledCalculation: CalculationReceipt['compiledCalculation'] | null; compiledDefinition: CalculationReceipt['definitions'][number] | null; ontologyVersion: number; definitions: { name: string; kind: string; sign: number }[]; rows: ProjectionRow[]; period: { from: string; to: string } | null; comparePeriod: { from: string; to: string } | null; onDate: string | null; priceChangeBps: string | null; expected: Record<string, string> };
 const FILE = fileURLToPath(import.meta.url);
 const MAX_BYTES = 16 * 1024 * 1024;
 const OPERATIONS: Record<string, string[]> = { billed: ['billed'], received: ['received'], earned: ['earned'], refunds: ['refunds'], costs: ['costs'], purchases: ['purchases'], revenue: ['earned'], net_sales: ['earned', 'refunds'], margin: ['earned', 'refunds', 'costs'], aging: ['billed', 'received', 'refunds'], change: ['earned'], scenario: ['earned'] };
@@ -37,13 +38,21 @@ function optionalText(value: unknown): string | null {
   check(typeof value === 'string' && value.length <= 300, 'SQL_PROJECTION_INVALID', 'Projected identities must be bounded text.'); return value;
 }
 function project(receipt: CalculationReceipt, maxRows: number): Projection {
-  check(receipt && typeof receipt.operation === 'string' && Object.hasOwn(OPERATIONS, receipt.operation), 'SQL_OPERATION_UNSUPPORTED', 'The SQL calculator has no registered query for this operation.');
-  const required = OPERATIONS[receipt.operation];
+  check(receipt && typeof receipt.operation === 'string', 'SQL_OPERATION_UNSUPPORTED', 'The SQL calculator needs a published operation.');
+  const binding = receipt.compiledCalculation;
+  if (binding) {
+    check(Object.keys(binding).length === 2 && Object.hasOwn(binding, 'dictionaryHash') && Object.hasOwn(binding, 'sum') && binding.dictionaryHash === receipt.dictionaryHash && /^[a-f0-9]{64}$/.test(binding.dictionaryHash), 'SQL_PROJECTION_INVALID', 'The compiler artifact must belong to the receipt dictionary.');
+    check(receipt.definitions?.length === 1 && receipt.definitionHash === hash(receipt.definitions), 'SQL_PROJECTION_INVALID', 'A compiled sum carries exactly its published definition.');
+    assertCompiledSingleSum(binding.sum, receipt.operation, receipt.definitions[0], receipt.ontologyVersion);
+  }
+  check(binding || Object.hasOwn(OPERATIONS, receipt.operation), 'SQL_OPERATION_UNSUPPORTED', 'The SQL calculator has no compiled or registered query for this operation.');
+  const required = binding ? [binding.sum.definitionName] : OPERATIONS[receipt.operation];
+  const registered = !binding;
   check(typeof receipt.id === 'string' && receipt.id.length <= 200 && /^[A-Z]{3}$/.test(receipt.currency), 'SQL_PROJECTION_INVALID', 'The calculation receipt needs an identity and currency.');
   check(Array.isArray(receipt.definitions) && receipt.definitions.length === required.length && required.every(name => receipt.definitions.some(d => d.name === name)), 'SQL_PROJECTION_INVALID', 'The SQL projection must carry exactly the operation definitions.');
   const names = new Set<string>(); const definitions = receipt.definitions.map(d => {
     check(!names.has(d.name) && /^[a-z][a-z0-9_]{0,63}$/.test(d.kind) && d.currency === receipt.currency && (d.sign === undefined || d.sign === 1 || d.sign === -1), 'SQL_PROJECTION_INVALID', 'Projected definitions must have distinct names, typed kinds, currency and signs.'); names.add(d.name);
-    check(d.field === 'amountMinor', 'SQL_DEFINITION_UNSUPPORTED', 'SQL verification currently requires an explicit amountMinor measure binding.');
+    check(binding ? d.field === binding.sum.moneyField : d.field === 'amountMinor', 'SQL_DEFINITION_UNSUPPORTED', 'SQL verification requires the published exact money field.');
     return { name: d.name, kind: d.kind, sign: d.sign ?? 1 };
   });
   check(Array.isArray(receipt.rows) && receipt.rows.length <= maxRows && Array.isArray(receipt.rowIds) && receipt.rowIds.length === receipt.rows.length, 'SQL_ROW_LIMIT', 'The receipt projection exceeds its row budget or has incomplete lineage.');
@@ -53,18 +62,20 @@ function project(receipt: CalculationReceipt, maxRows: number): Projection {
     check(typeof r.factId === 'string' && r.factId.length > 0 && r.factId.length <= 200 && !ids.has(r.factId) && lineage.has(r.factId), 'SQL_PROJECTION_INVALID', 'Each projected row needs one distinct receipt lineage identity.'); ids.add(r.factId);
     check(definitions.some(d => d.kind === r.kind) && date(r.validFrom), 'SQL_PROJECTION_INVALID', 'Rows must use an operation kind and explicit event date.');
     check(!['cancelled', 'void', 'draft', 'bounced'].includes(r.status ?? ''), 'SQL_PROJECTION_INVALID', 'Cancelled, void, draft and bounced events cannot be counted.');
+    check(binding ? r.measureField === binding.sum.moneyField : r.measureField === undefined || r.measureField === 'amountMinor', 'SQL_PROJECTION_INVALID', 'Each row must project the declared money field.');
     const amount = integer(r.amountMinor); absoluteSum += absolute(BigInt(amount));
     check(!definitions.some(d => d.kind === r.kind && ['refunds', 'costs'].includes(d.name)) || BigInt(amount) >= 0n, 'SQL_PROJECTION_INVALID', 'Refund and cost event values must be positive.');
     check(r.dueDate === undefined || date(r.dueDate), 'SQL_PROJECTION_INVALID', 'Projected due dates must be valid calendar dates.');
     return { id: r.factId, kind: r.kind, amount, date: r.validFrom, due: r.dueDate ?? null, invoice: optionalText(r.invoiceId), customer: optionalText(r.customerId) };
   });
   check(absoluteSum <= 10n ** 38n - 1n, 'SQL_PRECISION_LIMIT', 'The projected absolute total exceeds DECIMAL(38,0).');
-  if (['margin', 'change', 'scenario'].includes(receipt.operation)) check(absoluteSum <= 10n ** 32n, 'SQL_PRECISION_LIMIT', 'Exact transformed SQL calculations reserve integer precision for basis points.');
+  if (registered && ['margin', 'change', 'scenario'].includes(receipt.operation)) check(absoluteSum <= 10n ** 32n, 'SQL_PRECISION_LIMIT', 'Exact transformed SQL calculations reserve integer precision for basis points.');
   const current = period(receipt.period), compare = period(receipt.comparePeriod);
-  if (receipt.operation === 'change') check(current && compare, 'SQL_PROJECTION_INVALID', 'Change verification needs both event periods.');
-  if (current && receipt.operation !== 'aging') check(rows.every(r => (r.date >= current.from && r.date <= current.to) || (receipt.operation === 'change' && compare && r.date >= compare.from && r.date <= compare.to)), 'SQL_PROJECTION_INVALID', 'Projected events must belong to a declared calculation period.');
+  if (registered && receipt.operation === 'change') check(current && compare, 'SQL_PROJECTION_INVALID', 'Change verification needs both event periods.');
+  if (current && (!registered || receipt.operation !== 'aging')) check(rows.every(r => (r.date >= current.from && r.date <= current.to) || (registered && receipt.operation === 'change' && compare && r.date >= compare.from && r.date <= compare.to)), 'SQL_PROJECTION_INVALID', 'Projected events must belong to a declared calculation period.');
+  if (binding) check(compare === null && Object.keys(receipt.assumptions ?? {}).length === 0, 'SQL_PROJECTION_INVALID', 'A compiled sum has no comparison or scenario assumptions.');
   let onDate: string | null = null; let priceChangeBps: string | null = null;
-  if (receipt.operation === 'aging') {
+  if (registered && receipt.operation === 'aging') {
     check(date(receipt.assumptions?.onDate), 'SQL_PROJECTION_INVALID', 'Aging verification needs its explicit observation date.'); onDate = receipt.assumptions.onDate as string;
     check(definitions.every(d => d.sign === 1) && new Set(definitions.map(d => d.kind)).size === 3, 'SQL_DEFINITION_UNSUPPORTED', 'Aging requires three distinct positively defined event kinds.');
     const invoiceKind = definitions.find(d => d.name === 'billed')!.kind; const links = new Set<string>();
@@ -74,13 +85,13 @@ function project(receipt: CalculationReceipt, maxRows: number): Projection {
       if (r.kind === invoiceKind) { check(r.invoice && r.customer && r.due, 'SQL_PROJECTION_INVALID', 'Aging invoices need invoice, customer and due-date links.'); const key = JSON.stringify([r.invoice, r.customer]); check(!links.has(key), 'SQL_AMBIGUOUS_INVOICE', 'Distinct invoice claims cannot reuse one invoice/customer link.'); links.add(key); }
     }
   }
-  if (receipt.operation === 'scenario') {
+  if (registered && receipt.operation === 'scenario') {
     priceChangeBps = integer(receipt.assumptions?.priceChangeBps); check(BigInt(priceChangeBps) >= -10000n && BigInt(priceChangeBps) <= 100000n, 'SQL_PROJECTION_INVALID', 'The price scenario is outside the supported range.');
   }
   const figures = new Map<string, string>(); check(Array.isArray(receipt.figures), 'SQL_PROJECTION_INVALID', 'The receipt must contain typed figures.');
   for (const figure of receipt.figures) { check(typeof figure.key === 'string' && !figures.has(figure.key) && ['money', 'basis-points'].includes(figure.unit) && (figure.unit !== 'money' || figure.currency === receipt.currency), 'SQL_PROJECTION_INVALID', 'Receipt figures must have distinct keys and explicit compatible units.'); figures.set(figure.key, integer(figure.minor)); }
   const expected = Object.fromEntries(figures); expected.valueMinor = integer(receipt.valueMinor); expected.totalMinor = integer(receipt.totalMinor);
-  return { receiptId: receipt.id, operation: receipt.operation, currency: receipt.currency, definitions, rows, period: current, comparePeriod: compare, onDate, priceChangeBps, expected };
+  return { receiptId: receipt.id, operation: receipt.operation, currency: receipt.currency, compiledCalculation: binding ? structuredClone(binding) : null, compiledDefinition: binding ? structuredClone(receipt.definitions[0]) : null, ontologyVersion: receipt.ontologyVersion, definitions, rows, period: current, comparePeriod: compare, onDate, priceChangeBps, expected };
 }
 
 const CREATE_ROWS = 'CREATE TEMP TABLE receipt_rows (fact_id VARCHAR PRIMARY KEY, kind VARCHAR NOT NULL, amount_minor DECIMAL(38,0) NOT NULL, event_date DATE NOT NULL, due_date DATE, invoice_id VARCHAR, customer_id VARCHAR)';
@@ -116,7 +127,8 @@ async function verifySQL(connection: SQLConnection, projection: Projection, engi
   for (const definition of projection.definitions) await connection.execute(INSERT_DEFINITION, [definition.name, definition.kind, definition.sign]);
   for (const row of projection.rows) await connection.execute(INSERT_ROW, [row.id, row.kind, row.amount, row.date, row.due, row.invoice, row.customer]);
   let sql: string; let parameters: (string | number | null)[]; let primary: string;
-  if (projection.operation === 'margin') { sql = MARGIN_QUERY; parameters = []; primary = 'contribution'; }
+  if (projection.compiledCalculation) { sql = SUM_QUERY; parameters = [projection.compiledCalculation.sum.definitionName]; primary = 'total'; }
+  else if (projection.operation === 'margin') { sql = MARGIN_QUERY; parameters = []; primary = 'contribution'; }
   else if (projection.operation === 'net_sales') { sql = NET_QUERY; parameters = []; primary = 'total'; }
   else if (projection.operation === 'change') { sql = CHANGE_QUERY; parameters = [projection.period!.from,projection.period!.to,projection.comparePeriod!.from,projection.comparePeriod!.to]; primary = 'change'; }
   else if (projection.operation === 'scenario') { sql = SCENARIO_QUERY; parameters = [projection.priceChangeBps]; primary = 'scenario'; }
@@ -129,7 +141,7 @@ async function verifySQL(connection: SQLConnection, projection: Projection, engi
   check(Object.hasOwn(computed, primary), 'SQL_RESULT_INVALID', 'The SQL result omitted its primary figure.');
   computed.valueMinor = computed[primary]; computed.totalMinor = computed[primary];
   check(Object.keys(computed).length === Object.keys(projection.expected).length && Object.entries(projection.expected).every(([key,value]) => computed[key] === value), 'SQL_RESULT_MISMATCH', 'The database result disagrees with the calculation receipt.');
-  return { verified: true, engine, receiptId: projection.receiptId, operation: projection.operation, projectionDigest: hash(projection), checks: ['typed-authorized-row-projection','registered-prepared-sql','exact-minor-unit-figures','receipt-arithmetic-conformance'] };
+  return { verified: true, engine, receiptId: projection.receiptId, operation: projection.operation, projectionDigest: hash(projection), ...(projection.compiledCalculation ? { compiledDigest: projection.compiledCalculation.sum.digest } : {}), checks: ['typed-authorized-row-projection','registered-prepared-sql','exact-minor-unit-figures','receipt-arithmetic-conformance', ...(projection.compiledCalculation ? ['compiler-bound-single-definition-sum'] : [])] };
 }
 
 // Configure temporary storage before disabling external access: the pinned
@@ -210,7 +222,11 @@ async function workerMain() {
     for await (const chunk of process.stdin) { length += chunk.length; check(length <= MAX_BYTES,'SQL_ROW_LIMIT','The SQL projection is too large.'); chunks.push(Buffer.from(chunk)); }
     const projection = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Projection;
     // The private worker receives only the parent-generated projection; it never accepts SQL.
-    check(Object.hasOwn(OPERATIONS, projection.operation) && Array.isArray(projection.rows) && projection.rows.length <= 100000,'SQL_PROJECTION_INVALID','Invalid private database projection.');
+    check(Array.isArray(projection.rows) && projection.rows.length <= 100000,'SQL_PROJECTION_INVALID','Invalid private database projection.');
+    if (projection.compiledCalculation) {
+      check(projection.compiledDefinition && projection.definitions.length === 1 && projection.definitions[0].name === projection.compiledCalculation.sum.definitionName && projection.definitions[0].kind === projection.compiledCalculation.sum.recordKind && projection.definitions[0].sign === projection.compiledCalculation.sum.sign && projection.currency === projection.compiledCalculation.sum.currency, 'SQL_PROJECTION_INVALID', 'The private projection must retain the compiled measure binding.');
+      assertCompiledSingleSum(projection.compiledCalculation.sum, projection.operation, projection.compiledDefinition, projection.ontologyVersion);
+    } else check(Object.hasOwn(OPERATIONS, projection.operation), 'SQL_OPERATION_UNSUPPORTED', 'The private worker needs a registered operation or compiled sum.');
     connection = await nativeConnection(); const result = await verifySQL(connection,projection,'duckdb');
     process.stdout.write(JSON.stringify({ok:true,result}));
   } catch (error) { process.stdout.write(JSON.stringify({ok:false,code:error instanceof ChausarError ? error.code : 'SQL_EXECUTION_FAILED'})); process.exitCode = 1; }
