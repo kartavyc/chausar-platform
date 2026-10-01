@@ -5,6 +5,7 @@ import { DurableJobRunner, type ProviderRequest, type GoalRunner, type GoalProvi
 import { calculationGoal, evidenceGoal } from './job-goals.ts';
 import { json, validateSettlement, type ProviderSettlement, type StepResult, type Json } from './job-protocol.ts';
 import { JobService } from './jobs.ts';
+import { investigationJobPorts } from './investigation-jobs.ts';
 
 /** Host configuration, never a pricing policy or a provider qualification. */
 export type EngineJobOptions = {
@@ -145,7 +146,8 @@ export function createEngineJobRunner(store: StateStore, jobs: JobService, actio
       return json({ actions: input.actions.map(item => ({ id: item.id, ...results[item.id] })), businessSuccess: false });
     }, release,
   };
-  return new DurableJobRunner(jobs, [calculationGoal({ providerId: calculations.id, release }), evidenceGoal({ providerId: evidence.id, release }), prepare], [calculations, evidence, { id: 'local-action-preparation', kind: 'prepare-action', transport: 'local', model: false }], { ...options, actions });
+  const investigation = investigationJobPorts(store, jobs, calculationOptions);
+  return new DurableJobRunner(jobs, [calculationGoal({ providerId: calculations.id, release }), evidenceGoal({ providerId: evidence.id, release }), prepare, investigation.runner], [calculations, evidence, { id: 'local-action-preparation', kind: 'prepare-action', transport: 'local', model: false }, investigation.provider], { ...options, actions });
 }
 
 /** Only explicitly supplied policy enables typed jobs in the process entry points. */

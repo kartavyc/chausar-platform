@@ -19,7 +19,7 @@ export type StepResult = { value: Json; informationClass: InformationClass; evid
 export type ProviderSettlement = { result: StepResult; spentMinor: string; modelUnits: number; durationMs: number; actionExposureMinor: string };
 export type StepAttempt = {
   stepId: string; key: string; attempt: number; fence: number;
-  status: 'dispatched' | 'unknown' | 'verified' | 'absent';
+  status: 'dispatched' | 'unknown' | 'verified' | 'absent' | 'blocked';
   reservedMinor: string; startedAt: string; settledAt?: string;
   settlement?: ProviderSettlement; reconciliationId?: string; reason?: string;
 };

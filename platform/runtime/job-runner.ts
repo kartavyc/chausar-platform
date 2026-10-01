@@ -11,6 +11,8 @@ export type GoalRunner<Input = unknown> = {
   type: string; version: string;
   validate: (input: unknown) => Input;
   plan: (input: Input) => GoalPlan;
+  /** Trusted installed-runner admission, inside the mandate transaction; never supplied by RPC. */
+  admit?: (state: State, context: Context, input: Input, config: JobConfig, previous?: Job) => Input;
   deliver: (input: Input, results: Record<string, StepResult>) => Json;
   /** Current permission/evidence check, including every intermediate result used after restart. */
   release: (context: Context, result: StepResult) => boolean;
@@ -22,7 +24,8 @@ export type ProviderRequest = {
 export type Reconciliation =
   | { outcome: 'unknown' }
   | { outcome: 'verified'; id: string; settlement: ProviderSettlement }
-  | { outcome: 'absent'; id: string; spentMinor: string; modelUnits: number; durationMs: number; actionExposureMinor: string };
+  | { outcome: 'absent'; id: string; spentMinor: string; modelUnits: number; durationMs: number; actionExposureMinor: string }
+  | { outcome: 'blocked'; id: string; reason: string; spentMinor: string; modelUnits: number; durationMs: number; actionExposureMinor: string };
 export type GoalProvider = { id: string; kind: 'read-only'; transport: 'local' | 'remote'; model: boolean; authorize?: (state: State, context: Context, request: ProviderRequest, mode: 'dispatch' | 'readback') => void; dispatch: (request: ProviderRequest) => Promise<ProviderSettlement>; reconcile: (request: ProviderRequest) => Promise<Reconciliation> }
   | { id: string; kind: 'prepare-action'; transport: 'local'; model: false };
 export type RunnerOptions = {
@@ -57,20 +60,43 @@ export class DurableJobRunner {
     const capped = new JobService({ read: () => store.read(), update: change => store.update(state => {
       check(state.jobs.filter((job: Job) => !['accepted', 'cancelled', 'revoked', 'stopped'].includes(job.status) || job.execution?.attempts.some(a => ['dispatched', 'unknown'].includes(a.status))).length < this.options.maxActiveJobs, 'ACTIVE_JOB_LIMIT', 'The configured active job ceiling is reached.'); return change(state);
     }) }, { clock: this.jobs.clock, deliverableGuard: this.jobs.deliverableGuard, calendarRules: this.jobs.calendarRules, calendarBounds: this.jobs.calendarBounds });
-    return capped.create(context, { ...config, input, plan, background: config.background ?? false, allowedActions: config.allowedActions ?? [], testedRoutes: config.testedRoutes ?? [] });
+    if (!runner.admit) return capped.create(context, { ...config, input, plan, background: config.background ?? false, allowedActions: config.allowedActions ?? [], testedRoutes: config.testedRoutes ?? [] });
+    return store.update(async state => {
+      check(state.jobs.filter((job: Job) => !['accepted', 'cancelled', 'revoked', 'stopped'].includes(job.status) || job.execution?.attempts.some(a => ['dispatched', 'unknown'].includes(a.status))).length < this.options.maxActiveJobs, 'ACTIVE_JOB_LIMIT', 'The configured active job ceiling is reached.');
+      const admitted = json(runner.validate(json(runner.admit!(state, context, input, config))));
+      const admittedPlan = json(runner.plan(admitted));
+      check(admittedPlan.runnerVersion === runner.version, 'JOB_RUNNER_CHANGED', 'The admitted plan must pin its runner version.');
+      validatePlan(admittedPlan, config.reserveMinor ?? config.budgetMinor, config.limits!);
+      // The existing JobService authorizes and writes into this already serialized transaction.
+      // This view does not acquire another store transaction.
+      const transactional = new JobService({ read: () => structuredClone(state), update: async change => await change(state) },
+        { clock: this.jobs.clock, deliverableGuard: this.jobs.deliverableGuard, calendarRules: this.jobs.calendarRules, calendarBounds: this.jobs.calendarBounds });
+      return transactional.create(context, { ...config, input: admitted, plan: admittedPlan, background: config.background ?? false, allowedActions: config.allowedActions ?? [], testedRoutes: config.testedRoutes ?? [] });
+    });
   }
   /** Authorized objective replacement fences prior work; its uncertain effects keep their original plan. */
   async amend(context: Context, id: string, config: Omit<JobConfig, 'plan'> & { type: string }): Promise<Job> {
     config = json(config);
     check(config.calendar === undefined, 'CALENDAR_SEPARATE_REVISION', 'Revise calendars separately while the objective is idle.');
     check(!context.sourceTainted && context.channel !== 'phone', 'APP_APPROVAL_REQUIRED', 'Amend objectives inside the app.');
-    const runner = this.runner(config.type); const input = json(runner.validate(json(config.input))); const plan = json(runner.plan(input));
+    const runner = this.runner(config.type); let input = json(runner.validate(json(config.input))); let plan = json(runner.plan(input));
     check(config.limits && plan.runnerVersion === runner.version && typeof config.goal === 'string' && config.goal.trim().length >= 5 && config.goal.length <= 2000, 'INVALID_JOB_PLAN', 'An amended objective needs a concrete goal and pinned plan.');
     validatePlan(plan, config.reserveMinor ?? config.budgetMinor, config.limits);
     check(money(config.budgetMinor) > 0n && money(config.reserveMinor ?? config.budgetMinor) > 0n && money(config.reserveMinor ?? config.budgetMinor) <= money(config.budgetMinor), 'INVALID_BUDGET', 'The amended reservation must fit its budget.');
     check(config.stopRule && Number.isInteger(config.stopRule.maxRuns) && config.stopRule.maxRuns > 0 && config.stopRule.maxRuns <= 10000 && Date.parse(config.stopRule.deadline) > this.jobs.clock(), 'STOP_RULE_REQUIRED', 'Set an explicit amended stop rule.');
     const amended = await this.jobs.store.update(state => {
       const job = this.jobs.find(state, id); this.jobs.owner(state, context, job); check(context.memberId === job.ownerId && context.epoch === job.ownerEpoch && context.role === job.ownerRole, 'JOB_OWNER_REQUIRED', 'Only the pinned owner may replace the objective.');
+      // A replacement runner cannot bypass the original installed admission's reconciliation obligations.
+      if (job.type !== config.type && [job.execution, ...(job.archivedExecutions ?? [])].some(execution => execution?.attempts.length)) {
+        const original = this.runner(job.type);
+        original.admit?.(state, context, original.validate(json(job.input)), config, job);
+      }
+      if (runner.admit) {
+        const admitted = json(runner.validate(json(runner.admit(state, context, input, config, job))));
+        input = admitted; plan = json(runner.plan(admitted));
+        check(plan.runnerVersion === runner.version, 'JOB_RUNNER_CHANGED', 'The admitted amendment must pin its runner version.');
+        validatePlan(plan, config.reserveMinor ?? config.budgetMinor, config.limits!);
+      }
       check(!['cancelled', 'revoked', 'stopped', 'accepted'].includes(job.status), 'INVALID_JOB_STATE', 'A terminal mandate cannot be revived.');
       check(config.ownerId === undefined || config.ownerId === job.ownerId, 'JOB_OWNER_REQUIRED', 'Owner replacement needs a separate ownership decision.');
       check(!job.calendar || ['nextRunAt', 'intervalMs', 'catchup', 'graceMs'].every(key => !Object.hasOwn(config, key)), 'AMBIGUOUS_JOB_SCHEDULE', 'Calendar objectives cannot acquire elapsed-interval settings.');
@@ -244,12 +270,13 @@ export class DurableJobRunner {
     this.jobs.owner(this.jobs.store.read(), context, this.raw(id));
     sourceAccess(this.jobs.store.read(), context, job.execution!.sourceIds);
     if (provider.kind === 'read-only') provider.authorize?.(this.jobs.store.read(), context, request, 'readback');
-    check(readback && ['verified', 'absent', 'unknown'].includes(readback.outcome), 'INVALID_JOB_READBACK', 'Readback must report verified, absent or unknown.');
+    check(readback && ['verified', 'absent', 'blocked', 'unknown'].includes(readback.outcome), 'INVALID_JOB_READBACK', 'Readback must report verified, absent, known blocked or unknown.');
     if (readback.outcome === 'verified') { check(typeof readback.id === 'string' && readback.id.length > 0, 'INVALID_JOB_READBACK', 'A verified readback needs proof identity.'); await this.settle(id, attempt.key, readback.settlement, readback.id); }
-    if (readback.outcome === 'absent') {
+    if (readback.outcome === 'absent' || readback.outcome === 'blocked') {
       check(typeof readback.id === 'string' && readback.id.length > 0, 'INVALID_JOB_READBACK', 'Confirmed absence needs readback proof.');
-      const settlement: ProviderSettlement = { ...readback, result: { value: null, informationClass: 'observation', evidenceIds: [readback.id], sourceTainted: false } }; validateSettlement(settlement, step);
-      await this.jobs.store.update(state => { const saved = this.jobs.find(state, id); const execution = saved.execution!; const pending = execution.attempts.find(a => a.key === attempt.key)!; if (pending.status === 'absent') return; check(pending.status === 'unknown', 'INVALID_JOB_STATE', 'Readback raced with another settlement.'); const cost = money(readback.spentMinor); check(cost <= money(saved.reservedMinor), 'JOB_BUDGET_EXHAUSTED', 'Readback cost exceeds held exposure.'); saved.spentMinor = String(money(saved.spentMinor) + cost); saved.reservedMinor = '0'; pending.status = 'absent'; pending.settlement = json(settlement); pending.reconciliationId = readback.id; pending.settledAt = this.jobs.timestamp(); execution.meters.modelUnits += readback.modelUnits; execution.meters.durationMs += readback.durationMs; execution.meters.actionExposureMinor = String(money(execution.meters.actionExposureMinor) + money(readback.actionExposureMinor)); saved.status = ['cancelled', 'revoked', 'stopped'].includes(saved.status) ? saved.status : 'paused'; delete execution.afterReconcile; if (execution.objectiveRevision !== saved.revision) { (saved.archivedExecutions ??= []).push(execution); delete saved.execution; } saved.ledger.push({ at: this.jobs.timestamp(), event: 'step-absent', reason: step.id, amountMinor: readback.spentMinor }); });
+      if (readback.outcome === 'blocked') check(typeof readback.reason === 'string' && readback.reason.length > 0 && readback.reason.length <= 500, 'INVALID_JOB_READBACK', 'Known blocked work needs its recorded reason.');
+      const settlement: ProviderSettlement = { ...readback, result: { value: readback.outcome === 'blocked' ? { kind: 'job-step-blocked-v1', reason: readback.reason } : null, informationClass: 'observation', evidenceIds: [readback.id], sourceTainted: false } }; validateSettlement(settlement, step);
+      await this.jobs.store.update(state => { const saved = this.jobs.find(state, id); if (readback.outcome === 'blocked') { this.scope(state, context, saved); if (provider.kind === 'read-only') provider.authorize?.(state, context, request, 'readback'); } const execution = saved.execution!; const pending = execution.attempts.find(a => a.key === attempt.key)!; if (pending.status === readback.outcome) return; check(pending.status === 'unknown', 'INVALID_JOB_STATE', 'Readback raced with another settlement.'); const cost = money(readback.spentMinor); check(cost <= money(saved.reservedMinor), 'JOB_BUDGET_EXHAUSTED', 'Readback cost exceeds held exposure.'); saved.spentMinor = String(money(saved.spentMinor) + cost); saved.reservedMinor = '0'; pending.status = readback.outcome; pending.settlement = json(settlement); pending.reconciliationId = readback.id; pending.settledAt = this.jobs.timestamp(); execution.meters.modelUnits += readback.modelUnits; execution.meters.durationMs += readback.durationMs; execution.meters.actionExposureMinor = String(money(execution.meters.actionExposureMinor) + money(readback.actionExposureMinor)); saved.status = ['cancelled', 'revoked', 'stopped'].includes(saved.status) ? saved.status : 'paused'; delete execution.afterReconcile; if (execution.objectiveRevision !== saved.revision) { (saved.archivedExecutions ??= []).push(execution); delete saved.execution; } saved.ledger.push({ at: this.jobs.timestamp(), event: readback.outcome === 'blocked' ? 'step-blocked' : 'step-absent', reason: readback.outcome === 'blocked' ? readback.reason : step.id, amountMinor: readback.spentMinor }); });
     }
     return this.jobs.view(context, this.raw(id));
   }

@@ -8,6 +8,11 @@ import type { Investigation, InvestigationBudget, InvestigationCapsule, Investig
   InvestigationSearchDocument, InvestigationStep, InvestigationWrite } from './investigation-contracts.ts';
 export type * from './investigation-contracts.ts';
 export type InvestigationOptions = CalculatorOptions & { clock?: () => string };
+/** Trusted local host callbacks. Public investigation requests never accept these ports. */
+export type InvestigationAdvanceCorrelation = {
+  before: (state: State, value: Investigation) => void;
+  after: (state: State, before: Investigation, after: Investigation) => void;
+};
 
 const plain = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype;
 function closed(v: unknown, keys: string[]) { check(plain(v) && Object.keys(v).every(k => keys.includes(k)), 'INVALID_INVESTIGATION', 'Investigation requests must contain only declared data fields.'); }
@@ -176,20 +181,27 @@ export class InvestigationService {
       .flatMap(a => { try { return [this.get(ctx, a.id)]; } catch { return []; } });
   }
   async advance(ctx: Context, id: string, input: InvestigationWrite): Promise<Investigation> {
+    return this.advanceCorrelated(ctx, id, input);
+  }
+  async advanceCorrelated(ctx: Context, id: string, input: InvestigationWrite, correlation?: InvestigationAdvanceCorrelation): Promise<Investigation> {
     ctx = detached(ctx);
     this.writer(this.store, ctx); const supplied = detached(input); closed(supplied, ['expectedRevision']);
     return this.store.update(async state => {
       const current = view(state); this.writer(current, ctx); const value = this.at(current, ctx, id); this.expected(value, supplied);
+      correlation?.before(state, detached(value)); const before = detached(value);
       check(value.status === 'open', 'INVESTIGATION_NOT_OPEN', 'Resume a paused investigation before advancing its saved plan.');
       const step = value.steps.find(s => s.state === 'pending'); check(step, 'INVESTIGATION_COMPLETE', 'Every persisted step is already measured.');
       value.revision++;
-      if (this.pauseForBudget(current, ctx, value, step)) return this.commit(state, value);
+      if (this.pauseForBudget(current, ctx, value, step)) {
+        const saved = this.commit(state, value); correlation?.after(state, before, detached(saved)); return saved;
+      }
       const receipt = await this.calculator(current).calculate(ctx, detached(step.request));
       this.writer(current, ctx); this.at(current, ctx, id);
       check(receipt.definitionHash === step.definitionHash, 'INVESTIGATION_RECEIPT_CHANGED', 'The measured step differs from its authored definition.');
       step.state = 'completed'; step.receipt = pin(receipt); value.receiptPins.push(step.receipt); this.roots(value);
       if (value.steps.every(s => s.state === 'completed')) value.status = 'complete';
-      this.pauseForBudget(current, ctx, value); return this.commit(state, value);
+      this.pauseForBudget(current, ctx, value); const saved = this.commit(state, value);
+      correlation?.after(state, before, detached(saved)); return saved;
     });
   }
   async pause(ctx: Context, id: string, input: InvestigationWrite & { reason: string }): Promise<Investigation> {
