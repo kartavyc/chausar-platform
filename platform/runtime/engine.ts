@@ -12,6 +12,8 @@ import { ReportService, type ReportOptions } from './reports.ts';
 import { TrustService, sourceAllowed } from './trust.ts';
 import { ModelGateway } from './gateway.ts';
 import type { GatewayOptions } from './gateway.ts';
+import { conversationPurpose } from './conversation-purpose.ts';
+import { buildBusinessContext, assertBusinessContextCurrent, renderBusinessAnswer, BusinessProfileService, type BusinessContextHooks, type BusinessContextManifest } from './conversation-context.ts';
 import { SpeechService } from './speech.ts';
 import { AuthService } from './auth.ts';
 import { SyncService, type SyncOptions } from './sync.ts';
@@ -101,7 +103,13 @@ export class Engine {
     this.services.helper = new AnalyticalHelper({ executable: this.options.pythonExecutable });
     if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: resolve(this.options.directory, 'updates') });
     this.services.trust = new TrustService(store);
-    this.services.gateway = new ModelGateway(store, this.options.gateway);
+    const businessContextHooks: BusinessContextHooks = { assertEvidenceReady: (ctx, refs) => {
+      this.options.gateway?.businessContext?.assertEvidenceReady?.(ctx, refs);
+      return connectorRuntime.assertBusinessEvidenceReady(ctx, refs);
+    } };
+    this.services.businessContextHooks = businessContextHooks;
+    this.services.businessProfile = new BusinessProfileService(store);
+    this.services.gateway = new ModelGateway(store, { ...this.options.gateway, businessContext: businessContextHooks });
     this.services.speech = new SpeechService(store);
     this.services.auth = new AuthService(store);
     this.services.sync = new SyncService(store, { ...this.options.sync, vault });
@@ -228,14 +236,45 @@ export class Engine {
       }
       case 'conversation.ask': {
         check(typeof payload.question === 'string' && payload.question.trim().length > 0 && payload.question.length <= 8000, 'INVALID_QUESTION', 'Ask a short business question.');
-        let result;
+        const purpose = conversationPurpose(payload.question, payload.purpose);
+        let result: any;
+        let businessManifest: BusinessContextManifest | undefined;
+        let modelReceiptId: string | undefined;
         if (payload.routeId) {
-          const gatewayResult = await s.gateway.execute(ctx, payload); const plan = gatewayResult.plan;
-          if (plan.clarification || !plan.operation) return plan;
-          result = await s.calculator.calculate(ctx, plan);
-        } else { const { question, routeId, previewId, approvalId, ...filters } = payload; result = await s.calculator.ask(ctx, payload.question, filters); }
-        await store.update(state => { state.conversations.push({ id: newId('message'), at: now(), memberId: ctx.memberId, question: payload.question, resultId: result.id ?? result.receipt?.id, role: 'user' }); });
+          const gatewayResult = await s.gateway.execute(ctx, { ...payload, purpose });
+          if (gatewayResult.kind === 'business-context') { result = gatewayResult.answer; businessManifest = gatewayResult.receipt.businessContext; modelReceiptId = gatewayResult.receipt.id; }
+          else { const plan = gatewayResult.plan; if (plan.clarification || !plan.operation) return plan; result = await s.calculator.calculate(ctx, plan); }
+        } else if (purpose === 'business-context') {
+          check(payload.previewId === undefined && payload.approvalId === undefined && payload.profileSamples === undefined, 'MODEL_ROUTE_REQUIRED', 'A model preview requires its exact selected route. Local context stays on this device.');
+          const request = { ...(payload.sourceIds !== undefined ? { sourceIds: payload.sourceIds } : {}), ...(payload.branch !== undefined ? { branch: payload.branch } : {}),
+            ...(payload.asOf !== undefined ? { asOf: payload.asOf } : {}), ...(payload.onDate !== undefined ? { onDate: payload.onDate } : {}), ...(payload.period !== undefined ? { period: payload.period } : {}) };
+          businessManifest = buildBusinessContext(store, ctx, request, s.businessContextHooks);
+          result = renderBusinessAnswer(store, ctx, businessManifest, { claimIds: businessManifest.claims.map(claim => claim.id), unknownCategories: businessManifest.unknownCategories }, s.businessContextHooks);
+        } else { const { question, purpose: ignoredPurpose, routeId, previewId, approvalId, ...filters } = payload; result = await s.calculator.ask(ctx, payload.question, filters); }
+        if (businessManifest) {
+          const manifest = businessManifest, id = newId('business_answer');
+          result = { ...result, id, receipt: { id, kind: 'business-context-receipt', contextDigest: manifest.digest, financialCalculation: false, sourceIds: manifest.sourceIds, rowIds: manifest.rowIds, ...(modelReceiptId ? { modelReceiptId } : {}) } };
+          await store.update(state => {
+            const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx); assertBusinessContextCurrent(view, ctx, manifest, s.businessContextHooks);
+            state.conversations.push({ id, kind: 'business-context-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: payload.question, manifest, answer: structuredClone(result), sourceIds: manifest.sourceIds, rowIds: manifest.rowIds, profileIds: manifest.profileIds });
+          });
+        } else await store.update(state => { state.conversations.push({ id: newId('message'), at: now(), memberId: ctx.memberId, question: payload.question, resultId: result.id ?? result.receipt?.id, role: 'user' }); });
         return result;
+      }
+      case 'business.context.receipt': {
+        check(typeof payload.id === 'string', 'INVALID_REFERENCE', 'Choose a saved business context receipt.');
+        const saved = store.read().conversations.find(item => item.kind === 'business-context-answer' && item.id === payload.id);
+        check(saved && saved.memberId === ctx.memberId && saved.epoch === ctx.epoch, 'RECEIPT_NOT_FOUND', 'This business context receipt is unavailable to the current account.');
+        assertBusinessContextCurrent(store, ctx, saved.manifest, s.businessContextHooks); return structuredClone(saved.answer);
+      }
+      case 'business.profile.record': {
+        check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_PROFILE_REQUIRED', 'Record explicit business descriptions inside the app.');
+        return s.businessProfile.record(ctx, payload);
+      }
+      case 'business.profile.history': return s.businessProfile.history(ctx, payload.field);
+      case 'business.profile.remove': {
+        check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_PROFILE_REQUIRED', 'Remove business descriptions inside the app.');
+        const result = await s.businessProfile.remove(ctx, payload.id); const removed = await this.purgeManagedCopies(); return { ...result, copiesRemoved: removed };
       }
       case 'calculation.run': return s.calculator.calculate(ctx, payload);
       case 'receipts.get': return s.calculator.receipt(ctx, payload.id);

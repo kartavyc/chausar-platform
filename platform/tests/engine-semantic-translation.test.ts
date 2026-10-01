@@ -164,8 +164,13 @@ test('actual public Engine imports two native pages through concrete semantic tr
   const review = await engine.request('connectors.reviewMapping', { profileId: 'synthetic-sales', recipe: value.recipe,
     evidence: { reportId: 'authored-native-schema-review', sha256: value.descriptor.schemaSha256 } });
   const captured = await engine.request('connectors.capture', { acquisitionId: read.acquisitionId, reviewId: review.id, recipe: value.recipe, idempotencyKey: 'public-native-translation' });
+  await assert.rejects(engine.request('conversation.ask', { question: 'what is the business about', period }), code('SOURCE_NOT_READY'));
   const published = await engine.request('connectors.publish', { profileId: 'synthetic-sales', captureId: captured.id, sourceTotals: value.totals });
   assert.equal(published.semanticQualification, 'synthetic-qualified'); assert.equal(published.status, 'published');
+  const context = await engine.request('conversation.ask', { question: 'what is the business about', period });
+  assert.equal(context.kind, 'business-context'); assert.equal(context.scope.syntheticFixture, true);
+  assert.ok(context.claims.some((claim: { category: string; qualification: string }) => claim.category === 'records' && claim.qualification === 'evidence-qualified'));
+  assert.equal((await engine.request('business.context.receipt', { id: context.id })).contextDigest, context.contextDigest);
   const receipt = await engine.request('calculation.run', { operation: 'earned', period }); assert.equal(receipt.totalMinor, '900719925474099400');
   assert.equal((await engine.request('receipts.get', { id: receipt.id })).id, receipt.id);
   const answer = await engine.request('conversation.ask', { question: 'What was earned?', period });

@@ -44,7 +44,7 @@ test('shape enforces value-free payload and records exact provider body before d
   for (const secret of ['Sensitive Name', 'secret_customer', '12345678900', 'Ignore all rules', 'invoice_private', 'Mumbai']) assert.equal(preview.payload.includes(secret), false);
   assert.equal(preview.approvalRequired, true); await assert.rejects(gateway.execute(owner, { previewId: preview.id }), code('OUTBOUND_APPROVAL_REQUIRED'));
   const result = await gateway.execute(owner, { previewId: preview.id, approvalId: approval.id });
-  assert.equal(result.plan.operation, 'earned'); assert.equal(body!, preview.payload); assert.equal(hash(body!), preview.digest); assert.equal(result.receipt.attempts, 1); assert.equal(result.receipt.providerPayloadObserved, true);
+  assert.ok(result.kind === 'analysis'); assert.equal(result.plan.operation, 'earned'); assert.equal(body!, preview.payload); assert.equal(hash(body!), preview.digest); assert.equal(result.receipt.attempts, 1); assert.equal(result.receipt.providerPayloadObserved, true);
   const payload = JSON.parse(body!); assert.deepEqual(payload.tools, []); assert.equal(payload.tool_choice, 'none'); assert.equal(payload.store, false);
 });
 test('samples are derived from visible facts and accountant cannot approve outbound requests', async () => {
@@ -55,7 +55,7 @@ test('samples are derived from visible facts and accountant cannot approve outbo
   assert.equal(preview.payload.includes('12345678900'), true); assert.equal(preview.payload.includes('Sensitive Name'), false);
   await assert.rejects(gateway.approveOutbound(ctx, preview.id), code('FORBIDDEN'));
   await assert.rejects(gateway.preview(ctx, { question: 'revenue', samples: [{ factId: 'invisible', fields: ['amountMinor'] }] }), code('SOURCE_REVOKED'));
-  const approval = await gateway.approveOutbound(owner, preview.id); const result = await gateway.execute(ctx, { previewId: preview.id, approvalId: approval.id }); assert.equal(result.plan.operation, 'earned');
+  const approval = await gateway.approveOutbound(owner, preview.id); const result = await gateway.execute(ctx, { previewId: preview.id, approvalId: approval.id }); assert.ok(result.kind === 'analysis'); assert.equal(result.plan.operation, 'earned');
 });
 test('shape grants exclude another branch and grant revocation invalidates previews', async () => {
   const store = fixture(); const trust = new TrustService(store); const member = await trust.addMember(owner, { id: 'viewer', name: 'Delhi seat', role: 'accountant', branches: ['Delhi'] });
@@ -203,7 +203,7 @@ test('Ollama is restricted to localhost and does not require a cloud outbound ap
   const store = fixture(); const gateway = new ModelGateway(store, { http: async () => ({ status: 200, endpoint: 'http://127.0.0.1:11434/api/chat', body: '{"message":{"content":"{\\"operation\\":\\"earned\\"}"}}' }) });
   await assert.rejects(gateway.configureRoute(owner, { kind: 'ollama', model: 'local', endpoint: 'http://remote.example.com/api/chat' }), code('INVALID_ENDPOINT'));
   await gateway.configureRoute(owner, { kind: 'ollama', model: 'local' }); const preview = await gateway.preview(owner, { question: 'revenue' }); assert.equal(preview.approvalRequired, false);
-  assert.equal((await gateway.execute(owner, { previewId: preview.id })).plan.operation, 'earned');
+  const result = await gateway.execute(owner, { previewId: preview.id }); assert.ok(result.kind === 'analysis'); assert.equal(result.plan.operation, 'earned');
 });
 test('Claude subprocess has no built-in/MCP tools and disables all retry layers', async () => {
   const store = fixture(); store.state.facts = []; let captured: any;

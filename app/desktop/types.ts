@@ -5,6 +5,7 @@ import type { MappingRecipe } from '../../platform/runtime/ingest.ts';
 import type { MappingReview, IndependentSourceTotals } from '../../platform/runtime/connector-framework/import.ts';
 import type { JournalContent, JournalDecision, JournalDraft } from '../../platform/runtime/decision-journal.ts';
 import type { JournalDecisionReview } from '../../platform/runtime/reports.ts';
+import type { BusinessProfileInput } from '../../platform/runtime/conversation-context.ts';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue; }
@@ -24,6 +25,9 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'workspace.restore': JsonObject & { backupFile: string; passphrase: string; folder?: string };
   'workspace.delete': JsonObject & { confirmation: string };
   'conversation.ask': JsonObject & { question: string };
+  'business.context.receipt': { id: string };
+  'business.profile.record': BusinessProfileInput;
+  'business.profile.remove': { id: string };
   'actions.revise': JsonObject & { id: string; payload: JsonObject };
   'jobs.create': DesktopJobConfig;
   'jobs.amend': { id: string; config: DesktopGoalJobConfig };
@@ -50,7 +54,7 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'updates.verify': JsonObject & { manifest: JsonObject | string; signature: string };
   'updates.stage': JsonObject & { manifest: JsonObject | string; signature: string; confirmed: true };
 };
-type OptionalPayloads = { 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string } };
+type OptionalPayloads = { 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
 export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
 export type DesktopResult<M extends DesktopMethod> = M extends 'workspace.status' ? { open: boolean; experimental: boolean; version: string; storage: string; workspace?: JsonObject } : M extends 'decisions.journal.draft' ? JournalDraft : M extends 'decisions.journal.confirm' | 'decisions.journal.revise' | 'decisions.journal.review' ? JournalDecision : M extends 'decisions.journal.due' ? Array<JournalDecision | JsonObject> : unknown;

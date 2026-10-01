@@ -3,6 +3,7 @@ import { digest } from './actions.ts';
 import { assertSourceAccess, sourceAllowed, trustFingerprint } from './trust.ts';
 import { validatePeriod } from './memory.ts';
 import type { CalculationReceipt, CalculationRequest } from './calculator.ts';
+import type { BusinessEvidenceRefs, BusinessEvidenceReadiness } from './conversation-context.ts';
 import type { MappingRecipe } from './ingest.ts';
 import {
   ConnectorCapabilityRegistry, ConnectorReadDispatcher, ConnectorReadImportBridge, CursorImportService,
@@ -334,6 +335,29 @@ export class EngineConnectorService {
   assertReceiptReady(ctx: Context, receipt: CalculationReceipt) {
     // Rechecks every managed source domain, including scopes whose rows were empty or excluded.
     this.assertCalculationReady(ctx, { operation: receipt.operation, period: receipt.period ?? undefined, comparePeriod: receipt.comparePeriod ?? undefined, branch: receipt.branch ?? undefined });
+  }
+  /** Business observations use the same current acquisition authority, without inventing a calculation. */
+  assertBusinessEvidenceReady(ctx: Context, refs: BusinessEvidenceRefs): BusinessEvidenceReadiness {
+    const state = this.#store.read(); authorize(this.#store, ctx);
+    const sourceIds = [...new Set([...refs.sourceIds, ...refs.managedSourceIds])]; assertSourceAccess(state, ctx, sourceIds);
+    const qualifiedSourceIds: string[] = [];
+    for (const sourceId of sourceIds) {
+      const managed = captures(state).filter(capture => capture.sourceId === sourceId);
+      const installed = [...this.#profiles.values()].filter(runtime => runtime.profile.sourceId === sourceId);
+      if (!managed.length && !installed.length && !refs.managedSourceIds.includes(sourceId)) continue;
+      check(managed.length > 0 && installed.length > 0, 'SOURCE_NOT_READY', 'The managed business evidence needs its actual installed acquisition profile.');
+      const selected = managed.filter(capture => overlap(capture.domain, { branch: refs.request.branch, period: refs.request.period }));
+      check(selected.length > 0, 'SOURCE_NOT_READY', 'The selected business scope has no current managed capture.');
+      for (const capture of selected) this.#readyCapture(ctx, capture, state);
+      for (const runtime of installed.filter(runtime => overlap(runtime.profile.domain, { branch: refs.request.branch, period: refs.request.period }))) {
+        this.#access(ctx, runtime.profile);
+        check(selected.some(capture => digest(capture.domain) === digest(runtime.profile.domain)), 'SOURCE_NOT_READY', 'An installed business source domain has not been acquired and published.');
+      }
+      const expectedRows = refs.factIds.filter(id => state.facts.some(fact => fact.id === id && fact.sourceId === sourceId));
+      check(expectedRows.every(id => selected.some(capture => capture.rowIds.includes(id))), 'SOURCE_NOT_READY', 'Every managed business observation must retain qualified capture lineage.');
+      qualifiedSourceIds.push(sourceId);
+    }
+    return { qualifiedSourceIds };
   }
   captureStatus(ctx: Context, profileId: string, captureId: string) {
     const runtime = this.#runtime(profileId), capture = runtime.importer.get(ctx, captureId); this.#assertBinding(ctx, runtime, capture);

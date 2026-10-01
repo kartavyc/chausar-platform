@@ -162,11 +162,12 @@ export function buildBusinessContext(store: StateStore, ctx: Context, input: Bus
   const uniqueCitations = [...new Map(citations.map(ref => [ref.id, ref])).values()];
   const sourceIds = [...new Set([...managedSourceIds, ...uniqueCitations.flatMap(ref => ref.sourceId ? [ref.sourceId] : [])])].sort();
   const rowIds = [...new Set(uniqueCitations.flatMap(ref => ref.factId ? [ref.factId] : []))].sort();
+  const syntheticFixture = Boolean(state.workspace.demo || state.imports.some(item => item.type === 'connector-consumer-binding-v1' && item.environment === 'synthetic' && sourceIds.includes(item.sourceId)));
   const body: Omit<BusinessContextManifest, 'digest'> = {
     schemaVersion: 1, kind: 'business-context-manifest', workspaceId: state.workspace.id, memberId: ctx.memberId, epoch: ctx.epoch,
     request, dictionaryHash, claims, citations: uniqueCitations, unknownCategories: PROFILE_CATEGORIES.filter(field => !known.has(field)),
     sourceIds, rowIds, profileIds: activeProfiles.map(entry => entry.record.id).sort(), conflicts,
-    scope: { branch: request.branch ?? null, asOf: request.asOf, onDate: request.onDate, syntheticFixture: state.workspace.demo, corpus: 'currently-authorized-local-evidence', completeness: 'bounded', limitations: ['Only currently permitted, retained local evidence was searched.', 'Absence in this context does not establish absence elsewhere.', 'Owner statements and draft assumptions are not verified financial results.', ...(records.length === MAX_ROWS ? ['Imported-record context is bounded; no exhaustive source coverage is claimed.'] : [])] },
+    scope: { branch: request.branch ?? null, asOf: request.asOf, onDate: request.onDate, syntheticFixture, corpus: 'currently-authorized-local-evidence', completeness: 'bounded', limitations: ['Only currently permitted, retained local evidence was searched.', 'Absence in this context does not establish absence elsewhere.', 'Owner statements and draft assumptions are not verified financial results.', ...(records.length === MAX_ROWS ? ['Imported-record context is bounded; no exhaustive source coverage is claimed.'] : [])] },
     trustFingerprint: trustFingerprint(state, ctx, sourceIds),
     observedContentHash: hash({ workspace: state.workspace, ontology: dictionary, visible, imports: state.imports.filter(item => sourceIds.includes(item.sourceId)), profiles: state.conversations.filter(r => r.kind === 'business-profile-claim-v1' && visibleIds.has(r.factId)), rules: state.sourceRules.filter(r => r.kind), merges: state.merges, tombstones: state.tombstones.filter(t => rowIds.includes(t.factId) || sourceIds.includes(t.sourceId)) }),
   };

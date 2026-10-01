@@ -62,7 +62,7 @@ async function harness({ failureQuestion, dispatch, routes = [], preview } : { f
   const context: any = { document, Node: Element, window: { chausar: exposed, location: { origin: 'chausar://app', hash: '', pathname: '/index.html', search: '' }, history: { replaceState() {} }, addEventListener() {} }, crypto: { randomUUID }, URL, URLSearchParams, structuredClone, console, setTimeout: () => 0, clearTimeout() {}, fetch() { throw new Error('Unexpected HTTP path in desktop boundary regression.'); } };
   assert.match(rendererSource, /\bboot\(\);\s*$/);
   // Disable only automatic boot; execute all actual renderer functions, including request/composer.
-  vm.runInNewContext(rendererSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__test = { request, renderConversation, showCalculator, state };', context, { filename: join(root, 'app/renderer/app.js') });
+  vm.runInNewContext(rendererSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__test = { request, renderConversation, renderAnswer, showCalculator, state };', context, { filename: join(root, 'app/renderer/app.js') });
   const renderer = context.__test;
   const page = await renderer.renderConversation();
   const composer = find(page, node => node.tagName === 'form' && node.className === 'composer');
@@ -133,6 +133,23 @@ test('selected route keeps defined preview values and returning to local calcula
   assert.equal(h.rejected.length, 0);
 });
 
+test('actual business context renderer keeps citations as safe text and opens its context receipt through strict preload', async () => {
+  const answer = { id: 'synthetic-business-answer', kind: 'business-context', status: 'partial',
+    claims: [{ text: '<img src=x onerror=untrusted> is quoted owner text', origin: 'owner-told', qualification: 'owner-stated', citationIds: ['synthetic-citation'] }],
+    unknowns: [{ category: 'products', message: 'Products are unknown in this synthetic evidence.' }], conflicts: [],
+    citations: [{ id: 'synthetic-citation', kind: 'profile', referenceId: 'synthetic-profile', contentHash: 'a'.repeat(64) }],
+    scope: { completeness: 'bounded' }, contextDigest: 'b'.repeat(64), receipt: { id: 'synthetic-business-answer', financialCalculation: false } };
+  const h = await harness({ dispatch: async (method, payload) => { if (method === 'business.context.receipt') { assert.deepEqual(payload, { id: answer.id }); return answer; } return {}; } });
+  const rendered = h.renderer.renderAnswer(answer) as Element;
+  assert.ok(descendants(rendered).some(node => node.tagName === '#text' && node.textContent === answer.claims[0].text));
+  assert.equal(descendants(rendered).some(node => node.tagName === 'img'), false);
+  assert.ok(descendants(rendered).some(node => node.textContent === answer.unknowns[0].message));
+  const open = find(rendered, node => node.tagName === 'button' && descendants(node).some(child => child.textContent === 'Open business context receipt'));
+  await open.dispatch('click'); assert.equal(h.rejected.length, 0);
+  assert.deepEqual(h.calls.filter(call => call.method === 'business.context.receipt'), [{ method: 'business.context.receipt', payload: { id: answer.id } }]);
+  assert.equal(h.calls.some(call => call.method === 'receipts.get'), false);
+});
+
 test('actual local question reaches the host-Node worker and subsequent billed question succeeds', async t => {
   const { EngineHarness } = require(join(root,'app/desktop/engine-harness.cjs'));
   const directory = await mkdtemp(join(tmpdir(),'chausar-renderer-worker-'));
@@ -151,8 +168,15 @@ test('actual local question reaches the host-Node worker and subsequent billed q
   const h = await harness({ dispatch: (method,payload) => engine.request(method,payload) });
   await h.ask('what is the business about');
   assert.equal(h.rejected.length, 0); assert.equal(h.renderer.state.messages.at(-1).error, undefined);
-  assert.equal(h.renderer.state.messages.at(-1).data.supported, false);
-  assert.equal(h.renderer.state.messages.at(-1).data.receipt, null);
+  const contextAnswer = h.renderer.state.messages.at(-1).data;
+  assert.equal(contextAnswer.kind, 'business-context');
+  assert.equal(contextAnswer.status, 'unknown');
+  assert.equal(contextAnswer.receipt.financialCalculation, false);
+  assert.equal(contextAnswer.unknowns.length, 5);
+  assert.ok(contextAnswer.citations.length > 0);
+  const savedContext = await engine.request('business.context.receipt', { id: contextAnswer.receipt.id });
+  assert.equal(savedContext.contextDigest, contextAnswer.contextDigest);
+  assert.deepEqual(savedContext.citations, contextAnswer.citations);
   await h.ask('What was billed?');
   assert.equal(h.rejected.length, 0); assert.equal(h.renderer.state.messages.at(-1).error, undefined);
   const answer = h.renderer.state.messages.at(-1).data;
