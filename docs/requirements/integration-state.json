@@ -110,7 +110,7 @@
       "lane": "nativePhoneUi",
       "sourceCommit": "795714e190fc021fed0c2a0382c12559320fc131",
       "reviewedJoin": "5d4a2cc73b46b30e2f889bcd268f662d5b0988b3",
-      "importedCommit": "eadfc6e",
+      "importedCommit": "eadfc6e59c92f3818a5124ffc5529b01060c0401",
       "documentationCorrection": "72515fa",
       "productWiring": "React Native iOS/Android launcher source, responsive web source preview and portable controller/adapters joined. Native dependencies/builds/device acceptance and live pairing remain unverified."
     },
@@ -128,6 +128,60 @@
       "importedCommit": "13525954517220b3f73f09a9ecec1b59514350cb",
       "checkedRegression": "cfeb1f02d18736ad70d619fab430b98caa857253",
       "productWiring": "Actual conversation composer omits absent routeId before native IPC. Strict validator unchanged. Actual renderer/preload/clone/host-worker synthetic regression asserts unsupported general question and exact retained billed receipt. Native GUI retest pending."
+    },
+    {
+      "lane": "journalFacade",
+      "sourceCommit": "b5261f2e9b430bb0df6dee79b61617766529f809",
+      "importedCommit": "7b9069bbf89912680b7c8276338dc1b1170c6f34",
+      "productWiring": "Rich journal facade, retained receipts and revision checks."
+    },
+    {
+      "lane": "journalEngine",
+      "sourceCommit": "e773515eef9aaed297f18832e4495b0eed33d8c4",
+      "importedCommit": "65e856c709f7d575b42008e791daa535972c8666",
+      "productWiring": "Actual named HTTP/worker/strict desktop journal lifecycle."
+    },
+    {
+      "lane": "accountingAdapters",
+      "sourceCommit": "2bbc59f55ec32f2ce053580dc15e975ed4c38d69",
+      "importedCommit": "43321a2af719f969d68848df7df3a7d63d293961",
+      "productWiring": "Historical39d1561 only, trusted host candidates/capture inspection, actual named refusal; no vendor qualification."
+    },
+    {
+      "lane": "businessContextCore",
+      "sourceCommit": "20d5d5c848d5e01d8d96029b22f8150600db506b",
+      "importedCommit": "f9a63c65d200a3eea16d060f060a1e540e7a25ad",
+      "productWiring": "Bounded sourced owner/draft context, selection/citations/current readiness, exact privacy/Engine integration in151039d."
+    },
+    {
+      "lane": "semanticTranslation",
+      "sourceCommit": "47925127bb078116d4b78efe1020c61c9ab53be3",
+      "importedCommit": "d32ebcb98c78678195403cd103bc6977486c5464",
+      "productWiring": "Separate raw wire/decoded/compiler custody, trusted actual translator re-execution, explicit lineage/anchor and authored synthetic receipt."
+    },
+    {
+      "lane": "journalRenderer",
+      "sourceCommit": "ee3de885397b52bfbdac543dfd1bb786dfeb68b7",
+      "importedCommit": "05b385b6f20fa69781a11ef3f26d1eb0bb883c9b",
+      "productWiring": "Real blank-declaration forms, draft review/confirmation, revision/review/due/history and explicit conflict recovery; no redesign or native visual claim."
+    },
+    {
+      "lane": "journalExecution",
+      "sourceCommit": "2acf682c3f5e515ff37d49669c15833dfca0fe59",
+      "importedCommit": "1196c1fe57ab015b3774f1176513effc52f66818",
+      "productWiring": "Existing action/attempt IDs only, authoritative current readback/approval/ledger resolver; provider business success remains distinct from outcome."
+    },
+    {
+      "lane": "journalExecutionEngine",
+      "sourceCommit": "6baf3e6635f23a13acb133fc1d240f2311a9cce2",
+      "importedCommit": "6baf3e6635f23a13acb133fc1d240f2311a9cce2",
+      "productWiring": "Default Engine resolver exercised over paired HTTP with an actual synthetic local reminder draft, retained journal review, encrypted reopen and access revocation."
+    },
+    {
+      "lane": "journalExecutionPicker",
+      "sourceCommit": "02aa4cca9eda6961a9e2d0f08a05961eed6480cf",
+      "importedCommit": "2fa8dd76e8a10c7e3d87c8618edfbb6d72259f86",
+      "productWiring": "Actual renderer/preload optional action/attempt selection, conservative candidates and backend refusal retain typed fields; no execution or outcome inference."
     }
   ],
   "uncommittedLaneWorkImported": false,
@@ -164,13 +218,13 @@
     }
   ],
   "publicationCapability": {
-    "lastVerifiedRemoteMain": "52b846de195712c318364c08abc91974287a61d4",
+    "lastVerifiedRemoteMain": "0424ce11da4e8a6ad1f911adb3c5deadabeaede6",
     "status": "private-main-checkpoint-published-and-both-push-ci-jobs-passed",
     "repositoryPrivate": true,
     "finalRemoteHeadRefreshRequired": true,
     "forcePush": false,
     "publicationMethod": "Supported bounded normal Git push with existing authentication from an account-owned verified-bundle copy; no trust changes.",
-    "ciEvidence": "https://github.com/kartavyc/chausar-platform/actions/runs/36806054895"
+    "ciEvidence": "https://github.com/kartavyc/chausar-platform/actions/runs/36806828661"
   },
   "dependencyRecovery": {
     "approvedStaging": "D:/Chausar/build-tools",
@@ -240,7 +294,7 @@
     "sourcePreviewCommand": "npm run phone:preview",
     "evidence": "docs/evidence/phone-ui-join-checks.json"
   },
-  "updatedAt": "2026-10-01T02:36:23.911Z",
+  "updatedAt": "2026-10-01T03:31:20.484Z",
   "integratedEngineMilestone": {
     "status": "verified-local-synthetic-engine",
     "sourceCommit": "503d44ed6ea3425c90f332f5327d850d922260ba",
@@ -360,7 +414,7 @@
     "endToEndQualified": false,
     "serializationSourceFixed": true,
     "nativeRetest": "pending",
-    "generalBusinessConversation": "unsupported calculator response; remains open"
+    "generalBusinessConversation": "Bounded grounded introduction source implemented; older portable artifact update/user GUI-provider retest remains pending."
   },
   "integratedDesktopJsonCheckpoint": {
     "checkedCommit": "cfeb1f02d18736ad70d619fab430b98caa857253",
@@ -379,5 +433,26 @@
     "nativeGuiAcceptance": "pending user retest",
     "generalConversation": "unsupported calculator response; not implemented by this serialization correction",
     "evidence": "docs/verification/desktop-json.json"
+  },
+  "integratedBusinessJournalAccountingCheckpoint": {
+    "checkedCommit": "2fa8dd76e8a10c7e3d87c8618edfbb6d72259f86",
+    "checkedTree": "3cabe20adbfd107fe29d1509a75bc2cae643a5f6",
+    "aggregateTests": {
+      "pass": 1141,
+      "fail": 0,
+      "skipped": 0
+    },
+    "testFiles": 82,
+    "syntaxSourceFiles": 195,
+    "strictApplicationSemanticTypeScriptPassed": true,
+    "strictPortablePhoneTypeScriptPassed": true,
+    "windowsHeadlessWorkerPassed": true,
+    "sourceFeaturesImplemented": {
+      "journal": "Actual HTTP/Engine/worker lifecycle, renderer/preload forms, exact revision conflicts, retained financial measurements and verified local action execution with businessOutcome:not-assessed.",
+      "accounting": "Trusted candidate adapters installed; native/vendor readiness remains refused. Concrete authored synthetic wire-to-compiler translation, current lineage/anchor gates, exact receipt900719925474099400 and encrypted reopen.",
+      "businessContext": "Actual paired HTTP import/context and financial receipts; actual renderer/preload/host-worker question. Exact synthetic provider selection approvals, immutable citations, visible unknowns/current-source readiness. No extra native inference."
+    },
+    "fullProductRelease": "unverified",
+    "evidence": "docs/verification/business-journal.json"
   }
 }

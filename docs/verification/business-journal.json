@@ -1,0 +1,102 @@
+{
+  "checkedCommit": "2fa8dd76e8a10c7e3d87c8618edfbb6d72259f86",
+  "startedAt": "2026-10-01T03:29:26.319Z",
+  "node": "24.13.1",
+  "platform": "win32",
+  "arch": "x64",
+  "tests": 82,
+  "results": [
+    {
+      "name": "syntax-json",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator-local log; exact SHA256 retained.",
+      "logSha256": "503059d144477c2451dbbf34e695c14ee55cabd5be0303c4c25c423782e567f7"
+    },
+    {
+      "name": "strict-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator-local log; exact SHA256 retained.",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "portable-phone-typescript",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator-local log; exact SHA256 retained.",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "aggregate-tests",
+      "exitCode": 0,
+      "passed": true,
+      "log": "docs/verification/business-journal-tests.tap",
+      "logSha256": "8c3443ee0a83a59acbf97a05cd35aa93c69a31dc4dc702d8561620c654de0540",
+      "tests": 1141,
+      "suites": 0,
+      "pass": 1141,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "durationMs": 76032.7151
+    },
+    {
+      "name": "windows-headless-worker",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Coordinator-local log; exact SHA256 retained.",
+      "logSha256": "3eac79785f8c266a02685fffd547cae352cd702d47363af6a9c603b435fe6b42"
+    }
+  ],
+  "releaseAcceptance": "unverified",
+  "dedicatedSecurityReview": "blocked-unverified",
+  "scope": "Actual combined local synthetic Engine/RPC, worker, fixture, and contract checks. No overall native, hosted, vendor, production-database, or security release pass.",
+  "finishedAt": "2026-10-01T03:31:06.572Z",
+  "passed": true,
+  "checkedTree": "3cabe20adbfd107fe29d1509a75bc2cae643a5f6",
+  "testFiles": 82,
+  "syntaxSourceFiles": 195,
+  "productEvidence": {
+    "journal": "Actual HTTP/Engine/worker lifecycle, renderer/preload forms, exact revision conflicts, retained financial measurements and verified local action execution with businessOutcome:not-assessed.",
+    "accounting": "Trusted candidate adapters installed; native/vendor readiness remains refused. Concrete authored synthetic wire-to-compiler translation, current lineage/anchor gates, exact receipt900719925474099400 and encrypted reopen.",
+    "businessContext": "Actual paired HTTP import/context and financial receipts; actual renderer/preload/host-worker question. Exact synthetic provider selection approvals, immutable citations, visible unknowns/current-source readiness. No extra native inference."
+  },
+  "nativeDesktopGuiAcceptance": "unverified",
+  "nativeChausarProviderTurn": "unverified",
+  "nativeHostConstructors": {
+    "sourceCommit": "2fa8dd76e8a10c7e3d87c8618edfbb6d72259f86",
+    "passed": true,
+    "manifestPath": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task\\native-cli-159-host-evidence\\codex-cli-host.json",
+    "manifestSha256": "ad9667d33b304904b884bcd811bd9134c0f74875192b60d643fb680fbc98021f",
+    "proof": [
+      {
+        "entrypoint": "server",
+        "exactNativeBinaryHashVerified": true,
+        "filesystemEvidenceVerified": true,
+        "profileInjected": true
+      },
+      {
+        "entrypoint": "worker",
+        "exactNativeBinaryHashVerified": true,
+        "filesystemEvidenceVerified": true,
+        "profileInjected": true
+      }
+    ],
+    "interfaceOnly": true,
+    "nativeCliExecuted": false,
+    "inferencePerformed": false,
+    "serverListening": false,
+    "workerReadyAnnounced": false,
+    "credentialsReadOrCopied": false,
+    "writesOnDDrive": false,
+    "nativeProviderTurnQualified": false,
+    "checkedAt": "2026-10-01T03:29:58.220Z"
+  },
+  "namedVendorQualification": "unqualified",
+  "fullConversationCoverage": "unverified",
+  "fullProductComplete": false,
+  "enterpriseTypeScript": "genuine missing enterprise dependencies; no pass claim",
+  "finalDocumentationSourceEquivalenceRequired": true
+}
