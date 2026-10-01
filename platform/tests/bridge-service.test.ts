@@ -6,6 +6,7 @@ import { CalculatorService } from '../runtime/calculator.ts';
 import { ImportService, type Binding, type ImportInput } from '../runtime/ingest.ts';
 import { OntologyService, starterPacks, type Definition } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
+import { MemoryService } from '../runtime/memory.ts';
 
 class Store implements StateStore {
   state = initialState('Synthetic declared bridge');
@@ -18,20 +19,21 @@ class Store implements StateStore {
 }
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const baseline = { from: '2026-08-01', to: '2026-08-31' }, comparison = { from: '2026-09-01', to: '2026-09-30' };
-type Row = { id: string; date: string; amount: string; sku: string; quantity: string; unit?: string };
+type Row = { id: string; date: string; amount: string; sku: string; quantity: string; unit?: string; customerId?: string };
 const pair: Row[] = [
   { id: 'product-a-august', date: '2026-08-03', amount: '100', sku: 'product-a', quantity: '10' },
   { id: 'product-a-september', date: '2026-09-03', amount: '240', sku: 'product-a', quantity: '20' },
 ];
 function input(rows: Row[]): ImportInput {
   return { sourceId: 'owner-authored-product-sheet', format: 'csv',
-    content: 'id,kind,date,amount,currency,branch,sku,quantity,unit,status\n' + rows.map(row => `${row.id},sale,${row.date},${row.amount},INR,main,${row.sku},${row.quantity},${row.unit ?? 'item'},posted`).join('\n'),
+    content: 'id,kind,date,amount,currency,branch,sku,quantity,unit,status,customerId\n' + rows.map(row => `${row.id},sale,${row.date},${row.amount},INR,main,${row.sku},${row.quantity},${row.unit ?? 'item'},posted,${row.customerId ?? ''}`).join('\n'),
     recipe: { version: 1, id: 'synthetic-declared-product-grain', system: 'synthetic-csv', edition: '1', scope: { company: 'Synthetic declared bridge', branches: ['main'] },
       bindings: [
         { target: 'entityId', source: 'id', type: 'string', nulls: 'reject' }, { target: 'kind', source: 'kind', type: 'string', nulls: 'reject' },
         { target: 'validFrom', source: 'date', type: 'date', dateFormat: 'ISO', nulls: 'reject' },
         { target: 'amountMinor', source: 'amount', type: 'money', moneyUnit: 'minor', currency: 'INR', nulls: 'reject' },
         { target: 'quantity', source: 'quantity', type: 'integer', nulls: 'omit' },
+        { target: 'customerId', source: 'customerId', type: 'string', nulls: 'omit' },
         ...['currency', 'branch', 'sku', 'unit', 'status'].map((field): Binding => ({ target: field, source: field, type: 'string', nulls: field === 'unit' ? 'omit' : 'reject' })),
       ], allowedKinds: ['sale'], allowedStatuses: ['posted'], onUnmapped: 'reject' },
     // Only fixture reconciliation uses a computed sum. Expected bridge answers
@@ -204,4 +206,31 @@ test('receipt row/total tampering and retained request loss fail before attribut
     const value = await fixture(); await value.store.update(mutate);
     await assert.rejects(value.service.run(owner, value.request)); assert.equal(value.store.read().answers.some(answer => answer.kind === 'descriptive-bridge-receipt-v1'), false);
   }
+});
+
+test('declared exact identity retains raw source fields when population selection resolves customer aliases', async () => {
+  const value = await fixture([{ ...pair[0], customerId: 'source-a' }, { ...pair[1], customerId: 'source-b' }]);
+  await new MemoryService(value.store).merge(owner, ['source-a', 'source-b'], 'source-b');
+  const asOf = new Date().toISOString(), before = await value.calculator.calculate(owner, { operation: 'earned', period: baseline, branch: 'main', asOf });
+  const after = await value.calculator.calculate(owner, { operation: 'earned', period: comparison, branch: 'main', asOf });
+  const profile = await value.service.publish(owner, { id: 'exact-source-identity', expectedRevision: 0, definition: {
+    ...value.profile, identityFields: ['customerId'], identityMeaning: 'In this synthetic case the exact source customer tag is the explicitly chosen product key; merged aliases are not product identity.',
+  } });
+  const saved = await value.service.run(owner, { profileId: profile.id, profileRevision: profile.revision, baselineReceiptId: before.id, comparisonReceiptId: after.id });
+  assert.deepEqual(saved.manifest.factors.map(factor => factor.identity), [['source-a'], ['source-b']]);
+  assert.equal(saved.result.contributions!.scopeRemovedMinor, '-100'); assert.equal(saved.result.contributions!.scopeAddedMinor, '240');
+  assert.equal(saved.result.contributions!.volumeMinor, '0'); assert.equal(saved.result.measuredDeltaMinor, '140');
+  assert.ok(saved.manifest.factors.every(factor => factor.factHash === hash(value.store.read().facts.find(fact => fact.id === factor.factId))));
+});
+
+test('an all-branch profile loses read/run authority when current branches narrow even if existing rows remain visible', async () => {
+  const value = await fixture(), profile = await value.service.publish(owner, { id: 'all-branches', expectedRevision: 0, definition: { ...value.profile, scope: { ...value.profile.scope, branch: null } } });
+  const asOf = new Date().toISOString(), before = await value.calculator.calculate(owner, { operation: 'earned', period: baseline, asOf });
+  const after = await value.calculator.calculate(owner, { operation: 'earned', period: comparison, asOf });
+  const request = { profileId: profile.id, profileRevision: profile.revision, baselineReceiptId: before.id, comparisonReceiptId: after.id };
+  const saved = await value.service.run(owner, request);
+  await value.store.update(state => { state.members[0].branches = ['main']; });
+  assert.throws(() => value.service.get(owner, { id: saved.id }), code('BRIDGE_SCOPE_FORBIDDEN'));
+  await assert.rejects(value.service.run(owner, request), code('BRIDGE_SCOPE_FORBIDDEN'));
+  assert.equal(value.service.profiles(owner).some(item => item.id === profile.id), false);
 });

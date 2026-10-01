@@ -93,13 +93,14 @@ export class BridgeService {
   readonly store: StateStore; readonly options: BridgeServiceOptions;
   constructor(store: StateStore, options: BridgeServiceOptions = {}) { this.store = store; this.options = options; }
   private currentProfile(at: StateStore, ctx: Context, id: string): BridgeProfileRecord {
-    const state = at.read(); authorize(at, ctx);
+    const state = at.read(), member = authorize(at, ctx);
     const candidates = state.answers.filter(item => item.kind === PROFILE_KIND && item.id === id && item.ownerId === ctx.memberId && item.epoch === ctx.epoch);
     const record = candidates.sort((a, b) => b.revision - a.revision)[0] as BridgeProfileRecord | undefined;
     check(record, 'BRIDGE_PROFILE_UNAVAILABLE', 'This private bridge profile is unavailable.');
     check(record.contentHash === contentHash(record as unknown as Record<string, unknown>), 'BRIDGE_PROFILE_CHANGED', 'The retained profile changed after publication.');
     const dictionary = new OntologyService(at).current(ctx); check(dictionary, 'DICTIONARY_REQUIRED', 'Publish money definitions before a bridge profile.');
     profileDefinition(record.definition, dictionary); moneyDefinition(dictionary, record.definition);
+    check(record.definition.scope.branch !== null || member.branches.includes('*'), 'BRIDGE_SCOPE_FORBIDDEN', 'An all-branch profile requires current all-branch authority.');
     currentAccess(at, ctx, record.definition.scope.branch ?? undefined); assertSourceAccess(state, ctx, record.sourceIds);
     check(hash(record.sourceIds) === hash(record.definition.scope.sourceIds) && record.rowIds.length === 0, 'BRIDGE_PROFILE_CHANGED', 'The retained scope roots differ from the profile.'); return structuredClone(record);
   }
@@ -169,7 +170,10 @@ export class BridgeService {
       check(hash(unique(expected.map(fact => fact.id))) === hash(unique(receipt.rowIds)), 'BRIDGE_FACTS_CHANGED', 'The original counted population no longer equals the current known-on selection.');
       let total = 0n;
       const rows = receipt.rows.map(row => {
-        const fact = expected.find(item => item.id === row.factId)!;
+        // Selection resolves population aliases. Factor identity and provenance
+        // retain the raw typed source fact; alias resolution is not a declared
+        // factor transform and must not silently change product keys.
+        const fact = state.facts.find(item => item.id === row.factId)!;
         const amount = fact.fields[definition.field];
         check(typeof amount === 'string' && /^-?\d+$/.test(amount) && amount === row.amountMinor && row.measureField === definition.field
           && fact.fields.currency === definition.currency && fact.kind === row.kind && fact.entityId === row.entityId
