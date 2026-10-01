@@ -221,13 +221,20 @@ test('read cancellation clears custody and refuses use after service close', asy
   await assert.rejects(value.service.capture(owner, { acquisitionId: read.acquisitionId, reviewId: 'none', recipe, idempotencyKey: 'closed-read' }), code('CONNECTOR_READ_CUSTODY_EXPIRED'));
 });
 
-test('actual public HTTP RPC reaches captured facts, receipts and durable jobs; quarantine blocks reuse after reopen', async t => {
+for (const expireAfterAdmission of [false, true]) {
+test(expireAfterAdmission
+  ? 'actual public HTTP job refuses an expired synthetic lease before execution or receipt insertion'
+  : 'actual public HTTP RPC reaches captured facts, receipts and durable jobs; quarantine blocks reuse after reopen', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-connector-rpc-'));
   let engine: Engine;
   const proxy: StateStore = { read: () => engine.vault!.read(), update: change => engine.vault!.update(change) };
   const setup = fixtureOptions(proxy);
   engine = new Engine({ directory, demo: true, storage: 'experimental-file', connectorRuntime: setup.options,
-    durableJobs: { workerId: 'synthetic-connectors-worker', maxActiveJobs: 4, leaseMs: 1000, networkAvailable: () => false } });
+    // This roundtrip tests admission and readiness, not wall-clock scheduler load.
+    // Use the same explicit synthetic host clock as connector/semantic evidence;
+    // the second case advances it after committed admission to test real fencing.
+    durableJobs: { workerId: 'synthetic-connectors-worker', maxActiveJobs: 4, leaseMs: 1000, networkAvailable: () => false,
+      clock: () => setup.options.clock!.nowMs() } });
   const app = createLocalServer(engine);
   t.after(async () => {
     await app.close(); await engine.shutdown(); assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
@@ -263,9 +270,29 @@ test('actual public HTTP RPC reaches captured facts, receipts and durable jobs; 
   const job = await rpc('jobs.create', { type: 'calculation-set', goal: 'Synthetic captured exact sales total',
     input: { requests: [{ id: 'sales', input: { operation: 'earned', period }, reserveMinor: '1', durationMs: 15000 }] },
     sourceIds: ['fixture-source'], budgetMinor: '10', reserveMinor: '2', limits: { modelUnits: 0, durationMs: 20000, actionExposureMinor: '0' },
-    stopRule: { maxRuns: 1, deadline: new Date(Date.now() + 60000).toISOString() }, intervalMs: 60000, graceMs: 0, catchup: 'latest', background: false,
+    stopRule: { maxRuns: 1, deadline: new Date(setup.options.clock!.nowMs() + 60000).toISOString() }, intervalMs: 60000, graceMs: 0, catchup: 'latest', background: false,
     testedRoutes: [], allowedActions: [] });
-  const delivered = await rpc('jobs.run', { id: job.id }); assert.equal(delivered.status, 'awaiting-acceptance');
+  let expiryInjected = false;
+  if (expireAfterAdmission) {
+    const jobs: { store: StateStore } = engine.services.jobs, committed = jobs.store;
+    jobs.store = { read: () => committed.read(), update: async change => {
+      const result = await committed.update(change), current = committed.read().jobs.find((item: any) => item.id === job.id);
+      if (!expiryInjected && current?.status === 'running' && current.lease && !current.execution) {
+        expiryInjected = true; setup.advance(1001);
+      }
+      return result;
+    } };
+  }
+  const delivered = await rpc('jobs.run', { id: job.id });
+  if (expireAfterAdmission) {
+    assert.equal(expiryInjected, true);
+    assert.equal(delivered.status, 'runner-blocked', JSON.stringify(delivered.ledger));
+    assert.ok(delivered.ledger.some((entry: any) => entry.event === 'blocked' && entry.reason === 'STALE_LEASE'));
+    assert.equal(delivered.execution, undefined);
+    assert.equal(engine.vault!.read().receipts.filter((item: any) => item.jobOperation?.key.startsWith(job.id + ':revision:')).length, 0);
+    return;
+  }
+  assert.equal(delivered.status, 'awaiting-acceptance', JSON.stringify(delivered.ledger));
   const jobReceipt = delivered.deliverable.result.calculations[0].value;
   assert.equal(jobReceipt.valueMinor, setup.totals.amountMinor);
   assert.ok((await rpc('receipts.get', { id: jobReceipt.receiptId })).jobOperation);
@@ -279,3 +306,4 @@ test('actual public HTTP RPC reaches captured facts, receipts and durable jobs; 
   await assert.rejects(rpc('receipts.get', { id: receipt.id }), code('SOURCE_NOT_READY'));
   await assert.rejects(rpc('jobs.accept', { id: job.id }), code('JOB_EVIDENCE_REVOKED'));
 });
+}
