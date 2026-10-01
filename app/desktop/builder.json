@@ -1,8 +1,8 @@
 {
   "appId": "in.chausar.desktop", "productName": "Chausar Preview",
   "directories": { "output": "release" }, "asar": true, "forceCodeSigning": true,
-  "files": ["app/**/*", "platform/runtime/**/*", "platform/helpers/**/*", "scripts/postgres-runtime.mjs", "fixtures/**/*", "package.json", "node_modules/pg/**/*", "node_modules/pg-*/**/*", "node_modules/postgres-*/**/*", "node_modules/xtend/**/*", "node_modules/@duckdb/**/*"],
-  "asarUnpack": ["node_modules/**/*", "platform/runtime/**/*", "platform/helpers/**/*", "scripts/postgres-runtime.mjs"],
+  "files": ["app/**/*", "platform/runtime/**/*", "platform/semantic-qualification/src/**/*", "platform/semantic-qualification/package.json", "platform/helpers/**/*", "scripts/postgres-runtime.mjs", "fixtures/**/*", "package.json", "node_modules/**/*"],
+  "asarUnpack": ["package.json", "node_modules/**/*", "platform/runtime/**/*", "platform/semantic-qualification/src/**/*", "platform/semantic-qualification/package.json", "platform/helpers/**/*", "scripts/postgres-runtime.mjs"],
   "extraResources": [{ "from": "runtime-binaries", "to": "runtime-binaries", "filter": ["**/*"] }],
   "win": { "target": ["nsis"], "signAndEditExecutable": true },
   "mac": { "target": ["dmg"], "hardenedRuntime": true },

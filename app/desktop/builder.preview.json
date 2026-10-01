@@ -17,6 +17,8 @@
     "app/desktop/**/*",
     "app/renderer/**/*",
     "platform/runtime/**/*",
+    "platform/semantic-qualification/src/**/*",
+    "platform/semantic-qualification/package.json",
     "platform/helpers/**/*",
     "scripts/postgres-runtime.mjs",
     "fixtures/**/*",
@@ -24,8 +26,11 @@
     "node_modules/**/*"
   ],
   "asarUnpack": [
+    "package.json",
     "node_modules/**/*",
     "platform/runtime/**/*",
+    "platform/semantic-qualification/src/**/*",
+    "platform/semantic-qualification/package.json",
     "platform/helpers/**/*",
     "scripts/postgres-runtime.mjs"
   ],
