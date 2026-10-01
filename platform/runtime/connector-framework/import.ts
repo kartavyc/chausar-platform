@@ -5,7 +5,7 @@ import { ImportService, parseIndianMoney, type ImportPreview, type MappingRecipe
 import { sumMoney } from '../calculator.ts';
 import { insertFacts, markStale, validatePeriod, type Period } from '../memory.ts';
 import { assertSourceAccess, isNoResend, trustFingerprint } from '../trust.ts';
-import { ConnectorCapabilityRegistry, connectorOperationKey, type ConnectorOperationScope } from './registry.ts';
+import { ConnectorCapabilityRegistry, connectorOperationKey, type ConnectorOperationScope, type QualifiedLevel } from './registry.ts';
 
 /** Decoders are registered engine code. Source data cannot name a module, expression or query. */
 export type DecodedSourceRow = Record<string, string | boolean | null>;
@@ -56,7 +56,7 @@ export type ConnectorCapture = {
   type: 'connector-capture-v1'; id: string; sourceId: string; operationKey: string;
   scope: ConnectorOperationScope; domain: ImportDomain; requestHash: string; recipe: MappingRecipe;
   recipeHash: string; reviewId: string; decoderId: string; decoderVersion: string; schemaSha256: string;
-  identityNamespace: string; decoderDefinitionHash: string; qualificationDigest: string;
+  identityNamespace: string; decoderDefinitionHash: string; qualificationDigest: string; minimumQualification?: QualifiedLevel;
   snapshot: CaptureSnapshot; authority: string; ontologyHash: string; generation: number; owner: string;
   status: 'capturing' | 'quarantined' | 'published'; createdAt: string;
   pages: CapturedPage[]; gaps: CaptureGap[]; totalBytes: number; terminal: boolean;
@@ -134,9 +134,14 @@ function decodePage(decoder: QualifiedDecoder, content: string) {
 
 /** Uses the existing transactional StateStore; DB normalization is an integration-owned change. */
 export class CursorImportService {
-  #store: StateStore; #registry: ConnectorCapabilityRegistry; #decoder: QualifiedDecoder; #now: () => string;
-  constructor(store: StateStore, registry: ConnectorCapabilityRegistry, decoder: QualifiedDecoder, dependencies: { now?: () => string } = {}) {
+  #store: StateStore; #registry: ConnectorCapabilityRegistry; #decoder: QualifiedDecoder; #now: () => string; #minimum: QualifiedLevel;
+  #beforeInsert?: (context: Context, state: State, capture: ConnectorCapture, totals: IndependentSourceTotals) => void;
+  constructor(store: StateStore, registry: ConnectorCapabilityRegistry, decoder: QualifiedDecoder, dependencies: { now?: () => string; minimumQualification?: QualifiedLevel;
+    beforeInsert?: (context: Context, state: State, capture: ConnectorCapture, totals: IndependentSourceTotals) => void } = {}) {
     decoderCheck(decoder); this.#store = store; this.#registry = registry; this.#decoder = { ...decoder, identityFields: [...decoder.identityFields], resourceIdentityFields: [...decoder.resourceIdentityFields], revisionOrder: structuredClone(decoder.revisionOrder), businessFields: [...decoder.businessFields], deliveryFields: [...decoder.deliveryFields] }; this.#now = dependencies.now ?? (() => new Date().toISOString());
+    this.#minimum = dependencies.minimumQualification ?? 'synthetic-tested';
+    this.#beforeInsert = dependencies.beforeInsert;
+    check(['synthetic-tested', 'sandbox-verified', 'live-verified'].includes(this.#minimum), 'INVALID_QUALIFICATION_LEVEL', 'Use the actual host execution environment qualification.');
   }
   decoderDescriptor() {
     const { decode: _decode, ...descriptor } = this.#decoder;
@@ -146,13 +151,13 @@ export class CursorImportService {
     const prior = captures(state).filter(c => c.sourceId === sourceId);
     check(prior.every(c => c.domain.company === domain.company && c.domain.dataset === domain.dataset && c.identityNamespace === this.#decoder.identityNamespace), 'SOURCE_IDENTITY_SCOPE_CONFLICT', 'Use one stable source identity per installation, company, dataset and revision namespace.');
   }
-  #access(state: State, ctx: Context, sourceId: string, branches: string[], authority?: string) {
+  #access(state: State, ctx: Context, sourceId: string, branches: string[], authority?: string, permission: 'read' | 'prepare' = 'prepare') {
     const view: StateStore = { read: () => state, update: this.#store.update.bind(this.#store) };
-    const member = authorize(view, ctx, 'prepare'); assertSourceAccess(state, ctx, [sourceId]);
+    const member = authorize(view, ctx, permission); assertSourceAccess(state, ctx, [sourceId]);
     check(branches.every(b => member.branches.includes('*') || member.branches.includes(b)), 'FORBIDDEN_BRANCH', 'The capture includes a branch outside your current access.');
     if (authority) check(trustFingerprint(state, ctx, [sourceId]) === authority, 'AUTHORITY_CHANGED', 'Capture permissions changed. Start a newly authorized capture.');
   }
-  #qualified(scope: ConnectorOperationScope) { check(scope.kind === 'import', 'IMPORT_CAPABILITY_REQUIRED', 'Publication requires a separately qualified import operation.'); if (this.#decoder.revisionOrder.kind !== 'unqualified') this.#registry.assertCapability(scope, 'corrections', this.#now()); return this.#registry.assertCanUse(scope, this.#now()); }
+  #qualified(scope: ConnectorOperationScope) { check(scope.kind === 'import', 'IMPORT_CAPABILITY_REQUIRED', 'Publication requires a separately qualified import operation.'); if (this.#decoder.revisionOrder.kind !== 'unqualified') this.#registry.assertCapability(scope, 'corrections', this.#now(), this.#minimum); return this.#registry.assertCanUse(scope, this.#now(), this.#minimum); }
   async reviewMapping(ctx: Context, input: { sourceId: string; scope: ConnectorOperationScope; domain: ImportDomain; recipe: MappingRecipe; evidence: MappingReview['evidence'] }): Promise<MappingReview> {
     ctx = structuredClone(ctx); input = structuredClone(input);
     check(ctx.sourceTainted !== true && ctx.channel !== 'phone', 'HUMAN_MAPPING_REVIEW_REQUIRED', 'Approve source meanings through the trusted owner review flow.');
@@ -183,13 +188,13 @@ export class CursorImportService {
       check(approver?.active && approver.epoch === review.reviewer.epoch && ['owner', 'cofounder'].includes(approver.role), 'MAPPING_REVIEW_REVOKED', 'The mapping reviewer no longer has approval authority.');
       const id = `capture_${digest({ sourceId: request.sourceId, operation: connectorOperationKey(request.scope), key: request.idempotencyKey })}`, requestHash = digest(request), previous = captures(state).find(c => c.id === id);
       if (previous) { check(previous.requestHash === requestHash, 'IDEMPOTENCY_CONFLICT', 'This key belongs to different capture inputs.'); this.#access(state, ctx, previous.sourceId, previous.domain.branches, previous.authority); return { captureId: id, generation: previous.generation }; }
-      const capture: ConnectorCapture = { identityNamespace: this.#decoder.identityNamespace, decoderDefinitionHash: decoderDefinitionHash(this.#decoder), qualificationDigest: this.#qualified(request.scope).digest, type: 'connector-capture-v1', id, sourceId: request.sourceId, scope: structuredClone(request.scope), operationKey: connectorOperationKey(request.scope), domain: structuredClone(request.domain), requestHash, recipe: structuredClone(request.recipe), recipeHash: digest(request.recipe), reviewId: review.id, decoderId: review.decoderId, decoderVersion: review.decoderVersion, schemaSha256: review.schemaSha256, snapshot: structuredClone(request.snapshot), authority: trustFingerprint(state, ctx, [request.sourceId]), ontologyHash: digest(state.ontology), generation: 1, owner: ctx.memberId, status: 'capturing', createdAt: this.#now(), pages: [], gaps: [], totalBytes: 0, terminal: false, frontiers: { captured: null, parsed: null, validated: null, published: null }, progress: { capturedPages: 0, parsedPages: 0, validatedPages: 0, publishedPages: 0 }, rowIds: [], totalsMinor: null, coverage: { sourceRows: 0, importedRows: 0, rejectedRows: 0, expectedRows: null, reconciled: false, snapshotConsistent: false, gaps: ['ACQUISITION_NOT_COMPLETE'] } };
+      const capture: ConnectorCapture = { identityNamespace: this.#decoder.identityNamespace, decoderDefinitionHash: decoderDefinitionHash(this.#decoder), qualificationDigest: this.#qualified(request.scope).digest, minimumQualification: this.#minimum, type: 'connector-capture-v1', id, sourceId: request.sourceId, scope: structuredClone(request.scope), operationKey: connectorOperationKey(request.scope), domain: structuredClone(request.domain), requestHash, recipe: structuredClone(request.recipe), recipeHash: digest(request.recipe), reviewId: review.id, decoderId: review.decoderId, decoderVersion: review.decoderVersion, schemaSha256: review.schemaSha256, snapshot: structuredClone(request.snapshot), authority: trustFingerprint(state, ctx, [request.sourceId]), ontologyHash: digest(state.ontology), generation: 1, owner: ctx.memberId, status: 'capturing', createdAt: this.#now(), pages: [], gaps: [], totalBytes: 0, terminal: false, frontiers: { captured: null, parsed: null, validated: null, published: null }, progress: { capturedPages: 0, parsedPages: 0, validatedPages: 0, publishedPages: 0 }, rowIds: [], totalsMinor: null, coverage: { sourceRows: 0, importedRows: 0, rejectedRows: 0, expectedRows: null, reconciled: false, snapshotConsistent: false, gaps: ['ACQUISITION_NOT_COMPLETE'] } };
       state.imports.push(capture); audit(state, 'connector.capture-opened', { captureId: id, sourceId: request.sourceId }); return { captureId: id, generation: 1 };
     });
   }
   #current(state: State, ctx: Context, lease: CaptureLease) {
     const c = find(state, lease.captureId); this.#access(state, ctx, c.sourceId, c.domain.branches, c.authority);
-    check(c.qualificationDigest === this.#qualified(c.scope).digest, 'CAPTURE_QUALIFICATION_CHANGED', 'Operation qualification changed; review a new capture.');
+    check((c.minimumQualification ?? 'synthetic-tested') === this.#minimum && c.qualificationDigest === this.#qualified(c.scope).digest, 'CAPTURE_QUALIFICATION_CHANGED', 'Operation qualification changed; review a new capture.');
     check(c.decoderDefinitionHash === decoderDefinitionHash(this.#decoder), 'CAPTURE_DECODER_CHANGED', 'Resume with the exact pinned decoder definition.');
     check(c.generation === lease.generation, 'CAPTURE_FENCE_EXPIRED', 'This acquisition owner has been superseded.');
     check(c.ontologyHash === digest(state.ontology), 'ONTOLOGY_CHANGED', 'Business meanings changed during this capture. Review a new capture.');
@@ -286,6 +291,8 @@ export class CursorImportService {
       const reconciliation = reconcileSourceTotals(observed, totals, c.domain, c.snapshot); c.reconciliation = reconciliation;
       if (mappingErrors.length || reconciliation.status !== 'matched') { for (const code of new Set([...mappingErrors.map(e => e.code), ...reconciliation.reasons])) this.#gap(state, c, ctx, code, 0); return structuredClone(c); }
       this.#access(state, ctx, c.sourceId, c.domain.branches, c.authority);
+      const admission = this.#beforeInsert?.(ctx, state, c, totals!);
+      check(admission === undefined, 'ASYNC_IMPORT_GATE_REFUSED', 'Fact admission must finish synchronously inside the publication transaction.');
       const at = this.#now(); const records = insertFacts(state, preview.facts, at);
       // Include reused immutable facts in lineage; replay creates no second contribution.
       c.rowIds = preview.facts.map(f => state.facts.filter(old => old.sourceId === f.sourceId && old.entityId === f.entityId && old.kind === f.kind).at(-1)!.id);
@@ -296,10 +303,10 @@ export class CursorImportService {
       audit(state, 'connector.capture-published', { captureId: c.id, addedRows: records.length, rowCount: c.rowIds.length }); return structuredClone(c);
     });
   }
-  get(ctx: Context, captureId: string): ConnectorCapture { const state = this.#store.read(), c = find(state, captureId); this.#access(state, ctx, c.sourceId, c.domain.branches); return structuredClone(c); }
+  get(ctx: Context, captureId: string): ConnectorCapture { const state = this.#store.read(), c = find(state, captureId); this.#access(state, ctx, c.sourceId, c.domain.branches, undefined, 'read'); return structuredClone(c); }
   /** The parent must call this before certifying consumer readiness; raw facts alone do not establish coverage. */
   assertReady(ctx: Context, sourceId: string, domain: ImportDomain, requireSnapshot = true): void {
-    const state = this.#store.read(); this.#access(state, ctx, sourceId, domain.branches);
+    const state = this.#store.read(); this.#access(state, ctx, sourceId, domain.branches, undefined, 'read');
     const overlapping = captures(state).filter(c => c.sourceId === sourceId && c.domain.company === domain.company && c.domain.dataset === domain.dataset && c.domain.branches.some(b => domain.branches.includes(b)) && (!domain.period || !c.domain.period || c.domain.period.from <= domain.period.to && domain.period.from <= c.domain.period.to));
     check(overlapping.every(c => c.status !== 'quarantined'), 'SOURCE_NOT_READY', 'An overlapping source scope has unresolved acquisition conflicts.');
     const relevant = overlapping.filter(c => digest(c.domain) === digest(domain));

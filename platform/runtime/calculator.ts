@@ -7,7 +7,11 @@ export type CalculationRequest = FactFilter & { operation: string; comparePeriod
 export type Figure = { key: string; label: string; minor: string; display: string; unit: 'money' | 'basis-points'; currency?: string };
 export type ReceiptRow = { factId: string; entityId: string; sourceId: string; sourceRow: number; kind: string; amountMinor: string; validFrom: string; dueDate?: string; invoiceId?: string; customerId?: string; orderId?: string; status?: string; branch?: string; normalization?: { sourceCurrency: string; targetCurrency: string; rate: unknown } };
 export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown };
-export type CalculatorOptions = { verifier?: (receipt: CalculationReceipt) => Promise<unknown> };
+export type CalculatorOptions = {
+  verifier?: (receipt: CalculationReceipt) => Promise<unknown>;
+  consumerGuard?: (context: Context, request: CalculationRequest) => void;
+  receiptGuard?: (context: Context, receipt: CalculationReceipt) => void;
+};
 export function formatMoney(n: string | bigint, currency = 'INR') { return formatMinor(n, currency); }
 export function sumMoney(values: string[]) { return String(values.reduce((sum, value) => { check(/^-?\d+$/.test(value), 'INVALID_MINOR_UNITS', 'Calculator amounts must be whole minor-unit strings.'); return sum + BigInt(value); }, 0n)); }
 const moneyFigure = (key: string, label: string, value: bigint, currency: string): Figure => ({ key, label, minor: String(value), display: formatMoney(value, currency), unit: 'money', currency });
@@ -28,7 +32,9 @@ function matchQuestion(question: string, available: string[]): string | null {
 export class CalculatorService {
   store: StateStore;
   verifier?: CalculatorOptions['verifier'];
-  constructor(store: StateStore, options: CalculatorOptions = {}) { this.store = store; this.verifier = options.verifier; }
+  consumerGuard?: CalculatorOptions['consumerGuard'];
+  receiptGuard?: CalculatorOptions['receiptGuard'];
+  constructor(store: StateStore, options: CalculatorOptions = {}) { this.store = store; this.verifier = options.verifier; this.consumerGuard = options.consumerGuard; this.receiptGuard = options.receiptGuard; }
   catalog(ctx: Context) { const dictionary = new OntologyService(this.store).current(ctx); check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business definitions before asking for numbers.'); return dictionary.operations; }
   guard(text: string, receipt: CalculationReceipt) { return numberGuard(text, receipt); }
   async ask(ctx: Context, question: string, filters: Omit<CalculationRequest, 'operation'> = {}) {
@@ -43,6 +49,7 @@ export class CalculatorService {
     authorize(this.store, ctx); currentAccess(this.store, ctx, request.branch);
     check(request && Object.keys(request).every(k => ['operation', 'period', 'asOf', 'branch', 'customerId', 'orderId', 'comparePeriod', 'onDate', 'assumptions', 'kinds'].includes(k)), 'INVALID_CALCULATION', 'Only declared calculation parameters are accepted.');
     validatePeriod(request.period); validatePeriod(request.comparePeriod);
+    this.consumerGuard?.(ctx, structuredClone(request));
     const dictionary = new OntologyService(this.store).current(ctx); check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business definitions before calculating.');
     const sourceSnapshot = () => { const s = this.store.read(); return hash({ facts: s.facts, sourceRules: s.sourceRules, merges: s.merges, tombstones: s.tombstones }); }; const factsSnapshotHash = sourceSnapshot();
     const operation = dictionary.operations.find(o => o.id === request.operation); check(operation, 'UNKNOWN_CALCULATION', 'No published calculation fits this request.');
@@ -144,13 +151,14 @@ export class CalculatorService {
     receipt.allowedNumbers = [...new Set([...figures.flatMap(f => [f.minor, ...numericTokens(f.display)]), String(rows.length), String(receipt.coverage.excludedRows), ...numericTokens(JSON.stringify({ period: receipt.period, comparePeriod: receipt.comparePeriod, asOf: receipt.asOf, onDate: assumptions.onDate }))])];
     numberGuard(receipt.explanation, receipt);
     if (this.verifier) receipt.databaseProof = await this.verifier(structuredClone(receipt));
-    await this.store.update(s => { authorize(this.store, ctx); rows.forEach(f => check(canSeeFact(this.store, ctx, f), 'ACCESS_REVOKED', 'Read permission changed while this number was being calculated.')); check(sourceSnapshot() === factsSnapshotHash, 'FACTS_CHANGED', 'The source facts or identity rules changed during calculation. Recalculate.'); check(new OntologyService(this.store).current(ctx)?.hash === dictionary.hash, 'DICTIONARY_CHANGED', 'The dictionary changed; calculate again.'); s.receipts.push(structuredClone(receipt)); s.answers.push({ id: newId('answer'), receiptId: receipt.id, request: structuredClone(request), at: receipt.createdAt, text: receipt.explanation, stale: false }); audit(s, 'calculation.completed', { receiptId: receipt.id, operation: request.operation, rowCount: rows.length }); });
+    this.consumerGuard?.(ctx, structuredClone(request)); this.receiptGuard?.(ctx, structuredClone(receipt));
+    await this.store.update(s => { authorize(this.store, ctx); this.consumerGuard?.(ctx, structuredClone(request)); this.receiptGuard?.(ctx, structuredClone(receipt)); rows.forEach(f => check(canSeeFact(this.store, ctx, f), 'ACCESS_REVOKED', 'Read permission changed while this number was being calculated.')); check(sourceSnapshot() === factsSnapshotHash, 'FACTS_CHANGED', 'The source facts or identity rules changed during calculation. Recalculate.'); check(new OntologyService(this.store).current(ctx)?.hash === dictionary.hash, 'DICTIONARY_CHANGED', 'The dictionary changed; calculate again.'); s.receipts.push(structuredClone(receipt)); s.answers.push({ id: newId('answer'), receiptId: receipt.id, request: structuredClone(request), at: receipt.createdAt, text: receipt.explanation, stale: false }); audit(s, 'calculation.completed', { receiptId: receipt.id, operation: request.operation, rowCount: rows.length }); });
     return receipt;
   }
   receipt(ctx: Context, id: string): CalculationReceipt {
     authorize(this.store, ctx); const receipt = this.store.read().receipts.find(r => r.id === id); check(receipt, 'RECEIPT_NOT_FOUND', 'This receipt is unavailable.');
     check(receipt.memberId === ctx.memberId && receipt.epoch === ctx.epoch, 'RECEIPT_FORBIDDEN', 'This private saved receipt belongs to a different account or permission epoch. Recalculate under your current access.');
     const facts = this.store.read().facts; for (const rowId of new Set([...receipt.rowIds, ...(receipt.exclusions ?? []).map((e: { rowId: string }) => e.rowId)])) { const fact = facts.find(f => f.id === rowId); check(fact && !fact.deletedAt && canSeeFact(this.store, ctx, fact), 'RECEIPT_FORBIDDEN', 'This saved receipt contains rows outside your current access.'); }
-    currentAccess(this.store, ctx, receipt.branch ?? undefined); return structuredClone(receipt);
+    currentAccess(this.store, ctx, receipt.branch ?? undefined); this.receiptGuard?.(ctx, structuredClone(receipt)); return structuredClone(receipt);
   }
 }

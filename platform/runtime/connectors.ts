@@ -48,6 +48,49 @@ export const CONNECTOR_REGISTRY = Object.freeze(systems.map(([id, name, family])
   }, liveVerified: false, qualification: native || csv ? 'fixture-tested' : 'planned', genericCsvImportAvailable: true };
 }));
 
+/** Exact plan §6 groups, plus all six founder-approved additions; legacy enterprise catalogue stays available. */
+const approvedGroups: Array<[string, string, string, string[]]> = [
+  ['tally', 'Tally', 'books-billing', ['TallyPrime', 'Tally.ERP 9']],
+  ['zoho-books', 'Zoho Books', 'books-billing', ['Zoho Books']],
+  ['vyapar', 'Vyapar', 'books-billing', ['Vyapar']], ['busy', 'BUSY', 'books-billing', ['BUSY']],
+  ['marg', 'Marg', 'books-billing', ['Marg']], ['quickbooks', 'QuickBooks', 'books-billing', ['QuickBooks']], ['xero', 'Xero', 'books-billing', ['Xero']],
+  ['razorpay', 'Razorpay', 'money', ['Razorpay']], ['cashfree', 'Cashfree', 'money', ['Cashfree']],
+  ['payu', 'PayU', 'money', ['PayU']], ['stripe', 'Stripe', 'money', ['Stripe']],
+  ['bank-statements', 'Bank statements (PDF, CSV, Excel)', 'money', ['Any bank statement']],
+  ['paytm-business', 'Paytm for Business', 'money', ['Paytm for Business']], ['phonepe-business', 'PhonePe Business', 'money', ['PhonePe Business']],
+  ['gst-downloads', 'GST portal downloads', 'compliance', ['GST portal']],
+  ['gst-provider', 'E-invoice and e-way bill through a GST service provider', 'compliance', ['E-invoice', 'E-way bill']],
+  ['shopify', 'Shopify', 'selling', ['Shopify']], ['woocommerce', 'WooCommerce', 'selling', ['WooCommerce']],
+  ['amazon-seller', 'Amazon Seller Central', 'selling', ['Amazon Seller Central']], ['flipkart-seller', 'Flipkart Seller Hub', 'selling', ['Flipkart Seller Hub']],
+  ['meesho', 'Meesho', 'selling', ['Meesho']], ['instamojo', 'Instamojo', 'selling', ['Instamojo']],
+  ['restaurant-partners', 'Swiggy and Zomato partner', 'selling', ['Swiggy', 'Zomato']],
+  ['quick-commerce', 'Quick-commerce seller panels', 'selling', ['Blinkit', 'Zepto', 'Instamart']],
+  ['zoho-crm', 'Zoho CRM', 'customers-marketing', ['Zoho CRM']], ['hubspot', 'HubSpot', 'customers-marketing', ['HubSpot']],
+  ['meta-ads', 'Meta Ads', 'customers-marketing', ['Meta Ads']], ['google-ads', 'Google Ads', 'customers-marketing', ['Google Ads']],
+  ['google-analytics', 'Google Analytics', 'customers-marketing', ['Google Analytics']], ['mailchimp', 'Mailchimp', 'customers-marketing', ['Mailchimp']],
+  ['youtube-analytics', 'YouTube Analytics', 'customers-marketing', ['YouTube Analytics']], ['instagram-insights', 'Instagram Insights', 'customers-marketing', ['Instagram Insights']],
+  ['google-workspace', 'Google Workspace', 'work-files', ['Sheets', 'Drive', 'Calendar', 'Gmail']],
+  ['microsoft-365', 'Microsoft 365', 'work-files', ['Excel', 'OneDrive', 'Outlook']],
+  ['notion', 'Notion', 'work-files', ['Notion']], ['slack', 'Slack', 'work-files', ['Slack']], ['whatsapp-business', 'WhatsApp Business', 'work-files', ['WhatsApp Business']],
+  ['keka', 'Keka', 'people-payroll', ['Keka']], ['zoho-payroll', 'Zoho Payroll', 'people-payroll', ['Zoho Payroll']],
+  ['greythr', 'GreytHR', 'people-payroll', ['GreytHR']], ['razorpayx-payroll', 'RazorpayX Payroll', 'people-payroll', ['RazorpayX Payroll']],
+  ['shiprocket', 'Shiprocket', 'shipping-stock', ['Shiprocket']], ['delhivery', 'Delhivery', 'shipping-stock', ['Delhivery']],
+  ['zoho-inventory', 'Zoho Inventory', 'shipping-stock', ['Zoho Inventory']], ['unicommerce', 'Unicommerce', 'shipping-stock', ['Unicommerce']],
+  ['freshdesk', 'Freshdesk', 'support-subscriptions-product-build', ['Freshdesk']],
+  ['whatsapp-api', 'WATI or Interakt (WhatsApp API)', 'support-subscriptions-product-build', ['WATI', 'Interakt']],
+  ['chargebee', 'Chargebee', 'support-subscriptions-product-build', ['Chargebee']], ['posthog', 'PostHog', 'support-subscriptions-product-build', ['PostHog']],
+  ['github', 'GitHub', 'support-subscriptions-product-build', ['GitHub']],
+  ['khatabook', 'Khatabook', 'founder-additions', ['Khatabook']], ['okcredit', 'OkCredit', 'founder-additions', ['OkCredit']],
+  ['mybillbook', 'myBillBook', 'founder-additions', ['myBillBook']], ['bharatpe', 'BharatPe', 'founder-additions', ['BharatPe']],
+  ['petpooja', 'Petpooja', 'founder-additions', ['Petpooja']], ['form26as-ais', 'Form26AS / AIS', 'founder-additions', ['Form26AS', 'AIS']],
+];
+export const APPROVED_CONNECTOR_GROUPS = Object.freeze(approvedGroups.map(([id, name, family, products], index) => Object.freeze({
+  id, name, family, products: Object.freeze(products), scope: index < 50 ? 'original-plan-group' : 'founder-approved-addition',
+  operations: Object.freeze({ import: 'planned', read: 'planned', write: 'planned' }),
+  qualification: 'unqualified', liveVerified: false, writebackQualified: false,
+  limitation: 'A group is approved scope. Exact operation/version/installation evidence and current semantic readiness are required for support.',
+})));
+
 const ZOHO_ORIGINS = ['com','eu','in','com.au','jp','ca','com.cn','sa'].map(region => `https://www.zohoapis.${region}`);
 export type SourceTotals = { rowCount: number; amountMinor: string; reportId: string; provenance: 'upstream-report'; company: string };
 export type ConnectorFetch = { connector: string; sourceId: string; organizationId?: string; company?: string; endpoint?: string; sourceOwnTotals?: SourceTotals };
@@ -119,6 +162,7 @@ export class ConnectorService {
     if (fingerprint) check(trustFingerprint(this.#store.read(), context, [sourceId]) === fingerprint, 'AUTHORITY_CHANGED', 'Your source permission or trust policy changed during the read.');
   }
   catalogue(context: Context) { authorize(this.#store, context); return structuredClone(CONNECTOR_REGISTRY); }
+  groups(context: Context) { authorize(this.#store, context); return structuredClone(APPROVED_CONNECTOR_GROUPS); }
   async fetch(context: Context, input: ConnectorFetch) {
     check(typeof input.sourceId === 'string' && /^[A-Za-z0-9_.:-]{1,100}$/.test(input.sourceId), 'SOURCE_REQUIRED', 'Choose a named source.');
     this.#access(context, input.sourceId);

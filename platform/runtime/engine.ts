@@ -7,7 +7,7 @@ import { OntologyService } from './ontology.ts';
 import { ImportService, seedDemo } from './ingest.ts';
 import { MemoryService } from './memory.ts';
 import { canSeeFact } from './memory.ts';
-import { CalculatorService } from './calculator.ts';
+import { CalculatorService, type CalculatorOptions } from './calculator.ts';
 import { ReportService } from './reports.ts';
 import { TrustService, sourceAllowed } from './trust.ts';
 import { ModelGateway } from './gateway.ts';
@@ -22,13 +22,14 @@ import { PluginService } from './plugins.ts';
 import { LearningService } from './learning.ts';
 import { MCPService } from './mcp.ts';
 import { ConnectorService, type CredentialBroker } from './connectors.ts';
+import { EngineConnectorService, type EngineConnectorOptions } from './engine-connectors.ts';
 import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
 import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 
-export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions };
+export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions };
 
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
@@ -83,7 +84,13 @@ export class Engine {
     // Preview arithmetic is exact integer math. Production additionally refuses
     // numbers until the registered isolated SQL query verifies the same projection.
     const database = this.options.demo ? null : new DatabaseCalculator(this.options.analytics);
-    const calculationOptions = database ? { verifier: (receipt: any) => database.verify(receipt) } : {};
+    const connectorRuntime = new EngineConnectorService(store, this.options.connectorRuntime);
+    this.services.connectorRuntime = connectorRuntime;
+    const calculationOptions: CalculatorOptions = {
+      ...(database ? { verifier: (receipt: any) => database.verify(receipt) } : {}),
+      consumerGuard: (ctx, request) => connectorRuntime.assertCalculationReady(ctx, request),
+      receiptGuard: (ctx, receipt) => connectorRuntime.assertReceiptReady(ctx, receipt),
+    };
     this.services.calculator = new CalculatorService(store, calculationOptions);
     this.services.reports = new ReportService(store, calculationOptions);
     this.services.connectors = new ConnectorService(store, { credentialBroker: this.options.connectorCredentials });
@@ -133,6 +140,7 @@ export class Engine {
     await this.closeVault();
   }
   private async closeVault() {
+    this.services.connectorRuntime?.close();
     this.services.gateway?.clearCredentials(); this.services.speech?.clearCredentials();
     for (const staged of this.#stagedVaults) await staged.close(); this.#stagedVaults.clear();
     if (this.vault) { await this.vault.close(); this.vault = null; this.services = {}; }
@@ -140,6 +148,7 @@ export class Engine {
   async shutdown(timeoutMs = 70000) {
     check(Number.isSafeInteger(timeoutMs) && timeoutMs >= 100 && timeoutMs <= 75000, 'INVALID_SHUTDOWN_LIMIT', 'Use a bounded engine shutdown deadline.');
     this.#closing = true;
+    this.services.connectorRuntime?.close();
     this.services.jobRunner?.interruptActive();
     if (this.#activeRequests || this.#transition) await new Promise<void>((accept, reject) => {
       const finished = () => { clearTimeout(timer); this.#idleWaiters.delete(finished); accept(); };
@@ -229,6 +238,15 @@ export class Engine {
       case 'sources.preview': return s.imports.preview(ctx, payload);
       case 'sources.import': return s.imports.commit(ctx, payload);
       case 'sources.catalogue': return s.connectors.catalogue(ctx);
+      case 'sources.groups': return s.connectors.groups(ctx);
+      case 'connectors.profiles':
+      case 'connectors.read':
+      case 'connectors.reviewMapping':
+      case 'connectors.capture':
+      case 'connectors.publish':
+      case 'connectors.ready':
+      case 'connectors.captureStatus':
+      case 'connectors.releaseRead': return s.connectorRuntime.request(ctx, method, payload);
       case 'sources.fetch': return s.connectors.fetch(ctx, payload);
       case 'sources.recipe': return s.connectors.proposeRecipe(ctx, payload);
       case 'sources.accept': return s.connectors.acceptRecipe(ctx, payload);
@@ -361,7 +379,9 @@ export class Engine {
   }
   private visibleImports() {
     const store = this.store(); const state = store.read(); const ctx = this.context;
-    return state.imports.filter(item => sourceAllowed(state, ctx, item.sourceId) && (item.rowIds ?? []).every((id: string) => { const fact = state.facts.find(f => f.id === id); return !!fact && canSeeFact(store, ctx, fact); }));
+    const legacy = state.imports.filter(item => !item.type && Array.isArray(item.rowIds) && sourceAllowed(state, ctx, item.sourceId)
+      && item.rowIds.every((id: string) => { const fact = state.facts.find(f => f.id === id); return !!fact && canSeeFact(store, ctx, fact); }));
+    return [...legacy, ...this.services.connectorRuntime.sourceSummaries(ctx)];
   }
   private visibleActivity(ctx: Context) {
     const store = this.store(); const member = authorize(store, ctx); const state = store.read();
