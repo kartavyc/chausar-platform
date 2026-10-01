@@ -23,7 +23,9 @@
     "desktop:check": "node scripts/desktop-launch.mjs --demo --check",
     "desktop:smoke": "node scripts/desktop-smoke.mjs",
     "package:preview": "node scripts/desktop-package.mjs --mode preview",
-    "package:check": "node scripts/desktop-package.mjs --mode preview --check"
+    "package:check": "node scripts/desktop-package.mjs --mode preview --check",
+    "phone:preview": "node scripts/phone-web-preview.mjs",
+    "typecheck:phone": "tsc --noEmit --project app/companion/tsconfig.portable.json"
   },
   "dependencies": {
     "pg": "8.23.0",
