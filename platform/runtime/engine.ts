@@ -8,7 +8,7 @@ import { ImportService, seedDemo } from './ingest.ts';
 import { MemoryService } from './memory.ts';
 import { canSeeFact } from './memory.ts';
 import { CalculatorService, type CalculatorOptions } from './calculator.ts';
-import { ReportService } from './reports.ts';
+import { ReportService, type ReportOptions } from './reports.ts';
 import { TrustService, sourceAllowed } from './trust.ts';
 import { ModelGateway } from './gateway.ts';
 import type { GatewayOptions } from './gateway.ts';
@@ -32,7 +32,7 @@ import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 
-export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds } };
+export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds } };
 
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
@@ -95,7 +95,8 @@ export class Engine {
       receiptGuard: (ctx, receipt) => connectorRuntime.assertReceiptReady(ctx, receipt),
     };
     this.services.calculator = new CalculatorService(store, calculationOptions);
-    this.services.reports = new ReportService(store, calculationOptions);
+    // Execution resolution is a trusted host port, never a route or RPC setting.
+    this.services.reports = new ReportService(store, { ...calculationOptions, executionReceipt: this.options.reports?.executionReceipt });
     this.services.connectors = new ConnectorService(store, { credentialBroker: this.options.connectorCredentials });
     this.services.helper = new AnalyticalHelper({ executable: this.options.pythonExecutable });
     if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: resolve(this.options.directory, 'updates') });
@@ -269,6 +270,40 @@ export class Engine {
       case 'decisions.list': return s.reports.decisions(ctx);
       case 'decisions.create': return s.reports.decision(ctx, payload);
       case 'decisions.review': { const { id, ...review } = payload; return s.reports.reviewDecision(ctx, id, review); }
+      case 'decisions.journal.draft': {
+        this.journalWriter(ctx);
+        const input = this.journalPayload(payload, ['content'], ['content'], 'INVALID_DECISION');
+        return s.reports.draftDecision(ctx, input.content);
+      }
+      case 'decisions.journal.confirm': {
+        this.journalWriter(ctx);
+        const input = this.journalPayload(payload, ['draft', 'reviewedDigest'], ['draft', 'reviewedDigest'], 'INVALID_CONFIRMATION');
+        check(typeof input.reviewedDigest === 'string' && input.reviewedDigest.trim().length > 0, 'INVALID_CONFIRMATION', 'Confirm the exact reviewed draft digest.');
+        const draft = this.journalPayload(input.draft, ['kind', 'content', 'receipts', 'digest'], ['kind', 'content', 'receipts', 'digest'], 'INVALID_DRAFT');
+        check(draft.kind === 'journal-draft' && Array.isArray(draft.receipts) && typeof draft.digest === 'string', 'INVALID_DRAFT', 'Confirm a prepared journal draft.');
+        return s.reports.confirmDecision(ctx, input.draft, { reviewedDigest: input.reviewedDigest });
+      }
+      case 'decisions.journal.revise': {
+        this.journalWriter(ctx);
+        const input = this.journalPayload(payload, ['id', 'content', 'expectedRevision', 'reason'], ['id', 'content', 'expectedRevision', 'reason'], 'INVALID_REVISION');
+        check(typeof input.id === 'string' && input.id.trim().length > 0 && typeof input.reason === 'string' && input.reason.trim().length > 0, 'INVALID_REVISION', 'Identify the journal and explain the revision.');
+        this.journalRevision(input.expectedRevision);
+        return s.reports.reviseDecision(ctx, input.id, input.content, { expectedRevision: input.expectedRevision, reason: input.reason });
+      }
+      case 'decisions.journal.review': {
+        this.journalWriter(ctx);
+        const input = this.journalPayload(payload, ['id', 'review', 'expectedRevision'], ['id', 'review', 'expectedRevision'], 'INVALID_REVIEW');
+        check(typeof input.id === 'string' && input.id.trim().length > 0, 'INVALID_REVIEW', 'Identify the journal being reviewed.');
+        this.journalRevision(input.expectedRevision);
+        const review = this.journalPayload(input.review, ['outcome', 'notes', 'observation', 'nextReviewDate'], ['outcome', 'observation'], 'INVALID_REVIEW');
+        this.journalPayload(review.observation, ['state', 'measurements', 'notes', 'uncertainty', 'concurrentInterventions', 'executionReceiptIds'], ['state', 'measurements', 'notes', 'uncertainty', 'concurrentInterventions', 'executionReceiptIds'], 'INVALID_REVIEW');
+        return s.reports.reviewJournalDecision(ctx, input.id, input.review, { expectedRevision: input.expectedRevision });
+      }
+      case 'decisions.journal.due': {
+        const input = this.journalPayload(payload, ['dueOn', 'branch'], [], 'INVALID_FILTER');
+        check(input.branch === undefined || (typeof input.branch === 'string' && input.branch.trim().length > 0), 'INVALID_FILTER', 'A branch filter must be nonblank.');
+        return s.reports.dueDecisions(ctx, input);
+      }
       case 'reports.get': { const { type, ...filters } = payload; return s.reports.report(ctx, type ?? 'investor', filters); }
       case 'reports.brief': return s.reports.brief(ctx, payload);
       case 'reports.forecast': return s.reports.forecast(ctx, { receiptIds: payload.receiptIds });
@@ -387,6 +422,18 @@ export class Engine {
     // that member's cached report to a different requesting identity.
     if (this.context.memberId !== owner.id) return { id: completed.id, status: completed.status };
     return completed;
+  }
+  private journalPayload(value: unknown, allowed: readonly string[], required: readonly string[], code: string): Record<string, unknown> {
+    check(value !== null && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value)), code, 'Use a journal object payload.');
+    check(Object.keys(value).every(key => allowed.includes(key)) && required.every(key => Object.hasOwn(value, key)), code, 'Supply the required journal fields without unknown properties.');
+    return value as Record<string, unknown>;
+  }
+  private journalWriter(ctx: Context) {
+    authorize(this.store(), ctx, 'prepare');
+    check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_DECISION_REQUIRED', 'Prepare and review an internal decision explicitly inside the app.');
+  }
+  private journalRevision(value: unknown): asserts value is number {
+    check(typeof value === 'number' && Number.isSafeInteger(value) && value >= 1, 'REVISION_CONFLICT', 'Supply the loaded journal revision before changing it.');
   }
   private workbookBytes(payload: any): Uint8Array {
     const value = payload.bytesBase64 ?? payload.moduleBase64;
