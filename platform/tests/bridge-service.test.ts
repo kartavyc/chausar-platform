@@ -111,8 +111,10 @@ test('profile authoring requires explicit meaning, supported fields/methods, cur
   for (const [patch, expected] of [
     [{ method: 'ordered-price-first' }, 'BRIDGE_PROFILE_UNSUPPORTED'], [{ quantityField: 'amountMinor' }, 'BRIDGE_FACTOR_BINDING_INVALID'],
     [{ identityFields: ['quantity'] }, 'BRIDGE_IDENTITY_BINDING_INVALID'], [{ quantityMeaning: '' }, 'BRIDGE_FACTOR_BINDING_INVALID'],
+    [{ quantityField: ['quantity'] }, 'BRIDGE_FACTOR_BINDING_INVALID'], [{ unitField: ['unit'] }, 'BRIDGE_FACTOR_BINDING_INVALID'],
+    [{ identityFields: [['sku']] }, 'BRIDGE_IDENTITY_BINDING_INVALID'],
     [{ moneyDefinitionHash: hash('different definition') }, 'BRIDGE_DEFINITION_CHANGED'],
-  ] as const) await assert.rejects(value.service.publish(owner, { id: 'invalid', expectedRevision: 0, definition: { ...value.profile, ...patch } as BridgeProfileDefinition }), code(expected));
+  ] as const) await assert.rejects(value.service.publish(owner, { id: 'invalid', expectedRevision: 0, definition: { ...value.profile, ...patch } as unknown as BridgeProfileDefinition }), code(expected));
   const missing: any = structuredClone(value.profile); delete missing.rounding;
   await assert.rejects(value.service.publish(owner, { id: 'no-default', expectedRevision: 0, definition: missing }), code('BRIDGE_PROFILE_INVALID'));
 });

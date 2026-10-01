@@ -61,16 +61,18 @@ function contentHash(value: Record<string, unknown>): string {
 function unique(values: string[]) { return [...new Set(values)].sort(); }
 function profileDefinition(value: unknown, dictionary: Dictionary): asserts value is BridgeProfileDefinition {
   exact(value, PROFILE_KEYS, 'BRIDGE_PROFILE_INVALID'); const p = value as unknown as BridgeProfileDefinition;
-  check(text(p.label, 1, 200) && SHA.test(p.dictionaryHash) && SHA.test(p.moneyDefinitionHash) && FIELD.test(p.operationId), 'BRIDGE_PROFILE_INVALID', 'Bind an explicit named profile to its exact published money definition.');
+  check(text(p.label, 1, 200) && typeof p.dictionaryHash === 'string' && SHA.test(p.dictionaryHash)
+    && typeof p.moneyDefinitionHash === 'string' && SHA.test(p.moneyDefinitionHash) && typeof p.operationId === 'string' && FIELD.test(p.operationId),
+  'BRIDGE_PROFILE_INVALID', 'Bind an explicit named profile to its exact published money definition.');
   check(p.factorRule === 'realized-average-net-amount-per-unit' && p.method === 'separate-interaction'
     && p.rounding === 'truncate-toward-zero-minor' && p.grain === 'one-fact-per-product-period'
     && ['partial', 'refuse'].includes(p.incompleteCoverage), 'BRIDGE_PROFILE_UNSUPPORTED', 'Select a supported explicit factor rule, grain, method, rounding and incomplete-coverage policy.');
-  check(FIELD.test(p.quantityField) && dictionary.fields[p.quantityField] === 'integer'
-    && FIELD.test(p.unitField) && dictionary.fields[p.unitField] === 'string'
+  check(typeof p.quantityField === 'string' && FIELD.test(p.quantityField) && dictionary.fields[p.quantityField] === 'integer'
+    && typeof p.unitField === 'string' && FIELD.test(p.unitField) && dictionary.fields[p.unitField] === 'string'
     && Number.isSafeInteger(p.quantityScale) && p.quantityScale >= 0 && p.quantityScale <= 6
     && text(p.quantityMeaning, 10) && text(p.unitMeaning, 10) && text(p.unit, 1, 100), 'BRIDGE_FACTOR_BINDING_INVALID', 'Declare the quantity scale, unit and their business meaning using published fields.');
   check(Array.isArray(p.identityFields) && p.identityFields.length > 0 && p.identityFields.length <= 8
-    && new Set(p.identityFields).size === p.identityFields.length && p.identityFields.every(field => FIELD.test(field) && dictionary.fields[field] === 'string')
+    && new Set(p.identityFields).size === p.identityFields.length && p.identityFields.every(field => typeof field === 'string' && FIELD.test(field) && dictionary.fields[field] === 'string')
     && text(p.identityMeaning, 10), 'BRIDGE_IDENTITY_BINDING_INVALID', 'Declare exact product-identity fields and the supported one-fact grain.');
   exact(p.scope, ['branch', 'sourceIds'], 'BRIDGE_PROFILE_INVALID');
   check((p.scope.branch === null || text(p.scope.branch, 1, 200)) && Array.isArray(p.scope.sourceIds)
