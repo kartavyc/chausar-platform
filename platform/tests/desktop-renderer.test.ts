@@ -166,17 +166,32 @@ test('actual local question reaches the host-Node worker and subsequent billed q
   // This is a disposable synthetic fixture passphrase, unrelated to any user's vault.
   await engine.request('workspace.create',{name:'Synthetic IPC fixture',folder:'fixture',passphrase:'synthetic-fixture-only',demo:true});
   const h = await harness({ dispatch: (method,payload) => engine.request(method,payload) });
-  await h.ask('what is the business about');
-  assert.equal(h.rejected.length, 0); assert.equal(h.renderer.state.messages.at(-1).error, undefined);
-  const contextAnswer = h.renderer.state.messages.at(-1).data;
-  assert.equal(contextAnswer.kind, 'business-context');
-  assert.equal(contextAnswer.status, 'unknown');
-  assert.equal(contextAnswer.receipt.financialCalculation, false);
-  assert.equal(contextAnswer.unknowns.length, 5);
-  assert.ok(contextAnswer.citations.length > 0);
-  const savedContext = await engine.request('business.context.receipt', { id: contextAnswer.receipt.id });
-  assert.equal(savedContext.contextDigest, contextAnswer.contextDigest);
-  assert.deepEqual(savedContext.citations, contextAnswer.citations);
+  const introductions = ['what is this business about', 'Tell me about this business.',
+    'Could you please describe this business?', 'What’s this business about?',
+    'Give me an overview of this business', 'What does this company do?'];
+  for (const question of introductions) {
+    await h.ask(question);
+    assert.equal(h.rejected.length, 0); assert.equal(h.renderer.state.messages.at(-1).error, undefined);
+    const contextAnswer = h.renderer.state.messages.at(-1).data;
+    assert.equal(contextAnswer.kind, 'business-context', question);
+    assert.equal(contextAnswer.status, 'unknown');
+    assert.equal(contextAnswer.receipt.financialCalculation, false);
+    assert.equal(contextAnswer.unknowns.length, 5);
+    assert.ok(contextAnswer.citations.length > 0);
+    const rendered = h.renderer.renderAnswer(contextAnswer);
+    assert.ok(descendants(rendered).some(node => node.textContent === contextAnswer.unknowns[0].message));
+    assert.equal(descendants(rendered).some(node => node.textContent?.includes('Choose a published calculation')), false);
+    const savedContext = await engine.request('business.context.receipt', { id: contextAnswer.receipt.id });
+    assert.equal(savedContext.contextDigest, contextAnswer.contextDigest);
+    assert.deepEqual(savedContext.citations, contextAnswer.citations);
+  }
+  const mixedQuestion = 'What is this business about, and how much was billed?';
+  await h.ask(mixedQuestion);
+  const mixed = h.renderer.state.messages.at(-1).data;
+  assert.equal(mixed.supported, false); assert.equal(mixed.receipt, null);
+  assert.equal(mixed.kind, undefined);
+  assert.match(mixed.message, /Choose a published calculation and an explicit period/);
+  await assert.rejects(engine.request('conversation.ask', { question: mixedQuestion, purpose: 'business-context' }), { code: 'BUSINESS_CONTEXT_QUESTION_REQUIRED' });
   await h.ask('What was billed?');
   assert.equal(h.rejected.length, 0); assert.equal(h.renderer.state.messages.at(-1).error, undefined);
   const answer = h.renderer.state.messages.at(-1).data;
@@ -190,6 +205,6 @@ test('actual local question reaches the host-Node worker and subsequent billed q
   assert.equal(retained.id, answer.receipt.id);
   assert.equal(retained.totalMinor, '300000');
   assert.deepEqual(retained.rowIds, answer.receipt.rowIds);
-  assert.deepEqual(h.calls.filter(call => call.method === 'conversation.ask').map(call => call.payload),[{question:'what is the business about'},{question:'What was billed?'}]);
+  assert.deepEqual(h.calls.filter(call => call.method === 'conversation.ask').map(call => call.payload), [...introductions, mixedQuestion, 'What was billed?'].map(question => ({ question })));
   const stopped = await engine.stop(); assert.equal(stopped.graceful,true);
 });

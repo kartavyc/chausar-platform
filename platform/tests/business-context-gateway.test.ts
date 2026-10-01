@@ -132,7 +132,7 @@ test('business model transfer requires exact app approval and cannot reuse or su
 
 test('business preview rejects changed question, purpose, scope, route or sample selection before dispatch', async () => {
   const changes: Partial<ModelRequest>[] = [
-    { question: 'Describe our business' }, { purpose: 'analysis' }, { routeId: 'other-route' },
+    { question: 'Describe our business' }, { question: 'what is this business about' }, { purpose: 'analysis' }, { routeId: 'other-route' },
     { branch: 'other-private-branch' }, { sourceIds: ['other-source'] },
     { asOf: '2026-09-15T00:00:00.000Z' }, { onDate: '2026-09-14' },
     { period: { from: '2026-09-02', to: '2026-09-30' } },

@@ -39,7 +39,7 @@ async function fixture(t: TestContext, gateway?: GatewayOptions) {
 test('paired HTTP import → business introduction → context receipt → exact billed receipt stays local under send nothing', async t => {
   let providerCalls = 0; const { engine, rpc } = await fixture(t, { http: async () => { providerCalls++; throw new Error('A local context request must not use a model.'); } });
   const imported = await rpc('sources.import', importInput); assert.equal(imported.rowIds.length, 2); assert.equal(imported.coverage.reconciled, true);
-  const answer = await rpc('conversation.ask', { question: 'what is the business about' });
+  const answer = await rpc('conversation.ask', { question: 'what is this business about' });
   assert.equal(answer.kind, 'business-context'); assert.equal(answer.status, 'unknown'); assert.equal(answer.receipt.financialCalculation, false);
   assert.equal(answer.unknowns.length, 5); assert.ok(answer.claims.some((claim: any) => claim.category === 'records' && claim.qualification === 'unqualified-observation'));
   assert.ok(answer.citations.some((citation: any) => citation.sourceId === importInput.sourceId && imported.rowIds.includes(citation.factId)));
@@ -47,6 +47,7 @@ test('paired HTTP import → business introduction → context receipt → exact
   const calculated = await rpc('conversation.ask', { question: 'What was billed?', period });
   assert.equal(calculated.receipt.operation, 'billed'); assert.equal(calculated.receipt.totalMinor, '30000'); assert.equal(calculated.receipt.currency, 'INR');
   const numberReceipt = await rpc('receipts.get', { id: calculated.receipt.id }); assert.equal(numberReceipt.totalMinor, '30000'); assert.deepEqual(numberReceipt.rowIds, imported.rowIds);
+  assert.deepEqual(engine.vault!.read().unsupported, []);
   assert.equal(providerCalls, 0); assert.equal(engine.vault!.read().modelReceipts.length, 0);
 });
 
@@ -68,7 +69,7 @@ test('paired HTTP synthetic provider selector receives approved value-free busin
     body: JSON.stringify({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ claimIds: ['context_workspace', 'context_records'], unknownCategories: ['industry', 'products', 'customers', 'business_model', 'location'] }) }] }] }) }; } });
   await rpc('sources.import', importInput); await rpc('trust.update', { send: 'shape' });
   await rpc('models.configure', { config: { id: 'synthetic-provider', kind: 'openai-responses', model: 'synthetic-fixture-only', endpoint: 'https://synthetic.invalid/v1/responses' }, secret: 'synthetic-test-key' });
-  const question = 'what is the business about', routeId = 'synthetic-provider';
+  const question = 'what is this business about', routeId = 'synthetic-provider';
   const preview = await rpc('models.preview', { question, routeId }); assert.equal(preview.purpose, 'business-context');
   const refused = await raw('conversation.ask', { question, routeId, previewId: preview.id }); assert.equal(refused.body.error.code, 'OUTBOUND_APPROVAL_REQUIRED'); assert.equal(payloads.length, 0);
   const approval = await rpc('models.approve', { id: preview.id });
