@@ -98,12 +98,15 @@ test('encrypted lock and new Engine reopen retain exact forecasts and recheck cu
 });
 
 test('public saved forecast readback refuses a foreign author and an actually revoked permission epoch', async t => {
-  const f = await fixture(t), r = await history(f), saved = await f.evaluate(forecast(f, r));
-  const member = await f.request('members.add', { name: 'Synthetic forecast reader', role: 'viewer', branches: ['main'] });
-  f.as(member); await assert.rejects(f.get(saved.id), { code: 'FORECAST_FORBIDDEN' });
-  f.as(); await f.request('members.revoke', { id: member.id });
-  f.as(member); await assert.rejects(f.get(saved.id), { code: 'ACCESS_REVOKED' }); f.as();
+  const f = await fixture(t);
+  const author = await f.request('members.add', { name: 'Synthetic forecast author', role: 'cofounder', branches: ['main'] });
+  f.as(author); const r = await history(f), saved = await f.evaluate(forecast(f, r));
+  assert.equal(saved.memberId, author.id); assert.equal(saved.epoch, author.epoch);
   assert.deepEqual(await f.get(saved.id), saved);
+  f.as(); await assert.rejects(f.get(saved.id), { code: 'FORECAST_FORBIDDEN' });
+  await f.request('members.revoke', { id: author.id });
+  f.as(author); await assert.rejects(f.get(saved.id), { code: 'ACCESS_REVOKED' }); f.as();
+  await assert.rejects(f.get(saved.id), { code: 'FORECAST_FORBIDDEN' });
 });
 
 test('exact minor units beyond Number precision survive public import, scoring and encrypted reopen', async t => {
