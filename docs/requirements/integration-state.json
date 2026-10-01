@@ -17,7 +17,7 @@
       "importedCommit": "8c611338d4225e51e72028154b22f9db72fd25d9",
       "source": "parent-supplied committed format-patch export",
       "paths": 7,
-      "productWiring": "in progress; not established by reported unit tests"
+      "productWiring": "Public Engine/RPC calculation, evidence review and prepare-only actions wired; guarded durable calculation verified in actual synthetic HTTP flow."
     },
     {
       "lane": "connectorFramework",
@@ -25,7 +25,63 @@
       "importedCommit": "94952b5819183046d23b125af5e58d9f8a6e3ef3",
       "source": "parent-supplied committed format-patch export",
       "paths": 13,
-      "productWiring": "in progress; no 56-adapter qualification claim"
+      "productWiring": "Trusted read/review/capture/publication/readiness wired through actual public HTTP RPC. Named vendor groups remain unqualified."
+    },
+    {
+      "lane": "database",
+      "sourceCommit": "4ca43c5543a84c42a732914e382ac0256b4b1ae5",
+      "importedCommit": "c2723ed52b1c8150aab232d3cc9a946e8c58909c",
+      "paths": 19,
+      "productWiring": "Exact currency/source guards integrated. Actual native DuckDB producer evidence exists; current aggregate is not a native PostgreSQL/dual-database certification.",
+      "source": "parent-supplied committed patch or local Git bundle"
+    },
+    {
+      "lane": "desktopPackaging",
+      "sourceCommit": "5bd3f67668fd92ed293c964e25ca72568f27f463",
+      "importedCommit": "5a3c0c9a2d134a2896acef0e4e79f84961ff5d7c",
+      "paths": 32,
+      "productWiring": "Shared Engine version and worker configuration merged; main-owned lifecycle and public IPC added in bf3dd2589c10b34bc28df264b2eaa5cdde5e4590. Native installers and GUI unverified.",
+      "source": "parent-supplied committed patch or local Git bundle"
+    },
+    {
+      "lane": "phoneProtocol",
+      "sourceCommit": "bfe3a0876bbc0673db52063eb81e05a6636986ed",
+      "importedCommit": "0c7223fb42efa43835c1aecb1734147354068179",
+      "paths": 12,
+      "productWiring": "Framework-neutral protocol imported; Engine/action integration awaits phone approval-policy decision. Native React Native/TypeScript work continues separately.",
+      "source": "parent-supplied committed patch or local Git bundle"
+    },
+    {
+      "lane": "semanticQualification",
+      "sourceCommit": "fe26fa945ccd847aad45310668853e67d0077f66",
+      "importedCommit": "1ee9d9b8e801414c51c35ab7fe7e02582a66bc99",
+      "paths": 118,
+      "productWiring": "Actual qualifyCase with authored tuning/holdout and independent controls runs before fact insertion; evaluateConnectorSemanticGate guards current consumers and retained receipts. Explicit synthetic evidence only.",
+      "source": "parent-supplied committed patch or local Git bundle"
+    },
+    {
+      "lane": "databaseNativeFollowup",
+      "sourceCommit": "3d34e6fa927fca9c74e2fb14e3f66ae0bf96d727",
+      "importedCommit": "f0b7cbd718b46d14344882cb25e6f426b05779f5",
+      "productWiring": "Pinned native DuckDB initialization fixed. Producer native DuckDB32 checks passed; PGlite independent-owner/reopen qualification failed; real PostgreSQL remains unverified.",
+      "paths": 3,
+      "source": "parent-supplied committed patch"
+    },
+    {
+      "lane": "databaseTermsCorrection",
+      "sourceCommit": "a7a29af9c7f5a9077e8b642bd7bee7b94fd3f84f",
+      "importedCommit": "9b694396ef620c73da3c2dc452fa86af1f861bcf",
+      "productWiring": "Generic website/EULA wording does not establish a mandatory OSS archive-specific acceptance or account gate. Parent cleared the generic legal hold; portable PostgreSQL qualification continues in its own lane.",
+      "paths": 1,
+      "source": "parent-supplied committed patch"
+    },
+    {
+      "lane": "desktopSourceFollowup",
+      "sourceCommit": "64ae291c0edd956d720974ab7449ba57fa444a96",
+      "importedCommit": "722985cdbf0be12dd49cdf64458d92a08e10be2d",
+      "productWiring": "Portable source preview tooling imported; not an Electron executable or native installer.",
+      "paths": 10,
+      "source": "parent-supplied committed patch"
     }
   ],
   "uncommittedLaneWorkImported": false,
@@ -38,5 +94,133 @@
   "externalCustomerEffects": false,
   "liveDeploymentPerformed": false,
   "spendingApproval": "All spending and credentials must be handled through parent.",
-  "publicationRule": "Inspect current main, preserve existing work, advance without force-push."
+  "publicationRule": "Inspect current main, preserve existing work, advance without force-push.",
+  "integrationWiringRevisions": [
+    {
+      "commit": "5c20a3b",
+      "feature": "Public Engine/RPC jobs, durable calculation/evidence/action-preparation, bounded readback and shutdown"
+    },
+    {
+      "commit": "bf3dd2589c10b34bc28df264b2eaa5cdde5e4590",
+      "feature": "Acknowledged private desktop lifecycle and public IPC contracts"
+    },
+    {
+      "commit": "9f05be221880fb69171503277dc9aa69feb5da1e",
+      "feature": "Actual semantic admission joined to trusted connector publication and guarded public consumers"
+    }
+  ],
+  "publicationCapability": {
+    "lastVerifiedRemoteMain": "3160d5a896b5fb3539405948671d530367cfe30d",
+    "status": "authorized-preparing-through-current-GitHub-connector",
+    "repositoryPrivate": true,
+    "permissions": [
+      "push",
+      "admin"
+    ],
+    "finalRemoteHeadRefreshRequired": true,
+    "forcePush": false,
+    "shellNetworkSubstitutionUsed": false
+  },
+  "dependencyRecovery": {
+    "approvedStaging": "D:/Chausar/build-tools",
+    "maximumBytes": 4000000000,
+    "permanentWindowsService": false,
+    "reusedExistingVerifiedTree": "D:/Chausar/build-tools/qualification/node_modules",
+    "installedPackagesOrigin": "19 tarballs independently verified before the later package-acquisition stop; ignored local junction reuses these bytes.",
+    "acquisitionStop": "The later automatic approval rejection of a DuckDB registry retry remains binding. No denied fetch was repeated or moved to another agent/tool/machine.",
+    "operatorScript": "D:/Chausar/build-tools/prepare-project-dependencies.mjs",
+    "operatorScriptSha256": "4b27e332c0be71caa38db7184d0a0223188fcd8e655beb1ea7be94cb4f7910af",
+    "operatorStage": "20261001000938489",
+    "operatorInstallation": "awaiting user-run completion receipt",
+    "operatorLocalRegressionTests": {
+      "pass": 26,
+      "fail": 0,
+      "skipped": 0
+    },
+    "operatorReadOnlyPreflight": {
+      "entries": 42,
+      "optionalEntries": 10,
+      "passed": true,
+      "packageAcquisition": false,
+      "filesystemWrites": false
+    },
+    "correctedCause": "Only pg-int8@1.0.1 omitted optional unpackedSize; the existing SHA512-verified archive supplies a bounded size without acquisition. Malformed present sizes, changed origins/integrity or absent supported cached bytes still refuse.",
+    "fullInstallerToolchain": "unverified; exact official-only source policy still refuses upstream installer Git node-gyp source. Installer requirement retained."
+  },
+  "connectorScope": {
+    "approvedGroups": 56,
+    "authoritativeSource": "docs/specs/CHAUSAR-LIVE-BUILD-PLAN.md:1213-1223",
+    "originalFamilyCounts": [
+      7,
+      7,
+      2,
+      8,
+      8,
+      5,
+      4,
+      4,
+      5
+    ],
+    "originalGroups": 50,
+    "additions": [
+      "Khatabook",
+      "OkCredit",
+      "myBillBook",
+      "BharatPe",
+      "Petpooja",
+      "Form26AS/AIS"
+    ],
+    "quickBooksRetained": true,
+    "recoveredCatalogueDrift": true,
+    "namedConnectorLiveQualification": "unverified"
+  },
+  "phone": {
+    "nativeFramework": "React Native with TypeScript",
+    "actionWiring": "pending approval-policy decision",
+    "unresolvedApprovalPolicy": "Baseline permits message-impact phone approvals; new companion permits only reversible internal changes."
+  },
+  "updatedAt": "2026-10-01T00:26:42.363Z",
+  "integratedEngineMilestone": {
+    "status": "verified-local-synthetic-engine",
+    "sourceCommit": "9f05be221880fb69171503277dc9aa69feb5da1e",
+    "sourceTree": "9c67d593f6f409cf0a02131bb87ecf6064071495",
+    "evidence": "docs/verification/integrated-engine.json",
+    "aggregateTap": "docs/verification/aggregate-tests.tap",
+    "actualPublicFlow": "Local HTTP read -> human mapping review -> trusted capture -> independent source totals + real semantic qualifier/holdout gate -> exact calculation -> conversation question -> retained receipt -> durable calculation job -> vault reopen -> quarantine refuses reuse.",
+    "exactAuthoredFixtureTotalMinor": "900719925474099400",
+    "liveVerified": false,
+    "writebackQualified": false,
+    "vaultAuthority": "experimental-file synthetic fixture; not PostgreSQL qualification",
+    "syntaxSourceFiles": 131,
+    "aggregateTests": {
+      "pass": 633,
+      "fail": 0,
+      "skipped": 0
+    },
+    "portableSourceBuild": "passed",
+    "windowsHeadlessWorker": "passed; graceful shutdown; GUI not executed",
+    "typeScript": "unrun-awaiting-user-dependencies",
+    "nativeInstallers": "unverified",
+    "macOSLinuxRuntime": "unverified",
+    "nativeAndroidIOS": "unverified",
+    "fullProductRelease": "unverified",
+    "securityReview": "blocked-unverified"
+  },
+  "queuedAfterMilestone": [
+    {
+      "lane": "accountingAdapters",
+      "commit": "39d15618baf91684c72d0718b5c5c52da9131167",
+      "status": "verified full-history bundle and standalone patch, not applied; source/semantic translation still required; every named vendor operation unqualified"
+    },
+    {
+      "lane": "calendar",
+      "commit": "a531e40080f0f184888a77ce31cc9cecf7f5214f",
+      "status": "not applied; queue after engine checkpoint"
+    },
+    {
+      "lane": "nativePhoneUI",
+      "commit": "795714e190fc021fed0c2a0382c12559320fc131",
+      "status": "not applied; no actual Android/iOS build; action-policy conflict unresolved"
+    }
+  ]
 }

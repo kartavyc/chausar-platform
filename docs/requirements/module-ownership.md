@@ -2,7 +2,7 @@
 
 The full requirements remain in scope. These lanes divide implementation work; they do not reduce scope to a preview or grant legal, vendor, credential, spending or deployment approval. Base source assessment is commit `3160d5a896b5fb3539405948671d530367cfe30d`.
 
-Integration reserves `engine.ts`, `server.ts`, `worker.ts` and shared hook contracts. Desktop packaging is the sole owner of root `package.json`, root lockfile, packaging/release scripts, runtime inventory and release CI; other lanes submit dependency requests. Enterprise operations owns its separate `enterprise/platform/package.json`. Connector integration currently owns the approved 56-group catalogue in existing `connectors.ts`; adapter-family tasks own their own new adapter modules.
+Integration reserves `engine.ts`, `server.ts`, `worker.ts` and shared hook contracts. Integration owns the authoritative root `package.json` and lockfile, accepting the desktop/dependency lane's final proposal; other lanes submit dependency requests. Desktop packaging owns packaging/release scripts, runtime inventory and release CI. Enterprise operations owns its separate `enterprise/platform/package.json`. Connector integration owns the approved 56-group catalogue in existing `connectors.ts`; adapter-family tasks own their own new adapter modules. The database worker owns the approved D-drive dependency/tool staging area; reuse it and serialize expensive qualification checks.
 
 ## Current implementation lanes
 

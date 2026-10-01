@@ -1,0 +1,64 @@
+{
+  "checkedCommit": "9f05be221880fb69171503277dc9aa69feb5da1e",
+  "startedAt": "2026-10-01T00:09:50.659Z",
+  "node": "24.13.1",
+  "platform": "win32",
+  "arch": "x64",
+  "results": [
+    {
+      "name": "syntax-json",
+      "exitCode": 0,
+      "passed": true,
+      "log": "Syntax and JSON validation passed for 131 source files.",
+      "logSha256": "47f6c2872dd2ec49ca163614b00fa9f8dbc4d4d990e247447396c5a2aac6b87e"
+    },
+    {
+      "name": "aggregate-tests",
+      "exitCode": 0,
+      "passed": true,
+      "log": "docs/verification/aggregate-tests.tap",
+      "logSha256": "7ea3f29c2eca4db2d42c446ffa3762f7d1c42dbfd7900bbb9aa110451e19df69",
+      "tests": 633,
+      "suites": 0,
+      "pass": 633,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "durationMs": 44234.4575
+    }
+  ],
+  "releaseAcceptance": "unverified",
+  "dedicatedSecurityReview": "blocked-unverified",
+  "scope": "Actual combined local synthetic Engine/RPC, worker, fixture, and contract checks. No overall native, hosted, vendor, production-database, or security release pass.",
+  "finishedAt": "2026-10-01T00:10:45.127Z",
+  "passed": true,
+  "testFiles": 49,
+  "checkedTree": "9c67d593f6f409cf0a02131bb87ecf6064071495",
+  "additionalChecks": {
+    "portableSourceBuild": {
+      "passed": true,
+      "nativeInstaller": false
+    },
+    "windowsWorkerSmoke": {
+      "passed": true,
+      "syntheticOnly": true,
+      "guiExecuted": false,
+      "gracefulShutdown": true
+    }
+  },
+  "unrun": [
+    "Strict TypeScript",
+    "Native PostgreSQL/dual-database final qualification",
+    "Electron GUI",
+    "Signed installers",
+    "macOS/Linux runtime",
+    "Native Android/iOS builds",
+    "Hosted/enterprise release acceptance",
+    "Live vendor/model qualification"
+  ],
+  "blocked": [
+    "Dedicated release security review"
+  ],
+  "finalDocumentationSourceEquivalenceRequired": true
+}
