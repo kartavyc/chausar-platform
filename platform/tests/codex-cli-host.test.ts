@@ -127,6 +127,26 @@ test('synthetic pinned snapshots construct exact installed-help interface eviden
   assert.equal(f.artifactReads.length, 4);
 });
 
+test('synthetic backtick-quoted stdin marker and wrapped help preserve the installed 0.159.2 format', async () => {
+  const f = syntheticEvidence();
+  f.repinArtifact('execHelp', help.replace(
+    "          Initial instructions for the agent. If not specified as an argument (or if '-' is used), instructions are read from stdin",
+    '          Initial instructions for the agent. If not provided as an argument (or if `-` is used),\r\n'
+      + '          instructions are read from stdin. If stdin is piped and a prompt is also provided, stdin\r\n'
+      + '          is appended as a `<stdin>` block',
+  ));
+  const gateway = await loadCodexCliHostGateway(f.environment, f.dependencies);
+  assert.equal(gateway?.codexCli?.capabilities.stdinPrompt, true);
+  assert.deepEqual(f.binaryChecks, [syntheticExecutable]);
+});
+
+test('synthetic mismatched quotes cannot admit the stdin marker', async () => {
+  const f = syntheticEvidence();
+  f.repinArtifact('execHelp', help.replace("'-'", "'-\""));
+  await assert.rejects(loadCodexCliHostGateway(f.environment, f.dependencies), code('CLI_CAPABILITY_UNSUPPORTED'));
+  assert.deepEqual(f.binaryChecks, []);
+});
+
 test('synthetic UTF-8 BOM and CRLF snapshots are pinned as raw bytes before decoding', async () => {
   const f = syntheticEvidence();
   f.repinArtifact('execHelp', `\uFEFF${help}`); f.repinArtifact('versionOutput', `\uFEFFcodex-cli ${syntheticVersion}\r\n`);

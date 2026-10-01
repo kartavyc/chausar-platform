@@ -92,7 +92,7 @@ function artifact(value: unknown, kind: keyof typeof ARTIFACT_NAMES, directory: 
 function support(help: string, features: string, review: unknown): Pick<CodexCliCapabilityProfile, 'flags' | 'configKeys' | 'stdinPrompt' | 'sandboxModes'> {
   const optionLines = help.split(/\r?\n/).filter(line => /^\s+-/.test(line));
   const flags = CODEX_CLI_FLAGS.filter(flag => optionLines.some(line => new RegExp(`(?:^|[\\s,])${flag}(?=[\\s=<]|$)`).test(line)));
-  const stdinPrompt = /instructions are read from stdin/i.test(help) && /(?:if|when)[^\r\n]*['"]-['"]/i.test(help);
+  const stdinPrompt = /instructions are read from stdin/i.test(help) && /(?:if|when)[^\r\n]*(['"`])-\1/i.test(help);
   const sandbox = help.match(/--sandbox\b[\s\S]{0,700}?\[possible values:\s*([^\]]+)\]/i);
   const sandboxModes = sandbox ? sandbox[1].split(',').map(value => value.trim()) : [];
   const ordinaryKeys = CODEX_CLI_CONFIG.map(value => value.split('=')[0]).filter(key => !key.startsWith('features.'));
