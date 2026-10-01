@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, type State, type StateStore, type Context } from '../runtime/contracts.ts';
+import { initialState, hash, type State, type StateStore, type Context } from '../runtime/contracts.ts';
+import { compileSingleSum } from '../runtime/compiled-calculation.ts';
 import { OntologyService, starterPacks } from '../runtime/ontology.ts';
 import { MemoryService } from '../runtime/memory.ts';
 import { CalculatorService, type CalculationReceipt } from '../runtime/calculator.ts';
@@ -82,4 +83,22 @@ test('wrong projected money or independent SQL answer refuses without a verified
   assert.deepEqual(fixture.counts(), { opened: 1, closed: 1 });
   const overflow = structuredClone(receipt); overflow.rows[0].amountMinor = '9'.repeat(38); overflow.rows[1].amountMinor = '9';
   await assert.rejects(injected().database.verify(overflow), { code: 'SQL_PRECISION_LIMIT' });
+});
+
+test('a wrong answer inside the 38-digit boundary reaches SQL; overflow refuses before acquisition', async () => {
+  const receipt = await customReceipt();
+  receipt.definitions[0].sign = 1;
+  receipt.definitionHash = hash(receipt.definitions);
+  receipt.compiledCalculation!.sum = compileSingleSum({ id: receipt.operation, label: 'Boundary fixture', type: 'sum', definitions: ['owner_fees'], parameters: [] }, receipt.definitions[0], receipt.ontologyVersion);
+  const maximum = '9'.repeat(38);
+  receipt.rows[0].amountMinor = maximum; receipt.rows[1].amountMinor = '0';
+  receipt.valueMinor = receipt.totalMinor = maximum;
+  receipt.figures[0].minor = String(BigInt(maximum) - 1n);
+  const inside = injected(maximum);
+  await assert.rejects(inside.database.verify(receipt), { code: 'SQL_RESULT_MISMATCH' });
+  assert.deepEqual(inside.counts(), { opened: 1, closed: 1 });
+  receipt.figures[0].minor = String(BigInt(maximum) + 1n);
+  const overflow = injected(maximum);
+  await assert.rejects(overflow.database.verify(receipt), { code: 'SQL_PROJECTION_INVALID' });
+  assert.deepEqual(overflow.counts(), { opened: 0, closed: 0 });
 });

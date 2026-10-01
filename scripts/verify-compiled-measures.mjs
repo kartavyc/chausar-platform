@@ -103,7 +103,11 @@ export async function runCompiledMeasureQualification(environment = process.env)
           report.engines[engine] = 'native-executed';
           record(`${vector.id}:${engine}-literal-answer`, `native-${engine}`, { expectedMinor: vector.expected, projectionDigest: proof.projectionDigest });
           phase = `${engine}-tampered-answer`;
-          const tampered = structuredClone(receipt); tampered.figures[0].minor = String(BigInt(vector.expected) + 1n);
+          const tampered = structuredClone(receipt);
+          // Move the wrong answer toward zero at either precision boundary. A
+          // 39-digit overflow is a projection refusal, not a native mismatch.
+          const expected = BigInt(vector.expected);
+          tampered.figures[0].minor = String(expected > 0n ? expected - 1n : expected + 1n);
           await assert.rejects(verifier.verify(tampered), { code: 'SQL_RESULT_MISMATCH' });
           record(`${vector.id}:${engine}-tampered-answer`, `native-${engine}`);
         }
