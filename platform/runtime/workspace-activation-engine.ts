@@ -25,6 +25,14 @@ const idPattern=/^[A-Za-z0-9_-]{1,100}$/;
 const slotPattern=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const encryptedBudgets={maxArtifacts:4096,maxEntryBytes:16*1024*1024,maxTotalEntryBytes:64*1024*1024};
 const physical=(s:{dev:bigint;ino:bigint;birthtimeNs:bigint})=>({dev:String(s.dev),ino:String(s.ino),birthtimeNs:String(s.birthtimeNs)});
+const applicationNamespaceRoots=['application/backups','application/exports','application/updates'];
+/** Completed boundaries only; source, journal, staging and target custody have their own exact gates. */
+const applicationNamespaceWitness=(inventory:Awaited<ReturnType<WorkspaceBackupV2LocalCustody['inspectHeldNamespaces']>>)=>{
+  const selected=(path:string)=>applicationNamespaceRoots.some(root=>path===root||path.startsWith(root+'/'));
+  return{directories:inventory.directories.filter(item=>item.path==='application'||selected(item.path)),
+    files:inventory.files.filter(item=>selected(item.path)),
+    namespaces:inventory.namespaces.filter(item=>applicationNamespaceRoots.includes(item.namespace))};
+};
 type CandidateBinding={format:'chausar.activation-candidate-binding.v1';phase:'preparing'|'committed';sourceVaultId:string;recordId:string;creationId:string;contextDigest:string;archive:PrivateArtifactRef|null;pin:PrivateArtifactRef|null};
 type CandidateClaim={id:string;creationId:string;sourceVaultId:string;contextDigest:string};
 type Reservation={format:'chausar.interchange-target-reservation.v1';sourceVaultId:string;sourceWorkspaceId:string;targetId:string;workspaceId:string;generation:string;contextDigest:string;physical:ReturnType<typeof physical>};
@@ -183,7 +191,7 @@ export class EngineWorkspaceActivation {
     check(!this.#scope.getStore(),'ACTIVATION_ROOT_GUARD','Do not reacquire source admission inside a held callback.');
     return this.#o.backup.withHeldSource(ctx,async()=>{
       const state=this.#o.sourceVault.read();await this.#owner(ctx,state);await this.#applicationNamespaces();
-      await this.#o.backup.inspectHeldNamespaces();
+      const applicationWitness=applicationNamespaceWitness(await this.#o.backup.inspectHeldNamespaces());
       const captured=await this.#o.sourceVault.captureEncryptedCustody(encryptedBudgets),files=await this.#sourceFiles();
       const assertCurrent=async()=>{await this.#owner(ctx,state);await this.#applicationNamespaces();
         check(equal(this.#o.sourceVault.read(),state)&&equal(await this.#sourceFiles(),files),'ACTIVATION_SOURCE_CHANGED','Actual current authority or complete physical source custody changed.');
@@ -196,7 +204,10 @@ export class EngineWorkspaceActivation {
         check(!expected||(typeof candidateId==='string'&&idPattern.test(candidateId)),'ACTIVATION_CANDIDATE_UNAVAILABLE','Archived source admission requires the exact selected candidate identity.');
         const authenticatedHistoricalCapture=expected?await this.#archivedCapture(expected,candidateId!):undefined;
         const result=await work({ready:true,state,artifacts,assertCurrent,assertCompleteOwner:(context,historical)=>this.#owner(context,historical),
-          ...(authenticatedHistoricalCapture?{authenticatedHistoricalCapture}:{})});await assertCurrent();await this.#o.backup.inspectHeldNamespaces();return result;
+          ...(authenticatedHistoricalCapture?{authenticatedHistoricalCapture}:{})});await assertCurrent();
+        const finalApplicationWitness=applicationNamespaceWitness(await this.#o.backup.inspectHeldNamespaces());
+        check(equal(finalApplicationWitness,applicationWitness),'ACTIVATION_APPLICATION_CHANGED','Owned application backup, export or update custody changed between completed transaction boundaries.');
+        return result;
       });
     });
   }
