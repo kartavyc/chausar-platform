@@ -5,6 +5,7 @@ import { resolve, join } from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { Engine } from './engine.ts';
 import { engineJobOptions } from './engine-jobs.ts';
+import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
 import { check } from './contracts.ts';
 
 const renderer = fileURLToPath(new URL('../../app/renderer/', import.meta.url));
@@ -96,9 +97,15 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
   };
 }
 
+/** The normal server entrypoint and trusted host tests share the same constructor. */
+export async function createServerEngine(environment: NodeJS.ProcessEnv = process.env, args: readonly string[] = process.argv, dependencies: CodexCliHostDependencies = {}): Promise<Engine> {
+  const demo = args.includes('--demo');
+  const gateway = await loadCodexCliHostGateway(environment, dependencies);
+  return new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway });
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const demo = process.argv.includes('--demo');
-  const engine = new Engine({ directory: process.env.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: process.env.CHAUSAR_POSTGRES_URL, pythonExecutable: process.env.CHAUSAR_PYTHON, updatePublicKey: process.env.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(process.env) });
+  const engine = await createServerEngine(); const demo = engine.options.demo;
   const app = createLocalServer(engine, { port: Number(process.env.CHAUSAR_PORT ?? 4317) });
   const { origin, token } = await app.listen(); console.log(`Chausar owner pairing link: ${origin}/#token=${token}\n${demo ? 'Experimental local file storage; synthetic demo only.' : 'PostgreSQL authority storage.'}`);
   const scheduler = setInterval(() => { void engine.tick().catch(() => {}); }, 30000); scheduler.unref();
