@@ -1,21 +1,44 @@
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { glob, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json';
-if (args.length) {
-  if (args.length === 2 && args[0] === '--output') requestedOutput = args[1];
-  else if (args.length === 1 && args[0].startsWith('--output=')) requestedOutput = args[0].slice(9);
-  else throw new Error('Usage: node scripts/bench.mjs [--output results/factory-bench.json]');
+const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json'; let shard = null;
+const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--shard=1/2|--shard=2/2]';
+const seen = new Set();
+for (let index = 0; index < args.length; index++) {
+  const argument = args[index];
+  const option = argument.split('=', 1)[0];
+  if (!['--output', '--shard'].includes(option) || seen.has(option)) throw new Error(usage);
+  seen.add(option);
+  const value = argument.includes('=') ? argument.slice(option.length + 1) : args[++index];
+  if (typeof value !== 'string' || !value || value.startsWith('--')) throw new Error(usage);
+  if (option === '--output') requestedOutput = value;
+  else {
+    if (!/^[12]\/2$/.test(value)) throw new Error('Benchmark shard must be exactly 1/2 or 2/2.');
+    shard = { index: Number(value[0]), total: 2 };
+  }
 }
 const destination = resolve(root, requestedOutput); const inside = relative(root, destination);
 if (!requestedOutput || isAbsolute(inside) || inside === '..' || inside.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || !destination.endsWith('.json')) throw new Error('Benchmark output must be a JSON file within this repository.');
+const discoveryPattern = 'platform/tests/*.test.ts';
+const discoveredFiles = [];
+for await (const file of glob(discoveryPattern, { cwd: root })) discoveredFiles.push(file.replaceAll('\\', '/'));
+discoveredFiles.sort();
+// Record the complete input universe. Node owns per-shard selection; this
+// inventory deliberately does not claim to identify the files each shard ran.
+const testFiles = { pattern: discoveryPattern, discovered: discoveredFiles,
+  inventorySha256: createHash('sha256').update(JSON.stringify(discoveredFiles)).digest('hex'),
+  selection: shard ? 'node-test-shard' : 'all-discovered-files' };
 const startedAt = new Date().toISOString();
 // Bound simultaneous vault/KDF fixtures consistently with local qualification.
-// The Windows runner exhausted the unchanged ten-minute limit at default concurrency.
-const command = ['--test', '--test-reporter=tap', '--test-concurrency=1', 'platform/tests/*.test.ts'];
+// Each shard retains the ten-minute deadline and single-worker resource bound.
+// Node selects disjoint test files; it runs every test in each selected file.
+const command = ['--test', '--test-reporter=tap', '--test-concurrency=1',
+  ...(shard ? [`--test-shard=${shard.index}/${shard.total}`] : []), discoveryPattern];
+const fullSuite = shard === null;
 const outcome = await new Promise((fulfill) => {
   const child = spawn(process.execPath, command, { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = ''; let stderr = ''; let truncated = false; let settled = false; let timeout = false;
@@ -29,10 +52,11 @@ const outcome = await new Promise((fulfill) => {
 const counts = {};
 for (const name of ['tests', 'suites', 'pass', 'fail', 'cancelled', 'skipped', 'todo']) { const matches = [...outcome.stdout.matchAll(new RegExp(`^# ${name} (\\d+)\\r?$`, 'gm'))]; counts[name] = matches.length ? Number(matches.at(-1)[1]) : null; }
 const hasSummary = ['tests', 'pass', 'fail', 'cancelled', 'skipped', 'todo'].every(name => Number.isSafeInteger(counts[name]));
-const passed = outcome.exitCode === 0 && hasSummary && counts.tests > 0 && counts.fail === 0 && counts.cancelled === 0 && !outcome.timeout && !outcome.truncated;
+const passed = outcome.exitCode === 0 && hasSummary && counts.tests > 0 && counts.fail === 0 && counts.cancelled === 0 && counts.skipped === 0 && counts.todo === 0 && !outcome.timeout && !outcome.truncated;
 const report = {
   schema: 'chausar.factory-bench.v1', startedAt, finishedAt: new Date().toISOString(), nodeVersion: process.version,
-  command: ['node', ...command], scope: 'Repository open tests', counts, passed,
+  command: ['node', ...command], scope: fullSuite ? 'Repository open tests' : `Repository open tests (shard ${shard.index}/${shard.total})`, counts, passed,
+  shard, fullSuite, testFiles,
   exitCode: outcome.exitCode, signal: outcome.signal ?? null, timeout: outcome.timeout, outputTruncated: outcome.truncated,
   productionQualified: false,
   qualification: { openTests: passed ? 'passed' : 'failed', testRunComplete: hasSummary && counts.skipped === 0 && counts.todo === 0, specificationCoverageCertified: false, hiddenBusinessAcceptance: 'not-run', sealedBusinessAcceptance: 'not-run', releaseSigning: 'not-run', realConnectorQualification: 'not-run' },
@@ -40,5 +64,5 @@ const report = {
   stdout: outcome.stdout, stderr: outcome.stderr,
 };
 await mkdir(dirname(destination), { recursive: true }); await writeFile(destination, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-process.stdout.write(`${JSON.stringify({ passed, counts, report: inside.replaceAll('\\', '/'), productionQualified: false })}\n`);
+process.stdout.write(`${JSON.stringify({ passed, counts, report: inside.replaceAll('\\', '/'), shard, fullSuite, productionQualified: false })}\n`);
 process.exitCode = passed ? 0 : 1;
