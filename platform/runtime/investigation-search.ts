@@ -78,7 +78,7 @@ export class PostgresInvestigationSearch {
     const search = new PostgresInvestigationSearch(pool, limits, true);
     try {
       search.#identity = await search.transaction(async query => {
-        const result = await query("SELECT current_database() AS database,inet_server_addr()::text AS address,inet_server_port() AS port,current_setting('server_version') AS server_version,version() AS version");
+        const result = await query("SELECT current_database() AS database,host(inet_server_addr()) AS address,inet_server_port() AS port,current_setting('server_version') AS server_version,version() AS version");
         check(result.rows.length === 1, 'SEARCH_SERVER_IDENTITY_INVALID', 'PostgreSQL must return one actual server identity.');
         const row = result.rows[0];
         check(row.database === options.database && row.address === options.host && row.port === options.port && typeof row.server_version === 'string' && row.server_version.length <= 200 && typeof row.version === 'string' && row.version.startsWith('PostgreSQL ') && row.version.length <= 1000, 'SEARCH_SERVER_IDENTITY_INVALID', 'The native search server did not identify the configured local database.');

@@ -170,12 +170,19 @@ export class Engine {
   private async closeVault() {
     this.services.connectorRuntime?.close();
     this.services.gateway?.clearCredentials(); this.services.speech?.clearCredentials();
+    let failure: unknown;
     if (this.#searchAdapter) {
       const pending = this.#searchAdapter; this.#searchAdapter = null;
-      const adapter = await pending.catch(() => null); await adapter?.close();
+      const adapter = await pending.catch(() => null);
+      try { await adapter?.close(); } catch (error) { failure = error; }
     }
-    for (const staged of this.#stagedVaults) await staged.close(); this.#stagedVaults.clear();
-    if (this.vault) { await this.vault.close(); this.vault = null; this.services = {}; }
+    for (const staged of this.#stagedVaults) {
+      try { await staged.close(); this.#stagedVaults.delete(staged); } catch (error) { failure ??= error; }
+    }
+    if (this.vault) {
+      try { await this.vault.close(); this.vault = null; this.services = {}; } catch (error) { failure ??= error; }
+    }
+    if (failure) throw failure;
   }
   private async privateSearchAdapter(): Promise<ResearchSearchPort> {
     if (this.options.research?.search) return this.options.research.search;

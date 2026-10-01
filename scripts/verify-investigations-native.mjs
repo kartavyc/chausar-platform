@@ -51,6 +51,11 @@ export async function runInvestigationsNativeQualification(environment = process
     const pg = await import('pg'), Pool = pg.Pool ?? pg.default?.Pool;
     pool = new Pool({ ...configuration, ssl: false, max: 1, connectionTimeoutMillis: 3000, query_timeout: 17000, options: '-c search_path=public -c statement_timeout=15000 -c lock_timeout=5000' });
     await assertPristinePostgres(pool);
+    // inet::text includes its network mask; host(inet) yields the literal address being pinned.
+    const identityReadback = await pool.query('SELECT inet_server_addr()::text AS raw_address,host(inet_server_addr()) AS host_address,inet_server_port() AS port');
+    assert.equal(identityReadback.rows.length, 1); assert.equal(identityReadback.rows[0].host_address, configuration.host);
+    assert.equal(identityReadback.rows[0].port, configuration.port);
+    record('native-literal-address-identity-readback', 'native-postgresql-actual-identity', identityReadback.rows[0]);
     search = await PostgresInvestigationSearch.connect({ ...configuration, maxConnections: 1, operationTimeoutMs: 15000 });
     const documents = [
       { id: 'oracle-investigation', kind: 'investigation', revision: 1, digest: hash('oracle-investigation-v1'), text: 'Saffron reserve investigation and rare orchid.' },

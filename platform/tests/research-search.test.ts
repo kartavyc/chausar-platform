@@ -8,6 +8,12 @@ import { ReportService } from '../runtime/reports.ts';
 import { ResearchSearchService, type ResearchSearchPort } from '../runtime/research-search.ts';
 import type { AuthorizedInvestigationSearchProjection, InvestigationSearchRequest, InvestigationSearchResult } from '../runtime/investigation-search.ts';
 import { FixtureStateStore } from './database-fixtures.ts';
+import { Engine } from '../runtime/engine.ts';
+import { PostgresInvestigationSearch } from '../runtime/investigation-search.ts';
+import { ChausarError } from '../runtime/contracts.ts';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, relative, resolve, isAbsolute } from 'node:path';
 
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const request: InvestigationSearchRequest = { method: 'simple-token-conjunction-v1', query: 'August',
@@ -81,4 +87,31 @@ test('stale evidence is excluded from the defined valid corpus without a univers
   } }).search(owner, request);
   assert.equal(result.completeness.documents, 0); assert.equal(result.matches.length, 0);
   assert.match(result.interpretation, /this authorized projection/);
+});
+
+test('an owned search shutdown failure still closes the actual encrypted Vault and releases its lock', async t => {
+  const root = resolve(tmpdir()), directory = await mkdtemp(join(root, 'chausar-search-cleanup-'));
+  const engine = new Engine({ directory, demo: true, storage: 'experimental-file' });
+  t.after(async () => {
+    await engine.close(); const child = relative(root, resolve(directory));
+    assert.ok(child && !child.startsWith('..') && !isAbsolute(child) && directory.startsWith(join(root, 'chausar-search-cleanup-')));
+    await rm(directory, { recursive: true, force: true });
+  });
+  const passphrase = 'Synthetic search cleanup encrypted fixture passphrase';
+  await engine.request('workspace.create', { name: 'Synthetic cleanup', passphrase, pack: 'ecommerce', demo: false });
+  const vault = engine.vault!; let closed = false;
+  const closeVault = vault.close.bind(vault);
+  t.mock.method(vault, 'close', async () => { await closeVault(); closed = true; });
+  // A labelled constructor fixture makes no database connection or provider call.
+  t.mock.method(PostgresInvestigationSearch, 'connect', async () => ({
+    search: async (projection: AuthorizedInvestigationSearchProjection, input: InvestigationSearchRequest) => fixtureResult(projection, input),
+    close: async () => { throw new ChausarError('SEARCH_TIMEOUT', 'Injected owned-pool shutdown timeout.'); },
+  }) as unknown as PostgresInvestigationSearch);
+  engine.options.storage = 'postgres'; engine.options.postgresUrl = 'postgresql://synthetic:synthetic-fixture@127.0.0.1:54321/chausar_test';
+  assert.equal((await engine.request('research.search', request)).qualification, 'injected-sql-fixture');
+  await assert.rejects(engine.request('workspace.lock'), (error: any) => error.code === 'SEARCH_TIMEOUT');
+  assert.equal(closed, true); assert.equal(engine.vault, null);
+  engine.options.storage = 'experimental-file'; delete engine.options.postgresUrl;
+  await engine.request('workspace.open', { passphrase });
+  assert.equal((await engine.request('workspace.status')).open, true, 'Actual authority lock was released despite the independent pool failure.');
 });
