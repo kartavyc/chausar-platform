@@ -7,8 +7,10 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Engine } from '../../runtime/engine.ts';
+import type { EngineOptions } from '../../runtime/engine.ts';
 import { FileSyncTransport } from '../../runtime/sync-file-transport.ts';
 import type { FileSyncFaultPoint, FileSyncTransportOptions } from '../../runtime/sync-file-transport.ts';
+import { FileSyncWriterAdmission } from '../../runtime/sync-writer-admission.ts';
 import type { SyncTransport } from '../../runtime/sync.ts';
 import { harness } from './conversation-acceptance-renderer.ts';
 
@@ -28,10 +30,9 @@ export async function fixture(t: TestContext) {
     acquireLease: async input => { const lease = await transport.acquireLease(input); control.leases.push(structuredClone(lease)); return lease; },
     put: async input => { control.puts.push(structuredClone(input)); control.inPut = true; try { return await transport.put(input); } finally { control.inPut = false; } },
   };
-  const engineOptions = { directory: join(directory, 'sender'), demo: true, storage: 'experimental-file' as const,
-    sync: { transport: proxy, enabled: true, mode: 'single-writer' as const, deviceId: 'independent-sender', signerId: 'independent-signer',
-      signingKey: pair.privateKey, clock, leaseTtlMs: 1000 } };
-  let engine = new Engine(engineOptions); const engines = [engine];
+  const senderRoot = join(directory, 'sender'), writerDirectory = join(directory, 'sender-writer-control');
+  await mkdir(writerDirectory);
+  let engine = new Engine({ directory: senderRoot, demo: true, storage: 'experimental-file' }); const engines = [engine];
   t.after(async () => {
     for (const item of engines) await item.close();
     const child = relative(base, resolve(directory));
@@ -41,6 +42,29 @@ export async function fixture(t: TestContext) {
   const bridge = await harness({ dispatch: (method, payload) => engine.request(method, payload) });
   const request = (method: string, payload: Record<string, unknown> = {}) => bridge.exposed.request(method, payload);
   const created = await request('workspace.create', { name: 'Independent synthetic sync business', folder: 'main', passphrase: PASSWORD, demo: false, pack: 'ecommerce' });
+  const initialBackup = await request('workspace.backup'), envelope = JSON.parse(await readFile(initialBackup.path, 'utf8'));
+  await engine.close();
+  const transportOptions: FileSyncTransportOptions = { directory: storeDirectory, workspaceId: created.workspace.id, vaultId: envelope.envelope.id, clock,
+    fault: point => control.inPut ? control.fault?.(point) : undefined };
+  const writerOptions = { directory: writerDirectory, workspaceId: created.workspace.id, vaultId: envelope.envelope.id, deviceId: 'independent-sender', clock };
+  transport = new FileSyncTransport(transportOptions);
+  const engineOptions: EngineOptions = { directory: senderRoot, demo: true, storage: 'experimental-file',
+    sync: { transport: proxy, enabled: true, mode: 'single-writer', workspaceId: created.workspace.id, deviceId: writerOptions.deviceId,
+      signerId: 'independent-signer', signingKey: pair.privateKey, clock, leaseTtlMs: 1000, writerAdmission: new FileSyncWriterAdmission(writerOptions) } };
+  engine = new Engine(engineOptions); engines.push(engine);
+  await request('workspace.open', { folder: 'main', passphrase: PASSWORD });
+  async function reviewWriter(targetRequest = request, deviceId = writerOptions.deviceId) {
+    const members = await targetRequest('members.list'), owner = members.find((item: any) => item.active && item.role === 'owner');
+    assert.ok(owner);
+    const status = await targetRequest('sync.writer.status');
+    const reviewed = await targetRequest('sync.writer.review', { expectedFence: status.fence, expectedStateDigest: status.localStateDigest,
+      deviceId, memberId: owner.id, epoch: owner.epoch, expiresAt: new Date(clock().getTime() + 120000).toISOString(),
+      reason: 'Review fabricated writer for independent imported-business sync acceptance.' });
+    assert.equal(reviewed.readonly, false); assert.equal(reviewed.grant.deviceId, deviceId); return reviewed;
+  }
+  const initialWriter = await request('sync.writer.status');
+  assert.equal(initialWriter.readonly, true); assert.equal(initialWriter.reason, 'SYNC_WRITER_REVIEW_REQUIRED');
+  const reviewedWriter = await reviewWriter();
   const imported = await request('sources.import', { sourceId: SOURCE, format: 'csv',
     content: `id,kind,date,amount,currency,branch,status,description\ninvoice-a,invoice,2026-09-02,100.00,INR,main,issued,${PRIVATE_MARKER}\ninvoice-b,invoice,2026-09-03,200.00,INR,main,issued,${PRIVATE_MARKER}`,
     expectedTotals: { rowCount: 2, amountMinor: '30000' }, recipe: { version: 1, id: 'independent-sync-map', system: 'synthetic-csv', edition: '1',
@@ -53,28 +77,43 @@ export async function fixture(t: TestContext) {
   assert.equal(imported.coverage.reconciled, true);
   const calculation = await request('calculation.run', { operation: 'billed', sourceIds: [SOURCE], branch: 'main', period: { from: '2026-09-01', to: '2026-09-30' } });
   assert.equal(calculation.totalMinor, '30000');
-  const backup = await request('workspace.backup'), envelope = JSON.parse(await readFile(backup.path, 'utf8'));
-  const transportOptions: FileSyncTransportOptions = { directory: storeDirectory, workspaceId: created.workspace.id, vaultId: envelope.envelope.id, clock,
-    fault: point => control.inPut ? control.fault?.(point) : undefined };
-  transport = new FileSyncTransport(transportOptions);
   async function prepare() { const preview = await request('sync.preview'), approval = await request('sync.approve', { id: preview.id }); return { preview, approval, payload: { previewId: preview.id, approvalId: approval.id } }; }
   async function restart() {
     await engine.close(); transport = new FileSyncTransport(transportOptions);
-    engine = new Engine(engineOptions); engines.push(engine); await request('workspace.open', { folder: 'main', passphrase: PASSWORD });
+    engine = new Engine({ ...engineOptions, sync: { ...engineOptions.sync!, writerAdmission: new FileSyncWriterAdmission(writerOptions) } });
+    engines.push(engine); await request('workspace.open', { folder: 'main', passphrase: PASSWORD });
   }
   async function receiver() {
-    const target = new Engine({ directory: join(directory, 'receiver'), demo: true, storage: 'experimental-file',
-      sync: { transport: proxy, enabled: true, mode: 'single-writer', workspaceId: created.workspace.id, deviceId: 'independent-receiver', clock } });
+    const receiverRoot = join(directory, 'receiver'), receiverWriterDirectory = join(directory, 'receiver-writer-control');
+    await mkdir(receiverWriterDirectory); const receiverKeys = generateKeyPairSync('ed25519');
+    let target = new Engine({ directory: receiverRoot, demo: true, storage: 'experimental-file' });
     engines.push(target); const h = await harness({ dispatch: (method, payload) => target.request(method, payload) });
     const request = (method: string, payload: Record<string, unknown> = {}) => h.exposed.request(method, payload);
-    await request('workspace.create', { name: 'Separate receiver authority', folder: 'main', passphrase: PASSWORD, demo: false });
+    const receiverCreated = await request('workspace.create', { name: 'Separate receiver authority', folder: 'main', passphrase: PASSWORD, demo: false });
+    const receiverBackup = await request('workspace.backup'), receiverEnvelope = JSON.parse(await readFile(receiverBackup.path, 'utf8'));
+    await target.close();
+    const receiverOptions: EngineOptions = { directory: receiverRoot, demo: true, storage: 'experimental-file',
+      sync: { transport: proxy, enabled: true, mode: 'single-writer', workspaceId: created.workspace.id, deviceId: 'independent-receiver', clock,
+        signerId: 'independent-receiver-signer', signingKey: receiverKeys.privateKey,
+        writerAdmission: new FileSyncWriterAdmission({ directory: receiverWriterDirectory, workspaceId: receiverCreated.workspace.id,
+          vaultId: receiverEnvelope.envelope.id, deviceId: 'independent-receiver', clock }) } };
+    target = new Engine(receiverOptions); engines.push(target); await request('workspace.open', { folder: 'main', passphrase: PASSWORD });
+    await reviewWriter(request, 'independent-receiver');
     const identity = await bridge.exposed.request('sync.identity'), members = await request('members.list');
     const owner = members.find((item: any) => item.role === 'owner');
     await request('sync.trust', { signerId: identity.signerId, publicKey: identity.publicKey, memberId: owner.id, epoch: owner.epoch });
-    return { engine: target, request, bridge: h };
+    async function openStageReadOnly(folder: string) {
+      await request('workspace.lock'); await target.close();
+      target = new Engine({ ...receiverOptions, sync: { ...receiverOptions.sync!, writerAdmission: new FileSyncWriterAdmission({ ...writerOptions, deviceId: 'independent-receiver' }) } });
+      engines.push(target); await request('workspace.open', { folder, passphrase: PASSWORD });
+      const status = await request('sync.writer.status');
+      assert.equal(status.readonly, true); assert.equal(status.reason, 'SYNC_WRITER_DEVICE_MISMATCH');
+      assert.equal(status.grant.deviceId, writerOptions.deviceId); return status;
+    }
+    return { get engine() { return target; }, request, bridge: h, openStageReadOnly };
   }
   return { directory, storeDirectory, request, bridge, calculation, imported, created, envelope, control, prepare, restart, receiver,
-    get transport() { return transport; }, transportOptions, clock, setTime(value: number | string) { time = typeof value === 'number' ? value : Date.parse(value); } };
+    reviewedWriter, reviewWriter, get transport() { return transport; }, transportOptions, clock, setTime(value: number | string) { time = typeof value === 'number' ? value : Date.parse(value); } };
 }
 export type SyncFixture = Awaited<ReturnType<typeof fixture>>;
 export async function readInFreshProcess(t: TestContext, f: SyncFixture, operation: string, input: unknown = {}) {

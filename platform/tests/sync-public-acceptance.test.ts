@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { reconcileSyncPublication } from '../runtime/sync-publication-recovery.ts';
 import { fixture, PASSWORD, PRIVATE_MARKER, readInFreshProcess, SOURCE } from './fixtures/sync-public-acceptance.ts';
 function expectation(input: any) { return { recordHash: input.recordHash, workspaceId: input.snapshot.workspaceId, vaultId: input.snapshot.vaultId,
   revision: input.snapshot.revision, sequence: input.snapshot.sequence, fence: input.snapshot.fence, expectedHeadHash: input.expectedHeadHash }; }
@@ -22,7 +21,7 @@ test('public sync uses real reconciled calculation evidence, separate approval a
   const staged = await receiver.request('sync.pull', { folder: 'reviewed-stage', passphrase: PASSWORD, expectedWorkspaceId: f.created.workspace.id });
   assert.equal(staged.liveAuthorityChanged, false); assert.equal((await receiver.request('workspace.status')).workspace.id, before.workspace.id);
   assert.deepEqual(await receiver.request('sources.list'), [], 'Pull does not implicitly replace live receiver authority.');
-  await receiver.request('workspace.lock'); await receiver.request('workspace.open', { folder: 'reviewed-stage', passphrase: PASSWORD });
+  await receiver.openStageReadOnly('reviewed-stage');
   const restored = await receiver.request('receipts.get', { id: f.calculation.id });
   assert.equal((restored.receipt ?? restored).totalMinor, '30000');
   const memory = await receiver.request('memory.list');
@@ -32,8 +31,10 @@ test('public sync uses real reconciled calculation evidence, separate approval a
 
 test('sender encrypted restart preserves identity and advances publication fencing without losing imported receipts', async t => {
   const f = await fixture(t), identity = await f.request('sync.identity'), first = await f.prepare();
-  const published = await f.request('sync.push', first.payload); await f.restart();
+  const published = await f.request('sync.push', first.payload), writer = await f.request('sync.writer.status'); await f.restart();
   assert.deepEqual(await f.request('sync.identity'), identity);
+  const reopenedWriter = await f.request('sync.writer.status');
+  assert.equal(reopenedWriter.readonly, false); assert.equal(reopenedWriter.fence, writer.fence); assert.deepEqual(reopenedWriter.grant, writer.grant);
   assert.equal((await f.request('receipts.get', { id: f.calculation.id })).totalMinor, '30000');
   const next = await f.prepare(), second = await f.request('sync.push', next.payload);
   assert.equal(second.head.sequence, published.head.sequence + 1); assert.ok(second.head.fence > published.head.fence);
@@ -48,8 +49,9 @@ test('lease expiry just before publication leaves an orphan but no committed hea
   await assert.rejects(f.request('sync.push', prepared.payload), { code: 'FENCE_REJECTED' });
   assert.equal(f.control.puts.length, 1); assert.equal(await f.transport.getHead(), null);
   f.control.fault = undefined; await f.restart();
-  const result = await reconcileSyncPublication(f.transport, expectation(f.control.puts[0]));
+  const result = await f.request('sync.reconcile', { previewId: prepared.preview.id });
   assert.equal(result.status, 'unknown'); assert.equal(result.reason, 'ORPHAN_RECORD'); assert.equal(result.automaticResubmission, false);
+  assert.equal(result.readOnly, true); assert.equal(result.receiptUpdated, false); assert.equal(result.signerVerification, 'not-performed-no-restore');
   await assert.rejects(f.request('sync.push', prepared.payload)); assert.equal(f.control.puts.length, 1);
   assert.equal((await readInFreshProcess(t, f, 'head')).result, null);
 });
@@ -68,8 +70,11 @@ test('lost publication acknowledgement remains reconcilable after encrypted rest
   assert.deepEqual(expected, expectation(f.control.puts[0]), 'Reconciliation inputs come from the retained public receipt.');
   assert.equal((await f.transport.getHead())!.recordHash, expected.recordHash); await f.restart();
   const puts = f.control.puts.length, leases = f.control.leases.length;
-  const result = await reconcileSyncPublication(f.transport, expected);
+  await assert.rejects(f.request('sync.reconcile', { previewId: failed.id, recordHash: expected.recordHash }), { code: 'INVALID_SYNC_REQUEST' });
+  const result = await f.request('sync.reconcile', { previewId: failed.id });
   assert.equal(result.status, 'published'); assert.equal(result.reason, 'HEAD_MATCH'); assert.equal(result.automaticResubmission, false);
+  assert.equal(result.previewId, failed.id); assert.equal(result.readOnly, true); assert.equal(result.receiptUpdated, false);
+  assert.equal(result.signerVerification, 'not-performed-no-restore');
   assert.equal(f.control.puts.length, puts); assert.equal(f.control.leases.length, leases);
   const after = (await f.request('activity.list')).modelReceipts;
   assert.deepEqual(after.find((item: any) => item.id === failed.id), failed, 'Read-only reconciliation cannot rewrite a failed receipt.');
@@ -98,4 +103,29 @@ test('current source authority loss after exact approval refuses publication wit
   await assert.rejects(f.request('sync.push', prepared.payload), { code: 'SOURCE_REVOKED' });
   assert.equal(f.control.puts.length, 0); assert.equal(await f.transport.getHead(), null);
   const bytes = await readFile(join(f.directory, 'sender/main/authority.encrypted.json'), 'utf8'); assert.equal(bytes.includes(PRIVATE_MARKER), false);
+});
+
+test('expired reviewed writer refuses a valid imported invoice correction and preserves its encrypted evidence', async t => {
+  const f = await fixture(t), writer = await f.request('sync.writer.status');
+  assert.equal(writer.readonly, false); assert.equal(writer.grant.deviceId, 'independent-sender');
+  const beforeMemory = await f.request('memory.list'), invoice = beforeMemory.facts.find((item: any) => item.entityId === 'invoice-a');
+  assert.ok(invoice); assert.equal(invoice.fields.amountMinor, '10000');
+  const beforeReceipt = await f.request('receipts.get', { id: f.calculation.id });
+  const beforeBackup = await f.request('workspace.backup'), encrypted = await readFile(beforeBackup.path, 'utf8');
+  const puts = f.control.puts.length, leases = f.control.leases.length;
+  f.setTime(Date.parse(writer.grant.expiresAt) + 1);
+  const expired = await f.request('sync.writer.status');
+  assert.equal(expired.readonly, true); assert.equal(expired.reason, 'SYNC_WRITER_EXPIRED');
+  assert.equal(expired.fence, writer.fence); assert.equal(expired.stateDigest, writer.stateDigest); assert.deepEqual(expired.grant, writer.grant);
+  await assert.rejects(f.request('memory.correct', { id: invoice.id, fields: { amountMinor: '10100' } }), { code: 'SYNC_WRITER_EXPIRED' });
+  assert.deepEqual(await f.request('memory.list', { asOf: beforeMemory.asOf }), beforeMemory);
+  assert.deepEqual(await f.request('receipts.get', { id: f.calculation.id }), beforeReceipt);
+  const afterBackup = await f.request('workspace.backup'); assert.equal(await readFile(afterBackup.path, 'utf8'), encrypted);
+  assert.equal(f.control.puts.length, puts); assert.equal(f.control.leases.length, leases);
+  await f.restart();
+  assert.equal((await f.request('sync.writer.status')).reason, 'SYNC_WRITER_EXPIRED', 'Reopen does not renew writer authority.');
+  await f.reviewWriter();
+  const corrected = await f.request('memory.correct', { id: invoice.id, fields: { amountMinor: '10100' } });
+  assert.ok(corrected);
+  assert.ok((await f.request('memory.list')).facts.some((item: any) => item.entityId === 'invoice-a' && item.fields.amountMinor === '10100'));
 });
