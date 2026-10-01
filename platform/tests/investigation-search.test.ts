@@ -70,6 +70,7 @@ test('incomplete, duplicate and malformed host projections refuse before SQL acq
     [projection([{ ...documents[0], digest: 'old-digest' }]), 'SEARCH_DOCUMENT_INVALID'], [projection([{ ...documents[0], kind: 'conversation' } as any]), 'SEARCH_DOCUMENT_INVALID'],
     [projection([{ ...documents[0], text: '\ud800' }]), 'SEARCH_DOCUMENT_INVALID'], [projection([{ ...documents[0], text: 'null\0text' }]), 'SEARCH_DOCUMENT_INVALID'],
     [{ ...projection(), missingDocuments: 1 }, 'SEARCH_CONFIGURATION_INVALID'],
+    [{ complete: true, expectedDocuments: 1, documents: new Array(1) }, 'SEARCH_CONFIGURATION_INVALID'],
   ];
   for (const [value, code] of cases) { const fixture = injected(); await assert.rejects(PostgresInvestigationSearch.fromPool(fixture.pool).search(value as any, request()), { code }); assert.equal(fixture.connected(), 0); }
 });

@@ -44,7 +44,7 @@ function project(projection: AuthorizedInvestigationSearchProjection, request: I
   check(projection.complete === true && Array.isArray(projection.documents) && Number.isSafeInteger(projection.expectedDocuments) && projection.expectedDocuments >= 0 && projection.expectedDocuments === projection.documents.length, 'SEARCH_PROJECTION_INCOMPLETE', 'Search requires the complete host-authorized document projection.');
   check(projection.documents.length <= request.bounds.maxDocuments, 'SEARCH_DOCUMENT_LIMIT', 'The complete authorized projection exceeds the document bound.');
   const ids = new Set<string>(); let textBytes = 0;
-  const documents = projection.documents.map(document => {
+  const documents = Array.from(projection.documents, document => {
     exactObject(document, ['id', 'kind', 'revision', 'digest', 'text']);
     check(typeof document.id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,199}$/.test(document.id) && !ids.has(document.id), 'SEARCH_DOCUMENT_INVALID', 'Search documents need distinct bounded identities.'); ids.add(document.id);
     check(['investigation', 'journal'].includes(document.kind) && Number.isSafeInteger(document.revision) && document.revision >= 0 && typeof document.digest === 'string' && /^[a-f0-9]{64}$/.test(document.digest), 'SEARCH_DOCUMENT_INVALID', 'Search documents need declared kinds and pinned revisions and digests.');
