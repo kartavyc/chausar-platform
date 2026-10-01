@@ -34,7 +34,8 @@ test('desktop accepts only explicit engine methods and bounded plain JSON payloa
   let deep: any = {}; for (let i = 0; i < 34; i++) deep = { child: deep };
   assert.throws(() => validateRequest({ method: 'workspace.status', payload: deep }), code('INVALID_REQUEST'));
   const source = await readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8');
-  const implemented = [...source.matchAll(/(?:case\s+|method === )'([a-z]+\.[a-zA-Z]+)'/g)].map(match => match[1]);
+  const implemented = [...source.matchAll(/(?:case\s+|method === )'([a-z]+(?:\.[a-zA-Z]+)+)'/g)].map(match => match[1]);
+  assert.ok(implemented.includes('jobs.calendar.configure'), 'Nested calendar methods must be included in the contract comparison.');
   assert.deepEqual([...METHODS].sort(), [...new Set(implemented)].sort(), 'Engine additions need an explicit desktop contract decision.');
 });
 
