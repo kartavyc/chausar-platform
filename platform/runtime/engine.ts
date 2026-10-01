@@ -4,7 +4,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { Vault, type VaultWriterGuard } from './vault.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
-import { ImportService, seedDemo } from './ingest.ts';
+import { ImportService, importPublicRecord, seedDemo } from './ingest.ts';
 import { MemoryService } from './memory.ts';
 import { canSeeFact } from './memory.ts';
 import { CalculatorService, type CalculatorOptions } from './calculator.ts';
@@ -40,11 +40,17 @@ import { LearningService } from './learning.ts';
 import { MCPService } from './mcp.ts';
 import { ConnectorService, type CredentialBroker } from './connectors.ts';
 import { EngineConnectorService, type EngineConnectorOptions } from './engine-connectors.ts';
+import { PrivateTrialHostService } from './private-trial-host.ts';
+import type { PrivateTrialAtomicPublication } from './private-trial-host.ts';
+import type { PrivateTrialRecipeEvidence } from './private-trial-contracts.ts';
+import { producerReplacementPins, producerReplacementOutputDigest, publishProducerReplacement } from './producer-replacement.ts';
+import { WorkspaceInterchangeHost } from './workspace-interchange-host.ts';
+import { createWorkspaceInterchangeLocalPorts } from './workspace-interchange-local.ts';
 import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
 import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
-import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type StateStore } from './contracts.ts';
+import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
 
 export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort } };
 
@@ -309,6 +315,27 @@ export class Engine {
     if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: resolve(this.options.directory, 'updates') });
     this.services.trust = new TrustService(store);
     const connectorForView = (view: StateStore) => view === store ? connectorRuntime : new EngineConnectorService(view, this.options.connectorRuntime);
+    this.services.privateTrials = new PrivateTrialHostService(store, {
+      custody: {
+        write: input => vault.writeArtifact(input).then(ref => ({ ...ref, purpose: 'private-trial' as const })),
+        read: input => vault.readArtifact(input).then(ref => ({ ...ref, purpose: 'private-trial' as const })),
+        list: input => vault.listArtifacts(input).then(refs => refs.map(ref => ({ ...ref, purpose: 'private-trial' as const }))),
+        remove: input => vault.removeArtifact(input),
+      },
+      now,
+      resolveRecipeEvidence: (ctx, sourceId) => this.privateRecipeEvidence(ctx, sourceId),
+      calculatorGuards: view => {
+        const connectors = connectorForView(view);
+        return { consumerGuard: (ctx, request) => connectors.assertCalculationReady(ctx, request),
+          receiptGuard: (ctx, receipt) => connectors.assertReceiptReady(ctx, receipt) };
+      },
+      resolvePromotionImpact: (ctx, _fork, _evaluation, strategy) => this.privatePromotionImpact(ctx, this.store().read(), strategy),
+      promoteAtomic: (ctx, publication) => this.promotePrivateTrial(ctx, publication),
+    });
+    const interchangeLocal = createWorkspaceInterchangeLocalPorts({ vault, applicationDirectory: this.options.directory,
+      assertCompleteOwner: async (ctx, historical) => this.interchangeOwner(ctx, historical) });
+    this.services.interchangeLocal = interchangeLocal;
+    this.services.interchange = new WorkspaceInterchangeHost(interchangeLocal.ports);
     this.services.alerts = new AlertsService(store, { calculatorOptions: view => {
       const connectors = connectorForView(view);
       return {
@@ -431,7 +458,11 @@ export class Engine {
     // Read-only devices may inspect/review enrollment without mutating recovery
     // state. A reviewed writer later performs ordinary recovery on reopen.
     if (this.options.sync !== undefined && (await this.writerStatus()).readonly) return;
-    await this.services.actions.recoverInterrupted(this.context); await this.services.jobRunner?.recoverInterrupted(this.context);
+    // Opening holds the Engine transition fence. Do not publish a new authority
+    // revision when there is no interrupted work: retained source pins must
+    // survive an otherwise read-only lock/reopen.
+    if (vault.read().actions.some(action => action.status === 'executing')) await this.services.actions.recoverInterrupted(this.context);
+    if (this.services.jobRunner && vault.read().jobs.some(job => job.status === 'running')) await this.services.jobRunner.recoverInterrupted(this.context);
   } catch (error) { await vault.close(); this.vault = null; this.services = {}; throw error; } }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
@@ -470,6 +501,37 @@ export class Engine {
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
     const s = this.services;
     switch (method) {
+      case 'workspace.interchange.export': return s.interchange.export(ctx, this.journalPayload(payload,
+        ['destinationId', 'confirmed'], ['destinationId', 'confirmed'], 'INVALID_INTERCHANGE_REQUEST'));
+      case 'workspace.interchange.prepare': return s.interchange.prepare(ctx, this.journalPayload(payload,
+        ['exportId', 'candidateId', 'targetId'], ['exportId', 'candidateId', 'targetId'], 'INVALID_INTERCHANGE_REQUEST'));
+      case 'workspace.interchange.review': return s.interchange.review(ctx, this.journalPayload(payload,
+        ['candidateId', 'reviewedDigest'], ['candidateId', 'reviewedDigest'], 'INVALID_INTERCHANGE_REQUEST'));
+      case 'workspace.interchange.discard': return s.interchange.discard(ctx, this.journalPayload(payload,
+        ['recordId', 'reviewedDigest'], ['recordId', 'reviewedDigest'], 'INVALID_INTERCHANGE_REQUEST'));
+      case 'workspace.interchange.diagnostics': {
+        this.journalPayload(payload, [], [], 'INVALID_INTERCHANGE_REQUEST'); this.interchangeOwner(ctx, store.read());
+        return s.interchangeLocal.diagnostics();
+      }
+      case 'trials.create': return s.privateTrials.create(ctx, this.journalPayload(payload, ['version', 'savedAnswerIds', 'change'], ['version', 'savedAnswerIds', 'change'], 'INVALID_PRIVATE_TRIAL'));
+      case 'trials.evaluate': return s.privateTrials.evaluate(ctx, this.journalPayload(payload, ['trialId'], ['trialId'], 'INVALID_PRIVATE_TRIAL').trialId);
+      case 'trials.get': return s.privateTrials.read(ctx, this.journalPayload(payload, ['trialId'], ['trialId'], 'INVALID_PRIVATE_TRIAL').trialId);
+      case 'trials.receiptContext': return this.privateRestatementContext(ctx, this.journalPayload(payload, ['receiptId'], ['receiptId'], 'INVALID_PRIVATE_TRIAL').receiptId);
+      case 'trials.list': this.journalPayload(payload, [], [], 'INVALID_PRIVATE_TRIAL'); return s.privateTrials.list(ctx);
+      case 'trials.savedQuestions': {
+        this.journalPayload(payload, [], [], 'INVALID_PRIVATE_TRIAL');
+        return store.read().answers.flatMap(answer => {
+          try { const receipt = s.calculator.receipt(ctx, answer.receiptId);
+            return answer.request ? [{ id: answer.id, receiptId: receipt.id, request: structuredClone(answer.request), stale: answer.stale === true || receipt.stale === true }] : [];
+          } catch { return []; }
+        });
+      }
+      case 'trials.discard': return s.privateTrials.discard(ctx, this.journalPayload(payload, ['trialId'], ['trialId'], 'INVALID_PRIVATE_TRIAL').trialId);
+      case 'trials.impact': { const input = this.journalPayload(payload, ['trialId', 'strategy'], ['trialId', 'strategy'], 'INVALID_PRIVATE_TRIAL'); return s.privateTrials.promotionImpact(ctx, input.trialId, input.strategy); }
+      case 'trials.promote': {
+        check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Review the exact private trial publication in the desktop app.');
+        return s.privateTrials.promote(ctx, this.journalPayload(payload, ['trialId', 'evaluationDigest', 'strategy', 'acknowledgedImpactDigest'], ['trialId', 'evaluationDigest', 'strategy', 'acknowledgedImpactDigest'], 'INVALID_PRIVATE_TRIAL'));
+      }
       case 'auth.invite': return s.auth.invite(ctx, payload);
       case 'auth.accept': return s.auth.accept(payload.token);
       case 'auth.session': return s.auth.issueSession(ctx, payload.memberId ?? ctx.memberId, payload.ttlMs);
@@ -848,7 +910,160 @@ export class Engine {
     const store = this.store(); const state = store.read(); const ctx = this.context;
     const legacy = state.imports.filter(item => !item.type && Array.isArray(item.rowIds) && sourceAllowed(state, ctx, item.sourceId)
       && item.rowIds.every((id: string) => { const fact = state.facts.find(f => f.id === id); return !!fact && canSeeFact(store, ctx, fact); }));
-    return [...legacy, ...this.services.connectorRuntime.sourceSummaries(ctx)];
+    return [...legacy.map(importPublicRecord), ...this.services.connectorRuntime.sourceSummaries(ctx)];
+  }
+  private privateRecipeEvidence(ctx: Context, sourceId: string): PrivateTrialRecipeEvidence {
+    const state = this.store().read(); assertSourceAccess(state, ctx, [sourceId]);
+    check(state.facts.filter(fact => fact.sourceId === sourceId).every(fact => canSeeFact(this.store(), ctx, fact)), 'FORBIDDEN_BRANCH', 'A recipe trial requires access to the complete retained producer history.');
+    const imports = state.imports.filter(item => item.sourceId === sourceId && item.format);
+    check(imports.length > 0 && imports.every(item => item.retainedInput?.version === 1 && item.retainedInput.digest === hash(item.retainedInput.input)
+      && item.contentHash === hash(item.retainedInput.input.content) && item.recipeHash === hash(item.retainedInput.input.recipe)
+      && item.coverage?.reconciled === true && Array.isArray(item.rowIds) && Number.isSafeInteger(item.retainedInput.input.expectedTotals?.rowCount)
+      && /^-?\d+$/.test(item.retainedInput.input.expectedTotals?.amountMinor)), 'TRIAL_RECIPE_CUSTODY_REQUIRED', 'Every source generation needs its exact retained original input, recipe, explicit independent controls and reconciled lineage. Older hash-only imports cannot be inferred.');
+    check(!state.imports.some(item => item.sourceId === sourceId && item.type?.startsWith('connector-')), 'TRIAL_RECIPE_CUSTODY_REQUIRED', 'Managed capture remapping requires its full qualified source custody resolver.');
+    return { sourceId, recipe: structuredClone(imports.at(-1)!.retainedInput.input.recipe), captures: imports.map(item => ({ importId: item.id,
+      generation: item.retainedInput.generation, complete: true, input: structuredClone(item.retainedInput.input), factIds: [...item.rowIds] })) };
+  }
+  private interchangeOwner(ctx: Context, historical: State) {
+    this.requireWorkspaceOwner(ctx);
+    check(ctx.channel === 'desktop' && !ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Complete workspace copying requires the untainted desktop owner.');
+    check(this.options.sync === undefined, 'INTERCHANGE_EXTERNAL_CUSTODY_REQUIRED', 'Configured device sync needs its independently enumerated external custody before a complete local transfer can be admitted.');
+    const current = this.store().read();
+    const sourceIds = [...new Set<string>([...historical.facts.map(fact => fact.sourceId), ...historical.imports.map(item => item.sourceId).filter((id): id is string => typeof id === 'string')])];
+    assertSourceAccess(current, ctx, sourceIds);
+    check(historical.facts.every(fact => canSeeFact(this.store(), ctx, fact)), 'INTERCHANGE_READ_SCOPE_REQUIRED', 'Workspace copying requires current access to every retained historical row.');
+    const managedSourceIds = [...new Set<string>(current.imports.filter(item => ['connector-capture-v1', 'connector-consumer-binding-v1'].includes(item.type)).map(item => item.sourceId).filter((id): id is string => typeof id === 'string'))];
+    this.services.connectorRuntime.assertBusinessEvidenceReady(ctx, { sourceIds, managedSourceIds, factIds: [], profileIds: [], request: {} });
+  }
+  private privatePromotionImpact(ctx: Context, state = this.store().read(), strategy?: 'prospective' | 'retrospective') {
+    const view: StateStore = { read: () => structuredClone(state), update: async () => { throw new Error('Impact inspection is read-only.'); } };
+    const member = authorize(view, ctx, 'admin');
+    check(member.branches.includes('*'), 'TRIAL_IMPACT_SCOPE_REQUIRED', 'Complete publication impact requires every workspace branch.');
+    assertSourceAccess(state, ctx, [...new Set(state.facts.map(fact => fact.sourceId))]);
+    // Conservatively include every persisted output: meaning changes can affect even equal totals.
+    const outputs = [state.receipts, state.answers, state.decisions, state.jobs, state.actions, state.conversations, state.modelReceipts, state.learning, state.schedules, state.plugins];
+    const affectedArtifactIds = [...new Set<string>(outputs.flatMap(records => records.map(record => record.id).filter((id): id is string => typeof id === 'string' && id.length > 0)))].sort();
+    const rebuildArtifactIds = [...new Set<string>(state.answers.filter(record => record.request && record.receiptId).map(record => record.id))].sort();
+    if (strategy === 'retrospective') {
+      const ineligible = state.answers.filter(answer => rebuildArtifactIds.includes(answer.id)).filter(answer => {
+        const receipt = state.receipts.find(receipt => receipt.id === answer.receiptId);
+        return !answer.request?.asOf || receipt?.memberId !== ctx.memberId || receipt?.epoch !== ctx.epoch;
+      }).map(answer => answer.id);
+      check(ineligible.length === 0, 'TRIAL_REBUILD_REQUIRED', `Retrospective publication needs current private ownership and explicitly pinned requests for these outputs: ${ineligible.join(', ')}.`);
+    }
+    const activeWorkIds = [...new Set<string>([
+      ...state.jobs.filter(job => !['accepted', 'cancelled', 'revoked', 'stopped'].includes(job.status) || job.lease
+        || [job.execution, ...(job.archivedExecutions ?? [])].some(execution => execution?.attempts?.some((attempt: any) => ['dispatched', 'unknown'].includes(attempt.status)))),
+      ...state.actions.filter(action => !['verified', 'cancelled', 'rejected'].includes(action.status)
+        || action.attempts?.some((attempt: any) => ['executing', 'unknown'].includes(attempt.outcome))),
+      ...state.schedules.filter(schedule => schedule.enabled !== false && schedule.status !== 'cancelled'),
+    ].map(record => record.id).filter((id): id is string => typeof id === 'string'))].sort();
+    return { complete: true as const, affectedArtifactIds, rebuildArtifactIds, activeWorkIds };
+  }
+  private async promotePrivateTrial(ctx: Context, publication: PrivateTrialAtomicPublication): Promise<{ publicationId: string }> {
+    const vault = this.store();
+    return vault.update(async state => {
+      const view: StateStore = { read: () => structuredClone(state), update: async () => { throw new ChausarError('REENTRANT_TRANSACTION', 'Use the current publication transaction.'); } };
+      publication.assertCurrent(view);
+      check(hash(this.privatePromotionImpact(ctx, state, publication.proposal.impact.strategy)) === hash({ complete: publication.proposal.impact.complete,
+        affectedArtifactIds: publication.proposal.impact.affectedArtifactIds, rebuildArtifactIds: publication.proposal.impact.rebuildArtifactIds,
+        activeWorkIds: publication.proposal.impact.activeWorkIds }), 'TRIAL_IMPACT_CHANGED', 'Complete publication dependencies changed inside the commit.');
+      const { fork, proposal } = publication; const at = now(), publicationId = newId('trialpublication');
+      if (fork.change.type === 'definition') {
+        // Preserve the exact reviewed compilation metadata/hash. Operational activation time is separate.
+        state.ontology = structuredClone(fork.candidate.ontology);
+      } else if (fork.change.type === 'source-precedence') {
+        state.sourceRules.push({ id: newId('rule'), kind: fork.change.kind, sourceIds: [...fork.change.sourceIds], at, by: ctx.memberId, trialPublicationId: publicationId });
+      } else {
+        const change = fork.change;
+        const live = new Map(state.facts.filter(fact => fact.sourceId === change.sourceId && !fact.supersededAt && !fact.deletedAt).map(fact => [JSON.stringify([fact.kind, fact.entityId]), fact]));
+        const capture = fork.recipeEvidence[0]?.captures.toSorted((left, right) => left.generation - right.generation).at(-1);
+        check(capture && [...live.values()].every(fact => capture.factIds.includes(fact.id)), 'TRIAL_PRODUCER_GENERATION_REQUIRED', 'Publication needs one retained complete latest producer generation; incremental fragments cannot be silently treated as a full replacement.');
+        const preview = new ImportService(view).preview(ctx, { ...capture.input, recipe: change.replacement });
+        check(preview.accepted && preview.facts.length === live.size, 'TRIAL_RECIPE_CUSTODY_CHANGED', 'The reviewed latest complete source generation must still reconcile at publication.');
+        const outputs = capture.factIds.map(id => fork.candidate.facts.find(fact => fact.id === id)!).map(fact => ({ entityId: fact.entityId, sourceId: fact.sourceId,
+          sourceRow: fact.sourceRow, kind: fact.kind, validFrom: fact.validFrom, validTo: fact.validTo, fields: structuredClone(fact.fields), ...(fact.branch ? { branch: fact.branch } : {}) }));
+        const source = new EngineConnectorService(view, this.options.connectorRuntime);
+        const request = { version: 1 as const, complete: true as const, sourceId: change.sourceId, expected: producerReplacementPins(state, change.sourceId), publishedAt: at,
+          outputs, custody: { inputDigest: hash(fork.recipeEvidence), recipeDigest: hash(change.replacement), outputDigest: producerReplacementOutputDigest(outputs) },
+          controls: { rowCount: outputs.length, sums: [{ field: 'amountMinor', minor: String(outputs.reduce((sum, output) => sum + BigInt(String(output.fields.amountMinor)), 0n)) }] } };
+        publishProducerReplacement(state, request, { assertCustody: (_state, input) => {
+          check(input.custody.inputDigest === hash(fork.recipeEvidence) && input.custody.recipeDigest === hash(change.replacement), 'TRIAL_RECIPE_CUSTODY_CHANGED', 'Publication must use the exact reviewed issued custody.');
+        }, assertCurrentAdmission: () => { for (const saved of fork.savedRequests) source.assertCalculationReady(ctx, saved.request); } });
+        const next = new Map(state.facts.filter(fact => fact.sourceId === change.sourceId && !fact.supersededAt && !fact.deletedAt).map(fact => [JSON.stringify([fact.kind, fact.entityId]), fact]));
+        const retained = JSON.parse(JSON.stringify({ ...capture.input, recipe: change.replacement }));
+        const rowIds = preview.facts.map(fact => next.get(JSON.stringify([fact.kind, fact.entityId]))?.id);
+        check(rowIds.every(id => typeof id === 'string'), 'TRIAL_RECIPE_CUSTODY_CHANGED', 'Every published producer row needs its actual live assertion lineage.');
+        state.imports.push({ id: newId('import'), at, sourceId: change.sourceId, format: capture.input.format,
+          contentHash: preview.contentHash, recipeHash: preview.recipeHash, rowIds, coverage: preview.coverage, totalsMinor: preview.totalsMinor,
+          expectedTotals: capture.input.expectedTotals, unmappedFields: preview.unmappedFields, qualification: 'experimental', trialPublicationId: publicationId,
+          retainedInput: { version: 1, generation: state.imports.filter(item => item.sourceId === change.sourceId && item.format).length + 1,
+            input: retained, digest: hash(retained) } });
+        state.learning.push({ id: publicationId, type: 'private-trial-recipe-publication-v1', sourceId: change.sourceId,
+          sourceIds: [change.sourceId], recipe: structuredClone(change.replacement), recipeHash: hash(change.replacement), at, shared: false });
+      }
+      // Original receipts are immutable historical evidence; current answers carry explicit staleness.
+      for (const answer of state.answers) { answer.stale = true; answer.staleReason = 'A reviewed private trial changed the published meaning.'; }
+      if (proposal.impact.strategy === 'retrospective') {
+        // Restatement is new evidence. It never overwrites historical receipts or their IDs.
+        let replay = structuredClone(fork.candidate);
+        const local: StateStore = { read: () => structuredClone(replay), update: async change => {
+          const draft = structuredClone(replay); const result = await change(draft); replay = draft; return result;
+        } };
+        const connectors = new EngineConnectorService(local, this.options.connectorRuntime);
+        const database = this.options.demo ? null : new DatabaseCalculator(this.options.analytics);
+        const rebuilds = proposal.impact.rebuildArtifactIds.map(id => state.answers.find(answer => answer.id === id));
+        for (const saved of rebuilds) {
+          const original = state.receipts.find(receipt => receipt.id === saved?.receiptId);
+          check(saved?.request?.asOf && original?.memberId === ctx.memberId && original?.epoch === ctx.epoch, 'TRIAL_REBUILD_REQUIRED', 'Every acknowledged rebuild needs its current private owner and explicitly pinned original request.');
+          const calculator = new CalculatorService(local, { ...(database ? { verifier: receipt => database.verify(receipt) } : {}), consumerGuard: (context, request) => connectors.assertCalculationReady(context, request),
+            receiptGuard: (context, receipt) => connectors.assertReceiptReady(context, receipt),
+            restatement: { version: 1, interpretation: 'restated-private-diagnostic', trialId: fork.id, forkDigest: fork.digest,
+              candidateStateDigest: fork.candidatePin.stateDigest, publicationId, originalAnswerId: saved.id, originalReceiptId: original.id } });
+          const receipt = await calculator.calculate(ctx, structuredClone(saved.request));
+          state.receipts.push(structuredClone(receipt));
+          state.answers.push({ id: newId('answer'), request: structuredClone(saved.request), receiptId: receipt.id, memberId: ctx.memberId,
+            epoch: ctx.epoch, at, interpretation: 'restated-private-diagnostic', restatement: 'reviewed-private-trial', publicationId, originalAnswerId: saved.id });
+        }
+      }
+      audit(state, 'private-trial.published', { publicationId, trialId: fork.id, strategy: proposal.impact.strategy,
+        candidatePin: fork.candidatePin.stateDigest, activatedAt: at });
+      return { publicationId };
+    });
+  }
+  private async privateRestatementContext(ctx: Context, receiptId: unknown) {
+    check(typeof receiptId === 'string', 'RESTATEMENT_CONTEXT_REQUIRED', 'Choose one retained restated calculation receipt.');
+    const receipt = this.services.calculator.receipt(ctx, receiptId), anchor = receipt.restatement;
+    check(anchor?.version === 1 && anchor.interpretation === 'restated-private-diagnostic', 'RESTATEMENT_CONTEXT_REQUIRED', 'This receipt has no issued private restatement context.');
+    this.assertRestatementCustodyRetained(receiptId);
+    let retained, binding;
+    try {
+      retained = await this.store().readArtifact({ id: `${anchor.trialId}-fork`, purpose: 'private-trial' });
+      binding = await this.store().readArtifact({ id: `${anchor.trialId}-binding`, purpose: 'private-trial' });
+    } catch (error: any) {
+      this.assertRestatementCustodyRetained(receiptId);
+      if (error.code === 'ARTIFACT_NOT_FOUND') throw new ChausarError('RESTATEMENT_CUSTODY_UNAVAILABLE', 'The issued restatement payload is absent; the historical receipt remains labelled but its paired interpretation cannot be released.');
+      throw error;
+    }
+    const fork = retained.value as PrivateTrialAtomicPublication['fork'], issued = binding.value as any;
+    const { digest: ignored, ...body } = fork;
+    check(fork.digest === anchor.forkDigest && hash(body) === fork.digest && fork.candidatePin.stateDigest === anchor.candidateStateDigest
+      && fork.memberId === ctx.memberId && fork.epoch === ctx.epoch && fork.workspaceId === this.store().read().workspace.id
+      && issued.status === 'promoted' && issued.publicationId === anchor.publicationId && issued.fork.issuedDigest === fork.digest
+      && issued.fork.ref.valueDigest === retained.valueDigest, 'RESTATEMENT_CONTEXT_CHANGED', 'The retained restatement differs from its independently issued fork and publication context.');
+    const originalReceipt = this.services.calculator.receipt(ctx, anchor.originalReceiptId);
+    const view: StateStore = { read: () => structuredClone(fork.candidate), update: async () => { throw new Error('Restatement context is inert.'); } };
+    new EngineConnectorService(view, this.options.connectorRuntime).assertReceiptReady(ctx, receipt);
+    // Recheck live access after custody I/O, including every retained exclusion.
+    this.services.calculator.receipt(ctx, receiptId);
+    this.assertRestatementCustodyRetained(receiptId);
+    return { receiptId, interpretation: anchor.interpretation, originalReceipt, forkDigest: fork.digest, candidatePin: fork.candidatePin,
+      change: structuredClone(fork.change), rows: receipt.rowIds.map((id: string) => ({ factId: id,
+        original: structuredClone(fork.baseline.facts.find(fact => fact.id === id)), restated: structuredClone(fork.candidate.facts.find(fact => fact.id === id)) })) };
+  }
+  private assertRestatementCustodyRetained(receiptId: string) {
+    check(!this.store().read().tombstones.some(item => item.kind === 'private-restatement-custody' && item.receiptIds?.includes(receiptId)),
+      'RESTATEMENT_CUSTODY_REVOKED', 'Managed retention or source deletion released the complete fork containing this receipt. Its immutable restatement anchor remains, but paired interpretation is explicitly unavailable.');
   }
   private visibleActivity(ctx: Context) {
     const store = this.store(); const member = authorize(store, ctx); const state = store.read();
@@ -860,7 +1075,18 @@ export class Engine {
     });
   }
   private async purgeManagedCopies() {
-    const removed: string[] = [];
+    // A whole-workspace fork can hold forgotten bytes from another source. Revoke
+    // surviving receipt contexts BEFORE deleting those copies; never retain the
+    // forgotten fork solely to satisfy an unrelated receipt's interpretation.
+    const vault = this.store(), current = vault.read();
+    if (current.receipts.some(receipt => receipt.restatement && !current.tombstones.some(item => item.kind === 'private-restatement-custody' && item.receiptIds?.includes(receipt.id)))) {
+      await vault.update(state => {
+        const receiptIds = state.receipts.filter(receipt => receipt.restatement && !state.tombstones.some(item => item.kind === 'private-restatement-custody' && item.receiptIds?.includes(receipt.id))).map(receipt => receipt.id).sort();
+        if (receiptIds.length) state.tombstones.push({ id: newId('tombstone'), kind: 'private-restatement-custody', receiptIds,
+          reason: 'managed-retention-or-deletion', deletedAt: now() });
+      });
+    }
+    const removed: string[] = await this.store().purgeArtifacts();
     const prefix = `chausar-${this.store().read().workspace.id}-`;
     for (const name of ['backups', 'exports']) {
       const folder = resolve(this.options.directory, name); let files;

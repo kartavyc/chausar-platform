@@ -8,6 +8,8 @@ export type ImportFormat = 'csv' | 'tally-xml' | 'zoho-json' | 'gst-json' | 'ban
 export type Binding = { target: string; source?: string; constant?: string; type: 'string' | 'money' | 'date' | 'integer' | 'boolean'; nulls: 'reject' | 'omit' | 'zero'; values?: Record<string, string>; dateFormat?: 'ISO' | 'DMY' | 'YMD8'; moneyUnit?: 'major' | 'minor'; currency?: string; fx?: { numerator: string; denominator: string; rounding: 'exact' | 'half-up' } };
 export type MappingRecipe = { version: 1; id: string; system: string; edition: string; scope: { company: string; branches: string[]; gstin?: string }; bindings: Binding[]; allowedKinds: string[]; allowedStatuses: string[]; onUnmapped: 'report' | 'reject'; ignoredFields?: string[]; tallyLedgerClasses?: Record<string, 'sales' | 'purchase' | 'bank' | 'tax' | 'other'>; bankLayout?: { idField: string; dateField: string; descriptionField: string; debitField: string; creditField: string; balanceField: string; dateFormat: 'ISO' | 'DMY' | 'YMD8'; openingMinor: string; closingMinor: string; currency: string } };
 export type ImportInput = { sourceId: string; format: ImportFormat; content: string; recipe?: MappingRecipe; expectedTotals?: { rowCount: number; amountMinor: string }; installation?: { company: string; edition: string; gstin?: string } };
+/** Encrypted State custody, not part of source-list or commit RPC results. */
+export function importPublicRecord(record: any): any { const { retainedInput: ignored, ...publicRecord } = structuredClone(record); return publicRecord; }
 export type ImportPreview = { accepted: boolean; errors: { row: number; code: string; message: string }[]; unmappedFields: string[]; facts: FactInput[]; totalsMinor: string; coverage: { sourceRows: number; importedRows: number; rejectedRows: number; expectedRows: number | null; reconciled: boolean }; sourceId: string; contentHash: string; recipeHash: string; format: ImportFormat; qualification: 'experimental'; question: string | null };
 
 export function parseCsv(text: string): Record<string, string>[] {
@@ -281,7 +283,7 @@ export class ImportService {
     return this.store.update(state => {
       authorize(this.store, ctx, 'prepare'); for (const f of preview.facts) currentAccess(this.store, ctx, f.branch, f.sourceId);
       const prior = state.imports.find(i => i.contentHash === preview.contentHash && i.recipeHash === preview.recipeHash && i.sourceId === input.sourceId);
-      if (prior) return { ...structuredClone(prior), duplicate: true };
+      if (prior) return { ...importPublicRecord(prior), duplicate: true };
       insertFacts(state, preview.facts, now());
       // A source export includes unchanged claims as well as newly appended versions.
       // Keep its complete lineage while preserving insertFacts' no-op deduplication.
@@ -291,9 +293,10 @@ export class ImportService {
         check(stored, 'IMPORT_LINEAGE_INVALID', 'Every accepted source row must resolve to its stored claim.');
         return stored;
       });
-      const imported = { id: newId('import'), at: now(), sourceId: input.sourceId, format: input.format, recipeHash: preview.recipeHash, contentHash: preview.contentHash, rowIds: records.map(f => f.id), coverage: preview.coverage, totalsMinor: preview.totalsMinor, expectedTotals: input.expectedTotals, unmappedFields: preview.unmappedFields, qualification: 'experimental' };
+      const retained = JSON.parse(JSON.stringify({ ...input, recipe: input.recipe ?? defaultRecipe(input.format) })) as ImportInput;
+      const imported = { id: newId('import'), at: now(), sourceId: input.sourceId, format: input.format, recipeHash: preview.recipeHash, contentHash: preview.contentHash, rowIds: records.map(f => f.id), coverage: preview.coverage, totalsMinor: preview.totalsMinor, expectedTotals: input.expectedTotals, unmappedFields: preview.unmappedFields, qualification: 'experimental', retainedInput: { version: 1, generation: state.imports.filter(i => i.sourceId === input.sourceId && i.format).length + 1, input: retained, digest: hash(retained) } };
       state.imports.push(imported); state.learning.push({ id: newId('learning'), at: now(), category: 'mapping', recipeId: (input.recipe ?? defaultRecipe(input.format)).id, recipeHash: preview.recipeHash, decision: 'accepted', fieldNames: (input.recipe ?? defaultRecipe(input.format)).bindings.map(b => b.source).filter(Boolean), unmappedFields: preview.unmappedFields, reason: 'Source report totals reconciled.', shared: false });
-      audit(state, 'source.imported', { importId: imported.id, sourceId: input.sourceId, rowCount: records.length }); return structuredClone(imported);
+      audit(state, 'source.imported', { importId: imported.id, sourceId: input.sourceId, rowCount: records.length }); return importPublicRecord(imported);
     });
   }
   async previewWorkbook(ctx: Context, input: Omit<ImportInput, 'format' | 'content'> & { bytes: Uint8Array }) {

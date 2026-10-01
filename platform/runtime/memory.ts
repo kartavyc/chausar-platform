@@ -40,7 +40,7 @@ export function selectFacts(store: StateStore, ctx: Context, filter: FactFilter 
   const normalized = new Date(asOf).toISOString();
   const tombstones = new Set(state.tombstones.map(t => t.factId ?? t.id));
   const excluded: FactSelection['excluded'] = [];
-  const visible = state.facts.filter(f => !f.deletedAt && !tombstones.has(f.id) && canSeeFact(store, ctx, f) && (!filter.branch || f.branch === filter.branch) && f.learnedAt <= normalized);
+  const visible = state.facts.filter(f => !f.deletedAt && !tombstones.has(f.id) && canSeeFact(store, ctx, f) && (!filter.branch || f.branch === filter.branch) && f.learnedAt <= normalized && (!f.supersededAt || f.supersededAt > normalized));
   const sourceLatest = new Map<string, Fact>();
   for (const f of visible) {
     const key = `${f.sourceId}\u0000${f.kind}\u0000${f.entityId}`;
@@ -86,7 +86,7 @@ export function insertFacts(state: State, inputs: FactInput[], learnedAt: string
     check(!Object.keys(input.fields).some(k => ['__proto__', 'prototype', 'constructor', '_supersedes'].includes(k)), 'INVALID_FACT_FIELD', 'Reserved fact fields are refused.');
     const sameKey = state.facts.filter(f => f.entityId === input.entityId && f.sourceId === input.sourceId && f.kind === input.kind);
     const previous = sameKey.at(-1);
-    if (previous && hash({ fields: previous.fields, validFrom: previous.validFrom, validTo: previous.validTo, branch: previous.branch }) === hash({ fields: input.fields, validFrom: input.validFrom, validTo: input.validTo ?? null, branch: input.branch })) continue;
+    if (previous && !previous.supersededAt && hash({ fields: previous.fields, validFrom: previous.validFrom, validTo: previous.validTo, branch: previous.branch }) === hash({ fields: input.fields, validFrom: input.validFrom, validTo: input.validTo ?? null, branch: input.branch })) continue;
     check(!previous || previous.learnedAt <= learnedAt, 'SYSTEM_CLOCK_REGRESSION', 'A correction cannot be learned before the previous version.');
     const fact: Fact = { ...structuredClone(input), id: newId('fact'), validTo: input.validTo ?? null, learnedAt, supersededAt: null };
     state.facts.push(fact); created.push(fact);

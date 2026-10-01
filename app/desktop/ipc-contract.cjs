@@ -6,6 +6,8 @@ const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
   'workspace.status', 'workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.backup', 'workspace.export', 'workspace.delete',
+  'workspace.interchange.export', 'workspace.interchange.prepare', 'workspace.interchange.review', 'workspace.interchange.discard', 'workspace.interchange.diagnostics',
+  'trials.create', 'trials.evaluate', 'trials.get', 'trials.receiptContext', 'trials.list', 'trials.savedQuestions', 'trials.discard', 'trials.impact', 'trials.promote',
   'auth.invite', 'auth.accept', 'auth.session', 'auth.revoke', 'auth.sessions',
   'sync.status', 'sync.identity', 'sync.enable', 'sync.trust', 'sync.preview', 'sync.approve', 'sync.push', 'sync.pull',
   'sync.writer.status', 'sync.writer.review', 'sync.reconcile',

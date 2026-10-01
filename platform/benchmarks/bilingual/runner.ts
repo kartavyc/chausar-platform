@@ -79,9 +79,14 @@ export async function observePublicCase(port: PublicBenchmarkPort, c: BenchmarkC
     seen.add(row.factId);
     return fact.entityId === row.entityId && row.sourceId === FIXTURE_SOURCE && fact.sourceId === row.sourceId
       && fact.sourceRow === row.sourceRow && fact.kind === row.kind && fact.validFrom === row.validFrom
-      && fact.branch === row.branch && fact.fields.amountMinor === row.amountMinor;
+      && fact.branch === row.branch && fact.fields.amountMinor === row.amountMinor
+      && ['invoiceId', 'customerId', 'orderId', 'dueDate', 'status'].every(field => row[field] === (typeof fact.fields[field] === 'string' ? fact.fields[field] : undefined));
   });
-  const scopeVerified = rowsBound && exact([...receipt.rowIds].sort(), [...seen].sort()) && exact(receipt.period, payload.period ?? null)
+  const contributingSourceIds = new Set(receipt.rows.map((row: any) => row.sourceId));
+  const sourceIdsBound = Array.isArray(receipt.sourceIds) && Array.from(receipt.sourceIds).every((id: unknown) => typeof id === 'string')
+    && new Set(receipt.sourceIds).size === receipt.sourceIds.length
+    && contributingSourceIds.size === receipt.sourceIds.length && receipt.sourceIds.every((id: string) => contributingSourceIds.has(id));
+  const scopeVerified = rowsBound && sourceIdsBound && exact([...receipt.rowIds].sort(), [...seen].sort()) && exact(receipt.period, payload.period ?? null)
     && exact(receipt.comparePeriod, payload.comparePeriod ?? null) && exact(receipt.branch, payload.branch ?? null)
     && exact(receipt.requestedSourceIds, payload.sourceIds)
     && (payload.asOf === undefined || receipt.asOf === new Date(String(payload.asOf)).toISOString())

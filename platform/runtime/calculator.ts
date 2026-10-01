@@ -8,12 +8,16 @@ import { assertSourceAccess } from './trust.ts';
 export type CalculationRequest = FactFilter & { operation: string; sourceIds?: string[]; comparePeriod?: Period; onDate?: string; assumptions?: { priceChangeBps: string } };
 export type Figure = { key: string; label: string; minor: string; display: string; unit: 'money' | 'basis-points'; currency?: string };
 export type ReceiptRow = { factId: string; entityId: string; sourceId: string; sourceRow: number; kind: string; amountMinor: string; measureField?: string; validFrom: string; dueDate?: string; invoiceId?: string; customerId?: string; orderId?: string; status?: string; branch?: string; normalization?: { sourceCurrency: string; targetCurrency: string; rate: unknown } };
-export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; requestedSourceIds?: string[]; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; compiledCalculation?: CompiledCalculationBinding; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown };
+export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; requestedSourceIds?: string[]; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; compiledCalculation?: CompiledCalculationBinding; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown; restatement?: ReceiptRestatement };
 export type CalculatorOptions = {
+  /** Trusted publication context only, never a caller-authored calculation parameter. */
+  restatement?: ReceiptRestatement;
   verifier?: (receipt: CalculationReceipt) => Promise<unknown>;
   consumerGuard?: (context: Context, request: CalculationRequest) => void;
   receiptGuard?: (context: Context, receipt: CalculationReceipt) => void;
 };
+export type ReceiptRestatement = { version: 1; interpretation: 'restated-private-diagnostic'; trialId: string; forkDigest: string;
+  candidateStateDigest: string; publicationId: string; originalAnswerId: string; originalReceiptId: string };
 export function formatMoney(n: string | bigint, currency = 'INR') { return formatMinor(n, currency); }
 export function sumMoney(values: string[]) { return String(values.reduce((sum, value) => { check(/^-?\d+$/.test(value), 'INVALID_MINOR_UNITS', 'Calculator amounts must be whole minor-unit strings.'); return sum + BigInt(value); }, 0n)); }
 const moneyFigure = (key: string, label: string, value: bigint, currency: string): Figure => ({ key, label, minor: String(value), display: formatMoney(value, currency), unit: 'money', currency });
@@ -36,7 +40,19 @@ export class CalculatorService {
   verifier?: CalculatorOptions['verifier'];
   consumerGuard?: CalculatorOptions['consumerGuard'];
   receiptGuard?: CalculatorOptions['receiptGuard'];
-  constructor(store: StateStore, options: CalculatorOptions = {}) { this.store = store; this.verifier = options.verifier; this.consumerGuard = options.consumerGuard; this.receiptGuard = options.receiptGuard; }
+  readonly restatement?: ReceiptRestatement;
+  constructor(store: StateStore, options: CalculatorOptions = {}) {
+    this.store = store; this.verifier = options.verifier; this.consumerGuard = options.consumerGuard; this.receiptGuard = options.receiptGuard;
+    if (options.restatement) {
+      const value = options.restatement;
+      check(value.version === 1 && value.interpretation === 'restated-private-diagnostic'
+        && Object.keys(value).sort().join(',') === 'candidateStateDigest,forkDigest,interpretation,originalAnswerId,originalReceiptId,publicationId,trialId,version'
+        && [value.forkDigest, value.candidateStateDigest].every(pin => /^[a-f0-9]{64}$/.test(pin))
+        && [value.trialId, value.publicationId, value.originalAnswerId, value.originalReceiptId].every(id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,160}$/.test(id)),
+      'RESTATEMENT_CONTEXT_REQUIRED', 'Restated receipts need the exact issued fork, version and original receipt context.');
+      this.restatement = structuredClone(value);
+    }
+  }
   catalog(ctx: Context) { const dictionary = new OntologyService(this.store).current(ctx); check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business definitions before asking for numbers.'); return dictionary.operations; }
   guard(text: string, receipt: CalculationReceipt) { return numberGuard(text, receipt); }
   async ask(ctx: Context, question: string, filters: Omit<CalculationRequest, 'operation'> = {}) {
@@ -176,6 +192,7 @@ export class CalculatorService {
     for (const row of receipt.rows) { const fact = counted.get(row.factId)!; row.validFrom = fact.validFrom; for (const field of ['dueDate', 'invoiceId', 'customerId', 'orderId', 'status'] as const) if (typeof fact.fields[field] === 'string') row[field] = fact.fields[field]; }
     receipt.allowedNumbers = [...new Set([...figures.flatMap(f => [f.minor, ...numericTokens(f.display)]), String(rows.length), String(receipt.coverage.excludedRows), ...numericTokens(JSON.stringify({ period: receipt.period, comparePeriod: receipt.comparePeriod, asOf: receipt.asOf, onDate: assumptions.onDate }))])];
     numberGuard(receipt.explanation, receipt);
+    if (this.restatement) receipt.restatement = structuredClone(this.restatement);
     if (this.verifier) receipt.databaseProof = await this.verifier(structuredClone(receipt));
     assertRequestedAccess();
     this.consumerGuard?.(ctx, structuredClone(request)); this.receiptGuard?.(ctx, structuredClone(receipt));

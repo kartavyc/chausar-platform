@@ -1,5 +1,6 @@
-import { mkdir, realpath, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { runBilingualBenchmark } from '../platform/benchmarks/bilingual/runner.ts';
 
@@ -19,19 +20,24 @@ for (;;) {
 }
 const ancestry = relative(root, ancestor);
 if (isAbsolute(ancestry) || ancestry === '..' || ancestry.startsWith('..' + sep)) throw new Error('Benchmark output ancestry escapes this source copy.');
-const scratchRoot = resolve(root, 'test-results', 'bilingual-benchmark-scratch');
-let scratchAncestor = dirname(scratchRoot);
-for (;;) {
-  try { scratchAncestor = await realpath(scratchAncestor); break; } catch (error) { if (error.code !== 'ENOENT') throw error; const parent = dirname(scratchAncestor); if (parent === scratchAncestor) throw error; scratchAncestor = parent; }
+// Source and report paths may be on another drive. Disposable workspaces use the
+// existing canonical temporary parent, checked before any directory is created.
+const temporaryRoot = await realpath(tmpdir()), scratchPrefix = 'chausar-bilingual-cli-';
+if (process.platform === 'win32' && !/^C:[\\/]/i.test(temporaryRoot)) throw new Error('Windows synthetic benchmark scratch must stay on C.');
+const scratchRoot = await mkdtemp(join(temporaryRoot, scratchPrefix));
+let report;
+try {
+  report = await runBilingualBenchmark({ scratchRoot });
+  await mkdir(dirname(destination), { recursive: true });
+  await writeFile(destination, JSON.stringify(report, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+} finally {
+  const target = await realpath(scratchRoot), scratchChild = relative(temporaryRoot, target);
+  if (target !== resolve(scratchRoot) || dirname(target) !== temporaryRoot || !scratchChild || isAbsolute(scratchChild)
+    || scratchChild === '..' || scratchChild.startsWith('..' + sep) || scratchChild.includes(sep) || !basename(target).startsWith(scratchPrefix)) {
+    throw new Error('Refusing cleanup outside the exact owned synthetic temporary parent and prefix.');
+  }
+  await rm(target, { recursive: true, force: true });
 }
-const scratchAncestry = relative(root, scratchAncestor);
-if (isAbsolute(scratchAncestry) || scratchAncestry === '..' || scratchAncestry.startsWith('..' + sep)) throw new Error('Benchmark scratch ancestry escapes this source copy.');
-await mkdir(scratchRoot, { recursive: true });
-const actualScratch = await realpath(scratchRoot), scratchChild = relative(root, actualScratch);
-if (!scratchChild || isAbsolute(scratchChild) || scratchChild === '..' || scratchChild.startsWith('..' + sep)) throw new Error('Benchmark scratch escapes this source copy.');
-const report = await runBilingualBenchmark({ scratchRoot: actualScratch });
-await mkdir(dirname(destination), { recursive: true });
-await writeFile(destination, JSON.stringify(report, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
 process.stdout.write(JSON.stringify({ passed: report.passed, score: report.score, byLanguage: report.byLanguage, byTrack: report.byTrack,
   semanticRunSha256: report.fingerprints.semanticRunSha256, report: child.replaceAll('\\', '/'), modelDispatches: 0, productionQualified: false }) + '\n');
 process.exitCode = report.passed ? 0 : 1;

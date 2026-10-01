@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
-import { mkdtemp, readFile, readdir, realpath, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { hash } from '../runtime/contracts.ts';
+import type { ReceiptRow } from '../runtime/calculator.ts';
 import type { BenchmarkCase, ExpectedAnswer, Observation, PublicBenchmarkPort } from '../benchmarks/bilingual/contracts.ts';
 import { FIXTURE_SOURCE, loadPackage, methodUrl, packageUrl, sha256, UNSUPPORTED_MESSAGE, validatePackage } from '../benchmarks/bilingual/fixture.ts';
 import { expectedFor, observePublicCase, runBilingualBenchmark, scoreObservation, summarize, type ReceiptBinding } from '../benchmarks/bilingual/runner.ts';
@@ -157,14 +158,15 @@ function syntheticReceipt(c: BenchmarkCase) {
   const definitions = [{ name: 'earned_source_semantics', version: 1, expression: 'synthetic earned rows' }];
   const dictionary = { hash: 'synthetic-published-dictionary-hash', version: 1, definitions,
     operations: [{ id: e.operation, definitions: ['earned_source_semantics'] }] };
+  const links = { invoiceId: 'synthetic-invoice', customerId: 'synthetic-customer', orderId: 'synthetic-order', dueDate: '2026-09-30', status: 'settled' };
   const fact = { id: 'synthetic-fact', entityId: e.entities[0], sourceId: FIXTURE_SOURCE, sourceRow: 1,
-    kind: 'sale', validFrom: '2026-09-15', branch: 'main', fields: { amountMinor: e.valueMinor } };
+    kind: 'sale', validFrom: '2026-09-15', branch: 'main', fields: { amountMinor: e.valueMinor, ...links } };
+  const rows: ReceiptRow[] = [{ factId: fact.id, entityId: fact.entityId, sourceId: fact.sourceId, sourceRow: fact.sourceRow,
+    kind: fact.kind, validFrom: fact.validFrom, branch: fact.branch, amountMinor: fact.fields.amountMinor, ...links }];
   const receipt = { id: 'synthetic-receipt', operation: e.operation, valueMinor: e.valueMinor, totalMinor: e.valueMinor,
     currency: e.currency, dictionaryHash: dictionary.hash, ontologyVersion: dictionary.version, definitions,
     definitionHash: hash(definitions), period: c.payload.period ?? null, comparePeriod: null, branch: null,
-    requestedSourceIds: undefined, stale: false, assumptions: {},
-    rows: [{ factId: fact.id, entityId: fact.entityId, sourceId: fact.sourceId, sourceRow: fact.sourceRow,
-      kind: fact.kind, validFrom: fact.validFrom, branch: fact.branch, amountMinor: fact.fields.amountMinor }],
+    sourceIds: [FIXTURE_SOURCE], requestedSourceIds: undefined, stale: false, assumptions: {}, rows,
     rowIds: [fact.id], figures: [{ key: 'total', minor: e.valueMinor, currency: e.currency, unit: 'money' }],
     exclusions: [], coverage: { countedRows: 1, completeness: e.completeness, gaps: [] },
   };
@@ -211,6 +213,82 @@ test('public observation cannot count inaccessible, forged-definition or mismatc
   const hiddenCustomer = structuredClone(c); hiddenCustomer.payload.customerId = 'different-customer';
   const port: PublicBenchmarkPort = { request: async () => structuredClone(receipt) };
   assert.equal(scoreObservation(hiddenCustomer, 'en', await observePublicCase(port, hiddenCustomer, 'en', binding)).outcome, 'wrong');
+});
+
+test('identical receipt readback cannot hide changed, omitted or invented imported row links', async () => {
+  const c = await benchmarkCase('large-integer');
+  for (const field of ['invoiceId', 'customerId', 'orderId', 'dueDate', 'status'] as const) {
+    const blank = syntheticReceipt(c);
+    blank.binding.factsById.get(blank.receipt.rows[0].factId).fields[field] = '';
+    blank.receipt.rows[0][field] = '';
+    const blankPort: PublicBenchmarkPort = { request: async () => structuredClone(blank.receipt) };
+    assert.equal(scoreObservation(c, 'en', await observePublicCase(blankPort, c, 'en', blank.binding)).outcome, 'right', `${field} preserves an imported empty string.`);
+    for (const mutation of ['changed', 'omitted', 'added'] as const) {
+      const { receipt, binding } = syntheticReceipt(c), row = receipt.rows[0];
+      if (mutation === 'added') delete binding.factsById.get(row.factId).fields[field];
+      if (mutation === 'omitted') delete row[field];
+      else row[field] = `forged-${field}`;
+      const port: PublicBenchmarkPort = { request: async () => structuredClone(receipt) };
+      const observation = await observePublicCase(port, c, 'en', binding);
+      assert.equal(observation.kind, 'answer');
+      const answer = observation as Extract<Observation, { kind: 'answer' }>;
+      assert.equal(answer.receiptVerified, true, 'Readback deliberately repeats the forged receipt exactly.');
+      assert.equal(answer.dictionaryVerified, true);
+      assert.equal(answer.semantics.valueMinor, (expectedFor(c, 'en') as ExpectedAnswer).valueMinor);
+      assert.equal(answer.scopeVerified, false, `${mutation} ${field}`);
+      assert.equal(scoreObservation(c, 'en', observation).outcome, 'wrong', `${mutation} ${field}`);
+    }
+    for (const factValue of [undefined, null, 42]) {
+      const { receipt, binding } = syntheticReceipt(c), row = receipt.rows[0];
+      binding.factsById.get(row.factId).fields[field] = factValue;
+      delete row[field];
+      const port: PublicBenchmarkPort = { request: async () => structuredClone(receipt) };
+      assert.equal(scoreObservation(c, 'en', await observePublicCase(port, c, 'en', binding)).outcome, 'right', `${field} is absent from receipts when the fact value is not a string.`);
+      row[field] = String(factValue);
+      assert.equal(scoreObservation(c, 'en', await observePublicCase(port, c, 'en', binding)).outcome, 'wrong', `${field} must not stringify a nonstring fact value.`);
+    }
+  }
+});
+
+test('the contributing source summary is a distinct string set and remains empty for empty receipts', async () => {
+  const c = await benchmarkCase('large-integer');
+  type Receipt = ReturnType<typeof syntheticReceipt>['receipt'];
+  const variants: [string, (receipt: Receipt) => void][] = [
+    ['omitted source summary', r => { delete (r as Partial<Receipt>).sourceIds; }],
+    ['nonarray source summary', r => { (r as any).sourceIds = FIXTURE_SOURCE; }],
+    ['contributing source omitted', r => { r.sourceIds = []; }],
+    ['foreign source added', r => { r.sourceIds.push('another-source'); }],
+    ['duplicate source metadata', r => { r.sourceIds.push(FIXTURE_SOURCE); }],
+    ['nonstring source metadata', r => { (r.sourceIds as unknown[]).push(42); }],
+  ];
+  for (const [reason, change] of variants) {
+    const { receipt, binding } = syntheticReceipt(c); change(receipt);
+    const port: PublicBenchmarkPort = { request: async () => structuredClone(receipt) };
+    const observation = await observePublicCase(port, c, 'en', binding);
+    assert.equal(observation.kind, 'answer');
+    const answer = observation as Extract<Observation, { kind: 'answer' }>;
+    assert.equal(answer.receiptVerified, true, reason);
+    assert.equal(answer.semantics.valueMinor, receipt.valueMinor, reason);
+    assert.equal(answer.scopeVerified, false, reason);
+    assert.equal(scoreObservation(c, 'en', observation).outcome, 'wrong', reason);
+  }
+  const { receipt, binding } = syntheticReceipt(c);
+  const anotherFact = { ...binding.factsById.get(receipt.rows[0].factId), id: 'another-synthetic-fact' };
+  binding.factsById.set(anotherFact.id, anotherFact);
+  receipt.rows.push({ ...receipt.rows[0], factId: anotherFact.id }); receipt.rowIds.push(anotherFact.id); receipt.coverage.countedRows = 2;
+  const port: PublicBenchmarkPort = { request: async () => structuredClone(receipt) };
+  const sharedSource = await observePublicCase(port, c, 'en', binding);
+  assert.equal((sharedSource as Extract<Observation, { kind: 'answer' }>).scopeVerified, true, 'Multiple rows from one source retain one summary entry.');
+  receipt.rows = []; receipt.rowIds = []; receipt.sourceIds = []; receipt.coverage.countedRows = 0;
+  const empty = await observePublicCase(port, c, 'en', binding);
+  assert.equal(empty.kind, 'answer');
+  assert.equal((empty as Extract<Observation, { kind: 'answer' }>).scopeVerified, true, 'Zero contributing rows require an empty source summary.');
+  receipt.sourceIds = [FIXTURE_SOURCE];
+  const foreign = await observePublicCase(port, c, 'en', binding);
+  assert.equal((foreign as Extract<Observation, { kind: 'answer' }>).scopeVerified, false);
+  receipt.sourceIds = new Array(1);
+  const sparse = await observePublicCase(port, c, 'en', binding);
+  assert.equal((sparse as Extract<Observation, { kind: 'answer' }>).scopeVerified, false, 'Sparse source metadata cannot masquerade as an empty summary.');
 });
 
 test('the parser track submits the original Hindi question and receives its exact unsupported response', async () => {
@@ -276,4 +354,63 @@ test('CLI refuses unsupported options and escaped output before creating a synth
     assert.equal(result.stdout, '', 'Invalid input does not emit a qualification report.');
   }
   assert.deepEqual(await readdir(directory), []);
+});
+
+test('CLI scratch uses canonical temporary storage and is removed after success or failure', async t => {
+  const directory = await ownedScratch(t), temporaryParent = await realpath(resolve(tmpdir()));
+  const scriptDirectory = join(directory, 'scripts'), runnerDirectory = join(directory, 'platform', 'benchmarks', 'bilingual');
+  await Promise.all([mkdir(scriptDirectory, { recursive: true }), mkdir(runnerDirectory, { recursive: true }),
+    writeFile(join(directory, 'package.json'), JSON.stringify({ private: true, type: 'module' }))]);
+  const script = join(scriptDirectory, 'bilingual-benchmark.mjs');
+  // This miniature runner tests CLI storage plumbing only; it provides no benchmark qualification evidence.
+  const fixtureRunner = `
+import { realpath, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+export async function runBilingualBenchmark({ scratchRoot }) {
+  const root = await realpath(resolve(dirname(fileURLToPath(import.meta.url)), '../../..'));
+  const scratch = await realpath(scratchRoot), child = relative(root, scratch);
+  if (!isAbsolute(child) && child !== '..' && !child.startsWith('..' + sep)) throw new Error('CLI fixture scratch must be outside its source copy.');
+  await writeFile(join(scratch, 'cli-fixture-only.json'), JSON.stringify({ fixtureOnly: true }));
+  process.stderr.write('CLI_FIXTURE_SCRATCH=' + JSON.stringify(scratch) + '\\n');
+  if (process.env.CHAUSAR_BILINGUAL_CLI_FIXTURE_FAIL === '1') throw new Error('Synthetic CLI fixture runner failure.');
+  return { fixtureOnly: true, passed: true, score: { total: 0 }, byLanguage: {}, byTrack: {},
+    fingerprints: { semanticRunSha256: 'synthetic-cli-fixture-only' }, execution: { scratchRoot: scratch } };
+}
+`;
+  await Promise.all([copyFile(fileURLToPath(new URL('../../scripts/bilingual-benchmark.mjs', import.meta.url)), script),
+    writeFile(join(runnerDirectory, 'runner.ts'), fixtureRunner)]);
+  const execute = (args: string[], fail = false) => spawnSync(process.execPath, [script, ...args], {
+    cwd: directory, encoding: 'utf8', timeout: 10000, windowsHide: true,
+    env: { ...process.env, CHAUSAR_BILINGUAL_CLI_FIXTURE_FAIL: fail ? '1' : '0' },
+  });
+  const assertCleaned = async (result: ReturnType<typeof execute>) => {
+    assert.equal(result.error, undefined);
+    const marker = result.stderr.split(/\r?\n/).find(line => line.startsWith('CLI_FIXTURE_SCRATCH='));
+    assert.ok(marker, result.stderr);
+    const scratch = JSON.parse(marker.slice('CLI_FIXTURE_SCRATCH='.length)) as string;
+    assert.equal(dirname(scratch), temporaryParent, 'Scratch parent is the canonical OS temporary directory.');
+    if (process.platform === 'win32') assert.match(scratch, /^C:\\/i);
+    assert.ok(basename(scratch).startsWith('chausar-bilingual-cli-'));
+    const child = relative(directory, scratch);
+    assert.ok(isAbsolute(child) || child === '..' || child.startsWith('..' + sep), 'Scratch is outside the miniature source copy.');
+    await assert.rejects(realpath(scratch), { code: 'ENOENT' }, 'The owned scratch directory and fixture file are removed.');
+    return scratch;
+  };
+  const success = execute(['--output', 'results/fixture-report.json']);
+  assert.equal(success.status, 0, success.stderr);
+  const successScratch = await assertCleaned(success);
+  const reportPath = join(directory, 'results', 'fixture-report.json'), reportBytes = await readFile(reportPath, 'utf8');
+  const report = JSON.parse(reportBytes);
+  assert.equal(report.fixtureOnly, true); assert.equal(report.execution.scratchRoot, successScratch);
+  assert.equal(JSON.parse(success.stdout).report, 'results/fixture-report.json');
+  assert.deepEqual((await readdir(directory)).sort(), ['package.json', 'platform', 'results', 'scripts']);
+  const runnerFailure = execute(['--output', 'results/failed-report.json'], true);
+  assert.notEqual(runnerFailure.status, 0); assert.match(runnerFailure.stderr, /Synthetic CLI fixture runner failure/);
+  assert.equal(runnerFailure.stdout, ''); await assertCleaned(runnerFailure);
+  await assert.rejects(readFile(join(directory, 'results', 'failed-report.json')), { code: 'ENOENT' });
+  const outputFailure = execute(['--output', 'results/fixture-report.json']);
+  assert.notEqual(outputFailure.status, 0); assert.match(outputFailure.stderr, /EEXIST/);
+  assert.equal(outputFailure.stdout, ''); await assertCleaned(outputFailure);
+  assert.equal(await readFile(reportPath, 'utf8'), reportBytes, 'An existing output report is preserved.');
 });

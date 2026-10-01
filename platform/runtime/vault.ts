@@ -1,9 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes, randomUUID, scrypt } from 'node:crypto';
+import { createCipheriv, createDecipheriv, hkdfSync, randomBytes, randomUUID, scrypt } from 'node:crypto';
 import { constants } from 'node:fs';
-import { open, readFile, mkdir, lstat, realpath, rename, unlink, link } from 'node:fs/promises';
+import { open, readFile, mkdir, lstat, realpath, rename, unlink, link, readdir, rmdir } from 'node:fs/promises';
 import { dirname, basename, isAbsolute, parse, resolve, join } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { ChausarError, initialState, type State, type StateStore } from './contracts.ts';
+import { ChausarError, hash, initialState, type State, type StateStore } from './contracts.ts';
 import { acquireProcessLock, type ProcessLock } from './process-lock.ts';
 
 const FORMAT = 'chausar.vault.v1';
@@ -26,6 +26,12 @@ export interface KeychainHook {
   remove(vaultId: string): Promise<void>;
 }
 type Storage = 'experimental-file' | EncryptedSnapshotAdapter;
+export type PrivateArtifactPurpose = 'private-trial' | 'workspace-interchange';
+export type PrivateArtifactRef = { id: string; purpose: PrivateArtifactPurpose; valueDigest: string; diskBytes: number };
+type PrivateArtifactEnvelope = { format: 'chausar.private-artifact.v1'; vaultId: string; id: string; purpose: PrivateArtifactPurpose; valueDigest: string; ciphertext: Ciphertext };
+function artifactIdentity(id: string, purpose: PrivateArtifactPurpose) {
+  if (!['private-trial', 'workspace-interchange'].includes(purpose) || typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,180}$/.test(id)) fail('ARTIFACT_ID_INVALID', 'Use an opaque managed artifact identity.');
+}
 /** Trusted host admission, held through the actual authority commit. No RPC port. */
 export type VaultWriterGuard = <T>(input: { state: State; vaultId: string },
   work: (assertCurrent: () => void) => Promise<{ result: T; committedState: State; rollback?: () => void }>) => Promise<T>;
@@ -178,6 +184,7 @@ export class Vault implements StateStore {
   #closing = false;
   #shutdown?: Promise<void>;
   #transaction = new AsyncLocalStorage<boolean>();
+  #snapshotScope = new AsyncLocalStorage<boolean>();
   #keychain?: KeychainHook;
   #writerGuard?: VaultWriterGuard;
   readonly directory: string;
@@ -277,6 +284,124 @@ export class Vault implements StateStore {
   }
   #ready() { if (this.#closed || this.#closing) fail('VAULT_CLOSED', 'The vault is closed.'); }
   read(): State { this.#ready(); return structuredClone(this.#state); }
+  /** Trusted host snapshot fence. It cannot update the authority or export its key. */
+  snapshot<T>(work: (state: State) => Promise<T>): Promise<T> {
+    return this.#enqueue(() => this.#transaction.run(true, () => this.#snapshotScope.run(true, () => work(structuredClone(this.#state)))));
+  }
+  #artifactOperation<T>(work: () => Promise<T>): Promise<T> {
+    // Trusted snapshot custody may persist inert artifacts while retaining its authority fence.
+    // Authority transactions still refuse nested custody/authority operations.
+    return this.#snapshotScope.getStore() ? work() : this.#enqueue(work);
+  }
+  async #artifactDirectory(purpose: PrivateArtifactPurpose, create = false): Promise<string | null> {
+    artifactIdentity('namespace', purpose);
+    try { return await safeDirectory(join(this.directory, 'private-artifacts', purpose), create); }
+    catch (error: any) { if (!create && error.code === 'ENOENT') return null; throw error; }
+  }
+  #artifactKey(purpose: PrivateArtifactPurpose, id: string): Buffer {
+    return Buffer.from(hkdfSync('sha256', this.#key, Buffer.from(this.#envelope.id), Buffer.from(`chausar.private-artifact.v1:${purpose}:${id}`), 32));
+  }
+  async #readArtifact(input: { id: string; purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef & { value: unknown }> {
+    artifactIdentity(input.id, input.purpose);
+    const directory = await this.#artifactDirectory(input.purpose);
+    if (!directory) fail('ARTIFACT_NOT_FOUND', 'The managed artifact is absent.');
+    const path = join(directory, `${input.id}.encrypted.json`);
+    let raw: string;
+    try { raw = await readBounded(path); }
+    catch (error: any) { if (error.code === 'ENOENT' || error.message === 'Missing file') fail('ARTIFACT_NOT_FOUND', 'The managed artifact is absent.'); throw error; }
+    const key = this.#artifactKey(input.purpose, input.id);
+    let plaintext: Buffer | undefined;
+    try {
+      const envelope: PrivateArtifactEnvelope = JSON.parse(raw);
+      if (Object.keys(envelope).sort().join(',') !== 'ciphertext,format,id,purpose,valueDigest,vaultId' || envelope.format !== 'chausar.private-artifact.v1' || envelope.vaultId !== this.#envelope.id || envelope.id !== input.id || envelope.purpose !== input.purpose || !/^[a-f0-9]{64}$/.test(envelope.valueDigest)) throw new Error('Artifact identity mismatch');
+      plaintext = unseal(key, envelope.ciphertext, `${envelope.format}:${envelope.vaultId}:${envelope.purpose}:${envelope.id}:${envelope.valueDigest}`);
+      const value = JSON.parse(plaintext.toString('utf8'));
+      if (hash(JSON.stringify(value)) !== envelope.valueDigest) throw new Error('Artifact payload mismatch');
+      return { ...input, valueDigest: envelope.valueDigest, diskBytes: Buffer.byteLength(raw), value };
+    } catch { return fail('ARTIFACT_AUTHENTICATION_FAILED', 'The managed artifact is not authentic for this workspace and purpose.'); }
+    finally { key.fill(0); plaintext?.fill(0); }
+  }
+  /** Host-only encrypted custody. This API is never an RPC or renderer key port. */
+  readArtifact(input: { id: string; purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef & { value: unknown }> {
+    return this.#artifactOperation(() => this.#readArtifact(input));
+  }
+  writeArtifact(input: { id: string; purpose: PrivateArtifactPurpose; value: unknown; expectedDigest: string | null }): Promise<PrivateArtifactRef> {
+    artifactIdentity(input.id, input.purpose);
+    if (!(input.expectedDigest === null || /^[a-f0-9]{64}$/.test(input.expectedDigest))) fail('ARTIFACT_REVISION_REQUIRED', 'Supply the exact previous artifact digest or create-only admission.');
+    const text = JSON.stringify(input.value);
+    if (typeof text !== 'string' || Buffer.byteLength(text) > 40 * 1024 * 1024) fail('ARTIFACT_LIMIT', 'Managed artifact payload exceeds its bounded size.');
+    const value = JSON.parse(text), valueDigest = hash(JSON.stringify(value));
+    return this.#artifactOperation(() => this.guarded(async assertCurrent => {
+      const directory = await this.#artifactDirectory(input.purpose, true);
+      const path = join(directory!, `${input.id}.encrypted.json`);
+      const exists = await existingRegular(path);
+      const prior = exists ? await this.#readArtifact(input) : null;
+      if ((prior?.valueDigest ?? null) !== input.expectedDigest) fail('ARTIFACT_REVISION_CONFLICT', 'The managed artifact changed or already exists.');
+      const key = this.#artifactKey(input.purpose, input.id);
+      const plaintext = Buffer.from(text);
+      let raw: string;
+      try {
+        const format = 'chausar.private-artifact.v1' as const, vaultId = this.#envelope.id;
+        const ciphertext = seal(key, plaintext, `${format}:${vaultId}:${input.purpose}:${input.id}:${valueDigest}`);
+        raw = JSON.stringify({ format, vaultId, id: input.id, purpose: input.purpose, valueDigest, ciphertext });
+      } finally { key.fill(0); plaintext.fill(0); }
+      if (Buffer.byteLength(raw!) > MAX_BYTES) fail('ARTIFACT_LIMIT', 'Encrypted artifact exceeds its bounded size.');
+      assertCurrent(); await atomicWrite(path, raw!, exists);
+      return { result: { id: input.id, purpose: input.purpose, valueDigest, diskBytes: Buffer.byteLength(raw!) }, committedState: structuredClone(this.#state) };
+    }));
+  }
+  listArtifacts(input: { purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef[]> {
+    return this.#artifactOperation(async () => {
+      const directory = await this.#artifactDirectory(input.purpose);
+      if (!directory) return [];
+      const names = (await readdir(directory)).sort();
+      if (names.length > 4096) fail('ARTIFACT_LIMIT', 'Managed artifact inventory exceeds its bound.');
+      const result: PrivateArtifactRef[] = [];
+      for (const name of names) {
+        if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified entries prevent complete managed custody.');
+        const { value: ignored, ...ref } = await this.#readArtifact({ id: name.slice(0, -15), purpose: input.purpose });
+        result.push(ref);
+      }
+      return result;
+    });
+  }
+  removeArtifact(input: { id: string; purpose: PrivateArtifactPurpose; expectedDigest: string }): Promise<{ removed: boolean; diskBytes: number }> {
+    artifactIdentity(input.id, input.purpose);
+    if (!/^[a-f0-9]{64}$/.test(input.expectedDigest)) fail('ARTIFACT_REVISION_REQUIRED', 'Supply the exact retained artifact digest before discard.');
+    return this.#artifactOperation(() => this.guarded<{ removed: boolean; diskBytes: number }>(async assertCurrent => {
+      let ref: PrivateArtifactRef;
+      try { ref = await this.#readArtifact(input); }
+      catch (error: any) { if (error.code === 'ARTIFACT_NOT_FOUND') return { result: { removed: false, diskBytes: 0 }, committedState: structuredClone(this.#state) }; throw error; }
+      if (ref.valueDigest !== input.expectedDigest) fail('ARTIFACT_REVISION_CONFLICT', 'The managed artifact changed before discard.');
+      const directory = await this.#artifactDirectory(input.purpose);
+      assertCurrent(); await unlink(join(directory!, `${input.id}.encrypted.json`)); await syncDirectory(directory!);
+      return { result: { removed: true, diskBytes: ref.diskBytes }, committedState: structuredClone(this.#state) };
+    }));
+  }
+  /** Purge whole-workspace artifact copies when the owning retention/delete flow revokes them. */
+  purgeArtifacts(): Promise<string[]> {
+    return this.#artifactOperation(() => this.guarded(async assertCurrent => {
+      const files: { purpose: PrivateArtifactPurpose; directory: string; name: string }[] = [];
+      for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
+        const directory = await this.#artifactDirectory(purpose); if (!directory) continue;
+        const names = await readdir(directory);
+        if (names.length > 4096) fail('ARTIFACT_LIMIT', 'Managed artifact inventory exceeds its bound.');
+        for (const name of names) {
+          if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified entries prevent managed copy cleanup.');
+          await this.#readArtifact({ id: name.slice(0, -15), purpose }); files.push({ purpose, directory, name });
+        }
+      }
+      for (const file of files) { assertCurrent(); await unlink(join(file.directory, file.name)); }
+      for (const directory of new Set(files.map(file => file.directory))) await syncDirectory(directory);
+      return { result: files.map(file => `private-artifacts/${file.purpose}/${file.name}`), committedState: structuredClone(this.#state) };
+    }));
+  }
+  async #assertSnapshotOnlyBackup() {
+    for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
+      const directory = await this.#artifactDirectory(purpose);
+      if (directory && (await readdir(directory)).length) fail('ARTIFACT_BACKUP_REQUIRED', 'Snapshot-only backup cannot omit managed private artifacts. Complete archive backup remains required.');
+    }
+  }
   #enqueue<T>(work: () => Promise<T>): Promise<T> {
     if (this.#transaction.getStore()) return Promise.reject(new ChausarError('REENTRANT_TRANSACTION', 'Nested vault operations are not supported.'));
     this.#ready();
@@ -297,11 +422,11 @@ export class Vault implements StateStore {
     })));
   }
   backup(target: string): Promise<string> {
-    return this.#enqueue(async () => { await atomicWrite(target, JSON.stringify({ backupFormat: 'chausar.backup.v1', envelope: this.#envelope }), false); return target; });
+    return this.#enqueue(async () => { await this.#assertSnapshotOnlyBackup(); await atomicWrite(target, JSON.stringify({ backupFormat: 'chausar.backup.v1', envelope: this.#envelope }), false); return target; });
   }
   export(target: string, options: { plaintext?: boolean } = {}): Promise<string> {
     if (!options.plaintext) return this.backup(target);
-    return this.#enqueue(async () => { await atomicWrite(target, JSON.stringify(this.#state, null, 2), false); return target; });
+    return this.#enqueue(async () => { await this.#assertSnapshotOnlyBackup(); await atomicWrite(target, JSON.stringify(this.#state, null, 2), false); return target; });
   }
   async delete(): Promise<void> {
     if (this.#transaction.getStore()) fail('REENTRANT_TRANSACTION', 'A vault cannot be deleted from inside a transaction.');
@@ -309,6 +434,18 @@ export class Vault implements StateStore {
     this.#shutdown = (async () => {
       await this.#chain;
       try { await this.guarded(async assertCurrent => {
+        // Only this typed encrypted namespace is managed here; never recursively delete user paths.
+        for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
+          const directory = await this.#artifactDirectory(purpose);
+          if (!directory) continue;
+          const names = await readdir(directory);
+          for (const name of names) {
+            if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified custody entries require review before deletion.');
+            await this.#readArtifact({ id: name.slice(0, -15), purpose });
+          }
+          for (const name of names) { assertCurrent(); await unlink(join(directory, name)); }
+          await rmdir(directory);
+        }
         assertCurrent(); await this.#adapter.delete(); await this.#keychain?.remove(this.#envelope.id);
         return { result: undefined, committedState: structuredClone(this.#state) };
       }); }
