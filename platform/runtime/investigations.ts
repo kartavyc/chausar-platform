@@ -62,7 +62,7 @@ export class InvestigationService {
     const dictionary = this.dictionary(store, ctx), operation = dictionary.operations.find(o => o.id === step.request.operation);
     check(operation, 'UNKNOWN_CALCULATION', 'The persisted step needs a published operation.');
     const kinds = dictionary.definitions.filter(d => operation.definitions.includes(d.name)).map(d => d.kind);
-    const current = selectFacts(store, ctx, { ...step.request, kinds, period: operation.type === 'aging' ? undefined : step.request.period });
+    const current = selectFacts(store, ctx, { ...step.request, kinds });
     const prior = step.request.comparePeriod ? selectFacts(store, ctx, { ...step.request, kinds, period: step.request.comparePeriod }) : null;
     return unique([current, ...(prior ? [prior] : [])].flatMap(s => [...s.facts.map(f => f.id), ...s.excluded.map(e => e.rowId)]));
   }

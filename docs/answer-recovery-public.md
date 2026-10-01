@@ -15,11 +15,15 @@ All five routes require the current private owner, current permission epoch and 
 
 The issued control record lives in encrypted `State.answers` as `answer-recovery-request-v1`, separately from ordinary answer rows. Its integrity binds the issued plan, evidence pin, owner/epoch and eventual completed lineage. No historical identity or record is mounted as new authority.
 
+Aging honors the declared inclusive event period for invoices, payments and refunds. `onDate` separately bounds events and measures due-date age. An explicit `period: null` in recovery chooses all event dates; it does not invent a narrower invoice cohort or include credits outside a declared period. The previous calculator silently ignored an aging period while repeating it in the receipt. New calculations correct that mismatch; existing answers and receipts are not rewritten. The historical bucket-boundary answer key now explicitly selects all event dates for its June invoices, retaining its original expected amounts.
+
 `FactFilter.kinds` is a lower-level memory/projection field. Although the calculator's syntactic allowed-key list includes it, `CalculatorService.calculate` explicitly refuses any supplied `kinds` array; published definitions determine the counted kinds. Recovery therefore refuses a retained request containing that unsupported filter rather than dropping it or inventing kind-scope receipt evidence. The public regression deliberately authors such legacy state, including an explicit empty array, and proves typed refusal leaves all original bytes and authority unchanged with no partial preparation/receipt/lineage. It does not describe that fixture as a valid current-calculator-produced request.
 
 ## Retries and uncertain outcomes
 
 Concurrent exact executions share one in-flight calculation. A completed exact retry returns the same retained answer/receipt without another write. Another digest or changed evidence is refused. No automatic execution retry occurs after an uncertain acknowledgement.
+
+Completed lineage binds the exact saved original and fresh answer/receipt, including their staleness metadata. A later legitimate source correction can therefore make recovery `get` refuse `ANSWER_RECOVERY_SOURCE_CHANGED` or `ANSWER_RECOVERY_RESULT_CHANGED`; `list` then reports that issued ID as unavailable. Its historical receipt body remains subject to ordinary current-access checks through `receipts.get`. This is an explicit conservative readback limitation, not permission to execute again, discard the original or bypass a digest check.
 
 If calculation produced a candidate but the actual Vault commit throws, that handle marks the request `outcome-unknown` and refuses a second calculation. The owner must lock/reopen and call `answers.recovery.get` for the same issued ID. If the physical commit completed, reopen returns its one exact completed result. If durable authority remains prepared, readback describes a prepared request; an explicit subsequent owner action can execute it after current evidence checks. No partial fresh receipt is represented as completed lineage.
 

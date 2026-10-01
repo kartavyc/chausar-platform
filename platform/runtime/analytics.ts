@@ -72,7 +72,7 @@ function project(receipt: CalculationReceipt, maxRows: number): Projection {
   if (registered && ['margin', 'change', 'scenario'].includes(receipt.operation)) check(absoluteSum <= 10n ** 32n, 'SQL_PRECISION_LIMIT', 'Exact transformed SQL calculations reserve integer precision for basis points.');
   const current = period(receipt.period), compare = period(receipt.comparePeriod);
   if (registered && receipt.operation === 'change') check(current && compare, 'SQL_PROJECTION_INVALID', 'Change verification needs both event periods.');
-  if (current && (!registered || receipt.operation !== 'aging')) check(rows.every(r => (r.date >= current.from && r.date <= current.to) || (registered && receipt.operation === 'change' && compare && r.date >= compare.from && r.date <= compare.to)), 'SQL_PROJECTION_INVALID', 'Projected events must belong to a declared calculation period.');
+  if (current) check(rows.every(r => (r.date >= current.from && r.date <= current.to) || (registered && receipt.operation === 'change' && compare && r.date >= compare.from && r.date <= compare.to)), 'SQL_PROJECTION_INVALID', 'Projected events must belong to a declared calculation period.');
   if (binding) check(compare === null && Object.keys(receipt.assumptions ?? {}).length === 0, 'SQL_PROJECTION_INVALID', 'A compiled sum has no comparison or scenario assumptions.');
   let onDate: string | null = null; let priceChangeBps: string | null = null;
   if (registered && receipt.operation === 'aging') {

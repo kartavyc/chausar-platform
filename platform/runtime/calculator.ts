@@ -97,7 +97,10 @@ export class CalculatorService {
         assertCompiledSingleSum(matches[0], operation.id, definitions[0], dictionary.version); compiledSum = matches[0];
       }
     }
-    const selection = selectFacts(selectionStore, ctx, { period: operation.type === 'aging' ? undefined : request.period, asOf: request.asOf, branch: request.branch, customerId: request.customerId, orderId: request.orderId, kinds: relevantKinds });
+    // A declared event period applies to every counted event kind, including
+    // aging invoices, payments and credits. The observation date is a separate
+    // upper bound; omitting period explicitly selects all event dates.
+    const selection = selectFacts(selectionStore, ctx, { period: request.period, asOf: request.asOf, branch: request.branch, customerId: request.customerId, orderId: request.orderId, kinds: relevantKinds });
     const excluded = [...selection.excluded]; const counted = new Map<string, Fact>(); const missingMeasures = new Set<string>();
     const selectedFactIds = new Set(selection.facts.map(f => f.id));
     const conflictIds = new Set(selection.conflicts.map(c => JSON.stringify([c.kind, c.entityId])));
