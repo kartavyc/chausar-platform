@@ -28,6 +28,13 @@ export interface KeychainHook {
 type Storage = 'experimental-file' | EncryptedSnapshotAdapter;
 export type PrivateArtifactPurpose = 'private-trial' | 'workspace-interchange';
 export type PrivateArtifactRef = { id: string; purpose: PrivateArtifactPurpose; valueDigest: string; diskBytes: number };
+export type VaultEncryptedCustodyBudgets = { maxEntryBytes: number; maxTotalEntryBytes: number; maxArtifacts: number };
+export type VaultEncryptedCustodyCapture = {
+  vaultId: string; state: State; authority: Uint8Array;
+  artifacts: { ref: PrivateArtifactRef; bytes: Uint8Array }[];
+  storageKind: 'experimental-file' | 'postgres';
+  authorityKind: 'exact-file-bytes' | 'adapter-issued-envelope'; keychainHookPresent: boolean;
+};
 type PrivateArtifactEnvelope = { format: 'chausar.private-artifact.v1'; vaultId: string; id: string; purpose: PrivateArtifactPurpose; valueDigest: string; ciphertext: Ciphertext };
 function artifactIdentity(id: string, purpose: PrivateArtifactPurpose) {
   if (!['private-trial', 'workspace-interchange'].includes(purpose) || typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,180}$/.test(id)) fail('ARTIFACT_ID_INVALID', 'Use an opaque managed artifact identity.');
@@ -301,7 +308,7 @@ export class Vault implements StateStore {
   #artifactKey(purpose: PrivateArtifactPurpose, id: string): Buffer {
     return Buffer.from(hkdfSync('sha256', this.#key, Buffer.from(this.#envelope.id), Buffer.from(`chausar.private-artifact.v1:${purpose}:${id}`), 32));
   }
-  async #readArtifact(input: { id: string; purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef & { value: unknown }> {
+  async #readArtifactRaw(input: { id: string; purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef & { value: unknown; bytes: Uint8Array }> {
     artifactIdentity(input.id, input.purpose);
     const directory = await this.#artifactDirectory(input.purpose);
     if (!directory) fail('ARTIFACT_NOT_FOUND', 'The managed artifact is absent.');
@@ -309,6 +316,10 @@ export class Vault implements StateStore {
     let raw: string;
     try { raw = await readBounded(path); }
     catch (error: any) { if (error.code === 'ENOENT' || error.message === 'Missing file') fail('ARTIFACT_NOT_FOUND', 'The managed artifact is absent.'); throw error; }
+    return this.#authenticateArtifactRaw(raw, input);
+  }
+  #authenticateArtifactRaw(raw: string, input: { id: string; purpose: PrivateArtifactPurpose }): PrivateArtifactRef & { value: unknown; bytes: Uint8Array } {
+    artifactIdentity(input.id, input.purpose);
     const key = this.#artifactKey(input.purpose, input.id);
     let plaintext: Buffer | undefined;
     try {
@@ -317,9 +328,114 @@ export class Vault implements StateStore {
       plaintext = unseal(key, envelope.ciphertext, `${envelope.format}:${envelope.vaultId}:${envelope.purpose}:${envelope.id}:${envelope.valueDigest}`);
       const value = JSON.parse(plaintext.toString('utf8'));
       if (hash(JSON.stringify(value)) !== envelope.valueDigest) throw new Error('Artifact payload mismatch');
-      return { ...input, valueDigest: envelope.valueDigest, diskBytes: Buffer.byteLength(raw), value };
+      return { ...input, valueDigest: envelope.valueDigest, diskBytes: Buffer.byteLength(raw), value, bytes: Buffer.from(raw, 'utf8') };
     } catch { return fail('ARTIFACT_AUTHENTICATION_FAILED', 'The managed artifact is not authentic for this workspace and purpose.'); }
     finally { key.fill(0); plaintext?.fill(0); }
+  }
+  async #readArtifact(input: { id: string; purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef & { value: unknown }> {
+    const { bytes: encryptedBytes, ...result } = await this.#readArtifactRaw(input);
+    return result;
+  }
+  #custodyBudgets(budget: VaultEncryptedCustodyBudgets) {
+    if (!budget || Object.keys(budget).sort().join(',') !== 'maxArtifacts,maxEntryBytes,maxTotalEntryBytes'
+      || !Object.values(budget).every(value => Number.isSafeInteger(value) && value > 0)
+      || budget.maxEntryBytes > MAX_BYTES || budget.maxEntryBytes > budget.maxTotalEntryBytes || budget.maxArtifacts > 8192)
+      fail('ARTIFACT_LIMIT', 'Supply explicit bounded encrypted custody byte and artifact budgets.');
+    if (!this.#snapshotScope.getStore()) fail('CUSTODY_SNAPSHOT_REQUIRED', 'Hold the trusted Vault snapshot fence before capturing or authenticating encrypted custody.');
+    this.#ready();
+  }
+  /** Root-only writer admission held through inert filesystem custody publication. */
+  withCustodyWriterAdmission<T>(work: (assertCurrent: () => void) => Promise<T>): Promise<T> {
+    if (!this.#snapshotScope.getStore()) return Promise.reject(new ChausarError('CUSTODY_SNAPSHOT_REQUIRED', 'Hold the trusted Vault snapshot fence for custody writer admission.'));
+    this.#ready();
+    return this.guarded(async assertCurrent => {
+      assertCurrent(); const result = await work(assertCurrent); assertCurrent();
+      return { result, committedState: structuredClone(this.#state) };
+    });
+  }
+  /** Trusted host only: exact encrypted evidence, never a key or public RPC port. */
+  async captureEncryptedCustody(budget: VaultEncryptedCustodyBudgets): Promise<VaultEncryptedCustodyCapture> {
+    this.#custodyBudgets(budget);
+    if (this.storageKind === 'experimental-file') {
+      const size = (await lstat(join(this.directory, 'authority.encrypted.json'))).size;
+      if (size > budget.maxEntryBytes || size > budget.maxTotalEntryBytes)
+        fail('ARTIFACT_LIMIT', 'Encrypted authority exceeds its explicit capture budget.');
+    }
+    const raw = this.storageKind === 'experimental-file'
+      ? await readBounded(join(this.directory, 'authority.encrypted.json'))
+      : JSON.stringify(await this.#adapter.load());
+    const authority = Buffer.from(raw, 'utf8');
+    if (authority.byteLength > budget.maxEntryBytes || authority.byteLength > budget.maxTotalEntryBytes)
+      fail('ARTIFACT_LIMIT', 'Encrypted authority exceeds its explicit capture budget.');
+    const envelope = JSON.parse(raw); validateEnvelope(envelope);
+    if (JSON.stringify(envelope) !== JSON.stringify(this.#envelope)
+      || hash(decodeSnapshot(envelope, this.#key)) !== hash(this.#state))
+      fail('REVISION_CONFLICT', 'Persisted authority differs from the held source snapshot.');
+    const artifacts: VaultEncryptedCustodyCapture['artifacts'] = []; let totalBytes = authority.byteLength;
+    const root = join(this.directory, 'private-artifacts');
+    try {
+      await safeDirectory(root);
+      const namespaces = await readdir(root);
+      if (namespaces.some(name => !['private-trial', 'workspace-interchange'].includes(name)))
+        fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified private namespaces prevent complete encrypted custody.');
+    } catch (error: any) { if (error.code !== 'ENOENT') throw error; }
+    for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
+      const directory = await this.#artifactDirectory(purpose); if (!directory) continue;
+      const names = (await readdir(directory)).sort();
+      if (names.length > budget.maxArtifacts - artifacts.length) fail('ARTIFACT_LIMIT', 'Encrypted artifact count exceeds its explicit capture budget.');
+      for (const name of names) {
+        if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified entries prevent complete encrypted custody.');
+        const path = join(directory, name), size = (await lstat(path)).size;
+        if (size > budget.maxEntryBytes || size > budget.maxTotalEntryBytes - totalBytes)
+          fail('ARTIFACT_LIMIT', 'Encrypted artifact bytes exceed their remaining capture budget.');
+        const { value: plaintextValue, bytes, ...ref } = await this.#readArtifactRaw({ id: name.slice(0, -15), purpose });
+        if (bytes.byteLength !== size || bytes.byteLength > budget.maxEntryBytes || bytes.byteLength > budget.maxTotalEntryBytes - totalBytes)
+          fail('ARTIFACT_LIMIT', 'Encrypted artifact changed or exceeds its remaining capture budget.');
+        totalBytes += bytes.byteLength; artifacts.push({ ref, bytes });
+      }
+    }
+    return { vaultId: this.#envelope.id, state: structuredClone(this.#state), authority, artifacts,
+      storageKind: this.storageKind, authorityKind: this.storageKind === 'experimental-file' ? 'exact-file-bytes' : 'adapter-issued-envelope',
+      keychainHookPresent: !!this.#keychain };
+  }
+  /** Authenticate inert historical ciphertext with the unlocked source; never mount its authority. */
+  async authenticateEncryptedCustody(input: { authority: Uint8Array; artifacts: { ref: PrivateArtifactRef; bytes: Uint8Array }[];
+    source: { vaultId: string; workspaceId: string; revision: number } }, budget: VaultEncryptedCustodyBudgets): Promise<State> {
+    this.#custodyBudgets(budget);
+    if (!input || !(input.authority instanceof Uint8Array) || !Array.isArray(input.artifacts)
+      || input.artifacts.length > budget.maxArtifacts || input.source?.vaultId !== this.#envelope.id
+      || input.source.workspaceId !== this.#state.workspace.id || !Number.isSafeInteger(input.source.revision))
+      fail('ARTIFACT_AUTHENTICATION_FAILED', 'Encrypted custody identity or count differs from this unlocked source.');
+    let totalBytes = input.authority.byteLength;
+    if (!totalBytes || totalBytes > budget.maxEntryBytes || totalBytes > budget.maxTotalEntryBytes)
+      fail('ARTIFACT_LIMIT', 'Encrypted authority exceeds its authentication budget.');
+    let state: State;
+    try {
+      const bytes = Buffer.from(input.authority), text = bytes.toString('utf8');
+      if (!Buffer.from(text).equals(bytes)) throw new Error('Invalid UTF-8');
+      const envelope = JSON.parse(text); validateEnvelope(envelope);
+      if (envelope.id !== input.source.vaultId || envelope.revision !== input.source.revision) throw new Error('Source mismatch');
+      state = decodeSnapshot(envelope, this.#key);
+      if (state.workspace.id !== input.source.workspaceId) throw new Error('Workspace mismatch');
+    } catch { return fail('ARTIFACT_AUTHENTICATION_FAILED', 'The retained authority is not authentic for this source.'); }
+    const identities = new Set<string>();
+    for (const item of input.artifacts) {
+      if (!item || !item.ref || !['private-trial', 'workspace-interchange'].includes(item.ref.purpose)
+        || typeof item.ref.id !== 'string' || !/^[A-Za-z0-9_-]{1,180}$/.test(item.ref.id)
+        || !/^[a-f0-9]{64}$/.test(item.ref.valueDigest) || !Number.isSafeInteger(item.ref.diskBytes) || item.ref.diskBytes <= 0)
+        fail('ARTIFACT_AUTHENTICATION_FAILED', 'A retained artifact reference has invalid identity or size.');
+      if (!(item.bytes instanceof Uint8Array) || !item.bytes.byteLength || item.bytes.byteLength > budget.maxEntryBytes
+        || item.bytes.byteLength > budget.maxTotalEntryBytes - totalBytes) fail('ARTIFACT_LIMIT', 'Encrypted artifacts exceed their authentication budget.');
+      const identity = `${item.ref.purpose}:${item.ref.id}`;
+      if (identities.has(identity)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Duplicate retained artifact identities are refused.'); identities.add(identity);
+      const bytes = Buffer.from(item.bytes), text = bytes.toString('utf8');
+      if (!Buffer.from(text).equals(bytes)) fail('ARTIFACT_AUTHENTICATION_FAILED', 'Retained artifact UTF-8 bytes differ.');
+      const authenticated = this.#authenticateArtifactRaw(text, item.ref);
+      if (authenticated.diskBytes !== item.ref.diskBytes || authenticated.valueDigest !== item.ref.valueDigest)
+        fail('ARTIFACT_AUTHENTICATION_FAILED', 'Retained ciphertext differs from its independently issued artifact reference.');
+      totalBytes += bytes.byteLength;
+    }
+    return structuredClone(state);
   }
   /** Host-only encrypted custody. This API is never an RPC or renderer key port. */
   readArtifact(input: { id: string; purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef & { value: unknown }> {
