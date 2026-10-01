@@ -126,12 +126,52 @@ test('actual Node shards are disjoint and their union covers every fixture test 
   assert.deepEqual(await f.executed(), covered[0], 'Shard file assignment must be deterministic.');
 });
 
+test('actual four Node shards retain exact inventories and deterministic disjoint coverage of all fixture files', async t => {
+  const f = await fixture(t), covered: number[][] = [], inventories: BenchmarkReport['testFiles'][] = [];
+  for (const index of [1, 2, 3, 4]) {
+    await writeFile(join(f.directory, 'executed.jsonl'), '');
+    const output = `results/four-shard-${index}.json`;
+    const args = index % 2 ? [`--shard=${index}/4`, '--output', output] : ['--output=' + output, '--shard', `${index}/4`];
+    const result = f.invoke(args);
+    assert.equal(result.status, 0, JSON.stringify(await f.report(output)));
+    const executed = await f.executed(), report = await f.report(output);
+    assert.ok(executed.length > 0, 'Every complementary fixture shard must execute test files.');
+    assert.equal(new Set(executed).size, executed.length, 'A shard must execute each selected file once.');
+    assertCompleteRun(report, executed.length);
+    assert.equal(report.fullSuite, false);
+    assert.deepEqual(report.shard, { index, total: 4 });
+    assert.equal(report.testFiles.selection, 'node-test-shard');
+    assert.equal(report.scope, `Repository open tests (shard ${index}/4)`);
+    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=1', `--test-shard=${index}/4`, 'platform/tests/*.test.ts']);
+    const summary = JSON.parse(result.stdout.trim());
+    assert.equal(summary.fullSuite, false);
+    assert.deepEqual(summary.shard, report.shard);
+    for (const previous of covered) assert.equal(executed.filter(value => previous.includes(value)).length, 0);
+    covered.push(executed); inventories.push(report.testFiles);
+  }
+  assert.deepEqual(covered.flat().sort((left, right) => left - right), [1, 2, 3, 4, 5, 6]);
+  for (const inventory of inventories) assert.deepEqual(inventory, inventories[0], 'All four receipts must retain the exact same complete discovery universe.');
+  for (const index of [1, 2, 3, 4]) {
+    await writeFile(join(f.directory, 'executed.jsonl'), '');
+    const output = `results/four-repeat-${index}.json`;
+    assert.equal(f.invoke([`--shard=${index}/4`, '--output', output]).status, 0);
+    const report = await f.report(output);
+    assertCompleteRun(report, covered[index - 1].length);
+    assert.deepEqual(report.testFiles, inventories[index - 1]);
+    assert.deepEqual(report.shard, { index, total: 4 });
+    assert.equal(report.fullSuite, false);
+    assert.deepEqual(await f.executed(), covered[index - 1], 'Every four-shard file assignment must repeat deterministically.');
+  }
+});
+
 test('invalid, duplicated and unknown shard options refuse before spawning fixture tests', async t => {
   const f = await fixture(t);
   for (const args of [
     ['--shard'], ['--shard='], ['--shard', '--output=x.json'],
-    ...['0/2', '3/2', '1/0', '1/1', '1/3', '01/2', '+1/2', '1.0/2', '1/02', '1/2/3', ' 1/2', '1/2 '].map(value => ['--shard=' + value]),
+    ...['0/2', '3/2', '1/0', '1/1', '1/3', '01/2', '+1/2', '1.0/2', '1/02', '1/2/3', ' 1/2', '1/2 ',
+      '0/4', '5/4', '1/5', '01/4', '+1/4', '1.0/4', '1/04', '1/4/4', ' 1/4', '1/4 '].map(value => ['--shard=' + value]),
     ['--shard=1/2', '--shard=2/2'], ['--shard', '1/2', '--shard', '1/2'],
+    ['--shard=1/4', '--shard=4/4'], ['--shard', '3/4', '--shard', '3/4'], ['--shard=1/2', '--shard=1/4'],
     ['--output=a.json', '--output', 'b.json'], ['--unknown=1/2'], ['--shard=1/2', 'extra'],
   ]) {
     const result = f.invoke(args);
@@ -188,16 +228,16 @@ test('shards containing skipped or todo tests fail complete-run admission even w
   assert.equal(incompleteCounts.reduce((sum, value) => sum + value, 0), 2);
 });
 
-test('CI requires both shards on both operating systems with unique report artifacts', async () => {
+test('CI requires all four shards on both operating systems with unique report artifacts', async () => {
   const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.match(workflow, /fail-fast: false/);
   assert.match(workflow, /os: \[ubuntu-latest, windows-latest\]/);
-  assert.match(workflow, /shard: \[1, 2\]/);
+  assert.match(workflow, /shard: \[1, 2, 3, 4\]/);
   assert.match(workflow, /node-version: '24\.13\.1'/);
-  assert.match(workflow, /run: node scripts\/bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/2 --output results\/factory-bench\.json/);
-  assert.match(workflow, /name: open-test-report-\$\{\{ matrix\.os \}\}-shard-\$\{\{ matrix\.shard \}\}-of-2/);
-  const artifacts = ['ubuntu-latest', 'windows-latest'].flatMap(os => [1, 2].map(shard => `open-test-report-${os}-shard-${shard}-of-2`));
-  assert.equal(new Set(artifacts).size, 4);
+  assert.match(workflow, /run: node scripts\/bench\.mjs --shard=\$\{\{ matrix\.shard \}\}\/4 --output results\/factory-bench\.json/);
+  assert.match(workflow, /name: open-test-report-\$\{\{ matrix\.os \}\}-shard-\$\{\{ matrix\.shard \}\}-of-4/);
+  const artifacts = ['ubuntu-latest', 'windows-latest'].flatMap(os => [1, 2, 3, 4].map(shard => `open-test-report-${os}-shard-${shard}-of-4`));
+  assert.equal(new Set(artifacts).size, 8);
   const script = await readFile(new URL('../../scripts/bench.mjs', import.meta.url), 'utf8');
   assert.match(script, /10 \* 60 \* 1000/);
   assert.match(script, /16 \* 1024 \* 1024/);

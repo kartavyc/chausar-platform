@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2); let requestedOutput = 'results/factory-bench.json'; let shard = null;
-const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--shard=1/2|--shard=2/2]';
+const usage = 'Usage: node scripts/bench.mjs [--output results/factory-bench.json] [--shard=1/2|--shard=2/2|--shard=1/4|--shard=2/4|--shard=3/4|--shard=4/4]';
 const seen = new Set();
 for (let index = 0; index < args.length; index++) {
   const argument = args[index];
@@ -17,8 +17,9 @@ for (let index = 0; index < args.length; index++) {
   if (typeof value !== 'string' || !value || value.startsWith('--')) throw new Error(usage);
   if (option === '--output') requestedOutput = value;
   else {
-    if (!/^[12]\/2$/.test(value)) throw new Error('Benchmark shard must be exactly 1/2 or 2/2.');
-    shard = { index: Number(value[0]), total: 2 };
+    if (!/^(?:[12]\/2|[1-4]\/4)$/.test(value)) throw new Error('Benchmark shard must be exactly 1/2, 2/2, 1/4, 2/4, 3/4 or 4/4.');
+    const [shardIndex, shardTotal] = value.split('/').map(Number);
+    shard = { index: shardIndex, total: shardTotal };
   }
 }
 const destination = resolve(root, requestedOutput); const inside = relative(root, destination);
