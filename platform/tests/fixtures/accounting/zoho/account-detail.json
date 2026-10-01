@@ -1,0 +1,4 @@
+{
+  "code": 0, "message": "synthetic success", "account_id": "50003", "account_code": "2000", "account_name": "Synthetic notes payable",
+  "account_type": "long_term_liability", "is_active": true, "currency_code": "INR", "closing_balance": 250.00, "last_modified_time": "2026-09-01T10:00:00+0530"
+}

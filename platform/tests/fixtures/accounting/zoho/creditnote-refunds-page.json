@@ -1,0 +1,6 @@
+{
+  "code": 0,
+  "message": "synthetic success",
+  "creditnote_refunds": [{ "creditnote_refund_id": "40001", "creditnote_id": "20001", "date": "2026-09-12", "refund_mode": "cash", "amount_bcy": 9.00, "amount_fcy": 9.00 }],
+  "page_context": { "page": 1, "per_page": 200, "has_more_page": false }
+}

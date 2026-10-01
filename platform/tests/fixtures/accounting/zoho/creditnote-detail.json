@@ -1,0 +1,11 @@
+{
+  "code": 0,
+  "message": "synthetic success",
+  "creditnote": {
+    "creditnote_id": "20001", "creditnote_number": "SYN-CN-1", "date": "2026-09-10", "status": "open",
+    "currency_code": "INR", "total": 59.00, "balance": 9.00, "is_inclusive_tax": true, "updated_time": "2026-09-10T10:00:00+0530",
+    "line_items": [{ "line_item_id": "201", "description": "Synthetic service credit", "quantity": 0.5, "rate": 118.00, "account_id": "50001", "tax_id": "70001", "line_item_category": "line_item" }],
+    "invoices": [{ "invoice_id": "10001", "invoice_number": "SYN-1", "amount": 50.00 }],
+    "taxes": [{ "tax_id": "70001", "tax_name": "Synthetic tax", "tax_amount": "9.00" }]
+  }
+}

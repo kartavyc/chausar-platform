@@ -1,0 +1,27 @@
+{
+  "Id": "synthetic-response-1", "Status": "OK", "DateTimeUTC": "/Date(1788220800000)/",
+  "pagination": { "page": 1, "pageSize": 2, "pageCount": 2, "itemCount": 3 },
+  "Invoices": [
+    {
+      "InvoiceID": "10000000-0000-0000-0000-000000000001", "InvoiceNumber": "SYN-1", "Type": "ACCREC", "Status": "AUTHORISED",
+      "Date": "/Date(1788220800000+0000)/", "DateString": "2026-09-01T00:00:00", "DueDate": "2026-09-30",
+      "UpdatedDateUTC": "/Date(1788220800123+0000)/", "UpdatedDateUTCString": "2026-09-01T00:00:00Z",
+      "CurrencyCode": "NZD", "CurrencyRate": 1.000000, "LineAmountTypes": "Exclusive",
+      "SubTotal": 9007199254740993.0001, "TotalTax": 0.1234, "Total": 9007199254740993.1235,
+      "AmountDue": 9007199254740963.1235, "AmountPaid": 20.00, "AmountCredited": 10.00,
+      "LineItems": [
+        { "LineItemID": "11000000-0000-0000-0000-000000000001", "Description": "Synthetic precision probe", "Quantity": 1.0000, "UnitAmount": 9007199254740993.0001, "LineAmount": 9007199254740993.0001, "AccountCode": "200", "TaxType": "OUTPUT2", "TaxAmount": 0.1234, "Tracking": [] },
+        { "Description": "A description-only line" }
+      ],
+      "Payments": [{ "PaymentID": "30000000-0000-0000-0000-000000000001", "Date": "2026-09-02", "Amount": 20.00 }],
+      "CreditNotes": [{ "CreditNoteID": "20000000-0000-0000-0000-000000000001", "AppliedAmount": 10.00 }],
+      "Prepayments": [], "Overpayments": []
+    },
+    {
+      "InvoiceID": "10000000-0000-0000-0000-000000000002", "Type": "ACCPAY", "Status": "SUBMITTED", "Date": "2026-09-01",
+      "UpdatedDateUTC": "/Date(1788220800000)/", "CurrencyCode": "USD", "LineAmountTypes": "Inclusive",
+      "LineItems": [{ "Description": "Synthetic inclusive line", "Quantity": 2, "UnitAmount": 57.50, "LineAmount": 115.00, "TaxAmount": 15.00, "TaxType": "INPUT2", "AccountID": "40000000-0000-0000-0000-000000000001" }],
+      "SubTotal": 100.00, "TotalTax": 15.00, "Total": 115.00, "AmountDue": 115.00, "Payments": [], "CreditNotes": []
+    }
+  ]
+}

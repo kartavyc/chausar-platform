@@ -1,0 +1,4 @@
+{
+  "Status": "OK", "pagination": { "page": 2, "pageSize": 2, "pageCount": 2, "itemCount": 3 },
+  "Invoices": [{ "InvoiceID": "10000000-0000-0000-0000-000000000003", "Type": "ACCREC", "Status": "VOIDED", "Date": "2026-09-01", "UpdatedDateUTC": "/Date(1788220800000)/", "CurrencyCode": "NZD", "LineAmountTypes": "NoTax", "LineItems": [], "SubTotal": 40.00, "TotalTax": 0.00, "Total": 40.00, "AmountDue": 0.00, "Payments": [], "CreditNotes": [] }]
+}

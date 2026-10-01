@@ -1,0 +1,8 @@
+{
+  "code": 0,
+  "message": "synthetic success",
+  "invoices": [
+    { "invoice_id": "10001", "invoice_number": "SYN-1", "date": "2026-09-01", "status": "sent", "currency_code": "INR", "total": 9007199254740993.01, "balance": 9007199254740993.01, "last_modified_time": "2026-09-01T10:00:00+0530" }
+  ],
+  "page_context": { "page": 1, "per_page": 2, "has_more_page": true }
+}

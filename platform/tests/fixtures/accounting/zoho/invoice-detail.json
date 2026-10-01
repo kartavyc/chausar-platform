@@ -1,0 +1,14 @@
+{
+  "code": 0,
+  "message": "synthetic success",
+  "invoice": {
+    "invoice_id": "10001", "invoice_number": "SYN-1", "date": "2026-09-01", "due_date": "2026-09-30", "status": "sent",
+    "currency_code": "INR", "exchange_rate": 1.00, "total": 118.000, "sub_total": 100.000, "tax_total": 18.000, "balance": 68.000,
+    "is_inclusive_tax": false, "last_modified_time": "2026-09-01T10:00:00+0530",
+    "line_items": [
+      { "line_item_id": "101", "description": "Synthetic fractional service", "quantity": 0.5, "rate": 200.000, "item_total": 100.000, "account_id": "50001", "tax_id": "70001" },
+      { "line_item_id": "102", "description": "Synthetic subtotal", "line_item_category": "subtotal", "item_total": 100.000 }
+    ],
+    "taxes": [{ "tax_name": "Synthetic GST", "tax_amount": 18.000 }], "location_id": "90001"
+  }
+}

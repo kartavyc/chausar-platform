@@ -1,0 +1,9 @@
+{
+  "code": 0,
+  "message": "synthetic success",
+  "invoices": [
+    { "invoice_id": "10002", "invoice_number": "SYN-2", "date": "2026-09-02", "status": "void", "currency_code": "INR", "total": 118.00, "balance": 0.00, "last_modified_time": "2026-09-02T10:00:00+0530" },
+    { "invoice_id": "10003", "invoice_number": "SYN-3", "date": "2026-09-03", "status": "draft", "currency_code": "INR", "total": 236.00, "balance": 236.00, "last_modified_time": "2026-09-03T10:00:00+0530" }
+  ],
+  "page_context": { "page": 2, "per_page": 2, "has_more_page": false }
+}

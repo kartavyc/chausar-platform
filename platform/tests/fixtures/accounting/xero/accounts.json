@@ -1,0 +1,8 @@
+{
+  "Status": "OK", "Accounts": [
+    { "AccountID": "40000000-0000-0000-0000-000000000001", "Code": "200", "Name": "Synthetic sales", "Type": "REVENUE", "Class": "REVENUE", "Status": "ACTIVE", "TaxType": "OUTPUT2", "UpdatedDateUTC": "/Date(1788220800000)/" },
+    { "AccountID": "40000000-0000-0000-0000-000000000002", "Code": "090", "Name": "Synthetic bank", "Type": "BANK", "Class": "ASSET", "Status": "ACTIVE", "CurrencyCode": "USD" },
+    { "AccountID": "40000000-0000-0000-0000-000000000003", "Code": "500", "Name": "Synthetic expense", "Type": "EXPENSE", "Class": "EXPENSE", "Status": "ARCHIVED" },
+    { "AccountID": "40000000-0000-0000-0000-000000000004", "Name": "Synthetic unclassified", "Type": "PAYG", "Status": "DELETED" }
+  ]
+}

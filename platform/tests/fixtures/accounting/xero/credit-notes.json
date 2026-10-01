@@ -1,0 +1,11 @@
+{
+  "Status": "OK", "pagination": { "page": 1, "pageSize": 100, "pageCount": 1, "itemCount": 1 },
+  "CreditNotes": [{
+    "CreditNoteID": "20000000-0000-0000-0000-000000000001", "Type": "ACCRECCREDIT", "Status": "AUTHORISED", "Date": "2026-09-02",
+    "UpdatedDateUTC": "/Date(1788307200000)/", "CurrencyCode": "NZD", "LineAmountTypes": "Exclusive",
+    "LineItems": [{ "Description": "Synthetic return", "Quantity": 1.0000, "UnitAmount": 30.00, "LineAmount": 30.00, "TaxAmount": 4.50, "TaxType": "OUTPUT2", "AccountCode": "200" }],
+    "SubTotal": 30.00, "TotalTax": 4.50, "Total": 34.50, "RemainingCredit": 14.50,
+    "Allocations": [{ "AllocationID": "21000000-0000-0000-0000-000000000001", "Invoice": { "InvoiceID": "10000000-0000-0000-0000-000000000001" }, "Amount": 10.00, "Date": "2026-09-02", "IsDeleted": false }, { "AllocationID": "21000000-0000-0000-0000-000000000002", "Invoice": { "InvoiceID": "10000000-0000-0000-0000-000000000001" }, "Amount": 1.00, "Date": "2026-09-02", "IsDeleted": true }],
+    "Payments": [{ "PaymentID": "30000000-0000-0000-0000-000000000003", "Date": "2026-09-02", "Amount": 10.00 }]
+  }]
+}

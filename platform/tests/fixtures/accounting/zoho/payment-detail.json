@@ -1,0 +1,9 @@
+{
+  "code": 0,
+  "message": "synthetic success",
+  "payment": {
+    "payment_id": "30001", "date": "2026-09-11", "status": "success", "payment_mode": "cash", "amount": 70.00,
+    "amount_refunded": 20.00, "bank_charges": 2.00, "currency_code": "INR",
+    "invoices": [{ "invoice_id": "10001", "invoice_number": "SYN-1", "date": "2026-09-01", "invoice_amount": 118.00, "amount_applied": 50.00, "balance_amount": 68.00, "tax_amount_withheld": 0.00 }]
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "contractVersion": 1,
+  "frameworkCommit": "af089b75de85b8a07025f29970f609449aefc338",
+  "semanticInterfaceCommit": "fe26fa945ccd847aad45310668853e67d0077f66",
+  "branch": "task-9/accounting-adapters",
+  "environment": {
+    "node": "v24.13.1",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "verification": {
+    "tests": 238,
+    "passed": 238,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "newAccountingTests": 99,
+    "sourceFilesSyntaxChecked": 80,
+    "typecheck": "blocked: local tsc and TypeScript dependencies absent"
+  },
+  "artifacts": [
+    {
+      "reference": "../accounting-contracts.tap",
+      "sha256": "fe6e79106b98c8061b98e0dfe967e3b834b814a3d1d11a28471dffb982b24ff5"
+    },
+    {
+      "reference": "../accounting-first-adapter-receipt.json",
+      "sha256": "db1a10f7836ecaf7087d018ce8c16ed96c9826ec0a13292a504cd6fa8be495af"
+    }
+  ],
+  "firstAdapter": {
+    "id": "zoho-books",
+    "apiVersion": "v3",
+    "fixture": "platform/tests/fixtures/accounting/zoho/invoice-detail.json",
+    "measure": "billed",
+    "valueMinor": "10000",
+    "currency": "INR",
+    "qualification": "synthetic-only",
+    "semanticGate": "unqualified",
+    "semanticGateEvaluated": false,
+    "readinessCode": "SOURCE_NOT_READY",
+    "sourceSnapshot": "unverified"
+  },
+  "qualification": {
+    "defaultRegistry": "unqualified",
+    "syntheticFixturesOnly": true,
+    "vendorDatasetAcquired": false,
+    "sandboxVerified": false,
+    "liveVerified": false,
+    "writebackQualified": false,
+    "semanticGateInstalled": false,
+    "tallyNative7Mapping": "unimplemented: readable native voucher/account samples required"
+  },
+  "fixtures": [
+    {
+      "path": "platform/tests/fixtures/accounting/quickbooks/accounts.json",
+      "sha256": "55e8471d9fcacaecea07d0bb8da9f020d3f80bbd5188510a8cd5dab57212022b"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/quickbooks/credit-memos.json",
+      "sha256": "5f303d48bd44def71a988e5f0afd07cad50f57b2fb7140a5458db9b01616a771"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/quickbooks/invoices.json",
+      "sha256": "b3e17a20921a62510e5242a2d8d44e465cb4b9a0b5780553b0a60db59561f50f"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/quickbooks/payments.json",
+      "sha256": "31dc2fb40eeb70ab2bbed48c763dbcb5ef2e490d0dc479aa23206a71780ff526"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/quickbooks/refunds.json",
+      "sha256": "9928a920bc1567875db9b8884573a5968e496007436827b26fbe2cc5f071355b"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/tally/accounts-offline.xml",
+      "sha256": "c98481abaf7bfa2c509754781dfe9a052082da7ca15591e4dc3025dce903dd95"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/tally/native7-envelope.json",
+      "sha256": "9c7a23e4626ba40a01cb056809f633fcad17a099ab94060b6ed8d8377f7eb06e"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/tally/vouchers-v1.xml",
+      "sha256": "f3e3f6e522e87a140f2a1d76d6b3e204f8e52483f2ab8698a9d47b5ca93cd714"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/xero/accounts.json",
+      "sha256": "a0c17e5e61d993edb930cb809e02bc73f4667c4695acffed6baf9b358fd008d4"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/xero/credit-notes.json",
+      "sha256": "9e79b786a105d88e7a6fd7fdc7827d5c7dd94080a72d5ecee2c4f2aee1baa060"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/xero/invoices-page-1.json",
+      "sha256": "5cd8b7b12bd9a25a70bad003edc48227b8f3869ad1616d98352aa503488019cc"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/xero/invoices-page-2.json",
+      "sha256": "4fa66499c90bf200fd1ad4e85e8910734aa104cdc902a869e89f2faebb2c9d29"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/xero/payments.json",
+      "sha256": "ec643b9f5fb131f821b554579dfd56609c9e6f1bab625c158531a0e0081013ba"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/zoho/account-detail.json",
+      "sha256": "4f753495e6ad74662a75e71001afbc944573ba7110e5a6c4485820a4ff38f2f5"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/zoho/accounts-page.json",
+      "sha256": "0e398223423a131ed3797da7d16a08728f39849b791ddf2941d70f431234087f"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/zoho/creditnote-detail.json",
+      "sha256": "fad872623e89b76e4512d025dcf2aea5805be545e168757c2b0e21cca7541440"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/zoho/creditnote-refunds-page.json",
+      "sha256": "4760d51f79440b91c37977b8478d9f1a8723f4f1bbbc005d26e8ddeeb38490a2"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/zoho/creditnotes-page.json",
+      "sha256": "249a00c82c2a83781fb49466457257312840fa067429e5df09358fd7e389e64a"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/zoho/customerpayments-page.json",
+      "sha256": "04d0d4e7de3eb040ac791a7774a98322603c8567f8bc00aafe4f032142c3e1f8"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/zoho/invoice-detail.json",
+      "sha256": "4bb52bf0953a5ca51fb803d2bfa30a7a51e530d9220b5c5232b6cdaad6935a08"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/zoho/invoices-page-1.json",
+      "sha256": "dfd068dae6ead39a5fd4296ca0c9191c77c43de268accb82a70cf26a267e1406"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/zoho/invoices-page-2.json",
+      "sha256": "582e3938fa6d7bfc5b877b56ddbc5bfe5ab34b74b41dbcd46061c99545dae04f"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/zoho/payment-detail.json",
+      "sha256": "b5e2597c61f65d5327ff45535c22ff405f141625e99f97fec30d640e53db3b2b"
+    },
+    {
+      "path": "platform/tests/fixtures/accounting/zoho/payment-refunds-page.json",
+      "sha256": "aff7add140668ed2cfc55d34c23206d855bd9dd64d02cc76a14168aa25f03334"
+    }
+  ]
+}

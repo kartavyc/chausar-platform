@@ -1,0 +1,6 @@
+{
+  "code": 0,
+  "message": "synthetic success",
+  "customer_payments": [{ "payment_id": "30001", "payment_number": "SYN-1", "invoice_number": "SYN-1", "date": "2026-09-11", "payment_mode": "cash", "amount": 70.00, "bcy_amount": 70.00 }],
+  "page_context": { "page": 1, "per_page": 200, "has_more_page": false }
+}

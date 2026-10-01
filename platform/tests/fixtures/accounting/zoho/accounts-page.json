@@ -1,0 +1,9 @@
+{
+  "code": 0,
+  "message": "synthetic success",
+  "chartofaccounts": [
+    { "account_id": "50001", "account_code": "4000", "account_name": "Synthetic service sales", "account_type": "income", "is_active": true, "last_modified_time": "2026-09-01T10:00:00+0530" },
+    { "account_id": "50002", "account_code": "9999", "account_name": "Synthetic unknown account", "account_type": "unrecognized_synthetic_type", "is_active": false, "last_modified_time": "2026-09-01T10:00:00+0530" }
+  ],
+  "page_context": { "page": 1, "per_page": 200, "has_more_page": false }
+}

@@ -1,0 +1,26 @@
+{
+  "QueryResponse": {
+    "Invoice": [
+      {
+        "domain": "QBO", "sparse": false, "Id": "invoice-1", "SyncToken": "2",
+        "MetaData": {"CreateTime": "2026-09-10T23:00:00-07:00", "LastUpdatedTime": "2026-09-12T01:30:00-07:00"},
+        "TxnDate": "2026-09-10", "DueDate": "2026-10-10", "DocNumber": "SYN-1001",
+        "CurrencyRef": {"value": "USD"}, "CustomerRef": {"value": "customer-1"},
+        "GlobalTaxCalculation": "TaxExcluded", "ApplyTaxAfterDiscount": true,
+        "TotalAmt": 104.50, "Balance": 54.50, "Deposit": 0, "invoiceStatus": "PARTIALLY_PAID",
+        "Line": [
+          {"Id": "1", "Description": "Synthetic service", "Amount": 100.00, "DetailType": "SalesItemLineDetail", "SalesItemLineDetail": {"ItemRef": {"value": "item-1"}, "Qty": 2.0, "UnitPrice": 50.00, "TaxCodeRef": {"value": "TAX"}}},
+          {"Amount": 100.00, "DetailType": "SubTotalLineDetail", "SubTotalLineDetail": {}},
+          {"Amount": 5.00, "DetailType": "DiscountLineDetail", "DiscountLineDetail": {"PercentBased": false, "DiscountAccountRef": {"value": "discount-1"}}},
+          {"Description": "Source-only documentation", "Amount": 999.00, "DetailType": "SalesItemLineDetail", "SalesItemLineDetail": {}}
+        ],
+        "TxnTaxDetail": {"TotalTax": 9.50, "TaxLine": [{"Amount": 9.50, "DetailType": "TaxLineDetail", "TaxLineDetail": {"TaxRateRef": {"value": "tax-1"}, "PercentBased": true, "TaxPercent": 10.0, "NetAmountTaxable": 95.00}}]},
+        "LinkedTxn": [{"TxnId": "payment-1", "TxnType": "Payment"}]
+      },
+      {"domain": "QBO", "sparse": false, "Id": "invoice-zero", "SyncToken": "0", "TxnDate": "2026-09-11", "CurrencyRef": {"value": "USD"}, "GlobalTaxCalculation": "NotApplicable", "TotalAmt": 0, "Balance": 0,
+       "Line": [{"Amount": 0, "DetailType": "SalesItemLineDetail", "SalesItemLineDetail": {"ItemRef": {"value": "item-1"}}}]}
+    ],
+    "startPosition": 1, "maxResults": 2
+  },
+  "time": "2026-09-12T02:00:00-07:00"
+}

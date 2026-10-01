@@ -1,0 +1,6 @@
+{
+  "code": 0,
+  "message": "synthetic success",
+  "creditnotes": [{ "creditnote_id": "20001", "creditnote_number": "SYN-CN-1", "date": "2026-09-10", "status": "open", "currency_code": "INR", "total": 59.00, "balance": 9.00 }],
+  "page_context": { "page": 1, "per_page": 200, "has_more_page": false }
+}

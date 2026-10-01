@@ -1,0 +1,9 @@
+{
+  "Status": "OK", "pagination": { "page": 1, "pageSize": 100, "pageCount": 1, "itemCount": 4 },
+  "Payments": [
+    { "PaymentID": "30000000-0000-0000-0000-000000000001", "PaymentType": "ACCRECPAYMENT", "Status": "AUTHORISED", "Date": "2026-09-02", "UpdatedDateUTC": "/Date(1788307200000)/", "Amount": 20.00, "BankAmount": 26.50, "CurrencyRate": 1.325000, "IsReconciled": false, "Invoice": { "InvoiceID": "10000000-0000-0000-0000-000000000001", "CurrencyCode": "NZD" }, "Account": { "AccountID": "40000000-0000-0000-0000-000000000002", "CurrencyCode": "USD", "Class": "ASSET", "Type": "BANK", "Code": "090", "Name": "Synthetic bank" } },
+    { "PaymentID": "30000000-0000-0000-0000-000000000002", "PaymentType": "ACCPAYPAYMENT", "Status": "DELETED", "Date": "2026-09-02", "UpdatedDateUTC": "/Date(1788307200000)/", "Amount": 25.00, "Invoice": { "InvoiceID": "10000000-0000-0000-0000-000000000002", "CurrencyCode": "USD" } },
+    { "PaymentID": "30000000-0000-0000-0000-000000000003", "PaymentType": "ARCREDITPAYMENT", "Status": "AUTHORISED", "Date": "2026-09-02", "UpdatedDateUTC": "/Date(1788307200000)/", "Amount": 10.00, "BankAmount": 10.00, "IsReconciled": true, "CreditNote": { "CreditNoteID": "20000000-0000-0000-0000-000000000001", "CurrencyCode": "NZD" } },
+    { "PaymentID": "30000000-0000-0000-0000-000000000004", "PaymentType": "ARPREPAYMENTPAYMENT", "Status": "AUTHORISED", "Date": "2026-09-02", "UpdatedDateUTC": "/Date(1788307200000)/", "Amount": 5.00, "Prepayment": { "PrepaymentID": "31000000-0000-0000-0000-000000000004", "CurrencyCode": "NZD" } }
+  ]
+}
