@@ -13,6 +13,8 @@ import {
   type ConnectorSemanticGateHost,
 } from '../semantic-qualification/src/index.ts';
 import type { OperationEvidence, OperationId, MappingResult } from '../semantic-qualification/src/contracts.ts';
+import { executeSemanticTranslation, type SemanticTranslationBinding, type SemanticTranslationProfile,
+  type SemanticTranslationReference, type SemanticTranslationResult } from './semantic-translation.ts';
 
 export type EngineSemanticInput = ConnectorSemanticInput;
 export type EngineSemanticProof = ConnectorSemanticProof & {
@@ -23,17 +25,21 @@ export type { ConnectorSemanticPort } from './engine-connectors.ts';
 export type EngineSemanticDossier = {
   profileId: string; sourceId: string; recipeHash: string; runtimeOntologyHash: string; decoderDefinitionHash: string;
   current: QualificationInput; goldenCases: QualificationInput[]; holdoutCases: QualificationInput[];
+  /** Opt-in exact current-capture translation evidence; this does not qualify a native adapter family. */
+  translation?: SemanticTranslationReference;
 };
 export type EngineSemanticOptions = {
   registry: ConnectorCapabilityRegistry; clock: ReadClock; maximumEvidenceAgeMs: number;
   dossiers: readonly EngineSemanticDossier[] | ((state: State) => readonly EngineSemanticDossier[]);
+  translationProfiles?: readonly SemanticTranslationProfile[];
 };
 type EvidenceRecord = {
   type: 'engine-semantic-evidence-v1'; id: string; sourceId: string; captureId: string; generation: number;
   binding: ConnectorSemanticBinding; dossierDigest: string; sourceTotalsHash: string;
   ledger: OperationEvidence[]; evidenceIds: string[]; proof: EngineSemanticProof;
+  translation?: { binding: SemanticTranslationBinding; digest: string };
 };
-type Anchor = { type: 'engine-semantic-anchor-v1'; id: string; sourceId: string; captureId: string; generation: number; head: string; bindingHash: string; proofHash: string };
+type Anchor = { type: 'engine-semantic-anchor-v1'; id: string; sourceId: string; captureId: string; generation: number; head: string; bindingHash: string; proofHash: string; translationDigest?: string };
 const sha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const view = (state: State): StateStore => ({ read: () => structuredClone(state), update: async () => { throw new Error('Semantic readiness is read only.'); } });
 const rowsOf = (capture: ConnectorCapture) => capture.pages.flatMap(page => page.rows);
@@ -144,8 +150,15 @@ export class EngineSemanticService implements ConnectorSemanticPort {
       && capture.qualificationDigest === imported.digest, 'SEMANTIC_CONNECTOR_CHANGED', 'The actual current read/import definition and capability evidence must match acquisition.');
     return { read, imported };
   }
-  #source(input: EngineSemanticInput, dossier: EngineSemanticDossier): QualificationInput {
-    const configured = structuredClone(dossier.current); const rows = rowsOf(input.capture);
+  #translation(input: EngineSemanticInput, dossier: EngineSemanticDossier): SemanticTranslationResult | undefined {
+    if (!dossier.translation) return undefined;
+    return executeSemanticTranslation({ profiles: this.#options.translationProfiles ?? [], reference: dossier.translation,
+      capture: input.capture, decoderDefinitionHash: input.decoderDescriptor.definitionHash,
+      compilerSchema: dossier.current.compiled.pack.sourceSchema, compilerRows: dossier.current.batch.rows,
+      compilerRowsHash: dossier.current.batch.rowsHash, semanticMappingFingerprint: dossier.current.compiled.fingerprint });
+  }
+  #source(input: EngineSemanticInput, dossier: EngineSemanticDossier, translation?: SemanticTranslationResult): QualificationInput {
+    const configured = structuredClone(dossier.current); const rows = translation?.rows ?? rowsOf(input.capture);
     const { capture, sourceTotals: totals } = input;
     check(configured.batch.rowsHash === hashData(rows) && hashData(configured.batch.rows) === hashData(rows)
       && configured.batch.company === capture.domain.company && hashData(configured.compiled.rules.branches) === hashData(capture.domain.branches)
@@ -156,7 +169,9 @@ export class EngineSemanticService implements ConnectorSemanticPort {
     check([input.profile.readOperation, input.profile.importOperation].every(scope => scope.connectorId === configured.batch.system
       && scope.applicability.applicationVersion === configured.batch.product.version && scope.applicability.edition === configured.batch.product.edition
       && scope.applicability.configuration === configured.batch.product.configuration)
-      && input.decoderDescriptor.schemaSha256 === configured.compiled.schemaHash,
+      && (translation ? translation.binding.compilerSourceSchemaHash === configured.compiled.schemaHash
+        && translation.binding.nativeWireSchemaSha256 === input.decoderDescriptor.schemaSha256
+        : input.decoderDescriptor.schemaSha256 === configured.compiled.schemaHash),
     'SEMANTIC_PRODUCT_SCOPE_MISMATCH', 'Acquisition, import, decoder schema and semantic evidence must share the exact authored system/version/edition/configuration.');
     check(totals.provenance === 'independent-source-report' && totals.reportId === report.reportId && totals.sha256 === report.evidenceHash
       && totals.company === report.company && totals.dataset === capture.domain.dataset && totals.domainHash === digest(capture.domain)
@@ -167,7 +182,7 @@ export class EngineSemanticService implements ConnectorSemanticPort {
     'SEMANTIC_SOURCE_REPORT_MISMATCH', 'Runtime controls must preserve the separately authored per-kind, currency, net, tax and gross source report.');
     return { ...configured, at: this.#now(), batch: { ...configured.batch, receiptId: input.readLink.id, rows: structuredClone(rows), rowsHash: hashData(rows) } };
   }
-  #projection(ctx: Context, input: EngineSemanticInput, mapped: MappingResult) {
+  #projection(ctx: Context, input: EngineSemanticInput, mapped: MappingResult, translation?: SemanticTranslationResult) {
     const rows = rowsOf(input.capture), fields = Object.keys(rows[0] ?? {});
     const cell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
     const content = [fields.map(cell).join(','), ...rows.map(row => fields.map(field => cell(row[field])).join(','))].join('\n');
@@ -177,21 +192,23 @@ export class EngineSemanticService implements ConnectorSemanticPort {
       'SEMANTIC_RUNTIME_TRANSLATION_REQUIRED', 'The runtime mapping must preserve every admitted row and exclusion; unsupported translations cannot publish qualified facts.');
     for (const fact of mapped.facts) {
       // The existing CSV preview numbers its header as row 1. Semantic source rows are 1-based data rows.
-      const candidate = preview.facts.find(item => item.sourceRow === fact.source.row + 1 && item.entityId === fact.entityId && item.kind === fact.kind);
+      const nativeRow = translation ? translation.rowLineage.find(item => item.compilerRow === fact.source.row)?.decodedRow : fact.source.row;
+      const candidate = preview.facts.find(item => nativeRow !== undefined && item.sourceRow === nativeRow + 1 && item.entityId === fact.entityId && item.kind === fact.kind);
       check(candidate && candidate.validFrom === fact.date && candidate.branch === fact.branch && candidate.fields.amountMinor === fact.netMinor
         && candidate.fields.taxMinor === fact.taxMinor && candidate.fields.currency === fact.currency && candidate.fields.company === fact.company
         && candidate.fields.taxRegistration === fact.taxRegistration && candidate.fields.unit === fact.unit
         && /^\d+$/.test(fact.quantity) && Number.isSafeInteger(Number(fact.quantity)) && candidate.fields.quantity === Number(fact.quantity)
-        && (fact.relatedIdentity === null || candidate.fields.invoiceId === fact.relatedIdentity) && !candidate.fields._fx,
+        && (translation ? (candidate.fields.invoiceId ?? null) === fact.relatedIdentity
+          : fact.relatedIdentity === null || candidate.fields.invoiceId === fact.relatedIdentity) && !candidate.fields._fx,
       'SEMANTIC_RUNTIME_TRANSLATION_REQUIRED', 'The typed runtime recipe differs from qualified identity, date, tax, currency, quantity, unit, company or link meaning.');
     }
     return preview.facts;
   }
-  #publishedProjection(input: EngineSemanticInput, dossier: EngineSemanticDossier) {
-    const source = this.#source(input, dossier), mapped = mapBatch(source.compiled, source.batch);
+  #publishedProjection(input: EngineSemanticInput, source: QualificationInput, translation?: SemanticTranslationResult) {
+    const mapped = mapBatch(source.compiled, source.batch);
     check(mapped.decision === 'mapped', 'SEMANTIC_RUNTIME_TRANSLATION_REQUIRED', 'The current exact source must still preserve its compiled meaning.');
     const acquired = input.state.imports.find(item => item.type === 'connector-consumer-binding-v1' && item.captureId === input.capture.id).acquiredBy as Context;
-    const expected = this.#projection(acquired, input, mapped);
+    const expected = this.#projection(acquired, input, mapped, translation);
     check(input.capture.rowIds.length === expected.length && new Set(input.capture.rowIds).size === expected.length,
       'SEMANTIC_PUBLISHED_FACTS_CHANGED', 'Published lineage must contain exactly the qualified typed rows.');
     for (const fact of expected) {
@@ -213,18 +230,18 @@ export class EngineSemanticService implements ConnectorSemanticPort {
       && sha(anchor.head), 'SEMANTIC_ANCHOR_REQUIRED', 'Use the separately retained Engine-owned ledger anchor, never a supplied ledger head.');
     return anchor;
   }
-  #dependencies(input: EngineSemanticInput, dossier: EngineSemanticDossier): CurrentSemanticDependencies {
+  #dependencies(input: EngineSemanticInput, dossier: EngineSemanticDossier, source: QualificationInput): CurrentSemanticDependencies {
     return { mappingFingerprint: dossier.current.compiled.fingerprint, schemaHash: dossier.current.compiled.schemaHash,
-      rowsHash: hashData(rowsOf(input.capture)), snapshotId: input.capture.snapshot.kind === 'source-snapshot' ? input.capture.snapshot.id : '',
+      rowsHash: source.batch.rowsHash, snapshotId: input.capture.snapshot.kind === 'source-snapshot' ? input.capture.snapshot.id : '',
       sourceReportHash: hashData(dossier.current.report), manifestHash: hashData({ manifest: dossier.current.manifest, provenance: dossier.current.provenance }),
       splitPlanHash: hashData(dossier.current.splitPlan), goldenCaseHash: hashData(dossier.current.goldenCase) };
   }
   beforePublish(ctx: Context, input: EngineSemanticInput): EngineSemanticProof {
-    const dossier = this.#dossier(input), { read, imported } = this.#custody(ctx, input), source = this.#source(input, dossier);
+    const dossier = this.#dossier(input), { read, imported } = this.#custody(ctx, input), translation = this.#translation(input, dossier), source = this.#source(input, dossier, translation);
     const ledger: OperationEvidence[] = []; const qualified = qualifyCase(source, ledger);
     check(qualified.mapped.decision === 'mapped' && qualified.evidence.length > 0 && qualified.evidence.every(item => item.decision === 'qualified' && item.qualification === 'synthetic-qualified'),
       'SEMANTIC_CASE_UNQUALIFIED', 'Independent source controls and golden semantic assertions must qualify every declared measure before insertion.');
-    this.#projection(ctx, input, qualified.mapped);
+    this.#projection(ctx, input, qualified.mapped, translation);
     check(dossier.goldenCases.length > 0 && dossier.holdoutCases.length > 0, 'SEMANTIC_CORPUS_REQUIRED', 'Require explicit independent tuning and public synthetic holdout evidence.');
     const splitMembership = (caseInput: QualificationInput) => {
       const { mappingFingerprint: _perProduct, ...membership } = caseInput.splitPlan;
@@ -260,22 +277,30 @@ export class EngineSemanticService implements ConnectorSemanticPort {
       at, expiresAt: new Date(Date.parse(at) + this.#options.maximumEvidenceAgeMs).toISOString(), minimum: 'synthetic-tested',
     };
     const proof: EngineSemanticProof = { mappingPackDigest: source.compiled.packHash, goldenRunDigest: hashData(golden), holdoutRunDigest: hashData(holdout),
-      reconciliationRunDigest: hashData({ report: source.report, controls: qualified.mapped.controls, rows: qualified.mapped.sourceRowCount, evidence: currentEvidence.map(item => item.id) }),
+      reconciliationRunDigest: hashData({ report: source.report, controls: qualified.mapped.controls, rows: qualified.mapped.sourceRowCount,
+        evidence: currentEvidence.map(item => item.id), ...(translation ? { translationDigest: translation.digest } : {}) }),
       qualification: 'synthetic-qualified', liveVerified: false, writebackQualified: false };
     const record: EvidenceRecord = { type: 'engine-semantic-evidence-v1', id: evidenceId(input.capture.id), sourceId: input.capture.sourceId,
       captureId: input.capture.id, generation: input.capture.generation, binding, dossierDigest: dossierHash(dossier), sourceTotalsHash: digest(input.sourceTotals),
-      ledger, evidenceIds: currentEvidence.map(item => item.id), proof };
+      ledger, evidenceIds: currentEvidence.map(item => item.id), proof,
+      ...(translation ? { translation: { binding: translation.binding, digest: translation.digest } } : {}) };
     check(!input.state.imports.some(item => item.id === record.id || item.id === anchorId(input.capture.id)), 'SEMANTIC_EVIDENCE_CONFLICT', 'This capture already has a retained semantic publication.');
     const head = verifyLedger(ledger).head!;
     input.state.imports.push(record, { type: 'engine-semantic-anchor-v1', id: anchorId(input.capture.id), sourceId: input.capture.sourceId,
-      captureId: input.capture.id, generation: input.capture.generation, head, bindingHash: hashData(binding), proofHash: hashData(proof) } satisfies Anchor);
+      captureId: input.capture.id, generation: input.capture.generation, head, bindingHash: hashData(binding), proofHash: hashData(proof),
+      ...(translation ? { translationDigest: translation.digest } : {}) } satisfies Anchor);
     return structuredClone(proof);
   }
   assertReady(ctx: Context, input: EngineSemanticInput): EngineSemanticProof {
-    const dossier = this.#dossier(input); this.#custody(ctx, input); this.#publishedProjection(input, dossier);
+    const dossier = this.#dossier(input); this.#custody(ctx, input);
+    const translation = this.#translation(input, dossier), source = this.#source(input, dossier, translation);
+    this.#publishedProjection(input, source, translation);
     const record = this.#record(input), anchor = this.#anchor(input);
     check(record.dossierDigest === dossierHash(dossier) && record.sourceTotalsHash === digest(input.sourceTotals)
       && anchor.bindingHash === hashData(record.binding) && anchor.proofHash === hashData(record.proof), 'SEMANTIC_EVIDENCE_CHANGED', 'Current rights, compiler, mapping, corpus, source controls, proof or binding differ from retained evidence.');
+    check(translation ? record.translation?.digest === translation.digest && hashData(record.translation.binding) === translation.digest
+      && anchor.translationDigest === translation.digest : record.translation === undefined && anchor.translationDigest === undefined,
+    'SEMANTIC_TRANSLATION_EVIDENCE_CHANGED', 'The current raw-backed translator, schemas, output and row lineage must equal the separately anchored translation evidence.');
     const requested = input.measures ?? dossier.current.compiled.ontology.operations;
     check(Array.isArray(requested) && requested.length > 0 && requested.every(measure => dossier.current.compiled.ontology.operations.includes(measure as OperationId)),
       'SEMANTIC_MEASURE_UNQUALIFIED', 'Each requested numeric definition needs its own qualified semantic evidence.');
@@ -293,7 +318,7 @@ export class EngineSemanticService implements ConnectorSemanticPort {
         const implementation = scope.kind === 'import' ? input.profile.importImplementationDigest : input.profile.readImplementationDigest;
         const current = this.#options.registry.assertDefinition(scope, implementation, at, 'synthetic-tested');
         return { permitted: current.permitted, level: current.level, definitionDigest: current.definitionDigest, evidenceDigest: current.evidenceDigest, implementationDigest: implementation };
-      }, currentDependencies: () => this.#dependencies(input, dossier),
+      }, currentDependencies: () => this.#dependencies(input, dossier, source),
     };
     for (const measure of new Set(requested)) {
       const evidence = record.ledger.find(item => record.evidenceIds.includes(item.id) && item.operation === measure);
