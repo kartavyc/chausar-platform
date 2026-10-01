@@ -14,7 +14,7 @@ import { BridgeService, type BridgeServiceOptions } from './bridge-service.ts';
 import { InvestigationService } from './investigations.ts';
 import { PostgresInvestigationSearch } from './investigation-search.ts';
 import { ResearchSearchService, type ResearchSearchPort } from './research-search.ts';
-import { TrustService, sourceAllowed } from './trust.ts';
+import { TrustService, sourceAllowed, assertSourceAccess } from './trust.ts';
 import { ModelGateway } from './gateway.ts';
 import type { GatewayOptions } from './gateway.ts';
 import { conversationPurpose } from './conversation-purpose.ts';
@@ -42,6 +42,10 @@ import { authorize, audit, check, ChausarError, hash, newId, now, type Context, 
 
 export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort } };
 
+/** Trusted host result. Identifiers and private scope are not automatic outbound disclosure. */
+export type ConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
+  sourceIds: string[]; requestScope: BusinessContextManifest['request'] | Record<string, unknown>; digest: string };
+
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
   options: EngineOptions;
@@ -61,6 +65,33 @@ export class Engine {
   set context(value: Context) { this.#baseContext = { ...value }; }
   services: Record<string, any> = {};
   constructor(options: EngineOptions) { this.version = options.version ?? '0.1.0-preview.1'; compareVersions(this.version, this.version); this.options = { ...options, directory: resolve(options.directory) }; }
+  /** Resolve retained objective text only through current private authority. No inference or resend. */
+  conversationContinuation(ctx: Context, id: string, view: StateStore = this.store()): ConversationContinuation {
+    authorize(view, ctx);
+    const state = view.read(), records = state.conversations.filter(record => record?.id === id), record = records[0];
+    const unavailable = 'CONVERSATION_CONTINUATION_UNAVAILABLE';
+    check(typeof id === 'string' && records.length === 1 && record?.kind === 'conversation-clarification-answer'
+      && record.memberId === ctx.memberId && record.epoch === ctx.epoch && record.integrity === conversationRecordIntegrity(record), unavailable, 'This pending clarification is unavailable.');
+    check(typeof record.question === 'string' && record.question.trim().length > 0 && record.question.length <= 8000
+      && Number.isFinite(Date.parse(record.at)) && Number.isFinite(state.policy.retentionDays) && state.policy.retentionDays >= 0
+      && Date.parse(record.at) >= Date.now() - state.policy.retentionDays * 86400000, unavailable, 'This pending clarification is unavailable.');
+    const model = this.services.gateway.assertConversationReceipt(ctx, record.modelReceiptId, view);
+    const models = state.modelReceipts.filter(item => item?.id === record.modelReceiptId);
+    check(models.length === 1 && hash(models[0]) === hash(model), unavailable, 'This pending clarification is unavailable.');
+    check(model.naturalQuestion === record.question && model.plan?.kind === 'clarification' && model.businessContext?.request
+      && hash(model.sourceIds) === hash(model.businessContext.sourceIds), unavailable, 'This pending clarification is unavailable.');
+    const expected = { clarification: model.plan.clarification, modelReceiptId: model.id };
+    check(hash(record.answer) === hash(expected), unavailable, 'This pending clarification is unavailable.');
+    const rowIds = [...new Set<string>([...(model.factIds ?? []), ...(model.rowIds ?? [])])].sort();
+    const sourceIds = [...new Set<string>([...(model.sourceIds ?? []),
+      ...rowIds.map(rowId => state.facts.find(fact => fact.id === rowId)?.sourceId).filter((value): value is string => typeof value === 'string')])].sort();
+    check(hash(record.rowIds) === hash(rowIds) && hash(record.sourceIds) === hash(sourceIds), unavailable, 'This pending clarification is unavailable.');
+    assertSourceAccess(state, ctx, sourceIds);
+    check(!state.conversations.some(item => item?.kind === 'conversation-continuation-resolved' && item.continuationId === id), unavailable, 'This clarification has already been continued.');
+    const body = { schemaVersion: 1 as const, turnId: id, originalQuestion: record.question, clarification: model.plan.clarification,
+      sourceIds, requestScope: structuredClone(model.businessContext.request) };
+    return { ...body, digest: hash(body) };
+  }
   private async retainConversationAnswer(ctx: Context, question: string, answer: any, manifest?: BusinessContextManifest, modelReceiptId?: string) {
     const store = this.store(), s = this.services;
     let result = answer;
@@ -89,7 +120,22 @@ export class Engine {
   private async executeConversationPlan(ctx: Context, request: any, gateway: Extract<Awaited<ReturnType<ModelGateway['execute']>>, { kind: 'conversation' }>) {
     const s = this.services, store = this.store();
     const model = s.gateway.assertConversationReceipt(ctx, gateway.receipt.id);
-    if (gateway.plan.kind === 'clarification') return { clarification: gateway.plan.clarification, modelReceiptId: model.id };
+    if (gateway.plan.kind === 'clarification') {
+      const id = newId('conversation_clarification');
+      const answer = { clarification: gateway.plan.clarification, modelReceiptId: model.id };
+      await store.update(state => {
+        const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx);
+        const current = s.gateway.assertConversationReceipt(ctx, model.id, view);
+        check(current.plan.kind === 'clarification' && current.plan.clarification === answer.clarification, 'PAYLOAD_CHANGED', 'The admitted clarification changed.');
+        const rowIds = [...new Set<string>([...(current.factIds ?? []), ...(current.rowIds ?? [])])].sort();
+        const sourceIds = [...new Set<string>([...(current.sourceIds ?? []),
+          ...rowIds.map(rowId => state.facts.find(fact => fact.id === rowId)?.sourceId).filter((value): value is string => typeof value === 'string')])].sort();
+        const record = { id, kind: 'conversation-clarification-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: request.question,
+          answer, modelReceiptId: current.id, sourceIds, rowIds };
+        state.conversations.push({ ...record, integrity: conversationRecordIntegrity(record) });
+      });
+      return answer;
+    }
     const results: any[] = [], children: any[] = [], resultRefs: { tool: string; answerId: string }[] = [];
     for (const call of gateway.plan.calls) {
       s.gateway.assertConversationReceipt(ctx, model.id);
@@ -99,7 +145,10 @@ export class Engine {
           manifest = model.businessContext;
           answer = renderBusinessAnswer(store, ctx, manifest!, call.args, s.businessContextHooks);
         } else {
-          const scope = model.requestScope ?? {}, args: any = { ...call.args };
+          // Source admission precedes version/conflict resolution and arithmetic.
+          // Empty reviewed scopes stay empty; they never mean "all visible".
+          check(model.businessContext?.request && hash(model.sourceIds) === hash(model.businessContext.sourceIds), 'TOOL_SCOPE_CHANGED', 'The calculation source scope no longer matches the reviewed manifest.');
+          const scope = model.businessContext.request, args: any = { ...call.args, sourceIds: [...model.sourceIds] };
           for (const key of ['period', 'branch'] as const) if (scope[key] !== undefined) {
             check(args[key] === undefined || hash(args[key]) === hash(scope[key]), 'TOOL_SCOPE_CHANGED', 'The calculation must use the exact reviewed scope.'); args[key] = scope[key];
           }
@@ -121,7 +170,7 @@ export class Engine {
     const id = newId('conversation_tools');
     const answer = { id, kind: 'grounded-conversation', results, modelReceiptId: model.id,
       receipt: { id, kind: 'conversation-tool-receipt', modelReceiptId: model.id, resultRefs } };
-    if (resultRefs.length) await store.update(state => {
+    await store.update(state => {
       const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx); s.gateway.assertConversationReceipt(ctx, model.id, view);
       // Readback rechecks each retained child; no recalculation or new provider invocation.
       for (const ref of resultRefs) s.conversationHistory.get(ctx, ref.answerId);

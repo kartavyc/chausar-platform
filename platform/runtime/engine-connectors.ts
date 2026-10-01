@@ -314,12 +314,14 @@ export class EngineConnectorService {
   /** Install in every CalculatorService, including reports, jobs and MCP. Invoke again before durable receipt commit. */
   assertCalculationReady(ctx: Context, request: CalculationRequest) {
     const state = this.#store.read(); authorize(this.#store, ctx); validatePeriod(request.period); validatePeriod(request.comparePeriod);
+    if (request.sourceIds !== undefined) assertSourceAccess(state, ctx, request.sourceIds);
+    const inSourceScope = (sourceId: string) => request.sourceIds === undefined || request.sourceIds.includes(sourceId);
     const operation = (state.ontology?.current ?? state.ontology)?.operations?.find((item: any) => item.id === request.operation);
     const measures: string[] | undefined = operation?.definitions;
-    const selected = captures(state).filter(c => sourceAllowed(state, ctx, c.sourceId) && (!request.branch || c.domain.branches.includes(request.branch)));
+    const selected = captures(state).filter(c => inSourceScope(c.sourceId) && sourceAllowed(state, ctx, c.sourceId) && (!request.branch || c.domain.branches.includes(request.branch)));
     for (const capture of selected) this.#readyCapture(ctx, capture, state, measures);
     for (const runtime of this.#profiles.values()) {
-      if (!sourceAllowed(state, ctx, runtime.profile.sourceId) || request.branch && !runtime.profile.domain.branches.includes(request.branch)) continue;
+      if (!inSourceScope(runtime.profile.sourceId) || !sourceAllowed(state, ctx, runtime.profile.sourceId) || request.branch && !runtime.profile.domain.branches.includes(request.branch)) continue;
       const member = authorize(this.#store, ctx);
       if (!runtime.profile.domain.branches.every(branch => member.branches.includes('*') || member.branches.includes(branch))) continue;
       const domainPeriod = runtime.profile.domain.period;
@@ -333,8 +335,9 @@ export class EngineConnectorService {
   }
   /** Saved receipts must obey the same current acquisition guard. Missing profiles after restart fail closed. */
   assertReceiptReady(ctx: Context, receipt: CalculationReceipt) {
-    // Rechecks every managed source domain, including scopes whose rows were empty or excluded.
-    this.assertCalculationReady(ctx, { operation: receipt.operation, period: receipt.period ?? undefined, comparePeriod: receipt.comparePeriod ?? undefined, branch: receipt.branch ?? undefined });
+    // Rechecks the requested domains, including selected sources with no counted rows.
+    this.assertCalculationReady(ctx, { operation: receipt.operation, period: receipt.period ?? undefined, comparePeriod: receipt.comparePeriod ?? undefined,
+      branch: receipt.branch ?? undefined, ...(receipt.requestedSourceIds !== undefined ? { sourceIds: receipt.requestedSourceIds } : {}) });
   }
   /** Business observations use the same current acquisition authority, without inventing a calculation. */
   assertBusinessEvidenceReady(ctx: Context, refs: BusinessEvidenceRefs): BusinessEvidenceReadiness {

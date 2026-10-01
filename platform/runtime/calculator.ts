@@ -3,11 +3,12 @@ import { canSeeFact, currentAccess, selectFacts, validDate, validatePeriod, type
 import { OntologyService, type Definition } from './ontology.ts';
 import { formatMinor } from './currency.ts';
 import { assertCompiledSingleSum, compileSingleSum, type CompiledCalculationBinding, type CompiledSingleSum } from './compiled-calculation.ts';
+import { assertSourceAccess } from './trust.ts';
 
-export type CalculationRequest = FactFilter & { operation: string; comparePeriod?: Period; onDate?: string; assumptions?: { priceChangeBps: string } };
+export type CalculationRequest = FactFilter & { operation: string; sourceIds?: string[]; comparePeriod?: Period; onDate?: string; assumptions?: { priceChangeBps: string } };
 export type Figure = { key: string; label: string; minor: string; display: string; unit: 'money' | 'basis-points'; currency?: string };
 export type ReceiptRow = { factId: string; entityId: string; sourceId: string; sourceRow: number; kind: string; amountMinor: string; measureField?: string; validFrom: string; dueDate?: string; invoiceId?: string; customerId?: string; orderId?: string; status?: string; branch?: string; normalization?: { sourceCurrency: string; targetCurrency: string; rate: unknown } };
-export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; compiledCalculation?: CompiledCalculationBinding; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown };
+export type CalculationReceipt = { id: string; memberId: string; epoch: number; sourceIds: string[]; requestedSourceIds?: string[]; operation: string; createdAt: string; asOf: string; period: Period | null; comparePeriod: Period | null; branch: string | null; currency: string; ontologyVersion: number; dictionaryHash: string; definitionHash: string; definitions: Definition[]; compiledCalculation?: CompiledCalculationBinding; figures: Figure[]; valueMinor: string; totalMinor: string; rowIds: string[]; rows: ReceiptRow[]; exclusions: { rowId: string; reason: string }[]; coverage: { selectedRows: number; countedRows: number; excludedRows: number; unresolvedConflicts: number; importIds: string[]; completeness: 'reconciled-imports' | 'unreconciled-facts' | 'empty' | 'partial'; gaps: string[] }; assumptions: Record<string, unknown>; explanation: string; stale: boolean; staleReason?: string; allowedNumbers: string[]; databaseProof?: unknown };
 export type CalculatorOptions = {
   verifier?: (receipt: CalculationReceipt) => Promise<unknown>;
   consumerGuard?: (context: Context, request: CalculationRequest) => void;
@@ -47,8 +48,19 @@ export class CalculatorService {
     const receipt = await this.calculate(ctx, { ...filters, operation }); return { supported: true, message: receipt.explanation, receipt };
   }
   async calculate(ctx: Context, request: CalculationRequest): Promise<CalculationReceipt> {
-    authorize(this.store, ctx); currentAccess(this.store, ctx, request.branch);
-    check(request && Object.keys(request).every(k => ['operation', 'period', 'asOf', 'branch', 'customerId', 'orderId', 'comparePeriod', 'onDate', 'assumptions', 'kinds'].includes(k)), 'INVALID_CALCULATION', 'Only declared calculation parameters are accepted.');
+    authorize(this.store, ctx);
+    check(request && typeof request === 'object' && !Array.isArray(request) && Object.keys(request).every(k => ['operation', 'sourceIds', 'period', 'asOf', 'branch', 'customerId', 'orderId', 'comparePeriod', 'onDate', 'assumptions', 'kinds'].includes(k)), 'INVALID_CALCULATION', 'Only declared calculation parameters are accepted.');
+    request = structuredClone(request);
+    currentAccess(this.store, ctx, request.branch);
+    if (request.sourceIds !== undefined) check(Array.isArray(request.sourceIds) && request.sourceIds.length <= 64 && Array.from(request.sourceIds).every(id => typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(id)) && new Set(request.sourceIds).size === request.sourceIds.length, 'INVALID_SOURCE_SCOPE', 'Choose at most sixty-four distinct plain source identifiers.');
+    const requestedSourceIds = request.sourceIds, selectedSources = requestedSourceIds === undefined ? undefined : new Set(requestedSourceIds);
+    const assertRequestedAccess = (state = this.store.read()) => { currentAccess({ read: () => state, update: this.store.update.bind(this.store) }, ctx, request.branch); if (requestedSourceIds !== undefined) assertSourceAccess(state, ctx, requestedSourceIds); };
+    assertRequestedAccess();
+    // Restrict facts before source-version and conflict resolution; filtering a computed total would be too late.
+    const selectionStore: StateStore = selectedSources === undefined ? this.store : {
+      read: () => { const state = this.store.read(); return { ...state, facts: state.facts.filter(fact => selectedSources.has(fact.sourceId)) }; },
+      update: async () => { throw new Error('Calculation selection is read-only.'); },
+    };
     validatePeriod(request.period); validatePeriod(request.comparePeriod);
     this.consumerGuard?.(ctx, structuredClone(request));
     const dictionary = new OntologyService(this.store).current(ctx); check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business definitions before calculating.');
@@ -69,7 +81,7 @@ export class CalculatorService {
         assertCompiledSingleSum(matches[0], operation.id, definitions[0], dictionary.version); compiledSum = matches[0];
       }
     }
-    const selection = selectFacts(this.store, ctx, { period: operation.type === 'aging' ? undefined : request.period, asOf: request.asOf, branch: request.branch, customerId: request.customerId, orderId: request.orderId, kinds: relevantKinds });
+    const selection = selectFacts(selectionStore, ctx, { period: operation.type === 'aging' ? undefined : request.period, asOf: request.asOf, branch: request.branch, customerId: request.customerId, orderId: request.orderId, kinds: relevantKinds });
     const excluded = [...selection.excluded]; const counted = new Map<string, Fact>(); const missingMeasures = new Set<string>();
     const selectedFactIds = new Set(selection.facts.map(f => f.id));
     const conflictIds = new Set(selection.conflicts.map(c => JSON.stringify([c.kind, c.entityId])));
@@ -97,7 +109,7 @@ export class CalculatorService {
       const ratio = bps(result, net); if (ratio !== null) figures.push({ key: 'marginBps', label: 'Margin in basis points (truncated)', minor: String(ratio), display: `${ratio} bps`, unit: 'basis-points' });
     } else if (operation.type === 'change') {
       check(request.period && request.comparePeriod, 'COMPARISON_REQUIRED', 'Give both current and comparison periods.');
-      const prior = selectFacts(this.store, ctx, { ...request, period: request.comparePeriod, kinds: relevantKinds });
+      const prior = selectFacts(selectionStore, ctx, { ...request, period: request.comparePeriod, kinds: relevantKinds });
       for (const fact of prior.facts) selectedFactIds.add(fact.id);
       for (const conflict of prior.conflicts) conflictIds.add(JSON.stringify([conflict.kind, conflict.entityId]));
       const current = metric('earned'), previous = metric('earned', prior.facts); result = current - previous; excluded.push(...prior.excluded);
@@ -151,6 +163,7 @@ export class CalculatorService {
     const effectiveExcluded = excluded.filter(e => !counted.has(e.rowId) || e.reason !== 'Outside the requested event period.');
     const receipt: CalculationReceipt = {
       id: newId('receipt'), memberId: ctx.memberId, epoch: ctx.epoch, sourceIds: [...new Set(rows.map(r => r.sourceId))], operation: request.operation, createdAt: now(), asOf: selection.asOf,
+      ...(requestedSourceIds === undefined ? {} : { requestedSourceIds: [...requestedSourceIds] }),
       period: request.period ?? null, comparePeriod: request.comparePeriod ?? null, branch: request.branch ?? null, currency: dictionary.currency,
       ontologyVersion: dictionary.version, dictionaryHash: dictionary.hash, definitionHash: hash(definitions), definitions, figures, valueMinor: String(result), totalMinor: String(result), rowIds: rows.map(f => f.id),
       ...(compiledSum ? { compiledCalculation: { dictionaryHash: dictionary.hash, sum: structuredClone(compiledSum) } } : {}),
@@ -164,13 +177,15 @@ export class CalculatorService {
     receipt.allowedNumbers = [...new Set([...figures.flatMap(f => [f.minor, ...numericTokens(f.display)]), String(rows.length), String(receipt.coverage.excludedRows), ...numericTokens(JSON.stringify({ period: receipt.period, comparePeriod: receipt.comparePeriod, asOf: receipt.asOf, onDate: assumptions.onDate }))])];
     numberGuard(receipt.explanation, receipt);
     if (this.verifier) receipt.databaseProof = await this.verifier(structuredClone(receipt));
+    assertRequestedAccess();
     this.consumerGuard?.(ctx, structuredClone(request)); this.receiptGuard?.(ctx, structuredClone(receipt));
-    await this.store.update(s => { authorize(this.store, ctx); this.consumerGuard?.(ctx, structuredClone(request)); this.receiptGuard?.(ctx, structuredClone(receipt)); rows.forEach(f => check(canSeeFact(this.store, ctx, f), 'ACCESS_REVOKED', 'Read permission changed while this number was being calculated.')); check(sourceSnapshot() === factsSnapshotHash, 'FACTS_CHANGED', 'The source facts or identity rules changed during calculation. Recalculate.'); check(new OntologyService(this.store).current(ctx)?.hash === dictionary.hash, 'DICTIONARY_CHANGED', 'The dictionary changed; calculate again.'); s.receipts.push(structuredClone(receipt)); s.answers.push({ id: newId('answer'), receiptId: receipt.id, request: structuredClone(request), at: receipt.createdAt, text: receipt.explanation, stale: false }); audit(s, 'calculation.completed', { receiptId: receipt.id, operation: request.operation, rowCount: rows.length }); });
+    await this.store.update(s => { assertRequestedAccess(s); this.consumerGuard?.(ctx, structuredClone(request)); this.receiptGuard?.(ctx, structuredClone(receipt)); rows.forEach(f => check(canSeeFact(this.store, ctx, f), 'ACCESS_REVOKED', 'Read permission changed while this number was being calculated.')); check(sourceSnapshot() === factsSnapshotHash, 'FACTS_CHANGED', 'The source facts or identity rules changed during calculation. Recalculate.'); check(new OntologyService(this.store).current(ctx)?.hash === dictionary.hash, 'DICTIONARY_CHANGED', 'The dictionary changed; calculate again.'); s.receipts.push(structuredClone(receipt)); s.answers.push({ id: newId('answer'), receiptId: receipt.id, request: structuredClone(request), at: receipt.createdAt, text: receipt.explanation, stale: false }); audit(s, 'calculation.completed', { receiptId: receipt.id, operation: request.operation, rowCount: rows.length }); });
     return receipt;
   }
   receipt(ctx: Context, id: string): CalculationReceipt {
     authorize(this.store, ctx); const receipt = this.store.read().receipts.find(r => r.id === id); check(receipt, 'RECEIPT_NOT_FOUND', 'This receipt is unavailable.');
     check(receipt.memberId === ctx.memberId && receipt.epoch === ctx.epoch, 'RECEIPT_FORBIDDEN', 'This private saved receipt belongs to a different account or permission epoch. Recalculate under your current access.');
+    if (receipt.requestedSourceIds !== undefined) assertSourceAccess(this.store.read(), ctx, receipt.requestedSourceIds);
     const facts = this.store.read().facts; for (const rowId of new Set([...receipt.rowIds, ...(receipt.exclusions ?? []).map((e: { rowId: string }) => e.rowId)])) { const fact = facts.find(f => f.id === rowId); check(fact && !fact.deletedAt && canSeeFact(this.store, ctx, fact), 'RECEIPT_FORBIDDEN', 'This saved receipt contains rows outside your current access.'); }
     currentAccess(this.store, ctx, receipt.branch ?? undefined); this.receiptGuard?.(ctx, structuredClone(receipt)); return structuredClone(receipt);
   }
