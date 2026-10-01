@@ -35,7 +35,7 @@ function descendants(node: Element): Element[] { return [node, ...node.children.
 function find(node: Element, predicate: (node: Element) => boolean) { const found = descendants(node).find(predicate); assert.ok(found, 'Expected actual renderer control to be present.'); return found; }
 function controlFor(node: Element, label: string) { const field = find(node, item => item.className === 'field' && item.children[0]?.children[0]?.textContent === label); return field.children[1]; }
 
-async function harness({ failureQuestion, dispatch, routes = [], preview } : { failureQuestion?: string; dispatch?: (method: string, payload: Record<string,unknown>) => Promise<unknown>; routes?: any[]; preview?: any } = {}) {
+async function harness({ failureQuestion, dispatch, routes = [], preview, mount = false } : { failureQuestion?: string; dispatch?: (method: string, payload: Record<string,unknown>) => Promise<unknown>; routes?: any[]; preview?: any; mount?: boolean } = {}) {
   const calls: any[] = [], wires: any[] = [], rejected: any[] = [];
   let exposed: any;
   const ipcRenderer = {
@@ -67,13 +67,21 @@ async function harness({ failureQuestion, dispatch, routes = [], preview } : { f
   const context: any = { document, Node: Element, window: { chausar: exposed, location: { origin: 'chausar://app', hash: '', pathname: '/index.html', search: '' }, history: { replaceState() {} }, addEventListener() {} }, crypto: { randomUUID }, URL, URLSearchParams, structuredClone, console, setTimeout: () => 0, clearTimeout() {}, fetch() { throw new Error('Unexpected HTTP path in desktop boundary regression.'); } };
   assert.match(rendererSource, /\bboot\(\);\s*$/);
   // Disable only automatic boot; execute all actual renderer functions, including request/composer.
-  vm.runInNewContext(rendererSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__test = { request, renderConversation, renderAnswer, showCalculator, showWorkspace, state, showConversationHistory: typeof showConversationHistory === "function" ? showConversationHistory : undefined, showSavedConversation: typeof showSavedConversation === "function" ? showSavedConversation : undefined };', context, { filename: join(root, 'app/renderer/app.js') });
+  vm.runInNewContext(rendererSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__test = { request, renderConversation, renderAnswer, reviewOutbound, showCalculator, showWorkspace, state, showConversationHistory: typeof showConversationHistory === "function" ? showConversationHistory : undefined, showSavedConversation: typeof showSavedConversation === "function" ? showSavedConversation : undefined };', context, { filename: join(root, 'app/renderer/app.js') });
   const renderer = context.__test;
   const page = await renderer.renderConversation();
   const composer = find(page, node => node.tagName === 'form' && node.className === 'composer');
   const question = find(composer, node => node.tagName === 'textarea');
   const submit = find(composer, node => node.tagName === 'button' && node.attributes.type === 'submit');
-  async function ask(text: string) { question.value = text; await composer.dispatch('submit'); }
+  if (mount) {
+    const current = new Element('span'); current.id = 'current-page';
+    const content = new Element('div'); content.id = 'page-content'; content.append(page);
+    app.append(current, content);
+  }
+  async function ask(text: string) {
+    const current = mount ? find(app, node => node.tagName === 'form' && node.className === 'composer') : composer;
+    find(current, node => node.tagName === 'textarea').value = text; await current.dispatch('submit');
+  }
   return { renderer, exposed, calls, wires, rejected, body, app, notifications, page, composer, question, submit, ask };
 }
 
@@ -128,13 +136,16 @@ test('actual preload leaves strict validator rejecting undefined and invalid num
 });
 
 
-test('selected route keeps defined preview values and returning to local calculation omits them', async () => {
+test('selected route requires a verbatim conversation preview while local calculation keeps its explicit fallback', async () => {
   const h = await harness({ routes: [{ id: 'fixture-route', kind: 'fixture', model: 'fixture' }], preview: { id: 'fixture-preview', approvalRequired: false } });
   const route = find(h.composer, node => node.tagName === 'select');
   route.value = 'fixture-route'; await h.ask('What was billed?');
-  assert.deepEqual(h.calls.filter(call => call.method === 'conversation.ask')[0], { method: 'conversation.ask', payload: { question: 'What was billed?', routeId: 'fixture-route', previewId: 'fixture-preview' } });
+  assert.deepEqual(h.calls.filter(call => call.method === 'models.preview'), [{ method: 'models.preview', payload: { question: 'What was billed?', routeId: 'fixture-route', purpose: 'conversation', questionDisclosure: 'verbatim' } }]);
+  assert.equal(h.calls.some(call => call.method === 'conversation.ask'), false);
+  assert.equal(h.renderer.state.messages.at(-1).data.preview.question, 'What was billed?');
+  assert.equal(h.renderer.state.messages.at(-1).data.preview.purpose, 'conversation');
   route.value = ''; await h.ask('What was margin?');
-  assert.deepEqual(h.calls.filter(call => call.method === 'conversation.ask')[1], { method: 'conversation.ask', payload: { question: 'What was margin?' } });
+  assert.deepEqual(h.calls.filter(call => call.method === 'conversation.ask'), [{ method: 'conversation.ask', payload: { question: 'What was margin?' } }]);
   assert.equal(h.rejected.length, 0);
 });
 
@@ -219,11 +230,11 @@ const savedSourceId = 'synthetic-native-history-invoices';
 const savedPeriod = { from: '2026-09-01', to: '2026-09-30' };
 const savedIntroQuestion = 'what is this business about';
 const savedBilledQuestion = 'What was billed?';
-async function savedWorkerFixture(t: any) {
+async function savedWorkerFixture(t: any, workerPath = join(root, 'platform/runtime/worker.ts')) {
   const { EngineHarness } = require(join(root, 'app/desktop/engine-harness.cjs'));
   const base = resolve(tmpdir()), directory = await mkdtemp(join(base, 'chausar-saved-renderer-worker-'));
   const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => ['path', 'systemroot', 'windir', 'temp', 'tmp', 'userprofile'].includes(name.toLowerCase())));
-  const options = { workerPath: join(root, 'platform/runtime/worker.ts'), environment: { ...environment,
+  const options = { workerPath, environment: { ...environment,
     CHAUSAR_ENGINE_VERSION: '0.1.0-preview.1', CHAUSAR_VAULT_DIRECTORY: directory, CHAUSAR_DEMO: '1', CHAUSAR_UPDATE_PUBLIC_KEY: '' } };
   let engine = new EngineHarness(options);
   const workers = [engine];
@@ -264,6 +275,10 @@ function dialogFor(h: Awaited<ReturnType<typeof harness>>, title: string) {
   return find(h.body, node => node.tagName === 'dialog' && hasText(node, title));
 }
 function namedButton(node: Element, label: string) { return find(node, child => child.tagName === 'button' && hasText(child, label)); }
+function lastNamedButton(node: Element, label: string) {
+  const button = descendants(node).filter(child => child.tagName === 'button' && hasText(child, label)).at(-1);
+  assert.ok(button, `Expected actual renderer button: ${label}`); return button;
+}
 async function openHistoryEntry(h: Awaited<ReturnType<typeof harness>>, question: string) {
   const dialog = dialogFor(h, 'Recent answers');
   let row = find(dialog, node => node.textContent === question);
@@ -298,6 +313,202 @@ async function savedAnswers(h: Awaited<ReturnType<typeof harness>>, value: Await
   assert.deepEqual((await h.renderer.request('conversation.get', { id: calculationItem.id })).answer, billed);
   return { intro, billed, history, contextItem, calculationItem };
 }
+
+async function syntheticProviderCalls(directory: string): Promise<any[]> {
+  try { return (await readFile(join(directory, 'synthetic-provider-calls.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line)); }
+  catch (error: any) { if (error.code === 'ENOENT') return []; throw error; }
+}
+async function lunaFixture(t: any, kind: 'openai-responses' | 'ollama' = 'openai-responses') {
+  const value = await savedWorkerFixture(t, join(root, 'platform/tests/fixtures/luna-worker.ts'));
+  const route = await value.request('models.configure', { config: { id: 'synthetic-luna', kind,
+    model: 'synthetic-planner', label: 'Synthetic fixture; no live or semantic qualification', enabled: true,
+    endpoint: kind === 'ollama' ? 'http://127.0.0.1:11434/api/chat' : 'https://synthetic.invalid/v1/responses',
+    budgetMinor: '10000', maxCostMinor: '1' }, ...(kind === 'ollama' ? {} : { secret: 'synthetic-fixture-only' }) });
+  assert.equal(route.verification, 'not-live-verified');
+  const h = await harness({ dispatch: value.request, mount: true }); h.renderer.state.workspace = value.workspace;
+  function selectRoute(id = route.id) {
+    find(h.app, node => node.tagName === 'select' && node.attributes['aria-label'] === 'Model route').value = id;
+  }
+  return { value, route, h, selectRoute };
+}
+async function reviewedLunaRequest(fixture: Awaited<ReturnType<typeof lunaFixture>>, question: string) {
+  const { h, value, selectRoute } = fixture; selectRoute();
+  const before = (await syntheticProviderCalls(value.directory)).length;
+  await h.ask(question);
+  const pending = h.renderer.state.messages.at(-1);
+  assert.equal(pending.error, undefined, pending.error);
+  const preview = pending.data.preview;
+  assert.equal(preview.purpose, 'conversation'); assert.equal(preview.questionDisclosure, 'verbatim');
+  assert.equal(preview.approvalRequired, true); assert.equal(preview.naturalQuestion, question);
+  assert.equal((await syntheticProviderCalls(value.directory)).length, before, 'Preview must not dispatch.');
+  await lastNamedButton(h.app, 'Review outbound request').dispatch('click');
+  const dialog = dialogFor(h, 'Review model disclosure');
+  assert.ok(hasText(dialog, 'Your exact question')); assert.ok(hasText(dialog, question));
+  assert.ok(hasText(dialog, preview.payload)); assert.ok(hasText(dialog, preview.digest));
+  assert.ok(descendants(dialog).some(node => node.textContent?.includes('separate verbatim disclosure')));
+  const approve = namedButton(dialog, 'Approve and send once');
+  await approve.dispatch('click');
+  assert.equal(h.calls.filter(call => call.method === 'models.approve' && call.payload.id === preview.id).length, 0, 'Unchecked consent must not approve.');
+  assert.equal((await syntheticProviderCalls(value.directory)).length, before);
+  find(dialog, node => node.tagName === 'input' && node.attributes.type === 'checkbox').checked = true;
+  await approve.dispatch('click');
+  assert.equal(approve.disabled, true, 'An uncertain or completed submission must not be retried from the same review.');
+  await approve.dispatch('click'); // Deliberately invoke a disabled handler to test the one-use guard.
+  assert.equal(h.calls.filter(call => call.method === 'models.approve' && call.payload.id === preview.id).length, 1);
+  const asks = h.calls.filter(call => call.method === 'conversation.ask' && call.payload.previewId === preview.id);
+  assert.equal(asks.length, 1); assert.deepEqual(asks[0].payload, { previewId: preview.id,
+    approvalId: asks[0].payload.approvalId, question, routeId: fixture.route.id, purpose: 'conversation', questionDisclosure: 'verbatim' });
+  const calls = await syntheticProviderCalls(value.directory);
+  assert.equal(calls.length, before + 1, 'Exactly one synthetic provider dispatch.');
+  assert.equal(calls.at(-1).payload, preview.payload); assert.equal(calls.at(-1).input.question, question);
+  assert.equal(calls.at(-1).fixture, 'synthetic-planner-not-semantic-qualified');
+  const final = h.renderer.state.messages.at(-1);
+  return { answer: !final || final === pending ? undefined : final.data, preview, call: calls.at(-1), dialog };
+}
+
+test('actual Luna renderer preload worker executes reviewed paraphrases and mixed intent with cited exact local receipts', async t => {
+  const fixture = await lunaFixture(t), { h, value } = fixture;
+  await value.request('trust.update', { send: 'shape' });
+  assert.equal(h.renderer.state.routeId, '');
+  for (const question of ['Help me understand what this company actually does.', 'Can you explain the business in plain language?', 'What is this business about for the Acme account?']) {
+    const { answer, preview, call } = await reviewedLunaRequest(fixture, question);
+    assert.equal(answer.kind, 'grounded-conversation'); assert.equal(answer.results.length, 1);
+    assert.equal(answer.results[0].tool, 'business.describe');
+    const described = answer.results[0].answer;
+    assert.equal(described.kind, 'business-context'); assert.equal(described.status, 'unknown');
+    assert.equal(described.unknowns.length, 5); assert.ok(described.citations.length > 0);
+    assert.ok(hasText(h.app, described.unknowns[0].message));
+    assert.equal(call.input.evidence.business.samples, undefined);
+    assert.equal(call.input.evidence.calculator.selectors, undefined);
+    assert.equal(preview.payload.includes('Literal selected invoice one'), false);
+    assert.equal(preview.payload.includes('120000'), false);
+    await lastNamedButton(h.app, 'Open business context receipt').dispatch('click');
+    assert.equal(h.calls.filter(call => call.method === 'business.context.receipt').at(-1).payload.id, described.receipt.id);
+    assert.deepEqual(await value.request('business.context.receipt', { id: described.receipt.id }), described);
+    dialogFor(h, 'Business context receipt').close();
+  }
+  const mixed = await reviewedLunaRequest(fixture, 'Explain this business and tell me what was billed in September.');
+  assert.equal(mixed.answer.kind, 'grounded-conversation'); assert.equal(mixed.answer.results.length, 2);
+  const calculation = mixed.answer.results.find((item: any) => item.tool === 'calculator.calculate').answer;
+  assert.equal(calculation.totalMinor, '30000'); assert.deepEqual(calculation.period, savedPeriod);
+  assert.equal(calculation.rowIds.length, 2);
+  assert.ok(calculation.rowIds.every((id: string) => value.imported.rowIds.includes(id)));
+  await namedButton(h.app, 'Open calculation receipt').dispatch('click');
+  assert.deepEqual(await value.request('receipts.get', { id: calculation.id }), calculation);
+  assert.ok(hasText(dialogFor(h, 'Calculation receipt'), calculation.id));
+  assert.equal(h.rejected.length, 0);
+});
+
+test('actual Luna worker clarification typed calculation failure and invalid plan preserve one dispatch without invented amounts or retry', async t => {
+  const fixture = await lunaFixture(t), { h, value } = fixture;
+  await value.request('trust.update', { send: 'shape' });
+  const clarification = await reviewedLunaRequest(fixture, 'Which view of the business should we look at?');
+  assert.equal(clarification.answer.clarification, 'Which business aspect would you like described?');
+  assert.ok(hasText(h.app, clarification.answer.clarification));
+  assert.equal(descendants(h.app).some(node => node.tagName === 'button' && hasText(node, 'Open calculation receipt')), false);
+  const failed = await reviewedLunaRequest(fixture, 'Describe this business and compare its billed change.');
+  assert.equal(failed.answer.kind, 'grounded-conversation'); assert.equal(failed.answer.results.length, 2);
+  assert.equal(failed.answer.results[0].answer.kind, 'business-context');
+  const error = failed.answer.results[1]; assert.equal(error.tool, 'calculator.calculate');
+  assert.equal(error.error.code, 'COMPARISON_REQUIRED'); assert.equal(error.answer, undefined);
+  assert.ok(hasText(h.app, `${error.error.code}: ${error.error.message}`));
+  assert.equal(descendants(h.app).some(node => node.tagName === 'button' && hasText(node, 'Open calculation receipt')), false);
+  const malformed = await reviewedLunaRequest(fixture, 'Return an invalid synthetic plan.');
+  assert.equal(malformed.answer, undefined);
+  assert.equal(h.rejected.at(-1).error.code, 'INVALID_CONVERSATION_PLAN');
+  assert.equal((await syntheticProviderCalls(value.directory)).length, 3);
+  assert.equal((await value.request('models.list'))[0].id, fixture.route.id);
+});
+
+test('actual Luna worker Nothing blocks selected model and zero fact local Ollama still requires exact question consent', async t => {
+  const fixture = await lunaFixture(t, 'ollama'), { h, value, selectRoute } = fixture;
+  assert.equal((await value.request('trust.get')).policy.send, 'nothing');
+  selectRoute(); await h.ask('What is this business about for the Acme account?');
+  assert.equal(h.rejected.at(-1).error.code, 'SEND_DISABLED');
+  assert.equal(h.calls.some(call => call.method === 'models.approve'), false);
+  assert.equal((await syntheticProviderCalls(value.directory)).length, 0);
+  assert.equal((await value.request('trust.get')).policy.send, 'nothing');
+  selectRoute(''); await h.ask('What was billed?');
+  assert.equal(h.renderer.state.messages.at(-1).data.receipt.totalMinor, '120000');
+  assert.equal((await syntheticProviderCalls(value.directory)).length, 0);
+  const local = h.calls.filter(call => call.method === 'conversation.ask').at(-1);
+  assert.deepEqual(local.payload, { question: 'What was billed?' });
+  await value.request('sources.delete', { id: savedSourceId });
+  assert.equal((await value.request('dashboard.get')).factCount, 0);
+  await value.request('trust.update', { send: 'shape' });
+  const empty = await reviewedLunaRequest(fixture, 'Help me understand what this company actually does.');
+  assert.equal(empty.preview.factIds.length, 0); assert.equal(empty.preview.sourceIds.length, 0);
+  assert.equal(empty.answer.results[0].answer.kind, 'business-context');
+  assert.equal(empty.answer.results[0].answer.unknowns.length, 5);
+  assert.equal((await syntheticProviderCalls(value.directory)).length, 1);
+  assert.equal((await value.request('trust.get')).policy.send, 'shape');
+});
+
+test('actual Luna renderer withholds a completed tool reply after real worker vault lock and erases reviewed question', async t => {
+  const fixture = await lunaFixture(t), { value } = fixture;
+  await value.request('trust.update', { send: 'shape' });
+  let entered!: () => void, release!: () => void;
+  const held = new Promise<void>(resolve => { entered = resolve; });
+  const released = new Promise<void>(resolve => { release = resolve; });
+  const h = await harness({ mount: true, dispatch: async (method, payload) => {
+    const result = await value.request(method, payload);
+    if (method === 'conversation.ask' && payload.purpose === 'conversation') { entered(); await released; }
+    return result;
+  } });
+  h.renderer.state.workspace = value.workspace;
+  const pending = reviewedLunaRequest({ ...fixture, h, selectRoute: () => {
+    find(h.app, node => node.tagName === 'select' && node.attributes['aria-label'] === 'Model route').value = fixture.route.id;
+  } }, 'Explain this business and tell me what was billed in September.');
+  await held;
+  assert.ok(hasText(dialogFor(h, 'Review model disclosure'), 'Explain this business and tell me what was billed in September.'));
+  await h.renderer.showWorkspace();
+  await namedButton(dialogFor(h, 'Your workspace'), 'Lock vault').dispatch('click');
+  release();
+  const result = await pending;
+  assert.equal(result.answer, undefined); assert.equal(h.renderer.state.messages.length, 0);
+  assert.equal(descendants(h.body).some(node => node.tagName === 'dialog'), false);
+  assert.equal(descendants(h.body).some(node => node.textContent?.includes('"totalMinor": "30000"')), false);
+  assert.equal(hasText(h.body, 'Explain this business and tell me what was billed in September.'), false);
+  assert.equal((await syntheticProviderCalls(value.directory)).length, 1);
+  assert.equal((await value.request('workspace.status')).open, false);
+});
+
+test('actual Luna renderer keeps the reviewed route across dropdown changes and discards a preview returned after vault lock', async t => {
+  const fixture = await lunaFixture(t), { value } = fixture;
+  await value.request('trust.update', { send: 'shape' });
+  let gate: { entered: Promise<void>; enter: () => void; released: Promise<void>; release: () => void };
+  function holdPreview() {
+    let enter!: () => void, release!: () => void;
+    gate = { entered: new Promise<void>(resolve => { enter = resolve; }), enter: () => enter(),
+      released: new Promise<void>(resolve => { release = resolve; }), release: () => release() };
+    return gate;
+  }
+  const h = await harness({ mount: true, dispatch: async (method, payload) => {
+    const result = await value.request(method, payload);
+    if (method === 'models.preview') { const current = gate; current.enter(); await current.released; }
+    return result;
+  } });
+  h.renderer.state.workspace = value.workspace;
+  const route = find(h.app, node => node.tagName === 'select' && node.attributes['aria-label'] === 'Model route');
+  const first = holdPreview(); route.value = fixture.route.id;
+  const pending = h.ask('What is this business about for the Acme account?'); await first.entered;
+  route.value = ''; first.release(); await pending;
+  const preview = h.renderer.state.messages.at(-1).data.preview;
+  assert.equal(preview.routeId, fixture.route.id); assert.equal(preview.endpoint, fixture.route.endpoint);
+  assert.equal(preview.naturalQuestion, 'What is this business about for the Acme account?');
+  assert.deepEqual(h.calls.filter(call => call.method === 'models.preview')[0].payload, {
+    question: preview.naturalQuestion, routeId: fixture.route.id, purpose: 'conversation', questionDisclosure: 'verbatim' });
+  const second = holdPreview(); route.value = fixture.route.id;
+  const late = h.ask('Can you explain the business in plain language?'); await second.entered;
+  await h.renderer.showWorkspace(); await namedButton(dialogFor(h, 'Your workspace'), 'Lock vault').dispatch('click');
+  second.release(); await late;
+  assert.equal(h.renderer.state.messages.length, 0); assert.equal(descendants(h.body).some(node => node.tagName === 'dialog'), false);
+  assert.equal(hasText(h.body, 'Can you explain the business in plain language?'), false);
+  assert.equal(descendants(h.body).some(node => node.textContent?.includes(preview.payload)), false);
+  assert.equal((await syntheticProviderCalls(value.directory)).length, 0);
+  assert.equal(h.calls.some(call => call.method === 'models.approve' || call.method === 'conversation.ask'), false);
+  assert.equal((await value.request('workspace.status')).open, false);
+});
 
 test('actual renderer recent answers reopens exact intro and explicit-period calculation through encrypted lock and fresh native worker', async t => {
   const value = await savedWorkerFixture(t), h = await harness({ dispatch: value.request });

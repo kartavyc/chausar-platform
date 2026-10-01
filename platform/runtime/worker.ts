@@ -10,8 +10,8 @@ export async function createWorkerEngine(environment: NodeJS.ProcessEnv = proces
   return new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: environment.CHAUSAR_VAULT_DIRECTORY ?? './data', demo: environment.CHAUSAR_DEMO === '1', storage: environment.CHAUSAR_DEMO === '1' ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const engine = await createWorkerEngine();
+/** Trusted host entry point. Tests can inject an Engine fixture, never a renderer or RPC. */
+export function runEngineWorker(engine: Engine) {
   const scheduler = setInterval(() => { void engine.tick().catch(error => reply({ kind: 'scheduler-error', code: (error as any).code ?? 'JOB_SCHEDULER_FAILED' })); }, 30000); scheduler.unref();
   function reply(value: unknown) { if (process.connected) process.send?.(value as any, () => {}); }
   process.on('message', async (message: any) => {
@@ -30,3 +30,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   process.on('SIGTERM', stop);
   reply({ ready: true });
 }
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) runEngineWorker(await createWorkerEngine());

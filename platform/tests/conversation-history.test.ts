@@ -3,11 +3,13 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { ChausarError, initialState, newId, now, type Context, type State, type StateStore } from '../runtime/contracts.ts';
+import { ChausarError, hash, initialState, newId, now, type Context, type State, type StateStore } from '../runtime/contracts.ts';
 import { CalculatorService } from '../runtime/calculator.ts';
 import { assertBusinessContextCurrent, buildBusinessContext, renderBusinessAnswer } from '../runtime/conversation-context.ts';
 import { ConversationHistoryService, conversationRecordIntegrity, createCalculationAnswerRecord } from '../runtime/conversation-history.ts';
 import { MemoryService } from '../runtime/memory.ts';
+import { ModelGateway } from '../runtime/gateway.ts';
+import { validateConversationPlan } from '../runtime/conversation-planner.ts';
 import { OntologyService } from '../runtime/ontology.ts';
 import { TrustService } from '../runtime/trust.ts';
 import { Vault } from '../runtime/vault.ts';
@@ -61,6 +63,50 @@ async function saveBusiness(f: Awaited<ReturnType<typeof initialize>>, unsigned 
   if (!unsigned) record.integrity = conversationRecordIntegrity(record);
   await f.store.update(state => { state.conversations.push(record); });
   return { record, answer };
+}
+
+async function compositeFixture(store: StateStore = new MemoryStore(), withError = false) {
+  const f = await initialize(store);
+  await f.trust.updatePolicy(OWNER, { send: 'shape' });
+  // Actual preview/approval/current-read guards, with authored completed-model
+  // metadata. No execute, model inference, process port or network is invoked.
+  const gateway = new ModelGateway(store);
+  const route = await gateway.configureRoute(OWNER, { id: 'synthetic-history-route', kind: 'ollama', model: 'synthetic-history-model',
+    endpoint: 'http://127.0.0.1:11434/api/chat', budgetMinor: '0', maxCostMinor: '0' });
+  const financial = await saveCalculation(f), business = await saveBusiness(f);
+  const question = 'Describe this business and what was billed during September?';
+  const preview = await gateway.preview(OWNER, { question, purpose: 'conversation', questionDisclosure: 'verbatim', routeId: route.id, branch: BRANCH, period: PERIOD });
+  const manifest = preview.businessContext; assert.ok(manifest);
+  const approval = await gateway.approveOutbound(OWNER, preview.id);
+  const wire = { kind: 'execute', clarification: null, calls: [
+    { tool: 'business.describe', args: { claimIds: business.answer.claims.map(claim => claim.id), unknownCategories: manifest.unknownCategories } },
+    { tool: 'calculator.calculate', args: { operation: 'billed', period: PERIOD, branch: null, customerId: null } },
+    ...(withError ? [{ tool: 'calculator.calculate', args: { operation: 'received', period: PERIOD, branch: null, customerId: null } }] : []),
+  ] };
+  const plan = validateConversationPlan(wire, { manifest, operations: preview.operations, selectors: preview.selectors });
+  await store.update(state => {
+    const model = state.modelReceipts.find(item => item.id === preview.id), accepted = state.modelReceipts.find(item => item.id === approval.id);
+    Object.assign(model, { status: 'completed', completedAt: now(), plan, conversationPlanWire: wire, conversationPlanDigest: hash(plan), approvalId: approval.id }); accepted.used = true;
+  });
+  const model = gateway.assertConversationReceipt(OWNER, preview.id), id = newId('conversation_answer');
+  const resultRefs = [{ tool: 'business.describe', answerId: business.record.id }, { tool: 'calculator.calculate', answerId: financial.record.id }];
+  const answer = { id, kind: 'grounded-conversation', results: [
+    { tool: 'business.describe', answer: business.answer }, { tool: 'calculator.calculate', answer: JSON.parse(JSON.stringify(financial.answer)) },
+    ...(withError ? [{ tool: 'calculator.calculate', error: { code: 'MISSING_MEASURE_VALUE', message: 'The required measure is unavailable.' } }] : []),
+  ], modelReceiptId: model.id, receipt: { id, kind: 'conversation-tool-receipt', modelReceiptId: model.id, resultRefs } };
+  const rowIds = [...new Set([...model.factIds, ...model.rowIds, ...business.record.rowIds, ...financial.record.rowIds])];
+  const sourceIds = [...new Set([...model.sourceIds, ...business.record.sourceIds, ...financial.record.sourceIds,
+    ...store.read().facts.filter(fact => rowIds.includes(fact.id)).map(fact => fact.sourceId)])];
+  const body = { id, kind: 'conversation-tools-answer', at: now(), memberId: OWNER.memberId, epoch: OWNER.epoch, question, answer, resultRefs,
+    modelReceiptId: model.id, sourceIds, rowIds };
+  const record = { ...body, integrity: conversationRecordIntegrity(body) };
+  await store.update(state => { state.conversations.push(record); });
+  const guarded = new ConversationHistoryService(store, {
+    assertBusinessContext: (ctx, manifest, view) => assertBusinessContextCurrent(view, ctx, manifest),
+    receipt: (ctx, receiptId, view) => new CalculatorService(view).receipt(ctx, receiptId),
+    assertModelReceipt: (ctx, modelId, view) => gateway.assertConversationReceipt(ctx, modelId, view),
+  });
+  return { ...f, history: guarded, gateway, preview, approval, financial, business, model, record, answer };
 }
 
 test('saved direct and wrapped calculator answers retain exact receipts and approved projections', async () => {
@@ -267,4 +313,114 @@ test('installed readiness hooks reject expired saved receipts and empty managed 
   assert.throws(() => guardedBusiness.get(OWNER, id), code('CONVERSATION_NOT_FOUND'));
   assert.ok(receiptChecks > readsBeforeExpiry.receiptChecks && businessChecks > readsBeforeExpiry.businessChecks);
   assert.equal(f.store.read().receipts.length, 1); assert.equal(empty.read().receipts.length, 0);
+});
+
+test('grounded composite reopens exact current child answers and bounded errors without recalculation or model dispatch', async () => {
+  const f = await compositeFixture(undefined, true), before = f.store.read();
+  assert.deepEqual(f.history.get(OWNER, f.record.id).answer, JSON.parse(JSON.stringify(f.answer)));
+  assert.equal(f.history.get(OWNER, f.record.id).kind, 'grounded-conversation');
+  assert.equal(f.history.list(OWNER).items.find(item => item.id === f.record.id)!.receiptId, f.record.id);
+  assert.equal(f.history.get(OWNER, f.record.id).answer.results[1].answer.receipt.valueMinor, '30000');
+  assert.deepEqual(f.store.read(), before);
+  assert.equal(JSON.stringify(f.history.get(OWNER, f.record.id)).includes(SECRET), false);
+  assert.equal(f.record.rowIds.includes(f.facts[2].id), true, 'excluded rows remain exact lineage roots');
+});
+
+test('composite fails closed when any current child is missing, duplicated, stale, changed or recursive', async () => {
+  const f = await compositeFixture(), original = f.store.read();
+  const changes = [
+    (state: State) => { state.conversations = state.conversations.filter(item => item.id !== f.financial.record.id); },
+    (state: State) => { state.conversations.push(structuredClone(f.business.record)); },
+    (state: State) => { state.receipts[0].stale = true; },
+    (state: State) => { const child = state.conversations.find(item => item.id === f.business.record.id); child.answer.message = 'Changed context'; child.integrity = conversationRecordIntegrity(child); },
+    (state: State) => { const child = state.conversations.find(item => item.id === f.financial.record.id); child.kind = 'conversation-tools-answer'; child.integrity = conversationRecordIntegrity(child); },
+    (state: State) => { delete state.conversations.find(item => item.id === f.business.record.id).integrity; },
+  ];
+  for (const change of changes) {
+    await f.store.update(state => { Object.assign(state, structuredClone(original)); change(state); });
+    assert.throws(() => f.history.get(OWNER, f.record.id), code('CONVERSATION_NOT_FOUND'));
+    assert.equal(f.history.list(OWNER).items.some(item => item.id === f.record.id), false);
+  }
+});
+
+test('composite strict shape and exact ordered references reject injection and altered roots even with recomputed integrity', async () => {
+  const f = await compositeFixture(undefined, true), original = f.store.read();
+  const changes = [
+    (record: any) => { record.sourceIds = []; },
+    (record: any) => { record.question = 'Transplanted question?'; },
+    (record: any) => { record.rowIds = record.rowIds.filter((id: string) => id !== f.facts[2].id); },
+    (record: any) => { record.rawState = { description: SECRET }; },
+    (record: any) => { record.answer.message = SECRET; },
+    (record: any) => { record.answer.results[0].extra = SECRET; },
+    (record: any) => { record.answer.results[2].answer = f.financial.answer; },
+    (record: any) => { record.answer.results[2].error.extra = SECRET; },
+    (record: any) => { record.answer.results[1].answer.receipt.valueMinor = '99999'; },
+    (record: any) => { record.resultRefs.reverse(); record.answer.receipt.resultRefs = structuredClone(record.resultRefs); },
+    (record: any) => { record.resultRefs[1].answerId = record.resultRefs[0].answerId; record.answer.receipt.resultRefs = structuredClone(record.resultRefs); },
+    (record: any) => { record.answer.receipt.id = 'other-receipt'; },
+    (record: any) => { record.answer.modelReceiptId = 'other-model'; },
+    (record: any) => { record.answer.results = [{ tool: 'calculator.calculate', error: { code: 'SOURCE_NOT_READY', message: 'Unavailable' } }]; record.resultRefs = []; record.answer.receipt.resultRefs = []; },
+  ];
+  for (const change of changes) {
+    await f.store.update(state => {
+      Object.assign(state, structuredClone(original)); const record = state.conversations.find(item => item.id === f.record.id);
+      change(record); record.integrity = conversationRecordIntegrity(record);
+    });
+    assert.throws(() => f.history.get(OWNER, f.record.id), code('CONVERSATION_NOT_FOUND'));
+  }
+});
+
+test('completed model, original approval, route and current privacy guards remain authoritative for composite history', async () => {
+  const f = await compositeFixture(), original = f.store.read();
+  const changes = [
+    (state: State) => { state.modelReceipts.find(item => item.id === f.model.id).status = 'failed'; },
+    (state: State) => { state.modelReceipts = state.modelReceipts.filter(item => item.id !== f.model.id); },
+    (state: State) => { state.modelReceipts.push(structuredClone(f.model)); },
+    (state: State) => { state.modelReceipts.find(item => item.id === f.model.id).epoch = 2; },
+    (state: State) => { state.modelReceipts.find(item => item.id === f.approval.id).used = false; },
+    (state: State) => { state.modelReceipts.find(item => item.id === f.approval.id).expiresAt = new Date(Date.now() - 1000).toISOString(); },
+    (state: State) => { state.routes[0].enabled = false; },
+    (state: State) => { state.policy.send = 'samples'; },
+    (state: State) => { state.modelReceipts.find(item => item.id === f.model.id).plan.calls.reverse(); },
+  ];
+  for (const change of changes) {
+    await f.store.update(state => { Object.assign(state, structuredClone(original)); change(state); });
+    assert.throws(() => f.history.get(OWNER, f.record.id), code('CONVERSATION_NOT_FOUND'));
+    assert.equal(f.history.list(OWNER).items.some(item => item.id === f.record.id), false);
+  }
+  assert.equal(f.history.get(OWNER, f.financial.record.id).answer.receipt.valueMinor, '30000', 'saved arithmetic is unchanged; aggregate authority never falls back to it');
+});
+
+test('composite completed under valid approval remains readable after its send window expires', async t => {
+  const f = await compositeFixture();
+  const approval = f.store.read().modelReceipts.find(item => item.id === f.approval.id);
+  assert.ok(Date.parse(f.model.completedAt) < Date.parse(approval.expiresAt));
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse(approval.expiresAt) + 60000 });
+  assert.ok(Date.now() > Date.parse(approval.expiresAt));
+  assert.deepEqual(f.history.get(OWNER, f.record.id).answer, JSON.parse(JSON.stringify(f.answer)));
+  assert.equal(f.store.read().receipts.length, 1, 'the expired send approval never authorizes another calculation or transfer');
+});
+
+test('composite source revocation and actual source deletion hide and purge its complete lineage', async () => {
+  const f = await compositeFixture();
+  await f.trust.grantSource(OWNER, { sourceId: 'synthetic-history-excluded', revoked: true });
+  assert.throws(() => f.history.get(OWNER, f.record.id), code('CONVERSATION_NOT_FOUND'));
+  await f.trust.grantSource(OWNER, { sourceId: 'synthetic-history-excluded', allow: true });
+  await f.trust.deleteSource(OWNER, 'synthetic-history-excluded');
+  assert.equal(f.store.read().conversations.some(item => item.id === f.record.id), false);
+  assert.throws(() => f.history.get(OWNER, f.record.id), code('CONVERSATION_NOT_FOUND'));
+});
+
+test('composite model and fact retention refuse before cleanup and absent model guard never admits composites', async () => {
+  const f = await compositeFixture(), original = f.store.read(), expired = new Date(Date.now() - 100 * 86400000).toISOString();
+  assert.throws(() => history(f.store).get(OWNER, f.record.id), code('CONVERSATION_NOT_FOUND'));
+  for (const change of [
+    (state: State) => { state.modelReceipts.find(item => item.id === f.model.id).createdAt = expired; },
+    (state: State) => { state.facts[2].learnedAt = expired; },
+  ]) {
+    await f.store.update(state => { Object.assign(state, structuredClone(original)); change(state); });
+    assert.throws(() => f.history.get(OWNER, f.record.id), code('CONVERSATION_NOT_FOUND'));
+  }
+  await f.trust.cleanup(OWNER);
+  assert.equal(f.store.read().conversations.some(item => item.id === f.record.id), false);
 });

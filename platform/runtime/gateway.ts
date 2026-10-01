@@ -8,6 +8,7 @@ import { assertSourceAccess, isNoResend, sourceAllowed, trustFingerprint, visibl
 import { buildCodexCliArguments, createCodexCliProcessAdapter, parseCodexCliOutput } from './providers/codex-cli.ts';
 import type { CodexCliCapabilityProfile } from './providers/codex-cli.ts';
 import { conversationPurpose } from './conversation-purpose.ts';
+import { CONVERSATION_PLANNER_INSTRUCTIONS, conversationPlannerSchema, validateConversationPlan, type ConversationPlan } from './conversation-planner.ts';
 import { buildBusinessContext, assertBusinessContextCurrent, businessContextDisclosure, validateBusinessSelection, renderBusinessAnswer, type BusinessContextHooks, type BusinessContextManifest, type BusinessContextRequest, type BusinessSelection } from './conversation-context.ts';
 
 export const DEFAULT_OPERATIONS = ['billed', 'received', 'earned', 'refunds', 'costs', 'purchases', 'revenue', 'net_sales', 'margin', 'order-margin', 'aging', 'change', 'scenario'];
@@ -18,9 +19,10 @@ export type RouteConfig = {
   outputPerMillionMinor?: string; credentialEnv?: string; label?: string;
 };
 export type AnalyticalPlan = { operation: string; period?: { from: string; to: string }; branch?: string; customerId?: string; clarification?: string };
-export type ModelRequest = { question: string; purpose?: 'analysis' | 'business-context'; routeId?: string; sourceIds?: string[]; samples?: { factId: string; fields?: string[] }[]; profileSamples?: { claimId: string }[]; branch?: string; asOf?: string; onDate?: string; period?: { from: string; to: string }; previewId?: string; approvalId?: string };
+export type ModelRequest = { question: string; purpose?: 'analysis' | 'business-context' | 'conversation'; questionDisclosure?: 'verbatim'; routeId?: string; sourceIds?: string[]; samples?: { factId: string; fields?: string[] }[]; profileSamples?: { claimId: string }[]; branch?: string; asOf?: string; onDate?: string; period?: { from: string; to: string }; previewId?: string; approvalId?: string };
 export type GatewayResult = { kind: 'analysis'; plan: AnalyticalPlan; answer?: never; selection?: never; receipt: any }
-  | { kind: 'business-context'; plan?: never; answer: ReturnType<typeof renderBusinessAnswer>; selection: BusinessSelection; receipt: any };
+  | { kind: 'business-context'; plan?: never; answer: ReturnType<typeof renderBusinessAnswer>; selection: BusinessSelection; receipt: any }
+  | { kind: 'conversation'; plan: ConversationPlan; answer?: never; selection?: never; receipt: any };
 export type HttpRequest = { endpoint: string; method: 'POST'; headers: Record<string, string>; body: string; redirect: 'error'; timeoutMs: number };
 export type HttpResult = { status: number; body: string; endpoint?: string; requestId?: string };
 export type ProcessRequest = { command: string; args: string[]; cwd: string; env: Record<string, string>; stdin: string; timeoutMs: number; schema: unknown };
@@ -238,8 +240,14 @@ export class ModelGateway {
     authorize(this.store, context, 'prepare');
     check(typeof request.question === 'string' && request.question.trim().length > 0 && request.question.length <= 10000, 'INVALID_QUESTION', 'Use a question between one and 10000 characters.');
     const state = this.store.read(); check(state.policy.send !== 'nothing', 'SEND_DISABLED', 'Your privacy policy sends nothing to models. Use the local calculator or change your send policy.');
-    const purpose = conversationPurpose(request.question, request.purpose);
-    const manifest = purpose === 'business-context' ? buildBusinessContext(this.store, context, businessRequest(request), this.options.businessContext) : undefined;
+    const unified = request.purpose === 'conversation';
+    if (unified) {
+      check(typeof request.routeId === 'string' && request.routeId.length > 0, 'MODEL_ROUTE_REQUIRED', 'Choose the exact model route for this conversation.');
+      check(request.questionDisclosure === 'verbatim', 'QUESTION_DISCLOSURE_REQUIRED', 'Review and explicitly approve the original question separately from evidence Shape.');
+      check(request.samples === undefined && request.profileSamples === undefined, 'INVALID_SAMPLE', 'The conversation planner uses bounded evidence structure, not automatic sample values.');
+    } else check(request.questionDisclosure === undefined, 'INVALID_QUESTION_DISCLOSURE', 'Original-question disclosure belongs to the reviewed conversation planner.');
+    const purpose = unified ? 'conversation' : conversationPurpose(request.question, request.purpose);
+    const manifest = purpose === 'business-context' || unified ? buildBusinessContext(this.store, context, businessRequest(request), this.options.businessContext) : undefined;
     const route = this.#route(context, request.routeId); const sourceIds = manifest ? manifest.sourceIds : [...new Set(request.sourceIds || visibleFacts(this.store, context, request.sourceIds).map(f => f.sourceId))];
     const facts = visibleFacts(this.store, context, sourceIds); assertSourceAccess(state, context, sourceIds);
     const operations = operationCatalog(state); check(manifest || operations.length > 0, 'NO_APPROVED_OPERATIONS', 'Publish tested dictionary operations before asking a model for a plan.'); const branches = [...new Set(facts.map(f => f.branch).filter(Boolean))] as string[];
@@ -262,11 +270,19 @@ export class ModelGateway {
     }
     // Shape mode cannot accidentally send names, values or arbitrary outside instructions in a question.
     const question = state.policy.send === 'shape' ? (request.question.toLowerCase().match(/[a-z_]+/g) || []).filter(w => SAFE_WORDS.has(w)).join(' ') || 'request clarification' : request.question;
-    const content = manifest ? { question: 'Provide a grounded business introduction and retain documented unknowns.',
+    const plannerSelectors = unified && state.policy.send === 'shape' ? { branches: [], customerIds: [] } : { branches, customerIds };
+    const plannerContext = { manifest: manifest!, operations, selectors: plannerSelectors };
+    const content = unified ? { question: request.question, questionDisclosure: 'verbatim',
+      tools: [{ name: 'business.describe', description: 'Select cited current business claims and preserve documented unknowns.' },
+        { name: 'calculator.calculate', description: 'Run an approved deterministic calculation locally and retain its exact receipt.', operations }],
+      evidence: { business: businessContextDisclosure(manifest!, 'shape'), calculator: { shape,
+        ...(state.policy.send === 'samples' ? { selectors: plannerSelectors } : {}) } } }
+      : manifest ? { question: 'Provide a grounded business introduction and retain documented unknowns.',
       ...businessContextDisclosure(manifest, state.policy.send, request.profileSamples) }
       : { question, operations, shape, ...(state.policy.send === 'samples' ? { samples, selectors: { branches, customerIds } } : {}) };
-    const schema = manifest ? businessSelectionSchema(manifest) : planSchema(operations); const instructions = manifest ? BUSINESS_INSTRUCTIONS : INSTRUCTIONS;
-    const schemaName = manifest ? 'business_context_selection' : 'analytical_plan';
+    const schema = unified ? conversationPlannerSchema(plannerContext) : manifest ? businessSelectionSchema(manifest) : planSchema(operations);
+    const instructions = unified ? CONVERSATION_PLANNER_INSTRUCTIONS : manifest ? BUSINESS_INSTRUCTIONS : INSTRUCTIONS;
+    const schemaName = unified ? 'grounded_conversation_plan' : manifest ? 'business_context_selection' : 'analytical_plan';
     const input = JSON.stringify(content); let payload: string;
     if (route.kind.endsWith('-cli')) payload = `${instructions}\n${input}`;
     else if (route.kind === 'ollama') payload = JSON.stringify({ model: route.model, messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }], stream: false, format: schema, options: { num_predict: route.maxOutputTokens }, tools: [] });
@@ -274,12 +290,12 @@ export class ModelGateway {
     else payload = JSON.stringify({ model: route.model, instructions, input, tools: [], tool_choice: 'none', store: false, max_output_tokens: route.maxOutputTokens, text: { format: { type: 'json_schema', name: schemaName, strict: false, schema } } });
     check(Buffer.byteLength(payload) <= 262144, 'PAYLOAD_TOO_LARGE', 'The model payload is too large.');
     const digest = hash(payload); check(!isNoResend(state, digest), 'NO_RESEND', 'This deleted or expired payload cannot be sent again.');
-    const local = route.kind === 'ollama'; const approvalRequired = !local && (Boolean(context.sourceTainted) || facts.length > 0 || Boolean(request.sourceIds?.length)
+    const local = route.kind === 'ollama'; const approvalRequired = unified || !local && (Boolean(context.sourceTainted) || facts.length > 0 || Boolean(request.sourceIds?.length)
       || Boolean(manifest && state.policy.send === 'samples' && request.profileSamples?.length));
     const record = { id: newId('model_preview'), kind: 'model-preview', status: 'preview', createdAt: now(), at: now(), memberId: context.memberId, epoch: context.epoch, routeId: route.id, routeRevision: route.revision,
-      purpose, questionHash: hash(request.question.trim()), requestScope: businessRequest(request), profileSamplesHash: hash(request.profileSamples ?? []), schema, schemaDigest: hash(schema), instructions,
+      purpose, questionHash: hash(unified ? request.question : request.question.trim()), ...(unified ? { questionDisclosure: 'verbatim', naturalQuestion: request.question, questionDisclosureWarning: 'The complete question is included separately from evidence Shape. Review it for private names, amounts and instructions before approving.' } : {}), requestScope: businessRequest(request), profileSamplesHash: hash(request.profileSamples ?? []), schema, schemaDigest: hash(schema), instructions,
       ...(manifest ? { businessContext: manifest, contextDigest: manifest.digest, rowIds: manifest.rowIds, profileIds: manifest.profileIds } : {}),
-      sourceIds, factIds: facts.map(f => f.id), factDigest: hash(facts), operations, selectors: { branches, customerIds }, payload, digest, endpoint: route.endpoint,
+      sourceIds, factIds: facts.map(f => f.id), factDigest: hash(facts), operations, selectors: unified ? plannerSelectors : { branches, customerIds }, payload, digest, endpoint: route.endpoint,
       approvalRequired, send: state.policy.send, trustFingerprint: trustFingerprint(state, context, sourceIds),
       receiptBoundary: route.kind.endsWith('-cli') ? 'application-to-official-cli' : 'application-to-provider-http', providerPayloadObserved: !route.kind.endsWith('-cli'),
       costReservedMinor: '0', estimatedCostMinor: route.maxCostMinor, costCurrency: 'INR', experimental: true };
@@ -293,7 +309,7 @@ export class ModelGateway {
       const origin = state.members.find(m => m.id === preview.memberId); check(origin?.active && origin.epoch === preview.epoch, 'ACCESS_REVOKED', 'The requesting account has changed.');
       const originContext = { memberId: origin.id, role: origin.role, epoch: origin.epoch };
       check(preview.trustFingerprint === trustFingerprint(state, originContext, preview.sourceIds), 'PREVIEW_STALE', 'Privacy settings changed. Create a new preview.');
-      if (preview.purpose === 'business-context') this.#assertCurrent(originContext, preview, state);
+      if (preview.purpose === 'business-context' || preview.purpose === 'conversation') this.#assertCurrent(originContext, preview, state);
       const approval = { id: newId('outbound_approval'), kind: 'outbound-approval', previewId, digest: preview.digest, routeId: preview.routeId, endpoint: preview.endpoint,
         approverId: context.memberId, approverEpoch: context.epoch, createdAt: now(), expiresAt: new Date(Date.now() + 300000).toISOString(), used: false };
       state.modelReceipts.push(approval); audit(state, 'model.outbound.approved', { previewId, digest: preview.digest, memberId: context.memberId }); return structuredClone(approval);
@@ -309,28 +325,44 @@ export class ModelGateway {
     check(!isNoResend(state, preview.digest), 'NO_RESEND', 'This deleted or expired payload cannot be sent again.');
     check(hash(preview.payload) === preview.digest, 'PAYLOAD_CHANGED', 'The approved model payload changed.');
     if (preview.schema !== undefined) check(hash(preview.schema) === preview.schemaDigest, 'PAYLOAD_CHANGED', 'The reviewed output contract changed.');
-    if (preview.purpose === 'business-context') {
+    if (preview.purpose === 'business-context' || preview.purpose === 'conversation') {
       check(preview.businessContext?.digest === preview.contextDigest, 'BUSINESS_CONTEXT_STALE', 'The exact context binding changed.');
       assertBusinessContextCurrent(view, context, preview.businessContext, this.options.businessContext);
+      if (preview.purpose === 'conversation') check(preview.questionDisclosure === 'verbatim' && typeof preview.naturalQuestion === 'string'
+        && hash(preview.naturalQuestion) === preview.questionHash, 'PAYLOAD_CHANGED', 'The reviewed original question changed.');
     }
     const current = state.modelReceipts.find(r => r.id === preview.id);
-    if (preview.approvalRequired && current?.status === 'dispatching') {
+    if (preview.approvalRequired && (current?.status === 'dispatching' || preview.purpose === 'conversation' && current?.status === 'completed')) {
       const approval = state.modelReceipts.find(a => a.id === current.approvalId && a.kind === 'outbound-approval');
       const approver = state.members.find(m => m.id === approval?.approverId);
-      check(approval?.used && approval.digest === preview.digest && approval.endpoint === preview.endpoint && Date.parse(approval.expiresAt) > Date.now() && approver?.active && approver.epoch === approval.approverEpoch && ['owner', 'cofounder'].includes(approver.role), 'APPROVAL_REVOKED', 'The person approving this transfer no longer has approval rights.');
+      const approvalWasCurrent = current.status === 'completed'
+        ? Number.isFinite(Date.parse(current.completedAt)) && Date.parse(approval?.expiresAt) > Date.parse(current.completedAt)
+        : Date.parse(approval?.expiresAt) > Date.now();
+      // Expiry bounds the one transfer, not the retention of its already completed cited answer.
+      check(approval?.used && approval.digest === preview.digest && approval.endpoint === preview.endpoint && approvalWasCurrent && approver?.active && approver.epoch === approval.approverEpoch && ['owner', 'cofounder'].includes(approver.role), 'APPROVAL_REVOKED', 'The person approving this transfer no longer has approval rights.');
     }
     return route;
+  }
+  /** Current read-only authority for executing or reopening an admitted tool plan. */
+  assertConversationReceipt(context: Context, id: string, view: StateStore = this.store) {
+    const state = view.read(), record = state.modelReceipts.find(item => item.id === id);
+    check(record?.kind === 'model-preview' && record.purpose === 'conversation' && record.status === 'completed', 'MODEL_RESULT_UNAVAILABLE', 'A completed current conversation plan is required.');
+    this.#assertCurrent(context, record, state);
+    const plan = validateConversationPlan(record.conversationPlanWire, { manifest: record.businessContext, operations: record.operations, selectors: record.selectors });
+    check(hash(plan) === record.conversationPlanDigest && hash(record.plan) === record.conversationPlanDigest, 'PAYLOAD_CHANGED', 'The admitted conversation plan changed.');
+    return structuredClone(record);
   }
   async execute(context: Context, request: Partial<ModelRequest> & { previewId?: string }): Promise<GatewayResult> {
     authorize(this.store, context, 'prepare');
     const preview = request.previewId ? structuredClone(this.store.read().modelReceipts.find(r => r.id === request.previewId)) : await this.preview(context, request as ModelRequest);
     check(preview && preview.status === 'preview', 'PREVIEW_NOT_FOUND', 'An unused model preview is required.');
-    check(preview.purpose !== 'business-context' || request.samples === undefined, 'INVALID_SAMPLE', 'Business previews cannot be reused with raw fact sample selections.');
+    check(!['business-context', 'conversation'].includes(preview.purpose) || request.samples === undefined, 'INVALID_SAMPLE', 'Context previews cannot be reused with raw fact sample selections.');
     if (request.question !== undefined) {
       check(typeof request.question === 'string', 'INVALID_QUESTION', 'The reviewed question must be plain text.');
-      check(hash(request.question.trim()) === preview.questionHash, 'PREVIEW_REQUEST_CHANGED', 'Use the exact question reviewed in this preview.');
+      check(hash(preview.purpose === 'conversation' ? request.question : request.question.trim()) === preview.questionHash, 'PREVIEW_REQUEST_CHANGED', 'Use the exact question reviewed in this preview.');
     }
     if (request.purpose !== undefined) check(request.purpose === preview.purpose, 'PREVIEW_REQUEST_CHANGED', 'The requested purpose changed after preview.');
+    if (request.questionDisclosure !== undefined) check(request.questionDisclosure === preview.questionDisclosure, 'PREVIEW_REQUEST_CHANGED', 'Original-question disclosure changed after preview.');
     if (request.routeId !== undefined) check(request.routeId === preview.routeId, 'PREVIEW_REQUEST_CHANGED', 'The requested route changed after preview.');
     for (const key of ['sourceIds', 'branch', 'asOf', 'onDate', 'period'] as const) if (request[key] !== undefined)
       check(preview.requestScope && Object.hasOwn(preview.requestScope, key) && hash(request[key]) === hash(preview.requestScope[key]), 'PREVIEW_REQUEST_CHANGED', 'Use the exact scope reviewed in this preview.');
@@ -390,20 +422,23 @@ export class ModelGateway {
       }
       this.#assertCurrent(context, preview);
       const parsed = parseProviderOutput(route.kind, cli ? (result as ProcessResult).stdout : (result as HttpResult).body);
+      const conversationPlan = preview.purpose === 'conversation' ? validateConversationPlan(parsed.value, { manifest: preview.businessContext, operations: preview.operations, selectors: preview.selectors }) : undefined;
       const selection = preview.purpose === 'business-context' ? validateBusinessSelection(parsed.value, preview.businessContext) : undefined;
       const answer = selection ? renderBusinessAnswer(this.store, context, preview.businessContext, selection, this.options.businessContext) : undefined;
-      const plan = selection ? undefined : validatePlan(parsed.value, preview.operations, preview.selectors); const costMinor = actualCost(route, parsed.usage);
+      const plan = selection || conversationPlan ? undefined : validatePlan(parsed.value, preview.operations, preview.selectors); const costMinor = actualCost(route, parsed.usage);
       const receipt = await this.store.update(state => {
         this.#assertCurrent(context, preview, state); const current = state.modelReceipts.find(r => r.id === preview.id); check(current?.status === 'dispatching', 'RESULT_REVOKED', 'The model result is no longer valid.');
         current.status = 'completed'; current.completedAt = now();
-        if (selection) { current.selection = selection; current.answerDigest = hash(answer); } else current.plan = plan;
+        if (selection) { current.selection = selection; current.answerDigest = hash(answer); } else current.plan = conversationPlan ?? plan;
+        if (conversationPlan) { current.conversationPlanWire = structuredClone(parsed.value); current.conversationPlanDigest = hash(conversationPlan); }
         current.actualCostMinor = costMinor; current.costMeasured = costMinor !== null; current.responseHash = hash(cli ? (result as ProcessResult).stdout : (result as HttpResult).body);
         if (costMinor !== null && BigInt(costMinor) > BigInt(current.costReservedMinor)) {
           const savedRoute = state.routes.find(r => r.id === route.id); if (savedRoute) savedRoute.costConsumedMinor = String(BigInt(savedRoute.costConsumedMinor || '0') + BigInt(costMinor) - BigInt(current.costReservedMinor)); current.costReservedMinor = costMinor;
         }
         current.providerRequestId = cli ? undefined : (result as HttpResult).requestId; current.costStatus = costMinor === null ? 'reserved-estimate-cost-unavailable' : 'measured-at-configured-rates';
-        audit(state, 'model.dispatch.completed', { receiptId: preview.id, ...(plan ? { operation: plan.operation } : { purpose: 'business-context', contextDigest: preview.contextDigest }) }); return structuredClone(current);
+        audit(state, 'model.dispatch.completed', { receiptId: preview.id, ...(plan ? { operation: plan.operation } : { purpose: preview.purpose, contextDigest: preview.contextDigest }) }); return structuredClone(current);
       });
+      if (conversationPlan) return { kind: 'conversation', plan: conversationPlan, receipt };
       if (selection && answer) return { kind: 'business-context', selection, answer, receipt };
       check(plan, 'INVALID_PLAN', 'The model did not return an analytical plan.');
       return { kind: 'analysis', plan, receipt };

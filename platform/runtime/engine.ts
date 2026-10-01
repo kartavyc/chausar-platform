@@ -38,7 +38,7 @@ import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
 import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
-import { authorize, audit, check, hash, newId, now, type Context, type StateStore } from './contracts.ts';
+import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type StateStore } from './contracts.ts';
 
 export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort } };
 
@@ -61,6 +61,79 @@ export class Engine {
   set context(value: Context) { this.#baseContext = { ...value }; }
   services: Record<string, any> = {};
   constructor(options: EngineOptions) { this.version = options.version ?? '0.1.0-preview.1'; compareVersions(this.version, this.version); this.options = { ...options, directory: resolve(options.directory) }; }
+  private async retainConversationAnswer(ctx: Context, question: string, answer: any, manifest?: BusinessContextManifest, modelReceiptId?: string) {
+    const store = this.store(), s = this.services;
+    let result = answer;
+    if (manifest) {
+      const id = newId('business_answer');
+      result = { ...result, id, receipt: { id, kind: 'business-context-receipt', contextDigest: manifest.digest, financialCalculation: false,
+        sourceIds: manifest.sourceIds, rowIds: manifest.rowIds, ...(modelReceiptId ? { modelReceiptId } : {}) } };
+    }
+    const record = await store.update(state => {
+      const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx);
+      let saved: any;
+      if (manifest) {
+        assertBusinessContextCurrent(view, ctx, manifest, s.businessContextHooks);
+        const body = { id: result.id, kind: 'business-context-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question,
+          manifest, answer: structuredClone(result), sourceIds: manifest.sourceIds, rowIds: manifest.rowIds, profileIds: manifest.profileIds };
+        saved = { ...body, integrity: conversationRecordIntegrity(body) };
+      } else {
+        const receiptId = result.receipt?.id ?? (result.figures ? result.id : undefined);
+        saved = receiptId ? createCalculationAnswerRecord(ctx, question, result, s.conversationHistory.currentReceipt(ctx, receiptId, view))
+          : { id: newId('message'), at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question, role: 'user' };
+      }
+      state.conversations.push(saved); return structuredClone(saved);
+    });
+    return { answer: result, record };
+  }
+  private async executeConversationPlan(ctx: Context, request: any, gateway: Extract<Awaited<ReturnType<ModelGateway['execute']>>, { kind: 'conversation' }>) {
+    const s = this.services, store = this.store();
+    const model = s.gateway.assertConversationReceipt(ctx, gateway.receipt.id);
+    if (gateway.plan.kind === 'clarification') return { clarification: gateway.plan.clarification, modelReceiptId: model.id };
+    const results: any[] = [], children: any[] = [], resultRefs: { tool: string; answerId: string }[] = [];
+    for (const call of gateway.plan.calls) {
+      s.gateway.assertConversationReceipt(ctx, model.id);
+      try {
+        let answer: any, manifest: BusinessContextManifest | undefined;
+        if (call.tool === 'business.describe') {
+          manifest = model.businessContext;
+          answer = renderBusinessAnswer(store, ctx, manifest!, call.args, s.businessContextHooks);
+        } else {
+          const scope = model.requestScope ?? {}, args: any = { ...call.args };
+          for (const key of ['period', 'branch'] as const) if (scope[key] !== undefined) {
+            check(args[key] === undefined || hash(args[key]) === hash(scope[key]), 'TOOL_SCOPE_CHANGED', 'The calculation must use the exact reviewed scope.'); args[key] = scope[key];
+          }
+          for (const key of ['asOf', 'onDate'] as const) if (scope[key] !== undefined) args[key] = scope[key];
+          answer = await s.calculator.calculate(ctx, args);
+          check(answer.sourceIds.every((id: string) => model.sourceIds.includes(id)) && answer.rowIds.every((id: string) => model.factIds.includes(id)),
+            'TOOL_SCOPE_CHANGED', 'The calculation used evidence outside the reviewed source scope.');
+        }
+        s.gateway.assertConversationReceipt(ctx, model.id);
+        const saved = await this.retainConversationAnswer(ctx, request.question, answer, manifest, model.id);
+        results.push({ tool: call.tool, answer: saved.answer }); children.push(saved.record); resultRefs.push({ tool: call.tool, answerId: saved.record.id });
+      } catch (error) {
+        if (!(error instanceof ChausarError)) throw error;
+        results.push({ tool: call.tool, error: { code: error.code, message: error.message.slice(0, 512) } });
+      }
+      // A scope, grant, route or privacy change withholds the whole response, including earlier results.
+      s.gateway.assertConversationReceipt(ctx, model.id);
+    }
+    const id = newId('conversation_tools');
+    const answer = { id, kind: 'grounded-conversation', results, modelReceiptId: model.id,
+      receipt: { id, kind: 'conversation-tool-receipt', modelReceiptId: model.id, resultRefs } };
+    if (resultRefs.length) await store.update(state => {
+      const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx); s.gateway.assertConversationReceipt(ctx, model.id, view);
+      // Readback rechecks each retained child; no recalculation or new provider invocation.
+      for (const ref of resultRefs) s.conversationHistory.get(ctx, ref.answerId);
+      const rowIds = [...new Set<string>([...(model.factIds ?? []), ...(model.rowIds ?? []), ...children.flatMap(child => child.rowIds ?? [])])].sort();
+      const sourceIds = [...new Set<string>([...(model.sourceIds ?? []), ...children.flatMap(child => child.sourceIds ?? []),
+        ...rowIds.map(rowId => state.facts.find(fact => fact.id === rowId)?.sourceId).filter((value): value is string => typeof value === 'string')])].sort();
+      const record = { id, kind: 'conversation-tools-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: request.question,
+        answer, resultRefs, modelReceiptId: model.id, sourceIds, rowIds };
+      state.conversations.push({ ...record, integrity: conversationRecordIntegrity(record) });
+    });
+    return answer;
+  }
   contextForSession(token: string, channel: Context['channel'] = 'desktop'): Context { this.store(); return this.services.auth.authenticate(token, channel); }
   async withContext<T>(context: Context, work: () => T | Promise<T>): Promise<T> {
     const scoped = Object.freeze({ ...context }); if (this.vault) authorize(this.vault, scoped);
@@ -126,6 +199,7 @@ export class Engine {
     this.services.conversationHistory = new ConversationHistoryService(store, {
       assertBusinessContext: (ctx, manifest, view) => assertBusinessContextCurrent(view, ctx, manifest, businessContextHooks),
       receipt: (ctx, id, view) => new CalculatorService(view, calculationOptions).receipt(ctx, id),
+      assertModelReceipt: (ctx, id, view) => this.services.gateway.assertConversationReceipt(ctx, id, view),
     });
     this.services.businessProfile = new BusinessProfileService(store);
     this.services.gateway = new ModelGateway(store, { ...this.options.gateway, businessContext: businessContextHooks });
@@ -279,12 +353,19 @@ export class Engine {
       }
       case 'conversation.ask': {
         check(typeof payload.question === 'string' && payload.question.trim().length > 0 && payload.question.length <= 8000, 'INVALID_QUESTION', 'Ask a short business question.');
+        if (payload.purpose === 'conversation') {
+          check(typeof payload.routeId === 'string' && payload.routeId.length > 0 && payload.questionDisclosure === 'verbatim', 'MODEL_ROUTE_REQUIRED', 'Choose a model route and review the original question before sending it.');
+          const result = await s.gateway.execute(ctx, payload);
+          check(result.kind === 'conversation', 'PREVIEW_REQUEST_CHANGED', 'Use the unified conversation preview for this request.');
+          return this.executeConversationPlan(ctx, payload, result);
+        }
         const purpose = conversationPurpose(payload.question, payload.purpose);
         let result: any;
         let businessManifest: BusinessContextManifest | undefined;
         let modelReceiptId: string | undefined;
         if (payload.routeId) {
           const gatewayResult = await s.gateway.execute(ctx, { ...payload, purpose });
+          check(gatewayResult.kind !== 'conversation', 'PREVIEW_REQUEST_CHANGED', 'Use the exact conversation mode reviewed in the model preview.');
           if (gatewayResult.kind === 'business-context') { result = gatewayResult.answer; businessManifest = gatewayResult.receipt.businessContext; modelReceiptId = gatewayResult.receipt.id; }
           else { const plan = gatewayResult.plan; if (plan.clarification || !plan.operation) return plan; result = await s.calculator.calculate(ctx, plan); }
         } else if (purpose === 'business-context') {
@@ -294,23 +375,7 @@ export class Engine {
           businessManifest = buildBusinessContext(store, ctx, request, s.businessContextHooks);
           result = renderBusinessAnswer(store, ctx, businessManifest, { claimIds: businessManifest.claims.map(claim => claim.id), unknownCategories: businessManifest.unknownCategories }, s.businessContextHooks);
         } else { const { question, purpose: ignoredPurpose, routeId, previewId, approvalId, ...filters } = payload; result = await s.calculator.ask(ctx, payload.question, filters); }
-        if (businessManifest) {
-          const manifest = businessManifest, id = newId('business_answer');
-          result = { ...result, id, receipt: { id, kind: 'business-context-receipt', contextDigest: manifest.digest, financialCalculation: false, sourceIds: manifest.sourceIds, rowIds: manifest.rowIds, ...(modelReceiptId ? { modelReceiptId } : {}) } };
-          await store.update(state => {
-            const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx); assertBusinessContextCurrent(view, ctx, manifest, s.businessContextHooks);
-            const record = { id, kind: 'business-context-answer', at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: payload.question, manifest, answer: structuredClone(result), sourceIds: manifest.sourceIds, rowIds: manifest.rowIds, profileIds: manifest.profileIds };
-            state.conversations.push({ ...record, integrity: conversationRecordIntegrity(record) });
-          });
-        } else await store.update(state => {
-          const view = { read: () => state, update: store.update.bind(store) }; authorize(view, ctx);
-          const receiptId = result.receipt?.id ?? (result.figures ? result.id : undefined);
-          if (receiptId) {
-            const receipt = s.conversationHistory.currentReceipt(ctx, receiptId, view);
-            state.conversations.push(createCalculationAnswerRecord(ctx, payload.question, result, receipt));
-          } else state.conversations.push({ id: newId('message'), at: now(), memberId: ctx.memberId, epoch: ctx.epoch, question: payload.question, role: 'user' });
-        });
-        return result;
+        return (await this.retainConversationAnswer(ctx, payload.question, result, businessManifest, modelReceiptId)).answer;
       }
       case 'conversation.history': return s.conversationHistory.list(ctx, payload);
       case 'conversation.get': {

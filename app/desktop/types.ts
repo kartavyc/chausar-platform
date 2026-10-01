@@ -11,6 +11,7 @@ import type { InvestigationCreate, Investigation, InvestigationRevisionInput, In
 import type { InvestigationSearchRequest } from '../../platform/runtime/investigation-search.ts';
 import type { ResearchSearchService } from '../../platform/runtime/research-search.ts';
 import type { ConversationHistoryService } from '../../platform/runtime/conversation-history.ts';
+import type { ModelRequest } from '../../platform/runtime/gateway.ts';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue; }
@@ -29,7 +30,8 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'workspace.recover': JsonObject & { recoveryCode: string; passphrase: string; folder?: string };
   'workspace.restore': JsonObject & { backupFile: string; passphrase: string; folder?: string };
   'workspace.delete': JsonObject & { confirmation: string };
-  'conversation.ask': JsonObject & { question: string };
+  'conversation.ask': ModelRequest;
+  'models.preview': ModelRequest;
   'conversation.get': { id: string };
   'business.context.receipt': { id: string };
   'business.profile.record': BusinessProfileInput;
