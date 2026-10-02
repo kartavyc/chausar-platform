@@ -7,7 +7,7 @@ import { OntologyService } from './ontology.ts';
 import { ImportService, importPublicRecord, seedDemo } from './ingest.ts';
 import { MemoryService } from './memory.ts';
 import { canSeeFact } from './memory.ts';
-import { CalculatorService, type CalculatorOptions } from './calculator.ts';
+import { CalculatorService, type CalculatorOptions, type CalculationRequest, type CalculationReceipt } from './calculator.ts';
 import { explainAnswerRecovery, prepareAnswerRecovery, assertPreparedAnswerRecoveryCurrent, completeAnswerRecovery,
   type AnswerRecoveryEvidence, type AnswerRecoverySource, type AnswerRecoveryTimeScope, type PreparedAnswerRecovery,
   type CompletedAnswerRecovery } from './answer-recovery.ts';
@@ -481,21 +481,31 @@ export class Engine {
     this.services.actions = new ActionService(store, this.builtinActions(store));
     this.services.jobs = new JobService(store, { clock: this.options.durableJobs?.clock,
       calendarRules: this.options.jobCalendar?.rules, calendarBounds: this.options.jobCalendar?.bounds,
-      deliverableGuard: (ctx: Context, job: any) => {
+      deliverableGuard: (ctx: Context, job: any, candidateView?: StateStore) => {
       if (!job.deliverable) return true;
       if (job.plan) return this.services.jobRunner?.canRelease(ctx, job) === true;
       const ids = job.deliverable.result?.receiptIds;
       if (!Array.isArray(ids) || ids.length === 0) return false;
-      try { ids.forEach((id: string) => this.services.calculator.receipt(ctx, id));
-        const currentDecisions = new Set(this.services.reports.decisions(ctx).map((item: any) => item.id));
+      try {
+        const snapshot = store.read();
+        const view = candidateView ?? { read: () => structuredClone(snapshot), update: async () => { throw new Error('Brief evidence is read-only.'); } };
+        const connectors = connectorForView(view);
+        const evidenceOptions = { ...reportOptions,
+          consumerGuard: (member: Context, request: CalculationRequest) => connectors.assertCalculationReady(member, request),
+          receiptGuard: (member: Context, receipt: CalculationReceipt) => connectors.assertReceiptReady(member, receipt) };
+        const calculator = new CalculatorService(view, evidenceOptions);
+        // receipt() preserves historical arithmetic and reports staleness. Merely
+        // reading it successfully is not a current-evidence qualification.
+        if (ids.some((id: string) => calculator.receipt(ctx, id).stale !== false)) return false;
+        const currentDecisions = new Set(new ReportService(view, evidenceOptions).decisions(ctx).map((item: any) => item.id));
         const savedAlerts = job.deliverable.result?.alerts;
         if (savedAlerts) {
           if (savedAlerts.configured !== true || savedAlerts.evaluated !== false || typeof savedAlerts.pin !== 'string'
             || !savedAlerts.scope || !Array.isArray(savedAlerts.items)) return false;
-          const currentAlerts = this.services.alerts.brief(ctx, {
+          const currentAlerts = reportOptions.alertBrief!(ctx, {
             ...(savedAlerts.scope.branch === null ? {} : { branch: savedAlerts.scope.branch }),
             ...(savedAlerts.scope.sourceIds === null ? {} : { sourceIds: savedAlerts.scope.sourceIds }),
-          });
+          }, view);
           if (currentAlerts.pin !== savedAlerts.pin || digest(currentAlerts.items) !== digest(savedAlerts.items)) return false;
         }
         return (job.deliverable.result?.decisions ?? []).every((item: any) => currentDecisions.has(item.id));
