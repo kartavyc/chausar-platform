@@ -32,7 +32,7 @@ import { SpeechService } from './speech.ts';
 import { AuthService } from './auth.ts';
 import { SyncService, type SyncOptions } from './sync.ts';
 import { writerStateDigest, type SyncWriterAdmission, type SyncWriterReview } from './sync-writer-admission.ts';
-import { ActionService } from './actions.ts';
+import { ActionService, digest } from './actions.ts';
 import { JobService } from './jobs.ts';
 import { createEngineJobRunner, type EngineJobOptions, type JobLifecycle } from './engine-jobs.ts';
 import type { Job } from './jobs.ts';
@@ -355,7 +355,11 @@ export class Engine {
     const reportOptions: ReportOptions = { ...calculationOptions, executionReceipt: (ctx, id, view) => {
       const resolver = this.options.reports?.executionReceipt ?? createJournalExecutionResolver(this.services.actions);
       return resolver(ctx, id, view);
-    } };
+    }, alertBrief: (ctx, scope, view) => new AlertsService(view, { calculatorOptions: current => {
+      const connectors = connectorForView(current);
+      return { consumerGuard: (member, request) => connectors.assertCalculationReady(member, request),
+        receiptGuard: (member, receipt) => connectors.assertReceiptReady(member, receipt) };
+    } }).brief(ctx, scope) };
     this.services.reports = new ReportService(store, reportOptions);
     this.services.bridge = new BridgeService(store, { calculator: calculationOptions, ...this.options.bridge });
     this.services.investigations = new InvestigationService(store, calculationOptions);
@@ -484,6 +488,16 @@ export class Engine {
       if (!Array.isArray(ids) || ids.length === 0) return false;
       try { ids.forEach((id: string) => this.services.calculator.receipt(ctx, id));
         const currentDecisions = new Set(this.services.reports.decisions(ctx).map((item: any) => item.id));
+        const savedAlerts = job.deliverable.result?.alerts;
+        if (savedAlerts) {
+          if (savedAlerts.configured !== true || savedAlerts.evaluated !== false || typeof savedAlerts.pin !== 'string'
+            || !savedAlerts.scope || !Array.isArray(savedAlerts.items)) return false;
+          const currentAlerts = this.services.alerts.brief(ctx, {
+            ...(savedAlerts.scope.branch === null ? {} : { branch: savedAlerts.scope.branch }),
+            ...(savedAlerts.scope.sourceIds === null ? {} : { sourceIds: savedAlerts.scope.sourceIds }),
+          });
+          if (currentAlerts.pin !== savedAlerts.pin || digest(currentAlerts.items) !== digest(savedAlerts.items)) return false;
+        }
         return (job.deliverable.result?.decisions ?? []).every((item: any) => currentDecisions.has(item.id));
       } catch { return false; }
     } });
@@ -1076,7 +1090,7 @@ export class Engine {
     const jobContext: Context = { memberId: owner.id, role: owner.role, epoch: owner.epoch, channel: 'desktop' };
     const job = await this.services.jobs.acquire(jobContext, id, 'desktop-engine');
     if (job.status !== 'running' || !job.lease) return job;
-    const result = await this.services.reports.brief(jobContext, {});
+    const result = await this.services.reports.brief(jobContext, { sourceIds: [...job.sourceIds] });
     const completed = await this.services.jobs.complete(jobContext, id, job.lease, { kind: 'brief', result, at: now() }, '0');
     // The scheduler may administer another member's run, but does not disclose
     // that member's cached report to a different requesting identity.
@@ -1452,6 +1466,17 @@ export class Engine {
   private jobRunner() { check(this.services.jobRunner, 'JOB_POLICY_REQUIRED', 'Configure explicit worker, active-job and lease policy before creating typed goals.'); return this.services.jobRunner; }
   private createBriefJob(ctx: Context, payload: any) {
     check(payload.plan === undefined, 'INVALID_JOB_PLAN', 'The installed runner creates its own plan.');
+    // Legacy omitted scope means the owner's currently readable sources, captured
+    // in the mandate at creation. Explicit [] stays empty; later sources need a new mandate.
+    if (payload.sourceIds === undefined) {
+      const state = this.store().read(), snapshot: StateStore = { read: () => state, update: async () => { throw new Error('Brief admission is read-only.'); } };
+      const member = state.members.find(item => item.id === (payload.ownerId ?? ctx.memberId));
+      const ownerContext: Context = member ? { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' } : ctx;
+      const selection = new MemoryService(snapshot).query(ownerContext);
+      const ids = new Set([...selection.facts.map(fact => fact.id), ...selection.excluded.map(item => item.rowId),
+        ...selection.conflicts.flatMap(item => item.rowIds)]);
+      payload = { ...payload, sourceIds: [...new Set(state.facts.filter(fact => ids.has(fact.id)).map(fact => fact.sourceId))].sort() };
+    }
     if (!this.options.durableJobs) return this.services.jobs.create(ctx, payload);
     const store = this.store(); const limit = this.options.durableJobs.maxActiveJobs;
     const capped = new JobService({ read: () => store.read(), update: change => store.update(state => {

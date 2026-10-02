@@ -4,7 +4,7 @@ import { currentAccess, validDate, type Period } from './memory.ts';
 import { OntologyService } from './ontology.ts';
 import { assertSourceAccess } from './trust.ts';
 import type { AlertCreate, AlertDefinition, AlertEpisode, AlertEvaluate, AlertEvaluation, AlertNotice, AlertObservation,
-  AlertPersistence, AlertReceiptPin, AlertsOptions, AlertWrite, BusinessAlert } from './alerts-contracts.ts';
+  AlertPersistence, AlertReceiptPin, AlertsOptions, AlertWrite, BusinessAlert, AlertBrief, AlertBriefItem, AlertBriefScope } from './alerts-contracts.ts';
 export type * from './alerts-contracts.ts';
 
 const KIND = 'business-alert-v1';
@@ -244,6 +244,38 @@ export class AlertsService {
     const current = view(this.store.read()); authorize(current, ctx);
     return current.read().answers.filter(item => item.kind === KIND && item.ownerId === ctx.memberId && item.epoch === ctx.epoch)
       .flatMap(item => { try { return [this.at(current, ctx, item.id)]; } catch { return []; } });
+  }
+  brief(ctx: Context, filter: AlertBriefScope = {}): AlertBrief {
+    const current = view(this.store.read()), service = new AlertsService(current, this.options);
+    authorize(current, ctx); currentAccess(current, ctx, filter.branch);
+    if (filter.sourceIds !== undefined) check(Array.isArray(filter.sourceIds) && filter.sourceIds.length <= 64
+      && filter.sourceIds.every(id => typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(id))
+      && new Set(filter.sourceIds).size === filter.sourceIds.length, 'INVALID_SOURCE_SCOPE', 'Choose distinct declared sources for the alert brief.');
+    const checkedAt = service.clock(), scope = { branch: filter.branch ?? null, sourceIds: filter.sourceIds === undefined ? null : unique(filter.sourceIds) };
+    const dictionary = new OntologyService(current).current(ctx);
+    const items: AlertBriefItem[] = service.list(ctx)
+      .filter(alert => alert.status === 'published' && (scope.branch === null || alert.branch === scope.branch)
+        && (scope.sourceIds === null || alert.sourceIds.every(id => scope.sourceIds!.includes(id))))
+      .map(alert => {
+        const last = effective(alert.observations).at(-1), issues = [...(last?.issues ?? ['not-observed'])];
+        if (dictionary?.hash !== alert.definition.dictionaryHash || dictionary.version !== alert.definition.ontologyVersion) issues.push('definition-changed');
+        if (last) {
+          if (last.state === 'unknown' || !last.receipt) issues.push('missing-evidence');
+          if (Date.parse(checkedAt) - Date.parse(last.observedAt) > alert.definition.maxObservationGapMs) issues.push('observation-gap');
+          if (last.receipt) {
+            const receipt = service.receipt(current, ctx, last.receipt.receiptId).receipt;
+            issues.push(...service.issues(alert.definition, receipt, checkedAt));
+          }
+        }
+        if (alert.episodes.some(episode => episode.status === 'open' && episode.uncertain)) issues.push('uncertain-episode');
+        return { alertId: alert.id, conditionId: alert.definition.conditionId, label: alert.definition.label,
+          revision: alert.revision, definitionDigest: alert.definitionDigest, branch: alert.branch,
+          sourceIds: [...alert.sourceIds], episodes: detach(alert.episodes),
+          observation: last ? { id: last.id, observedAt: last.observedAt, recordedAt: last.recordedAt, state: last.state, receiptId: last.receipt?.receiptId ?? null } : null,
+          evidence: { state: issues.length ? 'uncertain' as const : 'current' as const, issues: unique(issues) }, receiptIds: unique(alert.receiptIds) };
+      }).sort((a, b) => a.alertId.localeCompare(b.alertId));
+    return { configured: true, evaluated: false, checkedAt, scope, items, receiptIds: unique(items.flatMap(item => item.receiptIds)),
+      pin: hash({ scope, items }) };
   }
   async publish(ctx: Context, id: string, input: AlertWrite): Promise<BusinessAlert> {
     ctx = detach(ctx); this.writer(this.store, ctx); const supplied = detach(input); closed(supplied, ['expectedRevision']);

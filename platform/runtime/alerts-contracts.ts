@@ -112,6 +112,19 @@ export type BusinessAlert = {
   rowIds: string[];
 };
 export type AlertEvaluation = { alert: BusinessAlert; duplicate: boolean; notices: AlertNotice[] };
+/** Read-only projection of retained private observations, never a new evaluation or delivery. */
+export type AlertBriefScope = { branch?: string; sourceIds?: string[] };
+export type AlertBriefItem = {
+  alertId: string; conditionId: string; label: string; revision: number; definitionDigest: string;
+  branch: string | null; sourceIds: string[]; episodes: AlertEpisode[];
+  observation: Pick<AlertObservation, 'id' | 'observedAt' | 'recordedAt' | 'state'> & { receiptId: string | null } | null;
+  evidence: { state: 'current' | 'uncertain'; issues: string[] }; receiptIds: string[];
+};
+export type AlertBrief = {
+  configured: boolean; evaluated: false; checkedAt: string;
+  scope: { branch: string | null; sourceIds: string[] | null };
+  items: AlertBriefItem[]; receiptIds: string[]; pin: string;
+};
 export type AlertsOptions = CalculatorOptions & {
   clock?: () => string;
   /** Build receipt/consumer guards against the transaction's current authority snapshot. */

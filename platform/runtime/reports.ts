@@ -2,6 +2,7 @@ import { authorize, audit, check, hash, newId, now, type Context, type State, ty
 import { CalculatorService, numberGuard, formatMoney, type CalculationReceipt, type CalculationRequest, type CalculatorOptions } from './calculator.ts';
 import { canSeeFact, currentAccess, validDate } from './memory.ts';
 import { assertSourceAccess } from './trust.ts';
+import type { AlertBrief, AlertBriefScope } from './alerts-contracts.ts';
 import { confirmDecision as confirmJournal, draftDecision as draftJournal, dueDecisions as dueJournal, journalContentReceiptIds, journalExecutionSnapshot, reviseDecision as reviseJournal, reviewDecision as reviewJournal, type JournalContent, type JournalDecision, type JournalDraft, type JournalExecutionReceipt, type JournalObservation, type JournalReview } from './decision-journal.ts';
 
 export type DecisionInput = { text: string; reviewDate: string; receiptIds?: string[]; hypotheses?: string[]; branch?: string };
@@ -10,6 +11,8 @@ export type JournalDecisionReview = { outcome: JournalReview['outcome']; notes?:
 export type ReportOptions = CalculatorOptions & {
   /** Trusted host resolver: existence, current access and effect interpretation stay with the execution service. */
   executionReceipt?: (ctx: Context, id: string, view: StateStore) => JournalExecutionReceipt;
+  /** Resolve private retained alerts against the final current-authority view. No evaluation or dispatch. */
+  alertBrief?: (ctx: Context, scope: AlertBriefScope, view: StateStore) => AlertBrief;
 };
 export type ComplianceEntry = { title: string; dueDate: string; sourceUrl: string; publishedAt: string; reviewedBy: string };
 const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
@@ -193,8 +196,13 @@ export class ReportService {
     const { ritual = 'monday', ...request } = input; const report = await this.report(ctx, 'investor', request);
     const decisions = this.decisions(ctx, { dueOn: onDate, branch: input.branch }); const calendars = this.store.read().schedules.filter(s => s.type === 'compliance-calendar'); const calendar = calendars.at(-1);
     const dueDates = calendar?.entries.filter((e: ComplianceEntry) => e.dueDate >= onDate && Date.parse(e.dueDate) - Date.parse(onDate) <= 14 * 86_400_000) ?? [];
-    authorize(this.store, ctx); report.receiptIds.forEach(id => this.calculator.receipt(ctx, id));
-    return { id: newId('brief'), ritual, onDate, headline: ritual === 'friday' ? 'Your weekly review is ready' : 'Your weekly business brief is ready', report, decisions, compliance: { entries: dueDates, calendarVersion: calendar?.version ?? null, status: calendar ? 'human-reviewed-source-list' : 'No published compliance calendar. No dates were guessed.' }, delivery: { state: 'draft', channels: ['email', 'whatsapp'], requiresApproval: true }, receiptIds: report.receiptIds };
+    const finalView = stateView(this.store.read()); authorize(finalView, ctx);
+    const scope = { ...(input.branch === undefined ? {} : { branch: input.branch }), ...(input.sourceIds === undefined ? {} : { sourceIds: [...input.sourceIds] }) };
+    const alerts: AlertBrief = this.options.alertBrief?.(ctx, scope, finalView) ?? { configured: false, evaluated: false, checkedAt: now(),
+      scope: { branch: input.branch ?? null, sourceIds: input.sourceIds ?? null }, items: [], receiptIds: [], pin: hash({ configured: false }) };
+    const receiptIds = [...new Set([...report.receiptIds, ...alerts.receiptIds])];
+    receiptIds.forEach(id => this.calculatorAt(finalView).receipt(ctx, id));
+    return { id: newId('brief'), ritual, onDate, headline: ritual === 'friday' ? 'Your weekly review is ready' : 'Your weekly business brief is ready', report, decisions, alerts, compliance: { entries: dueDates, calendarVersion: calendar?.version ?? null, status: calendar ? 'human-reviewed-source-list' : 'No published compliance calendar. No dates were guessed.' }, delivery: { state: 'draft', channels: ['email', 'whatsapp'], requiresApproval: true }, receiptIds };
   }
   async forecast(ctx: Context, input: { receiptIds: string[] }) {
     authorize(this.store, ctx); check(input && Object.keys(input).length === 1 && Array.isArray(input.receiptIds), 'INVALID_FORECAST', 'Forecast from explicit monthly calculation receipts.');

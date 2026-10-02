@@ -1,0 +1,14 @@
+# Receipt-backed alerts in owner briefs
+
+The brief now reads private published alert episodes through the same current member, source, row and connector-readiness gates as the alert API. Before this join, `reports.brief` returned reports, decisions and compliance dates without saved alerts.
+
+The additive `alerts` section records its trusted host `checkedAt`, exact branch/source scope, retained episode identities, latest effective observation, referenced receipts and a content pin. `evaluated:false` is always explicit. A missing observation, unavailable correction, changed definition, stale/expired receipt or excessive observation gap makes `evidence.state` uncertain. Retained open/cleared history is preserved; reading a brief does not calculate an alert observation, clear an episode, add a notice, dispatch a model, schedule work or send a notification. The caller's briefing date does not advance or replace this host observation clock. A standalone ReportService with no trusted resolver reports `configured:false`, not an empty qualified section.
+
+ReportService obtains this section from its final detached StateStore snapshot after asynchronous report calculations, then rechecks the union of report and alert receipt references. Drafts, another author's alerts and currently inaccessible evidence do not enter the section. An explicit source filter includes a condition only when its entire declared source scope fits; an explicit empty source list stays empty.
+
+Existing owner-brief jobs use their exact persisted source list. For the legacy creation call with omitted sourceIds, the selected owner's currently readable fact sources are captured into the reviewed mandate at creation. Later sources require a new mandate; explicit [] never expands to all sources. This preserves the existing current-data default while recording its concrete boundary.
+
+Cached owner-brief readback compares the current alert content pin and actual projected items, as well as receipt and decision access. A changed alert or expired evidence withholds the cached deliverable. Owner-brief acceptance now uses the same existing deliverable guard before recording acceptance or scheduling a repeat, including for a legacy job without a typed goal plan. Existing Temporal/durable runner ownership and action preparation policies remain unchanged.
+
+The new public acceptance uses actual paired local HTTP, Engine, encrypted physical files and synthetic business inputs. Unit acceptance uses an explicitly labelled synthetic host clock to exercise evidence expiry. These checks do not establish a rendered frontend section, installed GUI, native database join, phone delivery, external notification, vendor/model quality or production qualification. Frontend task18 owns later visual composition; no user-approved UI design is changed here.
+
