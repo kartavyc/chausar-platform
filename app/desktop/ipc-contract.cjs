@@ -11,6 +11,7 @@ const METHODS = Object.freeze([
   'workspace.interchange.export', 'workspace.interchange.prepare', 'workspace.interchange.review', 'workspace.interchange.discard', 'workspace.interchange.diagnostics',
   'trials.create', 'trials.evaluate', 'trials.get', 'trials.receiptContext', 'trials.list', 'trials.savedQuestions', 'trials.discard', 'trials.impact', 'trials.promote',
   'auth.invite', 'auth.accept', 'auth.session', 'auth.revoke', 'auth.sessions',
+  'phone.invite', 'phone.sessions', 'phone.revoke', 'phone.conversation.offer',
   'sync.status', 'sync.identity', 'sync.enable', 'sync.trust', 'sync.preview', 'sync.approve', 'sync.push', 'sync.pull',
   'sync.writer.status', 'sync.writer.review', 'sync.reconcile',
   'dashboard.get', 'conversation.ask', 'conversation.history', 'conversation.get', 'conversation.continuation', 'conversation.synthesis.preview', 'conversation.synthesis.run', 'business.context.receipt', 'business.profile.record', 'business.profile.history', 'business.profile.remove', 'calculation.run', 'receipts.get',

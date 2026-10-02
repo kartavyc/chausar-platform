@@ -20,6 +20,15 @@ inviteTtlMs and sessionTtlMs. `phone.sessions` returns bounded public metadata;
 member-invite and member-session records, excluding phone keys, invites and
 private nonce records.
 
+The desktop preload/main-process bridge explicitly allows only these four owner
+phone methods. They retain the same owned main-frame and bounded plain-JSON IPC
+checks and then pass through the Engine's current owner, epoch and channel checks.
+Signed companion pairing and chat are not desktop RPC aliases. The headless
+desktop harness test uses the production worker loop and actual synthetic Vault
+for invite, session metadata, reviewed offer and revocation; its pairing request
+passes through the real companion handler in memory, without a socket, GUI or
+live provider.
+
 `phone.conversation.offer` accepts exactly `{sessionId, request}`. Its request is
 the complete exact desktop-reviewed conversation request, including its original
 previewId, approvalId, route and all source/calculation selectors. The supported
