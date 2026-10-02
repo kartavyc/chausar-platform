@@ -105,10 +105,10 @@ test('actual encrypted custody bounds descriptor reads when a private file grows
   const f=await fixture(t);
   await f.vault.writeArtifact({id:'growing_control',purpose:'workspace-interchange',value:{synthetic:true},expectedDigest:null});
   const file=join(f.directory,'private-artifacts','workspace-interchange','growing_control.encrypted.json');
-  const original=await readFile(file),sample=await open(file,'r'),targetStat=await sample.stat();
+  const original=await readFile(file),sample=await open(file,'r'),targetStat=await sample.stat({bigint:true});
   const prototype=Object.getPrototypeOf(sample) as FileHandle;await sample.close();
   const realStat=prototype.stat,realReadFile=prototype.readFile;
-  const identifies=(stat:{ino:number|bigint;dev:number|bigint})=>String(stat.ino)===String(targetStat.ino)&&String(stat.dev)===String(targetStat.dev);
+  const identifies=(stat:{ino:number|bigint;dev:number|bigint})=>stat.ino===targetStat.ino&&stat.dev===targetStat.dev;
   let grew=false,oversizedWholeFileReads=0;
   const statHook=t.mock.method(prototype,'stat',async function(this:FileHandle,...args:Parameters<FileHandle['stat']>){
     const stat=await Reflect.apply(realStat,this,args);
@@ -118,7 +118,7 @@ test('actual encrypted custody bounds descriptor reads when a private file grows
     return stat;
   });
   const readHook=t.mock.method(prototype,'readFile',async function(this:FileHandle,...args:Parameters<FileHandle['readFile']>){
-    const stat=await realStat.call(this);
+    const stat=await realStat.call(this,{bigint:true});
     if(identifies(stat)&&stat.size>original.length)oversizedWholeFileReads++;
     return Reflect.apply(realReadFile,this,args);
   });
