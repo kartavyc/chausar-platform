@@ -418,6 +418,9 @@ test('actual Luna worker clarification typed calculation failure and invalid pla
     assert.equal(unreviewed.answer, undefined);
     assert.equal(h.rejected.at(-1).error.code, 'INVALID_CONVERSATION_PLAN');
     assert.equal(descendants(h.app).some(node => node.tagName === 'button' && hasText(node, 'Open calculation receipt')), false);
+    // A failed dispatch deliberately leaves its single-use review open. Close
+    // that dialog before beginning a separately reviewed authored question.
+    unreviewed.dialog.close();
   }
   const malformed = await reviewedLunaRequest(fixture, 'Return an invalid synthetic plan.');
   assert.equal(malformed.answer, undefined);
