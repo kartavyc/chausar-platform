@@ -39,7 +39,8 @@ const reservationId = (targetId: string) => `wbt2_${sha(targetId)}_reservation`;
 type Physical = { dev: string; ino: string; birthtimeNs: string };
 type Witness = Physical & { path: string; bytes: number; mtimeNs: string; ctimeNs: string; sha256: string };
 type File = { bytes: Buffer; witness: Witness };
-type Scope = { freezeSql: boolean; native: PostgresSnapshotLease; storage: PostgresStorageIdentity; authority: PostgresAuthorityIdentity; context: Context; locks: Map<string, Witness>; staging: Map<string, Witness>; targets: Set<string>; changes: Map<string, { ref: PrivateArtifactRef; sha256: string } | null> };
+type SqlRelationIdentity = { schema: string; name: string; kind: string; oid: string };
+type Scope = { freezeSql: boolean; sqlRelations?: SqlRelationIdentity[]; native: PostgresSnapshotLease; storage: PostgresStorageIdentity; authority: PostgresAuthorityIdentity; context: Context; locks: Map<string, Witness>; staging: Map<string, Witness>; targets: Set<string>; changes: Map<string, { ref: PrivateArtifactRef; sha256: string } | null> };
 type Binding = {
   format: 'chausar.backup-postgres-binding.v2'; recordId: string; creationId: string; contextDigest: string;
   archiveDigest: string; pinDigest: string; state: 'preparing' | 'committed' | 'discarded';
@@ -68,6 +69,11 @@ export type WorkspaceBackupV2PostgresOptions = {
   externalKeyRequirements: WorkspaceBackupV2ExternalKeyRequirement[];
   /** Root authorization to independently hash and measure named siblings without decrypting or admitting them. */
   outsideApplicationNamespaces?: { name: string; requirement: string }[];
+  /** Constructor-only opt-in for separately scoped source/journal/target databases.
+   * Retain ordinary source relation SHARE locks before callback or measurement.
+   * This excludes their writers/DDL/main-table maintenance, not independent TOAST
+   * maintenance. Every existing physical-size and logical-generation fence remains. */
+  heldSourceSqlExclusion?: 'share-relations';
   /** CURRENT owner, source permissions, epoch admission and all managed consumer readiness. */
   assertCompleteOwner(context: Context, historicalState: State): Promise<void>;
   /** Held root owner/epoch/readiness admission through FS publication; no deferred approval. */
@@ -155,6 +161,8 @@ export class WorkspaceBackupV2PostgresCustody {
       && Object.values(options.budgets).every(item => Number.isSafeInteger(item) && item > 0)
       && options.budgets.maxEntryBytes <= options.budgets.maxTotalEntryBytes && options.budgets.maxJsonDepth <= 256 && options.budgets.maxEntries > 1,
     'BACKUP_BUDGET_REQUIRED', 'Supply all six explicit archive budgets.');
+    check(options.heldSourceSqlExclusion === undefined || options.heldSourceSqlExclusion === 'share-relations',
+      'BACKUP_SQL_EXCLUSION_REQUIRED', 'Select only the explicit constructor ordinary-relation SHARE exclusion.');
     this.#options = { ...options, applicationDirectory, budgets: structuredClone(options.budgets), filesystemBudgets: structuredClone(budget),
       externalKeyRequirements: structuredClone(options.externalKeyRequirements), outsideApplicationNamespaces: structuredClone(options.outsideApplicationNamespaces ?? []) };
     const outside = this.#options.outsideApplicationNamespaces!;
@@ -273,8 +281,12 @@ export class WorkspaceBackupV2PostgresCustody {
       check(authority && authority.vaultId === this.#options.vault.vaultId && authority.revision === this.#options.vault.read().revision,
         'BACKUP_SOURCE_CHANGED', 'The installed SQL authority differs from the unlocked source Vault.');
       await this.#prepareControls();
-      return this.#scope.run({ freezeSql: false, native, storage, authority, context: structuredClone(context), locks: new Map(), staging: new Map(), targets: new Set(), changes: new Map() }, async () => {
-        const result = await work(); await native.assertCurrent(authority); return result;
+      const held: Scope = { freezeSql: this.#options.heldSourceSqlExclusion === 'share-relations', native, storage, authority, context: structuredClone(context), locks: new Map(), staging: new Map(), targets: new Set(), changes: new Map() };
+      return this.#scope.run(held, async () => {
+        if (held.freezeSql) { await this.#guard(context, this.#options.vault.read()); await this.#excludeSqlRelations(held); }
+        const result = await work();
+        if (held.freezeSql) { await this.#guard(context, this.#options.vault.read()); await this.#excludeSqlRelations(held); }
+        await native.assertCurrent(authority); return result;
       });
     }));
   }
@@ -286,6 +298,40 @@ export class WorkspaceBackupV2PostgresCustody {
     scope.locks.set(path, witness);
     try { return await work(); } finally { scope.locks.delete(path); await lock.release(); }
   }
+  async #excludeSqlRelations(scope: Scope) {
+    check(scope.native.active, 'BACKUP_SOURCE_LEASE_REQUIRED', 'Retain the actual source transaction through relation exclusion.');
+    await scope.native.query("SET LOCAL statement_timeout = '5000ms'");
+    await scope.native.query("SET LOCAL lock_timeout = '5000ms'");
+    const discover = async (): Promise<SqlRelationIdentity[]> => {
+      // Discovery contains identity only: physical size, schema definitions,
+      // counts and row generations are measured after every SHARE lock is held.
+      const rows = (await scope.native.query(`SELECT n.nspname AS schema, c.relname AS name, c.relkind AS kind, c.oid::text AS oid
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname <> 'information_schema' AND n.nspname !~ '^pg_' AND c.relkind NOT IN ('i','I','t')
+        ORDER BY n.nspname,c.relname`)).rows;
+      check(rows.length <= this.#options.budgets.maxEntries, 'BACKUP_LIMIT', 'Source relation discovery exceeds its explicit inventory budget.');
+      const relations = rows.map(row => {
+        check(typeof row.schema === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(row.schema)
+          && typeof row.name === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(row.name)
+          && ['r', 'p'].includes(row.kind) && typeof row.oid === 'string' && /^\d+$/.test(row.oid),
+        'BACKUP_SQL_INVENTORY_REQUIRED', 'Source exclusion requires actual classified ordinary relation identities.');
+        return { schema: row.schema, name: row.name, kind: row.kind, oid: row.oid };
+      });
+      check(new Set(relations.map(row => `${row.schema}.${row.name}`)).size === relations.length
+        && new Set(relations.map(row => row.oid)).size === relations.length,
+      'BACKUP_SQL_INVENTORY_REQUIRED', 'Source relation identity discovery must be complete and unambiguous.');
+      return relations;
+    };
+    const discovered = await discover();
+    if (scope.sqlRelations) {
+      check(same(discovered, scope.sqlRelations), 'BACKUP_SOURCE_CHANGED', 'The exact excluded source relation set changed.'); return;
+    }
+    for (const row of discovered) await scope.native.query(`LOCK TABLE "${row.schema}"."${row.name}" IN SHARE MODE`);
+    // Names can be replaced between discovery and lock acquisition. Never bind
+    // measurements to the pre-lock identity without an independent reread.
+    check(same(await discover(), discovered), 'BACKUP_SOURCE_CHANGED', 'Source relation identity changed while acquiring SHARE exclusion.');
+    scope.sqlRelations = discovered;
+  }
   async #sqlInventory() {
     const scope = this.#scope.getStore();
     check(scope?.native.active, 'BACKUP_SOURCE_LEASE_REQUIRED', 'Enumerate actual SQL namespaces through the held native transaction.');
@@ -293,6 +339,7 @@ export class WorkspaceBackupV2PostgresCustody {
     await scope.native.query("SET LOCAL statement_timeout = '5000ms'");
     await scope.native.query("SET LOCAL lock_timeout = '5000ms'");
     await scope.native.query('SET LOCAL row_security = off');
+    if (scope.freezeSql) await this.#excludeSqlRelations(scope);
     const schemas = (await scope.native.query("SELECT nspname AS schema,oid::text AS oid,nspowner::text AS owner,nspacl::text AS acl FROM pg_namespace WHERE nspname <> 'information_schema' AND nspname !~ '^pg_' ORDER BY nspname")).rows;
     const relations = (await scope.native.query(`SELECT n.nspname AS schema, c.relname AS name, c.relkind AS kind,
       c.oid::text AS oid, pg_total_relation_size(c.oid)::text AS bytes,
@@ -339,10 +386,9 @@ export class WorkspaceBackupV2PostgresCustody {
       total += bytes;
       check(total <= this.#options.filesystemBudgets.maxBytes, 'BACKUP_LIMIT', 'Wider SQL namespace bytes exceed the explicit inspection byte budget.');
       const quoted = `"${row.schema}"."${row.name}"`;
-      // Complete source capture holds relation writers/DDL out through callback and final assertion.
-      // Constructor-only activation inspection retains only the source slot lease, so a distinct
-      // target slot can be published through its separate transaction in the same database.
-      if (scope.freezeSql) await scope.native.query(`LOCK TABLE ${quoted} IN SHARE MODE`);
+      // Selected ordinary relation SHARE locks precede the complete catalogue
+      // projection above and remain held through callback and final assertions.
+      // Independent TOAST maintenance is not a claimed exclusion capability.
       const count = (await scope.native.query(`SELECT COUNT(*)::text AS entries FROM ${quoted}`)).rows[0];
       const entries = Number(count?.entries);
       totalRows += entries;

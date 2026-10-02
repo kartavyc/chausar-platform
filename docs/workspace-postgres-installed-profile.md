@@ -67,6 +67,14 @@ receipt/reopen profile. Creating/restoring into an occupied committed target
 also retains the ordinary Vault refusal.
 
 Injected protocol and cryptographic tests do not establish native qualification.
+The installed distinct-database profile retains source user-relation SHARE
+locks before namespace measurements and through original admission. This
+excludes relation writers, DDL and ordinary main-table maintenance. Physical
+size, schema, count, row-generation and ciphertext comparisons still apply;
+independent TOAST maintenance is not covered by a complete physical exclusion
+claim, and any observed physical drift must continue to refuse. Generic
+same-database callers do not acquire this constructor-only option implicitly.
+
 Only an exact frozen source pin and actual public native transfer, competing
 writer/refusal and reopen evidence can support that bounded milestone. This
 profile makes no security-audit, installer, GUI, vendor or full-product claim.

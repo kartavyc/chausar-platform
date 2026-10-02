@@ -123,6 +123,13 @@ class ProtocolPostgresAdapter implements EncryptedSnapshotAdapter {
       return { rows: [{ generation: sha(JSON.stringify(fixtureRows)) }], rowCount: 1 };
     }
     if (/pg_type/.test(sql)) return { rows: structuredClone(this.unsupportedObjects), rowCount: this.unsupportedObjects.length };
+    if (/pg_class/.test(sql) && !/pg_total_relation_size/.test(sql)) {
+      // Authored identity-only discovery must not smuggle pre-lock physical
+      // measurements into the two-phase exclusion protocol.
+      const rows = [...this.catalog].sort((a, b) => a.schema.localeCompare(b.schema) || a.name.localeCompare(b.name))
+        .map(({ schema, name, kind, oid }) => ({ schema, name, kind, oid }));
+      return { rows, rowCount: rows.length };
+    }
     if (/pg_class/.test(sql)) return { rows: this.catalog.map(({ entries: _entries, ...entry }) => ({ ...entry })), rowCount: this.catalog.length };
     if (/pg_proc/.test(sql)) return { rows: [], rowCount: 0 };
     if (/pg_namespace/.test(sql)) {
@@ -200,6 +207,101 @@ async function fixture(t: TestContext) {
 async function refs(vault: Vault) {
   return [...await vault.listArtifacts({ purpose: 'private-trial' }), ...await vault.listArtifacts({ purpose: 'workspace-interchange' })];
 }
+
+test('PG protocol fixture preserves default held-source slot-only admission without constructor relation exclusion', async t => {
+  const f = await fixture(t), queries = f.adapter.queries.length;
+  await f.custody.withHeldSource(context, async () => {
+    assert.equal(f.adapter.leaseActive, true); await f.custody.inspectHeldNamespaces();
+  });
+  assert.ok(!f.adapter.queries.slice(queries).some(sql => /^LOCK TABLE /.test(sql)));
+});
+
+test('PG protocol fixture constructor SHARE exclusion precedes measurement/callback and remains through final guard and lease exit', async t => {
+  const f = await fixture(t), events: string[] = [], held = new Set<string>();
+  const query = f.adapter.query.bind(f.adapter), withLease = f.adapter.withLease.bind(f.adapter);
+  let callbackFinished = false, observedPrelockDrift = false;
+  f.adapter.query = async (sql, values) => {
+    assert.equal(f.adapter.leaseActive, true);
+    if (/^LOCK TABLE /.test(sql)) {
+      const name = f.adapter.catalog.find(row => sql.includes(`"${row.schema}"."${row.name}"`))!.name;
+      held.add(name); events.push(`lock:${name}`);
+      if (!observedPrelockDrift) {
+        // A maintenance-sized change before exclusion is part of the initial
+        // under-lock measurement, never a stale pre-lock physical baseline.
+        f.adapter.catalog[0].bytes = '16384'; observedPrelockDrift = true;
+      }
+    } else if (/pg_total_relation_size|\bCOUNT\(|string_agg|pg_attribute/.test(sql)) {
+      assert.equal(held.size, f.adapter.catalog.length, 'Measure only after every ordinary relation is excluded.');
+      events.push('measurement');
+    } else if (/pg_class/.test(sql)) events.push('discovery');
+    return query(sql, values);
+  };
+  f.adapter.withLease = async work => {
+    if (f.adapter.leaseActive) return withLease(work);
+    events.push('lease-enter');
+    try {
+      return await withLease(lease => work({ ...lease, assertCurrent: async expected => {
+        if (callbackFinished) {
+          assert.equal(held.size, f.adapter.catalog.length); events.push('final-authority-guard');
+        }
+        await lease.assertCurrent(expected);
+      } }));
+    } finally { events.push('lease-exit'); held.clear(); }
+  };
+  const custody = f.postgresPorts({ heldSourceSqlExclusion: 'share-relations' });
+  await custody.withHeldSource(context, async () => {
+    events.push('callback-enter'); assert.equal(held.size, f.adapter.catalog.length);
+    const measured = await custody.inspectHeldNamespaces();
+    const relation = measured.postgres.catalog.find(value => (value as CatalogRelation).name === 'chausar_vault_authority') as CatalogRelation;
+    assert.equal(relation.bytes, 16384); assert.equal(relation.entries, 1);
+    assert.match((relation as unknown as { generation: string }).generation, /^[a-f0-9]{64}$/);
+    await custody.withHeldSource(context, async () => { assert.equal(held.size, f.adapter.catalog.length); });
+    callbackFinished = true; events.push('callback-exit');
+  });
+  const locks = events.flatMap((event, index) => event.startsWith('lock:') ? [index] : []);
+  assert.equal(locks.length, f.adapter.catalog.length, 'Nested readers reuse the retained SQL exclusion.');
+  assert.ok(locks.every(index => index < events.indexOf('callback-enter') && index < events.indexOf('measurement')));
+  assert.ok(events.lastIndexOf('discovery') > events.indexOf('callback-exit'), 'Final relation identity admission remains required.');
+  assert.ok(events.indexOf('final-authority-guard') > events.indexOf('callback-exit'));
+  assert.ok(events.indexOf('final-authority-guard') < events.indexOf('lease-exit'));
+  assert.equal(f.adapter.lastLease?.active, false); assert.equal(held.size, 0);
+});
+
+test('PG protocol fixture SHARE acquisition refuses replaced identities before callback and releases its lease', async t => {
+  const f = await fixture(t), query = f.adapter.query.bind(f.adapter); let changed = false, entered = false;
+  f.adapter.query = async (sql, values) => {
+    const result = await query(sql, values);
+    if (/^LOCK TABLE /.test(sql) && !changed) { changed = true; f.adapter.catalog[0].oid = '18001'; }
+    return result;
+  };
+  const custody = f.postgresPorts({ heldSourceSqlExclusion: 'share-relations' });
+  await assert.rejects(custody.withHeldSource(context, async () => { entered = true; }), code('BACKUP_SOURCE_CHANGED'));
+  assert.equal(changed, true); assert.equal(entered, false); assert.equal(f.adapter.lastLease?.active, false);
+});
+
+test('PG protocol fixture revoked complete-owner admission refuses constructor relation locks before callback', async t => {
+  const f = await fixture(t), custody = f.postgresPorts({ heldSourceSqlExclusion: 'share-relations' });
+  const queries = f.adapter.queries.length; let entered = false; f.revokeOwner();
+  await assert.rejects(custody.withHeldSource(context, async () => { entered = true; }), code('TEST_OWNER_REVOKED'));
+  assert.equal(entered, false); assert.equal(f.adapter.lastLease?.active, false);
+  assert.ok(!f.adapter.queries.slice(queries).some(sql => /^LOCK TABLE /.test(sql)), 'Rejected complete-owner context cannot acquire broader source relation exclusion.');
+});
+
+test('PG protocol fixture constructor SHARE exclusion retains physical/schema/count/row-generation and final relation-set refusals', async t => {
+  for (const change of ['physical-size', 'definition', 'row-count', 'row-content', 'new-relation'] as const) await t.test(change, async sub => {
+    const f = await fixture(sub), custody = f.postgresPorts({ heldSourceSqlExclusion: 'share-relations' });
+    await assert.rejects(custody.ports.withSource(context, null, async lease => {
+      if (change === 'physical-size') f.adapter.catalog[0].bytes = String(Number(f.adapter.catalog[0].bytes) + 8192);
+      else if (change === 'definition') f.adapter.catalog[0].definition = '{"owner":18000}';
+      else if (change === 'row-count') f.adapter.catalog[0].entries++;
+      else if (change === 'row-content') f.adapter.rowContents.set(f.adapter.catalog[0].name, { explicitInjectedReplacement: true });
+      else f.adapter.catalog.push({ schema: 'public', name: 'new_unheld_table', kind: 'r', oid: '18009', bytes: '0', columns: '[]', definition: '{}', entries: 0 });
+      await lease.assertCurrent();
+    }), code('BACKUP_SOURCE_CHANGED'));
+    assert.equal(f.adapter.lastLease?.active, false);
+    assert.ok(!f.adapter.queries.some(sql => /^LOCK TABLE "pg_toast"/.test(sql)), 'Never invent unsupported SQL TOAST locking.');
+  });
+});
 
 test('PG protocol fixture captures every authentic private status and measures separate encrypted archive, pin and binding across Vault reopen', { timeout: 30_000 }, async t => {
   const f = await fixture(t), before = await f.capture(), state = f.vault.read();

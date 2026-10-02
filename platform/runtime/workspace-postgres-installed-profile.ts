@@ -163,6 +163,10 @@ export class InstalledPostgresWorkspaceProfile implements EnginePostgresWorkspac
     const source = new WorkspacePostgresCustody({ adapter });
     const backup = createWorkspaceBackupV2PostgresPorts({ vault: input.sourceVault, adapter, postgres: source,
       applicationDirectory: input.applicationDirectory, budgets: input.backupBudgets,
+      // Installation below verifies source, journal and targets use distinct
+      // databases. Retain source relation writer/DDL/main-maintenance exclusion
+      // throughout original admission; physical metric drift still refuses.
+      heldSourceSqlExclusion: 'share-relations',
       filesystemBudgets: this.#options.filesystemBudgets ?? { maxFiles: 8192, maxBytes: 128 * 1024 * 1024, maxDepth: 16 },
       externalKeyRequirements: this.#options.externalKeyRequirements ?? [{ provider: 'other', namespace: 'operator/credential-wrappers',
         requirement: 'Retain the independent operator passphrase or recovery credential. Encrypted wrappers do not include it.' }],
