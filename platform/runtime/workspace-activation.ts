@@ -296,7 +296,9 @@ export class WorkspaceActivationHost {
         'INTERCHANGE_READ_SCOPE_REQUIRED', 'Current owner must have access to every retained historical row.');
       const current = async () => {
         await completed(() => lease.source.assertCompleteOwner(structuredClone(context), structuredClone(checked.historical)));
-        await completed(() => lease.source.assertCurrent()); await completed(() => lease.assertCurrent());
+        // The complete transaction guard includes current source custody,
+        // candidate issuance and the empty target under the same held locks.
+        await completed(() => lease.assertCurrent());
         const reread = this.#checked(context, checked.pin.recordId, await lease.readCandidate());
         check(equal(reread.read, checked.read), 'INTERCHANGE_REVIEW_CHANGED', 'Exact authenticated candidate or independent issuance changed during activation.');
       };

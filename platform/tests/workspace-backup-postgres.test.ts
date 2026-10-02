@@ -427,3 +427,142 @@ test('PG protocol fixture resolves lost encrypted archive-write acknowledgement 
   await assert.rejects(reopened.host.create(context, { destinationId: summary.recordId, confirmed: true }), code('BACKUP_OUTPUT_EXISTS'));
   assert.equal(archiveWrites, 1); assert.equal(f.adapter.deleteCalls, 0);
 });
+
+// Capture reuse remains injected SQL protocol evidence with authentic Vault ciphertext;
+// it does not qualify a native PostgreSQL server or independent-writer exclusion.
+function inspectCaptured(custody: ReturnType<typeof createWorkspaceBackupV2PostgresPorts>,
+  capture: Awaited<ReturnType<Vault['captureEncryptedCustody']>>) {
+  // The old no-argument method deliberately accepts this runtime argument in the red run.
+  const inspect = custody.inspectHeldNamespaces as unknown as (capture: Awaited<ReturnType<Vault['captureEncryptedCustody']>>)
+    => ReturnType<typeof custody.inspectHeldNamespaces>;
+  return inspect.call(custody, capture);
+}
+
+test('PG protocol fixture authenticated capture inventory matches default without rereading private artifacts', { timeout: 30_000 }, async t => {
+  const f = await fixture(t), summary = await f.host.create(context, { destinationId: 'capture_inventory_backup', confirmed: true });
+  await f.host.restoreInert(context, { backupId: summary.recordId, targetId: 'capture_inventory_target', reviewedDigest: summary.archiveDigest });
+  await f.custody.withHeldSource(context, async () => {
+    const capture = await f.vault.captureEncryptedCustody(encryptedBudgets), expected = await f.custody.inspectHeldNamespaces();
+    const selected = capture.artifacts.filter(item => /^wbt2_[a-f0-9]{64}_reservation$/.test(item.ref.id));
+    assert.equal(selected.length, 1, 'An actual source-encrypted inert reservation exercises selected archived authentication.');
+    const list = f.vault.listArtifacts.bind(f.vault), read = f.vault.readArtifact.bind(f.vault);
+    const authenticate = f.vault.authenticateArchivedArtifacts.bind(f.vault);
+    let lists = 0, reads = 0, archivedCalls = 0;
+    f.vault.listArtifacts = async (...args) => { lists++; return list(...args); };
+    f.vault.readArtifact = async (...args) => { reads++; return read(...args); };
+    f.vault.authenticateArchivedArtifacts = async (input, budget) => {
+      archivedCalls++; assert.equal(input.sourceVaultId, capture.vaultId);
+      const exactBytes = (items: typeof input.artifacts) => items.map(item => ({ ref: item.ref, bytes: Buffer.from(item.bytes) }));
+      assert.deepEqual(exactBytes(input.artifacts), exactBytes(selected));
+      return authenticate(input, budget);
+    };
+    try {
+      assert.deepEqual(await inspectCaptured(f.custody, capture), expected);
+      assert.equal(lists, 0, 'A complete fresh capture must not decrypt and enumerate the source artifact list again.');
+      assert.equal(reads, 0, 'Reserved sibling values must come from exact captured ciphertext rather than live rereads.');
+      assert.equal(archivedCalls, 1, 'Authenticate only selected inert-reservation values through the archived-byte API.');
+    } finally {
+      f.vault.listArtifacts = list; f.vault.readArtifact = read; f.vault.authenticateArchivedArtifacts = authenticate;
+    }
+  });
+  assert.equal(f.adapter.lastLease?.active, false);
+});
+
+test('PG protocol fixture authenticated capture inventory refuses changed artifact bytes at an unchanged authority revision', async t => {
+  const f = await fixture(t);
+  await f.custody.withHeldSource(context, async () => {
+    const capture = await f.vault.captureEncryptedCustody(encryptedBudgets);
+    const prior = capture.artifacts.find(item => item.ref.id === 'trial_fork')!;
+    await f.vault.writeArtifact({ id: prior.ref.id, purpose: prior.ref.purpose,
+      value: { type: 'private-trial-fork-v1', version: 1, secret: 'Synthetic changed private artifact' }, expectedDigest: prior.ref.valueDigest });
+    assert.deepEqual(f.vault.read(), capture.state, 'Artifact mutation must retain the same business State and authority revision.');
+    assert.equal((await f.adapter.authority())!.envelopeDigest, sha(capture.authority));
+    await assert.rejects(inspectCaptured(f.custody, capture), code('BACKUP_FILE_CHANGED'));
+  });
+  assert.equal(f.adapter.lastLease?.active, false);
+});
+
+test('PG protocol fixture authenticated capture inventory refuses omitted, added and removed private files', async t => {
+  for (const change of ['omitted-capture-entry', 'added-source-entry', 'removed-source-entry'] as const) await t.test(change, async sub => {
+    const f = await fixture(sub);
+    await f.custody.withHeldSource(context, async () => {
+      const capture = await f.vault.captureEncryptedCustody(encryptedBudgets);
+      if (change === 'omitted-capture-entry') capture.artifacts.pop();
+      else if (change === 'added-source-entry') await f.vault.writeArtifact({ id: 'later_private_entry', purpose: 'private-trial',
+        value: { synthetic: 'Authentic entry created after capture' }, expectedDigest: null });
+      else {
+        const ref = capture.artifacts.find(item => item.ref.id === 'trial_fork')!.ref;
+        await rm(join(f.vault.directory, 'private-artifacts', ref.purpose, `${ref.id}.encrypted.json`));
+      }
+      assert.equal(f.vault.read().revision, capture.state.revision);
+      await assert.rejects(inspectCaptured(f.custody, capture), typedRefusal);
+    });
+    assert.equal(f.adapter.lastLease?.active, false);
+  });
+});
+
+test('PG protocol fixture authenticated capture inventory refuses altered supplied ciphertext, refs and source metadata', async t => {
+  for (const change of ['artifact-bytes', 'artifact-digest', 'artifact-size', 'authority-bytes', 'state', 'vault-id', 'storage-kind', 'authority-kind'] as const)
+    await t.test(change, async sub => {
+      const f = await fixture(sub);
+      await f.custody.withHeldSource(context, async () => {
+        const capture = await f.vault.captureEncryptedCustody(encryptedBudgets);
+        const artifact = capture.artifacts.find(item => item.ref.id === 'trial_fork')!;
+        if (change === 'artifact-bytes') artifact.bytes[0] ^= 1;
+        else if (change === 'artifact-digest') artifact.ref.valueDigest = '0'.repeat(64);
+        else if (change === 'artifact-size') artifact.ref.diskBytes++;
+        else if (change === 'authority-bytes') capture.authority[0] ^= 1;
+        else if (change === 'state') capture.state.workspace.name = 'Synthetic altered supplied State';
+        else if (change === 'vault-id') capture.vaultId = randomUUID();
+        else if (change === 'storage-kind') capture.storageKind = 'experimental-file';
+        else capture.authorityKind = 'exact-file-bytes';
+        await assert.rejects(inspectCaptured(f.custody, capture), typedRefusal);
+      });
+      assert.equal(f.adapter.lastLease?.active, false);
+    });
+});
+
+test('PG protocol fixture authenticated capture inventory refuses authentic authority bytes differing from leased native envelope digest', async t => {
+  const f = await fixture(t);
+  await f.custody.withHeldSource(context, async () => {
+    const capture = await f.vault.captureEncryptedCustody(encryptedBudgets);
+    capture.authority = Buffer.from(JSON.stringify(JSON.parse(Buffer.from(capture.authority).toString('utf8')), null, 2));
+    assert.deepEqual(await f.vault.authenticateEncryptedCustody({ authority: capture.authority, artifacts: capture.artifacts,
+      source: { vaultId: capture.vaultId, workspaceId: capture.state.workspace.id, revision: capture.state.revision } }, encryptedBudgets), capture.state,
+    'Serialization changes remain cryptographically authentic but do not equal the exact leased adapter envelope bytes.');
+    assert.notEqual(sha(capture.authority), (await f.adapter.authority())!.envelopeDigest);
+    await assert.rejects(inspectCaptured(f.custody, capture), code('BACKUP_SOURCE_CHANGED'));
+  });
+  assert.equal(f.adapter.lastLease?.active, false);
+});
+
+test('PG protocol fixture authenticated capture inventory preserves unrelated ciphertext corruption refusal before reservation use', { timeout: 30_000 }, async t => {
+  const f = await fixture(t), summary = await f.host.create(context, { destinationId: 'corrupt_capture_backup', confirmed: true });
+  await f.host.restoreInert(context, { backupId: summary.recordId, targetId: 'corrupt_capture_target', reviewedDigest: summary.archiveDigest });
+  await f.custody.withHeldSource(context, async () => {
+    const capture = await f.vault.captureEncryptedCustody(encryptedBudgets);
+    assert.equal(capture.artifacts.filter(item => /^wbt2_[a-f0-9]{64}_reservation$/.test(item.ref.id)).length, 1);
+    const unrelated = capture.artifacts.find(item => item.ref.id === 'wic_archive')!;
+    const envelope = JSON.parse(Buffer.from(unrelated.bytes).toString('utf8'));
+    envelope.valueDigest = '0'.repeat(64); unrelated.bytes = Buffer.from(JSON.stringify(envelope)); unrelated.ref.diskBytes = unrelated.bytes.length;
+    const file = join(f.vault.directory, 'private-artifacts', unrelated.ref.purpose, `${unrelated.ref.id}.encrypted.json`);
+    await writeFile(file, unrelated.bytes);
+    await assert.rejects(f.custody.inspectHeldNamespaces(), code('ARTIFACT_AUTHENTICATION_FAILED'));
+    await assert.rejects(inspectCaptured(f.custody, capture), code('ARTIFACT_AUTHENTICATION_FAILED'));
+    assert.deepEqual(await readFile(file), Buffer.from(unrelated.bytes), 'Refused inspection must preserve the unrelated corrupt evidence.');
+  });
+  assert.equal(f.adapter.lastLease?.active, false);
+});
+
+test('PG protocol fixture authenticated capture inventory preserves current native slot-incarnation refusal', async t => {
+  const f = await fixture(t);
+  await f.custody.withHeldSource(context, async () => {
+    const capture = await f.vault.captureEncryptedCustody(encryptedBudgets), incarnation = f.adapter.creationId;
+    f.adapter.creationId = randomUUID();
+    try {
+      await assert.rejects(f.custody.inspectHeldNamespaces(), code('POSTGRES_AUTHORITY_CHANGED'));
+      await assert.rejects(inspectCaptured(f.custody, capture), code('POSTGRES_AUTHORITY_CHANGED'));
+    } finally { f.adapter.creationId = incarnation; }
+  });
+  assert.equal(f.adapter.lastLease?.active, false);
+});

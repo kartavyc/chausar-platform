@@ -233,14 +233,14 @@ export class WorkspacePostgresOriginals {
     return o.backup.withHeldSource(context, () => o.nativeSource.withSource(async native => {
       const state = o.sourceVault.read(); await this.#owner(context, state);
       check(native.authority.vaultId === o.sourceVault.vaultId && native.authority.revision === state.revision, 'ACTIVATION_SOURCE_CHANGED', 'Hold the same installed native source authority as the Vault snapshot.');
-      const inventory = await o.backup.inspectHeldNamespaces(), files = sourceWitness(inventory), application = applicationWitness(inventory), containers = await this.#sourceContainers();
       const captured = await o.sourceVault.captureEncryptedCustody(encryptedBudgets);
+      const inventory = await o.backup.inspectHeldNamespaces(captured), files = sourceWitness(inventory), application = applicationWitness(inventory), containers = await this.#sourceContainers();
       check(captured.storageKind === 'postgres' && captured.authorityKind === 'adapter-issued-envelope' && same(captured.state, state)
         && native.authority.envelopeDigest === sha(captured.authority), 'ACTIVATION_SOURCE_CHANGED', 'Authenticated current adapter-issued envelope must match native leased authority.');
       const assertCurrent = async () => {
         await this.#owner(context, state); await native.assertCurrent();
         check(same(o.sourceVault.read(), state), 'ACTIVATION_SOURCE_CHANGED', 'Actual current source State changed during admission.');
-        const current = await o.sourceVault.captureEncryptedCustody(encryptedBudgets), actual = await o.backup.inspectHeldNamespaces();
+        const current = await o.sourceVault.captureEncryptedCustody(encryptedBudgets), actual = await o.backup.inspectHeldNamespaces(current);
         check(same(encryptedFence(current), encryptedFence(captured)) && same(sourceWitness(actual), files) && same(await this.#sourceContainers(), containers),
           'ACTIVATION_SOURCE_CHANGED', 'Complete source ciphertext, physical files or native namespace identity changed.');
         check(same(applicationWitness(actual), application), 'ACTIVATION_APPLICATION_CHANGED', 'Completed application backup, export or update namespaces changed.');

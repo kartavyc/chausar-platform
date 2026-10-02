@@ -7,7 +7,7 @@ import { performance } from 'node:perf_hooks';
 import { authorize, check, ChausarError, type Context, type State } from './contracts.ts';
 import { acquireProcessLock } from './process-lock.ts';
 import { assertSourceAccess } from './trust.ts';
-import { safeDirectory, Vault, type PrivateArtifactRef } from './vault.ts';
+import { safeDirectory, Vault, type PrivateArtifactRef, type VaultEncryptedCustodyCapture } from './vault.ts';
 import { WorkspaceActivationStagingInventory, preflightWorkspaceActivationStaging,
   type WorkspaceActivationStagingInventoryLease } from './workspace-activation-staging-inventory.ts';
 import type { PostgresSnapshotAdapter, PostgresSnapshotLease } from './postgres.ts';
@@ -199,10 +199,12 @@ export class WorkspaceBackupV2PostgresCustody {
   withHeldSource<T>(context: Context, work: () => Promise<T>): Promise<T> {
     return this.#snapshot(context, async () => { await this.#guard(context, this.#options.vault.read()); return work(); });
   }
-  /** Trusted composition only: measure the complete current profile under source→journal exclusion. */
-  async inspectHeldNamespaces(): Promise<Inventory> {
+  /** Trusted composition only: measure the complete current profile under source/journal exclusion.
+   * Optional fresh installed-Vault custody is authenticated against every current private file.
+   * This constructor-only input never exempts a namespace or persists across calls. */
+  async inspectHeldNamespaces(capture?: VaultEncryptedCustodyCapture): Promise<Inventory> {
     const scope = this.#scope.getStore(); check(scope, 'BACKUP_SOURCE_LEASE_REQUIRED', 'Hold actual source custody before complete namespace inspection.');
-    await this.#guard(scope.context, this.#options.vault.read()); const inventory = await this.#inventory();
+    await this.#guard(scope.context, this.#options.vault.read()); const inventory = await this.#inventory(capture);
     await this.#guard(scope.context, this.#options.vault.read()); return structuredClone(inventory);
   }
   withArchiveReader<T>(context: Context, recordId: string,
@@ -415,11 +417,25 @@ export class WorkspaceBackupV2PostgresCustody {
     await scope.native.assertCurrent(scope.authority);
     return { postgres: { storage: structuredClone(scope.storage), authority: structuredClone(scope.authority), catalog }, namespaces };
   }
-  async #inventory(): Promise<Inventory> {
+  async #inventory(capture?: VaultEncryptedCustodyCapture): Promise<Inventory> {
+    const raw = capture ? structuredClone(capture) : undefined;
+    if (raw) {
+      const vault = this.#options.vault, scope = this.#scope.getStore();
+      check(scope?.native.active && raw.storageKind === 'postgres' && raw.authorityKind === 'adapter-issued-envelope'
+        && raw.vaultId === vault.vaultId && same(raw.state, vault.read())
+        && scope.authority.vaultId === raw.vaultId && scope.authority.revision === raw.state.revision
+        && raw.authority instanceof Uint8Array && scope.authority.envelopeDigest === sha(raw.authority),
+      'BACKUP_SOURCE_CHANGED', 'Fresh captured custody must equal the current installed Vault and held native authority.');
+      const authenticated = await vault.authenticateEncryptedCustody({ authority: raw.authority, artifacts: raw.artifacts,
+        source: { vaultId: raw.vaultId, workspaceId: raw.state.workspace.id, revision: raw.state.revision } }, this.#vaultBudget(true));
+      check(same(authenticated, raw.state), 'BACKUP_SOURCE_CHANGED', 'Captured State must equal its independently authenticated encrypted authority.');
+      check(raw.artifacts.filter(item => item.ref.purpose === 'workspace-interchange').length <= 4096,
+        'ARTIFACT_LIMIT', 'Managed interchange inventory retains its existing 4096-entry bound.');
+    }
     const staging = this.#options.activationStaging;
-    return staging ? staging.withInventory(lease => this.#inventoryHeld(lease)) : this.#inventoryHeld();
+    return staging ? staging.withInventory(lease => this.#inventoryHeld(lease, raw)) : this.#inventoryHeld(undefined, raw);
   }
-  async #inventoryHeld(stagingLease?: WorkspaceActivationStagingInventoryLease): Promise<Inventory> {
+  async #inventoryHeld(stagingLease?: WorkspaceActivationStagingInventoryLease, capture?: VaultEncryptedCustodyCapture): Promise<Inventory> {
     const b = this.#options.filesystemBudgets, vault = this.#options.vault;
     const source = await safeDirectory(vault.directory), rootStat = await lstat(source, { bigint: true });
     const files: Witness[] = [], directories: Inventory['directories'] = [], namespaces: WorkspaceBackupV2Namespace[] = [];
@@ -472,14 +488,37 @@ export class WorkspaceBackupV2PostgresCustody {
         await retain(join(directory, name), `private-artifacts/${purpose}/${name}`);
       }
     }
+    // Archived authentication permits removed files. Prove the complete current
+    // physical set before captured reservations can authorize any sibling.
+    if (capture) {
+      const privateFiles = files.filter(item => item.path.startsWith('private-artifacts/'));
+      const privateByPath = new Map(privateFiles.map(item => [item.path, item]));
+      check(privateFiles.length === capture.artifacts.length,
+        'BACKUP_INVENTORY_INCOMPLETE', 'Current private files must exactly equal the complete authenticated capture.');
+      const paths = new Set<string>();
+      for (const item of capture.artifacts) {
+        const path = `private-artifacts/${item.ref.purpose}/${item.ref.id}.encrypted.json`, found = privateByPath.get(path);
+        check(!paths.has(path.toLowerCase()) && found?.bytes === item.ref.diskBytes && found.bytes === item.bytes.byteLength
+          && found.sha256 === sha(item.bytes), 'BACKUP_FILE_CHANGED', 'Current private ciphertext differs from the complete authenticated capture.');
+        paths.add(path.toLowerCase());
+      }
+    }
     for (const name of widerWorkspace) {
       const path = await directoryIfPresent(join(source, name)), found = path ? await walk(path, `workspace/${name}`, 0) : { entries: 0, bytes: 0 };
       namespaces.push({ namespace: `workspace/${name}`, disposition: found.entries ? 'outside-archive' : 'empty', ...found,
         requirement: found.entries ? 'Separately retain these measured wider workspace files before claiming complete recovery.' : '' });
     }
     const reservations = new Map<string, Reservation>();
-    for (const ref of await vault.listArtifacts({ purpose: 'workspace-interchange' })) if (/^wbt2_[a-f0-9]{64}_reservation$/.test(ref.id)) {
-      const reservation = (await vault.readArtifact(ref)).value as Reservation;
+    const selected = capture?.artifacts.filter(item => item.ref.purpose === 'workspace-interchange' && /^wbt2_[a-f0-9]{64}_reservation$/.test(item.ref.id));
+    const capturedReservations = selected?.length
+      ? await vault.authenticateArchivedArtifacts({ sourceVaultId: capture!.vaultId, artifacts: selected }, this.#vaultBudget(true)) : [];
+    const selectedRefs = new Map(selected?.map(item => [item.ref.id, item.ref]));
+    const reservationRefs = capture ? capturedReservations : await vault.listArtifacts({ purpose: 'workspace-interchange' });
+    for (const ref of reservationRefs) if (/^wbt2_[a-f0-9]{64}_reservation$/.test(ref.id)) {
+      const retained = capture ? ref as PrivateArtifactRef & { value: unknown } : await vault.readArtifact(ref);
+      if (capture) check(same(identity(retained), selectedRefs.get(ref.id)),
+        'BACKUP_FILE_CHANGED', 'Decoded reservation must retain its exact authenticated capture reference.');
+      const reservation = retained.value as Reservation;
       check(reservation?.format === 'chausar.backup-postgres-target.v2' && ref.id === reservationId(reservation.targetId)
         && reservation.vaultId === vault.vaultId && reservation.workspaceId === vault.read().workspace.id && physicalValue(reservation.physical),
         'BACKUP_TARGET_CHANGED', 'Every inert sibling requires an exact source-issued physical reservation.');
@@ -527,7 +566,7 @@ export class WorkspaceBackupV2PostgresCustody {
     const raw = await vault.captureEncryptedCustody(this.#vaultBudget(includeOwnPublications));
     check(raw.storageKind === 'postgres' && raw.authorityKind === 'adapter-issued-envelope' && same(raw.state, vault.read()),
       'BACKUP_POSTGRES_REQUIRED', 'PostgreSQL custody requires authenticated reconstructed adapter-issued authority.');
-    const inventory = await this.#inventory();
+    const inventory = await this.#inventory(raw);
     check(inventory.postgres.authority.vaultId === raw.vaultId && inventory.postgres.authority.revision === raw.state.revision
       && inventory.postgres.authority.envelopeDigest === sha(raw.authority), 'BACKUP_SOURCE_CHANGED', 'Native leased authority differs from authenticated adapter-issued custody.');
     const artifacts = raw.artifacts.map(item => ({ ref: identity(item.ref), bytes: Uint8Array.from(item.bytes) }));

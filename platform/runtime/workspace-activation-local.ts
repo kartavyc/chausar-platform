@@ -266,11 +266,13 @@ export class WorkspaceActivationLocalCustody {
               check(phase === 'committed' && activationId, 'ACTIVATION_COMMIT_UNKNOWN', 'A committed held publication is required for immediate readback.');
               return this.#readback(context, source, read, activationId);
             } });
-          await sourceCurrent();
           if (phase === 'empty') await current();
-          else if (phase === 'committed') {
-            const final = await this.#readback(context, source, read, activationId!);
-            check(final.status === 'committed', 'ACTIVATION_COMMIT_UNKNOWN', 'Phase-aware lease exit must inspect exact initialized custody.');
+          else {
+            await sourceCurrent();
+            if (phase === 'committed') {
+              const final = await this.#readback(context, source, read, activationId!);
+              check(final.status === 'committed', 'ACTIVATION_COMMIT_UNKNOWN', 'Phase-aware lease exit must inspect exact initialized custody.');
+            }
           }
           return value;
       }));
