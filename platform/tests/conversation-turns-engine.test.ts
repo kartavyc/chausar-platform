@@ -155,12 +155,22 @@ test('pending continuation rejects duplicate model receipts rather than choosing
   assert.equal(f.providerCalls, 1);
 });
 
-test('pending continuation uses the hash-validated manifest scope instead of mutable model request metadata', async t => {
+test('pending continuation refuses private scope mutations while preserving its exact reviewed manifest', async t => {
   const f = await fixture(t, clarification), { answer } = await f.turn('Retain the selected billing scope.', ['source-a'], { period: PERIOD });
   const id = f.engine.vault!.read().conversations.find(record => record.modelReceiptId === answer.modelReceiptId).id;
+  const original = f.engine.conversationContinuation(f.engine.context, id);
+  const manifest = structuredClone(f.engine.vault!.read().modelReceipts.find(record => record.id === answer.modelReceiptId).businessContext);
+  assert.deepEqual(original.requestScope.period, PERIOD);
+  assert.deepEqual(original.requestScope.sourceIds, ['source-a']);
   await f.engine.vault!.update(state => {
     state.modelReceipts.find(record => record.id === answer.modelReceiptId).requestScope.period = { from: '2026-08-01', to: '2026-08-31' };
   });
-  assert.deepEqual(f.engine.conversationContinuation(f.engine.context, id).requestScope.period, PERIOD);
+  assert.deepEqual(f.engine.vault!.read().modelReceipts.find(record => record.id === answer.modelReceiptId).businessContext, manifest);
+  assert.throws(() => f.engine.conversationContinuation(f.engine.context, id), { code: 'TOOL_SCOPE_CHANGED' });
+  assert.equal(f.providerCalls, 1);
+  await f.engine.vault!.update(state => {
+    state.modelReceipts.find(record => record.id === answer.modelReceiptId).requestScope.period = structuredClone(PERIOD);
+  });
+  assert.deepEqual(f.engine.conversationContinuation(f.engine.context, id), original);
   assert.equal(f.providerCalls, 1);
 });
