@@ -53,6 +53,10 @@ by invalid credentials or failed attachment is deferred until the native lease
 exits; it never changes durable cleanup/publication decisions. Mismatched owned
 factory slots are refused and their newly acquired adapters are closed.
 
+The installed backup capability also retains B's actual `restoredIdentity`
+reader for public `inspectRestored`, including its snapshot, native, owner and
+physical-generation checks. Constructor installation refuses a missing reader.
+
 Ordinary PostgreSQL Engine admission checks native authority before credentials
 or backup intake. Reserved/prepared targets therefore refuse create/open/
 recover/restore with `POSTGRES_TARGET_NOT_COMMITTED` before decryption.

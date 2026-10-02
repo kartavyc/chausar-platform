@@ -66,6 +66,7 @@ export type WorkspaceActivationTargetInspection = EmptyTargetInspection |
 /** B's actual custody exposes existing pure-host ports; it does not replace codecs. */
 export type PostgresWorkspaceBackupInstallation = {
   ports: WorkspaceBackupV2HostPorts;
+  restoredIdentity(context: Context, targetId: string): Promise<{ targetId: string; creationId: string; archiveDigest: string }>;
   /** Metadata only: no private bodies, paths, credentials or ciphertext. */
   diagnostics(): unknown;
 };

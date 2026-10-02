@@ -374,6 +374,9 @@ process.once('message', async message => {
     process.send?.({type: 'result', result}, () => {process.disconnect?.();});
   } catch (error) {
     const failureCode = typeof error?.code === 'string' && /^[A-Z0-9_.-]+$/.test(error.code) ? error.code : 'NATIVE_ACCEPTANCE_ASSERTION_FAILED';
-    process.exitCode = 1; process.send?.({type: 'result', result: {passed: false, failureCode, cases: completedCases}}, () => {process.disconnect?.();});
+    const frame = typeof error.stack === 'string' ? error.stack.split('\n').map(line =>
+      /\/(platform\/(?:runtime|tests)\/[A-Za-z0-9_./-]+\.(?:ts|mjs)):(\d+):(\d+)/.exec(line)).find(Boolean) : undefined;
+    const failureLocation = frame ? frame[1] + ':' + frame[2] + ':' + frame[3] : undefined;
+    process.exitCode = 1; process.send?.({type: 'result', result: {passed: false, failureCode, failureLocation, cases: completedCases}}, () => {process.disconnect?.();});
   }
 });

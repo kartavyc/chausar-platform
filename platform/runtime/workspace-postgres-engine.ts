@@ -47,6 +47,8 @@ export class EnginePostgresWorkspaceActivation {
     assertConfiguration();
     const installed = await profile.install({ ...input, applicationDirectory: root,
       policy: structuredClone(input.policy), backupPolicy: structuredClone(input.backupPolicy), backupBudgets: { ...input.backupBudgets } });
+    check(installed?.backup && typeof installed.backup.restoredIdentity === 'function',
+      'POSTGRES_WORKSPACE_ROOT_REQUIRED', 'Install actual committed inert identity discovery for the public inspection route.');
     const verify = async (witness: PostgresWorkspaceAuthorityWitness, vault: Vault) => {
       check(witness && opaque(witness.storage?.storeId) && opaque(witness.storage.slot) && opaque(witness.storage.incarnation)
         && witness.vaultId === vault.vaultId && witness.revision === vault.read().revision && hashPattern.test(witness.envelopeDigest),

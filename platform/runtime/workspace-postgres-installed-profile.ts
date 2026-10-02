@@ -237,7 +237,7 @@ export class InstalledPostgresWorkspaceProfile implements EnginePostgresWorkspac
     input.interchange.installPostgresSourceCustody(source);
     this.#joined = { input, source, backup, originals, candidates, activation, bridge };
     return { source: sourceWitness, journal: journalWitness,
-      backup: { ports: backup.ports, diagnostics: () => {
+      backup: { ports: backup.ports, restoredIdentity: (context, targetId) => backup.restoredIdentity(context, targetId), diagnostics: () => {
         const measured = backup.diagnostics();
         return { qualification: measured?.qualification ?? 'unmeasured', storageKind: 'postgres', authorityKind: 'adapter-issued-envelope',
           fullWorkspacePortable: false, namespaceCount: measured?.namespaces.length ?? null };

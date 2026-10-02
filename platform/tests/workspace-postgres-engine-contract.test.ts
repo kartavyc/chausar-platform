@@ -135,7 +135,7 @@ async function fixture(t: TestContext) {
   const sourceWitness = await witness(source, { storeId: 'injected_store', slot: 'source_fixture', incarnation: 'source_incarnation' });
   const journalWitness = await witness(journal, { storeId: 'injected_store', slot: 'journal_fixture', incarnation: 'journal_incarnation' });
   const installed: PostgresWorkspaceInstallation = { source: sourceWitness, journal: journalWitness,
-    backup: { ports: { withSource: unavailable, withTarget: unavailable,
+    backup: { restoredIdentity: unavailable, ports: { withSource: unavailable, withTarget: unavailable,
       authenticateArchive: unavailable, assertRestoreOwner: unavailable,
       custody: { create: unavailable, read: unavailable, remove: unavailable },
       restore: { restoreAtomic: unavailable, readRestored: unavailable, rollback: unavailable } },
