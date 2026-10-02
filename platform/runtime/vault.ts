@@ -5,6 +5,7 @@ import { dirname, basename, isAbsolute, parse, resolve, join } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { ChausarError, hash, initialState, type State, type StateStore } from './contracts.ts';
 import { acquireProcessLock, type ProcessLock } from './process-lock.ts';
+import { mapCustodyFiles } from './custody-file-reads.ts';
 
 const FORMAT = 'chausar.vault.v1';
 const MAX_BYTES = 64 * 1024 * 1024;
@@ -276,12 +277,34 @@ async function atomicWrite(path: string, content: string, replace: boolean) {
     await syncDirectory(parent);
   } catch (error) { await handle.close().catch(() => {}); await unlink(temp).catch(() => {}); throw error; }
 }
-async function readBounded(path: string): Promise<string> {
+async function readBounded(path: string, exactSize?: number): Promise<string> {
   if (!isAbsolute(path)) throw new Error('Absolute path required');
   await safeDirectory(dirname(path));
   if (!(await existingRegular(path))) throw new Error('Missing file');
+  const before = exactSize === undefined ? undefined : await lstat(path, { bigint: true });
+  if (before && (before.size !== BigInt(exactSize!) || !before.isFile() || before.isSymbolicLink()))
+    fail('ARTIFACT_LIMIT', 'Encrypted artifact changed after capture budget preflight.');
   const handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
-  try { if ((await handle.stat()).size > MAX_BYTES) throw new Error('Oversized envelope'); return await handle.readFile('utf8'); }
+  try {
+    if (!before) { if ((await handle.stat()).size > MAX_BYTES) throw new Error('Oversized envelope'); return await handle.readFile('utf8'); }
+    const unchanged = (stat: typeof before) => stat.dev === before.dev && stat.ino === before.ino
+      && stat.birthtimeNs === before.birthtimeNs && stat.size === before.size
+      && stat.mtimeNs === before.mtimeNs && stat.ctimeNs === before.ctimeNs;
+    if (!unchanged(await handle.stat({ bigint: true }))) fail('ARTIFACT_LIMIT', 'Encrypted artifact changed before bounded capture.');
+    const chunks: Buffer[] = []; let size = 0;
+    while (true) {
+      const chunk = Buffer.alloc(Math.min(64 * 1024, exactSize! + 1 - size));
+      const { bytesRead } = await handle.read(chunk, 0, chunk.length, null);
+      if (!bytesRead) break;
+      size += bytesRead;
+      if (size > exactSize!) fail('ARTIFACT_LIMIT', 'Encrypted artifact grew beyond its reserved capture size.');
+      chunks.push(chunk.subarray(0, bytesRead));
+    }
+    const after = await handle.stat({ bigint: true }), current = await lstat(path, { bigint: true });
+    if (size !== exactSize || !unchanged(after) || !unchanged(current) || !current.isFile() || current.isSymbolicLink())
+      fail('ARTIFACT_LIMIT', 'Encrypted artifact changed during bounded capture.');
+    return Buffer.concat(chunks).toString('utf8');
+  }
   finally { await handle.close(); }
 }
 
@@ -530,13 +553,12 @@ export class Vault implements StateStore {
   #artifactKey(purpose: PrivateArtifactPurpose, id: string): Buffer {
     return Buffer.from(hkdfSync('sha256', this.#key, Buffer.from(this.#envelope.id), Buffer.from(`chausar.private-artifact.v1:${purpose}:${id}`), 32));
   }
-  async #readArtifactRaw(input: { id: string; purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef & { value: unknown; bytes: Uint8Array }> {
+  async #readArtifactRaw(input: { id: string; purpose: PrivateArtifactPurpose }, exactSize?: number): Promise<PrivateArtifactRef & { value: unknown; bytes: Uint8Array }> {
     artifactIdentity(input.id, input.purpose);
-    const directory = await this.#artifactDirectory(input.purpose);
-    if (!directory) fail('ARTIFACT_NOT_FOUND', 'The managed artifact is absent.');
-    const path = join(directory, `${input.id}.encrypted.json`);
+    // readBounded revalidates every parent component immediately before opening.
+    const path = join(this.directory, 'private-artifacts', input.purpose, `${input.id}.encrypted.json`);
     let raw: string;
-    try { raw = await readBounded(path); }
+    try { raw = await readBounded(path, exactSize); }
     catch (error: any) { if (error.code === 'ENOENT' || error.message === 'Missing file') fail('ARTIFACT_NOT_FOUND', 'The managed artifact is absent.'); throw error; }
     return this.#authenticateArtifactRaw(raw, input);
   }
@@ -593,7 +615,7 @@ export class Vault implements StateStore {
     if (JSON.stringify(envelope) !== JSON.stringify(this.#envelope)
       || hash(decodeSnapshot(envelope, this.#key)) !== hash(this.#state))
       fail('REVISION_CONFLICT', 'Persisted authority differs from the held source snapshot.');
-    const artifacts: VaultEncryptedCustodyCapture['artifacts'] = []; let totalBytes = authority.byteLength;
+    const entries: { id: string; purpose: PrivateArtifactPurpose; size: number }[] = []; let totalBytes = authority.byteLength;
     const root = join(this.directory, 'private-artifacts');
     try {
       await safeDirectory(root);
@@ -604,18 +626,23 @@ export class Vault implements StateStore {
     for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
       const directory = await this.#artifactDirectory(purpose); if (!directory) continue;
       const names = (await readdir(directory)).sort();
-      if (names.length > budget.maxArtifacts - artifacts.length) fail('ARTIFACT_LIMIT', 'Encrypted artifact count exceeds its explicit capture budget.');
+      if (names.length > budget.maxArtifacts - entries.length) fail('ARTIFACT_LIMIT', 'Encrypted artifact count exceeds its explicit capture budget.');
       for (const name of names) {
         if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified entries prevent complete encrypted custody.');
-        const path = join(directory, name), size = (await lstat(path)).size;
-        if (size > budget.maxEntryBytes || size > budget.maxTotalEntryBytes - totalBytes)
+        const path = join(directory, name), stat = await lstat(path), size = stat.size;
+        if (!stat.isFile() || stat.isSymbolicLink()) fail('UNSAFE_PATH', 'Expected a regular file without symbolic links.');
+        if (!Number.isSafeInteger(size) || size < 0 || size > budget.maxEntryBytes || size > budget.maxTotalEntryBytes - totalBytes)
           fail('ARTIFACT_LIMIT', 'Encrypted artifact bytes exceed their remaining capture budget.');
-        const { value: plaintextValue, bytes, ...ref } = await this.#readArtifactRaw({ id: name.slice(0, -15), purpose });
-        if (bytes.byteLength !== size || bytes.byteLength > budget.maxEntryBytes || bytes.byteLength > budget.maxTotalEntryBytes - totalBytes)
-          fail('ARTIFACT_LIMIT', 'Encrypted artifact changed or exceeds its remaining capture budget.');
-        totalBytes += bytes.byteLength; artifacts.push({ ref, bytes });
+        totalBytes += size; entries.push({ id: name.slice(0, -15), purpose, size });
       }
     }
+    // Reserve the entire operation before concurrent read-only leaves; every
+    // read is capped at its own exact measured size, never a shared remainder.
+    const artifacts = await mapCustodyFiles(entries, async ({ id, purpose, size }) => {
+      const { value: plaintextValue, bytes, ...ref } = await this.#readArtifactRaw({ id, purpose }, size);
+      if (bytes.byteLength !== size) fail('ARTIFACT_LIMIT', 'Encrypted artifact changed after capture preflight.');
+      return { ref, bytes };
+    });
     return { vaultId: this.#envelope.id, state: structuredClone(this.#state), authority, artifacts,
       storageKind: this.storageKind, authorityKind: this.storageKind === 'experimental-file' ? 'exact-file-bytes' : 'adapter-issued-envelope',
       keychainHookPresent: !!this.#keychain };

@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { authorize, check, ChausarError, type Context, type State } from './contracts.ts';
 import { acquireProcessLock } from './process-lock.ts';
+import { mapCustodyFiles } from './custody-file-reads.ts';
 import { assertSourceAccess } from './trust.ts';
 import { safeDirectory, Vault, type PrivateArtifactRef, type VaultEncryptedCustodyCapture } from './vault.ts';
 import { WorkspaceActivationStagingInventory, preflightWorkspaceActivationStaging,
@@ -452,6 +453,29 @@ export class WorkspaceBackupV2PostgresCustody {
       if (!this.#scope.getStore()?.locks.has(path) && !this.#scope.getStore()?.staging.has(path)) files.push(item.witness);
       return item.witness;
     };
+    const retainPrivateFiles = async (directory: string, purpose: typeof purposes[number], names: string[]) => {
+      const planned: { path: string; logical: string; size: number }[] = []; let reserved = totalBytes;
+      for (const name of names) {
+        check(/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name), 'BACKUP_INVENTORY_INCOMPLETE', 'An unclassified private entry prevents complete encrypted custody.');
+        check(++entries <= b.maxFiles, 'BACKUP_LIMIT', 'Physical enumeration exceeds its explicit entry count budget.');
+        const path = join(directory, name), stat = await lstat(path, { bigint: true });
+        check(stat.isFile() && !stat.isSymbolicLink() && stat.nlink === 1n,
+          'BACKUP_UNSAFE_FILE', 'Custody requires regular files without symbolic or hard links.');
+        check(stat.size >= 0n && stat.size <= BigInt(b.maxBytes - reserved), 'BACKUP_LIMIT', 'Private files exceed their complete reserved filesystem budget.');
+        const size = Number(stat.size); reserved += size;
+        planned.push({ path, logical: `private-artifacts/${purpose}/${name}`, size });
+      }
+      const witnesses = await mapCustodyFiles(planned, async item => {
+        const found = await readRegular(item.path, item.logical, item.size);
+        check(found.witness.bytes === item.size, 'BACKUP_FILE_CHANGED', 'A private file changed after complete budget preflight.');
+        return found.witness;
+      });
+      for (let index = 0; index < planned.length; index++) {
+        const { path } = planned[index], witness = witnesses[index]; totalBytes += witness.bytes;
+        measured.set(path, witness);
+        if (!this.#scope.getStore()?.locks.has(path) && !this.#scope.getStore()?.staging.has(path)) files.push(witness);
+      }
+    };
     const walk = async (path: string, logical: string, depth: number): Promise<{entries: number; bytes: number}> => {
       check(depth <= b.maxDepth && ++entries <= b.maxFiles, 'BACKUP_LIMIT', 'Physical directory enumeration exceeds its explicit depth/count budget.');
       await safeDirectory(path); const currentPhysical = physical(await lstat(path, { bigint: true }));
@@ -483,10 +507,7 @@ export class WorkspaceBackupV2PostgresCustody {
     for (const purpose of purposes) {
       const directory = await directoryIfPresent(join(source, 'private-artifacts', purpose)); if (!directory) continue;
       directories.push({ path: `private-artifacts/${purpose}`, physical: physical(await lstat(directory, { bigint: true })) });
-      for (const name of (await readdir(directory)).sort()) {
-        check(/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name), 'BACKUP_INVENTORY_INCOMPLETE', 'An unclassified private entry prevents complete encrypted custody.');
-        await retain(join(directory, name), `private-artifacts/${purpose}/${name}`);
-      }
+      await retainPrivateFiles(directory, purpose, (await readdir(directory)).sort());
     }
     // Archived authentication permits removed files. Prove the complete current
     // physical set before captured reservations can authorize any sibling.

@@ -3,7 +3,9 @@ import { ProtocolPostgresAdapter } from './fixtures/workspace-backup-postgres-pr
 import assert from 'node:assert/strict';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { promises as filesystem } from 'node:fs';
+import { link, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 import { authorize, ChausarError, type Context, type State } from '../runtime/contracts.ts';
@@ -321,6 +323,55 @@ test('PG protocol fixture refuses aggregate SQL row budget without truncating or
     columns: '[["value",25,-1,true]]', definition: '{}', entries: filesystemBudgets.maxFiles - 1 });
   await assert.rejects(f.host.create(context, { destinationId: 'over_sql_row_budget', confirmed: true }), code('BACKUP_LIMIT'));
   assert.deepEqual(await refs(f.vault), before);
+});
+
+test('PG protocol fixture preflights the complete private batch before opening any ciphertext', async t => {
+  for (const refusal of ['count', 'aggregate-bytes', 'late-hardlink'] as const) await t.test(refusal, async sub => {
+    const f = await fixture(sub), directory = join(f.vault.directory, 'private-artifacts', 'private-trial');
+    const names = (await readdir(directory)).sort(), first = join(directory, names[0]), last = join(directory, names.at(-1)!);
+    const corrupt = Buffer.from('Synthetic invalid ciphertext that must not be opened before complete preflight.');
+    await writeFile(first, corrupt);
+    const writer = join(f.vault.directory, 'writer.lock');
+    const privateSizes = await Promise.all(names.map(async name => (await lstat(join(directory, name))).size));
+    const restricted = { ...filesystemBudgets };
+    if (refusal === 'count') restricted.maxFiles = 2; // Writer plus one private leaf: later entries exceed admission.
+    else if (refusal === 'aggregate-bytes') restricted.maxBytes = (await lstat(writer)).size + privateSizes.reduce((sum, size) => sum + size, 0) - 1;
+    else await link(last, join(f.applicationDirectory, 'retained-hardlink-evidence'));
+    const custody = f.postgresPorts({ filesystemBudgets: restricted });
+    let privateOpens = 0, writerOpens = 0;
+    const originalOpen = filesystem.open;
+    // Observe genuine regular-file opens, preserving the actual filesystem operation.
+    filesystem.open = async (...args) => {
+      if (typeof args[0] === 'string') {
+        if (args[0].startsWith(`${directory}\\`) || args[0].startsWith(`${directory}/`)) privateOpens++;
+        if (args[0] === writer) writerOpens++;
+      }
+      return originalOpen(...args);
+    };
+    syncBuiltinESMExports();
+    try {
+      await assert.rejects(custody.withHeldSource(context, () => custody.inspectHeldNamespaces()),
+        code(refusal === 'late-hardlink' ? 'BACKUP_UNSAFE_FILE' : 'BACKUP_LIMIT'));
+    } finally { filesystem.open = originalOpen; syncBuiltinESMExports(); }
+    assert.ok(writerOpens > 0, 'The observer must see the actual runtime reader, rather than an unrelated file API.');
+    assert.equal(privateOpens, 0, 'No earlier ciphertext may open while a later private leaf fails complete admission.');
+    assert.deepEqual(await readFile(first), corrupt, 'Refusal preserves corrupt evidence without rewriting or publishing.');
+    assert.deepEqual((await readdir(directory)).sort(), names);
+    assert.equal(f.adapter.lastLease?.active, false); assert.equal(f.adapter.deleteCalls, 0);
+    if (refusal === 'late-hardlink') assert.equal((await lstat(last, { bigint: true })).nlink, 2n);
+  });
+});
+
+test('PG protocol fixture keeps zero-byte wider files measured outside the private ciphertext batch', async t => {
+  const f = await fixture(t), directory = join(f.vault.directory, 'reports');
+  await mkdir(directory); await writeFile(join(directory, 'empty.txt'), '');
+  const inventory = await f.custody.withHeldSource(context, () => f.custody.inspectHeldNamespaces());
+  const empty = inventory.files.find(item => item.path === 'workspace/reports/empty.txt');
+  assert.ok(empty); assert.equal(empty.bytes, 0); assert.equal(empty.sha256, sha(''));
+  const wider = inventory.namespaces.find(item => item.namespace === 'workspace/reports');
+  assert.ok(wider); assert.equal(wider.disposition, 'outside-archive'); assert.equal(wider.entries, 1); assert.equal(wider.bytes, 0);
+  assert.equal(inventory.files.filter(item => item.path.startsWith('private-artifacts/')).length, f.values.length);
+  assert.equal(f.adapter.lastLease?.active, false); assert.equal(f.adapter.deleteCalls, 0);
 });
 
 test('PG protocol fixture rechecks current owner after awaited archive reads before target allocation', async t => {
