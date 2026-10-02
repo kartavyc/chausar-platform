@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative } from 'node:path';
-import { authorize, ChausarError, type Context } from '../runtime/contracts.ts';
+import { authorize, ChausarError, hash, type Context } from '../runtime/contracts.ts';
 import { PostgresSnapshotAdapter, type PostgresPool } from '../runtime/postgres.ts';
 import { Vault, type VaultEnvelope } from '../runtime/vault.ts';
 import { WorkspaceInterchangeLocalCustody } from '../runtime/workspace-interchange-local.ts';
@@ -49,7 +49,7 @@ function protocolFixture() {
       reads++; return { rows: row && row.slot === values?.[0]
         ? [{ creation_id: row.creationId, revision: String(row.envelope.revision), envelope: jsonbOrder(row.envelope) }] : [] };
     }
-    if (text === 'SELECT phase, creation_id, vault_id FROM public.chausar_workspace_postgres_custody WHERE slot = $1 FOR UPDATE')
+    if (text === 'SELECT phase, creation_id, vault_id, operation_id, storage_id, revision, envelope_digest, envelope, target_identity FROM public.chausar_workspace_postgres_custody WHERE slot = $1 FOR UPDATE')
       return { rows: [] }; // These are legacy ordinary workspace rows, without target publication custody.
     if (text.startsWith('INSERT INTO public.chausar_vault_authority ')) {
       assert.equal(row, null, 'The injected SQL slot enforces primary-key creation.');
@@ -58,7 +58,9 @@ function protocolFixture() {
       row = { slot: String(values![0]), creationId: randomUUID(), envelope }; return { rows: [], rowCount: 1 };
     }
     if (text.startsWith('UPDATE public.chausar_vault_authority ')) {
-      if (!row || row.slot !== values?.[0] || row.envelope.revision !== values?.[3]) return { rows: [], rowCount: 0 };
+      if (!row || row.slot !== values?.[0] || row.envelope.revision !== values?.[3]
+        || row.creationId !== values?.[4] || row.envelope.id !== values?.[5]
+        || hash(row.envelope) !== hash(JSON.parse(String(values?.[6])))) return { rows: [], rowCount: 0 };
       const envelope = JSON.parse(String(values![2])) as VaultEnvelope;
       assert.equal(envelope.revision, values![1]); writes++; row.envelope = envelope; return { rows: [], rowCount: 1 };
     }

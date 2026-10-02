@@ -8,6 +8,7 @@ import { authorize, check, ChausarError, hash, type Context, type State } from '
 import { acquireProcessLock } from './process-lock.ts';
 import { assertSourceAccess } from './trust.ts';
 import { safeDirectory, Vault, type PrivateArtifactRef } from './vault.ts';
+import { WorkspacePostgresCustody } from './workspace-postgres-custody.ts';
 import { captureWorkspaceInterchange, interchangeDigest, workspaceStateProfile } from './workspace-interchange.ts';
 import type { ArtifactCapture, EmptyTargetInspection, Generation, RetainedArtifact, WorkspaceInventory } from './workspace-interchange-contracts.ts';
 import type {
@@ -114,6 +115,7 @@ export class WorkspaceInterchangeLocalCustody {
   readonly #options: WorkspaceInterchangeLocalOptions;
   readonly #sourceScope = new AsyncLocalStorage<SourceFence>();
   readonly #targetScope = new AsyncLocalStorage<TargetFence>();
+  #postgresSource: WorkspacePostgresCustody | undefined;
   #diagnostics: WorkspaceInterchangeLocalDiagnostics | null = null;
   #measurements = new Map<string, WorkspaceInterchangeLocalMeasurement>();
 
@@ -139,6 +141,13 @@ export class WorkspaceInterchangeLocalCustody {
     };
   }
   diagnostics(): WorkspaceInterchangeLocalDiagnostics | null { return structuredClone(this.#diagnostics); }
+  /** Constructor-only native composition. The authority queue precedes native
+   * exclusion, which covers initial capture, publication and final local guards. */
+  installPostgresSourceCustody(source: WorkspacePostgresCustody): void {
+    check(!this.#postgresSource && this.#options.vault.storageKind === 'postgres' && source instanceof WorkspacePostgresCustody,
+      'POSTGRES_WORKSPACE_ROOT_REQUIRED', 'Install one actual native source custody on the PostgreSQL interchange host.');
+    this.#postgresSource = source;
+  }
   /** Measured ciphertext footprint, including the binding omitted by the generic host's archive/pin summary. */
   custodyMeasurement(recordId: string): WorkspaceInterchangeLocalMeasurement | null {
     return structuredClone(this.#measurements.get(recordId) ?? null);
@@ -474,18 +483,28 @@ export class WorkspaceInterchangeLocalCustody {
   async #withSource<T>(context: Context, expected: WorkspaceInventory | null,
     work: (lease: WorkspaceInterchangeSourceLease) => Promise<T>): Promise<T> {
     return this.#options.vault.snapshot(async state => {
-      await this.#guard(context, state);
-      const source = await this.#capture(context, state), capture = captureWorkspaceInterchange(state, source.artifacts);
-      if (expected) check(same(expected, capture.inventory), 'INTERCHANGE_AUTHORITY_CHANGED', 'The actual current source inventory differs from its independently retained pin.');
-      const assertCurrent = async () => {
+      const run = async (assertNative: () => Promise<void>) => {
+        await assertNative();
         await this.#guard(context, state);
-        check(same(this.#options.vault.read(), state) && (await this.#capture(context, state)).fence === source.fence,
-          'INTERCHANGE_AUTHORITY_CHANGED', 'Source authority, access or retained business files changed during the held snapshot.');
+        const source = await this.#capture(context, state), capture = captureWorkspaceInterchange(state, source.artifacts);
+        if (expected) check(same(expected, capture.inventory), 'INTERCHANGE_AUTHORITY_CHANGED', 'The actual current source inventory differs from its independently retained pin.');
+        const assertCurrent = async () => {
+          await assertNative();
+          await this.#guard(context, state);
+          check(same(this.#options.vault.read(), state) && (await this.#capture(context, state)).fence === source.fence,
+            'INTERCHANGE_AUTHORITY_CHANGED', 'Source authority, access or retained business files changed during the held snapshot.');
+          await assertNative();
+        };
+        const result = await this.#sourceScope.run({ context: structuredClone(context), inventory: capture.inventory }, () => work({
+          ready: true, state, artifacts: source.artifacts, assertCompleteOwner: (ctx, historical) => this.#guard(ctx, historical), assertCurrent,
+        }));
+        await assertCurrent(); return result;
       };
-      const result = await this.#sourceScope.run({ context: structuredClone(context), inventory: capture.inventory }, () => work({
-        ready: true, state, artifacts: source.artifacts, assertCompleteOwner: (ctx, historical) => this.#guard(ctx, historical), assertCurrent,
-      }));
-      await assertCurrent(); return result;
+      return this.#postgresSource ? this.#postgresSource.withSource(native => run(async () => {
+        check(native.authority.vaultId === this.#options.vault.vaultId && native.authority.revision === state.revision,
+          'POSTGRES_WORKSPACE_STORAGE_CHANGED', 'Public semantic export must retain the actual installed source authority.');
+        await native.assertCurrent();
+      })) : run(async () => {});
     });
   }
   async #targetInspection(context: Context, targetId: string): Promise<EmptyTargetInspection> {

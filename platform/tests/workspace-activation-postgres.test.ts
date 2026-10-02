@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { lstat, mkdtemp, readFile, readdir, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { authorize, check, ChausarError, hash } from '../runtime/contracts.ts';
 import { demoCsv, demoRecipe } from '../runtime/ingest.ts';
 import { Vault, type EncryptedSnapshotAdapter, type VaultEnvelope } from '../runtime/vault.ts';
@@ -70,10 +70,48 @@ class InjectedTargetCustody {
   }
   createPreparedAdapter(reservation: PostgresTargetReservation): EncryptedSnapshotAdapter {
     assert.deepEqual(reservation, this.reservation);
-    return { kind: 'postgres', load: async () => clone(this.original ?? null), commit: async (envelope, expected) => {
+    const owner = clone(reservation);
+    let submittedProof: PostgresPublicationProof | undefined, rolledBack = false;
+    return { kind: 'postgres', load: async () => {
+      assert.deepEqual(this.reservation, owner);
+      if (submittedProof) {
+        assert.deepEqual(this.proof, submittedProof);
+        assert.ok(this.original);
+        assert.equal(this.original.id, submittedProof.vaultId);
+        assert.equal(this.original.revision, submittedProof.revision);
+        assert.equal(sha(JSON.stringify(this.original)), submittedProof.envelopeDigest);
+      }
+      assert.equal(this.current, undefined, 'Prepared storage never reads an ordinary occupant.');
+      if (rolledBack && this.phase === 'rolled-back') return null;
+      assert.ok(['reserved', 'prepared'].includes(this.phase));
+      return clone(this.original ?? null);
+    }, commit: async (envelope, expected) => {
       assert.equal(this.phase, 'reserved'); assert.equal(expected, null); assert.equal(envelope.revision, 0);
-      this.original = clone(envelope); this.proof = { ...clone(reservation), vaultId: envelope.id,
+      assert.deepEqual(this.reservation, owner);
+      this.original = clone(envelope); this.proof = { ...clone(owner), vaultId: envelope.id,
         revision: envelope.revision, envelopeDigest: sha(JSON.stringify(envelope)) }; this.phase = 'prepared';
+      submittedProof = clone(this.proof);
+    }, deleteIfCurrent: async (expectedEnvelope): Promise<'deleted' | 'absent' | 'mismatch'> => {
+      // Injected atomic CAS: inspect physical custody first, then compare and
+      // change the in-memory row without an intervening await. Retain the
+      // original ciphertext/proof as the exact-owned rollback tombstone.
+      let stat;
+      try { stat = await lstat(owner.target.directory, { bigint: true }); } catch { return 'mismatch'; }
+      if (!stat.isDirectory() || stat.isSymbolicLink() || this.directory !== owner.target.directory
+        || interchangeDigest(this.storage) !== interchangeDigest(owner.storage)
+        || interchangeDigest({ dev: String(stat.dev), ino: String(stat.ino), birthtimeNs: String(stat.birthtimeNs) }) !== interchangeDigest(owner.target.physical)
+        || this.current !== undefined || this.currentCreationId !== undefined) return 'mismatch';
+      if (submittedProof && (submittedProof.vaultId !== expectedEnvelope.id || submittedProof.revision !== expectedEnvelope.revision
+        || submittedProof.envelopeDigest !== sha(JSON.stringify(expectedEnvelope)))) return 'mismatch';
+      if (!this.reservation) return this.phase === 'absent' && !this.original && !this.proof ? 'absent' : 'mismatch';
+      if (interchangeDigest(this.reservation) !== interchangeDigest(owner)) return 'mismatch';
+      if (this.phase === 'reserved' && !this.original && !this.proof) return 'absent';
+      if (!submittedProof || !this.proof || !this.original
+        || interchangeDigest(this.proof) !== interchangeDigest(submittedProof)
+        || JSON.stringify(this.original) !== JSON.stringify(expectedEnvelope)) return 'mismatch';
+      if (this.phase === 'rolled-back') { rolledBack = true; return 'absent'; }
+      if (this.phase !== 'prepared') return 'mismatch';
+      this.phase = 'rolled-back'; rolledBack = true; this.deleteCalls++; return 'deleted';
     }, delete: async () => { this.deleteCalls++; throw new Error('Fixture refuses unsolicited prepared rollback.'); } };
   }
   ordinaryAdapter(): EncryptedSnapshotAdapter {
@@ -495,4 +533,74 @@ test('SQL inspection transport failure resolves exact unknown and leaves committ
   f.target.inspect = original;
   assert.equal((await f.host.resolve(interchangeOwner, { activationId: summary.activationId })).status, 'committed');
   assert.equal(f.target.publishCalls, 1);
+});
+
+test('injected prepared cleanup retains exact-owned tombstones and refuses changed custody or occupants', { timeout: 30_000 }, async t => {
+  const base = await realpath(tmpdir());
+  if (process.platform === 'win32') assert.match(base, /^C:\\/i);
+  const root = await realpath(await mkdtemp(join(base, 'chausar-activation-cleanup-')));
+  assert.equal(dirname(root), base);
+  const memory = new EncryptedMemoryStorage();
+  let vault: Vault | undefined;
+  t.after(async () => {
+    await vault?.close();
+    const actual = await realpath(root);
+    assert.equal(dirname(actual), base); assert.match(actual.split(/[\\/]/).at(-1)!, /^chausar-activation-cleanup-/);
+    await rm(actual, { recursive: true, force: true });
+  });
+  vault = (await Vault.create({ directory: join(root, 'envelope'), name: 'Injected cleanup ciphertext fixture',
+    storage: memory, passphrase, demo: true })).vault;
+  const envelope = clone(memory.envelope!); await vault.close();
+  async function prepared(label: string, commit = true) {
+    const target = new InjectedTargetCustody(); target.directory = join(root, label); await mkdir(target.directory);
+    const reserved = await target.reserve({ operationId: `fixture_${label}`, creationId: `fixture_${label}` });
+    const adapter = target.createPreparedAdapter(reserved);
+    if (commit) await adapter.commit(clone(envelope), null);
+    return { target, adapter };
+  }
+  const reserved = await prepared('reserved', false);
+  assert.equal(await reserved.adapter.deleteIfCurrent!(clone(envelope)), 'absent');
+  assert.equal(reserved.target.phase, 'reserved'); assert.equal(reserved.target.deleteCalls, 0);
+  const owned = await prepared('owned'), original = clone(owned.target.original), proof = clone(owned.target.proof);
+  assert.equal(await owned.adapter.deleteIfCurrent!(clone(envelope)), 'deleted');
+  assert.equal(owned.target.phase, 'rolled-back'); assert.equal(owned.target.deleteCalls, 1);
+  assert.deepEqual(owned.target.original, original); assert.deepEqual(owned.target.proof, proof);
+  assert.equal(await owned.adapter.load(), null);
+  assert.equal(await owned.adapter.deleteIfCurrent!(clone(envelope)), 'absent');
+  assert.equal(owned.target.deleteCalls, 1); assert.deepEqual(owned.target.original, original);
+  owned.target.original!.snapshot.data += '_changed_tombstone';
+  await assert.rejects(owned.adapter.load());
+  assert.equal(await owned.adapter.deleteIfCurrent!(clone(envelope)), 'mismatch');
+  assert.equal(owned.target.deleteCalls, 1);
+  const callerOwned = await prepared('caller_owned', false), callerReservation = clone(callerOwned.target.reservation!);
+  const captured = callerOwned.target.createPreparedAdapter(callerReservation);
+  callerReservation.creationId = 'mutated_caller_creation';
+  await captured.commit(clone(envelope), null);
+  assert.equal(callerOwned.target.proof!.creationId, callerOwned.target.reservation!.creationId);
+  assert.equal(await captured.deleteIfCurrent!(clone(envelope)), 'deleted');
+  const cases: { label: string; change(target: InjectedTargetCustody, expected: VaultEnvelope): void }[] = [
+    { label: 'wrong_expected_ciphertext', change: (_target, expected) => { expected.snapshot.data += '_different'; } },
+    { label: 'ordinary_occupant', change: target => { target.current = { ...clone(envelope), id: 'competing_fixture_vault' }; target.currentCreationId = 'competing_fixture_creation'; } },
+    { label: 'ordinary_incarnation_without_ciphertext', change: target => { target.currentCreationId = 'competing_fixture_creation'; } },
+    { label: 'replaced_proof', change: target => { target.proof!.creationId = 'competing_fixture_creation'; } },
+    { label: 'replaced_reservation', change: target => { target.reservation!.operationId = 'competing_fixture_operation'; } },
+    { label: 'changed_retained_ciphertext', change: target => { target.original!.snapshot.data += '_different'; } },
+    { label: 'committed_phase', change: target => { target.phase = 'committed'; } },
+    { label: 'changed_storage', change: target => { target.storage.slot = 'competing_fixture_slot'; } },
+  ];
+  for (const item of cases) {
+    const { target, adapter } = await prepared(item.label), expected = clone(envelope); item.change(target, expected);
+    const before = clone({ phase: target.phase, reservation: target.reservation, proof: target.proof, original: target.original,
+      current: target.current, currentCreationId: target.currentCreationId, deleteCalls: target.deleteCalls });
+    assert.equal(await adapter.deleteIfCurrent!(expected), 'mismatch', item.label);
+    assert.deepEqual({ phase: target.phase, reservation: target.reservation, proof: target.proof, original: target.original,
+      current: target.current, currentCreationId: target.currentCreationId, deleteCalls: target.deleteCalls }, before, item.label);
+  }
+  const changedPhysical = await prepared('changed_physical');
+  await rename(changedPhysical.target.directory, changedPhysical.target.directory + '_retained');
+  await mkdir(changedPhysical.target.directory);
+  assert.equal(await changedPhysical.adapter.deleteIfCurrent!(clone(envelope)), 'mismatch');
+  assert.equal(changedPhysical.target.phase, 'prepared'); assert.equal(changedPhysical.target.deleteCalls, 0);
+  t.diagnostic(JSON.stringify({ nativePostgresQualified: false, cleanupCustody: 'injected-test-fixture',
+    exactOwnedCleanup: true, retainedCiphertextTombstone: true, changedOccupantsPreserved: true }));
 });

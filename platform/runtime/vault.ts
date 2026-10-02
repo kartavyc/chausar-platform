@@ -459,6 +459,32 @@ export class Vault implements StateStore {
       return new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard);
     } catch { key?.fill(0); await lock.release(); await adapter.close?.(); return fail('UNLOCK_FAILED', 'Unable to unlock vault. Check your credential or restore a valid backup.'); }
   }
+  /** Constructor-only authentication under an already held native custody fence.
+   * This decrypts the existing envelope without opening a writer or transferring
+   * storage ownership. It never returns the key, changes wrappers or publishes.
+   * The root must retain native exclusion through both guard calls and the read.
+   */
+  static async inspectPostgresSnapshot(options: {
+    passphrase: string; loadHeldEnvelope(): Promise<VaultEnvelope | null>; assertHeld(): Promise<void>;
+  }): Promise<{ vaultId: string; revision: number; state: State; authorityCiphertextBytes: number }> {
+    passphrase(options.passphrase);
+    if (typeof options.loadHeldEnvelope !== 'function' || typeof options.assertHeld !== 'function')
+      fail('POSTGRES_CUSTODY_REQUIRED', 'Retain actual native custody while authenticating the encrypted snapshot.');
+    if (await options.assertHeld() !== undefined) fail('POSTGRES_CUSTODY_REQUIRED', 'Native custody guards must complete.');
+    const envelope = await options.loadHeldEnvelope(); validateEnvelope(envelope);
+    const encoded = JSON.stringify(envelope);
+    if (Buffer.byteLength(encoded) > MAX_BYTES) fail('ARTIFACT_LIMIT', 'Encrypted authority exceeds the snapshot byte budget.');
+    let key: Buffer | undefined;
+    try {
+      key = await unwrap(options.passphrase, envelope.passphrase, envelope.id, 'passphrase');
+      const state = decodeSnapshot(envelope, key);
+      if (await options.assertHeld() !== undefined) fail('POSTGRES_CUSTODY_REQUIRED', 'Native custody guards must complete.');
+      if (JSON.stringify(await options.loadHeldEnvelope()) !== encoded)
+        fail('POSTGRES_AUTHORITY_CHANGED', 'Held encrypted authority changed during authentication.');
+      return { vaultId: envelope.id, revision: envelope.revision, state,
+        authorityCiphertextBytes: Buffer.byteLength(encoded) };
+    } finally { key?.fill(0); }
+  }
   static async restore(options: RestoreVaultOptions): Promise<Vault> {
     let envelope: VaultEnvelope, state: State, key: Buffer | undefined;
     try {

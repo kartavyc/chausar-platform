@@ -441,7 +441,17 @@ export class Engine {
     work: (adapter: 'experimental-file' | EncryptedSnapshotAdapter) => Promise<T>): Promise<T> {
     const profile = this.options.postgresWorkspace;
     const admission = this.options.workspaceStorageAdmission ?? profile?.withWorkspaceAdmission;
-    if (!admission) return work(await this.adapter(folder));
+    if (!admission) {
+      const adapter = await this.adapter(folder);
+      if (adapter !== 'experimental-file') {
+        // Ordinary PostgreSQL admission precedes credentials and backup intake.
+        // In particular, a prepared target cannot reach Vault.restore's file
+        // decryption or have its native refusal hidden by unlock cleanup.
+        try { await adapter.load(); }
+        catch (error) { await adapter.close?.(); throw error; }
+      }
+      return work(adapter);
+    }
     check(this.options.storage === 'postgres' && (!profile || profile.format === 'chausar.postgres-workspace-profile.v1'),
       'POSTGRES_WORKSPACE_ROOT_REQUIRED', 'Native storage admission requires its explicit trusted PostgreSQL profile.');
     let calls = 0;
