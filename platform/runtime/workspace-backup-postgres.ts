@@ -42,6 +42,9 @@ const controlId = (recordId: string, part: 'archive' | 'pin' | 'binding') => `wb
 const reservationId = (targetId: string) => `wbt2_${sha(targetId)}_reservation`;
 type Physical = { dev: string; ino: string; birthtimeNs: string };
 type Witness = Physical & { path: string; bytes: number; mtimeNs: string; ctimeNs: string; sha256: string };
+type DiagnosticFile = Omit<Witness, 'path'>;
+type DiagnosticSqlCatalog = { schema: string; oid: string; owner: string } |
+  { schema: string; name: string; kind: string; oid: string; entries: number; bytes: number; generation: string };
 type File = { bytes: Buffer; witness: Witness };
 type SqlRelationIdentity = { schema: string; name: string; kind: string; oid: string };
 type Scope = { freezeSql: boolean; sqlRelations?: SqlRelationIdentity[]; native: PostgresSnapshotLease; storage: PostgresStorageIdentity; authority: PostgresAuthorityIdentity; context: Context; locks: Map<string, Witness>; staging: Map<string, Witness>; targets: Set<string>; changes: Map<string, { ref: PrivateArtifactRef; sha256: string } | null> };
@@ -89,13 +92,30 @@ export type WorkspaceBackupV2PostgresDiagnostics = {
   qualification: 'encrypted-local-host'; fullWorkspacePortable: false; source: WorkspaceBackupV2Source;
   namespaces: WorkspaceBackupV2Namespace[]; externalKeyRequirements: WorkspaceBackupV2ExternalKeyRequirement[];
   storageKind: 'postgres'; authorityKind: 'adapter-issued-envelope';
-  storage: PostgresStorageIdentity; authority: PostgresAuthorityIdentity; sqlCatalog: unknown[];
-  physicalFiles: Witness[]; measuredCaptureMs: number;
+  storage: PostgresStorageIdentity; authority: PostgresAuthorityIdentity; sqlCatalog: DiagnosticSqlCatalog[];
+  physicalFiles: DiagnosticFile[]; measuredCaptureMs: number;
 };
 export type WorkspaceBackupV2PostgresMeasurement = {
   recordId: string; state: Binding['state']; archiveCiphertextBytes: number; pinCiphertextBytes: number;
   bindingCiphertextBytes: number; totalRetainedCiphertextBytes: number; removedCiphertextBytes: number; measuredMs: number;
 };
+
+function diagnosticFile({ dev, ino, birthtimeNs, bytes, mtimeNs, ctimeNs, sha256 }: Witness): DiagnosticFile {
+  return { dev, ino, birthtimeNs, bytes, mtimeNs, ctimeNs, sha256 };
+}
+function diagnosticSqlCatalog(catalog: unknown[]): DiagnosticSqlCatalog[] {
+  return catalog.map(value => {
+    // The independently measured internal catalogue retains every full witness.
+    // Diagnostics allow only identifiers, measurements and row fingerprints.
+    const row = value as DiagnosticSqlCatalog;
+    if ('name' in row) {
+      const { schema, name, kind, oid, entries, bytes, generation } = row;
+      return { schema, name, kind, oid, entries, bytes, generation };
+    }
+    const { schema, oid, owner } = row;
+    return { schema, oid, owner };
+  });
+}
 
 function physical(stat: { dev: bigint; ino: bigint; birthtimeNs: bigint }): Physical {
   return { dev: String(stat.dev), ino: String(stat.ino), birthtimeNs: String(stat.birthtimeNs) };
@@ -628,7 +648,8 @@ export class WorkspaceBackupV2PostgresCustody {
       captureWorkspaceBackupV2(capture, this.#options.budgets);
       this.#diagnostics = { qualification: 'encrypted-local-host', fullWorkspacePortable: false, source, namespaces,
         externalKeyRequirements, storageKind: 'postgres', authorityKind: 'adapter-issued-envelope',
-        storage: inventory.postgres.storage, authority: inventory.postgres.authority, sqlCatalog: inventory.postgres.catalog, physicalFiles: inventory.files, measuredCaptureMs: performance.now() - started };
+        storage: inventory.postgres.storage, authority: inventory.postgres.authority, sqlCatalog: diagnosticSqlCatalog(inventory.postgres.catalog),
+        physicalFiles: inventory.files.map(diagnosticFile), measuredCaptureMs: performance.now() - started };
     }
     return { capture, state: raw.state, inventory };
   }

@@ -211,6 +211,74 @@ test('PG protocol fixture constructor SHARE exclusion retains physical/schema/co
   });
 });
 
+test('PG protocol fixture diagnostics expose metadata without private paths or SQL bodies', async t => {
+  const f = await fixture(t), rawColumns = 'diagnostic_private_column_874133', rawDefinition = 'C:/diagnostic-private/default-body-874133', rawAcl = 'diagnostic_private_acl_874133';
+  f.adapter.catalog[0].columns = JSON.stringify([[rawColumns, 25, -1, true]]);
+  f.adapter.catalog[0].definition = JSON.stringify({ defaults: [[1, rawDefinition]] });
+  const query = f.adapter.query.bind(f.adapter);
+  f.adapter.query = async (sql, values) => {
+    const result = await query(sql, values);
+    return /pg_namespace/.test(sql) ? { ...result, rows: result.rows.map(row => ({ ...row, acl: rawAcl })) } : result;
+  };
+  assert.equal(f.custody.diagnostics(), null);
+  const { capture, inventory } = await f.custody.ports.withSource(context, null, async lease => ({
+    capture: structuredClone(lease.capture), inventory: await f.custody.inspectHeldNamespaces(),
+  }));
+  const diagnostic = f.custody.diagnostics(); assert.ok(diagnostic);
+  const serialized = JSON.stringify(diagnostic), inventoryText = JSON.stringify(inventory);
+  const privatePaths = inventory.files.filter(item => item.path.endsWith('.encrypted.json')).map(item => item.path);
+  assert.equal(privatePaths.length, f.values.length, 'The real encrypted fixture must exercise every private artifact path.');
+  for (const path of privatePaths) assert.ok(!serialized.includes(path), 'Public diagnostics must omit each private artifact pathname.');
+  for (const secret of [privateSecret, passphrase, f.recoveryCode, rawColumns, rawDefinition, rawAcl]) {
+    assert.ok(typeof secret === 'string' && secret.length >= 12, 'Each privacy sentinel must be an actual nontrivial string.');
+    assert.ok(!serialized.includes(secret), 'Public diagnostics must omit private bodies, credentials and raw SQL metadata.');
+  }
+  const authority = JSON.parse(Buffer.from(capture.authority).toString('utf8')) as VaultEnvelope;
+  assert.equal(authority.format, 'chausar.vault.v1');
+  const ciphertexts: unknown[] = [authority.snapshot, authority.passphrase?.ciphertext, authority.recovery?.ciphertext,
+    ...capture.artifacts.map(item => JSON.parse(Buffer.from(item.bytes).toString('utf8')).ciphertext)];
+  assert.equal(ciphertexts.length, capture.artifacts.length + 3, 'Inspect the actual authority snapshot, both credential wrappers and every artifact ciphertext.');
+  let checkedCiphertextComponents = 0;
+  for (const ciphertext of ciphertexts) {
+    assert.ok(ciphertext && typeof ciphertext === 'object');
+    assert.deepEqual(Object.keys(ciphertext).sort(), ['data', 'nonce', 'tag']);
+    const fields = ciphertext as Record<string, unknown>;
+    for (const key of ['nonce', 'tag', 'data'] as const) {
+      const component = fields[key];
+      assert.ok(typeof component === 'string' && component.length >= 16, 'Each ciphertext component must be an actual nontrivial string.');
+      assert.match(component, /^[A-Za-z0-9_-]+$/);
+      const decoded = Buffer.from(component, 'base64url');
+      assert.equal(decoded.toString('base64url'), component);
+      if (key === 'nonce') assert.equal(decoded.length, 12);
+      else if (key === 'tag') assert.equal(decoded.length, 16);
+      else assert.ok(decoded.length > 0);
+      assert.ok(!serialized.includes(component), 'Public diagnostics must omit every actual retained ciphertext component.');
+      checkedCiphertextComponents++;
+    }
+  }
+  assert.equal(checkedCiphertextComponents, (capture.artifacts.length + 3) * 3);
+  t.diagnostic(`Checked ${ciphertexts.length} actual ciphertexts and ${checkedCiphertextComponents} validated string components.`);
+  assert.ok(inventoryText.includes(rawColumns) && inventoryText.includes(rawDefinition) && inventoryText.includes(rawAcl),
+    'The complete internal SQL catalogue must retain the original definitions and permission witnesses.');
+  assert.ok(privatePaths.every(path => inventoryText.includes(path)), 'The complete internal filesystem inventory must retain exact private paths.');
+  assert.equal(diagnostic.fullWorkspacePortable, false); assert.equal(diagnostic.storageKind, 'postgres');
+  assert.equal(diagnostic.authorityKind, 'adapter-issued-envelope'); assert.equal(diagnostic.qualification, 'encrypted-local-host');
+  assert.equal(diagnostic.source.vaultId, f.vault.vaultId); assert.deepEqual(diagnostic.storage, inventory.postgres.storage);
+  assert.deepEqual(diagnostic.authority, inventory.postgres.authority); assert.ok(diagnostic.measuredCaptureMs >= 0);
+  assert.equal(diagnostic.physicalFiles.length, inventory.files.length);
+  assert.deepEqual(diagnostic.physicalFiles.map(item => item.bytes), inventory.files.map(item => item.bytes));
+  assert.deepEqual(diagnostic.physicalFiles.map(item => item.sha256), inventory.files.map(item => item.sha256));
+  assert.equal(diagnostic.sqlCatalog.length, inventory.postgres.catalog.length);
+  assert.ok(diagnostic.namespaces.some(item => item.namespace === 'private-artifacts/private-trial' && item.entries > 0));
+  assert.ok(diagnostic.externalKeyRequirements.some(item => item.namespace === 'database/source-slot'));
+  const original = structuredClone(diagnostic);
+  diagnostic.physicalFiles[0].bytes++; diagnostic.namespaces[0].bytes++; diagnostic.sqlCatalog.splice(0);
+  assert.deepEqual(f.custody.diagnostics(), original, 'Mutating a returned diagnostic must not change subsequent diagnostic readback.');
+  const actual = await f.custody.withHeldSource(context, () => f.custody.inspectHeldNamespaces());
+  assert.deepEqual(actual, inventory, 'Diagnostic projection and caller mutation must leave the complete custody inventory unchanged.');
+  assert.equal(f.adapter.deleteCalls, 0); assert.equal(f.adapter.lastLease?.active, false);
+});
+
 test('PG protocol fixture captures every authentic private status and measures separate encrypted archive, pin and binding across Vault reopen', { timeout: 30_000 }, async t => {
   const f = await fixture(t), before = await f.capture(), state = f.vault.read();
   assert.equal(before.storageKind, 'postgres'); assert.equal(before.authorityKind, 'adapter-issued-envelope');

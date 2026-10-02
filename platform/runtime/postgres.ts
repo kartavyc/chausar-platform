@@ -332,7 +332,10 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
   }
   /** Legacy workspace deletion. Activation cleanup must use an exact-owned custody capability instead. */
   async delete(): Promise<void> {
-    await this.withLease(async lease => { await lease.query('DELETE FROM public.chausar_vault_authority WHERE slot = $1', [this.#slot]); });
+    await this.withLease(async lease => {
+      await lease.load();
+      await lease.query('DELETE FROM public.chausar_vault_authority WHERE slot = $1', [this.#slot]);
+    });
   }
   async close() {
     const retained = this.#leaseScope.getStore();
