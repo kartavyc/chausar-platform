@@ -91,7 +91,7 @@ export class WorkspacePostgresCustody {
   }
   async #storage(lease: PostgresSnapshotLease): Promise<PostgresStorageIdentity> {
     const result = await lease.query(`SELECT s.storage_id, current_database() AS database, d.oid::text AS database_oid,
-      inet_server_addr()::text AS server_address, inet_server_port() AS server_port
+      host(inet_server_addr()) AS server_address, inet_server_port() AS server_port
       FROM public.chausar_workspace_postgres_storage s CROSS JOIN pg_database d
       WHERE s.id = 'current' AND d.datname = current_database()`);
     check(result.rows.length === 1, 'POSTGRES_STORAGE_CHANGED', 'The installed database generation is unavailable.');
