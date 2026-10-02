@@ -406,17 +406,23 @@ test('actual Luna worker clarification typed calculation failure and invalid pla
   assert.equal(clarification.answer.clarification, 'Which business aspect would you like described?');
   assert.ok(hasText(h.app, clarification.answer.clarification));
   assert.equal(descendants(h.app).some(node => node.tagName === 'button' && hasText(node, 'Open calculation receipt')), false);
-  const failed = await reviewedLunaRequest(fixture, 'Describe this business and compare its billed change.');
+  const failed = await reviewedLunaRequest(fixture, 'Describe this business and age its invoices.');
   assert.equal(failed.answer.kind, 'grounded-conversation'); assert.equal(failed.answer.results.length, 2);
   assert.equal(failed.answer.results[0].answer.kind, 'business-context');
   const error = failed.answer.results[1]; assert.equal(error.tool, 'calculator.calculate');
-  assert.equal(error.error.code, 'COMPARISON_REQUIRED'); assert.equal(error.answer, undefined);
+  assert.equal(error.error.code, 'AGING_LINK_REQUIRED'); assert.equal(error.answer, undefined);
   assert.ok(hasText(h.app, `${error.error.code}: ${error.error.message}`));
   assert.equal(descendants(h.app).some(node => node.tagName === 'button' && hasText(node, 'Open calculation receipt')), false);
+  for (const question of ['Compare billed change without reviewed periods.', 'Model a price scenario without reviewed assumptions.']) {
+    const unreviewed = await reviewedLunaRequest(fixture, question);
+    assert.equal(unreviewed.answer, undefined);
+    assert.equal(h.rejected.at(-1).error.code, 'INVALID_CONVERSATION_PLAN');
+    assert.equal(descendants(h.app).some(node => node.tagName === 'button' && hasText(node, 'Open calculation receipt')), false);
+  }
   const malformed = await reviewedLunaRequest(fixture, 'Return an invalid synthetic plan.');
   assert.equal(malformed.answer, undefined);
   assert.equal(h.rejected.at(-1).error.code, 'INVALID_CONVERSATION_PLAN');
-  assert.equal((await syntheticProviderCalls(value.directory)).length, 3);
+  assert.equal((await syntheticProviderCalls(value.directory)).length, 5);
   assert.equal((await value.request('models.list'))[0].id, fixture.route.id);
 });
 

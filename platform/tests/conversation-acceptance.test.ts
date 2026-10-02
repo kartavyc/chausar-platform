@@ -249,10 +249,10 @@ test('acceptance requirement: full wording typed in the composer reaches the rev
 });
 
 test('acceptance requirement: clarification and all-tool-error turns remain user-visible after reopening', async t => {
-  const clarification = 'Which business picture can we explore?', failure = 'Compare invoice change without comparison dates.';
-  const f = await fixture(t, { [clarification]: { kind: 'clarification' }, [failure]: { calls: ['change'] } });
+  const clarification = 'Which business picture can we explore?', failure = 'Age the September invoices without required links.';
+  const f = await fixture(t, { [clarification]: { kind: 'clarification' }, [failure]: { calls: ['aging'] } });
   const clarified = await turn(f, clarification); assert.ok(clarified.answer.clarification);
-  const failed = await turn(f, failure); assert.equal(failed.answer.results[0].error.code, 'COMPARISON_REQUIRED');
+  const failed = await turn(f, failure); assert.equal(failed.answer.results[0].error.code, 'AGING_LINK_REQUIRED');
   await f.restart(); const fresh = await f.renderer();
   await lastNamedButton(fresh.app, 'Recent answers').dispatch('click');
   const history = await fresh.exposed.request('conversation.history');
@@ -261,11 +261,11 @@ test('acceptance requirement: clarification and all-tool-error turns remain user
 });
 
 test('acceptance: partial tool failure retains ordered successful evidence and exact error after reopening', async t => {
-  const question = 'Describe our business and compare invoice change.';
-  const f = await fixture(t, { [question]: { calls: ['business.describe', 'change'] } });
+  const question = 'Describe our business and age the September invoices.';
+  const f = await fixture(t, { [question]: { calls: ['business.describe', 'aging'] } });
   const { answer } = await turn(f, question);
   assert.equal(answer.results[0].answer.kind, 'business-context');
-  assert.equal(answer.results[1].error.code, 'COMPARISON_REQUIRED');
+  assert.equal(answer.results[1].error.code, 'AGING_LINK_REQUIRED');
   assert.equal(answer.receipt.resultRefs.length, 1);
   assert.ok(hasText(f.h.app, `${answer.results[1].error.code}: ${answer.results[1].error.message}`));
   await f.restart(); const fresh = await f.renderer(); await openSaved(fresh, question);

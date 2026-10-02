@@ -35,9 +35,10 @@ test('user can answer a retained clarification with a short reply after reopenin
 });
 
 test('actual gateway warning and retained clarification and all-error bodies remain visible after reopening', async t=>{
-  const clarification='Please clarify which period my question needs.', failure='Compare periods without another period.';
-  const f=await fixture(t,{[clarification]:{kind:'clarification'},[failure]:{calls:['change']}});
+  const clarification='Please clarify which period my question needs.', failure='Age the September invoices without required links.';
+  const f=await fixture(t,{[clarification]:{kind:'clarification'},[failure]:{calls:['aging']}});
   const first=await turn(f,clarification),second=await turn(f,failure);
+  assert.equal(second.answer.results[0].error.code,'AGING_LINK_REQUIRED');
   for(const result of [first,second]) {
     assert.ok(result.preview.definitionDisclosureWarning);
     // The public preview fixture asserts actual visible warning adjacency before approval.

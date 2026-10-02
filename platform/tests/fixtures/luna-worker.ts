@@ -26,8 +26,12 @@ const engine = new Engine({ directory, storage: 'experimental-file', demo: true,
         plan = { kind: 'execute', calls: [business, calculation('billed', { from: '2026-09-01', to: '2026-09-30' })], clarification: null }; break;
       case 'Which view of the business should we look at?':
         plan = { kind: 'clarification', calls: [], clarification: 'Which business aspect would you like described?' }; break;
-      case 'Describe this business and compare its billed change.':
-        plan = { kind: 'execute', calls: [business, calculation('change')], clarification: null }; break;
+      case 'Describe this business and age its invoices.':
+        plan = { kind: 'execute', calls: [business, calculation('aging')], clarification: null }; break;
+      case 'Compare billed change without reviewed periods.':
+        plan = { kind: 'execute', calls: [calculation('change')], clarification: null }; break;
+      case 'Model a price scenario without reviewed assumptions.':
+        plan = { kind: 'execute', calls: [calculation('scenario')], clarification: null }; break;
       case 'Return an invalid synthetic plan.':
         plan = { kind: 'execute', calls: [{ tool: 'unregistered.fixture', args: {} }], clarification: null }; break;
       default: throw new Error('The synthetic provider has no authored fixture for this exact question.');

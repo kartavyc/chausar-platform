@@ -65,7 +65,8 @@ async function fixture(t: TestContext, options: { noCodec?: boolean; operation?:
     endpoint: ENDPOINT, budgetMinor: '10000', maxCostMinor: '1' }, secret: 'synthetic-test-fixture-only' });
   await engine.request('trust.update', { send: 'samples' });
   async function tools(sourceIds: string[] = ['synthetic-selected'], scope: Record<string, unknown> = {}) {
-    const request = { question: 'What was billed in the selected September records?', purpose: 'conversation', questionDisclosure: 'verbatim',
+    const question = options.operation === 'aging' ? 'Age the selected September invoices.' : 'What was billed in the selected September records?';
+    const request = { question, purpose: 'conversation', questionDisclosure: 'verbatim',
       routeId: 'synthetic-synthesis-route', sourceIds, ...scope };
     const preview = await engine.request('models.preview', request), approval = await engine.request('models.approve', { id: preview.id });
     return engine.request('conversation.ask', { ...request, previewId: preview.id, approvalId: approval.id });
@@ -150,17 +151,35 @@ test('host refuses a materializer that replaces exact local amount slots', async
 });
 
 test('unavailable tools remain caution-bound rather than fabricated positive answers', async t => {
-  const f = await fixture(t, { operation: 'change' }), tools = await f.tools(); assert.equal(tools.results[0].error.code, 'COMPARISON_REQUIRED');
+  const f = await fixture(t, { operation: 'aging' }), tools = await f.tools(); assert.equal(tools.results[0].error.code, 'AGING_LINK_REQUIRED');
   const prepared = await f.prepare(tools.id), final = await f.engine.request('conversation.synthesis.run', prepared.payload);
   assert.equal(final.cautions.length, 1); assert.equal(final.cautions[0].text, tools.results[0].error.message);
   assert.match(final.paragraphs[0], /unavailable/); assert.deepEqual(final.tools.receipt.resultRefs, []);
 });
 
 test('required cautions cannot be removed from otherwise well-formed synthetic output', async t => {
-  const f = await fixture(t, { operation: 'change' }), tools = await f.tools(), prepared = await f.prepare(tools.id);
+  const f = await fixture(t, { operation: 'aging' }), tools = await f.tools(), prepared = await f.prepare(tools.id);
+  assert.equal(tools.results[0].error.code, 'AGING_LINK_REQUIRED');
   f.control.output = summary => ({ ...resultFor(summary), cautionRefs: [] });
   await assert.rejects(f.engine.request('conversation.synthesis.run', prepared.payload), { code: 'INVALID_CONVERSATION_SYNTHESIS' });
   assert.equal(f.control.providerCalls, 2);
+});
+
+test('direct calculator parameter errors remain separate from unreviewed planner admission refusals', async t => {
+  const f = await fixture(t);
+  await assert.rejects(f.engine.request('calculation.run', { operation: 'change', period: PERIOD }), { code: 'COMPARISON_REQUIRED' });
+  await assert.rejects(f.engine.request('calculation.run', { operation: 'scenario', period: PERIOD }), { code: 'SCENARIO_REQUIRED' });
+  assert.equal(f.control.providerCalls, 0);
+  for (const operation of ['change', 'scenario']) {
+    // Missing owner-reviewed inputs are invalid planner calls. They must never
+    // be converted into admitted tool results or retained calculator errors.
+    f.control.plan = { kind: 'execute', clarification: null, calls: [{ tool: 'calculator.calculate',
+      args: { operation, period: PERIOD, branch: null, customerId: null } }] };
+    await assert.rejects(f.tools(), { code: 'INVALID_CONVERSATION_PLAN' });
+  }
+  assert.equal(f.control.providerCalls, 2);
+  assert.equal(f.engine.vault!.read().receipts.length, 0);
+  assert.deepEqual((await f.engine.request('conversation.history')).items, []);
 });
 
 test('the exact tool ID and trusted route cannot be replaced or supplemented with caller-provided results', async t => {
