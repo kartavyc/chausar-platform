@@ -1,0 +1,2117 @@
+{
+  "sourceCommit": "1dc19b856380951aea49b7143ed4b5617130c06b",
+  "sourceTree": "68b396560c2b7950ccaf9d8c38ee52d87bd60d65",
+  "sourceManifestSha256": "923d8e57131fc817bb1acd5fcb6421a5d24707be647c7685fe0a099597176cf4",
+  "sourceFilesChecked": 438,
+  "packagesReadOnly": {
+    "pg": "8.23.0",
+    "duckdbNodeApi": "1.5.5-r.3",
+    "duckdbWindowsBindings": "1.5.5-r.3",
+    "pglite": "0.5.8"
+  },
+  "node": "v24.13.1",
+  "nativePostgres": "18.6",
+  "nativeDuckDB": "v1.5.5 (package pin and existing runtime qualification)",
+  "pgliteEngine": "PostgreSQL 18.3 WASM",
+  "defaultEngineSelected": false,
+  "productionReleaseQualified": false,
+  "runs": [
+    {
+      "label": "baseline",
+      "artifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901118964-60952\\postgres-duckdb-native-complete.json",
+      "artifactSha256": "805edd08c129594dec39fc63597c4007bbd53a83a4920beaf3d0a7576387a7cb",
+      "lifecycleArtifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901118964-60952\\lifecycle.json",
+      "lifecycleSha256": "ed1fad3de83c2f7dc4adf84f0d27d2599ef20be3b21cb880ab92e28b1333a176",
+      "startedAtUtc": null,
+      "completedAtUtc": "2026-10-02T00:32:40.955Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "scriptSha256": null,
+      "scriptSha256After": null,
+      "checksPassed": 110,
+      "checksFailed": 0,
+      "ownedServerStopped": true,
+      "postmasterPidAbsent": true,
+      "sourceHashesAfterMatch": "external baseline Git readback; later438-file checks match",
+      "fourPostgresBinaryHashesAfterMatch": true,
+      "ownedCFixtureBytes": 51986323,
+      "report": {
+        "suite": "native-postgresql-duckdb-differential",
+        "passed": true,
+        "checks": [
+          {
+            "name": "shop-billed",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "shop-received",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "shop-earned",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "shop-revenue",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "shop-refunds",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "shop-costs",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "shop-purchases",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "shop-net_sales",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "shop-margin",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "shop-aging",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "sum-above-javascript-safe-integer",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "sum-at-decimal-38-maximum",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "large-margin-ratio-must-not-round-up",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "negative-margin-truncates-toward-zero",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "zero-margin-denominator-omits-ratio",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "negative-change-truncates-toward-zero",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "zero-change-denominator-omits-ratio",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "prior-source-conflict-makes-comparison-partial",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "overlapping-periods-retain-distinct-lineage",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "negative-scenario-truncates-toward-zero",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "scenario-preserves-large-integer-and-fractional-minor-unit",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "aging-payment-fanout-surplus-and-orphans",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "aging-unmatched-links-are-unallocated",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "aging-inclusive-bucket-boundaries",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "explicit-zero-is-a-counted-fact",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "empty-selection-is-a-coverage-gap",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "missing-amount-explicitly-excluded",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "all-amounts-unknown-remains-partial",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "conflicting-claims-are-not-zero-evidence",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "duplicate-claims-count-once",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "missing-amount-rejected",
+            "passed": true,
+            "evidence": "javascript-contract-refusal",
+            "reason": "MISSING_MEASURE_VALUE"
+          },
+          {
+            "name": "unconverted-currency-rejected",
+            "passed": true,
+            "evidence": "javascript-contract-refusal",
+            "reason": "CURRENCY_MISMATCH"
+          },
+          {
+            "name": "duplicate-invoice-link-rejected",
+            "passed": true,
+            "evidence": "javascript-contract-refusal",
+            "reason": "AGING_AMBIGUOUS_INVOICE"
+          },
+          {
+            "name": "missing-customer-link-rejected",
+            "passed": true,
+            "evidence": "javascript-contract-refusal",
+            "reason": "AGING_LINK_REQUIRED"
+          },
+          {
+            "name": "duckdb-native-smoke",
+            "passed": true,
+            "evidence": "native-duckdb"
+          },
+          {
+            "name": "dedicated-postgresql-identity-empty-public-and-search-path",
+            "passed": true,
+            "evidence": "native-postgresql",
+            "serverVersion": "18.6"
+          },
+          {
+            "name": "postgres-native-smoke",
+            "passed": true,
+            "evidence": "native-postgresql"
+          },
+          {
+            "name": "duckdb:shop-billed",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "73d9ce64a295641d25a8b150418825dbc9f2c8894c0e485b485c1d698e0431d9"
+          },
+          {
+            "name": "postgres:shop-billed",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "73d9ce64a295641d25a8b150418825dbc9f2c8894c0e485b485c1d698e0431d9"
+          },
+          {
+            "name": "duckdb:shop-received",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "08672a069ea81b6c49fdd86e2752e2ed1d833be36be0330bc068fd428d30ef4e"
+          },
+          {
+            "name": "postgres:shop-received",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "08672a069ea81b6c49fdd86e2752e2ed1d833be36be0330bc068fd428d30ef4e"
+          },
+          {
+            "name": "duckdb:shop-earned",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "2c332ec85c3eef2f09356250614343874ced4751829456c3a848fd6e98968666"
+          },
+          {
+            "name": "postgres:shop-earned",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "2c332ec85c3eef2f09356250614343874ced4751829456c3a848fd6e98968666"
+          },
+          {
+            "name": "duckdb:shop-revenue",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "10e24d76e871245ca11296c7716ed13ca8430324dd82e3bc71972c080027bdf0"
+          },
+          {
+            "name": "postgres:shop-revenue",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "10e24d76e871245ca11296c7716ed13ca8430324dd82e3bc71972c080027bdf0"
+          },
+          {
+            "name": "duckdb:shop-refunds",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "536821c9309a672f9b521ffd71c68c7fa52bb609e4a656206c8b6068a432d6f0"
+          },
+          {
+            "name": "postgres:shop-refunds",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "536821c9309a672f9b521ffd71c68c7fa52bb609e4a656206c8b6068a432d6f0"
+          },
+          {
+            "name": "duckdb:shop-costs",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "70aa50e665c84cd605dbae667ae16f4dc94dd9edcddd519141058a2b54c00b10"
+          },
+          {
+            "name": "postgres:shop-costs",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "70aa50e665c84cd605dbae667ae16f4dc94dd9edcddd519141058a2b54c00b10"
+          },
+          {
+            "name": "duckdb:shop-purchases",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "8539651564adaa263e2fcc3dcf20f8ef11bb9bc0a341df0646fb6ecfddf5f787"
+          },
+          {
+            "name": "postgres:shop-purchases",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "8539651564adaa263e2fcc3dcf20f8ef11bb9bc0a341df0646fb6ecfddf5f787"
+          },
+          {
+            "name": "duckdb:shop-net_sales",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "c08f0f19be787fbbdca17b7943e752ab7849a4223ff60038475dc8158f45125d"
+          },
+          {
+            "name": "postgres:shop-net_sales",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "c08f0f19be787fbbdca17b7943e752ab7849a4223ff60038475dc8158f45125d"
+          },
+          {
+            "name": "duckdb:shop-margin",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "2c5d691bb91c843d591a40963920a06ffecc3eb9311863d84019f15d7b4fa17b"
+          },
+          {
+            "name": "postgres:shop-margin",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "2c5d691bb91c843d591a40963920a06ffecc3eb9311863d84019f15d7b4fa17b"
+          },
+          {
+            "name": "duckdb:shop-aging",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "f868f5ac4ef21d09c9b69292f46f2de79a191217a804b00a93b9089f297143d4"
+          },
+          {
+            "name": "postgres:shop-aging",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "f868f5ac4ef21d09c9b69292f46f2de79a191217a804b00a93b9089f297143d4"
+          },
+          {
+            "name": "duckdb:sum-above-javascript-safe-integer",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "3307c6cd78025e93231be957d274e5c63f498ebd032307ce4bfe35890842381b"
+          },
+          {
+            "name": "postgres:sum-above-javascript-safe-integer",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "3307c6cd78025e93231be957d274e5c63f498ebd032307ce4bfe35890842381b"
+          },
+          {
+            "name": "duckdb:sum-at-decimal-38-maximum",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "b9922e75ad69a46f28f3843a72fd06af59b66dec7e9e3dd625bc1b09fd7d50ec"
+          },
+          {
+            "name": "postgres:sum-at-decimal-38-maximum",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "b9922e75ad69a46f28f3843a72fd06af59b66dec7e9e3dd625bc1b09fd7d50ec"
+          },
+          {
+            "name": "duckdb:large-margin-ratio-must-not-round-up",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "b41022a0b6481f71b17adaefe53140a18d2462d1dca9445d28de2e4a8c957982"
+          },
+          {
+            "name": "postgres:large-margin-ratio-must-not-round-up",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "b41022a0b6481f71b17adaefe53140a18d2462d1dca9445d28de2e4a8c957982"
+          },
+          {
+            "name": "duckdb:negative-margin-truncates-toward-zero",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "5f5505da430324598cc69bc2bc8bfb1d0e07967a1cecbd33e5111a0ec4cf0f8a"
+          },
+          {
+            "name": "postgres:negative-margin-truncates-toward-zero",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "5f5505da430324598cc69bc2bc8bfb1d0e07967a1cecbd33e5111a0ec4cf0f8a"
+          },
+          {
+            "name": "duckdb:zero-margin-denominator-omits-ratio",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "1e35a357f5c0ccf89cf4557dc94dffb79b0715682966626016ef0bc37b36102f"
+          },
+          {
+            "name": "postgres:zero-margin-denominator-omits-ratio",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "1e35a357f5c0ccf89cf4557dc94dffb79b0715682966626016ef0bc37b36102f"
+          },
+          {
+            "name": "duckdb:negative-change-truncates-toward-zero",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "a89b14280bbeb6b5ee082b9eddc9d10d3fcd10fffc04f914d923be92e5e37da9"
+          },
+          {
+            "name": "postgres:negative-change-truncates-toward-zero",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "a89b14280bbeb6b5ee082b9eddc9d10d3fcd10fffc04f914d923be92e5e37da9"
+          },
+          {
+            "name": "duckdb:zero-change-denominator-omits-ratio",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "3567d896ad5ccc2ddb317f1efda52965a74086e542e6b6c6251048d5e339f65e"
+          },
+          {
+            "name": "postgres:zero-change-denominator-omits-ratio",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "3567d896ad5ccc2ddb317f1efda52965a74086e542e6b6c6251048d5e339f65e"
+          },
+          {
+            "name": "duckdb:prior-source-conflict-makes-comparison-partial",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "82478416df4169af3ec23e28d7a42e2a14e865c96a63574ecbb515e37679078b"
+          },
+          {
+            "name": "postgres:prior-source-conflict-makes-comparison-partial",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "82478416df4169af3ec23e28d7a42e2a14e865c96a63574ecbb515e37679078b"
+          },
+          {
+            "name": "duckdb:overlapping-periods-retain-distinct-lineage",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "36317fa28b0f64a9d18d724387d0a6ddca2c91ff10e4e9c5f73f589cf33dd505"
+          },
+          {
+            "name": "postgres:overlapping-periods-retain-distinct-lineage",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "36317fa28b0f64a9d18d724387d0a6ddca2c91ff10e4e9c5f73f589cf33dd505"
+          },
+          {
+            "name": "duckdb:negative-scenario-truncates-toward-zero",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "20e0c255e8551af345b63b6746ac98035991a433d9c4f577843a961198486af7"
+          },
+          {
+            "name": "postgres:negative-scenario-truncates-toward-zero",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "20e0c255e8551af345b63b6746ac98035991a433d9c4f577843a961198486af7"
+          },
+          {
+            "name": "duckdb:scenario-preserves-large-integer-and-fractional-minor-unit",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "8378af18b10fee37e79b775a9df3c80dcee5df45a3288a0aa6c64c0119d879c1"
+          },
+          {
+            "name": "postgres:scenario-preserves-large-integer-and-fractional-minor-unit",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "8378af18b10fee37e79b775a9df3c80dcee5df45a3288a0aa6c64c0119d879c1"
+          },
+          {
+            "name": "duckdb:aging-payment-fanout-surplus-and-orphans",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "606675ce181551228ecb12a08b271eeebfdd1fff61a360afdd94090e1fa4cff6"
+          },
+          {
+            "name": "postgres:aging-payment-fanout-surplus-and-orphans",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "606675ce181551228ecb12a08b271eeebfdd1fff61a360afdd94090e1fa4cff6"
+          },
+          {
+            "name": "duckdb:aging-unmatched-links-are-unallocated",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "e6e64ad78248ba6ac6cb8c26a397c41a1aa4a94f949a3d3640e5efd571170b5c"
+          },
+          {
+            "name": "postgres:aging-unmatched-links-are-unallocated",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "e6e64ad78248ba6ac6cb8c26a397c41a1aa4a94f949a3d3640e5efd571170b5c"
+          },
+          {
+            "name": "duckdb:aging-inclusive-bucket-boundaries",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "c5602afce65ed097d95eb11c583b485a00fd4028475472fd427eba35cd727971"
+          },
+          {
+            "name": "postgres:aging-inclusive-bucket-boundaries",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "c5602afce65ed097d95eb11c583b485a00fd4028475472fd427eba35cd727971"
+          },
+          {
+            "name": "duckdb:explicit-zero-is-a-counted-fact",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "d172a2e70267e571c5489964db8c157576bc035c19ef0b5dacdecf2f1ecc7ae4"
+          },
+          {
+            "name": "postgres:explicit-zero-is-a-counted-fact",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "d172a2e70267e571c5489964db8c157576bc035c19ef0b5dacdecf2f1ecc7ae4"
+          },
+          {
+            "name": "duckdb:empty-selection-is-a-coverage-gap",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "06b389fa91750e59640bbafe1d5b0b08640ec2d0643357e517dd8e7fb410e173"
+          },
+          {
+            "name": "postgres:empty-selection-is-a-coverage-gap",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "06b389fa91750e59640bbafe1d5b0b08640ec2d0643357e517dd8e7fb410e173"
+          },
+          {
+            "name": "duckdb:missing-amount-explicitly-excluded",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "ff81e528a2d15f6273f33aa7e98e5a826587bbbf02b6bcbd3c93b4aa362d8849"
+          },
+          {
+            "name": "postgres:missing-amount-explicitly-excluded",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "ff81e528a2d15f6273f33aa7e98e5a826587bbbf02b6bcbd3c93b4aa362d8849"
+          },
+          {
+            "name": "duckdb:all-amounts-unknown-remains-partial",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "62985968f392fc943debc21491814332104f07bab173e56b98dd87568d2acbca"
+          },
+          {
+            "name": "postgres:all-amounts-unknown-remains-partial",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "62985968f392fc943debc21491814332104f07bab173e56b98dd87568d2acbca"
+          },
+          {
+            "name": "duckdb:conflicting-claims-are-not-zero-evidence",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "70e5e643418c7713e20ae4985e94f4ae8ffcecb2b0aaa3612aacbc3a6eef2c5b"
+          },
+          {
+            "name": "postgres:conflicting-claims-are-not-zero-evidence",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "70e5e643418c7713e20ae4985e94f4ae8ffcecb2b0aaa3612aacbc3a6eef2c5b"
+          },
+          {
+            "name": "duckdb:duplicate-claims-count-once",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "projectionDigest": "5cfa72f99d9b5414ad9416c0199872c7b365808d4d591b0ef517f78539ac2a18"
+          },
+          {
+            "name": "postgres:duplicate-claims-count-once",
+            "passed": true,
+            "evidence": "native-postgres",
+            "projectionDigest": "5cfa72f99d9b5414ad9416c0199872c7b365808d4d591b0ef517f78539ac2a18"
+          },
+          {
+            "name": "duckdb:duplicate-invoice-projection-refused",
+            "passed": true,
+            "evidence": "production-projection-validation"
+          },
+          {
+            "name": "duckdb:tampered-answer-refused",
+            "passed": true,
+            "evidence": "native-duckdb"
+          },
+          {
+            "name": "postgres:duplicate-invoice-projection-refused",
+            "passed": true,
+            "evidence": "production-projection-validation"
+          },
+          {
+            "name": "postgres:tampered-answer-refused",
+            "passed": true,
+            "evidence": "native-postgres"
+          },
+          {
+            "name": "exact-source-decimals-idempotent-import-and-native-calculator-composition",
+            "passed": true,
+            "evidence": "native-postgresql-vault-and-native-duckdb-postgresql-arithmetic"
+          },
+          {
+            "name": "explicit-exact-currency-conversion-retains-source-lineage",
+            "passed": true,
+            "evidence": "native-postgresql-vault-and-native-duckdb-postgresql-arithmetic"
+          },
+          {
+            "name": "immutable-bitemporal-correction-and-stale-answer",
+            "passed": true,
+            "evidence": "native-postgresql-vault-and-native-duckdb-postgresql-arithmetic",
+            "clock": "explicit-labelled-demo-only"
+          },
+          {
+            "name": "authority-table-stores-encrypted-envelope-and-current-revision",
+            "passed": true,
+            "evidence": "native-postgresql-snapshot"
+          },
+          {
+            "name": "real-postgresql-concurrent-creation-cas",
+            "passed": true,
+            "evidence": "native-postgresql-snapshot"
+          },
+          {
+            "name": "real-postgresql-concurrent-update-cas",
+            "passed": true,
+            "evidence": "native-postgresql-snapshot"
+          },
+          {
+            "name": "reopen-preserves-claims-history-and-import-idempotency",
+            "passed": true,
+            "evidence": "native-postgresql-vault-and-native-duckdb-postgresql-arithmetic"
+          },
+          {
+            "name": "encrypted-backup-restores-corrected-history-in-fresh-postgresql-slot",
+            "passed": true,
+            "evidence": "native-postgresql-vault-and-native-duckdb-postgresql-arithmetic"
+          },
+          {
+            "name": "restored-slot-deletion",
+            "passed": true,
+            "evidence": "native-postgresql-snapshot"
+          }
+        ],
+        "blockers": [],
+        "engines": {
+          "duckdb": "native-executed",
+          "postgres": "native-executed"
+        },
+        "scope": "Independent hand-worked JavaScript, native DuckDB and native PostgreSQL arithmetic; PostgreSQL encrypted Vault composition. No PGlite qualification or default-engine choice."
+      }
+    },
+    {
+      "label": "investigations",
+      "artifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901320008-25932\\verify-investigations-c-native.report.json",
+      "artifactSha256": "8e0a2f2d1f63d84535a5c2174569a6c7f02e0b8fd037e5068a7362f12f10c0f7",
+      "lifecycleArtifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901320008-25932\\lifecycle.json",
+      "lifecycleSha256": "1166082633cd3c3b0f19acfa1d54cd77b53a50d46d907deb1dcc41f808ac07b9",
+      "startedAtUtc": null,
+      "completedAtUtc": "2026-10-02T00:35:50.902Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "scriptSha256": "aa85a7dd34ed194db27318c5b592051b7ec3a0d5dc0fa9b5ac477c88cb0b177f",
+      "scriptSha256After": null,
+      "checksPassed": 10,
+      "checksFailed": 0,
+      "ownedServerStopped": true,
+      "postmasterPidAbsent": true,
+      "sourceHashesAfterMatch": "external baseline Git readback; later438-file checks match",
+      "fourPostgresBinaryHashesAfterMatch": true,
+      "ownedCFixtureBytes": 106581544,
+      "report": {
+        "suite": "c-owned-native-private-investigations-journals-and-search",
+        "sourceCommit": "1dc19b856380951aea49b7143ed4b5617130c06b",
+        "foundation": {
+          "commit": "1dc19b856380951aea49b7143ed4b5617130c06b",
+          "script": "scripts/verify-investigations-native.mjs"
+        },
+        "sourceCommitVerification": "supervisor-reported-exact-baseline",
+        "fixtureCredential": "fixed-public-synthetic-only",
+        "passed": true,
+        "checks": [
+          {
+            "name": "native-literal-address-identity-readback",
+            "passed": true,
+            "evidence": "native-postgresql-actual-identity",
+            "raw_address": "127.0.0.1/32",
+            "host_address": "127.0.0.1",
+            "port": 52755,
+            "data_directory": "C:/Users/karta/Documents/Codex/2026-10-01/task-4/qualification-joined-20261002/synthetic-1790901320008-25932/data"
+          },
+          {
+            "name": "native-simple-token-oracle:2-matches",
+            "passed": true,
+            "evidence": "native-postgresql-actual-token-search",
+            "matchedDocuments": 2
+          },
+          {
+            "name": "native-simple-token-oracle:1-matches",
+            "passed": true,
+            "evidence": "native-postgresql-actual-token-search",
+            "matchedDocuments": 1
+          },
+          {
+            "name": "native-simple-token-oracle:0-matches",
+            "passed": true,
+            "evidence": "native-postgresql-actual-token-search",
+            "matchedDocuments": 0
+          },
+          {
+            "name": "native-search-overflow-empty-terms-and-empty-authorized-corpus",
+            "passed": true,
+            "evidence": "native-postgresql-no-persistent-public-index"
+          },
+          {
+            "name": "production-owner-declared-bridge-with-native-money-receipts",
+            "passed": true,
+            "evidence": "native-duckdb-receipts-and-declared-experimental-javascript-bridge",
+            "baselineMinor": "100",
+            "comparisonMinor": "240",
+            "changeMinor": "140"
+          },
+          {
+            "name": "production-native-search-finds-authorized-investigation-and-journal",
+            "passed": true,
+            "evidence": "native-postgresql-and-actual-engine-http",
+            "matchedDocuments": 2
+          },
+          {
+            "name": "production-reopen-resume-capsule-drilldown-and-bridge-readback",
+            "passed": true,
+            "evidence": "native-postgresql-encrypted-reopen-and-default-native-duckdb",
+            "julyCollectionsMinor": "30000",
+            "augustCollectionsMinor": "15000",
+            "augustInvoicesMinor": "70000"
+          },
+          {
+            "name": "production-lineage-deletion-removes-searchable-private-documents",
+            "passed": true,
+            "evidence": "native-postgresql-and-actual-engine-http"
+          },
+          {
+            "name": "production-owned-workspace-deletion",
+            "passed": true,
+            "evidence": "native-postgresql-encrypted-authority"
+          }
+        ],
+        "blockers": [],
+        "engines": {
+          "postgres": "native-executed",
+          "duckdb": "native-executed"
+        },
+        "scope": "Synthetic production Engine HTTP with PostgreSQL encrypted authority, default native DuckDB calculations, owner-declared descriptive bridge, persisted private investigation and journal, actual PostgreSQL simple-token search, reopen and lineage deletion. C-owned fixture writes and existing read-only runtimes only. No provider, vendor, enterprise, installer, causal or full-release qualification.",
+        "environmentGuards": {
+          "ownedWorkspace": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4",
+          "runRoot": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901320008-25932",
+          "temporaryDirectory": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901320008-25932\\temp",
+          "postgresDataDirectory": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901320008-25932\\data",
+          "dRuntimeAccessPolicy": "read-only-existing-files",
+          "compileCacheEnvironment": "unset"
+        }
+      }
+    },
+    {
+      "label": "workflows",
+      "artifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\verify-workflows-native.report.json",
+      "artifactSha256": "022f21385e72f8482fc96c29ba1c33d8a3adcfcafb8e52df1cda9d5981a68f72",
+      "lifecycleArtifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\lifecycle.json",
+      "lifecycleSha256": "dfc78761143e4297d9eb8e40bb496010cd2d56a94695fe913f0e831402430337",
+      "startedAtUtc": "2026-10-02T00:42:55.771Z",
+      "completedAtUtc": "2026-10-02T00:43:14.611Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "scriptSha256": "e822a3bb19d13c40cd5e39efdce51dd744cfb5d4906f09796854f27b0b282604",
+      "scriptSha256After": "e822a3bb19d13c40cd5e39efdce51dd744cfb5d4906f09796854f27b0b282604",
+      "checksPassed": 50,
+      "checksFailed": 0,
+      "ownedServerStopped": true,
+      "postmasterPidAbsent": true,
+      "sourceHashesAfterMatch": true,
+      "fourPostgresBinaryHashesAfterMatch": true,
+      "ownedCFixtureBytes": 106668360,
+      "report": {
+        "suite": "native-engine-postgresql-duckdb-workflows",
+        "sourceCommit": "1dc19b856380951aea49b7143ed4b5617130c06b",
+        "sourceCommitVerification": "supervisor-reported-exact-baseline",
+        "foundationCommit": "1dc19b856380951aea49b7143ed4b5617130c06b",
+        "passed": true,
+        "checks": [
+          {
+            "name": "dedicated-pristine-native-postgresql-identity",
+            "passed": true,
+            "evidence": "native-postgresql",
+            "server": {
+              "database": "chausar_test",
+              "address": "127.0.0.1",
+              "port": 53623,
+              "server_version": "18.6",
+              "version": "PostgreSQL 18.6 on x86_64-windows, compiled by msvc-19.44.35228, 64-bit",
+              "data_directory": "C:/Users/karta/Documents/Codex/2026-10-01/task-4/qualification-joined-20261002/synthetic-1790901764372-16392/data"
+            }
+          },
+          {
+            "name": "forecast:month-1:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "10000"
+          },
+          {
+            "name": "forecast:month-1:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_119bd2e2-16e6-4708-a622-8f0de645c08e",
+            "operation": "billed",
+            "projectionDigest": "a66b5058649b3e637dc8cde3bdccd330df694a2d2a5ad79757467edff07c6804"
+          },
+          {
+            "name": "forecast:month-2:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "20000"
+          },
+          {
+            "name": "forecast:month-2:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_dd0f6480-f70e-43a6-9403-bbda86301119",
+            "operation": "billed",
+            "projectionDigest": "b0015e4e75987592186b68e1e56fc138524f6311e88707d5aba3f2c8d845d4f0"
+          },
+          {
+            "name": "forecast:month-3:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "30000"
+          },
+          {
+            "name": "forecast:month-3:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_590c533a-2941-4f90-a02b-58b286fb248e",
+            "operation": "billed",
+            "projectionDigest": "a918651b0b7b888340dba9a134c56b06fdf2ecc02872342ef5510d3e4e23bf20"
+          },
+          {
+            "name": "forecast:month-4:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "45000"
+          },
+          {
+            "name": "forecast:month-4:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_a74191cd-153e-4dcc-849c-11925f1c487e",
+            "operation": "billed",
+            "projectionDigest": "eb7486b6e4ded6d4b4e37464854fbc73ceabb77831f82fcaa0d4020895d66af5"
+          },
+          {
+            "name": "forecast:month-5:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "62000"
+          },
+          {
+            "name": "forecast:month-5:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_49978883-5c29-42e9-a528-6f3a59543bfe",
+            "operation": "billed",
+            "projectionDigest": "fa711ab6103ddceab30b7a9652b0f0973b0fd990c11878a28690ca86213c0f3e"
+          },
+          {
+            "name": "forecast:current-known-hindsight-cannot-claim-operational-origin",
+            "passed": true,
+            "evidence": "javascript-workflow-contract-refusal",
+            "reason": "FORECAST_KNOWLEDGE_LEAK"
+          },
+          {
+            "name": "forecast:hand-worked-linear-trend-and-errors",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "forecast:encrypted-authority-is-postgresql",
+            "passed": true,
+            "evidence": "native-postgresql-ciphertext-inspection"
+          },
+          {
+            "name": "forecast:lock-and-fresh-engine-reopen",
+            "passed": true,
+            "evidence": "native-postgresql-engine-reopen"
+          },
+          {
+            "name": "forecast:saved-evaluation-and-native-receipt-pins-survive-reopen",
+            "passed": true,
+            "evidence": "native-postgresql-engine-persistence"
+          },
+          {
+            "name": "alerts:observation-1:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "5000"
+          },
+          {
+            "name": "alerts:observation-1:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_a48132dc-7d39-4559-abbf-f7301f4e38a3",
+            "operation": "earned",
+            "projectionDigest": "f17cbd1b895344d16ff72defb6844b0988133da0c24a335ac14d6791e235b12f"
+          },
+          {
+            "name": "alerts:observation-2:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "11000"
+          },
+          {
+            "name": "alerts:observation-2:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_dade2ae4-adb4-4d68-9c7f-ce2db5c153aa",
+            "operation": "earned",
+            "projectionDigest": "06334474c820758b2d13b5219b051243114e40da7ac6d5e3f49a0fa3c21b64b8"
+          },
+          {
+            "name": "alerts:observation-3:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "12000"
+          },
+          {
+            "name": "alerts:observation-3:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_a38369b7-1389-4b86-b86d-24bab6a46394",
+            "operation": "earned",
+            "projectionDigest": "a136ae004ae622411a67cfbfc94c3eefaa0826e8cd58faf113ba30f1d6bc6374"
+          },
+          {
+            "name": "alerts:observation-4:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "21000"
+          },
+          {
+            "name": "alerts:observation-4:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_225c11c5-484b-49de-9636-a05e168b17ca",
+            "operation": "earned",
+            "projectionDigest": "629d85a6bf9edc91682101ec31f1ec8d7fcf94eb7951578623f3f6ad151ed6d5"
+          },
+          {
+            "name": "alerts:observation-5:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "9000"
+          },
+          {
+            "name": "alerts:observation-5:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_3cb6c63b-048b-4971-920b-da9e55299924",
+            "operation": "earned",
+            "projectionDigest": "4ba1a35c79319a05b55dd0343139db8c1ad7f107a3c5eba74d700c79cf4bc168"
+          },
+          {
+            "name": "alerts:observation-6:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "7000"
+          },
+          {
+            "name": "alerts:observation-6:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_560d401d-a75c-43b3-81aa-d96f7454881d",
+            "operation": "earned",
+            "projectionDigest": "9a3fa5f49a179ec04be858d0fb4ebd21c9bf2a95b932403413c6406705a8d1c0"
+          },
+          {
+            "name": "alerts:observation-7:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "7200"
+          },
+          {
+            "name": "alerts:observation-7:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_5d31b6f3-29d0-403c-8212-0523b7a5c85b",
+            "operation": "earned",
+            "projectionDigest": "3b9bc4e22f1ccf0820284927b86c5fee762a46fa8ede5b0af7255a4f2053938a"
+          },
+          {
+            "name": "alerts:observation-8:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "11000"
+          },
+          {
+            "name": "alerts:observation-8:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_8b63ee9a-d1e2-41c1-a387-c98aa5bff9c8",
+            "operation": "earned",
+            "projectionDigest": "bda634f44782ec4bcb2ab28c40a152bd7d91aa5aae4e123db43a396b7ca2a7f4"
+          },
+          {
+            "name": "alerts:observation-9:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "12000"
+          },
+          {
+            "name": "alerts:observation-9:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_1cae8359-910d-4f6f-a507-d9480c4533b2",
+            "operation": "earned",
+            "projectionDigest": "00f738226aa8a4d57bc0deaab06574ef4c85c4bd3293fcbbf1551b386bcfa30c"
+          },
+          {
+            "name": "alerts:literal-threshold-persistence-hysteresis-and-local-episode-transitions",
+            "passed": true,
+            "evidence": "javascript-workflow-state"
+          },
+          {
+            "name": "alerts:encrypted-authority-is-postgresql",
+            "passed": true,
+            "evidence": "native-postgresql-ciphertext-inspection"
+          },
+          {
+            "name": "alerts:lock-and-fresh-engine-reopen",
+            "passed": true,
+            "evidence": "native-postgresql-engine-reopen"
+          },
+          {
+            "name": "alerts:saved-episode-and-native-receipt-pins-survive-reopen",
+            "passed": true,
+            "evidence": "native-postgresql-engine-persistence"
+          },
+          {
+            "name": "jobs:july-collections:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "30000"
+          },
+          {
+            "name": "jobs:july-collections:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_76619b0f-6085-4241-9ec4-f650a392488a",
+            "operation": "received",
+            "projectionDigest": "9587f46ef7c5c99a7555bfb6edb8323b1b58ad3d0cc4637539601421bde32f25"
+          },
+          {
+            "name": "jobs:august-collections:literal-amount",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key",
+            "expectedMinor": "15000"
+          },
+          {
+            "name": "jobs:august-collections:native-proof",
+            "passed": true,
+            "evidence": "native-duckdb-engine-receipt",
+            "receiptId": "receipt_d24db71c-4c3b-42e9-9d4e-78c305d60d29",
+            "operation": "received",
+            "projectionDigest": "256a5ba63188014167d9a74a6f6114437b378c16345cc5888dc617c2ee662267"
+          },
+          {
+            "name": "jobs:literal-collections-and-no-model-or-action-budget-use",
+            "passed": true,
+            "evidence": "javascript-independent-answer-key"
+          },
+          {
+            "name": "jobs:encrypted-authority-is-postgresql",
+            "passed": true,
+            "evidence": "native-postgresql-ciphertext-inspection"
+          },
+          {
+            "name": "jobs:lock-and-fresh-engine-reopen",
+            "passed": true,
+            "evidence": "native-postgresql-engine-reopen"
+          },
+          {
+            "name": "jobs:persisted-result-exact-retry-and-acceptance-survive-reopen",
+            "passed": true,
+            "evidence": "native-postgresql-engine-persistence"
+          },
+          {
+            "name": "jobs:encrypted-authority-is-postgresql",
+            "passed": true,
+            "evidence": "native-postgresql-ciphertext-inspection"
+          },
+          {
+            "name": "jobs:lock-and-fresh-engine-reopen",
+            "passed": true,
+            "evidence": "native-postgresql-engine-reopen"
+          },
+          {
+            "name": "jobs:accepted-result-retained-across-second-fresh-engine-reopen",
+            "passed": true,
+            "evidence": "native-postgresql-engine-persistence"
+          },
+          {
+            "name": "all-features:no-model-provider-dispatch-or-external-action",
+            "passed": true,
+            "evidence": "javascript-no-dispatch-assertion"
+          }
+        ],
+        "blockers": [],
+        "engines": {
+          "postgres": "native-executed",
+          "duckdb": "native-executed"
+        },
+        "runtime": {
+          "node": "v24.13.1",
+          "platform": "win32"
+        },
+        "scope": "Synthetic public Engine routes, PostgreSQL encrypted authority and default native DuckDB receipt proofs; exact JavaScript forecast/alert/job answers. No HTTP server, GUI, provider, predictive-accuracy, external notification, or production-release qualification.",
+        "fixtures": {
+          "passphrase": "fixed-public-synthetic-fixture",
+          "sourceKind": "authored-synthetic-csv",
+          "learnedAt": "actual-current-import-clock",
+          "forecastKnowledge": "restated-diagnostic with current-known historical months; operational hindsight explicitly refused; no historically backdated import clock",
+          "retainedDirectory": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\native-workflows-ARQy48"
+        },
+        "nativeReceiptIds": [
+          "receipt_119bd2e2-16e6-4708-a622-8f0de645c08e",
+          "receipt_dd0f6480-f70e-43a6-9403-bbda86301119",
+          "receipt_590c533a-2941-4f90-a02b-58b286fb248e",
+          "receipt_a74191cd-153e-4dcc-849c-11925f1c487e",
+          "receipt_49978883-5c29-42e9-a528-6f3a59543bfe",
+          "receipt_a48132dc-7d39-4559-abbf-f7301f4e38a3",
+          "receipt_dade2ae4-adb4-4d68-9c7f-ce2db5c153aa",
+          "receipt_a38369b7-1389-4b86-b86d-24bab6a46394",
+          "receipt_225c11c5-484b-49de-9636-a05e168b17ca",
+          "receipt_3cb6c63b-048b-4971-920b-da9e55299924",
+          "receipt_560d401d-a75c-43b3-81aa-d96f7454881d",
+          "receipt_5d31b6f3-29d0-403c-8212-0523b7a5c85b",
+          "receipt_8b63ee9a-d1e2-41c1-a387-c98aa5bff9c8",
+          "receipt_1cae8359-910d-4f6f-a507-d9480c4533b2",
+          "receipt_76619b0f-6085-4241-9ec4-f650a392488a",
+          "receipt_d24db71c-4c3b-42e9-9d4e-78c305d60d29"
+        ],
+        "completedFeatures": [
+          "forecast",
+          "alerts",
+          "durable-jobs"
+        ],
+        "sourceHashes": {
+          "../platform/runtime/engine.ts": "a8c3ee0ab71389aeb06ca626ad8c7fcb0fb492ae86db0e75466ceade4b85cf28",
+          "../platform/runtime/analytics.ts": "902b8d525fa6855e6a3e6f9da5929ddb7ca9c43e8074925161ef946842c6a4a5",
+          "../platform/runtime/calculator.ts": "3d7bbeb5892d7029eca582524e23782e2a5719a54def5fca16e64c33457a06a9",
+          "../platform/runtime/forecast-service.ts": "6b97e08ca85e3079ff6beaa74277e574f4717be537a216244a4d3ab81b8aeefa",
+          "../platform/runtime/alerts.ts": "2ccb68a42183b0d392e2d6d966b6d76e5f6a0049d48f9cd5d15431ba21785635",
+          "../platform/runtime/engine-jobs.ts": "b22c7d2ee4f06179e5ff737efba493fe52f2816a78ba9316cc940ba46db012cc",
+          "../platform/runtime/job-goals.ts": "74e415e8a0b7a0052a41eb42cec521f41faf9a2eb67d8cfd893f1204973afb56"
+        },
+        "environmentGuards": {
+          "runRoot": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392",
+          "temporaryDirectory": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\temp",
+          "postgresDataDirectory": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\data",
+          "dRuntimeAccessPolicy": "read-only-existing-files",
+          "compileCacheEnvironment": "unset"
+        }
+      }
+    },
+    {
+      "label": "recovery",
+      "artifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\verify-answer-recovery-native.report.json",
+      "artifactSha256": "500542ac8622ef17214b8b2a8b844bec1a3506afbb5f78c19b1dcc18d8dd64de",
+      "lifecycleArtifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\lifecycle.json",
+      "lifecycleSha256": "dfc78761143e4297d9eb8e40bb496010cd2d56a94695fe913f0e831402430337",
+      "startedAtUtc": "2026-10-02T00:43:15.479Z",
+      "completedAtUtc": "2026-10-02T00:43:20.482Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "scriptSha256": "1c5207cae87e98e4eb34d1fae32b38c4e37f39291078172aa76eff8eeac5a6c4",
+      "scriptSha256After": "1c5207cae87e98e4eb34d1fae32b38c4e37f39291078172aa76eff8eeac5a6c4",
+      "checksPassed": 20,
+      "checksFailed": 0,
+      "ownedServerStopped": true,
+      "postmasterPidAbsent": true,
+      "sourceHashesAfterMatch": true,
+      "fourPostgresBinaryHashesAfterMatch": true,
+      "ownedCFixtureBytes": 106668360,
+      "report": {
+        "suite": "native-postgresql-storage-duckdb-answer-recovery",
+        "sourceCommit": "1dc19b856380951aea49b7143ed4b5617130c06b",
+        "foundationCommit": "1dc19b856380951aea49b7143ed4b5617130c06b",
+        "sourceCommitVerification": "supervisor-reported-exact-baseline",
+        "passed": true,
+        "checks": [
+          {
+            "name": "strict-disposable-loopback-pristine-database",
+            "passed": true,
+            "evidence": "actual-postgresql-read-only-preflight",
+            "host": "127.0.0.1",
+            "port": 53623,
+            "dataDirectory": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\data"
+          },
+          {
+            "name": "public-exact-source-import-and-duplicate-no-op",
+            "passed": true,
+            "evidence": "real-postgresql-vault-public-import",
+            "totalMinor": "900719925474109391"
+          },
+          {
+            "name": "public-native-original-and-above-safe-integer",
+            "passed": true,
+            "evidence": "real-postgresql-snapshot-and-default-native-duckdb-worker",
+            "originalMinor": "10000",
+            "exactLargeMinor": "900719925474099391"
+          },
+          {
+            "name": "labelled-synthetic-unpinned-legacy-and-public-correction",
+            "passed": true,
+            "evidence": "explicit-fixture-vault-update-plus-public-memory-correct",
+            "preservedOriginalMinor": "10000",
+            "currentCorrectedMinor": "25000"
+          },
+          {
+            "name": "public-explicit-scope-preparation-and-refusal-atomicity",
+            "passed": true,
+            "evidence": "real-postgresql-vault-public-recovery",
+            "chosenAsOf": "2100-01-01T00:00:00.000Z"
+          },
+          {
+            "name": "public-native-exact-recovery-one-cas-and-retry-no-op",
+            "passed": true,
+            "evidence": "actual-postgresql-cas-native-duckdb-public-recovery",
+            "originalMinor": "10000",
+            "freshMinor": "25000",
+            "revisionDelta": 1,
+            "concurrentRequests": 2
+          },
+          {
+            "name": "real-postgresql-stores-encrypted-recovery-authority",
+            "passed": true,
+            "evidence": "actual-postgresql-ciphertext-table-query"
+          },
+          {
+            "name": "new-engine-postgresql-reopen-get-list-execute-idempotency",
+            "passed": true,
+            "evidence": "actual-postgresql-unlock-new-engine-public-recovery-readback"
+          },
+          {
+            "name": "public-encrypted-v1-backup-separate-postgresql-slot-restore-and-new-engine-reopen",
+            "passed": true,
+            "evidence": "actual-encrypted-backup-postgresql-snapshot-restore",
+            "sameHistoricalIdentity": true,
+            "freshActivation": false,
+            "encryptedBackupBytes": 46960
+          },
+          {
+            "name": "native-compiled-tax-field-current-meaning-and-conservative-old-readback-refusal",
+            "passed": true,
+            "evidence": "actual-postgresql-vault-native-duckdb-compiled-money-field-public-recovery",
+            "originalInvoiceMinor": "10000",
+            "correctedNetMinor": "25000",
+            "freshCurrentTaxMinor": "1000",
+            "moneyField": "taxMinor"
+          },
+          {
+            "name": "workspace.backup.v2.create-postgresql-boundary",
+            "passed": true,
+            "evidence": "actual-postgresql-public-typed-refusal-no-authority-write",
+            "code": "BACKUP_STORAGE_PROFILE_REQUIRED"
+          },
+          {
+            "name": "workspace.backup.v2.read-postgresql-boundary",
+            "passed": true,
+            "evidence": "actual-postgresql-public-typed-refusal-no-authority-write",
+            "code": "BACKUP_STORAGE_PROFILE_REQUIRED"
+          },
+          {
+            "name": "workspace.backup.v2.restoreInert-postgresql-boundary",
+            "passed": true,
+            "evidence": "actual-postgresql-public-typed-refusal-no-authority-write",
+            "code": "BACKUP_STORAGE_PROFILE_REQUIRED"
+          },
+          {
+            "name": "workspace.backup.v2.diagnostics-postgresql-boundary",
+            "passed": true,
+            "evidence": "actual-postgresql-public-typed-refusal-no-authority-write",
+            "code": "BACKUP_STORAGE_PROFILE_REQUIRED"
+          },
+          {
+            "name": "workspace.activation.target.create-postgresql-boundary",
+            "passed": true,
+            "evidence": "actual-postgresql-public-typed-refusal-no-authority-write",
+            "code": "ACTIVATION_ROOT_REQUIRED"
+          },
+          {
+            "name": "workspace.activation.review-postgresql-boundary",
+            "passed": true,
+            "evidence": "actual-postgresql-public-typed-refusal-no-authority-write",
+            "code": "ACTIVATION_ROOT_REQUIRED"
+          },
+          {
+            "name": "workspace.activation.execute-postgresql-boundary",
+            "passed": true,
+            "evidence": "actual-postgresql-public-typed-refusal-no-authority-write",
+            "code": "ACTIVATION_ROOT_REQUIRED"
+          },
+          {
+            "name": "workspace.activation.get-postgresql-boundary",
+            "passed": true,
+            "evidence": "actual-postgresql-public-typed-refusal-no-authority-write",
+            "code": "ACTIVATION_ROOT_REQUIRED"
+          },
+          {
+            "name": "postgresql-v1-backup-and-export-refuse-managed-private-artifact-omission",
+            "passed": true,
+            "evidence": "real-encrypted-typed-artifact-and-public-refusals",
+            "code": "ARTIFACT_BACKUP_REQUIRED",
+            "artifactConstruction": "trusted-labelled-synthetic-vault-write"
+          },
+          {
+            "name": "no-live-model-or-external-provider-calls",
+            "passed": true,
+            "evidence": "installed-throwing-model-http-guard",
+            "calls": 0
+          }
+        ],
+        "blockers": [],
+        "node": "v24.13.1",
+        "engines": {
+          "postgresStorage": {
+            "version": "PostgreSQL 18.6 on x86_64-windows, compiled by msvc-19.44.35228, 64-bit",
+            "database": "chausar_test"
+          },
+          "duckdbArithmetic": "actual-native-worker-receipt-proof-duckdb"
+        },
+        "publicSurface": "Engine.request; no HTTP transport, renderer or installed desktop qualification",
+        "fixtureConstruction": "Public workspace creation/import/native calculation, then an explicitly labelled actual Vault.update removes only the saved request asOf to author synthetic legacy state. Recovery uses unchanged public routes.",
+        "scope": "Saved-answer fresh recovery, encrypted PostgreSQL snapshot persistence, native DuckDB arithmetic, exact retries, identity-preserving v1 snapshot restore, and typed PostgreSQL v2 archive/activation refusal boundaries.",
+        "modelCalls": 0,
+        "fullScopeQualified": false,
+        "productionDefaultSelected": false,
+        "unsupportedBoundaries": [
+          {
+            "feature": "complete encrypted v2 PostgreSQL archive",
+            "code": "BACKUP_STORAGE_PROFILE_REQUIRED"
+          },
+          {
+            "feature": "fresh-authority PostgreSQL activation",
+            "code": "ACTIVATION_ROOT_REQUIRED"
+          },
+          {
+            "feature": "v1 snapshot backup with managed private artifacts",
+            "code": "ARTIFACT_BACKUP_REQUIRED"
+          },
+          {
+            "feature": "historical reconstruction or retirement of the preserved unpinned original",
+            "status": "not-granted-by-fresh-recovery"
+          }
+        ],
+        "limitations": [
+          "PostgreSQL persists encrypted snapshots; this suite does not qualify persistent normalized relational business claims.",
+          "A successful v1 restore preserves historical workspace/owner identity; it is not fresh activation.",
+          "No crash/power-loss, PGlite, OS cross-process authority or live provider/credential qualification.",
+          "The coordinator must enforce the external process ceiling and recreate the disposable database between runners."
+        ],
+        "environmentGuards": {
+          "ownedWorkspace": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4",
+          "runRoot": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392",
+          "temporaryDirectory": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\temp",
+          "postgresDataDirectory": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\data",
+          "compileCacheEnvironment": "unset",
+          "dRuntimeAccessPolicy": "read-only-existing-files"
+        },
+        "directory": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\answer-recovery",
+        "ownedDisposableSlots": [
+          "e5ff275dd997389f98a242860f3738bc37557cb76dca3a97d0841ed47bf62da4",
+          "c8feb91dfceacb9c51ad231a55a3dd9d0477d7823cd5aebfee36892a43e43552"
+        ],
+        "retainedSyntheticFilesystem": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\answer-recovery",
+        "elapsedMs": 4146
+      }
+    },
+    {
+      "label": "pglite",
+      "artifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\verify-pglite-c-native.report.json",
+      "artifactSha256": "a9a6c4cee3aca951b57fdafa897436c6f3e6cd753391fce0e36f838ef5c0535c",
+      "lifecycleArtifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\lifecycle.json",
+      "lifecycleSha256": "dfc78761143e4297d9eb8e40bb496010cd2d56a94695fe913f0e831402430337",
+      "startedAtUtc": "2026-10-02T00:43:21.232Z",
+      "completedAtUtc": "2026-10-02T00:43:32.049Z",
+      "exitCode": 1,
+      "timedOut": false,
+      "scriptSha256": "7db1b5d656ca4860e795ad762a8b8c2191276a64cfbfcc325714dfb4435ee726",
+      "scriptSha256After": "7db1b5d656ca4860e795ad762a8b8c2191276a64cfbfcc325714dfb4435ee726",
+      "checksPassed": 41,
+      "checksFailed": 1,
+      "ownedServerStopped": true,
+      "postmasterPidAbsent": true,
+      "sourceHashesAfterMatch": true,
+      "fourPostgresBinaryHashesAfterMatch": true,
+      "ownedCFixtureBytes": 106668360,
+      "report": {
+        "suite": "actual-pglite-c-fixture-qualification",
+        "sourceCommit": "1dc19b856380951aea49b7143ed4b5617130c06b",
+        "passed": false,
+        "checks": [
+          {
+            "name": "actual-wasm-identity",
+            "passed": true,
+            "evidence": "actual-pglite-query",
+            "version": "PostgreSQL 18.3 (PGlite 0.5.8) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit",
+            "server_version": "18.3"
+          },
+          {
+            "name": "shop-billed",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "300000",
+            "arithmetic": "Invoices 100000+200000; receipts 60000+200000; earned 100000+150000; refunds 10000; costs 40000+70000; purchases 70000.",
+            "projectionDigest": "27b69d668b90bb1f6b98d226d0104837a4f6f62ab5e252e89a6ee5424d3123db"
+          },
+          {
+            "name": "shop-received",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "260000",
+            "arithmetic": "Invoices 100000+200000; receipts 60000+200000; earned 100000+150000; refunds 10000; costs 40000+70000; purchases 70000.",
+            "projectionDigest": "dfa4225a4cd2b7aaf2131322adf23f451a0038012078a355df58106950a0a263"
+          },
+          {
+            "name": "shop-earned",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "250000",
+            "arithmetic": "Invoices 100000+200000; receipts 60000+200000; earned 100000+150000; refunds 10000; costs 40000+70000; purchases 70000.",
+            "projectionDigest": "c872b3f3ace5cc76fba9303b580deced7517729ca6bd29c881a9652357a3a70b"
+          },
+          {
+            "name": "shop-revenue",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "250000",
+            "arithmetic": "Invoices 100000+200000; receipts 60000+200000; earned 100000+150000; refunds 10000; costs 40000+70000; purchases 70000.",
+            "projectionDigest": "9439e0378a9d4bce1c5b654639701aa7d4eae341694b7d328933c7c2af80c573"
+          },
+          {
+            "name": "shop-refunds",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "10000",
+            "arithmetic": "Invoices 100000+200000; receipts 60000+200000; earned 100000+150000; refunds 10000; costs 40000+70000; purchases 70000.",
+            "projectionDigest": "2a586fabd56dd45e786727762523153d4573d438f0252bc0759abd7ac57704ee"
+          },
+          {
+            "name": "shop-costs",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "110000",
+            "arithmetic": "Invoices 100000+200000; receipts 60000+200000; earned 100000+150000; refunds 10000; costs 40000+70000; purchases 70000.",
+            "projectionDigest": "2325b6e3454e6e5a0b122f91680bbc4d8e7cfb9c759d0e08f53578e5673cae62"
+          },
+          {
+            "name": "shop-purchases",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "70000",
+            "arithmetic": "Invoices 100000+200000; receipts 60000+200000; earned 100000+150000; refunds 10000; costs 40000+70000; purchases 70000.",
+            "projectionDigest": "f5dd0dfc02927428151c336b37326973e520c76175dc98dc8d49764274c37336"
+          },
+          {
+            "name": "shop-net_sales",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "240000",
+            "arithmetic": "Invoices 100000+200000; receipts 60000+200000; earned 100000+150000; refunds 10000; costs 40000+70000; purchases 70000.",
+            "projectionDigest": "56eb35aab99bdf261cccc712380283237fff172be9e984ef64bb50aded7bcea1"
+          },
+          {
+            "name": "shop-margin",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "130000",
+            "arithmetic": "(250000-10000)-110000=130000; 130000*10000/240000 truncates to 5416.",
+            "projectionDigest": "a252d1f757aecbc65dfda226e542b6ca9411acafe3d9f5eb208f6e8c36be65cf"
+          },
+          {
+            "name": "shop-aging",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "30000",
+            "arithmetic": "A=100000-60000-10000=30000; B=200000-200000=0.",
+            "projectionDigest": "703fb7c9a9eab7f2a126cab47faa905f0d12afdecb7ccc11c65c647131dfbe23"
+          },
+          {
+            "name": "sum-above-javascript-safe-integer",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "900719925474099400",
+            "arithmetic": "900719925474099391+9=900719925474099400 exact minor units.",
+            "projectionDigest": "8930b7820da980d88ef1a2f1ca9710587f1585c361a69b4aef6380f09bb0bde3"
+          },
+          {
+            "name": "sum-at-decimal-38-maximum",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "99999999999999999999999999999999999999",
+            "arithmetic": "One event with exactly38 nines equals the DECIMAL(38,0) maximum99999999999999999999999999999999999999.",
+            "projectionDigest": "40280b78e40d679c1cd55a9ae0e84e1465ad24d57ae8dfe06f4516a762a12b2d"
+          },
+          {
+            "name": "large-margin-ratio-must-not-round-up",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "9999999999999999999999999999999",
+            "arithmetic": "Earned10000000000000000000000000000000 minus cost1 gives9999999999999999999999999999999. Multiplying by10000 then dividing by earned truncates to9999bps, never rounds to10000.",
+            "projectionDigest": "5dd1966d9d8dd4eb82d501a4afb9d4abd266633670569e97cf17b96a7fd2cf67"
+          },
+          {
+            "name": "negative-margin-truncates-toward-zero",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "-1",
+            "arithmetic": "3-0-4=-1; -10000/3 truncates to -3333 (not -3334).",
+            "projectionDigest": "ddf010374ede6d33100ea0b53c2c73ddfa067b8ca7b6f5c5fafb7aac6074afc2"
+          },
+          {
+            "name": "zero-margin-denominator-omits-ratio",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "-1",
+            "arithmetic": "Earned 3-refund 3=0; contribution 0-1=-1; no defined margin ratio.",
+            "projectionDigest": "b001e0eff1257992d5efd2ea5c870d7a59ce197a98653ccd8d8a8ab5258d6d9a"
+          },
+          {
+            "name": "negative-change-truncates-toward-zero",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "-1",
+            "arithmetic": "Current 2-prior 3=-1; -10000/3 truncates to -3333.",
+            "projectionDigest": "2a9a7ad2bc32df38ad8f613f73ff56627abc0603d482b7cdafa8f4d5e6e8c0f7"
+          },
+          {
+            "name": "zero-change-denominator-omits-ratio",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "2",
+            "arithmetic": "Current 2-prior 0=2; no defined change ratio.",
+            "projectionDigest": "f7f08120e4e86da228e17ffff82146c48e4db4fbd45a2e9ccbcfc3ff08fa0d10"
+          },
+          {
+            "name": "prior-source-conflict-makes-comparison-partial",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "2",
+            "arithmetic": "Current2 with conflicting prior3 versus4 has no selected prior winner. Arithmetic difference2 has partial coverage, one prior conflict, and no defined ratio.",
+            "projectionDigest": "6a9fd7db09dfc7bbbadefeaece8c05f853fe746fe77359748ad3a6980a823374"
+          },
+          {
+            "name": "overlapping-periods-retain-distinct-lineage",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "2",
+            "arithmetic": "August-only3+overlap2+September-only5: current7, prior5, change2, ratio4000bps; three unique facts cover both periods.",
+            "projectionDigest": "ec9e8d9da7b3a37724258ffb3bfebd6370fa371eb8fda6a284117c578ab9ef3a"
+          },
+          {
+            "name": "negative-scenario-truncates-toward-zero",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "-3",
+            "arithmetic": "-3*(10000+1000)/10000=-3.3 truncates to -3; change=0.",
+            "projectionDigest": "3f52217dbe6f0f4f645e98c3a246bee51b1f264e6df4a1d1868cb773a9c8818f"
+          },
+          {
+            "name": "scenario-preserves-large-integer-and-fractional-minor-unit",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "990791918021509330",
+            "arithmetic": "900719925474099391*11000/10000=990791918021509330.1 truncates to990791918021509330; change90071992547409939.",
+            "projectionDigest": "8cc1d15ae75b1767fd0da43f49acc9cd3564423727d178e21c894a9f962be797"
+          },
+          {
+            "name": "aging-payment-fanout-surplus-and-orphans",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "40000",
+            "arithmetic": "A=100000-(25000+30000+5000)=40000; B=50000-70000 yields 20000 excess. Wrong customer 15000+missing invoice 3000+unlinked 2000=20000; unallocated=40000.",
+            "projectionDigest": "16c439115f9d0922d044b3f61da9e2774f702c4febaa087b03b0d0a6c3ca6a61"
+          },
+          {
+            "name": "aging-unmatched-links-are-unallocated",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "100",
+            "arithmetic": "Invoice I/C=100 with no matching receipt stays outstanding100. I/OTHER25+MISSING/C30+unlinked10=unallocated65.",
+            "projectionDigest": "07b040f7df9ca9f5edb97f020100607d25d66b2d02ff272ddbd3d1d281de8056"
+          },
+          {
+            "name": "aging-inclusive-bucket-boundaries",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "700",
+            "arithmetic": "Seven invoices of100 due at ages0,30,31,60,61,90,91 days produce100,100,200,200,100; outstanding700.",
+            "projectionDigest": "bc5d9dea651767017060969c67ae47134f5d5425c598373d0d5708f81ddc9c68"
+          },
+          {
+            "name": "explicit-zero-is-a-counted-fact",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "0",
+            "arithmetic": "One real zero-valued event counts; it is not an empty selection.",
+            "projectionDigest": "375c002b6b573f24e3478446db662b0cad4fd2aae917fedde2187459cdd00710"
+          },
+          {
+            "name": "empty-selection-is-a-coverage-gap",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "0",
+            "arithmetic": "No facts means a zero arithmetic result with empty coverage, not proof of no activity.",
+            "projectionDigest": "61dfb3bbff73b65e1488045b6c6d627220f5af898902168da775aa3de5e6b20e"
+          },
+          {
+            "name": "missing-amount-explicitly-excluded",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "0",
+            "arithmetic": "Null amount is excluded by an explicit rule; zero is counted independently and unknown activity remains a partial coverage gap.",
+            "projectionDigest": "afe5c0c254c69e085334ed6d6e6007b66f90f8067781c4bf910fc901e86cfb6d"
+          },
+          {
+            "name": "all-amounts-unknown-remains-partial",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "0",
+            "arithmetic": "A selected event with an excluded unknown amount yields zero counted facts but partial coverage; it is neither empty activity nor a known zero.",
+            "projectionDigest": "b49cca0364ed2adf10c29a98636f881adf0d9ae659bca92e719b5d1a5671dda8"
+          },
+          {
+            "name": "conflicting-claims-are-not-zero-evidence",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "0",
+            "arithmetic": "Two independent sources assert100 and90 for the same event; no selected winner yields partial coverage and one conflict.",
+            "projectionDigest": "5f838b1c5e571246c4892abadff52a66b3ed4f0acbb4307f9fb9d3eeb2e492f7"
+          },
+          {
+            "name": "duplicate-claims-count-once",
+            "passed": true,
+            "evidence": "literal-answer-and-actual-pglite-query",
+            "expectedMinor": "100",
+            "arithmetic": "Two independent sources assert the same100 event; one logical event counts100.",
+            "projectionDigest": "ea76f79b4c205dfbcff9dbd5a5425386f041ddbebcf4bbbc6f417562a86692ff"
+          },
+          {
+            "name": "missing-amount-rejected",
+            "passed": true,
+            "evidence": "javascript-contract-refusal-before-sql",
+            "reason": "MISSING_MEASURE_VALUE"
+          },
+          {
+            "name": "unconverted-currency-rejected",
+            "passed": true,
+            "evidence": "javascript-contract-refusal-before-sql",
+            "reason": "CURRENCY_MISMATCH"
+          },
+          {
+            "name": "duplicate-invoice-link-rejected",
+            "passed": true,
+            "evidence": "javascript-contract-refusal-before-sql",
+            "reason": "AGING_AMBIGUOUS_INVOICE"
+          },
+          {
+            "name": "missing-customer-link-rejected",
+            "passed": true,
+            "evidence": "javascript-contract-refusal-before-sql",
+            "reason": "AGING_LINK_REQUIRED"
+          },
+          {
+            "name": "tampered-answer-refused",
+            "passed": true,
+            "evidence": "actual-pglite-result-mismatch"
+          },
+          {
+            "name": "exact-import-idempotency-and-currency",
+            "passed": true,
+            "evidence": "in-memory-application-import-with-actual-pglite-arithmetic",
+            "exactMinor": "900719925474099400",
+            "convertedMinor": "85075",
+            "appStateDurability": "not-tested"
+          },
+          {
+            "name": "currency-exponents-and-missing-state",
+            "passed": true,
+            "evidence": "actual-pglite-numeric-null-query-and-exact-parser",
+            "known": "1",
+            "selected": "2",
+            "total": "0"
+          },
+          {
+            "name": "temporary-projections-rolled-back",
+            "passed": true,
+            "evidence": "actual-pglite-catalog-query"
+          },
+          {
+            "name": "same-instance-cas",
+            "passed": true,
+            "evidence": "actual-filesystem-wasm-serialized-transactions"
+          },
+          {
+            "name": "orderly-close-and-reopen",
+            "passed": true,
+            "evidence": "actual-new-wasm-instance-filesystem-readback"
+          },
+          {
+            "name": "independent-instance-directory-ownership",
+            "passed": false,
+            "reason": "ERR_ASSERTION"
+          }
+        ],
+        "blockers": [
+          {
+            "code": "UNSAFE_INDEPENDENT_INSTANCE_CAS",
+            "acknowledgedWriters": 2,
+            "retainedRevision": 1,
+            "retainedValue": 1
+          }
+        ],
+        "engines": {
+          "pglite": "actual-wasm-executed"
+        },
+        "adapterProofLabel": "injected-sql",
+        "defaultEngineSelected": false,
+        "productionQualified": false,
+        "limitations": [
+          "Application fixture selection/import uses an explicitly labelled in-memory FixtureStateStore.",
+          "PGlite has no qualified product authority adapter, encrypted-backup composition or production selection.",
+          "Independent-instance CAS probe is in one process; cross-process ownership and crash/power-loss recovery remain unqualified."
+        ],
+        "generatedDataRoot": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901764372-16392\\pglite-fixtures",
+        "packageVersion": "0.5.8",
+        "sourceHashes": {
+          "../platform/runtime/analytics.ts": "902b8d525fa6855e6a3e6f9da5929ddb7ca9c43e8074925161ef946842c6a4a5",
+          "../platform/tests/database-fixtures.ts": "ec7bb9bdb936f7bc6548a85976929ec409fe2b08befccc1272ff3e1acd87caa1"
+        },
+        "corpus": {
+          "fixtures": 34,
+          "acceptedActualSql": 30,
+          "refusedBeforeSql": 4,
+          "expectedAccepted": 30
+        },
+        "verifierSqlExecuteCalls": 221,
+        "independentWriterObservation": {
+          "sameProcess": true,
+          "separateWasmInstances": true,
+          "initialViews": [
+            {
+              "revision": 0,
+              "value": 0
+            },
+            {
+              "revision": 0,
+              "value": 0
+            }
+          ],
+          "writers": [
+            {
+              "status": "fulfilled",
+              "rows": [
+                {
+                  "revision": 1,
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "status": "fulfilled",
+              "rows": [
+                {
+                  "revision": 1,
+                  "value": 1
+                }
+              ]
+            }
+          ],
+          "acknowledgedWriters": 2,
+          "cleanReopen": {
+            "revision": 1,
+            "value": 1
+          }
+        }
+      }
+    },
+    {
+      "label": "compiled",
+      "artifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901943821-54740\\verify-compiled-measures-c-native.report.json",
+      "artifactSha256": "d8c2aeb6d161cfb50ca52b09df8fe4ec51c824640b358ffb48d31536bad665d3",
+      "lifecycleArtifact": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901943821-54740\\lifecycle.json",
+      "lifecycleSha256": "a716715dbc80953a0ba2e51614b2b11578641102aebab686d599c08785012d29",
+      "startedAtUtc": "2026-10-02T00:45:55.504Z",
+      "completedAtUtc": "2026-10-02T00:46:07.385Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "scriptSha256": "5272bf5917520c09c36bd46504f5225bbd6f6f77f31d9aafc245a4d46cdb046d",
+      "scriptSha256After": "5272bf5917520c09c36bd46504f5225bbd6f6f77f31d9aafc245a4d46cdb046d",
+      "checksPassed": 37,
+      "checksFailed": 0,
+      "ownedServerStopped": true,
+      "postmasterPidAbsent": true,
+      "sourceHashesAfterMatch": true,
+      "fourPostgresBinaryHashesAfterMatch": true,
+      "ownedCFixtureBytes": 50776171,
+      "report": {
+        "suite": "c-owned-native-compiled-single-definition-measures",
+        "sourceCommit": "1dc19b856380951aea49b7143ed4b5617130c06b",
+        "foundation": {
+          "commit": "1dc19b856380951aea49b7143ed4b5617130c06b",
+          "script": "scripts/verify-compiled-measures.mjs"
+        },
+        "sourceCommitVerification": "supervisor-reported-exact-baseline",
+        "fixtureCredential": "fixed-public-synthetic-only",
+        "passed": true,
+        "checks": [
+          {
+            "name": "pristine-dedicated-loopback-postgresql-identity",
+            "passed": true,
+            "evidence": "native-postgresql",
+            "serverVersion": "18.6",
+            "version": "PostgreSQL 18.6 on x86_64-windows, compiled by msvc-19.44.35228, 64-bit",
+            "listen_addresses": "127.0.0.1",
+            "port": "53780",
+            "host_address": "127.0.0.1",
+            "actual_port": 53780,
+            "data_directory": "C:/Users/karta/Documents/Codex/2026-10-01/task-4/qualification-joined-20261002/synthetic-1790901943821-54740/data"
+          },
+          {
+            "name": "custom-bank-sum:javascript-literal-answer",
+            "passed": true,
+            "evidence": "javascript-independent-literal-answer",
+            "expectedMinor": "75"
+          },
+          {
+            "name": "custom-bank-sum:duckdb-literal-answer",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "expectedMinor": "75",
+            "projectionDigest": "2dfbbc50e5c90c72f415d8f5a715c270b8a590ed261340336a7173c2815a8a1c"
+          },
+          {
+            "name": "custom-bank-sum:duckdb-tampered-answer",
+            "passed": true,
+            "evidence": "native-duckdb"
+          },
+          {
+            "name": "custom-bank-sum:postgres-literal-answer",
+            "passed": true,
+            "evidence": "native-postgres",
+            "expectedMinor": "75",
+            "projectionDigest": "2dfbbc50e5c90c72f415d8f5a715c270b8a590ed261340336a7173c2815a8a1c"
+          },
+          {
+            "name": "custom-bank-sum:postgres-tampered-answer",
+            "passed": true,
+            "evidence": "native-postgres"
+          },
+          {
+            "name": "negative-definition-sign:javascript-literal-answer",
+            "passed": true,
+            "evidence": "javascript-independent-literal-answer",
+            "expectedMinor": "-75"
+          },
+          {
+            "name": "negative-definition-sign:duckdb-literal-answer",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "expectedMinor": "-75",
+            "projectionDigest": "b2d7a8ea0712da1ae8b16665c904bb5e5be95582ffbd0b5105aa871a75a15696"
+          },
+          {
+            "name": "negative-definition-sign:duckdb-tampered-answer",
+            "passed": true,
+            "evidence": "native-duckdb"
+          },
+          {
+            "name": "negative-definition-sign:postgres-literal-answer",
+            "passed": true,
+            "evidence": "native-postgres",
+            "expectedMinor": "-75",
+            "projectionDigest": "b2d7a8ea0712da1ae8b16665c904bb5e5be95582ffbd0b5105aa871a75a15696"
+          },
+          {
+            "name": "negative-definition-sign:postgres-tampered-answer",
+            "passed": true,
+            "evidence": "native-postgres"
+          },
+          {
+            "name": "alternate-fee-field:javascript-literal-answer",
+            "passed": true,
+            "evidence": "javascript-independent-literal-answer",
+            "expectedMinor": "500"
+          },
+          {
+            "name": "alternate-fee-field:duckdb-literal-answer",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "expectedMinor": "500",
+            "projectionDigest": "be9fefa1ec6af1313fed97164f4d7dffa9646768d4b88ccb9cac0da9a0eb7805"
+          },
+          {
+            "name": "alternate-fee-field:duckdb-tampered-answer",
+            "passed": true,
+            "evidence": "native-duckdb"
+          },
+          {
+            "name": "alternate-fee-field:postgres-literal-answer",
+            "passed": true,
+            "evidence": "native-postgres",
+            "expectedMinor": "500",
+            "projectionDigest": "be9fefa1ec6af1313fed97164f4d7dffa9646768d4b88ccb9cac0da9a0eb7805"
+          },
+          {
+            "name": "alternate-fee-field:postgres-tampered-answer",
+            "passed": true,
+            "evidence": "native-postgres"
+          },
+          {
+            "name": "exact-above-safe-integer:javascript-literal-answer",
+            "passed": true,
+            "evidence": "javascript-independent-literal-answer",
+            "expectedMinor": "900719925474099400"
+          },
+          {
+            "name": "exact-above-safe-integer:duckdb-literal-answer",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "expectedMinor": "900719925474099400",
+            "projectionDigest": "a9c658e56e250b2b594158ed612b8ccf36bfc695906b57459a94c930b5539b57"
+          },
+          {
+            "name": "exact-above-safe-integer:duckdb-tampered-answer",
+            "passed": true,
+            "evidence": "native-duckdb"
+          },
+          {
+            "name": "exact-above-safe-integer:postgres-literal-answer",
+            "passed": true,
+            "evidence": "native-postgres",
+            "expectedMinor": "900719925474099400",
+            "projectionDigest": "a9c658e56e250b2b594158ed612b8ccf36bfc695906b57459a94c930b5539b57"
+          },
+          {
+            "name": "exact-above-safe-integer:postgres-tampered-answer",
+            "passed": true,
+            "evidence": "native-postgres"
+          },
+          {
+            "name": "decimal-38-maximum:javascript-literal-answer",
+            "passed": true,
+            "evidence": "javascript-independent-literal-answer",
+            "expectedMinor": "99999999999999999999999999999999999999"
+          },
+          {
+            "name": "decimal-38-maximum:duckdb-literal-answer",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "expectedMinor": "99999999999999999999999999999999999999",
+            "projectionDigest": "728a647d1334282d74a9af2ad045d4c76291e985bb4ad13633885d35f205b072"
+          },
+          {
+            "name": "decimal-38-maximum:duckdb-tampered-answer",
+            "passed": true,
+            "evidence": "native-duckdb"
+          },
+          {
+            "name": "decimal-38-maximum:postgres-literal-answer",
+            "passed": true,
+            "evidence": "native-postgres",
+            "expectedMinor": "99999999999999999999999999999999999999",
+            "projectionDigest": "728a647d1334282d74a9af2ad045d4c76291e985bb4ad13633885d35f205b072"
+          },
+          {
+            "name": "decimal-38-maximum:postgres-tampered-answer",
+            "passed": true,
+            "evidence": "native-postgres"
+          },
+          {
+            "name": "unknown-fee-excluded:javascript-literal-answer",
+            "passed": true,
+            "evidence": "javascript-independent-literal-answer",
+            "expectedMinor": "125"
+          },
+          {
+            "name": "unknown-fee-excluded:duckdb-literal-answer",
+            "passed": true,
+            "evidence": "native-duckdb",
+            "expectedMinor": "125",
+            "projectionDigest": "a865d067dfbec1f57cef76ec1dc8fc89329e6da2788225d03a28cb22b7b03aaa"
+          },
+          {
+            "name": "unknown-fee-excluded:duckdb-tampered-answer",
+            "passed": true,
+            "evidence": "native-duckdb"
+          },
+          {
+            "name": "unknown-fee-excluded:postgres-literal-answer",
+            "passed": true,
+            "evidence": "native-postgres",
+            "expectedMinor": "125",
+            "projectionDigest": "a865d067dfbec1f57cef76ec1dc8fc89329e6da2788225d03a28cb22b7b03aaa"
+          },
+          {
+            "name": "unknown-fee-excluded:postgres-tampered-answer",
+            "passed": true,
+            "evidence": "native-postgres"
+          },
+          {
+            "name": "unknown-fee-rejected:required-value-refusal",
+            "passed": true,
+            "evidence": "javascript-contract-refusal-before-native-sql",
+            "reason": "MISSING_MEASURE_VALUE"
+          },
+          {
+            "name": "production-http-author-publish-bank-import-and-catalog",
+            "passed": true,
+            "evidence": "native-postgresql-encrypted-authority-and-actual-http",
+            "sourceQualification": "experimental-synthetic"
+          },
+          {
+            "name": "production-http-custom-bank-sum-and-native-proofs",
+            "passed": true,
+            "evidence": "production-default-native-duckdb-and-native-postgresql",
+            "expectedMinor": "10025"
+          },
+          {
+            "name": "production-http-authority-keeps-synthetic-plaintext-encrypted",
+            "passed": true,
+            "evidence": "native-postgresql-encrypted-snapshot"
+          },
+          {
+            "name": "production-http-reopen-preserves-compiled-receipt-and-native-recalculation",
+            "passed": true,
+            "evidence": "native-postgresql-reopen-and-default-native-duckdb"
+          },
+          {
+            "name": "production-http-owned-workspace-deletion",
+            "passed": true,
+            "evidence": "native-postgresql-encrypted-authority"
+          }
+        ],
+        "blockers": [],
+        "engines": {
+          "duckdb": "native-executed",
+          "postgres": "native-executed"
+        },
+        "scope": "Literal authored single-definition sum vectors against JavaScript, native DuckDB and native PostgreSQL; production Engine HTTP import/catalog/run/receipt/reopen with PostgreSQL encrypted authority and default native DuckDB. C-owned fixture writes and existing read-only runtimes only. No vendor, provider, enterprise, installer or full-release qualification.",
+        "environmentGuards": {
+          "ownedWorkspace": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4",
+          "runRoot": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901943821-54740",
+          "temporaryDirectory": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901943821-54740\\temp",
+          "postgresDataDirectory": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901943821-54740\\data",
+          "dRuntimeAccessPolicy": "read-only-existing-files",
+          "compileCacheEnvironment": "unset"
+        }
+      }
+    }
+  ],
+  "blockers": [
+    "UNSAFE_INDEPENDENT_INSTANCE_CAS",
+    "PostgreSQL complete v2 archive/restore/activation composition unavailable",
+    "Product PGlite authority adapter/exclusive ownership/crash recovery unqualified"
+  ],
+  "historicalArtifact": "Prior 41cedac native110 and 3d34e6f PGlite45 are separate, not added to these results.",
+  "totalRetainedCQualificationBytes": 357652634,
+  "unaffectedPrerequisites": "No acquisition or inaccessible npm-cache retry. Existing D runtime access only; no D measurement/writes under task-18 exclusive lease.",
+  "guardProbes": [
+    {
+      "name": "supervisor-refuses-junction-parent-before-create",
+      "passed": true,
+      "nativeEngineExecuted": false,
+      "redirectedChildCreated": false,
+      "rawStderr": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\native-staging-guards-20261002\\supervisor.stderr.txt",
+      "rawStderrSha256": "ad015a021b00bc4b3d4e69021d38a641171f90b57678c7de44f0a05270a25c1a"
+    },
+    {
+      "name": "pglite-refuses-supplied-safe-env-with-actual-process-temp-mismatch",
+      "passed": true,
+      "nativeEngineExecuted": false,
+      "generatedData": false
+    }
+  ],
+  "attempts": [
+    {
+      "runRoot": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901070525-13020",
+      "outcome": "default sandbox pg_ctl restricted-token error87 / server-start error3; no native gate execution; supported escalation then succeeded"
+    },
+    {
+      "runRoot": "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-4\\qualification-joined-20261002\\synthetic-1790901577046-67428",
+      "outcome": "escalated Git readback stopped on different Windows repository owner before database startup; no safe.directory/ownership/security changes; read-only sandbox-owner manifest resolved it"
+    }
+  ]
+}
