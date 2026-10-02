@@ -143,24 +143,36 @@ export class WorkspaceActivationStagingInventory {
   }
   async #attempts(capture: VaultEncryptedCustodyCapture, reservations: SourceReservations) {
     const { sourceVault: source, journalVault: journal, applicationDirectory: root, budgets } = this.#options;
+    const captured = new Map(capture.artifacts.map(item => [`${item.ref.purpose}/${item.ref.id}`, item]));
     const values = new Map<string, { ref: PrivateArtifactRef; value: any; bytes: Uint8Array }>();
-    for (const item of capture.artifacts) {
+    // Both complete captures still authenticate every journal artifact. This
+    // middle pass reads only exact WAL dependencies, once per invocation; inert
+    // artifact writes need not advance State revision, so it cannot be reused
+    // across inventory calls or across the callback's final custody fence.
+    const read = async (key: string) => {
+      const retained = values.get(key);
+      if (retained) return retained;
+      const item = captured.get(key);
+      if (!item) return undefined;
       const authenticated = await journal.readArtifact(item.ref);
       check(same(refIdentity(authenticated), item.ref), 'BACKUP_ACTIVATION_JOURNAL_CHANGED', 'Journal refs must equal independently authenticated custody.');
-      values.set(`${item.ref.purpose}/${item.ref.id}`, { ref: item.ref, value: authenticated.value, bytes: item.bytes });
-    }
+      const value = { ref: item.ref, value: authenticated.value, bytes: item.bytes };
+      values.set(key, value);
+      return value;
+    };
     const validClaim = (claim: any) => exact(claim, ['format', 'sourceVaultId', 'activationId', 'candidateId', 'candidateCreationId', 'pinDigest'])
       && claim.format === 'chausar.activation-local-claim.v1' && claim.sourceVaultId === source.vaultId
       && idValue(claim.activationId) && idValue(claim.candidateId) && idValue(claim.candidateCreationId) && digestValue(claim.pinDigest);
-    const ledger = values.get('workspace-interchange/wal_ledger_v1')?.value;
+    const ledger = (await read('workspace-interchange/wal_ledger_v1'))?.value;
     if (ledger !== undefined) check(exact(ledger, ['format', 'claims']) && ledger.format === 'chausar.activation-local-ledger.v1'
       && Array.isArray(ledger.claims) && ledger.claims.length <= Math.min(4096, budgets.maxFiles) && ledger.claims.every(validClaim)
       && new Set(ledger.claims.map((claim: any) => claim.activationId)).size === ledger.claims.length
       && new Set(ledger.claims.map((claim: any) => claim.candidateCreationId)).size === ledger.claims.length,
     'BACKUP_ACTIVATION_JOURNAL_CHANGED', 'Retain the exact durable single-use identity ledger.');
     const attempts: WorkspaceActivationStagingAttempt[] = [];
-    for (const [key, retained] of values) {
+    for (const key of captured.keys()) {
       if (!/^workspace-interchange\/wal_[a-f0-9]{64}_attempt$/.test(key)) continue;
+      const retained = (await read(key))!;
       const value = retained.value, record = value?.record, claim = value?.claim;
       const reservation = reservations.get(String(value?.reservation?.targetId).toLowerCase());
       check(value?.format === 'chausar.activation-local-journal.v1' && ['attempted', 'prepared', 'committed', 'failed'].includes(value.phase)
@@ -174,9 +186,11 @@ export class WorkspaceActivationStagingInventory {
         && claim.candidateId === record.candidateId && claim.candidateCreationId === record.candidateCreationId && claim.pinDigest === record.pinDigest
         && reservation && same(value.reservation, reservation.value) && same(value.reservationRef, reservation.ref)
         && record.targetId === reservation.value.targetId && record.workspaceId === reservation.value.workspaceId
-        && record.contextDigest === reservation.value.contextDigest && ledger?.claims.some((item: unknown) => same(item, claim))
-        && same(values.get(`workspace-interchange/wal_${sha(`${source.vaultId}:${claim.candidateCreationId}`)}_candidate`)?.value, claim),
+        && record.contextDigest === reservation.value.contextDigest && ledger?.claims.some((item: unknown) => same(item, claim)),
       'BACKUP_ACTIVATION_JOURNAL_CHANGED', 'Attempt, reservation, paired claim and single-use ledger must authenticate together.');
+      const paired = await read(`workspace-interchange/wal_${sha(`${source.vaultId}:${claim.candidateCreationId}`)}_candidate`);
+      check(same(paired?.value, claim), 'BACKUP_ACTIVATION_JOURNAL_CHANGED',
+        'Attempt, reservation, paired claim and single-use ledger must authenticate together.');
       if (value.staging !== undefined) check(exact(value.staging, ['name', 'physical']) && typeof value.staging.name === 'string'
         && attemptPattern.test(value.staging.name) && physicalValue(value.staging.physical),
         'BACKUP_ACTIVATION_STAGING_UNBOUND', 'Staging requires its exact durable name and physical generation.');
@@ -198,8 +212,10 @@ export class WorkspaceActivationStagingInventory {
         check(Number.isSafeInteger(total) && total <= budgets.maxBytes, 'BACKUP_LIMIT', 'Activation manifest exceeds its exact byte budget.');
       }
       for (const [name, ref, part] of [[BOOTSTRAP, value.bootstrap, 'bootstrap'], [EVIDENCE, value.evidence, 'evidence']] as const) {
-        const encrypted = ref && values.get(`workspace-interchange/${ref.id}`), file = value.files.find((item: any) => item.path === name);
-        check(ref?.purpose === 'workspace-interchange' && ref.id === `wal_${sha(record.activationId)}_${part}` && encrypted
+        check(ref?.purpose === 'workspace-interchange' && ref.id === `wal_${sha(record.activationId)}_${part}`,
+          'BACKUP_ACTIVATION_JOURNAL_CHANGED', 'Immutable staged payloads require exact journal-issued refs and encrypted bytes.');
+        const encrypted = await read(`workspace-interchange/${ref.id}`), file = value.files.find((item: any) => item.path === name);
+        check(encrypted
           && same(encrypted.ref, ref) && file && file.witness.bytes === encrypted.bytes.length && file.witness.sha256 === sha(encrypted.bytes),
         'BACKUP_ACTIVATION_JOURNAL_CHANGED', 'Immutable staged payloads require exact journal-issued refs and encrypted bytes.');
       }
