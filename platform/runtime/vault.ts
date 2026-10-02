@@ -19,6 +19,9 @@ export interface EncryptedSnapshotAdapter {
   load(): Promise<VaultEnvelope | null>;
   commit(envelope: VaultEnvelope, expectedRevision: number | null): Promise<void>;
   delete(): Promise<void>;
+  /** Trusted deletion scope: admit the complete retained ciphertext and hold
+   * native custody through every awaited purge and the authority deletion. */
+  withDeletionAdmission?<T>(expected: VaultEnvelope, work: () => Promise<T>): Promise<T>;
   /** Ciphertext-only atomic ownership CAS. Required for PostgreSQL bootstrap;
    * compare the entire original envelope and revision/Vault identity under the
    * same slot transaction. Mismatch preserves the occupant. Never read/delete.
@@ -48,6 +51,8 @@ function artifactIdentity(id: string, purpose: PrivateArtifactPurpose) {
 /** Trusted host admission, held through the actual authority commit. No RPC port. */
 export type VaultWriterGuard = <T>(input: { state: State; vaultId: string },
   work: (assertCurrent: () => void) => Promise<{ result: T; committedState: State; rollback?: () => void }>) => Promise<T>;
+/** Trusted application cleanup only; the Vault owns storage and private paths. */
+export type VaultDeletionCleanup = (input: { privateArtifactPaths: readonly string[]; assertCurrent: () => void }) => Promise<void>;
 type Common = { directory: string; storage: Storage; keychain?: KeychainHook; writerGuard?: VaultWriterGuard };
 export type CreateVaultOptions = Common & { passphrase: string; name: string; demo?: boolean };
 export type VaultBootstrapBudgets = { maxStateBytes: number; maxJsonDepth: number; maxJsonNodes: number; maxRecords: number };
@@ -786,20 +791,25 @@ export class Vault implements StateStore {
   /** Purge whole-workspace artifact copies when the owning retention/delete flow revokes them. */
   purgeArtifacts(): Promise<string[]> {
     return this.#artifactOperation(() => this.guarded(async assertCurrent => {
-      const files: { purpose: PrivateArtifactPurpose; directory: string; name: string }[] = [];
-      for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
-        const directory = await this.#artifactDirectory(purpose); if (!directory) continue;
-        const names = await readdir(directory);
-        if (names.length > 4096) fail('ARTIFACT_LIMIT', 'Managed artifact inventory exceeds its bound.');
-        for (const name of names) {
-          if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified entries prevent managed copy cleanup.');
-          await this.#readArtifact({ id: name.slice(0, -15), purpose }); files.push({ purpose, directory, name });
-        }
-      }
+      const { files } = await this.#managedArtifactInventory();
       for (const file of files) { assertCurrent(); await unlink(join(file.directory, file.name)); }
       for (const directory of new Set(files.map(file => file.directory))) await syncDirectory(directory);
       return { result: files.map(file => `private-artifacts/${file.purpose}/${file.name}`), committedState: structuredClone(this.#state) };
     }));
+  }
+  async #managedArtifactInventory() {
+    const directories: string[] = [], files: { purpose: PrivateArtifactPurpose; directory: string; name: string }[] = [];
+    for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
+      const directory = await this.#artifactDirectory(purpose); if (!directory) continue;
+      directories.push(directory);
+      const names = await readdir(directory);
+      if (names.length > 4096) fail('ARTIFACT_LIMIT', 'Managed artifact inventory exceeds its bound.');
+      for (const name of names) {
+        if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified entries prevent managed copy cleanup.');
+        await this.#readArtifact({ id: name.slice(0, -15), purpose }); files.push({ purpose, directory, name });
+      }
+    }
+    return { directories, files };
   }
   async #assertSnapshotOnlyBackup() {
     for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
@@ -833,27 +843,27 @@ export class Vault implements StateStore {
     if (!options.plaintext) return this.backup(target);
     return this.#enqueue(async () => { await this.#assertSnapshotOnlyBackup(); await atomicWrite(target, JSON.stringify(this.#state, null, 2), false); return target; });
   }
-  async delete(): Promise<void> {
+  async delete(cleanup?: VaultDeletionCleanup): Promise<void> {
     if (this.#transaction.getStore()) fail('REENTRANT_TRANSACTION', 'A vault cannot be deleted from inside a transaction.');
     this.#ready(); this.#closing = true;
     this.#shutdown = (async () => {
       await this.#chain;
-      try { await this.guarded(async assertCurrent => {
-        // Only this typed encrypted namespace is managed here; never recursively delete user paths.
-        for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
-          const directory = await this.#artifactDirectory(purpose);
-          if (!directory) continue;
-          const names = await readdir(directory);
-          for (const name of names) {
-            if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified custody entries require review before deletion.');
-            await this.#readArtifact({ id: name.slice(0, -15), purpose });
-          }
-          for (const name of names) { assertCurrent(); await unlink(join(directory, name)); }
-          await rmdir(directory);
-        }
-        assertCurrent(); await this.#adapter.delete(); await this.#keychain?.remove(this.#envelope.id);
-        return { result: undefined, committedState: structuredClone(this.#state) };
-      }); }
+      try {
+        const work = () => this.guarded(async assertCurrent => {
+          // Only this typed encrypted namespace is managed here; never recursively delete user paths.
+          const { directories, files } = await this.#managedArtifactInventory();
+          for (const file of files) { assertCurrent(); await unlink(join(file.directory, file.name)); }
+          for (const directory of directories) { assertCurrent(); await rmdir(directory); }
+          await cleanup?.({ privateArtifactPaths: Object.freeze(files.map(file => `private-artifacts/${file.purpose}/${file.name}`)), assertCurrent });
+          assertCurrent(); await this.#adapter.delete();
+          return { result: undefined, committedState: structuredClone(this.#state) };
+        });
+        if (this.storageKind === 'postgres') {
+          if (!this.#adapter.withDeletionAdmission) fail('POSTGRES_DELETION_CUSTODY_REQUIRED', 'PostgreSQL deletion requires held admission from the actual Vault storage.');
+          await this.#adapter.withDeletionAdmission(structuredClone(this.#envelope), work);
+        } else await work();
+        await this.#keychain?.remove(this.#envelope.id);
+      }
       finally { await this.#finish(); }
     })();
     return this.#shutdown;

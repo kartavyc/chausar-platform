@@ -1286,7 +1286,16 @@ export class Engine {
         const folder = join(this.options.directory, 'exports'); await mkdir(folder, { recursive: true }); const path = join(folder, `chausar-${store.read().workspace.id}-${Date.now()}.${payload.plaintext ? 'json' : 'vault'}`);
         await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
       }
-      case 'workspace.delete': this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.'); const removed = await this.purgeManagedCopies(); await store.delete(); await this.closeVault(); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      case 'workspace.delete': {
+        this.requireWorkspaceOwner(ctx); const workspace = store.read().workspace;
+        check(payload.confirmation === workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
+        await this.revokeManagedCopyReceipts();
+        let removed: string[] = [];
+        await store.delete(async ({ privateArtifactPaths, assertCurrent }) => {
+          removed = [...privateArtifactPaths, ...await this.purgeManagedApplicationCopies(workspace.id, assertCurrent)];
+        });
+        await this.closeVault(); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      }
       default: throw new Error(`Unknown request: ${method}`);
     }
   }
@@ -1655,7 +1664,7 @@ export class Engine {
       return (member.role === 'owner' && member.branches.includes('*')) || details.memberId === ctx.memberId;
     });
   }
-  private async purgeManagedCopies() {
+  private async revokeManagedCopyReceipts() {
     // A whole-workspace fork can hold forgotten bytes from another source. Revoke
     // surviving receipt contexts BEFORE deleting those copies; never retain the
     // forgotten fork solely to satisfy an unrelated receipt's interpretation.
@@ -1667,12 +1676,18 @@ export class Engine {
           reason: 'managed-retention-or-deletion', deletedAt: now() });
       });
     }
-    const removed: string[] = await this.store().purgeArtifacts();
-    const prefix = `chausar-${this.store().read().workspace.id}-`;
+  }
+  private async purgeManagedCopies() {
+    await this.revokeManagedCopyReceipts();
+    const vault = this.store(), workspaceId = vault.read().workspace.id;
+    return [...await vault.purgeArtifacts(), ...await this.purgeManagedApplicationCopies(workspaceId)];
+  }
+  private async purgeManagedApplicationCopies(workspaceId: string, assertCurrent: () => void = () => {}) {
+    const removed: string[] = [], prefix = `chausar-${workspaceId}-`;
     for (const name of ['backups', 'exports']) {
       const folder = resolve(this.options.directory, name); let files;
       try { files = await readdir(folder, { withFileTypes: true }); } catch (error) { if ((error as any).code === 'ENOENT') continue; throw error; }
-      for (const file of files) if (file.isFile() && file.name.startsWith(prefix) && /^\d+\.(backup|json|vault)$/.test(file.name.slice(prefix.length))) { const path = resolve(folder, file.name); check(relative(folder, path) === file.name, 'INVALID_PATH', 'A managed file left its export directory.'); await unlink(path); removed.push(`${name}/${file.name}`); }
+      for (const file of files) if (file.isFile() && file.name.startsWith(prefix) && /^\d+\.(backup|json|vault)$/.test(file.name.slice(prefix.length))) { const path = resolve(folder, file.name); check(relative(folder, path) === file.name, 'INVALID_PATH', 'A managed file left its export directory.'); assertCurrent(); await unlink(path); removed.push(`${name}/${file.name}`); }
     }
     return removed;
   }

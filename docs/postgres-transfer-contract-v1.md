@@ -10,6 +10,8 @@ Own `postgres.ts`, `workspace-postgres-custody.ts` and storage-only tests/docs. 
 
 Vault now requires `EncryptedSnapshotAdapter.deleteIfCurrent(expectedEnvelope)` before PostgreSQL fresh-authority bootstrap. Perform comparison and deletion in one slot transaction, against the full encrypted envelope including Vault ID and revision. Return `deleted`, `absent` or `mismatch`; preserve a competing occupant. Do not use load followed by unconditional delete. A lost publication acknowledgement with no exact authenticated readback is `BOOTSTRAP_COMMIT_UNKNOWN`; preserve possible authority. An uncertain or mismatched cleanup is `BOOTSTRAP_CLEANUP_REQUIRED`; no automatic deletion retry.
 
+Whole-workspace deletion requires `withDeletionAdmission(expectedEnvelope, work)` on the actual Vault-owned PostgreSQL adapter. Drain accepted Vault work, admit current custody and the complete retained encrypted envelope, then hold the same native lease through private-namespace preflight, managed private/application copy removal and authority deletion. Refuse before removal if this capability or current authority is unavailable. Close the adapter after the lease exits. Run keychain removal only after successful native commit; its failure must not roll authority deletion back after managed files have been removed. Preserve ordinary experimental-file deletion and exact-owned bootstrap cleanup as separate paths.
+
 Normalize the complete v1 envelope after JSONB readback while preserving ciphertext and authenticated values. Captures remain honestly labelled `adapter-issued-envelope`; this is not original physical JSONB byte custody.
 
 ## Backup lane B

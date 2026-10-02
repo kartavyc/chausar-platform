@@ -277,6 +277,15 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
     validateRevision(envelope, expectedRevision);
     return this.withLease(lease => lease.commit(envelope, expectedRevision));
   }
+  async withDeletionAdmission<T>(expectedEnvelope: VaultEnvelope, work: () => Promise<T>): Promise<T> {
+    const expected = JSON.stringify(normalizePostgresEnvelope(expectedEnvelope));
+    return this.withLease(async lease => {
+      const current = await lease.load();
+      if (!current || JSON.stringify(current) !== expected)
+        throw new ChausarError('POSTGRES_AUTHORITY_CHANGED', 'The retained encrypted Vault authority changed before deletion.');
+      return work();
+    });
+  }
   /** Atomic exact-owned bootstrap cleanup. Reads here never establish ownership;
    * only a previously admitted observation or our own mutation can do that.
    * Cleanup owns its outer transaction: call it outside an already-held target lease. */

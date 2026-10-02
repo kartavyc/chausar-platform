@@ -1,13 +1,15 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 import { ChausarError, hash } from '../runtime/contracts.ts';
 import { Engine } from '../runtime/engine.ts';
-import { PostgresSnapshotAdapter, type PostgresPool, type PostgresQueryResult } from '../runtime/postgres.ts';
-import { Vault, type VaultEnvelope } from '../runtime/vault.ts';
+import { CalculatorService } from '../runtime/calculator.ts';
+import { OntologyService } from '../runtime/ontology.ts';
+import { PostgresSnapshotAdapter, postgresEnvelopeDigest, type PostgresPool, type PostgresQueryResult } from '../runtime/postgres.ts';
+import { Vault, type KeychainHook, type OpenVaultOptions, type VaultEnvelope } from '../runtime/vault.ts';
 import { WorkspacePostgresCustody } from '../runtime/workspace-postgres-custody.ts';
 import { InstalledPostgresWorkspaceProfile, type InstalledPostgresWorkspaceProfileOptions } from '../runtime/workspace-postgres-installed-profile.ts';
 
@@ -51,6 +53,7 @@ function matches(row: Row, sql: string, values: unknown[]) {
 }
 function protocolFixture() {
   let store: Store = { authority: new Map(), custody: new Map() }, connects = 0, releases = 0, active = 0;
+  let commitFailure: unknown;
   const events: string[] = [], database = { storage_id: 'injected-profile-storage', database: 'injected_profile',
     database_oid: '17017', server_address: '127.0.0.1', server_port: 15432 };
   const pool: PostgresPool = {
@@ -64,6 +67,7 @@ function protocolFixture() {
         const sql = rawSql.replace(/\s+/g, ' ').trim(); events.push(sql);
         if (sql === 'BEGIN') { assert.equal(transaction, undefined); transaction = clone(store); active++; return { rows: [], command: 'BEGIN' }; }
         if (sql === 'COMMIT' || sql === 'ROLLBACK') {
+          if (sql === 'COMMIT' && commitFailure) { const error = commitFailure; commitFailure = undefined; throw error; }
           if (transaction) { if (sql === 'COMMIT' && dirty) store = clone(transaction); transaction = undefined; active--; }
           held = false; return { rows: [], command: sql };
         }
@@ -98,11 +102,18 @@ function protocolFixture() {
           }
           dirty = true; return { rows: [], rowCount: 1 };
         }
+        if (sql.startsWith('DELETE FROM ')) {
+          const row = rows.get(slot); if (!row || !matches(row, sql, values)) return { rows: [], rowCount: 0 };
+          rows.delete(slot); dirty = true; return { rows: [], rowCount: 1 };
+        }
         throw new ChausarError('TEST_SQL_UNSUPPORTED', 'This fixture never treats unmodelled SQL as a successful operation.');
       }, release() { assert.equal(transaction, undefined); assert.equal(held, false); releases++; events.push('RELEASE'); } };
     }, async end() {}
   };
   return { pool, events, authority: (slot: string) => clone(store.authority.get(slot)), custody: (slot: string) => clone(store.custody.get(slot)),
+    replaceAuthority(slot: string, change: (row: Row) => void) { const row = store.authority.get(slot); assert.ok(row); change(row); },
+    setCustody(slot: string, row: Row) { store.custody.set(slot, clone(row)); },
+    failNextCommit(error: unknown) { assert.ok(error); commitFailure = error; },
     counts: () => ({ connects, releases, active }) };
 }
 const credential = 'Public synthetic installed profile regression credential';
@@ -112,9 +123,11 @@ const code = (expected: string) => (error: unknown) => error instanceof ChausarE
 async function fixture(t: TestContext) {
   const parent = await realpath(tmpdir());
   if (process.platform === 'win32') assert.match(parent, /^C:[\\/]/i, 'Validate canonical C-drive scratch before fixture creation.');
-  const root = await realpath(await mkdtemp(join(parent, 'chausar-pg-profile-admission-'))), vaults = new Set<Vault>();
+  const root = await realpath(await mkdtemp(join(parent, 'chausar-pg-profile-admission-'))), vaults = new Set<Vault>(), expectedShutdownFailures = new Map<Vault, unknown>();
   t.after(async () => {
-    for (const vault of vaults) await vault.close();
+    for (const vault of vaults) {
+      try { await vault.close(); } catch (error) { assert.equal(error, expectedShutdownFailures.get(vault), 'Only the exact expected failed-delete shutdown may reject cleanup.'); }
+    }
     const actual = await realpath(root), child = relative(parent, actual);
     assert.equal(dirname(actual), parent);
     assert.ok(child && !isAbsolute(child) && !child.startsWith('..') && child.startsWith('chausar-pg-profile-admission-'));
@@ -141,8 +154,222 @@ async function fixture(t: TestContext) {
     }, targets: [{ targetId, adapter: targetAdapter, ownedAdapter: () => adapter(join(root, targetId, 'live', 'main')) }] };
   return { root, sql, source, sourceAdapter, sourceDirectory, sourceState, options,
     profile: new InstalledPostgresWorkspaceProfile(options), adapter, closes, factories: () => factories,
+    expectShutdownFailure(vault: Vault, failure: unknown) { expectedShutdownFailures.set(vault, failure); },
     track(vault: Vault) { vaults.add(vault); return vault; } };
 }
+
+async function publicDeleteFixture(t: TestContext, keychain?: KeychainHook) {
+  const f = await fixture(t); await f.source.close();
+  const engine = new Engine({ directory: f.root, storage: 'postgres', demo: true });
+  let owned!: PostgresSnapshotAdapter, expectedShutdownFailure: unknown;
+  Object.defineProperty(engine, 'adapter', { value: async (folder: string) => {
+    assert.equal(folder, 'source'); owned = await f.adapter(f.sourceDirectory);
+    const close = owned.close.bind(owned);
+    owned.close = async () => { assert.equal(owned.hasActiveLease, false); f.sql.events.push('ADAPTER_CLOSE'); await close(); };
+    return owned;
+  } });
+  t.after(async () => {
+    try { await engine.close(); } catch (error) { assert.equal(error, expectedShutdownFailure, 'Only this request\'s exact shutdown refusal may reject Engine close.'); }
+  });
+  if (keychain) {
+    const open = Vault.open.bind(Vault);
+    t.mock.method(Vault, 'open', (options: OpenVaultOptions) => open({ ...options, keychain }));
+  }
+  await engine.request('workspace.open', { folder: 'source', passphrase: credential });
+  const vault = f.track(engine.vault!), state = vault.read(), prefix = `chausar-${state.workspace.id}-`;
+  await mkdir(join(f.root, 'backups')); await mkdir(join(f.root, 'exports'));
+  const backup = join(f.root, 'backups', prefix + '1.backup'), exported = join(f.root, 'exports', prefix + '2.json');
+  await vault.backup(backup); await vault.export(exported, { plaintext: true });
+  await vault.writeArtifact({ id: 'delete_trial', purpose: 'private-trial', value: { synthetic: 'private trial deletion evidence' }, expectedDigest: null });
+  await vault.writeArtifact({ id: 'delete_interchange', purpose: 'workspace-interchange', value: { synthetic: 'private interchange deletion evidence' }, expectedDigest: null });
+  const foreign = join(f.root, 'backups', `chausar-${f.options.journalVault.read().workspace.id}-3.backup`);
+  await f.options.journalVault.backup(foreign);
+  const privatePaths = ['private-artifacts/private-trial/delete_trial.encrypted.json', 'private-artifacts/workspace-interchange/delete_interchange.encrypted.json'];
+  const files = [...privatePaths.map(path => join(f.sourceDirectory, path)), backup, exported, foreign];
+  const bytes = async () => Promise.all(files.map(async path => {
+    try { return await readFile(path); } catch (error: any) { if (error.code === 'ENOENT') return null; throw error; }
+  }));
+  const before = await bytes(); assert.ok(before.every(value => value instanceof Buffer));
+  return { ...f, engine, vault, state, owned, files, bytes, before, foreign, privatePaths,
+    expectedRemoved: [...privatePaths, `backups/${prefix}1.backup`, `exports/${prefix}2.json`],
+    expectFailure(error: unknown) { expectedShutdownFailure = error; f.expectShutdownFailure(vault, error); } };
+}
+
+test('public PostgreSQL deletion preserves all encrypted artifacts and managed copies on stale native admission', async t => {
+  for (const condition of ['reserved', 'prepared', 'mismatched', 'creation', 'vault', 'revision', 'ciphertext']) {
+    await t.test(condition, async t => {
+      const f = await publicDeleteFixture(t), slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
+      assert.ok(authority);
+      if (['reserved', 'prepared', 'mismatched'].includes(condition)) f.sql.setCustody(slot, {
+        slot, phase: condition === 'mismatched' ? 'committed' : condition,
+        creation_id: condition === 'mismatched' ? 'foreign-creation' : authority.creation_id, vault_id: authority.envelope.id,
+        operation_id: 'synthetic_delete_operation', storage_id: 'injected-profile-storage', revision: authority.revision,
+        envelope_digest: postgresEnvelopeDigest(authority.envelope), envelope: authority.envelope, target_identity: { synthetic: true },
+      });
+      else f.sql.replaceAuthority(slot, row => {
+        if (condition === 'creation') row.creation_id = 'replacement-delete-incarnation';
+        if (condition === 'vault') row.envelope.id = 'replacement-delete-vault';
+        if (condition === 'revision') { row.revision++; row.envelope.revision++; }
+        if (condition === 'ciphertext') row.envelope.snapshot.data += 'A';
+      });
+      const nativeBefore = { authority: f.sql.authority(slot), custody: f.sql.custody(slot) }; f.sql.events.length = 0;
+      let refusal: unknown; try { await f.engine.request('workspace.delete', { confirmation: f.state.workspace.name }); } catch (error) { refusal = error; f.expectFailure(error); }
+      const after = await f.bytes(), fingerprint = (values: (Buffer | null)[]) => values.map(value => value && createHash('sha256').update(value).digest('hex'));
+      t.diagnostic(JSON.stringify({ condition, errorCode: refusal instanceof ChausarError ? refusal.code : null,
+        before: fingerprint(f.before), after: fingerprint(after), nativePreserved: canonical(nativeBefore) === canonical({ authority: f.sql.authority(slot), custody: f.sql.custody(slot) }) }));
+      assert.deepEqual(after, f.before, 'Admission refusal must precede every private-artifact, backup and export removal.');
+      assert.deepEqual({ authority: f.sql.authority(slot), custody: f.sql.custody(slot) }, nativeBefore);
+      assert.ok(code(['reserved', 'prepared', 'mismatched'].includes(condition) ? 'POSTGRES_TARGET_NOT_COMMITTED' : 'POSTGRES_AUTHORITY_CHANGED')(refusal));
+      assert.equal(f.sql.events.filter(sql => sql.startsWith('DELETE FROM ')).length, 0);
+      assert.equal(f.sql.counts().active, 0); assert.equal(f.sql.counts().connects, f.sql.counts().releases);
+      assert.equal(f.sql.events.at(-1), 'ADAPTER_CLOSE');
+      await assert.rejects(lstat(join(f.sourceDirectory, 'writer.lock')), { code: 'ENOENT' });
+    });
+  }
+});
+
+test('public PostgreSQL deletion refuses missing held-admission capability before any purge', async t => {
+  const f = await publicDeleteFixture(t), slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
+  assert.ok(authority);
+  Object.defineProperty(f.owned, 'withDeletionAdmission', { value: undefined }); f.sql.events.length = 0;
+  let refusal: unknown; try { await f.engine.request('workspace.delete', { confirmation: f.state.workspace.name }); } catch (error) { refusal = error; f.expectFailure(error); }
+  assert.deepEqual(await f.bytes(), f.before); assert.deepEqual(f.sql.authority(slot), authority);
+  assert.ok(code('POSTGRES_DELETION_CUSTODY_REQUIRED')(refusal));
+  assert.equal(f.sql.events.filter(sql => sql.startsWith('DELETE FROM ')).length, 0);
+});
+
+test('public PostgreSQL deletion preflights both private purposes before deleting any managed copy', async t => {
+  const f = await publicDeleteFixture(t), slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
+  assert.ok(authority);
+  await writeFile(join(f.sourceDirectory, 'private-artifacts', 'workspace-interchange', 'unclassified.txt'), 'synthetic unknown file');
+  let refusal: unknown; try { await f.engine.request('workspace.delete', { confirmation: f.state.workspace.name }); } catch (error) { refusal = error; f.expectFailure(error); }
+  assert.ok(code('ARTIFACT_INVENTORY_INCOMPLETE')(refusal)); assert.deepEqual(await f.bytes(), f.before);
+  assert.deepEqual(f.sql.authority(slot), authority);
+});
+
+test('public PostgreSQL deletion through Vault preflights both private purposes before its first unlink', async t => {
+  const f = await publicDeleteFixture(t), slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
+  assert.ok(authority);
+  await writeFile(join(f.sourceDirectory, 'private-artifacts', 'workspace-interchange', 'unclassified.txt'), 'synthetic unknown file');
+  let refusal: unknown; try { await f.vault.delete(); } catch (error) { refusal = error; f.expectFailure(error); }
+  assert.ok(code('ARTIFACT_INVENTORY_INCOMPLETE')(refusal)); assert.deepEqual(await f.bytes(), f.before);
+  assert.deepEqual(f.sql.authority(slot), authority);
+});
+
+test('public PostgreSQL deletion preserves ordinary and committed deletion, copy reporting and foreign copies', async t => {
+  for (const disposition of ['ordinary', 'committed']) await t.test(disposition, async t => {
+    const f = await publicDeleteFixture(t), slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
+    assert.ok(authority);
+    if (disposition === 'committed') f.sql.setCustody(slot, { slot, phase: 'committed', creation_id: authority.creation_id, vault_id: authority.envelope.id,
+      operation_id: 'synthetic_delete_operation', storage_id: 'injected-profile-storage', revision: authority.revision,
+      envelope_digest: postgresEnvelopeDigest(authority.envelope), envelope: authority.envelope, target_identity: { synthetic: true } });
+    const custodyBefore = f.sql.custody(slot); f.sql.events.length = 0;
+    let heldWork = 0;
+    const admission = f.owned.withDeletionAdmission?.bind(f.owned);
+    if (admission) f.owned.withDeletionAdmission = (expected, work) => admission(expected, async () => {
+      assert.equal(f.owned.hasActiveLease, true); assert.deepEqual(await f.bytes(), f.before); heldWork++;
+      const result = await work();
+      assert.equal(f.owned.hasActiveLease, true); assert.deepEqual(await f.bytes(), [null, null, null, null, f.before.at(-1)]);
+      return result;
+    });
+    const result = await f.engine.request('workspace.delete', { confirmation: f.state.workspace.name });
+    assert.equal(result.deleted, true); assert.deepEqual(result.copiesRemoved, f.expectedRemoved);
+    assert.equal(heldWork, 1, 'The actual owned adapter holds admission throughout every managed removal and SQL deletion.');
+    assert.deepEqual(await f.bytes(), [null, null, null, null, f.before.at(-1)]);
+    assert.equal(f.sql.authority(slot), undefined); assert.deepEqual(f.sql.custody(slot), custodyBefore);
+    assert.equal(f.sql.events.filter(sql => sql === 'BEGIN').length, 1);
+    assert.equal(f.sql.events.filter(sql => sql === 'COMMIT').length, 1);
+    assert.equal(f.sql.events.filter(sql => sql.startsWith('DELETE FROM ')).length, 1);
+    assert.deepEqual(f.sql.events.slice(-3), ['COMMIT', 'RELEASE', 'ADAPTER_CLOSE']);
+    assert.equal(f.sql.counts().active, 0); assert.equal(f.sql.counts().connects, f.sql.counts().releases);
+    assert.equal(f.engine.vault, null);
+    await assert.rejects(lstat(join(f.sourceDirectory, 'writer.lock')), { code: 'ENOENT' });
+  });
+});
+
+test('public PostgreSQL deletion captures its exact envelope after already accepted Vault writes drain', async t => {
+  const f = await publicDeleteFixture(t), slot = hash(f.sourceDirectory), before = f.sql.authority(slot);
+  assert.ok(before);
+  let unblock!: () => void, entered!: () => void;
+  const waiting = new Promise<void>(resolve => { entered = resolve; }), blocked = new Promise<void>(resolve => { unblock = resolve; });
+  const update = f.vault.update(async state => { entered(); await blocked; state.activity.push('Accepted before deletion'); });
+  await waiting;
+  let admittedRevision: number | undefined;
+  const admission = f.owned.withDeletionAdmission?.bind(f.owned);
+  if (admission) f.owned.withDeletionAdmission = (expected, work) => {
+    admittedRevision = expected.revision; return admission(expected, work);
+  };
+  const deleting = f.engine.request('workspace.delete', { confirmation: f.state.workspace.name });
+  unblock(); await update; await deleting;
+  assert.equal(admittedRevision, before.revision + 1);
+  assert.equal(f.sql.authority(slot), undefined);
+  assert.deepEqual(await f.bytes(), [null, null, null, null, f.before.at(-1)]);
+});
+
+test('public PostgreSQL deletion revokes restatement custody before capturing its exact encrypted admission', async t => {
+  const f = await publicDeleteFixture(t), slot = hash(f.sourceDirectory), context = { memberId: 'owner', role: 'owner' as const, epoch: 1 };
+  await new OntologyService(f.vault).publish(context, 'ecommerce');
+  // This is the actual pure calculator with its native verifier omitted. The
+  // synthetic restatement context produces a complete encrypted receipt.
+  const receipt = await new CalculatorService(f.vault, { restatement: { version: 1, interpretation: 'restated-private-diagnostic',
+    trialId: 'synthetic_delete_trial', forkDigest: 'a'.repeat(64), candidateStateDigest: 'b'.repeat(64), publicationId: 'synthetic_delete_publication',
+    originalAnswerId: 'synthetic_delete_original_answer', originalReceiptId: 'synthetic_delete_original_receipt' } }).calculate(context, { operation: 'net_sales' });
+  const before = f.sql.authority(slot), admission = f.owned.withDeletionAdmission.bind(f.owned);
+  assert.ok(before);
+  let inspected = 0;
+  f.owned.withDeletionAdmission = (expected, work) => admission(expected, async () => {
+    assert.equal(expected.revision, before.revision + 1);
+    const captured = await Vault.inspectPostgresSnapshot({ passphrase: credential, loadHeldEnvelope: async () => expected,
+      async assertHeld() { assert.equal(f.owned.hasActiveLease, true); } });
+    assert.deepEqual(captured.state.receipts, [receipt]);
+    const tombstone = captured.state.tombstones.find(item => item.kind === 'private-restatement-custody');
+    assert.ok(tombstone); assert.deepEqual(tombstone.receiptIds, [receipt.id]); assert.equal(tombstone.reason, 'managed-retention-or-deletion');
+    inspected++; return work();
+  });
+  const result = await f.engine.request('workspace.delete', { confirmation: f.state.workspace.name });
+  assert.equal(inspected, 1); assert.deepEqual(result.copiesRemoved, f.expectedRemoved);
+  assert.equal(f.sql.authority(slot), undefined); assert.deepEqual(await f.bytes(), [null, null, null, null, f.before.at(-1)]);
+});
+
+test('public PostgreSQL deletion commits authority removal before a failing keychain hook', async t => {
+  const failure = new ChausarError('TEST_KEYCHAIN_REMOVAL_FAILED', 'Synthetic keychain removal failure.'), observed: { vaultId: string; leaseActive: boolean }[] = [];
+  let f!: Awaited<ReturnType<typeof publicDeleteFixture>>;
+  f = await publicDeleteFixture(t, { async store() {}, async remove(vaultId) {
+    observed.push({ vaultId, leaseActive: f.owned.hasActiveLease }); f.sql.events.push('KEYCHAIN_REMOVE'); throw failure;
+  } });
+  const slot = hash(f.sourceDirectory), vaultId = f.vault.vaultId; f.sql.events.length = 0;
+  let refusal: unknown; try { await f.engine.request('workspace.delete', { confirmation: f.state.workspace.name }); } catch (error) { refusal = error; f.expectFailure(error); }
+  t.diagnostic(JSON.stringify({ hookLeaseActive: observed.map(value => value.leaseActive), authorityPresent: !!f.sql.authority(slot),
+    commitCount: f.sql.events.filter(sql => sql === 'COMMIT').length, rollbackCount: f.sql.events.filter(sql => sql === 'ROLLBACK').length }));
+  assert.equal(refusal, failure);
+  assert.equal(f.sql.authority(slot), undefined, 'A keychain failure cannot roll back admitted SQL deletion after managed files are purged.');
+  assert.deepEqual(await f.bytes(), [null, null, null, null, f.before.at(-1)]);
+  assert.deepEqual(observed, [{ vaultId, leaseActive: false }]);
+  assert.equal(f.sql.events.filter(sql => sql.startsWith('DELETE FROM ')).length, 1);
+  assert.equal(f.sql.events.filter(sql => sql === 'COMMIT').length, 1); assert.equal(f.sql.events.filter(sql => sql === 'ROLLBACK').length, 0);
+  assert.deepEqual(f.sql.events.slice(-4), ['COMMIT', 'RELEASE', 'KEYCHAIN_REMOVE', 'ADAPTER_CLOSE']);
+  assert.equal(f.sql.counts().active, 0); assert.equal(f.sql.counts().connects, f.sql.counts().releases);
+  assert.throws(() => f.vault.read(), code('VAULT_CLOSED')); await assert.rejects(lstat(join(f.sourceDirectory, 'writer.lock')), { code: 'ENOENT' });
+});
+
+test('public PostgreSQL deletion skips keychain removal when native admission or SQL commit fails', async t => {
+  for (const condition of ['admission', 'commit']) await t.test(condition, async t => {
+    let calls = 0;
+    const f = await publicDeleteFixture(t, { async store() {}, async remove() { calls++; } }), slot = hash(f.sourceDirectory), before = f.sql.authority(slot);
+    assert.ok(before);
+    const commitFailure = new ChausarError('TEST_DELETE_COMMIT_FAILED', 'Synthetic SQL deletion commit failure.');
+    if (condition === 'admission') f.sql.setCustody(slot, { slot, phase: 'prepared', creation_id: before.creation_id, vault_id: before.envelope.id });
+    else f.sql.failNextCommit(commitFailure);
+    f.sql.events.length = 0;
+    let refusal: unknown; try { await f.engine.request('workspace.delete', { confirmation: f.state.workspace.name }); } catch (error) { refusal = error; f.expectFailure(error); }
+    assert.ok(condition === 'admission' ? code('POSTGRES_TARGET_NOT_COMMITTED')(refusal) : refusal === commitFailure);
+    assert.equal(calls, 0, 'Native admission and SQL acknowledgement must complete before calling keychain removal.');
+    assert.deepEqual(f.sql.authority(slot), before);
+    assert.deepEqual(await f.bytes(), condition === 'admission' ? f.before : [null, null, null, null, f.before.at(-1)]);
+    assert.equal(f.sql.events.at(-1), 'ADAPTER_CLOSE'); assert.equal(f.sql.counts().active, 0);
+    assert.equal(f.sql.counts().connects, f.sql.counts().releases);
+  });
+});
 
 test('injected SQL profile: wrong passphrase preserves UNLOCK_FAILED and durable authority while releasing the writer lock and held lease', async t => {
   const f = await fixture(t); await f.source.close();
