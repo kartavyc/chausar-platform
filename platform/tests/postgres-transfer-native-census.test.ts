@@ -13,6 +13,7 @@ const helperUrl = new URL('./fixtures/postgres-transfer-native-census.mjs', impo
 const { createOwnedScratchCensus } = await import(helperUrl.href);
 type Phase = 'startup' | 'live' | 'final-stopped' | 'post-save-stopped';
 type Diagnostic = Record<string, unknown>;
+type CensusFailure = Error & { code?: string; censusDiagnostic?: Diagnostic };
 type Io = {
   readdir?: (...args: any[]) => Promise<any>;
   lstat?: (...args: any[]) => Promise<any>;
@@ -60,6 +61,322 @@ function safeDiagnostics(events: Diagnostic[], root: string) {
     assert.ok(Number.isSafeInteger(event.attempt));
     assert.ok(Number(event.attempt) >= 1 && Number(event.attempt) <= 3);
   }
+}
+
+function gate() {
+  let release!: () => void;
+  const promise = new Promise<void>(resolve => { release = resolve; });
+  return { promise, release };
+}
+const turn = () => new Promise<void>(resolve => setImmediate(resolve));
+function settledInspection(promise: Promise<number>, onSettlement: () => void): Promise<{ value: number } | { error: CensusFailure }> {
+  return promise.then(value => { onSettlement(); return { value }; }, error => { onSettlement(); return { error: error as CensusFailure }; });
+}
+async function boundedGate(promise: Promise<void>) {
+  let timer!: ReturnType<typeof setTimeout>;
+  try {
+    await Promise.race([promise, new Promise<void>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('The expected metadata boundary did not arrive.')), 1000);
+    })]);
+  } finally { clearTimeout(timer); }
+}
+
+test('sibling metadata uses four readers and counts every actual wide-tree file', async t => {
+  const f = await fixture(t), files = Array.from({ length: 9 }, (_, index) => join(f.runRoot, `file-${index}`));
+  for (let index = 0; index < files.length; index++) await writeFile(files[index], Buffer.alloc(index + 1));
+  let active = 0, peak = 0;
+  const reads: string[] = [], finished: string[] = [];
+  const census = f.census({ lstat: async (...args) => {
+    if (!files.some(file => samePath(args[0], file))) return lstat(args[0], args[1]);
+    active++; peak = Math.max(peak, active); reads.push(String(args[0]));
+    try {
+      const value = await lstat(args[0], args[1]);
+      // All four dispatched reads stay outstanding through an event-loop turn.
+      // Serial traversal therefore produces a peak of one, regardless of disk speed.
+      await turn(); return value;
+    } finally { active--; finished.push(String(args[0])); }
+  } });
+  assert.equal(await census.inspect('live'), 45);
+  assert.equal(peak, 4); assert.equal(active, 0);
+  assert.deepEqual([...reads].sort(), [...files].sort());
+  assert.deepEqual([...finished].sort(), [...files].sort());
+  assert.deepEqual(f.diagnostics, []);
+});
+
+test('a sibling metadata batch drains before serial directory descent and the next batch', async t => {
+  const f = await fixture(t), directory = join(f.runRoot, 'a-directory');
+  await mkdir(directory); await writeFile(join(directory, 'nested'), Buffer.alloc(7));
+  const siblings = ['a-directory', 'b-file', 'c-file', 'd-file', 'e-file'];
+  for (const name of siblings.slice(1)) await writeFile(join(f.runRoot, name), Buffer.alloc(3));
+  const begun = gate(), earlyFinished = gate(), late = gate();
+  let active = 0, starts = 0, finished = 0, nestedScans = 0, settled = false;
+  const classified = new Set<string>(), events: string[] = [];
+  const census = f.census({
+    readdir: async (...args) => {
+      const values = await readdir(args[0], args[1]);
+      if (samePath(args[0], f.runRoot)) return [...values].sort();
+      if (samePath(args[0], directory)) {
+        nestedScans++; events.push(`descent:${active}:${finished}`);
+      }
+      return values;
+    },
+    lstat: async (...args) => {
+      const name = siblings.find(value => samePath(args[0], join(f.runRoot, value)));
+      if (!name || classified.has(name)) return lstat(args[0], args[1]);
+      classified.add(name); active++; starts++; events.push(`start:${name}`);
+      if (starts === 4) begun.release();
+      try {
+        const value = await lstat(args[0], args[1]);
+        if (name === 'd-file') await late.promise;
+        return value;
+      } finally {
+        active--; finished++; events.push(`finish:${name}`);
+        if (finished === 3) earlyFinished.release();
+      }
+    }
+  });
+  const outcome = settledInspection(census.inspect('live'), () => { settled = true; });
+  try {
+    await boundedGate(begun.promise); await boundedGate(earlyFinished.promise);
+    assert.equal(starts, 4); assert.equal(active, 1); assert.equal(nestedScans, 0); assert.equal(settled, false);
+    late.release();
+    const result = await outcome; assert.ok('value' in result); assert.equal(result.value, 19);
+    assert.equal(active, 0); assert.equal(finished, 5); assert.equal(nestedScans, 1);
+    assert.ok(events.includes('descent:0:4'));
+    assert.ok(events.indexOf('start:e-file') > events.indexOf('descent:0:4'));
+  } finally { begun.release(); late.release(); await outcome; }
+});
+
+test('nonretryable metadata refusal drains all started siblings before custody exit', async t => {
+  const f = await fixture(t), files = ['a-fail', 'b-file', 'c-file', 'd-file', 'e-unstarted'];
+  for (const name of files) await writeFile(join(f.runRoot, name), Buffer.alloc(2));
+  const begun = gate(), failed = gate(), late = gate();
+  let active = 0, finished = 0, settled = false;
+  const starts: string[] = [];
+  const census = f.census({
+    readdir: async (...args) => [...await readdir(args[0], args[1])].sort(),
+    lstat: async (...args) => {
+      const name = files.find(value => samePath(args[0], join(f.runRoot, value)));
+      if (!name) return lstat(args[0], args[1]);
+      starts.push(name); active++; if (starts.length === 4) begun.release();
+      try {
+        const value = await lstat(args[0], args[1]);
+        if (name === 'a-fail') {
+          await begun.promise;
+          throw Object.assign(new Error('fixture secret message'), { code: 'EACCES' });
+        }
+        await late.promise; return value;
+      } finally { active--; finished++; if (name === 'a-fail') failed.release(); }
+    }
+  });
+  const outcome = settledInspection(census.inspect('live'), () => { settled = true; });
+  try {
+    await boundedGate(begun.promise); await boundedGate(failed.promise);
+    assert.equal(active, 3); assert.equal(settled, false); assert.equal(f.diagnostics.length, 0);
+    assert.deepEqual(starts, files.slice(0, 4));
+    late.release();
+    const result = await outcome; assert.ok('error' in result); assert.equal(result.error.code, 'EACCES');
+    assert.equal(active, 0); assert.equal(finished, 4);
+    safeDiagnostics(f.diagnostics, f.runRoot);
+    await turn(); assert.deepEqual(starts, files.slice(0, 4)); assert.equal(finished, 4);
+  } finally { begun.release(); late.release(); await outcome; }
+});
+
+test('live ENOENT drains the failed sibling batch before a fresh complete retry', async t => {
+  const f = await fixture(t), files = ['a-vanish', 'b-file', 'c-file', 'd-file', 'e-file'];
+  for (let index = 0; index < files.length; index++) await writeFile(join(f.runRoot, files[index]), Buffer.alloc(index + 1));
+  const begun = gate(), failed = gate(), late = gate();
+  let scans = 0, active = 0, finished = 0, settled = false;
+  const firstStarts: string[] = [], retryReads: string[] = [], retryStates: number[] = [];
+  const census = f.census({
+    readdir: async (...args) => {
+      if (samePath(args[0], f.runRoot)) { scans++; if (scans > 1) retryStates.push(active); }
+      return [...await readdir(args[0], args[1])].sort();
+    },
+    lstat: async (...args) => {
+      const name = files.find(value => samePath(args[0], join(f.runRoot, value)));
+      if (!name) return lstat(args[0], args[1]);
+      if (scans > 1) { retryReads.push(name); return lstat(args[0], args[1]); }
+      firstStarts.push(name); active++; if (firstStarts.length === 4) begun.release();
+      try {
+        if (name === 'a-vanish') { await begun.promise; await unlink(join(f.runRoot, name)); }
+        else await late.promise;
+        return await lstat(args[0], args[1]);
+      } finally { active--; finished++; if (name === 'a-vanish') failed.release(); }
+    }
+  }, { maxBytes: 14 });
+  const outcome = settledInspection(census.inspect('live'), () => { settled = true; });
+  try {
+    await boundedGate(begun.promise); await boundedGate(failed.promise);
+    assert.equal(scans, 1); assert.equal(active, 3); assert.equal(settled, false); assert.equal(f.diagnostics.length, 0);
+    assert.deepEqual(firstStarts, files.slice(0, 4));
+    late.release();
+    const result = await outcome; assert.ok('value' in result); assert.equal(result.value, 14);
+    assert.equal(active, 0); assert.equal(finished, 4); assert.equal(scans, 2);
+    assert.deepEqual(retryStates, [0]); assert.deepEqual(retryReads, files.slice(1));
+    assert.equal(f.diagnostics.length, 1); assert.equal(f.diagnostics[0].code, 'ENOENT');
+    assert.equal(f.diagnostics[0].attempt, 1); assert.equal(f.diagnostics[0].retryable, true);
+    safeDiagnostics(f.diagnostics, f.runRoot);
+  } finally { begun.release(); late.release(); await outcome; }
+});
+
+for (const [phase, milliseconds] of [['live', 5000], ['final-stopped', 10000]] as const) {
+  test(`the exact ${phase} deadline drains in-flight metadata without dispatching another batch`, async t => {
+    const f = await fixture(t), files = ['a-deadline', 'b-file', 'c-file', 'd-file', 'e-unstarted'];
+    for (const name of files) await writeFile(join(f.runRoot, name), Buffer.alloc(2));
+    const begun = gate(), expired = gate(), late = gate();
+    let clock = 0, active = 0, finished = 0, settled = false, scans = 0;
+    const starts: string[] = [];
+    const census = f.census({
+      now: () => clock,
+      readdir: async (...args) => { if (samePath(args[0], f.runRoot)) scans++; return [...await readdir(args[0], args[1])].sort(); },
+      lstat: async (...args) => {
+        const name = files.find(value => samePath(args[0], join(f.runRoot, value)));
+        if (!name) return lstat(args[0], args[1]);
+        starts.push(name); active++; if (starts.length === 4) begun.release();
+        try {
+          const value = await lstat(args[0], args[1]);
+          if (name === 'a-deadline') { await begun.promise; clock = milliseconds; }
+          else await late.promise;
+          return value;
+        } finally { active--; finished++; if (name === 'a-deadline') expired.release(); }
+      }
+    });
+    const outcome = settledInspection(census.inspect(phase), () => { settled = true; });
+    try {
+      await boundedGate(begun.promise); await boundedGate(expired.promise);
+      assert.equal(clock, milliseconds); assert.equal(active, 3); assert.equal(settled, false);
+      assert.equal(f.diagnostics.length, 0); assert.deepEqual(starts, files.slice(0, 4));
+      late.release();
+      const result = await outcome; assert.ok('error' in result);
+      assert.equal(result.error.code, 'OWNED_NATIVE_SCRATCH_CENSUS_TIMEOUT');
+      assert.equal(active, 0); assert.equal(finished, 4); assert.equal(scans, 1);
+      assert.equal(result.error.censusDiagnostic!.operation, 'deadline');
+      assert.equal(result.error.censusDiagnostic!.retryable, false);
+      safeDiagnostics(f.diagnostics, f.runRoot);
+      await turn(); assert.deepEqual(starts, files.slice(0, 4));
+    } finally { begun.release(); late.release(); await outcome; }
+  });
+}
+
+test('a concurrent complete retry retains the original shared five-second clock', async t => {
+  const f = await fixture(t), vanish = join(f.runRoot, 'a-vanish'), stable = join(f.runRoot, 'b-stable');
+  await writeFile(vanish, Buffer.alloc(3)); await writeFile(stable, Buffer.alloc(7));
+  let clock = 0, scans = 0, stableReads = 0;
+  const census = f.census({
+    now: () => clock,
+    readdir: async (...args) => { if (samePath(args[0], f.runRoot)) scans++; return [...await readdir(args[0], args[1])].sort(); },
+    lstat: async (...args) => {
+      if (samePath(args[0], vanish)) { await unlink(vanish); clock = 3000; }
+      if (samePath(args[0], stable)) {
+        stableReads++;
+        if (scans === 2) clock = 5000;
+      }
+      return lstat(args[0], args[1]);
+    }
+  });
+  const error = await failure(census.inspect('live'));
+  assert.equal(error.code, 'OWNED_NATIVE_SCRATCH_CENSUS_TIMEOUT');
+  assert.equal(scans, 2); assert.equal(stableReads, 2);
+  assert.deepEqual(f.diagnostics.map(event => [event.code, event.attempt]), [['ENOENT', 1], ['OWNED_NATIVE_SCRATCH_CENSUS_TIMEOUT', 2]]);
+  safeDiagnostics(f.diagnostics, f.runRoot);
+});
+
+for (const unsafe of ['junction', 'oversized-file'] as const) {
+  test(`earlier ${unsafe} refusal takes precedence over a later sibling ENOENT`, async t => {
+    const f = await fixture(t), first = join(f.runRoot, 'a-unsafe'), vanish = join(f.runRoot, 'b-vanish');
+    if (unsafe === 'junction') {
+      const outside = join(f.parent, 'outside-target'); await mkdir(outside); await symlink(outside, first, 'junction');
+    } else await writeFile(first, Buffer.alloc(11));
+    await writeFile(vanish, Buffer.alloc(2));
+    let scans = 0;
+    const checked: string[] = [];
+    const census = f.census({
+      readdir: async (...args) => { if (samePath(args[0], f.runRoot)) scans++; return [...await readdir(args[0], args[1])].sort(); },
+      lstat: async (...args) => {
+        if (samePath(args[0], first)) checked.push('unsafe');
+        if (samePath(args[0], vanish)) { checked.push('vanish'); await unlink(vanish); }
+        return lstat(args[0], args[1]);
+      }
+    }, { maxBytes: 10 });
+    const error = await failure(census.inspect('live'));
+    assert.equal(error.code, unsafe === 'junction' ? 'OWNED_NATIVE_SCRATCH_LINK_REFUSED' : 'OWNED_NATIVE_SCRATCH_LIMIT');
+    assert.equal(scans, 1); assert.deepEqual(checked, ['unsafe', 'vanish']);
+    assert.equal(f.diagnostics.length, 1); assert.equal(error.censusDiagnostic!.operation, 'validation');
+    assert.equal(error.censusDiagnostic!.relativePath, 'a-unsafe'); assert.equal(error.censusDiagnostic!.retryable, false);
+    safeDiagnostics(f.diagnostics, f.runRoot);
+  });
+}
+
+test('directory descent refreshes later sibling metadata and accounts actual file growth', async t => {
+  const f = await fixture(t), directory = join(f.runRoot, 'a-directory'), growing = join(f.runRoot, 'b-growing');
+  await mkdir(directory); await writeFile(join(directory, 'nested'), Buffer.alloc(1));
+  await writeFile(join(f.runRoot, 'c-file'), Buffer.alloc(3));
+  await writeFile(join(f.runRoot, 'd-file'), Buffer.alloc(4));
+  await writeFile(join(f.runRoot, 'e-file'), Buffer.alloc(5));
+  for (const maxBytes of [26, 25]) {
+    await writeFile(growing, Buffer.alloc(2));
+    let grown = false;
+    const sizes: bigint[] = [];
+    const census = f.census({
+      readdir: async (...args) => {
+        if (samePath(args[0], directory)) { await writeFile(growing, Buffer.alloc(13)); grown = true; }
+        return [...await readdir(args[0], args[1])].sort();
+      },
+      lstat: async (...args) => {
+        const value = await lstat(args[0], args[1]);
+        if (samePath(args[0], growing)) sizes.push(BigInt(value.size));
+        return value;
+      }
+    }, { maxBytes });
+    if (maxBytes === 26) assert.equal(await census.inspect('live'), 26);
+    else {
+      const error = await failure(census.inspect('live'));
+      assert.equal(error.code, 'OWNED_NATIVE_SCRATCH_LIMIT'); assert.equal(error.censusDiagnostic!.retryable, false);
+    }
+    assert.equal(grown, true); assert.deepEqual(sizes, [2n, 13n]);
+    assert.equal((await lstat(growing, { bigint: true })).size, 13n);
+  }
+  assert.equal(f.diagnostics.length, 1); safeDiagnostics(f.diagnostics, f.runRoot);
+});
+
+for (const code of ['ENOENT', 'EACCES'] as const) {
+  test(`directory descent cannot replace a prefetched ${code} result with a recreated file`, async t => {
+    const f = await fixture(t), directory = join(f.runRoot, 'a-directory'), later = join(f.runRoot, 'b-later');
+    await mkdir(directory); await writeFile(join(directory, 'nested'), Buffer.alloc(1)); await writeFile(later, Buffer.alloc(2));
+    let scans = 0, faulted = false, recreated = false;
+    const readAttempts: number[] = [];
+    const census = f.census({
+      readdir: async (...args) => {
+        if (samePath(args[0], f.runRoot)) scans++;
+        if (samePath(args[0], directory)) { await writeFile(later, Buffer.alloc(11)); recreated = true; }
+        return [...await readdir(args[0], args[1])].sort();
+      },
+      lstat: async (...args) => {
+        if (samePath(args[0], later)) {
+          readAttempts.push(scans);
+          if (!faulted) {
+            faulted = true;
+            if (code === 'ENOENT') { await unlink(later); return lstat(args[0], args[1]); }
+            throw Object.assign(new Error('fixture secret message'), { code });
+          }
+        }
+        return lstat(args[0], args[1]);
+      }
+    });
+    if (code === 'ENOENT') {
+      assert.equal(await census.inspect('live'), 12); assert.equal(scans, 2);
+      assert.deepEqual(readAttempts, [1, 2, 2]);
+    } else {
+      const error = await failure(census.inspect('live')); assert.equal(error.code, code); assert.equal(scans, 1);
+      assert.deepEqual(readAttempts, [1]);
+    }
+    assert.equal(recreated, true); assert.equal(f.diagnostics.length, 1);
+    assert.equal(f.diagnostics[0].code, code); assert.equal(f.diagnostics[0].relativePath, 'b-later');
+    assert.equal(f.diagnostics[0].attempt, 1); assert.equal(f.diagnostics[0].retryable, code === 'ENOENT');
+    assert.equal((await lstat(later, { bigint: true })).size, 11n);
+    safeDiagnostics(f.diagnostics, f.runRoot);
+  });
 }
 
 test('owned scratch census counts all stable files, including hidden and live-control names', async t => {

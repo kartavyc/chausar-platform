@@ -5,7 +5,7 @@ import {isAbsolute, relative, resolve, sep} from 'node:path';
 // Import-safe resource accounting only; no native launch or authority admission.
 const PHASES = ['startup', 'live', 'final-stopped', 'post-save-stopped'];
 const FS_CODES = new Set(['ENOENT', 'EACCES', 'ENOTDIR', 'EPERM', 'EIO']);
-const MAX_ENTRIES = 32768, MAX_BYTES = 536870912;
+const MAX_ENTRIES = 32768, MAX_BYTES = 536870912, METADATA_READERS = 4;
 const inside = (root, path) => {const rel = relative(root, path); return !isAbsolute(rel) && rel !== '..' && !rel.startsWith('..' + sep);};
 const physical = stat => ({dev: String(stat.dev), ino: String(stat.ino), birthtimeNs: String(stat.birthtimeNs)});
 const equalPhysical = (left, right) => JSON.stringify(left) === JSON.stringify(right);
@@ -86,23 +86,46 @@ export function createOwnedScratchCensus({runRoot, permittedRuns, maxBytes, onDi
           const names = await read(run, 'readdir', path);
           if (!Array.isArray(names)) throw failure(run, 'OWNED_NATIVE_SCRATCH_TYPE_REFUSED', 'validation', path);
           if (names.length > MAX_ENTRIES - entries) throw failure(run, 'OWNED_NATIVE_SCRATCH_ENTRY_LIMIT', 'validation', path);
-          for (const name of names) {
-            currentDeadline(run);
-            if (typeof name !== 'string' || !name || name === '.' || name === '..' || isAbsolute(name)
-              || name.includes('/') || name.includes('\\') || /[\x00-\x1f\x7f]/.test(name))
-              throw failure(run, 'OWNED_NATIVE_SCRATCH_PATH_REFUSED', 'validation', path);
-            const child = resolve(path, name);
-            if (!inside(root, child)) throw failure(run, 'OWNED_NATIVE_SCRATCH_PATH_REFUSED', 'validation', child);
-            if (++entries > MAX_ENTRIES) throw failure(run, 'OWNED_NATIVE_SCRATCH_ENTRY_LIMIT', 'validation', child);
-            const stat = await read(run, 'lstat', child);
-            if (stat.isSymbolicLink()) throw failure(run, 'OWNED_NATIVE_SCRATCH_LINK_REFUSED', 'validation', child);
-            if (stat.isDirectory()) await walk(child);
-            else {
-              if (!stat.isFile() || stat.size < 0n || stat.size > BigInt(maxBytes))
-                throw failure(run, stat.isFile() ? 'OWNED_NATIVE_SCRATCH_LIMIT' : 'OWNED_NATIVE_SCRATCH_TYPE_REFUSED', 'validation', child);
-              bytes += Number(stat.size);
-              if (!Number.isSafeInteger(bytes) || bytes > maxBytes)
-                throw failure(run, 'OWNED_NATIVE_SCRATCH_LIMIT', 'validation', child);
+          for (let offset = 0; offset < names.length; offset += METADATA_READERS) {
+            const children = [];
+            for (const name of names.slice(offset, offset + METADATA_READERS)) {
+              currentDeadline(run);
+              if (typeof name !== 'string' || !name || name === '.' || name === '..' || isAbsolute(name)
+                || name.includes('/') || name.includes('\\') || /[\x00-\x1f\x7f]/.test(name))
+                throw failure(run, 'OWNED_NATIVE_SCRATCH_PATH_REFUSED', 'validation', path);
+              const child = resolve(path, name);
+              if (!inside(root, child)) throw failure(run, 'OWNED_NATIVE_SCRATCH_PATH_REFUSED', 'validation', child);
+              if (++entries > MAX_ENTRIES) throw failure(run, 'OWNED_NATIVE_SCRATCH_ENTRY_LIMIT', 'validation', child);
+              children.push(child);
+            }
+            // Bound metadata work and settle every issued operation before a
+            // directory descent, complete retry, refusal or lifecycle exit.
+            const results = await Promise.allSettled(children.map(child => read(run, 'lstat', child)));
+            let refreshAfterDescent = false;
+            for (let index = 0; index < children.length; index++) {
+              // Later sibling metadata must be fresh after an awaited child
+              // traversal, matching the serial walk's accounting boundary.
+              if (refreshAfterDescent) {
+                const pending = [];
+                for (let next = index; next < children.length; next++) {
+                  if (results[next].status === 'fulfilled') pending.push(next);
+                }
+                const fresh = await Promise.allSettled(pending.map(next => read(run, 'lstat', children[next])));
+                for (let next = 0; next < pending.length; next++) results[pending[next]] = fresh[next];
+                refreshAfterDescent = false;
+              }
+              const child = children[index], result = results[index];
+              if (result.status === 'rejected') throw result.reason;
+              const stat = result.value;
+              if (stat.isSymbolicLink()) throw failure(run, 'OWNED_NATIVE_SCRATCH_LINK_REFUSED', 'validation', child);
+              if (stat.isDirectory()) { await walk(child); refreshAfterDescent = true; }
+              else {
+                if (!stat.isFile() || stat.size < 0n || stat.size > BigInt(maxBytes))
+                  throw failure(run, stat.isFile() ? 'OWNED_NATIVE_SCRATCH_LIMIT' : 'OWNED_NATIVE_SCRATCH_TYPE_REFUSED', 'validation', child);
+                bytes += Number(stat.size);
+                if (!Number.isSafeInteger(bytes) || bytes > maxBytes)
+                  throw failure(run, 'OWNED_NATIVE_SCRATCH_LIMIT', 'validation', child);
+              }
             }
           }
           const after = await directory(run, path);
