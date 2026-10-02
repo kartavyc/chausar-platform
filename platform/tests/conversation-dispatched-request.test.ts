@@ -41,11 +41,16 @@ async function fixture(t: TestContext) {
   let sending: Promise<void> | undefined, outcome: { result?: Awaited<ReturnType<ModelGateway['execute']>>; error?: unknown } = {};
   const gateway = new ModelGateway(store, { businessContext: { assertEvidenceReady: (_context, refs) => {
     if (!ready) throw new ChausarError('SYNTHETIC_READINESS_LOST', 'Synthetic readiness fixture withheld.');
-    return { qualifiedSourceIds: [...refs.sourceIds] };
+    // These manually authored local facts are unmanaged. The installed hook can
+    // withhold current readiness, but must not manufacture managed qualification.
+    assert.deepEqual(refs.managedSourceIds, []);
+    return { qualifiedSourceIds: [] };
   } }, http: async () => { calls++; markStarted(); return pending; } });
   await gateway.configureRoute(owner, { id: request.routeId, kind: 'openai-responses', model: 'synthetic-authored-planner',
     endpoint: ENDPOINT, budgetMinor: '0', maxCostMinor: '0' }, 'synthetic-fixture-only');
   const preview = await gateway.preview(owner, request), approval = await gateway.approveOutbound(owner, preview.id);
+  const records = preview.businessContext.claims.find((claim: any) => claim.category === 'records');
+  assert.equal(records?.qualification, 'unqualified-observation');
   const exact = { ...request, previewId: preview.id, approvalId: approval.id };
   const start = async () => {
     sending = gateway.execute(owner, exact).then(result => { outcome = { result }; }, error => { outcome = { error }; });

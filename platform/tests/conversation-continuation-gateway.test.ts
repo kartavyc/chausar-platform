@@ -138,9 +138,13 @@ test('expired retained authority and revoked zero-row selected sources refuse be
   {
     const retained = descriptor({ sourceIds: [PRIVATE_SOURCE], requestScope: { sourceIds: [PRIVATE_SOURCE] } });
     const run = await fixture(retained), turn = await reviewed(run);
-    assert.deepEqual(turn.preview.sourceIds, []); assert.deepEqual(turn.preview.requestScope.sourceIds, [PRIVATE_SOURCE]);
+    // A selected zero-row source stays in calculation admission and its trust
+    // pin even though the descriptive manifest and observed facts remain empty.
+    assert.deepEqual(turn.preview.sourceIds, [PRIVATE_SOURCE]); assert.deepEqual(turn.preview.requestScope.sourceIds, [PRIVATE_SOURCE]);
+    assert.deepEqual(turn.preview.businessContext.sourceIds, []); assert.deepEqual(turn.preview.factIds, []);
     run.store.state.sourceRules.push({ sourceId: PRIVATE_SOURCE, revoked: true });
-    await assert.rejects(turn.execute(), code('SOURCE_REVOKED')); assert.equal(run.calls(), 0);
+    await assert.rejects(turn.execute(), code('PREVIEW_STALE')); assert.equal(run.calls(), 0);
+    assert.equal(run.store.state.modelReceipts.find(record => record.id === turn.approval.id).used, false);
   }
 });
 
@@ -192,18 +196,20 @@ test('unspecified prior filters may narrow the new exact review while sources al
 });
 
 test('saved continuation metadata and scope tampering fail before dispatch', async () => {
-  for (const mutate of [
-    (record: any) => { record.continuationId = undefined; },
-    (record: any) => { record.continuationDigest = hash('changed'); },
-    (record: any) => { record.continuation.originalQuestion = 'Changed objective.'; },
-    (record: any) => { record.requestScope.period = PERIOD; },
-    (record: any) => { delete record.requestScope; },
-    (record: any) => { delete record.requestScopeDigest; },
-    (record: any) => { record.continuation = undefined; },
+  for (const { mutate, expected } of [
+    { mutate: (record: any) => { record.continuationId = undefined; }, expected: 'PREVIEW_REQUEST_CHANGED' },
+    { mutate: (record: any) => { record.continuationDigest = hash('changed'); }, expected: 'CONVERSATION_CONTINUATION_STALE' },
+    { mutate: (record: any) => { record.continuation.originalQuestion = 'Changed objective.'; }, expected: 'INVALID_CONVERSATION_CONTINUATION' },
+    // Exact private scope is checked before retained continuation digest validation.
+    { mutate: (record: any) => { record.requestScope.period = PERIOD; }, expected: 'TOOL_SCOPE_CHANGED' },
+    { mutate: (record: any) => { delete record.requestScope; }, expected: 'CONVERSATION_CONTINUATION_STALE' },
+    { mutate: (record: any) => { delete record.requestScopeDigest; }, expected: 'CONVERSATION_CONTINUATION_STALE' },
+    { mutate: (record: any) => { record.continuation = undefined; }, expected: 'INVALID_CONVERSATION_CONTINUATION' },
   ]) {
     const run = await fixture(), turn = await reviewed(run); mutate(run.store.state.modelReceipts.find(record => record.id === turn.preview.id));
-    await assert.rejects(turn.execute(), (error: unknown) => error instanceof ChausarError && ['PREVIEW_REQUEST_CHANGED', 'CONVERSATION_CONTINUATION_STALE', 'INVALID_CONVERSATION_CONTINUATION'].includes(error.code));
+    await assert.rejects(turn.execute(), code(expected));
     assert.equal(run.calls(), 0);
+    assert.equal(run.store.state.modelReceipts.find(record => record.id === turn.approval.id).used, false);
   }
 });
 

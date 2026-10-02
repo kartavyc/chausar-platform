@@ -20,3 +20,16 @@ node node_modules/typescript/bin/tsc --noEmit --project tsconfig.json
 The focused synthetic tests hold one actual Gateway fixture dispatch in memory, exercise a genuine provider failure, verify read-only transaction views, expired approval/status distinctions, exact original approval/dispatch evidence, current readiness/dictionary/source access and replay/result refusal. No external provider, customer data, native process or network is used.
 
 Only scoped Node syntax checks and git diff checks were run for this follow-up; runtime tests and TypeScript were deferred to the coordinator's serial checks. No Engine edits, dependencies, D-drive writes or security audit were performed.
+## Fixture correction and bounded regression evidence
+
+Root's serial joined log at `task/phone-runtime-joined-focused-checks/phone-and-dispatched-join-tests.log` showed that the initial seven dispatched fixtures failed before preview: they returned manually authored unmanaged source IDs as qualified. `buildBusinessContext` permits qualified IDs only from its explicitly managed source set. The fixture now returns an empty qualification list, asserts no managed IDs, and verifies the records remain `unqualified-observation`. Its installed readiness fault still tests propagation of a withholding hook; it never claims vendor or managed-source qualification.
+
+The older zero-row continuation expectation was corrected to distinguish exact selected calculation admission from observed/descriptive evidence: the selected source remains pinned while manifest/fact IDs stay empty. Revoking that selected source changes the trust fingerprint and refuses with `PREVIEW_STALE` before approval consumption/provider entry. Continuation metadata mutations now assert their exact individual refusal codes, including `TOOL_SCOPE_CHANGED` for a private period inconsistent with the reviewed manifest. No production guard changed.
+
+Bounded verification ran in the isolated comparison worktree:
+
+```powershell
+node --test --test-concurrency=1 platform/tests/conversation-dispatched-request.test.ts platform/tests/conversation-calculation-gateway-join.test.ts platform/tests/conversation-continuation-gateway.test.ts
+```
+
+Actual result: exit 0, 42 tests passed, 0 failed/cancelled/skipped, 1688.6767 ms. This is synthetic Gateway/continuation coverage only; joined phone tests, native GUI, real provider inference, full aggregate and release qualification remain separate checks.
