@@ -1,0 +1,1400 @@
+TAP version 13
+# Subtest: one-use invitation creates scoped seat and stores hashes rather than tokens
+ok 1 - one-use invitation creates scoped seat and stores hashes rather than tokens
+  ---
+  duration_ms: 19.9475
+  type: 'test'
+  ...
+# Subtest: viewer cannot issue invitations and cannot inspect other member sessions
+ok 2 - viewer cannot issue invitations and cannot inspect other member sessions
+  ---
+  duration_ms: 2.3679
+  type: 'test'
+  ...
+# Subtest: member revocation invalidates an already-issued token immediately
+ok 3 - member revocation invalidates an already-issued token immediately
+  ---
+  duration_ms: 1.7324
+  type: 'test'
+  ...
+# Subtest: invitation issuer epoch change prevents redemption
+ok 4 - invitation issuer epoch change prevents redemption
+  ---
+  duration_ms: 1.1504
+  type: 'test'
+  ...
+# Subtest: revoked and expired session tokens are denied; returned listings omit hashes
+ok 5 - revoked and expired session tokens are denied; returned listings omit hashes
+  ---
+  duration_ms: 4.8393
+  type: 'test'
+  ...
+# Subtest: invitation revocation removes its redeemable credential
+ok 6 - invitation revocation removes its redeemable credential
+  ---
+  duration_ms: 1.3609
+  type: 'test'
+  ...
+# Subtest: scoped cofounders cannot mint owner or other-member tokens and cannot invite stronger roles
+ok 7 - scoped cofounders cannot mint owner or other-member tokens and cannot invite stronger roles
+  ---
+  duration_ms: 16.7431
+  type: 'test'
+  ...
+# Subtest: even owners cannot mint sessions or redeem invitations outside their current branch ceiling
+ok 8 - even owners cannot mint sessions or redeem invitations outside their current branch ceiling
+  ---
+  duration_ms: 7.5585
+  type: 'test'
+  ...
+# Subtest: direct member creation enforces the same role and branch ceiling as invitations
+ok 9 - direct member creation enforces the same role and branch ceiling as invitations
+  ---
+  duration_ms: 16.6404
+  type: 'test'
+  ...
+# Subtest: approval issue persists only a hash, bounds expiry, and does not share mutable previews
+ok 10 - approval issue persists only a hash, bounds expiry, and does not share mutable previews
+  ---
+  duration_ms: 41.0145
+  type: 'test'
+  ...
+# Subtest: approval, token consumption and exact durable receipt commit together without execution
+ok 11 - approval, token consumption and exact durable receipt commit together without execution
+  ---
+  duration_ms: 24.9181
+  type: 'test'
+  ...
+# Subtest: concurrent approve/reject taps consume a challenge exactly once
+ok 12 - concurrent approve/reject taps consume a challenge exactly once
+  ---
+  duration_ms: 10.1007
+  type: 'test'
+  ...
+# Subtest: rejection also consumes the token and persists a rejection receipt
+ok 13 - rejection also consumes the token and persists a rejection receipt
+  ---
+  duration_ms: 6.6418
+  type: 'test'
+  ...
+# Subtest: durability failure rolls back both token consumption and the action decision
+ok 14 - durability failure rolls back both token consumption and the action decision
+  ---
+  duration_ms: 27.0001
+  type: 'test'
+  ...
+# Subtest: live action revision, digest and operation catalogue version changes require a new preview
+ok 15 - live action revision, digest and operation catalogue version changes require a new preview
+  ---
+  duration_ms: 33.5242
+  type: 'test'
+  ...
+# Subtest: the submitted digest, revision and operation version must exactly match the shown preview
+ok 16 - the submitted digest, revision and operation version must exactly match the shown preview
+  ---
+  duration_ms: 10.1259
+  type: 'test'
+  ...
+# Subtest: live permission withdrawal and loss of read access deny decisions and receipt reads
+ok 17 - live permission withdrawal and loss of read access deny decisions and receipt reads
+  ---
+  duration_ms: 221.0903
+  type: 'test'
+  ...
+# Subtest: revoked, expired, unpaired or offline sessions cannot use a cached challenge
+ok 18 - revoked, expired, unpaired or offline sessions cannot use a cached challenge
+  ---
+  duration_ms: 41.7196
+  type: 'test'
+  ...
+# Subtest: session expiry is checked live even if the adapter incorrectly reports current
+ok 19 - session expiry is checked live even if the adapter incorrectly reports current
+  ---
+  duration_ms: 34.0644
+  type: 'test'
+  ...
+# Subtest: challenge expiration includes the exact boundary and is capped by session expiry
+ok 20 - challenge expiration includes the exact boundary and is capped by session expiry
+  ---
+  duration_ms: 45.8095
+  type: 'test'
+  ...
+# Subtest: forwarded tokens cannot be used by another device, workspace, member, epoch or refreshed session
+ok 21 - forwarded tokens cannot be used by another device, workspace, member, epoch or refreshed session
+  ---
+  duration_ms: 70.0987
+  type: 'test'
+  ...
+# Subtest: an invalid forwarded token does not consume the real owner challenge
+ok 22 - an invalid forwarded token does not consume the real owner challenge
+  ---
+  duration_ms: 13.1961
+  type: 'test'
+  ...
+# Subtest: money, messages outside the workspace, destructive and complex actions open desktop without a token
+ok 23 - money, messages outside the workspace, destructive and complex actions open desktop without a token
+  ---
+  duration_ms: 24.0823
+  type: 'test'
+  ...
+# Subtest: changed live eligibility blocks an old token for both approval and rejection
+ok 24 - changed live eligibility blocks an old token for both approval and rejection
+  ---
+  duration_ms: 42.086
+  type: 'test'
+  ...
+# Subtest: only the trusted current desktop owner can issue to their own current paired companion
+ok 25 - only the trusted current desktop owner can issue to their own current paired companion
+  ---
+  duration_ms: 31.4068
+  type: 'test'
+  ...
+# Subtest: all five authenticated companion channels support the same simple internal decision
+ok 26 - all five authenticated companion channels support the same simple internal decision
+  ---
+  duration_ms: 74.8259
+  type: 'test'
+  ...
+# Subtest: multiple challenges cannot approve the same prepared action twice
+ok 27 - multiple challenges cannot approve the same prepared action twice
+  ---
+  duration_ms: 12.4358
+  type: 'test'
+  ...
+# Subtest: fresh online receipt lookup recovers a lost decision response without another approval
+ok 28 - fresh online receipt lookup recovers a lost decision response without another approval
+  ---
+  duration_ms: 14.4251
+  type: 'test'
+  ...
+# Subtest: revocation during asynchronous hashing is checked in the eventual atomic transaction
+ok 29 - revocation during asynchronous hashing is checked in the eventual atomic transaction
+  ---
+  duration_ms: 5.9659
+  type: 'test'
+  ...
+# Subtest: request mutation during asynchronous hashing cannot change an approval tap into rejection
+ok 30 - request mutation during asynchronous hashing cannot change an approval tap into rejection
+  ---
+  duration_ms: 3.4786
+  type: 'test'
+  ...
+# Subtest: phone client consumes the service challenge and recovers a lost response without resubmitting
+ok 31 - phone client consumes the service challenge and recovers a lost response without resubmitting
+  ---
+  duration_ms: 27.49
+  type: 'test'
+  ...
+# Subtest: browser-store fixture persists nonexportable AES-GCM keys across reopened connections
+ok 32 - browser-store fixture persists nonexportable AES-GCM keys across reopened connections
+  ---
+  duration_ms: 169.3313
+  type: 'test'
+  ...
+# Subtest: concurrent provisioning retains exactly one existing key for a binding
+ok 33 - concurrent provisioning retains exactly one existing key for a binding
+  ---
+  duration_ms: 13.0589
+  type: 'test'
+  ...
+# Subtest: workspace, member, device, and epoch changes each provision a different opaque scoped key
+ok 34 - workspace, member, device, and epoch changes each provision a different opaque scoped key
+  ---
+  duration_ms: 210.4457
+  type: 'test'
+  ...
+# Subtest: opaque byte storage copies inputs and outputs and persists both typed arrays and ArrayBuffers
+ok 35 - opaque byte storage copies inputs and outputs and persists both typed arrays and ArrayBuffers
+  ---
+  duration_ms: 3.9193
+  type: 'test'
+  ...
+# Subtest: storage writes resolve after transaction commit and an aborted commit does not persist request success
+ok 36 - storage writes resolve after transaction commit and an aborted commit does not persist request success
+  ---
+  duration_ms: 4.1669
+  type: 'test'
+  ...
+# Subtest: encrypted brief cache integrates with reopened fixture storage and revocation clears both dedicated stores
+ok 37 - encrypted brief cache integrates with reopened fixture storage and revocation clears both dedicated stores
+  ---
+  duration_ms: 41.058
+  type: 'test'
+  ...
+# Subtest: opening a failed fixture database reports CACHE_INVALID
+ok 38 - opening a failed fixture database reports CACHE_INVALID
+  ---
+  duration_ms: 3.3829
+  type: 'test'
+  ...
+# Subtest: key provisioning reports an aborted transaction without persisting its candidate key
+ok 39 - key provisioning reports an aborted transaction without persisting its candidate key
+  ---
+  duration_ms: 9.2843
+  type: 'test'
+  ...
+# Subtest: only allowlisted brief fields are encrypted; storage identifiers and bytes omit plaintext and credentials
+ok 40 - only allowlisted brief fields are encrypted; storage identifiers and bytes omit plaintext and credentials
+  ---
+  duration_ms: 134.5838
+  type: 'test'
+  ...
+# Subtest: every replacement uses a fresh AES-GCM nonce and returns defensive field copies
+ok 41 - every replacement uses a fresh AES-GCM nonce and returns defensive field copies
+  ---
+  duration_ms: 264.125
+  type: 'test'
+  ...
+# Subtest: an encrypted cache survives client restart without deriving or recreating its protected key
+ok 42 - an encrypted cache survives client restart without deriving or recreating its protected key
+  ---
+  duration_ms: 9.6351
+  type: 'test'
+  ...
+# Subtest: expiry removes the snapshot at the exact TTL boundary and missing records stay absent
+ok 43 - expiry removes the snapshot at the exact TTL boundary and missing records stay absent
+  ---
+  duration_ms: 34.0633
+  type: 'test'
+  ...
+# Subtest: tampered ciphertext, nonce, and format fail closed and remove the affected snapshot
+ok 44 - tampered ciphertext, nonce, and format fail closed and remove the affected snapshot
+  ---
+  duration_ms: 16.7162
+  type: 'test'
+  ...
+# Subtest: ciphertext transplanted across workspace, member, device, or epoch cannot be read even with the same key
+ok 45 - ciphertext transplanted across workspace, member, device, or epoch cannot be read even with the same key
+  ---
+  duration_ms: 14.1369
+  type: 'test'
+  ...
+# Subtest: a renamed record cannot impersonate another brief under the same device binding
+ok 46 - a renamed record cannot impersonate another brief under the same device binding
+  ---
+  duration_ms: 9.7336
+  type: 'test'
+  ...
+# Subtest: missing, revoked, wrong, and exportable keys cannot decrypt cached data or write new snapshots
+ok 47 - missing, revoked, wrong, and exportable keys cannot decrypt cached data or write new snapshots
+  ---
+  duration_ms: 64.9173
+  type: 'test'
+  ...
+# Subtest: invalid brief, workspace mismatch, invalid binding, and oversized UTF-8 content are rejected before storage
+ok 48 - invalid brief, workspace mismatch, invalid binding, and oversized UTF-8 content are rejected before storage
+  ---
+  duration_ms: 4.5585
+  type: 'test'
+  ...
+# Subtest: configured retention and size budgets have finite hard limits
+ok 49 - configured retention and size budgets have finite hard limits
+  ---
+  duration_ms: 3.1237
+  type: 'test'
+  ...
+# Subtest: entry and total-byte budgets evict oldest authenticated snapshots, including after restart
+ok 50 - entry and total-byte budgets evict oldest authenticated snapshots, including after restart
+  ---
+  duration_ms: 29.8573
+  type: 'test'
+  ...
+# Subtest: put removes expired, corrupt, and previous-binding entries before retaining new data
+ok 51 - put removes expired, corrupt, and previous-binding entries before retaining new data
+  ---
+  duration_ms: 79.4611
+  type: 'test'
+  ...
+# Subtest: authenticated payload validation rejects impossible retention, future cache timestamps, and wrong brief ids
+ok 52 - authenticated payload validation rejects impossible retention, future cache timestamps, and wrong brief ids
+  ---
+  duration_ms: 80.0353
+  type: 'test'
+  ...
+# Subtest: clear erases storage and protected keys after an already-started put and rejects subsequent offline writes
+ok 53 - clear erases storage and protected keys after an already-started put and rejects subsequent offline writes
+  ---
+  duration_ms: 15.3251
+  type: 'test'
+  ...
+# Subtest: clear attempts both erasure adapters and reports failure without exposing adapter details
+ok 54 - clear attempts both erasure adapters and reports failure without exposing adapter details
+  ---
+  duration_ms: 28.6307
+  type: 'test'
+  ...
+# Subtest: storage is erased even if protected-key erasure fails; provider exceptions remain opaque
+ok 55 - storage is erased even if protected-key erasure fails; provider exceptions remain opaque
+  ---
+  duration_ms: 18.2007
+  type: 'test'
+  ...
+# Subtest: malformed or excessive opaque storage indexes are cleared and cannot bypass cache budgets
+ok 56 - malformed or excessive opaque storage indexes are cleared and cannot bypass cache budgets
+  ---
+  duration_ms: 18.298
+  type: 'test'
+  ...
+# Subtest: list recovers briefs after restart in newest-first order without persisting plaintext metadata
+ok 57 - list recovers briefs after restart in newest-first order without persisting plaintext metadata
+  ---
+  duration_ms: 12.4299
+  type: 'test'
+  ...
+# Subtest: list removes expired, tampered, and wrong-binding snapshots while returning valid current-binding briefs
+ok 58 - list removes expired, tampered, and wrong-binding snapshots while returning valid current-binding briefs
+  ---
+  duration_ms: 41.2173
+  type: 'test'
+  ...
+# Subtest: list respects tighter entry and byte budgets after restart, evicting oldest snapshots
+ok 59 - list respects tighter entry and byte budgets after restart, evicting oldest snapshots
+  ---
+  duration_ms: 23.1074
+  type: 'test'
+  ...
+# Subtest: list reports a locked or unavailable key without recreating it or revealing adapter diagnostics
+ok 60 - list reports a locked or unavailable key without recreating it or revealing adapter diagnostics
+  ---
+  duration_ms: 9.7027
+  type: 'test'
+  ...
+# Subtest: list serializes with writes and revocation cleanup, and validates scope and storage index
+ok 61 - list serializes with writes and revocation cleanup, and validates scope and storage index
+  ---
+  duration_ms: 11.6799
+  type: 'test'
+  ...
+# Subtest: WhatsApp/email notifications require recorded opt-in and contain generic text and paired-page destinations only
+ok 62 - WhatsApp/email notifications require recorded opt-in and contain generic text and paired-page destinations only
+  ---
+  duration_ms: 5.2815
+  type: 'test'
+  ...
+# Subtest: app links reject credentials, tokens, fragments and non-TLS origins
+ok 63 - app links reject credentials, tokens, fragments and non-TLS origins
+  ---
+  duration_ms: 1.2945
+  type: 'test'
+  ...
+# Subtest: bare approvals and chat receive a fixed app reply; HELP and STOP have explicit behavior
+ok 64 - bare approvals and chat receive a fixed app reply; HELP and STOP have explicit behavior
+  ---
+  duration_ms: 0.8043
+  type: 'test'
+  ...
+# Subtest: sealed relay intent has bounded lifetime and cannot survive the approval expiry boundary
+ok 65 - sealed relay intent has bounded lifetime and cannot survive the approval expiry boundary
+  ---
+  duration_ms: 15.4086
+  type: 'test'
+  ...
+# Subtest: restored credentials provide cached reading only; all authority requires online validation
+ok 66 - restored credentials provide cached reading only; all authority requires online validation
+  ---
+  duration_ms: 122.5167
+  type: 'test'
+  ...
+# Subtest: pairing stores an opaque grant, then validates; diagnostic state omits credentials
+ok 67 - pairing stores an opaque grant, then validates; diagnostic state omits credentials
+  ---
+  duration_ms: 38.1992
+  type: 'test'
+  ...
+# Subtest: pairing failure and wrong device response cannot create authority
+ok 68 - pairing failure and wrong device response cannot create authority
+  ---
+  duration_ms: 4.1245
+  type: 'test'
+  ...
+# Subtest: a revoked online validation erases credentials, challenges and cached briefs
+ok 69 - a revoked online validation erases credentials, challenges and cached briefs
+  ---
+  duration_ms: 27.5935
+  type: 'test'
+  ...
+# Subtest: expired restored grants erase offline cache rather than claiming current access
+ok 70 - expired restored grants erase offline cache rather than claiming current access
+  ---
+  duration_ms: 1.1203
+  type: 'test'
+  ...
+# Subtest: a validation response cannot change a binding, session or reuse an old validation timestamp
+ok 71 - a validation response cannot change a binding, session or reuse an old validation timestamp
+  ---
+  duration_ms: 8.9032
+  type: 'test'
+  ...
+# Subtest: lost chat response becomes unknown and reconnect polls without resending
+ok 72 - lost chat response becomes unknown and reconnect polls without resending
+  ---
+  duration_ms: 2.6595
+  type: 'test'
+  ...
+# Subtest: approval tokens are memory only; offline taps and reconnect never enqueue or replay approval
+ok 73 - approval tokens are memory only; offline taps and reconnect never enqueue or replay approval
+  ---
+  duration_ms: 5.5009
+  type: 'test'
+  ...
+# Subtest: lost approval acknowledgment can only be reconciled by request ID
+ok 74 - lost approval acknowledgment can only be reconciled by request ID
+  ---
+  duration_ms: 27.5079
+  type: 'test'
+  ...
+# Subtest: a malformed approval receipt remains unknown instead of claiming success or replaying approval
+ok 75 - a malformed approval receipt remains unknown instead of claiming success or replaying approval
+  ---
+  duration_ms: 5.4728
+  type: 'test'
+  ...
+# Subtest: expired challenge and desktop-only operations have no approval submission
+ok 76 - expired challenge and desktop-only operations have no approval submission
+  ---
+  duration_ms: 26.896
+  type: 'test'
+  ...
+# Subtest: uploads are chunked with exact offsets and finish as outside data awaiting confirmation
+ok 77 - uploads are chunked with exact offsets and finish as outside data awaiting confirmation
+  ---
+  duration_ms: 74.0377
+  type: 'test'
+  ...
+# Subtest: cancel aborts an active upload and waits for a remote acknowledgement
+ok 78 - cancel aborts an active upload and waits for a remote acknowledgement
+  ---
+  duration_ms: 8.6836
+  type: 'test'
+  ...
+# Subtest: unacknowledged cancellation remains unknown and is settled after reconnect
+ok 79 - unacknowledged cancellation remains unknown and is settled after reconnect
+  ---
+  duration_ms: 2.653
+  type: 'test'
+  ...
+# Subtest: late brief responses after disconnect cannot reach cache or UI
+ok 80 - late brief responses after disconnect cannot reach cache or UI
+  ---
+  duration_ms: 1.2549
+  type: 'test'
+  ...
+# Subtest: fresh revocation acknowledged by the server erases the local grant and briefs
+ok 81 - fresh revocation acknowledged by the server erases the local grant and briefs
+  ---
+  duration_ms: 1.4378
+  type: 'test'
+  ...
+# Subtest: chat is unavailable without a current grant or capability, and messaging channels cannot be app clients
+ok 82 - chat is unavailable without a current grant or capability, and messaging channels cannot be app clients
+  ---
+  duration_ms: 3.4056
+  type: 'test'
+  ...
+# Subtest: an offline cached read is discarded when the device is forgotten during storage IO
+ok 83 - an offline cached read is discarded when the device is forgotten during storage IO
+  ---
+  duration_ms: 2.4728
+  type: 'test'
+  ...
+# Subtest: a status response started before cancellation cannot undo acknowledged cancellation
+ok 84 - a status response started before cancellation cannot undo acknowledged cancellation
+  ---
+  duration_ms: 3.642
+  type: 'test'
+  ...
+# Subtest: concurrent status responses preserve the newest request outcome
+ok 85 - concurrent status responses preserve the newest request outcome
+  ---
+  duration_ms: 3.102
+  type: 'test'
+  ...
+# Subtest: forgetting a device clears old workspace request data and prevents late results from restoring it
+ok 86 - forgetting a device clears old workspace request data and prevents late results from restoring it
+  ---
+  duration_ms: 3.0092
+  type: 'test'
+  ...
+# Subtest: upload content and metadata are snapshotted before hashing and asynchronous transport
+ok 87 - upload content and metadata are snapshotted before hashing and asynchronous transport
+  ---
+  duration_ms: 13.958
+  type: 'test'
+  ...
+# Subtest: approval preview returned to UI cannot mutate the private challenge
+ok 88 - approval preview returned to UI cannot mutate the private challenge
+  ---
+  duration_ms: 1.8951
+  type: 'test'
+  ...
+# Subtest: only one pairing request may be in flight and caller mutations cannot change its request
+ok 89 - only one pairing request may be in flight and caller mutations cannot change its request
+  ---
+  duration_ms: 1.3232
+  type: 'test'
+  ...
+# Subtest: upload cancellation during checksum preparation confirms no remote upload was sent
+ok 90 - upload cancellation during checksum preparation confirms no remote upload was sent
+  ---
+  duration_ms: 3.93
+  type: 'test'
+  ...
+# Subtest: an old upload checksum cannot dispatch into a newly paired workspace or alter a reused request ID
+ok 91 - an old upload checksum cannot dispatch into a newly paired workspace or alter a reused request ID
+  ---
+  duration_ms: 3.6109
+  type: 'test'
+  ...
+# Subtest: an old aborted pairing cannot overwrite the state of a newer pairing attempt
+ok 92 - an old aborted pairing cannot overwrite the state of a newer pairing attempt
+  ---
+  duration_ms: 1.8587
+  type: 'test'
+  ...
+# Subtest: HTTP adapter accepts only an HTTPS origin without credentials, path, query or fragment
+ok 93 - HTTP adapter accepts only an HTTPS origin without credentials, path, query or fragment
+  ---
+  duration_ms: 6.4511
+  type: 'test'
+  ...
+# Subtest: HTTP factory requires explicit callable fetch and device signer adapters
+ok 94 - HTTP factory requires explicit callable fetch and device signer adapters
+  ---
+  duration_ms: 0.7109
+  type: 'test'
+  ...
+# Subtest: HTTP requests sign the exact POST body and keep credentials and proof out of the URL
+ok 95 - HTTP requests sign the exact POST body and keep credentials and proof out of the URL
+  ---
+  duration_ms: 102.4634
+  type: 'test'
+  ...
+# Subtest: pairing can send a device-signed request without a bearer credential
+ok 96 - pairing can send a device-signed request without a bearer credential
+  ---
+  duration_ms: 2.2358
+  type: 'test'
+  ...
+# Subtest: invalid bearer header values are refused before fetch
+ok 97 - invalid bearer header values are refused before fetch
+  ---
+  duration_ms: 1.8159
+  type: 'test'
+  ...
+# Subtest: upload chunks use numeric JSON byte arrays and the signature covers that encoding
+ok 98 - upload chunks use numeric JSON byte arrays and the signature covers that encoding
+  ---
+  duration_ms: 2.1217
+  type: 'test'
+  ...
+# Subtest: missing or malformed required device proof fields stop the request before fetch
+ok 99 - missing or malformed required device proof fields stop the request before fetch
+  ---
+  duration_ms: 32.106
+  type: 'test'
+  ...
+# Subtest: unknown methods and already-aborted requests never call signer or fetch
+ok 100 - unknown methods and already-aborted requests never call signer or fetch
+  ---
+  duration_ms: 1.4005
+  type: 'test'
+  ...
+# Subtest: aborting while the exact body is being signed prevents a later fetch
+ok 101 - aborting while the exact body is being signed prevents a later fetch
+  ---
+  duration_ms: 3.0097
+  type: 'test'
+  ...
+# Subtest: fetch receives the original abort signal and dependency failures expose only fixed error codes
+ok 102 - fetch receives the original abort signal and dependency failures expose only fixed error codes
+  ---
+  duration_ms: 25.1732
+  type: 'test'
+  ...
+# Subtest: abort during response reading cannot return a late result or reveal a reader error
+ok 103 - abort during response reading cannot return a late result or reveal a reader error
+  ---
+  duration_ms: 2.7036
+  type: 'test'
+  ...
+# Subtest: remote errors preserve known codes and never expose provider messages or arbitrary codes
+ok 104 - remote errors preserve known codes and never expose provider messages or arbitrary codes
+  ---
+  duration_ms: 14.5004
+  type: 'test'
+  ...
+# Subtest: non-JSON, malformed, oversized and result-less responses fail with a fixed code
+ok 105 - non-JSON, malformed, oversized and result-less responses fail with a fixed code
+  ---
+  duration_ms: 17.2177
+  type: 'test'
+  ...
+# Subtest: live factory rejects missing host adapters instead of filling them with previews
+ok 106 - live factory rejects missing host adapters instead of filling them with previews
+  ---
+  duration_ms: 4.7279
+  type: 'test'
+  ...
+# Subtest: live factory ignores unexpected client or mode fields and uses the declared adapters
+ok 107 - live factory ignores unexpected client or mode fields and uses the declared adapters
+  ---
+  duration_ms: 14.0138
+  type: 'test'
+  ...
+# Subtest: live connection and protected-storage failures keep empty live state with sanitised notices
+ok 108 - live connection and protected-storage failures keep empty live state with sanitised notices
+  ---
+  duration_ms: 8.4394
+  type: 'test'
+  ...
+# Subtest: screens start unpaired and pairing exposes stable immutable synthetic workspace state without secrets
+ok 109 - screens start unpaired and pairing exposes stable immutable synthetic workspace state without secrets
+  ---
+  duration_ms: 28.468
+  type: 'test'
+  ...
+# Subtest: all screen routes work and unpaired errors reveal neither raw invite nor adapter message
+ok 110 - all screen routes work and unpaired errors reveal neither raw invite nor adapter message
+  ---
+  duration_ms: 6.7008
+  type: 'test'
+  ...
+# Subtest: chat pending activity is reconciled by ID and proof opens the receipt screen
+ok 111 - chat pending activity is reconciled by ID and proof opens the receipt screen
+  ---
+  duration_ms: 19.9522
+  type: 'test'
+  ...
+# Subtest: in-flight chat reservations publish before reply and remain cancellable while chat is busy
+ok 112 - in-flight chat reservations publish before reply and remain cancellable while chat is busy
+  ---
+  duration_ms: 31.6123
+  type: 'test'
+  ...
+# Subtest: a pending chat cancellation shows acknowledged cancellation rather than local completion
+ok 113 - a pending chat cancellation shows acknowledged cancellation rather than local completion
+  ---
+  duration_ms: 11.6465
+  type: 'test'
+  ...
+# Subtest: lost chat delivery stays unknown; reconnect never resends its question
+ok 114 - lost chat delivery stays unknown; reconnect never resends its question
+  ---
+  duration_ms: 5.8141
+  type: 'test'
+  ...
+# Subtest: picked documents keep the awaiting-confirmation state and import stays desktop-owned
+ok 115 - picked documents keep the awaiting-confirmation state and import stays desktop-owned
+  ---
+  duration_ms: 39.3263
+  type: 'test'
+  ...
+# Subtest: active upload can be cancelled from Activity and a late chunk never finishes import
+ok 116 - active upload can be cancelled from Activity and a late chunk never finishes import
+  ---
+  duration_ms: 22.7753
+  type: 'test'
+  ...
+# Subtest: saved brief detail and catalogue remain read only offline with no outgoing request
+ok 117 - saved brief detail and catalogue remain read only offline with no outgoing request
+  ---
+  duration_ms: 11.1713
+  type: 'test'
+  ...
+# Subtest: expired cached catalogue is empty and cannot supply authority
+ok 118 - expired cached catalogue is empty and cannot supply authority
+  ---
+  duration_ms: 4.2412
+  type: 'test'
+  ...
+# Subtest: approval inbox shows simple and desktop-required actions while tokens stay private
+ok 119 - approval inbox shows simple and desktop-required actions while tokens stay private
+  ---
+  duration_ms: 7.1261
+  type: 'test'
+  ...
+# Subtest: offline approval taps are never sent or replayed and reconnection requires a fresh preview
+ok 120 - offline approval taps are never sent or replayed and reconnection requires a fresh preview
+  ---
+  duration_ms: 4.8707
+  type: 'test'
+  ...
+# Subtest: expired previews and desktop-only actions cannot be submitted from native controls or controller
+ok 121 - expired previews and desktop-only actions cannot be submitted from native controls or controller
+  ---
+  duration_ms: 4.6261
+  type: 'test'
+  ...
+# Subtest: operation version change requires a new review and never claims a successful decision
+ok 122 - operation version change requires a new review and never claims a successful decision
+  ---
+  duration_ms: 11.3948
+  type: 'test'
+  ...
+# Subtest: lost approval response exposes unknown and only polls its ID on reconnect
+ok 123 - lost approval response exposes unknown and only polls its ID on reconnect
+  ---
+  duration_ms: 4.1679
+  type: 'test'
+  ...
+# Subtest: forget erases workspace views, retained cache and credentials even offline
+ok 124 - forget erases workspace views, retained cache and credentials even offline
+  ---
+  duration_ms: 13.1615
+  type: 'test'
+  ...
+# Subtest: revocation acknowledged by the server clears views and failed revocation cannot claim success
+ok 125 - revocation acknowledged by the server clears views and failed revocation cannot claim success
+  ---
+  duration_ms: 5.2686
+  type: 'test'
+  ...
+# Subtest: a document picked before forget cannot upload into a new session
+ok 126 - a document picked before forget cannot upload into a new session
+  ---
+  duration_ms: 2.7299
+  type: 'test'
+  ...
+# Subtest: late receipt IO cannot restore workspace data after server-detected revocation
+ok 127 - late receipt IO cannot restore workspace data after server-detected revocation
+  ---
+  duration_ms: 8.5342
+  type: 'test'
+  ...
+# Subtest: late receipt and brief loads respect later user navigation
+ok 128 - late receipt and brief loads respect later user navigation
+  ---
+  duration_ms: 9.4281
+  type: 'test'
+  ...
+# Subtest: fixed host rejects arbitrary engine methods, upload, extra envelope fields and invalid proof clocks
+ok 129 - fixed host rejects arbitrary engine methods, upload, extra envelope fields and invalid proof clocks
+  ---
+  duration_ms: 11.7819
+  type: 'test'
+  ...
+# Subtest: host admits one exact request and reconciles repetitions without calling start again
+ok 130 - host admits one exact request and reconciles repetitions without calling start again
+  ---
+  duration_ms: 24.6805
+  type: 'test'
+  ...
+# Subtest: retained results and identity discovery require current access and the admitted revision
+ok 131 - retained results and identity discovery require current access and the admitted revision
+  ---
+  duration_ms: 8.2901
+  type: 'test'
+  ...
+# Subtest: session/channel/capability/role identity comes from the adapter and expiry forbids release
+ok 132 - session/channel/capability/role identity comes from the adapter and expiry forbids release
+  ---
+  duration_ms: 3.24
+  type: 'test'
+  ...
+# Subtest: malformed typed backend results never become retained success and cannot be replayed
+ok 133 - malformed typed backend results never become retained success and cannot be replayed
+  ---
+  duration_ms: 10.579
+  type: 'test'
+  ...
+# Subtest: final protected-read checkpoint refuses withdrawal during asynchronous projection
+ok 134 - final protected-read checkpoint refuses withdrawal during asynchronous projection
+  ---
+  duration_ms: 10.3945
+  type: 'test'
+  ...
+# Subtest: protected output and principal snapshots cannot change while final release is awaiting
+ok 135 - protected output and principal snapshots cannot change while final release is awaiting
+  ---
+  duration_ms: 10.3449
+  type: 'test'
+  ...
+# Subtest: identity listing has a final batch checkpoint for withdrawal of an earlier source
+ok 136 - identity listing has a final batch checkpoint for withdrawal of an earlier source
+  ---
+  duration_ms: 9.1985
+  type: 'test'
+  ...
+# Subtest: signed synthetic single-use pairing joins current phone grant before chat and brief reads
+ok 137 - signed synthetic single-use pairing joins current phone grant before chat and brief reads
+  ---
+  duration_ms: 2096.4174
+  type: 'test'
+  ...
+# Subtest: real phone HTTP serves reviewed synthetic Engine chat, brief and calculation receipts
+ok 138 - real phone HTTP serves reviewed synthetic Engine chat, brief and calculation receipts
+  ---
+  duration_ms: 1736.8126
+  type: 'test'
+  ...
+# Subtest: lost HTTP acknowledgment plus host process and PhoneClient restart recover identical operation without a resend
+ok 139 - lost HTTP acknowledgment plus host process and PhoneClient restart recover identical operation without a resend
+  ---
+  duration_ms: 2994.938
+  type: 'test'
+  ...
+# Subtest: uncertain backend reply reconciles operationId by read-only status after a process restart
+ok 140 - uncertain backend reply reconciles operationId by read-only status after a process restart
+  ---
+  duration_ms: 2441.2044
+  type: 'test'
+  ...
+# Subtest: exact owner approval consumes the existing challenge once; acknowledgment loss recovers only its disposition
+ok 141 - exact owner approval consumes the existing challenge once; acknowledgment loss recovers only its disposition
+  ---
+  duration_ms: 2623.1201
+  type: 'test'
+  ...
+# Subtest: changed approval revision and message impact refuse before disposition or execution
+ok 142 - changed approval revision and message impact refuse before disposition or execution
+  ---
+  duration_ms: 1260.4507
+  type: 'test'
+  ...
+# Subtest: cancelled pending work survives process/client restart and cannot commit from a duplicate start
+ok 143 - cancelled pending work survives process/client restart and cannot commit from a duplicate start
+  ---
+  duration_ms: 2654.2284
+  type: 'test'
+  ...
+# Subtest: cancellation tombstone wins before a paused exact approval commit
+ok 144 - cancellation tombstone wins before a paused exact approval commit
+  ---
+  duration_ms: 2419.7964
+  type: 'test'
+  ...
+# Subtest: protected read release rechecks current authority and exact resource after paused adapter IO
+    # Subtest: brief:ACCESS_REVOKED
+    ok 1 - brief:ACCESS_REVOKED
+      ---
+      duration_ms: 1227.3292
+      type: 'test'
+      ...
+    # Subtest: brief:SESSION_EXPIRED
+    ok 2 - brief:SESSION_EXPIRED
+      ---
+      duration_ms: 1340.2867
+      type: 'test'
+      ...
+    # Subtest: brief:PREVIEW_CHANGED
+    ok 3 - brief:PREVIEW_CHANGED
+      ---
+      duration_ms: 1287.5537
+      type: 'test'
+      ...
+    # Subtest: receipt:CAPABILITY_FORBIDDEN
+    ok 4 - receipt:CAPABILITY_FORBIDDEN
+      ---
+      duration_ms: 1288.3328
+      type: 'test'
+      ...
+    # Subtest: receipt:ACCESS_REVOKED
+    ok 5 - receipt:ACCESS_REVOKED
+      ---
+      duration_ms: 1426.4464
+      type: 'test'
+      ...
+    # Subtest: approval:PREVIEW_CHANGED
+    ok 6 - approval:PREVIEW_CHANGED
+      ---
+      duration_ms: 1238.9543
+      type: 'test'
+      ...
+    # Subtest: approval-list:CAPABILITY_FORBIDDEN
+    ok 7 - approval-list:CAPABILITY_FORBIDDEN
+      ---
+      duration_ms: 1391.5489
+      type: 'test'
+      ...
+    1..7
+ok 145 - protected read release rechecks current authority and exact resource after paused adapter IO
+  ---
+  duration_ms: 9202.725
+  type: 'test'
+  ...
+# Subtest: retained results refuse expired grants, revocation, source deletion, changed scope and removed capabilities
+    # Subtest: expired
+    ok 1 - expired
+      ---
+      duration_ms: 1352.7483
+      type: 'test'
+      ...
+    # Subtest: revoked
+    ok 2 - revoked
+      ---
+      duration_ms: 1370.9302
+      type: 'test'
+      ...
+    # Subtest: source
+    ok 3 - source
+      ---
+      duration_ms: 1594.9691
+      type: 'test'
+      ...
+    # Subtest: scope
+    ok 4 - scope
+      ---
+      duration_ms: 1332.5911
+      type: 'test'
+      ...
+    # Subtest: capability
+    ok 5 - capability
+      ---
+      duration_ms: 1523.2296
+      type: 'test'
+      ...
+    1..5
+ok 146 - retained results refuse expired grants, revocation, source deletion, changed scope and removed capabilities
+  ---
+  duration_ms: 7176.0826
+  type: 'test'
+  ...
+# Subtest: backend atomically rechecks changed capabilities between admission and commit
+ok 147 - backend atomically rechecks changed capabilities between admission and commit
+  ---
+  duration_ms: 1235.2545
+  type: 'test'
+  ...
+# Subtest: HTTP proof binds exact bytes, scoped credential, fresh timestamp, device and one-use nonce
+ok 148 - HTTP proof binds exact bytes, scoped credential, fresh timestamp, device and one-use nonce
+  ---
+  duration_ms: 1452.5654
+  type: 'test'
+  ...
+# Subtest: HTTP boundary rejects hidden routes, malformed envelope, protocol changes and oversized bodies
+ok 149 - HTTP boundary rejects hidden routes, malformed envelope, protocol changes and oversized bodies
+  ---
+  duration_ms: 1223.3959
+  type: 'test'
+  ...
+# Subtest: admission is durable before dispatch, reopen never dispatches the same request again, and no replay body is retained
+ok 150 - admission is durable before dispatch, reopen never dispatches the same request again, and no replay body is retained
+  ---
+  duration_ms: 581.5702
+  type: 'test'
+  ...
+# Subtest: terminal outcomes and receipt identities survive process-independent storage reopen with defensive copies
+ok 151 - terminal outcomes and receipt identities survive process-independent storage reopen with defensive copies
+  ---
+  duration_ms: 472.1269
+  type: 'test'
+  ...
+# Subtest: all workspace, member, device, epoch and session identity components isolate reads and settlements
+ok 152 - all workspace, member, device, epoch and session identity components isolate reads and settlements
+  ---
+  duration_ms: 919.5467
+  type: 'test'
+  ...
+# Subtest: changed request kind, target, digest and trusted scope refuse reuse and preserve the original identity
+ok 153 - changed request kind, target, digest and trusted scope refuse reuse and preserve the original identity
+  ---
+  duration_ms: 271.1758
+  type: 'test'
+  ...
+# Subtest: result validation binds kind, target and request identity, rejecting extra fields and credentials
+ok 154 - result validation binds kind, target and request identity, rejecting extra fields and credentials
+  ---
+  duration_ms: 356.9679
+  type: 'test'
+  ...
+# Subtest: terminal states cannot regress or accept conflicting later success, failure or cancellation
+ok 155 - terminal states cannot regress or accept conflicting later success, failure or cancellation
+  ---
+  duration_ms: 584.9617
+  type: 'test'
+  ...
+# Subtest: separate storage instances serialize reservation and terminal races for the same path
+ok 156 - separate storage instances serialize reservation and terminal races for the same path
+  ---
+  duration_ms: 483.7688
+  type: 'test'
+  ...
+# Subtest: all encrypted envelope components, wrong key and transplanted custody identity fail closed without erasure
+ok 157 - all encrypted envelope components, wrong key and transplanted custody identity fail closed without erasure
+  ---
+  duration_ms: 294.4169
+  type: 'test'
+  ...
+# Subtest: transaction errors, asynchronous callbacks and invalid records roll back without leaking adapter details
+ok 158 - transaction errors, asynchronous callbacks and invalid records roll back without leaking adapter details
+  ---
+  duration_ms: 93.8591
+  type: 'test'
+  ...
+# Subtest: retention bounds retain all identities, refuse new work, and allow exact duplicates and settlements at capacity
+ok 159 - retention bounds retain all identities, refuse new work, and allow exact duplicates and settlements at capacity
+  ---
+  duration_ms: 997.0417
+  type: 'test'
+  ...
+# Subtest: snapshot and UTF-8 record byte budgets fail closed without publishing oversized replacement
+ok 160 - snapshot and UTF-8 record byte budgets fail closed without publishing oversized replacement
+  ---
+  duration_ms: 169.9571
+  type: 'test'
+  ...
+# Subtest: configuration, nonexistent directories, nonregular files and hard links refuse with opaque public errors
+ok 161 - configuration, nonexistent directories, nonregular files and hard links refuse with opaque public errors
+  ---
+  duration_ms: 72.5845
+  type: 'test'
+  ...
+# Subtest: a directory symlink or Windows junction cannot redirect custody into another directory
+ok 162 - a directory symlink or Windows junction cannot redirect custody into another directory
+  ---
+  duration_ms: 8.819
+  type: 'test'
+  ...
+# Subtest: a newly started process recovers an admitted terminal result and reserves the exact identity without dispatch
+ok 163 - a newly started process recovers an admitted terminal result and reserves the exact identity without dispatch
+  ---
+  duration_ms: 389.2886
+  type: 'test'
+  ...
+# Subtest: a rejected async transaction callback stays opaque and cannot crash a newly started process
+ok 164 - a rejected async transaction callback stays opaque and cannot crash a newly started process
+  ---
+  duration_ms: 399.9793
+  type: 'test'
+  ...
+# Subtest: a separate process holding the conservative writer lock blocks mutation without replay or plaintext errors
+ok 165 - a separate process holding the conservative writer lock blocks mutation without replay or plaintext errors
+  ---
+  duration_ms: 509.9756
+  type: 'test'
+  ...
+# Subtest: restore loads only credentials; a new validated client discovers and reads all result kinds by ID
+ok 166 - restore loads only credentials; a new validated client discovers and reads all result kinds by ID
+  ---
+  duration_ms: 22.2966
+  type: 'test'
+  ...
+# Subtest: lost acknowledgment and process restart recover the same admitted effect without replaying its question
+ok 167 - lost acknowledgment and process restart recover the same admitted effect without replaying its question
+  ---
+  duration_ms: 9.1286
+  type: 'test'
+  ...
+# Subtest: a recovered pending request cancels remotely and its cancellation survives another restart
+ok 168 - a recovered pending request cancels remotely and its cancellation survives another restart
+  ---
+  duration_ms: 4.8989
+  type: 'test'
+  ...
+# Subtest: a host-listed identity already reserved locally still requires remote cancellation
+ok 169 - a host-listed identity already reserved locally still requires remote cancellation
+  ---
+  duration_ms: 21.5123
+  type: 'test'
+  ...
+# Subtest: same-session terminal results remain terminal and unresolved local identities survive optional-port omission
+ok 170 - same-session terminal results remain terminal and unresolved local identities survive optional-port omission
+  ---
+  duration_ms: 4.4113
+  type: 'test'
+  ...
+# Subtest: malformed, duplicate, oversize or content-bearing descriptor lists refuse the entire import
+ok 171 - malformed, duplicate, oversize or content-bearing descriptor lists refuse the entire import
+  ---
+  duration_ms: 17.9686
+  type: 'test'
+  ...
+# Subtest: an existing request identity cannot be changed by a descriptor list
+ok 172 - an existing request identity cannot be changed by a descriptor list
+  ---
+  duration_ms: 5.5421
+  type: 'test'
+  ...
+# Subtest: recovered approval results must match the retained target and do not restore a challenge
+ok 173 - recovered approval results must match the retained target and do not restore a challenge
+  ---
+  duration_ms: 2.0571
+  type: 'test'
+  ...
+# Subtest: restoration failures use fixed revocation and expiry codes and erase local custody
+ok 174 - restoration failures use fixed revocation and expiry codes and erase local custody
+  ---
+  duration_ms: 4.0983
+  type: 'test'
+  ...
+# Subtest: unknown restoration failures disconnect with a fixed public error and do not poll
+ok 175 - unknown restoration failures disconnect with a fixed public error and do not poll
+  ---
+  duration_ms: 1.6426
+  type: 'test'
+  ...
+# Subtest: expiry while discovery is pending clears the grant before any identities or results are imported
+ok 176 - expiry while discovery is pending clears the grant before any identities or results are imported
+  ---
+  duration_ms: 1.671
+  type: 'test'
+  ...
+# Subtest: changed session or epoch from validation cannot import identities for an old grant
+ok 177 - changed session or epoch from validation cannot import identities for an old grant
+  ---
+  duration_ms: 2.4554
+  type: 'test'
+  ...
+# Subtest: replacement restored session or epoch discards old terminal results before listing the new scope
+ok 178 - replacement restored session or epoch discards old terminal results before listing the new scope
+  ---
+  duration_ms: 6.2765
+  type: 'test'
+  ...
+# Subtest: replacement restored session or epoch aborts an old pending list before the new scope reconnects
+ok 179 - replacement restored session or epoch aborts an old pending list before the new scope reconnects
+  ---
+  duration_ms: 5.1039
+  type: 'test'
+  ...
+# Subtest: late lists after disconnect, forgetting or revocation cannot repopulate requests or poll
+ok 180 - late lists after disconnect, forgetting or revocation cannot repopulate requests or poll
+  ---
+  duration_ms: 9.7547
+  type: 'test'
+  ...
+# Subtest: a superseded reconnect cannot import its late descriptors over a newer reconnect
+ok 181 - a superseded reconnect cannot import its late descriptors over a newer reconnect
+  ---
+  duration_ms: 3.6793
+  type: 'test'
+  ...
+# Subtest: a reconnect interrupted while polling stops before the next identity and cannot accept the late result
+ok 182 - a reconnect interrupted while polling stops before the next identity and cannot accept the late result
+  ---
+  duration_ms: 4.9343
+  type: 'test'
+  ...
+# Subtest: phone preview serves a local synthetic entry page with restrictive response headers
+ok 183 - phone preview serves a local synthetic entry page with restrictive response headers
+  ---
+  duration_ms: 96.7972
+  type: 'test'
+  ...
+# Subtest: preview serves external stylesheet and DOM app with correct MIME types
+ok 184 - preview serves external stylesheet and DOM app with correct MIME types
+  ---
+  duration_ms: 41.4774
+  type: 'test'
+  ...
+# (node:62772) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: portable TypeScript is stripped before browser delivery
+ok 185 - portable TypeScript is stripped before browser delivery
+  ---
+  duration_ms: 63.4915
+  type: 'test'
+  ...
+# Subtest: closed asset allowlist hides the desktop engine, workspace files and arbitrary modules
+ok 186 - closed asset allowlist hides the desktop engine, workspace files and arbitrary modules
+  ---
+  duration_ms: 93.674
+  type: 'test'
+  ...
+# Subtest: raw, encoded and backslash traversal routes never reach files
+ok 187 - raw, encoded and backslash traversal routes never reach files
+  ---
+  duration_ms: 44.5153
+  type: 'test'
+  ...
+# Subtest: all query strings are rejected and values are never echoed
+ok 188 - all query strings are rejected and values are never echoed
+  ---
+  duration_ms: 10.6399
+  type: 'test'
+  ...
+# Subtest: preview accepts GET only and has no mutation or engine transport endpoint
+ok 189 - preview accepts GET only and has no mutation or engine transport endpoint
+  ---
+  duration_ms: 37.12
+  type: 'test'
+  ...
+# Subtest: every runtime browser import resolves within the closed portable module graph
+ok 190 - every runtime browser import resolves within the closed portable module graph
+  ---
+  duration_ms: 130.2426
+  type: 'test'
+  ...
+# Subtest: an exact owner-approved action executes once and independently verifies delivery
+ok 191 - an exact owner-approved action executes once and independently verifies delivery
+  ---
+  duration_ms: 19.5224
+  type: 'test'
+  ...
+# Subtest: concurrent execute requests persist one attempt before the provider runs
+ok 192 - concurrent execute requests persist one attempt before the provider runs
+  ---
+  duration_ms: 4.5887
+  type: 'test'
+  ...
+# Subtest: idempotency binds exact payload and source scope
+ok 193 - idempotency binds exact payload and source scope
+  ---
+  duration_ms: 2.0644
+  type: 'test'
+  ...
+# Subtest: revision invalidates approval and payload tampering cannot reuse the preview
+ok 194 - revision invalidates approval and payload tampering cannot reuse the preview
+  ---
+  duration_ms: 4.8062
+  type: 'test'
+  ...
+# Subtest: accountant can prepare but cannot approve, and imported text cannot approve or execute
+ok 195 - accountant can prepare but cannot approve, and imported text cannot approve or execute
+  ---
+  duration_ms: 3.3515
+  type: 'test'
+  ...
+# Subtest: revoked approver epoch invalidates approval even for another active owner
+ok 196 - revoked approver epoch invalidates approval even for another active owner
+  ---
+  duration_ms: 2.7039
+  type: 'test'
+  ...
+# Subtest: read access does not preserve revoked connector write access
+ok 197 - read access does not preserve revoked connector write access
+  ---
+  duration_ms: 4.0155
+  type: 'test'
+  ...
+# Subtest: source allow and member/role grants revoke pending actions and cached reads
+ok 198 - source allow and member/role grants revoke pending actions and cached reads
+  ---
+  duration_ms: 12.967
+  type: 'test'
+  ...
+# Subtest: ambiguous provider failure stays unknown until readback and never retries the write
+ok 199 - ambiguous provider failure stays unknown until readback and never retries the write
+  ---
+  duration_ms: 6.2604
+  type: 'test'
+  ...
+# Subtest: a malformed readback settles unknown and optional undefined result fields do not strand executing state
+ok 200 - a malformed readback settles unknown and optional undefined result fields do not strand executing state
+  ---
+  duration_ms: 8.3064
+  type: 'test'
+  ...
+# Subtest: opening an exclusively locked vault recovers an interrupted attempt to unknown without repeating it
+ok 201 - opening an exclusively locked vault recovers an interrupted attempt to unknown without repeating it
+  ---
+  duration_ms: 6.2301
+  type: 'test'
+  ...
+# Subtest: phone tokens bind a simple owner message and are consumed once; money is excluded
+ok 202 - phone tokens bind a simple owner message and are consumed once; money is excluded
+  ---
+  duration_ms: 7.3417
+  type: 'test'
+  ...
+# Subtest: empty-source local actions keep reminder text private from other members and all direct mutation paths
+ok 203 - empty-source local actions keep reminder text private from other members and all direct mutation paths
+  ---
+  duration_ms: 4.6742
+  type: 'test'
+  ...
+# Subtest: creator access binds its epoch while a currently unrestricted workspace owner can review local actions
+ok 204 - creator access binds its epoch while a currently unrestricted workspace owner can review local actions
+  ---
+  duration_ms: 3.7909
+  type: 'test'
+  ...
+# Subtest: actual dedicated WASM process runs an explicitly enabled pure plugin
+ok 205 - actual dedicated WASM process runs an explicitly enabled pure plugin
+  ---
+  duration_ms: 240.6293
+  type: 'test'
+  ...
+# Subtest: JavaScript runtimes, unknown permissions and undeclared imports are refused before execution
+ok 206 - JavaScript runtimes, unknown permissions and undeclared imports are refused before execution
+  ---
+  duration_ms: 4.1754
+  type: 'test'
+  ...
+# Subtest: host functions expose only a pre-authorized scoped scalar, never keys or network
+ok 207 - host functions expose only a pre-authorized scoped scalar, never keys or network
+  ---
+  duration_ms: 208.9787
+  type: 'test'
+  ...
+# Subtest: unbounded and excessive WASM memories are rejected; infinite loops hit process deadline
+ok 208 - unbounded and excessive WASM memories are rejected; infinite loops hit process deadline
+  ---
+  duration_ms: 378.3372
+  type: 'test'
+  ...
+# Subtest: plugin byte and permission edits invalidate exact approval
+ok 209 - plugin byte and permission edits invalidate exact approval
+  ---
+  duration_ms: 2.4218
+  type: 'test'
+  ...
+# Subtest: generated miniapps are data-only, require current published receipts and refuse scripts
+ok 210 - generated miniapps are data-only, require current published receipts and refuse scripts
+  ---
+  duration_ms: 2.4655
+  type: 'test'
+  ...
+# Subtest: learning logs full decisions locally but sharing is a strict structure allowlist
+ok 211 - learning logs full decisions locally but sharing is a strict structure allowlist
+  ---
+  duration_ms: 6.2408
+  type: 'test'
+  ...
+# Subtest: consent is exact, immutable and exporter-disabled by default
+ok 212 - consent is exact, immutable and exporter-disabled by default
+  ---
+  duration_ms: 4.4983
+  type: 'test'
+  ...
+# Subtest: changed decisions and tainted or phone consent cannot authorize sharing
+ok 213 - changed decisions and tainted or phone consent cannot authorize sharing
+  ---
+  duration_ms: 3.1849
+  type: 'test'
+  ...
+# Subtest: outbound consent is attempted once and receipts record only the exact redacted payload
+ok 214 - outbound consent is attempted once and receipts record only the exact redacted payload
+  ---
+  duration_ms: 7.4313
+  type: 'test'
+  ...
+# Subtest: sharing switch and current source policy gate an already consented export
+ok 215 - sharing switch and current source policy gate an already consented export
+  ---
+  duration_ms: 2.9011
+  type: 'test'
+  ...
+# Subtest: MCP requires initialized handshake and advertises exclusively read-only registered calculations
+ok 216 - MCP requires initialized handshake and advertises exclusively read-only registered calculations
+  ---
+  duration_ms: 10.4534
+  type: 'test'
+  ...
+# Subtest: MCP refuses arbitrary expressions, unregistered tools and stale source grants
+ok 217 - MCP refuses arbitrary expressions, unregistered tools and stale source grants
+  ---
+  duration_ms: 3.5853
+  type: 'test'
+  ...
+# Subtest: MCP prevents receipt scope replay and revocation rejects a previously initialized session
+ok 218 - MCP prevents receipt scope replay and revocation rejects a previously initialized session
+  ---
+  duration_ms: 2.3882
+  type: 'test'
+  ...
+# Subtest: MCP never presents a numeric value absent from its engine receipt
+ok 219 - MCP never presents a numeric value absent from its engine receipt
+  ---
+  duration_ms: 2.4102
+  type: 'test'
+  ...
+1..219
+# tests 231
+# suites 0
+# pass 231
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 40581.4244

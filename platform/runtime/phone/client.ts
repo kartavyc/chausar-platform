@@ -1,10 +1,17 @@
 import { PhoneError, copyAuthority, copyBinding, copyBrief, isApprovalToken, isId, isOperationVersion, requirePhone, sameBinding, validAuthority, validBinding, validBrief } from './contracts.ts';
-import type { AppChannel, ApprovalChallenge, ApprovalReceipt, BriefCache, BriefView, ChatAnswer, ConnectionState, PairingState, PhoneCapability, PhoneCredentialStore, PhoneErrorCode, PhoneMethods, PhoneTransport, RemoteRequest, RequestResult, RequestState, SessionGrant, UploadMetadata, UploadReceipt } from './contracts.ts';
+import type { AppChannel, ApprovalChallenge, ApprovalReceipt, BriefCache, BriefView, ChatAnswer, ConnectionState, DeviceBinding, PairingState, PhoneCapability, PhoneCredentialStore, PhoneErrorCode, PhoneMethods, PhoneTransport, RemoteRequest, RequestResult, RequestState, SessionAuthority, SessionGrant, UploadMetadata, UploadReceipt } from './contracts.ts';
 
 const revokedCodes = new Set(['ACCESS_REVOKED', 'UNPAIRED', 'INVALID_SESSION', 'UNAUTHENTICATED']);
 const knownCodes = new Set<PhoneErrorCode>(['OFFLINE', 'VALIDATION_REQUIRED', 'ACCESS_REVOKED', 'SESSION_EXPIRED', 'UNPAIRED', 'INVALID_RESPONSE', 'INVALID_REQUEST', 'CHANNEL_FORBIDDEN', 'CAPABILITY_FORBIDDEN', 'APPROVAL_EXPIRED', 'APPROVAL_USED', 'PREVIEW_CHANGED', 'OPEN_DESKTOP', 'REQUEST_EXISTS', 'TRANSPORT_UNKNOWN', 'CACHE_INVALID']);
 const publicError = (error: unknown) => error instanceof PhoneError ? error : new PhoneError('TRANSPORT_UNKNOWN');
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+
+/** Identity only, scoped by the host to the validated session and device binding. */
+export type PhoneRequestIdentity = { requestId: string; kind: 'chat' | 'upload' | 'approval'; target?: string };
+export interface PhoneRequestRestoration {
+  /** Authenticated read: never return question/upload bodies, credentials or approval challenges. */
+  list(authority: SessionAuthority, credential: string, signal: AbortSignal): Promise<readonly PhoneRequestIdentity[]>;
+}
 
 /** A phone drives a remote engine. It never executes actions or stores a retry queue. */
 export class PhoneClient {
@@ -14,6 +21,7 @@ export class PhoneClient {
   private readonly cache: BriefCache;
   private readonly clock: () => number;
   private readonly crypto: Crypto;
+  private readonly requestRestoration?: PhoneRequestRestoration;
   private grant?: SessionGrant;
   private pairing: PairingState = { status: 'unpaired' };
   private connection: ConnectionState = 'offline';
@@ -21,6 +29,7 @@ export class PhoneClient {
   private active = new Set<AbortController>();
   private requests = new Map<string, RequestState>();
   private requestKinds = new Map<string, { kind: 'chat' | 'upload' | 'approval'; generation: number; target?: string }>();
+  private requestScope?: { binding: DeviceBinding; sessionId: string };
   private requestRevisions = new Map<string, number>();
   private requestSerial = 0;
   private requestControllers = new Map<string, Set<AbortController>>();
@@ -30,10 +39,11 @@ export class PhoneClient {
   private challenges = new Map<string, ApprovalChallenge>();
   private credentialWrites = Promise.resolve();
   private readonly listeners = new Set<() => void>();
-  constructor(options: { channel: AppChannel; transport: PhoneTransport; credentials: PhoneCredentialStore; cache: BriefCache; clock?: () => number; crypto?: Crypto }) {
+  constructor(options: { channel: AppChannel; transport: PhoneTransport; credentials: PhoneCredentialStore; cache: BriefCache; clock?: () => number; crypto?: Crypto; requestRestoration?: PhoneRequestRestoration }) {
     requirePhone(['ios', 'android', 'web'].includes(options.channel), 'CHANNEL_FORBIDDEN');
     this.channel = options.channel; this.transport = options.transport; this.credentials = options.credentials;
     this.cache = options.cache; this.clock = options.clock ?? Date.now; this.crypto = options.crypto ?? globalThis.crypto;
+    this.requestRestoration = options.requestRestoration;
   }
   /** Renderable state deliberately omits credentials, challenge tokens and uploaded content. */
   snapshot() {
@@ -59,11 +69,18 @@ export class PhoneClient {
   private async forget(status: 'revoked' | 'expired' | 'unpaired') {
     const binding = this.grant?.authority.binding; this.invalidate(); this.grant = undefined;
     this.pairing = status === 'unpaired' ? { status } : { status, ...(binding ? { binding } : {}) };
-    this.requests.clear(); this.requestKinds.clear(); this.requestRevisions.clear(); this.stopped.clear(); this.startedRemote.clear(); this.requestControllers.clear();
+    this.clearRequests();
     this.changed();
     // Clear both even when one adapter fails; expose a fixed code, never adapter error text.
     const cleared = await Promise.allSettled([this.persist(() => this.credentials.clear()), this.cache.clear()]);
     requirePhone(cleared.every(item => item.status === 'fulfilled'), 'CACHE_INVALID');
+  }
+  private clearRequests() {
+    this.requests.clear(); this.requestKinds.clear(); this.requestRevisions.clear(); this.stopped.clear(); this.startedRemote.clear(); this.requestControllers.clear(); this.requestScope = undefined;
+  }
+  private bindRequests(authority: SessionAuthority) {
+    if (this.requestScope && (this.requestScope.sessionId !== authority.sessionId || !sameBinding(this.requestScope.binding, authority.binding))) { this.clearRequests(); this.changed(); }
+    this.requestScope = { binding: copyBinding(authority.binding), sessionId: authority.sessionId };
   }
   async restore() {
     const generation = this.generation;
@@ -73,6 +90,10 @@ export class PhoneClient {
     if (!restored) return;
     requirePhone(isRecord(restored) && typeof restored.credential === 'string' && restored.credential.length >= 32 && restored.credential.length <= 4096 && validBinding(restored.authority?.binding), 'INVALID_RESPONSE');
     requirePhone(validAuthority(restored.authority, Date.parse(restored.authority.validatedAt)) && Date.parse(restored.authority.validatedAt) <= this.clock(), 'INVALID_RESPONSE');
+    if (this.grant && (this.grant.credential !== restored.credential || this.grant.authority.sessionId !== restored.authority.sessionId || !sameBinding(this.grant.authority.binding, restored.authority.binding))) {
+      this.invalidate(); this.connection = 'offline';
+      if (this.grant.authority.sessionId !== restored.authority.sessionId || !sameBinding(this.grant.authority.binding, restored.authority.binding)) this.clearRequests();
+    }
     this.grant = { credential: restored.credential, authority: copyAuthority(restored.authority) };
     this.pairing = { status: 'validation-required', binding: structuredClone(restored.authority.binding) };
     this.changed();
@@ -88,14 +109,16 @@ export class PhoneClient {
       const result = await this.transport.request(method, input, { ...(credential ? { credential } : {}), signal: controller.signal });
       requirePhone(generation === this.generation && !controller.signal.aborted && this.isConnected(), 'VALIDATION_REQUIRED');
       return result;
-    } catch (error) {
-      if (generation !== this.generation || controller.signal.aborted) throw new PhoneError('VALIDATION_REQUIRED');
-      const code = isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
-      if (code && revokedCodes.has(code)) { await this.forget('revoked'); throw new PhoneError('ACCESS_REVOKED'); }
-      if (code === 'SESSION_EXPIRED') { await this.forget('expired'); throw new PhoneError('SESSION_EXPIRED'); }
-      if (error instanceof PhoneError || (code && knownCodes.has(code as PhoneErrorCode))) throw error instanceof PhoneError ? error : new PhoneError(code as PhoneErrorCode);
-      this.disconnect(); throw new PhoneError('TRANSPORT_UNKNOWN');
-    } finally { this.active.delete(controller); if (operationId) this.requestControllers.get(operationId)?.delete(controller); }
+    } catch (error) { return await this.transportFailure(error, generation, controller); }
+    finally { this.active.delete(controller); if (operationId) this.requestControllers.get(operationId)?.delete(controller); }
+  }
+  private async transportFailure(error: unknown, generation: number, controller: AbortController): Promise<never> {
+    if (generation !== this.generation || controller.signal.aborted) throw new PhoneError('VALIDATION_REQUIRED');
+    const code = isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
+    if (code && revokedCodes.has(code)) { await this.forget('revoked'); throw new PhoneError('ACCESS_REVOKED'); }
+    if (code === 'SESSION_EXPIRED') { await this.forget('expired'); throw new PhoneError('SESSION_EXPIRED'); }
+    if (error instanceof PhoneError || (code && knownCodes.has(code as PhoneErrorCode))) throw error instanceof PhoneError ? error : new PhoneError(code as PhoneErrorCode);
+    this.disconnect(); throw new PhoneError('TRANSPORT_UNKNOWN');
   }
   private isConnected() { return this.connection !== 'offline'; }
   /** Every request obtains fresh online validation. A restored grant is never authority. */
@@ -131,11 +154,48 @@ export class PhoneClient {
     return authority;
   }
   async reconnect() {
-    this.invalidate(); this.connection = 'connecting';
+    this.invalidate(); this.connection = 'connecting'; const generation = this.generation;
     if (!this.grant) { this.pairing = { status: 'unpaired' }; this.connection = 'online'; this.changed(); return; }
-    await this.validate();
+    const authority = await this.validate(); requirePhone(generation === this.generation, 'VALIDATION_REQUIRED');
+    this.bindRequests(authority);
+    if (this.requestRestoration) {
+      const credential = this.grant!.credential; const controller = new AbortController(); this.active.add(controller);
+      try {
+        const descriptors = await this.requestRestoration.list(copyAuthority(authority), credential, controller.signal);
+        requirePhone(generation === this.generation && !controller.signal.aborted && this.isConnected() && this.grant?.credential === credential && this.grant.authority.sessionId === authority.sessionId && sameBinding(this.grant.authority.binding, authority.binding), 'VALIDATION_REQUIRED');
+        requirePhone(validAuthority(this.grant.authority, this.clock()), 'SESSION_EXPIRED');
+        this.restoreRequests(descriptors, generation);
+      } catch (error) { return await this.transportFailure(error, generation, controller); }
+      finally { this.active.delete(controller); }
+    }
+    requirePhone(generation === this.generation, 'VALIDATION_REQUIRED');
     // Reconcile IDs only. No chat, upload body or approval is replayed.
-    for (const state of [...this.requests.values()]) if (['pending', 'unknown', 'cancelling'].includes(state.status)) await this.refreshRequest(state.requestId);
+    for (const state of [...this.requests.values()]) if (['pending', 'unknown', 'cancelling'].includes(state.status)) {
+      requirePhone(generation === this.generation, 'VALIDATION_REQUIRED');
+      const descriptor = this.requestKinds.get(state.requestId)!; descriptor.generation = generation;
+      await this.refreshRequest(state.requestId); requirePhone(generation === this.generation, 'VALIDATION_REQUIRED');
+    }
+  }
+  private restoreRequests(descriptors: readonly PhoneRequestIdentity[], generation: number) {
+    requirePhone(Array.isArray(descriptors) && descriptors.length <= 100, 'INVALID_RESPONSE');
+    const identities = new Map<string, PhoneRequestIdentity>();
+    for (const descriptor of descriptors) {
+      requirePhone(isRecord(descriptor) && Object.keys(descriptor).every(key => ['requestId', 'kind', 'target'].includes(key)), 'INVALID_RESPONSE');
+      const { requestId, kind, target } = descriptor;
+      requirePhone(isId(requestId) && (kind === 'chat' || kind === 'upload' || kind === 'approval') && (target === undefined || isId(target)) && (kind !== 'approval' || isId(target)) && !identities.has(requestId), 'INVALID_RESPONSE');
+      const existing = this.requestKinds.get(requestId);
+      requirePhone(!existing || (existing.kind === kind && existing.target === target), 'INVALID_RESPONSE');
+      identities.set(requestId, { requestId, kind, ...(target === undefined ? {} : { target }) });
+    }
+    requirePhone(new Set([...this.requests.keys(), ...identities.keys()]).size <= 100, 'INVALID_RESPONSE');
+    for (const descriptor of identities.values()) {
+      this.startedRemote.add(descriptor.requestId);
+      if (this.requests.has(descriptor.requestId)) continue;
+      this.requests.set(descriptor.requestId, { status: 'unknown', requestId: descriptor.requestId });
+      this.requestKinds.set(descriptor.requestId, { kind: descriptor.kind, generation, ...(descriptor.target === undefined ? {} : { target: descriptor.target }) });
+      this.nextRequestRevision(descriptor.requestId);
+    }
+    this.changed();
   }
   async pair(input: PhoneMethods['pairing.accept']['input']) {
     requirePhone(input.channel === this.channel && isId(input.deviceId) && typeof input.inviteCode === 'string' && input.inviteCode.length >= 8 && input.inviteCode.length <= 4096 && typeof input.devicePublicKey === 'string' && input.devicePublicKey.length > 0 && input.devicePublicKey.length <= 4096 && typeof input.proof === 'string' && input.proof.length > 0 && input.proof.length <= 4096, 'INVALID_REQUEST');
@@ -190,6 +250,7 @@ export class PhoneClient {
     return { brief: safeBrief, freshness: 'current' };
   }
   private reserve(requestId: string, kind: 'chat' | 'upload' | 'approval', target?: string) {
+    requirePhone(this.grant, 'UNPAIRED'); this.bindRequests(this.grant.authority);
     requirePhone(isId(requestId), 'INVALID_REQUEST'); requirePhone(!this.requests.has(requestId), 'REQUEST_EXISTS');
     requirePhone(this.requests.size < 100, 'INVALID_REQUEST'); this.requests.set(requestId, { status: 'pending', requestId }); this.requestKinds.set(requestId, { kind, generation: this.generation, ...(target ? { target } : {}) });
     const revision = this.nextRequestRevision(requestId); this.changed(); return revision;
@@ -276,18 +337,18 @@ export class PhoneClient {
   async refreshRequest(requestId: string) {
     const state = this.requests.get(requestId); requirePhone(state, 'INVALID_REQUEST');
     if (['succeeded', 'cancelled', 'failed'].includes(state.status)) return structuredClone(state);
-    const revision = this.nextRequestRevision(requestId);
-    try { await this.fresh(); return this.response(requestId, await this.call('request.status', { requestId }), revision); }
+    const revision = this.nextRequestRevision(requestId); const generation = this.generation;
+    try { await this.fresh(undefined, generation); requirePhone(generation === this.generation, 'VALIDATION_REQUIRED'); return this.response(requestId, await this.call('request.status', { requestId }), revision); }
     catch (error) { this.unknown(requestId, revision); throw publicError(error); }
   }
   async cancel(requestId: string) {
     const state = this.requests.get(requestId); requirePhone(state && ['pending', 'unknown', 'cancelling'].includes(state.status), 'INVALID_REQUEST');
-    const revision = this.nextRequestRevision(requestId);
+    const revision = this.nextRequestRevision(requestId); const generation = this.generation;
     this.stopped.add(requestId); for (const controller of this.requestControllers.get(requestId) ?? []) controller.abort();
     if (!this.startedRemote.has(requestId)) { const cancelled = { status: 'cancelled' as const, requestId }; this.requests.set(requestId, cancelled); this.changed(); return cancelled; }
     this.requests.set(requestId, { status: 'cancelling', requestId });
     this.changed();
-    try { await this.fresh(); return this.response(requestId, await this.call('request.cancel', { requestId }), revision); }
+    try { await this.fresh(undefined, generation); requirePhone(generation === this.generation, 'VALIDATION_REQUIRED'); return this.response(requestId, await this.call('request.cancel', { requestId }), revision); }
     catch (error) { this.unknown(requestId, revision); throw publicError(error); }
   }
 }

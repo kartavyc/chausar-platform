@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "lane": "Lane 2: durable phone host and request continuation",
+  "baseCommit": "1dc19b856380951aea49b7143ed4b5617130c06b",
+  "baseTree": "68b396560c2b7950ccaf9d8c38ee52d87bd60d65",
+  "baseBundleSHA256": "3e453e89f16a7ec38e07377498b6f6056d4a3a70d44e3d947966c4825a45bb93",
+  "branch": "lane/durable-phone-host",
+  "checkedAt": "2026-10-02T01:01:04.7381150Z",
+  "nodeVersion": "v24.13.1",
+  "checks": [
+    {
+      "name": "Phone/auth/action/MCP",
+      "command": "node --test --test-reporter=tap platform/tests/phone*.test.ts platform/tests/auth.test.ts platform/tests/workflows-actions.test.ts platform/tests/workflows-plugins-learning-mcp.test.ts",
+      "exitCode": 0,
+      "tests": 231,
+      "passed": 231,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "log": "docs/verification/durable-phone-host-tests.tap"
+    },
+    {
+      "name": "Strict root TypeScript",
+      "command": "node node_modules/typescript/bin/tsc --noEmit --pretty false",
+      "exitCode": 0,
+      "log": "docs/verification/durable-phone-host-typecheck.txt"
+    },
+    {
+      "name": "Strict portable TypeScript",
+      "command": "node node_modules/typescript/bin/tsc --noEmit --pretty false --project app/companion/tsconfig.portable.json",
+      "exitCode": 0,
+      "log": "docs/verification/durable-phone-host-portable-typecheck.txt"
+    },
+    {
+      "name": "Syntax/JSON",
+      "command": "node scripts/check.mjs",
+      "exitCode": 0,
+      "sourceFiles": 351,
+      "log": "docs/verification/durable-phone-host-source-check.txt"
+    },
+    {
+      "name": "HTTP subset",
+      "tests": 25,
+      "passed": 25,
+      "failed": 0,
+      "qualification": "Actual loopback HTTP and child processes, synthetic auth/backend/model fixture adapters"
+    },
+    {
+      "name": "Protected-read repetitions",
+      "runs": 5,
+      "tests": 40,
+      "passed": 40,
+      "failed": 0,
+      "qualification": "Bounded repeat after diagnosed fixture IO race"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "platform/runtime/phone/client.ts",
+      "sha256": "3cf187dde00dcaa11acf3a0161493b3e72680b380eb45c771de1391869441300",
+      "gitBlob": "9f04789f3e35844f6a56658e2a2be3718c74e9ee"
+    },
+    {
+      "path": "platform/runtime/phone/host-contracts.ts",
+      "sha256": "a11747f56e42cc65104e31b85509e0420baff4db6faf2418c670dfddba9504b8",
+      "gitBlob": "e06793f21296191e8b2d1ce51e482fb96fdd3589"
+    },
+    {
+      "path": "platform/runtime/phone/host.ts",
+      "sha256": "479cd6418bc6475b85d87404032c2623aae4e9bb3ae7fc32a2b4baad2fbe8339",
+      "gitBlob": "46434abf32293bf6a4480100c4cab12164d0ae59"
+    },
+    {
+      "path": "platform/runtime/phone/request-custody.ts",
+      "sha256": "e657c28f153c7521cca841afb27edc215a03e1bf67f47d2a40a60a490910ba75",
+      "gitBlob": "a3c7bb4ab146943441d4a3079efd5c9e4eb26fe7"
+    },
+    {
+      "path": "platform/tests/phone-host-contract.test.ts",
+      "sha256": "7dd866ad8957796877e987ea944795c8dcd461caa501dea4c9967b4cdeb8c263",
+      "gitBlob": "fa82e1e3b76479f84c4b8542ad33593feba0b07e"
+    },
+    {
+      "path": "platform/tests/phone-host-fixture.ts",
+      "sha256": "82431e78a3979aa07de41cba835c6807db8f0c8c2d1b6980da4ba4e9e1d2ebb6",
+      "gitBlob": "5bf74b0605842768548ac50b43d916ecaf30e555"
+    },
+    {
+      "path": "platform/tests/phone-host-http.test.ts",
+      "sha256": "2aa5a489312ef03d7f9d19313ff195d07d2f161203ebc1fe635c5c0209d30259",
+      "gitBlob": "25a21da0e44335ffcf8c575fe489db951d4f150e"
+    },
+    {
+      "path": "platform/tests/phone-request-custody.test.ts",
+      "sha256": "2a995be6d4817f3d8440feba2081fc158bb5aa74046d7f5d2ee130c3c991bf0f",
+      "gitBlob": "0d8e500875679a8e7de6538bda7e97f493bc0076"
+    },
+    {
+      "path": "platform/tests/phone-request-restoration.test.ts",
+      "sha256": "91440420e11b734f40f0db85d3dcf1974dcd87ceb883a1f16be75b0143148db3",
+      "gitBlob": "6c59401b2cad78830b864aa8e662557407a8c1db"
+    }
+  ],
+  "ownership": [
+    "NEW phone/host-contracts.ts",
+    "NEW phone/host.ts",
+    "NEW phone/request-custody.ts",
+    "Reviewed optional phone/client.ts seam",
+    "NEW focused phone tests and lane docs/evidence"
+  ],
+  "resolvedFixtureBlocker": {
+    "code": "EPERM",
+    "operation": "rename",
+    "source": "C:/Users/karta/AppData/Local/Temp/chausar-phone-host-http-SUxw8r/synthetic-backend.json.next",
+    "target": "C:/Users/karta/AppData/Local/Temp/chausar-phone-host-http-SUxw8r/synthetic-backend.json",
+    "cause": "Synthetic backend replacement raced its inspection reader on Windows.",
+    "resolution": "Serialize inspection reads with writers, close reader before replacement; no retry, ACL change, escalation or bypass."
+  },
+  "qualification": {
+    "syntheticLocalBehavior": "executed",
+    "productionEngineRouteAndSessionStateStoreJoin": "coordinator-owned, unqualified",
+    "frontendLiveFactoryRestorationAndAdditionalMethods": "task18-owned, not modified",
+    "nativeAndroidIOSSDKBuildDevicePairing": "unqualified",
+    "protectedNativeKeyStorage": "unqualified",
+    "remoteTLSRelayAndLivePairing": "unqualified",
+    "realModelInference": "unqualified",
+    "enterpriseTemporalCubePostgreSQL": "genuine dependencies/qualification missing; fixture ports do not qualify enterprise",
+    "windowsDirectoryFsyncPowerLossAndAntiRollbackKeyLifecycle": "unqualified",
+    "mergePushPublicAcceptance": "parent-owned, not executed",
+    "dWritesDependencyAcquisitionsLiveCallsCredentialsSpendingExternalSends": 0,
+    "checkoutAgentsSkills": "absent from pinned tree and recovered checkout; exact lane and relevant recovered plan sections read"
+  }
+}
