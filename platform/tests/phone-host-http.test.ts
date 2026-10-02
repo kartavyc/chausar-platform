@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { fork } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -55,12 +55,13 @@ async function startWorker(directory: string) {
 }
 
 async function fixture(t: TestContext) {
-  const directory = await mkdtemp(join(tmpdir(), 'chausar-phone-host-http-'));
+  const temporaryRoot = await realpath(tmpdir());
+  const directory = await mkdtemp(join(temporaryRoot, 'chausar-phone-host-http-'));
   let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
   t.after(async () => {
     await worker?.stop();
     const target = resolve(directory);
-    assert.equal(dirname(target).toLowerCase(), resolve(tmpdir()).toLowerCase());
+    assert.equal(dirname(target).toLowerCase(), temporaryRoot.toLowerCase());
     assert.ok(basename(target).startsWith('chausar-phone-host-http-'));
     await rm(target, { recursive: true, force: true });
   });

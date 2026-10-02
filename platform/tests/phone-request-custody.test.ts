@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDecipheriv, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile, link, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, writeFile, link, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { EncryptedFilePhoneCustodyStorage, PhoneRequestCustody } from '../runtime/phone/request-custody.ts';
@@ -33,7 +33,8 @@ function filePath(directory: string, custodyId = CUSTODY): string {
   return join(directory, `${createHash('sha256').update(JSON.stringify([FORMAT, custodyId])).digest('hex')}.custody`);
 }
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
-  const directory = await mkdtemp(join(tmpdir(), 'chausar-phone-custody-'));
+  const temporaryRoot = await realpath(tmpdir());
+  const directory = await mkdtemp(join(temporaryRoot, 'chausar-phone-custody-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const storage = new EncryptedFilePhoneCustodyStorage({ directory, custodyId: CUSTODY, key: KEY });
   return { directory, storage, custody: new PhoneRequestCustody(storage), path: filePath(directory),
