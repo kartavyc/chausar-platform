@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {createHash, randomBytes} from 'node:crypto';
 import {closeSync, openSync} from 'node:fs';
-import {lstat, mkdir, readFile, readdir, realpath, unlink, writeFile} from 'node:fs/promises';
+import {lstat, mkdir, readFile, realpath, unlink, writeFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {createServer} from 'node:net';
 import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {createOwnedScratchCensus} from './postgres-transfer-native-census.mjs';
 
 // No top-level filesystem/native action. start() is invoked only by the pinned,
 // explicitly executed supervisor AFTER actual constructor preflight succeeds.
@@ -40,13 +40,14 @@ export function createNativeEnvironment({ownedRunRoot, sourcePin}) {
     dataDirectory: data, applicationDirectory: app, connection, fixtures};
   const state = {format: nativeLifecycleContract, sourceCommit: sourcePin.commit, sourceTree: sourcePin.tree,
     runRoot, binaryHashes: hashes, serverStartAttempted: false, serverStarted: false, stopped: false,
-    nativeExecution: 'local-synthetic-only', maxScratchBytes: 536870912, errors: []};
+    nativeExecution: 'local-synthetic-only', maxScratchBytes: 536870912, errors: [], censusDiagnostics: [], droppedCensusDiagnostics: 0,
+    finalScratchChecked: false, finalScratchBeforeSaveChecked: false, finalScratchAfterSaveChecked: false};
   let started = false, startSettled = false, startup, startAbort, closing, monitor, monitorTask, resourceFailure, passwordOwned = false;
   const helpers = new Map();
-  let saving = Promise.resolve();
+  let saving = Promise.resolve(), savedLifecycleBytes = 0;
   const save = () => {
     const text = JSON.stringify(state, null, 2) + '\n';
-    const next = saving.then(() => writeFile(lifecycleFile, text));
+    const next = saving.then(async () => {await writeFile(lifecycleFile, text); savedLifecycleBytes = Buffer.byteLength(text);});
     saving = next.catch(() => {}); return next;
   };
   const remember = failure => {
@@ -124,19 +125,8 @@ export function createNativeEnvironment({ownedRunRoot, sourcePin}) {
   async function checked(file, args, ceiling, options) {
     const result = await command(file, args, ceiling, options); if (result.code !== 0) fail('OWNED_NATIVE_HELPER_FAILED'); return result;
   }
-  async function scratchBytes() {
-    let bytes = 0, entries = 0;
-    const walk = async path => {
-      for (const name of await readdir(path)) {
-        if (++entries > 32768) fail('OWNED_NATIVE_SCRATCH_ENTRY_LIMIT');
-        const child = join(path, name), stat = await lstat(child);
-        if (stat.isSymbolicLink()) fail('OWNED_NATIVE_SCRATCH_LINK_REFUSED');
-        if (stat.isDirectory()) await walk(child);
-        else {bytes += stat.size; if (bytes > state.maxScratchBytes) fail('OWNED_NATIVE_SCRATCH_LIMIT');}
-      }
-    };
-    await walk(runRoot); return bytes;
-  }
+  const scratchBytes = createOwnedScratchCensus({runRoot, permittedRuns, maxBytes: state.maxScratchBytes,
+    onDiagnostic: event => {if (state.censusDiagnostics.length < 32) state.censusDiagnostics.push(event); else state.droppedCensusDiagnostics++;}});
   async function startOwned(signal) {
     assertStarting(signal);
     if (process.platform !== 'win32' || process.version !== 'v24.13.1') fail('QUALIFIED_NATIVE_NODE_PROFILE_REQUIRED');
@@ -144,6 +134,7 @@ export function createNativeEnvironment({ownedRunRoot, sourcePin}) {
     if (relative(permittedRuns, canonicalRuns) !== '' || relative(runRoot, canonicalRoot) !== ''
       || !/^C:[\\/]/i.test(canonicalRoot) || !inside(canonicalRuns, canonicalRoot)) fail('OWNED_C_NATIVE_CANONICAL_RUN_REQUIRED');
     for (const path of [permittedRuns, runRoot]) {const stat = await lstat(path); if (!stat.isDirectory() || stat.isSymbolicLink()) fail('OWNED_C_NATIVE_RUN_LINK_REFUSED');}
+    await scratchBytes.pin();
     assertStarting(signal);
     for (const [file, expected] of Object.entries(hashes)) {
       const path = join(BIN, file), stat = await lstat(path); assert.ok(stat.isFile() && !stat.isSymbolicLink() && stat.size < 67108864);
@@ -180,11 +171,11 @@ export function createNativeEnvironment({ownedRunRoot, sourcePin}) {
       }
     } finally {await pool.end();}
     assertStarting(signal);
-    state.scratchBytes = await scratchBytes(); assertStarting(signal); await save(); assertStarting(signal);
+    state.scratchBytes = await scratchBytes('startup'); assertStarting(signal); await save(); assertStarting(signal);
     monitor = setInterval(() => {
       if (monitorTask || closing) return;
       monitorTask = (async () => {
-        try {state.scratchBytes = await scratchBytes();}
+        try {state.scratchBytes = await scratchBytes('live');}
         catch (failure) {resourceFailure = failure; remember(failure); void close().catch(() => {});}
         finally {monitorTask = undefined;}
       })();
@@ -233,13 +224,22 @@ export function createNativeEnvironment({ownedRunRoot, sourcePin}) {
         catch (failure) {failed(failure);}
       }
       state.stopped = serverStopped && (!started || startSettled) && helpers.size === 0;
-      try {state.scratchBytes = await bounded(() => scratchBytes(), 10000, 'OWNED_NATIVE_FINAL_CENSUS_TIMEOUT'); state.finalScratchChecked = true;}
+      try {state.scratchBytes = await bounded(() => scratchBytes('final-stopped'), 10000, 'OWNED_NATIVE_FINAL_CENSUS_TIMEOUT'); state.finalScratchBeforeSaveChecked = true;}
       catch (failure) {resourceFailure ??= failure; state.finalScratchChecked = false; failed(failure);}
       try {await bounded(() => save(), 5000, 'OWNED_NATIVE_LIFECYCLE_SAVE_TIMEOUT');}
       catch (failure) {failed(failure);}
       // Include the finalized lifecycle evidence itself in the final cap check.
-      try {await bounded(() => scratchBytes(), 10000, 'OWNED_NATIVE_FINAL_CENSUS_TIMEOUT');}
-      catch (failure) {resourceFailure ??= failure; failed(failure);}
+      const cappedLifecycleBytes = savedLifecycleBytes;
+      try {
+        await bounded(() => scratchBytes('post-save-stopped'), 10000, 'OWNED_NATIVE_FINAL_CENSUS_TIMEOUT');
+        state.finalScratchAfterSaveChecked = true; state.finalScratchChecked = state.finalScratchBeforeSaveChecked;
+        if (state.finalScratchChecked && Buffer.byteLength(JSON.stringify(state, null, 2) + '\n') > cappedLifecycleBytes)
+          fail('OWNED_NATIVE_FINAL_EVIDENCE_GREW');
+      } catch (failure) {resourceFailure ??= failure; state.finalScratchChecked = false; failed(failure);}
+      // Persist final success/refusal honestly. If the final evidence save
+      // itself fails, stop remains separate evidence and cleanup still refuses.
+      try {await bounded(() => save(), 5000, 'OWNED_NATIVE_LIFECYCLE_SAVE_TIMEOUT');}
+      catch (failure) {failed(failure);}
       if (!state.stopped) fail('OWNED_NATIVE_STOP_UNVERIFIED');
       if (cleanupFailure) throw cleanupFailure;
       if (resourceFailure) throw resourceFailure;
