@@ -41,7 +41,10 @@ type Container = { id: string; kind: 'engine-phone-runtime'; version: 1; workspa
 type ReadTicket = { projection: string; fingerprint: string };
 type ReadScope = { briefs: Map<string, ReadTicket>; receipts: Map<string, ReadTicket> };
 class ScopedPhoneHost extends PhoneHost {
-  constructor(options: ConstructorParameters<typeof PhoneHost>[0], private readonly reads: AsyncLocalStorage<ReadScope>) { super(options); }
+  private readonly reads: AsyncLocalStorage<ReadScope>;
+  constructor(options: ConstructorParameters<typeof PhoneHost>[0], reads: AsyncLocalStorage<ReadScope>) {
+    super(options); this.reads = reads;
+  }
   override handle(authentication: PhoneHostAuthentication): Promise<unknown> {
     return this.reads.run({ briefs: new Map(), receipts: new Map() }, () => super.handle(authentication));
   }
@@ -98,7 +101,8 @@ function save(state: State, container: Container): void {
 
 /** CAS writes preserve unrelated State fields; get/list/read-only settlements commit no no-op revision. */
 export class StateStorePhoneCustodyStorage implements PhoneCustodyStorage {
-  constructor(private readonly store: StateStore) {}
+  private readonly store: StateStore;
+  constructor(store: StateStore) { this.store = store; }
   async transaction<T>(work: (records: PhoneCustodyRecord[]) => T): Promise<T> {
     for (let attempt = 0; attempt < 8; attempt++) {
       const original = load(this.store.read()), records = structuredClone(original.records), result = work(records);
@@ -170,8 +174,12 @@ export class EnginePhoneRuntime {
   readonly host: PhoneHost;
   private readonly clock: () => number;
   private readonly reads = new AsyncLocalStorage<ReadScope>();
-  constructor(private readonly store: StateStore, private readonly sessions: EnginePhoneSessions,
-    private readonly ports: EnginePhoneRuntimePorts, options: { clock?: () => number } = {}) {
+  private readonly store: StateStore;
+  private readonly sessions: EnginePhoneSessions;
+  private readonly ports: EnginePhoneRuntimePorts;
+  constructor(store: StateStore, sessions: EnginePhoneSessions,
+    ports: EnginePhoneRuntimePorts, options: { clock?: () => number } = {}) {
+    this.store = store; this.sessions = sessions; this.ports = ports;
     this.clock = options.clock ?? Date.now;
     this.custody = new PhoneRequestCustody(new StateStorePhoneCustodyStorage(store));
     this.host = new ScopedPhoneHost({ clock: this.clock, custody: this.custody, ports: {
