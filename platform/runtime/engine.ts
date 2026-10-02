@@ -1,6 +1,7 @@
 import { resolve, join, relative, isAbsolute } from 'node:path';
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Vault, safeDirectory, type VaultWriterGuard } from './vault.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
@@ -31,6 +32,11 @@ import type { ConversationSynthesisCodec } from './conversation-synthesis-contra
 import { buildBusinessContext, assertBusinessContextCurrent, renderBusinessAnswer, BusinessProfileService, type BusinessContextHooks, type BusinessContextManifest } from './conversation-context.ts';
 import { SpeechService } from './speech.ts';
 import { AuthService } from './auth.ts';
+import { PhoneSessionService } from './engine-phone-sessions.ts';
+import { EnginePhoneRuntime, type ReviewedPhoneConversationRequest } from './engine-phone-runtime.ts';
+import { createPhoneHttpHandler } from './phone/host.ts';
+import { requirePhone } from './phone/contracts.ts';
+import type { Brief, ChatAnswer } from './phone/contracts.ts';
 import { SyncService, type SyncOptions } from './sync.ts';
 import { writerStateDigest, type SyncWriterAdmission, type SyncWriterReview } from './sync-writer-admission.ts';
 import { ActionService, digest } from './actions.ts';
@@ -101,6 +107,7 @@ export class Engine {
   #transition = false;
   #activeRequests = 0;
   #closing = false;
+  #companion: { store: Vault; sessions: PhoneSessionService; runtime: EnginePhoneRuntime } | undefined;
   #idleWaiters = new Set<() => void>();
   #searchAdapter: Promise<PostgresInvestigationSearch> | null = null;
   #unknownAnswerRecoveries = new Set<string>();
@@ -274,6 +281,100 @@ export class Engine {
     return answer;
   }
   contextForSession(token: string, channel: Context['channel'] = 'desktop'): Context { this.store(); return this.services.auth.authenticate(token, channel); }
+  /** Fixed loopback companion host; authority comes only from the current encrypted workspace. */
+  private companionRuntime() {
+    check(!this.#closing && !this.#transition, 'VAULT_BUSY', 'The current workspace is not available for companion requests.');
+    const store = this.store();
+    if (this.#companion?.store === store) return this.#companion;
+    const sessions = new PhoneSessionService(store);
+    const runtime = new EnginePhoneRuntime(store, sessions, {
+      review: (ctx, request, view) => {
+        const matches = view.read().modelReceipts.filter(item => item.id === request.previewId);
+        requirePhone(matches.length === 1, 'PREVIEW_CHANGED');
+        const model = ['dispatching', 'failed'].includes(matches[0].status)
+          ? this.services.gateway.assertDispatchedConversationRequest(ctx, request, view)
+          : this.services.gateway.assertReviewedConversationRequest(ctx, request, view);
+        return { sourceIds: [...model.sourceIds], operationVersion: hash({ schemaDigest: model.schemaDigest,
+          dictionaryHash: model.publishedCalculations.dictionaryHash, dictionaryVersion: model.publishedCalculations.dictionaryVersion }) };
+      },
+      executeConversation: (ctx, request) => this.requestAs(ctx, 'conversation.ask', request),
+      reconcileConversation: (ctx, previewId, view) => this.companionConversation(ctx, previewId, view),
+      briefs: (ctx, view) => this.companionBriefs(ctx, view),
+      receipt: (ctx, id, view) => {
+        const receipt = this.companionCalculator(view).receipt(ctx, id);
+        requirePhone(receipt.stale === false, 'PREVIEW_CHANGED');
+        return { id: receipt.id, workspaceId: view.read().workspace.id, text: this.companionAnswerText(receipt) };
+      },
+    });
+    this.#companion = { store, sessions, runtime }; return this.#companion;
+  }
+  async handleCompanionHttp(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    check(!this.#closing && !this.#transition, 'VAULT_BUSY', 'Wait for the workspace operation to finish.');
+    this.#activeRequests++;
+    try { await createPhoneHttpHandler(this.companionRuntime().runtime.host)(request, response); }
+    finally { this.#activeRequests--; this.notifyIdle(); }
+  }
+  private companionCalculator(view: StateStore): CalculatorService {
+    const connectors = new EngineConnectorService(view, this.options.connectorRuntime);
+    return new CalculatorService(view, {
+      consumerGuard: (ctx, request) => connectors.assertCalculationReady(ctx, request),
+      receiptGuard: (ctx, receipt) => connectors.assertReceiptReady(ctx, receipt),
+    });
+  }
+  /** Project already guarded local text and exact displayed figures; never synthesize a new answer. */
+  private companionAnswerText(answer: any): string {
+    const parts: string[] = [];
+    if (answer?.kind === 'grounded-conversation') {
+      for (const result of answer.results) parts.push(result.error
+        ? `Unable to complete this part: ${result.error.message}` : this.companionAnswerText(result.answer));
+    } else {
+      const explanation = answer?.text ?? answer?.message ?? answer?.explanation ?? answer?.clarification;
+      if (typeof explanation === 'string') parts.push(explanation);
+      for (const figure of answer?.figures ?? answer?.receipt?.figures ?? []) parts.push(`${figure.label}: ${figure.display}`);
+      for (const gap of answer?.coverage?.gaps ?? []) parts.push(`Coverage: ${gap}`);
+    }
+    const text = parts.filter(Boolean).join('\n');
+    requirePhone(text.length > 0 && text.length <= 64000, 'OPEN_DESKTOP'); return text;
+  }
+  private companionConversation(ctx: Context, previewId: string, view: StateStore): ChatAnswer | undefined {
+    authorize(view, ctx);
+    const records = view.read().conversations.filter(item => ['conversation-tools-answer', 'conversation-clarification-answer'].includes(item.kind)
+      && item.modelReceiptId === previewId && item.memberId === ctx.memberId && item.epoch === ctx.epoch);
+    if (!records.length) return undefined;
+    requirePhone(records.length === 1, 'CACHE_INVALID');
+    this.services.gateway.assertConversationReceipt(ctx, previewId, view);
+    const history = new ConversationHistoryService(view, this.services.conversationHistory.options);
+    const saved = history.get(ctx, records[0].id), receiptIds: string[] = [];
+    for (const ref of records[0].resultRefs ?? []) {
+      const child = history.get(ctx, ref.answerId);
+      if (child.kind === 'calculation') {
+        const receiptId = child.answer.receipt?.id ?? child.answer.id;
+        history.currentReceipt(ctx, receiptId, view); receiptIds.push(receiptId);
+      }
+    }
+    return { conversationId: saved.id, text: this.companionAnswerText(saved.answer), receiptIds: [...new Set(receiptIds)] };
+  }
+  private companionBriefs(ctx: Context, view: StateStore): Brief[] {
+    const installed = this.services.jobs as JobService;
+    const jobs = new JobService(view, { clock: installed.clock, deliverableGuard: installed.deliverableGuard,
+      calendarRules: installed.calendarRules, calendarBounds: installed.calendarBounds });
+    const briefs: Brief[] = [];
+    for (const job of jobs.list(ctx)) {
+      const deliverable = job.deliverable as any, result = deliverable?.result;
+      if (job.type !== 'owner-brief' || job.plan || deliverable?.kind !== 'brief' || !result) continue;
+      const parts = (result.report?.sections ?? []).map((section: any) => this.companionAnswerText(section));
+      for (const gap of result.report?.gaps ?? []) parts.push(`Coverage: ${gap}`);
+      for (const item of result.alerts?.items ?? []) parts.push(`${item.label}. Last recorded observation: ${item.observation
+        ? `${item.observation.state} at ${item.observation.observedAt}` : 'not observed'}. Retained episodes: ${item.episodes
+        .map((episode: any) => `${episode.status} (${episode.severity}${episode.uncertain ? ', uncertain' : ''})`).join('; ') || 'none'}. Evidence: ${item.evidence.state}${item.evidence.issues.length
+        ? ` — ${item.evidence.issues.join('; ')}` : ''}.`);
+      const summary = parts.join('\n');
+      requirePhone(summary.length <= 16000 && briefs.length < 100, 'OPEN_DESKTOP');
+      briefs.push({ id: result.id, workspaceId: view.read().workspace.id, version: digest(deliverable),
+        generatedAt: deliverable.at, title: result.headline, summary, receiptIds: [...result.receiptIds] });
+    }
+    return briefs;
+  }
   async withContext<T>(context: Context, work: () => T | Promise<T>): Promise<T> {
     const scoped = Object.freeze({ ...context }); if (this.vault) authorize(this.vault, scoped);
     return this.#requestContext.run(scoped, async () => await work());
@@ -728,6 +829,18 @@ export class Engine {
       case 'auth.session': return s.auth.issueSession(ctx, payload.memberId ?? ctx.memberId, payload.ttlMs);
       case 'auth.revoke': return payload.inviteId ? s.auth.revokeInvite(ctx, payload.inviteId) : s.auth.revokeSession(ctx, payload.sessionId ?? payload.id);
       case 'auth.sessions': return s.auth.sessions(ctx);
+      case 'phone.invite': return this.companionRuntime().sessions.issueInvite(ctx, this.journalPayload(payload,
+        ['memberId', 'deviceId', 'keyId', 'channel', 'devicePublicKey', 'capabilities', 'inviteTtlMs', 'sessionTtlMs'],
+        ['memberId', 'deviceId', 'keyId', 'channel', 'devicePublicKey', 'capabilities', 'inviteTtlMs', 'sessionTtlMs'], 'INVALID_PHONE_INVITE') as any);
+      case 'phone.sessions': this.journalPayload(payload, [], [], 'INVALID_PHONE_REQUEST'); return this.companionRuntime().sessions.list(ctx);
+      case 'phone.revoke': {
+        const input = this.journalPayload(payload, ['sessionId'], ['sessionId'], 'INVALID_PHONE_REQUEST');
+        await this.companionRuntime().sessions.revokeByOwner(ctx, input.sessionId as string); return { sessionId: input.sessionId, revoked: true };
+      }
+      case 'phone.conversation.offer': {
+        const input = this.journalPayload(payload, ['sessionId', 'request'], ['sessionId', 'request'], 'INVALID_PHONE_REQUEST');
+        return this.companionRuntime().runtime.offer(ctx, input as { sessionId: string; request: ReviewedPhoneConversationRequest });
+      }
       case 'sync.status': authorize(store, ctx, 'admin'); return { ...s.sync.status(ctx), writerAdmission: await this.writerStatus() };
       case 'sync.writer.status': authorize(store, ctx, 'admin'); this.journalPayload(payload, [], [], 'INVALID_SYNC_REQUEST'); return this.writerStatus();
       case 'sync.writer.review': {

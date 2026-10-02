@@ -66,5 +66,5 @@ export class AuthService {
   async revokeInvite(context: Context, inviteId: string) {
     authorize(this.store, context, 'admin'); return this.store.update(state => { authorize(this.store, context, 'admin'); const invitation = state.sessions.find(s => s.id === inviteId && s.kind === 'member-invite'); check(invitation, 'INVITE_EXPIRED', 'Invitation was not found.'); invitation.revoked = true; delete invitation.tokenHash; audit(state, 'auth.invitation.revoked', { inviteId }); return { inviteId, revoked: true }; });
   }
-  sessions(context: Context) { const member = authorize(this.store, context); return this.store.read().sessions.filter(s => ['owner', 'cofounder'].includes(member.role) || s.memberId === member.id).map(({ tokenHash: _, ...metadata }) => metadata); }
+  sessions(context: Context) { const member = authorize(this.store, context); return this.store.read().sessions.filter(s => (s.kind === 'member-invite' || s.kind === 'member-session') && (['owner', 'cofounder'].includes(member.role) || s.memberId === member.id)).map(({ tokenHash: _, ...metadata }) => metadata); }
 }

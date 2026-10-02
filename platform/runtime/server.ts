@@ -42,6 +42,10 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
       check(!req.headers.origin || req.headers.origin === origin, 'INVALID_ORIGIN', 'Cross-origin requests are blocked.');
       check(req.headers['sec-fetch-site'] !== 'cross-site', 'INVALID_ORIGIN', 'Cross-site browser requests are blocked.');
       const url = new URL(req.url ?? '/', origin);
+      if (url.pathname === '/api/companion/rpc') {
+        check(!closing, 'ENGINE_STOPPING', 'The local server is completing pending work.');
+        return await engine.handleCompanionHttp(req, res);
+      }
       if (url.pathname === '/api/session' && req.method === 'GET') {
         const bearer = req.headers.authorization ?? '';
         check(bearer.startsWith('Bearer ') && validToken(bearer.slice(7), token), 'UNAUTHENTICATED', 'Pair this owner browser using the local launch link.');
