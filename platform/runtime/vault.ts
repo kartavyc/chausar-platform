@@ -18,6 +18,11 @@ export interface EncryptedSnapshotAdapter {
   load(): Promise<VaultEnvelope | null>;
   commit(envelope: VaultEnvelope, expectedRevision: number | null): Promise<void>;
   delete(): Promise<void>;
+  /** Ciphertext-only atomic ownership CAS. Required for PostgreSQL bootstrap;
+   * compare the entire original envelope and revision/Vault identity under the
+   * same slot transaction. Mismatch preserves the occupant. Never read/delete.
+   */
+  deleteIfCurrent?(expected: VaultEnvelope): Promise<'deleted' | 'absent' | 'mismatch'>;
   close?(): Promise<void>;
 }
 /** Only trusted engine code supplies a hook. No OS keychain is assumed or certified. */
@@ -365,9 +370,13 @@ export class Vault implements StateStore {
       passphrase(secret); state = freshBootstrapState(options);
       directory = await safeDirectory(options.directory, true);
       if ((await readdir(directory)).length) fail('BOOTSTRAP_TARGET_NOT_EMPTY', 'Fresh bootstrap requires an explicitly empty target directory.');
-      adapter = adapterFor(directory, storage); lock = await takeLock(directory);
+      adapter = adapterFor(directory, storage);
+      if (adapter.kind === 'postgres' && typeof adapter.deleteIfCurrent !== 'function')
+        fail('BOOTSTRAP_STORAGE_CUSTODY_REQUIRED', 'PostgreSQL bootstrap requires atomic exact-owned cleanup custody.');
+      lock = await takeLock(directory);
     } catch (error) { await closeTransferred(storage); throw error; }
-    let key: Buffer | undefined, committed = false, id: string | undefined, envelope: VaultEnvelope | undefined, publicationCalls = 0;
+    let key: Buffer | undefined, committed = false, publicationAttempted = false,
+      id: string | undefined, envelope: VaultEnvelope | undefined, publicationCalls = 0;
     try {
       if ((await readdir(directory)).some(name => name !== 'writer.lock') || await adapter.load())
         fail('BOOTSTRAP_TARGET_NOT_EMPTY', 'Fresh bootstrap requires zero target authority and no unrelated entries.');
@@ -380,6 +389,7 @@ export class Vault implements StateStore {
         if ((await readdir(directory)).some(name => name !== 'writer.lock')) fail('BOOTSTRAP_TARGET_NOT_EMPTY', 'Fresh target acquired an unrelated entry before publication.');
         const admission = () => { const result: unknown = assertCurrent(); if (result !== undefined) fail('BOOTSTRAP_GUARD', 'Fresh publication admission must assert synchronously without a deferred result.'); };
         admission(); let acknowledgementFailure: unknown;
+        publicationAttempted = true;
         try { await adapter.commit(envelope!, null); } catch (error) { acknowledgementFailure = error; }
         const actual = await adapter.load();
         if (!actual || JSON.stringify(actual) !== JSON.stringify(envelope) || hash(decodeSnapshot(actual, key!)) !== hash(state)) {
@@ -396,10 +406,20 @@ export class Vault implements StateStore {
     } catch (error) {
       try {
         if (committed) {
-          const actual = await adapter.load();
-          if (!actual || JSON.stringify(actual) !== JSON.stringify(envelope)) fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Failed bootstrap authority changed and cannot be removed automatically.');
-          await adapter.delete();
-          if (await adapter.load()) fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Failed bootstrap retains unresolved fresh authority custody.');
+          if (adapter.kind === 'postgres') {
+            let outcome: 'deleted' | 'absent' | 'mismatch';
+            try { outcome = await adapter.deleteIfCurrent!(structuredClone(envelope!)); }
+            catch { return fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Atomic bootstrap cleanup is unresolved; inspect the exact operation without replay or deletion.'); }
+            if (outcome !== 'deleted' && outcome !== 'absent')
+              fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Bootstrap target ownership changed; retain the occupant for explicit inspection.');
+          } else {
+            const actual = await adapter.load();
+            if (!actual || JSON.stringify(actual) !== JSON.stringify(envelope)) fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Failed bootstrap authority changed and cannot be removed automatically.');
+            await adapter.delete();
+            if (await adapter.load()) fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Failed bootstrap retains unresolved fresh authority custody.');
+          }
+        } else if (publicationAttempted && adapter.kind === 'postgres') {
+          fail('BOOTSTRAP_COMMIT_UNKNOWN', 'PostgreSQL bootstrap was attempted without exact acknowledged readback. Inspect its target identity; do not retry, adopt or delete it.');
         }
       } finally {
         key?.fill(0);

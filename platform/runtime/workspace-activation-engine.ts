@@ -13,6 +13,7 @@ import {createWorkspaceActivationLocalPorts} from './workspace-activation-local.
 import {canonicalInterchangeJson,interchangeDigest,workspaceStateProfile,readHistoricalWorkspaceState,retainedArtifactBytes,captureWorkspaceInterchange,validateWorkspaceInterchange} from './workspace-interchange.ts';
 import {workspaceBackupV2Bytes,validateWorkspaceBackupV2,type WorkspaceBackupV2Capture} from './workspace-backup-v2.ts';
 import type {EmptyTargetInspection,WorkspaceInventory,ArtifactCapture} from './workspace-interchange-contracts.ts';
+import type {FileWorkspaceLaunch} from './workspace-postgres-contracts.ts';
 import type {WorkspaceInterchangeSourceLease,WorkspaceInterchangeCustodyRecord} from './workspace-interchange-host.ts';
 
 const sha=(v:string|Uint8Array)=>createHash('sha256').update(v).digest('hex');
@@ -280,7 +281,7 @@ export class EngineWorkspaceActivation {
   /** Trusted launch descriptor only. Public RPC returns summaries, never paths,
    * credentials, ciphertext or a reusable historical session. The host starts a
    * separate Engine/server with newly generated transport authentication. */
-  async inspectOpenTarget(ctx:Context,activationId:string){
+  async inspectOpenTarget(ctx:Context,activationId:string):Promise<FileWorkspaceLaunch>{
     const summary=await this.activation.resolve(ctx,{activationId});
     check(summary.status==='committed','ACTIVATION_COMMIT_UNKNOWN','Only exact committed readback may select an activated target.');
     const retained=await this.#find('wal_root_live_'+sha(activationId)),pin=retained?.value as any;

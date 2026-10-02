@@ -2,7 +2,7 @@ import { resolve, join, relative, isAbsolute } from 'node:path';
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Vault, safeDirectory, type VaultWriterGuard } from './vault.ts';
+import { Vault, safeDirectory, type VaultWriterGuard, type EncryptedSnapshotAdapter } from './vault.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
 import { ImportService, importPublicRecord, seedDemo } from './ingest.ts';
@@ -59,6 +59,8 @@ import { createWorkspaceInterchangeLocalPorts } from './workspace-interchange-lo
 import { WorkspaceBackupV2Host, type WorkspaceBackupV2Budgets, type WorkspaceBackupV2ExternalKeyRequirement } from './workspace-backup-v2.ts';
 import { createWorkspaceBackupV2LocalPorts, type WorkspaceBackupV2FilesystemBudgets } from './workspace-backup-local.ts';
 import { EngineWorkspaceActivation, type EngineWorkspaceActivationOptions } from './workspace-activation-engine.ts';
+import { EnginePostgresWorkspaceActivation } from './workspace-postgres-engine.ts';
+import type { EnginePostgresWorkspaceOptions, PostgresWorkspaceOpenAdmission, PostgresWorkspaceStorageOperation, TrustedWorkspaceLaunch } from './workspace-postgres-contracts.ts';
 import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
 import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
 import { AnalyticalHelper } from './helper.ts';
@@ -74,6 +76,10 @@ export type EngineBackupCustodyOptions = {
 export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
   /** Trusted local composition capabilities. Never supplied by an RPC or archive. */
   workspaceActivation?: EngineWorkspaceActivationOptions;
+  /** Trusted native transfer composition. Never installed from RPC or an archive. */
+  postgresWorkspace?: EnginePostgresWorkspaceOptions;
+  /** Trusted committed-target adapter admission, held through Vault open/attach. */
+  workspaceStorageAdmission?: PostgresWorkspaceOpenAdmission;
   workspaceAuthority?: {workspaceId: string; ownerId: string; vaultId?: string};
 };
 // Operational admission ceilings reject the complete operation; no namespace is truncated.
@@ -388,7 +394,10 @@ export class Engine {
   /** Local host launch only: a separately paired Engine/server, explicit fresh
    * credential on workspace.open, and no historical routes/session tokens. */
   async activatedWorkspaceEngine(context: Context, activationId: string): Promise<Engine> {
-    const selected = await this.activationHost().inspectOpenTarget(context, activationId);
+    const selected: TrustedWorkspaceLaunch = await this.activationHost().inspectOpenTarget(context, activationId);
+    if (selected.backend === 'postgres') return new Engine({ directory: selected.directory, version: this.version,
+      storage: 'postgres', workspaceStorageAdmission: selected.withWorkspaceAdmission,
+      workspaceAuthority: { workspaceId: selected.workspaceId, ownerId: selected.ownerId, vaultId: selected.vaultId } });
     return new Engine({directory: selected.directory, version: this.version, demo: true, storage: 'experimental-file',
       workspaceAuthority: {workspaceId: selected.workspaceId, ownerId: selected.ownerId, vaultId: selected.vaultId}});
   }
@@ -427,6 +436,32 @@ export class Engine {
     const url = new URL(this.options.postgresUrl);
     check(url.protocol === 'postgresql:' || url.protocol === 'postgres:', 'INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL.');
     return PostgresSnapshotAdapter.connect({ host: url.hostname.replace(/^\[|\]$/g, '') as '127.0.0.1' | '::1', port: Number(url.port || 5432), user: decodeURIComponent(url.username), password: decodeURIComponent(url.password), database: decodeURIComponent(url.pathname.slice(1)), vaultSlot: hash(this.workspacePath(folder)) });
+  }
+  private async withWorkspaceStorage<T>(folder: string, operation: PostgresWorkspaceStorageOperation,
+    work: (adapter: 'experimental-file' | EncryptedSnapshotAdapter) => Promise<T>): Promise<T> {
+    const profile = this.options.postgresWorkspace;
+    const admission = this.options.workspaceStorageAdmission ?? profile?.withWorkspaceAdmission;
+    if (!admission) return work(await this.adapter(folder));
+    check(this.options.storage === 'postgres' && (!profile || profile.format === 'chausar.postgres-workspace-profile.v1'),
+      'POSTGRES_WORKSPACE_ROOT_REQUIRED', 'Native storage admission requires its explicit trusted PostgreSQL profile.');
+    let calls = 0;
+    const originalVault = this.vault;
+    let result: T;
+    try { result = await admission({ directory: this.workspacePath(folder), operation, expectedAuthority: this.options.workspaceAuthority }, async adapter => {
+      check(++calls === 1 && adapter?.kind === 'postgres', 'POSTGRES_WORKSPACE_ADMISSION', 'Transfer one admitted native adapter into the actual Vault operation.');
+      const value = await work(adapter);
+      check(this.options.postgresWorkspace === profile && (this.options.workspaceStorageAdmission ?? profile?.withWorkspaceAdmission) === admission,
+        'POSTGRES_WORKSPACE_CONFIGURATION_CHANGED', 'Installed storage admission changed during open/attach.');
+      return value;
+    });
+      check(calls === 1, 'POSTGRES_WORKSPACE_ADMISSION', 'Installed storage admission did not execute the actual Vault operation.');
+    } catch (error) {
+      // A failed final guard/lease exit cannot leave an attached Engine after a
+      // rejected open. Retain durable authority; this is resource closure only.
+      if (this.vault && this.vault !== originalVault) await this.closeVault();
+      throw error;
+    }
+    return result;
   }
   private workspacePath(name = 'main') {
     check(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(name), 'INVALID_PATH', 'Use a short workspace folder name without path separators.');
@@ -551,6 +586,33 @@ export class Engine {
           }});
         this.services.workspaceActivation = installedActivation;
       }
+    }
+    const postgresProfile = this.options.postgresWorkspace;
+    if (vault.storageKind === 'postgres' && postgresProfile) {
+      check(this.options.workspaceActivation === undefined && this.options.sync === undefined
+        && !vault.read().imports.some(item => typeof item.type === 'string' && item.type.startsWith('connector-')),
+      'ACTIVATION_SOURCE_PROFILE', 'The explicit synthetic PostgreSQL transfer profile requires its own custody; managed connector/sync activation stays separately gated.');
+      const budgets = this.options.backupCustody?.budgets ?? defaultBackupBudgets;
+      const assertConfiguration = () => {
+        check(this.options.postgresWorkspace === postgresProfile && this.options.sync === undefined,
+          'POSTGRES_WORKSPACE_CONFIGURATION_CHANGED', 'Installed native transfer admission changed during custody.');
+      };
+      const installed = await EnginePostgresWorkspaceActivation.install(postgresProfile, {
+        sourceVault: vault, journalVault: postgresProfile.journalVault, applicationDirectory,
+        interchange: interchangeLocal, backupBudgets: budgets,
+        backupPolicy: { approvedSyntheticWorkspaceIds: [...postgresProfile.policy.approvedSyntheticWorkspaceIds], backupBudgets: budgets,
+          maxMaterialUtf8Bytes: postgresProfile.policy.budgets.maxCandidateBytes, maxCandidateUtf8Bytes: postgresProfile.policy.budgets.maxCandidateBytes },
+        policy: postgresProfile.policy, targetPassphrase: authority => postgresProfile.targetPassphrase(authority),
+        bootstrap: options => Vault.createBootstrap(options), openVault: options => Vault.open(options),
+        assertCompleteOwner: async (ctx, historical) => {
+          assertConfiguration(); this.backupCompleteOwner(ctx, historical);
+          check(!vault.read().imports.some(item => typeof item.type === 'string' && item.type.startsWith('connector-')),
+            'ACTIVATION_SOURCE_PROFILE', 'Managed imports require their separately qualified activation profile.');
+        },
+      }, assertConfiguration);
+      this.services.backupLocal = installed.backup;
+      this.services.backupV2 = new WorkspaceBackupV2Host(installed.backup.ports, budgets);
+      this.services.workspaceActivation = installed;
     }
     this.services.alerts = new AlertsService(store, { calculatorOptions: view => {
       const connectors = connectorForView(view);
@@ -723,21 +785,24 @@ export class Engine {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before creating another.');
       check(typeof payload.name === 'string' && payload.name.trim().length >= 2 && payload.name.length <= 100, 'INVALID_NAME', 'Give your business a name.');
       const pack = payload.pack ?? 'ecommerce'; check(new OntologyService({ read: () => { throw new Error('No vault'); }, update: async () => { throw new Error('No vault'); } }).packs().some(p => p.pack === pack), 'UNKNOWN_PACK', 'Choose an available business starter pack.');
-      const result = await Vault.create({ directory: this.workspacePath(payload.folder), passphrase: payload.passphrase, name: payload.name.trim(), demo: !!payload.demo, storage: await this.adapter(payload.folder) });
+      const folder = payload.folder ?? 'main';
+      return this.withWorkspaceStorage(folder, 'create', async storage => {
+      const result = await Vault.create({ directory: this.workspacePath(folder), passphrase: payload.passphrase, name: payload.name.trim(), demo: !!payload.demo, storage });
       try {
         await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
         if (payload.demo) await seedDemo(this.store(), this.context);
         return { workspace: this.store().read().workspace, recoveryKit: result.recoveryCode, recoveryCode: result.recoveryCode, experimental: !!this.options.demo };
       } catch (error) { await result.vault.delete(); this.vault = null; this.services = {}; throw error; }
+      });
     }
-    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? payload.path ?? 'main'; await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
-    if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); await this.attachSafely(await Vault.recover({ directory: this.workspacePath(payload.folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage: await this.adapter(payload.folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
+    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? payload.path ?? 'main'; return this.withWorkspaceStorage(folder, 'open', async storage => { await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage, writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }); }
+    if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? 'main'; return this.withWorkspaceStorage(folder, 'recover', async storage => { await this.attachSafely(await Vault.recover({ directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage, writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }); }
     if (method === 'workspace.restore') {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before restoring.');
       check(typeof payload.backupFile === 'string', 'INVALID_PATH', 'Choose a backup from this app.');
       const backupRoot = resolve(this.options.directory, 'backups'); const backupFile = resolve(backupRoot, payload.backupFile); const rel = relative(backupRoot, backupFile);
       check(!rel.startsWith('..') && !isAbsolute(rel) && rel.endsWith('.backup'), 'INVALID_PATH', 'Choose a managed backup file.');
-      const folder = payload.folder ?? 'restored'; await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace };
+      const folder = payload.folder ?? 'restored'; return this.withWorkspaceStorage(folder, 'restore', async storage => { await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage, writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; });
     }
     if (method === 'workspace.lock') { if (this.vault) authorize(this.vault, this.context, 'admin'); await this.closeVault(); return { locked: true }; }
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
@@ -1418,8 +1483,9 @@ export class Engine {
       'This storage profile requires its separately reviewed complete encrypted-custody implementation.');
     return this.services.backupV2;
   }
-  private activationHost(): EngineWorkspaceActivation {
-    check(this.services.workspaceActivation instanceof EngineWorkspaceActivation, 'ACTIVATION_ROOT_REQUIRED',
+  private activationHost(): EngineWorkspaceActivation | EnginePostgresWorkspaceActivation {
+    check(this.services.workspaceActivation instanceof EngineWorkspaceActivation
+      || this.services.workspaceActivation instanceof EnginePostgresWorkspaceActivation, 'ACTIVATION_ROOT_REQUIRED',
       'Install the reviewed synthetic local activation, actual encrypted journal and fresh credential capability in the trusted host.');
     return this.services.workspaceActivation;
   }
