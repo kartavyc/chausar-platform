@@ -24,7 +24,15 @@ class MemoryStore implements StateStore {
 }
 async function fixture(turn: Turn, withFacts = true) {
   const store = new MemoryStore(), trust = new TrustService(store);
-  await new OntologyService(store).publish(OWNER, 'ecommerce');
+  const ontology = new OntologyService(store);
+  if (turn === 'errors' && !withFacts) {
+    // Empty facts are not an aging error. Publish a genuinely supported signed
+    // sum definition that the aging algorithm cannot safely interpret, instead
+    // of fabricating a provider error or bypassing missing reviewed inputs.
+    const draft = ontology.packs().find(pack => pack.pack === 'ecommerce')!;
+    draft.definitions.find(definition => definition.name === 'billed')!.sign = -1;
+    await ontology.publish(OWNER, draft);
+  } else await ontology.publish(OWNER, 'ecommerce');
   if (withFacts) await new MemoryService(store).append(OWNER, [{
     entityId: 'synthetic-turn-invoice', sourceId: SOURCE, sourceRow: 1, kind: 'invoice', branch: 'main',
     validFrom: '2026-09-01', fields: { amountMinor: '10000', currency: 'INR', status: 'issued' },
@@ -32,8 +40,8 @@ async function fixture(turn: Turn, withFacts = true) {
   await trust.updatePolicy(OWNER, { send: 'shape' });
   let dispatches = 0, receiptReads = 0;
   const wire = turn === 'clarification' ? { kind: 'clarification', calls: [], clarification: 'Which period should I use?' }
-    : { kind: 'execute', clarification: null, calls: ['change', 'scenario'].map(operation => ({
-      tool: 'calculator.calculate', args: { operation, period: null, branch: null, customerId: null },
+    : { kind: 'execute', clarification: null, calls: [null, { from: '2026-09-01', to: '2026-09-30' }].map(period => ({
+      tool: 'calculator.calculate', args: { operation: 'aging', period, branch: null, customerId: null },
     })) };
   const gateway = new ModelGateway(store, { http: async request => {
     dispatches++;
@@ -41,7 +49,7 @@ async function fixture(turn: Turn, withFacts = true) {
   } });
   const route = await gateway.configureRoute(OWNER, { id: 'synthetic-turn-history-route', kind: 'ollama', model: 'synthetic',
     endpoint: 'http://127.0.0.1:11434/api/chat', budgetMinor: '0', maxCostMinor: '0' });
-  const question = turn === 'clarification' ? '  Help me choose a view of this business.  ' : 'Compare its billed change and assess a price scenario.';
+  const question = turn === 'clarification' ? '  Help me choose a view of this business.  ' : 'Age invoices for all event dates and September.';
   const request = { question, purpose: 'conversation' as const, questionDisclosure: 'verbatim' as const, routeId: route.id };
   const preview = await gateway.preview(OWNER, request), approval = await gateway.approveOutbound(OWNER, preview.id);
   const result = await gateway.execute(OWNER, { ...request, previewId: preview.id, approvalId: approval.id });
@@ -53,9 +61,10 @@ async function fixture(turn: Turn, withFacts = true) {
     const results: any[] = [], calculator = new CalculatorService(store);
     for (const call of result.plan.calls) {
       assert.equal(call.tool, 'calculator.calculate');
-      try { await calculator.calculate(OWNER, call.args as { operation: string }); assert.fail('This authored calculation needs missing parameters.'); }
+      try { await calculator.calculate(OWNER, call.args as { operation: string }); assert.fail('This authored aging evidence or definition must refuse.'); }
       catch (error) {
         assert.ok(error instanceof ChausarError);
+        assert.equal(error.code, withFacts ? 'AGING_LINK_REQUIRED' : 'AGING_DEFINITION_UNSUPPORTED');
         results.push({ tool: call.tool, error: { code: error.code, message: error.message.slice(0, 512) } });
       }
     }
@@ -109,7 +118,7 @@ test('clarification history reopens the exact completed plan and original wordin
 
 test('all-tool-error history retains actual calculator refusals with no child receipts or recalculation', async () => {
   const f = await fixture('errors'), before = f.store.read();
-  assert.deepEqual(f.answer.results.map((result: any) => result.error.code), ['COMPARISON_REQUIRED', 'SCENARIO_REQUIRED']);
+  assert.deepEqual(f.answer.results.map((result: any) => result.error.code), ['AGING_LINK_REQUIRED', 'AGING_LINK_REQUIRED']);
   assert.deepEqual(f.history.get(OWNER, f.record.id).answer, f.answer);
   assert.equal(f.history.get(OWNER, f.record.id).kind, 'grounded-conversation');
   assert.equal(f.history.list(OWNER).items[0].receiptId, f.record.id);
@@ -121,10 +130,42 @@ test('empty-evidence clarification and error turns still require the installed c
   for (const turn of ['clarification', 'errors'] as const) {
     const f = await fixture(turn, false);
     assert.deepEqual(f.record.rowIds, []); assert.deepEqual(f.record.sourceIds, []);
+    if (turn === 'errors') assert.deepEqual(f.answer.results.map((result: any) => result.error.code),
+      ['AGING_DEFINITION_UNSUPPORTED', 'AGING_DEFINITION_UNSUPPORTED']);
     assert.deepEqual(f.history.get(OWNER, f.record.id).answer, f.answer);
     const unguarded = new ConversationHistoryService(f.store, f.guards);
     assert.throws(() => unguarded.get(OWNER, f.record.id), code('CONVERSATION_NOT_FOUND'));
     assert.deepEqual(unguarded.list(OWNER).items, []);
+  }
+});
+
+test('missing comparison and scenario inputs remain actual calculator refusals outside planner admission', async () => {
+  const store = new MemoryStore(); await new OntologyService(store).publish(OWNER, 'ecommerce');
+  const calculator = new CalculatorService(store), before = store.read();
+  await assert.rejects(calculator.calculate(OWNER, { operation: 'change' }), code('COMPARISON_REQUIRED'));
+  await assert.rejects(calculator.calculate(OWNER, { operation: 'scenario' }), code('SCENARIO_REQUIRED'));
+  assert.deepEqual(store.read(), before, 'Refusals create no receipt, answer or partial write.');
+});
+
+test('unreviewed legacy comparison and scenario planner calls remain fail-closed without retained tool errors', async () => {
+  for (const operation of ['change', 'scenario']) {
+    const store = new MemoryStore(); await new OntologyService(store).publish(OWNER, 'ecommerce');
+    await new TrustService(store).updatePolicy(OWNER, { send: 'shape' });
+    let calls = 0;
+    const wire = { kind: 'execute', clarification: null, calls: [{ tool: 'calculator.calculate',
+      args: { operation, period: null, branch: null, customerId: null } }] };
+    const gateway = new ModelGateway(store, { http: async request => {
+      calls++; return { status: 200, endpoint: request.endpoint, body: JSON.stringify({ done: true,
+        done_reason: 'stop', message: { content: JSON.stringify(wire) } }) };
+    } });
+    const route = await gateway.configureRoute(OWNER, { id: 'synthetic-invalid-legacy-route', kind: 'ollama', model: 'synthetic-only',
+      endpoint: 'http://127.0.0.1:11434/api/chat', budgetMinor: '0', maxCostMinor: '0' });
+    const request = { question: `SYNTHETIC missing reviewed ${operation} inputs`, purpose: 'conversation' as const,
+      questionDisclosure: 'verbatim' as const, routeId: route.id };
+    const preview = await gateway.preview(OWNER, request), approval = await gateway.approveOutbound(OWNER, preview.id);
+    await assert.rejects(gateway.execute(OWNER, { ...request, previewId: preview.id, approvalId: approval.id }), code('INVALID_CONVERSATION_PLAN'));
+    assert.equal(calls, 1); assert.equal(store.read().modelReceipts.find(item => item.id === preview.id).status, 'failed');
+    assert.deepEqual(store.read().conversations, []); assert.deepEqual(store.read().receipts, []); assert.deepEqual(store.read().answers, []);
   }
 });
 

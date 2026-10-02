@@ -33,7 +33,9 @@ async function fixture(turn: 'clarification' | 'errors' = 'clarification') {
   const wire = turn === 'clarification'
     ? { kind: 'clarification', calls: [], clarification: 'Which period should I use?' }
     : { kind: 'execute', clarification: null, calls: [{ tool: 'calculator.calculate',
-      args: { operation: 'change', period: null, branch: null, customerId: null } }] };
+      // A valid planner call reaches the real calculator's missing-link refusal.
+      // Unreviewed comparison/scenario inputs correctly refuse before this boundary.
+      args: { operation: 'aging', period: null, branch: null, customerId: null } }] };
   const gateway = new ModelGateway(store, { http: async request => {
     dispatches++;
     return { status: 200, endpoint: request.endpoint, body: JSON.stringify({ done: true, done_reason: 'stop',
@@ -41,7 +43,7 @@ async function fixture(turn: 'clarification' | 'errors' = 'clarification') {
   } });
   const route = await gateway.configureRoute(OWNER, { id: 'synthetic-reference-route', kind: 'ollama', model: 'synthetic-only',
     endpoint: 'http://127.0.0.1:11434/api/chat', budgetMinor: '0', maxCostMinor: '0' });
-  const question = turn === 'clarification' ? '  Help me choose a view of this business.  ' : 'Compare the billed change.';
+  const question = turn === 'clarification' ? '  Help me choose a view of this business.  ' : 'Age the unlinked invoices.';
   const request = { question, purpose: 'conversation' as const, questionDisclosure: 'verbatim' as const, routeId: route.id };
   const preview = await gateway.preview(OWNER, request), approval = await gateway.approveOutbound(OWNER, preview.id);
   const result = await gateway.execute(OWNER, { ...request, previewId: preview.id, approvalId: approval.id });
@@ -55,7 +57,7 @@ async function fixture(turn: 'clarification' | 'errors' = 'clarification') {
     let refusal: { code: string; message: string } | undefined;
     try { await new CalculatorService(store).calculate(OWNER, call.args as { operation: string }); }
     catch (error) { assert.ok(error instanceof ChausarError); refusal = { code: error.code, message: error.message.slice(0, 512) }; }
-    assert.ok(refusal); assert.equal(refusal.code, 'COMPARISON_REQUIRED');
+    assert.ok(refusal); assert.equal(refusal.code, 'AGING_LINK_REQUIRED');
     answer = { id, kind: 'grounded-conversation', results: [{ tool: call.tool, error: refusal }], modelReceiptId: model.id,
       receipt: { id, kind: 'conversation-tool-receipt', modelReceiptId: model.id, resultRefs: [] } };
   }

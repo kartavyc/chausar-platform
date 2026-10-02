@@ -134,15 +134,15 @@ test('repeated objectives retain distinct final IDs and summaries without cross-
 });
 
 test('unknown and failing tools retain their canonical warnings alongside separately authored final prose', async t => {
-  const questions = ['What do you know about my business?', 'How did billing change?', 'Describe my business and compare billing.'];
-  const f = await fixture(t, { [questions[0]]: { calls: ['business.describe'] }, [questions[1]]: { calls: ['change'] },
-    [questions[2]]: { calls: ['business.describe', 'change'] } });
+  const questions = ['What do you know about my business?', 'Which invoices are overdue?', 'Describe my business and age its invoices.'];
+  const f = await fixture(t, { [questions[0]]: { calls: ['business.describe'] }, [questions[1]]: { calls: ['aging'] },
+    [questions[2]]: { calls: ['business.describe', 'aging'] } });
   for (const question of questions) {
     const original = (await tools(f, question)).answer, final = (await synthesize(f, original.id)).answer;
     const synthesis = (await f.calls()).at(-1); verifySlots(final, original, synthesis);
     assert.ok(final.cautions.length, 'Unknown or unavailable evidence must stay explicit.');
     for (const result of original.results) {
-      if (result.error) { assert.ok(final.cautions.some((item: any) => item.text === result.error.message)); assert.match(result.error.code, /COMPARISON_REQUIRED/); }
+      if (result.error) { assert.ok(final.cautions.some((item: any) => item.text === result.error.message)); assert.equal(result.error.code, 'AGING_LINK_REQUIRED'); }
       else for (const unknown of result.answer.unknowns) assert.ok(final.cautions.some((item: any) => item.text === unknown.message));
     }
     for (const caution of final.cautions) assert.ok(hasText(f.h.app, caution.text));
