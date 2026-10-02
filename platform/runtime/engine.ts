@@ -301,8 +301,9 @@ export class Engine {
       reconcileConversation: (ctx, previewId, view) => this.companionConversation(ctx, previewId, view),
       briefs: (ctx, view) => this.companionBriefs(ctx, view),
       receipt: (ctx, id, view) => {
-        const receipt = this.companionCalculator(view).receipt(ctx, id);
-        requirePhone(receipt.stale === false, 'PREVIEW_CHANGED');
+        // Reuse the current history boundary, including receipt/fact retention
+        // and its actual calculator/managed-source readiness guards on this view.
+        const receipt = new ConversationHistoryService(view, this.services.conversationHistory.options).currentReceipt(ctx, id, view);
         return { id: receipt.id, workspaceId: view.read().workspace.id, text: this.companionAnswerText(receipt) };
       },
     });
@@ -313,13 +314,6 @@ export class Engine {
     this.#activeRequests++;
     try { await createPhoneHttpHandler(this.companionRuntime().runtime.host)(request, response); }
     finally { this.#activeRequests--; this.notifyIdle(); }
-  }
-  private companionCalculator(view: StateStore): CalculatorService {
-    const connectors = new EngineConnectorService(view, this.options.connectorRuntime);
-    return new CalculatorService(view, {
-      consumerGuard: (ctx, request) => connectors.assertCalculationReady(ctx, request),
-      receiptGuard: (ctx, receipt) => connectors.assertReceiptReady(ctx, receipt),
-    });
   }
   /** Project already guarded local text and exact displayed figures; never synthesize a new answer. */
   private companionAnswerText(answer: any): string {

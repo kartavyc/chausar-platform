@@ -43,8 +43,9 @@ owner-brief results: the result's id, canonical persisted deliverable digest,
 original completion time, headline, exact report/coverage text, retained alert
 observation/episode/uncertainty text and receipt IDs. They do not create or accept
 a job, regenerate a report or infer a current breach from historical evidence.
-Separate receipt reads use CalculatorService and managed connector receipt
-readiness and require stale=false. A brief whose retained alert receipt cannot
+Separate receipt reads use ConversationHistory.currentReceipt with its actual
+CalculatorService and managed connector readiness, require stale=false, and
+enforce both receipt and fact retention. A brief whose retained alert receipt cannot
 meet that separate current receipt read refuses rather than promoting old
 arithmetic to a current number.
 

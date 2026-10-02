@@ -146,6 +146,10 @@ test('public phone chat executes one exact desktop-reviewed calculation and reco
   assert.deepEqual(await f.phone('request.status', { requestId: input.requestId }, grant), result);
   assert.deepEqual(await f.phone('request.cancel', { requestId: input.requestId }, grant), result);
   assert.equal(f.calls.length, 1, 'Neither status, retry nor cancel may rerun a completed provider request.');
+  await f.desktop('trust.update', { retentionDays: 0 });
+  const expiredEvidence = await f.wire(f.signed('receipt.read', { receiptId }, grant.credential));
+  assert.ok(expiredEvidence.body.error); assert.equal(expiredEvidence.body.result, undefined,
+    'Current phone receipt readback must also respect withdrawn receipt and fact retention.');
 });
 
 test('public phone brief uses the exact retained guarded cache after reopen and withholds withdrawn sources', async t => {
