@@ -652,10 +652,11 @@ export class WorkspaceBackupV2PostgresCustody {
       this.#scope.getStore()!.freezeSql = true;
       await this.#guard(context, this.#options.vault.read()); const captured = await this.#capture();
       if (expected) {
-        const actual = captureWorkspaceBackupV2({ ...captured.capture, source: structuredClone(expected.source) }, this.#options.budgets).pin;
-        check(same(actual, expected) && expected.source.vaultId === captured.capture.source.vaultId && expected.source.workspaceId === captured.state.workspace.id
+        check(expected.source.vaultId === captured.capture.source.vaultId && expected.source.workspaceId === captured.state.workspace.id
           && expected.source.revision === captured.state.revision && expected.source.enumerationId === captured.capture.source.enumerationId,
         'BACKUP_SOURCE_CHANGED', 'Actual complete source differs from its independently retained pin and physical enumeration.');
+        const actual = captureWorkspaceBackupV2({ ...captured.capture, source: structuredClone(expected.source) }, this.#options.budgets).pin;
+        check(same(actual, expected), 'BACKUP_SOURCE_CHANGED', 'Actual complete source differs from its independently retained pin and physical enumeration.');
       }
       const assertCurrent = () => this.#assertCapturedCurrent(context, captured);
       const result = await work({ independentlyEnumerated: true, state: structuredClone(captured.state), capture: structuredClone(captured.capture), assertCurrent,

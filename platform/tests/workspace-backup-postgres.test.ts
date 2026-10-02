@@ -250,6 +250,33 @@ test('PG protocol fixture captures every authentic private status and measures s
     adapterIssuedAuthority: true, completeTypedArtifacts: true, reopened: true, fullWorkspacePortable: false, nativeQualified: false }));
 });
 
+test('PG protocol fixture old backup pin refuses advanced encrypted authority before callback without custody publication', async t => {
+  const f = await fixture(t), summary = await f.host.create(context, { destinationId: 'old_revision_backup', confirmed: true });
+  const retained = await f.custody.ports.custody.read(context, summary.recordId), oldPin = structuredClone(retained.pin.sourcePin);
+  await f.vault.update(state => { state.workspace.name = 'Synthetic authority advanced after backup issuance'; });
+  assert.equal(f.vault.read().revision, oldPin.source.revision + 1);
+  const before = await f.capture(), beforeRefs = await refs(f.vault);
+  let callbackCalls = 0, refusedCode: string | undefined;
+  try {
+    await assert.rejects(f.custody.ports.withSource(context, oldPin, async () => { callbackCalls++; }), error => {
+      refusedCode = error instanceof ChausarError ? error.code : undefined;
+      return code('BACKUP_SOURCE_CHANGED')(error);
+    });
+  } finally {
+    const after = await f.capture();
+    assert.deepEqual(after, before, 'Stale-pin refusal must preserve exact advanced authority and every private custody envelope.');
+    assert.deepEqual(await refs(f.vault), beforeRefs, 'Refusal must not publish any new encrypted backup issuance.');
+    assert.equal(callbackCalls, 0, 'Stale authority must refuse before executing source work.');
+    assert.equal(f.adapter.lastLease?.active, false);
+    assert.equal(f.adapter.deleteCalls, 0);
+    assert.ok(after.artifacts.some(item => item.ref.id === `wb2_${sha(summary.recordId)}_archive`),
+      'The original historical archive remains present with its exact encrypted bytes.');
+    t.diagnostic(JSON.stringify({ qualification: 'injected-postgres-protocol-fixture', realVaultEncryption: true,
+      nativeQualified: false, historicalRevision: oldPin.source.revision, currentRevision: after.state.revision,
+      refusedCode, callbackCalls, exactSourcePreserved: true, newCustodyPublications: 0 }));
+  }
+});
+
 test('PG protocol fixture restores complete inert archive and reads exact reservation and receipt through another Vault reopen', { timeout: 30_000 }, async t => {
   const f = await fixture(t), summary = await f.host.create(context, { destinationId: 'inert_backup', confirmed: true });
   const retained = await f.custody.ports.custody.read(context, summary.recordId);
