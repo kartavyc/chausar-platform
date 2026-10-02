@@ -75,13 +75,13 @@ test('independent paired HTTP current source withdrawal and a revoked owner epoc
   assert.equal(epochRetained.ownerId, cofounder.member.id); assert.equal(epochRetained.ownerEpoch, 1);
   const revoked = await epochHost.rpc('members.revoke', { id: cofounder.member.id });
   assert.equal(revoked.epoch, 2); assert.equal(revoked.active, false);
-  await epochHost.refuses('jobs.list', {}, 'INVALID_SESSION', cofounder.token);
-  await epochHost.refuses('jobs.accept', { id: epochRun.id }, 'INVALID_SESSION', cofounder.token);
+  await epochHost.refuses('jobs.list', {}, 'UNAUTHENTICATED', cofounder.token);
+  await epochHost.refuses('jobs.accept', { id: epochRun.id }, 'UNAUTHENTICATED', cofounder.token);
   assert.ok(!(await epochHost.rpc('jobs.list')).some((job: any) => job.id === epochRun.id));
   await epochHost.refuses('jobs.accept', { id: epochRun.id }, 'JOB_OWNER_REQUIRED');
   await epochHost.refuses('receipts.get', { id: known.receipt.id }, 'RECEIPT_FORBIDDEN');
   await epochHost.restart();
-  await epochHost.refuses('jobs.list', {}, 'INVALID_SESSION', cofounder.token);
+  await epochHost.refuses('jobs.list', {}, 'UNAUTHENTICATED', cofounder.token);
   await epochHost.refuses('jobs.accept', { id: epochRun.id }, 'JOB_OWNER_REQUIRED');
   assert.deepEqual(epochHost.retainedJob(epochRun.id), epochRetained); epochHost.noDispatch();
 });
