@@ -133,11 +133,16 @@ test('strict archive refuses missing, duplicate, unknown, truncated, tampered an
   for (const item of invalid) {
     const changed = structuredClone(archive); item.alter(changed);
     assert.throws(() => inspectWorkspaceBackupV2(reseal(changed), budget), (error: unknown) => error instanceof ChausarError, item.name);
+    assert.throws(() => workspaceBackupV2Bytes(JSON.parse(reseal(changed)), budget),
+      (error: unknown) => error instanceof ChausarError, `byte reconstruction: ${item.name}`);
   }
   const wire = encodeWorkspaceBackupV2(archive, budget);
   assert.throws(() => inspectWorkspaceBackupV2(wire.slice(0, -1), budget), { code: 'BACKUP_JSON' });
   assert.throws(() => inspectWorkspaceBackupV2(wire.replace('"backupFormat":', '"backupFormat":"duplicate","backupFormat":'), budget), { code: 'BACKUP_DUPLICATE' });
   assert.throws(() => inspectWorkspaceBackupV2(`${wire}\n`, budget), { code: 'BACKUP_CANONICAL' });
+  workspaceBackupV2Bytes(archive, budget);
+  archive.digest = 'f'.repeat(64);
+  assert.throws(() => workspaceBackupV2Bytes(archive, budget), { code: 'BACKUP_DIGEST' });
 });
 
 test('independent source pin rejects coherent attacker rehash after omissions or workspace substitution', async t => {
@@ -181,6 +186,15 @@ test('explicit byte, count, depth and node budgets refuse whole captures without
   assert.throws(() => inspectWorkspaceBackupV2(wire, { ...budget, maxJsonDepth: 2 }), { code: 'BACKUP_LIMIT' });
   assert.throws(() => inspectWorkspaceBackupV2(wire, { ...budget, maxJsonNodes: 10 }), { code: 'BACKUP_LIMIT' });
   assert.throws(() => captureWorkspaceBackupV2(capture, { ...budget, maxEntries: 0 }), { code: 'BACKUP_BUDGET_REQUIRED' });
+  for (const constrained of [{ maxArchiveUtf8Bytes: wire.length - 1 }, { maxEntryBytes: 20 },
+    { maxTotalEntryBytes: total - 1, maxEntryBytes: maximum }, { maxEntries: 10 }, { maxJsonDepth: 2 }, { maxJsonNodes: 10 }]) {
+    const limited = { ...budget, ...constrained }; let expectedCode = '';
+    assert.throws(() => encodeWorkspaceBackupV2(archive, limited), (error: unknown) => {
+      assert.ok(error instanceof ChausarError); expectedCode = error.code; return true;
+    });
+    assert.throws(() => workspaceBackupV2Bytes(archive, limited), { code: expectedCode });
+  }
+  assert.throws(() => workspaceBackupV2Bytes(archive, { ...budget, maxEntries: 0 }), { code: 'BACKUP_BUDGET_REQUIRED' });
 });
 
 function hostFixture(capture: WorkspaceBackupV2Capture, state: ReturnType<Vault['read']>) {

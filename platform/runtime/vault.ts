@@ -293,7 +293,7 @@ async function readBounded(path: string, exactSize?: number): Promise<string> {
     if (!unchanged(await handle.stat({ bigint: true }))) fail('ARTIFACT_LIMIT', 'Encrypted artifact changed before bounded capture.');
     const chunks: Buffer[] = []; let size = 0;
     while (true) {
-      const chunk = Buffer.alloc(Math.min(64 * 1024, exactSize! + 1 - size));
+      const chunk = Buffer.alloc(Math.min(1024 * 1024, exactSize! + 1 - size));
       const { bytesRead } = await handle.read(chunk, 0, chunk.length, null);
       if (!bytesRead) break;
       size += bytesRead;

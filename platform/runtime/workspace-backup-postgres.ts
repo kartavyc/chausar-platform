@@ -127,7 +127,7 @@ async function readRegular(path: string, logical: string, maximum: number,
     check(same(physical(opened), physical(before)) && opened.size === before.size, 'BACKUP_FILE_CHANGED', 'A physical file changed before capture.');
     const chunks: Buffer[] = []; let size = 0;
     while (true) {
-      const chunk = Buffer.alloc(Math.min(64 * 1024, maximum + 1 - size));
+      const chunk = Buffer.alloc(Math.min(1024 * 1024, maximum + 1 - size));
       const result = await file.read(chunk, 0, chunk.length, null);
       if (!result.bytesRead) break;
       size += result.bytesRead; check(size <= maximum, 'BACKUP_LIMIT', 'A physical file grew beyond its explicit byte budget.');

@@ -325,7 +325,7 @@ export function validateWorkspaceBackupV2(text: string, expected: WorkspaceBacku
 }
 /** Exact original bytes. Reconstructing or sorting the parsed authority envelope breaks v1 wrapper AAD. */
 export function workspaceBackupV2Bytes(archive: WorkspaceBackupV2Archive, budget: WorkspaceBackupV2Budgets): WorkspaceBackupV2Capture {
-  const checked = inspectWorkspaceBackupV2(encodeWorkspaceBackupV2(archive, budget), budget);
+  budgets(budget); const checked = inspectWorkspaceBackupV2(canonical(archive, budget), budget);
   return { source: structuredClone(checked.pin.source), authority: Buffer.from(checked.authorityBase64, 'base64'),
     artifacts: checked.artifacts.map((entry, index) => ({ ref: { id: entry.id, purpose: entry.purpose,
       valueDigest: checked.pin.artifacts[index].valueDigest, diskBytes: checked.pin.artifacts[index].bytes }, bytes: Buffer.from(entry.dataBase64, 'base64') })),

@@ -130,3 +130,39 @@ test('actual encrypted custody bounds descriptor reads when a private file grows
     assert.equal((await lstat(file)).size,original.length+64*1024,'Failed capture preserves the real growth evidence.');
   }finally{statHook.mock.restore();readHook.mock.restore();}
 });
+
+test('actual encrypted custody reads large authentic artifacts with bounded one-MiB requests and preserves exact ordered bytes',async t=>{
+  const f=await fixture(t),limits={...budget,maxEntryBytes:4*1024*1024};
+  for(const [purpose,id,value] of [
+    ['workspace-interchange','z_terminal',{synthetic:true,state:'discarded'}],
+    ['workspace-interchange','large_capture',{synthetic:'S'.repeat(1_200_000)}],
+    ['private-trial','preceding_control',{synthetic:true}],
+  ] as const)await f.vault.writeArtifact({purpose,id,value,expectedDigest:null});
+  const file=join(f.directory,'private-artifacts','workspace-interchange','large_capture.encrypted.json');
+  const original=await readFile(file),sample=await open(file,'r'),targetStat=await sample.stat();
+  assert.ok(original.length>1024*1024,'Exercise actual authenticated ciphertext larger than one MiB.');
+  const prototype=Object.getPrototypeOf(sample) as FileHandle;await sample.close();
+  const realRead=prototype.read,realStat=prototype.stat;
+  let calls=0,maximumRequest=0,totalRead=0;
+  const hook=t.mock.method(prototype,'read',async function(this:FileHandle,...args:unknown[]){
+    const stat=await realStat.call(this),target=stat.ino===targetStat.ino&&stat.dev===targetStat.dev;
+    if(target){
+      const request=typeof args[2]==='number'?args[2]
+        :typeof (args[0] as {length?:unknown})?.length==='number'?(args[0] as {length:number}).length:0;
+      assert.ok(Number.isSafeInteger(request)&&request>0,'Every descriptor read requires an explicit positive byte request.');
+      calls++;maximumRequest=Math.max(maximumRequest,request);
+    }
+    const result=await Reflect.apply(realRead,this,args);if(target)totalRead+=result.bytesRead;return result;
+  });
+  let capture:VaultEncryptedCustodyCapture;
+  try{capture=await f.vault.snapshot(()=>f.vault.captureEncryptedCustody(limits));}
+  finally{hook.mock.restore();}
+  assert.deepEqual(capture.artifacts.map(item=>`${item.ref.purpose}/${item.ref.id}`),[
+    'private-trial/preceding_control','workspace-interchange/large_capture','workspace-interchange/z_terminal']);
+  for(const item of capture.artifacts)assert.deepEqual(Buffer.from(item.bytes),await readFile(join(f.directory,'private-artifacts',item.ref.purpose,`${item.ref.id}.encrypted.json`)));
+  assert.deepEqual(Buffer.from(capture.artifacts.find(item=>item.ref.id==='large_capture')!.bytes),original);
+  assert.deepEqual(await f.vault.snapshot(()=>f.vault.authenticateEncryptedCustody({...capture,source:source(capture)},limits)),f.vault.read());
+  t.diagnostic(JSON.stringify({evidence:'real-filesystem-authenticated-custody',artifactBytes:original.length,descriptorReadCalls:calls,maximumRequestBytes:maximumRequest,totalReadBytes:totalRead}));
+  assert.equal(totalRead,original.length);assert.ok(maximumRequest<=1024*1024,'Each descriptor read must retain the fixed one-MiB allocation cap.');
+  assert.ok(calls<=Math.ceil(original.length/(1024*1024))+2,'A large artifact must fit one-MiB reads plus bounded partial/EOF overhead.');
+});

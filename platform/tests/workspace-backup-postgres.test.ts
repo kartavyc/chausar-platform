@@ -436,6 +436,46 @@ test('PG protocol fixture wider filesystem leaves overlap through at most four a
   }
 });
 
+test('PG protocol fixture large wider files use bounded one-MiB reads and retain an exact witness', async t => {
+  const f = await fixture(t), directory = join(f.vault.directory, 'reports'); await mkdir(directory);
+  const path = join(directory, 'large.bin'), chunkBytes = 1024 * 1024;
+  const bytes = Buffer.alloc(2 * chunkBytes + 123, 0x5a); await writeFile(path, bytes);
+  const originalStat = await lstat(path, { bigint: true }), originalOpen = filesystem.open;
+  const handles: Awaited<ReturnType<typeof filesystem.open>>[] = [];
+  const reads: { requested: number; returned: number }[] = [];
+  filesystem.open = async (...args) => {
+    const handle = await originalOpen(...args);
+    if (args[0] === path) {
+      handles.push(handle); const read = handle.read.bind(handle);
+      handle.read = (async (buffer: Buffer, offset: number, length: number, position: number | null) => {
+        assert.equal(offset, 0); assert.equal(length, buffer.byteLength); assert.equal(position, null);
+        const result = await read(buffer, offset, length, position);
+        reads.push({ requested: length, returned: result.bytesRead }); return result;
+      }) as typeof handle.read;
+    }
+    return handle;
+  };
+  syncBuiltinESMExports();
+  try {
+    const inventory = await f.custody.withHeldSource(context, () => f.custody.inspectHeldNamespaces());
+    const witness = inventory.files.find(item => item.path === 'workspace/reports/large.bin'); assert.ok(witness);
+    assert.equal(witness.bytes, bytes.length); assert.equal(witness.sha256, sha(bytes));
+    assert.deepEqual({ dev: witness.dev, ino: witness.ino, birthtimeNs: witness.birthtimeNs },
+      { dev: String(originalStat.dev), ino: String(originalStat.ino), birthtimeNs: String(originalStat.birthtimeNs) });
+    assert.equal(witness.mtimeNs, String(originalStat.mtimeNs)); assert.equal(witness.ctimeNs, String(originalStat.ctimeNs));
+    assert.equal(handles.length, 1); assert.equal(handles[0].fd, -1);
+    assert.ok(reads.every(read => read.requested > 0 && read.requested <= chunkBytes), 'Every actual request stays within the fixed one-MiB bound.');
+    assert.equal(reads[0].requested, chunkBytes, 'Large leaves must use the reviewed chunk size rather than many smaller reads.');
+    assert.ok(reads.length <= Math.ceil(bytes.length / chunkBytes) + 2, 'Read-call overhead stays bounded by file bytes and the fixed chunk size.');
+    assert.equal(reads.reduce((sum, read) => sum + read.returned, 0), bytes.length); assert.equal(reads.at(-1)!.returned, 0);
+    assert.equal(f.adapter.lastLease?.active, false); assert.equal(f.adapter.deleteCalls, 0);
+    t.diagnostic(JSON.stringify({ actualWiderFileBytes: bytes.length, readCalls: reads.length,
+      maxReadRequestBytes: Math.max(...reads.map(read => read.requested)), actualHandleClosed: true, nativeQualified: false }));
+  } finally {
+    filesystem.open = originalOpen; syncBuiltinESMExports(); await Promise.all(handles.map(handle => handle.close()));
+  }
+});
+
 test('PG protocol fixture wider leaf batches preflight count, bytes and late hardlinks before opening earlier leaves', async t => {
   for (const refusal of ['count', 'aggregate-bytes', 'late-hardlink'] as const) await t.test(refusal, async sub => {
     const f = await fixture(sub), directory = join(f.vault.directory, 'reports'); await mkdir(directory);
