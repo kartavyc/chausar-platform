@@ -605,11 +605,12 @@ export class Engine {
         // Alert episodes intentionally retain historical receipts. Their current
         // uncertainty and observation state are checked by the exact section pin.
         // Every reference still needs current access; only the current report's
-        // arithmetic must be fresh rather than a retained historical observation.
+        // arithmetic must be fresh and within current receipt/row retention.
         const reportIds = job.deliverable.result?.report?.receiptIds;
         if (!Array.isArray(reportIds) || reportIds.length === 0 || reportIds.some((id: string) => !ids.includes(id))) return false;
-        const receipts = new Map<string, CalculationReceipt>(ids.map((id: string) => [id, calculator.receipt(ctx, id)]));
-        if (reportIds.some((id: string) => receipts.get(id)?.stale !== false)) return false;
+        for (const id of ids) calculator.receipt(ctx, id);
+        const history = new ConversationHistoryService(view, this.services.conversationHistory.options);
+        for (const id of reportIds) history.currentReceipt(ctx, id, view);
         const currentDecisions = new Set(new ReportService(view, evidenceOptions).decisions(ctx).map((item: any) => item.id));
         const savedAlerts = job.deliverable.result?.alerts;
         if (savedAlerts) {
