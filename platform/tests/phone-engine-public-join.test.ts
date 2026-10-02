@@ -146,7 +146,15 @@ test('public phone chat executes one exact desktop-reviewed calculation and reco
   assert.deepEqual(await f.phone('request.status', { requestId: input.requestId }, grant), result);
   assert.deepEqual(await f.phone('request.cancel', { requestId: input.requestId }, grant), result);
   assert.equal(f.calls.length, 1, 'Neither status, retry nor cancel may rerun a completed provider request.');
-  await f.desktop('trust.update', { retentionDays: 0 });
+  // Explicit synthetic age fixture through the real supported encrypted writer;
+  // no host clock seam or policy-bound relaxation. Current policy minimum is one day.
+  await f.engine.vault!.update(state => {
+    const aged = state.receipts.find(item => item.id === receiptId)!;
+    const twoDaysOld = new Date(Date.now() - 2 * 86400000).toISOString();
+    aged.createdAt = twoDaysOld;
+    for (const row of state.facts.filter(item => aged.rowIds.includes(item.id))) row.learnedAt = twoDaysOld;
+  });
+  await f.desktop('trust.update', { retentionDays: 1 });
   const expiredEvidence = await f.wire(f.signed('receipt.read', { receiptId }, grant.credential));
   assert.ok(expiredEvidence.body.error); assert.equal(expiredEvidence.body.result, undefined,
     'Current phone receipt readback must also respect withdrawn receipt and fact retention.');
