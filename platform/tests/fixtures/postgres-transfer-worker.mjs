@@ -22,6 +22,7 @@ const stateDigest = state => sha(canonical(state));
 const counts = state => Object.fromEntries(Object.entries(state).filter(([, value]) => Array.isArray(value)).map(([key, value]) => [key, value.length]));
 const refFence = capture => capture.artifacts.map(item => ({ref: item.ref, sha256: sha(Buffer.from(item.bytes)), bytes: item.bytes.length}))
   .sort((a, b) => canonical(a.ref).localeCompare(canonical(b.ref)));
+let completedCases = [];
 
 async function execute(message) {
   assert.equal(message.contractVersion, CONTRACT);
@@ -35,7 +36,7 @@ async function execute(message) {
   const abort = new AbortController();
   const profile = await wrapper.constructTransferProfile({sourcePin: message.sourcePin, descriptor: message.descriptor,
     credentials: message.credentials, phase: message.phase, signal: abort.signal});
-  if (!profile || !['enableCapabilities', 'currentSourceContext', 'captureSourceCustody', 'readNativeSlot',
+  if (!profile || !['enableCapabilities', 'currentSourceContext', 'captureSourceCustody', 'authenticateSourceCustody', 'readNativeSlot',
     'seedPublicHistory', 'withPreparedStage', 'close', 'diagnostics'].every(name => typeof profile[name] === 'function')) {
     fail('REAL_CONSTRUCTOR_PROFILE_HOOKS_REQUIRED');
   }
@@ -51,7 +52,7 @@ async function execute(message) {
   if (!connection || connection.host !== '127.0.0.1' || !Number.isInteger(connection.port)
     || connection.port < 1024 || connection.port > 65535 || typeof connection.user !== 'string'
     || typeof connection.password !== 'string') fail('OWNED_LOOPBACK_NATIVE_CONNECTION_REQUIRED');
-  const mark = id => cases.push({id, passed: true});
+  const mark = id => {const value = {id, passed: true}; cases.push(value); completedCases.push(value);};
   const assertNoProviders = async () => {
     const diagnostic = await profile.diagnostics();
     for (const key of ['providerCalls', 'externalEffectCalls', 'automaticDispatchCalls']) assert.equal(diagnostic[key], 0, key);
@@ -240,7 +241,7 @@ async function execute(message) {
     const original = await profile.captureSourceCustody(captureBudgets);
     assert.equal(original.storageKind, 'postgres'); assert.equal(original.authorityKind, 'adapter-issued-envelope');
     assert.deepEqual(original.state, historical);
-    assert.deepEqual(await source.engine.vault.authenticateEncryptedCustody(original, captureBudgets), historical);
+    assert.deepEqual(await profile.authenticateSourceCustody(original, captureBudgets), historical);
     await witness(source.engine);
     for (const part of ['archive', 'pin', 'commit']) assert.ok(original.artifacts.some(item => item.ref.id === artifactId('wic', ids.materialId, part)));
     const made = await source.rpc('workspace.backup.v2.create', {destinationId: ids.backupId, confirmed: true});
@@ -373,6 +374,6 @@ process.once('message', async message => {
     process.send?.({type: 'result', result}, () => {process.disconnect?.();});
   } catch (error) {
     const failureCode = typeof error?.code === 'string' && /^[A-Z0-9_.-]+$/.test(error.code) ? error.code : 'NATIVE_ACCEPTANCE_ASSERTION_FAILED';
-    process.exitCode = 1; process.send?.({type: 'result', result: {passed: false, failureCode}}, () => {process.disconnect?.();});
+    process.exitCode = 1; process.send?.({type: 'result', result: {passed: false, failureCode, cases: completedCases}}, () => {process.disconnect?.();});
   }
 });

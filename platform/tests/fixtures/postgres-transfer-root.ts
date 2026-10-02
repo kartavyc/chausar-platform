@@ -5,7 +5,7 @@ import {lstat, mkdir, readFile, realpath} from 'node:fs/promises';
 import {isAbsolute, join, relative, resolve, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Engine} from '../../runtime/engine.ts';
-import {Vault, type VaultEncryptedCustodyBudgets} from '../../runtime/vault.ts';
+import {Vault, type VaultEncryptedCustodyBudgets, type VaultEncryptedCustodyCapture} from '../../runtime/vault.ts';
 import {hash, type State} from '../../runtime/contracts.ts';
 import {PostgresSnapshotAdapter, postgresEnvelopeDigest} from '../../runtime/postgres.ts';
 import {InstalledPostgresWorkspaceProfile} from '../../runtime/workspace-postgres-installed-profile.ts';
@@ -145,6 +145,12 @@ export async function constructNativeTransferProfile(input: {sourcePin: SourcePi
         assert.ok(sourceEngine.vault);
         return requireInstalled().installedCustody().backup.withHeldSource(sourceEngine.bootstrapContext(),
           () => sourceEngine.vault!.captureEncryptedCustody(budgets));
+      },
+      authenticateSourceCustody(capture: VaultEncryptedCustodyCapture, budgets: VaultEncryptedCustodyBudgets) {
+        assert.ok(sourceEngine.vault);
+        return requireInstalled().installedCustody().backup.withHeldSource(sourceEngine.bootstrapContext(),
+          () => sourceEngine.vault!.authenticateEncryptedCustody({ authority: capture.authority, artifacts: capture.artifacts,
+            source: { vaultId: capture.vaultId, workspaceId: capture.state.workspace.id, revision: capture.state.revision } }, budgets));
       },
       readNativeSlot: nativeWitness,
       async seedPublicHistory({baseline}: {baseline: CalculationReceipt[]}) {
