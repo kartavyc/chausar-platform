@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { generateKeyPairSync, randomBytes, sign } from 'node:crypto';
-import type { ChildProcess } from 'node:child_process';
+import { fork, type ChildProcess, type ForkOptions } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 import { EngineHarness } from '../../app/desktop/engine-harness.cjs';
 import ipcContract from '../../app/desktop/ipc-contract.cjs';
+import type { PhoneSessionInvite, PhoneSessionMetadata } from '../runtime/engine-phone-sessions.ts';
+import type { SessionGrant } from '../runtime/phone/contracts.ts';
 const { METHODS, validateRequest, assertTrustedSender, publicError } = ipcContract;
 
 class Child extends EventEmitter {
@@ -77,8 +79,11 @@ process.on('message', async message => {
 });
 runEngineWorker(engine);
 `, 'utf8');
+  const launched: { child?: ChildProcess } = {};
   const harness = new EngineHarness({ workerPath, environment: {}, startupTimeoutMs: 10000,
-    requestTimeoutMs: 10000, shutdownTimeoutMs: 10000 });
+    requestTimeoutMs: 10000, shutdownTimeoutMs: 10000, forkProcess: (path, args, options) => {
+      const child = fork(path, args, options as ForkOptions); launched.child = child; return child;
+    } });
   t.after(async () => {
     await harness.stop();
     const target = resolve(directory);
@@ -88,9 +93,9 @@ runEngineWorker(engine);
   });
   await harness.start();
   const mainFrame = { url: 'chausar://app/index.html' }, contents = { mainFrame };
-  const owner = (method: string, payload: Record<string, unknown> = {}) => {
+  const owner = <T = unknown>(method: string, payload: Record<string, unknown> = {}): Promise<T> => {
     assertTrustedSender({ sender: contents, senderFrame: mainFrame }, contents);
-    return harness.request(method, payload);
+    return harness.request(method, payload) as Promise<T>;
   };
   await owner('workspace.create', { name: 'SYNTHETIC desktop phone owner business', folder: 'fixture',
     passphrase: 'SYNTHETIC disposable desktop phone passphrase', demo: false, pack: 'ecommerce' });
@@ -112,7 +117,7 @@ runEngineWorker(engine);
   await owner('trust.update', { send: 'shape' });
   const keys = generateKeyPairSync('ed25519'), deviceId = 'synthetic-owner-phone', keyId = 'synthetic-owner-key';
   const devicePublicKey = keys.publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
-  const invite = await owner('phone.invite', { memberId: 'owner', deviceId, keyId, channel: 'web', devicePublicKey,
+  const invite = await owner<PhoneSessionInvite>('phone.invite', { memberId: 'owner', deviceId, keyId, channel: 'web', devicePublicKey,
     capabilities: ['chat'], inviteTtlMs: 60000, sessionTtlMs: 600000 });
   assert.deepEqual(await owner('phone.sessions'), []);
   const proof = sign(null, Buffer.from(JSON.stringify(['chausar-phone-pairing-v1', invite.inviteCode,
@@ -126,8 +131,8 @@ runEngineWorker(engine);
   const headers = { 'content-type': 'application/json', 'x-chausar-device': deviceId, 'x-chausar-key': keyId,
     'x-chausar-time': timestamp, 'x-chausar-nonce': nonce,
     'x-chausar-proof': sign(null, bytes, keys.privateKey).toString('base64url') };
-  const child = harness.worker as ChildProcess;
-  const pair = await new Promise<{ status: number; body: { result?: any; error?: { code: string } }; providerCalls: number }>((resolvePair, reject) => {
+  assert.ok(launched.child); const child = launched.child;
+  const pair = await new Promise<{ status: number; body: { result?: SessionGrant; error?: { code: string } }; providerCalls: number }>((resolvePair, reject) => {
     const id = 'synthetic-owner-pair';
     const cleanup = () => { clearTimeout(timer); child.removeListener('message', receive); };
     const receive = (message: any) => {
@@ -139,20 +144,21 @@ runEngineWorker(engine);
     child.send({ kind: 'synthetic-companion-http', id, body, headers }, error => { if (error) { cleanup(); reject(error); } });
   });
   assert.equal(pair.status, 200); assert.equal(pair.body.error, undefined); assert.equal(pair.providerCalls, 0);
-  const grant = pair.body.result, sessionId = grant.authority.sessionId;
+  assert.ok(pair.body.result); const grant = pair.body.result, sessionId = grant.authority.sessionId;
   assert.notEqual(grant.credential, invite.inviteCode);
-  const metadata = await owner('phone.sessions');
+  const metadata = await owner<PhoneSessionMetadata[]>('phone.sessions');
   assert.equal(metadata.length, 1); assert.equal(metadata[0].sessionId, sessionId);
   assert.deepEqual(Object.keys(metadata[0]).sort(), ['binding', 'capabilities', 'channel', 'expiresAt', 'keyId', 'revoked', 'sessionId']);
   const request = { purpose: 'conversation', questionDisclosure: 'verbatim', routeId: 'synthetic-owner-phone-route',
     question: 'SYNTHETIC: calculate September revenue from the reviewed source.',
     sourceIds: ['synthetic-owner-sale'], period: { from: '2026-09-01', to: '2026-09-30' } };
-  const preview = await owner('models.preview', request), approval = await owner('models.approve', { id: preview.id });
+  const preview = await owner<{ id: string }>('models.preview', request);
+  const approval = await owner<{ id: string }>('models.approve', { id: preview.id });
   const offerInput = { sessionId, request: { ...request, previewId: preview.id, approvalId: approval.id } };
-  const offer = await owner('phone.conversation.offer', offerInput);
+  const offer = await owner<{ sessionId: string; previewId: string }>('phone.conversation.offer', offerInput);
   assert.equal(offer.sessionId, sessionId); assert.equal(offer.previewId, preview.id);
   assert.deepEqual(await owner('phone.revoke', { sessionId }), { sessionId, revoked: true });
-  assert.equal((await owner('phone.sessions'))[0].revoked, true);
+  assert.equal((await owner<PhoneSessionMetadata[]>('phone.sessions'))[0].revoked, true);
   await assert.rejects(owner('phone.conversation.offer', offerInput), code('ACCESS_REVOKED'));
   assert.throws(() => validateRequest({ method: 'chat.start', payload: {} }), code('INVALID_REQUEST'));
 });
