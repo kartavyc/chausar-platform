@@ -8,6 +8,8 @@ import { authorize, check, ChausarError, type Context, type State } from './cont
 import { acquireProcessLock } from './process-lock.ts';
 import { assertSourceAccess } from './trust.ts';
 import { safeDirectory, Vault, type PrivateArtifactRef } from './vault.ts';
+import { WorkspaceActivationStagingInventory, preflightWorkspaceActivationStaging,
+  type WorkspaceActivationStagingInventoryLease } from './workspace-activation-staging-inventory.ts';
 import type { PostgresSnapshotAdapter, PostgresSnapshotLease } from './postgres.ts';
 import type { WorkspacePostgresCustody, PostgresStorageIdentity, PostgresAuthorityIdentity } from './workspace-postgres-custody.ts';
 import {
@@ -19,6 +21,7 @@ import {
 } from './workspace-backup-v2.ts';
 
 const CONTROL = '.workspace-backup-control';
+const ACTIVATION_CONTROL = '.workspace-activation-control';
 const INERT = 'backup.inert.json';
 const idPattern = /^[A-Za-z0-9_-]{1,100}$/;
 const slotPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -69,6 +72,8 @@ export type WorkspaceBackupV2PostgresOptions = {
   externalKeyRequirements: WorkspaceBackupV2ExternalKeyRequirement[];
   /** Root authorization to independently hash and measure named siblings without decrypting or admitting them. */
   outsideApplicationNamespaces?: { name: string; requirement: string }[];
+  /** Exact constructor-issued activation journal/claim/manifest custody. Never an RPC namespace exemption. */
+  activationStaging?: WorkspaceActivationStagingInventory;
   /** Constructor-only opt-in for separately scoped source/journal/target databases.
    * Retain ordinary source relation SHARE locks before callback or measurement.
    * This excludes their writers/DDL/main-table maintenance, not independent TOAST
@@ -107,10 +112,13 @@ async function syncDirectory(path: string) {
   catch (error: any) { if (process.platform !== 'win32' || !['EISDIR', 'EPERM', 'EACCES', 'EINVAL', 'EBADF'].includes(error.code)) throw error; }
   finally { await file?.close(); }
 }
-async function readRegular(path: string, logical: string, maximum: number): Promise<File> {
+async function readRegular(path: string, logical: string, maximum: number,
+  issued?: Pick<Witness, 'dev' | 'ino' | 'birthtimeNs' | 'bytes' | 'sha256'>): Promise<File> {
   await safeDirectory(dirname(path));
   const before = await lstat(path, { bigint: true });
   check(before.isFile() && !before.isSymbolicLink() && before.nlink === 1n, 'BACKUP_UNSAFE_FILE', 'Custody requires regular files without symbolic or hard links.');
+  check(!issued || same(physical(before), { dev: issued.dev, ino: issued.ino, birthtimeNs: issued.birthtimeNs }) && before.size === BigInt(issued.bytes),
+    'BACKUP_ACTIVATION_CUSTODY_CHANGED', 'An issued activation file must retain its exact physical identity and size before opening.');
   check(before.size <= BigInt(maximum), 'BACKUP_LIMIT', 'A physical file exceeds the explicit remaining filesystem budget.');
   const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
   try {
@@ -163,11 +171,14 @@ export class WorkspaceBackupV2PostgresCustody {
     'BACKUP_BUDGET_REQUIRED', 'Supply all six explicit archive budgets.');
     check(options.heldSourceSqlExclusion === undefined || options.heldSourceSqlExclusion === 'share-relations',
       'BACKUP_SQL_EXCLUSION_REQUIRED', 'Select only the explicit constructor ordinary-relation SHARE exclusion.');
+    check(options.activationStaging === undefined || options.activationStaging instanceof WorkspaceActivationStagingInventory,
+      'BACKUP_ACTIVATION_SCOPE', 'Activation staging requires the exact authenticated constructor custody capability.');
+    options.activationStaging?.assertBinding(options.vault, applicationDirectory);
     this.#options = { ...options, applicationDirectory, budgets: structuredClone(options.budgets), filesystemBudgets: structuredClone(budget),
       externalKeyRequirements: structuredClone(options.externalKeyRequirements), outsideApplicationNamespaces: structuredClone(options.outsideApplicationNamespaces ?? []) };
     const outside = this.#options.outsideApplicationNamespaces!;
     check(outside.every(item => item && Object.keys(item).sort().join(',') === 'name,requirement' && /^[A-Za-z0-9_.-]+$/.test(item.name)
-      && ![...widerApplication, '.', '..', child].includes(item.name)
+      && ![...widerApplication, ACTIVATION_CONTROL, '.', '..', child].includes(item.name)
       && typeof item.requirement === 'string' && item.requirement.trim().length > 0)
       && new Set(outside.map(item => item.name.toLowerCase())).size === outside.length,
     'BACKUP_SOURCE_SCOPE', 'Explicitly classify every unrelated application sibling before excluding its custody.');
@@ -405,19 +416,32 @@ export class WorkspaceBackupV2PostgresCustody {
     return { postgres: { storage: structuredClone(scope.storage), authority: structuredClone(scope.authority), catalog }, namespaces };
   }
   async #inventory(): Promise<Inventory> {
+    const staging = this.#options.activationStaging;
+    return staging ? staging.withInventory(lease => this.#inventoryHeld(lease)) : this.#inventoryHeld();
+  }
+  async #inventoryHeld(stagingLease?: WorkspaceActivationStagingInventoryLease): Promise<Inventory> {
     const b = this.#options.filesystemBudgets, vault = this.#options.vault;
     const source = await safeDirectory(vault.directory), rootStat = await lstat(source, { bigint: true });
     const files: Witness[] = [], directories: Inventory['directories'] = [], namespaces: WorkspaceBackupV2Namespace[] = [];
     let totalBytes = 0, entries = 0;
+    const measured = new Map<string, Witness>();
+    let stagingLayout: Awaited<ReturnType<typeof preflightWorkspaceActivationStaging>> | undefined;
+    const stagingControlled = (path: string) => stagingLayout?.controlledRoots.some(root => path === root || path.startsWith(`${root}${sep}`));
     const retain = async (path: string, logical: string) => {
       check(++entries <= b.maxFiles, 'BACKUP_LIMIT', 'Physical enumeration exceeds its explicit entry count budget.');
-      const item = await readRegular(path, logical, b.maxBytes - totalBytes); totalBytes += item.bytes.length;
+      check(!stagingControlled(path) || stagingLayout!.expectedFiles.has(path),
+        'BACKUP_ACTIVATION_STAGING_UNBOUND', 'An activation file must have an exact authenticated manifest identity before opening.');
+      const item = await readRegular(path, logical, b.maxBytes - totalBytes, stagingLayout?.expectedFiles.get(path)); totalBytes += item.bytes.length;
+      measured.set(path, item.witness);
       if (!this.#scope.getStore()?.locks.has(path) && !this.#scope.getStore()?.staging.has(path)) files.push(item.witness);
       return item.witness;
     };
     const walk = async (path: string, logical: string, depth: number): Promise<{entries: number; bytes: number}> => {
       check(depth <= b.maxDepth && ++entries <= b.maxFiles, 'BACKUP_LIMIT', 'Physical directory enumeration exceeds its explicit depth/count budget.');
-      await safeDirectory(path); directories.push({ path: logical, physical: physical(await lstat(path, { bigint: true })) });
+      await safeDirectory(path); const currentPhysical = physical(await lstat(path, { bigint: true }));
+      check(!stagingControlled(path) || stagingLayout!.directories.some(item => item.path === path && same(item.physical, currentPhysical)),
+        'BACKUP_ACTIVATION_STAGING_UNBOUND', 'An activation directory must have an exact authenticated manifest identity.');
+      directories.push({ path: logical, physical: currentPhysical });
       let count = 0, bytes = 0;
       const names = (await readdir(path)).sort();
       check(new Set(names.map(name => name.toLowerCase())).size === names.length, 'BACKUP_INVENTORY_INCOMPLETE', 'Filesystem case aliases require separate review.');
@@ -462,11 +486,16 @@ export class WorkspaceBackupV2PostgresCustody {
       reservations.set(reservation.targetId, reservation);
     }
     const authorized = new Map(this.#options.outsideApplicationNamespaces!.map(item => [item.name, item.requirement]));
+    if (stagingLease) stagingLayout = await preflightWorkspaceActivationStaging({
+      applicationDirectory: this.#options.applicationDirectory, attempts: stagingLease.attempts,
+      budgets: { maxFiles: b.maxFiles - entries, maxBytes: b.maxBytes - totalBytes, maxDepth: b.maxDepth },
+    });
     const sourceName = relative(this.#options.applicationDirectory, source);
     for (const name of (await readdir(this.#options.applicationDirectory)).sort()) {
       if (name === sourceName || this.#scope.getStore()?.targets.has(name)) continue;
       const reserved = reservations.get(name), declared = authorized.get(name), managed = widerApplication.includes(name);
-      check(reserved || declared || managed, 'BACKUP_INVENTORY_INCOMPLETE', 'Every actual application sibling requires explicit root inventory authorization.');
+      const activation = name === ACTIVATION_CONTROL && stagingLayout !== undefined;
+      check(reserved || declared || managed || activation, 'BACKUP_INVENTORY_INCOMPLETE', 'Every actual application sibling requires explicit root inventory authorization.');
       const path = await safeDirectory(join(this.#options.applicationDirectory, name));
       if (reserved) check(same(physical(await lstat(path, { bigint: true })), reserved.physical), 'BACKUP_TARGET_CHANGED', 'A reserved inert target changed its physical generation.');
       if (name.endsWith('-control') && managed) for (const section of await readdir(path)) {
@@ -477,7 +506,16 @@ export class WorkspaceBackupV2PostgresCustody {
       }
       const logical = `application/${reserved ? 'targets/' : ''}${name.replace(/^\./,'')}`, found = await walk(path, logical, 0);
       namespaces.push({ namespace: logical, disposition: found.entries ? managed && name.endsWith('-control') ? 'transient' : 'outside-archive' : 'empty', ...found,
-        requirement: found.entries ? declared ?? (reserved ? 'Source-reserved inert evidence is outside this archive and requires separate retained recovery.' : 'Measured application files/control metadata require separate recovery and new process ownership.') : '' });
+        requirement: found.entries ? activation ? 'Exact journal-issued prepared or committed staging is separately measured; prepared custody remains unresolved and never authorizes replay or live admission.'
+          : declared ?? (reserved ? 'Source-reserved inert evidence is outside this archive and requires separate retained recovery.' : 'Measured application files/control metadata require separate recovery and new process ownership.') : '' });
+    }
+    if (stagingLayout) {
+      for (const [path, expected] of stagingLayout.expectedFiles) {
+        const actual = measured.get(path);
+        check(actual && same({ dev: actual.dev, ino: actual.ino, birthtimeNs: actual.birthtimeNs, bytes: actual.bytes, sha256: actual.sha256 }, expected),
+          'BACKUP_ACTIVATION_CUSTODY_CHANGED', 'Measured activation ciphertext must retain its exact journal-issued physical generation, size and hash.');
+      }
+      await stagingLayout.assertCurrent();
     }
     const sql = await this.#sqlInventory(); namespaces.push(...sql.namespaces);
     return { postgres: sql.postgres, physical: physical(rootStat), directories: directories.sort((a,b) => a.path.localeCompare(b.path)),

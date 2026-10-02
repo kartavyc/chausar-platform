@@ -3,6 +3,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { join, relative, resolve, sep } from 'node:path';
 import { authorize, check, hash, type Context, type State } from './contracts.ts';
 import { safeDirectory, Vault } from './vault.ts';
+import { WorkspaceActivationStagingInventory } from './workspace-activation-staging-inventory.ts';
+import type { WorkspaceActivationLocalDiagnostic } from './workspace-activation-local.ts';
 import { PostgresSnapshotAdapter, type PostgresSnapshotLease } from './postgres.ts';
 import { WorkspacePostgresCustody, type PostgresSourceCustodyLease, type PostgresStorageIdentity, type PostgresTargetInspection } from './workspace-postgres-custody.ts';
 import { createWorkspaceBackupV2PostgresPorts, type WorkspaceBackupV2FilesystemBudgets } from './workspace-backup-postgres.ts';
@@ -37,6 +39,8 @@ export type InstalledPostgresWorkspaceProfileOptions = {
   targets: Target[];
   filesystemBudgets?: WorkspaceBackupV2FilesystemBudgets;
   externalKeyRequirements?: WorkspaceBackupV2ExternalKeyRequirement[];
+  /** Constructor-only, enum metadata. Observer failures never alter publication semantics. */
+  onActivationDiagnostic?(event: WorkspaceActivationLocalDiagnostic): void;
 };
 
 function store(storage: PostgresStorageIdentity, incarnation: string) {
@@ -161,13 +165,18 @@ export class InstalledPostgresWorkspaceProfile implements EnginePostgresWorkspac
       && input.applicationDirectory === this.#options.applicationDirectory && same(input.policy, this.policy),
     'POSTGRES_WORKSPACE_ROOT_REQUIRED', 'Compose only the actual admitted source, installed journal and frozen constructor policy.');
     const source = new WorkspacePostgresCustody({ adapter });
+    const filesystemBudgets = this.#options.filesystemBudgets ?? { maxFiles: 8192, maxBytes: 128 * 1024 * 1024, maxDepth: 16 };
+    const activationStaging = new WorkspaceActivationStagingInventory({ sourceVault: input.sourceVault,
+      journalVault: input.journalVault, journalAdapter: this.#options.journalAdapter,
+      journalPostgres: new WorkspacePostgresCustody({ adapter: this.#options.journalAdapter }),
+      applicationDirectory: input.applicationDirectory, budgets: filesystemBudgets });
     const backup = createWorkspaceBackupV2PostgresPorts({ vault: input.sourceVault, adapter, postgres: source,
       applicationDirectory: input.applicationDirectory, budgets: input.backupBudgets,
       // Installation below verifies source, journal and targets use distinct
       // databases. Retain source relation writer/DDL/main-maintenance exclusion
       // throughout original admission; physical metric drift still refuses.
       heldSourceSqlExclusion: 'share-relations',
-      filesystemBudgets: this.#options.filesystemBudgets ?? { maxFiles: 8192, maxBytes: 128 * 1024 * 1024, maxDepth: 16 },
+      filesystemBudgets, activationStaging,
       externalKeyRequirements: this.#options.externalKeyRequirements ?? [{ provider: 'other', namespace: 'operator/credential-wrappers',
         requirement: 'Retain the independent operator passphrase or recovery credential. Encrypted wrappers do not include it.' }],
       outsideApplicationNamespaces: [
@@ -199,6 +208,7 @@ export class InstalledPostgresWorkspaceProfile implements EnginePostgresWorkspac
     bridge = new WorkspaceBackupActivationHost(bridgePorts, input.backupPolicy);
     const activation = createWorkspaceActivationPostgresPorts({ sourceVault: input.sourceVault, journalVault: input.journalVault,
       applicationDirectory: input.applicationDirectory, source: originals.source, nativeSource: source,
+      onDiagnostic: this.#options.onActivationDiagnostic,
       targetCustody: async (id, directory) => {
         check(directory === join(input.applicationDirectory, id), 'ACTIVATION_LIVE_CUSTODY', 'Target path differs from the issued native slot.');
         const active = this.#targetAdmission.getStore();

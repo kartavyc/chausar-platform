@@ -11,6 +11,7 @@ import type { EmptyTargetInspection, WorkspaceImportCandidate, WorkspaceInventor
 import type { WorkspaceInterchangeSourceLease } from './workspace-interchange-host.ts';
 import type { AuthenticatedActivationCandidate, WorkspaceActivationAuthority, WorkspaceActivationCommit,
   WorkspaceActivationPorts, WorkspaceActivationReadback } from './workspace-activation.ts';
+import { workspaceActivationDiagnosticErrorCode, type WorkspaceActivationDiagnosticErrorCode } from './workspace-activation.ts';
 
 const purpose = 'workspace-interchange' as const;
 const sha = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
@@ -36,12 +37,22 @@ type Journal = { format: 'chausar.activation-local-journal.v1'; phase: 'attempte
   staging?: {name: string; physical: Physical};
   liveDirectory?: Physical; qualification?: 'test-fixture' | 'encrypted-local-host' };
 
+export type WorkspaceActivationLocalDiagnostic = Readonly<{
+  format: 'chausar.activation-local-diagnostic.v1';
+  stage: 'pre-filesystem-publication-source-guard' | 'post-filesystem-publication-source-guard';
+  /** Describes this invocation's filesystem loop only; never an outcome or SQL commit assertion. */
+  publicationStarted: boolean;
+  errorCode: WorkspaceActivationDiagnosticErrorCode;
+}>;
+
 /** Reviewed root capabilities. They are never RPC inputs and have no memory/default implementation. */
 export type WorkspaceActivationLocalOptions = {
   sourceVault: Vault;
   /** Separately unlocked durable control Vault. Do not add unclassified artifacts to the source inventory. */
   journalVault: Vault;
   applicationDirectory: string;
+  /** Root-only safe metadata observer. No errors, identities or contents are forwarded. */
+  onDiagnostic?(event: WorkspaceActivationLocalDiagnostic): void;
   source: {withSource<T>(context: Context, expected: WorkspaceInventory | null,
     work: (lease: WorkspaceInterchangeSourceLease) => Promise<T>, candidateId?: string): Promise<T>};
   candidates: {
@@ -148,6 +159,19 @@ export class WorkspaceActivationLocalCustody {
     check(context.channel === 'desktop' && !context.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Use the current untainted desktop owner.');
     const member = authorize(this.#options.sourceVault, context, 'admin');
     check(member.role === 'owner' && member.branches.includes('*'), 'FORBIDDEN', 'Use the current unrestricted source owner.');
+  }
+  async #publicationSourceGuard(source: WorkspaceInterchangeSourceLease, publicationStarted: boolean) {
+    try { await completed(() => source.assertCurrent()); }
+    catch (error) {
+      const event: WorkspaceActivationLocalDiagnostic = Object.freeze({ format: 'chausar.activation-local-diagnostic.v1',
+        stage: publicationStarted ? 'post-filesystem-publication-source-guard' : 'pre-filesystem-publication-source-guard',
+        publicationStarted, errorCode: workspaceActivationDiagnosticErrorCode(error) });
+      // Observation cannot turn a refusal into success, change an unknown result, or interrupt custody.
+      try { const observed: unknown = this.#options.onDiagnostic?.(event);
+        void Promise.resolve(observed).catch(() => { /* an asynchronous observer cannot affect custody */ });
+      } catch { /* preserve the original refusal */ }
+      throw error;
+    }
   }
   async #find(id: string) {
     try { return await this.#options.journalVault.readArtifact({ id, purpose }); }
@@ -347,7 +371,7 @@ export class WorkspaceActivationLocalCustody {
       directories: live.directories,
       qualification: candidate.measurement.qualification === 'test-fixture' ? 'test-fixture' : prepared.qualification };
     ref = await this.#write(ref.id, journal, ref.valueDigest); // The full attempt binding is durable BEFORE physical publication.
-    await completed(() => source.assertCurrent()); this.#owner(context);
+    await this.#publicationSourceGuard(source, false); this.#owner(context);
     check(same(await read(), candidate), 'ACTIVATION_CANDIDATE_CHANGED', 'Issuance changed before physical publication.');
     const actual = await this.#reservation(context, record.targetId);
     check(same(actual.reservation, target.reservation) && same(actual.ref, target.ref) && (await readdir(target.path)).length === 0,
@@ -370,7 +394,7 @@ export class WorkspaceActivationLocalCustody {
       }
       await syncDirectory(target.path); await syncDirectory(stagingParent); assertCurrent();
     });
-    await completed(() => source.assertCurrent()); this.#owner(context);
+    await this.#publicationSourceGuard(source, true); this.#owner(context);
     await completed(() => this.#options.bootstrap.inspect({ targetDirectory: target.path, publication: structuredClone(publication) }));
     const finalTarget = await this.#reservation(context, record.targetId);
     check(same(finalTarget.reservation, target.reservation) && same(finalTarget.ref, target.ref)
