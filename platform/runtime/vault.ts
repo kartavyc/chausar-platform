@@ -543,6 +543,11 @@ export class Vault implements StateStore {
   }
   #ready() { if (this.#closed || this.#closing) fail('VAULT_CLOSED', 'The vault is closed.'); }
   read(): State { this.#ready(); return structuredClone(this.#state); }
+  /** Fresh identity metadata for trusted custody checks, without cloning State. */
+  readIdentity(): Readonly<{ vaultId: string; workspaceId: string; revision: number }> {
+    this.#ready();
+    return { vaultId: this.#envelope.id, workspaceId: this.#state.workspace.id, revision: this.#state.revision };
+  }
   /** Trusted host snapshot fence. It cannot update the authority or export its key. */
   snapshot<T>(work: (state: State) => Promise<T>): Promise<T> {
     return this.#enqueue(() => this.#transaction.run(true, () => this.#snapshotScope.run(true, () => work(structuredClone(this.#state)))));

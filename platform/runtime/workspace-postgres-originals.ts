@@ -142,7 +142,7 @@ export class WorkspacePostgresOriginals {
     const native = await o.sourceVault.readArtifact({ id: nativeTargetId(id), purpose: 'workspace-interchange' }), binding = native.value as TargetIdentity;
     const path = await safeDirectory(this.targetPath(id)), stat = await lstat(path, { bigint: true });
     check(reservation?.format === 'chausar.interchange-target-reservation.v1' && reservation.sourceVaultId === o.sourceVault.vaultId
-      && reservation.sourceWorkspaceId === o.sourceVault.read().workspace.id && reservation.targetId === id
+      && reservation.sourceWorkspaceId === o.sourceVault.readIdentity().workspaceId && reservation.targetId === id
       && reservation.contextDigest === interchangeDigest(context) && typeof reservation.workspaceId === 'string' && idPattern.test(reservation.workspaceId)
       && typeof reservation.generation === 'string' && idPattern.test(reservation.generation)
       && stat.isDirectory() && !stat.isSymbolicLink() && path === this.targetPath(id) && same(physical(stat), reservation.physical)
@@ -171,7 +171,7 @@ export class WorkspacePostgresOriginals {
       catch (error: any) { if (error.code !== 'ENOENT') throw error; }
       await this.#owner(context, o.sourceVault.read()); attempted = true; await mkdir(path, { mode: 0o700 });
       const reservation: Reservation = { format: 'chausar.interchange-target-reservation.v1', sourceVaultId: o.sourceVault.vaultId,
-        sourceWorkspaceId: o.sourceVault.read().workspace.id, targetId: id, workspaceId: `workspace_${randomUUID()}`, generation: `empty_${randomUUID()}`,
+        sourceWorkspaceId: o.sourceVault.readIdentity().workspaceId, targetId: id, workspaceId: `workspace_${randomUUID()}`, generation: `empty_${randomUUID()}`,
         contextDigest: interchangeDigest(context), physical: physical(await lstat(path, { bigint: true })) };
       const issued = await o.sourceVault.writeArtifact({ id: reservationId(id), purpose: 'workspace-interchange', expectedDigest: null, value: reservation });
       await o.sourceVault.writeArtifact({ id: nativeTargetId(id), purpose: 'workspace-interchange', expectedDigest: null,

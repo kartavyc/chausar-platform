@@ -132,7 +132,7 @@ export class WorkspaceActivationStagingInventory {
       check(exact(value, ['format', 'sourceVaultId', 'sourceWorkspaceId', 'targetId', 'workspaceId', 'generation', 'contextDigest', 'physical'])
         && value.format === 'chausar.interchange-target-reservation.v1' && targetValue(value.targetId)
         && ref.id === `wit_${sha(value.targetId)}_reservation` && value.sourceVaultId === source.vaultId
-        && value.sourceWorkspaceId === source.read().workspace.id && idValue(value.workspaceId) && idValue(value.generation)
+        && value.sourceWorkspaceId === source.readIdentity().workspaceId && idValue(value.workspaceId) && idValue(value.generation)
         && digestValue(value.contextDigest) && physicalValue(value.physical)
         && ![source.directory, this.#options.journalVault.directory].includes(join(root, value.targetId))
         && !values.has(value.targetId.toLowerCase()),
@@ -176,7 +176,7 @@ export class WorkspaceActivationStagingInventory {
       const value = retained.value, record = value?.record, claim = value?.claim;
       const reservation = reservations.get(String(value?.reservation?.targetId).toLowerCase());
       check(value?.format === 'chausar.activation-local-journal.v1' && ['attempted', 'prepared', 'committed', 'failed'].includes(value.phase)
-        && value.sourceVaultId === source.vaultId && value.sourceWorkspaceId === source.read().workspace.id && value.journalVaultId === journal.vaultId
+        && value.sourceVaultId === source.vaultId && value.sourceWorkspaceId === source.readIdentity().workspaceId && value.journalVaultId === journal.vaultId
         && exact(record, ['format', 'status', 'activationId', 'candidateId', 'candidateCreationId', 'candidateDigest', 'pinDigest', 'contextDigest',
           'sourceInventoryDigest', 'targetProofDigest', 'targetId', 'workspaceId', 'projectionDigest', 'authorityDigest', 'stateDigest', 'evidenceDigest'])
         && record.format === 'chausar.workspace-activation.v1' && record.status === 'committed' && idValue(record.activationId)

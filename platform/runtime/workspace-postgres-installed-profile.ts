@@ -149,7 +149,7 @@ export class InstalledPostgresWorkspaceProfile implements EnginePostgresWorkspac
   }
   async #nativeWitness(vault: Vault, custody: WorkspacePostgresCustody) {
     return vault.snapshot(() => custody.withSource(async held => {
-      check(held.authority.vaultId === vault.vaultId && held.authority.revision === vault.read().revision,
+      check(held.authority.vaultId === vault.vaultId && held.authority.revision === vault.readIdentity().revision,
         'POSTGRES_WORKSPACE_STORAGE_CHANGED', 'Actual native authority differs from the installed Vault.');
       const capture = await vault.captureEncryptedCustody(captureBudgets);
       check(sha(Buffer.from(capture.authority).toString('utf8')) === held.authority.envelopeDigest,

@@ -357,7 +357,7 @@ export class WorkspacePostgresActivationCandidates {
     'ACTIVATION_CANDIDATE_UNAVAILABLE', 'An exact independently committed candidate issuance is required.');
     check(binding.sourceStorageDigest === interchangeDigest(native.storage) && binding.sourceCreationId === native.authority.creationId
       && binding.sourceAuthorityDigest === interchangeDigest(native.authority)
-      && native.authority.vaultId === this.#options.sourceVault.vaultId && native.authority.revision === this.#options.sourceVault.read().revision,
+      && native.authority.vaultId === this.#options.sourceVault.vaultId && native.authority.revision === this.#options.sourceVault.readIdentity().revision,
     'ACTIVATION_POSTGRES_SOURCE_CHANGED', 'Candidate custody belongs to another native source incarnation.');
     const { ledger } = await this.#ledger();
     check(ledger.claims.some(v => v.id === id && v.creationId === binding.creationId && v.sourceVaultId === binding.sourceVaultId
@@ -376,7 +376,7 @@ export class WorkspacePostgresActivationCandidates {
     'ACTIVATION_CANDIDATE_CHANGED', 'Bounded candidate payload and exact issuance must agree.');
     const parsed = JSON.parse(a.content), historical = validateWorkspaceInterchange(canonicalInterchangeJson(parsed.archive), p.pin.inventory);
     check(interchangeDigest({ content: a.content, pin: p.pin }) === binding.recordDigest
-      && canonicalInterchangeJson(parsed) === a.content && interchangeDigest(parsed) === p.pin.candidateDigest
+      && canonicalInterchangeJson(parsed) === a.content && sha(a.content) === p.pin.candidateDigest
       && historical.digest === p.pin.packageDigest && parsed.packageDigest === historical.digest && same(historical.inventory, p.pin.inventory),
     'ACTIVATION_CANDIDATE_CHANGED', 'Complete candidate content differs from its independent issuance pin.');
     return { content: a.content, pin: structuredClone(p.pin), measurement: { encrypted: true,
@@ -398,7 +398,7 @@ export class WorkspacePostgresActivationCandidates {
     check(ledger.claims.length < 4096 && !ledger.claims.some(v => v.id === id || v.creationId === record.pin.creationId),
       'ACTIVATION_SINGLE_USE', 'Candidate IDs and creation instances remain consumed after every durable attempt.');
     await completed(guard);
-    check(native.authority.vaultId === this.#options.sourceVault.vaultId && native.authority.revision === this.#options.sourceVault.read().revision,
+    check(native.authority.vaultId === this.#options.sourceVault.vaultId && native.authority.revision === this.#options.sourceVault.readIdentity().revision,
       'ACTIVATION_POSTGRES_SOURCE_CHANGED', 'Issuance requires the exact currently held native source.');
     const claim: CandidateClaim = { id, creationId: record.pin.creationId, sourceVaultId: this.#options.sourceVault.vaultId, contextDigest: interchangeDigest(context),
       sourceStorageDigest: interchangeDigest(native.storage), sourceCreationId: native.authority.creationId,

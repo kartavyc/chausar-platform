@@ -312,7 +312,7 @@ export class WorkspaceBackupV2PostgresCustody {
       const storage = await this.#options.postgres.storageIdentity();
       check(native.active && native.slot === storage.slot, 'BACKUP_SOURCE_CHANGED', 'Use the exact installed source storage slot.');
       const authority = await native.authority();
-      check(authority && authority.vaultId === this.#options.vault.vaultId && authority.revision === this.#options.vault.read().revision,
+      check(authority && authority.vaultId === this.#options.vault.vaultId && authority.revision === this.#options.vault.readIdentity().revision,
         'BACKUP_SOURCE_CHANGED', 'The installed SQL authority differs from the unlocked source Vault.');
       await this.#prepareControls();
       const held: Scope = { freezeSql: this.#options.heldSourceSqlExclusion === 'share-relations', native, storage, authority, context: structuredClone(context), locks: new Map(), staging: new Map(), targets: new Set(), changes: new Map() };
@@ -571,7 +571,7 @@ export class WorkspaceBackupV2PostgresCustody {
         'BACKUP_FILE_CHANGED', 'Decoded reservation must retain its exact authenticated capture reference.');
       const reservation = retained.value as Reservation;
       check(reservation?.format === 'chausar.backup-postgres-target.v2' && ref.id === reservationId(reservation.targetId)
-        && reservation.vaultId === vault.vaultId && reservation.workspaceId === vault.read().workspace.id && physicalValue(reservation.physical),
+        && reservation.vaultId === vault.vaultId && reservation.workspaceId === vault.readIdentity().workspaceId && physicalValue(reservation.physical),
         'BACKUP_TARGET_CHANGED', 'Every inert sibling requires an exact source-issued physical reservation.');
       reservations.set(reservation.targetId, reservation);
     }
@@ -827,7 +827,7 @@ export class WorkspaceBackupV2PostgresCustody {
   async #reservation(context: Context, targetId: string) {
     const retained = await this.#find(reservationId(targetId)), reservation = retained?.value as Reservation;
     check(retained && reservation?.format === 'chausar.backup-postgres-target.v2' && reservation.targetId === targetId
-      && reservation.vaultId === this.#options.vault.vaultId && reservation.workspaceId === this.#options.vault.read().workspace.id
+      && reservation.vaultId === this.#options.vault.vaultId && reservation.workspaceId === this.#options.vault.readIdentity().workspaceId
       && reservation.contextDigest === sha(canonical(context)), 'BACKUP_TARGET_CHANGED', 'Target has no exact encrypted current-owner reservation.');
     const path = await safeDirectory(this.targetPath(targetId)), stat = await lstat(path, { bigint: true });
     check(same(physical(stat), reservation.physical), 'BACKUP_TARGET_CHANGED', 'Reserved physical empty-target generation changed.');
@@ -845,7 +845,7 @@ export class WorkspaceBackupV2PostgresCustody {
       this.#scope.getStore()!.targets.add(targetId);
       const stat = await lstat(path, { bigint: true });
       const reservation: Reservation = { format: 'chausar.backup-postgres-target.v2', targetId, locationId: `location_${randomUUID()}`, generation: `empty_${randomUUID()}`,
-        vaultId: this.#options.vault.vaultId, workspaceId: this.#options.vault.read().workspace.id, contextDigest: sha(canonical(context)), physical: physical(stat),
+        vaultId: this.#options.vault.vaultId, workspaceId: this.#options.vault.readIdentity().workspaceId, contextDigest: sha(canonical(context)), physical: physical(stat),
         state: 'empty', creationId: null, archiveDigest: null, containerSha256: null, containerPhysical: null };
       let ref: PrivateArtifactRef;
       try { ref = await this.#write(reservationId(targetId), reservation, null); }
