@@ -236,6 +236,57 @@ export class WorkspacePostgresCustody {
         const proof = submittedProof ?? expected;
         await this.rollbackPrepared(proof); expected = structuredClone(proof); rolledBack = true;
       },
+      deleteIfCurrent: async (expectedEnvelope: VaultEnvelope): Promise<'deleted' | 'absent' | 'mismatch'> => {
+        check(!this.#adapter.hasActiveLease, 'POSTGRES_LEASE_ACTIVE',
+          'Atomic bootstrap cleanup must own its target transaction through acknowledgement.');
+        const envelope = normalizePostgresEnvelope(expectedEnvelope);
+        const owner = structuredClone(submittedProof ?? expected);
+        const original = Object.hasOwn(owner, 'envelopeDigest') ? owner as PostgresPublicationProof : undefined;
+        if (original && (original.vaultId !== envelope.id || original.revision !== envelope.revision
+          || original.envelopeDigest !== postgresEnvelopeDigest(envelope))) return 'mismatch';
+        const outcome = await this.#adapter.withLease(async lease => {
+          let mutationAttempted = false;
+          try {
+            const row = await this.#row(lease);
+            // A prepared capability cannot delete or adopt an ordinary SQL occupant.
+            if (await this.#rawAuthority(lease)) return 'mismatch' as const;
+            if (!row) {
+              check(same(await this.#storage(lease), owner.storage) && same(await this.#physical(), owner.target),
+                'POSTGRES_TARGET_CHANGED', 'Missing preparation must still retain its installed target generation.');
+              return 'absent' as const;
+            }
+            const retained = await this.#assert(lease, original ?? owner, row);
+            if (row.phase === 'reserved') return 'absent' as const;
+            if (!original || !retained.envelope || !same(envelope, retained.envelope)) return 'mismatch' as const;
+            if (row.phase === 'rolled-back') return 'absent' as const;
+            if (row.phase !== 'prepared') return 'mismatch' as const;
+            mutationAttempted = true;
+            const removed = await lease.query(`UPDATE public.chausar_workspace_postgres_custody
+              SET phase = 'rolled-back', updated_at = CURRENT_TIMESTAMP
+              WHERE slot = $1 AND operation_id = $2 AND creation_id = $3 AND storage_id = $4
+                AND phase = 'prepared' AND vault_id = $5 AND revision = $6
+                AND envelope_digest = $7 AND envelope = $8::jsonb
+                AND NOT EXISTS (SELECT 1 FROM public.chausar_vault_authority WHERE slot = $1)`,
+            [lease.slot, original.operationId, original.creationId, original.storage.storageId,
+              original.vaultId, original.revision, original.envelopeDigest, JSON.stringify(envelope)]);
+            if (removed.rowCount === 0) return 'mismatch' as const;
+            check(removed.rowCount === 1, 'POSTGRES_TARGET_CHANGED', 'Prepared cleanup has no exact SQL mutation acknowledgement.');
+            check(same(await this.#storage(lease), original.storage) && same(await this.#physical(), original.target),
+              'POSTGRES_TARGET_CHANGED', 'Prepared cleanup lost its installed target generation before acknowledgement.');
+            check(!await this.#rawAuthority(lease), 'POSTGRES_TARGET_CHANGED', 'Prepared cleanup acquired a competing SQL authority occupant.');
+            return 'deleted' as const;
+          } catch (error) {
+            // A deterministic ownership refusal is a mismatch; SQL/transport errors
+            // keep their uncertainty and cannot acknowledge deletion or safe absence.
+            if (mutationAttempted || !(error instanceof ChausarError)) throw error;
+            return 'mismatch' as const;
+          }
+        });
+        if (outcome === 'deleted' || outcome === 'absent') {
+          expected = owner; rolledBack = true;
+        }
+        return outcome;
+      },
       close: async () => {},
     });
   }

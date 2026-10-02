@@ -54,6 +54,28 @@ function validateRevision(envelope: VaultEnvelope, expectedRevision: number | nu
     || (expectedRevision !== null && (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0 || envelope.revision !== expectedRevision + 1)))
     throw new ChausarError('INVALID_REVISION', 'A replacement snapshot must advance its expected revision by exactly one.');
 }
+type CustodyOrigin = {
+  operationId: string; creationId: string; storageId: string; vaultId: string; revision: number;
+  envelopeDigest: string; targetJson: string;
+};
+type EnvelopeOrigin = { creationId: string; custody: CustodyOrigin | null | undefined };
+function custodyOrigin(row: any): CustodyOrigin | undefined {
+  try {
+    if (!row || !['committed', 'rolled-back'].includes(row.phase)
+      || !['operation_id', 'creation_id', 'storage_id', 'vault_id'].every(field => typeof row[field] === 'string' && row[field].length > 0)) return;
+    const envelope = normalizePostgresEnvelope(typeof row.envelope === 'string' ? JSON.parse(row.envelope) : row.envelope);
+    const target = typeof row.target_identity === 'string' ? JSON.parse(row.target_identity) : row.target_identity;
+    if (envelope.revision !== 0 || row.vault_id !== envelope.id || String(row.revision) !== String(envelope.revision)
+      || row.envelope_digest !== postgresEnvelopeDigest(envelope) || !target || typeof target !== 'object' || Array.isArray(target)) return;
+    return { operationId: row.operation_id, creationId: row.creation_id, storageId: row.storage_id, vaultId: row.vault_id,
+      revision: envelope.revision, envelopeDigest: row.envelope_digest, targetJson: JSON.stringify(target) };
+  } catch { return; }
+}
+function sameCustodyOrigin(left: CustodyOrigin | undefined, right: CustodyOrigin): boolean {
+  return !!left && left.operationId === right.operationId && left.creationId === right.creationId
+    && left.storageId === right.storageId && left.vaultId === right.vaultId && left.revision === right.revision
+    && left.envelopeDigest === right.envelopeDigest && left.targetJson === right.targetJson;
+}
 /** Durable production adapter. Only authenticated ciphertext enters PostgreSQL. */
 export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
   readonly kind = 'postgres' as const;
@@ -61,11 +83,15 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
   #slot: string;
   #ownPool: boolean;
   #leaseScope = new AsyncLocalStorage<PostgresSnapshotLease>();
+  #slotCreationId?: string;
+  #slotVaultId?: string;
+  #envelopeOrigins = new Map<string, EnvelopeOrigin>();
   private constructor(pool: PostgresPool, vaultSlot: string, ownPool: boolean) {
     if (!/^[A-Za-z0-9_.-]{1,100}$/.test(vaultSlot)) throw new ChausarError('INVALID_SLOT', 'Use a named vault storage slot.');
     this.#pool = pool; this.#slot = vaultSlot; this.#ownPool = ownPool;
   }
   get slot(): string { return this.#slot; }
+  get hasActiveLease(): boolean { return this.#leaseScope.getStore()?.active === true; }
   private static validateOptions(options: PostgresOptions) {
     if (!['127.0.0.1', '::1'].includes(options.host) || !Number.isInteger(options.port) || options.port < 1024 || options.port > 65535 || !options.user || !options.database || !options.password) throw new ChausarError('INVALID_POSTGRES_CONFIG', 'Provide explicit loopback database configuration and credentials.');
   }
@@ -133,12 +159,30 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
     return { creationId: row.creation_id, envelope };
   }
   async #admit(client: PostgresClient, current: { creationId: string; envelope: VaultEnvelope } | null, replacement?: VaultEnvelope) {
-    const result = await client.query('SELECT phase, creation_id, vault_id FROM public.chausar_workspace_postgres_custody WHERE slot = $1 FOR UPDATE', [this.#slot]);
-    if (!result.rows.length) return;
+    const result = await client.query('SELECT phase, creation_id, vault_id, operation_id, storage_id, revision, envelope_digest, envelope, target_identity FROM public.chausar_workspace_postgres_custody WHERE slot = $1 FOR UPDATE', [this.#slot]);
+    if (!result.rows.length) return null;
     const custody = result.rows[0];
     if (custody.phase !== 'committed' || !current || current.creationId !== custody.creation_id
       || current.envelope.id !== custody.vault_id || (replacement && replacement.id !== custody.vault_id))
       throw new ChausarError('POSTGRES_TARGET_NOT_COMMITTED', 'Ordinary authority access requires this exact committed target publication.');
+    return custody;
+  }
+  #remember(current: { creationId: string; envelope: VaultEnvelope }, custody: any) {
+    if ((this.#slotCreationId !== undefined && current.creationId !== this.#slotCreationId)
+      || (this.#slotVaultId !== undefined && current.envelope.id !== this.#slotVaultId))
+      throw new ChausarError('POSTGRES_AUTHORITY_CHANGED', 'This adapter retains a different PostgreSQL slot or Vault incarnation. Install a fresh adapter for a new generation.');
+    this.#slotCreationId ??= current.creationId;
+    this.#slotVaultId ??= current.envelope.id;
+    const digest = postgresEnvelopeDigest(current.envelope);
+    // Never rebind identical ciphertext to a recreated occupant. Eviction remains
+    // safe because the independent sticky slot incarnation is never replaced.
+    if (!this.#envelopeOrigins.has(digest)) {
+      this.#envelopeOrigins.set(digest, { creationId: current.creationId, custody: custody ? custodyOrigin(custody) : null });
+      if (this.#envelopeOrigins.size > 64) {
+        const oldest = this.#envelopeOrigins.keys().next().value;
+        if (oldest !== undefined) this.#envelopeOrigins.delete(oldest);
+      }
+    }
   }
   /** Reentrant calls reuse the held client and transaction. When joining a Vault,
    * acquire Vault.snapshot before this SQL lease so queued writes cannot invert lock order. */
@@ -161,7 +205,8 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
     const guarded = async <T>(work: () => Promise<T>): Promise<T> => { assertActive(); const result = await work(); assertActive(); return result; };
     const authority = async (): Promise<PostgresAuthority | null> => {
       const current = await this.#authority(transactionClient);
-      await this.#admit(transactionClient, current);
+      const custody = await this.#admit(transactionClient, current);
+      if (current) this.#remember(current, custody);
       return current ? { creationId: current.creationId, vaultId: current.envelope.id, revision: current.envelope.revision,
         envelopeDigest: postgresEnvelopeDigest(current.envelope) } : null;
     };
@@ -174,17 +219,35 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
           throw new ChausarError('POSTGRES_LEASE_TRANSACTION_CONTROL', 'The held snapshot lease owns its transaction boundaries.');
         return transactionClient.query(sql, values);
       }),
-      load: () => guarded(async () => { const current = await this.#authority(transactionClient); await this.#admit(transactionClient, current); return current?.envelope ?? null; }),
+      load: () => guarded(async () => {
+        const current = await this.#authority(transactionClient), custody = await this.#admit(transactionClient, current);
+        if (current) this.#remember(current, custody);
+        return current?.envelope ?? null;
+      }),
       commit: (envelope: VaultEnvelope, expectedRevision: number | null) => guarded(async () => {
         validateRevision(envelope, expectedRevision);
         const normalized = normalizePostgresEnvelope(envelope), current = await this.#authority(transactionClient);
-        await this.#admit(transactionClient, current, normalized);
+        const custody = await this.#admit(transactionClient, current, normalized);
+        if ((this.#slotCreationId !== undefined && current?.creationId !== this.#slotCreationId)
+          || (this.#slotVaultId !== undefined && current?.envelope.id !== this.#slotVaultId))
+          throw new ChausarError('REVISION_CONFLICT', 'The retained PostgreSQL slot or Vault incarnation is absent or replaced.');
+        if (current && normalized.id !== current.envelope.id)
+          throw new ChausarError('REVISION_CONFLICT', 'A replacement snapshot cannot replace its existing Vault identity.');
+        if (current) this.#remember(current, custody);
         if ((current?.envelope.revision ?? null) !== expectedRevision) throw new ChausarError('REVISION_CONFLICT', 'The workspace changed in another writer.');
         if (expectedRevision === null) await transactionClient.query('INSERT INTO public.chausar_vault_authority (slot, revision, envelope) VALUES ($1, $2, $3::jsonb)', [this.#slot, normalized.revision, JSON.stringify(normalized)]);
         else {
-          const result = await transactionClient.query('UPDATE public.chausar_vault_authority SET revision = $2, envelope = $3::jsonb, updated_at = CURRENT_TIMESTAMP WHERE slot = $1 AND revision = $4', [this.#slot, normalized.revision, JSON.stringify(normalized), expectedRevision]);
+          const result = await transactionClient.query(`UPDATE public.chausar_vault_authority SET revision = $2, envelope = $3::jsonb, updated_at = CURRENT_TIMESTAMP
+            WHERE slot = $1 AND revision = $4 AND creation_id = $5 AND envelope->>'id' = $6 AND envelope = $7::jsonb`,
+          [this.#slot, normalized.revision, JSON.stringify(normalized), expectedRevision, current!.creationId, current!.envelope.id, JSON.stringify(current!.envelope)]);
           if (result.rowCount !== undefined && result.rowCount !== 1) throw new ChausarError('REVISION_CONFLICT', 'The workspace changed in another writer.');
         }
+        const readback = await this.#authority(transactionClient), readbackCustody = await this.#admit(transactionClient, readback, normalized);
+        if (!readback || JSON.stringify(readback.envelope) !== JSON.stringify(normalized))
+          throw new ChausarError('POSTGRES_AUTHORITY_CHANGED', 'The proposed encrypted authority did not read back exactly.');
+        // Retain creation ownership before COMMIT: acknowledgement loss must not
+        // cause later cleanup to learn a replacement occupant's generation.
+        this.#remember(readback, readbackCustody);
       }),
       authority: () => guarded(authority),
       assertCurrent: (expected: PostgresAuthority) => guarded(async () => {
@@ -213,6 +276,59 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
   async commit(envelope: VaultEnvelope, expectedRevision: number | null): Promise<void> {
     validateRevision(envelope, expectedRevision);
     return this.withLease(lease => lease.commit(envelope, expectedRevision));
+  }
+  /** Atomic exact-owned bootstrap cleanup. Reads here never establish ownership;
+   * only a previously admitted observation or our own mutation can do that.
+   * Cleanup owns its outer transaction: call it outside an already-held target lease. */
+  async deleteIfCurrent(expectedEnvelope: VaultEnvelope): Promise<'deleted' | 'absent' | 'mismatch'> {
+    if (this.hasActiveLease) throw new ChausarError('POSTGRES_LEASE_ACTIVE', 'Exact cleanup must own its outer PostgreSQL transaction.');
+    const expected = normalizePostgresEnvelope(expectedEnvelope), expectedJson = JSON.stringify(expected);
+    const expectedDigest = postgresEnvelopeDigest(expected), origin = this.#envelopeOrigins.get(expectedDigest);
+    return this.withLease<'deleted' | 'absent' | 'mismatch'>(async lease => {
+      const authority = await lease.query('SELECT creation_id, revision, envelope FROM public.chausar_vault_authority WHERE slot = $1 FOR UPDATE', [this.#slot]);
+      const custodyResult = await lease.query('SELECT phase, creation_id, vault_id, operation_id, storage_id, revision, envelope_digest, envelope, target_identity FROM public.chausar_workspace_postgres_custody WHERE slot = $1 FOR UPDATE', [this.#slot]);
+      const current = authority.rows[0], custody = custodyResult.rows[0];
+      if (!current) {
+        if (!custody) return 'absent';
+        return custody.phase === 'rolled-back' && origin?.custody
+          && sameCustodyOrigin(custodyOrigin(custody), origin.custody) && origin.custody.envelopeDigest === expectedDigest
+          && origin.custody.revision === expected.revision && origin.custody.vaultId === expected.id
+          && origin.creationId === this.#slotCreationId ? 'absent' : 'mismatch';
+      }
+      if (!origin || origin.creationId !== this.#slotCreationId || current.creation_id !== origin.creationId
+        || String(current.revision) !== String(expected.revision)) return 'mismatch';
+      let actual: VaultEnvelope;
+      try { actual = normalizePostgresEnvelope(typeof current.envelope === 'string' ? JSON.parse(current.envelope) : current.envelope); }
+      catch { return 'mismatch'; }
+      if (actual.id !== expected.id || JSON.stringify(actual) !== expectedJson) return 'mismatch';
+      if (origin.custody === undefined || (origin.custody === null && custody)) return 'mismatch';
+      if (origin.custody && (!custody || custody.phase !== 'committed'
+        || !sameCustodyOrigin(custodyOrigin(custody), origin.custody) || origin.custody.envelopeDigest !== expectedDigest
+        || origin.custody.revision !== expected.revision || origin.custody.vaultId !== expected.id
+        || origin.custody.creationId !== origin.creationId)) return 'mismatch';
+      const binding = origin.custody;
+      const predicate = binding ? `AND EXISTS (SELECT 1 FROM public.chausar_workspace_postgres_custody
+          WHERE slot = $1 AND operation_id = $6 AND creation_id = $2 AND storage_id = $7 AND phase = 'committed'
+          AND vault_id = $4 AND revision = $3 AND envelope_digest = $8 AND envelope = $5::jsonb AND target_identity = $9::jsonb)`
+        : 'AND NOT EXISTS (SELECT 1 FROM public.chausar_workspace_postgres_custody WHERE slot = $1)';
+      const values: unknown[] = [lease.slot, origin.creationId, expected.revision, expected.id, expectedJson];
+      if (binding) values.push(binding.operationId, binding.storageId, binding.envelopeDigest, binding.targetJson);
+      const removed = await lease.query(`DELETE FROM public.chausar_vault_authority WHERE slot = $1 AND creation_id = $2
+        AND revision = $3 AND envelope->>'id' = $4 AND envelope = $5::jsonb ${predicate}`, values);
+      if (removed.rowCount === 0) return 'mismatch';
+      if (removed.rowCount !== 1)
+        throw new ChausarError('POSTGRES_AUTHORITY_CHANGED', 'Conditional deletion was not exactly acknowledged; its transaction must roll back.');
+      if (origin.custody) {
+        const binding = origin.custody, tombstone = await lease.query(`UPDATE public.chausar_workspace_postgres_custody SET phase = 'rolled-back', updated_at = CURRENT_TIMESTAMP
+          WHERE slot = $1 AND operation_id = $2 AND creation_id = $3 AND storage_id = $4 AND phase = 'committed'
+          AND vault_id = $5 AND revision = $6 AND envelope_digest = $7 AND envelope = $8::jsonb AND target_identity = $9::jsonb`,
+        [lease.slot, binding.operationId, binding.creationId, binding.storageId, binding.vaultId, binding.revision,
+          binding.envelopeDigest, expectedJson, binding.targetJson]);
+        if (tombstone.rowCount !== 1)
+          throw new ChausarError('POSTGRES_AUTHORITY_CHANGED', 'Exact cleanup custody changed; the deletion transaction must roll back.');
+      }
+      return 'deleted';
+    });
   }
   /** Legacy workspace deletion. Activation cleanup must use an exact-owned custody capability instead. */
   async delete(): Promise<void> {
