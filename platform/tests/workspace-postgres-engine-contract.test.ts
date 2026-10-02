@@ -1,6 +1,6 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative } from 'node:path';
@@ -17,19 +17,70 @@ import { emptyTarget } from './fixtures/workspace-interchange-fixture.ts';
 // exercises actual PostgresSnapshotAdapter and Vault encrypted authority, not
 // PostgreSQL server transactions, physical database identity or native custody.
 function protocolFixture() {
-  let envelope: VaultEnvelope | null = null, reads = 0, writes = 0;
-  const query: PostgresPool['query'] = async (sql, values) => {
-    if (sql.startsWith('SELECT revision, envelope')) {
-      reads++; return { rows: envelope ? [{ revision: String(envelope.revision), envelope: structuredClone(envelope) }] : [] };
-    }
-    if (sql.startsWith('SELECT revision FROM')) return { rows: envelope ? [{ revision: String(envelope.revision) }] : [] };
-    if (/^(INSERT INTO|UPDATE) public\.chausar_vault_authority/.test(sql)) {
-      writes++; envelope = JSON.parse(String(values![2])) as VaultEnvelope;
-    }
-    return { rows: [] };
+  let row: { slot: string; creationId: string; envelope: VaultEnvelope } | null = null, reads = 0, writes = 0;
+  const schema = { authority_table: false, storage_table: false, custody_table: false, creation_column: false };
+  let storageId: string | null = null;
+  const jsonbOrder = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(jsonbOrder);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value)
+      .sort(([left], [right]) => left.length - right.length || (left < right ? -1 : left > right ? 1 : 0))
+      .map(([key, child]) => [key, jsonbOrder(child)]));
+    return value;
   };
-  const pool: PostgresPool = { query, async connect() { return { query, release() {} }; }, async end() {} };
-  return { pool, current: () => structuredClone(envelope), counts: () => ({ reads, writes }) };
+  const query: PostgresPool['query'] = async (sql, values) => {
+    const text = sql.replace(/\s+/g, ' ').trim();
+    if (text.includes("to_regclass('public.chausar_vault_authority')")) return { rows: [{ ...schema }] };
+    if (text.startsWith('CREATE TABLE IF NOT EXISTS public.chausar_vault_authority')) {
+      schema.authority_table = true; schema.creation_column = true; return { rows: [] };
+    }
+    if (text.startsWith('CREATE TABLE IF NOT EXISTS public.chausar_workspace_postgres_storage')) {
+      schema.storage_table = true; return { rows: [] };
+    }
+    if (text.startsWith('CREATE TABLE IF NOT EXISTS public.chausar_workspace_postgres_custody')) {
+      schema.custody_table = true; return { rows: [] };
+    }
+    if (text.startsWith('INSERT INTO public.chausar_workspace_postgres_storage')) {
+      storageId ??= randomUUID(); return { rows: [], rowCount: 1 };
+    }
+    if (text === "SELECT storage_id FROM public.chausar_workspace_postgres_storage WHERE id = 'current'")
+      return { rows: storageId ? [{ storage_id: storageId }] : [] };
+    if (text === 'SELECT pg_advisory_xact_lock(hashtext($1))') return { rows: [] };
+    if (text === 'SELECT creation_id, revision, envelope FROM public.chausar_vault_authority WHERE slot = $1 FOR UPDATE') {
+      reads++; return { rows: row && row.slot === values?.[0]
+        ? [{ creation_id: row.creationId, revision: String(row.envelope.revision), envelope: jsonbOrder(row.envelope) }] : [] };
+    }
+    if (text === 'SELECT phase, creation_id, vault_id FROM public.chausar_workspace_postgres_custody WHERE slot = $1 FOR UPDATE')
+      return { rows: [] }; // These are legacy ordinary workspace rows, without target publication custody.
+    if (text.startsWith('INSERT INTO public.chausar_vault_authority ')) {
+      assert.equal(row, null, 'The injected SQL slot enforces primary-key creation.');
+      const envelope = JSON.parse(String(values![2])) as VaultEnvelope;
+      assert.equal(envelope.revision, values![1]); writes++;
+      row = { slot: String(values![0]), creationId: randomUUID(), envelope }; return { rows: [], rowCount: 1 };
+    }
+    if (text.startsWith('UPDATE public.chausar_vault_authority ')) {
+      if (!row || row.slot !== values?.[0] || row.envelope.revision !== values?.[3]) return { rows: [], rowCount: 0 };
+      const envelope = JSON.parse(String(values![2])) as VaultEnvelope;
+      assert.equal(envelope.revision, values![1]); writes++; row.envelope = envelope; return { rows: [], rowCount: 1 };
+    }
+    throw new ChausarError('TEST_SQL_UNSUPPORTED', 'The injected SQL protocol must explicitly implement each adapter query.');
+  };
+  const pool: PostgresPool = { query, async connect() {
+    let retained: { row: typeof row; schema: typeof schema; storageId: string | null } | null = null;
+    return { async query(sql, values) {
+      if (sql === 'BEGIN') {
+        assert.equal(retained, null); retained = { row: structuredClone(row), schema: { ...schema }, storageId };
+        return { rows: [], command: 'BEGIN' };
+      }
+      if (sql === 'COMMIT') { assert.ok(retained); retained = null; return { rows: [], command: 'COMMIT' }; }
+      if (sql === 'ROLLBACK') {
+        if (retained) { row = retained.row; Object.assign(schema, retained.schema); storageId = retained.storageId; retained = null; }
+        return { rows: [], command: 'ROLLBACK' };
+      }
+      assert.ok(retained, 'Actual adapter queries must remain within their owned transaction.');
+      return query(sql, values);
+    }, release() { assert.equal(retained, null, 'The adapter must finish the transaction before release.'); } };
+  }, async end() {} };
+  return { pool, current: () => structuredClone(row?.envelope ?? null), counts: () => ({ reads, writes }) };
 }
 const credential = 'Public synthetic coordinator SQL protocol credential';
 const captureBudgets = { maxArtifacts: 32, maxEntryBytes: 1_000_000, maxTotalEntryBytes: 2_000_000 };
