@@ -1,6 +1,6 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
@@ -31,7 +31,8 @@ const input: ImportInput = { sourceId, format: 'csv',
 
 async function fixture(t: TestContext) {
   t.mock.timers.enable({ apis: ['Date'], now: new Date(clock) });
-  const base = resolve(tmpdir()), directory = await mkdtemp(join(base, 'chausar-answer-recovery-public-'));
+  // Match the Vault's canonical physical path even when Windows TEMP uses an alias.
+  const base = await realpath(resolve(tmpdir())), directory = await mkdtemp(join(base, 'chausar-answer-recovery-public-'));
   const engine = new Engine({ directory, demo: true, storage: 'experimental-file' });
   const app = createLocalServer(engine), { origin, token } = await app.listen();
   t.after(async () => { await app.close(); const target = resolve(directory), child = relative(base, target);

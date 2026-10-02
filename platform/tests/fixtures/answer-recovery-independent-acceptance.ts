@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, isAbsolute } from 'node:path';
 import { Engine } from '../../runtime/engine.ts';
@@ -21,7 +21,8 @@ export const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).dige
 
 export async function fixture(t: TestContext) {
   t.mock.timers.enable({ apis: ['Date'], now: new Date(CURRENT) });
-  const base = resolve(tmpdir()), directory = await mkdtemp(join(base, 'chausar-independent-recovery-'));
+  // Match the Vault's canonical physical path even when Windows TEMP uses an alias.
+  const base = await realpath(resolve(tmpdir())), directory = await mkdtemp(join(base, 'chausar-independent-recovery-'));
   const authorityPath = join(directory, 'main', 'authority.encrypted.json');
   await mkdir(join(directory, 'main'));
   const originalAuthority = Buffer.from(legacy.authorityBase64, 'base64');
