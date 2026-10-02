@@ -312,6 +312,8 @@ export type WorkspacePostgresActivationCandidateOptions = Pick<WorkspaceActivati
 export type WorkspacePostgresBackupActivationOriginals = {
   withTransaction<T>(context: Context, selection: Parameters<WorkspaceBackupActivationPorts['withTransaction']>[1],
     work: (lease: Omit<WorkspaceBackupActivationLease, 'createCandidate' | 'readCandidate'>) => Promise<T>): Promise<T>;
+  /** Actual Originals supplies this only for its active archived inspection scope. */
+  readCandidateHeld?(context: Context, candidateId: string): Promise<AuthenticatedActivationCandidate>;
 };
 
 /** Independently encrypted issuance, separate from historical/source artifacts.
@@ -414,7 +416,9 @@ export class WorkspacePostgresActivationCandidates {
     return (await this.#read(context, id, native)).measurement;
   }
   backupActivationPorts(originals: WorkspacePostgresBackupActivationOriginals): WorkspaceBackupActivationPorts {
-    return { custody: { read: (context, id) => this.readCandidate(context, id) },
+    const readHeld = originals.readCandidateHeld;
+    return { custody: { read: (context, id) => this.readCandidate(context, id),
+      ...(typeof readHeld === 'function' ? { readHeld: (context: Context, id: string) => readHeld.call(originals, context, id) } : {}) },
       withTransaction: (context, selection, work) => originals.withTransaction(context, selection,
         lease => this.#options.nativeSource.withSource(native => this.withCandidate(context, selection.candidateId, read => work({ ...lease,
           createCandidate: async (record, guard) => {

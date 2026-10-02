@@ -374,6 +374,114 @@ test('PG protocol fixture keeps zero-byte wider files measured outside the priva
   assert.equal(f.adapter.lastLease?.active, false); assert.equal(f.adapter.deleteCalls, 0);
 });
 
+test('PG protocol fixture wider filesystem leaves overlap through at most four actual readers', { timeout: 10_000 }, async t => {
+  const f = await fixture(t), directory = join(f.vault.directory, 'reports'); await mkdir(directory);
+  const names = Array.from({ length: 6 }, (_, index) => `report_${index}.txt`);
+  await Promise.all(names.map((name, index) => writeFile(join(directory, name), `synthetic report ${index}`)));
+  const nestedDirectory = join(directory, 'report_4_directory'); await mkdir(nestedDirectory);
+  const nestedPath = join(nestedDirectory, 'nested.txt'); await writeFile(nestedPath, '');
+  const paths = new Set(names.map(name => join(directory, name))), handles: Awaited<ReturnType<typeof filesystem.open>>[] = [];
+  const originalOpen = filesystem.open;
+  let active = 0, peak = 0, release!: () => void;
+  const pendingReaders = new Promise<void>(resolve => { release = resolve; });
+  const started: string[] = [], events: string[] = [];
+  // A serial reader must eventually drain too, leaving an explicit peak=1 red
+  // assertion rather than an unresolved test. Four admitted readers release early.
+  const timer = setTimeout(release, 1000);
+  filesystem.open = async (...args) => {
+    const handle = await originalOpen(...args);
+    if (typeof args[0] === 'string' && (paths.has(args[0]) || args[0] === nestedPath)) {
+      const path = args[0], report = paths.has(path), read = handle.read.bind(handle), close = handle.close.bind(handle);
+      let first = true, closed = false;
+      if (report) handles.push(handle);
+      handle.close = async () => {
+        await close(); if (!closed) { closed = true; events.push(`closed:${path}`); }
+      };
+      handle.read = (async (buffer: Buffer, offset: number, length: number, position: number | null) => {
+        if (!first) return read(buffer, offset, length, position);
+        first = false; events.push(`read:${path}`);
+        if (!report) return read(buffer, offset, length, position);
+        started.push(path); active++; peak = Math.max(peak, active);
+        if (active === 4) setImmediate(release);
+        try { await pendingReaders; return await read(buffer, offset, length, position); }
+        finally { active--; }
+      }) as typeof handle.read;
+    }
+    return handle;
+  };
+  syncBuiltinESMExports();
+  try {
+    const inventory = await f.custody.withHeldSource(context, () => f.custody.inspectHeldNamespaces());
+    t.diagnostic(JSON.stringify({ actualWiderReaders: handles.length, peakReaders: peak, nativeQualified: false }));
+    assert.equal(peak, 4, 'The wider tree must call the bounded leaf batch rather than retaining files serially.');
+    assert.equal(active, 0); assert.equal(handles.length, 6); assert.ok(handles.every(handle => handle.fd === -1));
+    assert.deepEqual(started.sort(), [...paths].sort());
+    for (const name of names.slice(0, 5)) {
+      assert.ok(events.indexOf(`closed:${join(directory, name)}`) < events.indexOf(`read:${nestedPath}`),
+        'Flush and close the entire contiguous sibling batch before serial directory descent.');
+    }
+    assert.ok(events.indexOf(`closed:${nestedPath}`) < events.indexOf(`read:${join(directory, names[5])}`));
+    const leaves = inventory.files.filter(item => item.path.startsWith('workspace/reports/'));
+    assert.deepEqual(leaves.map(item => item.path), [
+      ...names.map(name => `workspace/reports/${name}`), 'workspace/reports/report_4_directory/nested.txt',
+    ].sort((a, b) => a.localeCompare(b)), 'Public witnesses retain their established deterministic ordering.');
+    for (let index = 0; index < names.length; index++) {
+      assert.equal(leaves.find(item => item.path === `workspace/reports/${names[index]}`)!.sha256, sha(`synthetic report ${index}`));
+    }
+    assert.equal(leaves.find(item => item.path.endsWith('/nested.txt'))!.bytes, 0);
+    assert.equal(f.adapter.lastLease?.active, false);
+  } finally {
+    clearTimeout(timer); release(); filesystem.open = originalOpen; syncBuiltinESMExports();
+    await Promise.all(handles.map(handle => handle.close()));
+  }
+});
+
+test('PG protocol fixture wider leaf batches preflight count, bytes and late hardlinks before opening earlier leaves', async t => {
+  for (const refusal of ['count', 'aggregate-bytes', 'late-hardlink'] as const) await t.test(refusal, async sub => {
+    const f = await fixture(sub), directory = join(f.vault.directory, 'reports'); await mkdir(directory);
+    const names = Array.from({ length: 6 }, (_, index) => `report_${index}.txt`);
+    const bytes = Buffer.from('synthetic wider evidence preserved on complete-batch refusal');
+    await Promise.all(names.map(name => writeFile(join(directory, name), bytes)));
+    const writer = join(f.vault.directory, 'writer.lock'), sourceRefs = await refs(f.vault);
+    const restricted = { ...filesystemBudgets };
+    if (refusal === 'count') restricted.maxFiles = f.values.length + 3; // All private leaves, writer, reports directory, and one report.
+    else if (refusal === 'aggregate-bytes') {
+      restricted.maxBytes = (await lstat(writer)).size + sourceRefs.reduce((sum, ref) => sum + ref.diskBytes, 0) + bytes.length * names.length - 1;
+    } else await link(join(directory, names.at(-1)!), join(f.applicationDirectory, 'retained-wider-hardlink-evidence'));
+    const custody = f.postgresPorts({ filesystemBudgets: restricted });
+    const paths = new Set(names.map(name => join(directory, name))), originalOpen = filesystem.open, originalLstat = filesystem.lstat;
+    let widerOpens = 0, writerOpens = 0, widerLeafStats = 0;
+    filesystem.open = async (...args) => {
+      if (typeof args[0] === 'string') {
+        if (paths.has(args[0])) widerOpens++;
+        if (args[0] === writer) writerOpens++;
+      }
+      return originalOpen(...args);
+    };
+    filesystem.lstat = ((...args: Parameters<typeof originalLstat>) => {
+      if (typeof args[0] === 'string' && paths.has(args[0])) widerLeafStats++;
+      return originalLstat(...args);
+    }) as typeof filesystem.lstat;
+    syncBuiltinESMExports();
+    try {
+      await assert.rejects(custody.withHeldSource(context, () => custody.inspectHeldNamespaces()),
+        code(refusal === 'late-hardlink' ? 'BACKUP_UNSAFE_FILE' : 'BACKUP_LIMIT'));
+    } finally { filesystem.open = originalOpen; filesystem.lstat = originalLstat; syncBuiltinESMExports(); }
+    assert.ok(writerOpens > 0); assert.equal(widerOpens, 0, 'A late sibling refusal must precede every earlier wider-file open.');
+    if (refusal === 'count') {
+      const remainingCapacity = restricted.maxFiles - sourceRefs.length - 2; // Private leaves, writer and reports directory already admitted.
+      assert.ok(widerLeafStats > 0, 'Observe the actual leaf metadata API used by directory enumeration.');
+      assert.ok(widerLeafStats <= remainingCapacity + 1, 'Stop metadata enumeration after capacity plus one refusal probe, before collecting every sibling.');
+      sub.diagnostic(JSON.stringify({ widerLeafStats, remainingCapacity, widerOpens }));
+    }
+    assert.deepEqual(await readFile(join(directory, names[0])), bytes);
+    assert.deepEqual((await readdir(directory)).sort(), names);
+    assert.deepEqual(await refs(f.vault), sourceRefs);
+    assert.equal(f.adapter.lastLease?.active, false); assert.equal(f.adapter.deleteCalls, 0);
+    if (refusal === 'late-hardlink') assert.equal((await lstat(join(directory, names.at(-1)!), { bigint: true })).nlink, 2n);
+  });
+});
+
 test('PG protocol fixture rechecks current owner after awaited archive reads before target allocation', async t => {
   const f = await fixture(t), summary = await f.host.create(context, { destinationId: 'owner_backup', confirmed: true });
   let reads = 0;

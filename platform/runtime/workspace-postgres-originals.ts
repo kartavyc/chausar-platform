@@ -33,7 +33,8 @@ const physical = (stat: { dev: bigint; ino: bigint; birthtimeNs: bigint }): Phys
 type Inventory = Awaited<ReturnType<WorkspaceBackupV2PostgresCustody['inspectHeldNamespaces']>>;
 type Reservation = { format: 'chausar.interchange-target-reservation.v1'; sourceVaultId: string; sourceWorkspaceId: string; targetId: string; workspaceId: string; generation: string; contextDigest: string; physical: Physical };
 type TargetIdentity = { format: 'chausar.activation-postgres-empty-target.v1'; reservation: PrivateArtifactRef; storage: PostgresStorageIdentity; operationId: string; creationId: string };
-type Scope = { context: Context; lease: WorkspaceInterchangeSourceLease };
+type HeldInspection = { candidateId: string; active: boolean; used: boolean };
+type Scope = { context: Context; lease: WorkspaceInterchangeSourceLease; inspection?: HeldInspection };
 const applicationRoots = ['application/backups', 'application/exports', 'application/updates'];
 function applicationWitness(inventory: Inventory) {
   const selected = (path: string) => applicationRoots.some(root => path === root || path.startsWith(`${root}/`));
@@ -84,7 +85,8 @@ export class WorkspacePostgresOriginals {
       'ACTIVATION_ROOT_REQUIRED', 'Source and reviewed journal must be distinct direct managed application children.');
     this.#options = { ...options, applicationDirectory, backupPolicy: structuredClone(options.backupPolicy), policy: structuredClone(options.policy) };
     this.source = { withSource: (context, expected, work, candidateId) => this.#withSource(context, expected, work, candidateId) };
-    this.originals = { withTransaction: (context, selection, work) => this.#transaction(context, selection, work) };
+    this.originals = { withTransaction: (context, selection, work) => this.#transaction(context, selection, work),
+      readCandidateHeld: (context, id) => this.#readCandidateForInspection(context, id) };
   }
   targetPath(id: string) {
     const o = this.#options;
@@ -201,13 +203,30 @@ export class WorkspacePostgresOriginals {
     'BACKUP_ACTIVATION_MATERIAL', 'Archived semantic export values and exact committed ciphertext references differ.');
     return { archive: ref(a), pin: ref(p), binding: ref(c) };
   }
+  async #readCandidateForInspection(context: Context, id: string) {
+    const scope = this.#scope.getStore(), inspection = scope?.inspection;
+    check(scope && inspection?.active && !inspection.used && inspection.candidateId === id
+      && same(scope.context, context), 'ACTIVATION_ROOT_GUARD', 'Held candidate inspection requires its exact active current source context and identity.');
+    // Consume before awaiting: overlapping or failed reads cannot reuse this capability.
+    inspection.used = true;
+    const selected = await this.#options.candidates().readCandidateHeld(structuredClone(context), id);
+    check(this.#scope.getStore() === scope && scope.inspection === inspection && inspection.active
+      && inspection.candidateId === id && same(scope.context, context), 'ACTIVATION_ROOT_GUARD',
+    'Held candidate inspection cannot escape or change its current source scope.');
+    return selected;
+  }
   async #archivedCapture(expected: WorkspaceInventory, id: string) {
     const scope = this.#scope.getStore(); check(scope && idPattern.test(id), 'ACTIVATION_CANDIDATE_UNAVAILABLE', 'Archived admission requires the exact selected candidate under source custody.');
     const candidates = this.#options.candidates(); check(typeof candidates?.readCandidateHeld === 'function', 'ACTIVATION_POSTGRES_ROOT_REQUIRED', 'Install the exact committed candidate reader.');
     const selected = await candidates.readCandidateHeld(scope.context, id);
     check(same(selected.pin.inventory, expected), 'ACTIVATION_CANDIDATE_CHANGED', 'Archived inventory must equal the selected independently issued candidate pin.');
     const bridge = this.#options.bridge(); check(bridge instanceof WorkspaceBackupActivationHost, 'ACTIVATION_POSTGRES_ROOT_REQUIRED', 'Install the actual original-custody bridge.');
-    const inspected = await bridge.inspect(scope.context, { candidateId: id });
+    check(!scope.inspection, 'ACTIVATION_ROOT_GUARD', 'Retain one current archived candidate inspection at a time.');
+    const inspection: HeldInspection = { candidateId: id, active: true, used: false };
+    scope.inspection = inspection;
+    let inspected: Awaited<ReturnType<WorkspaceBackupActivationHost['inspectHeld']>>;
+    try { inspected = await bridge.inspectHeld(scope.context, { candidateId: id }); }
+    finally { inspection.active = false; if (scope.inspection === inspection) delete scope.inspection; }
     check(inspected.evidence.content === selected.content && same(inspected.evidence.pin, selected.pin), 'ACTIVATION_CANDIDATE_CHANGED', 'Current original custody must rebuild the selected candidate exactly.');
     const parsed = JSON.parse(selected.content), archive = validateWorkspaceInterchange(canonicalInterchangeJson(parsed.archive), expected);
     const entry = archive.artifacts.find(item => item.manifest.id === 'backup_activation_provenance_v1');

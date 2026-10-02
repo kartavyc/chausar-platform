@@ -279,7 +279,7 @@ async function atomicWrite(path: string, content: string, replace: boolean) {
 }
 async function readBounded(path: string, exactSize?: number): Promise<string> {
   if (!isAbsolute(path)) throw new Error('Absolute path required');
-  await safeDirectory(dirname(path));
+  path = join(await safeDirectory(dirname(path)), basename(path));
   if (!(await existingRegular(path))) throw new Error('Missing file');
   const before = exactSize === undefined ? undefined : await lstat(path, { bigint: true });
   if (before && (before.size !== BigInt(exactSize!) || !before.isFile() || before.isSymbolicLink()))

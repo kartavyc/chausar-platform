@@ -8,10 +8,14 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authorize, check, ChausarError, hash, type Context, type State } from '../runtime/contracts.ts';
 import { acquireProcessLock } from '../runtime/process-lock.ts';
-import { Vault, type PrivateArtifactRef } from '../runtime/vault.ts';
+import { Vault, type EncryptedSnapshotAdapter, type PrivateArtifactRef, type VaultEnvelope } from '../runtime/vault.ts';
+import { PostgresSnapshotAdapter, type PostgresPool } from '../runtime/postgres.ts';
+import { WorkspacePostgresCustody } from '../runtime/workspace-postgres-custody.ts';
+import { WorkspacePostgresOriginals } from '../runtime/workspace-postgres-originals.ts';
+import { WorkspaceBackupV2PostgresCustody } from '../runtime/workspace-backup-postgres.ts';
 import { demoCsv, demoRecipe } from '../runtime/ingest.ts';
 import { WorkspaceInterchangeHost, type WorkspaceInterchangeCustodyRecord } from '../runtime/workspace-interchange-host.ts';
-import { createWorkspaceInterchangeLocalPorts } from '../runtime/workspace-interchange-local.ts';
+import { createWorkspaceInterchangeLocalPorts, WorkspaceInterchangeLocalCustody } from '../runtime/workspace-interchange-local.ts';
 import { canonicalInterchangeJson, interchangeDigest, readHistoricalWorkspaceState } from '../runtime/workspace-interchange.ts';
 import { createWorkspaceBackupV2Host, inspectWorkspaceBackupV2, workspaceBackupV2Bytes, type WorkspaceBackupV2Budgets,
   type WorkspaceBackupV2Capture, type WorkspaceBackupV2CustodyRecord } from '../runtime/workspace-backup-v2.ts';
@@ -299,6 +303,45 @@ async function corruptArtifact(vault: Vault, id: string, change: (value: any) =>
   const prior = await requiredArtifact(vault, id), value = structuredClone(prior.value); change(value);
   return vault.writeArtifact({ id, purpose: 'workspace-interchange', expectedDigest: prior.valueDigest, value });
 }
+async function encryptedSourceWitness(vault: Vault) {
+  const capture = await vault.snapshot(() => vault.captureEncryptedCustody(encryptedBudgets));
+  return { state: hash(capture.state), authority: sha(capture.authority),
+    artifacts: capture.artifacts.map(item => ({ ref: item.ref, sha256: sha(item.bytes) })) };
+}
+function trackedInspectionRoot(f: Awaited<ReturnType<typeof fixture>>,
+  initialRead?: WorkspaceBackupActivationPorts['custody']['read']) {
+  const counts = { publicReads: 0, heldReads: 0, transactions: 0, freshReads: 0 };
+  const hooks: { afterHeldRead?: () => Promise<void> } = {};
+  let scope: { context: Context; candidateId: string } | undefined;
+  const ports: WorkspaceBackupActivationPorts = {
+    custody: {
+      async read(ctx, candidateId) { counts.publicReads++; return f.root.ports.custody.read(ctx, candidateId); },
+      async readHeld(ctx, candidateId) {
+        counts.heldReads++;
+        check(scope && same(scope.context, ctx) && scope.candidateId === candidateId, 'ACTIVATION_ROOT_GUARD',
+          'Synthetic held reader requires its exact live constructor source scope.');
+        admission(f.vault, ctx, f.root.faults);
+        const value = initialRead ? await initialRead(ctx, candidateId)
+          : await readInterchange(f.vault, ctx, candidateId, true) as AuthenticatedActivationCandidate;
+        await hooks.afterHeldRead?.(); return value;
+      },
+    },
+    async withTransaction(ctx, chosen, work) {
+      counts.transactions++;
+      return f.root.ports.withTransaction(ctx, chosen, lease => work({ ...lease,
+        async readCandidate() {
+          counts.freshReads++; assert.equal(f.root.faults.held, true, 'Reread uses the actual held fixture transaction.');
+          return lease.readCandidate();
+        },
+      }));
+    },
+  };
+  return { counts, hooks, ports, host: () => new WorkspaceBackupActivationHost(ports, policyFor(f.vault.read().workspace.id)),
+    async withScope<T>(ctx: Context, candidateId: string, work: () => Promise<T>): Promise<T> {
+      assert.equal(scope, undefined); scope = { context: structuredClone(ctx), candidateId };
+      try { return await work(); } finally { scope = undefined; }
+    } };
+}
 async function replaceFixtureDirectory(f: Awaited<ReturnType<typeof fixture>>, targetId: string, copyInert: boolean) {
   const original = await realpath(join(f.applicationDirectory, targetId));
   const retained = join(f.applicationDirectory, `${targetId}_original_generation`);
@@ -392,6 +435,161 @@ if (process.argv[2] === '--bridge-fixture-child') {
     assert.deepEqual((await f.root.host().inspect(context, { candidateId: f.chosen.candidateId })).review, review);
     await assert.rejects(() => f.root.host().prepare(context, f.input), code('BACKUP_ACTIVATION_COMMIT_UNKNOWN'));
     assert.deepEqual(await f.root.host().inspect(context, { candidateId: f.chosen.candidateId }), before); assert.equal(f.root.faults.publications, 0);
+  });
+
+  test('held inspection skips the public reader and retains the fresh actual candidate transaction without publication', async t => {
+    const f = await fixture(t); await f.root.host().prepare(context, f.input);
+    const expected = await f.root.host().inspect(context, { candidateId: f.chosen.candidateId });
+    const before = await encryptedSourceWitness(f.vault), observed = trackedInspectionRoot(f);
+    const currentCalls = f.root.faults.currentCalls, completeCalls = f.root.faults.completeCalls;
+    const held = await observed.withScope(context, f.chosen.candidateId,
+      () => observed.host().inspectHeld(context, { candidateId: f.chosen.candidateId }));
+    assert.deepEqual(held, expected);
+    assert.deepEqual(observed.counts, { publicReads: 0, heldReads: 1, transactions: 1, freshReads: 1 });
+    assert.ok(f.root.faults.currentCalls > currentCalls); assert.ok(f.root.faults.completeCalls > completeCalls);
+    assert.equal(f.root.faults.publications, 1); assert.equal(f.root.faults.held, false);
+    assert.deepEqual(await encryptedSourceWitness(f.vault), before);
+    assert.deepEqual(await readdir(join(f.applicationDirectory, f.chosen.targetId)), []);
+    // Public inspection still selects the normal admission reader, even when a held port is installed.
+    assert.deepEqual(await observed.host().inspect(context, { candidateId: f.chosen.candidateId }), expected);
+    assert.deepEqual(observed.counts, { publicReads: 1, heldReads: 1, transactions: 2, freshReads: 2 });
+    assert.deepEqual(await encryptedSourceWitness(f.vault), before); assert.equal(f.root.faults.publications, 1);
+  });
+
+  test('held inspection requires a constructor capability and propagates its live source-scope refusal', async t => {
+    const f = await fixture(t); await f.root.host().prepare(context, f.input);
+    const before = await encryptedSourceWitness(f.vault), missing = trackedInspectionRoot(f);
+    delete missing.ports.custody.readHeld;
+    await assert.rejects(() => missing.host().inspectHeld(context, { candidateId: f.chosen.candidateId }), code('BACKUP_ACTIVATION_ROOT_REQUIRED'));
+    assert.deepEqual(missing.counts, { publicReads: 0, heldReads: 0, transactions: 0, freshReads: 0 });
+    const scoped = trackedInspectionRoot(f);
+    await assert.rejects(() => scoped.host().inspectHeld(context, { candidateId: f.chosen.candidateId }), code('ACTIVATION_ROOT_GUARD'));
+    assert.deepEqual(scoped.counts, { publicReads: 0, heldReads: 1, transactions: 0, freshReads: 0 });
+    await scoped.withScope(context, f.chosen.candidateId, async () => {
+      await assert.rejects(() => scoped.host().inspectHeld(context, { candidateId: 'different_candidate' }), code('ACTIVATION_ROOT_GUARD'));
+    });
+    assert.deepEqual(scoped.counts, { publicReads: 0, heldReads: 2, transactions: 0, freshReads: 0 });
+    assert.equal(f.root.faults.publications, 1); assert.equal(f.root.faults.held, false);
+    assert.deepEqual(await encryptedSourceWitness(f.vault), before);
+  });
+
+  test('actual PostgreSQL Originals rejects its held reader outside source scope before candidate or connection access', async t => {
+    // Actual production constructors and Vault encryption; the schema-only pool is injected.
+    // This tests the scope boundary and supplies no native PostgreSQL qualification.
+    class EncryptedMemoryAdapter implements EncryptedSnapshotAdapter {
+      readonly kind = 'postgres' as const;
+      envelope: VaultEnvelope | null = null;
+      async load() { return structuredClone(this.envelope); }
+      async commit(envelope: VaultEnvelope, expectedRevision: number | null) {
+        check((this.envelope?.revision ?? null) === expectedRevision, 'REVISION_CONFLICT', 'Synthetic encrypted authority changed.');
+        this.envelope = structuredClone(envelope);
+      }
+      async delete() { this.envelope = null; }
+    }
+    const scratch = await realpath(tmpdir());
+    if (process.platform === 'win32') assert.match(scratch, /^C:\\/i);
+    const applicationDirectory = await realpath(await mkdtemp(join(scratch, 'chausar-held-originals-'))), vaults: Vault[] = [];
+    assert.equal(dirname(applicationDirectory), scratch);
+    t.after(async () => {
+      for (const vault of vaults) await vault.close();
+      const actual = await realpath(applicationDirectory), child = relative(scratch, actual);
+      assert.equal(dirname(actual), scratch);
+      assert.ok(child && !isAbsolute(child) && !child.startsWith('..') && child.startsWith('chausar-held-originals-'));
+      await rm(actual, { recursive: true, force: true });
+    });
+    const sourceVault = (await Vault.create({ directory: join(applicationDirectory, 'source'), name: 'Synthetic held source',
+      storage: new EncryptedMemoryAdapter(), passphrase, demo: true })).vault;
+    vaults.push(sourceVault);
+    const journalVault = (await Vault.create({ directory: join(applicationDirectory, 'journal'), name: 'Synthetic held journal',
+      storage: new EncryptedMemoryAdapter(), passphrase, demo: true })).vault;
+    vaults.push(journalVault);
+    const calls = { schema: 0, connect: 0, candidate: 0, bridge: 0, target: 0 };
+    const pool: PostgresPool = {
+      async query(sql) {
+        calls.schema++; assert.match(sql, /^SELECT\s/); assert.match(sql, /to_regclass/);
+        return { rows: [{ authority_table: true, storage_table: true, custody_table: true, creation_column: true }] };
+      },
+      async connect() { calls.connect++; throw new Error('Scope refusal must precede connection access.'); },
+      async end() {},
+    };
+    const adapter = await PostgresSnapshotAdapter.fromPool(pool, 'held_scope_source');
+    const nativeSource = new WorkspacePostgresCustody({ adapter }), assertCompleteOwner = async () => {};
+    const backup = new WorkspaceBackupV2PostgresCustody({ vault: sourceVault, adapter, postgres: nativeSource,
+      applicationDirectory, budgets, filesystemBudgets: { maxFiles: 100, maxBytes: 16_000_000, maxDepth: 16 },
+      externalKeyRequirements: [], assertCompleteOwner,
+      withCompleteOwner: async (_ctx, _state, work) => sourceVault.withCustodyWriterAdmission(work) });
+    const interchange = new WorkspaceInterchangeLocalCustody({ vault: sourceVault, applicationDirectory, assertCompleteOwner, qualification: 'test-fixture' });
+    const originals = new WorkspacePostgresOriginals({ sourceVault, journalVault, applicationDirectory, backup, interchange, nativeSource,
+      backupPolicy: policyFor(sourceVault.read().workspace.id), policy: { approvedSyntheticWorkspaceIds: [sourceVault.read().workspace.id],
+        allowedSyntheticSourceIds: [], budgets: { maxCandidateBytes: 16_000_000, maxArtifactBytes: 3_000_000, maxArtifacts: 100, maxFacts: 100, maxRecords: 1000 }, retentionDays: 1 },
+      assertCompleteOwner,
+      async withTargetCustody() { calls.target++; throw new Error('Scope refusal must precede target access.'); },
+      candidates() { calls.candidate++; throw new Error('Scope refusal must precede candidate access.'); },
+      bridge() { calls.bridge++; throw new Error('Scope refusal must precede bridge access.'); },
+    });
+    await assert.rejects(() => originals.originals.readCandidateHeld!(context, 'bridge_candidate'), code('ACTIVATION_ROOT_GUARD'));
+    assert.deepEqual(calls, { schema: 1, connect: 0, candidate: 0, bridge: 0, target: 0 });
+  });
+
+  test('held inspection rejects a genuine retained pin issued to a different otherwise authorized context', async t => {
+    const f = await fixture(t); await f.root.host().prepare(context, f.input);
+    const retained = await readInterchange(f.vault, context, f.chosen.candidateId, true) as AuthenticatedActivationCandidate;
+    const otherContext = { ...context }; delete otherContext.sourceTainted;
+    admission(f.vault, otherContext, f.root.faults);
+    assert.notEqual(interchangeDigest(otherContext), retained.pin.contextDigest);
+    const before = await encryptedSourceWitness(f.vault), observed = trackedInspectionRoot(f, async () => retained);
+    await assert.rejects(() => observed.withScope(otherContext, f.chosen.candidateId,
+      () => observed.host().inspectHeld(otherContext, { candidateId: f.chosen.candidateId })), code('BACKUP_ACTIVATION_CUSTODY'));
+    assert.deepEqual(observed.counts, { publicReads: 0, heldReads: 1, transactions: 0, freshReads: 0 });
+    assert.equal(f.root.faults.publications, 1); assert.deepEqual(await encryptedSourceWitness(f.vault), before);
+  });
+
+  test('held inspection rejects actual encrypted candidate creation changes between selection and fresh transaction reread', async t => {
+    const f = await fixture(t); await f.root.host().prepare(context, f.input);
+    const before = await encryptedSourceWitness(f.vault), observed = trackedInspectionRoot(f);
+    const pinId = artifactId('bga', f.chosen.candidateId, 'pin'), commitId = artifactId('bga', f.chosen.candidateId, 'commit');
+    const selected = await readInterchange(f.vault, context, f.chosen.candidateId, true);
+    f.root.faults.beforeReadCandidate = async () => {
+      f.root.faults.beforeReadCandidate = undefined;
+      const prior = await requiredArtifact(f.vault, pinId), value = structuredClone(prior.value) as any;
+      value.pin.creationId = 'changed_actual_candidate_creation';
+      const next = await f.vault.writeArtifact({ id: pinId, purpose: 'workspace-interchange', expectedDigest: prior.valueDigest, value });
+      await corruptArtifact(f.vault, commitId, binding => { binding.pin = next; binding.pinDigest = interchangeDigest(value.pin); });
+    };
+    await assert.rejects(() => observed.withScope(context, f.chosen.candidateId,
+      () => observed.host().inspectHeld(context, { candidateId: f.chosen.candidateId })), code('BACKUP_ACTIVATION_CUSTODY_CHANGED'));
+    assert.deepEqual(observed.counts, { publicReads: 0, heldReads: 1, transactions: 1, freshReads: 1 });
+    const fresh = await readInterchange(f.vault, context, f.chosen.candidateId, true);
+    assert.notEqual(fresh.pin.creationId, selected.pin.creationId); assert.equal(fresh.content, selected.content);
+    const after = await encryptedSourceWitness(f.vault), unchanged = (value: typeof before) => value.artifacts.filter(item => ![pinId, commitId].includes(item.ref.id));
+    assert.equal(after.state, before.state); assert.equal(after.authority, before.authority);
+    assert.deepEqual(unchanged(after), unchanged(before));
+    for (const id of [pinId, commitId]) assert.notEqual(after.artifacts.find(item => item.ref.id === id)!.sha256, before.artifacts.find(item => item.ref.id === id)!.sha256);
+    assert.equal(f.root.faults.publications, 1); assert.equal(f.root.faults.held, false);
+    assert.deepEqual(await readdir(join(f.applicationDirectory, f.chosen.targetId)), []);
+  });
+
+  test('held inspection rechecks current owner, epoch, source access and readiness after its initial authenticated read', async t => {
+    for (const [name, mutation, expected] of [
+      ['owner deactivation', async (f: Awaited<ReturnType<typeof fixture>>) => f.vault.update(s => { s.members[0].active = false; }), 'ACCESS_REVOKED'],
+      ['owner epoch', async (f: Awaited<ReturnType<typeof fixture>>) => f.vault.update(s => { s.members[0].epoch++; }), 'ACCESS_REVOKED'],
+      ['complete branches', async (f: Awaited<ReturnType<typeof fixture>>) => f.vault.update(s => { s.members[0].branches = ['Main']; }), 'FORBIDDEN'],
+      ['source access', async (f: Awaited<ReturnType<typeof fixture>>) => f.vault.update(s => { s.policy.allowedSources = []; }), 'SOURCE_REVOKED'],
+      ['current readiness', async (f: Awaited<ReturnType<typeof fixture>>) => { f.root.faults.ready = false; }, 'INTERCHANGE_NOT_READY'],
+      ['complete owner view', async (f: Awaited<ReturnType<typeof fixture>>) => { f.root.faults.complete = false; }, 'INTERCHANGE_READ_SCOPE_REQUIRED'],
+    ] as const) await t.test(name, async sub => {
+      const f = await fixture(sub); await f.root.host().prepare(context, f.input);
+      const before = await encryptedSourceWitness(f.vault), observed = trackedInspectionRoot(f);
+      observed.hooks.afterHeldRead = async () => { await mutation(f); };
+      await assert.rejects(() => observed.withScope(context, f.chosen.candidateId,
+        () => observed.host().inspectHeld(context, { candidateId: f.chosen.candidateId })), code(expected));
+      assert.deepEqual(observed.counts, { publicReads: 0, heldReads: 1, transactions: 1, freshReads: 0 });
+      const after = await encryptedSourceWitness(f.vault);
+      assert.deepEqual(after.artifacts, before.artifacts);
+      if (name === 'current readiness' || name === 'complete owner view') assert.deepEqual(after, before);
+      assert.equal(f.root.faults.publications, 1); assert.equal(f.root.faults.held, false);
+      assert.deepEqual(await readdir(join(f.applicationDirectory, f.chosen.targetId)), []);
+    });
   });
 
   test('current authority, epoch, source scope and readiness revocations refuse before candidate publication', async t => {
