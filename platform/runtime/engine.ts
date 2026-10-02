@@ -22,6 +22,7 @@ import { ResearchSearchService, type ResearchSearchPort } from './research-searc
 import { TrustService, sourceAllowed, assertSourceAccess } from './trust.ts';
 import { ModelGateway } from './gateway.ts';
 import type { GatewayOptions } from './gateway.ts';
+import type { ReviewedConversationCalculationParameters } from './conversation-calculation-arguments.ts';
 import { conversationPurpose } from './conversation-purpose.ts';
 import { ConversationHistoryService, createCalculationAnswerRecord, conversationRecordIntegrity } from './conversation-history.ts';
 import { ConversationSynthesisHost } from './conversation-synthesis-host.ts';
@@ -77,7 +78,7 @@ const defaultBackupFilesystemBudgets: WorkspaceBackupV2FilesystemBudgets = { max
 /** Trusted host result. Identifiers and private scope are not automatic outbound disclosure. */
 export type ConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
   sourceIds: string[]; requestScope: BusinessContextManifest['request'] | Record<string, unknown>; digest: string;
-  exchanges?: { question: string; clarification: string }[] };
+  exchanges?: { question: string; clarification: string }[]; reviewedCalculationParameters?: ReviewedConversationCalculationParameters };
 
 type AnswerRecoveryRecord = { id: string; type: 'answer-recovery-request-v1'; workspaceId: string; memberId: string; epoch: number;
   at: string; preparation: PreparedAnswerRecovery; evidencePin: string; dictionary: { hash: string; version: number };
@@ -124,7 +125,9 @@ export class Engine {
     const models = state.modelReceipts.filter(item => item?.id === record.modelReceiptId);
     check(models.length === 1 && hash(models[0]) === hash(model), unavailable, 'This pending clarification is unavailable.');
     check(model.naturalQuestion === record.question && model.plan?.kind === 'clarification' && model.businessContext?.request
-      && hash(model.sourceIds) === hash(model.businessContext.sourceIds), unavailable, 'This pending clarification is unavailable.');
+      && hash(model.sourceIds) === hash([...(model.reviewedCalculationParameters !== undefined
+        ? model.businessContext.request.sourceIds ?? model.businessContext.sourceIds : model.businessContext.sourceIds)].sort())
+      && model.businessContext.sourceIds.every((sourceId: string) => model.sourceIds.includes(sourceId)), unavailable, 'This pending clarification is unavailable.');
     const expected = { clarification: model.plan.clarification, modelReceiptId: model.id };
     check(hash(record.answer) === hash(expected), unavailable, 'This pending clarification is unavailable.');
     const rowIds = [...new Set<string>([...(model.factIds ?? []), ...(model.rowIds ?? [])])].sort();
@@ -148,7 +151,8 @@ export class Engine {
       { question: record.question, clarification: model.plan.clarification }];
     check(exchanges.length <= 8, 'CONVERSATION_CONTINUATION_LIMIT', 'This clarification chain is full. Start a new question.');
     const body = { schemaVersion: 1 as const, turnId: id, originalQuestion: prior?.originalQuestion ?? record.question, clarification: model.plan.clarification,
-      exchanges, sourceIds: selectedSourceIds, requestScope: structuredClone(model.businessContext.request) };
+      exchanges, sourceIds: selectedSourceIds, requestScope: structuredClone(model.businessContext.request),
+      ...(model.reviewedCalculationParameters !== undefined ? { reviewedCalculationParameters: structuredClone(model.reviewedCalculationParameters) } : {}) };
     check(Buffer.byteLength(JSON.stringify(body)) <= 65536, 'CONVERSATION_CONTINUATION_LIMIT', 'This clarification context is too long. Start a new question.');
     return { ...body, digest: hash(body) };
   }
@@ -223,11 +227,20 @@ export class Engine {
         } else {
           // Source admission precedes version/conflict resolution and arithmetic.
           // Empty reviewed scopes stay empty; they never mean "all visible".
-          check(model.businessContext?.request && hash(model.sourceIds) === hash(model.businessContext.sourceIds), 'TOOL_SCOPE_CHANGED', 'The calculation source scope no longer matches the reviewed manifest.');
+          check(model.businessContext?.request
+            && hash(model.sourceIds) === hash([...(model.reviewedCalculationParameters !== undefined
+              ? model.businessContext.request.sourceIds ?? model.businessContext.sourceIds : model.businessContext.sourceIds)].sort())
+            && model.businessContext.sourceIds.every((sourceId: string) => model.sourceIds.includes(sourceId)),
+            'TOOL_SCOPE_CHANGED', 'The calculation source scope no longer matches the exact reviewed source admission.');
           const scope = model.businessContext.request, args: any = { ...call.args, sourceIds: [...(model.businessContext.request.sourceIds ?? model.sourceIds)] };
           for (const key of ['period', 'branch'] as const) if (scope[key] !== undefined) {
             check(args[key] === undefined || hash(args[key]) === hash(scope[key]), 'TOOL_SCOPE_CHANGED', 'The calculation must use the exact reviewed scope.'); args[key] = scope[key];
           }
+          // Comparison periods and scenario assumptions come only from the admitted
+          // planner arguments, already validated against the exact owner review.
+          for (const key of ['comparePeriod', 'assumptions'] as const) if (args[key] !== undefined)
+            check(model.reviewedCalculationParameters?.[key] !== undefined && hash(args[key]) === hash(model.reviewedCalculationParameters[key]),
+              'TOOL_SCOPE_CHANGED', 'The calculation inputs differ from the exact reviewed owner parameters.');
           for (const key of ['asOf', 'onDate'] as const) if (scope[key] !== undefined) args[key] = scope[key];
           answer = await s.calculator.calculate(ctx, args);
           check(answer.sourceIds.every((id: string) => model.sourceIds.includes(id)) && answer.rowIds.every((id: string) => model.factIds.includes(id)),

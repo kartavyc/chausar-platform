@@ -88,8 +88,8 @@ test('unselected unpublished connector capture cannot block selected local evide
 });
 
 test('all-tool-error composite is signed and stored with empty resultRefs through close/reopen', async t => {
-  const f = await fixture(t, execution('change')), { answer, preview } = await f.turn('Compare without prior dates.');
-  assert.equal(answer.results[0].error.code, 'COMPARISON_REQUIRED'); assert.deepEqual(answer.receipt.resultRefs, []);
+  const f = await fixture(t, execution('aging')), { answer, preview } = await f.turn('Show aging for invoices with missing links.');
+  assert.equal(answer.results[0].error.code, 'AGING_LINK_REQUIRED'); assert.deepEqual(answer.receipt.resultRefs, []);
   assert.equal(f.engine.vault!.read().conversations.filter(record => record.id === answer.id).length, 1);
   await f.reopen();
   const record = f.engine.vault!.read().conversations.find(record => record.id === answer.id);
@@ -98,6 +98,13 @@ test('all-tool-error composite is signed and stored with empty resultRefs throug
   assert.deepEqual(record.sourceIds, ['source-a', 'source-b']); assert.equal(record.rowIds.length, 2);
   assert.deepEqual((await f.engine.request('conversation.get', { id: answer.id })).answer, answer);
   assert.equal(f.providerCalls, 1);
+});
+
+test('missing comparison inputs fail admission before an incomplete planner call can become a tool error', async t => {
+  const f = await fixture(t, execution('change'));
+  await assert.rejects(f.turn('Compare without prior dates.'), { code: 'INVALID_CONVERSATION_PLAN' });
+  assert.equal(f.providerCalls, 1);
+  assert.deepEqual(f.engine.vault!.read().conversations, []);
 });
 
 test('clarification retains verbatim objective and current guarded continuation after encrypted reopen without dispatch', async t => {

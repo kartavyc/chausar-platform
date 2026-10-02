@@ -61,7 +61,7 @@ test('calculation descriptors distinguish planner parameters, reviewed scope and
   assert.deepEqual(sum.reviewedScopeParameters, ['asOf']);
   const change = operations.find((operation: any) => operation.id === 'change');
   assert.deepEqual(change.requiredParameters, ['period', 'comparePeriod']);
-  assert.deepEqual(change.unavailableParameters, ['comparePeriod']);
+  assert.deepEqual(change.unavailableParameters, ['period', 'comparePeriod']);
   const scenario = operations.find((operation: any) => operation.id === 'scenario');
   assert.deepEqual(scenario.requiredParameters, ['assumptions']);
   assert.deepEqual(scenario.unavailableParameters, ['assumptions']);
@@ -91,5 +91,20 @@ test('published semantic changes invalidate previous exact payload approvals bef
   await new OntologyService(f.store).publish(owner, draft);
   await assert.rejects(f.gateway.execute(owner, { ...input, previewId: preview.id, approvalId: approval.id }),
     (error: any) => error.code === 'BUSINESS_CONTEXT_STALE');
+  assert.equal(f.calls(), 0);
+});
+
+test('reviewed comparison periods and scenario inputs make only their typed catalogue parameters available', async () => {
+  const f = await fixture(false, true), period = { from: '2026-09-01', to: '2026-09-30' },
+    comparePeriod = { from: '2026-08-01', to: '2026-08-31' };
+  const preview = await f.gateway.preview(owner, { ...input, period, comparePeriod, assumptions: { priceChangeBps: '00500' } });
+  const body = content(preview), operations = body.publishedCalculations.operations;
+  const change = operations.find((operation: any) => operation.id === 'change'), scenario = operations.find((operation: any) => operation.id === 'scenario');
+  assert.deepEqual(change.plannerParameters, ['period', 'branch', 'customerId', 'comparePeriod']);
+  assert.deepEqual(change.unavailableParameters, []); assert.deepEqual(scenario.unavailableParameters, []);
+  assert.deepEqual(body.calculationParameters.period, period); assert.deepEqual(body.calculationParameters.comparePeriod, comparePeriod);
+  assert.equal(body.calculationParameters.assumptions.priceChangeBps, '00500');
+  assert.match(body.calculationParameters.assumptions.label, /scenario only, not a measured fact/);
+  assert.match(preview.calculationParameterDisclosureWarning, /separately from evidence Shape/);
   assert.equal(f.calls(), 0);
 });
