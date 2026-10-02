@@ -27,6 +27,11 @@ export type ModelRequest = { question: string; purpose?: 'analysis' | 'business-
 export type GatewayConversationContinuation = { schemaVersion: 1; turnId: string; originalQuestion: string; clarification: string;
   sourceIds: string[]; requestScope: BusinessContextRequest | Record<string, unknown>; digest: string;
   exchanges?: { question: string; clarification: string }[]; reviewedCalculationParameters?: ReviewedConversationCalculationParameters };
+/** Status-only projection: not an admitted result or replay/effect capability. */
+export type DispatchedConversationStatus = { id: string; purpose: 'conversation'; status: 'dispatching' | 'failed';
+  memberId: string; epoch: number; sourceIds: string[]; routeId: string; routeRevision: number; endpoint: string;
+  digest: string; schemaDigest: string; attempts: 1; dispatchedAt: string;
+  publishedCalculations: { dictionaryHash: string | null; dictionaryVersion: number | null } };
 export type GatewayResult = { kind: 'analysis'; plan: AnalyticalPlan; answer?: never; selection?: never; receipt: any }
   | { kind: 'business-context'; plan?: never; answer: ReturnType<typeof renderBusinessAnswer>; selection: BusinessSelection; receipt: any }
   | { kind: 'conversation'; plan: ConversationPlan; answer?: never; selection?: never; receipt: any }
@@ -745,7 +750,7 @@ export class ModelGateway {
       state.modelReceipts.push(approval); audit(state, 'model.outbound.approved', { previewId, digest: preview.digest, memberId: context.memberId }); return structuredClone(approval);
     });
   }
-  #assertCurrent(context: Context, preview: any, state = this.store.read()) {
+  #assertCurrentEvidence(context: Context, preview: any, state = this.store.read()) {
     const view = { read: () => state, update: this.store.update.bind(this.store) }; authorize(view, context, 'prepare');
     if (CALCULATION_REVIEW_KEYS.some(key => Object.hasOwn(preview, key))) check(preview.purpose === 'conversation', 'PAYLOAD_CHANGED', 'Reviewed calculation inputs require conversation mode.');
     if (SYNTHESIS_MARKERS.some(key => preview[key] !== undefined)) check(preview.purpose === 'conversation-synthesis', 'SYNTHESIS_STALE', 'The synthesis receipt purpose changed.');
@@ -786,6 +791,11 @@ export class ModelGateway {
       const binding = (record: any) => Object.fromEntries([...continuationKeys, 'requestScope'].map(key => [key, record?.[key]]));
       check(current && hash(binding(current)) === hash(binding(preview)), CONTINUATION_STALE, 'The stored continuation review changed.');
     }
+    return route;
+  }
+  #assertCurrent(context: Context, preview: any, state = this.store.read()) {
+    const route = this.#assertCurrentEvidence(context, preview, state);
+    const current = state.modelReceipts.find(r => r.id === preview.id);
     if (preview.approvalRequired && (current?.status === 'dispatching' || ['conversation', 'conversation-synthesis'].includes(preview.purpose) && current?.status === 'completed')) {
       const approval = state.modelReceipts.find(a => a.id === current.approvalId && a.kind === 'outbound-approval');
       const approver = state.members.find(m => m.id === approval?.approverId);
@@ -870,6 +880,40 @@ export class ModelGateway {
       this.assertConversationReceipt(context, preview.id, view);
     }
     return structuredClone(preview);
+  }
+  /** Trusted host status/reconciliation only. Requires evidence of the original
+   * single dispatch, even when its one-transfer approval has since expired.
+   * The returned projection has no plan, answer, result wire or effect authority. */
+  assertDispatchedConversationRequest(context: Context, request: ModelRequest, view: StateStore = this.store): DispatchedConversationStatus {
+    authorize(view, context, 'prepare');
+    check(typeof request.previewId === 'string' && request.previewId.length > 0 && request.purpose === 'conversation'
+      && request.questionDisclosure === 'verbatim' && typeof request.question === 'string' && typeof request.routeId === 'string',
+      'PREVIEW_REQUEST_CHANGED', 'Use the exact originally approved unified conversation request.');
+    check(!Object.hasOwn(request, 'continuation'), CONTINUATION_INVALID, 'Only a retained turn ID may select trusted local continuation text.');
+    const state = view.read(), records = state.modelReceipts.filter(record => record.id === request.previewId), preview = records[0];
+    check(records.length === 1 && preview?.kind === 'model-preview' && preview.purpose === 'conversation'
+      && ['dispatching', 'failed'].includes(preview.status) && preview.approvalRequired === true && preview.attempts === 1,
+      'DISPATCH_STATUS_UNAVAILABLE', 'One originally dispatched conversation is required for current status.');
+    this.#assertRequestMatchesPreview(request, preview);
+    const approvals = state.modelReceipts.filter(record => record.id === preview.approvalId && record.kind === 'outbound-approval'), approval = approvals[0];
+    const approver = state.members.find(member => member.id === approval?.approverId);
+    const dispatchedAt = typeof preview.dispatchedAt === 'string' ? Date.parse(preview.dispatchedAt) : NaN;
+    const createdAt = typeof approval?.createdAt === 'string' ? Date.parse(approval.createdAt) : NaN;
+    const expiresAt = typeof approval?.expiresAt === 'string' ? Date.parse(approval.expiresAt) : NaN;
+    check(typeof request.approvalId === 'string' && request.approvalId === preview.approvalId && approvals.length === 1
+      && approval?.used === true && approval.previewId === preview.id && approval.routeId === preview.routeId
+      && approval.digest === preview.digest && approval.endpoint === preview.endpoint
+      && approver?.active && approver.epoch === approval.approverEpoch && ['owner', 'cofounder'].includes(approver.role),
+      'APPROVAL_REVOKED', 'The original consumed approval or its current approver no longer matches this dispatch.');
+    check(Number.isFinite(dispatchedAt) && Number.isFinite(createdAt) && Number.isFinite(expiresAt)
+      && dispatchedAt >= createdAt && dispatchedAt < expiresAt && dispatchedAt <= Date.now(),
+      'DISPATCH_STATUS_UNAVAILABLE', 'The persisted single dispatch is outside its original approval interval.');
+    this.#assertCurrentEvidence(context, preview, state);
+    return { id: preview.id, purpose: 'conversation', status: preview.status, memberId: preview.memberId, epoch: preview.epoch,
+      sourceIds: structuredClone(preview.sourceIds), routeId: preview.routeId, routeRevision: preview.routeRevision, endpoint: preview.endpoint,
+      digest: preview.digest, schemaDigest: preview.schemaDigest, attempts: 1, dispatchedAt: preview.dispatchedAt,
+      publishedCalculations: { dictionaryHash: preview.publishedCalculations?.dictionaryHash ?? null,
+        dictionaryVersion: preview.publishedCalculations?.dictionaryVersion ?? null } };
   }
   async execute(context: Context, request: Partial<ModelRequest> & { previewId?: string }): Promise<GatewayResult> {
     authorize(this.store, context, 'prepare');
