@@ -494,9 +494,14 @@ export class Engine {
           consumerGuard: (member: Context, request: CalculationRequest) => connectors.assertCalculationReady(member, request),
           receiptGuard: (member: Context, receipt: CalculationReceipt) => connectors.assertReceiptReady(member, receipt) };
         const calculator = new CalculatorService(view, evidenceOptions);
-        // receipt() preserves historical arithmetic and reports staleness. Merely
-        // reading it successfully is not a current-evidence qualification.
-        if (ids.some((id: string) => calculator.receipt(ctx, id).stale !== false)) return false;
+        // Alert episodes intentionally retain historical receipts. Their current
+        // uncertainty and observation state are checked by the exact section pin.
+        // Every reference still needs current access; only the current report's
+        // arithmetic must be fresh rather than a retained historical observation.
+        const reportIds = job.deliverable.result?.report?.receiptIds;
+        if (!Array.isArray(reportIds) || reportIds.length === 0 || reportIds.some((id: string) => !ids.includes(id))) return false;
+        const receipts = new Map<string, CalculationReceipt>(ids.map((id: string) => [id, calculator.receipt(ctx, id)]));
+        if (reportIds.some((id: string) => receipts.get(id)?.stale !== false)) return false;
         const currentDecisions = new Set(new ReportService(view, evidenceOptions).decisions(ctx).map((item: any) => item.id));
         const savedAlerts = job.deliverable.result?.alerts;
         if (savedAlerts) {

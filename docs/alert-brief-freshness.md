@@ -7,3 +7,5 @@ The installed Engine brief guard now requires every referenced report/alert rece
 The independently authored nine-case acceptance slice remains unchanged. Three additional synthetic writer-candidate tests exercise the completion and acceptance transaction boundary and historical read redaction. They are source-boundary fixtures, not native PostgreSQL concurrency qualification. Executed results and the combined candidate identity are recorded separately by the integration coordinator; this document does not assert a green gate before execution.
 
 Native database evidence remains pinned to published 1dc19b8. PGlite competing writers, PostgreSQL v2 archive/activation, installed GUI/devices, real providers and the blocked dedicated security review remain separate gates.
+
+Historical alert observations remain readable when their current section explicitly records uncertain evidence. Current report arithmetic must be fresh; every report/alert reference still passes current access and the alert section must match its current pin. The independent nine-case fixture stays unchanged.
