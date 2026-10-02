@@ -1,0 +1,53 @@
+# Enterprise workflow-start reconciliation
+
+The dispatcher now acknowledges an outbox row only after qualified execution readback matches its immutable admission binding. An already-started error, an execution ID, or a successful start response alone cannot mark the row dispatched. This implements the enterprise admission delivery lane of final-plan section 23.31; admitted work remains distinct from completed investigations.
+
+The lane starts from `1dc19b856380951aea49b7143ed4b5617130c06b`, tree `68b396560c2b7950ccaf9d8c38ee52d87bd60d65`, in an isolated C-only worktree. The source bundle SHA256 is `3e453e89f16a7ec38e07377498b6f6056d4a3a70d44e3d947966c4825a45bb93`. No `AGENTS.md` or `.agents/skills` files were present in the pinned checkout or its supplied source checkout. Ownership is limited to the dispatcher, new admission module, additive migration, focused tests and this enterprise document. Root/enterprise manifests and locks, Engine/Vault/IPC, other lanes and D contents are untouched.
+
+## Implemented behavior
+
+`workflow-admission.ts` contains the executable reconciliation state machine and injected native/store contracts. The binding includes tenant, business identity and incarnation, Temporal environment incarnation and namespace, workflow ID/type/queue, exact argument digest, authoritative semantic-work digest and positive bigint-text admission generation. Canonical digests use ordinal keys and strict JSON values; missing deployment identities and invalid generations refuse before dispatch. Generation is independent of mutable investigation/task revision.
+
+Workflow ID remains the investigation ID and arguments remain exactly `[{investigationId}]`. This preserves the core's existing `${investigationId}/execute` operation contract. Semantic selectors are captured from the authoritative investigation under a short database transaction; only their digest enters the binding. A successful start's original run ID is retained before readback and must agree with the admitted execution.
+
+The existing core resolves that investigation reference under current authority. Integration must preserve the pinned semantic selectors through execution and distinguish the existing governed expiry/erasure path from changed work. This lane does not modify core execution or claim that a metadata receipt proves business work completion or current source permission.
+
+`postgresAdmissionStore` pins the binding and leases a row before transmission. The send-intent marker commits before calling Temporal. After any uncertain start, subsequent attempts only read back that same identity; they never start again, allocate a replacement ID or advance generation. Compatible original-start evidence admits the row. Incompatible evidence remains a conflict with `dispatched_at IS NULL`. Missing/unavailable evidence remains tenant-owned pending with its cause and attempt count. A crash between committed send intent and transmission also remains owned pending for explicit lifecycle recovery; ID absence does not authorize a blind retry.
+
+Default limits are 100 rows per call, three admission attempts, a 45-second claim and 10-second start/readback deadlines. Configuration is bounded to at most 100 rows, ten attempts, 120 seconds per claim and 30 seconds per native call; the lease must cover both deadlines. A timed-out native call may still be in flight, so its start intent persists and subsequent attempts remain read-only. Exhausted rows remain visible pending; this module introduces no retry scheduler. Native per-row failures do not hide later rows. Database custody failures surface to the caller.
+
+Finish transactions require the exact live claim token, tenant, immutable binding and original run receipt. Receipt insertion/readback, append-only observation custody and `dispatched_at` acknowledgement commit together. Final lease expiry or a changed claim rolls back the transaction. A durable receipt uniqueness collision commits a conflict and the dispatch summary reports that committed outcome. The original transport cause is retained independently when a conflict replaces the current cause. Port errors must contain only restricted operational metadata, never credentials, raw records or model payloads.
+
+## Migration and integration seam
+
+Apply `storage/migrations/001_workflow_admission.sql` once after `storage/schema.sql`, with legacy dispatchers stopped. The migration adds columns/tables/functions/triggers/index only; it does not create/drop databases, roles or extensions and does not modify the base schema file. Every pre-migration row is parked as `legacy_unverified`, including pending rows that might have crossed a lost-ack window. Existing dispatch timestamps are preserved as historical markers without fabricating admission receipts. Legacy recovery requires a separately reviewed authoritative lifecycle route.
+
+New outbox inserts must begin unclaimed and pending. Database guards reject ordinary mutation of a pinned binding, generation, send intent or known run ID, decreasing attempts, acknowledgement without a matching receipt, and deletion of protected admission custody. Admitted/conflict/legacy states cannot silently reenter pending. Receipt uniqueness binds `(environment incarnation, namespace, workflow ID)` as well as `(tenant, investigation, generation)`; receipts and observation events reject ordinary UPDATE/DELETE. Database owners can bypass triggers and remain outside the application-role guarantee. Integration must qualify PostgreSQL syntax, migration locks, roles, constraints, rollback, concurrent claims and lifecycle compatibility using the genuine database.
+
+The production join is now explicit:
+
+```ts
+dispatchPending(pool, qualifiedTemporalAdmissionPort, taskQueue, tenantId, {
+  scope: { businessId, businessIncarnation, environmentIncarnation, namespace },
+});
+```
+
+The genuine Temporal adapter belongs to integration. It must start `investigate` with `REJECT_DUPLICATE`, the exact workflow ID/args, configured task queue and admission binding in original start metadata. Readback must independently establish namespace, actual type/queue, decoded original arguments and their digest, original immutable binding, and original admitted run ID from qualified start history. Mutable current memo, an ID lookup alone, an arbitrary query or caller-supplied binding cannot qualify the result. Codecs, continue-as-new chains, archived/expired history and restored/cloned deployment identities require executed native qualification. `missing` never means permission to reuse an ID.
+
+The three existing `scripts/run-connected.ts` calls at lines 78, 92 and 98 require this explicit port/scope join, and its bootstrap must apply the additive migration before admitting new work. Its manual old-style redelivery mutation needs replacement with receipt-backed duplicate-delivery acceptance. These shared runner edits are intentionally left to integration. The old four-argument call refuses rather than inferring business/deployment identity.
+
+## Executed evidence and outstanding gates
+
+Run the dependency-free functional suite with Node 24:
+
+```powershell
+node --test enterprise/platform/tests/workflow-admission.test.ts enterprise/platform/tests/workflow-admission-storage.test.ts
+```
+
+The fresh combined run passes 53/53 tests: 32 reconciliation cases and 21 storage adapter cases. The deterministic fixture suite exercises compatible existing starts; tenant/business/incarnation/environment/namespace/type/queue/input/generation conflicts; response loss; missing/unavailable/late readback; bounded native deadlines; duplicate dispatch races; stale claim fences; durable-intent crashes; exact original run receipt; per-row isolation and durable receipt collisions. The storage suite invokes the production PostgreSQL adapter through injected query ports to check transactional binding, tenant/token/lease fences, receipt-before-ack custody, conflicts, exact causes, SQL NULL handling and rollback/release. These tests are synthetic injected-port evidence; the SQL query fixtures do not execute or qualify PostgreSQL itself.
+
+Both source files and focused tests pass strict TypeScript checking using the already-installed TypeScript 5.9.3, Node types and pg types. The existing dependency-declaration/lock contract tests also pass. No package was acquired and no vendor declaration stub or compiler relaxation was added.
+
+The full enterprise compiler still fails. Its latest lane run has 24 diagnostics: 13 missing-module diagnostics and eight inherited secondary type diagnostics, plus three explicit runner join errors for the new fifth argument. A fresh strict check of the actual pinned baseline reproduces 22; the dispatcher no longer imports the missing Temporal client directly and the three unjoined runner calls are newly exposed. The actual stage lacks Temporal client/common/worker/workflow/testing, Cube packages, Express/types, OpenAI and Zod. Neither the focused compiler pass nor injected ports qualify those dependencies.
+
+Genuine Temporal, PostgreSQL migration/concurrency, Cube and connected enterprise acceptance remain unexecuted. This lane made no native GUI, model, customer-vault, credential, spending or external-send calls and no D writes. Parent integration owns merge/push, the native adapter/runner/schema join and public acceptance. No production, live-provider, customer, native or full-enterprise pass is claimed.
