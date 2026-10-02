@@ -1,5 +1,6 @@
 import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
+import {createRequire,syncBuiltinESMExports} from 'node:module';
 import {mkdtemp,readFile,realpath,mkdir,rm,writeFile,lstat,open,type FileHandle} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,relative,isAbsolute} from 'node:path';
@@ -165,4 +166,46 @@ test('actual encrypted custody reads large authentic artifacts with bounded one-
   t.diagnostic(JSON.stringify({evidence:'real-filesystem-authenticated-custody',artifactBytes:original.length,descriptorReadCalls:calls,maximumRequestBytes:maximumRequest,totalReadBytes:totalRead}));
   assert.equal(totalRead,original.length);assert.ok(maximumRequest<=1024*1024,'Each descriptor read must retain the fixed one-MiB allocation cap.');
   assert.ok(calls<=Math.ceil(original.length/(1024*1024))+2,'A large artifact must fit one-MiB reads plus bounded partial/EOF overhead.');
+});
+
+test('actual encrypted custody uses three independent path measurements per admitted artifact without duplicate pre-open stat',async t=>{
+  const f=await fixture(t);
+  await f.vault.writeArtifact({id:'measured_control',purpose:'workspace-interchange',value:{synthetic:true},expectedDigest:null});
+  const file=join(f.directory,'private-artifacts','workspace-interchange','measured_control.encrypted.json'),original=await readFile(file);
+  const filesystem=createRequire(import.meta.url)('node:fs/promises') as typeof import('node:fs/promises'),realLstat=filesystem.lstat;
+  let pathMeasurements=0;
+  const hook=t.mock.method(filesystem,'lstat',async function(...args:Parameters<typeof lstat>){
+    if(String(args[0])===file)pathMeasurements++;
+    return Reflect.apply(realLstat,filesystem,args);
+  });syncBuiltinESMExports();
+  let capture:VaultEncryptedCustodyCapture;
+  try{capture=await f.vault.snapshot(()=>f.vault.captureEncryptedCustody(budget));}
+  finally{hook.mock.restore();syncBuiltinESMExports();}
+  assert.deepEqual(Buffer.from(capture.artifacts[0].bytes),original);
+  assert.deepEqual(await f.vault.snapshot(()=>f.vault.authenticateEncryptedCustody({...capture,source:source(capture)},budget)),f.vault.read());
+  t.diagnostic(JSON.stringify({evidence:'real-filesystem-authenticated-custody',artifactPathMeasurements:pathMeasurements,exactBytesAndAuthentication:true}));
+  assert.equal(pathMeasurements,3,'Retain preflight, before-open and current-path identity measurements without an adjacent redundant stat.');
+});
+
+test('actual encrypted custody preserves missing and nonregular artifact refusals after successful size preflight',async t=>{
+  for(const change of ['removed','replaced-with-directory'] as const)await t.test(change,async sub=>{
+    const f=await fixture(sub);
+    await f.vault.writeArtifact({id:'changed_control',purpose:'workspace-interchange',value:{synthetic:true},expectedDigest:null});
+    const file=join(f.directory,'private-artifacts','workspace-interchange','changed_control.encrypted.json');
+    const filesystem=createRequire(import.meta.url)('node:fs/promises') as typeof import('node:fs/promises'),realLstat=filesystem.lstat;
+    let changed=false;
+    const hook=sub.mock.method(filesystem,'lstat',async function(...args:Parameters<typeof lstat>){
+      const stat=await Reflect.apply(realLstat,filesystem,args);
+      if(!changed&&String(args[0])===file){
+        changed=true;await rm(file);if(change==='replaced-with-directory')await mkdir(file);
+      }
+      return stat;
+    });syncBuiltinESMExports();
+    try{
+      await assert.rejects(f.vault.snapshot(()=>f.vault.captureEncryptedCustody(budget)),{code:change==='removed'?'ARTIFACT_NOT_FOUND':'UNSAFE_PATH'});
+      assert.equal(changed,true,'Mutate the real path after its admitted preflight stat without a timing race.');
+    }finally{hook.mock.restore();syncBuiltinESMExports();}
+    if(change==='removed')await assert.rejects(lstat(file),{code:'ENOENT'});
+    else assert.equal((await lstat(file)).isDirectory(),true,'Refusal preserves the competing nonregular occupant.');
+  });
 });

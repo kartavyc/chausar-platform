@@ -15,7 +15,7 @@ import type { WorkspaceActivationPolicy } from './workspace-activation.ts';
 import type { WorkspaceActivationLocalOptions } from './workspace-activation-local.ts';
 import type { WorkspacePostgresActivationCandidates, WorkspacePostgresBackupActivationOriginals } from './workspace-activation-postgres.ts';
 import { canonicalInterchangeJson, captureWorkspaceInterchange, interchangeDigest, readHistoricalWorkspaceState, retainedArtifactBytes, validateWorkspaceInterchange, workspaceStateProfile } from './workspace-interchange.ts';
-import { validateWorkspaceBackupV2, workspaceBackupV2Bytes, type WorkspaceBackupV2Capture } from './workspace-backup-v2.ts';
+import { validateWorkspaceBackupV2Capture, type WorkspaceBackupV2Capture } from './workspace-backup-v2.ts';
 import type { ArtifactCapture, EmptyTargetInspection, WorkspaceInventory } from './workspace-interchange-contracts.ts';
 import type { WorkspaceInterchangeCustodyRecord, WorkspaceInterchangeSourceLease } from './workspace-interchange-host.ts';
 
@@ -232,8 +232,8 @@ export class WorkspacePostgresOriginals {
     const entry = archive.artifacts.find(item => item.manifest.id === 'backup_activation_provenance_v1');
     check(entry, 'ACTIVATION_CANDIDATE_CHANGED', 'The complete candidate must retain its independently authenticated original provenance.');
     const provenance = JSON.parse(Buffer.from(retainedArtifactBytes(entry)).toString('utf8'));
-    const encrypted = validateWorkspaceBackupV2(provenance.backup.content, provenance.backup.pin.sourcePin, this.#options.backupPolicy.backupBudgets);
-    const capture = workspaceBackupV2Bytes(encrypted, this.#options.backupPolicy.backupBudgets), historical = await this.#options.sourceVault.authenticateEncryptedCustody(capture, encryptedBudgets);
+    const { capture } = validateWorkspaceBackupV2Capture(provenance.backup.content, provenance.backup.pin.sourcePin, this.#options.backupPolicy.backupBudgets);
+    const historical = await this.#options.sourceVault.authenticateEncryptedCustody(capture, encryptedBudgets);
     await this.#owner(scope.context, historical); await this.#authenticateMaterial(capture, provenance.material);
     const state = readHistoricalWorkspaceState(archive);
     check(same(state, historical), 'ACTIVATION_CANDIDATE_CHANGED', 'Archived semantic State must equal authenticated original encrypted authority.');

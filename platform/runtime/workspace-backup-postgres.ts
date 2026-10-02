@@ -14,7 +14,7 @@ import { WorkspaceActivationStagingInventory, preflightWorkspaceActivationStagin
 import type { PostgresSnapshotAdapter, PostgresSnapshotLease } from './postgres.ts';
 import type { WorkspacePostgresCustody, PostgresStorageIdentity, PostgresAuthorityIdentity } from './workspace-postgres-custody.ts';
 import {
-  captureWorkspaceBackupV2, encodeWorkspaceBackupV2, inspectWorkspaceBackupV2, validateWorkspaceBackupV2, workspaceBackupV2Bytes,
+  captureWorkspaceBackupV2, encodeWorkspaceBackupV2, inspectWorkspaceBackupV2, validateWorkspaceBackupV2, validateWorkspaceBackupV2Capture, workspaceBackupV2Bytes,
   type WorkspaceBackupV2Archive, type WorkspaceBackupV2Budgets, type WorkspaceBackupV2Capture,
   type WorkspaceBackupV2CustodyRecord, type WorkspaceBackupV2EmptyTarget, type WorkspaceBackupV2ExternalKeyRequirement,
   type WorkspaceBackupV2HostPorts, type WorkspaceBackupV2Measurement, type WorkspaceBackupV2Namespace,
@@ -480,18 +480,19 @@ export class WorkspaceBackupV2PostgresCustody {
         'BACKUP_ACTIVATION_STAGING_UNBOUND', 'An activation directory must have an exact authenticated manifest identity.');
       directories.push({ path: logical, physical: currentPhysical });
       let count = 0, bytes = 0;
-      const names = (await readdir(path)).sort();
-      check(new Set(names.map(name => name.toLowerCase())).size === names.length, 'BACKUP_INVENTORY_INCOMPLETE', 'Filesystem case aliases require separate review.');
+      const children = (await readdir(path, { withFileTypes: true })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+      check(new Set(children.map(entry => entry.name.toLowerCase())).size === children.length, 'BACKUP_INVENTORY_INCOMPLETE', 'Filesystem case aliases require separate review.');
       let pending: { path: string; logical: string }[] = [];
       const flush = async () => {
         const found = await retainBatch(pending); pending = [];
         count += found.length; bytes += found.reduce((sum, item) => sum + item.bytes, 0);
       };
-      for (const name of names) {
+      for (const entry of children) {
+        const name = entry.name;
         check(/^[A-Za-z0-9_.-]+$/.test(name) && !['.','..'].includes(name) && !name.endsWith('.'), 'BACKUP_INVENTORY_INCOMPLETE', 'An actual filesystem entry has an unreviewed portable identity.');
-        const child = join(path, name), stat = await lstat(child, { bigint: true });
-        check(!stat.isSymbolicLink() && (stat.isDirectory() || stat.isFile()), 'BACKUP_UNSAFE_FILE', 'Complete inventory requires regular files and safe directories.');
-        if (stat.isDirectory()) { await flush(); const found = await walk(child, `${logical}/${name}`, depth + 1); count += found.entries; bytes += found.bytes; }
+        const child = join(path, name);
+        check(!entry.isSymbolicLink() && (entry.isDirectory() || entry.isFile()), 'BACKUP_UNSAFE_FILE', 'Complete inventory requires regular files and safe directories.');
+        if (entry.isDirectory()) { await flush(); const found = await walk(child, `${logical}/${name}`, depth + 1); count += found.entries; bytes += found.bytes; }
         else {
           check(entries + pending.length + 1 <= b.maxFiles, 'BACKUP_LIMIT', 'Sibling file preflight exceeds its remaining entry count budget.');
           pending.push({ path: child, logical: `${logical}/${name}` });
@@ -890,8 +891,8 @@ export class WorkspaceBackupV2PostgresCustody {
       stagedWitness = staged.witness;
       this.#scope.getStore()!.staging.set(staging, staged.witness);
       const decoded = JSON.parse(staged.bytes.toString('utf8'));
-      validateWorkspaceBackupV2(decoded.content, input.archive.pin, this.#options.budgets);
-      await this.#options.vault.authenticateEncryptedCustody(workspaceBackupV2Bytes(inspectWorkspaceBackupV2(decoded.content, this.#options.budgets), this.#options.budgets), this.#vaultBudget());
+      const checked = validateWorkspaceBackupV2Capture(decoded.content, input.archive.pin, this.#options.budgets);
+      await this.#options.vault.authenticateEncryptedCustody(checked.capture, this.#vaultBudget());
       let admissionCalls = 0;
       const readback = await this.#options.withCompleteOwner(structuredClone(context), structuredClone(historical), async assertAdmissionCurrent => {
         check(++admissionCalls === 1 && typeof assertAdmissionCurrent === 'function', 'BACKUP_HOST_GUARD', 'Root must execute one held synchronous publication admission.');
@@ -966,14 +967,14 @@ export class WorkspaceBackupV2PostgresCustody {
     check(value?.format === 'chausar.backup-inert-container.v2' && Object.keys(value).sort().join(',') === 'content,format,receipt'
       && value.receipt?.creationId === input.creationId && value.receipt.targetId === input.targetId && value.receipt.archiveDigest === actual.reservation.archiveDigest
       && value.receipt.inert === true && value.receipt.activation === 'root-only', 'BACKUP_PARTIAL_RESTORE', 'Inert readback must bind exact receipt identity and archive digest.');
-    const archive = validateWorkspaceBackupV2(value.content, value.receipt.sourcePin, this.#options.budgets);
+    const { archive, capture } = validateWorkspaceBackupV2Capture(value.content, value.receipt.sourcePin, this.#options.budgets);
     check(archive.digest === value.receipt.archiveDigest, 'BACKUP_PARTIAL_RESTORE', 'Complete inert archive digest differs from receipt.');
     const expected: WorkspaceBackupV2RestoreReceipt = { targetId: input.targetId, creationId: input.creationId, archiveDigest: archive.digest,
       sourcePin: archive.pin, entries: archive.pin.artifacts.length + 1,
       bytes: archive.pin.authority.bytes + archive.pin.artifacts.reduce((sum,item) => sum + item.bytes,0), inert: true, activation: 'root-only' };
     check(same(value.receipt, expected), 'BACKUP_PARTIAL_RESTORE', 'Every inert reader requires the exact complete source pin, entry and byte receipt.');
     this.#assertArchiveSource(archive);
-    const historical = await this.#options.vault.authenticateEncryptedCustody(workspaceBackupV2Bytes(archive, this.#options.budgets), this.#vaultBudget()); await this.#guard(context, historical);
+    const historical = await this.#options.vault.authenticateEncryptedCustody(capture, this.#vaultBudget()); await this.#guard(context, historical);
     return { content: value.content as string, receipt: value.receipt as WorkspaceBackupV2RestoreReceipt, actual };
   }
   async #readRestored(context: Context, input: { targetId: string; creationId: string }) {

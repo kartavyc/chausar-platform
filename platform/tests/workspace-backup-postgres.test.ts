@@ -476,6 +476,32 @@ test('PG protocol fixture large wider files use bounded one-MiB reads and retain
   }
 });
 
+test('PG protocol fixture wider file metadata retains three fresh lstat fences without separate classification probes', async t => {
+  const f = await fixture(t), directory = join(f.vault.directory, 'reports'); await mkdir(directory);
+  const names = Array.from({ length: 6 }, (_, index) => `metadata_${index}.txt`);
+  await Promise.all(names.map((name, index) => writeFile(join(directory, name), `synthetic metadata evidence ${index}`)));
+  const paths = new Map(names.map(name => [join(directory, name), 0])), originalLstat = filesystem.lstat;
+  filesystem.lstat = ((...args: Parameters<typeof originalLstat>) => {
+    if (typeof args[0] === 'string' && paths.has(args[0])) paths.set(args[0], paths.get(args[0])! + 1);
+    return originalLstat(...args);
+  }) as typeof filesystem.lstat;
+  syncBuiltinESMExports();
+  try {
+    const inventory = await f.custody.withHeldSource(context, () => f.custody.inspectHeldNamespaces());
+    t.diagnostic(JSON.stringify({ actualWiderFiles: paths.size, leafLstatCalls: [...paths.values()], nativeQualified: false }));
+    // Dirent classification replaces one redundant path probe. Independent
+    // complete-batch preflight, readRegular's before fence, and final path fence
+    // must remain actual fresh lstat calls for every file.
+    assert.deepEqual([...paths.values()], names.map(() => 3));
+    for (let index = 0; index < names.length; index++) {
+      const witness = inventory.files.find(item => item.path === `workspace/reports/${names[index]}`); assert.ok(witness);
+      const content = `synthetic metadata evidence ${index}`;
+      assert.equal(witness.bytes, Buffer.byteLength(content)); assert.equal(witness.sha256, sha(content));
+    }
+    assert.equal(f.adapter.lastLease?.active, false); assert.equal(f.adapter.deleteCalls, 0);
+  } finally { filesystem.lstat = originalLstat; syncBuiltinESMExports(); }
+});
+
 test('PG protocol fixture wider leaf batches preflight count, bytes and late hardlinks before opening earlier leaves', async t => {
   for (const refusal of ['count', 'aggregate-bytes', 'late-hardlink'] as const) await t.test(refusal, async sub => {
     const f = await fixture(sub), directory = join(f.vault.directory, 'reports'); await mkdir(directory);
@@ -490,7 +516,7 @@ test('PG protocol fixture wider leaf batches preflight count, bytes and late har
     } else await link(join(directory, names.at(-1)!), join(f.applicationDirectory, 'retained-wider-hardlink-evidence'));
     const custody = f.postgresPorts({ filesystemBudgets: restricted });
     const paths = new Set(names.map(name => join(directory, name))), originalOpen = filesystem.open, originalLstat = filesystem.lstat;
-    let widerOpens = 0, writerOpens = 0, widerLeafStats = 0;
+    let widerOpens = 0, writerOpens = 0, widerLeafStats = 0, writerStats = 0;
     filesystem.open = async (...args) => {
       if (typeof args[0] === 'string') {
         if (paths.has(args[0])) widerOpens++;
@@ -499,7 +525,10 @@ test('PG protocol fixture wider leaf batches preflight count, bytes and late har
       return originalOpen(...args);
     };
     filesystem.lstat = ((...args: Parameters<typeof originalLstat>) => {
-      if (typeof args[0] === 'string' && paths.has(args[0])) widerLeafStats++;
+      if (typeof args[0] === 'string') {
+        if (paths.has(args[0])) widerLeafStats++;
+        if (args[0] === writer) writerStats++;
+      }
       return originalLstat(...args);
     }) as typeof filesystem.lstat;
     syncBuiltinESMExports();
@@ -510,9 +539,9 @@ test('PG protocol fixture wider leaf batches preflight count, bytes and late har
     assert.ok(writerOpens > 0); assert.equal(widerOpens, 0, 'A late sibling refusal must precede every earlier wider-file open.');
     if (refusal === 'count') {
       const remainingCapacity = restricted.maxFiles - sourceRefs.length - 2; // Private leaves, writer and reports directory already admitted.
-      assert.ok(widerLeafStats > 0, 'Observe the actual leaf metadata API used by directory enumeration.');
+      assert.ok(writerStats > 0, 'Observe the actual runtime metadata API even when Dirent admission refuses before leaf probing.');
       assert.ok(widerLeafStats <= remainingCapacity + 1, 'Stop metadata enumeration after capacity plus one refusal probe, before collecting every sibling.');
-      sub.diagnostic(JSON.stringify({ widerLeafStats, remainingCapacity, widerOpens }));
+      sub.diagnostic(JSON.stringify({ widerLeafStats, remainingCapacity, widerOpens, writerStats }));
     }
     assert.deepEqual(await readFile(join(directory, names[0])), bytes);
     assert.deepEqual((await readdir(directory)).sort(), names);

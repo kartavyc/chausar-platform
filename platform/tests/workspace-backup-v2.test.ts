@@ -8,7 +8,7 @@ import { ChausarError, type Context } from '../runtime/contracts.ts';
 import { Vault, type PrivateArtifactPurpose } from '../runtime/vault.ts';
 import {
   captureWorkspaceBackupV2, createWorkspaceBackupV2Host, encodeWorkspaceBackupV2, inspectWorkspaceBackupV2,
-  validateWorkspaceBackupV2, workspaceBackupV2Bytes,
+  validateWorkspaceBackupV2, validateWorkspaceBackupV2Capture, workspaceBackupV2Bytes,
   type WorkspaceBackupV2Archive, type WorkspaceBackupV2Budgets, type WorkspaceBackupV2Capture,
   type WorkspaceBackupV2CustodyRecord, type WorkspaceBackupV2HostPorts, type WorkspaceBackupV2Measurement,
   type WorkspaceBackupV2Namespace, type WorkspaceBackupV2RestoreReceipt, type WorkspaceBackupV2SourceLease,
@@ -75,7 +75,9 @@ async function fixture(t: TestContext) {
 test('exact original envelopes and all private controls survive archive roundtrip and real credential authentication', async t => {
   const { root, vault, passphrase, recoveryCode, capture } = await fixture(t);
   const archive = captureWorkspaceBackupV2(capture, budget), wire = encodeWorkspaceBackupV2(archive, budget);
-  const decoded = workspaceBackupV2Bytes(validateWorkspaceBackupV2(wire, archive.pin, budget), budget);
+  const separate = workspaceBackupV2Bytes(validateWorkspaceBackupV2(wire, archive.pin, budget), budget);
+  const paired = validateWorkspaceBackupV2Capture(wire, archive.pin, budget), decoded = paired.capture;
+  assert.deepEqual(paired.archive, archive); assert.deepEqual(decoded, separate);
   assert.deepEqual(decoded.authority, capture.authority);
   assert.equal(decoded.artifacts.length, 10); assert.equal(archive.pin.fullWorkspacePortable, false);
   assert.ok(!wire.includes('Synthetic fork secret') && !wire.includes('Synthetic archive secret') && !wire.includes(passphrase) && !wire.includes(recoveryCode));
@@ -109,6 +111,21 @@ test('pure codec preserves valid whitespace and insertion order inside original 
   capture.namespaces.find(item => item.namespace === 'authority')!.bytes = capture.authority.byteLength;
   const archive = captureWorkspaceBackupV2(capture, budget);
   assert.deepEqual(workspaceBackupV2Bytes(archive, budget).authority, capture.authority);
+  const wire = encodeWorkspaceBackupV2(archive, budget), first = validateWorkspaceBackupV2Capture(wire, archive.pin, budget);
+  assert.deepEqual(first.capture.authority, capture.authority);
+  first.archive.pin.source.workspaceId = 'mutated_returned_archive';
+  first.archive.pin.artifacts[0].valueDigest = 'f'.repeat(64);
+  assert.deepEqual(first.capture.source, capture.source);
+  assert.equal(first.capture.artifacts[0].ref.valueDigest, archive.pin.artifacts[0].valueDigest);
+  first.capture.authority[0] ^= 1; first.capture.artifacts[0].bytes[0] ^= 1;
+  first.capture.source.workspaceId = 'mutated_returned_capture';
+  first.capture.namespaces[0].bytes++; first.capture.externalKeyRequirements[0].requirement = 'mutated returned requirement';
+  const fresh = validateWorkspaceBackupV2Capture(wire, archive.pin, budget);
+  assert.deepEqual(fresh.archive, archive);
+  assert.deepEqual(fresh.capture, workspaceBackupV2Bytes(archive, budget));
+  assert.deepEqual(fresh.capture.authority, capture.authority);
+  assert.notStrictEqual(fresh.capture.authority, first.capture.authority);
+  assert.notStrictEqual(fresh.capture.artifacts[0].bytes, first.capture.artifacts[0].bytes);
 });
 
 test('strict archive refuses missing, duplicate, unknown, truncated, tampered and wrong-bound entries', async t => {
@@ -135,14 +152,21 @@ test('strict archive refuses missing, duplicate, unknown, truncated, tampered an
     assert.throws(() => inspectWorkspaceBackupV2(reseal(changed), budget), (error: unknown) => error instanceof ChausarError, item.name);
     assert.throws(() => workspaceBackupV2Bytes(JSON.parse(reseal(changed)), budget),
       (error: unknown) => error instanceof ChausarError, `byte reconstruction: ${item.name}`);
+    assert.throws(() => validateWorkspaceBackupV2Capture(reseal(changed), archive.pin, budget),
+      (error: unknown) => error instanceof ChausarError, `paired validation: ${item.name}`);
   }
   const wire = encodeWorkspaceBackupV2(archive, budget);
   assert.throws(() => inspectWorkspaceBackupV2(wire.slice(0, -1), budget), { code: 'BACKUP_JSON' });
   assert.throws(() => inspectWorkspaceBackupV2(wire.replace('"backupFormat":', '"backupFormat":"duplicate","backupFormat":'), budget), { code: 'BACKUP_DUPLICATE' });
   assert.throws(() => inspectWorkspaceBackupV2(`${wire}\n`, budget), { code: 'BACKUP_CANONICAL' });
+  assert.throws(() => validateWorkspaceBackupV2Capture(wire.slice(0, -1), archive.pin, budget), { code: 'BACKUP_JSON' });
+  assert.throws(() => validateWorkspaceBackupV2Capture(wire.replace('"backupFormat":', '"backupFormat":"duplicate","backupFormat":'), archive.pin, budget), { code: 'BACKUP_DUPLICATE' });
+  assert.throws(() => validateWorkspaceBackupV2Capture(`${wire}\n`, archive.pin, budget), { code: 'BACKUP_CANONICAL' });
   workspaceBackupV2Bytes(archive, budget);
+  validateWorkspaceBackupV2Capture(wire, archive.pin, budget);
   archive.digest = 'f'.repeat(64);
   assert.throws(() => workspaceBackupV2Bytes(archive, budget), { code: 'BACKUP_DIGEST' });
+  assert.throws(() => validateWorkspaceBackupV2Capture(canonical(archive), archive.pin, budget), { code: 'BACKUP_DIGEST' });
 });
 
 test('independent source pin rejects coherent attacker rehash after omissions or workspace substitution', async t => {
@@ -152,8 +176,10 @@ test('independent source pin rejects coherent attacker rehash after omissions or
   namespace.entries--; namespace.bytes -= removed.bytes;
   const forged = reseal(changed); assert.equal(inspectWorkspaceBackupV2(forged, budget).artifacts.length, 9);
   assert.throws(() => validateWorkspaceBackupV2(forged, archive.pin, budget), { code: 'BACKUP_SOURCE_CHANGED' });
+  assert.throws(() => validateWorkspaceBackupV2Capture(forged, archive.pin, budget), { code: 'BACKUP_SOURCE_CHANGED' });
   const otherWorkspace = structuredClone(archive); otherWorkspace.pin.source.workspaceId = 'different_workspace';
   assert.throws(() => validateWorkspaceBackupV2(reseal(otherWorkspace), archive.pin, budget), { code: 'BACKUP_SOURCE_CHANGED' });
+  assert.throws(() => validateWorkspaceBackupV2Capture(reseal(otherWorkspace), archive.pin, budget), { code: 'BACKUP_SOURCE_CHANGED' });
 });
 
 test('encrypted envelopes reject invalid JSON duplicates, UTF-8, ciphertext shapes and filesystem case aliases', async t => {
@@ -193,8 +219,10 @@ test('explicit byte, count, depth and node budgets refuse whole captures without
       assert.ok(error instanceof ChausarError); expectedCode = error.code; return true;
     });
     assert.throws(() => workspaceBackupV2Bytes(archive, limited), { code: expectedCode });
+    assert.throws(() => validateWorkspaceBackupV2Capture(wire, archive.pin, limited), { code: expectedCode });
   }
   assert.throws(() => workspaceBackupV2Bytes(archive, { ...budget, maxEntries: 0 }), { code: 'BACKUP_BUDGET_REQUIRED' });
+  assert.throws(() => validateWorkspaceBackupV2Capture(wire, archive.pin, { ...budget, maxEntries: 0 }), { code: 'BACKUP_BUDGET_REQUIRED' });
 });
 
 function hostFixture(capture: WorkspaceBackupV2Capture, state: ReturnType<Vault['read']>) {

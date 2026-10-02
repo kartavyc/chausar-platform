@@ -280,9 +280,11 @@ async function atomicWrite(path: string, content: string, replace: boolean) {
 async function readBounded(path: string, exactSize?: number): Promise<string> {
   if (!isAbsolute(path)) throw new Error('Absolute path required');
   path = join(await safeDirectory(dirname(path)), basename(path));
-  if (!(await existingRegular(path))) throw new Error('Missing file');
+  if (exactSize === undefined && !(await existingRegular(path))) throw new Error('Missing file');
   const before = exactSize === undefined ? undefined : await lstat(path, { bigint: true });
-  if (before && (before.size !== BigInt(exactSize!) || !before.isFile() || before.isSymbolicLink()))
+  if (before && (!before.isFile() || before.isSymbolicLink()))
+    fail('UNSAFE_PATH', 'Expected a regular file without symbolic links.');
+  if (before && before.size !== BigInt(exactSize!))
     fail('ARTIFACT_LIMIT', 'Encrypted artifact changed after capture budget preflight.');
   const handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
   try {

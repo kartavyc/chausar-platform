@@ -7,7 +7,7 @@ import {
   canonicalInterchangeJson, captureWorkspaceInterchange, interchangeDigest, retainedArtifactBytes,
   validateWorkspaceInterchange, workspaceStateProfile,
 } from './workspace-interchange.ts';
-import { validateWorkspaceBackupV2, workspaceBackupV2Bytes,
+import { validateWorkspaceBackupV2, validateWorkspaceBackupV2Capture,
   type WorkspaceBackupV2Budgets, type WorkspaceBackupV2Capture, type WorkspaceBackupV2CustodyRecord,
   type WorkspaceBackupV2Measurement, type WorkspaceBackupV2RestoreReceipt,
 } from './workspace-backup-v2.ts';
@@ -246,8 +246,7 @@ export class WorkspaceBackupActivationHost {
       await completed(() => lease.assertCurrent());
       const backup = structuredClone(await lease.readBackup()), material = structuredClone(await lease.readMaterial()), inert = structuredClone(await lease.readInert());
       // Validate untrusted wire/independent pins before handing bounded ciphertext to cryptographic root ports.
-      const archive = validateWorkspaceBackupV2(backup.content, backup.pin.sourcePin, this.#policy.backupBudgets);
-      const capture = workspaceBackupV2Bytes(archive, this.#policy.backupBudgets);
+      const { capture } = validateWorkspaceBackupV2Capture(backup.content, backup.pin.sourcePin, this.#policy.backupBudgets);
       exact(material, ['content', 'pin', 'measurement']); measured(material.measurement, false);
       check(typeof material.content === 'string' && Buffer.byteLength(material.content) <= this.#policy.maxMaterialUtf8Bytes,
         'BACKUP_ACTIVATION_LIMIT', 'Complete material must fit its budget before cryptographic admission.');

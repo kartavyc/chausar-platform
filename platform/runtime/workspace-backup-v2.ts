@@ -323,13 +323,24 @@ export function validateWorkspaceBackupV2(text: string, expected: WorkspaceBacku
   requireValue(equal(archive.pin, expected, budget), 'BACKUP_SOURCE_CHANGED', 'The archive differs from the independently authenticated complete source pin.');
   return archive;
 }
-/** Exact original bytes. Reconstructing or sorting the parsed authority envelope breaks v1 wrapper AAD. */
-export function workspaceBackupV2Bytes(archive: WorkspaceBackupV2Archive, budget: WorkspaceBackupV2Budgets): WorkspaceBackupV2Capture {
-  budgets(budget); const checked = inspectWorkspaceBackupV2(canonical(archive, budget), budget);
+/** Module-private reconstruction; callers supply only a freshly inspected archive. */
+function bytesFromInspectedArchive(checked: WorkspaceBackupV2Archive): WorkspaceBackupV2Capture {
   return { source: structuredClone(checked.pin.source), authority: Buffer.from(checked.authorityBase64, 'base64'),
     artifacts: checked.artifacts.map((entry, index) => ({ ref: { id: entry.id, purpose: entry.purpose,
       valueDigest: checked.pin.artifacts[index].valueDigest, diskBytes: checked.pin.artifacts[index].bytes }, bytes: Buffer.from(entry.dataBase64, 'base64') })),
     namespaces: structuredClone(checked.pin.namespaces), externalKeyRequirements: structuredClone(checked.pin.externalKeyRequirements) };
+}
+/** Validate one fresh wire and independent pin, then reconstruct its exact bytes synchronously. */
+export function validateWorkspaceBackupV2Capture(text: string, expected: WorkspaceBackupV2SourcePin, budget: WorkspaceBackupV2Budgets): {
+  archive: WorkspaceBackupV2Archive; capture: WorkspaceBackupV2Capture;
+} {
+  const archive = validateWorkspaceBackupV2(text, expected, budget);
+  return { archive, capture: bytesFromInspectedArchive(archive) };
+}
+/** Exact original bytes. Reconstructing or sorting the parsed authority envelope breaks v1 wrapper AAD. */
+export function workspaceBackupV2Bytes(archive: WorkspaceBackupV2Archive, budget: WorkspaceBackupV2Budgets): WorkspaceBackupV2Capture {
+  budgets(budget); const checked = inspectWorkspaceBackupV2(canonical(archive, budget), budget);
+  return bytesFromInspectedArchive(checked);
 }
 
 export type WorkspaceBackupV2CustodyPin = {
