@@ -86,6 +86,13 @@ export class CalculatorService {
     if (request.comparePeriod) check(operation.type === 'change', 'INVALID_CALCULATION', 'Comparison periods are only accepted by the change calculation.');
     if (request.assumptions) check(operation.type === 'scenario', 'INVALID_CALCULATION', 'Assumptions are only accepted by the scenario calculation.');
     const definitions = dictionary.definitions.filter(d => operation.definitions.includes(d.name)); const relevantKinds = definitions.map(d => d.kind);
+    let compoundMoneyField: string | undefined;
+    if (operation.type === 'change' || operation.type === 'scenario') {
+      check(operation.definitions.length === 1 && operation.definitions[0] === 'earned' && definitions.length === 1 && definitions[0].name === 'earned',
+        'MISSING_DEFINITION', 'Comparison and price scenarios require exactly one published earned definition.');
+      check(dictionary.fields[definitions[0].field] === 'money', 'INVALID_DEFINITION', 'The published earned definition must name an exact money field.');
+      compoundMoneyField = definitions[0].field;
+    }
     let compiledSum: CompiledSingleSum | undefined;
     if (operation.type === 'sum' && operation.definitions.length === 1) {
       check(definitions.length === 1, 'COMPILED_SUM_MISMATCH', 'A published sum must resolve exactly one definition.');
@@ -186,7 +193,8 @@ export class CalculatorService {
       period: request.period ?? null, comparePeriod: request.comparePeriod ?? null, branch: request.branch ?? null, currency: dictionary.currency,
       ontologyVersion: dictionary.version, dictionaryHash: dictionary.hash, definitionHash: hash(definitions), definitions, figures, valueMinor: String(result), totalMinor: String(result), rowIds: rows.map(f => f.id),
       ...(compiledSum ? { compiledCalculation: { dictionaryHash: dictionary.hash, sum: structuredClone(compiledSum) } } : {}),
-      rows: rows.map(f => ({ factId: f.id, entityId: f.entityId, sourceId: f.sourceId, sourceRow: f.sourceRow, kind: f.kind, amountMinor: String(f.fields[compiledSum?.moneyField ?? 'amountMinor']), ...(compiledSum ? { measureField: compiledSum.moneyField } : {}), validFrom: f.validFrom, branch: f.branch })),
+      rows: rows.map(f => ({ factId: f.id, entityId: f.entityId, sourceId: f.sourceId, sourceRow: f.sourceRow, kind: f.kind, amountMinor: String(f.fields[compiledSum?.moneyField ?? compoundMoneyField ?? 'amountMinor']),
+        ...(compiledSum ? { measureField: compiledSum.moneyField } : compoundMoneyField && compoundMoneyField !== 'amountMinor' ? { measureField: compoundMoneyField } : {}), validFrom: f.validFrom, branch: f.branch })),
       exclusions: [...new Map(effectiveExcluded.map(e => [`${e.rowId}:${e.reason}`, e])).values()],
       coverage: { selectedRows: selectedFactIds.size, countedRows: rows.length, excludedRows: new Set(effectiveExcluded.map(e => e.rowId)).size, unresolvedConflicts: conflictIds.size, importIds, completeness: conflictIds.size || missingMeasures.size ? 'partial' : !rows.length ? 'empty' : allReconciled ? 'reconciled-imports' : 'unreconciled-facts', gaps },
       assumptions, explanation: figures.map(f => `${f.label}: ${f.display}.`).join(' ') + (gaps.length ? ` Coverage: ${gaps.join(' ')}` : ''), stale: false, allowedNumbers: [],

@@ -4,13 +4,15 @@ import {mkdtemp, realpath, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, isAbsolute, join, relative} from 'node:path';
 import {Engine, type EngineOptions} from '../../runtime/engine.ts';
-import {DatabaseCalculator} from '../../runtime/analytics.ts';
+import {DatabaseCalculator, type SQLConnection} from '../../runtime/analytics.ts';
+import {ChausarError} from '../../runtime/contracts.ts';
 import type {CalculationReceipt} from '../../runtime/calculator.ts';
 import type {ImportInput, MappingRecipe} from '../../runtime/ingest.ts';
 
 // In-process public Engine requests only. No server, socket, model or native SQL.
-// The authored provider is injected; real SQL projection must refuse before any
-// injected connection can be acquired. Transient receipts are diagnostics only.
+// The authored provider is injected. SQL is explicitly withheld; project:true
+// additionally exercises the real projection before a refusing injected port.
+// Transient receipts are diagnostics only, never native-qualified results.
 export const SOURCE = 'synthetic-custom-earned', OTHER = 'synthetic-custom-unselected';
 export const PERIOD = {from: '2026-09-01', to: '2026-09-30'};
 export const PRIOR = {from: '2026-08-01', to: '2026-08-31'};
@@ -58,7 +60,7 @@ export function importedInput(sourceId = SOURCE, alternative = false, missing = 
     installation: {company: recipe.scope.company, edition: '1'}};
 }
 
-export async function fixture(t: TestContext, options: {missing?: boolean; nulls?: 'reject' | 'exclude'} = {}) {
+export async function fixture(t: TestContext, options: {missing?: boolean; nulls?: 'reject' | 'exclude'; project?: boolean; sqlConnection?: SQLConnection} = {}) {
   t.mock.timers.enable({apis: ['Date'], now: new Date('2026-09-30T12:00:00.000Z')});
   const base = await realpath(tmpdir());
   if (process.platform === 'win32') assert.match(base, /^C:[\\/]/i);
@@ -67,7 +69,8 @@ export async function fixture(t: TestContext, options: {missing?: boolean; nulls
   const calls: {endpoint: string; body: string}[] = [], captured: CalculationReceipt[] = [];
   let response: unknown, connectionCalls = 0;
   const database = new DatabaseCalculator({connectionFactory: async () => {
-    connectionCalls++; throw new Error('Custom-field guard must refuse before connection acquisition.');
+    connectionCalls++; if (options.sqlConnection) return options.sqlConnection;
+    throw new ChausarError('SYNTHETIC_SQL_BOUNDARY', 'This contract fixture has no qualified SQL connection.');
   }});
   const engineOptions: EngineOptions = {directory, demo: true, storage: 'experimental-file', gateway: {
     http: async input => {
@@ -84,7 +87,9 @@ export async function fixture(t: TestContext, options: {missing?: boolean; nulls
   };
   const attachVerifier = () => {
     engine.services.calculator.verifier = async (receipt: CalculationReceipt) => {
-      captured.push(structuredClone(receipt)); return database.verify(receipt);
+      captured.push(structuredClone(receipt));
+      if (!options.project) throw new ChausarError('SYNTHETIC_SQL_BOUNDARY', 'SQL verification is deliberately withheld in this provenance fixture.');
+      return database.verify(receipt);
     };
   };
   t.after(async () => {
@@ -139,7 +144,7 @@ export function content(preview: any) {
 export function figures(receipt: CalculationReceipt) {
   return Object.fromEntries(receipt.figures.map(figure => [figure.key, figure.minor]));
 }
-export function refusedAnswer(answer: any, code = 'SQL_DEFINITION_UNSUPPORTED') {
+export function refusedAnswer(answer: any, code = 'SYNTHETIC_SQL_BOUNDARY') {
   assert.equal(answer.kind, 'grounded-conversation'); assert.equal(answer.results.length, 1);
   assert.deepEqual(Object.keys(answer.results[0]).sort(), ['error', 'tool']);
   assert.equal(answer.results[0].error.code, code); assert.equal(answer.results[0].tool, 'calculator.calculate');

@@ -16,7 +16,7 @@ export type SQLDialect = 'duckdb' | 'postgres';
 export type DatabaseCalculatorOptions = { connectionFactory?: (signal: AbortSignal) => Promise<SQLConnection>; sqlDialect?: SQLDialect; operationTimeoutMs?: number; maxRows?: number };
 export type DatabaseVerification = { verified: true; engine: 'duckdb' | 'postgres' | 'injected-sql'; receiptId: string; operation: string; projectionDigest: string; compiledDigest?: string; checks: string[] };
 type ProjectionRow = { id: string; kind: string; amount: string; date: string; due: string | null; invoice: string | null; customer: string | null };
-type Projection = { receiptId: string; operation: string; currency: string; compiledCalculation: CalculationReceipt['compiledCalculation'] | null; compiledDefinition: CalculationReceipt['definitions'][number] | null; ontologyVersion: number; definitions: { name: string; kind: string; sign: number }[]; rows: ProjectionRow[]; period: { from: string; to: string } | null; comparePeriod: { from: string; to: string } | null; onDate: string | null; priceChangeBps: string | null; expected: Record<string, string> };
+type Projection = { receiptId: string; operation: string; currency: string; compiledCalculation: CalculationReceipt['compiledCalculation'] | null; compiledDefinition: CalculationReceipt['definitions'][number] | null; ontologyVersion: number; definitions: { name: string; kind: string; sign: number; moneyField?: string; dictionaryHash?: string; definitionHash?: string }[]; rows: ProjectionRow[]; period: { from: string; to: string } | null; comparePeriod: { from: string; to: string } | null; onDate: string | null; priceChangeBps: string | null; expected: Record<string, string> };
 const FILE = fileURLToPath(import.meta.url);
 const MAX_BYTES = 16 * 1024 * 1024;
 const OPERATIONS: Record<string, string[]> = { billed: ['billed'], received: ['received'], earned: ['earned'], refunds: ['refunds'], costs: ['costs'], purchases: ['purchases'], revenue: ['earned'], net_sales: ['earned', 'refunds'], margin: ['earned', 'refunds', 'costs'], aging: ['billed', 'received', 'refunds'], change: ['earned'], scenario: ['earned'] };
@@ -50,10 +50,25 @@ function project(receipt: CalculationReceipt, maxRows: number): Projection {
   const registered = !binding;
   check(typeof receipt.id === 'string' && receipt.id.length <= 200 && /^[A-Z]{3}$/.test(receipt.currency), 'SQL_PROJECTION_INVALID', 'The calculation receipt needs an identity and currency.');
   check(Array.isArray(receipt.definitions) && receipt.definitions.length === required.length && required.every(name => receipt.definitions.some(d => d.name === name)), 'SQL_PROJECTION_INVALID', 'The SQL projection must carry exactly the operation definitions.');
+  // Registered change/scenario queries consume one canonical projected amount,
+  // so a custom earned field needs no dynamic SQL. Retain its exact published
+  // binding in the projection digest and require each serialized row to name it.
+  // Other registered operations keep their existing amountMinor-only boundary.
+  let customEarnedField: string | null = null;
+  if (registered && ['change', 'scenario'].includes(receipt.operation) && receipt.definitions[0].field !== 'amountMinor') {
+    const definition = receipt.definitions[0];
+    check(definition.name === 'earned' && typeof definition.field === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(definition.field)
+      && ['reject', 'exclude'].includes(definition.nulls), 'SQL_DEFINITION_UNSUPPORTED', 'Comparison and scenario verification require one published exact earned money field.');
+    check(typeof receipt.dictionaryHash === 'string' && /^[a-f0-9]{64}$/.test(receipt.dictionaryHash)
+      && Number.isSafeInteger(receipt.ontologyVersion) && receipt.ontologyVersion > 0
+      && receipt.definitionHash === hash(receipt.definitions), 'SQL_PROJECTION_INVALID', 'The custom earned field must retain its exact published definition and dictionary pins.');
+    customEarnedField = definition.field;
+  }
   const names = new Set<string>(); const definitions = receipt.definitions.map(d => {
     check(!names.has(d.name) && /^[a-z][a-z0-9_]{0,63}$/.test(d.kind) && d.currency === receipt.currency && (d.sign === undefined || d.sign === 1 || d.sign === -1), 'SQL_PROJECTION_INVALID', 'Projected definitions must have distinct names, typed kinds, currency and signs.'); names.add(d.name);
-    check(binding ? d.field === binding.sum.moneyField : d.field === 'amountMinor', 'SQL_DEFINITION_UNSUPPORTED', 'SQL verification requires the published exact money field.');
-    return { name: d.name, kind: d.kind, sign: d.sign ?? 1 };
+    check(binding ? d.field === binding.sum.moneyField : customEarnedField !== null ? d.field === customEarnedField : d.field === 'amountMinor', 'SQL_DEFINITION_UNSUPPORTED', 'SQL verification requires the published exact money field.');
+    return { name: d.name, kind: d.kind, sign: d.sign ?? 1,
+      ...(customEarnedField !== null ? { moneyField: customEarnedField, dictionaryHash: receipt.dictionaryHash, definitionHash: receipt.definitionHash } : {}) };
   });
   check(Array.isArray(receipt.rows) && receipt.rows.length <= maxRows && Array.isArray(receipt.rowIds) && receipt.rowIds.length === receipt.rows.length, 'SQL_ROW_LIMIT', 'The receipt projection exceeds its row budget or has incomplete lineage.');
   const lineage = new Set(receipt.rowIds); check(lineage.size === receipt.rowIds.length,'SQL_PROJECTION_INVALID','Receipt lineage identifiers must be distinct.');
@@ -62,7 +77,7 @@ function project(receipt: CalculationReceipt, maxRows: number): Projection {
     check(typeof r.factId === 'string' && r.factId.length > 0 && r.factId.length <= 200 && !ids.has(r.factId) && lineage.has(r.factId), 'SQL_PROJECTION_INVALID', 'Each projected row needs one distinct receipt lineage identity.'); ids.add(r.factId);
     check(definitions.some(d => d.kind === r.kind) && date(r.validFrom), 'SQL_PROJECTION_INVALID', 'Rows must use an operation kind and explicit event date.');
     check(!['cancelled', 'void', 'draft', 'bounced'].includes(r.status ?? ''), 'SQL_PROJECTION_INVALID', 'Cancelled, void, draft and bounced events cannot be counted.');
-    check(binding ? r.measureField === binding.sum.moneyField : r.measureField === undefined || r.measureField === 'amountMinor', 'SQL_PROJECTION_INVALID', 'Each row must project the declared money field.');
+    check(binding ? r.measureField === binding.sum.moneyField : customEarnedField !== null ? r.measureField === customEarnedField : r.measureField === undefined || r.measureField === 'amountMinor', 'SQL_PROJECTION_INVALID', 'Each row must project the declared money field.');
     const amount = integer(r.amountMinor); absoluteSum += absolute(BigInt(amount));
     check(!definitions.some(d => d.kind === r.kind && ['refunds', 'costs'].includes(d.name)) || BigInt(amount) >= 0n, 'SQL_PROJECTION_INVALID', 'Refund and cost event values must be positive.');
     check(r.dueDate === undefined || date(r.dueDate), 'SQL_PROJECTION_INVALID', 'Projected due dates must be valid calendar dates.');
