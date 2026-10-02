@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readdir } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { authorize, check, ChausarError, hash, type Context, type State } from './contracts.ts';
+import { authorize, check, ChausarError, hash, type Context, type State, type StateStore } from './contracts.ts';
 import { canSeeFact } from './memory.ts';
 import { acquireProcessLock } from './process-lock.ts';
 import { assertSourceAccess } from './trust.ts';
@@ -103,7 +103,8 @@ export class WorkspacePostgresOriginals {
       'ACTIVATION_SYNTHETIC_SCOPE', 'Only constructor-approved synthetic workspaces and their current unrestricted owner may activate.');
     check(historical.workspace.id === current.workspace.id, 'ACTIVATION_SOURCE_CHANGED', 'Historical material must belong to this source workspace.');
     assertSourceAccess(current, context, [...new Set([...historical.facts.map(item => item.sourceId), ...historical.imports.map(item => item.sourceId).filter((item): item is string => typeof item === 'string')])]);
-    check(historical.facts.every(item => canSeeFact(o.sourceVault, context, item)), 'INTERCHANGE_READ_SCOPE_REQUIRED', 'Current owner must be able to read every retained historical row.');
+    const visibility: StateStore = { read: () => current, update: async () => { throw new Error('Owner admission is read-only.'); } };
+    check(historical.facts.every(item => canSeeFact(visibility, context, item)), 'INTERCHANGE_READ_SCOPE_REQUIRED', 'Current owner must be able to read every retained historical row.');
     check(await o.assertCompleteOwner(structuredClone(context), structuredClone(historical)) === undefined,
       'ACTIVATION_ROOT_GUARD', 'Current complete-owner/readiness admission must finish without a deferred value.');
   }

@@ -1484,7 +1484,8 @@ export class Engine {
     const current = this.store().read();
     const sourceIds = [...new Set<string>([...historical.facts.map(fact => fact.sourceId), ...historical.imports.map(item => item.sourceId).filter((id): id is string => typeof id === 'string')])];
     assertSourceAccess(current, ctx, sourceIds);
-    check(historical.facts.every(fact => canSeeFact(this.store(), ctx, fact)), 'INTERCHANGE_READ_SCOPE_REQUIRED', 'Workspace copying requires current access to every retained historical row.');
+    const visibility: StateStore = { read: () => current, update: async () => { throw new Error('Owner admission is read-only.'); } };
+    check(historical.facts.every(fact => canSeeFact(visibility, ctx, fact)), 'INTERCHANGE_READ_SCOPE_REQUIRED', 'Workspace copying requires current access to every retained historical row.');
     const managedSourceIds = [...new Set<string>(current.imports.filter(item => ['connector-capture-v1', 'connector-consumer-binding-v1'].includes(item.type)).map(item => item.sourceId).filter((id): id is string => typeof id === 'string'))];
     this.services.connectorRuntime.assertBusinessEvidenceReady(ctx, { sourceIds, managedSourceIds, factIds: [], profileIds: [], request: {} });
   }
@@ -1506,7 +1507,8 @@ export class Engine {
     const sourceIds = [...new Set<string>([...historical.facts.map(fact => fact.sourceId),
       ...historical.imports.map(item => item.sourceId).filter((id): id is string => typeof id === 'string')])];
     assertSourceAccess(current, ctx, sourceIds);
-    check(historical.facts.every(fact => canSeeFact(this.store(), ctx, fact)), 'BACKUP_READ_SCOPE_REQUIRED', 'Current access must cover every retained historical row.');
+    const visibility: StateStore = { read: () => current, update: async () => { throw new Error('Owner admission is read-only.'); } };
+    check(historical.facts.every(fact => canSeeFact(visibility, ctx, fact)), 'BACKUP_READ_SCOPE_REQUIRED', 'Current access must cover every retained historical row.');
     const managedSourceIds = [...new Set<string>([...current.imports, ...historical.imports]
       .filter(item => ['connector-capture-v1', 'connector-consumer-binding-v1'].includes(item.type))
       .map(item => item.sourceId).filter((id): id is string => typeof id === 'string'))];

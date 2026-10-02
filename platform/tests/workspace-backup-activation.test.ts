@@ -531,6 +531,114 @@ if (process.argv[2] === '--bridge-fixture-child') {
     assert.deepEqual(calls, { schema: 1, connect: 0, candidate: 0, bridge: 0, target: 0 });
   });
 
+  async function originalsOwnerFixture(t: TestContext) {
+    // Actual Originals/Vault authorization, with surrounding custody ports injected.
+    // This exercises the production owner checks and is not native PostgreSQL proof.
+    class EncryptedMemoryAdapter implements EncryptedSnapshotAdapter {
+      readonly kind = 'postgres' as const;
+      envelope: VaultEnvelope | null = null;
+      async load() { return structuredClone(this.envelope); }
+      async commit(envelope: VaultEnvelope, expectedRevision: number | null) {
+        check((this.envelope?.revision ?? null) === expectedRevision, 'REVISION_CONFLICT', 'Synthetic encrypted authority changed.');
+        this.envelope = structuredClone(envelope);
+      }
+      async delete() { this.envelope = null; }
+    }
+    const scratch = await realpath(tmpdir());
+    if (process.platform === 'win32') assert.match(scratch, /^C:\\/i);
+    const applicationDirectory = await realpath(await mkdtemp(join(scratch, 'chausar-originals-owner-'))), vaults: Vault[] = [];
+    assert.equal(dirname(applicationDirectory), scratch);
+    t.after(async () => {
+      for (const vault of vaults) await vault.close();
+      const actual = await realpath(applicationDirectory), child = relative(scratch, actual);
+      assert.equal(dirname(actual), scratch);
+      assert.ok(child && !isAbsolute(child) && !child.startsWith('..') && child.startsWith('chausar-originals-owner-'));
+      await rm(actual, { recursive: true, force: true });
+    });
+    const sourceVault = (await Vault.create({ directory: join(applicationDirectory, 'source'), name: 'Synthetic owner source',
+      storage: new EncryptedMemoryAdapter(), passphrase, demo: true })).vault;
+    vaults.push(sourceVault);
+    const journalVault = (await Vault.create({ directory: join(applicationDirectory, 'journal'), name: 'Synthetic owner journal',
+      storage: new EncryptedMemoryAdapter(), passphrase, demo: true })).vault;
+    vaults.push(journalVault);
+    const shop = deterministicShopState();
+    await sourceVault.update(state => { state.facts = shop.facts; state.imports = shop.imports; });
+    const pool: PostgresPool = {
+      async query(sql) {
+        assert.match(sql, /^SELECT\s/); assert.match(sql, /to_regclass/);
+        return { rows: [{ authority_table: true, storage_table: true, custody_table: true, creation_column: true }] };
+      },
+      async connect() { throw new Error('Injected owner scope must not connect to SQL.'); }, async end() {},
+    };
+    const adapter = await PostgresSnapshotAdapter.fromPool(pool, 'originals_owner_source');
+    const nativeSource = new WorkspacePostgresCustody({ adapter });
+    let rootGuard: (ctx: Context, state: State) => Promise<void> = async () => {};
+    const assertCompleteOwner = (ctx: Context, state: State) => rootGuard(ctx, state);
+    const backup = new WorkspaceBackupV2PostgresCustody({ vault: sourceVault, adapter, postgres: nativeSource,
+      applicationDirectory, budgets, filesystemBudgets: { maxFiles: 100, maxBytes: 16_000_000, maxDepth: 16 },
+      externalKeyRequirements: [], assertCompleteOwner,
+      withCompleteOwner: async (_ctx, _state, work) => sourceVault.withCustodyWriterAdmission(work) });
+    const interchange = new WorkspaceInterchangeLocalCustody({ vault: sourceVault, applicationDirectory, assertCompleteOwner, qualification: 'test-fixture' });
+    const originals = new WorkspacePostgresOriginals({ sourceVault, journalVault, applicationDirectory, backup, interchange, nativeSource,
+      backupPolicy: policyFor(sourceVault.read().workspace.id), policy: { approvedSyntheticWorkspaceIds: [sourceVault.read().workspace.id],
+        allowedSyntheticSourceIds: ['demo-export'], budgets: { maxCandidateBytes: 16_000_000, maxArtifactBytes: 3_000_000,
+          maxArtifacts: 100, maxFacts: 100, maxRecords: 1000 }, retentionDays: 1 }, assertCompleteOwner,
+      async withTargetCustody() { throw new Error('Owner admission must not read a target.'); },
+      candidates() { throw new Error('Owner admission must not read a candidate.'); },
+      bridge() { throw new Error('Owner admission must not read a bridge.'); },
+    });
+    t.mock.method(backup, 'withHeldSource', async (_ctx: Context, work: () => Promise<unknown>) => sourceVault.snapshot(() => work()));
+    t.mock.method(nativeSource, 'withSource', async (work: (lease: unknown) => Promise<unknown>) => {
+      const capture = await sourceVault.captureEncryptedCustody(encryptedBudgets);
+      return work({ authority: { vaultId: sourceVault.vaultId, revision: capture.state.revision, envelopeDigest: sha(capture.authority) },
+        async assertCurrent() {} });
+    });
+    t.mock.method(backup, 'inspectHeldNamespaces', async () => ({ directories: [], files: [], namespaces: [], postgres: {}, physical: {} }));
+    return { sourceVault, originals, setRootGuard: (guard: typeof rootGuard) => { rootGuard = guard; } };
+  }
+
+  test('actual PostgreSQL Originals owner admission reads fresh current state a constant number of times across historical facts', async t => {
+    const f = await originalsOwnerFixture(t);
+    await f.originals.source.withSource(context, null, async lease => {
+      const small = structuredClone(lease.state), large = structuredClone(lease.state);
+      small.facts = small.facts.slice(0, 1);
+      large.facts = Array.from({ length: 40 }, (_, index) => ({ ...large.facts[index % large.facts.length], id: `owner_row_${index}` }));
+      const read = f.sourceVault.read.bind(f.sourceVault);
+      let reads = 0;
+      const observer = t.mock.method(f.sourceVault, 'read', () => { reads++; return read(); });
+      let smallReads: number, largeReads: number;
+      try {
+        await lease.assertCompleteOwner(context, small); smallReads = reads;
+        reads = 0; await lease.assertCompleteOwner(context, large); largeReads = reads;
+      } finally { observer.mock.restore(); }
+      t.diagnostic(JSON.stringify({ qualification: 'injected-custody-real-vault', nativeQualified: false,
+        historicalFacts: [small.facts.length, large.facts.length], stateReads: [smallReads, largeReads] }));
+      assert.equal(largeReads, smallReads, 'Full-state clones must not grow with historical row count.');
+      assert.ok(largeReads <= 2, 'Each synchronous owner admission may read its current authority at most twice.');
+    });
+  });
+
+  test('actual PostgreSQL Originals reacquires owner authority after an awaited root guard and refuses late epoch revocation', async t => {
+    const f = await originalsOwnerFixture(t);
+    let block = false, entered!: () => void, release!: () => void;
+    const waiting = new Promise<void>(resolve => { entered = resolve; });
+    const resumed = new Promise<void>(resolve => { release = resolve; });
+    f.setRootGuard(async ctx => {
+      if (block) { entered(); await resumed; }
+      authorize(f.sourceVault, ctx, 'admin');
+    });
+    const lease = await f.originals.source.withSource(context, null, async held => held);
+    block = true;
+    const owner = lease.assertCompleteOwner(context, lease.state);
+    await waiting;
+    await f.sourceVault.update(state => { state.members[0].epoch++; });
+    block = false; release();
+    await assert.rejects(owner, code('ACCESS_REVOKED'));
+    await assert.rejects(() => lease.assertCompleteOwner(context, lease.state), code('ACCESS_REVOKED'));
+    await assert.rejects(() => lease.assertCurrent(), code('ACCESS_REVOKED'));
+    assert.equal(f.sourceVault.read().members[0].epoch, context.epoch + 1);
+  });
+
   test('held inspection rejects a genuine retained pin issued to a different otherwise authorized context', async t => {
     const f = await fixture(t); await f.root.host().prepare(context, f.input);
     const retained = await readInterchange(f.vault, context, f.chosen.candidateId, true) as AuthenticatedActivationCandidate;
