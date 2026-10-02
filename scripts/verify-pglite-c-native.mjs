@@ -24,7 +24,7 @@ export async function runPGliteCQualification(environment = process.env) {
   };
   let db, durable, second, reopened;
   try {
-    assert.equal(report.sourceCommit, '1dc19b856380951aea49b7143ed4b5617130c06b');
+    assert.equal(report.sourceCommit, '87c400870563b92803841d3a198cee801f7740df');
     const workspace = resolve('C:/Users/karta/Documents/Codex/2026-10-01/task-4');
     const root = resolve(environment.CHAUSAR_QUALIFICATION_RUN_ROOT ?? '');
     const suffix = relative(workspace, root);

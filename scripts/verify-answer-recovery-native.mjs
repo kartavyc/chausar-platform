@@ -8,7 +8,8 @@ import { hash } from '../platform/runtime/contracts.ts';
 import { QualificationError, disposablePostgresConfiguration, assertPristinePostgres } from './verify-database-differential.mjs';
 
 const FILE = fileURLToPath(import.meta.url);
-const SOURCE_COMMIT = '1dc19b856380951aea49b7143ed4b5617130c06b';
+// Fixtures originated at1dc19b8; execution is pinned to the final source below.
+const SOURCE_COMMIT = '87c400870563b92803841d3a198cee801f7740df';
 const TASK_ROOT = resolve('C:/Users/karta/Documents/Codex/2026-10-01/task-4');
 const FIXTURE_PASSPHRASE = 'Public synthetic native answer recovery fixture passphrase only';
 const PERIOD = { from: '2026-09-01', to: '2026-09-30' };

@@ -12,7 +12,8 @@ import { assertPristinePostgres, disposablePostgresConfiguration, QualificationE
 // Public generated business fixtures only. This is not a user credential.
 const PUBLIC_FIXTURE_PASSPHRASE = 'PUBLIC SYNTHETIC WORKFLOW QUALIFICATION PASSPHRASE 2026';
 const TASK_ROOT = 'C:/Users/karta/Documents/Codex/2026-10-01/task-4';
-const FOUNDATION_COMMIT = '1dc19b856380951aea49b7143ed4b5617130c06b';
+// Fixtures originated at1dc19b8; execution is pinned to the final source below.
+const FOUNDATION_COMMIT = '87c400870563b92803841d3a198cee801f7740df';
 const sourceHeader = 'id,kind,date,amount,currency,branch,status,description';
 const safeCode = error => typeof error?.code === 'string' && /^[A-Z0-9_]{1,80}$/.test(error.code)
   ? error.code : error?.name === 'AssertionError' ? 'ASSERTION_FAILED' : 'WORKFLOW_QUALIFICATION_FAILED';
