@@ -463,8 +463,6 @@ test('public PostgreSQL deletion through Vault preflights both private purposes 
   // would close it without running the Engine's own deletion lifecycle.
   const f = await fixture(t), vault = f.source, slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
   assert.ok(authority);
-  await vault.writeArtifact({ id: 'delete_trial', purpose: 'private-trial', value: { synthetic: 'private trial deletion evidence' }, expectedDigest: null });
-  await vault.writeArtifact({ id: 'delete_interchange', purpose: 'workspace-interchange', value: { synthetic: 'private interchange deletion evidence' }, expectedDigest: null });
   const files = ['private-artifacts/private-trial/delete_trial.encrypted.json',
     'private-artifacts/workspace-interchange/delete_interchange.encrypted.json'].map(path => join(f.sourceDirectory, path));
   const prefix = `chausar-${vault.read().workspace.id}-`;
@@ -472,6 +470,8 @@ test('public PostgreSQL deletion through Vault preflights both private purposes 
   files.push(join(f.root, 'backups', prefix + '1.backup'), join(f.root, 'exports', prefix + '2.json'),
     join(f.root, 'backups', `chausar-${f.options.journalVault.read().workspace.id}-3.backup`));
   await vault.backup(files[2]); await vault.export(files[3], { plaintext: true }); await f.options.journalVault.backup(files[4]);
+  await vault.writeArtifact({ id: 'delete_trial', purpose: 'private-trial', value: { synthetic: 'private trial deletion evidence' }, expectedDigest: null });
+  await vault.writeArtifact({ id: 'delete_interchange', purpose: 'workspace-interchange', value: { synthetic: 'private interchange deletion evidence' }, expectedDigest: null });
   const bytes = () => Promise.all(files.map(path => readFile(path))), before = await bytes();
   await writeFile(join(f.sourceDirectory, 'private-artifacts', 'workspace-interchange', 'unclassified.txt'), 'synthetic unknown file');
   let refusal: unknown; try { await vault.delete(); } catch (error) { refusal = error; f.expectShutdownFailure(vault, error); }
