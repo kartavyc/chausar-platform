@@ -173,8 +173,8 @@ test('file grant revoked during saved-response transport prevents delivery after
     assert.ok(error instanceof ConnectorReadError); assert.equal(error.code, 'READ_AUTHORIZATION_SCOPE_MISSING');
     assert.equal(error.receipt.pages, 0); assert.equal(error.receipt.requests, 1);
     assert.equal(error.receipt.bytes, 0);
-    // Current dispatcher revocation occurs before received-byte accounting. This
-    // scenario verifies no delivery; it does not certify transport-byte completeness.
+    assert.equal(pages[0].byteLength, 464, 'The authored first page pins this regression to 464 received bytes.');
+    assert.equal(error.receipt.discardedBytes, 464); assert.equal(error.receipt.transportBytes, 464);
     assert.deepEqual(error.receipt.contentHashes, []); return true;
   });
   assert.deepEqual(restarted.calls, [1]); assert.deepEqual(store.read(), retained);

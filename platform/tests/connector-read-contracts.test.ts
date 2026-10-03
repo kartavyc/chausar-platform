@@ -46,6 +46,13 @@ function fixture(readPage: ConnectorReadAdapter['readPage'], options: { scope?: 
 const code = (expected: string) => (error: unknown) => {
   assert.ok(error instanceof ConnectorReadError); assert.equal(error.code, expected); assert.equal(error.receipt.outcome, 'refused'); return true;
 };
+const undeliveredBytes = (error: unknown, expected: string, receivedBytes: number) => {
+  code(expected)(error); assert.ok(error instanceof ConnectorReadError);
+  const { requests, pages, rows, bytes, discardedBytes, transportBytes, contentHashes } = error.receipt;
+  assert.deepEqual({ requests, pages, rows, bytes, discardedBytes, transportBytes, contentHashes },
+    { requests: 1, pages: 0, rows: 0, bytes: 0, discardedBytes: receivedBytes, transportBytes: receivedBytes, contentHashes: [] });
+  return true;
+};
 
 test('qualified synthetic API read captures raw lexical numbers, provenance and complete bounded pagination', async () => {
   const source = { reportReference: 'separate-source-report', generatedAtMs: NOW - 100, snapshotId: 'source-snapshot', completeness: 'reported-complete' as const, totalRows: 2 };
@@ -113,22 +120,75 @@ test('wrong source/tenant, missing auth scope and expired auth fail closed befor
   assert.equal(called, 0);
 });
 
-test('authority revocation or expiry during transport prevents content delivery', async () => {
-  for (const expires of [false, true]) {
-    const clock = new FakeClock(); let revision = 'revision-1';
-    const input = fixture(async () => { if (expires) clock.advance(101); else revision = 'revision-2'; return page('SECRET-RAW-DATA'); }, { clock,
-      authorize: async () => ({ scope: authority, authorityRevision: revision, grantedScopes: ['ledger.read'], expiresAtMs: NOW + 100, credentialReference: null }) });
-    await assert.rejects(input.dispatcher.read(input.request, input.adapter), error => {
-      code(expires ? 'READ_AUTHENTICATION_EXPIRED' : 'READ_AUTHORITY_CHANGED')(error);
-      assert.ok(error instanceof ConnectorReadError); assert.equal(error.receipt.pages, 0); assert.ok(!JSON.stringify(error.receipt).includes('SECRET-RAW-DATA')); return true;
+test('authority revocation or expiry during transport prevents content delivery and accounts discarded bytes', async t => {
+  for (const change of ['revision', 'scopes', 'expiry'] as const) {
+    await t.test(change, async () => {
+      const clock = new FakeClock(); let revision = 'revision-1', grantedScopes = ['ledger.read'];
+      const content = 'SECRET-RAW-DATA';
+      const input = fixture(async () => {
+        if (change === 'expiry') clock.advance(101);
+        else if (change === 'scopes') grantedScopes = [];
+        else revision = 'revision-2';
+        return page(content);
+      }, { clock, authorize: async () => ({ scope: authority, authorityRevision: revision, grantedScopes, expiresAtMs: NOW + 100, credentialReference: null }) });
+      await assert.rejects(input.dispatcher.read(input.request, input.adapter), error => {
+        const expected = change === 'expiry' ? 'READ_AUTHENTICATION_EXPIRED' : change === 'scopes' ? 'READ_AUTHORIZATION_SCOPE_MISSING' : 'READ_AUTHORITY_CHANGED';
+        undeliveredBytes(error, expected, Buffer.byteLength(content));
+        assert.ok(error instanceof ConnectorReadError); assert.equal(error.receipt.attempts[0].outcome, 'succeeded');
+        assert.ok(!JSON.stringify(error.receipt).includes(content)); return true;
+      });
+      assert.equal(clock.timers.size, 0);
     });
   }
 });
 
-test('registry evidence revoked during transport is rechecked before releasing raw bytes', async () => {
-  const capabilityRegistry = registry();
-  const input = fixture(async () => { capabilityRegistry.revokeEvidence('fixture-read', new Date(NOW).toISOString(), 'Contract revocation.'); return page(); }, { registry: capabilityRegistry });
-  await assert.rejects(input.dispatcher.read(input.request, input.adapter), code('READ_CAPABILITY_UNQUALIFIED'));
+test('registry evidence revoked during transport refuses delivery and accounts discarded raw bytes', async () => {
+  const capabilityRegistry = registry(), returned = page();
+  const input = fixture(async () => { capabilityRegistry.revokeEvidence('fixture-read', new Date(NOW).toISOString(), 'Contract revocation.'); return returned; }, { registry: capabilityRegistry });
+  await assert.rejects(input.dispatcher.read(input.request, input.adapter), error => undeliveredBytes(error, 'READ_CAPABILITY_UNQUALIFIED', returned.content.byteLength));
+});
+
+test('a refused later page preserves earlier captured counts and charges only the new discarded bytes', async () => {
+  let revision = 'revision-1';
+  const first = page('accepted-page', { kind: 'more', next: { kind: 'token', token: 'second-page' } }), second = page('refused-page');
+  const input = fixture(async request => {
+    if (request.cursor === null) return first;
+    revision = 'revision-2'; return second;
+  }, { authorize: async () => ({ scope: authority, authorityRevision: revision, grantedScopes: ['ledger.read'], expiresAtMs: NOW + 100_000, credentialReference: null }) });
+  const totalBytes = first.content.byteLength + second.content.byteLength;
+  await assert.rejects(input.dispatcher.read({ ...input.request, limits: { pageBytes: totalBytes, totalBytes } }, input.adapter), error => {
+    code('READ_AUTHORITY_CHANGED')(error); assert.ok(error instanceof ConnectorReadError);
+    const { requests, pages, rows, bytes, discardedBytes, transportBytes, contentHashes } = error.receipt;
+    assert.deepEqual({ requests, pages, rows, bytes, discardedBytes, transportBytes, contentHashes },
+      { requests: 2, pages: 1, rows: 1, bytes: first.content.byteLength, discardedBytes: second.content.byteLength,
+        transportBytes: totalBytes, contentHashes: [hash(first.content)] });
+    assert.deepEqual(error.receipt.attempts.map(attempt => attempt.outcome), ['succeeded', 'succeeded']);
+    assert.ok(!JSON.stringify(error.receipt).includes('refused-page')); return true;
+  });
+});
+
+test('known transport failure bytes remain accounted when post-attempt authority checks refuse retry', async t => {
+  for (const change of ['revision', 'scopes', 'expiry', 'evidence'] as const) {
+    await t.test(change, async () => {
+      const clock = new FakeClock(), capabilityRegistry = registry(); let revision = 'revision-1', grantedScopes = ['ledger.read'], calls = 0;
+      const input = fixture(async () => {
+        calls++;
+        if (change === 'expiry') clock.advance(101);
+        else if (change === 'scopes') grantedScopes = [];
+        else if (change === 'evidence') capabilityRegistry.revokeEvidence('fixture-read', new Date(NOW).toISOString(), 'Contract revocation.');
+        else revision = 'revision-2';
+        throw new ReadTransportError('rate-limited', 0, 'settled', 40);
+      }, { clock, registry: capabilityRegistry,
+        authorize: async () => ({ scope: authority, authorityRevision: revision, grantedScopes, expiresAtMs: NOW + 100, credentialReference: null }) });
+      await assert.rejects(input.dispatcher.read({ ...input.request, retry: { maxAttemptsPerPage: 3 } }, input.adapter), error => {
+        const expected = change === 'expiry' ? 'READ_AUTHENTICATION_EXPIRED' : change === 'scopes' ? 'READ_AUTHORIZATION_SCOPE_MISSING'
+          : change === 'evidence' ? 'READ_CAPABILITY_UNQUALIFIED' : 'READ_AUTHORITY_CHANGED';
+        undeliveredBytes(error, expected, 40); assert.ok(error instanceof ConnectorReadError);
+        assert.equal(error.receipt.attempts[0].outcome, 'rate-limited'); assert.equal(error.receipt.attempts[0].delayBeforeNextMs, null); return true;
+      });
+      assert.equal(calls, 1); assert.deepEqual(clock.waits, []); assert.equal(clock.timers.size, 0);
+    });
+  }
 });
 
 test('known idempotent transient failures use deterministic exponential backoff and provider retry floors', async () => {
@@ -279,5 +339,24 @@ test('discarded retry payloads consume the total byte budget and remain separate
   assert.equal(result.receipt.bytes, 50); assert.equal(result.receipt.discardedBytes, 40); assert.equal(result.receipt.transportBytes, 90);
   calls = 0;
   const excess = { ...input.adapter, readPage: async () => { calls++; if (calls === 1) throw new ReadTransportError('rate-limited', 0, 'settled', 40); return page('x'.repeat(61)); } };
-  await assert.rejects(input.dispatcher.read(request, excess), code('READ_BYTE_LIMIT')); assert.equal(calls, 2);
+  await assert.rejects(input.dispatcher.read(request, excess), error => {
+    code('READ_BYTE_LIMIT')(error); assert.ok(error instanceof ConnectorReadError);
+    assert.equal(error.receipt.requests, 2); assert.equal(error.receipt.attempts.length, 2); return true;
+  }); assert.equal(calls, 2);
+});
+
+test('retried failure payloads and the admitted page each count once at the exact total byte budget', async () => {
+  const maxBytes: number[] = [];
+  const input = fixture(async (_request, context) => {
+    maxBytes.push(context.maxBytes);
+    if (context.attempt === 1) throw new ReadTransportError('rate-limited', 0, 'settled', 40);
+    if (context.attempt === 2) throw new ReadTransportError('temporarily-unavailable', null, 'settled', 10);
+    return page('x'.repeat(50));
+  });
+  const result = await input.dispatcher.read({ ...input.request, limits: { pageBytes: 100, totalBytes: 100 }, retry: { maxAttemptsPerPage: 3 } }, input.adapter);
+  assert.deepEqual(maxBytes, [100, 60, 50]);
+  const { requests, pages, rows, bytes, discardedBytes, transportBytes, contentHashes } = result.receipt;
+  assert.deepEqual({ requests, pages, rows, bytes, discardedBytes, transportBytes, contentHashes },
+    { requests: 3, pages: 1, rows: 1, bytes: 50, discardedBytes: 50, transportBytes: 100, contentHashes: [hash('x'.repeat(50))] });
+  assert.equal(result.pages.length, 1); assert.equal(result.pages[0].content.byteLength, 50);
 });

@@ -300,15 +300,16 @@ export class ConnectorReadDispatcher {
           catch (error) { failure = error instanceof ReadTransportError ? error : new ReadTransportError('unknown'); }
           time();
           attempts.push({ page: pages.length + 1, attempt, startedAtMs: attemptStart, finishedAtMs: lastTime, outcome: failure?.kind ?? 'succeeded', delayBeforeNextMs: null });
+          const receivedBytes = failure ? failure.receivedBytes : rawPage?.content instanceof Uint8Array ? rawPage.content.byteLength : 0;
+          require(integer(receivedBytes, 0, limits.pageBytes) && bytes + discardedBytes + receivedBytes <= limits.totalBytes, 'READ_BYTE_LIMIT');
+          // Received bytes remain discarded until this exact page is admitted,
+          // including when a post-transport authority/expiry check refuses it.
+          discardedBytes += receivedBytes;
           require(before.expiresAtMs > time(), 'READ_AUTHENTICATION_EXPIRED');
           await authorize(); // Revocation, expiry, qualification changes and missing scopes prevent raw-data delivery.
-          if (failure) {
-            require(integer(failure.receivedBytes, 0, limits.pageBytes) && bytes + discardedBytes + failure.receivedBytes <= limits.totalBytes, 'READ_BYTE_LIMIT');
-            discardedBytes += failure.receivedBytes;
-          }
           if (!failure) {
-            require(rawPage && rawPage.content instanceof Uint8Array && rawPage.content.byteLength <= limits.pageBytes
-              && bytes + discardedBytes + rawPage.content.byteLength <= limits.totalBytes, 'READ_BYTE_LIMIT');
+            require(rawPage && rawPage.content instanceof Uint8Array && rawPage.content.byteLength === receivedBytes
+              && bytes + discardedBytes <= limits.totalBytes, 'READ_BYTE_LIMIT');
             require(exact(rawPage, ['content', 'contentType', 'schemaFingerprint', 'rowCount', 'continuation', 'source'])
               && exact(rawPage!.source, ['reportReference', 'generatedAtMs', 'snapshotId', 'completeness', 'totalRows'])
               && (rawPage!.source.reportReference === null || boundedText(rawPage!.source.reportReference, 1_000))
@@ -336,7 +337,7 @@ export class ConnectorReadDispatcher {
           try { await clock.sleep(delay, input.signal); } catch { refuse('READ_CANCELLED'); }
         }
         require(page && page.content instanceof Uint8Array && page.content.byteLength <= limits.pageBytes
-          && bytes + page.content.byteLength <= limits.totalBytes, 'READ_BYTE_LIMIT');
+          && bytes + discardedBytes <= limits.totalBytes, 'READ_BYTE_LIMIT');
         require(typeof page!.contentType === 'string' && /^[A-Za-z0-9.+-]+\/[A-Za-z0-9.+-]+(?:; charset=utf-8)?$/.test(page!.contentType)
           && /^[a-f0-9]{64}$/.test(page!.schemaFingerprint) && integer(page!.rowCount, 0, limits.maxRows), 'READ_PAGE_INVALID');
         require(rows + page!.rowCount <= limits.maxRows, 'READ_ROW_LIMIT');
@@ -367,7 +368,7 @@ export class ConnectorReadDispatcher {
             : integer(next.page, 1, Number.MAX_SAFE_INTEGER) && (cursor?.kind !== 'page' || next.page > cursor.page), 'READ_PAGINATION_INVALID');
           require(!seen.has(cursorKey(next)), 'READ_PAGINATION_LOOP'); seen.add(cursorKey(next));
         }
-        bytes += page!.content.byteLength; rows += page!.rowCount;
+        discardedBytes -= page!.content.byteLength; bytes += page!.content.byteLength; rows += page!.rowCount;
         pages.push({ content: Uint8Array.from(page!.content), fromCursor: structuredClone(cursor), continuation: structuredClone(continuation), rowCount: page!.rowCount,
           provenance: { operationKey, authorityScopeHash, dataScopeHash, capturedAtMs: time(), contentSha256: digest(page!.content), byteLength: page!.content.byteLength,
             contentType: page!.contentType, schemaFingerprint: page!.schemaFingerprint, source: structuredClone(page!.source) } });
