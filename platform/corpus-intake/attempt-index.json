@@ -1,0 +1,23 @@
+{
+  "contractVersion": 1,
+  "kind": "blocked-corpus-intake-attempt-index",
+  "recordedAt": "2026-10-03T23:09:27Z",
+  "entries": [
+    {
+      "id": "original-intake",
+      "kind": "blocked-corpus-intake-attempt-register",
+      "path": "manifest.json",
+      "sourceCommit": "367463ed42e6af2e49292026955f8afab967db94",
+      "byteLength": 17121,
+      "sha256": "d26f3fa3b446c297709c0316e88eeeabec7f1dea905de5512dcce25211434705"
+    },
+    {
+      "id": "uci-ordinary-head",
+      "kind": "uci-official-file-transfer-preflight-receipt",
+      "path": "attempts/uci-20260930-head-preflight.json",
+      "sourceCommit": "2fb1c5b187897327efd97d3a56ec0a627adb1883",
+      "byteLength": 6087,
+      "sha256": "82d739dd16d955dce2c8ff254c0a96e9dbffe715ff7e8df8dd5851dde4265bf9"
+    }
+  ]
+}

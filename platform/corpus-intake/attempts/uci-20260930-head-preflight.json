@@ -1,0 +1,141 @@
+{
+  "contractVersion": 1,
+  "kind": "uci-official-file-transfer-preflight-receipt",
+  "recordedAt": "2026-09-30T23:58:03Z",
+  "id": "uci-online-retail-ordinary-head-20260930",
+  "priorIntakeCommit": "367463ed42e6af2e49292026955f8afab967db94",
+  "preservedSemanticCommit": "fe26fa945ccd847aad45310668853e67d0077f66",
+  "authorization": {
+    "scope": "New normal file download of the exact official licensed UCI ZIP; only within current tool/network policy",
+    "technicalClarification": "The earlier 4194305+ web content-length error is a retrieval-size limit, not itself an access denial.",
+    "stopCondition": "Stop the action on actual downloader access/policy rejection; no alternative mirror or network/security changes.",
+    "microsoftRestrictionUnchanged": true,
+    "npmRestrictionUnchanged": true
+  },
+  "source": {
+    "id": "uci-online-retail",
+    "officialPageUrl": "https://archive.ics.uci.edu/dataset/352/online%2Bretail",
+    "officialAssetUrl": "https://archive.ics.uci.edu/static/public/352/online%2Bretail.zip",
+    "officialPageRechecked": true,
+    "expectedFileReported": "Online Retail.xlsx",
+    "expectedWorkbookSizeTextReported": "22.6 MB",
+    "expectedZipContentLength": null,
+    "expectedSizeStatus": "Official workbook display size verified; exact ZIP Content-Length could not be received because ordinary HEAD was rejected.",
+    "sourceCompanyOriginsReported": 1,
+    "independentAcquiredOrigins": 0,
+    "sourceSchemaState": "documentation-only-not-observed"
+  },
+  "rights": {
+    "spdx": "CC-BY-4.0",
+    "scope": "Official dataset-level grant verified from the UCI page; copyright/database permission distinct from privacy and operational admission.",
+    "citation": "Chen, D. (2015). Online Retail [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5BW33. CC BY 4.0: https://creativecommons.org/licenses/by/4.0/",
+    "retainedLicense": {
+      "packageRelativePath": "evidence/CC-BY-4.0.normalized.txt",
+      "byteLength": 18615,
+      "sha256": "2ade8c89b8bbe0d859b124a9e47032c8494022f43091e8278ae8e2554a292196",
+      "revision": "Attribution 4.0 International; normalized retained text; original HTTP revision unexposed"
+    },
+    "changes": "No dataset acquisition or transformation occurred.",
+    "trainingRun": false,
+    "rawDatasetDisclosedToModels": false
+  },
+  "destination": {
+    "requestedDirectory": "D:/Chausar/corpus/uci-online-retail",
+    "created": false,
+    "writeAttempted": false
+  },
+  "storagePreflight": {
+    "projectRootExists": true,
+    "corpusRootExists": false,
+    "corpusStagingBytes": 0,
+    "corpusFileCount": 0,
+    "sharedStagingBudgetBytes": 4294967296,
+    "remainingSharedBudgetBytes": 4294967296,
+    "driveFreeBytes": 74873204736,
+    "targetExists": false,
+    "userSharedBudgetText": "4 GB",
+    "conservativeWholeProjectCheck": {
+      "observedProjectBytes": 250551987,
+      "observedProjectFiles": 4908,
+      "conservativeSharedLimitBytes": 4000000000,
+      "conservativeRemainingBytes": 3749448013,
+      "datasetCorpusBytes": 0,
+      "quotaReserved": false,
+      "measurementScope": "D:/Chausar whole project, conservative inclusion of existing build-tools"
+    },
+    "interpretation": "Corpus root was absent. A second conservative check includes all existing D:/Chausar project/build-tools bytes under a decimal 4GB limit; no quota was reserved. These are readonly observations, not dataset sizes."
+  },
+  "transportPreflight": {
+    "tool": "exec_command / PowerShell Invoke-WebRequest",
+    "method": "HEAD",
+    "uri": "https://archive.ics.uci.edu/static/public/352/online%2Bretail.zip",
+    "options": {
+      "useBasicParsing": true,
+      "maximumRedirection": 0,
+      "timeoutSeconds": 45
+    },
+    "sandboxPermissions": "use_default",
+    "stage": "HEAD/pre-transfer preflight",
+    "exitCode": 1,
+    "transportOutcome": "socket-access-forbidden",
+    "httpStatus": null,
+    "responseContentLength": null,
+    "responseETag": null,
+    "responseLastModified": null,
+    "exactError": "An attempt was made to access a socket in a way forbidden by its access permissions. (archive.ics.uci.edu:443)",
+    "getDownloadRequests": 0,
+    "datasetBodyBytesMaterialized": 0,
+    "attemptRepeated": false
+  },
+  "stop": {
+    "terminalForThisAttempt": true,
+    "reason": "Ordinary file-appropriate downloader could not open the network socket under current access permissions.",
+    "networkOrSecuritySettingsChanged": false,
+    "escalatedNetworkRetry": false,
+    "alternateDownloadRouteUsed": false,
+    "mirrorUsed": false,
+    "rangeOrChunkRequestsUsed": false,
+    "noFurtherTransportAction": true
+  },
+  "actualCounts": {
+    "datasetAssetsAcquired": 0,
+    "datasetBytesAcquired": 0,
+    "datasetBytesRetained": 0,
+    "coherentBusinessBooks": 0,
+    "independentCompanyOrigins": 0,
+    "independentConfigurationOrigins": 0,
+    "namedAdaptersQualified": 0,
+    "syntheticCasesAdded": 0
+  },
+  "datasetReceipt": {
+    "originalPath": null,
+    "originalByteLength": null,
+    "originalSha256": null,
+    "retainedProjectionPath": null,
+    "retainedProjectionByteLength": null,
+    "retainedProjectionSha256": null,
+    "observedRows": null,
+    "observedSchemaHash": null
+  },
+  "privacy": {
+    "customerIDs": "Pseudonymous, not anonymous; unnecessary for the initial projection.",
+    "plannedDroppedColumns": [
+      "CustomerID",
+      "Country",
+      "Description"
+    ],
+    "rawArchiveStored": false,
+    "workbookOpened": false,
+    "parserRun": false,
+    "projectionRun": false,
+    "redactionRun": false,
+    "anonymizationClaim": false
+  },
+  "qualification": {
+    "state": "unqualified",
+    "genericDataDoesNotQualifyNamedAdapters": true,
+    "sourceTotalReconciliationRun": false,
+    "holdoutAssignment": "unassigned"
+  },
+  "nextStep": "No retry from this environment while the socket access restriction remains. Parent may resolve an authorized transfer capability; any resumed intake needs a new receipt and the same official asset, storage limits, bounded private quarantine and minimization. Keep Microsoft and npm stopped."
+}

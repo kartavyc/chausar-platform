@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:chausar:blocked-corpus-intake-attempt-index:v1",
+  "title": "Preserved blocked corpus intake snapshots",
+  "description": "A fixed versioned index of historical blocked evidence. It does not authorize transfer, admit a corpus, qualify vendors or describe current storage permission.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "kind",
+    "recordedAt",
+    "entries"
+  ],
+  "properties": {
+    "entries": {
+      "uniqueItems": true,
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "const": {
+              "id": "original-intake",
+              "kind": "blocked-corpus-intake-attempt-register",
+              "path": "manifest.json",
+              "sourceCommit": "367463ed42e6af2e49292026955f8afab967db94",
+              "byteLength": 17121,
+              "sha256": "d26f3fa3b446c297709c0316e88eeeabec7f1dea905de5512dcce25211434705"
+            }
+          },
+          {
+            "const": {
+              "id": "uci-ordinary-head",
+              "kind": "uci-official-file-transfer-preflight-receipt",
+              "path": "attempts/uci-20260930-head-preflight.json",
+              "sourceCommit": "2fb1c5b187897327efd97d3a56ec0a627adb1883",
+              "byteLength": 6087,
+              "sha256": "82d739dd16d955dce2c8ff254c0a96e9dbffe715ff7e8df8dd5851dde4265bf9"
+            }
+          }
+        ]
+      }
+    },
+    "recordedAt": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "Auditor additionally requires a real UTC instant no earlier than either preserved snapshot.",
+      "format": "date-time",
+      "type": "string"
+    },
+    "contractVersion": {
+      "const": 1
+    },
+    "kind": {
+      "const": "blocked-corpus-intake-attempt-index"
+    }
+  }
+}

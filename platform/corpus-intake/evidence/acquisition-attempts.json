@@ -1,0 +1,43 @@
+{
+  "kind": "terminal-public-acquisition-attempt-receipts",
+  "recordedAt": "2026-09-30T23:40:04Z",
+  "networkPolicy": "Use exposed permitted public read tools; stop the source on a blocked route; no alternate hosts, mirrors, proxies, ranged requests, shell network or account setup.",
+  "attempts": [
+    {
+      "id": "microsoft-public-repository-route",
+      "tool": "web.open",
+      "url": "https://github.com/microsoft/sql-server-samples/tree/master/samples/databases",
+      "stage": "repository-discovery",
+      "affectedSourceIds": [
+        "microsoft-adventureworks",
+        "microsoft-wide-world-importers"
+      ],
+      "result": "blocked",
+      "toolError": "Failed to fetch restricted URL",
+      "stopReason": "restricted-url",
+      "datasetBytesMaterialized": 0,
+      "retried": false
+    },
+    {
+      "id": "uci-official-zip-download",
+      "tool": "web.click",
+      "sourcePageUrl": "https://archive.ics.uci.edu/dataset/352/online%2Bretail",
+      "sourcePageLinkId": 13,
+      "url": "https://archive.ics.uci.edu/static/public/352/online%2Bretail.zip",
+      "stage": "dataset-download",
+      "affectedSourceIds": [
+        "uci-online-retail"
+      ],
+      "result": "blocked",
+      "toolError": "Failed to fetch https://archive.ics.uci.edu/static/public/352/online%2Bretail.zip: (400) Content length is too large: 4194305+",
+      "stopReason": "public-read-tool-size-limit",
+      "datasetBytesMaterialized": 0,
+      "retried": false,
+      "interpretation": "4194305+ is the tool limit error, not the ZIP's verified size or an acquired-byte receipt."
+    }
+  ],
+  "accountsCreated": 0,
+  "paymentsMade": 0,
+  "userDetailsSubmitted": false,
+  "alternateAcquisitionRoutesUsed": false
+}

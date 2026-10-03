@@ -1,0 +1,9 @@
+{
+  "name": "@chausar/corpus-intake-attempts",
+  "version": "0.1.0-blocked-intake",
+  "private": true,
+  "type": "module",
+  "description": "Audited public-source intake attempts; reference evidence never becomes dataset admission",
+  "engines": { "node": ">=24.13.1" },
+  "scripts": { "audit": "node audit.ts", "test": "node --test tests/*.test.ts" }
+}

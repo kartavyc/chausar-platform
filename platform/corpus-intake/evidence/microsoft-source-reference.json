@@ -1,0 +1,31 @@
+{
+  "kind": "curated-public-source-reference",
+  "representation": "curated-metadata-from-web-extracted-text",
+  "recordedAt": "2026-09-30T23:40:04Z",
+  "sourceUrl": "https://learn.microsoft.com/en-us/sql/samples/sql-samples-where-are?view=sql-server-ver17",
+  "publisher": "Microsoft",
+  "title": "SQL samples: Where are the SQL Server sample databases?",
+  "sourceRevision": {
+    "lastUpdatedReported": "2026-07-20",
+    "repositoryCommit": null,
+    "httpEtag": null,
+    "sourceByteSha256": null
+  },
+  "claims": {
+    "repository": "https://github.com/microsoft/sql-server-samples",
+    "sampleNames": [
+      "AdventureWorks",
+      "WideWorldImporters"
+    ],
+    "licenseReported": "MIT",
+    "licenseScopeReported": "All samples and templates in the repository; root license.txt referenced",
+    "wideWorldImportersPlatformReported": "SQL Server 2016 and later"
+  },
+  "observationLimits": [
+    "No exact release, backup file, asset licence, component notices, repository revision or source schema was acquired/verified.",
+    "The public Learn body was available. No sign-in was performed.",
+    "The GitHub directory acquisition route was stopped after a restricted-URL failure; no alternate route was attempted.",
+    "Product contact/person tables and unnecessary identifying fields require an exact table-level minimization review before any retention.",
+    "Versions, backups and alternative exports of the same fictional sample company do not create independent companies/configuration origins."
+  ]
+}
