@@ -1,47 +1,55 @@
 import { PhoneClient } from '../../../platform/runtime/phone/client.ts';
+import type { PhoneReceiptReader, PhoneRequestRestoration } from '../../../platform/runtime/phone/client.ts';
 import { PhoneError, requirePhone } from '../../../platform/runtime/phone/contracts.ts';
 import type { AppChannel, BriefCache, DeviceBinding, PhoneCredentialStore, PhoneMethods, PhoneTransport } from '../../../platform/runtime/phone/contracts.ts';
+import type { PhoneHostMethod, PhoneHostMethods } from '../../../platform/runtime/phone/host-contracts.ts';
 import type { BriefCacheKeyProvider, OpaqueBriefStorage } from '../../../platform/runtime/phone/cache.ts';
 import { CompanionController } from './controller.ts';
-import type { CompanionDeviceIdentity, CompanionDocumentPicker, CompanionReceiptReader } from './view-contracts.ts';
+import type { CompanionDeviceIdentity, CompanionDocumentPicker } from './view-contracts.ts';
 
-export type LiveCompanionAdapters = { channel: AppChannel; transport: PhoneTransport; credentials: PhoneCredentialStore; cache: BriefCache; identity: CompanionDeviceIdentity; picker: CompanionDocumentPicker; receipts: CompanionReceiptReader; crypto: Crypto; requestId: () => string };
+export type LiveCompanionAdapters = { channel: AppChannel; transport: PhoneTransport; requestRestoration: PhoneRequestRestoration; credentials: PhoneCredentialStore; cache: BriefCache; identity: CompanionDeviceIdentity; picker: CompanionDocumentPicker; receipts: PhoneReceiptReader; crypto: Crypto; requestId: () => string };
 /** Real hosts explicitly inject each adapter; the live factory never substitutes a demo. */
 export function createLiveCompanionController(adapters: LiveCompanionAdapters) {
-  requirePhone(!!adapters && ['ios', 'android', 'web'].includes(adapters.channel) && typeof adapters.transport?.request === 'function' && typeof adapters.credentials?.load === 'function' && typeof adapters.credentials?.save === 'function' && typeof adapters.credentials?.clear === 'function' && typeof adapters.cache?.put === 'function' && typeof adapters.cache?.read === 'function' && typeof adapters.cache?.clear === 'function' && typeof adapters.identity?.preparePairing === 'function' && typeof adapters.picker?.pick === 'function' && typeof adapters.receipts?.read === 'function' && typeof adapters.crypto?.subtle?.digest === 'function' && typeof adapters.requestId === 'function', 'INVALID_REQUEST');
-  return new CompanionController({ client: new PhoneClient({ channel: adapters.channel, transport: adapters.transport, credentials: adapters.credentials, cache: adapters.cache, crypto: adapters.crypto }), identity: adapters.identity, picker: adapters.picker, receipts: adapters.receipts, crypto: adapters.crypto, requestId: adapters.requestId, mode: 'live' });
+  requirePhone(!!adapters && ['ios', 'android', 'web'].includes(adapters.channel) && typeof adapters.transport?.request === 'function' && typeof adapters.requestRestoration?.list === 'function' && typeof adapters.credentials?.load === 'function' && typeof adapters.credentials?.save === 'function' && typeof adapters.credentials?.clear === 'function' && typeof adapters.cache?.put === 'function' && typeof adapters.cache?.read === 'function' && typeof adapters.cache?.clear === 'function' && typeof adapters.identity?.preparePairing === 'function' && typeof adapters.picker?.pick === 'function' && typeof adapters.receipts?.read === 'function' && typeof adapters.crypto?.subtle?.digest === 'function' && typeof adapters.requestId === 'function', 'INVALID_REQUEST');
+  const client = new PhoneClient({ channel: adapters.channel, transport: adapters.transport, requestRestoration: adapters.requestRestoration, receiptReader: adapters.receipts, credentials: adapters.credentials, cache: adapters.cache, crypto: adapters.crypto });
+  return new CompanionController({ client, identity: adapters.identity, picker: adapters.picker, receipts: { read: receiptId => client.readReceipt(receiptId) }, crypto: adapters.crypto, requestId: adapters.requestId, mode: 'live' });
 }
 
-const methods = new Set<keyof PhoneMethods>(['pairing.accept', 'session.validate', 'session.revoke', 'brief.list', 'brief.read', 'chat.start', 'upload.begin', 'upload.chunk', 'upload.finish', 'approval.list', 'approval.inspect', 'approval.submit', 'request.status', 'request.cancel']);
+const methods = new Set<PhoneHostMethod>(['pairing.accept', 'session.validate', 'session.revoke', 'brief.list', 'brief.read', 'chat.start', 'upload.begin', 'upload.chunk', 'upload.finish', 'approval.list', 'approval.inspect', 'approval.submit', 'request.status', 'request.cancel', 'request.list', 'receipt.read']);
 export type DeviceRequestProof = { deviceId: string; keyId: string; timestamp: string; nonce: string; signature: string };
-export interface DeviceRequestSigner { sign(input: { method: keyof PhoneMethods; path: '/api/companion/rpc'; body: string; signal: AbortSignal }): Promise<DeviceRequestProof>; }
+export interface DeviceRequestSigner { sign(input: { method: PhoneHostMethod; path: '/api/companion/rpc'; body: string; credential?: string; signal: AbortSignal }): Promise<DeviceRequestProof>; }
+export interface HttpPhoneTransport extends PhoneTransport, PhoneRequestRestoration, PhoneReceiptReader {
+  request<M extends PhoneHostMethod>(method: M, input: PhoneHostMethods[M]['input'], auth: { credential?: string; signal: AbortSignal }): Promise<PhoneHostMethods[M]['output']>;
+}
 /** Proposed fixed RPC adapter for coordinator wiring. TLS + key-possession proof required. */
-export function createHttpPhoneTransport(options: { origin: string; fetcher: typeof fetch; signer: DeviceRequestSigner }): PhoneTransport {
+export function createHttpPhoneTransport(options: { origin: string; fetcher: typeof fetch; signer: DeviceRequestSigner }): HttpPhoneTransport {
   requirePhone(!!options && typeof options.fetcher === 'function' && typeof options.signer?.sign === 'function', 'INVALID_REQUEST');
   let origin: URL;
   try { origin = new URL(options.origin); } catch { throw new PhoneError('INVALID_REQUEST'); }
   requirePhone(origin.protocol === 'https:' && !origin.username && !origin.password && !origin.search && !origin.hash && origin.pathname === '/', 'INVALID_REQUEST');
-  return { async request<M extends keyof PhoneMethods>(method: M, input: PhoneMethods[M]['input'], auth: { credential?: string; signal: AbortSignal }): Promise<PhoneMethods[M]['output']> {
-    requirePhone(methods.has(method) && !auth.signal.aborted, 'INVALID_REQUEST');
+  async function request<M extends PhoneHostMethod>(method: M, input: PhoneHostMethods[M]['input'], auth: { credential?: string; signal: AbortSignal }): Promise<PhoneHostMethods[M]['output']> {
+    requirePhone(methods.has(method) && !!auth && !!auth.signal && !auth.signal.aborted, 'INVALID_REQUEST');
+    const credential = auth.credential; const signal = auth.signal;
+    requirePhone(credential === undefined || typeof credential === 'string' && credential.length > 0 && credential.length <= 4096 && !/[\r\n]/.test(credential), 'INVALID_REQUEST');
     const payload = method === 'upload.chunk' ? { ...(input as PhoneMethods['upload.chunk']['input']), bytes: Array.from((input as PhoneMethods['upload.chunk']['input']).bytes) } : input;
     const body = JSON.stringify({ protocolVersion: 1, method, payload }); const path = '/api/companion/rpc' as const;
     let proof: DeviceRequestProof;
-    try { proof = await options.signer.sign({ method, path, body, signal: auth.signal }); } catch { throw new PhoneError(auth.signal.aborted ? 'VALIDATION_REQUIRED' : 'TRANSPORT_UNKNOWN'); }
+    try { proof = await options.signer.sign({ method, path, body, ...(credential === undefined ? {} : { credential }), signal }); } catch { throw new PhoneError(signal.aborted ? 'VALIDATION_REQUIRED' : 'TRANSPORT_UNKNOWN'); }
     requirePhone(proof && ['deviceId', 'keyId', 'timestamp', 'nonce', 'signature'].every(key => { const value = proof[key as keyof DeviceRequestProof]; return typeof value === 'string' && value.length > 0 && value.length <= 4096 && !/[\r\n]/.test(value); }), 'INVALID_RESPONSE');
-    requirePhone(!auth.signal.aborted, 'VALIDATION_REQUIRED');
-    requirePhone(!auth.credential || typeof auth.credential === 'string' && auth.credential.length <= 4096 && !/[\r\n]/.test(auth.credential), 'INVALID_REQUEST');
+    requirePhone(!signal.aborted, 'VALIDATION_REQUIRED');
     let response: Response;
-    try { response = await options.fetcher(`${origin.origin}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(auth.credential ? { Authorization: `Bearer ${auth.credential}` } : {}), 'X-Chausar-Device': proof.deviceId, 'X-Chausar-Key': proof.keyId, 'X-Chausar-Time': proof.timestamp, 'X-Chausar-Nonce': proof.nonce, 'X-Chausar-Proof': proof.signature }, body, signal: auth.signal, credentials: 'omit', cache: 'no-store', redirect: 'error' }); } catch { throw new PhoneError(auth.signal.aborted ? 'VALIDATION_REQUIRED' : 'TRANSPORT_UNKNOWN'); }
+    try { response = await options.fetcher(`${origin.origin}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(credential === undefined ? {} : { Authorization: `Bearer ${credential}` }), 'X-Chausar-Device': proof.deviceId, 'X-Chausar-Key': proof.keyId, 'X-Chausar-Time': proof.timestamp, 'X-Chausar-Nonce': proof.nonce, 'X-Chausar-Proof': proof.signature }, body, signal, credentials: 'omit', cache: 'no-store', redirect: 'error' }); } catch { throw new PhoneError(signal.aborted ? 'VALIDATION_REQUIRED' : 'TRANSPORT_UNKNOWN'); }
     requirePhone((response.headers.get('content-type') ?? '').startsWith('application/json'), 'INVALID_RESPONSE');
-    let text: string; try { text = await response.text(); } catch { throw new PhoneError(auth.signal.aborted ? 'VALIDATION_REQUIRED' : 'TRANSPORT_UNKNOWN'); }
-    requirePhone(!auth.signal.aborted, 'VALIDATION_REQUIRED'); requirePhone(text.length <= 2 * 1024 * 1024, 'INVALID_RESPONSE');
+    let text: string; try { text = await response.text(); } catch { throw new PhoneError(signal.aborted ? 'VALIDATION_REQUIRED' : 'TRANSPORT_UNKNOWN'); }
+    requirePhone(!signal.aborted, 'VALIDATION_REQUIRED'); requirePhone(text.length <= 2 * 1024 * 1024, 'INVALID_RESPONSE');
     let envelope: any; try { envelope = JSON.parse(text); } catch { throw new PhoneError('INVALID_RESPONSE'); }
     if (!response.ok || envelope?.error) {
       const code = envelope?.error?.code; const known = ['ACCESS_REVOKED', 'SESSION_EXPIRED', 'UNPAIRED', 'CAPABILITY_FORBIDDEN', 'APPROVAL_EXPIRED', 'APPROVAL_USED', 'PREVIEW_CHANGED', 'OPEN_DESKTOP', 'INVALID_REQUEST'];
       throw new PhoneError(known.includes(code) ? code : response.status === 401 || response.status === 403 ? 'ACCESS_REVOKED' : 'TRANSPORT_UNKNOWN');
     }
     requirePhone(envelope && Object.hasOwn(envelope, 'result'), 'INVALID_RESPONSE'); return envelope.result;
-  } };
+  }
+  return { request, list: (_authority, credential, signal) => request('request.list', {}, { credential, signal }), read: (_authority, credential, receiptId, signal) => request('receipt.read', { receiptId }, { credential, signal }) };
 }
 
 /** Dedicated browser storage for encrypted brief bytes and nonexportable CryptoKeys. */

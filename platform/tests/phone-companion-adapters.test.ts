@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PhoneError } from '../runtime/phone/contracts.ts';
-import type { PhoneMethods, SessionGrant } from '../runtime/phone/contracts.ts';
+import type { PhoneMethods, SessionAuthority, SessionGrant } from '../runtime/phone/contracts.ts';
+import type { PhoneHostMethods } from '../runtime/phone/host-contracts.ts';
 import { createHttpPhoneTransport, createLiveCompanionController } from '../../app/companion/shared/adapters.ts';
 import type { DeviceRequestProof, DeviceRequestSigner, LiveCompanionAdapters } from '../../app/companion/shared/adapters.ts';
 
@@ -52,6 +53,7 @@ test('HTTP requests sign the exact POST body and keep credentials and proof out 
   assert.equal(call.url.includes(credential), false); assert.equal(call.url.includes(proof().signature), false);
   assert.equal(call.init?.method, 'POST'); assert.equal(call.init?.body, signed.body);
   assert.equal(signed.method, 'chat.start'); assert.equal(signed.path, '/api/companion/rpc');
+  assert.equal(signed.credential, credential);
   assert.equal(signed.signal, controller.signal); assert.equal(call.init?.signal, controller.signal);
   assert.deepEqual(JSON.parse(signed.body), { protocolVersion: 1, method: 'chat.start', payload: { requestId: 'request_1', question } });
   assert.equal(signed.body.includes(credential), false);
@@ -66,14 +68,66 @@ test('pairing can send a device-signed request without a bearer credential', asy
   const f = fixture();
   await f.transport.request('pairing.accept', { inviteCode: 'synthetic-invite', deviceId: 'phone_1', channel: 'ios', devicePublicKey: 'synthetic-public-key', proof: 'synthetic-pairing-proof' }, { signal: new AbortController().signal });
   assert.equal(new Headers(f.calls[0].init?.headers).has('authorization'), false);
+  assert.equal(Object.hasOwn(f.signed[0], 'credential'), false);
   assert.equal(f.signed[0].body, f.calls[0].init?.body);
 });
 
-test('invalid bearer header values are refused before fetch', async () => {
-  for (const invalid of ['credential\r\nInjected: header', 'x'.repeat(4097), 123]) {
+test('the bearer header stays bound to the credential supplied for signing', async () => {
+  const auth = { credential, signal: new AbortController().signal };
+  const calls: RequestInit[] = [];
+  const transport = createHttpPhoneTransport({ origin, signer: { sign: async input => {
+    assert.equal(input.credential, credential); auth.credential = 'synthetic-replacement-not-signed'; return proof();
+  } }, fetcher: async (_url, init) => { calls.push(init!); return json({ result: [] }); } });
+  await transport.request('brief.list', {}, auth);
+  assert.equal(new Headers(calls[0].headers).get('authorization'), `Bearer ${credential}`);
+});
+
+test('invalid bearer values are refused before signing or fetch', async () => {
+  for (const invalid of ['', 'credential\r\nInjected: header', 'x'.repeat(4097), 123, null]) {
     const f = fixture();
     await assert.rejects(f.transport.request('brief.list', {}, { credential: invalid as string, signal: new AbortController().signal }), code('INVALID_REQUEST'));
     assert.equal(f.calls.length, 0);
+    assert.equal(f.signed.length, 0);
+  }
+});
+
+test('authenticated host helpers sign only the fixed request list and receipt inputs', async () => {
+  const f = fixture(); const signal = new AbortController().signal;
+  const authority: SessionAuthority = { binding: { workspaceId: 'workspace_1', memberId: 'owner_1', deviceId: 'phone_1', epoch: 1 }, sessionId: 'session_1', expiresAt: '2026-10-02T12:00:00.000Z', validatedAt: '2026-10-01T12:00:00.000Z', capabilities: ['brief.read', 'chat'] };
+  const identities: PhoneHostMethods['request.list']['output'] = [{ requestId: 'request_1', kind: 'chat' }];
+  const receipt: PhoneHostMethods['receipt.read']['output'] = { id: 'receipt_1', workspaceId: authority.binding.workspaceId, text: 'Exact host receipt text\nNo additional provenance.' };
+  const fetcher: typeof fetch = async (url, init) => { f.calls.push({ url: String(url), init }); return json({ result: JSON.parse(String(init?.body)).method === 'request.list' ? identities : receipt }); };
+  const transport = createHttpPhoneTransport({ origin, fetcher, signer: f.signer });
+  assert.deepEqual(await transport.list(authority, credential, signal), identities);
+  assert.deepEqual(await transport.read(authority, credential, receipt.id, signal), receipt);
+  assert.deepEqual(f.signed.map(input => JSON.parse(input.body)), [
+    { protocolVersion: 1, method: 'request.list', payload: {} },
+    { protocolVersion: 1, method: 'receipt.read', payload: { receiptId: receipt.id } },
+  ]);
+  for (let index = 0; index < f.calls.length; index++) {
+    assert.equal(f.signed[index].credential, credential); assert.equal(f.signed[index].signal, signal);
+    assert.equal(f.calls[index].init?.signal, signal); assert.equal(f.calls[index].init?.body, f.signed[index].body);
+    assert.equal(f.calls[index].url, `${origin}/api/companion/rpc`);
+    assert.equal(new Headers(f.calls[index].init?.headers).get('authorization'), `Bearer ${credential}`);
+    assert.equal(f.signed[index].body.includes(credential), false); assert.equal(f.signed[index].body.includes(authority.sessionId), false);
+  }
+});
+
+test('host helper denials keep fixed codes and cancellation reaches the original signal', async () => {
+  const authority = liveFixture().grant.authority;
+  for (const method of ['request.list', 'receipt.read'] as const) {
+    for (const remoteCode of ['ACCESS_REVOKED', 'SESSION_EXPIRED', 'OPEN_DESKTOP'] as const) {
+      const transport = createHttpPhoneTransport({ origin, signer, fetcher: async () => json({ error: { code: remoteCode, message: sensitive } }, 403) });
+      const call = method === 'request.list' ? transport.list(authority, credential, new AbortController().signal) : transport.read(authority, credential, 'receipt_1', new AbortController().signal);
+      await assert.rejects(call, (error: unknown) => sanitised(error) && code(remoteCode)(error));
+    }
+    const entered = deferred<void>(); const controller = new AbortController();
+    const transport = createHttpPhoneTransport({ origin, signer, fetcher: async (_url, init) => {
+      assert.equal(init?.signal, controller.signal); entered.resolve();
+      return new Promise<Response>((_resolve, reject) => controller.signal.addEventListener('abort', () => reject(new Error(sensitive)), { once: true }));
+    } });
+    const call = method === 'request.list' ? transport.list(authority, credential, controller.signal) : transport.read(authority, credential, 'receipt_1', controller.signal);
+    await entered.promise; controller.abort(); await assert.rejects(call, (error: unknown) => sanitised(error) && code('VALIDATION_REQUIRED')(error));
   }
 });
 
@@ -194,21 +248,22 @@ function liveFixture() {
     cache: { put: async () => {}, read: async () => undefined, list: async () => [], clear: async () => {} },
     identity: { preparePairing: async () => ({ deviceId: 'live_phone', devicePublicKey: 'synthetic-public-key', proof: 'synthetic-identity-proof' }) },
     picker: { pick: async () => undefined },
+    requestRestoration: { list: async () => [] },
     receipts: { read: async () => { throw new Error(sensitive); } },
     crypto: globalThis.crypto, requestId: () => 'live_request',
   };
-  return { adapters, calls, failLoad: () => { errorOnLoad = true; } };
+  return { adapters, calls, grant, failLoad: () => { errorOnLoad = true; } };
 }
 
 test('live factory rejects missing host adapters instead of filling them with previews', () => {
   const { adapters } = liveFixture();
   assert.throws(() => createLiveCompanionController(undefined as unknown as LiveCompanionAdapters), code('INVALID_REQUEST'));
-  for (const key of ['transport', 'credentials', 'cache', 'identity', 'picker', 'receipts', 'crypto', 'requestId'] as const) {
+  for (const key of ['transport', 'credentials', 'cache', 'identity', 'picker', 'requestRestoration', 'receipts', 'crypto', 'requestId'] as const) {
     assert.throws(() => createLiveCompanionController({ ...adapters, [key]: undefined } as unknown as LiveCompanionAdapters), code('INVALID_REQUEST'));
   }
   for (const change of [
     { channel: 'whatsapp' }, { transport: {} }, { credentials: { load: async () => undefined } },
-    { cache: {} }, { identity: {} }, { picker: {} }, { receipts: {} }, { crypto: { subtle: {} } }, { requestId: 'demo_request' },
+    { cache: {} }, { identity: {} }, { picker: {} }, { requestRestoration: {} }, { requestRestoration: { list: 'not-callable' } }, { receipts: {} }, { crypto: { subtle: {} } }, { requestId: 'demo_request' },
   ]) assert.throws(() => createLiveCompanionController({ ...adapters, ...change } as unknown as LiveCompanionAdapters), code('INVALID_REQUEST'));
 });
 

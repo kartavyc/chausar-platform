@@ -1,5 +1,6 @@
 import type { ApprovalPreview, Brief, BriefView, PhoneMethods, RequestState } from '../../../platform/runtime/phone/contracts.ts';
 import type { PhoneClient } from '../../../platform/runtime/phone/client.ts';
+import type { PhoneReceipt } from '../../../platform/runtime/phone/host-contracts.ts';
 
 export type CompanionScreen = 'pairing' | 'briefs' | 'chat' | 'uploads' | 'approvals' | 'activity' | 'device' | 'receipt';
 export type SelectedDocument = { name: string; mediaType: 'image/jpeg' | 'image/png' | 'application/pdf' | 'text/csv'; bytes: Uint8Array };
@@ -8,10 +9,12 @@ export interface CompanionDeviceIdentity {
   preparePairing(inviteCode: string): Promise<Omit<PhoneMethods['pairing.accept']['input'], 'inviteCode' | 'channel'>>;
 }
 export interface CompanionDocumentPicker { pick(): Promise<SelectedDocument | undefined>; }
-export type CompanionReceipt = { id: string; title: string; generatedAt: string; source: string; method: string; coverage: string; details: string };
+/** Rich metadata exists only in the synthetic preview; host receipts retain their exact text. */
+export type CompanionPreviewReceipt = { id: string; title: string; generatedAt: string; source: string; method: string; coverage: string; details: string };
+export type CompanionReceipt = PhoneReceipt | CompanionPreviewReceipt;
 export interface CompanionReceiptReader { read(receiptId: string): Promise<CompanionReceipt>; }
 export type ApprovalInboxItem = { approvalId: string; title: string };
-export type ChatMessage = { id: string; role: 'owner' | 'companion'; text: string; requestId?: string; receiptIds: string[] };
+export type ChatMessage = { id: string; role: 'owner' | 'companion'; text: string; requestId?: string; conversationId?: string; receiptIds: string[] };
 export type UploadView = { requestId: string; name: string; status: string };
 export type CompanionViewState = {
   mode: 'demo' | 'live'; screen: CompanionScreen;

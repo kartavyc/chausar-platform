@@ -1,5 +1,6 @@
 import { PhoneError, copyAuthority, copyBinding, copyBrief, isApprovalToken, isId, isOperationVersion, requirePhone, sameBinding, validAuthority, validBinding, validBrief } from './contracts.ts';
 import type { AppChannel, ApprovalChallenge, ApprovalReceipt, BriefCache, BriefView, ChatAnswer, ConnectionState, DeviceBinding, PairingState, PhoneCapability, PhoneCredentialStore, PhoneErrorCode, PhoneMethods, PhoneTransport, RemoteRequest, RequestResult, RequestState, SessionAuthority, SessionGrant, UploadMetadata, UploadReceipt } from './contracts.ts';
+import type { PhoneReceipt } from './host-contracts.ts';
 
 const revokedCodes = new Set(['ACCESS_REVOKED', 'UNPAIRED', 'INVALID_SESSION', 'UNAUTHENTICATED']);
 const knownCodes = new Set<PhoneErrorCode>(['OFFLINE', 'VALIDATION_REQUIRED', 'ACCESS_REVOKED', 'SESSION_EXPIRED', 'UNPAIRED', 'INVALID_RESPONSE', 'INVALID_REQUEST', 'CHANNEL_FORBIDDEN', 'CAPABILITY_FORBIDDEN', 'APPROVAL_EXPIRED', 'APPROVAL_USED', 'PREVIEW_CHANGED', 'OPEN_DESKTOP', 'REQUEST_EXISTS', 'TRANSPORT_UNKNOWN', 'CACHE_INVALID']);
@@ -12,6 +13,10 @@ export interface PhoneRequestRestoration {
   /** Authenticated read: never return question/upload bodies, credentials or approval challenges. */
   list(authority: SessionAuthority, credential: string, signal: AbortSignal): Promise<readonly PhoneRequestIdentity[]>;
 }
+export interface PhoneReceiptReader {
+  /** Authenticated current read; the host supplies the receipt text and checks release authority. */
+  read(authority: SessionAuthority, credential: string, receiptId: string, signal: AbortSignal): Promise<PhoneReceipt>;
+}
 
 /** A phone drives a remote engine. It never executes actions or stores a retry queue. */
 export class PhoneClient {
@@ -22,6 +27,7 @@ export class PhoneClient {
   private readonly clock: () => number;
   private readonly crypto: Crypto;
   private readonly requestRestoration?: PhoneRequestRestoration;
+  private readonly receiptReader?: PhoneReceiptReader;
   private grant?: SessionGrant;
   private pairing: PairingState = { status: 'unpaired' };
   private connection: ConnectionState = 'offline';
@@ -39,11 +45,12 @@ export class PhoneClient {
   private challenges = new Map<string, ApprovalChallenge>();
   private credentialWrites = Promise.resolve();
   private readonly listeners = new Set<() => void>();
-  constructor(options: { channel: AppChannel; transport: PhoneTransport; credentials: PhoneCredentialStore; cache: BriefCache; clock?: () => number; crypto?: Crypto; requestRestoration?: PhoneRequestRestoration }) {
+  constructor(options: { channel: AppChannel; transport: PhoneTransport; credentials: PhoneCredentialStore; cache: BriefCache; clock?: () => number; crypto?: Crypto; requestRestoration?: PhoneRequestRestoration; receiptReader?: PhoneReceiptReader }) {
     requirePhone(['ios', 'android', 'web'].includes(options.channel), 'CHANNEL_FORBIDDEN');
     this.channel = options.channel; this.transport = options.transport; this.credentials = options.credentials;
     this.cache = options.cache; this.clock = options.clock ?? Date.now; this.crypto = options.crypto ?? globalThis.crypto;
     this.requestRestoration = options.requestRestoration;
+    this.receiptReader = options.receiptReader;
   }
   /** Renderable state deliberately omits credentials, challenge tokens and uploaded content. */
   snapshot() {
@@ -117,6 +124,7 @@ export class PhoneClient {
     const code = isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
     if (code && revokedCodes.has(code)) { await this.forget('revoked'); throw new PhoneError('ACCESS_REVOKED'); }
     if (code === 'SESSION_EXPIRED') { await this.forget('expired'); throw new PhoneError('SESSION_EXPIRED'); }
+    if (code === 'TRANSPORT_UNKNOWN') { this.disconnect(); throw new PhoneError('TRANSPORT_UNKNOWN'); }
     if (error instanceof PhoneError || (code && knownCodes.has(code as PhoneErrorCode))) throw error instanceof PhoneError ? error : new PhoneError(code as PhoneErrorCode);
     this.disconnect(); throw new PhoneError('TRANSPORT_UNKNOWN');
   }
@@ -235,6 +243,20 @@ export class PhoneClient {
     await this.fresh('approval.simple'); const items = await this.call('approval.list', {});
     requirePhone(Array.isArray(items) && items.length <= 100 && items.every(item => item && isId(item.approvalId) && typeof item.title === 'string' && item.title.length <= 200), 'INVALID_RESPONSE');
     return items.map(item => ({ approvalId: item.approvalId, title: item.title }));
+  }
+  async readReceipt(receiptId: string): Promise<PhoneReceipt> {
+    requirePhone(isId(receiptId), 'INVALID_REQUEST');
+    const generation = this.generation; const authority = await this.fresh('brief.read', generation);
+    requirePhone(this.receiptReader, 'CAPABILITY_FORBIDDEN');
+    const credential = this.grant!.credential; const controller = new AbortController(); this.active.add(controller);
+    try {
+      const receipt = await this.receiptReader.read(copyAuthority(authority), credential, receiptId, controller.signal);
+      requirePhone(generation === this.generation && !controller.signal.aborted && this.isConnected() && this.grant?.credential === credential && this.grant.authority.sessionId === authority.sessionId && sameBinding(this.grant.authority.binding, authority.binding), 'VALIDATION_REQUIRED');
+      requirePhone(validAuthority(this.grant.authority, this.clock()), 'SESSION_EXPIRED');
+      requirePhone(isRecord(receipt) && receipt.id === receiptId && receipt.workspaceId === authority.binding.workspaceId && typeof receipt.text === 'string' && receipt.text.length <= 64000, 'INVALID_RESPONSE');
+      return { id: receipt.id, workspaceId: receipt.workspaceId, text: receipt.text };
+    } catch (error) { return await this.transportFailure(error, generation, controller); }
+    finally { this.active.delete(controller); }
   }
   async readBrief(briefId: string): Promise<BriefView> {
     requirePhone(isId(briefId), 'INVALID_REQUEST');
