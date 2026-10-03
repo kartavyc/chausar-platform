@@ -111,6 +111,8 @@ function answerRecoveryRecordIntegrity(record: Omit<AnswerRecoveryRecord, 'integ
 
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
+  // Provider isolation follows the trusted launch mode across every Vault attach.
+  readonly #demo: boolean;
   // Trusted current custody survives a lock within this Engine only. An old
   // archive cannot establish later invoice history after a process restart.
   #lastInvoiceCustody?: InvoiceCustodyArtifact;
@@ -134,6 +136,7 @@ export class Engine {
   set context(value: Context) { this.#baseContext = { ...value }; }
   services: Record<string, any> = {};
   constructor(options: EngineOptions) {
+    this.#demo = options.demo === true;
     check(!options.invoiceFollowUp || options.demo === true, 'INVOICE_SIMULATION_ONLY', 'Install invoice follow-up only in the explicitly experimental synthetic host.');
     this.version = options.version ?? '0.1.0-preview.1'; compareVersions(this.version, this.version); this.options = { ...options, directory: resolve(options.directory) };
   }
@@ -665,7 +668,7 @@ export class Engine {
       codec: () => this.options.synthesis ?? this.options.gateway?.synthesisCodec ?? installedConversationSynthesisCodec,
     });
     this.services.businessProfile = new BusinessProfileService(store);
-    this.services.gateway = new ModelGateway(store, { ...this.options.gateway, businessContext: businessContextHooks,
+    this.services.gateway = new ModelGateway(store, { ...this.options.gateway, demo: this.#demo, businessContext: businessContextHooks,
       conversationContinuation: (ctx, id, view, resolvedBy) => this.conversationContinuation(ctx, id, view, resolvedBy),
       conversationSynthesis: (ctx, id, view) => this.services.synthesisHost.resolve(ctx, id, view),
       synthesisCodec: this.options.synthesis ?? this.options.gateway?.synthesisCodec ?? installedConversationSynthesisCodec });
@@ -876,6 +879,9 @@ export class Engine {
     if (method === 'workspace.lock') { if (this.vault) authorize(this.vault, this.context, 'admin'); await this.closeVault(); return { locked: true }; }
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
     const s = this.services;
+    if (['speech.configure', 'speech.preview', 'speech.approve', 'speech.transcribe'].includes(method)) {
+      check(!this.#demo, 'DEMO_PROVIDER_DISABLED', 'Synthetic demo mode keeps speech providers disabled. Use typed questions.');
+    }
     // Dedicated invoice guards own mandate acceptance, reminder expiry and costs.
     if (method.startsWith('jobs.') && payload.id) check(!store.read().jobs.some(job => job.id === payload.id && job.type === invoiceJobType),
       'INVOICE_CONTRACT_REQUIRED', 'Use the named invoice follow-up contract for this mandate.');

@@ -10,11 +10,26 @@ const desktopMain = new URL('../../app/desktop/main.cjs', import.meta.url);
 const desktopRequire = createRequire(desktopMain);
 const flush = () => new Promise<void>(accept => setImmediate(accept));
 
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), postgresGate?: Promise<void>, environment: NodeJS.ProcessEnv = {}) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), postgresGate?: Promise<void>, environment: NodeJS.ProcessEnv = {}, fault?: 'existing-root' | 'ignored-binding' | 'late-binding' | 'lock-denied') {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   let databaseCloses = 0;
+  const events: string[] = [], directories = new Set<string>(['/synthetic-temp']);
+  const paths: Record<string, string> = { userData: '/owned/app', sessionData: '/owned/app' };
+  const profileEnvironment = { CHAUSAR_DEMO_PROFILE_ROOT: '/synthetic-temp/fresh-preview', ...environment };
+  if (fault === 'existing-root') directories.add(profileEnvironment.CHAUSAR_DEMO_PROFILE_ROOT);
+  const fakeFilesystem = { realpathSync: (path: string) => { assert.equal(path, '/synthetic-temp'); return path; }, mkdirSync: (path: string, options: any) => {
+    events.push(`mkdir:${path}`); assert.equal(options.mode, 0o700); assert.equal(options.recursive, undefined);
+    if (directories.has(path)) throw Object.assign(new Error('Existing demo profile refused.'), { code: 'EEXIST' }); directories.add(path);
+  } };
+  const profileModule = { exports: {} as any };
+  vm.runInNewContext(await readFile(new URL('../../app/desktop/demo-profile.cjs', import.meta.url), 'utf8'), { module: profileModule, process: { env: profileEnvironment }, require: (name: string) => {
+    if (name === 'node:fs') return fakeFilesystem;
+    if (name === 'node:os') return { tmpdir: () => '/synthetic-temp' };
+    return desktopRequire(name);
+  } });
   const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
-  app.requestSingleInstanceLock = () => true; app.whenReady = () => Promise.resolve(); app.getPath = () => '/owned/app'; app.quit = () => { app.quits++; };
+  app.requestSingleInstanceLock = () => { events.push('lock'); return fault !== 'lock-denied'; }; app.whenReady = () => { events.push('ready'); if (fault === 'late-binding') paths.userData = '/owned/app'; return Promise.resolve(); };
+  app.getPath = (name: string) => paths[name]; app.setPath = (name: string, path: string) => { events.push(`bind:${name}`); if (fault !== 'ignored-binding') paths[name] = path; }; app.quit = () => { app.quits++; };
   class Window extends EventEmitter {
     webContents: any; options: any;
     constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.send = () => {}; windows.push(this); }
@@ -36,15 +51,42 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   if (postgresGate) source = source.replace("await import(pathToFileURL(join(engineRoot, 'scripts/postgres-runtime.mjs')).href)", '__postgresModule');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
+    if (name === './demo-profile.cjs') return profileModule.exports;
+    if (name === '../../package.json') return { chausarPreview: !postgresGate, version: '2.3.4' };
     if (name === './engine-harness.cjs') return { EngineHarness: Harness };
     if (name === './ipc-contract.cjs') return require('../../app/desktop/ipc-contract.cjs');
     if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !postgresGate, version: '2.3.4' }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }) };
     if (name === 'node:net' && postgresGate) return { createServer: () => ({ once() {}, listen(_port: number, _host: string, callback: () => void) { callback(); }, address: () => ({ port: 5432 }), close(callback: () => void) { callback(); } }) };
     return desktopRequire(name);
-  }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', '/owned/app', ...args], env: environment, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });
+  }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', '/owned/app', ...args], env: profileEnvironment, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, powerMonitor, databaseCloses: () => databaseCloses };
+  return { app, windows, engines, menus, errors, handlers, powerMonitor, events, paths, directories, databaseCloses: () => databaseCloses };
 }
+
+test('demo claims new user and session directories before the lock and pins worker storage to that profile', async () => {
+  const d = await desktop(['--demo'], Promise.resolve(), undefined, { CHAUSAR_VAULT_DIRECTORY: '/real/vaults' });
+  assert.equal(d.errors.length, 0);
+  assert.deepEqual(d.events, ['mkdir:/synthetic-temp/fresh-preview', 'mkdir:/synthetic-temp/fresh-preview/userData', 'mkdir:/synthetic-temp/fresh-preview/sessionData', 'bind:userData', 'bind:sessionData', 'lock', 'ready']);
+  assert.equal(d.engines[0].options.environment.CHAUSAR_VAULT_DIRECTORY, '/synthetic-temp/fresh-preview/userData/vaults');
+  assert.deepEqual(d.paths, { userData: '/synthetic-temp/fresh-preview/userData', sessionData: '/synthetic-temp/fresh-preview/sessionData' });
+});
+
+test('reused or ineffective demo bindings stop before lock, worker, database and window creation', async () => {
+  for (const fault of ['existing-root', 'ignored-binding'] as const) {
+    const d = await desktop(['--demo'], Promise.resolve(), undefined, {}, fault);
+    assert.equal(d.app.quits, 1); assert.equal(d.errors.length, 1); assert.equal(d.events.includes('lock'), false);
+    assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0); assert.equal(d.databaseCloses(), 0);
+  }
+  const changed = await desktop(['--demo'], Promise.resolve(), undefined, {}, 'late-binding');
+  assert.match(changed.errors[0], /isolated demo profile binding/); assert.equal(changed.engines.length, 0); assert.equal(changed.windows.length, 0);
+});
+
+test('production keeps its original paths and a denied lock never starts storage', async () => {
+  const production = await desktop(['--production'], Promise.resolve(), Promise.resolve());
+  assert.deepEqual(production.events, ['lock', 'ready']); assert.equal(production.engines[0].options.environment.CHAUSAR_VAULT_DIRECTORY, join('/owned/app', 'vaults'));
+  const denied = await desktop(['--demo'], Promise.resolve(), undefined, {}, 'lock-denied');
+  assert.equal(denied.app.quits, 1); assert.equal(denied.events.includes('ready'), false); assert.equal(denied.engines.length, 0); assert.equal(denied.windows.length, 0);
+});
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
   const d = await desktop([], Promise.resolve(), undefined, { CHAUSAR_KEYCHAIN_MANIFEST: '/untrusted/manifest.json' }); assert.equal(d.errors.length, 0); assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '1');

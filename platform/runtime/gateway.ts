@@ -41,6 +41,8 @@ export type HttpResult = { status: number; body: string; endpoint?: string; requ
 export type ProcessRequest = { command: string; args: string[]; cwd: string; env: Record<string, string>; stdin: string; timeoutMs: number; schema: unknown };
 export type ProcessResult = { exitCode: number; stdout: string; stderr?: string };
 export type GatewayOptions = {
+  /** Trusted host mode, captured at construction and never supplied by a route/RPC. */
+  demo?: boolean;
   http?: (request: HttpRequest) => Promise<HttpResult>; process?: (request: ProcessRequest) => Promise<ProcessResult>;
   credentialBroker?: (routeId: string) => string | undefined | Promise<string | undefined>;
   /** Trusted host options only; route configuration cannot provide this evidence. */
@@ -431,21 +433,27 @@ function modelReceiptRetained(state: State, receipt: any): boolean {
 
 export class ModelGateway {
   store: StateStore; options: GatewayOptions; #credentials = new Map<string, string>();
+  readonly #demo: boolean;
   #continuationResolutions = new Set<string>();
   #synthesisResolutions = new Set<string>();
   constructor(store: StateStore, options: GatewayOptions = {}) {
+    this.#demo = options.demo === true;
     this.store = store;
     this.options = { ...options, ...(options.codexCli ? { codexCli: structuredClone(options.codexCli) } : {}) };
   }
+  #assertProviderEnabled() {
+    check(!this.#demo, 'DEMO_PROVIDER_DISABLED', 'Synthetic demo mode keeps model providers disabled. Use the local calculator.');
+  }
   #routeStatus(route: Pick<RouteConfig, 'kind' | 'credentialEnv'> & { id: string }) {
     const cli = route.kind.endsWith('-cli');
-    return { credentialConfigured: !cli && (route.kind === 'ollama' || this.#credentials.has(route.id) || Boolean(route.credentialEnv && process.env[route.credentialEnv])),
+    return { credentialConfigured: !this.#demo && !cli && (route.kind === 'ollama' || this.#credentials.has(route.id) || Boolean(route.credentialEnv && process.env[route.credentialEnv])),
       ...(cli ? { authenticationStatus: 'cli-managed-unverified',
         interfaceEvidenceKind: route.kind === 'codex-cli' ? this.options.codexCli?.capabilities.evidence.kind ?? 'unverified' : 'unverified',
         accountAccess: 'unverified', modelAccess: 'unverified' } : {}) };
   }
   async configureRoute(context: Context, config: RouteConfig, secret?: string) {
     authorize(this.store, context, 'admin');
+    this.#assertProviderEnabled();
     const allowed = ['id', 'kind', 'model', 'endpoint', 'command', 'enabled', 'budgetMinor', 'maxCostMinor', 'maxOutputTokens', 'inputPerMillionMinor', 'outputPerMillionMinor', 'credentialEnv', 'label'];
     check(Object.keys(config).every(k => allowed.includes(k)), 'INVALID_ROUTE', 'Unknown route field; credentials must use the credential broker.');
     check(Object.hasOwn(PRIORITY, config.kind) && typeof config.model === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(config.model), 'INVALID_ROUTE', 'The route needs a kind and explicit model identifier.');
@@ -655,6 +663,7 @@ export class ModelGateway {
   }
   async preview(context: Context, request: ModelRequest): Promise<any> {
     authorize(this.store, context, 'prepare');
+    this.#assertProviderEnabled();
     check(!Object.hasOwn(request, 'continuation'), CONTINUATION_INVALID, 'Only a retained turn ID may select trusted local continuation text.');
     check(typeof request.question === 'string' && request.question.trim().length > 0 && request.question.length <= 10000, 'INVALID_QUESTION', 'Use a question between one and 10000 characters.');
     const state = this.store.read(); check(state.policy.send !== 'nothing', 'SEND_DISABLED', 'Your privacy policy sends nothing to models. Use the local calculator or change your send policy.');
@@ -917,6 +926,7 @@ export class ModelGateway {
   }
   async execute(context: Context, request: Partial<ModelRequest> & { previewId?: string }): Promise<GatewayResult> {
     authorize(this.store, context, 'prepare');
+    this.#assertProviderEnabled();
     check(!Object.hasOwn(request, 'continuation'), CONTINUATION_INVALID, 'Only a retained turn ID may select trusted local continuation text.');
     const preview = request.previewId ? structuredClone(this.store.read().modelReceipts.find(r => r.id === request.previewId)) : await this.preview(context, request as ModelRequest);
     check(preview && preview.status === 'preview', 'PREVIEW_NOT_FOUND', 'An unused model preview is required.');

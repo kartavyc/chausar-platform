@@ -7,11 +7,19 @@ const { randomBytes } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const { createServer } = require('node:net');
 const { readUiAsset } = require('./ui-assets.cjs');
+const { bindDemoProfile, assertDemoProfile } = require('./demo-profile.cjs');
+const packageMetadata = require('../../package.json');
+const demo = packageMetadata.chausarPreview === true || process.argv.includes('--demo');
+let demoProfile; let singleInstance = false;
+try {
+  if (packageMetadata.chausarPreview === true && process.argv.includes('--production')) throw new Error('This unsigned preview supports synthetic data only.');
+  if (demo) demoProfile = bindDemoProfile(app);
+  singleInstance = app.requestSingleInstanceLock();
+} catch (error) { dialog.showErrorBox('Chausar could not start', error.message); }
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
-const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
-let window; let engine; let database; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
+let window; let engine; let database; let tray; let demoMode = demo; let stopping = false; let startupTask = Promise.resolve();
 let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
 const uiPreview = process.argv.includes('--ui-preview');
@@ -32,9 +40,8 @@ function lifecycleChanged() {
 async function startEngine() {
   const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   if (stopping) return;
-  const demo = metadata.chausarPreview === true || process.argv.includes('--demo'); demoMode = demo;
-  if (metadata.chausarPreview === true && process.argv.includes('--production')) throw new Error('This unsigned preview supports synthetic data only.');
-  const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0' };
+  if (demo) assertDemoProfile(app, demoProfile);
+  const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: demo ? demoProfile.vaults : join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0' };
   const binaries = app.isPackaged ? join(process.resourcesPath, 'runtime-binaries') : join(root, 'runtime-binaries');
   if (demo) delete environment.CHAUSAR_KEYCHAIN_MANIFEST;
   else environment.CHAUSAR_KEYCHAIN_MANIFEST = join(binaries, 'keychain', 'manifest.json');

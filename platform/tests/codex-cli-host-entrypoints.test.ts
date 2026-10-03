@@ -10,11 +10,11 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 // They never execute Codex, read a native binary, contact a provider or open a vault.
 for (const entrypoint of ['server', 'worker'] as const) {
   test(`synthetic host refusal reaches the actual ${entrypoint} entrypoint before ready/listen`, async () => {
-    const child = spawn(process.execPath, [`platform/runtime/${entrypoint}.ts`, '--demo'], {
+    const child = spawn(process.execPath, [`platform/runtime/${entrypoint}.ts`, '--production'], {
       cwd: root, windowsHide: true, shell: false,
       env: {
         ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
-        CHAUSAR_DEMO: '1',
+        CHAUSAR_DEMO: '0',
         CHAUSAR_CODEX_CLI_EVIDENCE_FILE: resolve(root, 'synthetic-missing-evidence', 'codex-cli-host.json'),
         // Deliberately no SHA256 pin: the loader must refuse before any file read.
       },

@@ -112,8 +112,8 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
 /** The normal server entrypoint and trusted host tests share the same constructor. */
 export async function createServerEngine(environment: NodeJS.ProcessEnv = process.env, args: readonly string[] = process.argv, dependencies: CodexCliHostDependencies & EngineKeychainHostDependencies = {}): Promise<Engine> {
   const demo = args.includes('--demo');
-  const gateway = await loadCodexCliHostGateway(environment, dependencies);
-  const keychain = await loadEngineKeychain(environment, dependencies, demo);
+  const gateway = demo ? undefined : await loadCodexCliHostGateway(environment, dependencies);
+  const keychain = demo ? undefined : await loadEngineKeychain(environment, dependencies, demo);
   return new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, keychain });
 }
 
