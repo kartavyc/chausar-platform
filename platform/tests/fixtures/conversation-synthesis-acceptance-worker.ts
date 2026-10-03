@@ -3,9 +3,11 @@ import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Engine } from '../../runtime/engine.ts';
 import { runEngineWorker } from '../../runtime/worker.ts';
+import { installSyntheticProductionStorage } from './synthetic-production-engine.ts';
 
-// Only provider transport is synthetic. The default production codec, Engine,
-// persistence and worker protocol are exercised unchanged. No sockets or GUI.
+// Provider transport and snapshot/SQL ports are authored synthetic fixtures.
+// The default production codec, Engine, persistence and worker protocol execute
+// unchanged. No sockets, GUI or native storage/provider qualification.
 const directory = resolve(process.env.CHAUSAR_VAULT_DIRECTORY!);
 function authoredAnswer(summary: any) {
   const useful = summary.evidence.filter((item: any) => item.kind !== 'caution');
@@ -42,7 +44,7 @@ function changedAnswer(summary: any, variant?: string) {
   } else throw new Error('Unknown authored synthesis variant.');
   return output;
 }
-const engine = new Engine({ directory, demo: true, storage: 'experimental-file',
+const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['acceptance']),
   version: '0.1.0-preview.1', gateway: { http: async request => {
     const envelope = JSON.parse(request.body);
     const content = JSON.parse(envelope.input ?? envelope.messages.find((item: any) => item.role === 'user').content);

@@ -2,11 +2,13 @@ import { appendFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { Engine } from '../../runtime/engine.ts';
 import { runEngineWorker } from '../../runtime/worker.ts';
+import { installSyntheticProductionStorage } from './synthetic-production-engine.ts';
 
 // Trusted test host only: an actual Engine and production worker loop receive a
-// deterministic synthetic provider. No network or semantic qualification.
+// deterministic synthetic provider and authored snapshot/SQL ports.
+// No network, native storage or semantic qualification.
 const directory = resolve(process.env.CHAUSAR_VAULT_DIRECTORY!);
-const engine = new Engine({ directory, storage: 'experimental-file', demo: true,
+const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['saved-native']),
   version: '0.1.0-preview.1', gateway: { http: async request => {
     const payload = JSON.parse(request.body);
     const input = JSON.parse(payload.input ?? payload.messages.find((item: any) => item.role === 'user').content);

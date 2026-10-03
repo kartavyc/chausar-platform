@@ -5,6 +5,7 @@ import {mkdtemp, readFile, realpath, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, isAbsolute, join, relative} from 'node:path';
 import {Engine, type EngineOptions} from '../../runtime/engine.ts';
+import {installSyntheticProductionStorage} from './synthetic-production-engine.ts';
 import {createLocalServer} from '../../runtime/server.ts';
 import type {ModelRequest} from '../../runtime/gateway.ts';
 import type {PhoneCapability, SessionGrant} from '../../runtime/phone/contracts.ts';
@@ -43,7 +44,7 @@ export async function fixture(t: TestContext, plans: readonly unknown[]) {
   const directory = await realpath(await mkdtemp(join(base, prefix)));
   assert.equal(dirname(directory), base);
   const calls: {body: string; endpoint: string}[] = [];
-  const options: EngineOptions = {directory, demo: true, storage: 'experimental-file', gateway: {
+  const options: EngineOptions = {directory, ...installSyntheticProductionStorage(directory, [FOLDER], t.mock), gateway: {
     http: async request => {
       const plan = plans[calls.length];
       calls.push({body: request.body, endpoint: request.endpoint});

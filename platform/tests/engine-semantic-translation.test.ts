@@ -16,6 +16,7 @@ import { ConnectorCapabilityRegistry, CursorImportService, type ConnectorCapabil
   type ConnectorOperationScope, type QualifiedDecoder, type SyntheticConnectorEvidence } from '../runtime/connector-framework/index.ts';
 import { hashData, type SourceSchema, type SourceRow } from '../semantic-qualification/src/index.ts';
 import { createSyntheticSemanticFixture, fixtureDictionaryDraft } from './fixtures/engine-semantic-fixture.ts';
+import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 
 // Independently authored native synthetic wire data. No named vendor, live installation or write-back qualification.
 // Native fields include two explicit delivery metadata fields. Compiler corpus qualification remains distinct
@@ -152,7 +153,8 @@ test('actual public Engine imports two native pages through concrete semantic tr
   const directory = await mkdtemp(join(tmpdir(), 'chausar-semantic-translation-'));
   let engine: Engine;
   const proxy: StateStore = { read: () => engine.vault!.read(), update: change => engine.vault!.update(change) };
-  const value = setup(proxy); engine = new Engine({ directory, demo: true, storage: 'experimental-file', connectorRuntime: value.options });
+  // Authored storage and SQL ports exercise production admission without native qualification.
+  const value = setup(proxy); engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['main'], t.mock), connectorRuntime: value.options });
   t.after(async () => {
     await engine.shutdown(); assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
     assert.ok(directory.split(/[\\/]/).at(-1)!.startsWith('chausar-semantic-translation-')); await rm(directory, { recursive: true, force: true });

@@ -7,11 +7,24 @@ const { randomBytes } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const { createServer } = require('node:net');
 const { readUiAsset } = require('./ui-assets.cjs');
+const { bindDemoProfile, assertDemoProfile } = require('./demo-profile.cjs');
+const packageMetadata = require('../../package.json');
+const demo = packageMetadata.chausarPreview === true || process.argv.includes('--demo');
+let demoProfile; let previewLifecycle; let singleInstance = false;
+try {
+  if (packageMetadata.chausarPreview === true && process.argv.includes('--production')) throw new Error('This unsigned preview supports synthetic data only.');
+  if (demo) demoProfile = bindDemoProfile(app);
+  if (packageMetadata.chausarPreview === true && process.env.CHAUSAR_PREVIEW_OBSERVER_NONCE !== undefined) {
+    const { createPreviewLifecycle } = require('./preview-lifecycle.cjs');
+    previewLifecycle = createPreviewLifecycle({ metadata: packageMetadata, profile: demoProfile, environment: process.env, pid: process.pid });
+  }
+  singleInstance = app.requestSingleInstanceLock();
+} catch (error) { dialog.showErrorBox('Chausar could not start', error.message); }
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
-const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
-let window; let engine; let database; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
+let window; let engine; let database; let tray; let demoMode = demo; let stopping = false; let startupTask = Promise.resolve();
+let previewStopResult; const previewStopErrors = [];
 let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
 const uiPreview = process.argv.includes('--ui-preview');
@@ -32,9 +45,8 @@ function lifecycleChanged() {
 async function startEngine() {
   const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   if (stopping) return;
-  const demo = metadata.chausarPreview === true || process.argv.includes('--demo'); demoMode = demo;
-  if (metadata.chausarPreview === true && process.argv.includes('--production')) throw new Error('This unsigned preview supports synthetic data only.');
-  const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0' };
+  if (demo) assertDemoProfile(app, demoProfile);
+  const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHAUSAR_ENGINE_VERSION: metadata.version, CHAUSAR_VAULT_DIRECTORY: demo ? demoProfile.vaults : join(app.getPath('userData'), 'vaults'), CHAUSAR_DEMO: demo ? '1' : '0' };
   const binaries = app.isPackaged ? join(process.resourcesPath, 'runtime-binaries') : join(root, 'runtime-binaries');
   if (demo) delete environment.CHAUSAR_KEYCHAIN_MANIFEST;
   else environment.CHAUSAR_KEYCHAIN_MANIFEST = join(binaries, 'keychain', 'manifest.json');
@@ -79,7 +91,13 @@ function createWindow() {
     if (uiPreview && selectedDocument === 'chausar://app/ui/index.html' && url === 'chausar://app/index.html') selectedDocument = url;
     else event.preventDefault();
   });
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => {
+    window.show();
+    if (previewLifecycle) {
+      try { assertDemoProfile(app, demoProfile); previewLifecycle.ready({ engineState: engine?.state, windowVisible: window.isVisible() }); }
+      catch (error) { dialog.showErrorBox('Chausar preview could not confirm readiness', error.message); app.quit(); }
+    }
+  });
   window.loadURL(selectedDocument);
   window.on('closed', () => { window = null; lifecycleChanged(); });
   lifecycleChanged();
@@ -118,7 +136,13 @@ app.on('window-all-closed', () => { if (!backgroundRequested) app.quit(); });
 app.on('before-quit', event => {
   if (stopping) return;
   event.preventDefault(); stopping = true;
-  startupTask.catch(error => console.error(publicError(error).message)).then(() => reportJobLifecycle()).catch(error => console.error(publicError(error).message)).then(() => engine?.stop()).then(result => {
+  startupTask.catch(error => { if (previewLifecycle) previewStopErrors.push('PREVIEW_STARTUP_FAILED'); console.error(publicError(error).message); }).then(() => reportJobLifecycle()).catch(error => { if (previewLifecycle) previewStopErrors.push('LIFECYCLE_STOP_FAILED'); console.error(publicError(error).message); }).then(() => engine?.stop()).then(result => {
+    previewStopResult = result;
     if (result && !result.graceful) console.error('The engine required termination; unfinished actions need reconciliation.');
-  }).catch(error => console.error(publicError(error).message)).then(() => database?.close()).catch(error => console.error(publicError(error).message)).finally(() => { tray?.destroy(); app.quit(); });
+  }).catch(error => { if (previewLifecycle) previewStopErrors.push('ENGINE_STOP_FAILED'); console.error(publicError(error).message); }).then(() => database?.close()).catch(error => { if (previewLifecycle) previewStopErrors.push('DATABASE_CLOSE_FAILED'); console.error(publicError(error).message); }).finally(() => {
+    if (!previewLifecycle) { tray?.destroy(); app.quit(); return; }
+    try { tray?.destroy(); } catch (error) { previewStopErrors.push('TRAY_CLOSE_FAILED'); console.error(publicError(error).message); }
+    try { previewLifecycle.stopped({ engineResult: previewStopResult, errors: previewStopErrors }); } catch (error) { console.error(publicError(error).message); }
+    app.quit();
+  });
 });

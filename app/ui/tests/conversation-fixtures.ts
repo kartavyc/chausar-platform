@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { ConversationRequest } from '../src/bridge/conversation-contract.ts';
+import type { ReviewedCalculationParameters, CalculationParameterOrigins } from '../src/bridge/calculation-parameters.ts';
 import { fullCalculationReceiptFixture } from './fixtures.ts';
 
 /** Synthetic source-shaped wire DTOs, never examples of live business evidence. */
@@ -29,12 +30,28 @@ export function planningPreviewFixture(request: ConversationRequest = conversati
     sourceIds: [...(request.sourceIds ?? [])], rowIds: [], profileIds: [], conflicts: [], scope: businessFixture().scope,
     trustFingerprint: fixtureHash('synthetic-trust'), observedContentHash: fixtureHash([]), digest: fixtureHash('synthetic-manifest') };
   const retained = request.continuationId ? continuationFixture(request.continuationId) : undefined;
-  const payload = JSON.stringify({ model: 'synthetic-model', instructions: 'Synthetic fixture planner.', input: JSON.stringify({ question: request.question, questionDisclosure: 'verbatim', ...(retained ? { continuationDisclosure: 'verbatim', continuation: { turnId: retained.turnId, originalQuestion: retained.originalQuestion, clarification: retained.clarification, exchanges: retained.exchanges } } : {}) }), tools: [] });
+  const reviewedCalculationParameters: ReviewedCalculationParameters = Object.fromEntries(['period', 'comparePeriod', 'assumptions']
+    .filter(key => Object.hasOwn(request, key)).map(key => [key, Object.getOwnPropertyDescriptor(request, key)!.value]));
+  const calculationParameterOrigins: CalculationParameterOrigins = Object.fromEntries(Object.keys(reviewedCalculationParameters).map(key => [key, 'owner-requested']));
+  const calculationParameterDisclosure = {
+    kind: 'owner-requested-calculation-parameters' as const,
+    period: reviewedCalculationParameters.period ?? null, comparePeriod: reviewedCalculationParameters.comparePeriod ?? null,
+    assumptions: reviewedCalculationParameters.assumptions ? { origin: 'owner-requested' as const,
+      label: 'Owner-requested price assumption in basis points; scenario only, not a measured fact.', ...reviewedCalculationParameters.assumptions } : null,
+    missingInputClarifications: {
+      change: !reviewedCalculationParameters.period && !reviewedCalculationParameters.comparePeriod ? 'Which current and comparison periods should I use?'
+        : !reviewedCalculationParameters.period ? 'Which current period should I use?' : !reviewedCalculationParameters.comparePeriod ? 'Which comparison period should I use?' : null,
+      scenario: reviewedCalculationParameters.assumptions ? null : 'What price change in basis points should I assume?',
+    }, origins: calculationParameterOrigins,
+  };
+  const payload = JSON.stringify({ model: 'synthetic-model', instructions: 'Synthetic fixture planner.', input: JSON.stringify({ question: request.question, questionDisclosure: 'verbatim', calculationParameters: calculationParameterDisclosure, ...(retained ? { continuationDisclosure: 'verbatim', continuation: { turnId: retained.turnId, originalQuestion: retained.originalQuestion, clarification: retained.clarification, exchanges: retained.exchanges } } : {}) }), tools: [] });
   return {
     id: 'model_preview_fixture', kind: 'model-preview' as const, status: 'preview' as const, purpose: 'conversation' as const,
     createdAt: at, at, memberId: 'owner', epoch: 1, routeId: request.routeId, routeRevision: 1, endpoint: 'https://synthetic-fixture.invalid/v1/responses',
     questionDisclosure: 'verbatim', naturalQuestion: request.question, questionHash: fixtureHash(request.question),
     questionDisclosureWarning: 'The complete question is included separately from evidence Shape. Review it for private names, amounts and instructions before approving.',
+    reviewedCalculationParameters, calculationParameterOrigins, calculationParametersDigest: fixtureHash(reviewedCalculationParameters), calculationParameterDisclosure,
+    calculationParameterDisclosureWarning: 'Exact owner-requested periods and scenario assumptions are included separately from evidence Shape. Review them before approving this payload once; scenario inputs never alter source facts.',
     definitionDisclosure: 'published', publishedCalculations: { dictionaryHash: null, dictionaryVersion: null, operations: [], unavailableReason: 'No published calculation definitions are available.' },
     definitionDisclosureWarning: 'Published calculation labels, definitions and parameter meanings are included separately from evidence Shape. Review definition text for private names, amounts and instructions before approving this exact payload.',
     ...(retained ? { continuationId: retained.turnId, continuationDigest: retained.digest, continuation: retained, continuationDisclosure: 'verbatim',

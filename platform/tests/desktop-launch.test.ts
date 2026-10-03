@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { realpathSync, existsSync } from 'node:fs';
 const modulePath = '../../scripts/desktop-launch.mjs';
 const { desktopLaunchArguments, desktopLaunchPrerequisites, desktopLaunchEnvironment } = await import(modulePath);
 
@@ -32,4 +33,25 @@ test('native launch cannot inherit Node mode or redirect the verified distributi
   const environment = { PATH: 'installed-tools', CHAUSAR_HOME: 'app-owned-data', ELECTRON_RUN_AS_NODE: '1', ELECTRON_OVERRIDE_DIST_PATH: 'outside', ELECTRON_INSTALL_PLATFORM: 'linux', ELECTRON_INSTALL_ARCH: 'arm64', npm_config_arch: 'arm64', npm_config_platform: 'linux' };
   assert.deepEqual(desktopLaunchEnvironment(environment), { PATH: 'installed-tools', CHAUSAR_HOME: 'app-owned-data' });
   assert.equal(environment.ELECTRON_OVERRIDE_DIST_PATH, 'outside');
+});
+
+test('demo launcher selects an unused explicit temporary root on every launch without creating a profile', () => {
+  const original = { ELECTRON_RUN_AS_NODE: '1', CHAUSAR_DEMO_PROFILE_ROOT: '/real/profile', PATH: 'installed-tools' };
+  const first = desktopLaunchEnvironment(original, true), second = desktopLaunchEnvironment(original, true);
+  assert.equal(dirname(first.CHAUSAR_DEMO_PROFILE_ROOT), realpathSync(tmpdir()));
+  assert.notEqual(first.CHAUSAR_DEMO_PROFILE_ROOT, second.CHAUSAR_DEMO_PROFILE_ROOT);
+  assert.equal(existsSync(first.CHAUSAR_DEMO_PROFILE_ROOT), false);
+  assert.equal(first.ELECTRON_RUN_AS_NODE, undefined);
+  assert.equal(original.CHAUSAR_DEMO_PROFILE_ROOT, '/real/profile');
+  assert.equal(desktopLaunchEnvironment(original, false).CHAUSAR_DEMO_PROFILE_ROOT, '/real/profile');
+});
+
+test('a parent launcher can select the same fresh temporary directory it gives the child', async t => {
+  const temporary = await mkdtemp(join(tmpdir(), 'chausar-parent-launch-test-'));
+  t.after(() => rm(temporary, { recursive: true, force: true }));
+  const environment = { TEMP: temporary, TMP: temporary, TMPDIR: temporary };
+  const launch = desktopLaunchEnvironment(environment, true, temporary);
+  assert.equal(dirname(launch.CHAUSAR_DEMO_PROFILE_ROOT), realpathSync(temporary));
+  assert.equal(existsSync(launch.CHAUSAR_DEMO_PROFILE_ROOT), false);
+  assert.equal(launch.TEMP, temporary); assert.equal(launch.TMPDIR, temporary);
 });

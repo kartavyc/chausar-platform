@@ -9,6 +9,9 @@ import type { CodexCliHostDependencies, CodexCliHostManifest } from '../runtime/
 import { createServerEngine } from '../runtime/server.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS } from '../runtime/providers/codex-cli.ts';
 import type { GatewayOptions, ProcessRequest, ProcessResult } from '../runtime/gateway.ts';
+import { hash } from '../runtime/contracts.ts';
+import { ExperimentalFileSnapshotAdapter } from '../runtime/vault.ts';
+import { PostgresSnapshotAdapter, type PostgresOptions } from '../runtime/postgres.ts';
 
 // Every manifest, executable digest, CLI snapshot, model and process result here
 // is synthetic. Injected ports never read or execute an installed Codex binary.
@@ -386,16 +389,25 @@ for (const entrypoint of entrypoints) {
   ] as const) {
     test(`synthetic ${entrypoint.label} factory refuses ${label} before constructing an Engine`, async () => {
       const f = syntheticEvidence(); alter(f);
-      await assert.rejects(entrypoint.create(f.environment, f.dependencies, true), code(label === 'unsupported interface' ? 'CLI_CAPABILITY_UNSUPPORTED' : 'CLI_HOST_EVIDENCE_INVALID'));
+      await assert.rejects(entrypoint.create(f.environment, f.dependencies, false), code(label === 'unsupported interface' ? 'CLI_CAPABILITY_UNSUPPORTED' : 'CLI_HOST_EVIDENCE_INVALID'));
       assert.equal(f.binaryChecks.length, 0);
     });
   }
 
   async function attached(t: TestContext, hostConfiguration: boolean) {
     const directory = await mkdtemp(join(tmpdir(), `chausar-synthetic-${entrypoint.label}-host-`));
+    const authorityDirectory = join(directory, 'main');
+    // Production host admission with an authored encrypted snapshot boundary.
+    // The mock prevents pg acquisition/connections; model tests never run SQL.
+    t.mock.method(PostgresSnapshotAdapter, 'connect', async (options: PostgresOptions) => {
+      assert.equal(options.host, '127.0.0.1'); assert.equal(options.port, 15432);
+      assert.equal(options.vaultSlot, hash(authorityDirectory));
+      return new ExperimentalFileSnapshotAdapter(authorityDirectory) as unknown as PostgresSnapshotAdapter;
+    });
     const invocations: ProcessRequest[] = [];
     const f = syntheticEvidence({ process: async request => { invocations.push(structuredClone(request)); return completed; } });
-    const engine = await entrypoint.create({ ...(hostConfiguration ? f.environment : {}), CHAUSAR_VAULT_DIRECTORY: directory }, f.dependencies, true);
+    const engine = await entrypoint.create({ ...(hostConfiguration ? f.environment : {}), CHAUSAR_VAULT_DIRECTORY: directory,
+      CHAUSAR_POSTGRES_URL: 'postgresql://synthetic:synthetic-fixture-only@127.0.0.1:15432/synthetic' }, f.dependencies, false);
     t.after(async () => { try { await engine.shutdown(); } finally { await removeSyntheticDirectory(directory); } });
     await engine.request('workspace.create', { name: 'Synthetic host wiring business', passphrase: 'synthetic-host-wiring-passphrase', demo: true });
     await engine.request('trust.update', { send: 'shape' });
@@ -411,7 +423,7 @@ for (const entrypoint of entrypoints) {
     const listed = await engine.request('models.list'); assert.equal(listed[0].installationVerified, false);
     const preview = await engine.request('models.preview', { question: 'What was earned?', routeId: 'synthetic-host-codex' });
     const approval = await engine.request('models.approve', { id: preview.id });
-    await engine.request('conversation.ask', { question: 'What was earned?', routeId: 'synthetic-host-codex', previewId: preview.id, approvalId: approval.id });
+    await engine.request('models.test', { question: 'What was earned?', routeId: 'synthetic-host-codex', previewId: preview.id, approvalId: approval.id });
     assert.equal(invocations.length, 1); assert.equal(invocations[0].command, syntheticExecutable);
     assert.equal(invocations[0].args[invocations[0].args.indexOf('--model') + 1], 'synthetic-exact-model');
     assert.equal(invocations[0].stdin, preview.payload); assert.deepEqual(f.binaryChecks, [syntheticExecutable, syntheticExecutable]);

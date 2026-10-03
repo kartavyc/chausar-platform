@@ -5,6 +5,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Engine } from '../runtime/engine.ts';
+import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 import { PhoneApprovalService } from '../runtime/phone/approval.ts';
 import type { ApprovalPrincipal, ApprovalSession, PhoneApprovalAction, PhoneApprovalConsumption, PhoneApprovalLedger, PhoneApprovalRecord, PhoneApprovalTransaction } from '../runtime/phone/approval.ts';
 import { PhoneError, requirePhone, sameBinding } from '../runtime/phone/contracts.ts';
@@ -176,7 +177,8 @@ export async function runPhoneFixture(directory: string) {
   const backend = new FixtureBackend(join(directory, 'synthetic-backend.json'));
   let now = Date.parse('2026-10-02T06:00:00.000Z');
   let plannerCalls = 0;
-  const engine = new Engine({ directory: join(directory, 'engine'), demo: true, storage: 'experimental-file', gateway: {
+  const engineDirectory = join(directory, 'engine');
+  const engine = new Engine({ directory: engineDirectory, ...installSyntheticProductionStorage(engineDirectory, ['business']), gateway: {
     http: async () => { plannerCalls++; return { status: 200, endpoint: ENDPOINT, body: JSON.stringify({ status: 'completed', output_text: JSON.stringify({
       kind: 'execute', clarification: null, calls: [{ tool: 'calculator.calculate', args: { operation: 'billed', period: PERIOD, branch: null, customerId: null } }],
     }) }) }; },

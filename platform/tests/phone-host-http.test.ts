@@ -27,7 +27,7 @@ type Proof = PhoneHostAuthentication['proof'];
 async function startWorker(directory: string) {
   const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
     ['path', 'systemroot', 'windir', 'temp', 'tmp', 'userprofile'].includes(name.toLowerCase())));
-  const child = fork(workerPath, ['--phone-http-worker', directory], { env: environment, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+  const child = fork(workerPath, ['--phone-http-worker', directory], { env: { ...environment, CHAUSAR_DEMO: '0' }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
   let stderr = ''; child.stderr?.on('data', bytes => { stderr = (stderr + String(bytes)).slice(-12000); });
   child.stdout?.resume();
   const ready = await new Promise<{ url: string }>((resolvePromise, reject) => {

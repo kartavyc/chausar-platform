@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
+import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
 import { hash } from '../runtime/contracts.ts';
 import type { GatewayOptions, ProcessRequest, ProcessResult } from '../runtime/gateway.ts';
@@ -93,7 +94,7 @@ async function fixture(t: TestContext, output: ProcessResult = completed, hostCa
     },
     ...(hostCapabilities ? { codexCli: { capabilities, mode: 'synthetic-fixture' as const } } : {}),
   };
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file', gateway });
+  const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['main'], t.mock), gateway });
   const app = createLocalServer(engine);
   t.after(async () => {
     try { await app.close(); } finally { await rm(directory, { recursive: true, force: true }); }
@@ -112,7 +113,9 @@ async function fixture(t: TestContext, output: ProcessResult = completed, hostCa
   const created = success(await rpc('workspace.create', {
     name: 'Synthetic Codex RPC business', passphrase: 'synthetic-local-fixture-passphrase', demo: true,
   }));
-  assert.equal(created.experimental, true);
+  // Host mode is production admission; the authored snapshot port below does
+  // not establish native PostgreSQL qualification. Workspace data stays demo.
+  assert.equal(created.experimental, false);
   assert.equal(record(created.workspace).demo, true);
   success(await rpc('trust.update', { send: 'shape' }));
   const configured = success(await rpc('models.configure', { config: routeConfig }));

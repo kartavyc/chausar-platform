@@ -8,6 +8,7 @@ import { createServerEngine } from '../runtime/server.ts';
 import { loadEngineKeychain, type EngineKeychainHostDependencies } from '../runtime/engine-keychain-host.ts';
 import type { Engine } from '../runtime/engine.ts';
 import type { VaultKeychainProvider } from '../runtime/vault.ts';
+import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 
 const passphrase = 'Public synthetic native custody host passphrase';
 const name = 'Synthetic direct entry host';
@@ -22,16 +23,18 @@ class SyntheticEntries implements VaultKeychainProvider {
 }
 async function fixture(t: TestContext) {
   const directory = await mkdtemp(join(await realpath(tmpdir()), 'chausar-keychain-provider-host-'));
+  const production = installSyntheticProductionStorage(directory, ['main'], t.mock);
   const keychain = new SyntheticEntries(), engines: Engine[] = [];
   t.after(async () => { try { for (const engine of engines) await engine.close(); } finally { keychain.clear(); await rm(directory, { recursive: true, force: true }); } });
   const hold = (engine: Engine) => { engines.push(engine); return engine; };
-  return { directory, keychain, hold };
+  return { directory, keychain, hold, production };
 }
 for (const host of ['worker', 'server'] as const) {
   test(`${host} constructor forwards actual synthetic custody and explicitly retrieves without returning key material`, async t => {
-    const f = await fixture(t), environment = { CHAUSAR_DEMO: '1', CHAUSAR_VAULT_DIRECTORY: f.directory };
+    const f = await fixture(t), environment = { CHAUSAR_DEMO: '0', CHAUSAR_VAULT_DIRECTORY: f.directory,
+      CHAUSAR_POSTGRES_URL: f.production.postgresUrl };
     const engine = f.hold(host === 'worker' ? await createWorkerEngine(environment, { keychain: f.keychain })
-      : await createServerEngine(environment, ['synthetic', '--demo'], { keychain: f.keychain }));
+      : await createServerEngine(environment, ['synthetic'], { keychain: f.keychain }));
     await engine.request('workspace.create', { name, passphrase });
     const id = engine.vault!.vaultId; assert.equal(engine.options.keychain, f.keychain); assert.equal(f.keychain.entries.size, 1);
     await engine.request('workspace.lock');
@@ -48,7 +51,8 @@ for (const host of ['worker', 'server'] as const) {
 }
 
 test('Engine convenience unlock refuses nonowner, different owner, non-desktop and tainted contexts before retrieval', async t => {
-  const f = await fixture(t), engine = f.hold(await createWorkerEngine({ CHAUSAR_DEMO: '1', CHAUSAR_VAULT_DIRECTORY: f.directory }, { keychain: f.keychain }));
+  const f = await fixture(t), engine = f.hold(await createWorkerEngine({ CHAUSAR_DEMO: '0', CHAUSAR_VAULT_DIRECTORY: f.directory,
+    CHAUSAR_POSTGRES_URL: f.production.postgresUrl }, { keychain: f.keychain }));
   await engine.request('workspace.create', { name, passphrase }); await engine.request('workspace.lock');
   const owner = engine.bootstrapContext();
   for (const ctx of [{ ...owner, role: 'viewer' as const }, { ...owner, memberId: 'other-owner' }, { ...owner, epoch: owner.epoch + 1 },
@@ -68,7 +72,8 @@ test('Engine requires installed retrieval capability and explicit keychain selec
 });
 
 test('Engine missing direct entry refuses explicit convenience unlock and allows a separately requested passphrase unlock', async t => {
-  const f = await fixture(t), engine = f.hold(await createWorkerEngine({ CHAUSAR_DEMO: '1', CHAUSAR_VAULT_DIRECTORY: f.directory }, { keychain: f.keychain }));
+  const f = await fixture(t), engine = f.hold(await createWorkerEngine({ CHAUSAR_DEMO: '0', CHAUSAR_VAULT_DIRECTORY: f.directory,
+    CHAUSAR_POSTGRES_URL: f.production.postgresUrl }, { keychain: f.keychain }));
   await engine.request('workspace.create', { name, passphrase }); await engine.request('workspace.lock'); f.keychain.clear();
   await assert.rejects(engine.request('workspace.open', { unlock: 'keychain', passphrase }), { code: 'UNLOCK_FAILED' });
   assert.equal(engine.vault, null); await engine.request('workspace.open', { passphrase });
@@ -92,12 +97,29 @@ test('host manifest binds exact helper platform architecture and pin without exe
   }
 });
 
-test('configured unavailable or preview native custody refuses before factory readiness and without helper execution', async t => {
+test('production unavailable custody refuses and demo factories omit custody before manifest or helper use', async t => {
   const f = await fixture(t), path = join(f.directory, 'manifest.json');
   const environment = { CHAUSAR_KEYCHAIN_MANIFEST: path, CHAUSAR_VAULT_DIRECTORY: f.directory };
   for (const create of [() => createWorkerEngine(environment), () => createServerEngine(environment, [])])
     await assert.rejects(create(), { code: 'KEYCHAIN_MANIFEST_INVALID' });
-  await assert.rejects(createWorkerEngine({ ...environment, CHAUSAR_DEMO: '1' }), { code: 'KEYCHAIN_PREVIEW_REFUSED' });
-  await assert.rejects(createServerEngine(environment, ['synthetic', '--demo']), { code: 'KEYCHAIN_PREVIEW_REFUSED' });
+  let reads = 0, verifications = 0, spawns = 0;
+  const dependencies: EngineKeychainHostDependencies = { keychain: f.keychain,
+    readKeychainManifest: async () => { reads++; throw new Error('Demo must omit custody before manifest reads.'); },
+    keychainProcess: {
+      verifyExecutable: async () => { verifications++; throw new Error('Demo must omit helper verification.'); },
+      spawnProcess: () => { spawns++; assert.fail('Demo must not execute a helper.'); },
+    } };
+  for (const [index, create] of [() => createWorkerEngine({ ...environment, CHAUSAR_DEMO: '1' }, dependencies),
+    () => createServerEngine(environment, ['synthetic', '--demo'], dependencies)].entries()) {
+    const engine = f.hold(await create());
+    const folder = 'demo-' + index;
+    assert.equal(engine.options.keychain, undefined);
+    await engine.request('workspace.create', { name, passphrase, folder });
+    assert.equal(f.keychain.entries.size, 0);
+    await engine.request('workspace.lock');
+    await assert.rejects(engine.request('workspace.open', { unlock: 'keychain', folder }), { code: 'KEYCHAIN_PROVIDER_REQUIRED' });
+  }
+  await assert.rejects(loadEngineKeychain(environment, { ...dependencies, keychain: undefined }, true), { code: 'KEYCHAIN_PREVIEW_REFUSED' });
+  assert.deepEqual({ reads, verifications, spawns }, { reads: 0, verifications: 0, spawns: 0 });
   assert.equal(await loadEngineKeychain({}), undefined);
 });

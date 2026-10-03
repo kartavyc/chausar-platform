@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, relative, isAbsolute } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
+import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
 import type { GatewayOptions } from '../runtime/gateway.ts';
 
@@ -23,7 +24,11 @@ const importInput = {
 };
 async function fixture(t: TestContext, gateway?: GatewayOptions) {
   const base = resolve(tmpdir()), directory = await mkdtemp(join(base, 'chausar-context-http-'));
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file', gateway });
+  const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['main'], t.mock), gateway: {
+    http: async () => { assert.fail('Only the authored synthetic provider port may dispatch.'); },
+    process: async () => { assert.fail('This HTTP fixture must not execute a native provider.'); },
+    ...gateway,
+  } });
   const app = createLocalServer(engine), { origin, token } = await app.listen();
   t.after(async () => { await app.close(); const target = resolve(directory), child = relative(base, target);
     assert.ok(child && !child.startsWith('..') && !isAbsolute(child) && target.startsWith(join(base, 'chausar-context-http-'))); await rm(target, { recursive: true, force: true }); });

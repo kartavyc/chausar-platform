@@ -1,0 +1,27 @@
+{
+  "schema": "chausar.demo-isolation.focused.v1",
+  "base": "dbc1435cb1cbfd84430894a286334dfd7f4904db",
+  "sourceCommit": "2177316ca116ea23f431c97c85e1add2b096400c",
+  "node": "v24.19.0",
+  "counts": {
+    "tests": 220,
+    "pass": 220,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "logSha256": "68aaf12e338338da486dfd833f5cc89963303b295d22ba3c6e8974ae608b8905",
+  "nativeAcceptance": false,
+  "providerBoundaries": "Authored fake ports and VM traps; demo assertions observe zero dispatch/credential effects.",
+  "syntax": {
+    "sourceFiles": 531,
+    "passed": true
+  },
+  "review": {
+    "standardsFindings": 0,
+    "specFindings": 0,
+    "independentIsolationTestsPassed": 37
+  },
+  "packageJsonBlob": "82e71a3cc8a570d651ccb002c72fd3d4fa26730e"
+}

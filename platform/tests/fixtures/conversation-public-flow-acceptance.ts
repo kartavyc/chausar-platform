@@ -26,7 +26,7 @@ export async function fixture(t: TestContext, scenarios: Record<string, Scenario
   const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
     ['path', 'systemroot', 'windir', 'temp', 'tmp', 'userprofile'].includes(name.toLowerCase())));
   const options = { workerPath: join(root, 'platform/tests/fixtures/conversation-acceptance-worker.ts'),
-    environment: { ...environment, CHAUSAR_VAULT_DIRECTORY: directory, CHAUSAR_DEMO: '1' } };
+    environment: { ...environment, CHAUSAR_VAULT_DIRECTORY: directory, CHAUSAR_DEMO: '0' } };
   let engine = new EngineHarness(options); const workers = [engine];
   t.after(async () => {
     // Always release our own synthetic provider gate before worker shutdown.

@@ -13,6 +13,7 @@ import { EngineConnectorService, type ConnectorSemanticInput } from '../runtime/
 import { EngineSemanticService } from '../runtime/engine-semantic.ts';
 import { Engine } from '../runtime/engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
+import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 import { ConnectorCapabilityRegistry, ConnectorReadDispatcher, ConnectorReadImportBridge, CursorImportService,
   type ConnectorCapability, type ConnectorOperationScope, type ReadClock, type ReadImportLink,
   type SyntheticConnectorEvidence } from '../runtime/connector-framework/index.ts';
@@ -160,7 +161,8 @@ test('candidate registration rejects product-version drift, decoder company drif
 test('actual local HTTP RPC lists installed accounting profile and refuses unqualified read/question/calculation without saving facts', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-accounting-registration-'));
   const calls = { count: 0 }, candidate = createAccountingConnectorCandidate(registration(calls));
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file', connectorRuntime: { profiles: [candidate.profile] } });
+  // Production admission over an authored snapshot preserves this unqualified-source refusal.
+  const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['main'], t.mock), connectorRuntime: { profiles: [candidate.profile] } });
   const app = createLocalServer(engine);
   t.after(async () => {
     await app.close(); await engine.shutdown();

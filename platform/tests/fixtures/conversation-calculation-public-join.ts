@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { Engine } from '../../runtime/engine.ts';
+import { installSyntheticProductionStorage } from './synthetic-production-engine.ts';
 import { createLocalServer } from '../../runtime/server.ts';
 
 // Explicit coordinator integration gate, excluded from the ordinary test glob.
@@ -17,7 +18,7 @@ const PASSWORD = 'SYNTHETIC disposable public calculation passphrase';
 async function fixture(t: TestContext, operation: 'change' | 'scenario') {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-public-calculation-join-'));
   const calls: string[] = [];
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file', gateway: {
+  const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['fixture'], t.mock), gateway: {
     http: async request => {
       calls.push(request.body);
       const wire = { kind: 'execute', calls: [{ tool: 'calculator.calculate', args: {

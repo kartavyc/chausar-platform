@@ -4,6 +4,7 @@ import {mkdtemp, readFile, realpath, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, isAbsolute, join, relative} from 'node:path';
 import {Engine, type EngineOptions} from '../../runtime/engine.ts';
+import {installSyntheticProductionStorage} from './synthetic-production-engine.ts';
 import {createLocalServer} from '../../runtime/server.ts';
 import type {ImportInput, MappingRecipe} from '../../runtime/ingest.ts';
 
@@ -77,7 +78,7 @@ export async function fixture(t: TestContext) {
   assert.equal(dirname(directory), base);
   const calls: {endpoint: string; body: string}[] = [];
   let response: {wire: unknown; status: 'completed' | 'incomplete'} | undefined;
-  const options: EngineOptions = {directory, demo: true, storage: 'experimental-file', gateway: {
+  const options: EngineOptions = {directory, ...installSyntheticProductionStorage(directory, ['fixture'], t.mock), gateway: {
     http: async input => {
       assert.ok(response, 'This synthetic provider requires an explicitly authored response.');
       calls.push({endpoint: input.endpoint, body: input.body});

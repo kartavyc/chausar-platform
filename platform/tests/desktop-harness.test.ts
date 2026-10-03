@@ -62,8 +62,10 @@ test('headless desktop worker joins exact owner phone methods to its actual synt
 import { Readable } from 'node:stream';
 import { Engine } from ${JSON.stringify(new URL('../runtime/engine.ts', import.meta.url).href)};
 import { runEngineWorker } from ${JSON.stringify(new URL('../runtime/worker.ts', import.meta.url).href)};
+import { installSyntheticProductionStorage } from ${JSON.stringify(new URL('./fixtures/synthetic-production-engine.ts', import.meta.url).href)};
 let providerCalls = 0;
-const engine = new Engine({ directory: ${JSON.stringify(directory)}, demo: true, storage: 'experimental-file', gateway: {
+const directory = ${JSON.stringify(directory)};
+const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['fixture']), gateway: {
   http: async () => { providerCalls++; throw new Error('Synthetic provider must not dispatch in the owner bridge test.'); },
 } });
 process.on('message', async message => {
@@ -80,7 +82,9 @@ process.on('message', async message => {
 runEngineWorker(engine);
 `, 'utf8');
   const launched: { child?: ChildProcess } = {};
-  const harness = new EngineHarness({ workerPath, environment: {}, startupTimeoutMs: 10000,
+  const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
+    ['path', 'systemroot', 'windir', 'temp', 'tmp', 'userprofile'].includes(name.toLowerCase())));
+  const harness = new EngineHarness({ workerPath, environment: { ...environment, CHAUSAR_DEMO: '0', CHAUSAR_VAULT_DIRECTORY: directory }, startupTimeoutMs: 10000,
     requestTimeoutMs: 10000, shutdownTimeoutMs: 10000, forkProcess: (path, args, options) => {
       const child = fork(path, args, options as ForkOptions); launched.child = child; return child;
     } });

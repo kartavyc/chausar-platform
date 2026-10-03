@@ -20,6 +20,7 @@ import { APPROVED_CONNECTOR_GROUPS, CONNECTOR_REGISTRY } from '../runtime/connec
 import { EngineSemanticService } from '../runtime/engine-semantic.ts';
 import { hashData } from '../semantic-qualification/src/index.ts';
 import { createSyntheticSemanticFixture, fixtureDictionaryDraft } from './fixtures/engine-semantic-fixture.ts';
+import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 
 // These profiles, reports and source clocks are explicitly synthetic fixtures, never vendor qualification.
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
@@ -229,7 +230,8 @@ test(expireAfterAdmission
   let engine: Engine;
   const proxy: StateStore = { read: () => engine.vault!.read(), update: change => engine.vault!.update(change) };
   const setup = fixtureOptions(proxy);
-  engine = new Engine({ directory, demo: true, storage: 'experimental-file', connectorRuntime: setup.options,
+  // Authored storage and SQL ports exercise production admission without native qualification.
+  engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['main'], t.mock), connectorRuntime: setup.options,
     // This roundtrip tests admission and readiness, not wall-clock scheduler load.
     // Use the same explicit synthetic host clock as connector/semantic evidence;
     // the second case advances it after committed admission to test real fencing.

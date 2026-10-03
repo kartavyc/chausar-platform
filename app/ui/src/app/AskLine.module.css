@@ -1,6 +1,7 @@
 .line {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--sp3);
   min-height: var(--ask);
@@ -67,11 +68,17 @@
 }
 
 .key {
+  flex: 0 0 auto;
+  white-space: nowrap;
   font-size: var(--fs-note);
   color: var(--mute);
 }
 
 .state {
+  /* A full route/voice/read-only explanation never competes with the field or chord. */
+  flex: 1 0 100%;
+  min-width: 0;
+  padding-inline-start: calc(var(--square) + var(--sp3));
   font-size: var(--fs-note);
   color: var(--mute);
 }

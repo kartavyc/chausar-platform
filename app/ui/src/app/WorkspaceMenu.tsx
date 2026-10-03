@@ -9,7 +9,8 @@
  * this app uses. Its exact provisioned version is checked by the isolated build.
  */
 
-import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, type Key } from 'react-aria-components';
+import { Button as AriaButton } from 'react-aria-components/Button';
+import { Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, type Key } from 'react-aria-components/Menu';
 import type { Language, View, WorkspaceIdentity } from './presentation.ts';
 import { useT } from './text';
 import s from './WorkspaceMenu.module.css';

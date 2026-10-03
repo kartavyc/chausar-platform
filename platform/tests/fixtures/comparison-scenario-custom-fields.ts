@@ -4,6 +4,7 @@ import {mkdtemp, realpath, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, isAbsolute, join, relative} from 'node:path';
 import {Engine, type EngineOptions} from '../../runtime/engine.ts';
+import {installSyntheticProductionStorage} from './synthetic-production-engine.ts';
 import {DatabaseCalculator, type SQLConnection} from '../../runtime/analytics.ts';
 import {ChausarError} from '../../runtime/contracts.ts';
 import type {CalculationReceipt} from '../../runtime/calculator.ts';
@@ -72,7 +73,7 @@ export async function fixture(t: TestContext, options: {missing?: boolean; nulls
     connectionCalls++; if (options.sqlConnection) return options.sqlConnection;
     throw new ChausarError('SYNTHETIC_SQL_BOUNDARY', 'This contract fixture has no qualified SQL connection.');
   }});
-  const engineOptions: EngineOptions = {directory, demo: true, storage: 'experimental-file', gateway: {
+  const engineOptions: EngineOptions = {directory, ...installSyntheticProductionStorage(directory, ['fixture'], t.mock), gateway: {
     http: async input => {
       assert.ok(response, 'A deterministic authored provider response is required.');
       calls.push({endpoint: input.endpoint, body: input.body});

@@ -213,8 +213,10 @@ test('frozen actual Engine produces accepted planning previews, approvals and lo
   const root = process.env.CHAUSAR_UI_ENGINE_SOURCE ?? [resolve(import.meta.dirname, '../../..'), resolve(import.meta.dirname, '../../../../task/luna-synthesis-engine')].find(candidate => existsSync(join(candidate, 'platform/runtime/engine.ts')));
   if (!root) { t.skip('Actual Engine source is absent from this standalone UI artifact; set CHAUSAR_UI_ENGINE_SOURCE for the no-dispatch proof.'); return; }
   const backend = await import(pathToFileURL(join(root, 'platform/runtime/engine.ts')).href);
+  const { installSyntheticProductionStorage } = await import(pathToFileURL(join(root, 'platform/tests/fixtures/synthetic-production-engine.ts')).href);
   const directory = await mkdtemp(join(tmpdir(), 'chausar-ui-contract-')); let dispatches = 0;
-  const engine = new backend.Engine({ directory, demo: true, storage: 'experimental-file', gateway: { http: async () => { dispatches++; throw new Error('Model dispatch is forbidden in this proof'); }, process: async () => { dispatches++; throw new Error('Model dispatch is forbidden in this proof'); } } });
+  // Explicit synthetic production admission tests consent; its adapter is no native qualification.
+  const engine = new backend.Engine({ directory, ...installSyntheticProductionStorage(directory, ['fixture'], t.mock), gateway: { http: async () => { dispatches++; throw new Error('Model dispatch is forbidden in this proof'); }, process: async () => { dispatches++; throw new Error('Model dispatch is forbidden in this proof'); } } });
   t.after(async () => { await engine.close(); const target = resolve(directory); assert.equal(dirname(target).toLowerCase(), resolve(tmpdir()).toLowerCase()); assert.ok(target.toLowerCase().startsWith(join(resolve(tmpdir()), 'chausar-ui-contract-').toLowerCase())); await rm(target, { recursive: true, force: true }); });
   await engine.request('workspace.create', { name: 'Synthetic frontend contract workspace', folder: 'fixture', passphrase: 'synthetic-contract-fixture-only', demo: false, pack: 'ecommerce' });
   await engine.request('trust.update', { send: 'shape' });

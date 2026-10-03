@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
+import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 import { conversationRecordIntegrity } from '../runtime/conversation-history.ts';
 
 // Authored synthetic HTTP/records only; no CLI, provider, network, or operator vault.
@@ -18,7 +19,7 @@ const clarification = { kind: 'clarification', calls: [], clarification: 'Which 
 async function fixture(t: TestContext, plan: any = execution()) {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-conversation-turns-'));
   let providerCalls = 0;
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file', gateway: {
+  const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['test'], t.mock), gateway: {
     http: async () => { providerCalls++; return { status: 200, endpoint: ENDPOINT,
       body: JSON.stringify({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(plan) }] }] }) }; },
   } });

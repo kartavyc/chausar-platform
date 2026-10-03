@@ -7,8 +7,9 @@ import { loadEngineKeychain, type EngineKeychainHostDependencies } from './engin
 
 /** Verified host evidence is installed before the worker can announce readiness. */
 export async function createWorkerEngine(environment: NodeJS.ProcessEnv = process.env, dependencies: CodexCliHostDependencies & EngineKeychainHostDependencies = {}): Promise<Engine> {
-  const gateway = await loadCodexCliHostGateway(environment, dependencies);
-  const demo = environment.CHAUSAR_DEMO === '1', keychain = await loadEngineKeychain(environment, dependencies, demo);
+  const demo = environment.CHAUSAR_DEMO === '1';
+  const gateway = demo ? undefined : await loadCodexCliHostGateway(environment, dependencies);
+  const keychain = demo ? undefined : await loadEngineKeychain(environment, dependencies, demo);
   return new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: environment.CHAUSAR_VAULT_DIRECTORY ?? './data', demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, keychain });
 }
 

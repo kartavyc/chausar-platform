@@ -1,6 +1,8 @@
 /* Today holds no styles of its own beyond layout. */
 
 .today {
+  container-type: inline-size;
+  container-name: today;
   display: grid;
   gap: var(--sp6);
   align-content: start;
@@ -25,6 +27,15 @@
 }
 .tilesFour {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Measure the content column: narrow screens keep each exact figure and its chart
+   together rather than allowing amount ink to run into its neighbour. */
+@container today (max-width: 480px) {
+  .tiles,
+  .tilesFour {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .missing {

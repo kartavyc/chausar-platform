@@ -230,12 +230,12 @@ const savedSourceId = 'synthetic-native-history-invoices';
 const savedPeriod = { from: '2026-09-01', to: '2026-09-30' };
 const savedIntroQuestion = 'what is this business about';
 const savedBilledQuestion = 'What was billed?';
-async function savedWorkerFixture(t: any, workerPath = join(root, 'platform/runtime/worker.ts')) {
+async function savedWorkerFixture(t: any, workerPath = join(root, 'platform/runtime/worker.ts'), demo = true) {
   const { EngineHarness } = require(join(root, 'app/desktop/engine-harness.cjs'));
   const base = resolve(tmpdir()), directory = await mkdtemp(join(base, 'chausar-saved-renderer-worker-'));
   const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => ['path', 'systemroot', 'windir', 'temp', 'tmp', 'userprofile'].includes(name.toLowerCase())));
   const options = { workerPath, environment: { ...environment,
-    CHAUSAR_ENGINE_VERSION: '0.1.0-preview.1', CHAUSAR_VAULT_DIRECTORY: directory, CHAUSAR_DEMO: '1', CHAUSAR_UPDATE_PUBLIC_KEY: '' } };
+    CHAUSAR_ENGINE_VERSION: '0.1.0-preview.1', CHAUSAR_VAULT_DIRECTORY: directory, CHAUSAR_DEMO: demo ? '1' : '0', CHAUSAR_UPDATE_PUBLIC_KEY: '' } };
   let engine = new EngineHarness(options);
   const workers = [engine];
   t.after(async () => {
@@ -319,7 +319,7 @@ async function syntheticProviderCalls(directory: string): Promise<any[]> {
   catch (error: any) { if (error.code === 'ENOENT') return []; throw error; }
 }
 async function lunaFixture(t: any, kind: 'openai-responses' | 'ollama' = 'openai-responses') {
-  const value = await savedWorkerFixture(t, join(root, 'platform/tests/fixtures/luna-worker.ts'));
+  const value = await savedWorkerFixture(t, join(root, 'platform/tests/fixtures/luna-worker.ts'), false);
   const route = await value.request('models.configure', { config: { id: 'synthetic-luna', kind,
     model: 'synthetic-planner', label: 'Synthetic fixture; no live or semantic qualification', enabled: true,
     endpoint: kind === 'ollama' ? 'http://127.0.0.1:11434/api/chat' : 'https://synthetic.invalid/v1/responses',

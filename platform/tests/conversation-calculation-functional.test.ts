@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
+import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 import { buildBusinessContext } from '../runtime/conversation-context.ts';
 import { createCalculationAnswerRecord } from '../runtime/conversation-history.ts';
 import { validateConversationPlan, type ConversationPlannerContext } from '../runtime/conversation-planner.ts';
@@ -30,7 +31,7 @@ async function fixture(t: TestContext, rows: Row[] = DEFAULT_ROWS) {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-calculation-parameters-'));
   const control: { providerCalls: number; wire: unknown } = { providerCalls: 0,
     wire: { kind: 'clarification', calls: [], clarification: 'Which comparison period should I use?' } };
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file', gateway: {
+  const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['fixture'], t.mock), gateway: {
     http: async () => {
       control.providerCalls++;
       return { status: 200, endpoint: ENDPOINT, body: JSON.stringify({ status: 'completed', output: [

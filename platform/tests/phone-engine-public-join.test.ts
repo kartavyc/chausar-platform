@@ -5,6 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
+import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
 import type { AppChannel, PhoneCapability, SessionGrant } from '../runtime/phone/contracts.ts';
 
@@ -14,7 +15,7 @@ const PERIOD = { from: '2026-09-01', to: '2026-09-30' };
 
 async function fixture(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-phone-public-join-')), calls: string[] = [];
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file', gateway: {
+  const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['fixture'], t.mock), gateway: {
     http: async request => {
       calls.push(request.body);
       const wire = { kind: 'execute', calls: [{ tool: 'calculator.calculate', args: {

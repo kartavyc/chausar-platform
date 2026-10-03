@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
+import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 import { hash } from '../runtime/contracts.ts';
 import { conversationRecordIntegrity } from '../runtime/conversation-history.ts';
 import { installedConversationSynthesisCodec } from '../runtime/conversation-synthesis-codec.ts';
@@ -30,7 +31,7 @@ function resultFor(summary: GroundedToolSummary): GroundedSynthesisOutput {
 async function fixture(t: TestContext, options: { noCodec?: boolean; operation?: string; codec?: ConversationSynthesisCodec } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-synthesis-wiring-'));
   const control: { providerCalls: number; mutation?: () => Promise<void>; output?: (summary: GroundedToolSummary) => unknown; plan?: unknown } = { providerCalls: 0 };
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file',
+  const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['test'], t.mock),
     ...(options.noCodec ? { synthesis: {} as ConversationSynthesisCodec } : options.codec ? { synthesis: options.codec } : {}), gateway: {
       http: async request => {
         control.providerCalls++;

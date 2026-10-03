@@ -1,5 +1,7 @@
 import type { CalculationReceiptEvidence } from './presentation.ts';
 import { ReplyValidationError, assertISODate, assertISOInstant, projectCalculationReceipt } from './validate.ts';
+import { calculationParameterKeys, validateReviewedCalculationParameters, validateCalculationParameterOrigins, validateCalculationParameterDisclosure,
+  type CalculationPeriod, type ReviewedCalculationParameters, type CalculationParameterOrigins, type CalculationParameterDisclosure } from './calculation-parameters.ts';
 
 /** Checked projections of ce5dc4f Engine DTOs, never alternate Engine authority.
  * Sources: runtime/gateway.ts, engine.ts, conversation-history.ts and
@@ -11,11 +13,13 @@ export interface ConversationScope {
 export interface ConversationRequest extends ConversationScope {
   readonly question: string; readonly purpose: 'conversation'; readonly questionDisclosure: 'verbatim';
   readonly routeId: string; readonly continuationId?: string;
+  readonly comparePeriod?: CalculationPeriod; readonly assumptions?: { readonly priceChangeBps: string };
 }
 export interface CheckedConversationContinuation {
   readonly schemaVersion: 1; readonly turnId: string; readonly originalQuestion: string; readonly clarification: string;
   readonly sourceIds: readonly string[]; readonly requestScope: ConversationScope; readonly digest: string;
   readonly exchanges?: readonly { readonly question: string; readonly clarification: string }[];
+  readonly reviewedCalculationParameters?: ReviewedCalculationParameters;
 }
 interface ModelPreviewBase {
   readonly id: string; readonly kind: 'model-preview'; readonly status: 'preview'; readonly naturalQuestion: string;
@@ -27,6 +31,9 @@ interface ModelPreviewBase {
 export interface CheckedConversationPreview extends ModelPreviewBase {
   readonly purpose: 'conversation'; readonly send: 'shape' | 'samples'; readonly questionDisclosureWarning: string;
   readonly definitionDisclosure: 'published'; readonly definitionDisclosureWarning: string;
+  readonly reviewedCalculationParameters: ReviewedCalculationParameters; readonly calculationParameterOrigins: CalculationParameterOrigins;
+  readonly calculationParametersDigest: string; readonly calculationParameterDisclosure: CalculationParameterDisclosure;
+  readonly calculationParameterDisclosureWarning: string;
   readonly continuationId?: string; readonly continuationDigest?: string; readonly continuation?: CheckedConversationContinuation;
   readonly continuationDisclosure?: 'verbatim'; readonly continuationDisclosureWarning?: string;
 }
@@ -175,19 +182,23 @@ function scope(value: unknown, path: string): void {
 export function validateConversationId(value: unknown): string { id(value, 'request.id'); return value; }
 export function conversationIdRequest(value: unknown): { readonly id: string } { return Object.freeze({ id: validateConversationId(value) }); }
 export function validateConversationRequest(value: unknown): ConversationRequest {
-  const v = shape(value, 'request', ['question', 'purpose', 'questionDisclosure', 'routeId'], ['continuationId', 'sourceIds', 'branch', 'asOf', 'onDate', 'period']);
+  const v = shape(value, 'request', ['question', 'purpose', 'questionDisclosure', 'routeId'], ['continuationId', 'sourceIds', 'branch', 'asOf', 'onDate', 'period', 'comparePeriod', 'assumptions']);
   text(v.question, 'request.question', 8000); eq(v.purpose, 'conversation', 'request.purpose'); eq(v.questionDisclosure, 'verbatim', 'request.questionDisclosure'); id(v.routeId, 'request.routeId');
   if (Object.hasOwn(v, 'continuationId')) id(v.continuationId, 'request.continuationId');
   const selected: Record<string, unknown> = {}; for (const k of ['sourceIds', 'branch', 'asOf', 'onDate', 'period']) if (Object.hasOwn(v, k)) selected[k] = v[k];
-  scope(selected, 'request.scope'); json(value, 'request', 131072); return snapshot<ConversationRequest>(value);
+  scope(selected, 'request.scope'); selectedCalculationParameters(v, 'request.calculationParameters'); json(value, 'request', 131072); return snapshot<ConversationRequest>(value);
 }
 
 function continuation(value: unknown, expectedId: string, path: string): void {
-  const v = shape(value, path, ['schemaVersion', 'turnId', 'originalQuestion', 'clarification', 'sourceIds', 'requestScope', 'digest'], ['exchanges']);
+  const v = shape(value, path, ['schemaVersion', 'turnId', 'originalQuestion', 'clarification', 'sourceIds', 'requestScope', 'digest'], ['exchanges', 'reviewedCalculationParameters']);
   eq(v.schemaVersion, 1, `${path}.schemaVersion`); id(v.turnId, `${path}.turnId`); eq(v.turnId, expectedId, `${path}.turnId`);
   text(v.originalQuestion, `${path}.originalQuestion`, 8000); text(v.clarification, `${path}.clarification`, 500); digest(v.digest, `${path}.digest`);
   sources(v.sourceIds, `${path}.sourceIds`); scope(v.requestScope, `${path}.requestScope`);
   const selected = v.requestScope as Record<string, unknown>;
+  if (Object.hasOwn(v, 'reviewedCalculationParameters')) {
+    const parameters = validateReviewedCalculationParameters(v.reviewedCalculationParameters, path + '.reviewedCalculationParameters');
+    if (Object.hasOwn(selected, 'period') && !sameData(parameters.period, selected.period)) fail(path + '.reviewedCalculationParameters.period');
+  }
   if (Object.hasOwn(selected, 'sourceIds')) sameIds(selected.sourceIds, v.sourceIds, `${path}.requestScope.sourceIds`);
   if (Object.hasOwn(v, 'exchanges')) array(v.exchanges, `${path}.exchanges`, 8).forEach((item, i) => {
     const e = shape(item, `${path}.exchanges[${i}]`, ['question', 'clarification']); text(e.question, `${path}.exchanges[${i}].question`, 8000); text(e.clarification, `${path}.exchanges[${i}].clarification`, 500);
@@ -222,12 +233,14 @@ const basePreviewKeys = ['id', 'kind', 'status', 'purpose', 'createdAt', 'at', '
   'questionDisclosure', 'naturalQuestion', 'questionHash', 'sourceIds', 'factIds', 'rowIds', 'factDigest', 'trustFingerprint',
   'schema', 'schemaDigest', 'instructions', 'payload', 'digest', 'approvalRequired', 'send', 'receiptBoundary', 'providerPayloadObserved', 'costReservedMinor', 'costCurrency', 'experimental'];
 const conversationPreviewKeys = ['questionDisclosureWarning', 'definitionDisclosure', 'publishedCalculations', 'definitionDisclosureWarning',
+  'reviewedCalculationParameters', 'calculationParameterOrigins', 'calculationParametersDigest', 'calculationParameterDisclosure', 'calculationParameterDisclosureWarning',
   'requestScope', 'profileSamplesHash', 'businessContext', 'contextDigest', 'profileIds', 'operations', 'selectors'];
 const continuationPreviewKeys = ['continuationId', 'continuationDigest', 'continuation', 'continuationDisclosure', 'continuationDisclosureWarning', 'requestScopeDigest'];
 const synthesisPreviewKeys = ['toolTurnId', 'synthesisAuthority', 'synthesisAuthorityDigest', 'synthesisSummary', 'synthesisBinding', 'synthesisInputDigest', 'synthesisDisclosure', 'synthesisDisclosureWarning'];
 const projectedPreviewKeys = ['id', 'kind', 'status', 'purpose', 'naturalQuestion', 'questionDisclosure', 'payload', 'digest', 'routeId', 'endpoint',
   'approvalRequired', 'send', 'receiptBoundary', 'providerPayloadObserved', 'estimatedCostMinor', 'costCurrency', 'questionDisclosureWarning',
   'definitionDisclosure', 'definitionDisclosureWarning', ...continuationPreviewKeys.filter(k => k !== 'requestScopeDigest'),
+  'reviewedCalculationParameters', 'calculationParameterOrigins', 'calculationParametersDigest', 'calculationParameterDisclosure', 'calculationParameterDisclosureWarning',
   'toolTurnId', 'synthesisInputDigest', 'synthesisDisclosure', 'synthesisDisclosureWarning'];
 const profileCategories = ['industry', 'products', 'customers', 'business_model', 'location'];
 const origins = ['workspace-metadata', 'published-definition', 'source-observation', 'owner-told', 'draft-assumption'];
@@ -289,6 +302,36 @@ function synthesisMetadata(v: Record<string, unknown>, path: string): void {
   if (JSON.stringify(a.summary) !== JSON.stringify(s) || JSON.stringify(a.binding) !== JSON.stringify(b)) fail(`${path}.synthesisAuthority`);
   for (const k of ['sourceIds', 'factIds', 'rowIds']) sameIds(ids(a[k], `${path}.synthesisAuthority.${k}`), v[k], `${path}.synthesisAuthority.${k}`);
 }
+function selectedCalculationParameters(value: Record<string, unknown>, path: string): ReviewedCalculationParameters {
+  const selected: Record<string, unknown> = {};
+  for (const key of calculationParameterKeys) if (Object.hasOwn(value, key)) selected[key] = value[key];
+  return validateReviewedCalculationParameters(selected, path);
+}
+function calculationReview(v: Record<string, unknown>, request: ConversationRequest): void {
+  const path = 'preview';
+  const parameters = validateReviewedCalculationParameters(v.reviewedCalculationParameters, path + '.reviewedCalculationParameters');
+  const origins = validateCalculationParameterOrigins(v.calculationParameterOrigins, parameters, path + '.calculationParameterOrigins');
+  const supplied = selectedCalculationParameters(request as unknown as Record<string, unknown>, 'request.calculationParameters');
+  const retained = v.continuation as Record<string, unknown> | undefined;
+  const retainedScope = retained?.requestScope as Record<string, unknown> | undefined;
+  const inherited = validateReviewedCalculationParameters(retained?.reviewedCalculationParameters
+    ?? (retainedScope?.period !== undefined ? { period: retainedScope.period } : {}), path + '.continuation.reviewedCalculationParameters');
+  const expected: Record<string, unknown> = {}, expectedOrigins: Record<string, unknown> = {};
+  for (const key of calculationParameterKeys) {
+    if (inherited[key] !== undefined && supplied[key] !== undefined && !sameData(inherited[key], supplied[key])) fail(path + '.reviewedCalculationParameters.' + key);
+    const value = inherited[key] ?? supplied[key];
+    if (value !== undefined) {
+      expected[key] = value;
+      expectedOrigins[key] = inherited[key] !== undefined ? 'retained-owner-requested' : 'owner-requested';
+    }
+  }
+  if (!sameData(parameters, expected) || !sameData(origins, expectedOrigins)) fail(path + '.reviewedCalculationParameters');
+  const selectedScope = v.requestScope as Record<string, unknown>;
+  if (Object.hasOwn(selectedScope, 'period') && !sameData(parameters.period, selectedScope.period)) fail(path + '.requestScope.period');
+  validateCalculationParameterDisclosure(v.calculationParameterDisclosure, parameters, origins, path + '.calculationParameterDisclosure');
+  digest(v.calculationParametersDigest, path + '.calculationParametersDigest');
+  text(v.calculationParameterDisclosureWarning, path + '.calculationParameterDisclosureWarning');
+}
 export function validateModelPreview(value: unknown, expected: ConversationRequest | SynthesisPreviewRequest): CheckedModelPreview {
   const path = 'preview', raw = object(value, path), synthesis = raw.purpose === 'conversation-synthesis';
   const v = shape(value, path, [...basePreviewKeys, ...(synthesis ? synthesisPreviewKeys : conversationPreviewKeys)], ['estimatedCostMinor', ...(synthesis ? [] : continuationPreviewKeys)]);
@@ -330,6 +373,7 @@ export function validateModelPreview(value: unknown, expected: ConversationReque
       eq(v.continuationDigest, (v.continuation as Record<string, unknown>).digest, `${path}.continuationDigest`); eq(v.continuationDisclosure, 'verbatim', `${path}.continuationDisclosure`);
       digest(v.requestScopeDigest, `${path}.requestScopeDigest`); text(v.continuationDisclosureWarning, `${path}.continuationDisclosureWarning`);
     }
+    calculationReview(v, request);
   }
   json(value, path); const selected: Record<string, unknown> = {};
   for (const k of projectedPreviewKeys) if (Object.hasOwn(v, k)) selected[k] = v[k];
@@ -374,6 +418,12 @@ export async function verifyModelPreview(value: unknown, expected: ConversationR
       eq(await sha(JSON.stringify({ item, renderText: local.renderText, metadata }), 'preview.synthesisBinding.evidenceHash'), local.evidenceHash, 'preview.synthesisBinding.evidenceHash');
     }
   } else {
+    const parameters = validateReviewedCalculationParameters(v.reviewedCalculationParameters, 'preview.reviewedCalculationParameters');
+    const origins = validateCalculationParameterOrigins(v.calculationParameterOrigins, parameters, 'preview.calculationParameterOrigins');
+    eq(await sha(JSON.stringify(v.reviewedCalculationParameters), 'preview.calculationParametersDigest'), v.calculationParametersDigest, 'preview.calculationParametersDigest');
+    validateCalculationParameterDisclosure(content.calculationParameters, parameters, origins, 'preview.payload.calculationParameters');
+    eq(await sha(JSON.stringify(content.calculationParameters), 'preview.payload.calculationParameters'),
+      await sha(JSON.stringify(v.calculationParameterDisclosure), 'preview.calculationParameterDisclosure'), 'preview.payload.calculationParameters');
     eq(content.question, checked.naturalQuestion, 'preview.payload.question'); eq(content.questionDisclosure, 'verbatim', 'preview.payload.questionDisclosure');
     if (checked.continuation) {
       const retained = await verifyConversationContinuation(checked.continuation, checked.continuation.turnId);

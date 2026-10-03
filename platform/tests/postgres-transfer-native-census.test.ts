@@ -11,6 +11,7 @@ import { join, resolve } from 'node:path';
 // bounded census; it cannot authorize a partial scratch inventory.
 const helperUrl = new URL('./fixtures/postgres-transfer-native-census.mjs', import.meta.url);
 const { createOwnedScratchCensus } = await import(helperUrl.href);
+const { createScratchCensusProtocol } = await import(new URL('./fixtures/postgres-transfer-scratch-census-protocol.mjs', import.meta.url).href);
 type Phase = 'startup' | 'live' | 'final-stopped' | 'post-save-stopped';
 type Diagnostic = Record<string, unknown>;
 type CensusFailure = Error & { code?: string; censusDiagnostic?: Diagnostic };
@@ -21,24 +22,83 @@ type Io = {
   now?: () => number;
 };
 
-async function fixture(t: TestContext) {
-  const parent = await mkdtemp(join(tmpdir(), 'chausar-owned-census-'));
+async function fixture(t: TestContext, temporaryRoot = tmpdir()) {
+  // macOS /var and caller-supplied TMPDIR can be aliases. Resolve the fixture
+  // base before creating files; the census still refuses every aliased root.
+  const temporaryBase = await realpath(temporaryRoot);
+  const parent = await mkdtemp(join(temporaryBase, 'chausar-owned-census-'));
   const permittedRuns = join(parent, 'runs');
   const runRoot = join(permittedRuns, `independent-${randomUUID()}`);
   await mkdir(runRoot, { recursive: true });
   t.after(async () => {
     assert.equal(resolve(parent), parent);
-    assert.ok(parent.startsWith(join(tmpdir(), 'chausar-owned-census-')));
+    assert.ok(parent.startsWith(join(temporaryBase, 'chausar-owned-census-')));
     await rm(parent, { recursive: true, force: true });
   });
   const diagnostics: Diagnostic[] = [];
   const census = (io: Io = {}, options: { maxBytes?: number; onDiagnostic?: (event: Diagnostic) => unknown; runRoot?: string; permittedRuns?: string } = {}) => {
-    const inspect = createOwnedScratchCensus({ runRoot, permittedRuns, maxBytes: 1024 * 1024,
+    const inspect = createScratchCensusProtocol({ runRoot, permittedRuns, maxBytes: 1024 * 1024,
       onDiagnostic: (event: Diagnostic) => diagnostics.push(event), ...options }, io);
     return { inspect, pin: inspect.pin };
   };
   return { parent, permittedRuns, runRoot, diagnostics, census };
 }
+
+test('portable census fixture canonicalizes an aliased temporary base before creating roots', async t => {
+  const outer = await fixture(t), alias = join(outer.parent, 'temporary-alias');
+  await symlink(outer.parent, alias, 'junction');
+  const f = await fixture(t, alias);
+  assert.equal(await realpath(f.runRoot), f.runRoot);
+  await writeFile(join(f.runRoot, 'stable'), Buffer.alloc(19));
+  assert.equal(await f.census().inspect('final-stopped'), 19);
+});
+
+test('portable census retains absolute nested scope and byte-cap admission before filesystem reads', async t => {
+  const f = await fixture(t);
+  let reads = 0;
+  const io = Object.fromEntries(['lstat', 'readdir', 'realpath'].map(operation => [operation, async () => {
+    reads++; assert.fail('Invalid scope must refuse before filesystem reads.');
+  }]));
+  const scope = { runRoot: f.runRoot, permittedRuns: f.permittedRuns, maxBytes: 1024 };
+  const invalid = [
+    { runRoot: 'relative-run' }, { permittedRuns: 'relative-runs' },
+    { runRoot: f.permittedRuns }, { runRoot: join(f.parent, 'outside') },
+    { runRoot: join(f.parent, 'runs-prefix-sibling', 'run') },
+    ...[0, -1, 1.5, NaN, Infinity, 536870913].map(maxBytes => ({ maxBytes }))
+  ];
+  for (const change of invalid) {
+    assert.throws(() => createScratchCensusProtocol({ ...scope, ...change }, io),
+      { code: 'OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED' });
+  }
+  const inspect = createScratchCensusProtocol(scope, io);
+  await assert.rejects(inspect('unknown-phase'), { code: 'OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED' });
+  assert.equal(reads, 0);
+});
+
+test('native census wrapper still refuses non-C roots before filesystem reads', async t => {
+  const f = await fixture(t);
+  const scope = process.platform === 'win32'
+    ? { runRoot: 'D:\\synthetic\\runs\\run', permittedRuns: 'D:\\synthetic\\runs' }
+    : { runRoot: f.runRoot, permittedRuns: f.permittedRuns };
+  let reads = 0;
+  const io = Object.fromEntries(['lstat', 'readdir', 'realpath'].map(operation => [operation, async () => {
+    reads++; assert.fail('Non-C native scope must refuse before filesystem reads.');
+  }]));
+  assert.throws(() => createOwnedScratchCensus({ ...scope, maxBytes: 1024 }, io),
+    { code: 'OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED' });
+  assert.equal(reads, 0);
+});
+
+test('native lifecycle still refuses non-C roots before returning a launch-capable environment', async t => {
+  const f = await fixture(t);
+  const sourceRoot = process.platform === 'win32' ? 'D:\\synthetic\\source' : join(f.parent, 'source');
+  const runRoot = process.platform === 'win32' ? 'D:\\synthetic\\postgres-transfer-acceptance-prep\\runs\\run'
+    : join(f.parent, 'postgres-transfer-acceptance-prep', 'runs', 'run');
+  const { createNativeEnvironment } = await import(new URL('./fixtures/postgres-transfer-native-lifecycle.mjs', import.meta.url).href);
+  assert.throws(() => createNativeEnvironment({ ownedRunRoot: runRoot,
+    sourcePin: { sourceRoot, commit: 'a'.repeat(40), tree: 'b'.repeat(40) } }),
+  { code: 'OWNED_C_NATIVE_RUN_REQUIRED' });
+});
 
 function samePath(value: unknown, expected: string) { return resolve(String(value)) === resolve(expected); }
 async function failure(promise: Promise<unknown>) {
@@ -659,7 +719,11 @@ async function noStartLifecycleFixture(t: TestContext) {
     sourcePin: { sourceRoot, commit: 'a'.repeat(40), tree: 'b'.repeat(40) } }) };
 }
 
-test('NO-START lifecycle close persists complete before-save and after-save stopped censuses', async t => {
+// These exercise the C-qualified native lifecycle, whose constructor remains
+// restricted even when start() is absent. The portable protocol tests above run
+// on every host; this integration coverage requires Windows C-drive scratch.
+const nativeLifecycleSkip = process.platform === 'win32' ? false : 'Requires the Windows C-drive native qualification fixture.';
+test('NO-START lifecycle close persists complete before-save and after-save stopped censuses', { skip: nativeLifecycleSkip }, async t => {
   const f = await noStartLifecycleFixture(t);
   const require = createRequire(import.meta.url), childProcess = require('node:child_process');
   const spawnMock = t.mock.method(childProcess, 'spawn', () => assert.fail('NO-START close must never spawn a native helper.'));
@@ -680,7 +744,7 @@ test('NO-START lifecycle close persists complete before-save and after-save stop
   } finally { spawnMock.mock.restore(); syncBuiltinESMExports(); }
 });
 
-test('NO-START lifecycle persists post-save strict census refusal separately from stopped state', async t => {
+test('NO-START lifecycle persists post-save strict census refusal separately from stopped state', { skip: nativeLifecycleSkip }, async t => {
   const f = await noStartLifecycleFixture(t), vanish = join(f.runRoot, 'post-save-ephemeral');
   await writeFile(join(f.runRoot, 'stable'), Buffer.alloc(29)); await writeFile(vanish, Buffer.alloc(7));
   const require = createRequire(import.meta.url), filesystem = require('node:fs/promises'), childProcess = require('node:child_process');
