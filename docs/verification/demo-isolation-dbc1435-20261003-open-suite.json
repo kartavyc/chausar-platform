@@ -1,0 +1,1181 @@
+{
+  "schema": "chausar.demo-isolation.open-suite.v1",
+  "base": "dbc1435cb1cbfd84430894a286334dfd7f4904db",
+  "sourceCommit": "c16f90237a4cb74948bfefee596407e07c450398",
+  "node": "v24.19.0",
+  "command": [
+    "node",
+    "--test",
+    "--test-reporter=tap",
+    "--test-concurrency=1",
+    "platform/tests/*.test.ts"
+  ],
+  "environment": "Only PATH/SystemRoot/WINDIR/TEMP/TMP/LANG/LC_ALL inherited; provider, credential, accounting artifact and Python settings omitted.",
+  "deadlineMs": 600000,
+  "counts": {
+    "tests": null,
+    "suites": null,
+    "pass": null,
+    "fail": null,
+    "cancelled": null,
+    "skipped": null,
+    "todo": null
+  },
+  "summaryPresent": false,
+  "emittedTopLevelResults": 2583,
+  "durationMs": null,
+  "failureCategories": {
+    "immutable-demo-provider-refusal": 148,
+    "demo-keychain-activation-expectation": 5,
+    "failed-subtest-container": 2,
+    "unchanged-windows-owned-root-requirement": 35
+  },
+  "failures": [
+    {
+      "name": "322 - paired HTTP synthetic provider selector receives approved value-free business context and keeps financial validation",
+      "location": "platform/tests/business-context-http.test.ts:66:1",
+      "code": "ERR_ASSERTION",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "432 - synthetic Codex completed turn produces a calculated receipt through paired public HTTP RPC",
+      "location": "platform/tests/codex-cli-engine.test.ts:154:1",
+      "code": "ERR_ASSERTION",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "433 - synthetic Codex reported failed turn withholds the HTTP result without fallback or resend",
+      "location": "platform/tests/codex-cli-engine.test.ts:193:3",
+      "code": "ERR_ASSERTION",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "434 - synthetic Codex missing turn.completed withholds the HTTP result without fallback or resend",
+      "location": "platform/tests/codex-cli-engine.test.ts:193:3",
+      "code": "ERR_ASSERTION",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "435 - synthetic Codex unsuccessful process exit withholds the HTTP result without fallback or resend",
+      "location": "platform/tests/codex-cli-engine.test.ts:193:3",
+      "code": "ERR_ASSERTION",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "436 - public route configuration cannot supply trusted Codex capability or process authority",
+      "location": "platform/tests/codex-cli-engine.test.ts:213:1",
+      "code": "ERR_ASSERTION",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "437 - a standalone HTTP Engine without host Codex capabilities refuses before approval use or budget reservation",
+      "location": "platform/tests/codex-cli-engine.test.ts:228:1",
+      "code": "ERR_ASSERTION",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "547 - public reviewed custom-field change projects exact diagnostic provenance then stops at the explicit synthetic SQL boundary",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:9:3",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "548 - public reviewed custom-field scenario projects exact diagnostic provenance then stops at the explicit synthetic SQL boundary",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:9:3",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "549 - exact reviewed custom comparison periods and textual scenario assumptions cannot change before or after dispatch",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:55:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "550 - missing reviewed custom comparison/scenario inputs require clarification and never infer a default",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:75:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "551 - a missing mapped custom amount refuses rather than falling back to amountMinor or zero",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:89:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "552 - explicit custom null exclusion keeps partial coverage and never treats the missing fee as zero",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:99:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "553 - custom price scenarios retain signed truncation and exact amounts beyond Number safe precision",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:115:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "554 - ambiguous custom mapping bindings refuse atomically through public preview and import",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:141:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "555 - custom field and amount overrides never become public conversation calculator arguments",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:156:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "556 - custom source access revocation invalidates pending review and retained refusal readback after reopen",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:167:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "557 - a real custom mapping revision invalidates pending review and retained refusal without silently rebasing the old cut",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:180:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "558 - republishing a custom definition invalidates pending review before provider execution",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:198:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "559 - public custom change retains exact receipt provenance through injected SQL compilation and reopen",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:210:3",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "560 - public custom scenario retains exact receipt provenance through injected SQL compilation and reopen",
+      "location": "platform/tests/comparison-scenario-custom-fields.test.ts:210:3",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "581 - independent approved comparison keeps period endpoints, main branch and prior-only source through a fresh Engine",
+      "location": "platform/tests/comparison-scenario-independent-public-acceptance.test.ts:10:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "582 - independent scenario keeps exact reviewed 00500 text, signed truncation and huge integer arithmetic across repeated fresh reviews",
+      "location": "platform/tests/comparison-scenario-independent-public-acceptance.test.ts:49:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "583 - unreviewed comparison refuses and a retained clarification genuinely continues after fresh Engine with a new exact approval",
+      "location": "platform/tests/comparison-scenario-independent-public-acceptance.test.ts:81:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "584 - model period, textual assumption and trusted-cut overrides refuse without partial calculator results",
+      "location": "platform/tests/comparison-scenario-independent-public-acceptance.test.ts:110:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "585 - selected prior-only source authority is checked before dispatch and on retained readback after reopen",
+      "location": "platform/tests/comparison-scenario-independent-public-acceptance.test.ts:127:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "586 - real correction invalidates pending review and saved conversation while old and fresh knowledge cuts retain their exact meaning",
+      "location": "platform/tests/comparison-scenario-independent-public-acceptance.test.ts:142:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "587 - explicit empty and narrower reviewed comparison scopes preserve coverage uncertainty and do not broaden prior evidence",
+      "location": "platform/tests/comparison-scenario-independent-public-acceptance.test.ts:167:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "588 - explicit provider incomplete terminal response admits no comparison result and cannot reuse its exact approval",
+      "location": "platform/tests/comparison-scenario-independent-public-acceptance.test.ts:184:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "737 - acceptance: natural wording routes context, calculation, clarification and mixed turns through UI/preload/worker",
+      "location": "platform/tests/conversation-acceptance.test.ts:117:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "738 - acceptance: mixed answers and exact child evidence survive actual UI lock, unlock and worker reopen without another dispatch",
+      "location": "platform/tests/conversation-acceptance.test.ts:142:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "739 - acceptance: ungrounded provider tool contracts fail at actual worker admission without child answers",
+      "location": "platform/tests/conversation-acceptance.test.ts:170:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "740 - acceptance: incomplete, malformed, failed and thrown provider turns preserve one attempt and allow a fresh subsequent turn",
+      "location": "platform/tests/conversation-acceptance.test.ts:194:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "741 - acceptance: changed question, changed route and revoked privacy block reviewed dispatch before provider entry",
+      "location": "platform/tests/conversation-acceptance.test.ts:214:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "742 - acceptance: source authority revoked while provider is in flight withholds the whole turn and retained history",
+      "location": "platform/tests/conversation-acceptance.test.ts:228:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "743 - acceptance requirement: full wording typed in the composer reaches the reviewed planner verbatim",
+      "location": "platform/tests/conversation-acceptance.test.ts:240:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "744 - acceptance requirement: clarification and all-tool-error turns remain user-visible after reopening",
+      "location": "platform/tests/conversation-acceptance.test.ts:251:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "745 - acceptance: partial tool failure retains ordered successful evidence and exact error after reopening",
+      "location": "platform/tests/conversation-acceptance.test.ts:263:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "746 - acceptance requirement: revoking source access removes cached composer evidence as well as RPC history",
+      "location": "platform/tests/conversation-acceptance.test.ts:278:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "747 - acceptance: revisiting Conversation rechecks cached evidence after authority changes outside the renderer",
+      "location": "platform/tests/conversation-acceptance.test.ts:295:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "748 - acceptance: a completed worker answer delayed across renderer authority revocation never becomes visible",
+      "location": "platform/tests/conversation-acceptance.test.ts:306:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "749 - acceptance requirement: ollama explicitly incomplete provider output cannot execute tools",
+      "location": "platform/tests/conversation-acceptance.test.ts:330:3",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "750 - acceptance requirement: openai-compatible explicitly incomplete provider output cannot execute tools",
+      "location": "platform/tests/conversation-acceptance.test.ts:330:3",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "769 - imported two-period comparison uses independent arithmetic, A-only evidence and retained reopen",
+      "location": "platform/tests/conversation-calculation-functional.test.ts:110:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "770 - owner price basis points remain exact input while scenario output truncates and source facts stay unchanged",
+      "location": "platform/tests/conversation-calculation-functional.test.ts:133:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "771 - comparison negative ratio, zero denominator and overlap use the existing exact formula and unique lineage",
+      "location": "platform/tests/conversation-calculation-functional.test.ts:154:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "772 - negative and large scenario minor units and allowed range edges retain backend arithmetic",
+      "location": "platform/tests/conversation-calculation-functional.test.ts:171:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "773 - a revoked reviewed source refuses both arithmetic and retained answer readback",
+      "location": "platform/tests/conversation-calculation-functional.test.ts:186:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "774 - published definition change withholds a retained comparison rather than recomputing history",
+      "location": "platform/tests/conversation-calculation-functional.test.ts:198:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "775 - actual public preview and single-use synthetic planner return and retain a missing-input clarification",
+      "location": "platform/tests/conversation-calculation-functional.test.ts:209:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "776 - changed reviewed period and dictionary refuse at actual public approval boundary before synthetic provider entry",
+      "location": "platform/tests/conversation-calculation-functional.test.ts:231:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "777 - an admitted calculator failure still retains an all-tool-error answer and reopens without another dispatch",
+      "location": "platform/tests/conversation-calculation-functional.test.ts:245:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "793 - coordinator HTTP join: change admits exact reviewed inputs and reopens the same answer and receipt",
+      "location": "platform/tests/fixtures/conversation-calculation-public-join.ts:84:3",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "794 - coordinator HTTP join: scenario admits exact reviewed inputs and reopens the same answer and receipt",
+      "location": "platform/tests/fixtures/conversation-calculation-public-join.ts:84:3",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "827 - user can answer a retained clarification with a short reply after reopening",
+      "location": "platform/tests/conversation-continuation-acceptance.test.ts:8:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "828 - actual gateway warning and retained clarification and all-error bodies remain visible after reopening",
+      "location": "platform/tests/conversation-continuation-acceptance.test.ts:37:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "829 - saved mixed answer opens its exact composite binding and both visible tool results after reopening",
+      "location": "platform/tests/conversation-continuation-acceptance.test.ts:62:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "830 - repeated mixed questions retain distinct previews and exact distinct combined answers after reopening",
+      "location": "platform/tests/conversation-continuation-acceptance.test.ts:73:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "831 - actual reviewed September reply carries billed objective, calculates exact local total and reopens joined receipt without another provider call",
+      "location": "platform/tests/conversation-continuation-engine.test.ts:10:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "832 - further clarification keeps original objective through two reviewed replies and consumes only the parent turn",
+      "location": "platform/tests/conversation-continuation-engine.test.ts:37:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "833 - failed provider reply leaves original clarification pending and requires a new reviewed attempt",
+      "location": "platform/tests/conversation-continuation-engine.test.ts:56:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "834 - current source revocation after reply preview blocks dispatch and leaves no retained continuation answer",
+      "location": "platform/tests/conversation-continuation-engine.test.ts:69:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "835 - continuing selected zero-row source retains that authority and refuses local or forged resolved-by overrides",
+      "location": "platform/tests/conversation-continuation-engine.test.ts:79:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "836 - actual worker admits eight reviewed continuation links then refuses a ninth without truncating or redispatching",
+      "location": "platform/tests/conversation-continuation-engine.test.ts:98:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "998 - public two-stage wiring requires another approval, renders exact receipt slots and reopens without dispatch",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:83:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "999 - incomplete installed codec refuses precisely rather than silently substituting local prose",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:101:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1000 - preview outbound omits local receipts, rows, values, dates and source identifiers while binding them locally",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:107:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1001 - planner consent cannot dispatch a separately reviewed synthesis",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:116:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1002 - source changes during synthetic inference withhold final prose and do not retry",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:124:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1003 - saved final prose is withheld after source revocation without another provider call",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:131:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1004 - saved final text tampering is refused even when its outer integrity is recomputed",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:139:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1005 - host refuses a materializer that replaces exact local amount slots",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:146:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1006 - unavailable tools remain caution-bound rather than fabricated positive answers",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:153:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1007 - required cautions cannot be removed from otherwise well-formed synthetic output",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:160:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1008 - direct calculator parameter errors remain separate from unreviewed planner admission refusals",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:168:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1009 - the exact tool ID and trusted route cannot be replaced or supplemented with caller-provided results",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:185:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1010 - an empty explicit selection remains empty in synthesis authority and exact calculation slots",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:193:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1011 - a zero-row selected source remains authoritative even when no calculation rows name it",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:200:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1012 - continued synthesis preserves the current admitted original objective rather than a short latest reply",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:209:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1013 - duplicate canonical calculation receipt IDs refuse synthesis instead of selecting the first match",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:222:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1014 - public original question joins current attributed business claims, calculator slots and retained citation references",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:229:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1015 - the joined Hindi writing path refuses extra numeric assertions outside exact local slots",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:253:3",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1016 - the joined Hindi writing path refuses extra numeric assertions outside exact local slots",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:253:3",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1017 - Hindi natural framing remains accepted when financial values come only from current receipt slots",
+      "location": "platform/tests/conversation-synthesis-engine.test.ts:261:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1033 - natural mixed question reaches both reviewed stages and final model prose has current tool and citation receipts",
+      "location": "platform/tests/conversation-synthesis-public-acceptance.test.ts:63:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1034 - final answer stays visible in saved history after actual lock/unlock and a complete worker restart",
+      "location": "platform/tests/conversation-synthesis-public-acceptance.test.ts:95:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1035 - repeated objectives retain distinct final IDs and summaries without cross-binding or automatic model calls",
+      "location": "platform/tests/conversation-synthesis-public-acceptance.test.ts:114:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1036 - unknown and failing tools retain their canonical warnings alongside separately authored final prose",
+      "location": "platform/tests/conversation-synthesis-public-acceptance.test.ts:136:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1037 - saved clarification replies synthesize the retained original objective, not the short latest reply",
+      "location": "platform/tests/conversation-synthesis-public-acceptance.test.ts:157:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1038 - external authority revocation removes cached and saved final prose without redispatch",
+      "location": "platform/tests/conversation-synthesis-public-acceptance.test.ts:174:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1039 - public synthesis refuses malformed grounding and currency assertions without retaining or redispatching",
+      "location": "platform/tests/conversation-synthesis-public-negative.test.ts:39:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1040 - public synthesis refuses incomplete, failed and tool-attempt Responses envelopes",
+      "location": "platform/tests/conversation-synthesis-public-negative.test.ts:50:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1041 - mixed current business citations cannot be replaced by undeclared provider citation fields",
+      "location": "platform/tests/conversation-synthesis-public-negative.test.ts:65:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1042 - public synthesis refuses valid-shaped nonterminal Ollama responses",
+      "location": "platform/tests/conversation-synthesis-public-negative.test.ts:76:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1043 - public synthesis refuses a valid-shaped length-limited compatible response",
+      "location": "platform/tests/conversation-synthesis-public-negative.test.ts:86:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1044 - Shape planner consent does not permit a final answer preview or second dispatch",
+      "location": "platform/tests/conversation-synthesis-public-negative.test.ts:92:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1045 - missing or cross-preview approval and forged public synthesis fields refuse before provider entry",
+      "location": "platform/tests/conversation-synthesis-public-negative.test.ts:101:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1046 - unchecked separate final-answer consent cannot approve or dispatch through the renderer",
+      "location": "platform/tests/conversation-synthesis-public-negative.test.ts:126:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1047 - external source authority loss before final preview refuses and clears cached tools",
+      "location": "platform/tests/conversation-synthesis-public-negative.test.ts:138:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1048 - external authority loss after separate approval blocks dispatch and removes cached disclosure",
+      "location": "platform/tests/conversation-synthesis-public-negative.test.ts:148:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1049 - external authority loss during the second provider response withholds prose without retry",
+      "location": "platform/tests/conversation-synthesis-public-negative.test.ts:158:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1114 - public reviewed calculation counts selected A before arithmetic and preserves its receipt after encrypted reopen",
+      "location": "platform/tests/conversation-turns-engine.test.ts:60:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1115 - an explicitly empty reviewed source scope does not widen to all imported facts",
+      "location": "platform/tests/conversation-turns-engine.test.ts:73:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1116 - unselected unpublished connector capture cannot block selected local evidence; selecting it still refuses",
+      "location": "platform/tests/conversation-turns-engine.test.ts:79:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1117 - all-tool-error composite is signed and stored with empty resultRefs through close/reopen",
+      "location": "platform/tests/conversation-turns-engine.test.ts:90:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1118 - missing comparison inputs fail admission before an incomplete planner call can become a tool error",
+      "location": "platform/tests/conversation-turns-engine.test.ts:103:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1119 - clarification retains verbatim objective and current guarded continuation after encrypted reopen without dispatch",
+      "location": "platform/tests/conversation-turns-engine.test.ts:110:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1120 - pending clarification refuses revoked current source authority without provider invocation",
+      "location": "platform/tests/conversation-turns-engine.test.ts:129:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1121 - pending clarification refuses tampering and expired retained objective before a preview or transfer",
+      "location": "platform/tests/conversation-turns-engine.test.ts:137:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1122 - pending continuation rejects duplicate model receipts rather than choosing the first match",
+      "location": "platform/tests/conversation-turns-engine.test.ts:150:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1123 - pending continuation refuses private scope mutations while preserving its exact reviewed manifest",
+      "location": "platform/tests/conversation-turns-engine.test.ts:158:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1286 - headless desktop worker joins exact owner phone methods to its actual synthetic Vault",
+      "location": "platform/tests/desktop-harness.test.ts:55:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1344 - actual Luna renderer preload worker executes reviewed paraphrases and mixed intent with cited exact local receipts",
+      "location": "platform/tests/desktop-renderer.test.ts:369:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1345 - actual Luna worker clarification typed calculation failure and invalid plan preserve one dispatch without invented amounts or retry",
+      "location": "platform/tests/desktop-renderer.test.ts:402:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1346 - actual Luna worker Nothing blocks selected model and zero fact local Ollama still requires exact question consent",
+      "location": "platform/tests/desktop-renderer.test.ts:432:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1347 - actual Luna renderer withholds a completed tool reply after real worker vault lock and erases reviewed question",
+      "location": "platform/tests/desktop-renderer.test.ts:456:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1348 - actual Luna renderer keeps the reviewed route across dropdown changes and discards a preview returned after vault lock",
+      "location": "platform/tests/desktop-renderer.test.ts:485:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1402 - worker constructor forwards actual synthetic custody and explicitly retrieves without returning key material",
+      "location": "platform/tests/engine-keychain-provider.test.ts:31:3",
+      "code": "ERR_ASSERTION",
+      "category": "demo-keychain-activation-expectation"
+    },
+    {
+      "name": "1403 - server constructor forwards actual synthetic custody and explicitly retrieves without returning key material",
+      "location": "platform/tests/engine-keychain-provider.test.ts:31:3",
+      "code": "ERR_ASSERTION",
+      "category": "demo-keychain-activation-expectation"
+    },
+    {
+      "name": "1404 - Engine convenience unlock refuses nonowner, different owner, non-desktop and tainted contexts before retrieval",
+      "location": "platform/tests/engine-keychain-provider.test.ts:50:1",
+      "code": "KEYCHAIN_PROVIDER_REQUIRED",
+      "category": "demo-keychain-activation-expectation"
+    },
+    {
+      "name": "1406 - Engine missing direct entry refuses explicit convenience unlock and allows a separately requested passphrase unlock",
+      "location": "platform/tests/engine-keychain-provider.test.ts:70:1",
+      "code": "ERR_ASSERTION",
+      "category": "demo-keychain-activation-expectation"
+    },
+    {
+      "name": "1408 - configured unavailable or preview native custody refuses before factory readiness and without helper execution",
+      "location": "platform/tests/engine-keychain-provider.test.ts:95:1",
+      "code": "ERR_ASSERTION",
+      "category": "demo-keychain-activation-expectation"
+    },
+    {
+      "name": "1932 - phone clarification survives a new Engine and its reviewed short continuation yields one exact scoped receipt",
+      "location": "platform/tests/phone-continuation-independent-public-acceptance.test.ts:9:1",
+      "code": "ERR_ASSERTION",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1933 - an intentionally incomplete continuation plan remains unknown without arithmetic, parent consumption or redispatch",
+      "location": "platform/tests/phone-continuation-independent-public-acceptance.test.ts:80:1",
+      "code": "ERR_ASSERTION",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1934 - real member and device grants fence retained phone results and brief-only capability never dispatches",
+      "location": "platform/tests/phone-continuation-independent-public-acceptance.test.ts:112:1",
+      "code": "ERR_ASSERTION",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1935 - locked workspace and current source or paired-device withdrawal withhold retained phone answers after encrypted reopening",
+      "location": "platform/tests/phone-continuation-independent-public-acceptance.test.ts:136:1",
+      "code": "ERR_ASSERTION",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1936 - public companion pairing has real Ed25519 proofs, isolated credentials and private session metadata",
+      "location": "platform/tests/phone-engine-public-join.test.ts:112:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1937 - public phone chat executes one exact desktop-reviewed calculation and reconciles the retained answer after Vault reopen",
+      "location": "platform/tests/phone-engine-public-join.test.ts:133:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1938 - public phone brief uses the exact retained guarded cache after reopen and withholds withdrawn sources",
+      "location": "platform/tests/phone-engine-public-join.test.ts:163:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1939 - public phone refusal remains explicit without a desktop offer, for approval/upload, and after owner revocation",
+      "location": "platform/tests/phone-engine-public-join.test.ts:184:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1948 - signed synthetic single-use pairing joins current phone grant before chat and brief reads",
+      "location": "platform/tests/phone-host-http.test.ts:151:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1949 - real phone HTTP serves reviewed synthetic Engine chat, brief and calculation receipts",
+      "location": "platform/tests/phone-host-http.test.ts:163:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1950 - lost HTTP acknowledgment plus host process and PhoneClient restart recover identical operation without a resend",
+      "location": "platform/tests/phone-host-http.test.ts:183:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1951 - uncertain backend reply reconciles operationId by read-only status after a process restart",
+      "location": "platform/tests/phone-host-http.test.ts:200:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1952 - exact owner approval consumes the existing challenge once; acknowledgment loss recovers only its disposition",
+      "location": "platform/tests/phone-host-http.test.ts:209:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1953 - changed approval revision and message impact refuse before disposition or execution",
+      "location": "platform/tests/phone-host-http.test.ts:225:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1954 - cancelled pending work survives process/client restart and cannot commit from a duplicate start",
+      "location": "platform/tests/phone-host-http.test.ts:235:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1955 - cancellation tombstone wins before a paused exact approval commit",
+      "location": "platform/tests/phone-host-http.test.ts:246:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1 - brief:ACCESS_REVOKED",
+      "location": "platform/tests/phone-host-http.test.ts:268:14",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "2 - brief:SESSION_EXPIRED",
+      "location": "platform/tests/phone-host-http.test.ts:268:14",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "3 - brief:PREVIEW_CHANGED",
+      "location": "platform/tests/phone-host-http.test.ts:268:14",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "4 - receipt:CAPABILITY_FORBIDDEN",
+      "location": "platform/tests/phone-host-http.test.ts:268:14",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "5 - receipt:ACCESS_REVOKED",
+      "location": "platform/tests/phone-host-http.test.ts:268:14",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "6 - approval:PREVIEW_CHANGED",
+      "location": "platform/tests/phone-host-http.test.ts:268:14",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "7 - approval-list:CAPABILITY_FORBIDDEN",
+      "location": "platform/tests/phone-host-http.test.ts:268:14",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1956 - protected read release rechecks current authority and exact resource after paused adapter IO",
+      "location": "platform/tests/phone-host-http.test.ts:259:1",
+      "code": "ERR_TEST_FAILURE",
+      "category": "failed-subtest-container"
+    },
+    {
+      "name": "1 - expired",
+      "location": "platform/tests/phone-host-http.test.ts:286:13",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "2 - revoked",
+      "location": "platform/tests/phone-host-http.test.ts:286:13",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "3 - source",
+      "location": "platform/tests/phone-host-http.test.ts:286:13",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "4 - scope",
+      "location": "platform/tests/phone-host-http.test.ts:286:13",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "5 - capability",
+      "location": "platform/tests/phone-host-http.test.ts:286:13",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1957 - retained results refuse expired grants, revocation, source deletion, changed scope and removed capabilities",
+      "location": "platform/tests/phone-host-http.test.ts:284:1",
+      "code": "ERR_TEST_FAILURE",
+      "category": "failed-subtest-container"
+    },
+    {
+      "name": "1958 - backend atomically rechecks changed capabilities between admission and commit",
+      "location": "platform/tests/phone-host-http.test.ts:306:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1959 - HTTP proof binds exact bytes, scoped credential, fresh timestamp, device and one-use nonce",
+      "location": "platform/tests/phone-host-http.test.ts:313:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "1960 - HTTP boundary rejects hidden routes, malformed envelope, protocol changes and oversized bodies",
+      "location": "platform/tests/phone-host-http.test.ts:329:1",
+      "code": "DEMO_PROVIDER_DISABLED",
+      "category": "immutable-demo-provider-refusal"
+    },
+    {
+      "name": "2129 - sibling metadata uses four readers and counts every actual wide-tree file",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:84:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2130 - a sibling metadata batch drains before serial directory descent and the next batch",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:106:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2131 - nonretryable metadata refusal drains all started siblings before custody exit",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:150:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2132 - live ENOENT drains the failed sibling batch before a fresh complete retry",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:185:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2133 - the exact live deadline drains in-flight metadata without dispatching another batch",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:224:3",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2134 - the exact final-stopped deadline drains in-flight metadata without dispatching another batch",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:224:3",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2135 - a concurrent complete retry retains the original shared five-second clock",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:262:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2136 - earlier junction refusal takes precedence over a later sibling ENOENT",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:286:3",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2137 - earlier oversized-file refusal takes precedence over a later sibling ENOENT",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:286:3",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2138 - directory descent refreshes later sibling metadata and accounts actual file growth",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:311:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2139 - directory descent cannot replace a prefetched ENOENT result with a recreated file",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:344:3",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2140 - directory descent cannot replace a prefetched EACCES result with a recreated file",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:344:3",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2141 - owned scratch census counts all stable files, including hidden and live-control names",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:382:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2142 - descendant lstat disappearance retries the whole census and resets partial byte totals",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:393:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2143 - descendant readdir disappearance retries without omitting stable files elsewhere",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:414:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2144 - persistent live disappearance exhausts three complete attempts and never returns partial bytes",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:428:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2145 - stopped census final-stopped refuses the first descendant disappearance",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:446:3",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2146 - stopped census post-save-stopped refuses the first descendant disappearance",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:446:3",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2147 - owned root disappearance refuses without treating it as a retryable descendant",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:459:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2148 - non-ENOENT filesystem errors refuse once and expose no raw message or absolute path",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:468:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2149 - a restarted full census refuses newly oversized stable files",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:482:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2150 - a restarted full census refuses a new junction instead of reusing earlier metadata",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:501:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2151 - hardlinked regular-file pathnames are both conservatively counted",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:521:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2152 - unsupported descendant types refuse once instead of retrying them",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:528:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2153 - canonicalization ENOENT of a disappearing descendant restarts a full startup census",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:539:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2154 - outside and aliased owned roots refuse before scanning descendants",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:554:1",
+      "code": "ERR_ASSERTION",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2155 - retry revalidates the actual canonical owned root before enumerating it",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:566:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2156 - a pinned owned root replacement refuses instead of admitting the replacement directory",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:581:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2157 - a pinned permitted-runs parent replacement also refuses before descendant census",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:590:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2158 - the shared live deadline bounds retries even when attempts remain",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:599:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2159 - the fixed entry cap refuses synthetic oversized enumeration before opening absent children",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:615:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2160 - missing-path diagnostics identify the exact normalized descendant with a bounded digest",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:626:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2161 - diagnostic callback exceptions and rejected promises cannot change a successful bounded retry",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:639:1",
+      "code": "OWNED_NATIVE_SCRATCH_SCOPE_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2162 - NO-START lifecycle close persists complete before-save and after-save stopped censuses",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:662:1",
+      "code": "OWNED_C_NATIVE_RUN_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    },
+    {
+      "name": "2163 - NO-START lifecycle persists post-save strict census refusal separately from stopped state",
+      "location": "platform/tests/postgres-transfer-native-census.test.ts:683:1",
+      "code": "OWNED_C_NATIVE_RUN_REQUIRED",
+      "category": "unchanged-windows-owned-root-requirement"
+    }
+  ],
+  "logSha256": "cee821f5d6ed13489997d96fa3d5cc81e8bfbb4728d353942ed66a2dec66ecab",
+  "nativeAcceptance": false,
+  "typecheck": "unavailable: tsc not found",
+  "termination": "600-second deadline; interrupted workspace-activation-postgres.test.ts; no final summary",
+  "passed": false,
+  "complete": false
+}
