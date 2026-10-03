@@ -8,7 +8,7 @@ async function walk(directory) {
     if (['node_modules', '.git', 'data', 'vaults', 'dist', 'release'].includes(item.name)) continue;
     const path = join(directory, item.name);
     if (item.isDirectory()) await walk(path);
-    else if (/\.(?:ts|js|mjs|cjs)$/.test(path)) files.push(path);
+    else if (/\.(?:ts|js|mjs|cjs)$/.test(path) && !item.name.endsWith('.d.ts')) files.push(path);
     else if (item.name.endsWith('.json')) JSON.parse(await readFile(path, 'utf8'));
   }
 }
