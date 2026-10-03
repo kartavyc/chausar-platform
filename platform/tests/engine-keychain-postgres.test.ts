@@ -1,8 +1,8 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import { PostgresSnapshotAdapter, type PostgresOptions, type PostgresPool } from '../runtime/postgres.ts';
 import type { KeychainHook, VaultEnvelope } from '../runtime/vault.ts';
@@ -89,7 +89,9 @@ class SyntheticKeychain implements KeychainHook {
 }
 
 async function fixture(t: TestContext, beforeRemove?: (vaultId: string) => void) {
-  const directory = await mkdtemp(join(tmpdir(), 'chausar-engine-keychain-postgres-'));
+  const root = await realpath(tmpdir());
+  if (process.platform === 'win32') assert.match(root, /^C:[\\/]/i);
+  const directory = await mkdtemp(join(root, 'chausar-engine-keychain-postgres-'));
   const protocol = protocolPool(), keychain = new SyntheticKeychain(beforeRemove), engines: Engine[] = [];
   const connections: string[] = [];
   t.mock.method(PostgresSnapshotAdapter, 'connect', async (options: PostgresOptions) => {
@@ -100,7 +102,12 @@ async function fixture(t: TestContext, beforeRemove?: (vaultId: string) => void)
   });
   t.after(async () => {
     try { for (const engine of engines) await engine.close(); }
-    finally { keychain.clear(); await rm(directory, { recursive: true, force: true }); }
+    finally {
+      keychain.clear();
+      const child = relative(root, await realpath(directory));
+      assert.ok(child.startsWith('chausar-engine-keychain-postgres-') && !child.startsWith('..') && !isAbsolute(child));
+      await rm(directory, { recursive: true, force: true });
+    }
   });
   const engine = () => {
     const created = new Engine({ directory, storage: 'postgres', postgresUrl, keychain }); engines.push(created); return created;
