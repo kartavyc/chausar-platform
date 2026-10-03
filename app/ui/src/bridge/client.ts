@@ -4,6 +4,62 @@ import type {
 } from './contract.ts';
 import { ReplyValidationError, projectCalculationReceipt, validateEnterpriseStatus } from './validate.ts';
 
+/** Additive preload protocol; callers still receive raw results or a local Error. */
+export interface DesktopEnvelopePort {
+  requestEnvelope(method: string, payload?: unknown): Promise<unknown>;
+}
+// Sandbox preload cannot import this module. Its matching allowlist is tested.
+const desktopRefusalCodes = [
+  'INVALID_REPLY', 'READ_INVALIDATED', 'ACCESS_DENIED', 'VAULT_LOCKED', 'UNAUTHENTICATED', 'EVIDENCE_UNAVAILABLE',
+  'ACCESS_REVOKED', 'SOURCE_REVOKED', 'BRANCH_FORBIDDEN', 'RECEIPT_FORBIDDEN', 'FORBIDDEN', 'RECEIPT_NOT_FOUND',
+  'INVALID_SESSION', 'ROUTE_REVOKED', 'OUTBOUND_APPROVAL_REQUIRED', 'CONVERSATION_CONTINUATION_RESOLVED',
+  'CONVERSATION_CONTINUATION_LIMIT', 'PREVIEW_STALE', 'PAYLOAD_CHANGED', 'PREVIEW_REQUEST_CHANGED', 'SYNTHESIS_STALE',
+  'CONVERSATION_CONTINUATION_STALE', 'MODEL_RECEIPT_EXPIRED', 'CALCULATION_STALE', 'CONVERSATION_NOT_FOUND',
+  'CONVERSATION_CONTINUATION_UNAVAILABLE', 'MODEL_RECEIPT_NOT_FOUND', 'SYNTHESIS_UNAVAILABLE',
+  'INVALID_REQUEST', 'REQUEST_TOO_LARGE', 'UNTRUSTED_SENDER', 'REQUEST_FAILED',
+] as const;
+export type DesktopRefusalCode = typeof desktopRefusalCodes[number];
+export type DesktopRequestEnvelope<T = unknown> =
+  | { readonly version: 1; readonly ok: true; readonly result: T }
+  | { readonly version: 1; readonly ok: false; readonly error: { readonly code: DesktopRefusalCode } };
+function envelopeFields(value: unknown, keys: readonly string[]): Record<string, PropertyDescriptor> | null {
+  if (value === null || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return null;
+  const names = Reflect.ownKeys(value);
+  if (names.length !== keys.length || names.some(name => typeof name !== 'string' || !keys.includes(name))) return null;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  if (keys.some(name => !descriptors[name]?.enumerable || !Object.hasOwn(descriptors[name]!, 'value'))) return null;
+  return descriptors;
+}
+function desktopFailure(code: DesktopRefusalCode): Error & { code: DesktopRefusalCode } {
+  return Object.assign(new Error('The desktop request failed.'), { code });
+}
+/** Decode only the explicit envelope port. Raw business results are never inferred to be envelopes. */
+export function unwrapDesktopRequestEnvelope(value: unknown): unknown {
+  let code: DesktopRefusalCode = 'REQUEST_FAILED';
+  try {
+    const success = envelopeFields(value, ['version', 'ok', 'result']);
+    if (success?.version?.value === 1 && success.ok?.value === true) return success.result!.value;
+    const refusal = envelopeFields(value, ['version', 'ok', 'error']);
+    if (refusal?.version?.value === 1 && refusal.ok?.value === false) {
+      const error = envelopeFields(refusal.error!.value, ['code']);
+      const declared = desktopRefusalCodes.find(item => item === error?.code?.value);
+      if (declared) code = declared;
+    }
+  } catch { /* Malformed descriptors/proxies cannot turn a refusal into success. */ }
+  throw desktopFailure(code);
+}
+/** Bind once in the trusted desktop entry before injecting the existing host/controller ports. */
+export function createDesktopRequestPort(port: DesktopEnvelopePort): {
+  request(method: string, payload?: unknown): Promise<unknown>;
+} {
+  return Object.freeze({ async request(method: string, payload: unknown = {}) {
+    let reply: unknown;
+    try { reply = await port.requestEnvelope(method, payload); }
+    catch { throw desktopFailure('REQUEST_FAILED'); }
+    return unwrapDesktopRequestEnvelope(reply);
+  } });
+}
+
 function opaqueId(id: string): void {
   if (typeof id !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,199}$/.test(id)) throw new ReplyValidationError('request.id');
 }
