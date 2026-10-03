@@ -76,16 +76,28 @@ await legacy.update(state => {
     delete operation.settlement.result.value.at;
   }
 });
-const unassisted = legacy.restart();
-await new TrustService(unassisted).deleteSource(owner, sourceIds[1]);
-const residue = records(unassisted.read(), 'invoice-job-operation-v1');
+const joined = legacy.restart(), beforeJoined = counts(joined.read());
+// These legacy payloads exist before the mandatory Trust purge, not afterward.
+// The original unjoined failure is preserved in its historical checkpoint.
+const residue = records(joined.read(), 'invoice-job-operation-v1');
 assert.equal(residue.length, 2);
 const balance = residue.find(record => record.key.endsWith(':step:balance-0'))!.settlement.result.value;
 const preparation = residue.find(record => record.key.endsWith(':step:prepare-0'))!.settlement.result.value;
 assert.deepEqual({ outstandingMinor: balance.outstandingMinor, collectedMinor: balance.collectedMinor, outcome: balance.outcome },
   { outstandingMinor: '7500', collectedMinor: '2500', outcome: 'open' });
 assert.ok(balance.proofId); assert.equal(preparation.proofId, balance.proofId); assert.equal(preparation.actionId, action.id);
-assert.equal(records(unassisted.read(), 'invoice-balance-proof-v1').length, 0);
+await new TrustService(joined).deleteSource(owner, sourceIds[1]);
+const afterJoined = counts(joined.read());
+assert.deepEqual(afterJoined, { derivedPayloads: 0, mandates: 0, previews: 0 });
+const joinedMarkers = joined.read().tombstones.filter(invoiceOperationalTombstone);
+for (const marker of joinedMarkers) opaque(marker);
+const joinedAccounting = joinedMarkers.find(marker => marker.kind === 'invoice-mandate-accounting-v1')!;
+assert.equal(joinedAccounting.spentMinor, '22'); assert.equal(joinedAccounting.reservedMinor, '0');
+const joinedMarkerCounts = { operations: joinedMarkers.filter(marker => marker.kind === 'invoice-operation-no-resend-v1').length,
+  deliveries: joinedMarkers.filter(marker => marker.kind === 'invoice-delivery-no-resend-v1').length,
+  mandates: joinedMarkers.filter(marker => marker.kind === 'invoice-mandate-accounting-v1').length };
+assert.deepEqual(joinedMarkerCounts, { operations: 2, deliveries: 1, mandates: 1 });
+await assert.rejects(call(hostFor(joined), 'reminder.execute', { id: action.id }), { code: 'NOT_FOUND' });
 
 const beforeHelper = counts(legacy.read());
 await legacy.update(state => {
@@ -138,10 +150,13 @@ opaque(held); assert.equal(held.spentMinor, '0'); assert.equal(held.reservedMino
 assert.equal(held.status, 'outcome-unknown');
 assert.equal(restarted.read().facts.length, 0);
 
-console.log(JSON.stringify({ artifact: 'invoice-follow-up-purge-synthetic-v1', qualification: 'source-contract-only',
-  legacyDirectTrust: { retainedOperationPayloads: residue.length, outstandingMinor: balance.outstandingMinor,
+console.log(JSON.stringify({ artifact: 'invoice-follow-up-purge-synthetic-v2', qualification: 'source-contract-only',
+  legacyBeforePurge: { operationPayloads: residue.length, outstandingMinor: balance.outstandingMinor,
     collectedMinor: balance.collectedMinor, outcome: balance.outcome, balanceProofReferencePresent: Boolean(balance.proofId),
     preparationProofReferencePresent: preparation.proofId === balance.proofId },
+  joinedTrustPurge: { before: beforeJoined, after: afterJoined, opaqueMarkers: joinedMarkerCounts,
+    mandateAccounting: { spentMinor: joinedAccounting.spentMinor, reservedMinor: joinedAccounting.reservedMinor },
+    erasedActionRetry: 'NOT_FOUND' },
   helperThenTrust: { before: beforeHelper, after: afterHelper, proofAndPreviewPinsUnchanged: true,
     opaqueMarkers: { operations: operationMarkers.length, deliveries: deliveryMarkers.length, mandates: 1 },
     mandateAccounting: { spentMinor: accounting.spentMinor, reservedMinor: accounting.reservedMinor },

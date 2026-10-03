@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { digest, type PreparedAction } from '../runtime/actions.ts';
 import { InvoiceFollowUpHost, invoiceConnectorId, type InvoiceHostOptions } from '../runtime/invoice-follow-up.ts';
-import { prepareInvoicePurge } from '../runtime/invoice-follow-up-lineage.ts';
+import { invoiceOperationalTombstone, prepareInvoicePurge } from '../runtime/invoice-follow-up-lineage.ts';
 import type { Job } from '../runtime/jobs.ts';
 import { MemoryService } from '../runtime/memory.ts';
 import { TrustService } from '../runtime/trust.ts';
@@ -205,18 +205,25 @@ test('invoice purge: the explicit purge helper removes legacy records without re
       }
     }
   });
-  // Reproduce the original direct Trust behavior on legacy records in a separate
-  // snapshot, without the required purge-helper join. This is not an Engine test.
-  const unassistedLegacy = f.store.restart();
-  await new TrustService(unassistedLegacy).deleteSource(owner, sourceIds[1]);
-  assert.equal(records(unassistedLegacy, 'invoice-balance-proof-v1').length, 0);
-  const rawLegacy = records(unassistedLegacy, 'invoice-job-operation-v1'); assert.equal(rawLegacy.length, 2);
+  // Establish the legacy payload precondition before current Trust applies its
+  // mandatory purge hook. The original unjoined defect is retained separately.
+  const joinedLegacy = f.store.restart();
+  const rawLegacy = records(joinedLegacy, 'invoice-job-operation-v1'); assert.equal(rawLegacy.length, 2);
   const balanceResidue = rawLegacy.find(record => record.key.endsWith(':step:balance-0'))!.settlement.result.value;
   const preparationResidue = rawLegacy.find(record => record.key.endsWith(':step:prepare-0'))!.settlement.result.value;
   assert.deepEqual({ outstandingMinor: balanceResidue.outstandingMinor, collectedMinor: balanceResidue.collectedMinor, outcome: balanceResidue.outcome },
     { outstandingMinor: '7500', collectedMinor: '2500', outcome: 'open' });
   assert.equal(typeof balanceResidue.proofId, 'string'); assert.ok(balanceResidue.proofId.length > 0);
   assert.equal(preparationResidue.proofId, balanceResidue.proofId); assert.equal(preparationResidue.actionId, f.action.id);
+  await new TrustService(joinedLegacy).deleteSource(owner, sourceIds[1]);
+  assert.deepEqual(derived(joinedLegacy), []);
+  assert.equal(joinedLegacy.read().jobs.length, 0); assert.equal(joinedLegacy.read().actions.length, 0);
+  const joinedAccounting = joinedLegacy.read().tombstones.filter(marker => marker.kind === 'invoice-mandate-accounting-v1');
+  assert.equal(joinedAccounting.length, 1); opaqueAccounting(joinedAccounting[0], '22', '0');
+  assert.equal(joinedAccounting[0].budgetMinor, f.job.budgetMinor);
+  assert.equal(joinedLegacy.read().tombstones.filter(marker => marker.kind === 'invoice-operation-no-resend-v1').length, 2);
+  assert.equal(joinedLegacy.read().tombstones.filter(marker => marker.kind === 'invoice-delivery-no-resend-v1').length, 1);
+  await assert.rejects(dispatch(hostFor(joinedLegacy), 'reminder.execute', { id: f.action.id }), { code: 'NOT_FOUND' });
   await f.store.update(state => {
     const proof = state.answers.find(answer => answer.kind === 'invoice-balance-proof-v1')!;
     const action = state.actions[0], approval = state.answers.find(answer => answer.kind === 'invoice-reminder-approval-v1')!;
@@ -235,7 +242,7 @@ test('invoice purge: the explicit purge helper removes legacy records without re
   await assert.rejects(dispatch(f.host, 'reminder.execute', { id: f.action.id }), { code: 'NOT_FOUND' });
 });
 
-test('invoice purge: direct cleanup after lost settlement keeps an erased operation unknown and its admitted cost held', async () => {
+test('invoice purge: direct cleanup after lost settlement fences the erased mandate and preserves its exact unknown cost', async () => {
   const f = await lostRunnerSettlement(); const record = records(f.store, 'invoice-job-operation-v1')[0];
   assert.equal(record.settlement.spentMinor, '1');
   await f.trust.cleanup(owner, new Date(f.store.clock()));
@@ -243,13 +250,18 @@ test('invoice purge: direct cleanup after lost settlement keeps an erased operat
   const marker = f.store.read().tombstones.find(item => item.kind === 'invoice-operation-no-resend-v1');
   assert.ok(marker); assert.equal(marker.requestDigest, record.requestDigest); assert.equal(marker.spentMinor, '1');
   assert.equal(JSON.stringify(marker).includes(f.key), false); assert.equal(JSON.stringify(marker).includes(invoiceId), false);
+  const accounting = f.store.read().tombstones.filter(item => item.kind === 'invoice-mandate-accounting-v1');
+  assert.equal(accounting.length, 1); opaqueAccounting(accounting[0], '0', '20');
+  assert.equal(accounting[0].budgetMinor, f.job.budgetMinor); assert.equal(accounting[0].status, 'outcome-unknown');
+  assert.equal(JSON.stringify(accounting[0]).includes(f.job.id), false);
+  assert.equal(f.store.read().jobs.length, 0); assert.equal(f.store.read().actions.length, 0);
+  const retainedMarkers = f.store.read().tombstones.filter(invoiceOperationalTombstone);
   const restarted = f.store.restart(), host = hostFor(restarted); await dispatch(host, 'recover');
   for (let retry = 0; retry < 2; retry++) {
-    const unknown = await dispatch<Job>(host, 'reconcile', { id: f.job.id });
-    assert.equal(unknown.status, 'outcome-unknown'); assert.equal(unknown.reservedMinor, '20'); assert.equal(unknown.spentMinor, '0');
-    assert.equal(unknown.execution!.attempts.length, 1); assert.equal(unknown.execution!.attempts[0].status, 'unknown');
-    assert.equal(unknown.ledger.some(entry => entry.event === 'step-absent'), false);
-    assert.equal((await dispatch<Job>(host, 'run', { id: f.job.id })).status, 'outcome-unknown');
+    for (const method of ['read', 'reconcile', 'run'])
+      await assert.rejects(dispatch(host, method, { id: f.job.id }), { code: 'NOT_FOUND' });
+    assert.deepEqual(restarted.read().tombstones.filter(invoiceOperationalTombstone), retainedMarkers);
+    assert.equal(restarted.read().jobs.length, 0);
   }
   assert.equal(records(restarted, 'invoice-job-operation-v1').length, 0); assert.equal(records(restarted, 'invoice-balance-proof-v1').length, 0);
   assert.equal(restarted.read().actions.length, 0); assert.equal(restarted.read().receipts.length, 0);
