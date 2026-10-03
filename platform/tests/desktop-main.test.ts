@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import vm from 'node:vm';
 const require = createRequire(import.meta.url);
 const desktopMain = new URL('../../app/desktop/main.cjs', import.meta.url);
@@ -76,7 +77,7 @@ test('production desktop forwards its fixed packaged custody manifest through th
   const d = await desktop(['--production'], Promise.resolve(), Promise.resolve(), { CHAUSAR_KEYCHAIN_MANIFEST: '/untrusted/manifest.json' });
   assert.equal(d.errors.length, 0); assert.equal(d.engines.length, 1);
   assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '0');
-  assert.equal(d.engines[0].options.environment.CHAUSAR_KEYCHAIN_MANIFEST, '/owned/resources/runtime-binaries/keychain/manifest.json');
+  assert.equal(d.engines[0].options.environment.CHAUSAR_KEYCHAIN_MANIFEST, join('/owned/resources', 'runtime-binaries', 'keychain', 'manifest.json'));
   d.app.emit('before-quit', { preventDefault() {} }); await flush();
   assert.equal(d.engines[0].stops, 1); assert.equal(d.databaseCloses(), 1);
 });
