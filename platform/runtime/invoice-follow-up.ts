@@ -278,6 +278,9 @@ export class InvoiceFollowUpHost {
       admit: (state, context, input, config, previous) => {
         this.access(state, context); check(!previous, 'INVOICE_AMENDMENT_UNSUPPORTED', 'Create a separately reviewed mandate to replace invoice targets.');
         check(config.ownerId === context.memberId, 'JOB_OWNER_REQUIRED', 'Explicitly pin the creating invoice owner.');
+        check(config.stopRule && Number.isInteger(config.stopRule.maxRuns) && config.stopRule.maxRuns > 0 && config.stopRule.maxRuns <= 10000
+          && typeof config.stopRule.deadline === 'string' && Number.isFinite(Date.parse(config.stopRule.deadline))
+          && Date.parse(config.stopRule.deadline) > this.options.clock(), 'STOP_RULE_REQUIRED', 'Declare this mandate\'s run limit and future stop deadline.');
         check(config.catchup === 'latest' || config.catchup === 'skip', 'INVOICE_CATCHUP_REQUIRED', 'Choose latest or skip explicitly.');
         check(config.sourceIds?.length && config.sourceIds.length <= 64 && config.testedRoutes?.length === 0
           && config.allowedActions?.length === 1 && config.allowedActions[0] === `${invoiceConnectorId}.send`,
