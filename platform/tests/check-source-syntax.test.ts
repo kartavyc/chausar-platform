@@ -18,6 +18,8 @@ async function fixture(t: TestContext, files: Record<string, string>) {
     await rm(directory, { recursive: true, force: true });
   });
   for (const name of ['platform', 'app', 'scripts']) await mkdir(join(directory, name));
+  // Match the repository's ESM package context for Node's TypeScript parser.
+  await writeFile(join(directory, 'package.json'), '{"type":"module"}\n');
   for (const [name, contents] of Object.entries(files)) {
     const target = join(directory, name);
     await mkdir(dirname(target), { recursive: true });
@@ -38,7 +40,7 @@ test('source syntax checker admits declarations with valid runtime TypeScript an
 });
 
 test('source syntax checker still refuses invalid executable TypeScript', async t => {
-  const result = await fixture(t, { 'platform/runtime.ts': 'export const amount: = 1;\n' });
+  const result = await fixture(t, { 'platform/runtime.ts': 'export const amount = ;\n' });
   assert.equal(result.error, undefined); assert.equal(result.signal, null);
   assert.equal(result.status, 1); assert.match(result.stderr, /SyntaxError/);
   assert.doesNotMatch(result.stdout, /validation passed/);

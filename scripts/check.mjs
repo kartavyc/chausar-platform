@@ -9,7 +9,7 @@ async function walk(directory) {
     const path = join(directory, item.name);
     if (item.isDirectory()) await walk(path);
     // Declaration syntax belongs to TypeScript's checker, not Node execution.
-    else if (!item.name.endsWith('.d.ts') && /\.(?:ts|js|mjs|cjs)$/.test(path)) files.push(path);
+    else if (/\.(?:ts|js|mjs|cjs)$/.test(path) && !item.name.endsWith('.d.ts')) files.push(path);
     else if (item.name.endsWith('.json')) JSON.parse(await readFile(path, 'utf8'));
   }
 }
