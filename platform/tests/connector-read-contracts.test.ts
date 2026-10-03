@@ -191,6 +191,44 @@ test('known transport failure bytes remain accounted when post-attempt authority
   }
 });
 
+test('an invalid post-transport clock refuses admission without losing bounded received bytes', async t => {
+  for (const transport of ['returned-page', 'known-failure'] as const) {
+    await t.test(transport, async () => {
+      const clock = new FakeClock(), content = 'SYNTHETIC-CLOCK-REFUSED-PAGE'; let calls = 0;
+      const receivedBytes = transport === 'returned-page' ? Buffer.byteLength(content) : 40;
+      const input = fixture(async () => {
+        calls++; clock.value = Number.NaN;
+        if (transport === 'known-failure') throw new ReadTransportError('rate-limited', 0, 'settled', receivedBytes);
+        return page(content);
+      }, { clock, authorize: async () => ({ scope: authority, authorityRevision: 'revision-1', grantedScopes: ['ledger.read'], expiresAtMs: NOW + 100_000, credentialReference: null }) });
+      await assert.rejects(input.dispatcher.read({ ...input.request, limits: { pageBytes: 100, totalBytes: 100 }, retry: { maxAttemptsPerPage: 3 } }, input.adapter), error => {
+        undeliveredBytes(error, 'READ_CLOCK_INVALID', receivedBytes); assert.ok(error instanceof ConnectorReadError);
+        assert.equal(error.receipt.failureCode, 'READ_CLOCK_INVALID'); assert.equal(error.receipt.finishedAtMs, NOW);
+        assert.ok(!JSON.stringify(error.receipt).includes(content)); return true;
+      });
+      assert.equal(calls, 1); assert.deepEqual(clock.waits, []); assert.equal(clock.timers.size, 0);
+    });
+  }
+});
+
+test('a clock invalidated during post-authorization page inspection leaves received bytes discarded', async () => {
+  const clock = new FakeClock(), content = 'SYNTHETIC-CLOCK-CAPTURE-PAGE', evidence = page().source; let authorizationCalls = 0, calls = 0;
+  const returned: RawSourcePage = { ...page(content), get source() {
+    if (authorizationCalls >= 2) clock.value = Number.NaN;
+    return evidence;
+  } };
+  const input = fixture(async () => { calls++; return returned; }, { clock, authorize: async () => {
+    authorizationCalls++;
+    return { scope: authority, authorityRevision: 'revision-1', grantedScopes: ['ledger.read'], expiresAtMs: NOW + 100_000, credentialReference: null };
+  } });
+  await assert.rejects(input.dispatcher.read({ ...input.request, limits: { pageBytes: 100, totalBytes: 100 } }, input.adapter), error => {
+    undeliveredBytes(error, 'READ_CLOCK_INVALID', Buffer.byteLength(content)); assert.ok(error instanceof ConnectorReadError);
+    assert.equal(error.receipt.failureCode, 'READ_CLOCK_INVALID'); assert.equal(error.receipt.finishedAtMs, NOW);
+    assert.ok(!JSON.stringify(error.receipt).includes(content)); return true;
+  });
+  assert.equal(calls, 1); assert.equal(authorizationCalls, 2); assert.deepEqual(clock.waits, []); assert.equal(clock.timers.size, 0);
+});
+
 test('known idempotent transient failures use deterministic exponential backoff and provider retry floors', async () => {
   let calls = 0;
   const input = fixture(async () => { calls++; if (calls === 1) throw new ReadTransportError('rate-limited', 750); if (calls === 2) throw new ReadTransportError('temporarily-unavailable'); return page(); });

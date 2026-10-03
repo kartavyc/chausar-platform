@@ -298,13 +298,14 @@ export class ConnectorReadDispatcher {
           let failure: ReadTransportError | null = null, rawPage: RawSourcePage | undefined;
           try { rawPage = await invoke({ authority: structuredClone(authority), dataScope: structuredClone(dataScope), cursor: structuredClone(cursor) }, before, attempt, Math.min(limits.pageTimeoutMs, deadline - time())); }
           catch (error) { failure = error instanceof ReadTransportError ? error : new ReadTransportError('unknown'); }
+          const receivedBytes = failure ? failure.receivedBytes : rawPage?.content instanceof Uint8Array ? rawPage.content.byteLength : 0;
+          const receivedBytesWithinLimits = integer(receivedBytes, 0, limits.pageBytes) && bytes + discardedBytes + receivedBytes <= limits.totalBytes;
+          // Received bytes remain discarded until this exact page is admitted,
+          // including when any post-transport clock or authority check refuses it.
+          if (receivedBytesWithinLimits) discardedBytes += receivedBytes;
           time();
           attempts.push({ page: pages.length + 1, attempt, startedAtMs: attemptStart, finishedAtMs: lastTime, outcome: failure?.kind ?? 'succeeded', delayBeforeNextMs: null });
-          const receivedBytes = failure ? failure.receivedBytes : rawPage?.content instanceof Uint8Array ? rawPage.content.byteLength : 0;
-          require(integer(receivedBytes, 0, limits.pageBytes) && bytes + discardedBytes + receivedBytes <= limits.totalBytes, 'READ_BYTE_LIMIT');
-          // Received bytes remain discarded until this exact page is admitted,
-          // including when a post-transport authority/expiry check refuses it.
-          discardedBytes += receivedBytes;
+          require(receivedBytesWithinLimits, 'READ_BYTE_LIMIT');
           require(before.expiresAtMs > time(), 'READ_AUTHENTICATION_EXPIRED');
           await authorize(); // Revocation, expiry, qualification changes and missing scopes prevent raw-data delivery.
           if (!failure) {
@@ -368,9 +369,10 @@ export class ConnectorReadDispatcher {
             : integer(next.page, 1, Number.MAX_SAFE_INTEGER) && (cursor?.kind !== 'page' || next.page > cursor.page), 'READ_PAGINATION_INVALID');
           require(!seen.has(cursorKey(next)), 'READ_PAGINATION_LOOP'); seen.add(cursorKey(next));
         }
+        const capturedAtMs = time();
         discardedBytes -= page!.content.byteLength; bytes += page!.content.byteLength; rows += page!.rowCount;
         pages.push({ content: Uint8Array.from(page!.content), fromCursor: structuredClone(cursor), continuation: structuredClone(continuation), rowCount: page!.rowCount,
-          provenance: { operationKey, authorityScopeHash, dataScopeHash, capturedAtMs: time(), contentSha256: digest(page!.content), byteLength: page!.content.byteLength,
+          provenance: { operationKey, authorityScopeHash, dataScopeHash, capturedAtMs, contentSha256: digest(page!.content), byteLength: page!.content.byteLength,
             contentType: page!.contentType, schemaFingerprint: page!.schemaFingerprint, source: structuredClone(page!.source) } });
         if (continuation.kind === 'complete') break;
         cursor = structuredClone(continuation.next);
