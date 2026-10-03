@@ -6,6 +6,8 @@ import { selectFacts } from './memory.ts';
 import { JobService, type Job, type JobConfig } from './jobs.ts';
 import { DurableJobRunner, type GoalRunner, type GoalProvider, type ProviderRequest } from './job-runner.ts';
 import { json, money, validateSettlement, type Json, type ProviderSettlement, type StepResult } from './job-protocol.ts';
+import { invoiceLineage, invoiceOperationalTombstone, invoiceOperationTombstone, invoiceDeliveryTombstone, invoiceMandateTombstone,
+  rememberInvoiceOperation, rememberInvoiceDelivery, type InvoiceLineage } from './invoice-follow-up-lineage.ts';
 
 export const invoiceJobType = 'invoice-follow-up';
 export const invoiceConnectorId = 'simulated-invoice-reminder';
@@ -27,16 +29,16 @@ export type InvoiceConsent = {
   customerId: string; channel: 'simulation'; destination: string;
   status: 'yes' | 'no' | 'not-asked' | 'stopped'; sourceId: string; evidence: string; at: string;
 };
-export type InvoiceProof = {
+export type InvoiceProof = InvoiceLineage & {
   kind: 'invoice-balance-proof-v1'; id: string; jobId: string; objectiveRevision: number; target: InvoiceTarget;
   memberId: string; epoch: number; receiptId: string; receiptDigest: string; scopeDigest: string;
   currency: string; billedMinor: string; outstandingMinor: string; collectedMinor: string; dueDate: string;
   invoiceFactId: string; paymentFactIds: string[]; bankFactIds: string[];
   outcome: 'open' | 'paid' | 'cleared-unconfirmed' | 'needs-review'; reasons: string[]; at: string;
 };
-type InvoiceOperation = { kind: 'invoice-job-operation-v1'; id: string; key: string; requestDigest: string; settlement: ProviderSettlement };
-type Approval = { kind: 'invoice-reminder-approval-v1'; actionId: string; digest: string; approvedAt: string; expiresAt: string };
-type Delivery = { kind: 'invoice-simulated-delivery-v1'; id: string; key: string; actionId: string; payloadDigest: string;
+type InvoiceOperation = InvoiceLineage & { kind: 'invoice-job-operation-v1'; id: string; key: string; requestDigest: string; settlement: ProviderSettlement };
+type Approval = InvoiceLineage & { kind: 'invoice-reminder-approval-v1'; actionId: string; digest: string; approvedAt: string; expiresAt: string };
+type Delivery = InvoiceLineage & { kind: 'invoice-simulated-delivery-v1'; id: string; key: string; actionId: string; payloadDigest: string;
   jobId: string; customerId: string; ownerId: string; epoch: number; day: string; costMinor: string;
   status: 'reserved' | 'sent' | 'not-sent'; at: string; sentAt?: string; reason?: string };
 type ReminderPayload = { version: 1; mode: 'simulation'; jobId: string; objectiveRevision: number; occurrence: string;
@@ -50,9 +52,14 @@ const view = (state: State): StateStore => ({ read: () => structuredClone(state)
 // admission check; it must not rewrite the identity needed for effect readback.
 const evidenceDigest = (value: unknown) => { const { stale, staleReason, ...body } = value as Record<string, unknown>; return digest(body); };
 const scopeDigest = (state: State, ids: string[]) => digest({ facts: state.facts.filter(f => ids.includes(f.sourceId)),
-  merges: state.merges, tombstones: state.tombstones, sourceRules: state.sourceRules, dictionaryHash: state.ontology?.hash ?? null });
+  merges: state.merges, tombstones: state.tombstones.filter(t => !invoiceOperationalTombstone(t)), sourceRules: state.sourceRules, dictionaryHash: state.ontology?.hash ?? null });
 class InvoiceJobService extends JobService {
-  override list(context: Context) { return super.list(context).filter(job => job.type === invoiceJobType); }
+  override list(context: Context) { return super.list(context).filter(job => job.type === invoiceJobType && !invoiceMandateTombstone(this.store.read(), job.id)); }
+  override find(state: State, id: string) {
+    const job = super.find(state, id);
+    check(!invoiceMandateTombstone(state, id), 'INVOICE_MANDATE_ERASED', 'A purged invoice mandate cannot be revived from restored payload.');
+    return job;
+  }
 }
 
 function validateInput(input: unknown): InvoiceJobInput {
@@ -119,7 +126,8 @@ export class InvoiceFollowUpHost {
     current(state, context); check(state.workspace.demo, 'INVOICE_SIMULATION_ONLY', 'This installed slice accepts synthetic demo workspaces only.');
   }
   private own(state: State, context: Context, id: string) {
-    this.access(state, context); const job = this.jobs.find(state, id); sourceAccess(state, context, job.sourceIds);
+    this.access(state, context); const job = this.jobs.find(state, id);
+    sourceAccess(state, context, job.sourceIds);
     check(job.type === invoiceJobType && job.ownerId === context.memberId && job.ownerEpoch === context.epoch && job.ownerRole === context.role,
       'JOB_OWNER_REQUIRED', 'Only the pinned invoice mandate owner may use this contract.'); return job;
   }
@@ -176,12 +184,15 @@ export class InvoiceFollowUpHost {
     if (delivery.status !== 'reserved') return;
     const job = this.jobs.find(state, delivery.jobId); check(money(job.reservedMinor) >= money(delivery.costMinor), 'INVOICE_BUDGET_CONFLICT', 'The delivery reservation is missing.');
     job.reservedMinor = String(money(job.reservedMinor) - money(delivery.costMinor)); delivery.status = 'not-sent'; delivery.reason = reason;
+    rememberInvoiceDelivery(state, delivery);
     job.ledger.push({ at: this.at(), event: 'invoice-not-sent', reason, amountMinor: delivery.costMinor });
   }
   private async send(context: Context, payload: ReminderPayload, key: string) {
     try { return await this.store.update(state => {
       const { job } = this.live(state, context, payload, true); const delivery = this.delivery(state, key);
       check(delivery?.status === 'reserved' && delivery.payloadDigest === digest(payload), 'INVOICE_DELIVERY_NOT_ADMITTED', 'Delivery requires the exact reserved invoice action.');
+      const marker = invoiceDeliveryTombstone(state, key);
+      check(!marker || marker.outcome === 'reserved', 'INVOICE_DELIVERY_ERASED', 'This delivery identity already has a terminal outcome; it cannot be resent.');
       check(delivery.day === this.options.dayKey(this.options.clock()), 'INVOICE_DAY_CHANGED', 'The configured reminder day changed after admission; this local effect is absent.');
       const action = this.actions.find(state, delivery.actionId); this.actions.approved(state, context, action);
       this.validApproval(state, action); check(action.status === 'executing' && action.attempts.length === 1,
@@ -189,6 +200,7 @@ export class InvoiceFollowUpHost {
       // This single local commit is the only simulated effect. No transport is installed.
       job.reservedMinor = String(money(job.reservedMinor) - money(delivery.costMinor));
       job.spentMinor = String(money(job.spentMinor) + money(delivery.costMinor)); delivery.status = 'sent'; delivery.sentAt = this.at();
+      rememberInvoiceDelivery(state, delivery);
       job.ledger.push({ at: delivery.sentAt, event: 'invoice-sent', amountMinor: delivery.costMinor, reason: delivery.id });
       audit(state, 'invoice.simulated-sent', { jobId: job.id, actionId: action.id, deliveryId: delivery.id, paid: false });
       return { externalId: delivery.id, businessSuccess: false, data: { mode: 'simulation', sent: true, paid: false, sentAt: delivery.sentAt } };
@@ -230,8 +242,10 @@ export class InvoiceFollowUpHost {
         check(!request.signal.aborted && job.status === 'running' && job.execution?.attempts.some(a => a.key === request.key && a.status === 'dispatched'),
           'JOB_CANCELLED', 'The exact invoice step is no longer admitted.');
         const prior = saved(state, request); if (prior) return json(prior.settlement);
+        check(!invoiceOperationTombstone(state, request.key), 'INVOICE_OPERATION_ERASED', 'This invoice operation was committed and its evidence is unavailable; it cannot be resubmitted.');
         const input = request.step.input as unknown as { mode: 'balance' | 'prepare'; target: InvoiceTarget; balanceStepId?: string };
         let settlement: ProviderSettlement;
+        let lineage = invoiceLineage(state, job.sourceIds, this.at());
         if (input.mode === 'balance') {
           const receipt = await new CalculatorService(view(state), this.calculatorOptions).calculate(request.context, {
             operation: 'aging', sourceIds: job.sourceIds, customerId: input.target.customerId, asOf: this.at(), onDate: this.at().slice(0, 10) });
@@ -241,7 +255,7 @@ export class InvoiceFollowUpHost {
             && a.invoiceId === proof.target.invoiceId && a.customerId === proof.target.customerId)) {
             state.answers.push({ kind: 'invoice-paid-v1', id: `paid:${proof.id}`, jobId: job.id, invoiceId: proof.target.invoiceId,
               customerId: proof.target.customerId, proofId: proof.id, receiptId: proof.receiptId,
-              paymentFactIds: proof.paymentFactIds, bankFactIds: proof.bankFactIds, at: this.at() });
+              paymentFactIds: proof.paymentFactIds, bankFactIds: proof.bankFactIds, ...invoiceLineage(state, proof.sourceIds, this.at(), proof.factIds) });
             job.ledger.push({ at: this.at(), event: 'invoice-paid', reason: proof.id });
           }
           settlement = result(json({ proofId: proof.id, proofDigest: evidenceDigest(proof), receiptId: receipt.id, outstandingMinor: proof.outstandingMinor,
@@ -250,6 +264,7 @@ export class InvoiceFollowUpHost {
           const dependency = request.inputs[input.balanceStepId!]?.result.value as { proofId?: string } | undefined;
           const proof = this.proof(state, dependency?.proofId!); this.receipt(state, request.context, proof, true);
           const consent = this.consent(state, request.context, input.target.customerId);
+          lineage = invoiceLineage(state, [...job.sourceIds, ...(consent ? [consent.sourceId] : [])], this.at(), proof.factIds);
           let reason: string | undefined;
           if (proof.outcome !== 'open') reason = proof.outcome;
           else if (consent?.status !== 'yes') reason = 'customer-opt-in-required';
@@ -260,17 +275,22 @@ export class InvoiceFollowUpHost {
             check(job.allowedActions?.includes(`${invoiceConnectorId}.send`), 'JOB_ACTION_FORBIDDEN', 'Reminder preparation is outside this mandate.');
             const payload = this.payload(job, proof, consent!, job.execution!.scheduledFor); this.live(state, request.context, payload);
             const action = await new ActionService(view(state), [this.connector]).prepare({ ...request.context, sourceTainted: true }, {
-              connector: invoiceConnectorId, operation: 'send', payload, sourceIds: job.sourceIds, idempotencyKey: request.key });
+              connector: invoiceConnectorId, operation: 'send', payload, sourceIds: lineage.sourceIds, idempotencyKey: request.key });
+            Object.assign(state.actions.find(a => a.id === action.id)!, { factIds: lineage.factIds });
             settlement = result(json({ proofId: proof.id, proofDigest: evidenceDigest(proof), actionId: action.id, digest: action.digest, sent: false, paid: false }), 'action-preview', [request.key]);
           }
         }
+        Object.assign(settlement.result.value as object, lineage);
         validateSettlement(settlement, request.step);
+        const requestDigest = digest({ step: request.step, context: request.context, inputs: request.inputs });
         state.answers.push({ kind: 'invoice-job-operation-v1', id: request.key, key: request.key,
-          requestDigest: digest({ step: request.step, context: request.context, inputs: request.inputs }), settlement } satisfies InvoiceOperation);
+          requestDigest, settlement, ...lineage } satisfies InvoiceOperation);
+        rememberInvoiceOperation(state, request.key, requestDigest, settlement, this.at());
         check(!request.signal.aborted, 'JOB_CANCELLED', 'The invoice work was interrupted before saving.'); return json(settlement);
       }); } finally { this.activeOperations.delete(request.key); } },
       reconcile: async request => { const state = this.store.read(); this.own(state, request.context, request.key.split(':revision:')[0]); const record = saved(state, request);
-        if (!record) return this.activeOperations.has(request.key) ? { outcome: 'unknown' } : { outcome: 'absent', id: request.key, spentMinor: '0', modelUnits: 0, durationMs: 0, actionExposureMinor: '0' };
+        if (!record) return this.activeOperations.has(request.key) || invoiceOperationTombstone(state, request.key)
+          ? { outcome: 'unknown' } : { outcome: 'absent', id: request.key, spentMinor: '0', modelUnits: 0, durationMs: 0, actionExposureMinor: '0' };
         check(release(request.context, record.settlement.result), 'JOB_EVIDENCE_REVOKED', 'Saved invoice proof is unavailable.');
         return { outcome: 'verified', id: record.id, settlement: json(record.settlement) }; },
     };
@@ -337,6 +357,7 @@ export class InvoiceFollowUpHost {
     const outcome = needsReview ? 'needs-review' : outstanding > 0n ? 'open'
       : payments.length > 0 && collected >= money(invoice.amountMinor) && sum(credits) === 0n && !reasons.length ? 'paid' : 'cleared-unconfirmed';
     return { kind: 'invoice-balance-proof-v1', id: `proof:${key}`, jobId: job.id, objectiveRevision: job.revision, target,
+      ...invoiceLineage(state, job.sourceIds, this.at(), [...receipt.rowIds, ...receipt.exclusions.map(row => row.rowId)]),
       memberId: context.memberId, epoch: context.epoch, receiptId: receipt.id, receiptDigest: evidenceDigest(receipt), scopeDigest: scopeDigest(state, job.sourceIds),
       currency: receipt.currency, billedMinor: invoice.amountMinor, outstandingMinor: String(outstanding > 0n ? outstanding : 0n), collectedMinor: String(collected),
       dueDate: invoice.dueDate!, invoiceFactId: invoice.factId, paymentFactIds: payments.map(p => p.factId), bankFactIds: bankIds, outcome, reasons, at: this.at() };
@@ -365,7 +386,11 @@ export class InvoiceFollowUpHost {
       const saved = state.answers.find(a => a.kind === 'invoice-reminder-approval-v1' && a.actionId === actionId) as Approval | undefined;
       if (action.status === 'approved') { check(saved?.digest === expectedDigest, 'PREVIEW_CHANGED', 'Approval belongs to another preview.'); this.validApproval(state, action); return json(action); }
       const approved = await new ActionService(view(state), [this.connector]).approve(context, actionId, expectedDigest);
-      const record: Approval = { kind: 'invoice-reminder-approval-v1', actionId, digest: approved.digest, approvedAt: this.at(), expiresAt: new Date(this.options.clock() + this.options.approvalTtlMs).toISOString() };
+      const payload = approved.payload as unknown as ReminderPayload, proof = this.proof(state, payload.proofId);
+      const job = this.own(state, context, proof.jobId);
+      const consent = state.answers.find(a => a.kind === 'invoice-opt-in-v1' && a.id === payload.consentId) as InvoiceConsent;
+      const record: Approval = { kind: 'invoice-reminder-approval-v1', actionId, digest: approved.digest, approvedAt: this.at(), expiresAt: new Date(this.options.clock() + this.options.approvalTtlMs).toISOString(),
+        ...invoiceLineage(state, [...job.sourceIds, consent.sourceId], this.at(), proof.factIds) };
       state.answers.push(record); return approved;
     });
   }
@@ -393,6 +418,7 @@ export class InvoiceFollowUpHost {
       this.actions.approved(state, context, action); this.validApproval(state, action);
       const { job } = this.live(state, context, action.payload as unknown as ReminderPayload, true);
       check(!this.delivery(state, action.idempotencyKey), 'INVOICE_DELIVERY_PENDING', 'This delivery was already admitted; recover or read it back.');
+      check(!invoiceDeliveryTombstone(state, action.idempotencyKey), 'INVOICE_DELIVERY_ERASED', 'This reminder was already admitted and its journal is unavailable; it cannot be resent.');
       const day = this.options.dayKey(this.options.clock()); check(text(day), 'INVOICE_POLICY_REQUIRED', 'The configured day boundary must identify this day.');
       const deliveries = state.answers.filter(a => a.kind === 'invoice-simulated-delivery-v1' && a.day === day && a.status !== 'not-sent') as Delivery[];
       const customerId = (action.payload as unknown as ReminderPayload).target.customerId;
@@ -406,7 +432,8 @@ export class InvoiceFollowUpHost {
       job.reservedMinor = String(money(job.reservedMinor) + cost);
       const delivery: Delivery = { kind: 'invoice-simulated-delivery-v1', id: `simulated:${action.idempotencyKey}`, key: action.idempotencyKey,
         actionId, payloadDigest: digest(action.payload), jobId: job.id, customerId, ownerId: context.memberId, epoch: context.epoch,
-        day, costMinor: String(cost), status: 'reserved', at: this.at() };
+        day, costMinor: String(cost), status: 'reserved', ...invoiceLineage(state, action.sourceIds, this.at(), (action as PreparedAction & { factIds?: string[] }).factIds) };
+      rememberInvoiceDelivery(state, delivery);
       state.answers.push(delivery); job.ledger.push({ at: this.at(), event: 'invoice-delivery-reserved', amountMinor: String(cost), reason: delivery.id });
       return { reuse: false };
     });
