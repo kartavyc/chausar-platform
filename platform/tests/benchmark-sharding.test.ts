@@ -266,7 +266,13 @@ test('output containment and JSON extension checks remain enforced with sharding
 
 test('a failing fixture shard returns failure and never claims a full-suite result', async t => {
   const f = await fixture(t, true);
-  assert.equal(f.invoke(['--shard=2/2']).status, 1);
+  const result = f.invoke(['--shard=2/2']);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Repository test failure details \(bounded\):/);
+  assert.match(result.stderr, /not ok .*fixture-file-/);
+  assert.match(result.stderr, /Deliberate fixture failure/);
+  assert.ok(Buffer.byteLength(result.stderr, 'utf8') <= 32 * 1024);
+  assert.equal(JSON.parse(result.stdout.trim()).passed, false);
   const report = await f.report();
   assert.equal(report.passed, false);
   assert.equal(report.counts.tests, 3);

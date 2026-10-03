@@ -86,5 +86,13 @@ const report = {
   stdout: outcome.stdout, stderr: outcome.stderr,
 };
 await mkdir(dirname(destination), { recursive: true }); await writeFile(destination, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+// Keep the JSON summary machine-readable and expose bounded TAP failure evidence
+// in CI logs when the retained report artifact cannot be retrieved.
+if (!passed) {
+  const failures = [...outcome.stdout.matchAll(/^([ \t]*not ok[^\n]*\n(?:[ \t]+[^\n]*\n)*)/gm)]
+    .map(match => match[1].slice(0, 4000));
+  const diagnostics = Buffer.from(failures.join('\n'), 'utf8').subarray(0, 24 * 1024).toString('utf8');
+  if (diagnostics) process.stderr.write(`Repository test failure details (bounded):\n${diagnostics}\n`);
+}
 process.stdout.write(`${JSON.stringify({ passed, counts, report: inside.replaceAll('\\', '/'), shard, fullSuite, productionQualified: false })}\n`);
 process.exitCode = passed ? 0 : 1;
