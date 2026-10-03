@@ -113,10 +113,12 @@ export function ChatScreen({ state, controller, onReceipt }: ScreenProps) {
   };
   return <>
     <Heading title="Ask your engine." detail="A small question, with the business context and proof behind the answer." />
+    {state.messages.some(message => message.role === 'companion') && <Text style={styles.small}>Answers are retained snapshots. Open a proof receipt online for a fresh read.</Text>}
     {state.messages.length ? state.messages.map(message => <View key={message.id}
       style={[styles.card, message.role === 'owner' ? styles.ownerMessage : styles.companionMessage]}>
-      <Text style={styles.label}>{message.role === 'owner' ? 'YOU' : 'CHAUSAR'}</Text>
+      <Text style={styles.label}>{message.role === 'owner' ? 'YOU' : 'CHAUSAR · RETAINED ANSWER'}</Text>
       <Text selectable style={styles.body}>{message.text}</Text>
+      {message.conversationId && <Metadata label="Conversation" value={message.conversationId} />}
       {message.role === 'companion' && <ProofLinks receiptIds={message.receiptIds} onReceipt={onReceipt} disabled={!online} />}
     </View>) : <View style={[styles.card, styles.cardMuted]}>
       <Text style={styles.cardTitle}>Keep the question concrete.</Text>
@@ -208,16 +210,28 @@ export function ApprovalsScreen({ state, controller, now }: ScreenProps) {
   </>;
 }
 
-export function ActivityScreen({ state, controller }: ScreenProps) {
+export function ActivityScreen({ state, controller, onReceipt }: ScreenProps) {
   return <>
     <Heading title="Stay with the outcome." detail="Track work sent to your engine. A lost connection can leave an outcome unknown." />
-    <View style={[styles.card, styles.cardMuted]}><Text style={styles.small}>Checking a request reads its status; it does not repeat it. Cancellation is confirmed only when the engine reports it cancelled.</Text></View>
+    <View style={[styles.card, styles.cardMuted]}><Text style={styles.small}>Checking a request reads its status; it does not repeat it. Completed results are retained snapshots. Open proof receipts online for a fresh read. Cancellation is confirmed only when the engine reports it cancelled.</Text></View>
     {state.client.requests.length ? [...state.client.requests].reverse().map(request => {
       const active = ['pending', 'unknown', 'cancelling'].includes(request.status);
       const controls = requestControls(state, request);
       return <View key={request.requestId} style={styles.card}>
         <Badge tone={request.status === 'unknown' ? 'amber' : request.status === 'failed' ? 'red' : active ? 'neutral' : 'sage'}>{requestLabel(request)}</Badge>
         <Text selectable style={styles.small}>Request {request.requestId}</Text>
+        {request.status === 'succeeded' && ('conversationId' in request.result ? <>
+          <Badge tone="neutral">RETAINED ANSWER</Badge>
+          <Metadata label="Conversation" value={request.result.conversationId} />
+          <Text selectable style={styles.body}>{request.result.text}</Text>
+          <ProofLinks receiptIds={request.result.receiptIds} onReceipt={onReceipt} disabled={!canWorkOnline(state)} />
+        </> : 'uploadId' in request.result ? <>
+          <Text style={styles.small}>Retained upload result · confirmation needed on desktop.</Text>
+          <Metadata label="Upload" value={request.result.uploadId} /><Metadata label="Source" value={request.result.sourceId} />
+        </> : <>
+          <Text style={styles.small}>Retained decision: {request.result.decision}</Text>
+          <Metadata label="Approval" value={request.result.approvalId} /><Metadata label="Action" value={request.result.actionId} />
+        </>)}
         {request.status === 'unknown' && <Text style={styles.body}>The engine may have received this request. Reconnect and check before starting it again.</Text>}
         {request.status === 'cancelling' && <Text style={styles.small}>Cancellation is pending. The original work may already have completed.</Text>}
         {active && <View style={styles.row}><View style={styles.grow}>
@@ -280,12 +294,18 @@ export function ReceiptScreen({ state, onBack }: { state: CompanionViewState; on
   const receipt = state.receipt;
   return <>
     <TextButton title="‹ Back" accessibilityLabel="Back from proof receipt" onPress={onBack} />
-    <Heading title={receipt?.title ?? 'Proof receipt'} detail="The source and method behind the result." />
+    <Heading title={receipt && !('text' in receipt) ? receipt.title : 'Proof receipt'} detail={receipt && 'text' in receipt ? 'Receipt text returned by your engine.' : 'The source and method behind the result.'} />
     {receipt ? <View style={styles.card}>
-      <Badge tone="neutral">PROOF RECEIPT</Badge><Text selectable style={styles.body}>{receipt.details}</Text>
-      <View style={styles.metadata}><Metadata label="Generated" value={readableTime(receipt.generatedAt)} />
-        <Metadata label="Source" value={receipt.source} /><Metadata label="Method" value={receipt.method} />
-        <Metadata label="Coverage" value={receipt.coverage} /></View>
+      <Badge tone="neutral">PROOF RECEIPT</Badge>
+      {'text' in receipt ? <>
+        <Text selectable style={styles.body}>{receipt.text}</Text>
+        <View style={styles.metadata}><Metadata label="Receipt" value={receipt.id} /><Metadata label="Workspace" value={receipt.workspaceId} /></View>
+      </> : <>
+        <Text selectable style={styles.body}>{receipt.details}</Text>
+        <View style={styles.metadata}><Metadata label="Generated" value={readableTime(receipt.generatedAt)} />
+          <Metadata label="Source" value={receipt.source} /><Metadata label="Method" value={receipt.method} />
+          <Metadata label="Coverage" value={receipt.coverage} /></View>
+      </>}
     </View> : <View style={styles.card}><Text style={styles.body}>No receipt is available. Return to the brief or chat and try again while connected.</Text></View>}
   </>;
 }

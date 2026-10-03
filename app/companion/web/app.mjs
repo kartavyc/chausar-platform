@@ -17,6 +17,7 @@ let chatDraft = '';
 let fileError = '';
 let fileBusy = false;
 let confirmation;
+let receiptOrigin = 'briefs';
 let lastAnnouncement = '';
 let lastBinding;
 let lastViewKey;
@@ -94,7 +95,10 @@ function connectionNotice() {
 function proofButtons(ids) {
   if (!ids.length) return element('p', 'subtle', 'No proof receipt was returned.');
   const block = element('div', 'proof-list');
-  ids.forEach((id, index) => append(block, button(`View proof ${index + 1} · ${id}`, () => controller.openReceipt(id), { className: 'link-button', disabled: !isOnline() || isBusy() })));
+  ids.forEach((id, index) => append(block, button(`View proof ${index + 1} · ${id}`, () => {
+    if (state.screen !== 'receipt') receiptOrigin = state.screen;
+    return controller.openReceipt(id);
+  }, { className: 'link-button', disabled: !isOnline() || isBusy() })));
   if (!isOnline()) append(block, element('p', 'small muted', 'Proof receipts need a fresh online read.'));
   return block;
 }
@@ -168,9 +172,11 @@ function briefsScreen() {
 }
 function chatScreen() {
   const root = append(element('div'), heading('Ask your workspace', 'Questions run on your remote engine. Answers can point back to proof receipts.'), connectionNotice());
+  if (state.messages.some(message => message.role === 'companion')) append(root, note('Answers are retained snapshots. Open a proof receipt online for a fresh read.'));
   const thread = element('div', 'chat-thread'); thread.setAttribute('aria-label', 'Conversation');
   state.messages.forEach(message => {
-    const bubble = append(element('article', `message ${message.role}`), element('p', 'message-role', message.role === 'owner' ? 'You' : 'Chausar'), element('p', 'message-text', message.text));
+    const bubble = append(element('article', `message ${message.role}`), element('p', 'message-role', message.role === 'owner' ? 'You' : 'Chausar · retained answer'), element('p', 'message-text', message.text));
+    if (message.conversationId) append(bubble, details([['Conversation', message.conversationId]]));
     if (message.requestId) {
       const request = state.client.requests.find(item => item.requestId === message.requestId);
       if (request) append(bubble, element('p', 'pending-help', requestLabel(request)));
@@ -248,6 +254,11 @@ function approvalsScreen() {
   return root;
 }
 function requestTitle(request) {
+  if (request.status === 'succeeded') {
+    if ('conversationId' in request.result) return 'Chat answer';
+    if ('uploadId' in request.result) return 'Upload';
+    return 'Approval decision';
+  }
   const upload = state.uploads.find(item => item.requestId === request.requestId);
   if (upload) return `Upload · ${upload.name}`;
   if (state.messages.some(item => item.requestId === request.requestId)) return 'Chat question';
@@ -255,10 +266,17 @@ function requestTitle(request) {
 }
 function activityScreen() {
   const root = append(element('div'), heading('Know where things stand', 'An unknown outcome means the reply was lost. Check status before trying a new request; reconnect never resends an approval.'), connectionNotice());
+  append(root, note('Completed results are retained snapshots. Open proof receipts online for a fresh read.'));
   const list = element('div', 'screen-list');
   state.client.requests.forEach(request => {
     const open = ['pending', 'unknown', 'cancelling'].includes(request.status);
     const info = append(element('div', 'activity-info'), element('h3', '', requestTitle(request)), element('span', `pill ${request.status}`, requestLabel(request)), element('p', '', `Request ${request.requestId}`));
+    if (request.status === 'succeeded') {
+      const result = request.result;
+      if ('conversationId' in result) append(info, element('span', 'pill', 'Retained answer'), details([['Conversation', result.conversationId]]), element('p', 'brief-summary', result.text), proofButtons(result.receiptIds));
+      else if ('uploadId' in result) append(info, note('Retained upload result · confirmation needed on desktop.'), details([['Upload', result.uploadId], ['Source', result.sourceId]]));
+      else append(info, note(`Retained decision: ${result.decision}`), details([['Approval', result.approvalId], ['Action', result.actionId]]));
+    }
     const actions = element('div', 'activity-actions');
     if (open) append(actions,
       button('Check status', () => controller.refreshRequest(request.requestId), { disabled: !isOnline() || requestBusy(request.requestId, 'status'), id: `status-${request.requestId}` }),
@@ -295,10 +313,15 @@ function deviceScreen() {
   return root;
 }
 function receiptScreen() {
-  const root = append(element('div'), heading('Follow the proof', 'Read the source, calculation method, and coverage behind a result.'));
   const receipt = state.receipt;
-  append(root, button('← Back to briefs', () => navigate('briefs'), { className: 'quiet' }));
+  const hostText = receipt && 'text' in receipt;
+  const root = append(element('div'), heading('Follow the proof', hostText ? 'Receipt text returned by your engine.' : 'Read the source, calculation method, and coverage behind a result.'));
+  append(root, button(`← Back to ${receiptOrigin}`, () => navigate(receiptOrigin), { className: 'quiet' }));
   if (!receipt) return append(root, empty('No receipt selected', 'Open a proof receipt from a brief or chat answer while online.'));
+  if (hostText) {
+    const text = element('p', 'brief-summary', receipt.text);
+    return append(root, card('Proof receipt', element('span', 'pill', 'Engine receipt'), details([['Receipt', receipt.id], ['Workspace', receipt.workspaceId]]), text));
+  }
   return append(root, card(receipt.title, element('span', 'pill', state.mode === 'demo' ? 'Synthetic proof' : 'Engine receipt'),
     details([['Receipt', receipt.id], ['Generated', time(receipt.generatedAt)], ['Source', receipt.source], ['Method', receipt.method], ['Coverage', receipt.coverage]]),
     element('p', 'brief-summary', receipt.details)));
@@ -310,7 +333,7 @@ function render() {
   const binding = pairing.status === 'paired' ? pairing.authority.binding : pairing.binding;
   const bindingKey = binding && `${binding.workspaceId}/${binding.memberId}/${binding.deviceId}/${binding.epoch}`;
   const accessLost = ['unpaired', 'revoked', 'expired'].includes(pairing.status);
-  if (lastBinding && (lastBinding !== bindingKey || accessLost)) { chatDraft = ''; fileError = ''; confirmation = undefined; }
+  if (lastBinding && (lastBinding !== bindingKey || accessLost)) { chatDraft = ''; fileError = ''; confirmation = undefined; receiptOrigin = 'briefs'; }
   lastBinding = accessLost ? undefined : bindingKey;
   const viewKey = `${state.screen}/${state.brief?.brief.id || ''}/${state.approval?.approvalId || ''}/${state.receipt?.id || ''}`;
   const viewChanged = lastViewKey !== undefined && lastViewKey !== viewKey;

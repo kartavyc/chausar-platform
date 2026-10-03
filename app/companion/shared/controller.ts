@@ -1,5 +1,6 @@
 import { PhoneError, copyBrief, isId, requirePhone, sameBinding } from '../../../platform/runtime/phone/contracts.ts';
 import type { PhoneClient } from '../../../platform/runtime/phone/client.ts';
+import type { DeviceBinding } from '../../../platform/runtime/phone/contracts.ts';
 import type { CompanionDeviceIdentity, CompanionDocumentPicker, CompanionReceiptReader, CompanionScreen, CompanionScreenController, CompanionViewState, SelectedDocument } from './view-contracts.ts';
 
 export class CompanionAdapterError extends Error {
@@ -30,6 +31,9 @@ export class CompanionController implements CompanionScreenController {
   private actionSerial = 0;
   private lifetime = 0;
   private navigationVersion = 0;
+  private workspaceBinding?: DeviceBinding;
+  private workspaceSessionId?: string;
+  private retainedRequests = new Set<string>();
   private state: CompanionViewState;
   constructor(options: { client: PhoneClient; identity: CompanionDeviceIdentity; picker: CompanionDocumentPicker; receipts: CompanionReceiptReader; crypto: Crypto; mode: 'demo' | 'live'; requestId?: () => string }) {
     this.client = options.client; this.identity = options.identity; this.picker = options.picker; this.receipts = options.receipts; this.crypto = options.crypto;
@@ -41,7 +45,31 @@ export class CompanionController implements CompanionScreenController {
   subscribe(listener: () => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private update(patch: Partial<CompanionViewState> = {}) {
     const client = this.client.snapshot(); const lost = ['revoked', 'expired', 'unpaired'].includes(client.pairing.status);
-    this.state = immutable({ ...this.state, ...patch, ...(lost ? noWorkspace : {}), client, busy: [...this.busy.keys()] });
+    const pairing = client.pairing;
+    const binding = pairing.status === 'paired' ? pairing.authority.binding : 'binding' in pairing ? pairing.binding : undefined;
+    const sessionId = pairing.status === 'paired' ? pairing.authority.sessionId : undefined;
+    const identities = new Set(client.requests.map(request => request.requestId));
+    // Client request removal also signals a replacement session while its public
+    // snapshot intentionally exposes only the binding during validation.
+    const changed = !!this.workspaceBinding && ((!!binding && !sameBinding(this.workspaceBinding, binding))
+      || (!!sessionId && !!this.workspaceSessionId && sessionId !== this.workspaceSessionId)
+      || [...this.retainedRequests].some(id => !identities.has(id)));
+    const cleared = changed || (lost && !!this.workspaceBinding);
+    const removing = this.busy.has('device');
+    if (cleared) {
+      this.navigationVersion += 1;
+      if (!this.busy.has('start') && !this.busy.has('device')) { this.lifetime += 1; this.busy.clear(); }
+      this.workspaceBinding = undefined; this.workspaceSessionId = undefined;
+    }
+    if (!lost && binding) { this.workspaceBinding = binding; if (sessionId) this.workspaceSessionId = sessionId; }
+    this.retainedRequests = identities;
+    const view = { ...this.state, ...patch, ...(lost || cleared ? noWorkspace : {}), client, busy: [...this.busy.keys()] };
+    if (lost && cleared && !removing) view.notice = { tone: 'error', text: errorText(new PhoneError(pairing.status === 'revoked' ? 'ACCESS_REVOKED' : pairing.status === 'expired' ? 'SESSION_EXPIRED' : 'UNPAIRED')) };
+    if (client.connection !== 'online' || lost) {
+      view.receipt = undefined; view.approval = undefined;
+      if (view.brief?.freshness === 'current') view.brief = undefined;
+    }
+    this.state = immutable(view);
     for (const listener of this.listeners) { try { listener(); } catch { /* Rendering failures do not change request delivery. */ } }
   }
   private async run(key: string, work: (lifetime: number) => Promise<void>) {
@@ -58,7 +86,7 @@ export class CompanionController implements CompanionScreenController {
   }
   private syncResults() {
     const snapshot = this.client.snapshot(); const messages = [...this.state.messages];
-    for (const request of snapshot.requests) if (request.status === 'succeeded' && 'conversationId' in request.result && !messages.some(message => message.id === `answer_${request.requestId}`)) messages.push({ id: `answer_${request.requestId}`, role: 'companion', text: request.result.text, requestId: request.requestId, receiptIds: [...request.result.receiptIds] });
+    for (const request of snapshot.requests) if (request.status === 'succeeded' && 'conversationId' in request.result && !messages.some(message => message.id === `answer_${request.requestId}`)) messages.push({ id: `answer_${request.requestId}`, role: 'companion', text: request.result.text, requestId: request.requestId, conversationId: request.result.conversationId, receiptIds: [...request.result.receiptIds] });
     const uploads = this.state.uploads.map(upload => { const request = snapshot.requests.find(request => request.requestId === upload.requestId); return { ...upload, status: request?.status === 'succeeded' && 'uploadId' in request.result ? request.result.status : request?.status ?? upload.status }; });
     this.update({ messages, uploads });
   }
@@ -68,6 +96,8 @@ export class CompanionController implements CompanionScreenController {
   }
   dismissNotice() { this.update({ notice: undefined }); }
   async start() {
+    if (this.busy.has('start') || this.busy.has('device')) return;
+    this.lifetime += 1; this.busy.clear();
     await this.run('start', async lifetime => {
       await this.client.restore(); this.current(lifetime);
       if (this.client.snapshot().pairing.status === 'validation-required') { const briefs = await this.client.listCachedBriefs(); this.current(lifetime); this.update({ briefs: briefs.map(brief => ({ ...copyBrief(brief), freshness: 'cached', cachedAt: brief.cachedAt, expiresAt: brief.expiresAt })), screen: 'briefs' }); }
@@ -85,9 +115,10 @@ export class CompanionController implements CompanionScreenController {
     });
   }
   async reconnect() {
+    if (this.busy.has('device')) return;
     await this.run('connection', async lifetime => { await this.client.reconnect(); this.current(lifetime); this.update({ approval: undefined, notice: { tone: 'info', text: 'Connection checked. Pending requests were checked without resending them.' } }); });
   }
-  disconnect() { this.lifetime += 1; this.client.disconnect(); this.busy.clear(); this.update({ brief: undefined, approval: undefined, notice: { tone: 'info', text: 'You are offline. Open a saved brief to keep reading.' } }); }
+  disconnect() { this.lifetime += 1; this.client.disconnect(); this.busy.clear(); this.update({ brief: undefined, approval: undefined, receipt: undefined, notice: { tone: 'info', text: 'You are offline. Open a saved brief to keep reading.' } }); }
   async loadBriefs() {
     await this.run('briefs', async lifetime => {
       const offline = this.client.snapshot().connection === 'offline'; const briefs = offline ? await this.client.listCachedBriefs() : await this.client.listBriefs(); this.current(lifetime);
@@ -139,8 +170,14 @@ export class CompanionController implements CompanionScreenController {
       requirePhone(isId(receiptId), 'INVALID_REQUEST'); const authority = await this.client.validate(); this.current(lifetime); requirePhone(authority.capabilities.includes('brief.read'), 'CAPABILITY_FORBIDDEN');
       const receipt = await this.receipts.read(receiptId); this.current(lifetime);
       const snapshot = this.client.snapshot(); requirePhone(snapshot.connection === 'online' && snapshot.pairing.status === 'paired' && sameBinding(authority.binding, snapshot.pairing.authority.binding) && authority.sessionId === snapshot.pairing.authority.sessionId, 'VALIDATION_REQUIRED');
-      requirePhone(receipt && receipt.id === receiptId && ['title', 'generatedAt', 'source', 'method', 'coverage', 'details'].every(key => typeof receipt[key as keyof typeof receipt] === 'string' && receipt[key as keyof typeof receipt].length <= 16000), 'INVALID_RESPONSE');
-      if (navigation === this.navigationVersion) this.update({ screen: 'receipt', receipt: { id: receipt.id, title: receipt.title, generatedAt: receipt.generatedAt, source: receipt.source, method: receipt.method, coverage: receipt.coverage, details: receipt.details } });
+      requirePhone(receipt && typeof receipt === 'object' && !Array.isArray(receipt) && receipt.id === receiptId, 'INVALID_RESPONSE');
+      if ('text' in receipt) {
+        requirePhone(receipt.workspaceId === authority.binding.workspaceId && typeof receipt.text === 'string' && receipt.text.length <= 64000, 'INVALID_RESPONSE');
+        if (navigation === this.navigationVersion) this.update({ screen: 'receipt', receipt: { id: receipt.id, workspaceId: receipt.workspaceId, text: receipt.text } });
+      } else {
+        requirePhone(this.state.mode === 'demo' && ['title', 'generatedAt', 'source', 'method', 'coverage', 'details'].every(key => typeof receipt[key as keyof typeof receipt] === 'string' && receipt[key as keyof typeof receipt].length <= 16000), 'INVALID_RESPONSE');
+        if (navigation === this.navigationVersion) this.update({ screen: 'receipt', receipt: { id: receipt.id, title: receipt.title, generatedAt: receipt.generatedAt, source: receipt.source, method: receipt.method, coverage: receipt.coverage, details: receipt.details } });
+      }
     });
   }
   async revokeDevice() {
