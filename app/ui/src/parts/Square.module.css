@@ -1,0 +1,30 @@
+.square {
+  display: inline-block;
+  width: var(--square);
+  height: var(--square);
+  border-radius: var(--square-r);
+  flex: 0 0 auto;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+/* Filled green: Chausar did this */
+.cha { background: var(--cha); }
+/* Filled ink: you did this, or this is yours */
+.you { background: var(--you); }
+/* Open ink: awaiting your review */
+.wait { background: var(--bg); border: var(--square-stroke) solid var(--you); }
+/* Open green: Chausar's turn, not finished */
+.busy { background: var(--bg); border: var(--square-stroke) solid var(--cha); }
+/* Filled amber: not sure */
+.unsure { background: var(--amber); }
+/* Open amber: a guess, not measured */
+.guess { background: var(--bg); border: var(--square-stroke) solid var(--amber); }
+/* Open grey: off, not connected, did not happen */
+.off { background: var(--bg); border: var(--square-stroke) solid var(--dim); }
+
+.words {
+  font-size: var(--fs-note);
+  color: var(--mute);
+  margin-inline-start: var(--sp2);
+}

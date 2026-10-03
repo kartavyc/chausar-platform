@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM"],
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "typeRoots": ["../node_modules/@types", "../../../node_modules/@types", "../../../../task/integration/node_modules/@types"]
+  },
+  "include": ["../src/bridge/**/*.ts", "../src/format/**/*.ts", "./contracts.test.ts", "./format.test.ts", "./projections.test.ts", "./client.test.ts", "./project-ui.test.ts", "./today-host.test.ts", "./fixtures.ts", "./type-contracts.ts", "./verify-current-engine.ts", "./verify-today-engine.ts", "./conversation-contract.test.ts", "./conversation-host.test.ts", "./conversation-fixtures.ts"]
+}

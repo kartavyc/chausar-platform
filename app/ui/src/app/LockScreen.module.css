@@ -1,0 +1,52 @@
+.lock {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--sp7);
+}
+
+.form {
+  display: grid;
+  gap: var(--sp5);
+  width: min(100%, calc(var(--col) / 2));
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-title);
+}
+
+/* Where the trusted host's own unlock control sits. */
+.unlock {
+  min-height: var(--target);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--red);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp4);
+}
+
+.forgot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp2);
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+.paused {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}

@@ -1,0 +1,87 @@
+.frame {
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  height: 100%;
+}
+
+.pageCol {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
+  min-width: 0;
+  height: 100%;
+}
+
+/* The content column is centred. With a sheet open it narrows to 570. */
+.column {
+  width: var(--col);
+  max-width: 100%;
+}
+.wide .column {
+  width: var(--col-wide);
+}
+.withSheet .column {
+  width: var(--col-sheet);
+}
+
+.page {
+  overflow: auto;
+  padding-top: var(--page-top);
+  padding-bottom: var(--sp6);
+  outline-offset: calc(-1 * var(--focus));
+}
+
+/* The sheet's slot. The sheet itself is as wide as its slot (Sheet.module.css): 480
+   beside the list, 480 over the list in a medium window, the whole window when narrow. */
+.sheetCol {
+  width: var(--sheet);
+  max-width: 100%;
+  height: 100%;
+}
+
+/* 1024 to 1279: the sheet covers the list instead of sitting beside it. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sheetCol {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+  }
+}
+
+/* Under 1024: the rail is a bar across the top, the page uses the full width, the sheet
+   fills the screen. The same happens at 150 percent zoom and above on a small screen,
+   because the query is in CSS pixels. */
+.narrow {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.narrow .main {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Only the sides: the page keeps its own space above and below. */
+.narrow .column,
+.narrow.wide .column,
+.narrow.withSheet .column {
+  width: 100%;
+  padding-inline: var(--sp4);
+}
+.narrow .sheetCol {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  z-index: 3;
+}

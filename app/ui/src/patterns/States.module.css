@@ -1,0 +1,22 @@
+.state {
+  margin: 0;
+  padding: var(--sp4) 0;
+  font-size: var(--fs-read);
+  color: var(--fg2);
+}
+
+.p {
+  margin: 0 0 var(--sp2);
+}
+
+.note {
+  display: block;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+.code {
+  margin: var(--sp2) 0 0;
+  font-size: var(--fs-note);
+  color: var(--mute);
+}

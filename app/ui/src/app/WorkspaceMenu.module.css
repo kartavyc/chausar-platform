@@ -1,0 +1,76 @@
+.trigger {
+  display: grid;
+  gap: var(--sp1);
+  width: 100%;
+  padding: var(--sp2) 0;
+  margin: 0;
+  font: inherit;
+  text-align: start;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.name {
+  font-size: var(--fs-note2);
+}
+
+.who,
+.demo {
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+.popover {
+  min-width: var(--rail);
+  background: var(--bg);
+  border: var(--hair) solid var(--line2);
+  padding: var(--sp3) var(--sp4);
+}
+
+.menu {
+  outline: none;
+  display: grid;
+  gap: var(--sp3);
+}
+
+.section {
+  display: grid;
+  gap: var(--sp1);
+}
+.section + .section {
+  border-top: var(--hair) solid var(--line);
+  padding-top: var(--sp3);
+}
+
+.header {
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+
+.item {
+  min-height: var(--target);
+  display: flex;
+  align-items: center;
+  color: var(--mute);
+  cursor: pointer;
+  outline: none;
+  border-radius: var(--radius);
+}
+.item[data-focused] {
+  color: var(--fg);
+  outline: var(--focus) solid var(--fg);
+  outline-offset: var(--focus-gap);
+}
+.item:hover {
+  color: var(--fg);
+}
+
+.chosen {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-thickness: var(--hair);
+  text-underline-offset: 4px;
+}

@@ -1,0 +1,23 @@
+.stack {
+  display: grid;
+}
+
+.banner {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp4);
+  padding: var(--sp2) 0;
+  border-bottom: var(--hair) solid var(--line2);
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.action {
+  flex: 0 0 auto;
+  font-size: var(--fs-note2);
+}

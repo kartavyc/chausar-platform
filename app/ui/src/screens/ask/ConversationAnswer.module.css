@@ -1,0 +1,216 @@
+/* A saved answer holds no styles of its own beyond layout. Plain ground, grey names,
+   rows between hairlines. No boxes. */
+
+.answer {
+  display: grid;
+  gap: var(--sp6);
+  align-content: start;
+  min-width: 0;
+}
+
+/* The question is the page's one title, as it was asked: its spaces and line breaks are
+   kept. */
+.question {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-title);
+  letter-spacing: var(--ls-title);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A question in Hindi keeps the Devanagari face, its line height and no tracking. */
+.question:lang(hi) {
+  font-family: var(--fd);
+  line-height: var(--lh-devanagari);
+  letter-spacing: 0;
+}
+
+.section,
+.group {
+  display: grid;
+  gap: var(--sp3);
+  min-width: 0;
+}
+
+.label {
+  margin: 0;
+  font-size: var(--fs-note2);
+  font-weight: var(--fw-regular);
+  color: var(--mute);
+}
+
+/* Text as supplied. Nothing is cut. */
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+}
+
+.missing {
+  margin: 0;
+  color: var(--mute);
+}
+
+.code {
+  margin: 0;
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+
+/* A written paragraph with its own references under it. */
+.paragraph {
+  display: grid;
+  gap: var(--sp2);
+  min-width: 0;
+}
+
+.tool {
+  margin: 0;
+  font-size: var(--fs-row);
+  font-weight: var(--fw-medium);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--hair) solid var(--line2);
+}
+
+.row,
+.result {
+  display: grid;
+  gap: var(--sp2);
+  min-width: 0;
+  padding: var(--sp3) 0;
+  border-bottom: var(--hair) solid var(--line);
+}
+
+.result {
+  gap: var(--sp3);
+  padding: var(--sp4) 0;
+}
+
+/* Category, origin and standing: fixed words in small capitals, as a label is. */
+.tags {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp1) var(--sp3);
+}
+
+.tag {
+  font-family: var(--fm);
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+/* The same words in Hindi: the Devanagari face, its line height and no tracking. */
+.tag:lang(hi) {
+  font-family: var(--fd);
+  line-height: var(--lh-devanagari);
+  letter-spacing: 0;
+}
+
+.pairs,
+.refs,
+.figures {
+  margin: 0;
+  display: grid;
+  gap: var(--sp2);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  column-gap: var(--sp4);
+  align-items: baseline;
+}
+
+.name {
+  color: var(--mute);
+  font-size: var(--fs-note2);
+}
+
+.value {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-note2);
+  overflow-wrap: anywhere;
+}
+
+.refs .name,
+.refs .value {
+  font-size: var(--fs-note);
+}
+
+/* Figures as on a receipt: the name at the left, the value at the right edge. */
+.figures .pair {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.figures .value {
+  text-align: end;
+}
+
+.figure {
+  font-family: var(--fm);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-fig);
+}
+
+/* An identifier, in the number face. It wraps; it is never cut. */
+.id {
+  font-family: var(--fm);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-note);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.ids {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp1) var(--sp3);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp3);
+}
+
+/* Detail behind a native disclosure, with its own marker. Closed until it is asked for. */
+.more {
+  min-width: 0;
+}
+
+.summary {
+  min-height: var(--target);
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.more[open] > .summary {
+  margin-bottom: var(--sp2);
+}
+
+.detail {
+  display: grid;
+  gap: var(--sp3);
+  min-width: 0;
+}

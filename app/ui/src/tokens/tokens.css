@@ -1,0 +1,176 @@
+/* Chausar tokens.
+   Colours: main design, part 6 ("Colours"), exact values. Sizes and times: build.md part 4.
+   The design's system/app.css was not delivered with the inputs. Tokens marked
+   "reference reconstruction" are derived from the documented ink/dim palette and are
+   named so; they are not copied from a stylesheet we do not have.
+   Every colour, size and time used anywhere in app/ui is one of these names. */
+
+:root {
+  color-scheme: light dark;
+
+  /* Ground and text */
+  --bg: #F7F8F8;
+  --fg: #0B0D0E;
+  --fg2: #3B4247;
+  --mute: #646B71;
+
+  /* Lines */
+  --line: #E9ECEE;
+  --line2: #D5DADE;
+
+  /* Marks */
+  --cha: #0B9A5C;
+  --you: var(--fg);
+  --amber: #B26A00;
+  --amber-t: #8F5B00;
+  --red: #C0322B;
+
+  /* Charts */
+  --dim: #868D93;
+  /* Ordered greys for one bar in stages, ink last.
+     Backed by the reference picture's pixels (the two-stage bar): the last stage is ink,
+     --r1 = --fg, and the first grey is --mute (light #646B71, dark #8B9197), --r3.
+     Reference reconstruction, not measured from a picture: --r2 (second-level text) is
+     the step between them for a third stage, and --r4 (chart grey) is the lighter step
+     before them for a fourth. Every stage also carries a written label. */
+  --r1: var(--fg);
+  --r2: var(--fg2);
+  --r3: var(--mute);
+  --r4: var(--dim);
+  /* The three series hues (--s1 blue, --s2 magenta, --s3 violet) have no documented values
+     in the delivered inputs and are not declared. No chart in this slice uses a hue. */
+
+  /* Faces */
+  --f: 'Instrument Sans', system-ui, 'Segoe UI', sans-serif;
+  --fm: 'DM Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --fw: 'IBM Plex Mono', ui-monospace, monospace;
+  --fd: 'Noto Sans Devanagari', 'Nirmala UI', 'Mangal', system-ui, sans-serif;
+
+  /* Frame sizes, Guided view at 100 percent zoom */
+  --rail: 216px;
+  --col: 720px;
+  --col-wide: 1010px;
+  --sheet: 480px;
+  --col-sheet: 570px;
+  --row: 54px;
+  --ask: 54px;
+  --status: 34px;
+  --topbar: 48px;
+
+  /* Marks and controls */
+  --square: 8px;
+  --square-r: 1.5px;
+  --square-stroke: 1.5px;
+  --strip: 7px;
+  --strip-gap: 3px;
+  --hair: 1px;
+  --focus: 2px;
+  --focus-gap: 2px;
+  --target: 24px;
+  --radius: 2px;
+  --button-r: 4px;
+
+  /* Chart marks */
+  --bar-w: 24px;
+  --bar-r: 4px;
+  --line-w: 2px;
+  --dot-r: 3.5px;
+  --dot-ring: 2px;
+  --chart-h: 48px;
+  --chart-h-simple: 64px;
+  --bar-h: 10px;
+
+  /* Spacing, --sp1 to --sp8. --s1 to --s3 are reserved for the series hues and are never
+     a size. */
+  --sp1: 4px;
+  --sp2: 8px;
+  --sp3: 12px;
+  --sp4: 16px;
+  --sp5: 24px;
+  --sp6: 32px;
+  --sp7: 40px;
+  --sp8: 48px;
+  --page-top: 40px;
+  --rail-pad: 28px;
+
+  /* Times. One easing: fast start, slow end. */
+  --t-press: 120ms;
+  --t-sheet: 200ms;
+  --t-step: 240ms;
+  --t-chart: 360ms;
+  --t-receipt: 400ms;
+  --t-receipt-gap: 30ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Dark follows the computer. data-theme exists only to fix a theme for pictures. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #070809;
+    --fg: #E8EBEE;
+    --fg2: #B7BCC1;
+    --mute: #8B9197;
+    --line: #15191C;
+    --line2: #262D32;
+    --cha: #46F09B;
+    --amber: #E0A43C;
+    --amber-t: #E0A43C;
+    --red: #E24B4A;
+    --dim: #5E666C;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #070809;
+  --fg: #E8EBEE;
+  --fg2: #B7BCC1;
+  --mute: #8B9197;
+  --line: #15191C;
+  --line2: #262D32;
+  --cha: #46F09B;
+  --amber: #E0A43C;
+  --amber-t: #E0A43C;
+  --red: #E24B4A;
+  --dim: #5E666C;
+  color-scheme: dark;
+}
+
+/* More contrast: line takes line2's value, line2 takes mute's value. Literal per theme,
+   because a custom property that refers to another resolves against the new value. */
+@media (prefers-contrast: more) {
+  :root {
+    --line: #D5DADE;
+    --line2: #646B71;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --line: #262D32;
+      --line2: #8B9197;
+    }
+  }
+  :root[data-theme="dark"] {
+    --line: #262D32;
+    --line2: #8B9197;
+  }
+}
+
+/* Medium window: rail 176, column 640. The sheet covers the list (Frame.module.css). */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  :root {
+    --rail: 176px;
+    --col: 640px;
+    --col-sheet: 640px;
+  }
+}
+
+/* Reduced motion: every time is zero. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-press: 0ms;
+    --t-sheet: 0ms;
+    --t-step: 0ms;
+    --t-chart: 0ms;
+    --t-receipt: 0ms;
+    --t-receipt-gap: 0ms;
+  }
+}

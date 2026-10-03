@@ -1,0 +1,17 @@
+/* The Simple view changes sizes only (build.md part 4). Reading 18, rows 68, squares 10,
+   charts one at a time and large. Four places in the rail, the rest under More. */
+
+:root[data-view="simple"] {
+  --fs-read: 18px;
+  --fs-row: 20px;
+  --fs-note: 14px;
+  --fs-note2: 15px;
+  --fs-title: 34px;
+  --fs-section: 24px;
+  --fs-fig: 18px;
+  --fs-fig-tile: 24px;
+  --row: 68px;
+  --square: 10px;
+  --chart-h: var(--chart-h-simple);
+  --target: 44px;
+}

@@ -1,0 +1,74 @@
+.steps {
+  --dot: 6px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  padding-top: var(--sp2);
+}
+
+/* The line the dots sit on. */
+.steps::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--square) / 2);
+  right: calc(var(--square) / 2);
+  top: calc(var(--sp2) + var(--square) / 2);
+  border-top: var(--hair) solid var(--line2);
+}
+
+.step {
+  position: relative;
+  display: grid;
+  gap: var(--sp1);
+  padding-right: var(--sp3);
+  min-width: 0;
+}
+
+.dot {
+  width: var(--dot);
+  height: var(--dot);
+  margin: calc((var(--square) - var(--dot)) / 2) 0 calc((var(--square) - var(--dot)) / 2 + var(--sp2));
+  border-radius: 50%;
+  background: var(--bg);
+  border: var(--hair) solid var(--line2);
+}
+.done .dot {
+  background: var(--dim);
+  border-color: var(--dim);
+}
+.here .dot {
+  visibility: hidden;
+}
+
+.name {
+  font-size: var(--fs-note2);
+  color: var(--mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.here .name {
+  color: var(--fg);
+}
+
+.state,
+.at {
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+
+/* The walking square: positioned over the step reached and moved by transition. The
+   walker is one step wide, and a percentage in translateX is of the walker's own width,
+   so step i is i whole widths along. Dividing by the number of steps again would be wrong. */
+.walker {
+  position: absolute;
+  top: var(--sp2);
+  left: 0;
+  transform: translateX(calc(var(--i) * 100%));
+  width: calc(100% / var(--n));
+  display: block;
+  pointer-events: none;
+}

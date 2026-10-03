@@ -1,0 +1,12 @@
+.label {
+  font-family: var(--fm);
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--mute);
+  white-space: nowrap;
+}
+
+.amber {
+  color: var(--amber-t);
+}

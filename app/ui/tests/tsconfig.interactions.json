@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM"],
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "typeRoots": [
+      "../node_modules/@types",
+      "../../../node_modules/@types",
+      "../../../../task/integration/node_modules/@types"
+    ]
+  },
+  "include": [
+    "./ask-question.test.ts",
+    "./conversation-surface.test.ts",
+    "./routes.test.ts",
+    "./places.test.ts",
+    "./keys.test.ts",
+    "./chart-scale.test.ts",
+    "./composition.test.ts",
+    "./today-permissions.test.ts"
+  ]
+}

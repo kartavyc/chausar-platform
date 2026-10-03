@@ -1,0 +1,49 @@
+.button {
+  font: inherit;
+  font-size: var(--fs-read);
+  line-height: 1.2;
+  min-height: var(--target);
+  margin: 0;
+  cursor: pointer;
+  border-radius: var(--button-r);
+  color: var(--fg);
+  background: none;
+  border: 0;
+}
+
+.button:disabled {
+  cursor: default;
+  color: var(--mute);
+}
+
+.filled {
+  background: var(--fg);
+  color: var(--bg);
+  padding: var(--sp3) var(--sp4);
+  font-weight: var(--fw-medium);
+}
+.filled:disabled {
+  background: var(--line2);
+  color: var(--bg);
+}
+
+.quiet {
+  border: var(--hair) solid var(--line2);
+  padding: var(--sp3) var(--sp4);
+}
+
+.link {
+  padding: 0;
+  border-radius: var(--radius);
+  text-decoration: underline;
+  text-decoration-color: var(--line2);
+  text-decoration-thickness: var(--hair);
+  text-underline-offset: 3px;
+}
+.link:hover {
+  text-decoration-color: var(--fg);
+}
+
+.danger {
+  color: var(--red);
+}

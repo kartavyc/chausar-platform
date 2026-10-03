@@ -1,0 +1,53 @@
+.sheet {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100%;
+  padding: var(--sp6) var(--sp6) var(--sp6) var(--sp6);
+  border-left: var(--hair) solid var(--line);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp4);
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+.kind {
+  min-width: 0;
+}
+
+.back,
+.close {
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+.title {
+  margin: var(--sp4) 0 var(--sp5);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-medium);
+  line-height: 1.25;
+  letter-spacing: var(--ls-title);
+}
+
+.body {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: var(--sp5);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp3);
+  padding-top: var(--sp5);
+}

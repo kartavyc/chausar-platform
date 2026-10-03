@@ -1,0 +1,118 @@
+.rail {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: var(--rail);
+  height: 100%;
+  padding: var(--rail-pad);
+  border-right: var(--hair) solid var(--line);
+  font-size: var(--fs-row);
+}
+
+.top {
+  margin-bottom: var(--sp8);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.mark {
+  width: calc(var(--square) * 2 + var(--sp1));
+  height: calc(var(--square) * 2 + var(--sp1));
+}
+.m1 { fill: var(--fg); }
+.m2 { fill: var(--cha); }
+
+.word {
+  font-family: var(--fw);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-mark);
+  letter-spacing: var(--ls-mark);
+}
+
+.places,
+.subs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.placeItem {
+  margin-bottom: var(--sp3);
+}
+
+.place,
+.sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp2);
+  min-height: var(--target);
+  color: var(--mute);
+  text-decoration: none;
+}
+.place:hover,
+.sub:hover {
+  color: var(--fg);
+}
+
+.here {
+  color: var(--fg);
+}
+
+.count {
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+
+/* Sub-places: indented, with a hairline at the left. */
+.subs {
+  margin: var(--sp1) 0 var(--sp2) var(--sp1);
+  padding-left: var(--sp3);
+  border-left: var(--hair) solid var(--line2);
+  font-size: var(--fs-note2);
+}
+
+.foot {
+  font-size: var(--fs-note2);
+}
+
+/* Narrow: a bar across the top. */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp4);
+  min-height: var(--topbar);
+  padding: 0 var(--sp4);
+  border-bottom: var(--hair) solid var(--line);
+}
+
+.menu {
+  position: relative;
+}
+
+.summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp2);
+  min-height: var(--target);
+  cursor: pointer;
+  list-style: none;
+}
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.menuBody {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  min-width: var(--rail);
+  padding: var(--sp4);
+  background: var(--bg);
+  border: var(--hair) solid var(--line2);
+  z-index: 2;
+}

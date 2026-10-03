@@ -1,0 +1,46 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+}
+
+.line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp2);
+  border-bottom: var(--hair) solid var(--line2);
+}
+
+.prefix {
+  color: var(--mute);
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  padding: var(--sp2) 0;
+  min-height: var(--target);
+}
+.input::placeholder {
+  color: var(--mute);
+  opacity: 1;
+}
+.input[aria-invalid="true"] {
+  border-bottom-color: var(--red);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--fs-note);
+  color: var(--red);
+}

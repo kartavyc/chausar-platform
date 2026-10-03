@@ -1,0 +1,87 @@
+/* Type. Main design, part 6 ("Type"). Sizes are tokens; views/*.css change them. */
+
+:root {
+  --fs-read: 15px;
+  --lh-read: 1.5;
+  --fs-row: 16px;
+  --fs-title: 30px;
+  --lh-title: 1.1;
+  --ls-title: -0.02em;
+  --fs-section: 22px;
+  --fs-note: 13px;
+  --fs-note2: 14px;
+  --fs-fig: 15px;
+  --fs-fig-tile: 20px;
+  --fs-fig-big: 34px;
+  --fs-label: 11.5px;
+  --ls-label: 0.06em;
+  --fs-mark: 14px;
+  --ls-mark: 0.011em;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --lh-devanagari: 1.7;
+}
+
+html {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--f);
+  font-size: var(--fs-read);
+  line-height: var(--lh-read);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Hindi and other Devanagari text: same sizes, taller lines, no tightening. */
+:lang(hi) {
+  font-family: var(--fd);
+  line-height: var(--lh-devanagari);
+  letter-spacing: 0;
+}
+
+/* Keyboard focus is a 2 pixel ink outline. It is never removed. */
+:focus-visible {
+  outline: var(--focus) solid var(--fg);
+  outline-offset: var(--focus-gap);
+  border-radius: var(--radius);
+}
+
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line2);
+  text-decoration-thickness: var(--hair);
+  text-underline-offset: 3px;
+}
+a:hover {
+  text-decoration-color: var(--fg);
+}
+
+/* Figures, dates and times: the number face with digits of equal width. */
+.fig {
+  font-family: var(--fm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Visually hidden, still read by screen readers. */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
