@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign, createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, writeFile, rm, readdir, mkdir, symlink, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { ReleaseUpdater, canonicalReleaseManifest, compareVersions, type ReleaseManifest } from '../runtime/updater.ts';
@@ -13,7 +13,12 @@ const keys=generateKeyPairSync('ed25519'),artifact=Buffer.from('A test artifact;
 const code=(expected:string)=>(error:any)=>error.code===expected;
 function manifest(version='1.1.0'):ReleaseManifest{return{schemaVersion:1,version,publishedAt:'2026-09-01T00:00:00.000Z',platform:process.platform as any,architecture:process.arch as any,url:'https://downloads.example.com/chausar.pkg',sha256:createHash('sha256').update(artifact).digest('hex'),size:artifact.length,minEngineVersion:'1.0.0',dataSchemaVersion:1,rollback:{supported:true,requiresBackup:true}};}
 function signature(value:ReleaseManifest){return sign(null,Buffer.from(canonicalReleaseManifest(value)),keys.privateKey).toString('base64url');}
-async function directory(t:any){const path=await mkdtemp(join(await realpath(tmpdir()),'chausar-updater-test-'));t.after(()=>rm(path,{recursive:true,force:true}));return path;}
+async function directory(t:any){
+  const root=await realpath(tmpdir());if(process.platform==='win32')assert.match(root,/^C:[\\/]/i);
+  const path=await mkdtemp(join(root,'chausar-updater-test-'));
+  t.after(async()=>{const target=await realpath(path),child=relative(root,target);assert.ok(child.startsWith('chausar-updater-test-')&&!child.startsWith('..')&&!isAbsolute(child));await rm(target,{recursive:true,force:true});});
+  return path;
+}
 function deadPid() {
   const child=spawnSync(process.execPath,['-e','process.stdout.write(String(process.pid))'],{windowsHide:true,shell:false,encoding:'utf8'});
   assert.equal(child.status,0,child.stderr);const pid=Number(child.stdout);assert.throws(()=>process.kill(pid,0),(error:any)=>error.code==='ESRCH');return pid;
@@ -101,7 +106,7 @@ test('competing stale-lock recovery has exactly one writer and never removes its
   let releaseHttp!:()=>void,entered!:()=>void,refused!:()=>void,calls=0;const errors:any[]=[];
   const gate=new Promise<void>(accept=>{releaseHttp=accept;}),first=new Promise<void>(accept=>{entered=accept;}),others=new Promise<void>(accept=>{refused=accept;});t.after(()=>releaseHttp());
   const attempts=Array.from({length:10},()=>new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,http:async()=>{calls++;entered();await gate;return{status:200,body:artifact};}}).stage(release,signature(release)).then(value=>({value}),error=>{errors.push(error);if(errors.length===9)refused();return{error};}));
-  await Promise.all([first,others]);assert.equal(calls,1);assert.ok(errors.every(error=>error.code==='UPDATE_BUSY'));
+  await Promise.all([first,others]);assert.equal(calls,1);assert.ok(errors.every(error=>error.code==='UPDATE_BUSY'),JSON.stringify(errors.map(error=>({code:error.code,message:error.message,stack:error.stack}))));
   const owner=JSON.parse(await readFile(join(stageDirectory,'stage.lock'),'utf8'));assert.equal(owner.pid,process.pid);releaseHttp();
   const results=await Promise.all(attempts);assert.equal(results.filter(result=>'value'in result).length,1);assert.ok(!(await readdir(stageDirectory)).some(name=>name.endsWith('.lock')));
 });
