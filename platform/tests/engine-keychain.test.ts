@@ -232,10 +232,15 @@ test('Engine refuses unclassified managed copies before deleting authority or ca
   const unmanaged = join(f.directory, 'main', 'private-artifacts', 'private-trial', 'unclassified.txt');
   await writeFile(unmanaged, 'Synthetic unclassified custody');
   await assert.rejects(f.engine.request('workspace.delete', { confirmation: name }), { code: 'ARTIFACT_INVENTORY_INCOMPLETE' });
-  assert.equal(f.engine.vault!.vaultId, vaultId); await access(join(f.directory, 'main', 'authority.encrypted.json'));
+  // Qualified deletion closes the admitted Vault even when inventory refuses.
+  // Engine must drop that closed handle while authority and key custody survive.
+  assert.equal(f.engine.vault, null); assert.equal((await f.engine.request('workspace.status')).open, false);
+  await access(join(f.directory, 'main', 'authority.encrypted.json'));
   assert.equal(f.custody.entries.has(vaultId), true); assert.deepEqual(f.custody.events, [{ operation: 'store', vaultId }]);
   assert.equal(await readFile(unmanaged, 'utf8'), 'Synthetic unclassified custody');
-  await unlink(unmanaged); await f.engine.request('workspace.delete', { confirmation: name });
+  await unlink(unmanaged); await f.engine.request('workspace.open', { passphrase });
+  assert.equal(f.engine.vault!.vaultId, vaultId);
+  await f.engine.request('workspace.delete', { confirmation: name });
   assert.equal(f.custody.entries.size, 0);
 });
 
