@@ -32,8 +32,15 @@ export interface EncryptedSnapshotAdapter {
 }
 /** Only trusted engine code supplies a hook. No OS keychain is assumed or certified. */
 export interface KeychainHook {
+  /** Borrowed detached bytes, cleared by Vault when this promise settles.
+   * A provider must finish persistence or make its own custody copy before then. */
   store(vaultId: string, key: Uint8Array): Promise<void>;
   remove(vaultId: string): Promise<void>;
+}
+/** Trusted native custody only. Retrieval transfers a detached key buffer to
+ * Vault, which consumes and clears it; never expose this capability through RPC. */
+export interface VaultKeychainProvider extends KeychainHook {
+  retrieve(vaultId: string): Promise<Uint8Array | null>;
 }
 type Storage = 'experimental-file' | EncryptedSnapshotAdapter;
 export type PrivateArtifactPurpose = 'private-trial' | 'workspace-interchange';
@@ -63,6 +70,7 @@ export type CreateBootstrapVaultOptions = Common & {
   budgets: VaultBootstrapBudgets;
 };
 export type OpenVaultOptions = Common & { passphrase: string };
+export type OpenKeychainVaultOptions = Common & { keychain: VaultKeychainProvider };
 export type RecoverVaultOptions = Common & { recoveryCode: string; newPassphrase: string };
 export type VaultRestoreDescriptor = { vaultId: string; workspaceId: string; backupRevision: number };
 export type RestoreVaultOptions = Common & {
@@ -73,6 +81,12 @@ export type RestoreVaultOptions = Common & {
 } & ({ passphrase: string } | { recoveryCode: string; newPassphrase: string });
 
 function fail(code: string, message: string): never { throw new ChausarError(code, message); }
+async function registerKey(keychain: KeychainHook | undefined, vaultId: string, key: Uint8Array): Promise<void> {
+  if (!keychain) return;
+  const borrowed = Uint8Array.from(key);
+  try { await keychain.store(vaultId, borrowed); }
+  finally { borrowed.fill(0); }
+}
 function passphrase(value: string) {
   if (typeof value !== 'string' || value.length < 12 || value.length > 1024) fail('WEAK_PASSPHRASE', 'Use a passphrase of 12 to 1024 characters.');
 }
@@ -387,7 +401,7 @@ export class Vault implements StateStore {
       const envelope = encodeSnapshot(state, { format: FORMAT, id, revision: 0, passphrase: primary, recovery }, key);
       await adapter.commit(envelope, null);
       committed = true;
-      if (options.keychain) await options.keychain.store(id, Uint8Array.from(key));
+      await registerKey(options.keychain, id, key);
       return { vault: new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard), recoveryCode };
     } catch (error) {
       key?.fill(0);
@@ -438,7 +452,7 @@ export class Vault implements StateStore {
       if (writerGuard) await writerGuard({ state: structuredClone(state), vaultId: id }, publish);
       else await publish(() => {});
       if (!committed || publicationCalls !== 1) fail('BOOTSTRAP_READBACK', 'Root did not publish and read back the exact fresh authority.');
-      if (keychain) await keychain.store(id, Uint8Array.from(key));
+      await registerKey(keychain, id, key);
       return { vault: new Vault(directory, adapter, lock, key, envelope, state, keychain, writerGuard), recoveryCode };
     } catch (error) {
       try {
@@ -467,6 +481,7 @@ export class Vault implements StateStore {
     }
   }
   static async open(options: OpenVaultOptions): Promise<Vault> { return Vault.unlock(options, options.passphrase, false); }
+  static async openWithKeychain(options: OpenKeychainVaultOptions): Promise<Vault> { return Vault.unlock(options, '', false, true); }
   static async recover(options: RecoverVaultOptions): Promise<Vault> {
     try { passphrase(options.newPassphrase); } catch (error) { await closeTransferred(options.storage); throw error; }
     const vault = await Vault.unlock(options, options.recoveryCode, true);
@@ -482,7 +497,7 @@ export class Vault implements StateStore {
       return vault;
     } catch (error) { await vault.close(); throw error; }
   }
-  private static async unlock(options: Common, secret: string, recovery: boolean): Promise<Vault> {
+  private static async unlock(options: Common, secret: string, recovery: boolean, keychainCredential = false): Promise<Vault> {
     let directory: string, adapter: EncryptedSnapshotAdapter;
     try { directory = await safeDirectory(options.directory); adapter = adapterFor(directory, options.storage); }
     catch { await closeTransferred(options.storage); return fail('UNLOCK_FAILED', 'Unable to unlock vault. Check your credential or restore a valid backup.'); }
@@ -491,7 +506,13 @@ export class Vault implements StateStore {
     let key: Buffer | undefined;
     try {
       const envelope = await adapter.load(); validateEnvelope(envelope);
-      key = await unwrap(secret, recovery ? envelope.recovery : envelope.passphrase, envelope.id, recovery ? 'recovery' : 'passphrase');
+      if (keychainCredential) {
+        const supplied = await (options.keychain as VaultKeychainProvider).retrieve(envelope.id);
+        try {
+          if (!(supplied instanceof Uint8Array) || supplied.byteLength !== 32) throw new Error('Native custody unavailable');
+          key = Buffer.from(supplied);
+        } finally { if (supplied instanceof Uint8Array) supplied.fill(0); }
+      } else key = await unwrap(secret, recovery ? envelope.recovery : envelope.passphrase, envelope.id, recovery ? 'recovery' : 'passphrase');
       const state = decodeSnapshot(envelope, key);
       return new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard);
     } catch { key?.fill(0); await lock.release(); await adapter.close?.(); return fail('UNLOCK_FAILED', 'Unable to unlock vault. Check your credential or restore a valid backup.'); }
@@ -560,7 +581,7 @@ export class Vault implements StateStore {
         }
       }
       await adapter.commit(envelope, null);
-      if (options.keychain) await options.keychain.store(envelope.id, Uint8Array.from(key!));
+      await registerKey(options.keychain, envelope.id, key!);
       return new Vault(directory, adapter, lock, key!, envelope, state, options.keychain, options.writerGuard);
     } catch (error) { key!.fill(0); await lock.release(); await adapter.close?.(); throw error; }
   }

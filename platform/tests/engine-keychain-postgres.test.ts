@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import { PostgresSnapshotAdapter, type PostgresOptions, type PostgresPool, type PostgresQueryResult } from '../runtime/postgres.ts';
-import type { KeychainHook, VaultEnvelope } from '../runtime/vault.ts';
+import type { VaultKeychainProvider, VaultEnvelope } from '../runtime/vault.ts';
 
 const passphrase = 'Public synthetic Engine protocol passphrase';
 const postgresUrl = 'postgresql://synthetic:public-synthetic-password@127.0.0.1:15432/synthetic';
@@ -173,9 +173,10 @@ function protocolPool() {
 
 /** Retains synthetic keys to exercise actual custody, rather than inferring
  * removal from a counter. Keys never leave this local test double. */
-class SyntheticKeychain implements KeychainHook {
+class SyntheticKeychain implements VaultKeychainProvider {
   readonly custody = new Map<string, Uint8Array>();
   readonly removals: string[] = [];
+  readonly retrievals: string[] = [];
   readonly beforeRemove: (vaultId: string) => void;
   constructor(beforeRemove: (vaultId: string) => void = () => {}) { this.beforeRemove = beforeRemove; }
   async store(vaultId: string, key: Uint8Array) {
@@ -186,6 +187,10 @@ class SyntheticKeychain implements KeychainHook {
     this.beforeRemove(vaultId);
     const key = this.custody.get(vaultId); assert.ok(key, 'Removal must address actual registered synthetic custody.');
     key.fill(0); this.custody.delete(vaultId); this.removals.push(vaultId);
+  }
+  async retrieve(vaultId: string) {
+    this.retrievals.push(vaultId);
+    const key = this.custody.get(vaultId); return key ? Uint8Array.from(key) : null;
   }
   clear() { for (const key of this.custody.values()) key.fill(0); this.custody.clear(); }
 }
@@ -211,8 +216,8 @@ async function fixture(t: TestContext, beforeRemove?: (vaultId: string) => void)
       await rm(directory, { recursive: true, force: true });
     }
   });
-  const engine = () => {
-    const created = new Engine({ directory, storage: 'postgres', postgresUrl, keychain }); engines.push(created); return created;
+  const engine = (options: Partial<ConstructorParameters<typeof Engine>[0]> = {}) => {
+    const created = new Engine({ directory, storage: 'postgres', postgresUrl, keychain, ...options }); engines.push(created); return created;
   };
   return { directory, protocol, keychain, connections, engine };
 }
@@ -243,7 +248,8 @@ test('Engine PostgreSQL reopen removes registered custody only after the actual 
   assert.ok(opened.creation_id); const storageId = f.protocol.storageGeneration(); assert.ok(storageId);
   assert.deepEqual([...f.keychain.custody.keys()], [expectedId]);
   await initial.request('workspace.lock'); assert.equal(f.keychain.custody.has(expectedId), true);
-  const reopened = f.engine(); await reopened.request('workspace.open', { passphrase });
+  const reopened = f.engine(); await reopened.request('workspace.open', { unlock: 'keychain' });
+  assert.deepEqual(f.keychain.retrievals, [expectedId]);
   assert.equal(reopened.vault!.vaultId, expectedId); assert.deepEqual(f.connections, [slot, slot]);
   assert.equal(f.protocol.current().get(slot)?.creation_id, opened.creation_id);
   assert.equal(f.protocol.storageGeneration(), storageId); assert.equal(f.protocol.currentCustody().size, 0);
@@ -253,6 +259,22 @@ test('Engine PostgreSQL reopen removes registered custody only after the actual 
   assert.equal(f.keychain.custody.size, 0); assert.equal(reopened.vault, null); assert.deepEqual(reopened.services, {});
   await assert.rejects(access(join(f.directory, 'main', 'writer.lock')), { code: 'ENOENT' });
   await assert.rejects(reopened.request('workspace.open', { passphrase }), { code: 'UNLOCK_FAILED' });
+});
+
+test('Engine PostgreSQL keychain unlock refuses installed storage admission before credential retrieval', async t => {
+  const f = await fixture(t), initial = f.engine();
+  await initial.request('workspace.create', { name: 'Synthetic admitted keychain', passphrase });
+  const vaultId = initial.vault!.vaultId, slot = f.connections[0], authority = f.protocol.current().get(slot);
+  await initial.request('workspace.lock');
+  const failure = new Error('Synthetic current PostgreSQL admission refused'); let admissions = 0;
+  const refused = f.engine({ workspaceStorageAdmission: async (input, _work) => {
+    admissions++; assert.equal(input.operation, 'open'); assert.equal(input.directory, join(f.directory, 'main')); throw failure;
+  } });
+  await assert.rejects(refused.request('workspace.open', { unlock: 'keychain', passphrase }), error => error === failure);
+  assert.equal(admissions, 1); assert.deepEqual(f.keychain.retrievals, []); assert.equal(refused.vault, null);
+  assert.deepEqual(f.protocol.current().get(slot), authority); assert.equal(f.keychain.custody.has(vaultId), true);
+  assert.deepEqual(f.keychain.removals, []); assert.equal(f.protocol.active(), 0);
+  await assert.rejects(access(join(f.directory, 'main', 'writer.lock')), { code: 'ENOENT' });
 });
 
 test('Engine PostgreSQL delete COMMIT failure rolls back authority and never removes custody, then reopens for retry', async t => {

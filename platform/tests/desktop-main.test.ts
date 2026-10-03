@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import vm from 'node:vm';
 const require = createRequire(import.meta.url);
 const desktopMain = new URL('../../app/desktop/main.cjs', import.meta.url);
 const desktopRequire = createRequire(desktopMain);
 const flush = () => new Promise<void>(accept => setImmediate(accept));
 
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), postgresGate?: Promise<void>) {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), postgresGate?: Promise<void>, environment: NodeJS.ProcessEnv = {}) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   let databaseCloses = 0;
   const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
@@ -40,13 +41,14 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !postgresGate, version: '2.3.4' }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }) };
     if (name === 'node:net' && postgresGate) return { createServer: () => ({ once() {}, listen(_port: number, _host: string, callback: () => void) { callback(); }, address: () => ({ port: 5432 }), close(callback: () => void) { callback(); } }) };
     return desktopRequire(name);
-  }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });
+  }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', '/owned/app', ...args], env: environment, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });
   await flush();
   return { app, windows, engines, menus, errors, handlers, powerMonitor, databaseCloses: () => databaseCloses };
 }
 
 test('packaged preview forces synthetic worker and enforces the isolated window IPC envelope', async () => {
-  const d = await desktop([]); assert.equal(d.errors.length, 0); assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '1');
+  const d = await desktop([], Promise.resolve(), undefined, { CHAUSAR_KEYCHAIN_MANIFEST: '/untrusted/manifest.json' }); assert.equal(d.errors.length, 0); assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '1');
+  assert.equal(d.engines[0].options.environment.CHAUSAR_KEYCHAIN_MANIFEST, undefined);
   assert.equal(d.engines[0].options.environment.CHAUSAR_ENGINE_VERSION, '2.3.4');
   const window = d.windows[0]; assert.match(window.options.title, /synthetic data/);
   assert.equal(window.options.webPreferences.sandbox, true); assert.equal(window.options.webPreferences.contextIsolation, true); assert.equal(window.options.webPreferences.nodeIntegration, false); assert.equal(window.webContents.open().action, 'deny');
@@ -68,6 +70,16 @@ test('background process exposes Open/Quit and drains once without startup persi
 
 test('unsigned packaged preview refuses explicit production mode before starting a worker', async () => {
   const d = await desktop(['--production']); assert.match(d.errors[0], /synthetic data only/); assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0); assert.equal(d.app.quits, 1);
+});
+
+test('production desktop forwards its fixed packaged custody manifest through the real startup composition', async () => {
+  // Electron and PostgreSQL boundaries are synthetic; the actual main source runs.
+  const d = await desktop(['--production'], Promise.resolve(), Promise.resolve(), { CHAUSAR_KEYCHAIN_MANIFEST: '/untrusted/manifest.json' });
+  assert.equal(d.errors.length, 0); assert.equal(d.engines.length, 1);
+  assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '0');
+  assert.equal(d.engines[0].options.environment.CHAUSAR_KEYCHAIN_MANIFEST, join('/owned/resources', 'runtime-binaries', 'keychain', 'manifest.json'));
+  d.app.emit('before-quit', { preventDefault() {} }); await flush();
+  assert.equal(d.engines[0].stops, 1); assert.equal(d.databaseCloses(), 1);
 });
 
 test('quit awaits in-flight startup and never opens a window or starts a late worker', async () => {

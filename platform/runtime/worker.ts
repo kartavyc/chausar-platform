@@ -3,11 +3,13 @@ import { engineJobOptions } from './engine-jobs.ts';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
+import { loadEngineKeychain, type EngineKeychainHostDependencies } from './engine-keychain-host.ts';
 
 /** Verified host evidence is installed before the worker can announce readiness. */
-export async function createWorkerEngine(environment: NodeJS.ProcessEnv = process.env, dependencies: CodexCliHostDependencies = {}): Promise<Engine> {
+export async function createWorkerEngine(environment: NodeJS.ProcessEnv = process.env, dependencies: CodexCliHostDependencies & EngineKeychainHostDependencies = {}): Promise<Engine> {
   const gateway = await loadCodexCliHostGateway(environment, dependencies);
-  return new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: environment.CHAUSAR_VAULT_DIRECTORY ?? './data', demo: environment.CHAUSAR_DEMO === '1', storage: environment.CHAUSAR_DEMO === '1' ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway });
+  const demo = environment.CHAUSAR_DEMO === '1', keychain = await loadEngineKeychain(environment, dependencies, demo);
+  return new Engine({ version: environment.CHAUSAR_ENGINE_VERSION, directory: environment.CHAUSAR_VAULT_DIRECTORY ?? './data', demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, keychain });
 }
 
 /** Trusted host entry point. Tests can inject an Engine fixture, never a renderer or RPC. */
