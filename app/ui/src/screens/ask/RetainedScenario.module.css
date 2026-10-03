@@ -1,0 +1,159 @@
+/* A saved what-if holds layout only: plain ground, grey names, columns between hairlines.
+   No boxes, no colour of its own; charts stay in ink and grey. */
+
+.page,
+.scenario,
+.group {
+  display: grid;
+  gap: var(--sp4);
+  align-content: start;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp3);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-medium);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--fs-note2);
+  font-weight: var(--fw-regular);
+  color: var(--mute);
+}
+
+/* Identities and source text as supplied. Nothing is cut. */
+.identity,
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  display: block;
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+/* One column per option. The header cell keeps its native table-cell formatting so each
+   header stays over its own body cell; the grid for label, role and assumption sits on an
+   inner wrapper. */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.head {
+  padding: var(--sp2) var(--sp4) var(--sp2) 0;
+  text-align: start;
+  font-weight: var(--fw-regular);
+  vertical-align: top;
+  border-bottom: var(--hair) solid var(--line2);
+}
+
+.column {
+  display: grid;
+  gap: var(--sp1);
+  min-width: 0;
+}
+
+.columnLabel {
+  font-size: var(--fs-row);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+
+.cell {
+  padding: var(--sp3) var(--sp4) var(--sp3) 0;
+  vertical-align: top;
+}
+
+.jobs,
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--sp3);
+}
+
+.job {
+  display: grid;
+  gap: var(--sp2);
+  padding-bottom: var(--sp3);
+  border-bottom: var(--hair) solid var(--line);
+}
+
+.jobTitle {
+  margin: 0;
+  font-size: var(--fs-note2);
+  overflow-wrap: anywhere;
+}
+
+.state {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp2);
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+}
+
+.figures,
+.pairs {
+  margin: 0;
+  display: grid;
+  gap: var(--sp2);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  column-gap: var(--sp4);
+  align-items: baseline;
+}
+
+.figures .pair {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.figures .value {
+  text-align: end;
+}
+
+.name {
+  color: var(--mute);
+  font-size: var(--fs-note2);
+}
+
+.value {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-note2);
+  overflow-wrap: anywhere;
+}
+
+.figure {
+  font-family: var(--fm);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-fig);
+}
+
+.label {
+  margin-inline-start: var(--sp2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp3);
+}

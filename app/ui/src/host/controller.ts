@@ -11,6 +11,8 @@ import type { Address } from '../app/presentation.ts';
 import { formatAddress, parseAddress, sameAddress } from '../app/routes.ts';
 import { validateModelRoutes, validateUiContext } from './contracts.ts';
 import type { HostRpcPayloads, HostRpcPort, UiContext, UiModelRoute } from './contracts.ts';
+import { createRetainedController } from './retained-controller.ts';
+import type { EffectGuard, RetainedController, RetainedPort } from './retained-controller.ts';
 
 export type HostFailureCode = ReadFailureCode;
 export type HostReceiptSelection =
@@ -29,6 +31,8 @@ export interface HostState {
 export interface HostOptions { readonly now?: () => number; readonly timeZone?: string }
 export interface HostController {
   readonly conversation: ConversationHost;
+  /** Retained scenario reopen and lesson review, joined to every host invalidation. */
+  readonly retained: RetainedController;
   readonly timeZone: string;
   snapshot(): HostState;
   subscribe(listener: () => void): () => void;
@@ -75,9 +79,22 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
       invalidate('ACCESS_DENIED'); throw failure('ACCESS_DENIED');
     }
   }
-  async function guardedRequest<M extends keyof HostRpcPayloads>(method: M, payload: HostRpcPayloads[M]): Promise<unknown> {
+  /** A caller's effect guard, read synchronously; a guard that throws is a guard that failed. */
+  function guardLive(guard: EffectGuard | undefined): boolean {
+    if (guard === undefined) return true;
+    try { return guard.live() === true; } catch { return false; }
+  }
+  /**
+   * The internal host seam. Every request is fenced by the host generation and the trusted context
+   * read before and after it. A retained operation additionally carries its own live guard (surface,
+   * generation, selection): it is reread after the inner context read, immediately before the raw
+   * transport call, so a departure during that read issues nothing; the guard is told the moment the
+   * raw call is actually issued. The wire method and payload are unchanged.
+   */
+  async function guardedRequest<M extends keyof HostRpcPayloads>(method: M, payload: HostRpcPayloads[M], guard?: EffectGuard): Promise<unknown> {
     const token = generation, expected = state.context;
     if (!isCurrent(token) || expected === null || state.phase !== 'ready') throw failure('ACCESS_DENIED');
+    if (!guardLive(guard)) throw failure('READ_INVALIDATED');
     try {
       const before = await contextRead();
       if (!isCurrent(token)) throw failure('READ_INVALIDATED');
@@ -87,6 +104,9 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
         const route = Object.getOwnPropertyDescriptor(payload, 'routeId');
         if (settings === null || route?.value !== settings.routeId) throw failure('ACCESS_DENIED');
       }
+      // The last synchronous check before the effect: nothing is awaited between it and the raw call.
+      if (!guardLive(guard)) throw failure('READ_INVALIDATED');
+      guard?.issued?.();
       const value = await port.request(method, payload);
       if (!isCurrent(token)) throw failure('READ_INVALIDATED');
       const after = await contextRead();
@@ -99,13 +119,16 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
       throw error;
     }
   }
-  const guardedPort: HostRpcPort = { request: guardedRequest };
+  // The same seam under two names: the generic guarded port for the existing readers, and the retained
+  // port whose every call must carry its guard to the raw boundary.
+  const guardedPort: HostRpcPort & RetainedPort = { request: guardedRequest, guarded: guardedRequest };
   const todayReader = createDesktopTodayReader(guardedPort);
   const receiptReader = createDesktopReceiptReader(guardedPort);
   const conversation = createConversationHost(guardedPort, { now });
+  const retained = createRetainedController(guardedPort, { context: () => (state.phase === 'ready' ? state.context : null) });
   function clearPrivate() {
     generation = Symbol(); receiptGeneration = Symbol(); settings = null;
-    todayReader.invalidate(); receiptReader.invalidate(); conversation.invalidate();
+    todayReader.invalidate(); receiptReader.invalidate(); conversation.invalidate(); retained.invalidate();
   }
   function invalidate(code: HostFailureCode = 'READ_INVALIDATED') {
     clearPrivate();
@@ -181,7 +204,7 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
     catch (error) { if (!disposed) invalidate(readFailureCode(error)); }
   }
   return Object.freeze({
-    conversation, timeZone, snapshot: () => state,
+    conversation, retained, timeZone, snapshot: () => state,
     subscribe(listener: () => void) { if (disposed) return () => {}; listeners.add(listener); return () => { listeners.delete(listener); }; },
     refresh, checkAuthority, selectRoute, questionSettings: () => settings, openReceipt, closeReceipt, invalidate, lock,
     dispose() { if (disposed) return; clearPrivate(); publish(emptyState('unavailable', 'READ_INVALIDATED')); disposed = true; listeners.clear(); },
