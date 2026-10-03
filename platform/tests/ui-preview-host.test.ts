@@ -56,7 +56,10 @@ test('loopback preview is opt-in, fixed-whitelist, cache-free and preserves lega
   const preview = await fixture(t, true);
   const reply = await fetch(`${preview.origin}/ui/index.html`);
   assert.equal(reply.status, 200); assert.equal(reply.headers.get('cache-control'), 'no-store');
-  assert.match(reply.headers.get('content-security-policy') ?? '', /font-src 'self'/);
+  const policy = (reply.headers.get('content-security-policy') ?? '').split(';').map(value => value.trim());
+  const fontPolicy = policy.find(value => value.startsWith('font-src '))
+    ?? policy.find(value => value.startsWith('default-src '));
+  assert.match(fontPolicy ?? '', /^(?:font-src|default-src) 'self'$/);
   assert.match(await reply.text(), /\/ui\/shell\.js/);
   for (const [path, mime, limit] of [['/ui/host.js','text/javascript; charset=utf-8',2000000], ['/ui/host.css','text/css; charset=utf-8',200000]] as const) {
     assert.equal((await fetch(legacy.origin + path)).status, 404);
