@@ -9,7 +9,7 @@ function overlaps(left, right) {
   return child === '' || (!isAbsolute(child) && child !== '..' && !child.startsWith(`..${sep}`));
 }
 
-/** Claim a fresh temporary profile before Electron takes its instance lock. */
+/** First profile configuration: claim a fresh root before Electron's instance lock. */
 function bindDemoProfile(app, environment = process.env) {
   const temporary = realpathSync(tmpdir());
   const requested = environment.CHAUSAR_DEMO_PROFILE_ROOT ?? join(temporary, `chausar-demo-${randomUUID()}`);
@@ -18,8 +18,19 @@ function bindDemoProfile(app, environment = process.env) {
   // Only a direct child of the physical temporary directory can be claimed.
   // Never follow a caller-selected parent into a real application profile.
   if (resolve(dirname(root)) !== temporary) throw new Error('The demo profile root must be a direct child of the temporary directory.');
-  for (const name of ['userData', 'sessionData']) {
-    const existing = resolve(app.getPath(name));
+  // getPath(userData/sessionData) can create the default profile or fail before
+  // our override. Inspect its label without accessing that profile instead.
+  if (app.commandLine.hasSwitch('user-data-dir')) throw new Error('Do not supply an Electron user-data-dir for an isolated demo.');
+  const name = app.getName();
+  if (typeof name !== 'string' || !name || name === '.' || name === '..' || /[\\/:\0\r\n]/.test(name)) throw new Error('Electron returned an invalid application name.');
+  let applicationData; let defaultUnavailable = false;
+  try { applicationData = app.getPath('appData'); }
+  catch (error) { if (error?.message !== "Failed to get 'appData' path") throw error; defaultUnavailable = true; }
+  // An unavailable OS default is unnecessary for explicit path overrides.
+  // No real-user path is substituted; all bound paths come from the fresh root.
+  if (!defaultUnavailable) {
+    if (typeof applicationData !== 'string' || !isAbsolute(applicationData) || /[\0\r\n]/.test(applicationData)) throw new Error('Electron returned an invalid application data path.');
+    const existing = resolve(applicationData, name); // sessionData defaults to userData.
     if (overlaps(existing, root) || overlaps(root, existing)) throw new Error('The demo profile must be separate from the existing Electron profile.');
   }
   mkdirSync(root, { mode: 0o700 }); // EEXIST refuses directories, files and links alike.
@@ -34,7 +45,8 @@ function bindDemoProfile(app, environment = process.env) {
 
 function assertDemoProfile(app, profile) {
   for (const name of ['userData', 'sessionData']) {
-    if (resolve(app.getPath(name)) !== profile[name]) throw new Error('Electron did not retain the isolated demo profile binding.');
+    const bound = app.getPath(name);
+    if (typeof bound !== 'string' || !isAbsolute(bound) || /[\0\r\n]/.test(bound) || resolve(bound) !== profile[name]) throw new Error('Electron did not retain the isolated demo profile binding.');
   }
 }
 
