@@ -103,6 +103,11 @@ test('an abruptly killed staging process leaves recoverable complete owner metad
 
 test('competing stale-lock recovery has exactly one writer and never removes its replacement',{timeout:10000},async t=>{
   const root=await directory(t),release=manifest(),pid=deadPid();
+  async function waitForGate(gate:Promise<void>){
+    t.signal.throwIfAborted();let abort!:()=>void;
+    const cancelled=new Promise<never>((_,reject)=>{abort=()=>reject(t.signal.reason);t.signal.addEventListener('abort',abort,{once:true});});
+    try{await Promise.race([gate,cancelled]);}finally{t.signal.removeEventListener('abort',abort);}
+  }
   // Repeat the same bounded filesystem race, retaining unexpected refusal codes.
   // Every round still requires exactly one writer and all nine UPDATE_BUSY refusals.
   for(let round=0;round<10;round++){
@@ -112,7 +117,7 @@ test('competing stale-lock recovery has exactly one writer and never removes its
     const gate=new Promise<void>(accept=>{releaseHttp=accept;}),first=new Promise<void>(accept=>{entered=accept;}),others=new Promise<void>(accept=>{refused=accept;});
     const attempts=Array.from({length:10},()=>new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,http:async()=>{calls++;entered();await gate;return{status:200,body:artifact};}}).stage(release,signature(release)).then(value=>({value}),error=>{errors.push(error);if(errors.length===9)refused();return{error};}));
     try{
-      await first;const original=await readFile(join(stageDirectory,'stage.lock'),'utf8');await others;
+      await waitForGate(first);const original=await readFile(join(stageDirectory,'stage.lock'),'utf8');await waitForGate(others);
       assert.equal(calls,1);const unexpected=errors.filter(error=>error.code!=='UPDATE_BUSY');
       assert.deepEqual(unexpected,[],JSON.stringify(unexpected.map(error=>({round,code:error.code,syscall:error.syscall,path:relative(root,error.path??stageDirectory),message:error.message,stack:error.stack}))));
       assert.equal(await readFile(join(stageDirectory,'stage.lock'),'utf8'),original);assert.equal(JSON.parse(original).pid,process.pid);
