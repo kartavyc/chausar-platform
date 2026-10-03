@@ -4,11 +4,11 @@ import { PhoneClient } from '../runtime/phone/client.ts';
 import type { PhoneReceiptReader } from '../runtime/phone/client.ts';
 import { PhoneError } from '../runtime/phone/contracts.ts';
 import type { PhoneReceipt } from '../runtime/phone/host-contracts.ts';
-import type { PhoneMethods, SessionGrant } from '../runtime/phone/contracts.ts';
+import type { PhoneMethods, SessionAuthority, SessionGrant } from '../runtime/phone/contracts.ts';
 
 function fixture() {
   let time = Date.parse('2026-10-03T00:00:00Z');
-  const authority = () => ({ binding: { workspaceId: 'shop', memberId: 'owner', deviceId: 'phone', epoch: 1 }, sessionId: 'session', expiresAt: new Date(time + 60000).toISOString(), validatedAt: new Date(time).toISOString(), capabilities: ['brief.read'] as const });
+  const authority = (): SessionAuthority => ({ binding: { workspaceId: 'shop', memberId: 'owner', deviceId: 'phone', epoch: 1 }, sessionId: 'session', expiresAt: new Date(time + 60000).toISOString(), validatedAt: new Date(time).toISOString(), capabilities: ['brief.read'] });
   const grant = (): SessionGrant => ({ credential: 'synthetic-receipt-credential-never-print', authority: { ...authority(), capabilities: [...authority().capabilities] } });
   const calls: string[] = [];
   const receiptCalls: Parameters<PhoneReceiptReader['read']>[] = [];
