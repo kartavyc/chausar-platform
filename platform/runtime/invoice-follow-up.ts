@@ -277,7 +277,7 @@ export class InvoiceFollowUpHost {
     const goal: GoalRunner<InvoiceJobInput> = { type: invoiceJobType, version: '1', validate: validateInput,
       admit: (state, context, input, config, previous) => {
         this.access(state, context); check(!previous, 'INVOICE_AMENDMENT_UNSUPPORTED', 'Create a separately reviewed mandate to replace invoice targets.');
-        check(config.ownerId === undefined || config.ownerId === context.memberId, 'JOB_OWNER_REQUIRED', 'Pin the creating invoice owner.');
+        check(config.ownerId === context.memberId, 'JOB_OWNER_REQUIRED', 'Explicitly pin the creating invoice owner.');
         check(config.catchup === 'latest' || config.catchup === 'skip', 'INVOICE_CATCHUP_REQUIRED', 'Choose latest or skip explicitly.');
         check(config.sourceIds?.length && config.sourceIds.length <= 64 && config.testedRoutes?.length === 0
           && config.allowedActions?.length === 1 && config.allowedActions[0] === `${invoiceConnectorId}.send`,

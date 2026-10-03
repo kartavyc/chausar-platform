@@ -41,6 +41,7 @@ import { SyncService, type SyncOptions } from './sync.ts';
 import { writerStateDigest, type SyncWriterAdmission, type SyncWriterReview } from './sync-writer-admission.ts';
 import { ActionService, digest } from './actions.ts';
 import { JobService } from './jobs.ts';
+import { InvoiceFollowUpHost, invoiceJobType, invoiceConnectorId, type InvoiceHostOptions } from './invoice-follow-up.ts';
 import { createEngineJobRunner, type EngineJobOptions, type JobLifecycle } from './engine-jobs.ts';
 import type { Job } from './jobs.ts';
 import type { CalendarRules } from './calendar-zone.ts';
@@ -75,6 +76,8 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
   /** Trusted local composition capabilities. Never supplied by an RPC or archive. */
   workspaceActivation?: EngineWorkspaceActivationOptions;
   workspaceAuthority?: {workspaceId: string; ownerId: string; vaultId?: string};
+  /** Explicit synthetic policy supplied by a trusted host, never an RPC or product default. */
+  invoiceFollowUp?: InvoiceHostOptions;
 };
 // Operational admission ceilings reject the complete operation; no namespace is truncated.
 const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32 * 1024 * 1024,
@@ -117,7 +120,10 @@ export class Engine {
   get context(): Context { return this.#requestContext.getStore() || this.#baseContext; }
   set context(value: Context) { this.#baseContext = { ...value }; }
   services: Record<string, any> = {};
-  constructor(options: EngineOptions) { this.version = options.version ?? '0.1.0-preview.1'; compareVersions(this.version, this.version); this.options = { ...options, directory: resolve(options.directory) }; }
+  constructor(options: EngineOptions) {
+    check(!options.invoiceFollowUp || options.demo === true, 'INVOICE_SIMULATION_ONLY', 'Install invoice follow-up only in the explicitly experimental synthetic host.');
+    this.version = options.version ?? '0.1.0-preview.1'; compareVersions(this.version, this.version); this.options = { ...options, directory: resolve(options.directory) };
+  }
   /** Resolve retained objective text only through current private authority. No inference or resend. */
   conversationContinuation(ctx: Context, id: string, view: StateStore = this.store(), resolvedByModelReceiptId?: string): ConversationContinuation {
     authorize(view, ctx);
@@ -458,6 +464,7 @@ export class Engine {
       receiptGuard: (ctx, receipt) => connectorRuntime.assertReceiptReady(ctx, receipt),
     };
     this.services.calculator = new CalculatorService(store, calculationOptions);
+    if (this.options.invoiceFollowUp) this.services.invoiceFollowUp = new InvoiceFollowUpHost(store, this.options.invoiceFollowUp, calculationOptions);
     this.services.forecasts = new ForecastService(store, calculationOptions);
     // Execution resolution is a trusted host port, never a route or RPC setting.
     const reportOptions: ReportOptions = { ...calculationOptions, executionReceipt: (ctx, id, view) => {
@@ -687,6 +694,7 @@ export class Engine {
     this.#closing = true;
     this.services.connectorRuntime?.close();
     this.services.jobRunner?.interruptActive();
+    this.services.invoiceFollowUp?.runner.interruptActive();
     if (this.#activeRequests || this.#transition) await new Promise<void>((accept, reject) => {
       const finished = () => { clearTimeout(timer); this.#idleWaiters.delete(finished); accept(); };
       const timer = setTimeout(() => { this.#idleWaiters.delete(finished); reject(new Error('Engine shutdown exceeded its deadline; unfinished actions require reconciliation.')); }, timeoutMs);
@@ -703,6 +711,12 @@ export class Engine {
     // Opening holds the Engine transition fence. Do not publish a new authority
     // revision when there is no interrupted work: retained source pins must
     // survive an otherwise read-only lock/reopen.
+    const state = vault.read();
+    if (this.services.invoiceFollowUp && (state.jobs.some(job => job.type === invoiceJobType && job.status === 'running')
+      || state.actions.some(action => action.connector === invoiceConnectorId && action.status === 'executing')
+      || state.answers.some(item => item.kind === 'invoice-simulated-delivery-v1' && item.status === 'reserved'))) {
+      await this.services.invoiceFollowUp.recover(this.context);
+    }
     if (vault.read().actions.some(action => action.status === 'executing')) await this.services.actions.recoverInterrupted(this.context);
     if (this.services.jobRunner && vault.read().jobs.some(job => job.status === 'running')) await this.services.jobRunner.recoverInterrupted(this.context);
   } catch (error) { await vault.close(); this.vault = null; this.services = {}; throw error; } }
@@ -742,7 +756,35 @@ export class Engine {
     if (method === 'workspace.lock') { if (this.vault) authorize(this.vault, this.context, 'admin'); await this.closeVault(); return { locked: true }; }
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
     const s = this.services;
+    // Dedicated invoice guards own mandate acceptance, reminder expiry and costs.
+    if (method.startsWith('jobs.') && payload.id) check(!store.read().jobs.some(job => job.id === payload.id && job.type === invoiceJobType),
+      'INVOICE_CONTRACT_REQUIRED', 'Use the named invoice follow-up contract for this mandate.');
+    if (method.startsWith('actions.') && payload.id) check(!store.read().actions.some(action => action.id === payload.id && action.connector === invoiceConnectorId),
+      'INVOICE_CONTRACT_REQUIRED', 'Use the named invoice reminder contract for this action.');
+    if (method.startsWith('invoiceFollowUp.')) {
+      check(ctx.channel !== 'phone', 'OPEN_DESKTOP', 'Review invoice mandates and reminders in the desktop app.');
+      check(s.invoiceFollowUp, 'INVOICE_HOST_UNAVAILABLE', 'A trusted synthetic invoice host with explicit policy is required.');
+    }
     switch (method) {
+      case 'invoiceFollowUp.create':
+        check(payload.ownerId === ctx.memberId, 'JOB_OWNER_REQUIRED', 'Declare the exact creating owner for this invoice mandate.');
+        check(payload.requiresApproval === true, 'INVOICE_MANDATE_APPROVAL_REQUIRED', 'Review and approve each explicit invoice mandate.');
+        return s.invoiceFollowUp.dispatch(ctx, method, payload);
+      case 'invoiceFollowUp.consent.record':
+      case 'invoiceFollowUp.run':
+      case 'invoiceFollowUp.read':
+      case 'invoiceFollowUp.reconcile':
+      case 'invoiceFollowUp.pause':
+      case 'invoiceFollowUp.resume':
+      case 'invoiceFollowUp.cancel':
+      case 'invoiceFollowUp.approve':
+      case 'invoiceFollowUp.accept':
+      case 'invoiceFollowUp.reject':
+      case 'invoiceFollowUp.reminder.approve':
+      case 'invoiceFollowUp.reminder.execute':
+      case 'invoiceFollowUp.reminder.reconcile':
+      case 'invoiceFollowUp.reminder.cancel':
+        return s.invoiceFollowUp.dispatch(ctx, method, payload);
       case 'workspace.backup.v2.create': return this.backupHost().create(ctx, this.journalPayload(payload,
         ['destinationId', 'confirmed'], ['destinationId', 'confirmed'], 'INVALID_BACKUP_REQUEST') as Parameters<WorkspaceBackupV2Host['create']>[1]);
       case 'workspace.backup.v2.read': return this.backupHost().read(ctx, this.journalPayload(payload,
@@ -1124,7 +1166,7 @@ export class Engine {
       case 'actions.revise': return s.actions.revise(ctx, payload.id, payload.payload);
       case 'actions.execute': return s.actions.execute(ctx, payload.id);
       case 'actions.reconcile': return s.actions.reconcile(ctx, payload.id);
-      case 'jobs.list': return s.jobs.list(ctx);
+      case 'jobs.list': return s.jobs.list(ctx).filter((job: Job) => job.type !== invoiceJobType);
       case 'jobs.types': return { types: ['owner-brief', ...(s.jobRunner ? [...s.jobRunner.runners.keys()] : [])], configured: !!s.jobRunner, policy: this.options.durableJobs ? { maxActiveJobs: this.options.durableJobs.maxActiveJobs, leaseMs: this.options.durableJobs.leaseMs } : null, calendar: this.options.jobCalendar ? { configured: true, rulesRevision: this.options.jobCalendar.rules.revision, minYear: this.options.jobCalendar.rules.minYear, maxYear: this.options.jobCalendar.rules.maxYear, bounds: { ...this.options.jobCalendar.bounds } } : { configured: false }, localOnly: true, externalEffects: 'prepare-only', lifecycle: { ...this.#jobLifecycle } };
       case 'jobs.create': {
         if (payload.type === 'owner-brief') {
@@ -1641,6 +1683,15 @@ export class Engine {
         const ran: Job[] = await this.services.jobRunner.tick(ownerContext, host);
         // A multi-owner scheduler releases receipts only to their pinned owner.
         for (const job of ran) results.push(this.context.memberId === job.ownerId && this.context.epoch === job.ownerEpoch && this.context.role === job.ownerRole ? this.services.jobs.view(this.context, this.services.jobs.find(this.vault.read(), job.id)) : { id: job.id, status: job.status });
+      } catch (error) { results.push({ error: { code: (error as any).code ?? 'JOB_SCHEDULER_FAILED' } }); }
+    }
+    if (this.services.invoiceFollowUp) for (const member of this.vault.read().members.filter(member => member.active && ['owner', 'cofounder'].includes(member.role))) {
+      const ownerContext: Context = { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' };
+      try {
+        const installed = this.services.invoiceFollowUp as InvoiceFollowUpHost;
+        const ran = await installed.dispatch(ownerContext, 'invoiceFollowUp.tick', host) as Job[];
+        for (const job of ran) results.push(this.context.memberId === job.ownerId && this.context.epoch === job.ownerEpoch && this.context.role === job.ownerRole
+          ? installed.jobs.view(this.context, installed.jobs.find(this.vault.read(), job.id)) : { id: job.id, status: job.status });
       } catch (error) { results.push({ error: { code: (error as any).code ?? 'JOB_SCHEDULER_FAILED' } }); }
     }
     return results;

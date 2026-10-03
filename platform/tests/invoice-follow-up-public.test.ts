@@ -17,7 +17,7 @@ function options(store: InvoiceFixtureStore, patch: Partial<InvoiceHostOptions> 
     simulatedStepCostMinor: '1', simulatedSendCostMinor: '20', ...patch };
 }
 function config(store: InvoiceFixtureStore, patch: Partial<JobConfig> = {}): JobConfig {
-  return { goal: 'Follow the selected synthetic invoice for one week and show collected and open amounts with proof',
+  return { ownerId: owner.memberId, goal: 'Follow the selected synthetic invoice for one week and show collected and open amounts with proof',
     input: { targets: [{ invoiceId, customerId, invoiceLink: 'synthetic-invoice:one' }],
       acceptanceTest: 'Show collected and open amounts with proof', reviewAt: '2026-10-07T12:00:00.000Z',
       calculation: { reserveMinor: '10', durationMs: 5000 }, preparation: { reserveMinor: '10', durationMs: 5000 } },

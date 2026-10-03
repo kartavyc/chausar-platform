@@ -1,5 +1,6 @@
 import type { DesktopMethod } from './ipc-contract.cjs';
 import type { JobConfig } from '../../platform/runtime/jobs.ts';
+import type { InvoiceJobInput, InvoiceConsent } from '../../platform/runtime/invoice-follow-up.ts';
 import type { ForecastRequest, SavedForecastEvaluation } from '../../platform/runtime/forecast-contracts.ts';
 import type { AlertCreate, AlertEvaluate, BusinessAlert, AlertEvaluation } from '../../platform/runtime/alerts-contracts.ts';
 import type { SyncWriterReview, SyncWriterStatus } from '../../platform/runtime/sync-writer-admission.ts';
@@ -103,6 +104,23 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'sync.reconcile': { previewId: string };
   'actions.revise': JsonObject & { id: string; payload: JsonObject };
   'jobs.create': DesktopJobConfig;
+  'invoiceFollowUp.create': Omit<JobConfig, 'type' | 'plan' | 'input' | 'ownerId' | 'requiresApproval'> & {
+    ownerId: string; requiresApproval: true; input: InvoiceJobInput;
+  };
+  'invoiceFollowUp.consent.record': Omit<InvoiceConsent, 'kind' | 'id' | 'ownerId' | 'epoch'>;
+  'invoiceFollowUp.run': { id: string };
+  'invoiceFollowUp.read': { id: string };
+  'invoiceFollowUp.reconcile': { id: string };
+  'invoiceFollowUp.pause': { id: string };
+  'invoiceFollowUp.resume': { id: string };
+  'invoiceFollowUp.cancel': { id: string };
+  'invoiceFollowUp.approve': { id: string; digest: string };
+  'invoiceFollowUp.accept': { id: string; repeat?: boolean };
+  'invoiceFollowUp.reject': { id: string; reason: string };
+  'invoiceFollowUp.reminder.approve': { id: string; digest: string };
+  'invoiceFollowUp.reminder.execute': { id: string };
+  'invoiceFollowUp.reminder.reconcile': { id: string };
+  'invoiceFollowUp.reminder.cancel': { id: string };
   'jobs.amend': { id: string; config: DesktopGoalJobConfig };
   'jobs.cancel': { id: string };
   'jobs.reconcile': { id: string };

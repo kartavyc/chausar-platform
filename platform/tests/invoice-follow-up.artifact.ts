@@ -13,7 +13,7 @@ const host = new InvoiceFollowUpHost(store, { clock: store.clock, workerId: 'syn
 const call = <T = unknown>(method: string, request: unknown = {}) => host.dispatch(owner, `invoiceFollowUp.${method}`, request) as Promise<T>;
 await call('consent.record', { requestId: 'artifact-opt-in', customerId, channel: 'simulation', destination: 'synthetic-customer:one',
   status: 'yes', sourceId: sourceIds[0], evidence: 'Labelled synthetic opt-in', at: new Date(store.clock()).toISOString() });
-const config: JobConfig = { goal: 'Follow the synthetic invoice for a week and show collected and open amounts with proof',
+const config: JobConfig = { ownerId: owner.memberId, goal: 'Follow the synthetic invoice for a week and show collected and open amounts with proof',
   input: { targets: [{ invoiceId, customerId, invoiceLink: 'synthetic-invoice:one' }], acceptanceTest: 'Show collected and open amounts with proof',
     reviewAt: '2026-10-07T12:00:00.000Z', calculation: { reserveMinor: '10', durationMs: 5000 }, preparation: { reserveMinor: '10', durationMs: 5000 } },
   budgetMinor: '500', reserveMinor: '20', stopRule: { maxRuns: 7, deadline: '2026-10-08T12:00:00.000Z' },

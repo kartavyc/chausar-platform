@@ -287,7 +287,7 @@ export class DurableJobRunner {
   async recoverInterrupted(context: Context) {
     check(!this.busy, 'JOB_WORKER_BUSY', 'Recovery is only available before the worker starts.');
     return this.jobs.store.update(state => { current(state, context, 'admin'); const recovered: string[] = []; for (const job of state.jobs as Job[]) {
-      if (job.status !== 'running') continue;
+      if (job.status !== 'running' || (job.plan && !this.runners.has(job.type!))) continue;
       const owner = state.members.find(member => member.id === job.ownerId); const status = !owner?.active || owner.epoch !== job.ownerEpoch || owner.role !== job.ownerRole ? 'revoked' : 'scheduled';
       this.jobs.interrupt(job, status, 'process-interrupted'); recovered.push(job.id); audit(state, 'job.interrupted', { jobId: job.id, status: job.status });
     } return { recovered }; });
@@ -295,7 +295,7 @@ export class DurableJobRunner {
   /** The host reports awake/window state; closed-laptop execution requires an explicitly separate host. */
   async tick(context: Context, host: { awake: boolean; windowOpen: boolean; backgroundEnabled: boolean }) {
     if (!host.awake || (!host.windowOpen && !host.backgroundEnabled) || !this.jobs.store.read().policy.autonomy || this.busy) return [];
-    const jobs = this.jobs.list(context).filter(job => job.plan && (!job.calendar?.paused || job.calendar.current) && (host.windowOpen || job.background === true) && ((['scheduled', 'approval-blocked'].includes(job.status) && Date.parse(job.nextRunAt) <= this.jobs.clock()) || (job.status === 'network-wait' && this.options.networkAvailable()) || (job.status === 'running' && job.lease && Date.parse(job.lease.expiresAt) <= this.jobs.clock())));
+    const jobs = this.jobs.list(context).filter(job => job.plan && this.runners.has(job.type!) && (!job.calendar?.paused || job.calendar.current) && (host.windowOpen || job.background === true) && ((['scheduled', 'approval-blocked'].includes(job.status) && Date.parse(job.nextRunAt) <= this.jobs.clock()) || (job.status === 'network-wait' && this.options.networkAvailable()) || (job.status === 'running' && job.lease && Date.parse(job.lease.expiresAt) <= this.jobs.clock())));
     const results: Job[] = []; for (const job of jobs) results.push(await this.run(context, job.id)); return results;
   }
 }

@@ -16,6 +16,7 @@ const options = (store: InvoiceFixtureStore): InvoiceHostOptions => ({ clock: st
   dayKey: instant => new Date(instant).toISOString().slice(0, 10), stopWord: 'STOP',
   simulatedStepCostMinor: '1', simulatedSendCostMinor: '20' });
 const config = (store: InvoiceFixtureStore, scope = sourceIds): JobConfig => ({
+  ownerId: owner.memberId,
   goal: 'Follow a synthetic invoice and prove its open and bank-collected amounts',
   input: { targets: [{ invoiceId, customerId, invoiceLink: 'synthetic-invoice:one' }],
     acceptanceTest: 'Keep a sent reminder separate from proven payment', reviewAt: '2026-10-07T12:00:00.000Z',
