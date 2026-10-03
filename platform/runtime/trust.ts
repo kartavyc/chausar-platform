@@ -1,6 +1,7 @@
 import { authorize, audit, check, hash, newId, now } from './contracts.ts';
 import type { Context, Fact, Member, State, StateStore, TrustPolicy } from './contracts.ts';
 import { prepareInvoicePurge } from './invoice-follow-up-lineage.ts';
+import { assertLearningDecisionRecord, type LearningDecision } from './learning.ts';
 
 export function sourceAllowed(state: State, context: Context, sourceId: string): boolean {
   const member = state.members.find(m => m.id === context.memberId);
@@ -44,20 +45,32 @@ function hasLineage(value: any, sourceId: string, factIds: Set<string>, seen = n
   return Object.values(value).some(v => hasLineage(v, sourceId, factIds, seen));
 }
 
+// Cleanup validates the recorded envelope, rather than requiring its original
+// author to remain active. Legacy logs cannot establish a new deletion root.
+function canonicalImportDecision(value: unknown): LearningDecision | undefined {
+  try {
+    assertLearningDecisionRecord(value);
+    return value.importIdentity ? value : undefined;
+  } catch { return undefined; }
+}
+
 function sourceDeletionScope(state: State, context: Context, member: Member, sourceId: string) {
   check(typeof sourceId === 'string' && sourceId.length > 0, 'INVALID_SOURCE', 'Choose an existing source.');
   const facts = state.facts.filter(f => f.sourceId === sourceId); const factIds = new Set(facts.map(f => f.id));
   const imports = state.imports.filter(i => hasLineage(i, sourceId, factIds));
-  check(facts.length > 0 || imports.length > 0, 'SOURCE_NOT_FOUND', 'This source does not exist in the workspace.');
+  const refusals = state.learning.map(canonicalImportDecision).filter((event): event is LearningDecision => Boolean(event?.importIdentity?.outcome === 'rejected' && event.importIdentity.sourceId === sourceId));
+  check(facts.length > 0 || imports.length > 0 || refusals.length > 0, 'SOURCE_NOT_FOUND', 'This source does not exist in the workspace.');
   assertSourceAccess(state, context, [sourceId]);
   check(member.branches.includes('*') || (facts.length > 0 && facts.every(f => Boolean(f.branch) && member.branches.includes(f.branch!))), 'SOURCE_DELETE_SCOPE_FORBIDDEN', 'Deleting a source requires current access to every affected branch.');
-  return { facts, factIds, imports };
+  return { facts, factIds, imports, refusals };
 }
 
 function retentionAuthority(store: StateStore, context: Context) {
   const member = authorize(store, context, 'admin');
   check(member.role === 'owner' && member.branches.includes('*'), 'RETENTION_SCOPE_FORBIDDEN', 'Whole-workspace retention cleanup requires an owner with every branch.');
-  assertSourceAccess(store.read(), context, [...new Set(store.read().facts.map(f => f.sourceId))]);
+  const state = store.read();
+  const refusalSources = state.learning.map(canonicalImportDecision).flatMap(event => event?.importIdentity?.outcome === 'rejected' ? [event.importIdentity.sourceId] : []);
+  assertSourceAccess(state, context, [...new Set([...state.facts.map(f => f.sourceId), ...refusalSources])]);
 }
 
 export class TrustService {
@@ -118,9 +131,10 @@ export class TrustService {
     const member = authorize(this.store, context, 'admin'); sourceDeletionScope(this.store.read(), context, member, sourceId);
     return this.store.update(state => {
       const currentMember = authorize(this.store, context, 'admin');
-      const { facts, factIds, imports } = sourceDeletionScope(state, context, currentMember, sourceId);
+      const { facts, factIds, imports, refusals } = sourceDeletionScope(state, context, currentMember, sourceId);
       const invoicePurge = prepareInvoicePurge(state, { sourceId }, now());
       for (const artifact of [...facts, ...imports]) state.tombstones.push({ id: newId('tombstone'), kind: 'content', contentHash: artifact.contentHash || artifact.hash || hash(artifact), sourceId, deletedAt: now() });
+      for (const event of refusals) state.tombstones.push({ id: newId('tombstone'), kind: 'content', contentHash: event.importIdentity!.contentHash, sourceId, deletedAt: now() });
       state.tombstones.push({ id: newId('tombstone'), kind: 'source', sourceId, deletedAt: now() });
       state.facts = state.facts.filter(f => f.sourceId !== sourceId);
       let removed = facts.length + invoicePurge.answersRemoved + invoicePurge.mandatesRemoved;
@@ -143,7 +157,10 @@ export class TrustService {
       for (const key of ['facts', 'imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning', 'conversations', 'modelReceipts', 'conflicts', 'merges'] as const) {
         state[key] = state[key].filter(a => {
           const date = a.learnedAt || a.createdAt || a.at; const expired = (date && Date.parse(date) < cutoff) || [...expiredFacts].some(id => hasLineage(a, '__none__', new Set([id])));
-          if (expired) { removed++; state.tombstones.push({ id: newId('tombstone'), kind: 'retention', digest: a.digest || hash(a), contentHash: a.contentHash, deletedAt: at.toISOString() }); }
+          if (expired) {
+            const decision = key === 'learning' ? canonicalImportDecision(a) : undefined;
+            removed++; state.tombstones.push({ id: newId('tombstone'), kind: 'retention', digest: a.digest || hash(a), contentHash: decision?.importIdentity?.contentHash ?? a.contentHash, deletedAt: at.toISOString() });
+          }
           return !expired;
         }) as any;
       }
