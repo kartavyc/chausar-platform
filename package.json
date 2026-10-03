@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "verify": "node scripts/check.mjs && node --test platform/tests/*.test.ts",
     "build": "node scripts/build.mjs",
+    "build:ui-host": "node scripts/build-ui-host.mjs",
     "package": "node scripts/desktop-package.mjs --mode final",
     "bench": "node scripts/bench.mjs",
     "desktop:production": "node scripts/desktop-launch.mjs --production",

@@ -12,6 +12,7 @@ export default defineConfig({
   publicDir: false,
   cacheDir: resolve(validationRoot, '.vite'),
   plugins: [react()],
+  define: { 'process.env.NODE_ENV': JSON.stringify('production') },
   build: {
     target: 'es2022',
     assetsDir: '',
