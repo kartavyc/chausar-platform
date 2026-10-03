@@ -39,7 +39,7 @@ try {
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 if (!singleInstance) app.quit();
-let window; let engine; let database; let tray; let demoMode = demo; let stopping = false; let startupTask = Promise.resolve();
+let window; let engine; let database; let tray; let demoMode = demo; let stopping = false; let startupComplete = false; let startupTask = Promise.resolve();
 let previewStopResult; const previewStopErrors = [];
 let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
@@ -57,6 +57,41 @@ function lifecycleChanged() {
     console.error(publicError(error).message);
     if (!stopping) { dialog.showErrorBox('Chausar jobs stopped', 'The engine could not confirm the desktop state. Restart Chausar before running jobs.'); app.quit(); }
   });
+}
+async function bootstrapPreviewWorkspace() {
+  // The read-only UI mounts against an open workspace. Only this unsigned,
+  // packaged synthetic preview owns automatic creation in its fresh profile.
+  if (app.isPackaged !== true || packageMetadata.chausarPreview !== true || !demo || !uiPreview || stopping) return;
+  assertDemoProfile(app, demoProfile);
+  let method = 'workspace.status';
+  try {
+    const status = await engine.request(method, {});
+    if (status?.open !== false || status.experimental !== true || status.storage !== 'experimental-file') {
+      throw Object.assign(new Error('The synthetic preview workspace state is unexpected.'), { code: 'PREVIEW_WORKSPACE_STATE' });
+    }
+    if (stopping) return;
+    method = 'workspace.create';
+    await engine.request(method, { name: 'Chausar Preview (synthetic business)', folder: 'main', pack: 'ecommerce',
+      demo: true, passphrase: randomBytes(32).toString('base64url') });
+    if (stopping) return;
+    assertDemoProfile(app, demoProfile);
+    method = 'ui.context';
+    const context = await engine.request(method, {});
+    if (context?.workspace?.demo !== true || context.member?.role !== 'owner') {
+      throw Object.assign(new Error('The synthetic preview workspace did not authorize its owner.'), { code: 'PREVIEW_WORKSPACE_STATE' });
+    }
+  } catch (error) {
+    // Fixed method and known code only: no arguments, messages, paths or keys.
+    const knownCodes = ['PREVIEW_WORKSPACE_STATE', 'VAULT_LOCKED', 'VAULT_OPEN', 'VAULT_BUSY', 'DEMO_ONLY',
+      'DATABASE_REQUIRED', 'REQUEST_FAILED', 'REQUEST_TIMEOUT', 'ENGINE_UNAVAILABLE', 'ENGINE_EXITED',
+      'EACCES', 'EPERM', 'ENOENT', 'ENOTDIR', 'EEXIST', 'ENAMETOOLONG', 'EINVAL', 'ELOOP', 'ENOSPC', 'EROFS', 'EMFILE', 'ENFILE'];
+    let value; try { value = Object.getOwnPropertyDescriptor(error, 'code')?.value; } catch {}
+    const code = knownCodes.includes(value) ? value : 'UNCLASSIFIED';
+    console.error(`Chausar preview workspace bootstrap failed: method=${method}; code=${code}`);
+    // The shared startup/shutdown handlers may log this message. Keep that
+    // propagation bounded too, without retaining the original error or cause.
+    throw Object.assign(new Error('The synthetic preview workspace could not start.'), { code });
+  }
 }
 async function startEngine() {
   const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
@@ -99,6 +134,9 @@ function createBackgroundTray() {
   tray.on('double-click', open);
 }
 function createWindow() {
+  // Worker readiness precedes workspace bootstrap. Every opening path waits
+  // for the full startup task, including activate and second-instance events.
+  if (stopping || !startupComplete || engine?.state !== 'ready') return;
   window = new BrowserWindow({ width: 1380, height: 940, minWidth: 800, minHeight: 600, backgroundColor: '#f7f5ee', title: demoMode ? 'Chausar Preview — synthetic data' : 'Chausar', show: false,
     webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, allowRunningInsecureContent: false, spellcheck: false },
   });
@@ -143,7 +181,7 @@ if (singleInstance) app.whenReady().then(async () => {
       return { ok: true, result: await engine.request(request.method, request.payload) };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
-  try { startupTask = startEngine(); await startupTask; if (stopping) return; createBackgroundTray(); createWindow(); }
+  try { startupTask = startEngine().then(() => bootstrapPreviewWorkspace()); await startupTask; if (stopping) return; startupComplete = true; createBackgroundTray(); createWindow(); }
   catch (error) { if (!stopping) { console.error(startupDiagnostic(error, 'ready-startup')); dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
 app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); });

@@ -62,9 +62,15 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
   }
   class Harness extends EventEmitter {
-    state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false;
+    state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false; workspaceOpen = false;
     constructor(options: any) { super(); this.options = options; engines.push(this); }
-    async start() {} async request(method: string) { return { method, experimental: true }; }
+    async start() {}
+    async request(method: string) {
+      if (method === 'workspace.status') return { method, open: this.workspaceOpen, experimental: true, storage: 'experimental-file' };
+      if (method === 'workspace.create') this.workspaceOpen = true;
+      if (method === 'ui.context') return { method, workspace: { demo: true }, member: { role: 'owner' } };
+      return { method, experimental: true };
+    }
     async updateJobLifecycle(state: any) { this.lifecycle.push(JSON.parse(JSON.stringify(state))); if (this.failLifecycle) { this.state = 'failed'; throw new Error('Lifecycle acknowledgement failed.'); } return { applied: true }; }
     async stop() { this.stops++; this.state = 'stopped'; return { graceful: true, forced: false }; }
   }

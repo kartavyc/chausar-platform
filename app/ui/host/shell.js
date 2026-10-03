@@ -1,11 +1,12 @@
-import { createHostController, mountHost } from '/ui/host.js';
+import { createHostController, createDesktopRequestPort, mountHost } from '/ui/host.js';
 const container = document.getElementById('host');
 let token = new URLSearchParams(location.hash.slice(1)).get('token');
 history.replaceState(null, '', location.pathname);
 const desktop = location.protocol === 'chausar:' ? window.chausar : null;
+const desktopRequests = desktop ? createDesktopRequestPort(desktop) : null;
 function denied(code) { return Object.assign(new Error('The workspace session is unavailable.'), { code }); }
 const port = { async request(method, payload) {
-  if (desktop) return desktop.request(method, payload);
+  if (desktopRequests) return desktopRequests.request(method, payload);
   if (!token) throw denied('UNAUTHENTICATED');
   const response = await fetch('/api/rpc', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ method, payload }), cache: 'no-store', credentials: 'omit' });
   const value = await response.json();

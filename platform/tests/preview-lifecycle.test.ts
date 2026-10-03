@@ -82,8 +82,14 @@ async function mainFixture(stopResult: any = { graceful: true, forced: false, ex
     show() { this.visible = true; events.push('shown'); } isVisible() { return this.visible; } isDestroyed() { return false; } loadURL() {}
   }
   class Harness extends EventEmitter {
-    state = 'starting';
+    state = 'starting'; workspaceOpen = false;
     async start() { this.state = 'ready'; events.push('engine-ready'); }
+    async request(method: string) {
+      if (method === 'workspace.status') return { open: this.workspaceOpen, experimental: true, storage: 'experimental-file' };
+      if (method === 'workspace.create') { this.workspaceOpen = true; events.push('workspace-created'); return {}; }
+      if (method === 'ui.context') { events.push('workspace-context'); return { workspace: { demo: true }, member: { role: 'owner' } }; }
+      throw new Error('Unexpected synthetic observer request.');
+    }
     async updateJobLifecycle() { return { applied: true }; }
     async stop() { events.push('engine-stop'); if (stopFails) throw new Error('Synthetic stop failure.'); return stopResult; }
   }
@@ -105,6 +111,8 @@ test('actual main publishes ready only after Engine start, ready-to-show and vis
   const f = await mainFixture(); assert.equal(f.writes.size, 0); assert.equal(f.windows.length, 1);
   f.windows[0].emit('ready-to-show'); assert.equal(f.errors.length, 0);
   assert.ok(f.events.indexOf('engine-ready') < f.events.indexOf('shown')); assert.equal(f.writes.get(path.join(f.profile.root, 'preview-ready.json')).windowVisible, true);
+  assert.ok(f.events.indexOf('workspace-created') < f.events.indexOf('workspace-context'));
+  assert.ok(f.events.indexOf('workspace-context') < f.events.indexOf('shown'));
   f.app.emit('before-quit', { preventDefault() {} }); await flush();
   assert.equal(f.writes.get(path.join(f.profile.root, 'preview-stopped.json')).graceful, true); assert.ok(f.events.indexOf('engine-stop') < f.events.indexOf('quit'));
 });
