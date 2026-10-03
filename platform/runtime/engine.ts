@@ -2,7 +2,7 @@ import { resolve, join, relative, isAbsolute } from 'node:path';
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Vault, safeDirectory, type VaultWriterGuard } from './vault.ts';
+import { Vault, safeDirectory, type KeychainHook, type VaultWriterGuard } from './vault.ts';
 import { captureInvoiceCustody, prepareInvoiceRestoredState, type InvoiceCustodyArtifact } from './vault-invoice-custody.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
@@ -74,6 +74,9 @@ export type EngineBackupCustodyOptions = {
   withCompleteOwner?<T>(context: Context, historical: State, work: (assertCurrent: () => void) => Promise<T>): Promise<T>;
 };
 export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
+  /** Trusted host custody for direct Vault lifecycles, never an RPC or archive.
+   * No native platform provider is installed or qualified by this contract. */
+  keychain?: KeychainHook;
   /** Trusted local composition capabilities. Never supplied by an RPC or archive. */
   workspaceActivation?: EngineWorkspaceActivationOptions;
   workspaceAuthority?: {workspaceId: string; ownerId: string; vaultId?: string};
@@ -685,6 +688,16 @@ export class Engine {
     }
     if (failure) throw failure;
   }
+  private async deleteVault(vault: Vault) {
+    let failure: { error: unknown } | undefined;
+    try { await vault.delete(); } catch (error) { failure = { error }; }
+    // Vault deletion closes its key and writer even when custody removal
+    // fails. Never read that closed handle or retain deleted invoice custody.
+    this.vault = null; this.#lastInvoiceCustody = undefined;
+    try { await this.closeVault(); } catch (error) { failure ??= { error }; }
+    finally { this.services = {}; }
+    if (failure) throw failure.error;
+  }
   private async privateSearchAdapter(): Promise<ResearchSearchPort> {
     if (this.options.research?.search) return this.options.research.search;
     check(this.options.storage === 'postgres' && this.options.postgresUrl, 'SEARCH_DATABASE_REQUIRED',
@@ -746,21 +759,21 @@ export class Engine {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before creating another.');
       check(typeof payload.name === 'string' && payload.name.trim().length >= 2 && payload.name.length <= 100, 'INVALID_NAME', 'Give your business a name.');
       const pack = payload.pack ?? 'ecommerce'; check(new OntologyService({ read: () => { throw new Error('No vault'); }, update: async () => { throw new Error('No vault'); } }).packs().some(p => p.pack === pack), 'UNKNOWN_PACK', 'Choose an available business starter pack.');
-      const result = await Vault.create({ directory: this.workspacePath(payload.folder), passphrase: payload.passphrase, name: payload.name.trim(), demo: !!payload.demo, storage: await this.adapter(payload.folder) });
+      const result = await Vault.create({ directory: this.workspacePath(payload.folder), passphrase: payload.passphrase, name: payload.name.trim(), demo: !!payload.demo, storage: await this.adapter(payload.folder), keychain: this.options.keychain });
       try {
         await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
         if (payload.demo) await seedDemo(this.store(), this.context);
         return { workspace: this.store().read().workspace, recoveryKit: result.recoveryCode, recoveryCode: result.recoveryCode, experimental: !!this.options.demo };
-      } catch (error) { await result.vault.delete(); this.vault = null; this.services = {}; throw error; }
+      } catch (error) { await this.deleteVault(result.vault); throw error; }
     }
-    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? payload.path ?? 'main'; await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
-    if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); await this.attachSafely(await Vault.recover({ directory: this.workspacePath(payload.folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage: await this.adapter(payload.folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
+    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? payload.path ?? 'main'; await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage: await this.adapter(folder), keychain: this.options.keychain, writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
+    if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); await this.attachSafely(await Vault.recover({ directory: this.workspacePath(payload.folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage: await this.adapter(payload.folder), keychain: this.options.keychain, writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
     if (method === 'workspace.restore') {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before restoring.');
       check(typeof payload.backupFile === 'string', 'INVALID_PATH', 'Choose a backup from this app.');
       const backupRoot = resolve(this.options.directory, 'backups'); const backupFile = resolve(backupRoot, payload.backupFile); const rel = relative(backupRoot, backupFile);
       check(!rel.startsWith('..') && !isAbsolute(rel) && rel.endsWith('.backup'), 'INVALID_PATH', 'Choose a managed backup file.');
-      const folder = payload.folder ?? 'restored'; await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard(),
+      const folder = payload.folder ?? 'restored'; await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage: await this.adapter(folder), keychain: this.options.keychain, writerGuard: this.writerGuard(),
         prepareRestoredState: (state, descriptor) => {
           if (this.#lastInvoiceCustody?.workspaceId === descriptor.workspaceId && this.#lastInvoiceCustody.vaultId === descriptor.vaultId)
             prepareInvoiceRestoredState(state, this.#lastInvoiceCustody, descriptor);
@@ -1285,7 +1298,11 @@ export class Engine {
         const folder = join(this.options.directory, 'exports'); await mkdir(folder, { recursive: true }); const path = join(folder, `chausar-${store.read().workspace.id}-${Date.now()}.${payload.plaintext ? 'json' : 'vault'}`);
         await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
       }
-      case 'workspace.delete': this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.'); const removed = await this.purgeManagedCopies(); await store.delete(); await this.closeVault(); return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      case 'workspace.delete': {
+        this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
+        const removed = await this.purgeManagedCopies(); await this.deleteVault(store);
+        return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      }
       default: throw new Error(`Unknown request: ${method}`);
     }
   }
