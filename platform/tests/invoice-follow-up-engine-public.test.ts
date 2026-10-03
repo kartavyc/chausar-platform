@@ -390,21 +390,36 @@ test('joined companion keeps invoice approval and uploads at OPEN_DESKTOP withou
   const paired = await phone('pairing.accept', { inviteCode: invite.inviteCode, deviceId, channel: 'web', devicePublicKey, proof });
   assert.equal(paired.status, 200); assert.equal(paired.body.error, undefined);
   const grant = paired.body.result as SessionGrant;
-  assert.equal((await phone('session.validate', {}, grant.credential)).body.result.status, 'current');
+  const validated = await phone('session.validate', {}, grant.credential);
+  assert.equal(validated.status, 200, `session.validate: ${JSON.stringify(validated.body)}`);
+  assert.equal(validated.body.error, undefined);
+  assert.ok(validated.body.result, 'Session validation must return its success envelope.');
+  assert.equal(validated.body.result.status, 'current');
   for (const [method, payload] of [['approval.list', {}], ['approval.inspect', { approvalId: view.reminders[0].id }],
     ['approval.submit', { requestId: 'synthetic-invoice-phone-approval', approvalId: view.reminders[0].id,
       token: '0'.repeat(64), decision: 'approve', expectedDigest: view.reminders[0].digest,
       expectedActionRevision: 1, expectedOperationVersion: 'synthetic-v1' }], ['upload.begin', {}]] as const) {
     const refused = await phone(method, payload, grant.credential);
+    assert.equal(refused.status, 400, `${method}: ${JSON.stringify(refused.body)}`);
     assert.equal(refused.body.error?.code, 'OPEN_DESKTOP'); assert.equal(refused.body.result, undefined);
   }
   const receiptId = view.job.deliverable.result.invoices[0].balance.receiptId;
-  assert.equal((await phone('receipt.read', { receiptId }, grant.credential)).body.result.id, receiptId);
+  const receipt = await phone('receipt.read', { receiptId }, grant.credential);
+  assert.equal(receipt.status, 200, `receipt.read: ${JSON.stringify(receipt.body)}`);
+  assert.equal(receipt.body.error, undefined);
+  assert.ok(receipt.body.result, 'Receipt read must return its success envelope.');
+  assert.equal(receipt.body.result.id, receiptId);
   await f.reopen();
-  assert.equal((await phone('approval.list', {}, grant.credential)).body.error?.code, 'OPEN_DESKTOP');
+  const reopened = await phone('approval.list', {}, grant.credential);
+  assert.equal(reopened.status, 400, `approval.list after reopen: ${JSON.stringify(reopened.body)}`);
+  assert.equal(reopened.body.error?.code, 'OPEN_DESKTOP'); assert.equal(reopened.body.result, undefined);
   const current = await f.invoice('read', { id: view.job.id });
   assert.equal(current.reminders[0].status, 'prepared'); assert.equal(current.reminders[0].attempts.length, 0);
   assert.deepEqual(current.outcomes, []); assert.equal(f.providerCalls(), 0);
+  await f.rpc('phone.revoke', { sessionId: grant.authority.sessionId });
+  const revoked = await phone('session.validate', {}, grant.credential);
+  assert.equal(revoked.status, 401);
+  assert.deepEqual(revoked.body, { error: { code: 'ACCESS_REVOKED' } });
 });
 
 test('invoice methods require explicit installed host policy and a labelled demo workspace', async t => {
