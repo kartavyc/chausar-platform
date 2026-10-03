@@ -12,16 +12,18 @@
  * - Planning and final writing are separate requests. A press allows only the one shown;
  *   nothing here sends a second request, tries again or sends on a timer.
  * - The question, the warnings and the text are the engine's own words: text nodes, as
- *   supplied, never translated, shortened or folded away.
+ *   supplied, never replaced, shortened or folded away. In Hindi, exact known warnings
+ *   also have a local explanation beside the still-visible original Engine text.
  * - Nothing is kept: no state, no effect, no copy of the preview.
  */
 
 import { useId, type ReactNode } from 'react';
 import type { CheckedConversationPreview, CheckedModelPreview, CheckedSynthesisPreview } from '../bridge/conversation-contract.ts';
 import type { ModelConsent } from '../bridge/conversation-host.ts';
-import { useT } from '../app/text';
+import { useLanguage, useT } from '../app/text';
 import { Sheet, type SheetPrimary } from '../parts/Sheet';
 import { Button } from '../parts/Button';
+import { knownModelDisclosureTranslationKey, type ModelDisclosureFamily } from './model-disclosure-translation';
 import s from './ModelConsentSheet.module.css';
 
 export type ModelConsentStage = 'planning' | 'final-writing';
@@ -64,6 +66,24 @@ function Pair({ name, mono = false, exact = false, children }: { name: string; m
   );
 }
 
+/** An exact known Hindi explanation accompanies, and never replaces, the original. */
+function DisclosureWarning({ family, warning }: { family: ModelDisclosureFamily; warning: string }) {
+  const t = useT();
+  const language = useLanguage();
+  const translationKey = language === 'hi' ? knownModelDisclosureTranslationKey(family, warning) : undefined;
+  return (
+    <>
+      {translationKey !== undefined && (
+        <>
+          <p className={s.exact} lang="hi">{t(translationKey)}</p>
+          <p className={s.name}>{t('ASK.consent.disclosure.original')}</p>
+        </>
+      )}
+      <p className={s.exact} lang={translationKey !== undefined ? 'en' : undefined}>{warning}</p>
+    </>
+  );
+}
+
 /** Planning: the question and definition warnings, and the earlier exchange when one is sent. */
 function PlanningDisclosure({ preview }: { preview: CheckedConversationPreview }) {
   const t = useT();
@@ -72,14 +92,14 @@ function PlanningDisclosure({ preview }: { preview: CheckedConversationPreview }
   return (
     <>
       <Block title={t('ASK.consent.warning.question')}>
-        <p className={s.exact}>{preview.questionDisclosureWarning}</p>
+        <DisclosureWarning family="question" warning={preview.questionDisclosureWarning} />
       </Block>
       <Block title={t('ASK.consent.warning.definition')}>
-        <p className={s.exact}>{preview.definitionDisclosureWarning}</p>
+        <DisclosureWarning family="definition" warning={preview.definitionDisclosureWarning} />
       </Block>
       {preview.continuationDisclosureWarning !== undefined && (
         <Block title={t('ASK.consent.warning.continuation')}>
-          <p className={s.exact}>{preview.continuationDisclosureWarning}</p>
+          <DisclosureWarning family="continuation" warning={preview.continuationDisclosureWarning} />
         </Block>
       )}
       {earlier !== undefined && (
@@ -124,7 +144,7 @@ function WritingDisclosure({ preview }: { preview: CheckedSynthesisPreview }) {
   const t = useT();
   return (
     <Block title={t('ASK.consent.warning.synthesis')}>
-      <p className={s.exact}>{preview.synthesisDisclosureWarning}</p>
+      <DisclosureWarning family="synthesis" warning={preview.synthesisDisclosureWarning} />
     </Block>
   );
 }
