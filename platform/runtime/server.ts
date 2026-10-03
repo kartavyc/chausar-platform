@@ -6,6 +6,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { Engine } from './engine.ts';
 import { engineJobOptions } from './engine-jobs.ts';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
+import { loadEngineKeychain, type EngineKeychainHostDependencies } from './engine-keychain-host.ts';
 import { check } from './contracts.ts';
 import uiAssets from '../../app/desktop/ui-assets.cjs';
 const { readUiAsset } = uiAssets;
@@ -109,10 +110,11 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
 }
 
 /** The normal server entrypoint and trusted host tests share the same constructor. */
-export async function createServerEngine(environment: NodeJS.ProcessEnv = process.env, args: readonly string[] = process.argv, dependencies: CodexCliHostDependencies = {}): Promise<Engine> {
+export async function createServerEngine(environment: NodeJS.ProcessEnv = process.env, args: readonly string[] = process.argv, dependencies: CodexCliHostDependencies & EngineKeychainHostDependencies = {}): Promise<Engine> {
   const demo = args.includes('--demo');
   const gateway = await loadCodexCliHostGateway(environment, dependencies);
-  return new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway });
+  const keychain = await loadEngineKeychain(environment, dependencies, demo);
+  return new Engine({ directory: environment.CHAUSAR_VAULT_DIRECTORY ?? resolve('data'), demo, storage: demo ? 'experimental-file' : 'postgres', postgresUrl: environment.CHAUSAR_POSTGRES_URL, pythonExecutable: environment.CHAUSAR_PYTHON, updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway, keychain });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

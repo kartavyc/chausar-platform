@@ -2,7 +2,7 @@ import { resolve, join, relative, isAbsolute } from 'node:path';
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Vault, safeDirectory, type KeychainHook, type VaultWriterGuard } from './vault.ts';
+import { Vault, safeDirectory, type KeychainHook, type VaultKeychainProvider, type VaultWriterGuard } from './vault.ts';
 import { captureInvoiceCustody, prepareInvoiceRestoredState, type InvoiceCustodyArtifact } from './vault-invoice-custody.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
@@ -766,7 +766,22 @@ export class Engine {
         return { workspace: this.store().read().workspace, recoveryKit: result.recoveryCode, recoveryCode: result.recoveryCode, experimental: !!this.options.demo };
       } catch (error) { await this.deleteVault(result.vault); throw error; }
     }
-    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? payload.path ?? 'main'; await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage: await this.adapter(folder), keychain: this.options.keychain, writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
+    if (method === 'workspace.open') {
+      check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.');
+      check(payload.unlock === undefined || payload.unlock === 'passphrase' || payload.unlock === 'keychain', 'INVALID_REQUEST', 'Choose passphrase or native custody unlock.');
+      const folder = payload.folder ?? payload.path ?? 'main', keychain = this.options.keychain;
+      if (payload.unlock === 'keychain') {
+        const ctx = this.context;
+        check(ctx.channel === 'desktop' && !ctx.sourceTainted && ctx.role === 'owner'
+          && ctx.memberId === this.#baseContext.memberId && ctx.epoch === this.#baseContext.epoch,
+        'KEYCHAIN_OWNER_REQUIRED', 'Native custody unlock requires the trusted local desktop owner.');
+        check(keychain && 'retrieve' in keychain && typeof keychain.retrieve === 'function', 'KEYCHAIN_PROVIDER_REQUIRED', 'Install the trusted native custody provider before convenience unlock.');
+        await this.attachSafely(await Vault.openWithKeychain({ directory: this.workspacePath(folder), storage: await this.adapter(folder),
+          keychain: keychain as VaultKeychainProvider, writerGuard: this.writerGuard() }));
+      } else await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase,
+        storage: await this.adapter(folder), keychain, writerGuard: this.writerGuard() }));
+      return { workspace: this.store().read().workspace };
+    }
     if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); await this.attachSafely(await Vault.recover({ directory: this.workspacePath(payload.folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage: await this.adapter(payload.folder), keychain: this.options.keychain, writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
     if (method === 'workspace.restore') {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before restoring.');

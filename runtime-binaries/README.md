@@ -1,6 +1,6 @@
 # Vendored native runtimes
 
-This directory deliberately contains no PostgreSQL or Python executable. The preview uses an explicitly selected experimental file vault; production PostgreSQL does not fall back to a database installed on the developer's machine. A native release must vendor genuine, licensed runtimes for each supported target and pass `node scripts/package-preflight.mjs` before invoking electron-builder.
+This directory deliberately contains no PostgreSQL, Python or native custody executable. The preview uses an explicitly selected experimental file vault; production PostgreSQL does not fall back to a database installed on the developer's machine. A native release must vendor genuine, licensed runtimes for each supported target and pass `node scripts/package-preflight.mjs` before invoking electron-builder.
 
 Assemble one target platform and architecture per package checkout directly under this directory. The manifest declares that target, such as `win32` with `x64` or `darwin` with `arm64`. Runtime startup uses `process.resourcesPath/runtime-binaries` in the installed app. Required paths relative to this directory are:
 
@@ -10,8 +10,15 @@ Assemble one target platform and architecture per package checkout directly unde
 | PostgreSQL initialization | `postgres/bin/initdb.exe` | `postgres/bin/initdb` |
 | PostgreSQL control | `postgres/bin/pg_ctl.exe` | `postgres/bin/pg_ctl` |
 | Python interpreter | `python/python.exe` | `python/bin/python3` |
+| Direct vault custody helper | `keychain/chausar-keychain.exe` | `keychain/chausar-keychain` |
 
 Ship the complete runtime, including dependent libraries, PostgreSQL share files, Python standard library and license notices. Native files must match the declared architecture. Use real directories and regular files without symbolic links. On Unix, unpack genuine Python symlinks into a regular interpreter file and retain executable permissions. Do not add placeholders or substitute PATH commands.
+
+Build the direct custody helper from [`platform/native/keychain`](../platform/native/keychain/README.md) with the target SDK and native dependencies. Windows uses `advapi32`; macOS uses Security/CoreFoundation; Linux needs libsecret-1 and GLib/GIO >= 2.50 plus a qualified existing native Secret Service keyring. Coordinate missing dependencies and native execution with the parent release task. This source change does not acquire packages, launch credential stores, change access policies or qualify an OS provider.
+
+The helper requires a separate `keychain/manifest.json` with exactly `format: "chausar.keychain-helper.v1"`, `platform`, `architecture`, `executable` and `sha256`. The executable is exactly `chausar-keychain.exe` on Windows or `chausar-keychain` elsewhere; the lowercase SHA-256 comes from the final signed helper bytes. Platform is `win32`, `darwin` or `linux`; architecture is `x64` or `arm64`, matching the running host. Ship one native executable for that target (thin Mach-O on macOS). Inventory this manifest, helper, dependent libraries and licenses in the outer runtime manifest. Its existing `components` schema remains `postgres` and `python`; the custody helper's provenance, signing and native acceptance must also be qualified by the parent release process. The current preflight is not an OS keychain acceptance test.
+
+Production desktop startup supplies the fixed packaged custody manifest path; the worker refuses readiness if this configured manifest or helper verification fails. No credential-store call occurs during manifest verification. Keep the signed helper and every ancestor directory protected from replacement. Unix verification rejects unsafe ownership/modes and symlinks; Windows ACL proof and the verification-to-launch pathname race still require native package qualification. Never substitute a script, PATH command, unsigned placeholder or file-backed custody provider.
 
 Obtain PostgreSQL through the [official download entry point](https://www.postgresql.org/download/) and Python through the [official download entry point](https://www.python.org/downloads/). Record the actual package vendor and distribution source; do not invent official builds for unsupported combinations. Review redistribution licensing, validate the vendor's download integrity independently, and test the native runtime on the target operating system.
 
