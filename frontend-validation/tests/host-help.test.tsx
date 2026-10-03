@@ -77,7 +77,7 @@ async function review(fixture: Awaited<ReturnType<typeof mounted>>) {
   await fixture.user.type(ask(), '  What was billed?  ');
   await fixture.user.keyboard('{Enter}');
   await screen.findByRole('heading', { name: 'Send your question to the AI model' });
-  return sheet().getByRole('button', { name: 'Send once', exact: true });
+  return sheet().getByRole('button', { name: 'Send once' });
 }
 const outbound = (fixture: ReturnType<typeof transport>) => fixture.calls.filter(call => ['models.approve', 'conversation.ask', 'conversation.synthesis.run'].includes(call.method));
 async function help() { act(() => { key('/', true); }); await screen.findByRole('heading', { name: 'Keyboard shortcuts' }); }
@@ -126,7 +126,7 @@ test('an already-issued approval released after Help cannot dispatch a question 
 
 test('Help from final-writing review restores the Frame ask fallback after the original button is removed', async () => {
   const fixture = await mounted(); await fixture.user.click(await review(fixture));
-  const opener = await screen.findByRole('button', { name: 'Preview writing', exact: true });
+  const opener = await screen.findByRole('button', { name: 'Preview writing' });
   await fixture.user.click(opener);
   await screen.findByRole('heading', { name: 'Send the results to be written up' });
   const before = outbound(fixture).length;
@@ -136,7 +136,7 @@ test('Help from final-writing review restores the Frame ask fallback after the o
 
 test('Help from a connected answer control returns to Frame ask when cancellation removes that control', async () => {
   const fixture = await mounted(); await fixture.user.click(await review(fixture));
-  const opener = await screen.findByRole('button', { name: 'Preview writing', exact: true }); opener.focus();
+  const opener = await screen.findByRole('button', { name: 'Preview writing' }); opener.focus();
   expect(opener.isConnected).toBe(true); const before = outbound(fixture).length;
   await help(); expect(opener.isConnected).toBe(false); await closeHelp();
   expect(document.activeElement).toBe(ask()); expect(outbound(fixture)).toHaveLength(before);
