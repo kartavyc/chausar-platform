@@ -1,6 +1,5 @@
-import { act } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { mountHost } from '../../app/ui/src/host/bootstrap';
 import { createHostController } from '../../app/ui/src/host/controller';
@@ -110,7 +109,8 @@ test('same-task Help cancels planning before the still-connected captured Send b
     expect(send.isConnected).toBe(true); send.click();
   });
   await screen.findByRole('heading', { name: 'Keyboard shortcuts' });
-  expect(fixture.controller.conversation.snapshot().kind).toBe('idle'); expect(outbound(fixture)).toHaveLength(0);
+  expect(fixture.controller.conversation.snapshot()).toMatchObject({ kind: 'unavailable', code: 'ACCESS_DENIED' });
+  expect(outbound(fixture)).toHaveLength(0);
   await closeHelp(); expect(document.activeElement).toBe(ask());
 });
 
