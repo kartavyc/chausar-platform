@@ -33888,7 +33888,7 @@ function Rp({ shell: e, address: t, onNavigate: n, counts: r, menu: i, banners: 
 					t.preventDefault(), y(r.backwards);
 					break;
 				case "help":
-					d && (t.preventDefault(), d());
+					d && (t.preventDefault(), d(void 0, g.current));
 					break;
 				case "talk": r.phase === "start" ? S && (t.preventDefault(), C.start()) : C.end();
 			}
@@ -38334,6 +38334,10 @@ function T_({ app: e, conversation: t, questionSettings: n, contextKey: r, readb
 				r.kind === "answer" && a(e, r.saved);
 			}
 		});
+	}, ue = e.onHelp === void 0 ? void 0 : (n, r) => {
+		if (_ || !v) return;
+		let i = o.kind === "review" || o.kind === "busy" ? d.current : n;
+		u.current = null, h.current = null, t.cancel(), e.onHelp?.(i, r);
 	};
 	return /* @__PURE__ */ (0, M.jsx)(lh, {
 		...e,
@@ -38344,7 +38348,8 @@ function T_({ app: e, conversation: t, questionSettings: n, contextKey: r, readb
 		},
 		onAddress: w,
 		renderPlace: le,
-		sheet: ce
+		sheet: ce,
+		onHelp: ue
 	}, r);
 }
 //#endregion
@@ -39230,6 +39235,14 @@ var Tv = {
 	routeClear: "Clear the chosen route",
 	viewerNoAsk: "Your viewer role can read evidence. Sending an AI request is unavailable for this role.",
 	aboutTitle: "About this interface",
+	helpTitle: "Keyboard shortcuts",
+	helpAsk: "Go to the ask line.",
+	helpPlaces: "Go to a place.",
+	helpClose: "Close the sheet and return to its starting control.",
+	helpRegions: "Move between navigation, page, sheet and ask line.",
+	helpList: "Show this list.",
+	helpSendGuard: "Ctrl Enter never sends an AI request.",
+	helpUnavailable: "Voice, adjacent sheet items, the word list and offline availability are not provided here.",
 	about: "Today and reviewed Ask are available here. Use the previous interface for other existing journeys.",
 	receipt: "Receipt",
 	receiptLoading: "Reading this receipt with your current workspace access.",
@@ -39276,6 +39289,14 @@ var Tv = {
 	referenceUnavailable: "This type of evidence cannot be opened in this interface. It has not been read as a calculation receipt.",
 	referenceIdentity: "Reference: {id}."
 }, Ev = {
+	helpTitle: "कीबोर्ड शॉर्टकट",
+	helpAsk: "सवाल की पंक्ति पर जाएँ।",
+	helpPlaces: "किसी जगह पर जाएँ।",
+	helpClose: "शीट बंद करें और उसे खोलने वाले नियंत्रण पर लौटें।",
+	helpRegions: "नेविगेशन, पन्ने, शीट और सवाल की पंक्ति के बीच जाएँ।",
+	helpList: "यह सूची दिखाएँ।",
+	helpSendGuard: "Ctrl Enter से AI अनुरोध नहीं भेजा जाता।",
+	helpUnavailable: "आवाज़, शीट के अगले और पिछले आइटम, शब्द सूची और ऑफ़लाइन उपलब्धता यहाँ नहीं दी गई है।",
 	legacy: "पिछला इंटरफ़ेस खोलें",
 	refresh: "फिर से पढ़ें",
 	loading: "आपका कार्यक्षेत्र पढ़ा जा रहा है।",
@@ -40186,10 +40207,35 @@ function ty({ selection: e, language: t, origin: n, onClose: r }) {
 		}), e.kind === "failed" && /* @__PURE__ */ (0, M.jsx)("p", { children: Dv(t, "code", { code: e.code }) })]
 	});
 }
-function ny({ controller: e, state: t, context: n, language: r, view: i, setLanguage: a, setView: o, onLegacyReturn: s }) {
-	let c = JSON.stringify([n.contextKey, t.selectedRouteId]), l = (0, x.useRef)(qv), u = (0, x.useRef)(null), d = (0, x.useRef)(null), f = (0, x.useRef)(0), [p, m] = (0, x.useState)(void 0), [h, g] = (0, x.useState)(null), _ = (0, x.useRef)(h);
-	_.current = h;
-	let v = n.member.role === "viewer", y = t.routes.find((e) => e.id === t.selectedRouteId && e.enabled), b = e.questionSettings(), S = !v && y !== void 0 && b !== null && b.routeId === y.id, C = (0, x.useMemo)(() => {
+function ny({ language: e }) {
+	return /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [
+		/* @__PURE__ */ (0, M.jsx)("dl", {
+			className: G.pairs,
+			children: [
+				["Ctrl K", "helpAsk"],
+				["Ctrl 1–7", "helpPlaces"],
+				["Esc", "helpClose"],
+				["F6 / Shift F6", "helpRegions"],
+				["Ctrl /", "helpList"]
+			].map(([t, n]) => /* @__PURE__ */ (0, M.jsxs)("div", {
+				className: G.pair,
+				children: [/* @__PURE__ */ (0, M.jsx)("dt", {
+					className: G.name,
+					children: t
+				}), /* @__PURE__ */ (0, M.jsx)("dd", {
+					className: G.value,
+					children: Dv(e, n)
+				})]
+			}, t))
+		}),
+		/* @__PURE__ */ (0, M.jsx)("p", { children: Dv(e, "helpSendGuard") }),
+		/* @__PURE__ */ (0, M.jsx)("p", { children: Dv(e, "helpUnavailable") })
+	] });
+}
+function ry({ controller: e, state: t, context: n, language: r, view: i, setLanguage: a, setView: o, onLegacyReturn: s }) {
+	let c = JSON.stringify([n.contextKey, t.selectedRouteId]), l = (0, x.useRef)(qv), u = (0, x.useRef)(null), d = (0, x.useRef)(null), f = (0, x.useRef)(null), p = (0, x.useRef)(0), [m, h] = (0, x.useState)(void 0), [g, _] = (0, x.useState)(null), v = (0, x.useRef)(g);
+	v.current = g;
+	let y = n.member.role === "viewer", b = t.routes.find((e) => e.id === t.selectedRouteId && e.enabled), S = e.questionSettings(), C = !y && b !== void 0 && S !== null && S.routeId === b.id, w = (0, x.useMemo)(() => {
 		if (t.today === null) return { kind: "missing" };
 		try {
 			return {
@@ -40209,87 +40255,97 @@ function ny({ controller: e, state: t, context: n, language: r, view: i, setLang
 		e.timeZone
 	]);
 	(0, x.useLayoutEffect)(() => {
-		C.kind === "invalid" && e.invalidate("INVALID_REPLY");
-	}, [C.kind, e]);
-	let w = (0, x.useCallback)((t) => {
+		w.kind === "invalid" && e.invalidate("INVALID_REPLY");
+	}, [w.kind, e]);
+	let T = (0, x.useCallback)((t) => {
 		l.current = t;
 		let n = e.snapshot().receipt;
 		n !== null && (t === null || !qn(n.address, t)) && e.closeReceipt();
-		let r = _.current;
-		r !== null && (t === null || !qn(r.address, t)) && g(null);
-	}, [e]), T = () => {
+		let r = v.current;
+		r !== null && (t === null || !qn(r.address, t)) && _(null);
+	}, [e]), ee = () => {
 		let r = e.snapshot();
 		return r.phase === "ready" && r.context?.contextKey === n.contextKey && r.selectedRouteId === t.selectedRouteId;
-	}, ee = (e) => {
-		if (!T() || !S) return;
+	}, E = (e) => {
+		if (!ee() || !C) return;
 		let t = {
 			place: "ask",
 			sub: "saved"
 		};
-		f.current += 1, m({
+		p.current += 1, h({
 			id: e,
 			address: t,
-			selectionKey: String(f.current)
+			selectionKey: String(p.current)
 		}), Zv(t);
-	}, E = () => {
-		e.closeReceipt(), g(null);
-		let t = d.current;
-		d.current = null, t !== null && T() ? ee(t) : l.current !== null && Zv(Jn(l.current));
-	}, D = (t, n = null) => {
-		if (!T() || l.current === null) return;
-		u.current = Qv(), d.current = n, g(null);
+	}, D = () => {
+		let t = v.current?.kind === "help" ? u.current?.isConnected ? u.current : d.current : null;
+		e.closeReceipt(), v.current = null, _(null), t?.isConnected && t.focus();
+		let n = f.current;
+		f.current = null, n !== null && ee() ? E(n) : l.current !== null && Zv(Jn(l.current));
+	}, te = (t, n = null) => {
+		if (!ee() || l.current === null) return;
+		u.current = Qv(), f.current = n, _(null);
 		let r = Yn(l.current, "receipt");
 		Zv(r), e.openReceipt(t, r);
-	}, te = (t, n = null) => {
-		if (!T() || l.current === null) return;
-		u.current = Qv(), d.current = n, e.closeReceipt();
+	}, ne = (t, n = null) => {
+		if (!ee() || l.current === null) return;
+		u.current = Qv(), f.current = n, e.closeReceipt();
 		let r = Yn(l.current, "reference");
-		g({
+		_({
 			address: r,
 			kind: "reference",
 			id: t
 		}), Zv(r);
-	}, ne = (e, t) => {
-		e.kind === "calculation-receipt" ? D(e.id, t.id) : e.kind === "answer" ? ee(e.id) : te(e.kind === "synthesis-receipt" ? e.receipt.id : e.id, t.id);
-	}, re = (t) => {
-		T() && (e.selectRoute(t), Zv(t === null ? qv : Jv));
-	}, ie = () => {
-		if (!T() || l.current === null) return;
-		u.current = Qv(), d.current = null, e.closeReceipt();
+	}, re = (e, t) => {
+		e.kind === "calculation-receipt" ? te(e.id, t.id) : e.kind === "answer" ? E(e.id) : ne(e.kind === "synthesis-receipt" ? e.receipt.id : e.id, t.id);
+	}, ie = (t) => {
+		ee() && (e.selectRoute(t), Zv(t === null ? qv : Jv));
+	}, ae = () => {
+		if (!ee() || l.current === null) return;
+		u.current = Qv(), f.current = null, e.closeReceipt();
 		let t = Yn(l.current, "about");
-		g({
+		_({
 			address: t,
 			kind: "about"
 		}), Zv(t);
+	}, oe = (t, n) => {
+		if (!ee() || l.current === null || v.current?.kind === "help") return;
+		let r = t === void 0 ? Qv() : t, i = r?.closest("[data-region=\"sheet\"]") ? u.current : r;
+		d.current = n?.isConnected ? n : null, u.current = i?.isConnected ? i : n?.isConnected ? n : null, f.current = null, e.closeReceipt();
+		let a = Yn(l.current, "help"), o = {
+			address: a,
+			kind: "help"
+		};
+		v.current = o, _(o), Zv(a);
 	};
-	if (C.kind === "invalid") return /* @__PURE__ */ (0, M.jsx)(Qp, { state: {
+	if (w.kind === "invalid") return /* @__PURE__ */ (0, M.jsx)(Qp, { state: {
 		kind: "failed",
 		code: "INVALID_REPLY"
 	} });
-	let ae = Ov(r), oe = C.kind === "ready" ? C.value.data : {
+	let se = Ov(r), ce = w.kind === "ready" ? w.value.data : {
 		state: { kind: "loading" },
 		date: "",
 		review: {
 			count: {
 				exact: null,
-				display: ae["not-loaded-yet"]
+				display: se["not-loaded-yet"]
 			},
 			rows: []
 		},
 		thisMonthMissing: "not-loaded-yet",
 		earlierTodayMissing: "unknown"
-	}, se = t.receipt === null ? h === null ? void 0 : {
-		address: h.address,
+	}, le = t.receipt === null ? g === null ? void 0 : {
+		address: g.address,
 		content: /* @__PURE__ */ (0, M.jsxs)(Pp, {
-			kind: Dv(r, h.kind === "about" ? "aboutTitle" : "reference"),
-			title: Dv(r, h.kind === "about" ? "aboutTitle" : "reference"),
+			kind: Dv(r, g.kind === "help" ? "helpTitle" : g.kind === "about" ? "aboutTitle" : "reference"),
+			title: Dv(r, g.kind === "help" ? "helpTitle" : g.kind === "about" ? "aboutTitle" : "reference"),
 			origin: u.current,
-			onClose: E,
+			onClose: D,
 			children: [
-				/* @__PURE__ */ (0, M.jsx)("p", { children: Dv(r, h.kind === "about" ? "about" : "referenceUnavailable") }),
-				h.id !== void 0 && /* @__PURE__ */ (0, M.jsx)("p", {
+				g.kind === "help" ? /* @__PURE__ */ (0, M.jsx)(ny, { language: r }) : /* @__PURE__ */ (0, M.jsx)("p", { children: Dv(r, g.kind === "about" ? "about" : "referenceUnavailable") }),
+				g.id !== void 0 && /* @__PURE__ */ (0, M.jsx)("p", {
 					className: G.exact,
-					children: Dv(r, "referenceIdentity", { id: h.id })
+					children: Dv(r, "referenceIdentity", { id: g.id })
 				}),
 				/* @__PURE__ */ (0, M.jsx)(Dr, {
 					variant: "link",
@@ -40304,9 +40360,9 @@ function ny({ controller: e, state: t, context: n, language: r, view: i, setLang
 			selection: t.receipt,
 			language: r,
 			origin: u.current,
-			onClose: E
+			onClose: D
 		}, t.receipt.id)
-	}, ce = {
+	}, ue = {
 		shellKind: "desktop",
 		view: i,
 		language: r,
@@ -40324,59 +40380,61 @@ function ny({ controller: e, state: t, context: n, language: r, view: i, setLang
 			onLock: () => {
 				e.lock();
 			},
-			onAbout: ie
+			onAbout: ae
 		},
 		ask: {
 			onAsk: () => Zv(Jv),
-			noModel: !S,
-			...v ? { readOnly: { holder: Dv(r, "roleViewer") } } : {}
+			noModel: !C,
+			...y ? { readOnly: { holder: Dv(r, "roleViewer") } } : {}
 		},
 		status: {
 			sources: {
-				text: Dv(r, C.kind === "ready" ? "sourcesReady" : "sourcesMissing"),
+				text: Dv(r, w.kind === "ready" ? "sourcesReady" : "sourcesMissing"),
 				address: {
 					place: "books",
 					sub: "sources"
 				}
 			},
 			model: {
-				text: y === void 0 ? Dv(r, "routeMissing") : Dv(r, "routeSelected", { label: y.label }),
+				text: b === void 0 ? Dv(r, "routeMissing") : Dv(r, "routeSelected", { label: b.label }),
 				address: Yv
 			},
 			third: { text: Dv(r, "third") }
 		},
+		statusSimple: [Dv(r, w.kind === "ready" ? "sourcesReady" : "sourcesMissing"), b === void 0 ? Dv(r, "routeMissing") : Dv(r, "routeSelected", { label: b.label })],
 		capabilities: {},
 		today: {
-			data: oe,
+			data: ce,
 			intents: {
-				onReview: (e) => te(e),
-				onReceipt: (e) => D(e)
+				onReview: (e) => ne(e),
+				onReceipt: (e) => te(e)
 			}
 		},
-		sheet: se,
-		onAddress: w,
+		sheet: le,
+		onAddress: T,
+		onHelp: oe,
 		renderPlace: (e) => e.place === "trust" && e.sub === "models" || e.place === "ask" && (e.sub === void 0 || e.sub === "new") ? /* @__PURE__ */ (0, M.jsx)($v, {
 			routes: t.routes,
 			selected: t.selectedRouteId,
 			language: r,
-			viewer: v,
-			onSelect: re
+			viewer: y,
+			onSelect: ie
 		}) : /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [/* @__PURE__ */ (0, M.jsx)(Qp, { state: { kind: "not-built" } }), /* @__PURE__ */ (0, M.jsx)(Dr, {
 			variant: "link",
 			onClick: s,
 			children: Dv(r, "legacy")
 		})] })
 	};
-	return S && b !== null ? /* @__PURE__ */ (0, M.jsx)(T_, {
-		app: ce,
+	return C && S !== null ? /* @__PURE__ */ (0, M.jsx)(T_, {
+		app: ue,
 		conversation: e.conversation,
-		questionSettings: b,
+		questionSettings: S,
 		contextKey: c,
-		readback: p,
-		onReference: ne
-	}) : /* @__PURE__ */ (0, M.jsx)(lh, { ...ce }, c);
+		readback: m,
+		onReference: re
+	}) : /* @__PURE__ */ (0, M.jsx)(lh, { ...ue }, c);
 }
-function ry({ controller: e, options: t, onLegacyReturn: n }) {
+function iy({ controller: e, options: t, onLegacyReturn: n }) {
 	let r = (0, x.useSyncExternalStore)(e.subscribe, e.snapshot, e.snapshot), [i, a] = (0, x.useState)(t.language ?? "en"), [o, s] = (0, x.useState)(t.view ?? "guided");
 	(0, x.useEffect)(() => {
 		e.refresh();
@@ -40418,7 +40476,7 @@ function ry({ controller: e, options: t, onLegacyReturn: n }) {
 					minHeight: 0,
 					overflow: "auto"
 				},
-				children: c && r.context !== null ? /* @__PURE__ */ (0, M.jsx)(ny, {
+				children: c && r.context !== null ? /* @__PURE__ */ (0, M.jsx)(ry, {
 					controller: e,
 					state: r,
 					context: r.context,
@@ -40438,12 +40496,12 @@ function ry({ controller: e, options: t, onLegacyReturn: n }) {
 		})
 	});
 }
-function iy(e, t, n = {}) {
+function ay(e, t, n = {}) {
 	Zv(qv), document.documentElement.removeAttribute("data-theme");
 	let r = (0, S.createRoot)(e), i = !1, a = () => {
 		i || (i = !0, t.dispose(), r.unmount());
 	};
-	return r.render(/* @__PURE__ */ (0, M.jsx)(ry, {
+	return r.render(/* @__PURE__ */ (0, M.jsx)(iy, {
 		controller: t,
 		options: n,
 		onLegacyReturn: () => {
@@ -40455,6 +40513,6 @@ function iy(e, t, n = {}) {
 	});
 }
 //#endregion
-export { Kv as createHostController, iy as mountHost };
+export { Kv as createHostController, ay as mountHost };
 
 //# sourceMappingURL=host.js.map
