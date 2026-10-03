@@ -104,6 +104,8 @@ function protocolFixture() {
     if (sql === 'ROLLBACK') { tx.active = false; releaseLock(client as number, tx); return { rows: [] }; }
     assert.equal(tx.active, true, 'SQL must remain inside the awaited transaction.');
     assert.ok(tx.lock && tx.store, 'SQL must follow advisory lock acquisition.');
+    if (sql === "SELECT storage_id FROM public.chausar_workspace_postgres_storage WHERE id = 'current' FOR SHARE")
+      return { rows: [{ storage_id: database.storage_id }] };
     if (/^SELECT .*FROM public\.chausar_workspace_postgres_storage/.test(sql)) return { rows: [clone(database)] };
     const table = /public\.(chausar_vault_authority|chausar_workspace_postgres_custody)\b/.exec(sql)?.[1];
     assert.ok(table, `Unhandled protocol SQL: ${sql}`);
@@ -213,7 +215,8 @@ test('held source lease uses one transaction/client through nested load, commit 
   let escaped!: PostgresSnapshotLease;
   await adapter.withLease(async lease => {
     escaped = lease; assert.equal(lease.active, true); assert.equal(lease.slot, 'source-slot');
-    assert.deepEqual(fixture.events.slice(0, 3).map(event => event.sql), ['BEGIN', 'SELECT pg_advisory_xact_lock(hashtext($1))',
+    assert.deepEqual(fixture.events.slice(0, 4).map(event => event.sql), ['BEGIN', 'SELECT pg_advisory_xact_lock(hashtext($1))',
+      "SELECT storage_id FROM public.chausar_workspace_postgres_storage WHERE id = 'current' FOR SHARE",
       'SELECT creation_id, revision, envelope FROM public.chausar_vault_authority WHERE slot = $1 FOR UPDATE']);
     assert.deepEqual(await adapter.load(), original);
     await adapter.withLease(async nested => { assert.equal(nested, lease); await adapter.commit(envelope(1), 0); });

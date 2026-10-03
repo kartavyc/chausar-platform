@@ -27,6 +27,7 @@ function protocolFixture() {
     statements.push({ sql, values, client });
     if (sql === 'SELECT synthetic_sql_failure') throw new Error('Synthetic underlying SQL failure');
     if (sql.includes('to_regclass')) return { rows: [{ authority_table: true, storage_table: true, custody_table: true, creation_column: true }] };
+    if (sql === "SELECT storage_id FROM public.chausar_workspace_postgres_storage WHERE id = 'current' FOR SHARE") return { rows: [{ storage_id: 'envelope-fixture-storage' }] };
     if (sql.startsWith('SELECT creation_id, revision, envelope')) return { rows: envelope
       ? [{ creation_id: creationId, revision: storedRevision ?? String(envelope.revision), envelope: jsonbOrder(envelope) }] : [] };
     if (sql.startsWith('SELECT phase, creation_id, vault_id')) return { rows: custody ? [structuredClone(custody)] : [] };
@@ -67,6 +68,15 @@ function syntheticEnvelope(revision = 0): VaultEnvelope {
   return { format: 'chausar.vault.v1', id: 'synthetic-vault', revision,
     passphrase: { salt: 'passphrase-salt', kdf: 'scrypt-32768-8-1', ciphertext: ciphertext('passphrase') },
     recovery: { salt: 'recovery-salt', kdf: 'scrypt-32768-8-1', ciphertext: ciphertext('recovery') }, snapshot: ciphertext('snapshot') };
+}
+// Shape-only injected SQL publication evidence; never native physical identity proof.
+function committedCustody() {
+  const envelope = syntheticEnvelope();
+  return { phase: 'committed', creation_id: 'fixture-creation-1', operation_id: 'fixture-operation-1',
+    storage_id: 'envelope-fixture-storage', vault_id: envelope.id, revision: 0,
+    envelope_digest: postgresEnvelopeDigest(envelope), envelope,
+    target_identity: { directory: join(tmpdir(), 'chausar-envelope-protocol-target'),
+      physical: { dev: '1', ino: '2', birthtimeNs: '3' } } };
 }
 function deferred() {
   let resolve!: () => void;
@@ -239,7 +249,7 @@ test('reserved, prepared and rolled-back custody excludes ordinary open, write a
 
 test('exact committed custody allows ordinary revision advances while excluding replacement identities', async () => {
   const fixture = protocolFixture(); fixture.replace(syntheticEnvelope());
-  const custody = { phase: 'committed', creation_id: 'fixture-creation-1', vault_id: 'synthetic-vault', revision: 0, envelope_digest: postgresEnvelopeDigest(syntheticEnvelope()) };
+  const custody = committedCustody();
   fixture.custody(custody);
   const adapter = await PostgresSnapshotAdapter.fromPool(fixture.pool, 'committed-target');
   await adapter.commit(syntheticEnvelope(1), 0); await adapter.commit(syntheticEnvelope(2), 1);
@@ -260,7 +270,10 @@ test('ordinary PostgreSQL delete refuses unpublished custody without removing au
       fixture.custody({ phase, creation_id: 'fixture-creation-1', vault_id: 'synthetic-vault' });
       const adapter = await PostgresSnapshotAdapter.fromPool(fixture.pool, 'delete-unpublished');
       const before = { authority: structuredClone(fixture.current()), custody: fixture.currentCustody() };
-      await assert.rejects(adapter.delete(), { code: 'POSTGRES_TARGET_NOT_COMMITTED' });
+      await assert.rejects(adapter.load(), { code: 'POSTGRES_TARGET_NOT_COMMITTED' });
+      const afterFailedAdmission = fixture.statements.length;
+      await assert.rejects(adapter.delete(), { code: 'POSTGRES_AUTHORITY_CHANGED' });
+      assert.equal(fixture.statements.length, afterFailedAdmission, 'Unknown ownership refuses without another SQL lease.');
       assert.deepEqual({ authority: fixture.current(), custody: fixture.currentCustody() }, before);
       assert.equal(fixture.statements.filter(value => value.sql.startsWith('DELETE FROM public.chausar_vault_authority')).length, 0);
       assert.equal(fixture.statements.filter(value => value.sql === 'COMMIT').length, 0);
@@ -276,10 +289,13 @@ test('ordinary PostgreSQL delete refuses missing or mismatched committed authori
       const fixture = protocolFixture(), value = syntheticEnvelope();
       if (mismatch === 'vault') value.id = 'replacement-vault';
       fixture.replace(mismatch === 'missing' ? null : value, mismatch === 'creation' ? 'replacement-creation' : 'fixture-creation-1');
-      fixture.custody({ phase: 'committed', creation_id: 'fixture-creation-1', vault_id: 'synthetic-vault' });
+      fixture.custody(committedCustody());
       const adapter = await PostgresSnapshotAdapter.fromPool(fixture.pool, 'delete-mismatched');
       const before = { authority: structuredClone(fixture.current()), custody: fixture.currentCustody() };
-      await assert.rejects(adapter.delete(), { code: 'POSTGRES_TARGET_NOT_COMMITTED' });
+      await assert.rejects(adapter.load(), { code: 'POSTGRES_TARGET_NOT_COMMITTED' });
+      const afterFailedAdmission = fixture.statements.length;
+      await assert.rejects(adapter.delete(), { code: 'POSTGRES_AUTHORITY_CHANGED' });
+      assert.equal(fixture.statements.length, afterFailedAdmission, 'Unknown ownership refuses without another SQL lease.');
       assert.deepEqual({ authority: fixture.current(), custody: fixture.currentCustody() }, before);
       assert.equal(fixture.statements.filter(value => value.sql.startsWith('DELETE FROM public.chausar_vault_authority')).length, 0);
       assert.equal(fixture.connections(), 1); assert.equal(fixture.released(), 1);
@@ -287,15 +303,30 @@ test('ordinary PostgreSQL delete refuses missing or mismatched committed authori
   }
 });
 
-test('ordinary PostgreSQL delete preserves absent, present and exact committed legacy behavior', async t => {
+test('ordinary PostgreSQL deletion requires prior admission and preserves valid present or committed authority', async t => {
   for (const disposition of ['absent', 'present', 'committed']) {
     await t.test(disposition, async () => {
       const fixture = protocolFixture(); fixture.replace(disposition === 'absent' ? null : syntheticEnvelope(2));
-      if (disposition === 'committed') fixture.custody({ phase: 'committed', creation_id: 'fixture-creation-1', vault_id: 'synthetic-vault',
-        revision: 0, envelope_digest: postgresEnvelopeDigest(syntheticEnvelope()) });
+      if (disposition === 'committed') fixture.custody(committedCustody());
       const adapter = await PostgresSnapshotAdapter.fromPool(fixture.pool, 'delete-admitted');
       const beforeCustody = fixture.currentCustody();
-      await adapter.delete();
+      if (disposition === 'absent') {
+        // A fresh constructor has never admitted ownership of this incarnation.
+        const beforeStatements = fixture.statements.length;
+        await assert.rejects(adapter.delete(), { code: 'POSTGRES_AUTHORITY_CHANGED' });
+        assert.equal(fixture.current(), undefined); assert.deepEqual(fixture.currentCustody(), beforeCustody);
+        assert.equal(fixture.statements.length, beforeStatements);
+        assert.equal(fixture.statements.filter(value => value.sql.startsWith('DELETE FROM public.chausar_vault_authority')).length, 0);
+        assert.equal(fixture.statements.filter(value => value.sql === 'BEGIN').length, 0);
+        assert.equal(fixture.statements.filter(value => value.sql === 'COMMIT').length, 0);
+        assert.equal(fixture.statements.filter(value => value.sql === 'ROLLBACK').length, 0);
+        assert.equal(fixture.connections(), 0); assert.equal(fixture.released(), 0);
+        return;
+      }
+      await adapter.withLease(async lease => {
+        assert.equal((await lease.load())!.revision, 2);
+        await adapter.delete();
+      });
       assert.equal(fixture.current(), undefined); assert.deepEqual(fixture.currentCustody(), beforeCustody);
       assert.equal(fixture.statements.filter(value => value.sql.startsWith('DELETE FROM public.chausar_vault_authority')).length, 1);
       assert.equal(fixture.statements.filter(value => value.sql === 'BEGIN').length, 1);
@@ -305,11 +336,23 @@ test('ordinary PostgreSQL delete preserves absent, present and exact committed l
   }
 });
 
+test('ordinary PostgreSQL deletion refuses fresh unadmitted present authority without issuing SQL', async () => {
+  const fixture = protocolFixture(); fixture.replace(syntheticEnvelope());
+  const adapter = await PostgresSnapshotAdapter.fromPool(fixture.pool, 'delete-unadmitted-present');
+  const before = structuredClone(fixture.current()), beforeStatements = fixture.statements.length;
+  await assert.rejects(adapter.delete(), { code: 'POSTGRES_AUTHORITY_CHANGED' });
+  assert.deepEqual(fixture.current(), before); assert.equal(fixture.currentCustody(), null);
+  assert.equal(fixture.statements.length, beforeStatements);
+  assert.equal(fixture.statements.filter(value => value.sql.startsWith('DELETE FROM public.chausar_vault_authority')).length, 0);
+  assert.equal(fixture.connections(), 0); assert.equal(fixture.released(), 0);
+});
+
 test('ordinary PostgreSQL delete reuses the active lease through admission and deletion', async () => {
   const fixture = protocolFixture(); fixture.replace(syntheticEnvelope());
-  fixture.custody({ phase: 'committed', creation_id: 'fixture-creation-1', vault_id: 'synthetic-vault' });
+  fixture.custody(committedCustody());
   const adapter = await PostgresSnapshotAdapter.fromPool(fixture.pool, 'delete-reentrant');
   await adapter.withLease(async lease => {
+    assert.equal((await lease.load())!.revision, 0);
     await adapter.delete();
     assert.equal(lease.active, true); assert.equal(fixture.current(), undefined);
     assert.equal(fixture.connections(), 1); assert.equal(fixture.released(), 0);

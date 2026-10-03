@@ -42,7 +42,8 @@ function protocolFixture() {
     if (text.startsWith('INSERT INTO public.chausar_workspace_postgres_storage')) {
       storageId ??= randomUUID(); return { rows: [], rowCount: 1 };
     }
-    if (text === "SELECT storage_id FROM public.chausar_workspace_postgres_storage WHERE id = 'current'")
+    if (text === "SELECT storage_id FROM public.chausar_workspace_postgres_storage WHERE id = 'current'"
+      || text === "SELECT storage_id FROM public.chausar_workspace_postgres_storage WHERE id = 'current' FOR SHARE")
       return { rows: storageId ? [{ storage_id: storageId }] : [] };
     if (text === 'SELECT pg_advisory_xact_lock(hashtext($1))') return { rows: [] };
     if (text === 'SELECT creation_id, revision, envelope FROM public.chausar_vault_authority WHERE slot = $1 FOR UPDATE') {

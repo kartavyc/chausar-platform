@@ -118,6 +118,8 @@ test('PostgreSQL authority rejects revisions beyond JavaScript precision and pin
   const client = {
     async query(sql: string) {
       calls.push(sql);
+      if (sql === "SELECT storage_id FROM public.chausar_workspace_postgres_storage WHERE id = 'current' FOR SHARE")
+        return { rows: [{ storage_id: 'synthetic-analytics-generation' }] };
       return { rows: sql.startsWith('SELECT creation_id, revision, envelope')
         ? [{ creation_id: 'synthetic-creation', revision: '9007199254740993', envelope }] : [] };
     },

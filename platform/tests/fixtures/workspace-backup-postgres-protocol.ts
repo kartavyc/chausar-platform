@@ -118,4 +118,3 @@ export class ProtocolPostgresAdapter implements EncryptedSnapshotAdapter {
     throw new Error(`Fixture refuses unexpected SQL: ${sql}`);
   }
 }
-

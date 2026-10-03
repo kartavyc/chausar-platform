@@ -54,7 +54,7 @@ function matches(row: Row, sql: string, values: unknown[]) {
 function protocolFixture() {
   let store: Store = { authority: new Map(), custody: new Map() }, connects = 0, releases = 0, active = 0;
   let commitFailure: unknown;
-  const events: string[] = [], database = { storage_id: 'injected-profile-storage', database: 'injected_profile',
+  const events: string[] = [], database = { id: 'current', storage_id: 'injected-profile-storage', database: 'injected_profile',
     database_oid: '17017', server_address: '127.0.0.1', server_port: 15432 };
   const pool: PostgresPool = {
     async query(sql) {
@@ -113,6 +113,17 @@ function protocolFixture() {
   return { pool, events, authority: (slot: string) => clone(store.authority.get(slot)), custody: (slot: string) => clone(store.custody.get(slot)),
     replaceAuthority(slot: string, change: (row: Row) => void) { const row = store.authority.get(slot); assert.ok(row); change(row); },
     setCustody(slot: string, row: Row) { store.custody.set(slot, clone(row)); },
+    // Explicit quiescent mutation/readback of the existing
+    // protocol model's storage-generation row. This is never native SQL proof.
+    storageGeneration: () => clone(database),
+    replaceStorageGeneration(storageId: string) {
+      assert.equal(active, 0, 'Generation injection occurs only between drained model transactions.');
+      assert.ok(storageId && storageId !== database.storage_id); database.storage_id = storageId;
+    },
+    authorityGateRows: () => clone({
+      authority: [...store.authority].sort(([left], [right]) => left.localeCompare(right)),
+      custody: [...store.custody].sort(([left], [right]) => left.localeCompare(right)),
+    }),
     failNextCommit(error: unknown) { assert.ok(error); commitFailure = error; },
     counts: () => ({ connects, releases, active }) };
 }
@@ -158,7 +169,7 @@ async function fixture(t: TestContext) {
     track(vault: Vault) { vaults.add(vault); return vault; } };
 }
 
-async function publicDeleteFixture(t: TestContext, keychain?: KeychainHook) {
+async function publicDeleteFixture(t: TestContext, keychain?: KeychainHook, authorityGatePublication = false) {
   const f = await fixture(t); await f.source.close();
   const engine = new Engine({ directory: f.root, storage: 'postgres', demo: true });
   let owned!: PostgresSnapshotAdapter, expectedShutdownFailure: unknown;
@@ -175,6 +186,21 @@ async function publicDeleteFixture(t: TestContext, keychain?: KeychainHook) {
     const open = Vault.open.bind(Vault);
     t.mock.method(Vault, 'open', (options: OpenVaultOptions) => open({ ...options, keychain }));
   }
+  if (authorityGatePublication) {
+    // Inject only protocol custody for the actual existing encrypted revision-0
+    // authority BEFORE the fresh adapter opens it. Subsequent real Vault writes
+    // may advance ordinary revisions without changing original publication.
+    const slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
+    assert.ok(authority); assert.equal(authority.envelope.revision, 0);
+    const physical = await lstat(f.sourceDirectory, { bigint: true });
+    f.sql.setCustody(slot, { slot, phase: 'committed', creation_id: authority.creation_id,
+      vault_id: authority.envelope.id, operation_id: 'proposed-authority-gate-' + randomUUID(),
+      storage_id: f.sql.storageGeneration().storage_id, revision: 0,
+      envelope_digest: postgresEnvelopeDigest(authority.envelope), envelope: authority.envelope,
+      target_identity: { directory: f.sourceDirectory, physical: {
+        dev: String(physical.dev), ino: String(physical.ino), birthtimeNs: String(physical.birthtimeNs),
+      } } });
+  }
   await engine.request('workspace.open', { folder: 'source', passphrase: credential });
   const vault = f.track(engine.vault!), state = vault.read(), prefix = `chausar-${state.workspace.id}-`;
   await mkdir(join(f.root, 'backups')); await mkdir(join(f.root, 'exports'));
@@ -182,6 +208,19 @@ async function publicDeleteFixture(t: TestContext, keychain?: KeychainHook) {
   await vault.backup(backup); await vault.export(exported, { plaintext: true });
   await vault.writeArtifact({ id: 'delete_trial', purpose: 'private-trial', value: { synthetic: 'private trial deletion evidence' }, expectedDigest: null });
   await vault.writeArtifact({ id: 'delete_interchange', purpose: 'workspace-interchange', value: { synthetic: 'private interchange deletion evidence' }, expectedDigest: null });
+  if (authorityGatePublication) {
+    // writeArtifact persists its private ciphertext, not the ordinary SQL State
+    // snapshot. Exercise a real, explicit snapshot update and injected SQL protocol
+    // readback rather than assuming artifact writes advance authority revision.
+    const slot = hash(f.sourceDirectory), beforeUpdate = f.sql.authority(slot), publication = f.sql.custody(slot);
+    assert.ok(beforeUpdate && publication);
+    await vault.update(current => { current.activity.push('Bound-incarnation ordinary revision advance control'); });
+    const afterUpdate = f.sql.authority(slot); assert.ok(afterUpdate);
+    assert.equal(afterUpdate.creation_id, beforeUpdate.creation_id);
+    assert.equal(afterUpdate.envelope.id, beforeUpdate.envelope.id);
+    assert.equal(afterUpdate.envelope.revision, beforeUpdate.envelope.revision + 1);
+    assert.deepEqual(f.sql.custody(slot), publication, 'A normal snapshot update preserves original committed publication.');
+  }
   const foreign = join(f.root, 'backups', `chausar-${f.options.journalVault.read().workspace.id}-3.backup`);
   await f.options.journalVault.backup(foreign);
   const privatePaths = ['private-artifacts/private-trial/delete_trial.encrypted.json', 'private-artifacts/workspace-interchange/delete_interchange.encrypted.json'];
@@ -228,6 +267,173 @@ test('public PostgreSQL deletion preserves all encrypted artifacts and managed c
   }
 });
 
+// Parent-approved conservative deletion authority: exact retained original
+// publication binding and current database generation for public deletion.
+// They are source-protocol regressions, NOT evidence of native SQL behaviour.
+// These agreed exact refusal codes never use a widened code whitelist.
+const proposedAuthorityGateCases = [
+  { mutation: 'operation-id', expectedCode: 'POSTGRES_AUTHORITY_CHANGED' },
+  { mutation: 'custody-storage-id', expectedCode: 'POSTGRES_AUTHORITY_CHANGED' },
+  { mutation: 'target-physical', expectedCode: 'POSTGRES_AUTHORITY_CHANGED' },
+  { mutation: 'database-generation', expectedCode: 'POSTGRES_STORAGE_CHANGED' },
+] as const;
+
+type PublicDeleteFixture = Awaited<ReturnType<typeof publicDeleteFixture>>;
+async function proposedAuthorityGateWitness(f: PublicDeleteFixture) {
+  const bytes = await f.bytes(), files = await Promise.all(f.files.map(async (path, index) => {
+    let physical: null | Record<string, string>;
+    try {
+      const stat = await lstat(path, { bigint: true });
+      physical = Object.fromEntries(['dev', 'ino', 'birthtimeNs', 'size', 'mtimeNs', 'ctimeNs']
+        .map(field => [field, String(stat[field as keyof typeof stat])]));
+    } catch (error: any) { if (error.code !== 'ENOENT') throw error; physical = null; }
+    return { role: ['private-trial', 'private-interchange', 'managed-backup', 'managed-export', 'foreign-backup'][index],
+      path, bytes: bytes[index], physical };
+  }));
+  return { protocolRows: f.sql.authorityGateRows(), generation: f.sql.storageGeneration(), files };
+}
+
+test('public deletion refuses changed retained publication binding or database generation before any purge', async t => {
+  for (const { mutation, expectedCode } of proposedAuthorityGateCases) await t.test(mutation, async t => {
+    let keychainRemovals = 0;
+    const f = await publicDeleteFixture(t, { async store() {}, async remove() { keychainRemovals++; } }, true);
+    const slot = hash(f.sourceDirectory), originalPublication = f.sql.custody(slot), authority = f.sql.authority(slot);
+    assert.ok(originalPublication && authority);
+    assert.equal(originalPublication.revision, 0);
+    assert.ok(authority.envelope.revision > originalPublication.revision,
+      'An explicit ordinary Vault snapshot update advances revision without rebinding original publication.');
+    const changed = clone(originalPublication);
+    if (mutation === 'operation-id') changed.operation_id = 'changed-operation-' + randomUUID();
+    if (mutation === 'custody-storage-id') changed.storage_id = 'changed-custody-storage-' + randomUUID();
+    if (mutation === 'target-physical') changed.target_identity.physical.birthtimeNs =
+      String(BigInt(changed.target_identity.physical.birthtimeNs) + 1n);
+    if (mutation === 'database-generation') f.sql.replaceStorageGeneration('changed-database-generation-' + randomUUID());
+    else f.sql.setCustody(slot, changed);
+    assert.deepEqual(f.sql.authority(slot), authority, 'Mutation retains exact creation and complete current ciphertext.');
+    const before = await proposedAuthorityGateWitness(f);
+    assert.ok(before.files.every(file => file.bytes && file.physical));
+    let admissionAttempts = 0, destructiveAdmissions = 0, managedCallbacks = 0, adapterDeletes = 0;
+    const admission = f.owned.withDeletionAdmission.bind(f.owned);
+    f.owned.withDeletionAdmission = (expected, work) => {
+      admissionAttempts++;
+      return admission(expected, async () => { destructiveAdmissions++; return work(); });
+    };
+    const deleteAdapter = f.owned.delete.bind(f.owned);
+    t.mock.method(f.owned, 'delete', async () => { adapterDeletes++; await deleteAdapter(); });
+    const deleteVault = f.vault.delete.bind(f.vault);
+    t.mock.method(f.vault, 'delete', (cleanup?: Parameters<Vault['delete']>[0]) => deleteVault(async input => {
+      managedCallbacks++; if (cleanup) await cleanup(input);
+    }));
+    f.sql.events.length = 0;
+    let refusal: unknown, submitted = 0;
+    try { submitted++; await f.engine.request('workspace.delete', { confirmation: f.state.workspace.name }); }
+    catch (error) { refusal = error; f.expectFailure(error); }
+    const after = await proposedAuthorityGateWitness(f);
+    t.diagnostic(JSON.stringify({ mutation, expectedCode,
+      observedCode: refusal instanceof ChausarError ? refusal.code : null,
+      admissionAttempts, destructiveAdmissions, managedCallbacks, adapterDeletes,
+      protocolRowsPreserved: canonical(before.protocolRows) === canonical(after.protocolRows),
+      fileDigestsBefore: before.files.map(file => file.bytes && createHash('sha256').update(file.bytes).digest('hex')),
+      fileDigestsAfter: after.files.map(file => file.bytes && createHash('sha256').update(file.bytes).digest('hex')) }));
+    assert.equal(submitted, 1, 'Issue and settle one original request; never retry.');
+    assert.ok(code(expectedCode)(refusal), 'The agreed exact typed refusal must occur.');
+    assert.equal(admissionAttempts, 1);
+    assert.equal(destructiveAdmissions, 0, 'No private inventory/removal work may be admitted.');
+    assert.equal(managedCallbacks, 0, 'No managed application-copy callback may run.');
+    assert.equal(adapterDeletes, 0); assert.equal(keychainRemovals, 0);
+    assert.deepEqual(after, before, 'Complete protocol authority/custody/generation plus private/managed/foreign bytes and physical identities survive.');
+    assert.equal(f.sql.events.filter(sql => /^(?:DELETE FROM|UPDATE|INSERT INTO) /.test(sql)).length, 0);
+    assert.equal(f.sql.counts().active, 0); assert.equal(f.sql.counts().connects, f.sql.counts().releases);
+    assert.equal(f.sql.events.at(-1), 'ADAPTER_CLOSE');
+    await assert.rejects(lstat(join(f.sourceDirectory, 'writer.lock')), { code: 'ENOENT' });
+  });
+});
+
+test('valid original committed binding permits deletion after ordinary revision advances', async t => {
+  const f = await publicDeleteFixture(t, undefined, true), slot = hash(f.sourceDirectory);
+  const publication = f.sql.custody(slot), authority = f.sql.authority(slot), generation = f.sql.storageGeneration();
+  assert.ok(publication && authority); assert.equal(publication.revision, 0);
+  assert.ok(authority.envelope.revision > publication.revision);
+  const foreignSlot = hash(join(f.root, 'journal')),
+    foreign = { authority: f.sql.authority(foreignSlot), custody: f.sql.custody(foreignSlot) };
+  let admitted = 0;
+  const admission = f.owned.withDeletionAdmission.bind(f.owned);
+  f.owned.withDeletionAdmission = (expected, work) => admission(expected, async () => {
+    admitted++; assert.equal(f.owned.hasActiveLease, true);
+    const result = await work(); assert.equal(f.owned.hasActiveLease, true); return result;
+  });
+  const result = await f.engine.request('workspace.delete', { confirmation: f.state.workspace.name });
+  assert.equal(result.deleted, true); assert.equal(admitted, 1);
+  assert.deepEqual(result.copiesRemoved, f.expectedRemoved);
+  assert.equal(f.sql.authority(slot), undefined); assert.deepEqual(f.sql.custody(slot), publication);
+  assert.deepEqual(f.sql.storageGeneration(), generation);
+  assert.deepEqual({ authority: f.sql.authority(foreignSlot), custody: f.sql.custody(foreignSlot) }, foreign);
+  assert.deepEqual(await f.bytes(), [null, null, null, null, f.before.at(-1)]);
+});
+
+test('direct adapter.delete refuses changed admitted database generation without SQL deletion', async t => {
+  const f = await publicDeleteFixture(t, undefined, true);
+  f.sql.replaceStorageGeneration('changed-direct-delete-generation-' + randomUUID());
+  const before = await proposedAuthorityGateWitness(f); f.sql.events.length = 0;
+  let refusal: unknown;
+  try { await f.owned.delete(); } catch (error) { refusal = error; }
+  const after = await proposedAuthorityGateWitness(f);
+  t.diagnostic(JSON.stringify({ control: 'direct-delete-generation',
+    observedCode: refusal instanceof ChausarError ? refusal.code : null,
+    protocolRowsPreserved: canonical(before.protocolRows) === canonical(after.protocolRows),
+    sqlDeletes: f.sql.events.filter(sql => sql.startsWith('DELETE FROM ')).length }));
+  assert.ok(code('POSTGRES_STORAGE_CHANGED')(refusal));
+  assert.deepEqual(after, before);
+  assert.equal(f.sql.events.filter(sql => /^(?:DELETE FROM|UPDATE|INSERT INTO) /.test(sql)).length, 0);
+  assert.equal(f.sql.counts().active, 0); assert.equal(f.sql.counts().connects, f.sql.counts().releases);
+});
+
+test('deleteIfCurrent reports mismatch for changed admitted generation and preserves revision-zero owned ciphertext', async t => {
+  // Use an ordinary genuine revision-zero source, so existing committed-target
+  // advanced-revision cleanup rules cannot make this generation control vacuous.
+  const f = await fixture(t), slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
+  assert.ok(authority); assert.equal(authority.envelope.revision, 0); assert.equal(f.sql.custody(slot), undefined);
+  await f.sourceAdapter.load();
+  f.sql.replaceStorageGeneration('changed-exact-cleanup-generation-' + randomUUID());
+  const before = { protocolRows: f.sql.authorityGateRows(), generation: f.sql.storageGeneration(), state: f.source.read() };
+  f.sql.events.length = 0;
+  const outcome = await f.sourceAdapter.deleteIfCurrent(authority.envelope);
+  const after = { protocolRows: f.sql.authorityGateRows(), generation: f.sql.storageGeneration(), state: f.source.read() };
+  t.diagnostic(JSON.stringify({ control: 'exact-cleanup-generation', outcome,
+    protocolRowsPreserved: canonical(before.protocolRows) === canonical(after.protocolRows),
+    sqlDeletes: f.sql.events.filter(sql => sql.startsWith('DELETE FROM ')).length }));
+  assert.equal(outcome, 'mismatch', 'Stale logical generation preserves the existing cleanup mismatch contract.');
+  assert.deepEqual(after, before);
+  assert.equal(f.sql.events.filter(sql => /^(?:DELETE FROM|UPDATE|INSERT INTO) /.test(sql)).length, 0);
+  assert.equal(f.sql.counts().active, 0); assert.equal(f.sql.counts().connects, f.sql.counts().releases);
+});
+
+test('direct adapter.delete refuses custody appearing after admitted absence without learning replacement ownership', async t => {
+  const f = await fixture(t), slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
+  assert.ok(authority); assert.equal(authority.envelope.revision, 0); assert.equal(f.sql.custody(slot), undefined);
+  await f.sourceAdapter.load(); // Genuine occupied admission retains custody absence.
+  const physical = await lstat(f.sourceDirectory, { bigint: true });
+  f.sql.setCustody(slot, { slot, phase: 'committed', creation_id: authority.creation_id,
+    vault_id: authority.envelope.id, operation_id: 'appeared-after-admitted-absence-' + randomUUID(),
+    storage_id: f.sql.storageGeneration().storage_id, revision: 0,
+    envelope_digest: postgresEnvelopeDigest(authority.envelope), envelope: authority.envelope,
+    target_identity: { directory: f.sourceDirectory, physical: {
+      dev: String(physical.dev), ino: String(physical.ino), birthtimeNs: String(physical.birthtimeNs),
+    } } });
+  const before = { protocolRows: f.sql.authorityGateRows(), generation: f.sql.storageGeneration(), state: f.source.read() };
+  f.sql.events.length = 0; let refusal: unknown;
+  try { await f.sourceAdapter.delete(); } catch (error) { refusal = error; }
+  const after = { protocolRows: f.sql.authorityGateRows(), generation: f.sql.storageGeneration(), state: f.source.read() };
+  t.diagnostic(JSON.stringify({ control: 'admitted-null-custody-appears',
+    observedCode: refusal instanceof ChausarError ? refusal.code : null,
+    protocolRowsPreserved: canonical(before.protocolRows) === canonical(after.protocolRows),
+    sqlDeletes: f.sql.events.filter(sql => sql.startsWith('DELETE FROM ')).length }));
+  assert.ok(code('POSTGRES_AUTHORITY_CHANGED')(refusal));
+  assert.deepEqual(after, before);
+  assert.equal(f.sql.events.filter(sql => /^(?:DELETE FROM|UPDATE|INSERT INTO) /.test(sql)).length, 0);
+  assert.equal(f.sql.counts().active, 0); assert.equal(f.sql.counts().connects, f.sql.counts().releases);
+});
+
 test('public PostgreSQL deletion refuses missing held-admission capability before any purge', async t => {
   const f = await publicDeleteFixture(t), slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
   assert.ok(authority);
@@ -258,11 +464,8 @@ test('public PostgreSQL deletion through Vault preflights both private purposes 
 
 test('public PostgreSQL deletion preserves ordinary and committed deletion, copy reporting and foreign copies', async t => {
   for (const disposition of ['ordinary', 'committed']) await t.test(disposition, async t => {
-    const f = await publicDeleteFixture(t), slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
+    const f = await publicDeleteFixture(t, undefined, disposition === 'committed'), slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
     assert.ok(authority);
-    if (disposition === 'committed') f.sql.setCustody(slot, { slot, phase: 'committed', creation_id: authority.creation_id, vault_id: authority.envelope.id,
-      operation_id: 'synthetic_delete_operation', storage_id: 'injected-profile-storage', revision: authority.revision,
-      envelope_digest: postgresEnvelopeDigest(authority.envelope), envelope: authority.envelope, target_identity: { synthetic: true } });
     const custodyBefore = f.sql.custody(slot); f.sql.events.length = 0;
     let heldWork = 0;
     const admission = f.owned.withDeletionAdmission?.bind(f.owned);
@@ -483,4 +686,52 @@ test('injected held callback: snapshot inspection refuses a changed held guard o
   code('POSTGRES_AUTHORITY_CHANGED'));
   assert.equal(guards, 2); assert.equal(reads, 2); assert.deepEqual(f.sql.authority(hash(f.sourceDirectory)), original);
   assert.deepEqual(f.source.read(), f.sourceState);
+});
+
+// Injected SQL protocol only. Reuse the green public fixture's actual encrypted
+// publication, ordinary revision advance and five private/managed/foreign files.
+// A fresh adapter encounters only the malformed first binding, never the original
+// opened handle's retained valid custody. No native qualification is claimed.
+test('ordinary admission refuses malformed pre-open committed physical target before direct deletion', async t => {
+  const f = await publicDeleteFixture(t, undefined, true), slot = hash(f.sourceDirectory);
+  const authority = f.sql.authority(slot), publication = f.sql.custody(slot);
+  assert.ok(authority && publication); assert.equal(publication.phase, 'committed');
+  assert.equal(publication.revision, 0); assert.equal(publication.envelope.revision, 0);
+  assert.equal(publication.envelope_digest, postgresEnvelopeDigest(publication.envelope));
+  assert.equal(authority.creation_id, publication.creation_id);
+  assert.equal(authority.envelope.id, publication.vault_id);
+  assert.ok(authority.envelope.revision > publication.revision, 'The green fixture genuinely advanced ordinary authority without changing original publication.');
+  f.sql.setCustody(slot, { ...clone(publication), target_identity: {} }); // Sole unknown proof field.
+  const fresh = await f.adapter(f.sourceDirectory); // Never reuse the bound public handle.
+  const witness = async () => ({ protocolRows: f.sql.authorityGateRows(), generation: f.sql.storageGeneration(),
+    files: await Promise.all(f.files.map(async path => {
+      let bytes: Buffer | null = null, physical: Record<string, string> | null = null;
+      try {
+        bytes = await readFile(path); const stat = await lstat(path, { bigint: true });
+        physical = Object.fromEntries(['dev', 'ino', 'birthtimeNs', 'size', 'mtimeNs', 'ctimeNs']
+          .map(field => [field, String(stat[field as keyof typeof stat])]));
+      } catch (error: any) { if (error.code !== 'ENOENT') throw error; }
+      return { path, bytes, physical };
+    })) });
+  const before = await witness(); assert.equal(before.files.length, 5);
+  assert.ok(before.files.every(file => file.bytes && file.physical));
+  f.sql.events.length = 0; let refusal: unknown, loadedMalformed = false, deletionSubmissions = 0;
+  try {
+    try { assert.ok(await fresh.load()); loadedMalformed = true; } catch (error) { refusal = error; }
+    if (loadedMalformed) {
+      // An admitted unknown physical target still must refuse direct deletion.
+      // Submit once; never retry an uncertain request or rebind the constructor.
+      try { deletionSubmissions++; await fresh.delete(); } catch (error) { refusal = error; }
+    }
+  } finally { await fresh.close(); }
+  const after = await witness();
+  t.diagnostic(JSON.stringify({ control: 'malformed-preopen-target', loadedMalformed, deletionSubmissions,
+    observedCode: refusal instanceof ChausarError ? refusal.code : null,
+    protocolRowsPreserved: canonical(before.protocolRows) === canonical(after.protocolRows),
+    sqlDeletes: f.sql.events.filter(sql => sql.startsWith('DELETE FROM ')).length }));
+  assert.ok(code('POSTGRES_TARGET_NOT_COMMITTED')(refusal), 'Unknown committed physical proof refuses ordinary admission or deletion.');
+  assert.ok(deletionSubmissions <= 1);
+  assert.deepEqual(after, before, 'Full protocol proof/ciphertext/generation and private/managed/foreign byte/physical witnesses survive.');
+  assert.equal(f.sql.events.filter(sql => /^(?:DELETE FROM|UPDATE|INSERT INTO) /.test(sql)).length, 0);
+  assert.equal(f.sql.counts().active, 0); assert.equal(f.sql.counts().connects, f.sql.counts().releases);
 });

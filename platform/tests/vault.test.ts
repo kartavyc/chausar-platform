@@ -209,8 +209,10 @@ test('PostgreSQL compare-and-swap conflicts roll back without publishing an encr
   const client = {
     async query(sql: string, values?: unknown[]) {
       statements.push({ sql, values });
-      return { rows: sql.startsWith('SELECT creation_id, revision, envelope')
-        ? [{ creation_id: 'synthetic-creation', revision: '9', envelope }] : [] };
+      return { rows: sql === "SELECT storage_id FROM public.chausar_workspace_postgres_storage WHERE id = 'current' FOR SHARE"
+        ? [{ storage_id: 'vault-fixture-storage' }]
+        : sql.startsWith('SELECT creation_id, revision, envelope')
+          ? [{ creation_id: 'synthetic-creation', revision: '9', envelope }] : [] };
     },
     release() { released++; },
   };
