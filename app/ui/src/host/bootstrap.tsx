@@ -151,7 +151,21 @@ function ReceiptPanel({ selection, language, origin, onClose }: {
   </Sheet>;
 }
 
-type LocalSheet = { readonly address: Address; readonly kind: 'about' | 'reference'; readonly id?: string };
+function ShortcutHelpBody({ language }: { language: Language }) {
+  const shortcuts = [
+    ['Ctrl K', 'helpAsk'], ['Ctrl 1–7', 'helpPlaces'], ['Esc', 'helpClose'],
+    ['F6 / Shift F6', 'helpRegions'], ['Ctrl /', 'helpList'],
+  ] as const;
+  return <>
+    <dl className={detail.pairs}>{shortcuts.map(([keys, description]) =>
+      <div className={detail.pair} key={keys}><dt className={detail.name}>{keys}</dt>
+        <dd className={detail.value}>{hostMessage(language, description)}</dd></div>)}</dl>
+    <p>{hostMessage(language, 'helpSendGuard')}</p>
+    <p>{hostMessage(language, 'helpUnavailable')}</p>
+  </>;
+}
+
+type LocalSheet = { readonly address: Address; readonly kind: 'about' | 'reference' | 'help'; readonly id?: string };
 type SavedSelection = NonNullable<ConversationWorkspaceProps['readback']>;
 
 function AuthorizedWorkspace({ controller, state, context, language, view, setLanguage, setView, onLegacyReturn }: {
@@ -167,6 +181,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const contextKey = JSON.stringify([context.contextKey, state.selectedRouteId]);
   const active = useRef<Address | null>(TODAY);
   const origin = useRef<HTMLElement | null>(null);
+  const helpFallback = useRef<HTMLElement | null>(null);
   const returnSavedId = useRef<string | null>(null);
   const selectionCounter = useRef(0);
   const [readback, setReadback] = useState<SavedSelection | undefined>(undefined);
@@ -202,7 +217,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     navigate(address);
   };
   const closeSheet = () => {
-    controller.closeReceipt(); setLocalSheet(null);
+    const returnFocus = localSheetRef.current?.kind === 'help'
+      ? origin.current?.isConnected ? origin.current : helpFallback.current : null;
+    controller.closeReceipt(); localSheetRef.current = null; setLocalSheet(null);
+    if (returnFocus?.isConnected) returnFocus.focus();
     const savedId = returnSavedId.current; returnSavedId.current = null;
     if (savedId !== null && stillAuthorized()) selectSaved(savedId);
     else if (active.current !== null) navigate(withoutSheet(active.current));
@@ -233,6 +251,18 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     origin.current = currentOrigin(); returnSavedId.current = null; controller.closeReceipt();
     const address = withSheet(active.current, 'about'); setLocalSheet({ address, kind: 'about' }); navigate(address);
   };
+  const showHelp = (suppliedOrigin?: HTMLElement | null, fallback?: HTMLElement | null) => {
+    if (!stillAuthorized() || active.current === null) return;
+    if (localSheetRef.current?.kind === 'help') return;
+    const focused = suppliedOrigin === undefined ? currentOrigin() : suppliedOrigin;
+    const opener = focused?.closest('[data-region="sheet"]') ? origin.current : focused;
+    helpFallback.current = fallback?.isConnected ? fallback : null;
+    origin.current = opener?.isConnected ? opener : fallback?.isConnected ? fallback : null;
+    returnSavedId.current = null; controller.closeReceipt();
+    const address = withSheet(active.current, 'help');
+    const selection: LocalSheet = { address, kind: 'help' };
+    localSheetRef.current = selection; setLocalSheet(selection); navigate(address);
+  };
   if (projection.kind === 'invalid') return <State state={{ kind: 'failed', code: 'INVALID_REPLY' }} />;
   const words = hostMissingWords(language);
   const data: TodayData = projection.kind === 'ready' ? projection.value.data : {
@@ -244,9 +274,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} origin={origin.current} onClose={closeSheet} />,
   } : localSheet === null ? undefined : {
     address: localSheet.address,
-    content: <Sheet kind={hostMessage(language, localSheet.kind === 'about' ? 'aboutTitle' : 'reference')}
-      title={hostMessage(language, localSheet.kind === 'about' ? 'aboutTitle' : 'reference')} origin={origin.current} onClose={closeSheet}>
-      <p>{hostMessage(language, localSheet.kind === 'about' ? 'about' : 'referenceUnavailable')}</p>
+    content: <Sheet kind={hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')}
+      title={hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')} origin={origin.current} onClose={closeSheet}>
+      {localSheet.kind === 'help' ? <ShortcutHelpBody language={language} />
+        : <p>{hostMessage(language, localSheet.kind === 'about' ? 'about' : 'referenceUnavailable')}</p>}
       {localSheet.id !== undefined && <p className={detail.exact}>{hostMessage(language, 'referenceIdentity', { id: localSheet.id })}</p>}
       <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>
     </Sheet>,
@@ -265,9 +296,13 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       model: { text: selectedRoute === undefined ? hostMessage(language, 'routeMissing') : hostMessage(language, 'routeSelected', { label: selectedRoute.label }), address: MODELS },
       third: { text: hostMessage(language, 'third') },
     },
+    statusSimple: [
+      hostMessage(language, projection.kind === 'ready' ? 'sourcesReady' : 'sourcesMissing'),
+      selectedRoute === undefined ? hostMessage(language, 'routeMissing') : hostMessage(language, 'routeSelected', { label: selectedRoute.label }),
+    ],
     capabilities: {},
     today: { data, intents: { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } },
-    sheet, onAddress,
+    sheet, onAddress, onHelp: showHelp,
     renderPlace: address => address.place === 'trust' && address.sub === 'models' || address.place === 'ask' && (address.sub === undefined || address.sub === 'new')
       ? <RoutePicker routes={state.routes} selected={state.selectedRouteId} language={language} viewer={viewer} onSelect={chooseRoute} />
       : <><State state={{ kind: 'not-built' }} /><Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button></>,

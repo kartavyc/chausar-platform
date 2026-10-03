@@ -39,7 +39,7 @@ export interface FrameProps {
   /** Wide pages: tables, the enterprise home. */
   wide?: boolean | undefined;
   sheet?: ReactNode;
-  onHelp?: (() => void) | undefined;
+  onHelp?: ((origin?: HTMLElement | null, fallback?: HTMLElement | null) => void) | undefined;
   children: ReactNode;
 }
 
@@ -149,7 +149,7 @@ export function Frame({ shell, address, onNavigate, counts, menu, banners = [], 
         case 'help':
           if (onHelp) {
             e.preventDefault();
-            onHelp();
+            onHelp(undefined, askRef.current);
           }
           break;
         case 'talk':

@@ -37,7 +37,7 @@ function payload(state: State) {
   state.activity.push({ message: 'Synthetic unrelated retained activity' });
 }
 async function fixture(t: any) {
-  const scratch = resolve(tmpdir()); assert.match(scratch, /^C:\\/i);
+  const scratch = resolve(tmpdir()); if (process.platform === 'win32') assert.match(scratch, /^C:\\/i);
   const directory = await mkdtemp(join(scratch, 'chausar-invoice-custody-'));
   const opened = new Set<Vault>();
   t.after(async () => { for (const vault of opened) await vault.close(); const child = relative(scratch, directory); assert.ok(child && !child.startsWith('..') && !isAbsolute(child)); await rm(directory, { recursive: true, force: true }); });

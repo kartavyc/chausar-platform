@@ -178,6 +178,13 @@ export function ConversationWorkspace({ app, conversation, questionSettings, con
       onReference={intent => { if (displayed.kind === 'answer') onReference(intent, displayed.saved); }} />;
   };
   // Remount the frame's private draft/voice state on a trusted context replacement.
+  const showHelp = app.onHelp === undefined ? undefined : (requestedOrigin?: HTMLElement | null, fallback?: HTMLElement | null) => {
+    if (locked || !sameContext) return;
+    const opener = state.kind === 'review' || state.kind === 'busy' ? origin.current : requestedOrigin;
+    // Fence captured send callbacks and pending approvals before changing the hash.
+    bound.current = null; openedSelection.current = null; conversation.cancel();
+    app.onHelp?.(opener, fallback);
+  };
   return <App key={contextKey} {...app} ask={{ ...app.ask, onAsk, onChange: editQuestion }}
-    onAddress={onAddress} renderPlace={renderPlace} sheet={sheet} />;
+    onAddress={onAddress} renderPlace={renderPlace} sheet={sheet} onHelp={showHelp} />;
 }

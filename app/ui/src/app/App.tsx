@@ -52,7 +52,8 @@ export interface AppProps {
   sheet?: AddressBoundSheet<ReactNode> | undefined;
   /** Legacy journeys and screens outside this slice, by address. */
   renderPlace?: ((address: Address) => ReactNode) | undefined;
-  onHelp?: (() => void) | undefined;
+  /** A replaced consent sheet supplies its true opener and a stable fallback. */
+  onHelp?: ((origin?: HTMLElement | null, fallback?: HTMLElement | null) => void) | undefined;
   /** Called for initial, keyboard and history addresses. Null means no private surface. */
   onAddress?: ((address: Address | null) => void) | undefined;
 }

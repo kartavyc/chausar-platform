@@ -10,7 +10,7 @@ import { createHostController } from '../../app/ui/src/host/controller.ts';
 import type { HostRpcPort } from '../../app/ui/src/host/contracts.ts';
 
 async function fixture(t: TestContext, uiPreview = false) {
-  const scratch = resolve(tmpdir()); assert.match(scratch, /^C:\\/i);
+  const scratch = resolve(tmpdir()); if (process.platform === 'win32') assert.match(scratch, /^C:\\/i);
   const directory = await mkdtemp(join(scratch, 'chausar-ui-host-'));
   const engine = new Engine({ directory, demo: true, storage: 'experimental-file', gateway: {
     http: async () => { throw new Error('No model call is admitted by this host test.'); },
