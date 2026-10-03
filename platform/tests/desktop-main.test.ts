@@ -5,6 +5,8 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 const require = createRequire(import.meta.url);
+const desktopMain = new URL('../../app/desktop/main.cjs', import.meta.url);
+const desktopRequire = createRequire(desktopMain);
 const flush = () => new Promise<void>(accept => setImmediate(accept));
 
 async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), postgresGate?: Promise<void>) {
@@ -29,7 +31,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
   const powerMonitor = new EventEmitter();
   const electron = { app, BrowserWindow: Window, Tray, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle() {} }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
-  let source = await readFile(new URL('../../app/desktop/main.cjs', import.meta.url), 'utf8');
+  let source = await readFile(desktopMain, 'utf8');
   if (postgresGate) source = source.replace("await import(pathToFileURL(join(engineRoot, 'scripts/postgres-runtime.mjs')).href)", '__postgresModule');
   vm.runInNewContext(source, { __dirname: '/owned/app/app/desktop', require: (name: string) => {
     if (name === 'electron') return electron;
@@ -37,7 +39,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     if (name === './ipc-contract.cjs') return require('../../app/desktop/ipc-contract.cjs');
     if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !postgresGate, version: '2.3.4' }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }) };
     if (name === 'node:net' && postgresGate) return { createServer: () => ({ once() {}, listen(_port: number, _host: string, callback: () => void) { callback(); }, address: () => ({ port: 5432 }), close(callback: () => void) { callback(); } }) };
-    return require(name);
+    return desktopRequire(name);
   }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', '/owned/app', ...args], env: {}, platform: 'win32', resourcesPath: '/owned/resources' }, console: { error() {} }, URL, Response, Buffer });
   await flush();
   return { app, windows, engines, menus, errors, handlers, powerMonitor, databaseCloses: () => databaseCloses };
