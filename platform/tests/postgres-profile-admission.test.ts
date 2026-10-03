@@ -135,7 +135,11 @@ async function fixture(t: TestContext) {
   const parent = await realpath(tmpdir());
   if (process.platform === 'win32') assert.match(parent, /^C:[\\/]/i, 'Validate canonical C-drive scratch before fixture creation.');
   const root = await realpath(await mkdtemp(join(parent, 'chausar-pg-profile-admission-'))), vaults = new Set<Vault>(), expectedShutdownFailures = new Map<Vault, unknown>();
+  const beforeVaultCleanup: (() => Promise<void>)[] = [];
   t.after(async () => {
+    // Engine owns its opened handle and must capture invoice custody before the
+    // fallback Vault closes or the shared fixture root is removed.
+    for (const cleanup of beforeVaultCleanup) await cleanup();
     for (const vault of vaults) {
       try { await vault.close(); } catch (error) { assert.equal(error, expectedShutdownFailures.get(vault), 'Only the exact expected failed-delete shutdown may reject cleanup.'); }
     }
@@ -165,6 +169,7 @@ async function fixture(t: TestContext) {
     }, targets: [{ targetId, adapter: targetAdapter, ownedAdapter: () => adapter(join(root, targetId, 'live', 'main')) }] };
   return { root, sql, source, sourceAdapter, sourceDirectory, sourceState, options,
     profile: new InstalledPostgresWorkspaceProfile(options), adapter, closes, factories: () => factories,
+    beforeVaultCleanup(cleanup: () => Promise<void>) { beforeVaultCleanup.push(cleanup); },
     expectShutdownFailure(vault: Vault, failure: unknown) { expectedShutdownFailures.set(vault, failure); },
     track(vault: Vault) { vaults.add(vault); return vault; } };
 }
@@ -179,7 +184,7 @@ async function publicDeleteFixture(t: TestContext, keychain?: KeychainHook, auth
     owned.close = async () => { assert.equal(owned.hasActiveLease, false); f.sql.events.push('ADAPTER_CLOSE'); await close(); };
     return owned;
   } });
-  t.after(async () => {
+  f.beforeVaultCleanup(async () => {
     try { await engine.close(); } catch (error) { assert.equal(error, expectedShutdownFailure, 'Only this request\'s exact shutdown refusal may reject Engine close.'); }
   });
   if (keychain) {
@@ -454,12 +459,27 @@ test('public PostgreSQL deletion preflights both private purposes before deletin
 });
 
 test('public PostgreSQL deletion through Vault preflights both private purposes before its first unlink', async t => {
-  const f = await publicDeleteFixture(t), slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
+  // Direct Vault deletion owns a standalone handle. Borrowing Engine.vault here
+  // would close it without running the Engine's own deletion lifecycle.
+  const f = await fixture(t), vault = f.source, slot = hash(f.sourceDirectory), authority = f.sql.authority(slot);
   assert.ok(authority);
+  await vault.writeArtifact({ id: 'delete_trial', purpose: 'private-trial', value: { synthetic: 'private trial deletion evidence' }, expectedDigest: null });
+  await vault.writeArtifact({ id: 'delete_interchange', purpose: 'workspace-interchange', value: { synthetic: 'private interchange deletion evidence' }, expectedDigest: null });
+  const files = ['private-artifacts/private-trial/delete_trial.encrypted.json',
+    'private-artifacts/workspace-interchange/delete_interchange.encrypted.json'].map(path => join(f.sourceDirectory, path));
+  const prefix = `chausar-${vault.read().workspace.id}-`;
+  await mkdir(join(f.root, 'backups')); await mkdir(join(f.root, 'exports'));
+  files.push(join(f.root, 'backups', prefix + '1.backup'), join(f.root, 'exports', prefix + '2.json'),
+    join(f.root, 'backups', `chausar-${f.options.journalVault.read().workspace.id}-3.backup`));
+  await vault.backup(files[2]); await vault.export(files[3], { plaintext: true }); await f.options.journalVault.backup(files[4]);
+  const bytes = () => Promise.all(files.map(path => readFile(path))), before = await bytes();
   await writeFile(join(f.sourceDirectory, 'private-artifacts', 'workspace-interchange', 'unclassified.txt'), 'synthetic unknown file');
-  let refusal: unknown; try { await f.vault.delete(); } catch (error) { refusal = error; f.expectFailure(error); }
-  assert.ok(code('ARTIFACT_INVENTORY_INCOMPLETE')(refusal)); assert.deepEqual(await f.bytes(), f.before);
+  let refusal: unknown; try { await vault.delete(); } catch (error) { refusal = error; f.expectShutdownFailure(vault, error); }
+  assert.ok(code('ARTIFACT_INVENTORY_INCOMPLETE')(refusal)); assert.deepEqual(await bytes(), before);
   assert.deepEqual(f.sql.authority(slot), authority);
+  assert.equal(f.sql.counts().active, 0); assert.equal(f.sql.counts().connects, f.sql.counts().releases);
+  assert.throws(() => vault.read(), code('VAULT_CLOSED'));
+  await assert.rejects(lstat(join(f.sourceDirectory, 'writer.lock')), { code: 'ENOENT' });
 });
 
 test('public PostgreSQL deletion preserves ordinary and committed deletion, copy reporting and foreign copies', async t => {
