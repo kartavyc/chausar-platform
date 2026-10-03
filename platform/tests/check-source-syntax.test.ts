@@ -31,7 +31,7 @@ async function fixture(t: TestContext, files: Record<string, string>) {
 test('source syntax checker admits declarations with valid runtime TypeScript and JSON', async t => {
   const result = await fixture(t, {
     'app/modules.d.ts': "declare module '*.module.css' { const classes: Readonly<Record<string, string>>; export default classes; }\n",
-    'platform/runtime.ts': 'const amount: bigint = 1n;\n',
+    'platform/runtime.ts': 'export const amount: bigint = 1n;\n',
     'app/config.json': '{"fixture":"synthetic"}\n',
   });
   assert.equal(result.error, undefined); assert.equal(result.signal, null);
@@ -39,8 +39,8 @@ test('source syntax checker admits declarations with valid runtime TypeScript an
   assert.match(result.stdout, /Syntax and JSON validation passed for 1 source files\./);
 });
 
-test('source syntax checker still refuses invalid executable TypeScript', async t => {
-  const result = await fixture(t, { 'platform/runtime.ts': 'export const amount = ;\n' });
+test('source syntax checker still refuses invalid executable JavaScript', async t => {
+  const result = await fixture(t, { 'platform/runtime.mjs': 'export const amount = ;\n' });
   assert.equal(result.error, undefined); assert.equal(result.signal, null);
   assert.equal(result.status, 1); assert.match(result.stderr, /SyntaxError/);
   assert.doesNotMatch(result.stdout, /validation passed/);
