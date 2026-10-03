@@ -1,29 +1,28 @@
-/* The four faces ship inside the app as local woff2 files. The app never fetches a font
-   from the network.
-   PENDING: no font file exists in this checkout. The paths below are where the operator
-   provisions the licensed files (Open Font License, cut to Latin, Devanagari, the rupee
-   sign and the arrows in use). Until then the fallback stacks in tokens.css draw the app. */
+/* Eight local WOFF2 faces from four families, with complete OFL notices and provenance
+   in assets/fonts. All source glyphs are retained within the documented 600 KB budget.
+   The stacks in tokens.css use shipped fallback faces for rupee, Hindi and arrows;
+   the app never fetches a font from the network. Browser acceptance remains separate. */
 
 @font-face {
   font-family: 'Instrument Sans';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../../assets/fonts/InstrumentSans-400.woff2') format('woff2');
+  src: url('../../assets/fonts/InstrumentSans-400.woff2?no-inline') format('woff2');
 }
 @font-face {
   font-family: 'Instrument Sans';
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('../../assets/fonts/InstrumentSans-500.woff2') format('woff2');
+  src: url('../../assets/fonts/InstrumentSans-500.woff2?no-inline') format('woff2');
 }
 @font-face {
   font-family: 'Instrument Sans';
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('../../assets/fonts/InstrumentSans-600.woff2') format('woff2');
+  src: url('../../assets/fonts/InstrumentSans-600.woff2?no-inline') format('woff2');
 }
 
 @font-face {
@@ -31,14 +30,14 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../../assets/fonts/DMMono-400.woff2') format('woff2');
+  src: url('../../assets/fonts/DMMono-400.woff2?no-inline') format('woff2');
 }
 @font-face {
   font-family: 'DM Mono';
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('../../assets/fonts/DMMono-500.woff2') format('woff2');
+  src: url('../../assets/fonts/DMMono-500.woff2?no-inline') format('woff2');
 }
 
 @font-face {
@@ -46,7 +45,7 @@
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('../../assets/fonts/IBMPlexMono-500.woff2') format('woff2');
+  src: url('../../assets/fonts/IBMPlexMono-500.woff2?no-inline') format('woff2');
 }
 
 @font-face {
@@ -54,12 +53,12 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../../assets/fonts/NotoSansDevanagari-400.woff2') format('woff2');
+  src: url('../../assets/fonts/NotoSansDevanagari-400.woff2?no-inline') format('woff2');
 }
 @font-face {
   font-family: 'Noto Sans Devanagari';
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('../../assets/fonts/NotoSansDevanagari-500.woff2') format('woff2');
+  src: url('../../assets/fonts/NotoSansDevanagari-500.woff2?no-inline') format('woff2');
 }
