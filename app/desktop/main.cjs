@@ -6,6 +6,7 @@ const { join, resolve } = require('node:path');
 const { randomBytes } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const { createServer } = require('node:net');
+const { readUiAsset } = require('./ui-assets.cjs');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const singleInstance = app.requestSingleInstanceLock();
@@ -13,6 +14,8 @@ if (!singleInstance) app.quit();
 let window; let engine; let database; let tray; let demoMode = false; let stopping = false; let startupTask = Promise.resolve();
 let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
+const uiPreview = process.argv.includes('--ui-preview');
+let selectedDocument = uiPreview ? 'chausar://app/ui/index.html' : 'chausar://app/index.html';
 const root = resolve(__dirname, '../..');
 const renderer = join(root, 'app/renderer');
 const engineRoot = app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked') : root;
@@ -70,9 +73,12 @@ function createWindow() {
     webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, allowRunningInsecureContent: false, spellcheck: false },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  window.webContents.on('will-navigate', event => event.preventDefault());
+  window.webContents.on('will-navigate', (event, url) => {
+    if (uiPreview && selectedDocument === 'chausar://app/ui/index.html' && url === 'chausar://app/index.html') selectedDocument = url;
+    else event.preventDefault();
+  });
   window.once('ready-to-show', () => window.show());
-  window.loadURL('chausar://app/index.html');
+  window.loadURL(selectedDocument);
   window.on('closed', () => { window = null; lifecycleChanged(); });
   lifecycleChanged();
 }
@@ -86,6 +92,9 @@ if (singleInstance) app.whenReady().then(async () => {
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith('chausar://app/') }));
   protocol.handle('chausar', async request => {
     const url = new URL(request.url); const files = new Map([['/index.html', 'index.html'], ['/', 'index.html'], ['/app.js', 'app.js'], ['/styles.css', 'styles.css'], ['/assets/icon.svg', 'assets/icon.svg']]);
+    if (url.hostname !== 'app' || url.username || url.password || url.port) return new Response('Not found', { status: 404 });
+    const preview = await readUiAsset(root, url.pathname, uiPreview);
+    if (preview) return new Response(preview.body, { headers: { 'Content-Type': preview.mime, 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff' } });
     const file = files.get(url.pathname); if (url.hostname !== 'app' || !file) return new Response('Not found', { status: 404 });
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
     const ext = file.slice(file.lastIndexOf('.')); const data = await readFile(join(renderer, file));
@@ -93,7 +102,7 @@ if (singleInstance) app.whenReady().then(async () => {
   });
   ipcMain.handle(REQUEST_CHANNEL, async (event, input) => {
     try {
-      assertTrustedSender(event, window?.webContents);
+      assertTrustedSender(event, window?.webContents, selectedDocument);
       const request = validateRequest(input);
       return { ok: true, result: await engine.request(request.method, request.payload) };
     } catch (error) { return { ok: false, error: publicError(error) }; }

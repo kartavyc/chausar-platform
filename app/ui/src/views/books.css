@@ -1,0 +1,16 @@
+/* The Books view changes sizes only (build.md part 4). Reading 13.5, table rows 32,
+   dense tables first, the keyboard everywhere. */
+
+:root[data-view="books"] {
+  --fs-read: 13.5px;
+  --fs-row: 14px;
+  --fs-note: 12px;
+  --fs-note2: 13px;
+  --fs-title: 26px;
+  --fs-section: 20px;
+  --fs-fig: 13.5px;
+  --fs-fig-tile: 18px;
+  --row: 32px;
+  --page-top: var(--sp6);
+  --rail-pad: var(--sp5);
+}

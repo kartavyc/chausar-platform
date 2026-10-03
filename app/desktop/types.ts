@@ -21,6 +21,11 @@ import type { ModelRequest } from '../../platform/runtime/gateway.ts';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue; }
+export type DesktopUiContext = {
+  workspace: { id: string; name: string; demo: boolean };
+  member: { id: string; name: string; role: 'owner' | 'cofounder' | 'accountant' | 'viewer'; epoch: number; branches: string[] };
+  contextKey: string;
+};
 export type DesktopConversationSynthesisPreview = {
   id: string; kind: 'model-preview'; status: 'preview'; purpose: 'conversation-synthesis';
   toolTurnId: string; naturalQuestion: string; question?: string; synthesisDisclosureWarning: string;
@@ -145,7 +150,7 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'updates.verify': JsonObject & { manifest: JsonObject | string; signature: string };
   'updates.stage': JsonObject & { manifest: JsonObject | string; signature: string; confirmed: true };
 };
-type OptionalPayloads = { 'conversation.history': { limit?: number; cursor?: string }; 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
+type OptionalPayloads = { 'ui.context': Record<string, never>; 'conversation.history': { limit?: number; cursor?: string }; 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
 export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
 export type DesktopResult<M extends DesktopMethod> =
@@ -160,7 +165,7 @@ export type DesktopResult<M extends DesktopMethod> =
   M extends 'investigations.list' ? Investigation[] : M extends 'investigations.capsule' ? InvestigationCapsule :
   M extends 'investigations.drilldown' ? InvestigationDrilldown : M extends 'investigations.create' | 'investigations.get' | 'investigations.advance' | 'investigations.resume' | 'investigations.cancel' | 'investigations.pause' | 'investigations.revise' ? Investigation :
   M extends 'research.search' ? Awaited<ReturnType<ResearchSearchService['search']>> :
-  M extends 'workspace.status' ? { open: boolean; experimental: boolean; version: string; storage: string; workspace?: JsonObject } : M extends 'decisions.journal.draft' ? JournalDraft : M extends 'decisions.journal.confirm' | 'decisions.journal.revise' | 'decisions.journal.review' ? JournalDecision : M extends 'decisions.journal.due' ? Array<JournalDecision | JsonObject> : unknown;
+  M extends 'ui.context' ? DesktopUiContext : M extends 'workspace.status' ? { open: boolean; experimental: boolean; version: string; storage: string; workspace?: JsonObject } : M extends 'decisions.journal.draft' ? JournalDraft : M extends 'decisions.journal.confirm' | 'decisions.journal.revise' | 'decisions.journal.review' ? JournalDecision : M extends 'decisions.journal.due' ? Array<JournalDecision | JsonObject> : unknown;
 export interface DesktopBridge {
   request<M extends DesktopMethod>(method: M, ...args: M extends keyof RequiredPayloads ? [payload: DesktopPayload<M>] : [payload?: DesktopPayload<M>]): Promise<DesktopResult<M>>;
   onEngineStatus(callback: (status: EngineStatus) => void): () => void;

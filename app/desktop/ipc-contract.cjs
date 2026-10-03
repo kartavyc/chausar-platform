@@ -5,6 +5,7 @@ const STATUS_CHANNEL = 'chausar:engine-status';
 const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
+  'ui.context',
   'workspace.status', 'workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.backup', 'workspace.export', 'workspace.delete',
   'workspace.backup.v2.create', 'workspace.backup.v2.read', 'workspace.backup.v2.restoreInert', 'workspace.backup.v2.readRestored', 'workspace.backup.v2.inspectRestored', 'workspace.backup.v2.diagnostics',
   'workspace.activation.target.create', 'workspace.activation.target.get', 'workspace.backup.activation.prepare', 'workspace.backup.activation.inspect', 'workspace.activation.review', 'workspace.activation.execute', 'workspace.activation.get',
@@ -77,8 +78,15 @@ function validateRequest(input) {
   if (Buffer.byteLength(canonical) > MAX_REQUEST_BYTES) throw failure('REQUEST_TOO_LARGE', 'The desktop request exceeds the size limit.');
   return JSON.parse(canonical);
 }
-function assertTrustedSender(event, contents) {
-  if (!contents || event?.sender !== contents || event?.senderFrame !== contents.mainFrame || event.senderFrame?.url !== TRUSTED_DOCUMENT) throw failure('UNTRUSTED_SENDER', 'Request sender is not trusted.');
+function assertTrustedSender(event, contents, document = TRUSTED_DOCUMENT) {
+  let trusted = false;
+  try {
+    const selected = new URL(document), actual = new URL(event?.senderFrame?.url);
+    trusted = ['chausar://app/index.html', 'chausar://app/ui/index.html'].includes(document)
+      && actual.protocol === selected.protocol && actual.host === selected.host
+      && actual.pathname === selected.pathname && actual.search === '';
+  } catch {}
+  if (!contents || event?.sender !== contents || event?.senderFrame !== contents.mainFrame || !trusted) throw failure('UNTRUSTED_SENDER', 'Request sender is not trusted.');
 }
 function publicError(error) {
   return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.' };

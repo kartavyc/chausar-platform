@@ -1,0 +1,35 @@
+.list {
+  margin: 0;
+  display: grid;
+  gap: var(--sp2);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--sp4);
+  align-items: baseline;
+}
+
+.left .pair {
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr);
+}
+
+.name {
+  color: var(--mute);
+  font-size: var(--fs-note2);
+}
+
+.value {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.right .value {
+  text-align: end;
+}
+
+.indent .name {
+  padding-inline-start: var(--sp4);
+}

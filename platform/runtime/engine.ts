@@ -3,6 +3,7 @@ import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Vault, safeDirectory, type VaultWriterGuard } from './vault.ts';
+import { captureInvoiceCustody, prepareInvoiceRestoredState, type InvoiceCustodyArtifact } from './vault-invoice-custody.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
 import { ImportService, importPublicRecord, seedDemo } from './ingest.ts';
@@ -101,6 +102,9 @@ function answerRecoveryRecordIntegrity(record: Omit<AnswerRecoveryRecord, 'integ
 
 /** The sole product authority. The renderer receives named, bounded results only. */
 export class Engine {
+  // Trusted current custody survives a lock within this Engine only. An old
+  // archive cannot establish later invoice history after a process restart.
+  #lastInvoiceCustody?: InvoiceCustodyArtifact;
   options: EngineOptions;
   readonly version: string;
   vault: Vault | null = null;
@@ -672,6 +676,11 @@ export class Engine {
       try { await staged.close(); this.#stagedVaults.delete(staged); } catch (error) { failure ??= error; }
     }
     if (this.vault) {
+      this.#lastInvoiceCustody = undefined;
+      // Failure to retain bounded restore custody must still clear the vault
+      // key and lock. Never reuse a stale artifact after a failed capture.
+      try { this.#lastInvoiceCustody = captureInvoiceCustody(this.vault.read(), this.vault.vaultId); }
+      catch (error) { failure ??= error; }
       try { await this.vault.close(); this.vault = null; this.services = {}; } catch (error) { failure ??= error; }
     }
     if (failure) throw failure;
@@ -722,7 +731,7 @@ export class Engine {
   } catch (error) { await vault.close(); this.vault = null; this.services = {}; throw error; } }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
-    const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete']);
+    const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'sources.delete']);
     const transition = transitions.has(method);
     check(!this.#transition && (!transition || this.#activeRequests === 0), 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
     if (transition) this.#transition = true; else this.#activeRequests++;
@@ -751,7 +760,12 @@ export class Engine {
       check(typeof payload.backupFile === 'string', 'INVALID_PATH', 'Choose a backup from this app.');
       const backupRoot = resolve(this.options.directory, 'backups'); const backupFile = resolve(backupRoot, payload.backupFile); const rel = relative(backupRoot, backupFile);
       check(!rel.startsWith('..') && !isAbsolute(rel) && rel.endsWith('.backup'), 'INVALID_PATH', 'Choose a managed backup file.');
-      const folder = payload.folder ?? 'restored'; await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace };
+      const folder = payload.folder ?? 'restored'; await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage: await this.adapter(folder), writerGuard: this.writerGuard(),
+        prepareRestoredState: (state, descriptor) => {
+          if (this.#lastInvoiceCustody?.workspaceId === descriptor.workspaceId && this.#lastInvoiceCustody.vaultId === descriptor.vaultId)
+            prepareInvoiceRestoredState(state, this.#lastInvoiceCustody, descriptor);
+          else prepareInvoiceRestoredState(state, undefined, descriptor);
+        } })); return { workspace: this.store().read().workspace };
     }
     if (method === 'workspace.lock') { if (this.vault) authorize(this.vault, this.context, 'admin'); await this.closeVault(); return { locked: true }; }
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
@@ -766,6 +780,18 @@ export class Engine {
       check(s.invoiceFollowUp, 'INVOICE_HOST_UNAVAILABLE', 'A trusted synthetic invoice host with explicit policy is required.');
     }
     switch (method) {
+      case 'ui.context': {
+        this.journalPayload(payload, [], [], 'INVALID_UI_CONTEXT');
+        const member = authorize(store, ctx), state = store.read();
+        // Reads may append receipts, answers and activity. Those do not change
+        // authority. Evidence, policy and configured routes do invalidate views.
+        const contextKey = hash({ kind: 'ui-authority-context-v1', workspace: state.workspace,
+          member, policy: state.policy, sourceRules: state.sourceRules, tombstones: state.tombstones,
+          ontology: state.ontology, facts: state.facts, imports: state.imports, merges: state.merges,
+          routes: state.routes.map(({ costConsumedMinor: _costConsumedMinor, ...configuration }) => configuration) });
+        return { workspace: { id: state.workspace.id, name: state.workspace.name, demo: state.workspace.demo },
+          member: { id: member.id, name: member.name, role: member.role, epoch: member.epoch, branches: [...member.branches] }, contextKey };
+      }
       case 'invoiceFollowUp.create':
         check(payload.ownerId === ctx.memberId, 'JOB_OWNER_REQUIRED', 'Declare the exact creating owner for this invoice mandate.');
         check(payload.requiresApproval === true, 'INVOICE_MANDATE_APPROVAL_REQUIRED', 'Review and approve each explicit invoice mandate.');
@@ -1092,7 +1118,13 @@ export class Engine {
       case 'research.search': return s.research.search(ctx, payload);
       case 'receipts.get': return s.calculator.receipt(ctx, payload.id);
       case 'sources.list': return this.visibleImports();
-      case 'sources.delete': { const result = await s.trust.deleteSource(ctx, payload.id); const removed = await this.purgeManagedCopies(); return { ...result, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' }; }
+      case 'sources.delete': {
+        // This request holds the Engine transition fence, requires an idle
+        // authority and excludes newly admitted jobs until managed cleanup ends.
+        const result = await s.trust.deleteSource(ctx, payload.id);
+        const removed = await this.purgeManagedCopies();
+        return { ...result, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+      }
       case 'sources.preview': return s.imports.preview(ctx, payload);
       case 'sources.import': return s.imports.commit(ctx, payload);
       case 'sources.catalogue': return s.connectors.catalogue(ctx);
@@ -1685,7 +1717,7 @@ export class Engine {
         for (const job of ran) results.push(this.context.memberId === job.ownerId && this.context.epoch === job.ownerEpoch && this.context.role === job.ownerRole ? this.services.jobs.view(this.context, this.services.jobs.find(this.vault.read(), job.id)) : { id: job.id, status: job.status });
       } catch (error) { results.push({ error: { code: (error as any).code ?? 'JOB_SCHEDULER_FAILED' } }); }
     }
-    if (this.services.invoiceFollowUp) for (const member of this.vault.read().members.filter(member => member.active && ['owner', 'cofounder'].includes(member.role))) {
+    if (!this.#closing && !this.#transition && this.services.invoiceFollowUp) for (const member of this.vault.read().members.filter(member => member.active && ['owner', 'cofounder'].includes(member.role))) {
       const ownerContext: Context = { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' };
       try {
         const installed = this.services.invoiceFollowUp as InvoiceFollowUpHost;

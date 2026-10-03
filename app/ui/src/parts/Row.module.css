@@ -1,0 +1,115 @@
+/* Rows sit between hairlines. No boxes, no alternating shading. */
+.row {
+  list-style: none;
+  margin: 0;
+  border-bottom: var(--hair) solid var(--line);
+}
+
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto var(--target);
+  align-items: center;
+  min-height: var(--row);
+  column-gap: var(--sp3);
+}
+
+.main {
+  display: flex;
+  align-items: center;
+  gap: var(--sp3);
+  min-width: 0;
+  min-height: var(--row);
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: var(--fs-row);
+  color: var(--fg);
+  text-align: start;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+/* A row that opens nothing: the same slots, as plain text. */
+.static {
+  cursor: default;
+}
+
+.what {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp2);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+}
+
+.note,
+.asWritten {
+  color: var(--mute);
+  font-size: var(--fs-note2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+}
+
+.figure {
+  justify-self: end;
+}
+
+.arrowSlot {
+  display: inline-flex;
+  justify-content: center;
+  color: var(--mute);
+}
+
+.arrow {
+  width: var(--square);
+  height: var(--square);
+}
+
+/* Opened in place: the arrow turns down once. */
+.arrowOpen {
+  transform: rotate(90deg);
+}
+
+.selected .title,
+.open .title {
+  font-weight: var(--fw-medium);
+}
+
+.expansion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp4);
+  padding: 0 0 var(--sp4) calc(var(--square) + var(--sp3));
+  font-size: var(--fs-read);
+  color: var(--fg2);
+}
+
+/* Simple view in Hindi: a row may take two lines. The row keeps its 68 pixel minimum
+   (--row in the Simple view) and grows with the text; nothing is cut after one line. */
+:global(:root[data-view='simple']:lang(hi)) .main {
+  padding-block: var(--sp2);
+}
+:global(:root[data-view='simple']:lang(hi)) .what {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+}
+:global(:root[data-view='simple']:lang(hi)) .title,
+:global(:root[data-view='simple']:lang(hi)) .note,
+:global(:root[data-view='simple']:lang(hi)) .asWritten {
+  display: inline;
+  overflow: visible;
+  margin-inline-end: var(--sp2);
+}

@@ -1,0 +1,21 @@
+.strip {
+  display: inline-flex;
+  align-items: center;
+}
+
+.cells {
+  display: inline-flex;
+  gap: var(--strip-gap);
+}
+
+.cell {
+  width: var(--strip);
+  height: var(--strip);
+  border-radius: var(--square-r);
+  box-sizing: border-box;
+}
+
+.done { background: var(--fg); }
+.loading { background: var(--bg); border: var(--hair) solid var(--cha); }
+.not-done { background: var(--bg); border: var(--hair) solid var(--dim); }
+.refused { background: var(--amber); }

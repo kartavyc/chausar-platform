@@ -7,6 +7,8 @@ import { Engine } from './engine.ts';
 import { engineJobOptions } from './engine-jobs.ts';
 import { loadCodexCliHostGateway, type CodexCliHostDependencies } from './codex-cli-host.ts';
 import { check } from './contracts.ts';
+import uiAssets from '../../app/desktop/ui-assets.cjs';
+const { readUiAsset } = uiAssets;
 
 const renderer = fileURLToPath(new URL('../../app/renderer/', import.meta.url));
 const types: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -29,7 +31,7 @@ async function body(req: IncomingMessage) {
   }
   inspect(value); return value;
 }
-export function createLocalServer(engine: Engine, options: { token?: string; port?: number } = {}) {
+export function createLocalServer(engine: Engine, options: { token?: string; port?: number; uiPreview?: boolean } = {}) {
   const token = options.token ?? randomBytes(32).toString('hex'); let origin = ''; let closing = false;
   const server = createServer(async (req, res) => {
     const send = (status: number, value: unknown) => response(res, status, value, closing);
@@ -70,6 +72,11 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         return send(200, { result: await engine.requestAs(context, data.method, data.payload ?? {}) });
       }
       check(req.method === 'GET' || req.method === 'HEAD', 'METHOD_NOT_ALLOWED', 'Use GET for application files.');
+      const preview = await readUiAsset(fileURLToPath(new URL('../../', import.meta.url)), url.pathname, options.uiPreview === true);
+      if (preview) {
+        res.writeHead(200, { 'Content-Type': preview.mime, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+        return res.end(req.method === 'HEAD' ? undefined : preview.body);
+      }
       const known: Record<string, string> = { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/styles.css': 'styles.css', '/assets/icon.svg': 'assets/icon.svg' };
       check(known[url.pathname], 'NOT_FOUND', 'This application file does not exist.');
       const path = join(renderer, known[url.pathname]); const ext = path.slice(path.lastIndexOf('.')); const data = await readFile(path);
@@ -110,8 +117,9 @@ export async function createServerEngine(environment: NodeJS.ProcessEnv = proces
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const engine = await createServerEngine(); const demo = engine.options.demo;
-  const app = createLocalServer(engine, { port: Number(process.env.CHAUSAR_PORT ?? 4317) });
-  const { origin, token } = await app.listen(); console.log(`Chausar owner pairing link: ${origin}/#token=${token}\n${demo ? 'Experimental local file storage; synthetic demo only.' : 'PostgreSQL authority storage.'}`);
+  const uiPreview = process.argv.includes('--ui-preview');
+  const app = createLocalServer(engine, { port: Number(process.env.CHAUSAR_PORT ?? 4317), uiPreview });
+  const { origin, token } = await app.listen(); console.log(`Chausar owner pairing link: ${origin}/${uiPreview ? 'ui/index.html' : ''}#token=${token}\n${demo ? 'Experimental local file storage; synthetic demo only.' : 'PostgreSQL authority storage.'}`);
   const scheduler = setInterval(() => { void engine.tick().catch(() => {}); }, 30000); scheduler.unref();
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { clearInterval(scheduler); void app.close().finally(() => process.exit(0)); });
 }

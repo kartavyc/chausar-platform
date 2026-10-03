@@ -1,0 +1,33 @@
+.stat {
+  display: grid;
+  gap: var(--sp2);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+.figureLine {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp3);
+  min-width: 0;
+}
+
+.change {
+  font-size: var(--fs-note);
+  color: var(--fg2);
+}
+
+.chart {
+  margin-top: var(--sp2);
+}
+
+/* No chart: the reason, in words, where the chart would be. */
+.unavailable {
+  margin: var(--sp2) 0 0;
+  font-size: var(--fs-note);
+  color: var(--mute);
+}

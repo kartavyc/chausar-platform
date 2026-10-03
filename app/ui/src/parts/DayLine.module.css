@@ -1,0 +1,79 @@
+.line {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mark {
+  position: relative;
+  min-width: 0;
+}
+
+/* The hairline runs through the squares; the last mark has no line after it. */
+.mark::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--square) / 2);
+  left: var(--square);
+  right: 0;
+  border-top: var(--hair) solid var(--line2);
+}
+.mark:last-child::before {
+  display: none;
+}
+
+.button,
+.static {
+  position: relative;
+  display: grid;
+  gap: var(--sp1);
+  width: 100%;
+  padding: 0 var(--sp3) 0 0;
+  margin: 0;
+  font: inherit;
+  text-align: start;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  border-radius: var(--radius);
+}
+.button {
+  cursor: pointer;
+}
+
+.markRow {
+  display: block;
+  height: var(--square);
+  margin-bottom: var(--sp3);
+}
+
+.time {
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+
+.words {
+  font-size: var(--fs-read);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Under the words, each on its own line: a note, a figure, how many folded in. */
+.note,
+.figure {
+  position: relative;
+  display: flex;
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+}
+
+.folded {
+  position: relative;
+  display: block;
+  font-size: var(--fs-note);
+  color: var(--mute);
+}

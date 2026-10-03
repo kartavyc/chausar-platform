@@ -1,0 +1,88 @@
+{
+  "recordedAt": "2026-10-01 09:51:34 UTC",
+  "status": "passed",
+  "scope": "Pure injected conversation controller and checked DTO contracts. Synthetic Node workflow tests plus strict TypeScript; no React/runtime qualification.",
+  "backendReadOnlyReference": {
+    "path": "../task/luna-synthesis-engine",
+    "commit": "ce5dc4f6c432ce637b23cbd26f159346acdcd68e",
+    "seamReport": "../task/frontend-engine-seam-ce5dc4f.md"
+  },
+  "environment": {
+    "node": "24.13.1",
+    "typescript": "5.9.3",
+    "typescriptPath": "../task/integration/node_modules/typescript/bin/tsc",
+    "dependencyInstallationPerformed": false
+  },
+  "checks": [
+    {
+      "command": "node --test --test-reporter=tap app/ui/tests/conversation-host.test.ts",
+      "exitCode": 0,
+      "tests": 23,
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0,
+      "artifact": "app/ui/tests/conversation-host-current.tap"
+    },
+    {
+      "command": "node ../task/integration/node_modules/typescript/bin/tsc -p app/ui/tests/tsconfig.conversation-host.json",
+      "exitCode": 0,
+      "strict": true,
+      "reactStubs": false,
+      "artifact": "app/ui/tests/conversation-host-typecheck.txt"
+    }
+  ],
+  "trackedSourcesStableAcrossChecks": true,
+  "sha256": [
+    {
+      "path": "app/ui/src/bridge/conversation-host.ts",
+      "sha256": "a099454aac18fa81658710fc9f9fc1242dd85078554be4cbfe2d7ecf54bd84b7"
+    },
+    {
+      "path": "app/ui/src/bridge/conversation-contract.ts",
+      "sha256": "fb92daf01e43d5a3661af1697d1b74dcf46b2a253a62f308acc694dbeced926a"
+    },
+    {
+      "path": "app/ui/tests/conversation-host.test.ts",
+      "sha256": "dfdc7e856c7e2a549101084799c110f4e349d2cc905296125fdd497504c5b676"
+    },
+    {
+      "path": "app/ui/tests/conversation-fixtures.ts",
+      "sha256": "0c61e2744993b52c089b8baa2076fc3846fbd388b1a5f8934adc0db999a4c555"
+    },
+    {
+      "path": "app/ui/tests/tsconfig.conversation-host.json",
+      "sha256": "11a67a229d06fc36ef7a9a5572c9e009aadba5fa5eff13d5cae57c63a81368ef"
+    }
+  ],
+  "verifiedBehaviors": [
+    "Planning preview does not approve or dispatch. Explicit consent identifies the displayed preview ID and digest.",
+    "Reviewed question whitespace and explicit scope remain unchanged through approval and the single ask.",
+    "Double presses, cancellation, authority changes, malformed approval, expiry and late replies cannot dispatch or republish old bodies.",
+    "Fresh readback must match the just-dispatched checked answer and exact reviewed question.",
+    "Clarification readback resolves its server receipt alias; selection sends only the canonical server turn ID.",
+    "Draft edits cancel old review/work while preserving a verified selected continuation. Cancel abandons it.",
+    "Final writing requires separate preview and explicit consent, binds admitted references/cautions/input and raw tool digests, then performs a fresh get.",
+    "No automatic second model call, synthesis, retry or continuation fallback.",
+    "Desktop/browser wrappers use exact typed injected Engine/RPC methods without transport discovery.",
+    "State, consent, clock, observers and reply/error validation preserve generation guards during reentrant invalidation."
+  ],
+  "independentReview": {
+    "scope": "Controller source review only",
+    "remainingConcreteFindings": 0
+  },
+  "liveOperations": {
+    "backendOrProviderCalls": false,
+    "network": false,
+    "downloads": false,
+    "installs": false,
+    "storageOrCredentials": false,
+    "dWrites": false,
+    "gui": false
+  },
+  "pending": [
+    "Full frontend React typecheck and production build: React, React DOM, React Aria, react-intl and frontend tooling remain unprovisioned.",
+    "Actual desktop/browser authenticated transport integration and installed Engine journeys.",
+    "Rendered Playwright/Electron, axe, keyboard/screen-reader, receipts, word/button counts and reference pixel checks.",
+    "Local font assets and native Hindi review."
+  ]
+}

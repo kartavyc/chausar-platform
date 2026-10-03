@@ -1,0 +1,70 @@
+/* Motion. Three things move, each once, each under half a second (main design, part 6).
+   Every duration is a token; under reduced motion the tokens are 0ms (tokens.css).
+   Nothing here repeats: iteration count is always 1. */
+
+@keyframes chausar-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes chausar-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes chausar-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes chausar-slide-in {
+  from { transform: translateX(var(--sp5)); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* A bar grows from the baseline. A bar below zero sets its own origin at its top. */
+.m-grow {
+  transform-origin: bottom;
+  animation: chausar-grow var(--t-chart) var(--ease) 1 both;
+}
+
+/* A segment of one bar grows from its left edge. */
+@keyframes chausar-grow-across {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.m-grow-across {
+  transform-origin: left;
+  animation: chausar-grow-across var(--t-chart) var(--ease) 1 both;
+}
+
+/* A line draws from left to right. The path sets pathLength="1". */
+.m-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: chausar-draw var(--t-chart) var(--ease) 1 forwards;
+}
+
+/* Receipt rows only: they appear from top to bottom, 30ms apart. --i is the row index.
+   The last row has finished by 400ms: the delay is held to 400ms less the row's own
+   120ms, so delay and duration together never pass --t-receipt. Ordinary history
+   (TimeLine) does not use this. */
+.m-appear {
+  animation: chausar-appear var(--t-press) var(--ease) 1 both;
+  animation-delay: min(calc(var(--i, 0) * var(--t-receipt-gap)), calc(var(--t-receipt) - var(--t-press)));
+}
+
+/* A sheet slides in once. */
+.m-sheet {
+  animation: chausar-slide-in var(--t-sheet) var(--ease) 1 both;
+}
+
+/* The walking square on the steps moves to the next step. */
+.m-step {
+  transition: transform var(--t-step) var(--ease);
+}
+
+/* A pressed control. */
+.m-press {
+  transition: background-color var(--t-press) var(--ease), color var(--t-press) var(--ease);
+}

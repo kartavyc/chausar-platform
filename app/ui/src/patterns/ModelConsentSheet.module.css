@@ -1,0 +1,79 @@
+/* The consent sheet holds layout only. Plain ground, grey names, hairlines. */
+
+.note {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+}
+
+/* A block is a small grey name over what it names. No boxes. */
+.block {
+  display: grid;
+  gap: var(--sp2);
+  min-width: 0;
+}
+
+.label {
+  margin: 0;
+  font-size: var(--fs-note2);
+  font-weight: var(--fw-regular);
+  color: var(--mute);
+}
+
+/* Text as it was written: its spaces and line breaks are kept and nothing is cut. */
+.exact {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pairs {
+  margin: 0;
+  display: grid;
+  gap: var(--sp2);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  column-gap: var(--sp4);
+  align-items: baseline;
+}
+
+.name {
+  margin: 0;
+  color: var(--mute);
+  font-size: var(--fs-note2);
+}
+
+.value {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-note2);
+  overflow-wrap: anywhere;
+}
+
+/* Earlier exchanges, in order, each between hairlines. */
+.exchanges {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--hair) solid var(--line2);
+}
+
+.exchange {
+  padding: var(--sp2) 0;
+  border-bottom: var(--hair) solid var(--line);
+}
+
+/* The exact text to be sent: the number face with a hairline at the left. It wraps and
+   is never cut; the sheet's body scrolls. */
+.payload {
+  margin: 0;
+  padding: var(--sp1) 0 var(--sp1) var(--sp4);
+  border-left: var(--hair) solid var(--line2);
+  font-size: var(--fs-note);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--fg2);
+}

@@ -1,0 +1,48 @@
+.choice {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp4);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+}
+
+.words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp4);
+}
+
+.word {
+  font: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  min-height: var(--target);
+  color: var(--mute);
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+.word:disabled {
+  cursor: default;
+}
+
+/* A row of words: the chosen one is underlined and in ink. */
+.words .chosen {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-thickness: var(--hair);
+  text-underline-offset: 4px;
+}
+
+/* No and Yes: the chosen one in ink, no underline. */
+.pair .words {
+  gap: var(--sp3);
+}
+.pair .words .chosen {
+  text-decoration: none;
+  font-weight: var(--fw-medium);
+}

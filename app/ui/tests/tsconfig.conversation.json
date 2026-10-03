@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.foundation.json",
+  "include": ["../src/bridge/conversation-contract.ts", "./conversation-fixtures.ts", "./conversation-contract.test.ts"]
+}

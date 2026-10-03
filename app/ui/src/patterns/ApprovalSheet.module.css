@@ -1,0 +1,49 @@
+/* The exact text as it will be sent: the number face with a hairline at the left. */
+.asWritten {
+  margin: 0;
+  padding: var(--sp1) 0 var(--sp1) var(--sp4);
+  border-left: var(--hair) solid var(--line2);
+  font-size: var(--fs-note2);
+  line-height: var(--lh-read);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--fg2);
+}
+
+.fields {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-note2);
+}
+.fields th {
+  text-align: start;
+  font-weight: var(--fw-regular);
+  color: var(--mute);
+  padding: var(--sp1) var(--sp4) var(--sp1) 0;
+  border-bottom: var(--hair) solid var(--line);
+}
+.fields td {
+  padding: var(--sp1) var(--sp4) var(--sp1) 0;
+  border-bottom: var(--hair) solid var(--line);
+}
+.fields s {
+  color: var(--mute);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+}
+
+.unsure {
+  display: grid;
+  gap: var(--sp2);
+}
+
+.unsureActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp3);
+  align-items: center;
+}

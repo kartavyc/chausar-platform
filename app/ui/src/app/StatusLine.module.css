@@ -1,0 +1,25 @@
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp5);
+  align-items: center;
+  min-height: var(--status);
+  margin: 0;
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+
+.fact {
+  color: inherit;
+  text-decoration: none;
+}
+a.fact:hover {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--line2);
+}
+
+.simple {
+  font-family: var(--f);
+  font-size: var(--fs-note2);
+}

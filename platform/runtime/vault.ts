@@ -5,6 +5,7 @@ import { dirname, basename, isAbsolute, parse, resolve, join } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { ChausarError, hash, initialState, type State, type StateStore } from './contracts.ts';
 import { acquireProcessLock, type ProcessLock } from './process-lock.ts';
+import { invoiceRestoreNeedsCustody } from './vault-invoice-custody.ts';
 
 const FORMAT = 'chausar.vault.v1';
 const MAX_BYTES = 64 * 1024 * 1024;
@@ -52,7 +53,13 @@ export type CreateBootstrapVaultOptions = Common & {
 };
 export type OpenVaultOptions = Common & { passphrase: string };
 export type RecoverVaultOptions = Common & { recoveryCode: string; newPassphrase: string };
-export type RestoreVaultOptions = Common & { backupFile: string } & ({ passphrase: string } | { recoveryCode: string; newPassphrase: string });
+export type VaultRestoreDescriptor = { vaultId: string; workspaceId: string; backupRevision: number };
+export type RestoreVaultOptions = Common & {
+  backupFile: string;
+  /** Trusted host capability only. Runs before publication and invoice recovery;
+   * archive/RPC input must never supply this callback or its current custody. */
+  prepareRestoredState?: (state: State, descriptor: Readonly<VaultRestoreDescriptor>) => void | Promise<void>;
+} & ({ passphrase: string } | { recoveryCode: string; newPassphrase: string });
 
 function fail(code: string, message: string): never { throw new ChausarError(code, message); }
 function passphrase(value: string) {
@@ -441,6 +448,7 @@ export class Vault implements StateStore {
   }
   static async restore(options: RestoreVaultOptions): Promise<Vault> {
     let envelope: VaultEnvelope, state: State, key: Buffer | undefined;
+    let descriptor: VaultRestoreDescriptor;
     try {
       const backup = JSON.parse(await readBounded(options.backupFile));
       if (backup.backupFormat !== 'chausar.backup.v1') throw new Error('Invalid backup');
@@ -448,6 +456,7 @@ export class Vault implements StateStore {
       const recovering = 'recoveryCode' in options;
       key = await unwrap(recovering ? options.recoveryCode : options.passphrase, recovering ? envelope.recovery : envelope.passphrase, envelope.id, recovering ? 'recovery' : 'passphrase');
       state = decodeSnapshot(envelope, key);
+      descriptor = { vaultId: envelope.id, workspaceId: state.workspace.id, backupRevision: state.revision };
       if (recovering) {
         passphrase(options.newPassphrase);
         const wrapper = await wrap(options.newPassphrase, key, envelope.id, 'passphrase');
@@ -460,6 +469,20 @@ export class Vault implements StateStore {
     catch (error) { key!.fill(0); await closeTransferred(options.storage); throw error; }
     try {
       if (await adapter.load()) fail('VAULT_EXISTS', 'Restore requires an empty vault location.');
+      if (!options.prepareRestoredState && invoiceRestoreNeedsCustody(state))
+        fail('INVOICE_RESTORE_CUSTODY_REQUIRED', 'Invoice restore requires trusted current custody from this workspace and vault.');
+      if (options.prepareRestoredState) {
+        const draft = structuredClone(state), before = JSON.stringify(draft);
+        await options.prepareRestoredState(draft, Object.freeze({ ...descriptor! }));
+        validateState(draft);
+        if (draft.workspace.id !== state.workspace.id || draft.revision !== state.revision)
+          fail('RESTORE_STATE_IDENTITY_CHANGED', 'Restore preparation cannot replace workspace identity or revision.');
+        if (JSON.stringify(draft) !== before) {
+          draft.revision++;
+          envelope = encodeSnapshot(draft, { ...envelope, revision: draft.revision }, key!);
+          state = draft;
+        }
+      }
       await adapter.commit(envelope, null);
       if (options.keychain) await options.keychain.store(envelope.id, Uint8Array.from(key!));
       return new Vault(directory, adapter, lock, key!, envelope, state, options.keychain, options.writerGuard);

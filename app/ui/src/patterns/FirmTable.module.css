@@ -1,0 +1,81 @@
+.wrap {
+  display: grid;
+  gap: var(--sp3);
+}
+
+.filters {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-read);
+}
+
+.table th {
+  text-align: start;
+  font-weight: var(--fw-regular);
+}
+
+.table thead th {
+  font-size: var(--fs-note);
+  color: var(--mute);
+  padding: 0 var(--sp4) var(--sp2) 0;
+  border-bottom: var(--hair) solid var(--line2);
+}
+
+.table tbody th,
+.table tbody td {
+  padding: var(--sp2) var(--sp4) var(--sp2) 0;
+  border-bottom: var(--hair) solid var(--line);
+  vertical-align: middle;
+  min-height: var(--target);
+}
+
+.table tbody tr:focus-visible {
+  outline: var(--focus) solid var(--fg);
+  outline-offset: calc(-1 * var(--focus));
+}
+
+.num {
+  text-align: end;
+}
+
+.due {
+  color: var(--mute);
+  margin-inline-start: var(--sp2);
+}
+
+.action {
+  text-align: end;
+}
+
+.invited th,
+.invited td {
+  color: var(--mute);
+}
+
+.more td {
+  color: var(--mute);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp4);
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+.legendItems {
+  display: inline-flex;
+  gap: var(--sp2);
+  align-items: center;
+}
+
+.vault {
+  margin-inline-start: auto;
+}

@@ -1,0 +1,122 @@
+/* Charts are quiet: thin marks, one baseline, no grid, no frame. Text in charts is in the
+   text colours, never in a series colour. */
+
+.svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: var(--f);
+}
+
+.baseline {
+  stroke: var(--line2);
+  stroke-width: var(--hair);
+}
+
+.gap {
+  stroke: var(--line2);
+  stroke-width: var(--hair);
+  stroke-dasharray: 2 2;
+}
+
+.mark {
+  cursor: pointer;
+  outline: none;
+}
+/* Focus is drawn on the mark's 24 pixel target, so a mark of no size still shows it. */
+.mark:focus-visible .hit {
+  outline: var(--focus) solid var(--fg);
+  outline-offset: var(--focus-gap);
+}
+
+.bar {
+  transform-box: fill-box;
+}
+
+/* An open bar: a value not yet entered. */
+.outline {
+  fill: var(--bg);
+  stroke: var(--fg);
+  stroke-width: var(--square-stroke);
+}
+
+.ink { fill: var(--fg); }
+.dim { fill: var(--dim); }
+.r1 { fill: var(--r1); }
+.r2 { fill: var(--r2); }
+.r3 { fill: var(--r3); }
+.r4 { fill: var(--r4); }
+
+.segment {
+  transform-box: fill-box;
+}
+
+.line {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: var(--line-w);
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* A known point with a gap on both sides: as wide as the line, so it is seen. */
+.point {
+  r: var(--line-w);
+  fill: var(--dim);
+}
+
+.ring {
+  r: calc(var(--dot-r) + var(--dot-ring));
+  fill: var(--bg);
+}
+
+.dot {
+  r: var(--dot-r);
+  fill: var(--fg);
+}
+
+.hit {
+  fill: transparent;
+}
+
+.label {
+  font-size: var(--fs-note);
+  fill: var(--mute);
+}
+.labelInk {
+  fill: var(--fg);
+}
+
+.missing {
+  margin: var(--sp1) 0 0;
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+.missingItem + .missingItem::before {
+  content: ' · ';
+}
+
+/* Why there is no drawing, in words. */
+.unavailable {
+  margin: 0;
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+
+/* The values written out, for a chart that cannot be drawn. */
+.values {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-note);
+}
+.valueItem {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp3);
+}
+.valueLabel {
+  color: var(--mute);
+}

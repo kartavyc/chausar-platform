@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.foundation.json",
+  "compilerOptions": { "skipLibCheck": false },
+  "include": ["./host-controller.test.ts", "./fixtures.ts", "../src/host/contracts.ts", "../src/host/controller.ts"]
+}

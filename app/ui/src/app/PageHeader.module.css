@@ -1,0 +1,40 @@
+.header {
+  display: grid;
+  gap: var(--sp2);
+  margin-bottom: var(--sp5);
+}
+
+.whereLine,
+.titleLine {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp4);
+}
+
+.where {
+  margin: 0;
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+
+.title {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp3);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-title);
+  letter-spacing: var(--ls-title);
+}
+
+.count {
+  font-size: var(--fs-fig);
+  font-weight: var(--fw-regular);
+  color: var(--mute);
+}
+
+.aside {
+  font-size: var(--fs-note2);
+}

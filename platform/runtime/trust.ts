@@ -1,5 +1,6 @@
 import { authorize, audit, check, hash, newId, now } from './contracts.ts';
 import type { Context, Fact, Member, State, StateStore, TrustPolicy } from './contracts.ts';
+import { prepareInvoicePurge } from './invoice-follow-up-lineage.ts';
 
 export function sourceAllowed(state: State, context: Context, sourceId: string): boolean {
   const member = state.members.find(m => m.id === context.memberId);
@@ -118,10 +119,11 @@ export class TrustService {
     return this.store.update(state => {
       const currentMember = authorize(this.store, context, 'admin');
       const { facts, factIds, imports } = sourceDeletionScope(state, context, currentMember, sourceId);
+      const invoicePurge = prepareInvoicePurge(state, { sourceId }, now());
       for (const artifact of [...facts, ...imports]) state.tombstones.push({ id: newId('tombstone'), kind: 'content', contentHash: artifact.contentHash || artifact.hash || hash(artifact), sourceId, deletedAt: now() });
       state.tombstones.push({ id: newId('tombstone'), kind: 'source', sourceId, deletedAt: now() });
       state.facts = state.facts.filter(f => f.sourceId !== sourceId);
-      let removed = facts.length;
+      let removed = facts.length + invoicePurge.answersRemoved + invoicePurge.mandatesRemoved;
       for (const key of ['imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning', 'conflicts', 'merges', 'conversations', 'modelReceipts'] as const) {
         const original = state[key]; const keep = original.filter(a => !hasLineage(a, sourceId, factIds));
         for (const a of original) if (!keep.includes(a) && key === 'modelReceipts' && a.digest) state.tombstones.push({ id: newId('tombstone'), kind: 'payload', digest: a.digest, sourceId, deletedAt: now() });
@@ -136,6 +138,8 @@ export class TrustService {
     return this.store.update(state => {
       retentionAuthority(this.store, context); const cutoff = at.getTime() - state.policy.retentionDays * 86400000; let removed = 0;
       const expiredFacts = new Set(state.facts.filter(f => Date.parse(f.learnedAt) < cutoff).map(f => f.id));
+      const invoicePurge = prepareInvoicePurge(state, { expiredFactIds: [...expiredFacts], cutoff: new Date(cutoff).toISOString() }, at.toISOString());
+      removed += invoicePurge.answersRemoved + invoicePurge.mandatesRemoved;
       for (const key of ['facts', 'imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning', 'conversations', 'modelReceipts', 'conflicts', 'merges'] as const) {
         state[key] = state[key].filter(a => {
           const date = a.learnedAt || a.createdAt || a.at; const expired = (date && Date.parse(date) < cutoff) || [...expiredFacts].some(id => hasLineage(a, '__none__', new Set([id])));
