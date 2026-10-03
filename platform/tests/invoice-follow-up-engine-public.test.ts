@@ -1,6 +1,7 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, randomBytes, sign } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
@@ -9,6 +10,11 @@ import { createLocalServer } from '../runtime/server.ts';
 import type { InvoiceHostOptions } from '../runtime/invoice-follow-up.ts';
 import type { ImportInput, MappingRecipe } from '../runtime/ingest.ts';
 import type { SessionGrant } from '../runtime/phone/contracts.ts';
+import type { EngineConnectorOptions } from '../runtime/engine-connectors.ts';
+import type { ConnectorOperationScope } from '../runtime/connector-framework/index.ts';
+import { createAccountingConnectorCandidate, createZohoSavedResponseAdapter, parseZohoPage, sha256,
+  zohoSavedResponseConfiguration, zohoSchemaFingerprint, ZOHO_SAVED_RESPONSE_OPERATION_ID,
+  ZOHO_SAVED_RESPONSE_VERSION } from '../runtime/adapters/accounting/index.ts';
 
 // Public synthetic integration: real loopback HTTP, explicit CSV recipes and
 // encrypted experimental-file authority. No direct fact writes, native DB,
@@ -57,7 +63,7 @@ const initialBank = [
   'synthetic-bank-one,bank_line,2026-09-30,2500,INR,synthetic-customer-one,synthetic-invoice-one,,matched,main,synthetic-payment-one',
 ];
 
-async function fixture(t: TestContext, installed = true, demo = true) {
+async function fixture(t: TestContext, installed = true, demo = true, connectorRuntime?: EngineConnectorOptions) {
   const base = resolve(tmpdir()), directory = await mkdtemp(join(base, 'chausar-invoice-engine-public-'));
   // Public import timestamps are real; this labelled fixture observation time
   // is later than those imports and can advance without replacing their facts.
@@ -69,6 +75,7 @@ async function fixture(t: TestContext, installed = true, demo = true) {
     simulatedStepCostMinor: '1', simulatedSendCostMinor: '20' };
   const engine = new Engine({ directory, demo: true, storage: 'experimental-file',
     ...(installed ? { invoiceFollowUp: policy } : {}),
+    ...(connectorRuntime ? { connectorRuntime } : {}),
     durableJobs: { clock, workerId: 'synthetic-generic-engine-worker', maxActiveJobs: 8, leaseMs: 1000, networkAvailable: () => false },
     gateway: { http: async () => { providerCalls++; throw new Error('SYNTHETIC invoice acceptance must never call a model.'); } } });
   const app = createLocalServer(engine), { origin, token } = await app.listen();
@@ -410,4 +417,63 @@ test('invoice methods require explicit installed host policy and a labelled demo
   await assert.rejects(real.consent(), { code: 'INVOICE_SIMULATION_ONLY' });
   assert.equal(real.engine.vault!.read().jobs.length, 0);
   assert.equal(missing.providerCalls() + real.providerCalls(), 0);
+});
+
+test('same Engine refuses unqualified saved accounting scope before invoice proof while explicit local scope still computes', async t => {
+  const pages = [1, 2].map(page => readFileSync(new URL(`./fixtures/accounting/zoho/saved-creditnotes-page-${page}.json`, import.meta.url)));
+  const sourceId = 'synthetic-joined-saved-accounting', dataset = 'synthetic-joined-zoho-creditnotes';
+  const saved = { organizationId: '12345', companyId: '12345', dataset, pageSha256: pages.map(sha256) };
+  const operation: ConnectorOperationScope = { connectorId: 'zoho-books', connectorVersion: ZOHO_SAVED_RESPONSE_VERSION,
+    operationId: ZOHO_SAVED_RESPONSE_OPERATION_ID, kind: 'export', transport: 'file', applicability: {
+      applicationVersion: 'v3', edition: 'authored-synthetic', module: 'creditnotes', deploymentProfile: 'synthetic',
+      configuration: zohoSavedResponseConfiguration(saved) } };
+  let fileReaderCalls = 0;
+  const reader = createZohoSavedResponseAdapter({ ...saved, operation, environment: 'synthetic', readFile: async page => {
+    fileReaderCalls++; return { content: pages[page - 1], contentType: 'application/json',
+      companyId: saved.companyId, organizationId: saved.organizationId };
+  } });
+  const candidate = createAccountingConnectorCandidate({ id: 'synthetic-joined-saved-zoho', title: 'SYNTHETIC saved Zoho accounting candidate',
+    sourceId, companyId: saved.companyId, organizationId: saved.organizationId, environment: 'synthetic', syntheticFixture: true,
+    domain: { company: saved.companyId, dataset, branches: ['all'] }, reader,
+    importOperation: { ...operation, operationId: `${operation.operationId}.captured-import`, kind: 'import' },
+    readImplementationDigest: sha256(readFileSync(new URL('../runtime/adapters/accounting/zoho-saved-response.ts', import.meta.url))),
+    importImplementationDigest: sha256(readFileSync(new URL('../runtime/adapters/accounting/import.ts', import.meta.url))),
+    contentTypes: ['application/json'], maximumSourceAgeMs: 60_000,
+    decoder: { id: 'synthetic-joined-saved-decoder', version: 'fixture-1', identityNamespace: 'synthetic-joined-saved-revisions',
+      schemaSha256: zohoSchemaFingerprint(pages[0].toString('utf8')), company: saved.companyId, dataset, branch: 'all',
+      measure: 'total', minorDigitsByCurrency: { INR: 2 },
+      parse: content => parseZohoPage(content, { resource: 'creditnotes', organizationId: saved.organizationId }) },
+    mapping: { id: 'synthetic-joined-saved-mapping', currency: 'INR',
+      eventTypes: { 'credit-note:creditnote:receivable': 'refund' }, statuses: { 'open:open': 'open' } } });
+  assert.equal(candidate.admission.semanticQualification, 'unqualified'); assert.equal(candidate.admission.ready, false);
+  assert.equal(candidate.admission.liveVerified, false); assert.equal(candidate.admission.writebackQualified, false);
+  // No registry definition/evidence, grant, semantic gate or qualification is installed.
+  const f = await fixture(t, true, true, { profiles: [candidate.profile] });
+  const profiles = await f.rpc('connectors.profiles');
+  assert.equal(profiles.length, 1); assert.equal(profiles[0].id, candidate.profile.id);
+  assert.equal(profiles[0].read.level, 'unqualified'); assert.equal(profiles[0].import.level, 'unqualified');
+  assert.equal(profiles[0].syntheticFixture, true); assert.equal(profiles[0].semanticQualification, 'unverified');
+  await assert.rejects(f.rpc('connectors.read', { profileId: candidate.profile.id }), { code: 'CONNECTOR_DEFINITION_UNQUALIFIED' });
+  await assert.rejects(f.rpc('calculation.run', { operation: 'aging', sourceIds: [sourceId] }), { code: 'SOURCE_NOT_READY' });
+  const before = f.engine.vault!.read(); await f.consent();
+  const job = await f.invoice('create', f.config(false, 'owner', { sourceIds: [...SOURCE_IDS, sourceId] }));
+  await f.invoice('approve', { id: job.id, digest: job.digest });
+  const refused = await f.invoice('run', { id: job.id });
+  assert.equal(refused.status, 'outcome-unknown'); assert.equal(refused.deliverable, undefined);
+  const retained = f.engine.vault!.read(), attempt = retained.jobs.find(item => item.id === job.id)!.execution!.attempts[0];
+  assert.equal(attempt.stepId, 'balance-0'); assert.equal(attempt.status, 'unknown'); assert.equal(attempt.reason, 'SOURCE_NOT_READY');
+  assert.equal(retained.receipts.length, before.receipts.length); assert.equal(retained.actions.length, before.actions.length);
+  assert.equal(retained.answers.filter(item => item.kind === 'invoice-balance-proof-v1').length, 0);
+  assert.equal(retained.answers.filter(item => item.kind === 'invoice-job-operation-v1').length, 0);
+  assert.equal(retained.facts.filter(item => item.sourceId === sourceId).length, 0); assert.equal(fileReaderCalls, 0);
+  await f.reopen();
+  assert.equal((await f.invoice('read', { id: job.id })).job.status, 'outcome-unknown');
+  assert.equal((await f.invoice('reconcile', { id: job.id })).status, 'paused');
+  const local = await f.prepared();
+  assert.equal(local.delivered.deliverable.result.invoices[0].balance.outstandingMinor, '7500');
+  assert.equal(local.view.reminders[0].status, 'prepared'); assert.equal(local.view.reminders[0].attempts.length, 0);
+  const receipt = await f.rpc('receipts.get', { id: local.delivered.deliverable.result.invoices[0].balance.receiptId });
+  assert.deepEqual(receipt.requestedSourceIds, [...SOURCE_IDS].sort());
+  assert.equal(receipt.rows.some((row: any) => row.sourceId === sourceId), false);
+  assert.equal(fileReaderCalls, 0); assert.equal(f.providerCalls(), 0);
 });
