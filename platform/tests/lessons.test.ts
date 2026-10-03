@@ -168,6 +168,28 @@ test('evaluation provenance binds baseline, candidate, build, configuration, com
   }
 });
 
+for (const summary of ['baseline', 'treatment', 'metric'] as const) {
+  test(`undeclared hidden evaluation ${summary} fields cannot enter lesson summaries`, async () => {
+    const f = fixture();
+    const proposed = await f.service.propose(OWNER, proposal());
+    const current = pin(proposed.candidate);
+    const before = f.store.read(), businessBefore = digest(f.workspace);
+    const targetBefore = structuredClone(f.target);
+    const refs = f.registerEvaluations(current, (result, set) => {
+      if (set !== 'hidden') return;
+      const nested = summary === 'metric' ? result.metrics[0] : result[summary];
+      Object.assign(nested, { question: 'Synthetic hidden question text must stay outside lesson summaries.' });
+    });
+    // The fixture authority repins the complete result, so rejection must follow
+    // the declared summary schema rather than an incidental digest mismatch.
+    await assert.rejects(f.service.bindEvaluations(OWNER, current, refs), { code: 'INVALID_LESSON' });
+    assert.deepEqual(f.store.read(), before, 'A refused summary must not append an evaluation or lifecycle event.');
+    assert.equal(digest(f.workspace), businessBefore);
+    assert.deepEqual(f.target, targetBefore);
+    assert.deepEqual(f.service.applicable(OWNER, APPLICABLE), []);
+  });
+}
+
 test('open and hidden suites retain independently supplied authority and metric provenance', async () => {
   const f = fixture();
   const proposed = await f.service.propose(OWNER, proposal());

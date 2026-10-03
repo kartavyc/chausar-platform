@@ -53,6 +53,8 @@ function evaluationValid(result: LessonEvaluationResult, reference: LessonEvalua
   check(text(reference.id) && text(reference.revision) && /^[a-f0-9]{64}$/.test(reference.digest), 'EVALUATION_PROVENANCE_REQUIRED', 'Resolve an exact evaluation revision.');
   fields(result, ['reference', 'set', 'candidate', 'authorityId', 'qualification', 'suite', 'harness', 'build', 'configuration',
     'comparisonId', 'completedAt', 'status', 'baseline', 'treatment', 'metrics', 'sourceTainted', 'sourceIds']);
+  fields(result.baseline, ['guidance', 'digest']);
+  fields(result.treatment, ['guidance', 'candidate']);
   check(same(result.reference, reference) && result.reference.digest === lessonEvaluationDigest(result), 'EVALUATION_CHANGED', 'The evaluation revision changed.');
   check(result.set === set && same(result.candidate, candidate) && result.treatment.guidance === 'on' && same(result.treatment.candidate, candidate) &&
     result.baseline.guidance === 'off', 'EVALUATION_CANDIDATE_MISMATCH', 'Both evaluations must compare this exact enabled candidate against guidance off.');
@@ -69,6 +71,7 @@ function evaluationValid(result: LessonEvaluationResult, reference: LessonEvalua
     new Set(result.metrics.map(metric => metric.name)).size === result.metrics.length && result.metrics.every(metric =>
       text(metric.name) && ['higher-is-better', 'lower-is-better'].includes(metric.direction) && Number.isFinite(metric.before) && Number.isFinite(metric.after)),
   'INVALID_LESSON_EVALUATION', 'Supply paired finite metrics with authority-selected directions.');
+  for (const metric of result.metrics) fields(metric, ['name', 'direction', 'before', 'after']);
 }
 function passes(binding: LessonEvaluationBinding) {
   return [binding.open, binding.hidden].every(result => result.status === 'complete' && result.metrics.length > 0 &&
