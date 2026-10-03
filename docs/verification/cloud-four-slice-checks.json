@@ -1,0 +1,70 @@
+{
+  "baseline": "87c400870563b92803841d3a198cee801f7740df",
+  "sourceCommits": {
+    "plugin": "34d3db50ac8aa7188a5c07940516ab1f19541c24",
+    "accounting": "d623f0cd4cff3ac1c167c4900a8c2c08350d017e",
+    "invoice": "d6cfb28499c0317871d7e81c3c7e225dea95672e",
+    "phone": "4c86ff3e47b78e841e4f5f3fcd68fe962646d34d"
+  },
+  "implementationCommit": "758ae56",
+  "finalTestCommit": "c8ba1ea",
+  "fullSuite": {
+    "command": "node --test platform/tests/*.test.ts",
+    "tests": 2670,
+    "pass": 2669,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 1,
+    "todo": 0,
+    "durationMs": 266868.872659,
+    "logSha256": "ae06e05d627c0e78c13001b458d71a42e58139076a1fe5843b5849a99f5e5438",
+    "note": "Before addition of one same-Engine accounting refusal test; production code unchanged afterward."
+  },
+  "finalFocusedSuite": {
+    "command": "node --test platform/tests/invoice-follow-up-*.test.ts platform/tests/accounting-saved-response*.test.ts platform/tests/mcp-receipt-*.test.ts platform/tests/phone-live-continuation.test.ts platform/tests/job-runner-registration-isolation.test.ts",
+    "tests": 122,
+    "pass": 122,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0,
+    "durationMs": 5607.193985
+  },
+  "typecheck": {
+    "available": false,
+    "command": "npm run typecheck",
+    "reason": "tsc: not found",
+    "dependencyAcquisition": false
+  },
+  "syntax": {
+    "command": "node scripts/check.mjs",
+    "sourceFiles": 398,
+    "passed": true
+  },
+  "sourceBuild": {
+    "command": "node scripts/build.mjs",
+    "passed": true,
+    "signedInstaller": false
+  },
+  "syntheticInvoiceArtifactSha256": "761b409105db736dc787cb9861a3769b84c5260db89dcf3e26f4ae17255c53b3",
+  "review": {
+    "standardsHardFindings": 0,
+    "standardsOptionalSmells": 1,
+    "specRemainingFindings": 0,
+    "dedicatedSecurityQualification": false
+  },
+  "qualification": {
+    "data": "authored-synthetic-only",
+    "vendorQualificationCount": 0,
+    "liveLLM": false,
+    "nativeDatabase": false,
+    "liveSends": false,
+    "paidActions": false,
+    "mainPushMergeRelease": false
+  },
+  "excludedSlices": [
+    "transfer1ca71782",
+    "PGlite1cd1591",
+    "customfield4d227e3"
+  ]
+}

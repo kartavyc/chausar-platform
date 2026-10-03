@@ -1,0 +1,14 @@
+Command: node --test platform/tests/*.test.ts
+Implementation commit: 758ae56 (no production changes afterward)
+The additional same-Engine accounting refusal test was added afterward and validated in the final focused suite.
+
+﹣ public experimental-file HTTP custom field sums carry actual installed native DuckDB proof and survive reopen (0.219834ms) # SKIP
+ℹ tests 2670
+ℹ suites 0
+ℹ pass 2669
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 266868.872659
+Complete local log SHA-256: ae06e05d627c0e78c13001b458d71a42e58139076a1fe5843b5849a99f5e5438

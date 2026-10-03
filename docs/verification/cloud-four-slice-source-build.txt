@@ -1,0 +1,1 @@
+Portable source build created. Manifest SHA-256: dd455e2cc71e17b9ca361a07e5c0da12909e87b8edb6412c02f31b67233c6f2e. No signed installer is claimed.
