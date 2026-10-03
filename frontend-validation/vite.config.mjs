@@ -7,12 +7,14 @@ const validationRoot = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = dirname(validationRoot);
 export default defineConfig({
   root: resolve(workspaceRoot, 'app/ui'),
+  base: './',
   envDir: false,
   publicDir: false,
   cacheDir: resolve(validationRoot, '.vite'),
   plugins: [react()],
   build: {
     target: 'es2022',
+    assetsDir: '',
     outDir: resolve(validationRoot, 'dist'),
     emptyOutDir: false,
     sourcemap: true,

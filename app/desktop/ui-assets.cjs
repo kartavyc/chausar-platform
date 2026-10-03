@@ -8,8 +8,10 @@ const definitions = Object.freeze({
   '/ui/host.css': ['app/ui/public/host.css', 'text/css; charset=utf-8', 200000],
   ...Object.fromEntries(['InstrumentSans-400', 'InstrumentSans-500', 'InstrumentSans-600',
     'DMMono-400', 'DMMono-500', 'IBMPlexMono-500',
-    'NotoSansDevanagari-400', 'NotoSansDevanagari-500'].map(name =>
-    [`/assets/fonts/${name}.woff2`, [`app/ui/assets/fonts/${name}.woff2`, 'font/woff2', 600000]])),
+    'NotoSansDevanagari-400', 'NotoSansDevanagari-500'].flatMap(name =>
+    // The flat host CSS resolves its relative font URLs beside /ui/host.css.
+    [`/assets/fonts/${name}.woff2`, `/ui/${name}.woff2`].map(pathname =>
+      [pathname, [`app/ui/assets/fonts/${name}.woff2`, 'font/woff2', 600000]]))),
 });
 async function readUiAsset(root, pathname, enabled) {
   const definition = enabled === true ? definitions[pathname] : undefined;

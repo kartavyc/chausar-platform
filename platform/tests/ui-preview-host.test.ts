@@ -1,6 +1,6 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, relative, isAbsolute } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
@@ -56,6 +56,7 @@ test('loopback preview is opt-in, fixed-whitelist, cache-free and preserves lega
   const preview = await fixture(t, true);
   const reply = await fetch(`${preview.origin}/ui/index.html`);
   assert.equal(reply.status, 200); assert.equal(reply.headers.get('cache-control'), 'no-store');
+  assert.match(reply.headers.get('content-security-policy') ?? '', /font-src 'self'/);
   assert.match(await reply.text(), /\/ui\/shell\.js/);
   for (const [path, mime, limit] of [['/ui/host.js','text/javascript; charset=utf-8',2000000], ['/ui/host.css','text/css; charset=utf-8',200000]] as const) {
     assert.equal((await fetch(legacy.origin + path)).status, 404);
@@ -63,7 +64,27 @@ test('loopback preview is opt-in, fixed-whitelist, cache-free and preserves lega
     assert.equal(asset.headers.get('content-type'), mime); assert.equal(asset.headers.get('cache-control'), 'no-store');
     const bytes = await asset.arrayBuffer(); assert.ok(bytes.byteLength > 0 && bytes.byteLength <= limit);
   }
-  for (const path of ['/ui/src/host/bootstrap.tsx', '/ui/host.js.map', '/assets/fonts/unknown.woff2', '/node_modules/react/package.json']) assert.equal((await fetch(preview.origin + path)).status, 404);
+  const fontNames = ['InstrumentSans-400', 'InstrumentSans-500', 'InstrumentSans-600', 'DMMono-400', 'DMMono-500',
+    'IBMPlexMono-500', 'NotoSansDevanagari-400', 'NotoSansDevanagari-500'];
+  const stylesheet = await (await fetch(preview.origin + '/ui/host.css')).text();
+  const fontUrls = [...stylesheet.matchAll(/url\(\s*["']?(\.\/[^\s"')]+\.woff2)["']?\s*\)/g)].map(match => match[1]!);
+  assert.deepEqual(fontUrls.slice().sort(), fontNames.map(name => `./${name}.woff2`).sort());
+  let totalFontBytes = 0;
+  for (const name of fontNames) {
+    const expected = await readFile(new URL(`../../app/ui/assets/fonts/${name}.woff2`, import.meta.url));
+    assert.equal(expected.subarray(0, 4).toString('ascii'), 'wOF2'); totalFontBytes += expected.length;
+    for (const path of [`/ui/${name}.woff2`, `/assets/fonts/${name}.woff2`]) {
+      assert.equal((await fetch(legacy.origin + path)).status, 404);
+      const font = await fetch(preview.origin + path); assert.equal(font.status, 200);
+      assert.equal(font.headers.get('content-type'), 'font/woff2'); assert.equal(font.headers.get('cache-control'), 'no-store');
+      assert.equal(font.headers.get('x-content-type-options'), 'nosniff');
+      assert.deepEqual(Buffer.from(await font.arrayBuffer()), expected);
+    }
+  }
+  assert.equal(totalFontBytes, 300672); assert.ok(totalFontBytes <= 600000);
+  for (const path of ['/ui/src/host/bootstrap.tsx', '/ui/host.js.map', '/assets/fonts/unknown.woff2', '/ui/unknown.woff2',
+    '/assets/fonts/manifest.json', '/assets/fonts/InstrumentSans-OFL.txt', '/node_modules/react/package.json'])
+    assert.equal((await fetch(preview.origin + path)).status, 404);
   const head = await fetch(`${preview.origin}/ui/index.html`, {method:'HEAD'}); assert.equal(head.status, 200); assert.equal(await head.text(), '');
 });
 
