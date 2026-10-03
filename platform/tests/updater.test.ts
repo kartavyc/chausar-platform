@@ -102,13 +102,23 @@ test('an abruptly killed staging process leaves recoverable complete owner metad
 });
 
 test('competing stale-lock recovery has exactly one writer and never removes its replacement',{timeout:10000},async t=>{
-  const stageDirectory=await directory(t),release=manifest(),pid=deadPid();await writeFile(join(stageDirectory,'stage.lock'),JSON.stringify({pid,token:randomUUID(),startedAt:new Date().toISOString()}));
-  let releaseHttp!:()=>void,entered!:()=>void,refused!:()=>void,calls=0;const errors:any[]=[];
-  const gate=new Promise<void>(accept=>{releaseHttp=accept;}),first=new Promise<void>(accept=>{entered=accept;}),others=new Promise<void>(accept=>{refused=accept;});t.after(()=>releaseHttp());
-  const attempts=Array.from({length:10},()=>new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,http:async()=>{calls++;entered();await gate;return{status:200,body:artifact};}}).stage(release,signature(release)).then(value=>({value}),error=>{errors.push(error);if(errors.length===9)refused();return{error};}));
-  await Promise.all([first,others]);assert.equal(calls,1);assert.ok(errors.every(error=>error.code==='UPDATE_BUSY'),JSON.stringify(errors.map(error=>({code:error.code,message:error.message,stack:error.stack}))));
-  const owner=JSON.parse(await readFile(join(stageDirectory,'stage.lock'),'utf8'));assert.equal(owner.pid,process.pid);releaseHttp();
-  const results=await Promise.all(attempts);assert.equal(results.filter(result=>'value'in result).length,1);assert.ok(!(await readdir(stageDirectory)).some(name=>name.endsWith('.lock')));
+  const root=await directory(t),release=manifest(),pid=deadPid();
+  // Repeat the same bounded filesystem race, retaining unexpected refusal codes.
+  // Every round still requires exactly one writer and all nine UPDATE_BUSY refusals.
+  for(let round=0;round<10;round++){
+    const stageDirectory=join(root,`race-${round}`);await mkdir(stageDirectory);
+    await writeFile(join(stageDirectory,'stage.lock'),JSON.stringify({pid,token:randomUUID(),startedAt:new Date().toISOString()}));
+    let releaseHttp!:()=>void,entered!:()=>void,refused!:()=>void,calls=0;const errors:any[]=[];
+    const gate=new Promise<void>(accept=>{releaseHttp=accept;}),first=new Promise<void>(accept=>{entered=accept;}),others=new Promise<void>(accept=>{refused=accept;});
+    const attempts=Array.from({length:10},()=>new ReleaseUpdater({publicKey:keys.publicKey,version:'1.0.0',stageDirectory,http:async()=>{calls++;entered();await gate;return{status:200,body:artifact};}}).stage(release,signature(release)).then(value=>({value}),error=>{errors.push(error);if(errors.length===9)refused();return{error};}));
+    try{
+      await first;const original=await readFile(join(stageDirectory,'stage.lock'),'utf8');await others;
+      assert.equal(calls,1);const unexpected=errors.filter(error=>error.code!=='UPDATE_BUSY');
+      assert.deepEqual(unexpected,[],JSON.stringify(unexpected.map(error=>({round,code:error.code,syscall:error.syscall,path:relative(root,error.path??stageDirectory),message:error.message,stack:error.stack}))));
+      assert.equal(await readFile(join(stageDirectory,'stage.lock'),'utf8'),original);assert.equal(JSON.parse(original).pid,process.pid);
+    }finally{releaseHttp();await Promise.all(attempts);}
+    const results=await Promise.all(attempts);assert.equal(results.filter(result=>'value'in result).length,1);assert.ok(!(await readdir(stageDirectory)).some(name=>name.endsWith('.lock')));
+  }
 });
 
 test('live, permission-denied, oversized and malformed owner records are never reclaimed',async t=>{
