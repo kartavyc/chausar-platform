@@ -1,0 +1,71 @@
+name: Native keychain compile verification
+
+on:
+  push:
+    paths:
+      - 'platform/native/keychain/**'
+      - '.github/workflows/native-keychain.yml'
+  pull_request:
+    paths:
+      - 'platform/native/keychain/**'
+      - '.github/workflows/native-keychain.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-keychain-compile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Existing automatic CI runner labels only. Private macOS/native release
+        # runner approval in desktop-preview.yml remains a separate prerequisite.
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Require installed CMake and CTest
+        run: |
+          cmake --version
+          ctest --version
+      - name: Configure parser-only build without native libraries
+        run: cmake -S platform/native/keychain -B "$RUNNER_TEMP/chausar-keychain-parser" -DCHAUSAR_KEYCHAIN_PROTOCOL_ONLY=ON -DCMAKE_BUILD_TYPE=Release
+      - name: Compile portable parser self-test
+        run: cmake --build "$RUNNER_TEMP/chausar-keychain-parser" --config Release --target chausar-keychain-protocol-selftest
+      - name: Run only the synthetic parser self-test
+        # This target links protocol-selftest.cpp only. It does not read stdin,
+        # credentials or environment, link providers, or call native APIs.
+        run: ctest --test-dir "$RUNNER_TEMP/chausar-keychain-parser" --build-config Release --verbose --no-tests=error --tests-regex '^chausar-keychain-protocol$'
+      - name: Require existing Linux native development dependencies
+        if: runner.os == 'Linux'
+        run: |
+          if ! command -v pkg-config >/dev/null; then
+            printf '%s\n' '::error::Native Linux compilation blocked: installed pkg-config is missing; no dependency acquisition is allowed.'
+            exit 1
+          fi
+          for dependency in libsecret-1 'glib-2.0 >= 2.50'; do
+            if ! pkg-config --print-errors --exists "$dependency"; then
+              printf '%s\n' "::error::Native Linux compilation blocked: installed development dependency $dependency is missing; no dependency acquisition is allowed."
+              exit 1
+            fi
+          done
+      - name: Configure actual native provider with installed SDK
+        run: cmake -S platform/native/keychain -B "$RUNNER_TEMP/chausar-keychain-native" -DCMAKE_BUILD_TYPE=Release
+      - name: Compile and link actual native provider without executing it
+        # There is intentionally no helper invocation or native-store test.
+        run: cmake --build "$RUNNER_TEMP/chausar-keychain-native" --config Release --target chausar-keychain
+
+# Compilation/parser results do not qualify OS custody, permissions, signing,
+# packaging, native-store failure handling or deletion acceptance. No packages,
+# SDKs, tools, credentials, services, databases or browsers are acquired/run here.

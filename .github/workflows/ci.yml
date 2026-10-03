@@ -2,6 +2,10 @@ name: Open verification
 
 on:
   push:
+    # This isolated native-only checkpoint must not acquire npm packages.
+    # Parent/integration branches and all PR checks keep ordinary verification.
+    branches-ignore:
+      - 'checkpoint/keychain-native-ci-*'
   pull_request:
   workflow_dispatch:
 

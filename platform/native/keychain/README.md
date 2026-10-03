@@ -96,6 +96,18 @@ native backend, platform SDK, libsecret, D-Bus or credential-store call. It test
 the actual shared parser, all operation/length combinations, invalid UUID/header
 bytes, key comparison and explicit clearing. It does not qualify native behavior.
 
+The `Native keychain compile verification` workflow uses only the existing
+automatic Ubuntu/Windows runner labels and installed CMake/compiler/SDK tools.
+`CHAUSAR_KEYCHAIN_PROTOCOL_ONLY=ON` returns before resolving native libraries;
+its sole CTest target links only `protocol-selftest.cpp`, never the helper entrypoint
+or provider backends. CI runs that parser test, then compiles/links the actual
+native helper without launching it. Missing installed dependencies fail explicitly
+rather than triggering acquisition. The isolated `checkpoint/keychain-native-ci-*`
+push branch skips the ordinary npm-install workflow; parent branches and PR
+verification are unchanged. macOS still needs an already approved matching native
+runner through the private release workflow gate. No successful compile is OS
+credential-store acceptance.
+
 Native acceptance remains open on every OS: same/conflicting store, reopen and
 exact-entry retrieval/removal, unavailable/locked/denied states, duplicate entries,
 concurrency, restored-copy/shared-UUID behavior, helper timeout/crash, signed
