@@ -53,6 +53,9 @@ import { MCPService } from './mcp.ts';
 import { ConnectorService, type CredentialBroker } from './connectors.ts';
 import { EngineConnectorService, type EngineConnectorOptions } from './engine-connectors.ts';
 import { PrivateTrialHostService } from './private-trial-host.ts';
+import { EngineScenarioService } from './engine-scenarios.ts';
+import { createEngineLessonService, type EngineLessonOptions } from './engine-lessons.ts';
+import type { LessonDecision } from './lesson-contracts.ts';
 import type { PrivateTrialAtomicPublication } from './private-trial-host.ts';
 import type { PrivateTrialRecipeEvidence } from './private-trial-contracts.ts';
 import { producerReplacementPins, producerReplacementOutputDigest, publishProducerReplacement } from './producer-replacement.ts';
@@ -88,6 +91,8 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
   workspaceAuthority?: {workspaceId: string; ownerId: string; vaultId?: string};
   /** Explicit synthetic policy supplied by a trusted host, never an RPC or product default. */
   invoiceFollowUp?: InvoiceHostOptions;
+  /** Explicit current evidence, personal target and evaluation authorities. Never an RPC payload. */
+  lessons?: EngineLessonOptions;
 };
 // Operational admission ceilings reject the complete operation; no namespace is truncated.
 const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32 * 1024 * 1024,
@@ -540,6 +545,14 @@ export class Engine {
     if (this.options.updatePublicKey) this.services.updater = new ReleaseUpdater({ publicKey: this.options.updatePublicKey, version: this.version, stageDirectory: resolve(this.options.directory, 'updates') });
     this.services.trust = new TrustService(store);
     const connectorForView = (view: StateStore) => view === store ? connectorRuntime : new EngineConnectorService(view, this.options.connectorRuntime);
+    this.services.scenarios = new EngineScenarioService(vault, { calculatorOptions: view => {
+      const connectors = connectorForView(view);
+      return { ...(database ? { verifier: (receipt: CalculationReceipt) => database.verify(receipt) } : {}),
+        consumerGuard: (ctx, request) => connectors.assertCalculationReady(ctx, request),
+        receiptGuard: (ctx, receipt) => connectors.assertReceiptReady(ctx, receipt) };
+    }, now });
+    if (this.options.lessons) this.services.lessons = createEngineLessonService(store, this.options.lessons);
+    else delete this.services.lessons;
     this.services.privateTrials = new PrivateTrialHostService(store, {
       custody: {
         write: input => vault.writeArtifact(input).then(ref => ({ ...ref, purpose: 'private-trial' as const })),
@@ -984,6 +997,41 @@ export class Engine {
         return s.interchangeLocal.diagnostics();
       }
       case 'trials.create': return s.privateTrials.create(ctx, this.journalPayload(payload, ['version', 'savedAnswerIds', 'change'], ['version', 'savedAnswerIds', 'change'], 'INVALID_PRIVATE_TRIAL'));
+      case 'scenarios.create': return s.scenarios.create(ctx, this.journalPayload(payload,
+        ['version', 'label', 'baseline', 'alternatives'], ['version', 'label', 'baseline', 'alternatives'], 'INVALID_SCENARIO'));
+      case 'scenarios.addAnalysis': {
+        const input = this.journalPayload(payload, ['scenarioId', 'expectedHeadRevisionId', 'input'],
+          ['scenarioId', 'expectedHeadRevisionId', 'input'], 'INVALID_SCENARIO');
+        return s.scenarios.addAnalysis(ctx, input.scenarioId, input.expectedHeadRevisionId, input.input);
+      }
+      case 'scenarios.changeAssumption': {
+        const input = this.journalPayload(payload, ['scenarioId', 'expectedHeadRevisionId', 'branchId', 'priceChangeBps'],
+          ['scenarioId', 'expectedHeadRevisionId', 'branchId', 'priceChangeBps'], 'INVALID_SCENARIO');
+        return s.scenarios.changeAssumption(ctx, input.scenarioId, input.expectedHeadRevisionId, input.branchId, input.priceChangeBps);
+      }
+      case 'scenarios.beginRun': {
+        const input = this.journalPayload(payload, ['scenarioId', 'revisionId', 'jobId'],
+          ['scenarioId', 'revisionId', 'jobId'], 'INVALID_SCENARIO');
+        return s.scenarios.beginRun(ctx, input.scenarioId, input.revisionId, input.jobId);
+      }
+      case 'scenarios.evaluate': {
+        const input = this.journalPayload(payload, ['scenarioId', 'runId'], ['scenarioId', 'runId'], 'INVALID_SCENARIO');
+        return s.scenarios.evaluate(ctx, input.scenarioId, input.runId);
+      }
+      case 'scenarios.finalize': {
+        const input = this.journalPayload(payload, ['scenarioId', 'expectedHeadRevisionId'],
+          ['scenarioId', 'expectedHeadRevisionId'], 'INVALID_SCENARIO');
+        return s.scenarios.finalize(ctx, input.scenarioId, input.expectedHeadRevisionId);
+      }
+      case 'scenarios.reopen': {
+        const input = this.journalPayload(payload, ['scenarioId', 'revisionId'], ['scenarioId', 'revisionId'], 'INVALID_SCENARIO');
+        return s.scenarios.reopen(ctx, input.scenarioId, input.revisionId);
+      }
+      case 'scenarios.recompute': {
+        const input = this.journalPayload(payload, ['scenarioId', 'expectedHeadRevisionId'],
+          ['scenarioId', 'expectedHeadRevisionId'], 'INVALID_SCENARIO');
+        return s.scenarios.recompute(ctx, input.scenarioId, input.expectedHeadRevisionId);
+      }
       case 'trials.evaluate': return s.privateTrials.evaluate(ctx, this.journalPayload(payload, ['trialId'], ['trialId'], 'INVALID_PRIVATE_TRIAL').trialId);
       case 'trials.get': return s.privateTrials.read(ctx, this.journalPayload(payload, ['trialId'], ['trialId'], 'INVALID_PRIVATE_TRIAL').trialId);
       case 'trials.receiptContext': return this.privateRestatementContext(ctx, this.journalPayload(payload, ['receiptId'], ['receiptId'], 'INVALID_PRIVATE_TRIAL').receiptId);
@@ -1262,6 +1310,18 @@ export class Engine {
       case 'ontology.get': return { current: s.ontology.current(ctx), history: s.ontology.history(ctx) };
       case 'ontology.publish': return s.ontology.publish(ctx, payload.draft ?? payload.pack ?? payload);
       case 'memory.list': return s.memory.query(ctx, payload);
+      case 'memory.lessons': {
+        this.journalPayload(payload, [], [], 'INVALID_LESSON');
+        if (s.lessons) return s.lessons.lessons(ctx);
+        check(!store.read().lessonState?.lessons.length, 'LESSON_AUTHORITY_REQUIRED', 'Install current lesson evidence and personal target authorities before reading retained lessons.');
+        return [];
+      }
+      case 'memory.decideLesson': {
+        const input = this.journalPayload(payload, ['candidate', 'reviewId', 'reviewDigest', 'decision', 'reason'],
+          ['candidate', 'reviewId', 'reviewDigest', 'decision', 'reason'], 'INVALID_LESSON');
+        check(s.lessons, 'LESSON_AUTHORITY_REQUIRED', 'Install current lesson evidence, personal target and evaluation authorities before deciding a lesson.');
+        return s.lessons.decideLesson(ctx, input as LessonDecision);
+      }
       case 'memory.correct': return s.memory.correct(ctx, payload.id, payload.fields);
       case 'memory.merge': return s.memory.merge(ctx, payload.entityIds, payload.targetId);
       case 'memory.undo': return s.memory.undoMerge(ctx, payload.id);

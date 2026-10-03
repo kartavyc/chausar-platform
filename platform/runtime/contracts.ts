@@ -1,4 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
+import type { ScenarioRecord } from './scenario-contracts.ts';
+import type { LessonState } from './lesson-contracts.ts';
 
 export class ChausarError extends Error {
   code: string;
@@ -31,6 +33,8 @@ export type State = {
   members: Member[]; policy: TrustPolicy; ontology: any; facts: Fact[]; imports: any[]; receipts: any[]; answers: any[]; decisions: any[];
   actions: any[]; jobs: any[]; learning: any[]; plugins: any[]; modelReceipts: any[]; activity: any[]; conflicts: any[]; merges: any[]; tombstones: any[];
   conversations: any[]; routes: any[]; sessions: any[]; unsupported: any[]; schedules: any[]; sourceRules: any[];
+  /** Private encrypted custody; absence in an older workspace is an empty namespace. */
+  scenarioRecords?: ScenarioRecord[]; lessonState?: LessonState;
 };
 export interface StateStore {
   read(): State;

@@ -134,6 +134,135 @@ function validateEnvelope(value: any): asserts value is VaultEnvelope {
 function validateState(value: any): asserts value is State {
   if (!value || value.schemaVersion !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 0 || typeof value.workspace?.id !== 'string' || typeof value.workspace?.name !== 'string' || !Array.isArray(value.members) || !value.policy) throw new Error('Invalid authority snapshot');
   for (const name of ['facts','imports','receipts','answers','decisions','actions','jobs','learning','plugins','modelReceipts','activity','conflicts','merges','tombstones','conversations','routes','sessions','unsupported','schedules','sourceRules']) if (!Array.isArray(value[name])) throw new Error('Invalid authority collection');
+  validatePrivateState(value);
+}
+const privateStateFields = ['scenarioRecords', 'lessonState'] as const;
+function privateFields(value: any, required: string[], optional: string[] = []) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+    || !required.every(key => Object.hasOwn(value, key)) || Reflect.ownKeys(value).some(key => typeof key !== 'string' || ![...required, ...optional].includes(key))
+    || !Object.values(Object.getOwnPropertyDescriptors(value)).every(field => field.enumerable && 'value' in field))
+    fail('INVALID_PRIVATE_STATE', 'Private authority records require their declared lossless fields.');
+}
+const privateText = (value: unknown) => typeof value === 'string' && value.length > 0;
+const privateDigest = (value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const privateDate = (value: unknown) => typeof value === 'string' && Number.isFinite(Date.parse(value));
+const privateObject = (value: any) => value && typeof value === 'object' && !Array.isArray(value)
+  && [Object.prototype, null].includes(Object.getPrototypeOf(value))
+  && Object.values(Object.getOwnPropertyDescriptors(value)).every(field => field.enumerable && 'value' in field);
+const privateTexts = (value: any) => Array.isArray(value) && Array.from(value).every(privateText);
+function privateRequest(value: any) {
+  if (!privateObject(value) || value.sourceIds !== undefined && !privateTexts(value.sourceIds))
+    fail('INVALID_PRIVATE_STATE', 'Private scenario requests require their declared optional source array.');
+}
+function privateReceipt(value: any) {
+  if (!privateObject(value) || !privateText(value.id) || !privateDate(value.createdAt)
+    || !privateTexts(value.sourceIds) || value.requestedSourceIds !== undefined && !privateTexts(value.requestedSourceIds)
+    || !privateTexts(value.rowIds) || !Array.isArray(value.rows)
+    || !Array.from(value.rows).every((row: any) => privateObject(row) && privateText(row.factId) && privateText(row.sourceId))
+    || !Array.isArray(value.exclusions) || !Array.from(value.exclusions).every((row: any) => privateObject(row) && privateText(row.rowId))
+    || !privateObject(value.coverage) || !privateTexts(value.coverage.importIds)
+    || value.restatement !== undefined && (!privateObject(value.restatement)
+      || !privateText(value.restatement.originalAnswerId) || !privateText(value.restatement.originalReceiptId)))
+    fail('INVALID_PRIVATE_STATE', 'Private scenario receipts require complete declared deletion lineage.');
+}
+function privateActor(value: any) {
+  privateFields(value, ['memberId', 'role', 'epoch']);
+  if (!privateText(value.memberId) || !['owner', 'cofounder', 'accountant', 'viewer'].includes(value.role)
+    || !Number.isSafeInteger(value.epoch) || value.epoch <= 0) fail('INVALID_PRIVATE_STATE', 'Private records require a declared author identity.');
+}
+function privateEvidence(value: any) {
+  privateFields(value, ['pin', 'available', 'sourceTainted', 'sourceMarkings', 'summary']);
+  privateFields(value.pin, ['kind', 'id', 'revision', 'digest', 'sourceIds', 'branchIds']);
+  if (!['job', 'calculation'].includes(value.pin.kind) || !privateText(value.pin.id) || !privateText(value.pin.revision) || !privateDigest(value.pin.digest)
+    || !privateTexts(value.pin.sourceIds) || !privateTexts(value.pin.branchIds)
+    || typeof value.available !== 'boolean' || typeof value.sourceTainted !== 'boolean' || !Array.isArray(value.sourceMarkings)
+    || !Array.from(value.sourceMarkings).every((mark: any) => privateObject(mark) && privateText(mark.sourceId) && privateText(mark.marking)) || typeof value.summary !== 'string')
+    fail('INVALID_PRIVATE_STATE', 'Private lesson evidence requires its declared source and authority pin.');
+}
+/** Optional schema-one additions stay absent on legacy State; no migration or public-store promotion occurs. */
+function validatePrivateState(value: any) {
+  if (Object.hasOwn(value, 'scenarioRecords')) {
+    if (!Array.isArray(value.scenarioRecords)) fail('INVALID_PRIVATE_STATE', 'Private scenarios require an explicit collection.');
+    for (const scenario of value.scenarioRecords) {
+      privateFields(scenario, ['version', 'id', 'workspaceId', 'memberId', 'epoch', 'label', 'baselineBranchId', 'headRevisionId',
+        'evidence', 'revisions', 'evaluations', 'runs', 'results', 'comparisons', 'digest']);
+      if (scenario.version !== 1 || scenario.workspaceId !== value.workspace.id || !privateText(scenario.id) || !privateText(scenario.memberId)
+        || !Number.isSafeInteger(scenario.epoch) || scenario.epoch <= 0 || !privateText(scenario.label) || !privateText(scenario.baselineBranchId)
+        || !privateText(scenario.headRevisionId) || !privateDigest(scenario.digest)
+        || !['evidence', 'revisions', 'evaluations', 'runs', 'results', 'comparisons'].every(key => Array.isArray(scenario[key])))
+        fail('INVALID_PRIVATE_STATE', 'Private scenarios require complete declared custody.');
+      for (const evidence of scenario.evidence) {
+        privateFields(evidence, ['id', 'knowledgeCut', 'dictionaryHash', 'dictionaryVersion', 'factsDigest', 'importsDigest', 'identityDigest', 'sourceRulesDigest', 'state', 'digest']);
+        if (!privateText(evidence.id) || !privateDate(evidence.knowledgeCut) || !Number.isSafeInteger(evidence.dictionaryVersion)
+          || !['dictionaryHash', 'factsDigest', 'importsDigest', 'identityDigest', 'sourceRulesDigest', 'digest'].every(key => privateDigest(evidence[key]))
+          || !evidence.state || privateStateFields.some(key => Object.hasOwn(evidence.state, key)))
+          fail('INVALID_PRIVATE_STATE', 'Scenario evidence must exclude both private State fields.');
+        validateState(evidence.state);
+        if (evidence.state.workspace.id !== value.workspace.id) fail('INVALID_PRIVATE_STATE', 'Scenario evidence belongs to another workspace.');
+        for (const field of ['facts', 'imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning',
+          'conversations', 'modelReceipts', 'conflicts', 'merges']) {
+          if (!Array.from(evidence.state[field]).every((item: any) => privateObject(item) && (item.id === undefined || privateText(item.id))))
+            fail('INVALID_PRIVATE_STATE', 'Retained scenario records require declared core record objects.');
+        }
+        if (!evidence.state.facts.every((fact: any) => privateText(fact.id) && privateText(fact.sourceId) && privateDate(fact.learnedAt))
+          || !evidence.state.imports.every((item: any) => (item.sourceId === undefined || privateText(item.sourceId))
+            && (item.rowIds === undefined || privateTexts(item.rowIds))))
+          fail('INVALID_PRIVATE_STATE', 'Retained scenario inputs require declared fact and import lineage.');
+      }
+      for (const revision of scenario.revisions) {
+        if (!privateObject(revision) || !privateText(revision.id) || !privateDate(revision.createdAt)
+          || !Array.isArray(revision.jobs) || !Array.isArray(revision.branches)
+          || !Array.from(revision.branches).every((branch: any) => privateObject(branch) && privateText(branch.id)))
+          fail('INVALID_PRIVATE_STATE', 'Private scenario revisions require their complete job and branch collections.');
+        for (const job of revision.jobs) {
+          if (!privateObject(job) || !privateText(job.id)) fail('INVALID_PRIVATE_STATE', 'Private scenario jobs require their declared identity.');
+          privateRequest(job.request); privateRequest(job.authoredRequest);
+        }
+      }
+      for (const item of [...scenario.runs, ...scenario.comparisons]) {
+        if (!privateObject(item) || !privateText(item.id) || !privateDate(item.createdAt))
+          fail('INVALID_PRIVATE_STATE', 'Private scenario runs and comparisons require their identity and retained timestamp.');
+      }
+      for (const result of scenario.results) {
+        if (!privateObject(result)) fail('INVALID_PRIVATE_STATE', 'Private scenario results require their declared receipt object.');
+        privateReceipt(result.receipt);
+      }
+    }
+  }
+  if (Object.hasOwn(value, 'lessonState')) {
+    const lessons = value.lessonState; privateFields(lessons, ['workspaceId', 'episodes', 'lessons']);
+    if (lessons.workspaceId !== value.workspace.id || !Array.isArray(lessons.episodes) || !Array.isArray(lessons.lessons))
+      fail('INVALID_PRIVATE_STATE', 'Private lessons require their workspace and explicit collections.');
+    for (const episode of lessons.episodes) {
+      privateFields(episode, ['kind', 'id', 'evidence', 'recordedBy', 'recordedAt', 'digest']); privateActor(episode.recordedBy); privateEvidence(episode.evidence);
+      if (episode.kind !== 'episode' || !privateText(episode.id) || !privateDate(episode.recordedAt) || !privateDigest(episode.digest))
+        fail('INVALID_PRIVATE_STATE', 'Private episodes require their complete immutable envelope.');
+    }
+    for (const lesson of lessons.lessons) {
+      privateFields(lesson, ['id', 'revisions', 'events']);
+      if (!privateText(lesson.id) || !Array.isArray(lesson.revisions) || !Array.isArray(lesson.events)) fail('INVALID_PRIVATE_STATE', 'Private lessons require explicit histories.');
+      for (const candidate of lesson.revisions) {
+        if (!candidate || candidate.kind !== 'candidate-lesson' || candidate.workspaceId !== value.workspace.id || candidate.id !== lesson.id
+          || !Number.isSafeInteger(candidate.revision) || candidate.revision <= 0 || !privateDigest(candidate.digest) || !privateDate(candidate.proposedAt)
+          || !privateTexts(candidate.episodeIds) || !Array.isArray(candidate.evidence)
+          || !privateObject(candidate) || !privateObject(candidate.applicability) || !privateTexts(candidate.applicability.sourceIds)
+          || candidate.supersedes !== undefined && (!privateObject(candidate.supersedes) || !privateText(candidate.supersedes.id)))
+          fail('INVALID_PRIVATE_STATE', 'Private candidates require their immutable evidence and source roots.');
+        privateActor(candidate.owner); privateActor(candidate.proposedBy);
+        for (const evidence of candidate.evidence) privateEvidence(evidence);
+      }
+      for (const event of lesson.events) {
+        if (!event || !privateText(event.id) || !privateDate(event.at) || !privateDigest(event.digest)
+          || !['proposal', 'revision', 'evaluation', 'review', 'approve', 'reject', 'defer', 'retire', 'supersede'].includes(event.type))
+          fail('INVALID_PRIVATE_STATE', 'Private lesson events require declared immutable history.');
+        privateActor(event.actor);
+        if (!privateObject(event) || event.successor !== undefined && (!privateObject(event.successor) || !privateText(event.successor.id))
+          || event.binding !== undefined && (!privateObject(event.binding) || !privateObject(event.binding.open) || !privateObject(event.binding.hidden)
+            || !privateTexts(event.binding.open.sourceIds) || !privateTexts(event.binding.hidden.sourceIds)))
+          fail('INVALID_PRIVATE_STATE', 'Private lesson evaluation events require declared source and successor lineage.');
+      }
+    }
+  }
 }
 const stateCollections = ['facts', 'imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning', 'plugins',
   'modelReceipts', 'activity', 'conflicts', 'merges', 'tombstones', 'conversations', 'routes', 'sessions', 'unsupported', 'schedules', 'sourceRules'] as const;
@@ -197,7 +326,11 @@ function freshBootstrapState(options: CreateBootstrapVaultOptions): State {
   const text = bootstrapJson(options.state, budget);
   if (hash(text) !== options.expectedStateDigest) fail('BOOTSTRAP_STATE_CHANGED', 'The exact ordered State differs from its independently reviewed digest.');
   const state = JSON.parse(text) as State;
-  bootstrapExact(state, ['schemaVersion', 'revision', 'workspace', 'members', 'policy', 'ontology', ...stateCollections]);
+  bootstrapExact(state, ['schemaVersion', 'revision', 'workspace', 'members', 'policy', 'ontology', ...stateCollections,
+    ...privateStateFields.filter(key => Object.hasOwn(state, key))]);
+  validatePrivateState(state);
+  if (state.scenarioRecords?.length || state.lessonState?.episodes.length || state.lessonState?.lessons.length)
+    fail('BOOTSTRAP_RUNTIME_AUTHORITY', 'Private scenario and lesson authority must be empty in fresh bootstrap.');
   bootstrapExact(state.workspace, ['id', 'name', 'currency', 'demo', 'createdAt']);
   if (state.schemaVersion !== 1 || state.revision !== 0 || state.workspace.demo !== true || state.workspace.id !== options.expectedWorkspaceId
     || typeof state.workspace.name !== 'string' || !state.workspace.name.trim() || state.workspace.name.length > 200

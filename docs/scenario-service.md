@@ -4,7 +4,19 @@ This slice implements the retained revision and comparison portion of the author
 
 At that baseline, `platform/runtime/calculator.ts:145–150` produces one constant-volume price-change receipt. `platform/runtime/private-trial-contracts.ts:7–11` defines definition, recipe and source-precedence trials. Neither retains a scenario revision graph. The new `platform/runtime/scenario-contracts.ts` and `platform/runtime/scenario-service.ts` wrap the unchanged `CalculatorService` to fill that independent gap.
 
-## Parent integration contract
+## Integrated composition addendum — 2026-10-03
+
+The integrated candidate adds `platform/runtime/engine-scenarios.ts`. Its `EngineScenarioService` requires the actual encrypted `Vault`; every mutation creates a detached producer and synchronous custody host inside one awaited, serialized `Vault.update`. The host resolves only exact service-issued records from the optional `State.scenarioRecords` namespace and performs insert-only or exact-digest draft CAS. The outer Vault transaction encrypts and commits the complete draft before returning a result. There are no nested Vault writes or caller-supplied custody bundles. Legacy State without this namespace starts empty.
+
+Reopening uses the Vault's serialized read-only snapshot fence and retains the original revision, evidence and receipts without rerunning arithmetic or advancing the authority revision. Every producer State projection removes both `scenarioRecords` and `lessonState`, so one retained input cannot recursively capture private scenario or lesson custody.
+
+Engine supplies current calculator guards for each retained view and, in production, the existing trusted `DatabaseCalculator.verify` capability. The producer forwards this verifier to its isolated `CalculatorService`; it does not install a new arithmetic authority or accept a verifier from RPC. Synthetic preview composition may omit it under the existing preview policy. The verifier must remain bounded and must not reenter Vault. This supersedes the original host-only slice's no-verifier and pending Engine-adaptation statements below; it adds no action, model, provider, materialization or execution authority.
+
+Current-policy retention is checked on the whole record at custody use and immediately before operation release. Any expired retained revision, run, comparison, receipt, evidence knowledge cut, fact learning time, dated import or retained core evidence makes the record unavailable. Reopening and recomputing do not refresh those historical timestamps. After an awaited encrypted commit, the adapter enters a fresh read-only Vault fence and rechecks the exact issued revision pins, whole retained graph, current access, readiness and retention. A queued withdrawal or expiry during publication withholds the original result; this check performs no arithmetic replay or second write. Physical source deletion and retention cleanup must purge complete affected records in the same authority transaction; snapshots are not partially redacted and resealed.
+
+This is a source integration description. The original isolated-slice observations below remain preserved as producer evidence. Final integrated validation is reported separately by the coordinator; this addendum makes no claim of native PostgreSQL, native arithmetic, browser, provider, frontend, full-suite or production acceptance.
+
+## Original parent integration contract
 
 Instantiate `ScenarioService(live, host)`. `live` exposes only `read(): State`; the service has no live update capability. The required `ScenarioHost` ports are:
 

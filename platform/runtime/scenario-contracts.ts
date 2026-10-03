@@ -140,6 +140,9 @@ export type ScenarioView = {
   comparisons: ScenarioComparison[];
   noAction: true;
 };
+/** Existing calculator verification and current synchronous guards, supplied by a trusted host. */
+export type ScenarioCalculatorOptions = Required<Pick<CalculatorOptions, 'consumerGuard' | 'receiptGuard'>>
+  & Pick<CalculatorOptions, 'verifier'>;
 export type ScenarioHost = {
   now(): string;
   /** Authenticated private custody. Missing/purged artifacts must refuse; never accept caller bundles. */
@@ -149,6 +152,6 @@ export type ScenarioHost = {
    * null means insert-only. A mismatch must throw; no overwrite/merge fallback is permitted.
    * The integration owner supplies encrypted custody and source-deletion purge. */
   retainScenario(ctx: Context, expectedDigest: string | null, record: ScenarioRecord): void;
-  /** Required synchronous view-specific readiness guards; no verifier, transport or action port. */
-  calculatorGuards(view: StateStore, phase: 'calculate' | 'reopen'): Required<Pick<CalculatorOptions, 'consumerGuard' | 'receiptGuard'>>;
+  /** Required synchronous view-specific readiness guards and the existing trusted calculator verifier. No action port. */
+  calculatorGuards(view: StateStore, phase: 'calculate' | 'reopen'): ScenarioCalculatorOptions;
 };

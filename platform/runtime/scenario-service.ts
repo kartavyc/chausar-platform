@@ -172,7 +172,9 @@ export class ScenarioService {
   #guard(view: StateStore, phase: 'calculate' | 'reopen') {
     const guards = this.#host.calculatorGuards(view, phase); synchronous(guards);
     check(guards && typeof guards.consumerGuard === 'function' && typeof guards.receiptGuard === 'function', 'SCENARIO_HOST_REQUIRED', 'Both current view-specific calculator guards are required.');
+    check(guards.verifier === undefined || typeof guards.verifier === 'function', 'SCENARIO_HOST_REQUIRED', 'Calculator verification must be a trusted installed capability.');
     return {
+      ...(guards.verifier ? { verifier: guards.verifier } : {}),
       consumerGuard: (ctx: Context, request: CalculationRequest) => synchronous(guards.consumerGuard(ctx, request)),
       receiptGuard: (ctx: Context, receipt: ScenarioRunResult['receipt']) => synchronous(guards.receiptGuard(ctx, receipt)),
     };
@@ -325,6 +327,7 @@ export class ScenarioService {
     };
     const guards = this.#guard(view, 'calculate');
     const receipt = await new CalculatorService(view, {
+      ...(guards.verifier ? { verifier: guards.verifier } : {}),
       consumerGuard: (context, request) => { this.#access(context, evidence, record); this.#requestAccess(context, request); guards.consumerGuard(context, request); },
       receiptGuard: (context, value) => { this.#access(context, evidence, record); guards.receiptGuard(context, value); },
     }).calculate(ctx, item.request);

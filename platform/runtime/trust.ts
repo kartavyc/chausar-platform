@@ -2,6 +2,7 @@ import { authorize, audit, check, hash, newId, now } from './contracts.ts';
 import type { Context, Fact, Member, State, StateStore, TrustPolicy } from './contracts.ts';
 import { prepareInvoicePurge } from './invoice-follow-up-lineage.ts';
 import { assertLearningDecisionRecord, type LearningDecision } from './learning.ts';
+import { coreLifecycleIds, privateSourceExists, privateSourceIds, purgePrivateState } from './private-state-lifecycle.ts';
 
 export function sourceAllowed(state: State, context: Context, sourceId: string): boolean {
   const member = state.members.find(m => m.id === context.memberId);
@@ -59,7 +60,7 @@ function sourceDeletionScope(state: State, context: Context, member: Member, sou
   const facts = state.facts.filter(f => f.sourceId === sourceId); const factIds = new Set(facts.map(f => f.id));
   const imports = state.imports.filter(i => hasLineage(i, sourceId, factIds));
   const refusals = state.learning.map(canonicalImportDecision).filter((event): event is LearningDecision => Boolean(event?.importIdentity?.outcome === 'rejected' && event.importIdentity.sourceId === sourceId));
-  check(facts.length > 0 || imports.length > 0 || refusals.length > 0, 'SOURCE_NOT_FOUND', 'This source does not exist in the workspace.');
+  check(facts.length > 0 || imports.length > 0 || refusals.length > 0 || privateSourceExists(state, sourceId), 'SOURCE_NOT_FOUND', 'This source does not exist in the workspace.');
   assertSourceAccess(state, context, [sourceId]);
   check(member.branches.includes('*') || (facts.length > 0 && facts.every(f => Boolean(f.branch) && member.branches.includes(f.branch!))), 'SOURCE_DELETE_SCOPE_FORBIDDEN', 'Deleting a source requires current access to every affected branch.');
   return { facts, factIds, imports, refusals };
@@ -70,7 +71,7 @@ function retentionAuthority(store: StateStore, context: Context) {
   check(member.role === 'owner' && member.branches.includes('*'), 'RETENTION_SCOPE_FORBIDDEN', 'Whole-workspace retention cleanup requires an owner with every branch.');
   const state = store.read();
   const refusalSources = state.learning.map(canonicalImportDecision).flatMap(event => event?.importIdentity?.outcome === 'rejected' ? [event.importIdentity.sourceId] : []);
-  assertSourceAccess(state, context, [...new Set([...state.facts.map(f => f.sourceId), ...refusalSources])]);
+  assertSourceAccess(state, context, [...new Set([...state.facts.map(f => f.sourceId), ...refusalSources, ...privateSourceIds(state)])]);
 }
 
 export class TrustService {
@@ -86,7 +87,9 @@ export class TrustService {
     if (patch.retentionDays !== undefined) check(Number.isInteger(patch.retentionDays) && patch.retentionDays >= 1 && patch.retentionDays <= 3650, 'INVALID_POLICY', 'Retention must be between one and 3650 days.');
     for (const k of ['autonomy', 'sharing'] as const) if (patch[k] !== undefined) check(typeof patch[k] === 'boolean', 'INVALID_POLICY', 'Privacy switches must be boolean.');
     return this.store.update(state => {
-      authorize(this.store, context, 'admin'); state.policy = { ...state.policy, ...structuredClone(patch) };
+      authorize(this.store, context, 'admin');
+      if (patch.allowedSources) purgePrivateState(state, { sourceIds: privateSourceIds(state).filter(sourceId => !patch.allowedSources!.includes('*') && !patch.allowedSources!.includes(sourceId)), at: now() });
+      state.policy = { ...state.policy, ...structuredClone(patch) };
       audit(state, 'trust.policy.changed', { memberId: context.memberId, fields: Object.keys(patch) }); return structuredClone(state.policy);
     });
   }
@@ -124,6 +127,7 @@ export class TrustService {
     return this.store.update(state => {
       authorize(this.store, context, 'admin'); state.sourceRules = state.sourceRules.filter(r => r.sourceId !== input.sourceId);
       const grant = { ...structuredClone(input), id: newId('grant'), updatedAt: now() }; state.sourceRules.push(grant);
+      if (input.allow === false || input.revoked === true) purgePrivateState(state, { sourceIds: [input.sourceId], at: now() });
       audit(state, 'trust.source.grant.changed', { sourceId: input.sourceId }); return grant;
     });
   }
@@ -132,6 +136,7 @@ export class TrustService {
     return this.store.update(state => {
       const currentMember = authorize(this.store, context, 'admin');
       const { facts, factIds, imports, refusals } = sourceDeletionScope(state, context, currentMember, sourceId);
+      const previousIds = coreLifecycleIds(state);
       const invoicePurge = prepareInvoicePurge(state, { sourceId }, now());
       for (const artifact of [...facts, ...imports]) state.tombstones.push({ id: newId('tombstone'), kind: 'content', contentHash: artifact.contentHash || artifact.hash || hash(artifact), sourceId, deletedAt: now() });
       for (const event of refusals) state.tombstones.push({ id: newId('tombstone'), kind: 'content', contentHash: event.importIdentity!.contentHash, sourceId, deletedAt: now() });
@@ -143,6 +148,8 @@ export class TrustService {
         for (const a of original) if (!keep.includes(a) && key === 'modelReceipts' && a.digest) state.tombstones.push({ id: newId('tombstone'), kind: 'payload', digest: a.digest, sourceId, deletedAt: now() });
         removed += original.length - keep.length; state[key] = keep;
       }
+      const retainedIds = coreLifecycleIds(state);
+      removed += purgePrivateState(state, { sourceIds: [sourceId], removedIds: [...previousIds].filter(id => !retainedIds.has(id)), expiredFactIds: factIds, at: now() });
       state.unsupported.push({ id: newId('unsupported'), code: 'SOURCE_DELETED', sourceId, at: now(), reason: 'Historical answers depending on this deleted source are no longer available.' });
       audit(state, 'trust.source.deleted', { sourceId, removed }); return { sourceId, removed, remoteDeletion: 'Remote providers may retain prior requests under their own policies.' };
     });
@@ -151,6 +158,7 @@ export class TrustService {
     retentionAuthority(this.store, context);
     return this.store.update(state => {
       retentionAuthority(this.store, context); const cutoff = at.getTime() - state.policy.retentionDays * 86400000; let removed = 0;
+      const previousIds = coreLifecycleIds(state);
       const expiredFacts = new Set(state.facts.filter(f => Date.parse(f.learnedAt) < cutoff).map(f => f.id));
       const invoicePurge = prepareInvoicePurge(state, { expiredFactIds: [...expiredFacts], cutoff: new Date(cutoff).toISOString() }, at.toISOString());
       removed += invoicePurge.answersRemoved + invoicePurge.mandatesRemoved;
@@ -164,6 +172,8 @@ export class TrustService {
           return !expired;
         }) as any;
       }
+      const retainedIds = coreLifecycleIds(state);
+      removed += purgePrivateState(state, { removedIds: [...previousIds].filter(id => !retainedIds.has(id)), expiredFactIds: expiredFacts, cutoff, at: at.toISOString() });
       audit(state, 'trust.retention.cleaned', { removed, cutoff: new Date(cutoff).toISOString() }); return { removed };
     });
   }

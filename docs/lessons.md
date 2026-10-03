@@ -18,6 +18,18 @@ Every installed authority exposes a synchronous, read-only `authorityRevision()`
 
 The evidence factory's authority token hashes the current business-state snapshot using the existing `hash()` JSON semantics, including normal omission of optional undefined fields. Its state reader and resolver must retain the installed authority, not synthesize a clean copy of external evidence. Target and evaluation tokens must include their complete access/configuration basis even if their records live outside that business snapshot.
 
+## Engine source integration
+
+`EngineOptions.lessons` installs `engine-lessons.ts` with an explicit `evidenceResolver`, personal `targets` authority and optional `evaluations` authority. These are trusted host ports, never RPC payloads or persisted capabilities. No evidence resolver, target schema, clean-taint verdict or evaluator is supplied by default. Missing evaluations continue to block evaluation binding, human review and promotion through the existing lifecycle checks.
+
+The optional private `State.lessonState` stores `{ workspaceId, episodes, lessons }` inside the existing encrypted workspace snapshot. Older snapshots read as an empty namespace without an attach-time write. A successful lifecycle mutation commits the namespace through exactly one existing `StateStore.update`; the adapter adds no queue or independent persistence. The synchronous callback receives a detached `LessonState`, never unrestricted business state or its update capability. Stored drafts and returned values are separately cloned, and callback exceptions roll back through the original Vault transaction.
+
+The evidence factory receives the **full actual** writer draft during the callback and current committed Vault state outside it, including the true revision. Its existing immutable state, context and reference clones reach the authentic calculation/job release resolver. Only the exposed authority comparison digest projects out `lessonState` and `scenarioRecords` and normalizes the global revision to zero. Every other business, membership, policy, evidence, taint and provenance field remains in that digest. The projection is not supplied to evidence resolvers. Finished writer frames cannot become stale authority through inherited microtasks.
+
+The public composition exposes only `memory.lessons({}) → LessonView[]` and `memory.decideLesson(LessonDecision) → LessonView`. An unconfigured host returns an authorized empty lesson list only when no lesson records persist; persisted records and every unconfigured decision require `LESSON_AUTHORITY_REQUIRED`. Proposal, revision, evaluation binding, review, retirement and applicability remain trusted service lifecycle calls. This does not assemble context, schedule a review, invoke a model or create a frontend screen.
+
+Vault serializes business writes and rolls back callback failures. External target or evaluation authority can still change while asynchronous encrypted publication is underway: postcommit current release then refuses, without undoing an already committed protocol record. Approval executes no business effect, and subsequent guidance requires all current authority and human-approval checks. Cross-authority admission held through storage commit is a separate host obligation if stronger rollback is required. Integration fixtures remain explicitly synthetic and do not qualify a real evaluator or hidden suite.
+
 ## Existing evidence adapter requirements
 
 References identify existing `job` or `calculation` records; the lesson service does not invent a job, calculation or source. The supplied resolver must preserve all original release guards and report unavailable evidence without releasing its content.
