@@ -16,6 +16,9 @@
   "files": [
     "app/desktop/**/*",
     "app/renderer/**/*",
+    "app/ui/host/**/*",
+    "app/ui/public/**/*",
+    "app/ui/assets/fonts/**/*",
     "platform/runtime/**/*",
     "platform/semantic-qualification/src/**/*",
     "platform/semantic-qualification/package.json",
