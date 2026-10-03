@@ -9414,7 +9414,7 @@ function ge(e) {
 	return t;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/@formatjs/icu-messageformat-parser/index.js
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/@formatjs/icu-messageformat-parser/index.js
 var _e = /* @__PURE__ */ function(e) {
 	return e[e.EXPECT_ARGUMENT_CLOSING_BRACE = 1] = "EXPECT_ARGUMENT_CLOSING_BRACE", e[e.EMPTY_ARGUMENT = 2] = "EMPTY_ARGUMENT", e[e.MALFORMED_ARGUMENT = 3] = "MALFORMED_ARGUMENT", e[e.EXPECT_ARGUMENT_TYPE = 4] = "EXPECT_ARGUMENT_TYPE", e[e.INVALID_ARGUMENT_TYPE = 5] = "INVALID_ARGUMENT_TYPE", e[e.EXPECT_ARGUMENT_STYLE = 6] = "EXPECT_ARGUMENT_STYLE", e[e.INVALID_NUMBER_SKELETON = 7] = "INVALID_NUMBER_SKELETON", e[e.INVALID_DATE_TIME_SKELETON = 8] = "INVALID_DATE_TIME_SKELETON", e[e.EXPECT_NUMBER_SKELETON = 9] = "EXPECT_NUMBER_SKELETON", e[e.EXPECT_DATE_TIME_SKELETON = 10] = "EXPECT_DATE_TIME_SKELETON", e[e.UNCLOSED_QUOTE_IN_ARGUMENT_STYLE = 11] = "UNCLOSED_QUOTE_IN_ARGUMENT_STYLE", e[e.EXPECT_SELECT_ARGUMENT_OPTIONS = 12] = "EXPECT_SELECT_ARGUMENT_OPTIONS", e[e.EXPECT_PLURAL_ARGUMENT_OFFSET_VALUE = 13] = "EXPECT_PLURAL_ARGUMENT_OFFSET_VALUE", e[e.INVALID_PLURAL_ARGUMENT_OFFSET_VALUE = 14] = "INVALID_PLURAL_ARGUMENT_OFFSET_VALUE", e[e.EXPECT_SELECT_ARGUMENT_SELECTOR = 15] = "EXPECT_SELECT_ARGUMENT_SELECTOR", e[e.EXPECT_PLURAL_ARGUMENT_SELECTOR = 16] = "EXPECT_PLURAL_ARGUMENT_SELECTOR", e[e.EXPECT_SELECT_ARGUMENT_SELECTOR_FRAGMENT = 17] = "EXPECT_SELECT_ARGUMENT_SELECTOR_FRAGMENT", e[e.EXPECT_PLURAL_ARGUMENT_SELECTOR_FRAGMENT = 18] = "EXPECT_PLURAL_ARGUMENT_SELECTOR_FRAGMENT", e[e.INVALID_PLURAL_ARGUMENT_SELECTOR = 19] = "INVALID_PLURAL_ARGUMENT_SELECTOR", e[e.DUPLICATE_PLURAL_ARGUMENT_SELECTOR = 20] = "DUPLICATE_PLURAL_ARGUMENT_SELECTOR", e[e.DUPLICATE_SELECT_ARGUMENT_SELECTOR = 21] = "DUPLICATE_SELECT_ARGUMENT_SELECTOR", e[e.MISSING_OTHER_CLAUSE = 22] = "MISSING_OTHER_CLAUSE", e[e.INVALID_TAG = 23] = "INVALID_TAG", e[e.INVALID_TAG_NAME = 25] = "INVALID_TAG_NAME", e[e.UNMATCHED_CLOSING_TAG = 26] = "UNMATCHED_CLOSING_TAG", e[e.UNCLOSED_TAG = 27] = "UNCLOSED_TAG", e;
 }({}), ve = /* @__PURE__ */ function(e) {
@@ -11193,7 +11193,7 @@ function Ze(e, t = {}) {
 	return t?.captureLocation || Xe(n.val), n.val;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/intl-messageformat/index.js
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/intl-messageformat/index.js
 var Qe = /* @__PURE__ */ function(e) {
 	return e.MISSING_VALUE = "MISSING_VALUE", e.INVALID_VALUE = "INVALID_VALUE", e.MISSING_INTL_API = "MISSING_INTL_API", e;
 }({}), $e = class extends Error {
@@ -11922,7 +11922,7 @@ function on(e, t) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react/cjs/react-jsx-runtime.production.js
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react/cjs/react-jsx-runtime.production.js
 var sn = /* @__PURE__ */ o(((e) => {
 	var t = Symbol.for("react.transitional.element"), n = Symbol.for("react.fragment");
 	function r(e, n, r) {
@@ -13765,14 +13765,14 @@ function Ar({ status: e, view: t, onNavigate: n, simpleSentences: r }) {
 	});
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/chain.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/chain.mjs
 function jr(...e) {
 	return (...t) => {
 		for (let n of e) typeof n == "function" && n(...t);
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLayoutEffect.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLayoutEffect.mjs
 var P = typeof document < "u" ? _.useLayoutEffect : () => {}, Mr = {
 	prefix: String(Math.round(Math.random() * 1e10)),
 	current: 0
@@ -13816,7 +13816,7 @@ function Ur() {
 	return typeof _.useSyncExternalStore == "function" ? _.useSyncExternalStore(Hr, Br, Vr) : (0, _.useContext)(Pr);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useValueEffect.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useValueEffect.mjs
 function Wr(e) {
 	let [t, n] = (0, _.useState)(e), r = (0, _.useRef)(t), i = (0, _.useRef)(null), a = (0, _.useRef)(() => {
 		if (!i.current) return;
@@ -13834,7 +13834,7 @@ function Wr(e) {
 	}, [a])];
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useId.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useId.mjs
 var Gr = !!(typeof window < "u" && window.document && window.document.createElement), Kr = /* @__PURE__ */ new Map(), qr;
 typeof FinalizationRegistry < "u" && (qr = new FinalizationRegistry((e) => {
 	Kr.delete(e);
@@ -13878,7 +13878,7 @@ function Zr(e = []) {
 	]), n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/mergeRefs.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/mergeRefs.mjs
 function Qr(...e) {
 	return e.length === 1 && e[0] ? e[0] : (t) => {
 		let n = !1, r = e.map((e) => {
@@ -13897,7 +13897,7 @@ function $r(e, t) {
 	e != null && (e.current = t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/clsx/dist/clsx.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/clsx/dist/clsx.mjs
 function ei(e) {
 	var t, n, r = "";
 	if (typeof e == "string" || typeof e == "number") r += e;
@@ -13914,7 +13914,7 @@ function ti() {
 	return r;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/mergeProps.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/mergeProps.mjs
 function ni(...e) {
 	let t = { ...e[0] };
 	for (let n = 1; n < e.length; n++) {
@@ -13927,7 +13927,7 @@ function ni(...e) {
 	return t;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useObjectRef.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useObjectRef.mjs
 function ri(e) {
 	let t = (0, _.useRef)(null), n = (0, _.useRef)(void 0), r = (0, _.useCallback)((t) => {
 		if (typeof e == "function") {
@@ -13950,7 +13950,7 @@ function ri(e) {
 	}), [r]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/utils.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/utils.mjs
 var ii = Symbol("default");
 function ai({ values: e, children: t }) {
 	for (let [n, r] of e) t = /*#__PURE__*/ _.createElement(n.Provider, { value: r }, t);
@@ -14045,7 +14045,7 @@ var di = {}, fi = new Proxy({}, { get(e, t) {
 	return n || (n = /*#__PURE__*/ (0, _.forwardRef)(ui.bind(null, t)), di[t] = n), n;
 } });
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/collections/Hidden.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/collections/Hidden.mjs
 typeof HTMLTemplateElement < "u" && (Object.defineProperty(HTMLTemplateElement.prototype, "firstChild", {
 	configurable: !0,
 	enumerable: !0,
@@ -14085,7 +14085,7 @@ function gi() {
 	return (0, _.useContext)(pi);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/filterDOMProps.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/filterDOMProps.mjs
 var _i = /* @__PURE__ */ new Set(["id"]), vi = /* @__PURE__ */ new Set([
 	"aria-label",
 	"aria-labelledby",
@@ -14112,7 +14112,7 @@ function Ci(e, t = {}) {
 	return s;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLabels.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLabels.mjs
 function wi(e, t) {
 	let { id: n, "aria-label": r, "aria-labelledby": i } = e;
 	return n = Yr(n), i && r ? i = [.../* @__PURE__ */ new Set([n, ...i.trim().split(/\s+/)])].join(" ") : i &&= i.trim().split(/\s+/).join(" "), !r && !i && t && (r = t), {
@@ -14122,7 +14122,7 @@ function wi(e, t) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/utils.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/utils.mjs
 var Ti = /* @__PURE__ */ new Set([
 	"Arab",
 	"Syrc",
@@ -14165,7 +14165,7 @@ function Di(e) {
 	return Ei.has(t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/useDefaultLocale.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/useDefaultLocale.mjs
 var Oi = Symbol.for("react-aria.i18n.locale");
 function ki() {
 	let e = typeof window < "u" && window[Oi] || typeof navigator < "u" && (navigator.language || navigator.userLanguage) || "en-US";
@@ -14194,19 +14194,19 @@ function Ni() {
 	} : t;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/I18nProvider.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/I18nProvider.mjs
 var Pi = /*#__PURE__*/ _.createContext(null);
 function Fi() {
 	let e = Ni();
 	return (0, _.useContext)(Pi) || e;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/utils/number.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/utils/number.mjs
 function Ii(e, t = -Infinity, n = Infinity) {
 	return Math.min(Math.max(e, t), n);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/ProgressBar.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/ProgressBar.mjs
 var Li = /*#__PURE__*/ (0, _.createContext)(null), Ri = 7e3, zi = null;
 function Bi(e, t = "assertive", n = Ri) {
 	zi ? zi.announce(e, t, n) : (zi = new Vi(), (typeof IS_REACT_ACT_ENVIRONMENT == "boolean" ? IS_REACT_ACT_ENVIRONMENT : typeof jest < "u") ? zi.announce(e, t, n) : setTimeout(() => {
@@ -14250,7 +14250,7 @@ var Vi = class {
 	}
 };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/focusWithoutScrolling.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/focusWithoutScrolling.mjs
 function Hi(e) {
 	if (Wi()) e.focus({ preventScroll: !0 });
 	else {
@@ -14287,7 +14287,7 @@ function Ki(e) {
 	for (let { element: t, scrollTop: n, scrollLeft: r } of e) t.scrollTop = n, t.scrollLeft = r;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/domHelpers.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/domHelpers.mjs
 var F = (e) => Yi(e) ? e.document : Xi(e) ? e : e?.ownerDocument ?? (typeof document < "u" ? document : void 0), qi = (e) => F(e)?.defaultView ?? (typeof window < "u" ? window : void 0);
 function Ji(e) {
 	return typeof e == "object" && !!e && "nodeType" in e && typeof e.nodeType == "number";
@@ -14323,13 +14323,13 @@ function $i(e, t, n, r) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/flags/flags.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/flags/flags.mjs
 var ea = !1;
 function ta() {
 	return ea;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/shadowdom/DOMFunctions.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/shadowdom/DOMFunctions.mjs
 function I(e, t) {
 	if (!ta()) return t && e ? e.contains(t) : !1;
 	if (!e || !t) return !1;
@@ -14370,7 +14370,7 @@ function ia(e) {
 	return r != null && e.contains(r);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isElementVisible.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isElementVisible.mjs
 var aa = typeof Element < "u" && "checkVisibility" in Element.prototype;
 function oa(e) {
 	let t = qi(e);
@@ -14389,7 +14389,7 @@ function sa(e, t) {
 	return aa ? e.checkVisibility({ visibilityProperty: !0 }) && !e.closest("[data-react-aria-prevent-focus]") : e.nodeName !== "#comment" && oa(e) && R(e, t) && (!e.parentElement || sa(e.parentElement, e));
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isFocusable.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isFocusable.mjs
 var ca = [
 	"input:not([disabled]):not([type=hidden])",
 	"select:not([disabled])",
@@ -14423,7 +14423,7 @@ function pa(e) {
 	return !1;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/utils.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/utils.mjs
 function ma(e) {
 	let t = e;
 	return t.nativeEvent = e, t.isDefaultPrevented = () => t.defaultPrevented, t.isPropagationStopped = () => t.cancelBubble, t.persist = () => {}, t;
@@ -14491,7 +14491,7 @@ function va(e) {
 	return d;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/platform.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/platform.mjs
 function ya(e) {
 	if (typeof window > "u" || window.navigator == null) return !1;
 	let t = window.navigator.userAgentData?.brands;
@@ -14524,7 +14524,7 @@ var Sa = xa(function() {
 	return ya(/(Firefox|FxiOS)/i);
 });
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isVirtualEvent.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isVirtualEvent.mjs
 function ja(e) {
 	return e.pointerType === "" && e.isTrusted ? !0 : ka() && e.pointerType ? e.type === "click" && e.buttons === 1 : e.detail === 0 && !e.pointerType;
 }
@@ -14532,7 +14532,7 @@ function Ma(e) {
 	return !ka() && e.width === 0 && e.height === 0 || ka() && e.width === 1 && e.height === 1 && e.pressure === 0 && e.detail === 0 && e.pointerType === "mouse";
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/openLink.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/openLink.mjs
 var Na = /*#__PURE__*/ (0, _.createContext)({
 	isNative: !0,
 	open: Ra,
@@ -14592,7 +14592,7 @@ function Ba(e, t, n, r) {
 	!t.isNative && e.currentTarget instanceof HTMLAnchorElement && e.currentTarget.href && !e.isDefaultPrevented() && Fa(e.currentTarget, e) && n && (e.preventDefault(), t.open(e.currentTarget, e, n, r));
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusVisible.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusVisible.mjs
 var Va = null, Ha = /* @__PURE__ */ new Set(), Ua = /* @__PURE__ */ new Map(), Wa = !1, Ga = !1, Ka = {
 	Tab: !0,
 	Escape: !0
@@ -14690,7 +14690,7 @@ function co(e, t, n) {
 	}, t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/runAfterTransition.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/runAfterTransition.mjs
 var lo = /* @__PURE__ */ new Map(), uo = /* @__PURE__ */ new Set();
 function fo() {
 	if (typeof window > "u") return;
@@ -14723,7 +14723,7 @@ function mo(e) {
 	});
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/focusSafely.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/focusSafely.mjs
 function ho(e) {
 	if (!e.isConnected) return;
 	let t = F(e);
@@ -14736,7 +14736,7 @@ function ho(e) {
 	} else Hi(e);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocus.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocus.mjs
 function go(e) {
 	let { isDisabled: t, onFocus: n, onBlur: r, onFocusChange: i } = e, a = (0, _.useCallback)((e) => {
 		if (L(e) === e.currentTarget) return r && r(e), i && i(!1), !0;
@@ -14754,7 +14754,7 @@ function go(e) {
 	} };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/createEventHandler.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/createEventHandler.mjs
 function _o(e) {
 	if (e) return (t) => {
 		let n = !0;
@@ -14779,7 +14779,7 @@ function _o(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/createKeyboardShortcutHandler.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/createKeyboardShortcutHandler.mjs
 var vo = /* @__PURE__ */ new Set([
 	"shift",
 	"alt",
@@ -14863,7 +14863,7 @@ function ko(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useKeyboard.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useKeyboard.mjs
 function Ao(e) {
 	let { shortcuts: t, allowRepeats: n = !1, allowComposing: r = !1 } = e, i, a;
 	if (t) {
@@ -14896,7 +14896,7 @@ function Ao(e) {
 	} };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useSyncRef.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useSyncRef.mjs
 function jo(e, t) {
 	P(() => {
 		if (e && e.ref && t) return e.ref.current = t.current, () => {
@@ -14905,7 +14905,7 @@ function jo(e, t) {
 	});
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusable.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusable.mjs
 var Mo = /*#__PURE__*/ _.createContext(null);
 function No(e) {
 	let t = (0, _.useContext)(Mo) || {};
@@ -14925,7 +14925,7 @@ function Po(e, t) {
 	}, o) };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/textSelection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/textSelection.mjs
 var Fo = "default", Io = "", Lo = /* @__PURE__ */ new WeakMap();
 function Ro(e) {
 	if (Ta() && Da()) {
@@ -14956,7 +14956,7 @@ function zo(e) {
 	}
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getMetaValue.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getMetaValue.mjs
 function Bo(e, t) {
 	let n = qi(t), r = F(t);
 	if (r == null || n == null) return;
@@ -14964,18 +14964,18 @@ function Bo(e, t) {
 	return o && o instanceof n.HTMLMetaElement && (e === "csp-nonce" && o.nonce && (i ??= o.nonce || void 0), o.content && (i ??= o.content || void 0)), e === "csp-nonce" && (i ??= n.__webpack_nonce__ || globalThis.__webpack_nonce__ || void 0), i;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getNonce.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getNonce.mjs
 var Vo = /* @__PURE__ */ new WeakMap();
 function Ho(e) {
 	let t = F(e), n = Vo.get(t);
 	return n ??= Bo("csp-nonce", t), n !== void 0 && Vo.set(t, n), n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/context.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/context.mjs
 var Uo = _.createContext({ register: () => {} });
 Uo.displayName = "PressResponderContext";
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useEffectEvent.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useEffectEvent.mjs
 var Wo = _.useInsertionEffect ?? P;
 function z(e) {
 	let t = (0, _.useRef)(null);
@@ -14987,7 +14987,7 @@ function z(e) {
 	}, []);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useGlobalListeners.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useGlobalListeners.mjs
 function Go() {
 	let e = (0, _.useRef)(/* @__PURE__ */ new Map()), t = (0, _.useCallback)((t, n, r, i) => {
 		let a = i?.once ? (...t) => {
@@ -15014,7 +15014,7 @@ function Go() {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/usePress.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/usePress.mjs
 var Ko = /* @__PURE__ */ c(m(), 1);
 function qo(e) {
 	let t = (0, _.useContext)(Uo);
@@ -15283,7 +15283,7 @@ function as(e, t) {
 	return e.type === "checkbox" || e.type === "radio" ? t === " " : is.has(e.type);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/button/useButton.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/button/useButton.mjs
 function os(e, t) {
 	let { elementType: n = "button", isDisabled: r, onPress: i, onPressStart: a, onPressEnd: o, onPressUp: s, onPressChange: c, preventFocusOnPress: l, allowFocusWhenDisabled: u, onClick: d, href: f, target: p, rel: m, type: h = "button" } = e, g;
 	g = n === "button" ? {
@@ -15332,7 +15332,7 @@ function os(e, t) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusWithin.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusWithin.mjs
 function ss(e) {
 	let { isDisabled: t, onBlurWithin: n, onFocusWithin: r, onFocusWithinChange: i } = e, a = (0, _.useRef)({ isFocusWithin: !1 }), { addGlobalListener: o, removeAllGlobalListeners: s } = Go(), c = (0, _.useCallback)((e) => {
 		I(e.currentTarget, L(e)) && a.current.isFocusWithin && !I(e.currentTarget, e.relatedTarget) && (a.current.isFocusWithin = !1, s(), n && n(e), i && i(!1));
@@ -15373,7 +15373,7 @@ function ss(e) {
 	} };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/focus/useFocusRing.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/focus/useFocusRing.mjs
 function cs(e = {}) {
 	let { autoFocus: t = !1, isTextInput: n, within: r } = e, i = (0, _.useRef)({
 		isFocused: !1,
@@ -15401,7 +15401,7 @@ function cs(e = {}) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useHover.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useHover.mjs
 var ls = !1, us = 0;
 function ds() {
 	ls = !0, setTimeout(() => {
@@ -15470,7 +15470,7 @@ function ms(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Button.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Button.mjs
 var hs = /*#__PURE__*/ (0, _.createContext)({}), gs = /*#__PURE__*/ hi(function(e, t) {
 	[e, t] = ci(e, t, hs);
 	let n = e, { isPending: r } = n, { buttonProps: i, isPressed: a } = os(e, t);
@@ -15526,7 +15526,7 @@ function vs(e, t) {
 	return e;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/collections/BaseCollection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/collections/BaseCollection.mjs
 var ys = class {
 	constructor(e) {
 		this.value = null, this.level = 0, this.hasChildNodes = !1, this.rendered = null, this.textValue = "", this["aria-label"] = void 0, this.index = 0, this.parentKey = null, this.prevKey = null, this.nextKey = null, this.firstChildKey = null, this.lastChildKey = null, this.props = {}, this.colSpan = null, this.colIndex = null, this.type = this.constructor.type, this.key = e;
@@ -15674,7 +15674,7 @@ function Es(e, t, n, r) {
 	return [i?.key ?? null, a?.key ?? null];
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/collections/Document.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/collections/Document.mjs
 var Ds = class {
 	constructor(e) {
 		this._firstChild = null, this._lastChild = null, this._previousSibling = null, this._nextSibling = null, this._parentNode = null, this._minInvalidChildIndex = null, this.ownerDocument = e;
@@ -15856,7 +15856,7 @@ var Ds = class {
 	}
 };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/collections/useCachedChildren.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/collections/useCachedChildren.mjs
 function As(e) {
 	let { children: t, items: n, idScope: r, addIdAndValue: i, dependencies: a = [] } = e, o = (0, _.useMemo)(() => void 0, [t]), s = (0, _.useMemo)(() => /* @__PURE__ */ new WeakMap(), [...a, o]);
 	return (0, _.useMemo)(() => {
@@ -15897,7 +15897,7 @@ function js(e) {
 	}
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js
 var Ms = /* @__PURE__ */ o(((e) => {
 	var t = u();
 	function n(e, t) {
@@ -16030,7 +16030,7 @@ function Ys({ children: e }) {
 	return Ur() ? /*#__PURE__*/ _.createElement(Vs.Provider, { value: t }, n) : /*#__PURE__*/ (0, Ko.createPortal)(n, t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Collection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Collection.mjs
 var Xs = /*#__PURE__*/ (0, _.createContext)(null), Zs = {
 	CollectionRoot({ collection: e, renderDropIndicator: t }) {
 		return Qs(e, null, t);
@@ -16078,10 +16078,10 @@ function tc(e) {
 	return (0, _.useMemo)(() => e == null ? null : /* @__PURE__ */ new Set([e]), [e]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/constants.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/constants.mjs
 var nc = "react-aria-clear-focus", rc = "react-aria-focus";
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/focus/virtualFocus.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/focus/virtualFocus.mjs
 function ic(e) {
 	let t = sc(F(e));
 	t !== e && (t && ac(t, e), e && oc(e, t));
@@ -16103,7 +16103,7 @@ function sc(e) {
 	return n && e.getElementById(n) || t;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/keyboard.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/keyboard.mjs
 function cc(e) {
 	return Sa() ? e.metaKey : e.ctrlKey;
 }
@@ -16122,7 +16122,7 @@ function uc(e) {
 	return e instanceof HTMLInputElement && !lc.has(e.type) || e instanceof HTMLTextAreaElement || e instanceof HTMLElement && e.isContentEditable;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useEvent.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useEvent.mjs
 function dc(e, t, n, r) {
 	let i = z(n), a = n == null;
 	(0, _.useEffect)(() => {
@@ -16135,7 +16135,7 @@ function dc(e, t, n, r) {
 	]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/@internationalized/string/dist/private/LocalizedStringDictionary.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/@internationalized/string/dist/private/LocalizedStringDictionary.mjs
 var fc = Symbol.for("react-aria.i18n.locale"), pc = Symbol.for("react-aria.i18n.strings"), mc = void 0, hc = class e {
 	constructor(e, t = "en-US") {
 		this.strings = Object.fromEntries(Object.entries(e).filter(([, e]) => e)), this.defaultLocale = t;
@@ -16178,7 +16178,7 @@ function vc(e) {
 	if (Intl.Locale) return new Intl.Locale(e).script;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/@internationalized/string/dist/private/LocalizedStringFormatter.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/@internationalized/string/dist/private/LocalizedStringFormatter.mjs
 var yc = /* @__PURE__ */ new Map(), bc = /* @__PURE__ */ new Map(), xc = class {
 	constructor(e, t) {
 		this.locale = e, this.strings = t;
@@ -16214,7 +16214,7 @@ function Tc(e, t) {
 	return (0, _.useMemo)(() => new xc(n, r), [n, r]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/utils/useControlledState.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/utils/useControlledState.mjs
 var Ec = typeof document < "u" ? _.useInsertionEffect ?? _.useLayoutEffect : () => {};
 function Dc(e, t, n) {
 	let [r, i] = (0, _.useState)(e || t), a = (0, _.useRef)(r), o = (0, _.useRef)(e !== void 0), s = e !== void 0;
@@ -16232,7 +16232,7 @@ function Dc(e, t, n) {
 	}, [n])];
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Autocomplete.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Autocomplete.mjs
 var Oc = /*#__PURE__*/ (0, _.createContext)(null), kc = /*#__PURE__*/ (0, _.createContext)(null), Ac = /*#__PURE__*/ (0, _.createContext)({}), jc = /*#__PURE__*/ Ws(xs, function(e, t) {
 	return [e, t] = ci(e, t, Ac), /*#__PURE__*/ _.createElement(fi.header, {
 		className: "react-aria-Header",
@@ -16346,7 +16346,7 @@ function Fc(e, t, n, r) {
 	return ta() ? new Pc(e, t, n, r) : e.createTreeWalker(t, n, r);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/ariaHideOutside.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/ariaHideOutside.mjs
 var Ic = typeof HTMLElement < "u" && "inert" in HTMLElement.prototype;
 function Lc(e) {
 	return e.dataset.liveAnnouncer === "true" || e.dataset.reactAriaTopLayer !== void 0;
@@ -16441,7 +16441,7 @@ function Vc(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/calculatePosition.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/calculatePosition.mjs
 var Hc = {
 	top: "top",
 	bottom: "top",
@@ -16625,7 +16625,7 @@ function ll(e) {
 	return t.transform !== "none" || /transform|perspective/.test(t.willChange) || t.filter !== "none" || t.contain === "paint" || "backdropFilter" in t && t.backdropFilter !== "none" || "WebkitBackdropFilter" in t && t.WebkitBackdropFilter !== "none";
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useCloseOnScroll.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useCloseOnScroll.mjs
 var ul = /* @__PURE__ */ new WeakMap();
 function dl(e) {
 	let { triggerRef: t, isOpen: n, onClose: r } = e;
@@ -16641,7 +16641,7 @@ function dl(e) {
 	]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useResizeObserver.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useResizeObserver.mjs
 function fl() {
 	return window.ResizeObserver !== void 0;
 }
@@ -16665,7 +16665,7 @@ function pl(e) {
 	}, [t, n]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlayPosition.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlayPosition.mjs
 var ml = typeof document < "u" ? window.visualViewport : null;
 function hl(e) {
 	let { direction: t } = Fi(), { arrowSize: n, targetRef: r, overlayRef: i, arrowRef: a, scrollRef: o = i, placement: s = "bottom", containerPadding: c = 12, shouldFlip: l = !0, boundaryElement: u = typeof document < "u" ? document.body : null, offset: d = 0, crossOffset: f = 0, shouldUpdatePosition: p = !0, isOpen: m = !0, onClose: h, maxHeight: g, arrowBoundaryOffset: v = 0, getTargetRect: y } = e, [b, x] = (0, _.useState)(null), S = [
@@ -16785,7 +16785,7 @@ function _l(e, t) {
 	return t === "rtl" ? e.replace("start", "right").replace("end", "left") : e.replace("start", "left").replace("end", "right");
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/focus/FocusScope.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/focus/FocusScope.mjs
 var vl = /*#__PURE__*/ _.createContext(null), yl = "react-aria-focus-scope-restore", bl = null;
 function xl(e) {
 	let { children: t, contain: n, restoreFocus: r, autoFocus: i } = e, a = (0, _.useRef)(null), o = (0, _.useRef)(null), s = (0, _.useRef)([]), { parentNode: c } = (0, _.useContext)(vl) || {}, l = (0, _.useMemo)(() => new Ul({ scopeRef: s }), [s]);
@@ -17129,7 +17129,7 @@ var Hl = class e {
 	}
 }, Wl = new Hl();
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useInteractOutside.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useInteractOutside.mjs
 function Gl(e) {
 	let { ref: t, onInteractOutside: n, isDisabled: r, onInteractOutsideStart: i } = e, a = (0, _.useRef)({
 		isPointerDown: !1,
@@ -17163,7 +17163,7 @@ function Kl(e, t) {
 	return t.current ? !e.composedPath().includes(t.current) : !1;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlay.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlay.mjs
 var ql = [];
 function Jl(e, t) {
 	let { onClose: n, shouldCloseOnBlur: r, isOpen: i, isDismissable: a = !1, isKeyboardDismissDisabled: o = !1, shouldCloseOnInteractOutside: s } = e, c = (0, _.useRef)(void 0);
@@ -17207,21 +17207,21 @@ function Jl(e, t) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isScrollable.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isScrollable.mjs
 function Yl(e, t) {
 	if (!e) return !1;
 	let n = window.getComputedStyle(e), r = document.scrollingElement || document.documentElement, i = /(auto|scroll)/.test(n.overflow + n.overflowX + n.overflowY);
 	return e === r && n.overflow !== "hidden" && (i = !0), i && t && (i = e.scrollHeight !== e.clientHeight || e.scrollWidth !== e.clientWidth), i;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getScrollParent.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getScrollParent.mjs
 function Xl(e, t) {
 	let n = e;
 	for (Yl(n, t) && (n = n.parentElement); n && !Yl(n, t);) n = n.parentElement;
 	return n || document.scrollingElement || document.documentElement;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/usePreventScroll.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/usePreventScroll.mjs
 var Zl = typeof document < "u" && window.visualViewport, Ql = 0, $l;
 function eu(e = {}) {
 	let { isDisabled: t } = e;
@@ -17304,7 +17304,7 @@ function iu(e) {
 	}
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/usePopover.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/usePopover.mjs
 function au(e, t) {
 	let { triggerRef: n, popoverRef: r, groupRef: i, isNonModal: a, isKeyboardDismissDisabled: o, shouldCloseOnInteractOutside: s, ...c } = e, l = c.trigger === "SubmenuTrigger", { overlayProps: u, underlayProps: d } = Jl({
 		isOpen: t.isOpen,
@@ -17339,143 +17339,143 @@ function au(e, t) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ar-AE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ar-AE.mjs
 var ou = {};
 ou = { dismiss: "تجاهل" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/bg-BG.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/bg-BG.mjs
 var su = {};
 su = { dismiss: "Отхвърляне" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/cs-CZ.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/cs-CZ.mjs
 var cu = {};
 cu = { dismiss: "Odstranit" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/da-DK.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/da-DK.mjs
 var lu = {};
 lu = { dismiss: "Luk" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/de-DE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/de-DE.mjs
 var uu = {};
 uu = { dismiss: "Schließen" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/el-GR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/el-GR.mjs
 var du = {};
 du = { dismiss: "Απόρριψη" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/en-US.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/en-US.mjs
 var fu = {};
 fu = { dismiss: "Dismiss" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/es-ES.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/es-ES.mjs
 var pu = {};
 pu = { dismiss: "Descartar" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/et-EE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/et-EE.mjs
 var mu = {};
 mu = { dismiss: "Lõpeta" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/fi-FI.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/fi-FI.mjs
 var hu = {};
 hu = { dismiss: "Hylkää" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/fr-FR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/fr-FR.mjs
 var gu = {};
 gu = { dismiss: "Rejeter" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/he-IL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/he-IL.mjs
 var _u = {};
 _u = { dismiss: "התעלם" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/hr-HR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/hr-HR.mjs
 var vu = {};
 vu = { dismiss: "Odbaci" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/hu-HU.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/hu-HU.mjs
 var yu = {};
 yu = { dismiss: "Elutasítás" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/it-IT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/it-IT.mjs
 var bu = {};
 bu = { dismiss: "Ignora" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ja-JP.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ja-JP.mjs
 var xu = {};
 xu = { dismiss: "閉じる" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ko-KR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ko-KR.mjs
 var Su = {};
 Su = { dismiss: "무시" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/lt-LT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/lt-LT.mjs
 var Cu = {};
 Cu = { dismiss: "Atmesti" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/lv-LV.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/lv-LV.mjs
 var wu = {};
 wu = { dismiss: "Nerādīt" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/nb-NO.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/nb-NO.mjs
 var Tu = {};
 Tu = { dismiss: "Lukk" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/nl-NL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/nl-NL.mjs
 var Eu = {};
 Eu = { dismiss: "Negeren" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pl-PL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pl-PL.mjs
 var Du = {};
 Du = { dismiss: "Zignoruj" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pt-BR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pt-BR.mjs
 var Ou = {};
 Ou = { dismiss: "Descartar" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pt-PT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pt-PT.mjs
 var ku = {};
 ku = { dismiss: "Dispensar" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ro-RO.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ro-RO.mjs
 var Au = {};
 Au = { dismiss: "Revocare" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ru-RU.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ru-RU.mjs
 var ju = {};
 ju = { dismiss: "Пропустить" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sk-SK.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sk-SK.mjs
 var Mu = {};
 Mu = { dismiss: "Zrušiť" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sl-SI.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sl-SI.mjs
 var Nu = {};
 Nu = { dismiss: "Opusti" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sr-SP.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sr-SP.mjs
 var Pu = {};
 Pu = { dismiss: "Odbaci" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sv-SE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sv-SE.mjs
 var Fu = {};
 Fu = { dismiss: "Avvisa" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/tr-TR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/tr-TR.mjs
 var Iu = {};
 Iu = { dismiss: "Kapat" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/uk-UA.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/uk-UA.mjs
 var Lu = {};
 Lu = { dismiss: "Скасувати" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/zh-CN.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/zh-CN.mjs
 var Ru = {};
 Ru = { dismiss: "取消" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/zh-TW.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/zh-TW.mjs
 var zu = {};
 zu = { dismiss: "關閉" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/intlStrings.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/intlStrings.mjs
 var Bu = {};
 Bu = {
 	"ar-AE": ou,
@@ -17514,7 +17514,7 @@ Bu = {
 	"zh-TW": zu
 };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/visually-hidden/VisuallyHidden.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/visually-hidden/VisuallyHidden.mjs
 var Vu = {
 	border: 0,
 	clip: "rect(0 0 0 0)",
@@ -17545,7 +17545,7 @@ function Uu(e) {
 	return /*#__PURE__*/ _.createElement(n, ni(a, o), t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/DismissButton.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/DismissButton.mjs
 function Wu(e) {
 	return e && e.__esModule ? e.default : e;
 }
@@ -17564,7 +17564,7 @@ function Gu(e) {
 	}));
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/PressResponder.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/PressResponder.mjs
 var Ku = /*#__PURE__*/ _.forwardRef(({ children: e, ...t }, n) => {
 	let r = (0, _.useRef)(!1), i = (0, _.useContext)(Uo), a = ni(i || {}, {
 		...t,
@@ -17581,13 +17581,13 @@ function qu({ children: e }) {
 	return /*#__PURE__*/ _.createElement(Uo.Provider, { value: t }, e);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/PortalProvider.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/PortalProvider.mjs
 var Ju = /*#__PURE__*/ (0, _.createContext)({});
 function Yu() {
 	return (0, _.useContext)(Ju) ?? {};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/Overlay.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/Overlay.mjs
 var Xu = /*#__PURE__*/ _.createContext(null);
 function Zu(e) {
 	let t = Ur(), { portalContainer: n = t ? null : document.body, isExiting: r } = e, [i, a] = (0, _.useState)(!1), o = (0, _.useMemo)(() => ({
@@ -17602,7 +17602,7 @@ function Zu(e) {
 	}, c)), c = /*#__PURE__*/ _.createElement(Xu.Provider, { value: o }, /*#__PURE__*/ _.createElement(qu, null, /*#__PURE__*/ _.createElement(Mo.Provider, { value: null }, c))), /*#__PURE__*/ Ko.createPortal(c, n);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/overlays/useOverlayTriggerState.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/overlays/useOverlayTriggerState.mjs
 function Qu(e) {
 	let [t, n] = Dc(e.isOpen, e.defaultOpen || !1, e.onOpenChange), [r, i] = (0, _.useState)(null);
 	return {
@@ -17622,7 +17622,7 @@ function Qu(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/animation.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/animation.mjs
 function $u(e, t = !0) {
 	let [n, r] = (0, _.useState)(!0), i = n && t;
 	return P(() => {
@@ -17671,7 +17671,7 @@ function td(e, t, n) {
 	]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Popover.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Popover.mjs
 var nd = /*#__PURE__*/ (0, _.createContext)(null), rd = /*#__PURE__*/ (0, _.createContext)(null), id = /*#__PURE__*/ (0, _.forwardRef)(function(e, t) {
 	[e, t] = ci(e, t, nd);
 	let n = (0, _.useContext)(V), r = Qu(e), i = e.isOpen != null || e.defaultOpen != null || !n ? r : n, a = ed(t, i.isOpen), o = e.isExiting || !e.shouldSkipAnimation && a || !1, s = gi(), { direction: c } = Fi();
@@ -17779,10 +17779,10 @@ function ad({ state: e, isExiting: t, UNSTABLE_portalContainer: n, clearContexts
 	}, /*#__PURE__*/ _.createElement(rd.Provider, { value: o }, E)));
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Text.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Text.mjs
 var od = /*#__PURE__*/ (0, _.createContext)({});
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/menu/useMenuTriggerState.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/menu/useMenuTriggerState.mjs
 function sd(e) {
 	let t = Qu(e), [n, r] = (0, _.useState)(null), [i, a] = (0, _.useState)([]), o = () => {
 		a([]), t.close();
@@ -17809,7 +17809,7 @@ function sd(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlayTrigger.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlayTrigger.mjs
 function B(e, t, n) {
 	let { type: r } = e, { isOpen: i } = t;
 	(0, _.useEffect)(() => {
@@ -17829,14 +17829,14 @@ function B(e, t, n) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Dialog.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Dialog.mjs
 var V = /*#__PURE__*/ (0, _.createContext)(null), cd = /*#__PURE__*/ (0, _.createContext)(null);
 function ld(e) {
 	let t = (0, _.useRef)({});
 	return /*#__PURE__*/ _.createElement(cd.Provider, { value: t }, e.children);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/SelectionIndicator.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/SelectionIndicator.mjs
 var ud = /*#__PURE__*/ (0, _.createContext)({ isSelected: !1 }), dd = /*#__PURE__*/ (0, _.createContext)({});
 (class extends ys {
 	static {
@@ -17852,143 +17852,143 @@ var ud = /*#__PURE__*/ (0, _.createContext)({ isSelected: !1 }), dd = /*#__PURE_
 	}
 });
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ar-AE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ar-AE.mjs
 var fd = {};
 fd = { longPressMessage: "اضغط مطولاً أو اضغط على Alt + السهم لأسفل لفتح القائمة" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/bg-BG.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/bg-BG.mjs
 var pd = {};
 pd = { longPressMessage: "Натиснете продължително или натиснете Alt+ стрелка надолу, за да отворите менюто" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/cs-CZ.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/cs-CZ.mjs
 var md = {};
 md = { longPressMessage: "Dlouhým stiskem nebo stisknutím kláves Alt + šipka dolů otevřete nabídku" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/da-DK.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/da-DK.mjs
 var hd = {};
 hd = { longPressMessage: "Langt tryk eller tryk på Alt + pil ned for at åbne menuen" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/de-DE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/de-DE.mjs
 var gd = {};
 gd = { longPressMessage: "Drücken Sie lange oder drücken Sie Alt + Nach-unten, um das Menü zu öffnen" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/el-GR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/el-GR.mjs
 var _d = {};
 _d = { longPressMessage: "Πιέστε παρατεταμένα ή πατήστε Alt + κάτω βέλος για να ανοίξετε το μενού" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/en-US.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/en-US.mjs
 var vd = {};
 vd = { longPressMessage: "Long press or press Alt + ArrowDown to open menu" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/es-ES.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/es-ES.mjs
 var yd = {};
 yd = { longPressMessage: "Mantenga pulsado o pulse Alt + flecha abajo para abrir el menú" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/et-EE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/et-EE.mjs
 var bd = {};
 bd = { longPressMessage: "Menüü avamiseks vajutage pikalt või vajutage klahve Alt + allanool" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/fi-FI.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/fi-FI.mjs
 var xd = {};
 xd = { longPressMessage: "Avaa valikko painamalla pohjassa tai näppäinyhdistelmällä Alt + Alanuoli" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/fr-FR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/fr-FR.mjs
 var Sd = {};
 Sd = { longPressMessage: "Appuyez de manière prolongée ou appuyez sur Alt\xA0+\xA0Flèche vers le bas pour ouvrir le menu." };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/he-IL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/he-IL.mjs
 var Cd = {};
 Cd = { longPressMessage: "לחץ לחיצה ארוכה או הקש Alt + ArrowDown כדי לפתוח את התפריט" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/hr-HR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/hr-HR.mjs
 var wd = {};
 wd = { longPressMessage: "Dugo pritisnite ili pritisnite Alt + strelicu prema dolje za otvaranje izbornika" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/hu-HU.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/hu-HU.mjs
 var Td = {};
 Td = { longPressMessage: "Nyomja meg hosszan, vagy nyomja meg az Alt + lefele nyíl gombot a menü megnyitásához" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/it-IT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/it-IT.mjs
 var Ed = {};
 Ed = { longPressMessage: "Premi a lungo o premi Alt + Freccia giù per aprire il menu" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ja-JP.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ja-JP.mjs
 var Dd = {};
 Dd = { longPressMessage: "長押しまたは Alt+下矢印キーでメニューを開く" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ko-KR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ko-KR.mjs
 var Od = {};
 Od = { longPressMessage: "길게 누르거나 Alt + 아래쪽 화살표를 눌러 메뉴 열기" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/lt-LT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/lt-LT.mjs
 var kd = {};
 kd = { longPressMessage: "Norėdami atidaryti meniu, nuspaudę palaikykite arba paspauskite „Alt + ArrowDown“." };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/lv-LV.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/lv-LV.mjs
 var Ad = {};
 Ad = { longPressMessage: "Lai atvērtu izvēlni, turiet nospiestu vai nospiediet taustiņu kombināciju Alt + lejupvērstā bultiņa" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/nb-NO.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/nb-NO.mjs
 var jd = {};
 jd = { longPressMessage: "Langt trykk eller trykk Alt + PilNed for å åpne menyen" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/nl-NL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/nl-NL.mjs
 var Md = {};
 Md = { longPressMessage: "Druk lang op Alt + pijl-omlaag of druk op Alt om het menu te openen" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pl-PL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pl-PL.mjs
 var Nd = {};
 Nd = { longPressMessage: "Naciśnij i przytrzymaj lub naciśnij klawisze Alt + Strzałka w dół, aby otworzyć menu" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pt-BR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pt-BR.mjs
 var Pd = {};
 Pd = { longPressMessage: "Pressione e segure ou pressione Alt + Seta para baixo para abrir o menu" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pt-PT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pt-PT.mjs
 var Fd = {};
 Fd = { longPressMessage: "Prima continuamente ou prima Alt + Seta Para Baixo para abrir o menu" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ro-RO.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ro-RO.mjs
 var Id = {};
 Id = { longPressMessage: "Apăsați lung sau apăsați pe Alt + săgeată în jos pentru a deschide meniul" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ru-RU.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ru-RU.mjs
 var Ld = {};
 Ld = { longPressMessage: "Нажмите и удерживайте или нажмите Alt + Стрелка вниз, чтобы открыть меню" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sk-SK.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sk-SK.mjs
 var Rd = {};
 Rd = { longPressMessage: "Ponuku otvoríte dlhým stlačením alebo stlačením klávesu Alt + klávesu so šípkou nadol" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sl-SI.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sl-SI.mjs
 var zd = {};
 zd = { longPressMessage: "Za odprtje menija pritisnite in držite gumb ali pritisnite Alt+puščica navzdol" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sr-SP.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sr-SP.mjs
 var Bd = {};
 Bd = { longPressMessage: "Dugo pritisnite ili pritisnite Alt + strelicu prema dole da otvorite meni" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sv-SE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sv-SE.mjs
 var Vd = {};
 Vd = { longPressMessage: "Håll nedtryckt eller tryck på Alt + pil nedåt för att öppna menyn" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/tr-TR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/tr-TR.mjs
 var Hd = {};
 Hd = { longPressMessage: "Menüyü açmak için uzun basın veya Alt + Aşağı Ok tuşuna basın" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/uk-UA.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/uk-UA.mjs
 var Ud = {};
 Ud = { longPressMessage: "Довго або звичайно натисніть комбінацію клавіш Alt і стрілка вниз, щоб відкрити меню" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/zh-CN.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/zh-CN.mjs
 var Wd = {};
 Wd = { longPressMessage: "长按或按 Alt + 向下方向键以打开菜单" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/zh-TW.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/zh-TW.mjs
 var Gd = {};
 Gd = { longPressMessage: "長按或按 Alt+向下鍵以開啟功能表" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/intlStrings.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/intlStrings.mjs
 var Kd = {};
 Kd = {
 	"ar-AE": fd,
@@ -18027,7 +18027,7 @@ Kd = {
 	"zh-TW": Gd
 };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useDescription.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useDescription.mjs
 var qd = 0, Jd = /* @__PURE__ */ new Map();
 function Yd(e) {
 	let [t, n] = (0, _.useState)();
@@ -18050,7 +18050,7 @@ function Yd(e) {
 	}, [e]), { "aria-describedby": e ? t : void 0 };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useLongPress.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useLongPress.mjs
 var Xd = 500;
 function Zd(e) {
 	let { isDisabled: t, pointerType: n, onLongPressStart: r, onLongPressEnd: i, onLongPress: a, threshold: o = Xd, accessibilityDescription: s } = e, c = (0, _.useRef)(void 0), { addGlobalListener: l, removeAllGlobalListeners: u } = Go(), d = (e) => n ? e.pointerType === n : e.pointerType === "mouse" || e.pointerType === "touch", { pressProps: f } = Qo({
@@ -18084,7 +18084,7 @@ function Zd(e) {
 	return { longPressProps: ni(f, Yd(a && !t ? s : void 0)) };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useContextMenu.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useContextMenu.mjs
 function Qd(e) {
 	let { onContextMenu: t } = e, n = (0, _.useRef)(!1), { longPressProps: r } = Zd({
 		onLongPressStart() {
@@ -18128,7 +18128,7 @@ function Qd(e) {
 	}) } : { contextMenuProps: {} };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuTrigger.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuTrigger.mjs
 function $d(e) {
 	return e && e.__esModule ? e.default : e;
 }
@@ -18211,10 +18211,10 @@ function ef(e, t, n) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/utils.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/utils.mjs
 var tf = /* @__PURE__ */ new WeakMap();
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/utils.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/utils.mjs
 function nf(e) {
 	return Ea() ? e.altKey : e.ctrlKey;
 }
@@ -18231,14 +18231,14 @@ function sf(e) {
 	return af.get(e);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getScrollParents.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getScrollParents.mjs
 function cf(e, t) {
 	let n = [], r = document.scrollingElement || document.documentElement;
 	for (; e && (Yl(e, t) && n.push(e), e !== r);) e = e.parentElement;
 	return n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/scrollIntoView.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/scrollIntoView.mjs
 function lf(e, t, n = {}) {
 	e !== t && uf(e, t, t.getBoundingClientRect(), n);
 }
@@ -18293,7 +18293,7 @@ function df(e, t = {}) {
 	}
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useTypeSelect.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useTypeSelect.mjs
 var ff = 1e3;
 function pf(e) {
 	let { keyboardDelegate: t, selectionManager: n, onTypeSelect: r } = e, i = (0, _.useRef)({
@@ -18339,7 +18339,7 @@ function mf(e) {
 	return e.length === 1 || !/^[A-Z]/i.test(e) ? e : "";
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useUpdateLayoutEffect.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useUpdateLayoutEffect.mjs
 function hf(e, t) {
 	let n = (0, _.useRef)(!0), r = (0, _.useRef)(null);
 	P(() => (n.current = !0, () => {
@@ -18349,7 +18349,7 @@ function hf(e, t) {
 	}, t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableCollection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableCollection.mjs
 function gf(e) {
 	let { selectionManager: t, keyboardDelegate: n, ref: r, autoFocus: i = !1, shouldFocusWrap: a = !1, disallowEmptySelection: o = !1, disallowSelectAll: s = !1, escapeKeyBehavior: c = "clearSelection", selectOnFocus: l = t.selectionBehavior === "replace", disallowTypeAhead: u = !1, shouldUseVirtualFocus: d, allowsTabNavigation: f = !1, scrollRef: p = r, linkBehavior: m = "action", UNSTABLE_focusOnEntry: h } = e, { direction: g } = Fi(), v = Pa(), y = (e, n, i) => {
 		if (n != null) {
@@ -18606,7 +18606,7 @@ function gf(e) {
 	}) };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/DOMLayoutDelegate.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/DOMLayoutDelegate.mjs
 var _f = class {
 	constructor(e) {
 		this.ref = e;
@@ -18772,7 +18772,7 @@ function bf(e) {
 	return yf.set(n, r), r;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableList.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableList.mjs
 function xf(e) {
 	let { selectionManager: t, collection: n, disabledKeys: r, ref: i, keyboardDelegate: a, layoutDelegate: o, orientation: s } = e, c = bf({
 		usage: "search",
@@ -18803,7 +18803,7 @@ function xf(e) {
 	return { listProps: d };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenu.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenu.mjs
 function Sf(e, t, n) {
 	let { shouldFocusWrap: r = !0, onKeyDown: i, onKeyUp: a, ...o } = e;
 	!e["aria-label"] && e["aria-labelledby"];
@@ -18832,7 +18832,7 @@ function Sf(e, t, n) {
 	}) };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableItem.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableItem.mjs
 function Cf(e) {
 	let { id: t, selectionManager: n, key: r, ref: i, shouldSelectOnPressUp: a, shouldUseVirtualFocus: o, focus: s, isDisabled: c, onAction: l, allowsDifferentPressOrigin: u, linkBehavior: d = "action" } = e, f = Pa();
 	t = Yr(t);
@@ -18969,7 +18969,7 @@ function Tf(e) {
 	return e === " ";
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/collections/getChildNodes.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/collections/getChildNodes.mjs
 function Ef(e, t) {
 	return typeof t.getChildren == "function" ? t.getChildren(e.key) : e.childNodes;
 }
@@ -18995,7 +18995,7 @@ function Af(e, t) {
 	return n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/collections/getItemCount.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/collections/getItemCount.mjs
 var jf = /* @__PURE__ */ new WeakMap();
 function Mf(e) {
 	let t = jf.get(e);
@@ -19006,7 +19006,7 @@ function Mf(e) {
 	return r(e), jf.set(e, n), n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuItem.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuItem.mjs
 function Nf(e, t, n) {
 	let { id: r, key: i, closeOnSelect: a, shouldCloseOnSelect: o, isVirtualized: s, "aria-haspopup": c, onPressStart: l, onPressUp: u, onPress: d, onPressChange: f, onPressEnd: p, onClick: m, onHoverStart: h, onHoverChange: g, onHoverEnd: v, onKeyDown: y, onKeyUp: b, onFocus: x, onFocusChange: S, onBlur: C, selectionManager: w = t.selectionManager } = e, T = !!c, ee = T && e["aria-expanded"] === "true", E = e.isDisabled ?? w.isDisabled(i), te = e.isSelected ?? w.isSelected(i), ne = tf.get(t), D = t.collection.getItem(i), re = e.onClose || ne.onClose, ie = Pa(), ae = () => {
 		if (!T && (D?.props?.onAction ? D.props.onAction() : e.onAction && e.onAction(i), ne.onAction)) {
@@ -19119,7 +19119,7 @@ function Nf(e, t, n) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuSection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuSection.mjs
 function Pf(e) {
 	let { heading: t, "aria-label": n } = e, r = Yr();
 	return {
@@ -19136,13 +19136,13 @@ function Pf(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/inertValue.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/inertValue.mjs
 function Ff(e) {
 	let t = _.version.split(".");
 	return parseInt(t[0], 10) >= 19 ? e : e ? "true" : void 0;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLoadMoreSentinel.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLoadMoreSentinel.mjs
 function If(e, t) {
 	let { collection: n, onLoadMore: r, scrollOffset: i = 1, direction: a = "end" } = e, o = (0, _.useRef)(null), s = z((e) => {
 		for (let t of e) t.isIntersecting && r && r();
@@ -19166,7 +19166,7 @@ function If(e, t) {
 	]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/selection/Selection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/selection/Selection.mjs
 var Lf = class e extends Set {
 	constructor(t, n, r) {
 		super(t), t instanceof e ? (this.anchorKey = n ?? t.anchorKey, this.currentKey = r ?? t.currentKey) : (this.anchorKey = n ?? null, this.currentKey = r ?? null);
@@ -19553,7 +19553,7 @@ function Uf(e) {
 	return e[0].toUpperCase() + e.slice(1);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/collections/useCollection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/collections/useCollection.mjs
 function Wf(e, t, n) {
 	let r = (0, _.useMemo)(() => new Bf(), []), { children: i, items: a, collection: o } = e;
 	return (0, _.useMemo)(() => o || t(r.build({
@@ -19569,7 +19569,7 @@ function Wf(e, t, n) {
 	]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/selection/useMultipleSelectionState.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/selection/useMultipleSelectionState.mjs
 function Gf(e, t) {
 	if (e.size !== t.size) return !1;
 	for (let n of e) if (!t.has(n)) return !1;
@@ -19613,7 +19613,7 @@ function qf(e, t) {
 	return e ? e === "all" ? "all" : new Lf(e) : t;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/tree/useTreeState.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/tree/useTreeState.mjs
 function Jf(e) {
 	let { onExpandedChange: t } = e, [n, r] = Dc(e.expandedKeys ? new Set(e.expandedKeys) : void 0, e.defaultExpandedKeys ? new Set(e.defaultExpandedKeys) : /* @__PURE__ */ new Set(), t), i = Kf(e), a = (0, _.useMemo)(() => e.disabledKeys ? new Set(e.disabledKeys) : /* @__PURE__ */ new Set(), [e.disabledKeys]), o = Wf(e, (0, _.useCallback)((e) => new zf(e, { expandedKeys: n }), [n]), null);
 	return (0, _.useEffect)(() => {
@@ -19634,7 +19634,7 @@ function Yf(e, t) {
 	return n.has(t) ? n.delete(t) : n.add(t), n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Menu.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Menu.mjs
 var Xf = /*#__PURE__*/ (0, _.createContext)(null), Zf = /*#__PURE__*/ (0, _.createContext)(null), H = /*#__PURE__*/ (0, _.createContext)(null), Qf = /*#__PURE__*/ (0, _.createContext)(null);
 function $f(e) {
 	let t = sd(e), n = (0, _.useRef)(null), { menuTriggerProps: r, menuProps: i } = ef({
@@ -24792,19 +24792,62 @@ function w_({ app: e, conversation: t, questionSettings: n, contextKey: r, readb
 }
 //#endregion
 //#region app/ui/src/bridge/client.ts
-function T_(e) {
+var T_ = /* @__PURE__ */ "INVALID_REPLY.READ_INVALIDATED.ACCESS_DENIED.VAULT_LOCKED.UNAUTHENTICATED.EVIDENCE_UNAVAILABLE.ACCESS_REVOKED.SOURCE_REVOKED.BRANCH_FORBIDDEN.RECEIPT_FORBIDDEN.FORBIDDEN.RECEIPT_NOT_FOUND.INVALID_SESSION.ROUTE_REVOKED.OUTBOUND_APPROVAL_REQUIRED.CONVERSATION_CONTINUATION_RESOLVED.CONVERSATION_CONTINUATION_LIMIT.PREVIEW_STALE.PAYLOAD_CHANGED.PREVIEW_REQUEST_CHANGED.SYNTHESIS_STALE.CONVERSATION_CONTINUATION_STALE.MODEL_RECEIPT_EXPIRED.CALCULATION_STALE.CONVERSATION_NOT_FOUND.CONVERSATION_CONTINUATION_UNAVAILABLE.MODEL_RECEIPT_NOT_FOUND.SYNTHESIS_UNAVAILABLE.INVALID_REQUEST.REQUEST_TOO_LARGE.UNTRUSTED_SENDER.REQUEST_FAILED".split(".");
+function E_(e, t) {
+	if (typeof e != "object" || !e || Object.getPrototypeOf(e) !== Object.prototype) return null;
+	let n = Reflect.ownKeys(e);
+	if (n.length !== t.length || n.some((e) => typeof e != "string" || !t.includes(e))) return null;
+	let r = Object.getOwnPropertyDescriptors(e);
+	return t.some((e) => !r[e]?.enumerable || !Object.hasOwn(r[e], "value")) ? null : r;
+}
+function D_(e) {
+	return Object.assign(/* @__PURE__ */ Error("The desktop request failed."), { code: e });
+}
+function O_(e) {
+	let t = "REQUEST_FAILED";
+	try {
+		let n = E_(e, [
+			"version",
+			"ok",
+			"result"
+		]);
+		if (n?.version?.value === 1 && n.ok?.value === !0) return n.result.value;
+		let r = E_(e, [
+			"version",
+			"ok",
+			"error"
+		]);
+		if (r?.version?.value === 1 && r.ok?.value === !1) {
+			let e = E_(r.error.value, ["code"]), n = T_.find((t) => t === e?.code?.value);
+			n && (t = n);
+		}
+	} catch {}
+	throw D_(t);
+}
+function k_(e) {
+	return Object.freeze({ async request(t, n = {}) {
+		let r;
+		try {
+			r = await e.requestEnvelope(t, n);
+		} catch {
+			throw D_("REQUEST_FAILED");
+		}
+		return O_(r);
+	} });
+}
+function A_(e) {
 	if (typeof e != "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,199}$/.test(e)) throw new Ym("request.id");
 }
-var E_ = [
+var j_ = [
 	"ACCESS_DENIED",
 	"VAULT_LOCKED",
 	"UNAUTHENTICATED",
 	"EVIDENCE_UNAVAILABLE"
 ];
-function D_(e) {
-	return E_.includes(e);
+function M_(e) {
+	return j_.includes(e);
 }
-function O_(e) {
+function N_(e) {
 	if (e instanceof Ym) return "INVALID_REPLY";
 	let t;
 	try {
@@ -24816,7 +24859,7 @@ function O_(e) {
 	return [
 		"INVALID_REPLY",
 		"READ_INVALIDATED",
-		...E_
+		...j_
 	].find((e) => e === n) || (n === "VAULT_LOCKED" ? "VAULT_LOCKED" : n === "UNAUTHENTICATED" || n === "authentication_required" ? "UNAUTHENTICATED" : typeof n == "string" && [
 		"ACCESS_REVOKED",
 		"SOURCE_REVOKED",
@@ -24826,7 +24869,7 @@ function O_(e) {
 		"authority_denied"
 	].includes(n) ? "ACCESS_DENIED" : n === "RECEIPT_NOT_FOUND" || n === "not_found" || n === "model_artifact_unavailable" ? "EVIDENCE_UNAVAILABLE" : "REQUEST_FAILED");
 }
-async function k_(e, t, n, r) {
+async function P_(e, t, n, r) {
 	try {
 		let r = await e();
 		if (!n()) return Object.freeze({
@@ -24846,14 +24889,14 @@ async function k_(e, t, n, r) {
 			ok: !1,
 			code: "READ_INVALIDATED"
 		});
-		let t = O_(e);
-		return D_(t) && r(), Object.freeze({
+		let t = N_(e);
+		return M_(t) && r(), Object.freeze({
 			ok: !1,
 			code: t
 		});
 	}
 }
-function A_(e) {
+function F_(e) {
 	let t = Symbol();
 	return Object.freeze({
 		environment: "desktop",
@@ -24862,7 +24905,7 @@ function A_(e) {
 		},
 		receipt(n) {
 			let r = t;
-			return k_(() => (T_(n), e.request("receipts.get", { id: n })), (e) => {
+			return P_(() => (A_(n), e.request("receipts.get", { id: n })), (e) => {
 				let t = Oh(e);
 				if (t.id !== n) throw new Ym("receipt.id");
 				return t;
@@ -24874,13 +24917,13 @@ function A_(e) {
 }
 //#endregion
 //#region app/ui/src/bridge/projections.ts
-var j_ = class extends Error {
+var I_ = class extends Error {
 	code = "UNSUPPORTED_PRESENTATION_UNIT";
 	constructor() {
 		super("UNSUPPORTED_PRESENTATION_UNIT"), this.name = "UnsupportedPresentationUnitError";
 	}
 };
-function M_(e, t, n = []) {
+function L_(e, t, n = []) {
 	let r = Dh(e), i = r.figures.find((e) => e.key === t);
 	if (!i) throw new Ym("receipt.figures.key");
 	if (n.some((e) => e !== "stale") || n.includes("stale") && !r.stale) throw new Ym("receipt.labels");
@@ -24897,7 +24940,7 @@ function M_(e, t, n = []) {
 		basisPoints: i.minor,
 		...a
 	});
-	if (i.currency !== "INR" || r.currency !== "INR") throw new j_();
+	if (i.currency !== "INR" || r.currency !== "INR") throw new I_();
 	return Th({
 		kind: "money",
 		currency: "INR",
@@ -24907,19 +24950,19 @@ function M_(e, t, n = []) {
 }
 //#endregion
 //#region app/ui/src/format/money.ts
-function N_(e) {
+function R_(e) {
 	return rh(e), BigInt(e);
 }
-function P_(e) {
+function z_(e) {
 	if (!/^\d+$/.test(e)) throw TypeError("INVALID_FORMAT_VALUE");
 	let t = BigInt(e).toString();
 	return t.length <= 3 ? t : `${t.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ",")},${t.slice(-3)}`;
 }
-function F_(e) {
-	let t = N_(e), n = t < 0n ? -t : t, r = n % 100n;
-	return `${t < 0n ? "-" : ""}\u20b9${P_((n / 100n).toString())}${r === 0n ? "" : `.${r.toString().padStart(2, "0")}`}`;
+function B_(e) {
+	let t = R_(e), n = t < 0n ? -t : t, r = n % 100n;
+	return `${t < 0n ? "-" : ""}\u20b9${z_((n / 100n).toString())}${r === 0n ? "" : `.${r.toString().padStart(2, "0")}`}`;
 }
-function I_(e, t) {
+function V_(e, t) {
 	if (t.underHundred.length !== 100 || t.underHundred.some((e) => typeof e != "string" || e.length === 0)) throw TypeError("INVALID_FORMAT_WORDS");
 	if (e < 100n) return t.underHundred[Number(e)];
 	for (let [n, r] of [
@@ -24927,29 +24970,29 @@ function I_(e, t) {
 		[100000n, t.lakh],
 		[1000n, t.thousand],
 		[100n, t.hundred]
-	]) if (e >= n) return `${I_(e / n, t)} ${r}${e % n ? ` ${I_(e % n, t)}` : ""}`;
+	]) if (e >= n) return `${V_(e / n, t)} ${r}${e % n ? ` ${V_(e % n, t)}` : ""}`;
 	throw TypeError("INVALID_FORMAT_VALUE");
 }
-function L_(e, t) {
-	let n = N_(e), r = n < 0n ? -n : n;
-	return `${n < 0n ? `${t.minus} ` : ""}${I_(r / 100n, t)} ${t.rupees}${r % 100n ? ` ${t.and} ${I_(r % 100n, t)} ${t.paise}` : ""}`;
+function H_(e, t) {
+	let n = R_(e), r = n < 0n ? -n : n;
+	return `${n < 0n ? `${t.minus} ` : ""}${V_(r / 100n, t)} ${t.rupees}${r % 100n ? ` ${t.and} ${V_(r % 100n, t)} ${t.paise}` : ""}`;
 }
 //#endregion
 //#region app/ui/src/format/counts.ts
-function R_(e) {
-	return rh(e, "count", !1), P_(e);
+function U_(e) {
+	return rh(e, "count", !1), z_(e);
 }
-function z_(e) {
-	return `${B_(e)}%`;
+function W_(e) {
+	return `${G_(e)}%`;
 }
-function B_(e) {
+function G_(e) {
 	rh(e, "basisPoints");
 	let t = BigInt(e), n = ((t < 0n ? -t : t) + 5n) / 10n;
-	return `${t < 0n && n !== 0n ? "-" : ""}${P_((n / 10n).toString())}${n % 10n ? `.${n % 10n}` : ""}`;
+	return `${t < 0n && n !== 0n ? "-" : ""}${z_((n / 10n).toString())}${n % 10n ? `.${n % 10n}` : ""}`;
 }
 //#endregion
 //#region app/ui/src/format/dates.ts
-function V_(e, t = "short", n = "en") {
+function K_(e, t = "short", n = "en") {
 	oh(e);
 	let r = /* @__PURE__ */ new Date(`${e}T00:00:00.000Z`);
 	if (t === "short" && n === "en") {
@@ -24973,7 +25016,7 @@ function V_(e, t = "short", n = "en") {
 		timeZone: "UTC"
 	}).format(r);
 }
-function H_(e, t) {
+function q_(e, t) {
 	return sh(e), new Intl.DateTimeFormat("en-IN", {
 		hour: "2-digit",
 		minute: "2-digit",
@@ -24983,28 +25026,28 @@ function H_(e, t) {
 }
 //#endregion
 //#region app/ui/src/format/index.ts
-function U_(e, t) {
+function J_(e, t) {
 	if (Th({
 		kind: "missing",
 		state: e
 	}), typeof t[e] != "string" || t[e].trim().length === 0) throw TypeError("MISSING_FORMAT_WORD");
 	return t[e];
 }
-function W_(e, t) {
+function Y_(e, t) {
 	let n = Th(e);
 	switch (n.kind) {
-		case "money": return F_(n.paise);
-		case "count": return R_(n.count);
-		case "percent": return z_(n.basisPoints);
-		case "missing": return U_(n.state, t);
+		case "money": return B_(n.paise);
+		case "count": return U_(n.count);
+		case "percent": return W_(n.basisPoints);
+		case "missing": return J_(n.state, t);
 	}
 }
 //#endregion
 //#region app/ui/src/bridge/project-ui.ts
-function G_(e) {
-	return e && typeof e == "object" && (Object.values(e).forEach(G_), Object.freeze(e)), e;
+function X_(e) {
+	return e && typeof e == "object" && (Object.values(e).forEach(X_), Object.freeze(e)), e;
 }
-function K_(e) {
+function Z_(e) {
 	if (!["en", "hi"].includes(e.language) || typeof e.timeZone != "string" || !e.timeZone || e.maxStats !== void 0 && ![
 		3,
 		4,
@@ -25016,12 +25059,12 @@ function K_(e) {
 		throw new Ym("format.timeZone");
 	}
 }
-function q_(e, t) {
+function Q_(e, t) {
 	if (e.kind === "missing") return {
 		kind: "missing",
 		missing: e.state
 	};
-	let n = W_(e, t.missingWords), r = e.kind === "money" ? e.paise : e.kind === "count" ? e.count : e.basisPoints, i = {
+	let n = Y_(e, t.missingWords), r = e.kind === "money" ? e.paise : e.kind === "count" ? e.count : e.basisPoints, i = {
 		kind: e.kind,
 		exact: r,
 		display: n,
@@ -25030,25 +25073,25 @@ function q_(e, t) {
 	};
 	return e.kind === "money" ? t.spokenMoneyWords ? {
 		...i,
-		spoken: L_(e.paise, t.spokenMoneyWords)
+		spoken: H_(e.paise, t.spokenMoneyWords)
 	} : i : {
 		...i,
 		spoken: n
 	};
 }
-function J_(e, t) {
-	return K_(t), e !== null && rh(e, "metadata.count", !1), G_({
+function $_(e, t) {
+	return Z_(t), e !== null && rh(e, "metadata.count", !1), X_({
 		exact: e,
-		display: e === null ? U_("unknown", t.missingWords) : R_(e)
+		display: e === null ? J_("unknown", t.missingWords) : U_(e)
 	});
 }
-function Y_(e, t) {
+function ev(e, t) {
 	let n = {
 		id: e.id,
 		mark: e.mark,
 		what: e.title,
 		note: e.note,
-		...e.figure ? { figure: q_(e.figure, t) } : {},
+		...e.figure ? { figure: Q_(e.figure, t) } : {},
 		...e.action ? { can: ["open"] } : {}
 	};
 	return e.action ? {
@@ -25056,7 +25099,7 @@ function Y_(e, t) {
 		action: e.action
 	} : { row: n };
 }
-function X_(e, t) {
+function tv(e, t) {
 	if (e === null) return {
 		state: "missing",
 		reasonCode: "CHART_NOT_PROVIDED"
@@ -25080,7 +25123,7 @@ function X_(e, t) {
 	let n = e.points.map((e) => ({
 		id: e.id,
 		label: e.label,
-		value: q_(e.value, t)
+		value: Q_(e.value, t)
 	}));
 	if (e.kind === "line") return {
 		state: "available",
@@ -25102,39 +25145,39 @@ function X_(e, t) {
 	};
 	throw new Ym("chart.kind");
 }
-function Z_(e, t) {
-	let n = X_(e.chart, t);
+function nv(e, t) {
+	let n = tv(e.chart, t);
 	return {
 		tile: {
 			id: e.id,
 			label: e.label,
-			figure: q_(e.figure, t),
+			figure: Q_(e.figure, t),
 			chartState: n.state === "available" ? { state: "available" } : n,
-			...e.change ? { change: q_(e.change, t) } : {},
+			...e.change ? { change: Q_(e.change, t) } : {},
 			...e.changeLabel ? { changeLabel: e.changeLabel } : {},
 			...n.state === "available" ? { chart: n.chart } : {}
 		},
 		chartState: n
 	};
 }
-function Q_(e, t) {
-	K_(t);
+function rv(e, t) {
+	Z_(t);
 	let n = Eh(e);
 	if (n.stats.length > (t.maxStats ?? 3)) throw new Ym("today.stats.layout-limit");
-	let r = n.attention.map((e) => Y_(e, t)), i = n.worthLook.map((e) => Y_(e, t)), a = n.stats.map((e) => Z_(e, t)), o = [...r, ...i].flatMap((e) => e.action ? [{
+	let r = n.attention.map((e) => ev(e, t)), i = n.worthLook.map((e) => ev(e, t)), a = n.stats.map((e) => nv(e, t)), o = [...r, ...i].flatMap((e) => e.action ? [{
 		rowId: e.row.id,
 		intent: e.action
 	}] : []);
-	return G_({
+	return X_({
 		title: n.title,
 		data: {
 			state: n.state.kind === "ready" || n.state.kind === "empty" ? { kind: n.state.kind } : {
 				kind: "boundary-state",
 				source: n.state
 			},
-			date: V_(n.date, "long", t.language),
+			date: K_(n.date, "long", t.language),
 			review: {
-				count: J_(n.pendingCount, t),
+				count: $_(n.pendingCount, t),
 				rows: r.map((e) => e.row)
 			},
 			worthALook: i.map((e) => e.row),
@@ -25143,7 +25186,7 @@ function Q_(e, t) {
 			earlierToday: n.dayEvents.map((e) => ({
 				id: e.id,
 				mark: e.mark,
-				time: H_(e.at, t.timeZone),
+				time: q_(e.at, t.timeZone),
 				words: e.label
 			}))
 		},
@@ -25160,18 +25203,18 @@ function Q_(e, t) {
 }
 //#endregion
 //#region app/ui/src/bridge/today-host.ts
-var $_ = [
+var iv = [
 	"billed",
 	"received",
 	"earned",
 	"margin"
-], ev = [
+], av = [
 	"billed",
 	"received",
 	"net_sales",
 	"margin",
 	"aging"
-], tv = {
+], ov = {
 	pendingCount: "TODAY_PENDING_COUNT_NOT_PROVIDED",
 	attention: "TODAY_ATTENTION_CONTRACT_NOT_PROVIDED",
 	worthLook: "TODAY_WORTH_LOOK_CONTRACT_NOT_PROVIDED",
@@ -25181,10 +25224,10 @@ var $_ = [
 function Q(e) {
 	throw new Ym(e);
 }
-function nv(e) {
-	return e && typeof e == "object" && (Object.values(e).forEach(nv), Object.freeze(e)), e;
+function sv(e) {
+	return e && typeof e == "object" && (Object.values(e).forEach(sv), Object.freeze(e)), e;
 }
-function rv(e, t, n = 0, r = {
+function cv(e, t, n = 0, r = {
 	remaining: 2e5,
 	characters: 8e6
 }) {
@@ -25203,7 +25246,7 @@ function rv(e, t, n = 0, r = {
 		(Object.getPrototypeOf(e) !== Array.prototype || e.length > 1e4) && Q(t), Object.keys(i).some((e) => e !== "length" && !/^(?:0|[1-9]\d*)$/.test(e)) && Q(t);
 		for (let a = 0; a < e.length; a++) {
 			let e = i[String(a)];
-			(!e || !Object.hasOwn(e, "value")) && Q(t), rv(e.value, t, n + 1, r);
+			(!e || !Object.hasOwn(e, "value")) && Q(t), cv(e.value, t, n + 1, r);
 		}
 		return;
 	}
@@ -25212,52 +25255,52 @@ function rv(e, t, n = 0, r = {
 		"__proto__",
 		"prototype",
 		"constructor"
-	].includes(e) || !a.enumerable || !Object.hasOwn(a, "value")) && Q(t), rv(a.value, t, n + 1, r);
+	].includes(e) || !a.enumerable || !Object.hasOwn(a, "value")) && Q(t), cv(a.value, t, n + 1, r);
 }
-function iv(e, t, n, r = []) {
+function lv(e, t, n, r = []) {
 	(!e || typeof e != "object" || Array.isArray(e) || Object.getPrototypeOf(e) !== Object.prototype) && Q(t);
 	let i = e;
 	return (n.some((e) => !Object.hasOwn(i, e)) || Object.keys(i).some((e) => !n.includes(e) && !r.includes(e))) && Q(t), i;
 }
-function av(e, t, n = 8e3) {
+function uv(e, t, n = 8e3) {
 	(typeof e != "string" || !e.trim() || e.length > n || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(e)) && Q(t);
 }
-function ov(e, t) {
+function dv(e, t) {
 	(typeof e != "string" || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(e)) && Q(t);
 }
-function sv(e, t) {
+function fv(e, t) {
 	(typeof e != "string" || !/^[A-Za-z0-9_.:-]{1,200}$/.test(e)) && Q(t);
 }
-function cv(e, t, n) {
+function pv(e, t, n) {
 	(!Array.isArray(e) || e.length > n) && Q(t);
 }
-function lv(e, t) {
+function mv(e, t) {
 	new Set(e).size !== e.length && Q(t);
 }
-function uv(e, t) {
-	let n = iv(e, t, ["from", "to"]);
+function hv(e, t) {
+	let n = lv(e, t, ["from", "to"]);
 	return oh(n.from, t), oh(n.to, t), n.from > n.to && Q(t), {
 		from: n.from,
 		to: n.to
 	};
 }
-function dv(e, t) {
+function gv(e, t) {
 	if (Object.is(e, t)) return !0;
 	if (!e || !t || typeof e != "object" || typeof t != "object") return !1;
-	if (Array.isArray(e) || Array.isArray(t)) return Array.isArray(e) && Array.isArray(t) && e.length === t.length && e.every((e, n) => dv(e, t[n]));
+	if (Array.isArray(e) || Array.isArray(t)) return Array.isArray(e) && Array.isArray(t) && e.length === t.length && e.every((e, n) => gv(e, t[n]));
 	let n = e, r = t;
-	return Object.keys(n).length === Object.keys(r).length && Object.keys(n).every((e) => Object.hasOwn(r, e) && dv(n[e], r[e]));
+	return Object.keys(n).length === Object.keys(r).length && Object.keys(n).every((e) => Object.hasOwn(r, e) && gv(n[e], r[e]));
 }
-function fv(e, t) {
-	rv(e, "today.input");
-	let n = iv(e, "today.input", [
+function _v(e, t) {
+	cv(e, "today.input");
+	let n = lv(e, "today.input", [
 		"title",
 		"date",
 		"request",
 		"selections"
 	]);
-	av(n.title, "today.title"), oh(n.date, "today.date");
-	let r = iv(n.request, "today.request", [], t === "dashboard" ? ["period"] : [
+	uv(n.title, "today.title"), oh(n.date, "today.date");
+	let r = lv(n.request, "today.request", [], t === "dashboard" ? ["period"] : [
 		"period",
 		"asOf",
 		"branch",
@@ -25267,25 +25310,25 @@ function fv(e, t) {
 		"onDate",
 		"ritual"
 	]);
-	Object.hasOwn(r, "period") && uv(r.period, "today.request.period"), Object.hasOwn(r, "asOf") && sh(r.asOf, "today.request.asOf"), Object.hasOwn(r, "onDate") && oh(r.onDate, "today.request.onDate");
+	Object.hasOwn(r, "period") && hv(r.period, "today.request.period"), Object.hasOwn(r, "asOf") && sh(r.asOf, "today.request.asOf"), Object.hasOwn(r, "onDate") && oh(r.onDate, "today.request.onDate");
 	for (let e of [
 		"branch",
 		"customerId",
 		"orderId"
-	]) Object.hasOwn(r, e) && av(r[e], `today.request.${e}`, 200);
-	Object.hasOwn(r, "ritual") && r.ritual !== "monday" && r.ritual !== "friday" && Q("today.request.ritual"), Object.hasOwn(r, "sourceIds") && (cv(r.sourceIds, "today.request.sourceIds", 64), r.sourceIds.forEach((e) => sv(e, "today.request.sourceIds")), lv(r.sourceIds, "today.request.sourceIds")), cv(n.selections, "today.selections", 3);
-	let i = t === "dashboard" ? $_ : ev;
-	return lv(n.selections.map((e) => {
-		let t = iv(e, "today.selection", ["operation", "figureKey"]);
-		return (typeof t.operation != "string" || !i.includes(t.operation)) && Q("today.selection.operation"), ov(t.figureKey, "today.selection.figureKey"), t.figureKey.length > 64 && Q("today.selection.figureKey"), {
+	]) Object.hasOwn(r, e) && uv(r[e], `today.request.${e}`, 200);
+	Object.hasOwn(r, "ritual") && r.ritual !== "monday" && r.ritual !== "friday" && Q("today.request.ritual"), Object.hasOwn(r, "sourceIds") && (pv(r.sourceIds, "today.request.sourceIds", 64), r.sourceIds.forEach((e) => fv(e, "today.request.sourceIds")), mv(r.sourceIds, "today.request.sourceIds")), pv(n.selections, "today.selections", 3);
+	let i = t === "dashboard" ? iv : av;
+	return mv(n.selections.map((e) => {
+		let t = lv(e, "today.selection", ["operation", "figureKey"]);
+		return (typeof t.operation != "string" || !i.includes(t.operation)) && Q("today.selection.operation"), dv(t.figureKey, "today.selection.figureKey"), t.figureKey.length > 64 && Q("today.selection.figureKey"), {
 			operation: t.operation,
 			figureKey: t.figureKey
 		};
-	}).map((e) => `${e.operation}:${e.figureKey}`), "today.selections"), nv(structuredClone(e));
+	}).map((e) => `${e.operation}:${e.figureKey}`), "today.selections"), sv(structuredClone(e));
 }
-function pv(e) {
-	rv(e, "dashboard");
-	let t = iv(e, "dashboard", [
+function vv(e) {
+	cv(e, "dashboard");
+	let t = lv(e, "dashboard", [
 		"workspace",
 		"calculations",
 		"factCount",
@@ -25296,35 +25339,35 @@ function pv(e) {
 		"policy",
 		"dictionary",
 		"lastActivity"
-	]), n = iv(t.workspace, "dashboard.workspace", [
+	]), n = lv(t.workspace, "dashboard.workspace", [
 		"id",
 		"name",
 		"currency",
 		"demo",
 		"createdAt"
 	]);
-	ov(n.id, "dashboard.workspace.id"), av(n.name, "dashboard.workspace.name"), sh(n.createdAt, "dashboard.workspace.createdAt"), (typeof n.demo != "boolean" || typeof n.currency != "string" || !/^[A-Z]{3}$/.test(n.currency)) && Q("dashboard.workspace");
+	dv(n.id, "dashboard.workspace.id"), uv(n.name, "dashboard.workspace.name"), sh(n.createdAt, "dashboard.workspace.createdAt"), (typeof n.demo != "boolean" || typeof n.currency != "string" || !/^[A-Z]{3}$/.test(n.currency)) && Q("dashboard.workspace");
 	for (let e of ["factCount", "sources"]) (typeof t[e] != "number" || !Number.isSafeInteger(t[e]) || t[e] < 0) && Q(`dashboard.${e}`);
 	for (let e of [
 		"decisions",
 		"waitingActions",
 		"jobs"
-	]) cv(t[e], `dashboard.${e}`, 1e4);
-	cv(t.lastActivity, "dashboard.lastActivity", 8), (!t.policy || typeof t.policy != "object" || Array.isArray(t.policy) || t.dictionary !== null && (!t.dictionary || typeof t.dictionary != "object" || Array.isArray(t.dictionary))) && Q("dashboard.metadata"), cv(t.calculations, "dashboard.calculations", 4), t.calculations.length !== 4 && Q("dashboard.calculations");
+	]) pv(t[e], `dashboard.${e}`, 1e4);
+	pv(t.lastActivity, "dashboard.lastActivity", 8), (!t.policy || typeof t.policy != "object" || Array.isArray(t.policy) || t.dictionary !== null && (!t.dictionary || typeof t.dictionary != "object" || Array.isArray(t.dictionary))) && Q("dashboard.metadata"), pv(t.calculations, "dashboard.calculations", 4), t.calculations.length !== 4 && Q("dashboard.calculations");
 	let r = [], i = [], a = [];
 	for (let e of t.calculations) {
 		(!e || typeof e != "object" || Array.isArray(e)) && Q("dashboard.calculations");
 		let t = e.operation;
-		(typeof t != "string" || !$_.includes(t)) && Q("dashboard.calculations.operation"), a.push(t), Object.hasOwn(e, "error") ? (av(iv(e, "dashboard.calculation.error", ["operation", "error"]).error, "dashboard.calculation.error"), i.push(t)) : r.push(Oh(e));
+		(typeof t != "string" || !iv.includes(t)) && Q("dashboard.calculations.operation"), a.push(t), Object.hasOwn(e, "error") ? (uv(lv(e, "dashboard.calculation.error", ["operation", "error"]).error, "dashboard.calculation.error"), i.push(t)) : r.push(Oh(e));
 	}
-	return lv(a, "dashboard.calculations.operation"), lv(r.map((e) => e.id), "dashboard.receipts"), nv({
+	return mv(a, "dashboard.calculations.operation"), mv(r.map((e) => e.id), "dashboard.receipts"), sv({
 		receipts: r,
 		unavailableOperations: i
 	});
 }
-function mv(e) {
-	rv(e, "brief");
-	let t = iv(e, "brief", [
+function yv(e) {
+	cv(e, "brief");
+	let t = lv(e, "brief", [
 		"id",
 		"ritual",
 		"onDate",
@@ -25335,20 +25378,20 @@ function mv(e) {
 		"delivery",
 		"receiptIds"
 	]);
-	ov(t.id, "brief.id"), oh(t.onDate, "brief.onDate"), av(t.headline, "brief.headline"), t.ritual !== "monday" && t.ritual !== "friday" && Q("brief.ritual"), cv(t.decisions, "brief.decisions", 1e4);
-	let n = iv(t.compliance, "brief.compliance", [
+	dv(t.id, "brief.id"), oh(t.onDate, "brief.onDate"), uv(t.headline, "brief.headline"), t.ritual !== "monday" && t.ritual !== "friday" && Q("brief.ritual"), pv(t.decisions, "brief.decisions", 1e4);
+	let n = lv(t.compliance, "brief.compliance", [
 		"entries",
 		"calendarVersion",
 		"status"
 	]);
-	cv(n.entries, "brief.compliance.entries", 1e4), n.calendarVersion !== null && av(n.calendarVersion, "brief.compliance.calendarVersion"), av(n.status, "brief.compliance.status");
-	let r = iv(t.delivery, "brief.delivery", [
+	pv(n.entries, "brief.compliance.entries", 1e4), n.calendarVersion !== null && uv(n.calendarVersion, "brief.compliance.calendarVersion"), uv(n.status, "brief.compliance.status");
+	let r = lv(t.delivery, "brief.delivery", [
 		"state",
 		"channels",
 		"requiresApproval"
 	]);
-	(r.state !== "draft" || r.requiresApproval !== !0 || !dv(r.channels, ["email", "whatsapp"])) && Q("brief.delivery");
-	let i = iv(t.report, "brief.report", [
+	(r.state !== "draft" || r.requiresApproval !== !0 || !gv(r.channels, ["email", "whatsapp"])) && Q("brief.delivery");
+	let i = lv(t.report, "brief.report", [
 		"id",
 		"title",
 		"type",
@@ -25361,9 +25404,9 @@ function mv(e) {
 		"html",
 		"delivery"
 	]);
-	ov(i.id, "brief.report.id"), av(i.title, "brief.report.title"), sh(i.createdAt, "brief.report.createdAt"), (i.type !== "investor" || i.status !== "partial" && i.status !== "review-ready" || i.delivery !== "local-draft") && Q("brief.report"), typeof i.html != "string" && Q("brief.report.html"), cv(i.gaps, "brief.report.gaps", 1e3), i.gaps.forEach((e) => av(e, "brief.report.gaps", 1e5)), cv(i.rowIds, "brief.report.rowIds", 1e4), i.rowIds.forEach((e) => ov(e, "brief.report.rowIds")), lv(i.rowIds, "brief.report.rowIds"), cv(i.sections, "brief.report.sections", 5);
+	dv(i.id, "brief.report.id"), uv(i.title, "brief.report.title"), sh(i.createdAt, "brief.report.createdAt"), (i.type !== "investor" || i.status !== "partial" && i.status !== "review-ready" || i.delivery !== "local-draft") && Q("brief.report"), typeof i.html != "string" && Q("brief.report.html"), pv(i.gaps, "brief.report.gaps", 1e3), i.gaps.forEach((e) => uv(e, "brief.report.gaps", 1e5)), pv(i.rowIds, "brief.report.rowIds", 1e4), i.rowIds.forEach((e) => dv(e, "brief.report.rowIds")), mv(i.rowIds, "brief.report.rowIds"), pv(i.sections, "brief.report.sections", 5);
 	let a = i.sections.map((e) => {
-		let t = iv(e, "brief.section", [
+		let t = lv(e, "brief.section", [
 			"title",
 			"receiptId",
 			"figures",
@@ -25373,13 +25416,13 @@ function mv(e) {
 			"coverage",
 			"explanation"
 		]);
-		return (typeof t.title != "string" || !ev.includes(t.title)) && Q("brief.section.title"), ov(t.receiptId, "brief.section.receiptId"), av(t.dictionaryHash, "brief.section.dictionaryHash"), av(t.explanation, "brief.section.explanation", 1e5), t.period !== null && uv(t.period, "brief.section.period"), sh(t.asOf, "brief.section.asOf"), cv(t.figures, "brief.section.figures", 120), {
+		return (typeof t.title != "string" || !av.includes(t.title)) && Q("brief.section.title"), dv(t.receiptId, "brief.section.receiptId"), uv(t.dictionaryHash, "brief.section.dictionaryHash"), uv(t.explanation, "brief.section.explanation", 1e5), t.period !== null && hv(t.period, "brief.section.period"), sh(t.asOf, "brief.section.asOf"), pv(t.figures, "brief.section.figures", 120), {
 			operation: t.title,
 			receiptId: t.receiptId,
 			shared: t
 		};
 	}), o = a.map((e) => e.receiptId);
-	return lv(o, "brief.sections"), lv(a.map((e) => e.operation), "brief.sections.operation"), (!dv(i.receiptIds, o) || !dv(t.receiptIds, o)) && Q("brief.receiptIds"), nv({
+	return mv(o, "brief.sections"), mv(a.map((e) => e.operation), "brief.sections.operation"), (!gv(i.receiptIds, o) || !gv(t.receiptIds, o)) && Q("brief.receiptIds"), sv({
 		sections: structuredClone(a),
 		rawGaps: [...i.gaps],
 		evidence: {
@@ -25404,15 +25447,15 @@ function mv(e) {
 		}
 	});
 }
-function hv(e, t) {
-	(!dv(e.period, t.period ?? null) || e.branch !== (t.branch ?? null)) && Q("today.receipt.scope"), dv(e.requestedSourceIds, t.sourceIds) || Q("today.receipt.requestedSourceIds"), t.asOf !== void 0 && e.asOf !== new Date(t.asOf).toISOString() && Q("today.receipt.asOf");
+function bv(e, t) {
+	(!gv(e.period, t.period ?? null) || e.branch !== (t.branch ?? null)) && Q("today.receipt.scope"), gv(e.requestedSourceIds, t.sourceIds) || Q("today.receipt.requestedSourceIds"), t.asOf !== void 0 && e.asOf !== new Date(t.asOf).toISOString() && Q("today.receipt.asOf");
 }
-function gv(e, t) {
-	rv(e, "today.receipts"), cv(e, "today.receipts", 5);
+function xv(e, t) {
+	cv(e, "today.receipts"), pv(e, "today.receipts", 5);
 	let n = e.map(Dh);
-	return lv(n.map((e) => e.id), "today.receipts"), (n.length !== t.length || t.some((e) => !n.some((t) => t.id === e))) && Q("today.receipts.identity"), t.map((e) => n.find((t) => t.id === e));
+	return mv(n.map((e) => e.id), "today.receipts"), (n.length !== t.length || t.some((e) => !n.some((t) => t.id === e))) && Q("today.receipts.identity"), t.map((e) => n.find((t) => t.id === e));
 }
-function _v(e, t, n, r) {
+function Sv(e, t, n, r) {
 	let i = [], a = [], o = [];
 	for (let e of n.selections) {
 		let n = t.find((t) => t.operation === e.operation);
@@ -25432,7 +25475,7 @@ function _v(e, t, n, r) {
 			continue;
 		}
 		try {
-			let t = M_(n, e.figureKey), o = `${e.operation}:${e.figureKey}`;
+			let t = L_(n, e.figureKey), o = `${e.operation}:${e.figureKey}`;
 			i.push({
 				id: o,
 				label: r.label,
@@ -25454,14 +25497,14 @@ function _v(e, t, n, r) {
 				coverage: n.coverage
 			});
 		} catch (t) {
-			if (!(t instanceof j_)) throw t;
+			if (!(t instanceof I_)) throw t;
 			o.push({
 				...e,
 				reasonCode: "UNSUPPORTED_PRESENTATION_CURRENCY"
 			});
 		}
 	}
-	return nv({
+	return sv({
 		source: e,
 		today: Eh({
 			title: n.title,
@@ -25480,24 +25523,24 @@ function _v(e, t, n, r) {
 		receipts: t,
 		statsEvidence: a,
 		unavailableSelections: o,
-		unavailable: tv,
+		unavailable: ov,
 		...r ? { brief: r } : {}
 	});
 }
-function vv(e, t, n) {
-	let r = fv(n, "dashboard"), i = pv(e), a = gv(t, i.receipts.map((e) => e.id));
+function Cv(e, t, n) {
+	let r = _v(n, "dashboard"), i = vv(e), a = xv(t, i.receipts.map((e) => e.id));
 	for (let e of a) {
-		hv(e, r.request);
+		bv(e, r.request);
 		let t = i.receipts.find((t) => t.id === e.id);
-		for (let n of [...Sh, "requestedSourceIds"]) n !== "stale" && !dv(t[n], e[n]) && Q("dashboard.receipt.binding");
+		for (let n of [...Sh, "requestedSourceIds"]) n !== "stale" && !gv(t[n], e[n]) && Q("dashboard.receipt.binding");
 	}
-	return _v("dashboard", a, r);
+	return Sv("dashboard", a, r);
 }
-function yv(e, t, n) {
-	let r = fv(n, "brief"), i = mv(e), a = gv(t, i.sections.map((e) => e.receiptId));
+function wv(e, t, n) {
+	let r = _v(n, "brief"), i = yv(e), a = xv(t, i.sections.map((e) => e.receiptId));
 	r.request.onDate !== void 0 && i.evidence.onDate !== r.request.onDate && Q("brief.onDate"), i.evidence.ritual !== (r.request.ritual ?? "monday") && Q("brief.ritual");
 	for (let e of a) {
-		hv(e, r.request);
+		bv(e, r.request);
 		let t = i.sections.find((t) => t.receiptId === e.id);
 		t.operation !== e.operation && Q("brief.receipt.operation");
 		for (let n of [
@@ -25507,10 +25550,10 @@ function yv(e, t, n) {
 			"dictionaryHash",
 			"coverage",
 			"explanation"
-		]) dv(t.shared[n], e[n]) || Q("brief.receipt.binding");
+		]) gv(t.shared[n], e[n]) || Q("brief.receipt.binding");
 	}
 	let o = a.flatMap((e) => e.coverage.gaps), s = i.rawGaps.filter((e) => o.includes(e) || e === "This is an investor data annex. It does not provide a valuation or certify unimported metrics.");
-	return _v("brief", a, r, {
+	return Sv("brief", a, r, {
 		...i.evidence,
 		report: {
 			...i.evidence.report,
@@ -25518,17 +25561,17 @@ function yv(e, t, n) {
 		}
 	});
 }
-function bv(e) {
+function Tv(e) {
 	throw Object.freeze({ code: e });
 }
-function xv(e, t, n, r) {
+function Ev(e, t, n, r) {
 	let i = Symbol(), a = () => {
 		i = Symbol(), r.invalidate();
 	}, o = async (e) => {
 		let t = [];
 		for (let n of e) {
 			let e = await r.receipt(n);
-			e.ok || bv(e.code), t.push(e.value);
+			e.ok || Tv(e.code), t.push(e.value);
 		}
 		return t;
 	};
@@ -25537,26 +25580,26 @@ function xv(e, t, n, r) {
 		invalidate: a,
 		dashboard(e) {
 			let n = i, r;
-			return k_(async () => (r = fv(e, "dashboard"), t(r.request)), async (e) => {
-				let t = pv(e);
-				return vv(e, await o(t.receipts.map((e) => e.id)), r);
+			return P_(async () => (r = _v(e, "dashboard"), t(r.request)), async (e) => {
+				let t = vv(e);
+				return Cv(e, await o(t.receipts.map((e) => e.id)), r);
 			}, () => i === n, a);
 		},
 		brief(e) {
 			let t = i, r;
-			return k_(async () => (r = fv(e, "brief"), n(r.request)), async (e) => {
-				let t = mv(e);
-				return yv(e, await o(t.sections.map((e) => e.receiptId)), r);
+			return P_(async () => (r = _v(e, "brief"), n(r.request)), async (e) => {
+				let t = yv(e);
+				return wv(e, await o(t.sections.map((e) => e.receiptId)), r);
 			}, () => i === t, a);
 		}
 	});
 }
-function Sv(e) {
-	return xv("desktop", (t) => e.request("dashboard.get", t), (t) => e.request("reports.brief", t), A_(e));
+function Dv(e) {
+	return Ev("desktop", (t) => e.request("dashboard.get", t), (t) => e.request("reports.brief", t), F_(e));
 }
-function Cv(e, t) {
-	rv(e, "today.host");
-	let n = iv(e, "today.host", [
+function Ov(e, t) {
+	cv(e, "today.host");
+	let n = lv(e, "today.host", [
 		"source",
 		"today",
 		"receipts",
@@ -25566,11 +25609,11 @@ function Cv(e, t) {
 	], ["brief"]);
 	n.source !== "dashboard" && n.source !== "brief" && Q("today.host.source");
 	let r = Eh(n.today);
-	(r.pendingCount !== null || r.attention.length || r.worthLook.length || r.dayEvents.length || r.state.kind !== "partial" || r.state.asOf !== null || r.state.reasonCode !== "TODAY_ENGINE_CONTRACT_PARTIAL") && Q("today.host.contract"), dv(n.unavailable, tv) || Q("today.host.unavailable"), cv(n.receipts, "today.host.receipts", 5);
+	(r.pendingCount !== null || r.attention.length || r.worthLook.length || r.dayEvents.length || r.state.kind !== "partial" || r.state.asOf !== null || r.state.reasonCode !== "TODAY_ENGINE_CONTRACT_PARTIAL") && Q("today.host.contract"), gv(n.unavailable, ov) || Q("today.host.unavailable"), pv(n.receipts, "today.host.receipts", 5);
 	let i = n.receipts.map(Dh);
-	lv(i.map((e) => e.id), "today.host.receipts"), cv(n.statsEvidence, "today.host.statsEvidence", 3), cv(n.unavailableSelections, "today.host.unavailableSelections", 3);
+	mv(i.map((e) => e.id), "today.host.receipts"), pv(n.statsEvidence, "today.host.statsEvidence", 3), pv(n.unavailableSelections, "today.host.unavailableSelections", 3);
 	let a = n.statsEvidence.map((e) => {
-		let t = iv(e, "today.host.stat", [
+		let t = lv(e, "today.host.stat", [
 			"statId",
 			"operation",
 			"figureKey",
@@ -25579,17 +25622,17 @@ function Cv(e, t) {
 			"scope",
 			"coverage"
 		]);
-		return av(t.operation, "today.host.stat.operation"), ov(t.figureKey, "today.host.stat.figureKey"), {
+		return uv(t.operation, "today.host.stat.operation"), dv(t.figureKey, "today.host.stat.figureKey"), {
 			operation: t.operation,
 			figureKey: t.figureKey
 		};
 	}), o = n.unavailableSelections.map((e) => {
-		let t = iv(e, "today.host.unavailableSelection", [
+		let t = lv(e, "today.host.unavailableSelection", [
 			"operation",
 			"figureKey",
 			"reasonCode"
 		]);
-		return av(t.operation, "today.host.unavailableSelection.operation"), ov(t.figureKey, "today.host.unavailableSelection.figureKey"), (typeof t.reasonCode != "string" || ![
+		return uv(t.operation, "today.host.unavailableSelection.operation"), dv(t.figureKey, "today.host.unavailableSelection.figureKey"), (typeof t.reasonCode != "string" || ![
 			"CALCULATION_UNAVAILABLE",
 			"FIGURE_NOT_PROVIDED",
 			"UNSUPPORTED_PRESENTATION_CURRENCY"
@@ -25602,9 +25645,9 @@ function Cv(e, t) {
 		date: r.date,
 		request: {},
 		selections: [...a, ...o]
-	}, c = n.source === "dashboard" ? fv(s, "dashboard") : fv(s, "brief"), l = _v(n.source, i, c);
-	if ((!dv(l.today, r) || !dv(l.statsEvidence, n.statsEvidence) || !dv(l.unavailableSelections, n.unavailableSelections)) && Q("today.host.binding"), n.source === "brief" !== Object.hasOwn(n, "brief") && Q("today.host.brief"), Object.hasOwn(n, "brief")) {
-		let e = iv(n.brief, "today.host.brief", [
+	}, c = n.source === "dashboard" ? _v(s, "dashboard") : _v(s, "brief"), l = Sv(n.source, i, c);
+	if ((!gv(l.today, r) || !gv(l.statsEvidence, n.statsEvidence) || !gv(l.unavailableSelections, n.unavailableSelections)) && Q("today.host.binding"), n.source === "brief" !== Object.hasOwn(n, "brief") && Q("today.host.brief"), Object.hasOwn(n, "brief")) {
+		let e = lv(n.brief, "today.host.brief", [
 			"id",
 			"ritual",
 			"onDate",
@@ -25612,8 +25655,8 @@ function Cv(e, t) {
 			"report",
 			"delivery"
 		]);
-		ov(e.id, "today.host.brief.id"), oh(e.onDate, "today.host.brief.onDate"), av(e.headline, "today.host.brief.headline"), e.ritual !== "monday" && e.ritual !== "friday" && Q("today.host.brief.ritual");
-		let t = iv(e.report, "today.host.brief.report", [
+		dv(e.id, "today.host.brief.id"), oh(e.onDate, "today.host.brief.onDate"), uv(e.headline, "today.host.brief.headline"), e.ritual !== "monday" && e.ritual !== "friday" && Q("today.host.brief.ritual");
+		let t = lv(e.report, "today.host.brief.report", [
 			"id",
 			"title",
 			"type",
@@ -25622,16 +25665,16 @@ function Cv(e, t) {
 			"gaps",
 			"delivery"
 		]);
-		ov(t.id, "today.host.brief.report.id"), av(t.title, "today.host.brief.report.title"), sh(t.createdAt, "today.host.brief.report.createdAt"), (t.type !== "investor" || t.status !== "partial" && t.status !== "review-ready" || t.delivery !== "local-draft") && Q("today.host.brief.report"), cv(t.gaps, "today.host.brief.report.gaps", 1e3), t.gaps.forEach((e) => av(e, "today.host.brief.report.gaps", 1e5));
+		dv(t.id, "today.host.brief.report.id"), uv(t.title, "today.host.brief.report.title"), sh(t.createdAt, "today.host.brief.report.createdAt"), (t.type !== "investor" || t.status !== "partial" && t.status !== "review-ready" || t.delivery !== "local-draft") && Q("today.host.brief.report"), pv(t.gaps, "today.host.brief.report.gaps", 1e3), t.gaps.forEach((e) => uv(e, "today.host.brief.report.gaps", 1e5));
 		let r = i.flatMap((e) => e.coverage.gaps);
-		t.gaps.some((e) => typeof e != "string" || !r.includes(e) && e !== "This is an investor data annex. It does not provide a valuation or certify unimported metrics.") && Q("today.host.brief.report.gaps"), dv(e.delivery, {
+		t.gaps.some((e) => typeof e != "string" || !r.includes(e) && e !== "This is an investor data annex. It does not provide a valuation or certify unimported metrics.") && Q("today.host.brief.report.gaps"), gv(e.delivery, {
 			state: "draft",
 			channels: ["email", "whatsapp"],
 			requiresApproval: !0
 		}) || Q("today.host.brief.delivery");
 	}
-	let u = Q_(r, t);
-	return nv({
+	let u = rv(r, t);
+	return sv({
 		...u,
 		data: {
 			...u.data,
@@ -25639,13 +25682,13 @@ function Cv(e, t) {
 		},
 		source: e.source,
 		statsEvidence: structuredClone(e.statsEvidence),
-		unavailable: tv,
+		unavailable: ov,
 		...e.brief ? { brief: structuredClone(e.brief) } : {}
 	});
 }
 //#endregion
 //#region app/ui/src/host/text.ts
-var wv = {
+var kv = {
 	legacy: "Open the previous interface",
 	refresh: "Read again",
 	loading: "Reading your workspace.",
@@ -25726,7 +25769,7 @@ var wv = {
 	reference: "Evidence reference",
 	referenceUnavailable: "This type of evidence cannot be opened in this interface. It has not been read as a calculation receipt.",
 	referenceIdentity: "Reference: {id}."
-}, Tv = {
+}, Av = {
 	helpTitle: "कीबोर्ड शॉर्टकट",
 	helpAsk: "सवाल की पंक्ति पर जाएँ।",
 	helpPlaces: "किसी जगह पर जाएँ।",
@@ -25809,9 +25852,9 @@ var wv = {
 	referenceIdentity: "संदर्भ: {id}।"
 };
 function $(e, t, n = {}) {
-	return (e === "hi" ? Tv[t] : wv[t]).replace(/\{([A-Za-z]+)\}/g, (e, t) => n[t] ?? e);
+	return (e === "hi" ? Av[t] : kv[t]).replace(/\{([A-Za-z]+)\}/g, (e, t) => n[t] ?? e);
 }
-function Ev(e) {
+function jv(e) {
 	let t = e === "hi" ? jn : An;
 	return {
 		absent: t["MISSING.absent"],
@@ -25825,25 +25868,25 @@ function Ev(e) {
 }
 //#endregion
 //#region app/ui/src/bridge/conversation-host.ts
-var Dv = Object.freeze({ ok: !0 }), Ov = (e) => Object.freeze({
+var Mv = Object.freeze({ ok: !0 }), Nv = (e) => Object.freeze({
 	ok: !1,
 	code: e
 });
-function kv(e) {
+function Pv(e) {
 	if (typeof e == "object" && e) {
-		for (let t of Object.values(e)) kv(t);
+		for (let t of Object.values(e)) Pv(t);
 		Object.freeze(e);
 	}
 }
-function Av(e, t) {
+function Fv(e, t) {
 	if (e === t) return !0;
 	if (e === null || t === null || typeof e != "object" || typeof t != "object") return !1;
-	if (Array.isArray(e)) return Array.isArray(t) && e.length === t.length && e.every((e, n) => Av(e, t[n]));
+	if (Array.isArray(e)) return Array.isArray(t) && e.length === t.length && e.every((e, n) => Fv(e, t[n]));
 	if (Array.isArray(t)) return !1;
 	let n = Object.keys(e);
-	return n.length === Object.keys(t).length && n.every((n) => Av(Object.getOwnPropertyDescriptor(e, n)?.value, Object.getOwnPropertyDescriptor(t, n)?.value));
+	return n.length === Object.keys(t).length && n.every((n) => Fv(Object.getOwnPropertyDescriptor(e, n)?.value, Object.getOwnPropertyDescriptor(t, n)?.value));
 }
-function jv(e) {
+function Iv(e) {
 	if (e instanceof Ym) return "INVALID_REPLY";
 	let t;
 	try {
@@ -25879,7 +25922,7 @@ function jv(e) {
 		"not_found"
 	].includes(n) ? "EVIDENCE_UNAVAILABLE" : "REQUEST_FAILED" : "REQUEST_FAILED";
 }
-function Mv(e) {
+function Lv(e) {
 	if (!e || typeof e != "object") return null;
 	let t = Object.getOwnPropertyDescriptors(e), n = (e) => {
 		let n = t[e];
@@ -25891,9 +25934,9 @@ function Mv(e) {
 		digest: a
 	} : null;
 }
-function Nv(e, t = {}) {
+function Rv(e, t = {}) {
 	let n = Symbol(), r = Object.freeze({ kind: "idle" }), i = null, a = null, o = /* @__PURE__ */ new Set(), s = t.now ?? Date.now, c = (e) => {
-		kv(e), r = e;
+		Pv(e), r = e;
 		for (let e of o) try {
 			e();
 		} catch {}
@@ -25904,13 +25947,13 @@ function Nv(e, t = {}) {
 			operation: e
 		}), r;
 	}, u = (e) => n === e, d = (e, t) => {
-		if (!u(e)) return Ov("READ_INVALIDATED");
-		let r = jv(t);
+		if (!u(e)) return Nv("READ_INVALIDATED");
+		let r = Iv(t);
 		return u(e) ? (n = Symbol(), a = null, i = null, c({
 			kind: "unavailable",
 			code: r
-		}), Ov(r)) : Ov("READ_INVALIDATED");
-	}, f = () => Ov("READ_INVALIDATED"), p = async (t, n, r) => {
+		}), Nv(r)) : Nv("READ_INVALIDATED");
+	}, f = () => Nv("READ_INVALIDATED"), p = async (t, n, r) => {
 		if (!u(n)) return f();
 		let a = "id" in t ? t.id : t.modelReceiptId;
 		if (c({
@@ -25921,11 +25964,11 @@ function Nv(e, t = {}) {
 		if (!u(n)) return f();
 		let s = zg(o, a);
 		if (s.question !== r) throw new Ym("conversation.readback.question");
-		if (!Av(s.answer, t)) throw new Ym("conversation.readback.answer");
+		if (!Fv(s.answer, t)) throw new Ym("conversation.readback.answer");
 		return u(n) ? (i = null, c({
 			kind: "answer",
 			saved: s
-		}), u(n) ? Dv : f()) : f();
+		}), u(n) ? Mv : f()) : f();
 	};
 	return Object.freeze({
 		snapshot: () => r,
@@ -25944,7 +25987,7 @@ function Nv(e, t = {}) {
 					...o,
 					continuationId: n.turnId
 				} : o);
-				if (kv(s), !u(r)) return f();
+				if (Pv(s), !u(r)) return f();
 				let l = await e.request("models.preview", s);
 				if (!u(r)) return f();
 				let d = await Tg(l, s);
@@ -25957,7 +26000,7 @@ function Nv(e, t = {}) {
 				}, c({
 					kind: "review",
 					...a
-				}), u(r) ? Dv : f();
+				}), u(r) ? Mv : f();
 			} catch (e) {
 				return d(r, e);
 			}
@@ -25972,7 +26015,7 @@ function Nv(e, t = {}) {
 				return u(n) ? (c({
 					kind: "answer",
 					saved: i
-				}), u(n) ? Dv : f()) : f();
+				}), u(n) ? Mv : f()) : f();
 			} catch (e) {
 				return d(n, e);
 			}
@@ -25987,13 +26030,13 @@ function Nv(e, t = {}) {
 				return u(n) ? (i = a, c({
 					kind: "continuation",
 					value: a
-				}), u(n) ? Dv : f()) : f();
+				}), u(n) ? Mv : f()) : f();
 			} catch (e) {
 				return d(n, e);
 			}
 		},
 		async previewFinalWriting() {
-			if (r.kind !== "answer" || r.saved.kind !== "grounded-conversation") return Ov("NO_TOOL_TURN");
+			if (r.kind !== "answer" || r.saved.kind !== "grounded-conversation") return Nv("NO_TOOL_TURN");
 			let t = r.saved.id, n = l("synthesis-preview");
 			try {
 				if (!u(n)) return f();
@@ -26009,7 +26052,7 @@ function Nv(e, t = {}) {
 				}, c({
 					kind: "review",
 					...a
-				}), u(n) ? Dv : f();
+				}), u(n) ? Mv : f();
 			} catch (e) {
 				return d(n, e);
 			}
@@ -26017,13 +26060,13 @@ function Nv(e, t = {}) {
 		async sendReviewed(t) {
 			let o = n, m = a, h;
 			try {
-				h = Mv(t);
+				h = Lv(t);
 			} catch {
-				return Ov("CONSENT_REQUIRED");
+				return Nv("CONSENT_REQUIRED");
 			}
 			if (!u(o) || a !== m) return f();
-			if (!h || h.consent !== !0) return Ov("CONSENT_REQUIRED");
-			if (r.kind !== "review" || !m || h.previewId !== m.preview.id || h.digest !== m.preview.digest) return Ov("REVIEW_CHANGED");
+			if (!h || h.consent !== !0) return Nv("CONSENT_REQUIRED");
+			if (r.kind !== "review" || !m || h.previewId !== m.preview.id || h.digest !== m.preview.digest) return Nv("REVIEW_CHANGED");
 			let g = l("approval", !0);
 			try {
 				if (!u(g)) return f();
@@ -26034,7 +26077,7 @@ function Nv(e, t = {}) {
 				if (!Number.isFinite(o) || Date.parse(r.expiresAt) <= o) return n = Symbol(), a = null, i = null, c({
 					kind: "unavailable",
 					code: "APPROVAL_EXPIRED"
-				}), Ov("APPROVAL_EXPIRED");
+				}), Nv("APPROVAL_EXPIRED");
 				let l;
 				if (m.stage === "planning") {
 					if (c({
@@ -26083,64 +26126,64 @@ function Nv(e, t = {}) {
 }
 //#endregion
 //#region app/ui/src/host/contracts.ts
-function Pv(e) {
+function zv(e) {
 	throw new Ym(e);
 }
-function Fv(e, t) {
-	(typeof e != "object" || !e || Array.isArray(e) || Object.getPrototypeOf(e) !== Object.prototype || Object.getOwnPropertySymbols(e).length) && Pv(t);
-	for (let n of Object.values(Object.getOwnPropertyDescriptors(e))) (!n.enumerable || !Object.hasOwn(n, "value") || n.value === void 0) && Pv(t);
+function Bv(e, t) {
+	(typeof e != "object" || !e || Array.isArray(e) || Object.getPrototypeOf(e) !== Object.prototype || Object.getOwnPropertySymbols(e).length) && zv(t);
+	for (let n of Object.values(Object.getOwnPropertyDescriptors(e))) (!n.enumerable || !Object.hasOwn(n, "value") || n.value === void 0) && zv(t);
 	return e;
 }
-function Iv(e, t, n) {
-	let r = Fv(e, n);
-	return (Object.keys(r).length !== t.length || t.some((e) => !Object.hasOwn(r, e))) && Pv(n), r;
+function Vv(e, t, n) {
+	let r = Bv(e, n);
+	return (Object.keys(r).length !== t.length || t.some((e) => !Object.hasOwn(r, e))) && zv(n), r;
 }
-function Lv(e, t, n = 200) {
-	return (typeof e != "string" || !e.trim() || e.length > n || /[\u0000-\u001f]/.test(e)) && Pv(t), e;
+function Hv(e, t, n = 200) {
+	return (typeof e != "string" || !e.trim() || e.length > n || /[\u0000-\u001f]/.test(e)) && zv(t), e;
 }
-function Rv(e, t) {
-	let n = Lv(e, t);
-	return /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(n) || Pv(t), n;
+function Uv(e, t) {
+	let n = Hv(e, t);
+	return /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(n) || zv(t), n;
 }
-function zv(e, t, n) {
-	(!Array.isArray(e) || Object.getPrototypeOf(e) !== Array.prototype || e.length > n || Object.getOwnPropertySymbols(e).length) && Pv(t);
+function Wv(e, t, n) {
+	(!Array.isArray(e) || Object.getPrototypeOf(e) !== Array.prototype || e.length > n || Object.getOwnPropertySymbols(e).length) && zv(t);
 	let r = Object.getOwnPropertyDescriptors(e);
-	Object.keys(r).length !== e.length + 1 && Pv(t);
-	for (let n = 0; n < e.length; n++) (!r[String(n)]?.enumerable || !Object.hasOwn(r[String(n)], "value")) && Pv(t);
+	Object.keys(r).length !== e.length + 1 && zv(t);
+	for (let n = 0; n < e.length; n++) (!r[String(n)]?.enumerable || !Object.hasOwn(r[String(n)], "value")) && zv(t);
 	return e;
 }
-function Bv(e) {
-	let t = Iv(e, [
+function Gv(e) {
+	let t = Vv(e, [
 		"workspace",
 		"member",
 		"contextKey"
-	], "ui.context"), n = Iv(t.workspace, [
+	], "ui.context"), n = Vv(t.workspace, [
 		"id",
 		"name",
 		"demo"
-	], "ui.context.workspace"), r = Iv(t.member, [
+	], "ui.context.workspace"), r = Vv(t.member, [
 		"id",
 		"name",
 		"role",
 		"epoch",
 		"branches"
 	], "ui.context.member");
-	typeof n.demo != "boolean" && Pv("ui.context.workspace.demo"), (typeof r.role != "string" || ![
+	typeof n.demo != "boolean" && zv("ui.context.workspace.demo"), (typeof r.role != "string" || ![
 		"owner",
 		"cofounder",
 		"accountant",
 		"viewer"
-	].includes(r.role)) && Pv("ui.context.member.role"), (!Number.isSafeInteger(r.epoch) || r.epoch < 1) && Pv("ui.context.member.epoch");
-	let i = zv(r.branches, "ui.context.member.branches", 1e3).map((e, t) => Lv(e, `ui.context.member.branches[${t}]`));
-	return new Set(i).size !== i.length && Pv("ui.context.member.branches"), (typeof t.contextKey != "string" || !/^[a-f0-9]{64}$/.test(t.contextKey)) && Pv("ui.context.contextKey"), Object.freeze({
+	].includes(r.role)) && zv("ui.context.member.role"), (!Number.isSafeInteger(r.epoch) || r.epoch < 1) && zv("ui.context.member.epoch");
+	let i = Wv(r.branches, "ui.context.member.branches", 1e3).map((e, t) => Hv(e, `ui.context.member.branches[${t}]`));
+	return new Set(i).size !== i.length && zv("ui.context.member.branches"), (typeof t.contextKey != "string" || !/^[a-f0-9]{64}$/.test(t.contextKey)) && zv("ui.context.contextKey"), Object.freeze({
 		workspace: Object.freeze({
-			id: Rv(n.id, "ui.context.workspace.id"),
-			name: Lv(n.name, "ui.context.workspace.name", 100),
+			id: Uv(n.id, "ui.context.workspace.id"),
+			name: Hv(n.name, "ui.context.workspace.name", 100),
 			demo: n.demo
 		}),
 		member: Object.freeze({
-			id: Rv(r.id, "ui.context.member.id"),
-			name: Lv(r.name, "ui.context.member.name", 200),
+			id: Uv(r.id, "ui.context.member.id"),
+			name: Hv(r.name, "ui.context.member.name", 200),
 			role: r.role,
 			epoch: r.epoch,
 			branches: Object.freeze(i)
@@ -26148,11 +26191,11 @@ function Bv(e) {
 		contextKey: t.contextKey
 	});
 }
-function Vv(e) {
-	let t = zv(e, "models.list", 100).map((e, t) => {
-		let n = `models.list[${t}]`, r = Fv(e, n);
-		(typeof r.enabled != "boolean" || r.installationVerified !== !1) && Pv(n);
-		let i = Lv(r.kind, `${n}.kind`);
+function Kv(e) {
+	let t = Wv(e, "models.list", 100).map((e, t) => {
+		let n = `models.list[${t}]`, r = Bv(e, n);
+		(typeof r.enabled != "boolean" || r.installationVerified !== !1) && zv(n);
+		let i = Hv(r.kind, `${n}.kind`);
 		[
 			"codex-cli",
 			"claude-cli",
@@ -26160,33 +26203,33 @@ function Vv(e) {
 			"openai-compatible",
 			"ollama",
 			"managed"
-		].includes(i) || Pv(`${n}.kind`);
-		let a = Lv(r.model, `${n}.model`, 128);
+		].includes(i) || zv(`${n}.kind`);
+		let a = Hv(r.model, `${n}.model`, 128);
 		return Object.freeze({
-			id: Rv(r.id, `${n}.id`),
-			label: Object.hasOwn(r, "label") ? Lv(r.label, `${n}.label`, 200) : a,
+			id: Uv(r.id, `${n}.id`),
+			label: Object.hasOwn(r, "label") ? Hv(r.label, `${n}.label`, 200) : a,
 			kind: i,
 			model: a,
 			enabled: r.enabled,
 			installationVerified: !1
 		});
 	});
-	return new Set(t.map((e) => e.id)).size !== t.length && Pv("models.list"), Object.freeze(t);
+	return new Set(t.map((e) => e.id)).size !== t.length && zv("models.list"), Object.freeze(t);
 }
 //#endregion
 //#region app/ui/src/host/controller.ts
-function Hv(e) {
+function qv(e) {
 	return Object.assign(Error(e), { code: e });
 }
-function Uv(e, t) {
-	if (!Number.isFinite(e)) throw Hv("INVALID_REPLY");
+function Jv(e, t) {
+	if (!Number.isFinite(e)) throw qv("INVALID_REPLY");
 	let n = new Intl.DateTimeFormat("en-CA", {
 		timeZone: t,
 		year: "numeric",
 		month: "2-digit",
 		day: "2-digit"
 	}).formatToParts(e), r = (e) => n.find((t) => t.type === e)?.value, i = r("year"), a = r("month"), o = r("day");
-	if (!i || !a || !o || !/^\d{4}$/.test(i) || !/^\d{2}$/.test(a) || !/^\d{2}$/.test(o)) throw Hv("INVALID_REPLY");
+	if (!i || !a || !o || !/^\d{4}$/.test(i) || !/^\d{2}$/.test(a) || !/^\d{2}$/.test(o)) throw qv("INVALID_REPLY");
 	let s = String(new Date(Date.UTC(Number(i), Number(a), 0)).getUTCDate()).padStart(2, "0");
 	return Object.freeze({
 		date: `${i}-${a}-${o}`,
@@ -26196,7 +26239,7 @@ function Uv(e, t) {
 		})
 	});
 }
-var Wv = (e, t) => Object.freeze({
+var Yv = (e, t) => Object.freeze({
 	phase: e,
 	...t === void 0 ? {} : { code: t },
 	context: null,
@@ -26205,10 +26248,10 @@ var Wv = (e, t) => Object.freeze({
 	selectedRouteId: null,
 	receipt: null
 });
-function Gv(e, t = {}) {
+function Xv(e, t = {}) {
 	let n = t.now ?? Date.now, r = t.timeZone ?? "UTC";
 	new Intl.DateTimeFormat("en", { timeZone: r });
-	let i = Wv("loading"), a = Symbol(), o = Symbol(), s = !1, c = null, l = null, u = /* @__PURE__ */ new Set();
+	let i = Yv("loading"), a = Symbol(), o = Symbol(), s = !1, c = null, l = null, u = /* @__PURE__ */ new Set();
 	function d(e) {
 		if (!s) {
 			i = Object.freeze(e);
@@ -26219,50 +26262,50 @@ function Gv(e, t = {}) {
 		return !s && a === e;
 	}
 	async function p() {
-		return Bv(await e.request("ui.context", {}));
+		return Gv(await e.request("ui.context", {}));
 	}
 	function m(e, t) {
-		if (e.contextKey !== t.contextKey || e.workspace.id !== t.workspace.id || e.member.id !== t.member.id || e.member.epoch !== t.member.epoch || e.member.role !== t.member.role) throw x("ACCESS_DENIED"), Hv("ACCESS_DENIED");
+		if (e.contextKey !== t.contextKey || e.workspace.id !== t.workspace.id || e.member.id !== t.member.id || e.member.epoch !== t.member.epoch || e.member.role !== t.member.role) throw x("ACCESS_DENIED"), qv("ACCESS_DENIED");
 	}
 	async function h(t, n) {
 		let r = a, o = i.context;
-		if (!f(r) || o === null || i.phase !== "ready") throw Hv("ACCESS_DENIED");
+		if (!f(r) || o === null || i.phase !== "ready") throw qv("ACCESS_DENIED");
 		try {
 			let i = await p();
-			if (!f(r)) throw Hv("READ_INVALIDATED");
+			if (!f(r)) throw qv("READ_INVALIDATED");
 			if (m(i, o), t === "models.preview" || t === "conversation.ask") {
 				let e = Object.getOwnPropertyDescriptor(n, "routeId");
-				if (l === null || e?.value !== l.routeId) throw Hv("ACCESS_DENIED");
+				if (l === null || e?.value !== l.routeId) throw qv("ACCESS_DENIED");
 			}
 			let a = await e.request(t, n);
-			if (!f(r)) throw Hv("READ_INVALIDATED");
+			if (!f(r)) throw qv("READ_INVALIDATED");
 			let s = await p();
-			if (!f(r)) throw Hv("READ_INVALIDATED");
+			if (!f(r)) throw qv("READ_INVALIDATED");
 			return m(s, o), a;
 		} catch (e) {
-			let t = O_(e);
-			throw f(r) && (D_(t) || t === "INVALID_REPLY") && x(t), e;
+			let t = N_(e);
+			throw f(r) && (M_(t) || t === "INVALID_REPLY") && x(t), e;
 		}
 	}
-	let g = { request: h }, _ = Sv(g), v = A_(g), y = Nv(g, { now: n });
+	let g = { request: h }, _ = Dv(g), v = F_(g), y = Rv(g, { now: n });
 	function b() {
 		a = Symbol(), o = Symbol(), l = null, _.invalidate(), v.invalidate(), y.invalidate();
 	}
 	function x(e = "READ_INVALIDATED") {
-		b(), y.invalidate(e), d(Wv(e === "VAULT_LOCKED" ? "locked" : "unavailable", e));
+		b(), y.invalidate(e), d(Yv(e === "VAULT_LOCKED" ? "locked" : "unavailable", e));
 	}
 	async function S() {
 		if (s || i.phase === "locked") return;
-		b(), d(Wv("loading"));
+		b(), d(Yv("loading"));
 		let e = a;
 		try {
 			let t = await p();
 			if (!f(e)) return;
 			d({
-				...Wv("ready"),
+				...Yv("ready"),
 				context: t
 			});
-			let a = Uv(n(), r), o = {
+			let a = Jv(n(), r), o = {
 				title: "Today",
 				date: a.date,
 				request: { period: a.period },
@@ -26286,7 +26329,7 @@ function Gv(e, t = {}) {
 				x(s.code);
 				return;
 			}
-			let c = Vv(await h("models.list", {}));
+			let c = Kv(await h("models.list", {}));
 			if (!f(e)) return;
 			d({
 				...i,
@@ -26294,7 +26337,7 @@ function Gv(e, t = {}) {
 				routes: c
 			});
 		} catch (t) {
-			f(e) && x(O_(t));
+			f(e) && x(N_(t));
 		}
 	}
 	function C() {
@@ -26305,7 +26348,7 @@ function Gv(e, t = {}) {
 				let n = await p();
 				f(e) && m(n, t);
 			} catch (t) {
-				f(e) && x(O_(t));
+				f(e) && x(N_(t));
 			} finally {
 				c = null;
 			}
@@ -26332,7 +26375,7 @@ function Gv(e, t = {}) {
 		if (s || i.context === null || i.phase !== "ready") return;
 		let n;
 		try {
-			if (n = Object.freeze(Vn(Hn(t))), n.sheet === void 0 || !Un(n, t)) throw Hv("INVALID_REPLY");
+			if (n = Object.freeze(Vn(Hn(t))), n.sheet === void 0 || !Un(n, t)) throw qv("INVALID_REPLY");
 		} catch {
 			x("INVALID_REPLY");
 			return;
@@ -26349,7 +26392,7 @@ function Gv(e, t = {}) {
 		let l = await v.receipt(e);
 		if (f(r) && o === c) {
 			if (!l.ok) {
-				D_(l.code) || l.code === "INVALID_REPLY" ? x(l.code) : d({
+				M_(l.code) || l.code === "INVALID_REPLY" ? x(l.code) : d({
 					...i,
 					receipt: Object.freeze({
 						id: e,
@@ -26383,7 +26426,7 @@ function Gv(e, t = {}) {
 		if (x("VAULT_LOCKED"), t === "owner" || t === "cofounder") try {
 			await e.request("workspace.lock", {});
 		} catch (e) {
-			s || x(O_(e));
+			s || x(N_(e));
 		}
 	}
 	return Object.freeze({
@@ -26404,34 +26447,34 @@ function Gv(e, t = {}) {
 		invalidate: x,
 		lock: E,
 		dispose() {
-			s || (b(), d(Wv("unavailable", "READ_INVALIDATED")), s = !0, u.clear());
+			s || (b(), d(Yv("unavailable", "READ_INVALIDATED")), s = !0, u.clear());
 		}
 	});
 }
 //#endregion
 //#region app/ui/src/host/bootstrap.tsx
-var Kv = {
+var Zv = {
 	place: "today",
 	sub: "today"
-}, qv = {
+}, Qv = {
 	place: "ask",
 	sub: "new"
-}, Jv = {
+}, $v = {
 	place: "trust",
 	sub: "models"
-}, Yv = {
+}, ey = {
 	owner: "roleOwner",
 	cofounder: "roleCofounder",
 	accountant: "roleAccountant",
 	viewer: "roleViewer"
 };
-function Xv(e) {
+function ty(e) {
 	window.location.hash = Hn(e);
 }
-function Zv() {
+function ny() {
 	return document.activeElement instanceof HTMLElement ? document.activeElement : null;
 }
-function Qv({ routes: e, selected: t, language: n, viewer: r, onSelect: i }) {
+function ry({ routes: e, selected: t, language: n, viewer: r, onSelect: i }) {
 	let a = "host-route-label";
 	return /* @__PURE__ */ (0, j.jsxs)("section", { children: [
 		/* @__PURE__ */ (0, j.jsx)(zp, {
@@ -26487,8 +26530,8 @@ function Qv({ routes: e, selected: t, language: n, viewer: r, onSelect: i }) {
 		})
 	] });
 }
-function $v({ value: e, language: t }) {
-	let n = Ev(t), r = (e) => $(t, e), i = (e) => e === null ? n["not-applicable"] : $(t, "dateRange", {
+function iy({ value: e, language: t }) {
+	let n = jv(t), r = (e) => $(t, e), i = (e) => e === null ? n["not-applicable"] : $(t, "dateRange", {
 		from: e.from,
 		to: e.to
 	}), a = (e) => e.length === 0 ? r("none") : e.join(", "), o = e.coverage.completeness !== "empty" && (e.coverage.completeness !== "partial" || e.coverage.countedRows !== 0), s = (e) => /* @__PURE__ */ (0, j.jsx)("dl", {
@@ -26630,13 +26673,13 @@ function $v({ value: e, language: t }) {
 		] })
 	] });
 }
-function ey({ selection: e, language: t, origin: n, onClose: r }) {
+function ay({ selection: e, language: t, origin: n, onClose: r }) {
 	return /* @__PURE__ */ (0, j.jsxs)(yp, {
 		kind: $(t, "receipt"),
 		title: e.id,
 		origin: n,
 		onClose: r,
-		children: [e.kind === "ready" ? /* @__PURE__ */ (0, j.jsx)($v, {
+		children: [e.kind === "ready" ? /* @__PURE__ */ (0, j.jsx)(iy, {
 			value: e.value,
 			language: t
 		}) : /* @__PURE__ */ (0, j.jsx)("p", {
@@ -26645,7 +26688,7 @@ function ey({ selection: e, language: t, origin: n, onClose: r }) {
 		}), e.kind === "failed" && /* @__PURE__ */ (0, j.jsx)("p", { children: $(t, "code", { code: e.code }) })]
 	});
 }
-function ty({ language: e }) {
+function oy({ language: e }) {
 	return /* @__PURE__ */ (0, j.jsxs)(j.Fragment, { children: [
 		/* @__PURE__ */ (0, j.jsx)("dl", {
 			className: Y.pairs,
@@ -26670,18 +26713,18 @@ function ty({ language: e }) {
 		/* @__PURE__ */ (0, j.jsx)("p", { children: $(e, "helpUnavailable") })
 	] });
 }
-function ny({ controller: e, state: t, context: n, language: r, view: i, setLanguage: a, setView: o, onLegacyReturn: s }) {
-	let c = JSON.stringify([n.contextKey, t.selectedRouteId]), l = (0, _.useRef)(Kv), u = (0, _.useRef)(null), d = (0, _.useRef)(null), f = (0, _.useRef)(null), p = (0, _.useRef)(0), [m, h] = (0, _.useState)(void 0), [g, v] = (0, _.useState)(null), y = (0, _.useRef)(g);
+function sy({ controller: e, state: t, context: n, language: r, view: i, setLanguage: a, setView: o, onLegacyReturn: s }) {
+	let c = JSON.stringify([n.contextKey, t.selectedRouteId]), l = (0, _.useRef)(Zv), u = (0, _.useRef)(null), d = (0, _.useRef)(null), f = (0, _.useRef)(null), p = (0, _.useRef)(0), [m, h] = (0, _.useState)(void 0), [g, v] = (0, _.useState)(null), y = (0, _.useRef)(g);
 	y.current = g;
 	let b = n.member.role === "viewer", x = t.routes.find((e) => e.id === t.selectedRouteId && e.enabled), S = e.questionSettings(), C = !b && x !== void 0 && S !== null && S.routeId === x.id, w = (0, _.useMemo)(() => {
 		if (t.today === null) return { kind: "missing" };
 		try {
 			return {
 				kind: "ready",
-				value: Cv(t.today, {
+				value: Ov(t.today, {
 					language: r,
 					timeZone: e.timeZone,
-					missingWords: Ev(r)
+					missingWords: jv(r)
 				})
 			};
 		} catch {
@@ -26714,53 +26757,53 @@ function ny({ controller: e, state: t, context: n, language: r, view: i, setLang
 			id: e,
 			address: t,
 			selectionKey: String(p.current)
-		}), Xv(t);
+		}), ty(t);
 	}, te = () => {
 		let t = y.current?.kind === "help" ? u.current?.isConnected ? u.current : d.current : null;
 		e.closeReceipt(), y.current = null, v(null), t?.isConnected && t.focus();
 		let n = f.current;
-		f.current = null, n !== null && ee() ? E(n) : l.current !== null && Xv(Wn(l.current));
+		f.current = null, n !== null && ee() ? E(n) : l.current !== null && ty(Wn(l.current));
 	}, ne = (t, n = null) => {
 		if (!ee() || l.current === null) return;
-		u.current = Zv(), f.current = n, v(null);
+		u.current = ny(), f.current = n, v(null);
 		let r = Gn(l.current, "receipt");
-		Xv(r), e.openReceipt(t, r);
+		ty(r), e.openReceipt(t, r);
 	}, D = (t, n = null) => {
 		if (!ee() || l.current === null) return;
-		u.current = Zv(), f.current = n, e.closeReceipt();
+		u.current = ny(), f.current = n, e.closeReceipt();
 		let r = Gn(l.current, "reference");
 		v({
 			address: r,
 			kind: "reference",
 			id: t
-		}), Xv(r);
+		}), ty(r);
 	}, re = (e, t) => {
 		e.kind === "calculation-receipt" ? ne(e.id, t.id) : e.kind === "answer" ? E(e.id) : D(e.kind === "synthesis-receipt" ? e.receipt.id : e.id, t.id);
 	}, ie = (t) => {
-		ee() && (e.selectRoute(t), Xv(t === null ? Kv : qv));
+		ee() && (e.selectRoute(t), ty(t === null ? Zv : Qv));
 	}, ae = () => {
 		if (!ee() || l.current === null) return;
-		u.current = Zv(), f.current = null, e.closeReceipt();
+		u.current = ny(), f.current = null, e.closeReceipt();
 		let t = Gn(l.current, "about");
 		v({
 			address: t,
 			kind: "about"
-		}), Xv(t);
+		}), ty(t);
 	}, oe = (t, n) => {
 		if (!ee() || l.current === null || y.current?.kind === "help") return;
-		let r = t === void 0 ? Zv() : t, i = r?.closest("[data-region=\"sheet\"]") ? u.current : r;
+		let r = t === void 0 ? ny() : t, i = r?.closest("[data-region=\"sheet\"]") ? u.current : r;
 		d.current = n?.isConnected ? n : null, u.current = i?.isConnected ? i : n?.isConnected ? n : null, f.current = null, e.closeReceipt();
 		let a = Gn(l.current, "help"), o = {
 			address: a,
 			kind: "help"
 		};
-		y.current = o, v(o), Xv(a);
+		y.current = o, v(o), ty(a);
 	};
 	if (w.kind === "invalid") return /* @__PURE__ */ (0, j.jsx)(Lp, { state: {
 		kind: "failed",
 		code: "INVALID_REPLY"
 	} });
-	let se = Ev(r), ce = w.kind === "ready" ? w.value.data : {
+	let se = jv(r), ce = w.kind === "ready" ? w.value.data : {
 		state: { kind: "loading" },
 		date: "",
 		review: {
@@ -26780,7 +26823,7 @@ function ny({ controller: e, state: t, context: n, language: r, view: i, setLang
 			origin: u.current,
 			onClose: te,
 			children: [
-				g.kind === "help" ? /* @__PURE__ */ (0, j.jsx)(ty, { language: r }) : /* @__PURE__ */ (0, j.jsx)("p", { children: $(r, g.kind === "about" ? "about" : "referenceUnavailable") }),
+				g.kind === "help" ? /* @__PURE__ */ (0, j.jsx)(oy, { language: r }) : /* @__PURE__ */ (0, j.jsx)("p", { children: $(r, g.kind === "about" ? "about" : "referenceUnavailable") }),
 				g.id !== void 0 && /* @__PURE__ */ (0, j.jsx)("p", {
 					className: Y.exact,
 					children: $(r, "referenceIdentity", { id: g.id })
@@ -26794,7 +26837,7 @@ function ny({ controller: e, state: t, context: n, language: r, view: i, setLang
 		})
 	} : {
 		address: t.receipt.address,
-		content: /* @__PURE__ */ (0, j.jsx)(ey, {
+		content: /* @__PURE__ */ (0, j.jsx)(ay, {
 			selection: t.receipt,
 			language: r,
 			origin: u.current,
@@ -26810,7 +26853,7 @@ function ny({ controller: e, state: t, context: n, language: r, view: i, setLang
 				demo: n.workspace.demo,
 				who: $(r, "memberRole", {
 					name: n.member.name,
-					role: $(r, Yv[n.member.role])
+					role: $(r, ey[n.member.role])
 				})
 			},
 			onSetView: o,
@@ -26821,7 +26864,7 @@ function ny({ controller: e, state: t, context: n, language: r, view: i, setLang
 			onAbout: ae
 		},
 		ask: {
-			onAsk: () => Xv(qv),
+			onAsk: () => ty(Qv),
 			noModel: !C,
 			...b ? { readOnly: { holder: $(r, "roleViewer") } } : {}
 		},
@@ -26835,7 +26878,7 @@ function ny({ controller: e, state: t, context: n, language: r, view: i, setLang
 			},
 			model: {
 				text: x === void 0 ? $(r, "routeMissing") : $(r, "routeSelected", { label: x.label }),
-				address: Jv
+				address: $v
 			},
 			third: { text: $(r, "third") }
 		},
@@ -26851,7 +26894,7 @@ function ny({ controller: e, state: t, context: n, language: r, view: i, setLang
 		sheet: le,
 		onAddress: T,
 		onHelp: oe,
-		renderPlace: (e) => e.place === "trust" && e.sub === "models" || e.place === "ask" && (e.sub === void 0 || e.sub === "new") ? /* @__PURE__ */ (0, j.jsx)(Qv, {
+		renderPlace: (e) => e.place === "trust" && e.sub === "models" || e.place === "ask" && (e.sub === void 0 || e.sub === "new") ? /* @__PURE__ */ (0, j.jsx)(ry, {
 			routes: t.routes,
 			selected: t.selectedRouteId,
 			language: r,
@@ -26872,7 +26915,7 @@ function ny({ controller: e, state: t, context: n, language: r, view: i, setLang
 		onReference: re
 	}) : /* @__PURE__ */ (0, j.jsx)(Jm, { ...ue }, c);
 }
-function ry({ controller: e, options: t, onLegacyReturn: n }) {
+function cy({ controller: e, options: t, onLegacyReturn: n }) {
 	let r = (0, _.useSyncExternalStore)(e.subscribe, e.snapshot, e.snapshot), [i, a] = (0, _.useState)(t.language ?? "en"), [o, s] = (0, _.useState)(t.view ?? "guided");
 	(0, _.useEffect)(() => {
 		e.refresh();
@@ -26914,7 +26957,7 @@ function ry({ controller: e, options: t, onLegacyReturn: n }) {
 					minHeight: 0,
 					overflow: "auto"
 				},
-				children: c && r.context !== null ? /* @__PURE__ */ (0, j.jsx)(ny, {
+				children: c && r.context !== null ? /* @__PURE__ */ (0, j.jsx)(sy, {
 					controller: e,
 					state: r,
 					context: r.context,
@@ -26934,12 +26977,12 @@ function ry({ controller: e, options: t, onLegacyReturn: n }) {
 		})
 	});
 }
-function iy(e, t, n = {}) {
-	Xv(Kv), document.documentElement.removeAttribute("data-theme");
+function ly(e, t, n = {}) {
+	ty(Zv), document.documentElement.removeAttribute("data-theme");
 	let r = (0, v.createRoot)(e), i = !1, a = () => {
 		i || (i = !0, t.dispose(), r.unmount());
 	};
-	return r.render(/* @__PURE__ */ (0, j.jsx)(ry, {
+	return r.render(/* @__PURE__ */ (0, j.jsx)(cy, {
 		controller: t,
 		options: n,
 		onLegacyReturn: () => {
@@ -26951,6 +26994,6 @@ function iy(e, t, n = {}) {
 	});
 }
 //#endregion
-export { Gv as createHostController, iy as mountHost };
+export { k_ as createDesktopRequestPort, Xv as createHostController, ly as mountHost };
 
 //# sourceMappingURL=host.js.map

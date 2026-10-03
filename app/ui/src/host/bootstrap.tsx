@@ -25,6 +25,7 @@ import '../views/books.css';
 import './host.css';
 
 export { createHostController } from './controller.ts';
+export { createDesktopRequestPort } from '../bridge/client.ts';
 export type { HostRpcPort } from './contracts.ts';
 
 export interface HostMountOptions {

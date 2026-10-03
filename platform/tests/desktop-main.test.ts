@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 const require = createRequire(import.meta.url);
 const desktopMain = new URL('../../app/desktop/main.cjs', import.meta.url);
@@ -16,15 +16,18 @@ const ownedApp = resolve('/owned/app');
 const ownedResources = resolve('/owned/resources');
 const demoProfileRoot = join(syntheticTemporary, 'fresh-preview');
 
-async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), postgresGate?: Promise<void>, environment: NodeJS.ProcessEnv = {}, fault?: 'existing-root' | 'ignored-binding' | 'late-binding' | 'lock-denied') {
+async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), postgresGate?: Promise<void>, environment: NodeJS.ProcessEnv = {}, fault?: 'existing-root' | 'ignored-binding' | 'late-binding' | 'lock-denied' | 'unavailable-defaults' | 'unavailable-user-default' | 'unavailable-session-default' | 'unavailable-app-data' | 'invalid-app-data', profileClaimFailure?: Error) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
   let databaseCloses = 0;
-  const events: string[] = [], directories = new Set<string>([syntheticTemporary]);
+  const events: string[] = [], diagnostics: string[] = [], directories = new Set<string>([syntheticTemporary]);
   const paths: Record<string, string> = { userData: ownedApp, sessionData: ownedApp };
+  const pathReads: Array<{ name: string; bound: boolean }> = [];
+  const boundPaths = new Set<string>();
   const profileEnvironment = { CHAUSAR_DEMO_PROFILE_ROOT: demoProfileRoot, ...environment };
   if (fault === 'existing-root') directories.add(profileEnvironment.CHAUSAR_DEMO_PROFILE_ROOT);
   const fakeFilesystem = { realpathSync: (path: string) => { assert.equal(path, syntheticTemporary); return path; }, mkdirSync: (path: string, options: any) => {
     events.push(`mkdir:${path}`); assert.equal(options.mode, 0o700); assert.equal(options.recursive, undefined);
+    if (path === demoProfileRoot && profileClaimFailure) throw profileClaimFailure;
     if (directories.has(path)) throw Object.assign(new Error('Existing demo profile refused.'), { code: 'EEXIST' }); directories.add(path);
   } };
   const profileModule = { exports: {} as any };
@@ -34,8 +37,24 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     return desktopRequire(name);
   } });
   const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
+  app.getName = () => 'app'; app.commandLine = { hasSwitch: (name: string) => args.some(value => value === `--${name}` || value.startsWith(`--${name}=`)) };
   app.requestSingleInstanceLock = () => { events.push('lock'); return fault !== 'lock-denied'; }; app.whenReady = () => { events.push('ready'); if (fault === 'late-binding') paths.userData = ownedApp; return Promise.resolve(); };
-  app.getPath = (name: string) => paths[name]; app.setPath = (name: string, path: string) => { events.push(`bind:${name}`); if (fault !== 'ignored-binding') paths[name] = path; }; app.quit = () => { app.quits++; };
+  // Electron can fail to resolve or create a default profile before ready.
+  // Its explicit path override works independently once the directory exists.
+  app.getPath = (name: string) => {
+    pathReads.push({ name, bound: boundPaths.has(name) });
+    if (name === 'appData') {
+      if (fault === 'unavailable-app-data') throw new Error("Failed to get 'appData' path");
+      return fault === 'invalid-app-data' ? undefined : dirname(ownedApp);
+    }
+    if (!boundPaths.has(name) && (fault === 'unavailable-defaults' || fault === 'unavailable-user-default' && name === 'userData' || fault === 'unavailable-session-default' && name === 'sessionData')) throw new Error(`Failed to get '${name}' path`);
+    if (!boundPaths.has(name)) directories.add(paths[name]); // Native default getters can create the old profile.
+    return paths[name];
+  };
+  app.setPath = (name: string, path: string) => {
+    events.push(`bind:${name}`); assert.equal(directories.has(path), true);
+    if (fault !== 'ignored-binding') { paths[name] = path; boundPaths.add(name); }
+  }; app.quit = () => { app.quits++; };
   class Window extends EventEmitter {
     webContents: any; options: any;
     constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.send = () => {}; windows.push(this); }
@@ -43,9 +62,15 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
   }
   class Harness extends EventEmitter {
-    state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false;
+    state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false; workspaceOpen = false;
     constructor(options: any) { super(); this.options = options; engines.push(this); }
-    async start() {} async request(method: string) { return { method, experimental: true }; }
+    async start() {}
+    async request(method: string) {
+      if (method === 'workspace.status') return { method, open: this.workspaceOpen, experimental: true, storage: 'experimental-file' };
+      if (method === 'workspace.create') this.workspaceOpen = true;
+      if (method === 'ui.context') return { method, workspace: { demo: true }, member: { role: 'owner' } };
+      return { method, experimental: true };
+    }
     async updateJobLifecycle(state: any) { this.lifecycle.push(JSON.parse(JSON.stringify(state))); if (this.failLifecycle) { this.state = 'failed'; throw new Error('Lifecycle acknowledgement failed.'); } return { applied: true }; }
     async stop() { this.stops++; this.state = 'stopped'; return { graceful: true, forced: false }; }
   }
@@ -64,9 +89,9 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !postgresGate, version: '2.3.4' }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }) };
     if (name === 'node:net' && postgresGate) return { createServer: () => ({ once() {}, listen(_port: number, _host: string, callback: () => void) { callback(); }, address: () => ({ port: 5432 }), close(callback: () => void) { callback(); } }) };
     return desktopRequire(name);
-  }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', ownedApp, ...args], env: profileEnvironment, platform: 'win32', resourcesPath: ownedResources }, console: { error() {} }, URL, Response, Buffer });
+  }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', ownedApp, ...args], env: profileEnvironment, platform: 'win32', resourcesPath: ownedResources }, console: { error: (message: string) => diagnostics.push(message) }, URL, Response, Buffer });
   await flush();
-  return { app, windows, engines, menus, errors, handlers, powerMonitor, events, paths, directories, databaseCloses: () => databaseCloses };
+  return { app, windows, engines, menus, errors, diagnostics, handlers, powerMonitor, events, paths, pathReads, directories, databaseCloses: () => databaseCloses };
 }
 
 test('demo claims new user and session directories before the lock and pins worker storage to that profile', async () => {
@@ -75,6 +100,61 @@ test('demo claims new user and session directories before the lock and pins work
   assert.deepEqual(d.events, [`mkdir:${demoProfileRoot}`, `mkdir:${join(demoProfileRoot, 'userData')}`, `mkdir:${join(demoProfileRoot, 'sessionData')}`, 'bind:userData', 'bind:sessionData', 'lock', 'ready']);
   assert.equal(d.engines[0].options.environment.CHAUSAR_VAULT_DIRECTORY, join(demoProfileRoot, 'userData', 'vaults'));
   assert.deepEqual(d.paths, { userData: join(demoProfileRoot, 'userData'), sessionData: join(demoProfileRoot, 'sessionData') });
+  assert.equal(d.directories.has(ownedApp), false);
+});
+
+test('unavailable Electron defaults still bind the explicit fresh profile before lock, ready and worker startup', async () => {
+  for (const fault of ['unavailable-defaults', 'unavailable-user-default', 'unavailable-session-default', 'unavailable-app-data'] as const) {
+    const d = await desktop(['--demo'], Promise.resolve(), undefined, { CHAUSAR_VAULT_DIRECTORY: '/real/vaults', CHAUSAR_KEYCHAIN_MANIFEST: '/real/keychain' }, fault);
+    assert.deepEqual(d.errors, []);
+    assert.deepEqual(d.events, [`mkdir:${demoProfileRoot}`, `mkdir:${join(demoProfileRoot, 'userData')}`, `mkdir:${join(demoProfileRoot, 'sessionData')}`, 'bind:userData', 'bind:sessionData', 'lock', 'ready']);
+    assert.deepEqual(d.pathReads, [
+      { name: 'appData', bound: false },
+      { name: 'userData', bound: true }, { name: 'sessionData', bound: true },
+      { name: 'userData', bound: true }, { name: 'sessionData', bound: true },
+    ]);
+    assert.equal(d.engines.length, 1); assert.equal(d.windows.length, 1);
+    assert.equal(d.engines[0].options.environment.CHAUSAR_VAULT_DIRECTORY, join(demoProfileRoot, 'userData', 'vaults'));
+    assert.equal(d.engines[0].options.environment.CHAUSAR_KEYCHAIN_MANIFEST, undefined);
+    assert.equal(d.databaseCloses(), 0); assert.equal(d.directories.has(ownedApp), false);
+  }
+});
+
+test('invalid OS defaults and explicit Electron profile overrides fail before lock or storage access', async () => {
+  const invalid = await desktop(['--demo'], Promise.resolve(), undefined, {}, 'invalid-app-data');
+  assert.match(invalid.errors[0], /invalid application data path/);
+  const override = await desktop(['--demo', '--user-data-dir=/real/profile']);
+  assert.match(override.errors[0], /user-data-dir/); assert.deepEqual(override.pathReads, []);
+  for (const d of [invalid, override]) {
+    assert.equal(d.events.includes('lock'), false); assert.equal(d.events.includes('ready'), false);
+    assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0); assert.equal(d.app.quits, 1);
+    assert.deepEqual([...d.directories], [syntheticTemporary]);
+  }
+});
+
+test('startup diagnostics bound source locations and whitelist codes without logging sensitive error content', async () => {
+  const secret = 'SYNTHETIC_PRIVATE_TOKEN';
+  for (const [suppliedCode, loggedCode] of [['ENAMETOOLONG', 'ENAMETOOLONG'], [secret, 'UNCLASSIFIED']]) {
+    const failure = Object.assign(new Error(`${secret}: /private/profile`), { code: suppliedCode });
+    failure.stack = `Error: ${secret} /main.cjs:999:1\n at claim (/private/${secret}/demo-profile.cjs:26:3)\n at caller (C:\\private\\${secret}\\main.cjs:16:27)\n at outside (/private/${secret}/unknown.cjs:50:2)\n at observer (/private/${secret}/preview-lifecycle.cjs:9:8)\n at extra (/private/${secret}/main.cjs:99:3)`;
+    const d = await desktop(['--demo'], Promise.resolve(), undefined, {}, undefined, failure);
+    assert.deepEqual(d.diagnostics, [`Chausar startup failed: stage=profile-bind; code=${loggedCode}; frames=demo-profile.cjs:26:3,main.cjs:16:27,preview-lifecycle.cjs:9:8`]);
+    assert.ok(d.diagnostics[0].length < 200); assert.equal(d.diagnostics[0].includes(secret), false);
+    assert.equal(d.events.includes('lock'), false); assert.equal(d.engines.length, 0); assert.equal(d.app.quits, 1);
+  }
+  let codeReads = 0;
+  const dynamic = new Error('Synthetic changing error properties');
+  Object.defineProperty(dynamic, 'code', { get: () => ++codeReads === 1 ? 'EACCES' : secret });
+  Object.defineProperty(dynamic, 'stack', { get: () => { throw new Error(secret); } });
+  const d = await desktop(['--demo'], Promise.resolve(), undefined, {}, undefined, dynamic);
+  assert.deepEqual(d.diagnostics, ['Chausar startup failed: stage=profile-bind; code=EACCES; frames=unavailable']);
+  assert.equal(codeReads, 1); assert.equal(d.app.quits, 1);
+  for (const message of ["Failed to get 'userData' path", "Failed to get 'userData' path\n"]) {
+    const failure = new Error(message); failure.stack = `Error: ${secret}\n${' '.repeat(8192)}\n at late (/private/${secret}/main.cjs:99:3)`;
+    const d = await desktop(['--demo'], Promise.resolve(), undefined, {}, undefined, failure);
+    const code = message.endsWith('\n') ? 'UNCLASSIFIED' : 'ELECTRON_PATH_UNAVAILABLE';
+    assert.deepEqual(d.diagnostics, [`Chausar startup failed: stage=profile-bind; code=${code}; frames=unavailable`]);
+  }
 });
 
 test('reused or ineffective demo bindings stop before lock, worker, database and window creation', async () => {
