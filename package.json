@@ -21,6 +21,7 @@
     "package": "node scripts/desktop-package.mjs --mode final",
     "bench": "node scripts/bench.mjs",
     "desktop:production": "node scripts/desktop-launch.mjs --production",
+    "desktop:ui-preview": "node scripts/desktop-launch.mjs --demo --ui-preview",
     "desktop:check": "node scripts/desktop-launch.mjs --demo --check",
     "desktop:smoke": "node scripts/desktop-smoke.mjs",
     "package:preview": "node scripts/desktop-package.mjs --mode preview",

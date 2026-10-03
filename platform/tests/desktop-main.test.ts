@@ -72,6 +72,20 @@ test('unsigned packaged preview refuses explicit production mode before starting
   const d = await desktop(['--production']); assert.match(d.errors[0], /synthetic data only/); assert.equal(d.engines.length, 0); assert.equal(d.windows.length, 0); assert.equal(d.app.quits, 1);
 });
 
+test('UI preview opt-in opens the UI document with its trusted IPC frame and synthetic engine', async () => {
+  const d = await desktop(['--demo', '--ui-preview']);
+  assert.equal(d.errors.length, 0);
+  assert.equal(d.engines[0].options.environment.CHAUSAR_DEMO, '1');
+  const window = d.windows[0];
+  assert.equal(window.webContents.mainFrame.url, 'chausar://app/ui/index.html');
+  const handler = d.handlers.get('chausar:request');
+  const reply = await handler({ sender: window.webContents, senderFrame: window.webContents.mainFrame }, { method: 'workspace.status', payload: {} });
+  assert.equal(reply.ok, true);
+  const stale = await handler({ sender: window.webContents, senderFrame: { url: 'chausar://app/index.html' } }, { method: 'workspace.status', payload: {} });
+  assert.equal(stale.ok, false);
+  assert.equal(stale.error.code, 'UNTRUSTED_SENDER');
+});
+
 test('production desktop forwards its fixed packaged custody manifest through the real startup composition', async () => {
   // Electron and PostgreSQL boundaries are synthetic; the actual main source runs.
   const d = await desktop(['--production'], Promise.resolve(), Promise.resolve(), { CHAUSAR_KEYCHAIN_MANIFEST: '/untrusted/manifest.json' });

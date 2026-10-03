@@ -6,10 +6,10 @@ import { validateLocalElectronDistribution } from './desktop-package.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export function desktopLaunchArguments(args) {
-  const allowed = new Set(['--demo', '--production', '--background', '--check']);
-  if (new Set(args).size !== args.length || args.some(arg => !allowed.has(arg))) throw new Error('Use --demo or --production, with optional --background and --check.');
+  const allowed = new Set(['--demo', '--production', '--background', '--check', '--ui-preview']);
+  if (new Set(args).size !== args.length || args.some(arg => !allowed.has(arg))) throw new Error('Use --demo or --production, with optional --ui-preview, --background and --check.');
   if (args.includes('--demo') === args.includes('--production')) throw new Error('Select exactly one launch mode: --demo or --production.');
-  return { demo: args.includes('--demo'), background: args.includes('--background'), checkOnly: args.includes('--check') };
+  return { demo: args.includes('--demo'), background: args.includes('--background'), checkOnly: args.includes('--check'), uiPreview: args.includes('--ui-preview') };
 }
 /** Launch the already validated native executable; do not invoke the npm loader or its automatic installer. */
 export function desktopLaunchEnvironment(environment = process.env) {
@@ -38,11 +38,11 @@ export async function desktopLaunchPrerequisites(root = projectRoot) {
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const { demo, background, checkOnly } = desktopLaunchArguments(process.argv.slice(2));
+    const { demo, background, checkOnly, uiPreview } = desktopLaunchArguments(process.argv.slice(2));
     const prerequisites = await desktopLaunchPrerequisites();
     if (checkOnly) console.log(`Desktop launch prerequisites passed for ${process.platform}-${process.arch}; no window was launched.`);
     else {
-      const child = spawn(prerequisites.executablePath, [projectRoot, demo ? '--demo' : '--production', ...(background ? ['--background'] : [])], { cwd: projectRoot, env: desktopLaunchEnvironment(), shell: false, windowsHide: true, stdio: 'inherit' });
+      const child = spawn(prerequisites.executablePath, [projectRoot, demo ? '--demo' : '--production', ...(uiPreview ? ['--ui-preview'] : []), ...(background ? ['--background'] : [])], { cwd: projectRoot, env: desktopLaunchEnvironment(), shell: false, windowsHide: true, stdio: 'inherit' });
       child.once('error', error => { console.error(error.message); process.exitCode = 1; });
       child.once('exit', code => { process.exitCode = code ?? 1; });
     }

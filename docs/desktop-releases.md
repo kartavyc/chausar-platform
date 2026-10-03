@@ -40,6 +40,8 @@ On the inspected Windows machine, the npm wrapper searches an absent roaming-pro
 
 The development launcher starts the validated native executable directly with a bounded argument list. It clears inherited Electron Node mode and npm distribution selectors, so the npm loader cannot redirect the validated path or automatically install a missing binary during launch. This command still opens the native app and requires an environment where GUI execution is approved; it has not been run here.
 
+The current UI host is an explicit development opt-in: `npm run desktop:ui-preview` selects synthetic demo data and forwards `--ui-preview` to the verified desktop executable. `node scripts/desktop-launch.mjs --demo --ui-preview --check` checks existing local launch prerequisites without opening a window. The option also works with an explicit production mode, which retains all production custody and runtime gates. It does not change packaging prerequisites or certify native UI behavior. Portable unsigned preview operators can pass `--demo --ui-preview` to their separately verified packaged executable; a new side-by-side package must use its own preview application identity to avoid the installed preview's profile and instance lock.
+
 See [the exact Windows prerequisites and dependency blocker](windows-preview-prerequisites.md) and [portable production runtime sources](desktop-runtime-prerequisites.md). The separate Windows source kit runs check/smoke using an existing Node installation; it contains no Electron or native runtimes.
 
 ## CI preview matrix
