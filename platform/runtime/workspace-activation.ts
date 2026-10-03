@@ -85,6 +85,34 @@ export type WorkspaceActivationSummary = {
   status: 'committed'; qualification: 'test-fixture' | 'encrypted-local-host'; ciphertextBytes: number;
   ownerContext: Context; sessionAuthorityId: string;
 };
+/** Host exception observations only, never a publication outcome. A commit callback may throw before or after publication. */
+export type WorkspaceActivationDiagnosticStage = 'transaction-admission' | 'projection-review' | 'pre-authority-guard'
+  | 'authority-allocation' | 'authority-validation' | 'publication-construction' | 'pre-publication-guard'
+  | 'commit-callback' | 'immediate-readback' | 'readback-validation' | 'transaction-exit';
+const diagnosticErrorCodes = [
+  'ACTIVATION_APPLICATION_CHANGED', 'ACTIVATION_AUTHORITY', 'ACTIVATION_CANDIDATE_CHANGED', 'ACTIVATION_COMMIT_UNKNOWN',
+  'ACTIVATION_FILE_CUSTODY', 'ACTIVATION_GUARD', 'ACTIVATION_LIVE_CUSTODY', 'ACTIVATION_POSTGRES_CIPHERTEXT_CHANGED',
+  'ACTIVATION_POSTGRES_CUSTODY_CHANGED', 'ACTIVATION_POSTGRES_JOURNAL_CHANGED', 'ACTIVATION_POSTGRES_SOURCE_CHANGED',
+  'ACTIVATION_POSTGRES_UNRESOLVED', 'ACTIVATION_PROJECTION_CHANGED', 'ACTIVATION_READBACK', 'ACTIVATION_ROOT_GUARD',
+  'ACTIVATION_SINGLE_USE', 'ACTIVATION_SOURCE_CHANGED', 'ACTIVATION_TARGET_CHANGED', 'BACKUP_ACTIVATION_CUSTODY_CHANGED',
+  'BACKUP_ACTIVATION_JOURNAL_CHANGED', 'BACKUP_ACTIVATION_STAGING_UNBOUND', 'BACKUP_ACTIVATION_STAGING_UNRESOLVED',
+  'BACKUP_FILE_CHANGED', 'BACKUP_INVENTORY_INCOMPLETE', 'BACKUP_LIMIT', 'BACKUP_LOCK_CHANGED', 'BACKUP_SOURCE_CHANGED', 'FORBIDDEN', 'INTERCHANGE_AUTHORITY_CHANGED',
+  'INTERCHANGE_NOT_READY', 'INTERCHANGE_READ_SCOPE_REQUIRED', 'INTERCHANGE_REVIEW_CHANGED', 'INTERCHANGE_TARGET_CHANGED',
+] as const;
+export type WorkspaceActivationDiagnosticErrorCode = typeof diagnosticErrorCodes[number] | 'UNCLASSIFIED';
+/** Shared closed sanitization for constructor-only custody diagnostics; never read messages or invoke error getters. */
+export function workspaceActivationDiagnosticErrorCode(error: unknown): WorkspaceActivationDiagnosticErrorCode {
+  try {
+    const field = error instanceof ChausarError ? Object.getOwnPropertyDescriptor(error, 'code') : undefined;
+    return field && 'value' in field && diagnosticErrorCodes.includes(field.value) ? field.value : 'UNCLASSIFIED';
+  } catch { return 'UNCLASSIFIED'; }
+}
+export type WorkspaceActivationDiagnostic = Readonly<{
+  format: 'chausar.activation-host-diagnostic.v1'; stage: WorkspaceActivationDiagnosticStage;
+  observation: 'exception'; commitAttempted: boolean; errorCode: WorkspaceActivationDiagnosticErrorCode;
+}>;
+/** Constructor-only telemetry; no context, identifiers, payloads, exception messages or admission result. */
+export type WorkspaceActivationDiagnosticOptions = { onDiagnostic(event: WorkspaceActivationDiagnostic): void };
 type CheckedCandidate = { candidate: WorkspaceImportCandidate; pin: Extract<WorkspaceInterchangeCustodyPin, { kind: 'candidate' }>; historical: State; read: AuthenticatedActivationCandidate };
 
 const plainId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value);
@@ -146,7 +174,8 @@ function measured(value: WorkspaceInterchangeCustodyMeasurement) {
 export class WorkspaceActivationHost {
   #ports: WorkspaceActivationPorts;
   #policy: WorkspaceActivationPolicy;
-  constructor(ports: WorkspaceActivationPorts, policy: WorkspaceActivationPolicy) {
+  #onDiagnostic?: WorkspaceActivationDiagnosticOptions['onDiagnostic'];
+  constructor(ports: WorkspaceActivationPorts, policy: WorkspaceActivationPolicy, diagnostics?: WorkspaceActivationDiagnosticOptions) {
     check(ports && typeof ports.custody?.read === 'function' && typeof ports.withTransaction === 'function' && typeof ports.readback === 'function',
       'ACTIVATION_ROOT_REQUIRED', 'Constructor-only root custody, exclusive transaction and authenticated readback ports are required.');
     exact(policy, ['approvedSyntheticWorkspaceIds', 'allowedSyntheticSourceIds', 'budgets', 'retentionDays']);
@@ -156,7 +185,24 @@ export class WorkspaceActivationHost {
     check(Object.values(policy.budgets).every(n => Number.isSafeInteger(n) && n > 0)
       && Number.isInteger(policy.retentionDays) && policy.retentionDays >= 1 && policy.retentionDays <= 3650,
     'ACTIVATION_POLICY', 'Activation requires explicit positive constructor budgets and bounded retention.');
+    if (diagnostics !== undefined) {
+      const field = diagnostics && Object.getOwnPropertyDescriptor(diagnostics, 'onDiagnostic');
+      check(diagnostics && [Object.prototype, null].includes(Object.getPrototypeOf(diagnostics))
+        && Reflect.ownKeys(diagnostics).length === 1 && field?.enumerable && 'value' in field && typeof field.value === 'function',
+      'ACTIVATION_ROOT_REQUIRED', 'Diagnostics require one explicit constructor-only callback.');
+      this.#onDiagnostic = field.value;
+    }
     this.#ports = ports; this.#policy = structuredClone(policy);
+  }
+  #diagnose(stage: WorkspaceActivationDiagnosticStage, commitAttempted: boolean, error: unknown) {
+    if (!this.#onDiagnostic) return;
+    try {
+      const event: WorkspaceActivationDiagnostic = Object.freeze({ format: 'chausar.activation-host-diagnostic.v1',
+        stage, observation: 'exception', commitAttempted, errorCode: workspaceActivationDiagnosticErrorCode(error) });
+      const result: unknown = this.#onDiagnostic(event);
+      // A mistaken async observer must not create an unhandled rejection or affect custody acknowledgement.
+      if (result !== undefined) void Promise.resolve(result).catch(() => {});
+    } catch { /* Diagnostic failure cannot change admission, publication, replay or public error semantics. */ }
   }
   #checked(context: Context, candidateId: string, read: AuthenticatedActivationCandidate): CheckedCandidate {
     exact(read, ['content', 'pin', 'measurement']); measured(read.measurement);
@@ -250,7 +296,9 @@ export class WorkspaceActivationHost {
         'INTERCHANGE_READ_SCOPE_REQUIRED', 'Current owner must have access to every retained historical row.');
       const current = async () => {
         await completed(() => lease.source.assertCompleteOwner(structuredClone(context), structuredClone(checked.historical)));
-        await completed(() => lease.source.assertCurrent()); await completed(() => lease.assertCurrent());
+        // The complete transaction guard includes current source custody,
+        // candidate issuance and the empty target under the same held locks.
+        await completed(() => lease.assertCurrent());
         const reread = this.#checked(context, checked.pin.recordId, await lease.readCandidate());
         check(equal(reread.read, checked.read), 'INTERCHANGE_REVIEW_CHANGED', 'Exact authenticated candidate or independent issuance changed during activation.');
       };
@@ -329,11 +377,15 @@ export class WorkspaceActivationHost {
     const context = structuredClone(contextInput), payload = structuredClone(input);
     const checked = this.#checked(context, payload.candidateId, await this.#ports.custody.read(structuredClone(context), payload.candidateId));
     check(payload.reviewedDigest === checked.pin.candidateDigest, 'INTERCHANGE_REVIEW_CHANGED', 'Acknowledge the exact independently issued candidate review digest.');
-    let commitAttempted = false;
+    let commitAttempted = false, stage: WorkspaceActivationDiagnosticStage = 'transaction-admission';
     try {
       return await this.#transaction(context, checked, async (lease, projection, current) => {
+        stage = 'projection-review';
         check(interchangeDigest(projection) === payload.projectionDigest, 'ACTIVATION_PROJECTION_CHANGED', 'Acknowledge the exact business projection and inert dispositions from review.');
-        await current(); const authority = structuredClone(await lease.allocateAuthority()); this.#authority(authority, checked.historical, checked.pin.target);
+        stage = 'pre-authority-guard'; await current();
+        stage = 'authority-allocation'; const authority = structuredClone(await lease.allocateAuthority());
+        stage = 'authority-validation'; this.#authority(authority, checked.historical, checked.pin.target);
+        stage = 'publication-construction';
         const state = this.#state(projection, authority);
         const evidence: WorkspaceActivationEvidence = { format: 'chausar.workspace-activation-evidence.v1', inert: true, content: checked.read.content, pin: structuredClone(checked.pin) };
         const record: WorkspaceActivationRecord = { format: 'chausar.workspace-activation.v1', status: 'committed', activationId: payload.activationId,
@@ -342,11 +394,15 @@ export class WorkspaceActivationHost {
           targetId: checked.pin.target.targetId, workspaceId: state.workspace.id, projectionDigest: payload.projectionDigest,
           authorityDigest: interchangeDigest(authority), stateDigest: hash(state), evidenceDigest: interchangeDigest(evidence) };
         const publication: WorkspaceActivationCommit = { record, state, evidence, authority };
-        await current(); commitAttempted = true;
+        stage = 'pre-publication-guard'; await current(); commitAttempted = true;
+        stage = 'commit-callback';
         await completed(() => lease.commit(structuredClone(publication)));
-        return this.#readback(await lease.readback(), payload.activationId, context, publication);
+        stage = 'immediate-readback'; const value = await lease.readback();
+        stage = 'readback-validation'; const summary = this.#readback(value, payload.activationId, context, publication);
+        stage = 'transaction-exit'; return summary;
       });
     } catch (error) {
+      this.#diagnose(stage, commitAttempted, error);
       if (commitAttempted) throw new ChausarError('ACTIVATION_COMMIT_UNKNOWN', `Activation ${payload.activationId} attempted publication but exact commit acknowledgement is unavailable. Use explicit readback; do not retry or overwrite.`);
       throw error;
     }

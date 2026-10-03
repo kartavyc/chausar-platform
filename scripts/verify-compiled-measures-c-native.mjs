@@ -21,7 +21,8 @@ import { assertPristinePostgres, disposablePostgresConfiguration } from './verif
  * and public HTTP checks; only fixture ownership, source reporting and public
  * synthetic passphrase setup differ. Root supervises the disposable PostgreSQL
  * server. Existing D: runtimes are read-only; all fixture writes belong on C:. */
-const FOUNDATION_COMMIT = '1dc19b856380951aea49b7143ed4b5617130c06b';
+// Fixtures originated at1dc19b8; execution is pinned to the final source below.
+const FOUNDATION_COMMIT = '87c400870563b92803841d3a198cee801f7740df';
 const OWNED_WORKSPACE = resolve('C:/Users/karta/Documents/Codex/2026-10-01/task-4');
 const PUBLIC_FIXTURE_PASSPHRASE = 'Public synthetic compiled measure qualification fixture only 2026';
 const OWNER = { memberId: 'owner', role: 'owner', epoch: 1 };

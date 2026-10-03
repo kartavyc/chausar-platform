@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 // writes their directory, registers a service or changes host configuration.
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WORKSPACE = resolve('C:/Users/karta/Documents/Codex/2026-10-01/task-4');
-const OWNED = resolve(process.env.CHAUSAR_NATIVE_C_STAGING ?? join(WORKSPACE, 'qualification-joined-20261002'));
+const OWNED = resolve(process.env.CHAUSAR_NATIVE_C_STAGING ?? join(WORKSPACE, 'qualification-final-87c4008-20261002'));
 const BIN = resolve(process.env.CHAUSAR_NATIVE_POSTGRES_BIN ?? 'D:/Chausar/build-tools/qualification/postgresql-18.6-4/pgsql/bin');
 assert.equal(process.platform, 'win32');
 const ownSuffix = relative(WORKSPACE, OWNED);
@@ -29,7 +29,7 @@ for (const segment of ownSuffix.split(sep)) {
   parent = next;
 }
 const gateScripts = (process.env.CHAUSAR_NATIVE_GATES ?? 'verify-database-differential.mjs').split(',');
-const allowedScripts = new Set(['verify-database-differential.mjs', 'verify-compiled-measures-c-native.mjs', 'verify-investigations-c-native.mjs', 'verify-workflows-native.mjs', 'verify-answer-recovery-native.mjs', 'verify-pglite-c-native.mjs']);
+const allowedScripts = new Set(['verify-database-differential.mjs', 'verify-compiled-measures-c-native.mjs', 'verify-investigations-c-native.mjs', 'verify-workflows-native.mjs', 'verify-answer-recovery-native.mjs', 'verify-pglite-c-native.mjs', 'verify-comparison-scenario-native.mjs', 'verify-alert-brief-native.mjs', 'verify-phone-continuation-native.mjs']);
 assert(gateScripts.length > 0 && new Set(gateScripts).size === gateScripts.length && gateScripts.every(name => allowedScripts.has(name)));
 const archiveHash = '1df55002afe95b945d934c078b13e82c1603fa546731e511d068aa983b4ead28';
 const expectedBinaryHashes = {
@@ -50,20 +50,20 @@ assert.equal(realpathSync(runRoot).toLowerCase(), resolve(runRoot).toLowerCase()
 assert(lstatSync(runRoot).isDirectory() && !lstatSync(runRoot).isSymbolicLink());
 const data = join(runRoot, 'data');
 const serverLog = join(runRoot, 'postgres.log');
-const baseline = '1dc19b856380951aea49b7143ed4b5617130c06b';
+const baseline = '87c400870563b92803841d3a198cee801f7740df';
 // Git ownership remains enforced. This manifest was captured with read-only Git
 // under the checkout owner, before crossing the process-approval boundary.
-const sourceManifestBytes = readFileSync(join(ROOT, 'scripts/native-source-1dc19b8.json'));
+const sourceManifestBytes = readFileSync(join(ROOT, 'scripts/native-source-87c4008.json'));
 const sourceManifest = JSON.parse(sourceManifestBytes);
 assert.equal(sourceManifest.commit, baseline);
-assert.equal(sourceManifest.tree, '68b396560c2b7950ccaf9d8c38ee52d87bd60d65');
+assert.equal(sourceManifest.tree, '84658363a35be7f31a148d676fdea18ec3669e68');
 const verifySources = () => {
   for (const entry of sourceManifest.files) {
     assert(typeof entry.path === 'string' && /^(?:platform\/|scripts\/verify-database-differential\.mjs$)/.test(entry.path) && !entry.path.split('/').includes('..'));
     assert.equal(createHash('sha256').update(readFileSync(join(ROOT, entry.path))).digest('hex'), entry.sha256, entry.path);
   }
 };
-assert.equal(sourceManifest.files.length, 438);
+assert.equal(sourceManifest.files.length, 470);
 verifySources();
 const lifecycle = { scope: 'C-only synthetic loopback portable PostgreSQL; D runtimes read-only; no service', sourceCommit: baseline, sourceTree: sourceManifest.tree, sourceVerification: 'Read-only Git capture under checkout owner; all captured baseline platform files checked before/after execution. Added runners are hashed separately.', sourceManifestSha256: createHash('sha256').update(sourceManifestBytes).digest('hex'), sourceFilesChecked: sourceManifest.files.length, archiveSha256: archiveHash, archiveVerification: 'Retained prior authorized official-download verification; archive is not reread in this run.', binaryHashes: expectedBinaryHashes, runRoot, serverStarted: false, serverStopped: false, defaultEngineSelected: false, gates: [] };
 const lifecycleFile = join(runRoot, 'lifecycle.json');

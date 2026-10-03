@@ -58,8 +58,11 @@ async function fixture(t: TestContext) {
   });
   const targetId = 'target_fixture', candidateId = 'candidate_fixture';
   let prepared = 0, allocated = 0, inspected = 0;
+  let sourceGuards = 0, completeOwnerGuards = 0, candidateReads = 0;
   let ready = true;
   let inspectionHook: ((targetDirectory: string) => Promise<void>) | undefined;
+  let completeOwnerHook: (() => Promise<void>) | undefined;
+  let allocationHook: (() => Promise<void>) | undefined;
   let custody = localInterchange();
   function localInterchange() {
     return createWorkspaceInterchangeLocalPorts({ vault: sourceVault!, applicationDirectory, qualification: 'encrypted-local-host',
@@ -79,6 +82,7 @@ async function fixture(t: TestContext) {
       maxArtifacts: 100, maxFacts: 100, maxRecords: 1000 } };
 
   async function readCandidate(context: Context, id: string): Promise<AuthenticatedActivationCandidate> {
+    candidateReads++;
     authorize(sourceVault!, context, 'admin');
     const prefix = `wic_${sha(id)}`;
     const commit = await sourceVault!.readArtifact({ id: `${prefix}_commit`, purpose });
@@ -100,7 +104,13 @@ async function fixture(t: TestContext) {
   }
   function options(): WorkspaceActivationLocalOptions {
     return { sourceVault: sourceVault!, journalVault: journalVault!, applicationDirectory,
-      source: { withSource: (context, expected, work) => custody.ports.withSource(context, expected, work) },
+      source: { withSource: (context, expected, work) => custody.ports.withSource(context, expected, lease => work({
+        ...lease,
+        assertCurrent: async () => { sourceGuards++; await lease.assertCurrent(); },
+        assertCompleteOwner: async (ctx, historical) => {
+          completeOwnerGuards++; await lease.assertCompleteOwner(ctx, historical); await completeOwnerHook?.();
+        },
+      })) },
       candidates: { read: (context, id) => custody.ports.custody.read(context, id),
         withCandidate: async (context, id, work) => {
           const lock = await acquireProcessLock(candidateLockPath(id), { busyCode: 'ACTIVATION_CANDIDATE_BUSY' });
@@ -109,6 +119,7 @@ async function fixture(t: TestContext) {
       bootstrap: {
         allocateAuthority: async (_context, target) => {
           allocated++;
+          await allocationHook?.();
           const memberId = `fresh_owner_${randomUUID()}`;
           return { workspaceId: target.workspaceId,
             owner: { id: memberId, name: 'Fresh synthetic owner', role: 'owner', active: true, epoch: 1, branches: ['*'] },
@@ -154,6 +165,10 @@ async function fixture(t: TestContext) {
     targetPath: () => local.targetPath(targetId),
     targetLockPath: () => join(applicationDirectory, '.workspace-interchange-control', 'targets', `${sha(local.targetPath(targetId))}.lock`),
     candidateLockPath, counts: () => ({ prepared, allocated, inspected }), setReady: (value: boolean) => { ready = value; },
+    guardCounts: () => ({ sourceGuards, completeOwnerGuards, candidateReads }),
+    resetGuardCounts: () => { sourceGuards = 0; completeOwnerGuards = 0; candidateReads = 0; },
+    onCompleteOwner: (hook: (() => Promise<void>) | undefined) => { completeOwnerHook = hook; },
+    onAllocation: (hook: (() => Promise<void>) | undefined) => { allocationHook = hook; },
     onInspection: (hook: ((targetDirectory: string) => Promise<void>) | undefined) => { inspectionHook = hook; },
     async activate(activationId = 'activation_fixture') {
       const review = await host.review(interchangeOwner, request);
@@ -216,6 +231,86 @@ async function holdChildLock(t: TestContext, path: string) {
   });
   return async () => { child.stdin.end('release'); assert.equal(await exit, 0, stderr); };
 }
+
+test('real Local review performs one source guard per complete fence while retaining owner and candidate checks', { timeout: 30_000 }, async t => {
+  const f = await fixture(t);
+  const review = await f.host.review(interchangeOwner, f.request);
+  assert.equal(review.candidateId, f.request.candidateId);
+  const counts = f.guardCounts();
+  t.diagnostic(JSON.stringify({ ...counts, bootstrapQualification: 'test-fixture', nativeStorageQualified: false }));
+  // Local entry/exit plus three complete Host fences. Each Host fence still
+  // checks complete owner access and rereads the held authenticated candidate.
+  assert.equal(counts.completeOwnerGuards, 3);
+  assert.equal(counts.candidateReads, 9);
+  assert.equal(counts.sourceGuards, 5, 'The complete Local fence already asserts the source; adjacent source-only checks duplicate capture.');
+  assert.deepEqual(f.counts(), { prepared: 0, allocated: 0, inspected: 0 });
+  assert.deepEqual(await readdir(f.targetPath()), []);
+  assert.deepEqual(await f.journalVault.listArtifacts({ purpose }), []);
+});
+
+test('real Local fences refuse changes across awaited owner, allocation and empty-exit boundaries', { timeout: 60_000 }, async t => {
+  await t.test('readiness revoked after complete-owner admission', async subtest => {
+    const f = await fixture(subtest);
+    let changed = false;
+    f.onCompleteOwner(async () => { await Promise.resolve(); changed = true; f.setReady(false); });
+    await assert.rejects(f.host.review(interchangeOwner, f.request), code('INTERCHANGE_NOT_READY'));
+    assert.equal(changed, true); assert.equal(f.guardCounts().completeOwnerGuards, 1);
+    assert.deepEqual(f.counts(), { prepared: 0, allocated: 0, inspected: 0 });
+    assert.deepEqual(await readdir(f.targetPath()), []);
+    assert.deepEqual(await f.journalVault.listArtifacts({ purpose }), []);
+  });
+
+  for (const boundary of ['allocation', 'empty_exit'] as const) {
+    for (const change of ['owner', 'readiness', 'candidate', 'target'] as const) await t.test(`${boundary}: ${change}`, async subtest => {
+      const f = await fixture(subtest), pin = f.candidate.pin;
+      assert.equal(pin.kind, 'candidate'); if (pin.kind !== 'candidate') throw new Error('The fixture must issue a candidate.');
+      let changed = false, preserved: { path: string; bytes: Buffer } | undefined;
+      const mutation = async () => {
+        await Promise.resolve(); changed = true;
+        if (change === 'owner') {
+          // Simulate current authority revocation at the trusted Vault read boundary;
+          // actual Local authorization still decides admission, never a fake guard.
+          const revoked = f.sourceVault.read(); revoked.members[0].active = false;
+          subtest.mock.method(f.sourceVault, 'read', () => structuredClone(revoked));
+        } else if (change === 'readiness') f.setReady(false);
+        else if (change === 'target') {
+          const path = join(f.targetPath(), 'late_unrelated.txt'), bytes = Buffer.from('synthetic work that must survive refusal');
+          await writeFile(path, bytes, { flag: 'wx' }); preserved = { path, bytes };
+        } else {
+          // Rebind genuinely authenticated ciphertext to another issuance instance.
+          // Controls stay valid for source inventory; the held exact-candidate guard
+          // must detect the changed creation ID independently.
+          const prefix = `wic_${sha(f.request.candidateId)}`;
+          const retainedPin = await f.sourceVault.readArtifact({ id: `${prefix}_pin`, purpose });
+          const pinValue = structuredClone(retainedPin.value) as { pin: AuthenticatedActivationCandidate['pin'] };
+          pinValue.pin.creationId = `changed_${randomUUID()}`;
+          const nextPin = await f.sourceVault.writeArtifact({ id: retainedPin.id, purpose, value: pinValue,
+            expectedDigest: retainedPin.valueDigest });
+          const retainedCommit = await f.sourceVault.readArtifact({ id: `${prefix}_commit`, purpose });
+          await f.sourceVault.writeArtifact({ id: retainedCommit.id, purpose,
+            value: { ...(retainedCommit.value as Record<string, unknown>), pin: nextPin, pinDigest: interchangeDigest(pinValue.pin) },
+            expectedDigest: retainedCommit.valueDigest });
+          const path = artifactPath(f.sourceVault, retainedPin.id); preserved = { path, bytes: await readFile(path) };
+        }
+      };
+      const expected = { owner: 'ACCESS_REVOKED', readiness: 'INTERCHANGE_NOT_READY',
+        candidate: 'ACTIVATION_CANDIDATE_CHANGED', target: 'ACTIVATION_TARGET_CHANGED' }[change];
+      const transactionPins = { candidateId: f.request.candidateId, targetId: f.targetId,
+        expectedInventory: pin.inventory, expectedTarget: pin.target };
+      if (boundary === 'allocation') f.onAllocation(mutation);
+      await assert.rejects(f.local.ports.withTransaction(interchangeOwner, transactionPins, async lease => {
+        if (boundary === 'allocation') await lease.allocateAuthority();
+        else await mutation();
+        return 'must not escape a changed held fence';
+      }), code(expected));
+      assert.equal(changed, true);
+      assert.deepEqual(f.counts(), { prepared: 0, allocated: boundary === 'allocation' ? 1 : 0, inspected: 0 });
+      assert.deepEqual(await f.journalVault.listArtifacts({ purpose }), []);
+      assert.deepEqual(await readdir(f.targetPath()), change === 'target' ? ['late_unrelated.txt'] : []);
+      if (preserved) assert.deepEqual(await readFile(preserved.path), preserved.bytes, 'Refusal must preserve the changed custody for inspection.');
+    });
+  }
+});
 
 test('actual activation storage retains exact encrypted original and ordered bootstrap independently of later live revisions', { timeout: 30_000 }, async t => {
   const f = await fixture(t), summary = await f.activate();

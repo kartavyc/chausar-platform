@@ -7,7 +7,7 @@ import {
   canonicalInterchangeJson, captureWorkspaceInterchange, interchangeDigest, retainedArtifactBytes,
   validateWorkspaceInterchange, workspaceStateProfile,
 } from './workspace-interchange.ts';
-import { validateWorkspaceBackupV2, workspaceBackupV2Bytes,
+import { validateWorkspaceBackupV2, validateWorkspaceBackupV2Capture,
   type WorkspaceBackupV2Budgets, type WorkspaceBackupV2Capture, type WorkspaceBackupV2CustodyRecord,
   type WorkspaceBackupV2Measurement, type WorkspaceBackupV2RestoreReceipt,
 } from './workspace-backup-v2.ts';
@@ -62,7 +62,11 @@ export type WorkspaceBackupActivationPorts = {
   withTransaction<T>(context: Context, selection: WorkspaceBackupActivationSelection & { mode: 'prepare' | 'inspect' },
     work: (lease: WorkspaceBackupActivationLease) => Promise<T>): Promise<T>;
   /** Authenticated candidate/pin/creation binding with CURRENT complete-owner admission, including after restart. */
-  custody: { read(context: Context, candidateId: string): Promise<AuthenticatedActivationCandidate> };
+  custody: {
+    read(context: Context, candidateId: string): Promise<AuthenticatedActivationCandidate>;
+    /** Constructor-only current source-scope reader. Never accepts retained data through RPC. */
+    readHeld?(context: Context, candidateId: string): Promise<AuthenticatedActivationCandidate>;
+  };
 };
 export type WorkspaceBackupActivationProvenance = {
   format: typeof PROVENANCE;
@@ -118,7 +122,8 @@ export class WorkspaceBackupActivationHost {
   readonly #ports: WorkspaceBackupActivationPorts;
   readonly #policy: WorkspaceBackupActivationPolicy;
   constructor(ports: WorkspaceBackupActivationPorts, policy: WorkspaceBackupActivationPolicy) {
-    check(ports && typeof ports.withTransaction === 'function' && typeof ports.custody?.read === 'function',
+    check(ports && typeof ports.withTransaction === 'function' && typeof ports.custody?.read === 'function'
+      && (ports.custody.readHeld === undefined || typeof ports.custody.readHeld === 'function'),
       'BACKUP_ACTIVATION_ROOT_REQUIRED', 'Held root archive/material/target custody and authenticated candidate read ports are required.');
     exact(policy, ['approvedSyntheticWorkspaceIds', 'backupBudgets', 'maxMaterialUtf8Bytes', 'maxCandidateUtf8Bytes']);
     exact(policy.backupBudgets, ['maxArchiveUtf8Bytes', 'maxEntryBytes', 'maxTotalEntryBytes', 'maxEntries', 'maxJsonDepth', 'maxJsonNodes']);
@@ -241,8 +246,7 @@ export class WorkspaceBackupActivationHost {
       await completed(() => lease.assertCurrent());
       const backup = structuredClone(await lease.readBackup()), material = structuredClone(await lease.readMaterial()), inert = structuredClone(await lease.readInert());
       // Validate untrusted wire/independent pins before handing bounded ciphertext to cryptographic root ports.
-      const archive = validateWorkspaceBackupV2(backup.content, backup.pin.sourcePin, this.#policy.backupBudgets);
-      const capture = workspaceBackupV2Bytes(archive, this.#policy.backupBudgets);
+      const { capture } = validateWorkspaceBackupV2Capture(backup.content, backup.pin.sourcePin, this.#policy.backupBudgets);
       exact(material, ['content', 'pin', 'measurement']); measured(material.measurement, false);
       check(typeof material.content === 'string' && Buffer.byteLength(material.content) <= this.#policy.maxMaterialUtf8Bytes,
         'BACKUP_ACTIVATION_LIMIT', 'Complete material must fit its budget before cryptographic admission.');
@@ -312,8 +316,17 @@ export class WorkspaceBackupActivationHost {
   }
   /** Explicit authenticated inspection after restart or lost issuance acknowledgement. Never publishes. */
   async inspect(contextInput: Context, input: { candidateId: string }): Promise<{ review: WorkspaceBackupActivationReview; evidence: WorkspaceActivationEvidence }> {
+    return this.#inspect(contextInput, input, this.#ports.custody.read);
+  }
+  /** Trusted composition only: the installed reader must enforce a live exact source scope. */
+  async inspectHeld(contextInput: Context, input: { candidateId: string }): Promise<{ review: WorkspaceBackupActivationReview; evidence: WorkspaceActivationEvidence }> {
+    check(typeof this.#ports.custody.readHeld === 'function', 'BACKUP_ACTIVATION_ROOT_REQUIRED',
+      'Held inspection requires a constructor-installed current source-scope reader.');
+    return this.#inspect(contextInput, input, this.#ports.custody.readHeld);
+  }
+  async #inspect(contextInput: Context, input: { candidateId: string }, readCandidate: WorkspaceBackupActivationPorts['custody']['read']): Promise<{ review: WorkspaceBackupActivationReview; evidence: WorkspaceActivationEvidence }> {
     exact(input, ['candidateId']); check(id(input.candidateId), 'BACKUP_ACTIVATION_IDENTITY', 'Inspect one explicit candidate identity.');
-    const context = structuredClone(contextInput), read = structuredClone(await this.#ports.custody.read(structuredClone(context), input.candidateId));
+    const context = structuredClone(contextInput), read = structuredClone(await readCandidate.call(this.#ports.custody, structuredClone(context), input.candidateId));
     const checked = this.#candidate(context, input.candidateId, read);
     return this.#transaction(context, checked.chosen, 'inspect', async (lease, derived, current, provenance) => {
       const held = structuredClone(await lease.readCandidate()); this.#candidate(context, input.candidateId, held);

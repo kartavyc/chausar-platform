@@ -103,19 +103,36 @@ test('PostgreSQL malformed projections and connection configuration refuse befor
 
 test('PostgreSQL authority refuses unchanged, regressing, skipped and unsafe revisions before issuing a transaction', async () => {
   let connected = 0;
-  const pool: PostgresPool = { async query() { return { rows: [] }; }, async connect() { connected++; throw new Error('must not connect'); }, async end() {} };
+  const pool: PostgresPool = { async query(sql) { assert.ok(sql.includes('to_regclass')); return { rows: [{ authority_table: true, storage_table: true, custody_table: true, creation_column: true }] }; }, async connect() { connected++; throw new Error('must not connect'); }, async end() {} };
   const adapter = await PostgresSnapshotAdapter.fromPool(pool, 'fixture-cas');
   for (const [revision, expected] of [[9,9],[8,9],[11,9],[-1,null],[Number.MAX_SAFE_INTEGER + 1,null],[10,NaN]]) await assert.rejects(adapter.commit({ revision } as any, expected), { code: 'INVALID_REVISION' });
   assert.equal(connected, 0);
 });
 
 test('PostgreSQL authority rejects revisions beyond JavaScript precision and pins the public authority table', async () => {
-  const calls: string[] = [];
+  const calls: string[] = []; let released = 0;
+  const ciphertext = { nonce: 'synthetic-nonce', tag: 'synthetic-tag', data: 'synthetic-data' };
+  const envelope = { format: 'chausar.vault.v1', id: 'synthetic-vault', revision: 9007199254740992,
+    passphrase: { salt: 'synthetic-passphrase-salt', kdf: 'scrypt-32768-8-1', ciphertext },
+    recovery: { salt: 'synthetic-recovery-salt', kdf: 'scrypt-32768-8-1', ciphertext }, snapshot: ciphertext };
+  const client = {
+    async query(sql: string) {
+      calls.push(sql);
+      if (sql === "SELECT storage_id FROM public.chausar_workspace_postgres_storage WHERE id = 'current' FOR SHARE")
+        return { rows: [{ storage_id: 'synthetic-analytics-generation' }] };
+      return { rows: sql.startsWith('SELECT creation_id, revision, envelope')
+        ? [{ creation_id: 'synthetic-creation', revision: '9007199254740993', envelope }] : [] };
+    },
+    release() { released++; },
+  };
   const pool: PostgresPool = {
-    async query(sql) { calls.push(sql); return sql.startsWith('SELECT') ? { rows: [{ revision: '9007199254740993', envelope: { revision: 9007199254740992 } }] } : { rows: [] }; },
-    async connect() { throw new Error('must not connect'); }, async end() {},
+    async query(sql) { assert.ok(sql.includes('to_regclass')); return { rows: [{ authority_table: true, storage_table: true, custody_table: true, creation_column: true }] }; },
+    async connect() { return client; }, async end() {},
   };
   const adapter = await PostgresSnapshotAdapter.fromPool(pool, 'fixture-load');
   await assert.rejects(adapter.load(), { code: 'CORRUPT_VAULT' });
-  assert.ok(calls.every(sql => sql.includes('public.chausar_vault_authority')));
+  const authorityReads = calls.filter(sql => sql.startsWith('SELECT creation_id, revision, envelope'));
+  assert.ok(authorityReads.length > 0 && authorityReads.every(sql => sql.includes('FROM public.chausar_vault_authority WHERE slot = $1 FOR UPDATE')));
+  assert.ok(calls.includes('BEGIN') && calls.includes('ROLLBACK') && !calls.includes('COMMIT'));
+  assert.equal(released, 1);
 });

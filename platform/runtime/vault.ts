@@ -6,6 +6,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { ChausarError, hash, initialState, type State, type StateStore } from './contracts.ts';
 import { acquireProcessLock, type ProcessLock } from './process-lock.ts';
 import { invoiceRestoreNeedsCustody } from './vault-invoice-custody.ts';
+import { mapCustodyFiles } from './custody-file-reads.ts';
 
 const FORMAT = 'chausar.vault.v1';
 const MAX_BYTES = 64 * 1024 * 1024;
@@ -19,6 +20,14 @@ export interface EncryptedSnapshotAdapter {
   load(): Promise<VaultEnvelope | null>;
   commit(envelope: VaultEnvelope, expectedRevision: number | null): Promise<void>;
   delete(): Promise<void>;
+  /** Trusted deletion scope: admit the complete retained ciphertext and hold
+   * native custody through every awaited purge and the authority deletion. */
+  withDeletionAdmission?<T>(expected: VaultEnvelope, work: () => Promise<T>): Promise<T>;
+  /** Ciphertext-only atomic ownership CAS. Required for PostgreSQL bootstrap;
+   * compare the entire original envelope and revision/Vault identity under the
+   * same slot transaction. Mismatch preserves the occupant. Never read/delete.
+   */
+  deleteIfCurrent?(expected: VaultEnvelope): Promise<'deleted' | 'absent' | 'mismatch'>;
   close?(): Promise<void>;
 }
 /** Only trusted engine code supplies a hook. No OS keychain is assumed or certified. */
@@ -43,6 +52,8 @@ function artifactIdentity(id: string, purpose: PrivateArtifactPurpose) {
 /** Trusted host admission, held through the actual authority commit. No RPC port. */
 export type VaultWriterGuard = <T>(input: { state: State; vaultId: string },
   work: (assertCurrent: () => void) => Promise<{ result: T; committedState: State; rollback?: () => void }>) => Promise<T>;
+/** Trusted application cleanup only; the Vault owns storage and private paths. */
+export type VaultDeletionCleanup = (input: { privateArtifactPaths: readonly string[]; assertCurrent: () => void }) => Promise<void>;
 type Common = { directory: string; storage: Storage; keychain?: KeychainHook; writerGuard?: VaultWriterGuard };
 export type CreateVaultOptions = Common & { passphrase: string; name: string; demo?: boolean };
 export type VaultBootstrapBudgets = { maxStateBytes: number; maxJsonDepth: number; maxJsonNodes: number; maxRecords: number };
@@ -278,12 +289,36 @@ async function atomicWrite(path: string, content: string, replace: boolean) {
     await syncDirectory(parent);
   } catch (error) { await handle.close().catch(() => {}); await unlink(temp).catch(() => {}); throw error; }
 }
-async function readBounded(path: string): Promise<string> {
+async function readBounded(path: string, exactSize?: number): Promise<string> {
   if (!isAbsolute(path)) throw new Error('Absolute path required');
-  await safeDirectory(dirname(path));
-  if (!(await existingRegular(path))) throw new Error('Missing file');
+  path = join(await safeDirectory(dirname(path)), basename(path));
+  if (exactSize === undefined && !(await existingRegular(path))) throw new Error('Missing file');
+  const before = exactSize === undefined ? undefined : await lstat(path, { bigint: true });
+  if (before && (!before.isFile() || before.isSymbolicLink()))
+    fail('UNSAFE_PATH', 'Expected a regular file without symbolic links.');
+  if (before && before.size !== BigInt(exactSize!))
+    fail('ARTIFACT_LIMIT', 'Encrypted artifact changed after capture budget preflight.');
   const handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
-  try { if ((await handle.stat()).size > MAX_BYTES) throw new Error('Oversized envelope'); return await handle.readFile('utf8'); }
+  try {
+    if (!before) { if ((await handle.stat()).size > MAX_BYTES) throw new Error('Oversized envelope'); return await handle.readFile('utf8'); }
+    const unchanged = (stat: typeof before) => stat.dev === before.dev && stat.ino === before.ino
+      && stat.birthtimeNs === before.birthtimeNs && stat.size === before.size
+      && stat.mtimeNs === before.mtimeNs && stat.ctimeNs === before.ctimeNs;
+    if (!unchanged(await handle.stat({ bigint: true }))) fail('ARTIFACT_LIMIT', 'Encrypted artifact changed before bounded capture.');
+    const chunks: Buffer[] = []; let size = 0;
+    while (true) {
+      const chunk = Buffer.alloc(Math.min(1024 * 1024, exactSize! + 1 - size));
+      const { bytesRead } = await handle.read(chunk, 0, chunk.length, null);
+      if (!bytesRead) break;
+      size += bytesRead;
+      if (size > exactSize!) fail('ARTIFACT_LIMIT', 'Encrypted artifact grew beyond its reserved capture size.');
+      chunks.push(chunk.subarray(0, bytesRead));
+    }
+    const after = await handle.stat({ bigint: true }), current = await lstat(path, { bigint: true });
+    if (size !== exactSize || !unchanged(after) || !unchanged(current) || !current.isFile() || current.isSymbolicLink())
+      fail('ARTIFACT_LIMIT', 'Encrypted artifact changed during bounded capture.');
+    return Buffer.concat(chunks).toString('utf8');
+  }
   finally { await handle.close(); }
 }
 
@@ -372,9 +407,13 @@ export class Vault implements StateStore {
       passphrase(secret); state = freshBootstrapState(options);
       directory = await safeDirectory(options.directory, true);
       if ((await readdir(directory)).length) fail('BOOTSTRAP_TARGET_NOT_EMPTY', 'Fresh bootstrap requires an explicitly empty target directory.');
-      adapter = adapterFor(directory, storage); lock = await takeLock(directory);
+      adapter = adapterFor(directory, storage);
+      if (adapter.kind === 'postgres' && typeof adapter.deleteIfCurrent !== 'function')
+        fail('BOOTSTRAP_STORAGE_CUSTODY_REQUIRED', 'PostgreSQL bootstrap requires atomic exact-owned cleanup custody.');
+      lock = await takeLock(directory);
     } catch (error) { await closeTransferred(storage); throw error; }
-    let key: Buffer | undefined, committed = false, id: string | undefined, envelope: VaultEnvelope | undefined, publicationCalls = 0;
+    let key: Buffer | undefined, committed = false, publicationAttempted = false,
+      id: string | undefined, envelope: VaultEnvelope | undefined, publicationCalls = 0;
     try {
       if ((await readdir(directory)).some(name => name !== 'writer.lock') || await adapter.load())
         fail('BOOTSTRAP_TARGET_NOT_EMPTY', 'Fresh bootstrap requires zero target authority and no unrelated entries.');
@@ -387,6 +426,7 @@ export class Vault implements StateStore {
         if ((await readdir(directory)).some(name => name !== 'writer.lock')) fail('BOOTSTRAP_TARGET_NOT_EMPTY', 'Fresh target acquired an unrelated entry before publication.');
         const admission = () => { const result: unknown = assertCurrent(); if (result !== undefined) fail('BOOTSTRAP_GUARD', 'Fresh publication admission must assert synchronously without a deferred result.'); };
         admission(); let acknowledgementFailure: unknown;
+        publicationAttempted = true;
         try { await adapter.commit(envelope!, null); } catch (error) { acknowledgementFailure = error; }
         const actual = await adapter.load();
         if (!actual || JSON.stringify(actual) !== JSON.stringify(envelope) || hash(decodeSnapshot(actual, key!)) !== hash(state)) {
@@ -403,10 +443,20 @@ export class Vault implements StateStore {
     } catch (error) {
       try {
         if (committed) {
-          const actual = await adapter.load();
-          if (!actual || JSON.stringify(actual) !== JSON.stringify(envelope)) fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Failed bootstrap authority changed and cannot be removed automatically.');
-          await adapter.delete();
-          if (await adapter.load()) fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Failed bootstrap retains unresolved fresh authority custody.');
+          if (adapter.kind === 'postgres') {
+            let outcome: 'deleted' | 'absent' | 'mismatch';
+            try { outcome = await adapter.deleteIfCurrent!(structuredClone(envelope!)); }
+            catch { return fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Atomic bootstrap cleanup is unresolved; inspect the exact operation without replay or deletion.'); }
+            if (outcome !== 'deleted' && outcome !== 'absent')
+              fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Bootstrap target ownership changed; retain the occupant for explicit inspection.');
+          } else {
+            const actual = await adapter.load();
+            if (!actual || JSON.stringify(actual) !== JSON.stringify(envelope)) fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Failed bootstrap authority changed and cannot be removed automatically.');
+            await adapter.delete();
+            if (await adapter.load()) fail('BOOTSTRAP_CLEANUP_REQUIRED', 'Failed bootstrap retains unresolved fresh authority custody.');
+          }
+        } else if (publicationAttempted && adapter.kind === 'postgres') {
+          fail('BOOTSTRAP_COMMIT_UNKNOWN', 'PostgreSQL bootstrap was attempted without exact acknowledged readback. Inspect its target identity; do not retry, adopt or delete it.');
         }
       } finally {
         key?.fill(0);
@@ -445,6 +495,32 @@ export class Vault implements StateStore {
       const state = decodeSnapshot(envelope, key);
       return new Vault(directory, adapter, lock, key, envelope, state, options.keychain, options.writerGuard);
     } catch { key?.fill(0); await lock.release(); await adapter.close?.(); return fail('UNLOCK_FAILED', 'Unable to unlock vault. Check your credential or restore a valid backup.'); }
+  }
+  /** Constructor-only authentication under an already held native custody fence.
+   * This decrypts the existing envelope without opening a writer or transferring
+   * storage ownership. It never returns the key, changes wrappers or publishes.
+   * The root must retain native exclusion through both guard calls and the read.
+   */
+  static async inspectPostgresSnapshot(options: {
+    passphrase: string; loadHeldEnvelope(): Promise<VaultEnvelope | null>; assertHeld(): Promise<void>;
+  }): Promise<{ vaultId: string; revision: number; state: State; authorityCiphertextBytes: number }> {
+    passphrase(options.passphrase);
+    if (typeof options.loadHeldEnvelope !== 'function' || typeof options.assertHeld !== 'function')
+      fail('POSTGRES_CUSTODY_REQUIRED', 'Retain actual native custody while authenticating the encrypted snapshot.');
+    if (await options.assertHeld() !== undefined) fail('POSTGRES_CUSTODY_REQUIRED', 'Native custody guards must complete.');
+    const envelope = await options.loadHeldEnvelope(); validateEnvelope(envelope);
+    const encoded = JSON.stringify(envelope);
+    if (Buffer.byteLength(encoded) > MAX_BYTES) fail('ARTIFACT_LIMIT', 'Encrypted authority exceeds the snapshot byte budget.');
+    let key: Buffer | undefined;
+    try {
+      key = await unwrap(options.passphrase, envelope.passphrase, envelope.id, 'passphrase');
+      const state = decodeSnapshot(envelope, key);
+      if (await options.assertHeld() !== undefined) fail('POSTGRES_CUSTODY_REQUIRED', 'Native custody guards must complete.');
+      if (JSON.stringify(await options.loadHeldEnvelope()) !== encoded)
+        fail('POSTGRES_AUTHORITY_CHANGED', 'Held encrypted authority changed during authentication.');
+      return { vaultId: envelope.id, revision: envelope.revision, state,
+        authorityCiphertextBytes: Buffer.byteLength(encoded) };
+    } finally { key?.fill(0); }
   }
   static async restore(options: RestoreVaultOptions): Promise<Vault> {
     let envelope: VaultEnvelope, state: State, key: Buffer | undefined;
@@ -490,6 +566,11 @@ export class Vault implements StateStore {
   }
   #ready() { if (this.#closed || this.#closing) fail('VAULT_CLOSED', 'The vault is closed.'); }
   read(): State { this.#ready(); return structuredClone(this.#state); }
+  /** Fresh identity metadata for trusted custody checks, without cloning State. */
+  readIdentity(): Readonly<{ vaultId: string; workspaceId: string; revision: number }> {
+    this.#ready();
+    return { vaultId: this.#envelope.id, workspaceId: this.#state.workspace.id, revision: this.#state.revision };
+  }
   /** Trusted host snapshot fence. It cannot update the authority or export its key. */
   snapshot<T>(work: (state: State) => Promise<T>): Promise<T> {
     return this.#enqueue(() => this.#transaction.run(true, () => this.#snapshotScope.run(true, () => work(structuredClone(this.#state)))));
@@ -507,13 +588,12 @@ export class Vault implements StateStore {
   #artifactKey(purpose: PrivateArtifactPurpose, id: string): Buffer {
     return Buffer.from(hkdfSync('sha256', this.#key, Buffer.from(this.#envelope.id), Buffer.from(`chausar.private-artifact.v1:${purpose}:${id}`), 32));
   }
-  async #readArtifactRaw(input: { id: string; purpose: PrivateArtifactPurpose }): Promise<PrivateArtifactRef & { value: unknown; bytes: Uint8Array }> {
+  async #readArtifactRaw(input: { id: string; purpose: PrivateArtifactPurpose }, exactSize?: number): Promise<PrivateArtifactRef & { value: unknown; bytes: Uint8Array }> {
     artifactIdentity(input.id, input.purpose);
-    const directory = await this.#artifactDirectory(input.purpose);
-    if (!directory) fail('ARTIFACT_NOT_FOUND', 'The managed artifact is absent.');
-    const path = join(directory, `${input.id}.encrypted.json`);
+    // readBounded revalidates every parent component immediately before opening.
+    const path = join(this.directory, 'private-artifacts', input.purpose, `${input.id}.encrypted.json`);
     let raw: string;
-    try { raw = await readBounded(path); }
+    try { raw = await readBounded(path, exactSize); }
     catch (error: any) { if (error.code === 'ENOENT' || error.message === 'Missing file') fail('ARTIFACT_NOT_FOUND', 'The managed artifact is absent.'); throw error; }
     return this.#authenticateArtifactRaw(raw, input);
   }
@@ -570,7 +650,7 @@ export class Vault implements StateStore {
     if (JSON.stringify(envelope) !== JSON.stringify(this.#envelope)
       || hash(decodeSnapshot(envelope, this.#key)) !== hash(this.#state))
       fail('REVISION_CONFLICT', 'Persisted authority differs from the held source snapshot.');
-    const artifacts: VaultEncryptedCustodyCapture['artifacts'] = []; let totalBytes = authority.byteLength;
+    const entries: { id: string; purpose: PrivateArtifactPurpose; size: number }[] = []; let totalBytes = authority.byteLength;
     const root = join(this.directory, 'private-artifacts');
     try {
       await safeDirectory(root);
@@ -581,18 +661,23 @@ export class Vault implements StateStore {
     for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
       const directory = await this.#artifactDirectory(purpose); if (!directory) continue;
       const names = (await readdir(directory)).sort();
-      if (names.length > budget.maxArtifacts - artifacts.length) fail('ARTIFACT_LIMIT', 'Encrypted artifact count exceeds its explicit capture budget.');
+      if (names.length > budget.maxArtifacts - entries.length) fail('ARTIFACT_LIMIT', 'Encrypted artifact count exceeds its explicit capture budget.');
       for (const name of names) {
         if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified entries prevent complete encrypted custody.');
-        const path = join(directory, name), size = (await lstat(path)).size;
-        if (size > budget.maxEntryBytes || size > budget.maxTotalEntryBytes - totalBytes)
+        const path = join(directory, name), stat = await lstat(path), size = stat.size;
+        if (!stat.isFile() || stat.isSymbolicLink()) fail('UNSAFE_PATH', 'Expected a regular file without symbolic links.');
+        if (!Number.isSafeInteger(size) || size < 0 || size > budget.maxEntryBytes || size > budget.maxTotalEntryBytes - totalBytes)
           fail('ARTIFACT_LIMIT', 'Encrypted artifact bytes exceed their remaining capture budget.');
-        const { value: plaintextValue, bytes, ...ref } = await this.#readArtifactRaw({ id: name.slice(0, -15), purpose });
-        if (bytes.byteLength !== size || bytes.byteLength > budget.maxEntryBytes || bytes.byteLength > budget.maxTotalEntryBytes - totalBytes)
-          fail('ARTIFACT_LIMIT', 'Encrypted artifact changed or exceeds its remaining capture budget.');
-        totalBytes += bytes.byteLength; artifacts.push({ ref, bytes });
+        totalBytes += size; entries.push({ id: name.slice(0, -15), purpose, size });
       }
     }
+    // Reserve the entire operation before concurrent read-only leaves; every
+    // read is capped at its own exact measured size, never a shared remainder.
+    const artifacts = await mapCustodyFiles(entries, async ({ id, purpose, size }) => {
+      const { value: plaintextValue, bytes, ...ref } = await this.#readArtifactRaw({ id, purpose }, size);
+      if (bytes.byteLength !== size) fail('ARTIFACT_LIMIT', 'Encrypted artifact changed after capture preflight.');
+      return { ref, bytes };
+    });
     return { vaultId: this.#envelope.id, state: structuredClone(this.#state), authority, artifacts,
       storageKind: this.storageKind, authorityKind: this.storageKind === 'experimental-file' ? 'exact-file-bytes' : 'adapter-issued-envelope',
       keychainHookPresent: !!this.#keychain };
@@ -734,20 +819,25 @@ export class Vault implements StateStore {
   /** Purge whole-workspace artifact copies when the owning retention/delete flow revokes them. */
   purgeArtifacts(): Promise<string[]> {
     return this.#artifactOperation(() => this.guarded(async assertCurrent => {
-      const files: { purpose: PrivateArtifactPurpose; directory: string; name: string }[] = [];
-      for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
-        const directory = await this.#artifactDirectory(purpose); if (!directory) continue;
-        const names = await readdir(directory);
-        if (names.length > 4096) fail('ARTIFACT_LIMIT', 'Managed artifact inventory exceeds its bound.');
-        for (const name of names) {
-          if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified entries prevent managed copy cleanup.');
-          await this.#readArtifact({ id: name.slice(0, -15), purpose }); files.push({ purpose, directory, name });
-        }
-      }
+      const { files } = await this.#managedArtifactInventory();
       for (const file of files) { assertCurrent(); await unlink(join(file.directory, file.name)); }
       for (const directory of new Set(files.map(file => file.directory))) await syncDirectory(directory);
       return { result: files.map(file => `private-artifacts/${file.purpose}/${file.name}`), committedState: structuredClone(this.#state) };
     }));
+  }
+  async #managedArtifactInventory() {
+    const directories: string[] = [], files: { purpose: PrivateArtifactPurpose; directory: string; name: string }[] = [];
+    for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
+      const directory = await this.#artifactDirectory(purpose); if (!directory) continue;
+      directories.push(directory);
+      const names = await readdir(directory);
+      if (names.length > 4096) fail('ARTIFACT_LIMIT', 'Managed artifact inventory exceeds its bound.');
+      for (const name of names) {
+        if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified entries prevent managed copy cleanup.');
+        await this.#readArtifact({ id: name.slice(0, -15), purpose }); files.push({ purpose, directory, name });
+      }
+    }
+    return { directories, files };
   }
   async #assertSnapshotOnlyBackup() {
     for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
@@ -781,27 +871,27 @@ export class Vault implements StateStore {
     if (!options.plaintext) return this.backup(target);
     return this.#enqueue(async () => { await this.#assertSnapshotOnlyBackup(); await atomicWrite(target, JSON.stringify(this.#state, null, 2), false); return target; });
   }
-  async delete(): Promise<void> {
+  async delete(cleanup?: VaultDeletionCleanup): Promise<void> {
     if (this.#transaction.getStore()) fail('REENTRANT_TRANSACTION', 'A vault cannot be deleted from inside a transaction.');
     this.#ready(); this.#closing = true;
     this.#shutdown = (async () => {
       await this.#chain;
-      try { await this.guarded(async assertCurrent => {
-        // Only this typed encrypted namespace is managed here; never recursively delete user paths.
-        for (const purpose of ['private-trial', 'workspace-interchange'] as const) {
-          const directory = await this.#artifactDirectory(purpose);
-          if (!directory) continue;
-          const names = await readdir(directory);
-          for (const name of names) {
-            if (!/^[A-Za-z0-9_-]{1,180}\.encrypted\.json$/.test(name)) fail('ARTIFACT_INVENTORY_INCOMPLETE', 'Unclassified custody entries require review before deletion.');
-            await this.#readArtifact({ id: name.slice(0, -15), purpose });
-          }
-          for (const name of names) { assertCurrent(); await unlink(join(directory, name)); }
-          await rmdir(directory);
-        }
-        assertCurrent(); await this.#adapter.delete(); await this.#keychain?.remove(this.#envelope.id);
-        return { result: undefined, committedState: structuredClone(this.#state) };
-      }); }
+      try {
+        const work = () => this.guarded(async assertCurrent => {
+          // Only this typed encrypted namespace is managed here; never recursively delete user paths.
+          const { directories, files } = await this.#managedArtifactInventory();
+          for (const file of files) { assertCurrent(); await unlink(join(file.directory, file.name)); }
+          for (const directory of directories) { assertCurrent(); await rmdir(directory); }
+          await cleanup?.({ privateArtifactPaths: Object.freeze(files.map(file => `private-artifacts/${file.purpose}/${file.name}`)), assertCurrent });
+          assertCurrent(); await this.#adapter.delete();
+          return { result: undefined, committedState: structuredClone(this.#state) };
+        });
+        if (this.storageKind === 'postgres') {
+          if (!this.#adapter.withDeletionAdmission) fail('POSTGRES_DELETION_CUSTODY_REQUIRED', 'PostgreSQL deletion requires held admission from the actual Vault storage.');
+          await this.#adapter.withDeletionAdmission(structuredClone(this.#envelope), work);
+        } else await work();
+        await this.#keychain?.remove(this.#envelope.id);
+      }
       finally { await this.#finish(); }
     })();
     return this.#shutdown;

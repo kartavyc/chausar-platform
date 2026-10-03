@@ -2,7 +2,7 @@ import { resolve, join, relative, isAbsolute } from 'node:path';
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Vault, safeDirectory, type KeychainHook, type VaultWriterGuard } from './vault.ts';
+import { Vault, safeDirectory, type KeychainHook, type VaultWriterGuard, type EncryptedSnapshotAdapter, type VaultDeletionCleanup } from './vault.ts';
 import { captureInvoiceCustody, prepareInvoiceRestoredState, type InvoiceCustodyArtifact } from './vault-invoice-custody.ts';
 import { PostgresSnapshotAdapter } from './postgres.ts';
 import { OntologyService } from './ontology.ts';
@@ -61,6 +61,8 @@ import { createWorkspaceInterchangeLocalPorts } from './workspace-interchange-lo
 import { WorkspaceBackupV2Host, type WorkspaceBackupV2Budgets, type WorkspaceBackupV2ExternalKeyRequirement } from './workspace-backup-v2.ts';
 import { createWorkspaceBackupV2LocalPorts, type WorkspaceBackupV2FilesystemBudgets } from './workspace-backup-local.ts';
 import { EngineWorkspaceActivation, type EngineWorkspaceActivationOptions } from './workspace-activation-engine.ts';
+import { EnginePostgresWorkspaceActivation } from './workspace-postgres-engine.ts';
+import type { EnginePostgresWorkspaceOptions, PostgresWorkspaceOpenAdmission, PostgresWorkspaceStorageOperation, TrustedWorkspaceLaunch } from './workspace-postgres-contracts.ts';
 import { readWorkbook, workbookSheetToCSV } from './workbook.ts';
 import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.ts';
 import { AnalyticalHelper } from './helper.ts';
@@ -79,6 +81,10 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
   keychain?: KeychainHook;
   /** Trusted local composition capabilities. Never supplied by an RPC or archive. */
   workspaceActivation?: EngineWorkspaceActivationOptions;
+  /** Trusted native transfer composition. Never installed from RPC or an archive. */
+  postgresWorkspace?: EnginePostgresWorkspaceOptions;
+  /** Trusted committed-target adapter admission, held through Vault open/attach. */
+  workspaceStorageAdmission?: PostgresWorkspaceOpenAdmission;
   workspaceAuthority?: {workspaceId: string; ownerId: string; vaultId?: string};
   /** Explicit synthetic policy supplied by a trusted host, never an RPC or product default. */
   invoiceFollowUp?: InvoiceHostOptions;
@@ -401,7 +407,10 @@ export class Engine {
   /** Local host launch only: a separately paired Engine/server, explicit fresh
    * credential on workspace.open, and no historical routes/session tokens. */
   async activatedWorkspaceEngine(context: Context, activationId: string): Promise<Engine> {
-    const selected = await this.activationHost().inspectOpenTarget(context, activationId);
+    const selected: TrustedWorkspaceLaunch = await this.activationHost().inspectOpenTarget(context, activationId);
+    if (selected.backend === 'postgres') return new Engine({ directory: selected.directory, version: this.version,
+      storage: 'postgres', workspaceStorageAdmission: selected.withWorkspaceAdmission,
+      workspaceAuthority: { workspaceId: selected.workspaceId, ownerId: selected.ownerId, vaultId: selected.vaultId } });
     return new Engine({directory: selected.directory, version: this.version, demo: true, storage: 'experimental-file',
       workspaceAuthority: {workspaceId: selected.workspaceId, ownerId: selected.ownerId, vaultId: selected.vaultId}});
   }
@@ -440,6 +449,42 @@ export class Engine {
     const url = new URL(this.options.postgresUrl);
     check(url.protocol === 'postgresql:' || url.protocol === 'postgres:', 'INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL.');
     return PostgresSnapshotAdapter.connect({ host: url.hostname.replace(/^\[|\]$/g, '') as '127.0.0.1' | '::1', port: Number(url.port || 5432), user: decodeURIComponent(url.username), password: decodeURIComponent(url.password), database: decodeURIComponent(url.pathname.slice(1)), vaultSlot: hash(this.workspacePath(folder)) });
+  }
+  private async withWorkspaceStorage<T>(folder: string, operation: PostgresWorkspaceStorageOperation,
+    work: (adapter: 'experimental-file' | EncryptedSnapshotAdapter) => Promise<T>): Promise<T> {
+    const profile = this.options.postgresWorkspace;
+    const admission = this.options.workspaceStorageAdmission ?? profile?.withWorkspaceAdmission;
+    if (!admission) {
+      const adapter = await this.adapter(folder);
+      if (adapter !== 'experimental-file') {
+        // Ordinary PostgreSQL admission precedes credentials and backup intake.
+        // In particular, a prepared target cannot reach Vault.restore's file
+        // decryption or have its native refusal hidden by unlock cleanup.
+        try { await adapter.load(); }
+        catch (error) { await adapter.close?.(); throw error; }
+      }
+      return work(adapter);
+    }
+    check(this.options.storage === 'postgres' && (!profile || profile.format === 'chausar.postgres-workspace-profile.v1'),
+      'POSTGRES_WORKSPACE_ROOT_REQUIRED', 'Native storage admission requires its explicit trusted PostgreSQL profile.');
+    let calls = 0;
+    const originalVault = this.vault;
+    let result: T;
+    try { result = await admission({ directory: this.workspacePath(folder), operation, expectedAuthority: this.options.workspaceAuthority }, async adapter => {
+      check(++calls === 1 && adapter?.kind === 'postgres', 'POSTGRES_WORKSPACE_ADMISSION', 'Transfer one admitted native adapter into the actual Vault operation.');
+      const value = await work(adapter);
+      check(this.options.postgresWorkspace === profile && (this.options.workspaceStorageAdmission ?? profile?.withWorkspaceAdmission) === admission,
+        'POSTGRES_WORKSPACE_CONFIGURATION_CHANGED', 'Installed storage admission changed during open/attach.');
+      return value;
+    });
+      check(calls === 1, 'POSTGRES_WORKSPACE_ADMISSION', 'Installed storage admission did not execute the actual Vault operation.');
+    } catch (error) {
+      // A failed final guard/lease exit cannot leave an attached Engine after a
+      // rejected open. Retain durable authority; this is resource closure only.
+      if (this.vault && this.vault !== originalVault) await this.closeVault();
+      throw error;
+    }
+    return result;
   }
   private workspacePath(name = 'main') {
     check(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(name), 'INVALID_PATH', 'Use a short workspace folder name without path separators.');
@@ -566,6 +611,33 @@ export class Engine {
         this.services.workspaceActivation = installedActivation;
       }
     }
+    const postgresProfile = this.options.postgresWorkspace;
+    if (vault.storageKind === 'postgres' && postgresProfile) {
+      check(this.options.workspaceActivation === undefined && this.options.sync === undefined
+        && !vault.read().imports.some(item => typeof item.type === 'string' && item.type.startsWith('connector-')),
+      'ACTIVATION_SOURCE_PROFILE', 'The explicit synthetic PostgreSQL transfer profile requires its own custody; managed connector/sync activation stays separately gated.');
+      const budgets = this.options.backupCustody?.budgets ?? defaultBackupBudgets;
+      const assertConfiguration = () => {
+        check(this.options.postgresWorkspace === postgresProfile && this.options.sync === undefined,
+          'POSTGRES_WORKSPACE_CONFIGURATION_CHANGED', 'Installed native transfer admission changed during custody.');
+      };
+      const installed = await EnginePostgresWorkspaceActivation.install(postgresProfile, {
+        sourceVault: vault, journalVault: postgresProfile.journalVault, applicationDirectory,
+        interchange: interchangeLocal, backupBudgets: budgets,
+        backupPolicy: { approvedSyntheticWorkspaceIds: [...postgresProfile.policy.approvedSyntheticWorkspaceIds], backupBudgets: budgets,
+          maxMaterialUtf8Bytes: postgresProfile.policy.budgets.maxCandidateBytes, maxCandidateUtf8Bytes: postgresProfile.policy.budgets.maxCandidateBytes },
+        policy: postgresProfile.policy, targetPassphrase: authority => postgresProfile.targetPassphrase(authority),
+        bootstrap: options => Vault.createBootstrap(options), openVault: options => Vault.open(options),
+        assertCompleteOwner: async (ctx, historical) => {
+          assertConfiguration(); this.backupCompleteOwner(ctx, historical);
+          check(!vault.read().imports.some(item => typeof item.type === 'string' && item.type.startsWith('connector-')),
+            'ACTIVATION_SOURCE_PROFILE', 'Managed imports require their separately qualified activation profile.');
+        },
+      }, assertConfiguration);
+      this.services.backupLocal = installed.backup;
+      this.services.backupV2 = new WorkspaceBackupV2Host(installed.backup.ports, budgets);
+      this.services.workspaceActivation = installed;
+    }
     this.services.alerts = new AlertsService(store, { calculatorOptions: view => {
       const connectors = connectorForView(view);
       return {
@@ -688,9 +760,9 @@ export class Engine {
     }
     if (failure) throw failure;
   }
-  private async deleteVault(vault: Vault) {
+  private async deleteVault(vault: Vault, cleanup?: VaultDeletionCleanup) {
     let failure: { error: unknown } | undefined;
-    try { await vault.delete(); } catch (error) { failure = { error }; }
+    try { await vault.delete(cleanup); } catch (error) { failure = { error }; }
     // Vault deletion closes its key and writer even when custody removal
     // fails. Never read that closed handle or retain deleted invoice custody.
     this.vault = null; this.#lastInvoiceCustody = undefined;
@@ -759,26 +831,29 @@ export class Engine {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before creating another.');
       check(typeof payload.name === 'string' && payload.name.trim().length >= 2 && payload.name.length <= 100, 'INVALID_NAME', 'Give your business a name.');
       const pack = payload.pack ?? 'ecommerce'; check(new OntologyService({ read: () => { throw new Error('No vault'); }, update: async () => { throw new Error('No vault'); } }).packs().some(p => p.pack === pack), 'UNKNOWN_PACK', 'Choose an available business starter pack.');
-      const result = await Vault.create({ directory: this.workspacePath(payload.folder), passphrase: payload.passphrase, name: payload.name.trim(), demo: !!payload.demo, storage: await this.adapter(payload.folder), keychain: this.options.keychain });
+      const folder = payload.folder ?? 'main';
+      return this.withWorkspaceStorage(folder, 'create', async storage => {
+      const result = await Vault.create({ directory: this.workspacePath(folder), passphrase: payload.passphrase, name: payload.name.trim(), demo: !!payload.demo, storage, keychain: this.options.keychain });
       try {
         await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
         if (payload.demo) await seedDemo(this.store(), this.context);
         return { workspace: this.store().read().workspace, recoveryKit: result.recoveryCode, recoveryCode: result.recoveryCode, experimental: !!this.options.demo };
       } catch (error) { await this.deleteVault(result.vault); throw error; }
+      });
     }
-    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? payload.path ?? 'main'; await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage: await this.adapter(folder), keychain: this.options.keychain, writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
-    if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); await this.attachSafely(await Vault.recover({ directory: this.workspacePath(payload.folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage: await this.adapter(payload.folder), keychain: this.options.keychain, writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }
+    if (method === 'workspace.open') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? payload.path ?? 'main'; return this.withWorkspaceStorage(folder, 'open', async storage => { await this.attachSafely(await Vault.open({ directory: this.workspacePath(folder), passphrase: payload.passphrase, storage, keychain: this.options.keychain, writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }); }
+    if (method === 'workspace.recover') { check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace first.'); const folder = payload.folder ?? 'main'; return this.withWorkspaceStorage(folder, 'recover', async storage => { await this.attachSafely(await Vault.recover({ directory: this.workspacePath(folder), recoveryCode: payload.recoveryCode, newPassphrase: payload.passphrase, storage, keychain: this.options.keychain, writerGuard: this.writerGuard() })); return { workspace: this.store().read().workspace }; }); }
     if (method === 'workspace.restore') {
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before restoring.');
       check(typeof payload.backupFile === 'string', 'INVALID_PATH', 'Choose a backup from this app.');
       const backupRoot = resolve(this.options.directory, 'backups'); const backupFile = resolve(backupRoot, payload.backupFile); const rel = relative(backupRoot, backupFile);
       check(!rel.startsWith('..') && !isAbsolute(rel) && rel.endsWith('.backup'), 'INVALID_PATH', 'Choose a managed backup file.');
-      const folder = payload.folder ?? 'restored'; await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage: await this.adapter(folder), keychain: this.options.keychain, writerGuard: this.writerGuard(),
+      const folder = payload.folder ?? 'restored'; return this.withWorkspaceStorage(folder, 'restore', async storage => { await this.attachSafely(await Vault.restore({ directory: this.workspacePath(folder), backupFile, passphrase: payload.passphrase, storage, keychain: this.options.keychain, writerGuard: this.writerGuard(),
         prepareRestoredState: (state, descriptor) => {
           if (this.#lastInvoiceCustody?.workspaceId === descriptor.workspaceId && this.#lastInvoiceCustody.vaultId === descriptor.vaultId)
             prepareInvoiceRestoredState(state, this.#lastInvoiceCustody, descriptor);
           else prepareInvoiceRestoredState(state, undefined, descriptor);
-        } })); return { workspace: this.store().read().workspace };
+        } })); return { workspace: this.store().read().workspace }; });
     }
     if (method === 'workspace.lock') { if (this.vault) authorize(this.vault, this.context, 'admin'); await this.closeVault(); return { locked: true }; }
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
@@ -1299,8 +1374,13 @@ export class Engine {
         await store.export(path, { plaintext: payload.plaintext === true }); return { path, encrypted: payload.plaintext !== true };
       }
       case 'workspace.delete': {
-        this.requireWorkspaceOwner(ctx); check(payload.confirmation === store.read().workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
-        const removed = await this.purgeManagedCopies(); await this.deleteVault(store);
+        this.requireWorkspaceOwner(ctx); const workspace = store.read().workspace;
+        check(payload.confirmation === workspace.name, 'CONFIRMATION_REQUIRED', 'Type the business name to delete the vault.');
+        await this.revokeManagedCopyReceipts();
+        let removed: string[] = [];
+        await this.deleteVault(store, async ({ privateArtifactPaths, assertCurrent }) => {
+          removed = [...privateArtifactPaths, ...await this.purgeManagedApplicationCopies(workspace.id, assertCurrent)];
+        });
         return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
       }
       default: throw new Error(`Unknown request: ${method}`);
@@ -1500,7 +1580,8 @@ export class Engine {
     const current = this.store().read();
     const sourceIds = [...new Set<string>([...historical.facts.map(fact => fact.sourceId), ...historical.imports.map(item => item.sourceId).filter((id): id is string => typeof id === 'string')])];
     assertSourceAccess(current, ctx, sourceIds);
-    check(historical.facts.every(fact => canSeeFact(this.store(), ctx, fact)), 'INTERCHANGE_READ_SCOPE_REQUIRED', 'Workspace copying requires current access to every retained historical row.');
+    const visibility: StateStore = { read: () => current, update: async () => { throw new Error('Owner admission is read-only.'); } };
+    check(historical.facts.every(fact => canSeeFact(visibility, ctx, fact)), 'INTERCHANGE_READ_SCOPE_REQUIRED', 'Workspace copying requires current access to every retained historical row.');
     const managedSourceIds = [...new Set<string>(current.imports.filter(item => ['connector-capture-v1', 'connector-consumer-binding-v1'].includes(item.type)).map(item => item.sourceId).filter((id): id is string => typeof id === 'string'))];
     this.services.connectorRuntime.assertBusinessEvidenceReady(ctx, { sourceIds, managedSourceIds, factIds: [], profileIds: [], request: {} });
   }
@@ -1509,8 +1590,9 @@ export class Engine {
       'This storage profile requires its separately reviewed complete encrypted-custody implementation.');
     return this.services.backupV2;
   }
-  private activationHost(): EngineWorkspaceActivation {
-    check(this.services.workspaceActivation instanceof EngineWorkspaceActivation, 'ACTIVATION_ROOT_REQUIRED',
+  private activationHost(): EngineWorkspaceActivation | EnginePostgresWorkspaceActivation {
+    check(this.services.workspaceActivation instanceof EngineWorkspaceActivation
+      || this.services.workspaceActivation instanceof EnginePostgresWorkspaceActivation, 'ACTIVATION_ROOT_REQUIRED',
       'Install the reviewed synthetic local activation, actual encrypted journal and fresh credential capability in the trusted host.');
     return this.services.workspaceActivation;
   }
@@ -1521,7 +1603,8 @@ export class Engine {
     const sourceIds = [...new Set<string>([...historical.facts.map(fact => fact.sourceId),
       ...historical.imports.map(item => item.sourceId).filter((id): id is string => typeof id === 'string')])];
     assertSourceAccess(current, ctx, sourceIds);
-    check(historical.facts.every(fact => canSeeFact(this.store(), ctx, fact)), 'BACKUP_READ_SCOPE_REQUIRED', 'Current access must cover every retained historical row.');
+    const visibility: StateStore = { read: () => current, update: async () => { throw new Error('Owner admission is read-only.'); } };
+    check(historical.facts.every(fact => canSeeFact(visibility, ctx, fact)), 'BACKUP_READ_SCOPE_REQUIRED', 'Current access must cover every retained historical row.');
     const managedSourceIds = [...new Set<string>([...current.imports, ...historical.imports]
       .filter(item => ['connector-capture-v1', 'connector-consumer-binding-v1'].includes(item.type))
       .map(item => item.sourceId).filter((id): id is string => typeof id === 'string'))];
@@ -1668,7 +1751,7 @@ export class Engine {
       return (member.role === 'owner' && member.branches.includes('*')) || details.memberId === ctx.memberId;
     });
   }
-  private async purgeManagedCopies() {
+  private async revokeManagedCopyReceipts() {
     // A whole-workspace fork can hold forgotten bytes from another source. Revoke
     // surviving receipt contexts BEFORE deleting those copies; never retain the
     // forgotten fork solely to satisfy an unrelated receipt's interpretation.
@@ -1680,12 +1763,18 @@ export class Engine {
           reason: 'managed-retention-or-deletion', deletedAt: now() });
       });
     }
-    const removed: string[] = await this.store().purgeArtifacts();
-    const prefix = `chausar-${this.store().read().workspace.id}-`;
+  }
+  private async purgeManagedCopies() {
+    await this.revokeManagedCopyReceipts();
+    const vault = this.store(), workspaceId = vault.read().workspace.id;
+    return [...await vault.purgeArtifacts(), ...await this.purgeManagedApplicationCopies(workspaceId)];
+  }
+  private async purgeManagedApplicationCopies(workspaceId: string, assertCurrent: () => void = () => {}) {
+    const removed: string[] = [], prefix = `chausar-${workspaceId}-`;
     for (const name of ['backups', 'exports']) {
       const folder = resolve(this.options.directory, name); let files;
       try { files = await readdir(folder, { withFileTypes: true }); } catch (error) { if ((error as any).code === 'ENOENT') continue; throw error; }
-      for (const file of files) if (file.isFile() && file.name.startsWith(prefix) && /^\d+\.(backup|json|vault)$/.test(file.name.slice(prefix.length))) { const path = resolve(folder, file.name); check(relative(folder, path) === file.name, 'INVALID_PATH', 'A managed file left its export directory.'); await unlink(path); removed.push(`${name}/${file.name}`); }
+      for (const file of files) if (file.isFile() && file.name.startsWith(prefix) && /^\d+\.(backup|json|vault)$/.test(file.name.slice(prefix.length))) { const path = resolve(folder, file.name); check(relative(folder, path) === file.name, 'INVALID_PATH', 'A managed file left its export directory.'); assertCurrent(); await unlink(path); removed.push(`${name}/${file.name}`); }
     }
     return removed;
   }

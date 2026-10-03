@@ -202,13 +202,23 @@ test('PostgreSQL connection options reject non-loopback and implicit developer c
 
 test('PostgreSQL compare-and-swap conflicts roll back without publishing an encrypted snapshot', async () => {
   const statements: Array<{ sql: string; values?: unknown[] }> = []; let released = 0;
+  const ciphertext = { nonce: 'synthetic-nonce', tag: 'synthetic-tag', data: 'synthetic-data' };
+  const envelope = { format: 'chausar.vault.v1' as const, id: 'synthetic-vault', revision: 9,
+    passphrase: { salt: 'synthetic-passphrase-salt', kdf: 'scrypt-32768-8-1' as const, ciphertext },
+    recovery: { salt: 'synthetic-recovery-salt', kdf: 'scrypt-32768-8-1' as const, ciphertext }, snapshot: ciphertext };
   const client = {
-    async query(sql: string, values?: unknown[]) { statements.push({ sql, values }); return { rows: sql.startsWith('SELECT revision FROM') ? [{ revision: '9' }] : [] }; },
+    async query(sql: string, values?: unknown[]) {
+      statements.push({ sql, values });
+      return { rows: sql === "SELECT storage_id FROM public.chausar_workspace_postgres_storage WHERE id = 'current' FOR SHARE"
+        ? [{ storage_id: 'vault-fixture-storage' }]
+        : sql.startsWith('SELECT creation_id, revision, envelope')
+          ? [{ creation_id: 'synthetic-creation', revision: '9', envelope }] : [] };
+    },
     release() { released++; },
   };
-  const pool = { async query() { return { rows: [] }; }, async connect() { return client; }, async end() {} };
+  const pool = { async query(sql: string) { assert.ok(sql.includes('to_regclass')); return { rows: [{ authority_table: true, storage_table: true, custody_table: true, creation_column: true }] }; }, async connect() { return client; }, async end() {} };
   const adapter = await PostgresSnapshotAdapter.fromPool(pool, 'business.slot');
-  await assert.rejects(adapter.commit({ revision: 9 } as any, 8), code('REVISION_CONFLICT'));
+  await assert.rejects(adapter.commit(envelope, 8), code('REVISION_CONFLICT'));
   assert.ok(statements.some(statement => statement.sql === 'ROLLBACK'));
   assert.ok(!statements.some(statement => /^(INSERT|UPDATE|COMMIT)/.test(statement.sql)));
   assert.ok(statements.every(statement => !statement.sql.includes('business.slot')));
