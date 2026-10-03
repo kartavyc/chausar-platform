@@ -15,12 +15,12 @@ export function desktopLaunchArguments(args) {
   return { demo: args.includes('--demo'), background: args.includes('--background'), checkOnly: args.includes('--check'), uiPreview: args.includes('--ui-preview') };
 }
 /** Launch the already validated native executable; do not invoke the npm loader or its automatic installer. */
-export function desktopLaunchEnvironment(environment = process.env, demo = false) {
+export function desktopLaunchEnvironment(environment = process.env, demo = false, temporaryDirectory = tmpdir()) {
   const result = { ...environment };
   for (const name of Object.keys(result)) {
     if (/^(ELECTRON_RUN_AS_NODE|ELECTRON_OVERRIDE_DIST_PATH|ELECTRON_INSTALL_PLATFORM|ELECTRON_INSTALL_ARCH|npm_config_platform|npm_config_arch)$/i.test(name)) delete result[name];
   }
-  if (demo) result.CHAUSAR_DEMO_PROFILE_ROOT = join(realpathSync(tmpdir()), `chausar-demo-${randomUUID()}`);
+  if (demo) result.CHAUSAR_DEMO_PROFILE_ROOT = join(realpathSync(temporaryDirectory), `chausar-demo-${randomUUID()}`);
   return result;
 }
 export async function desktopLaunchPrerequisites(root = projectRoot) {

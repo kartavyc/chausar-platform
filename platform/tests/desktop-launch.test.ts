@@ -45,3 +45,13 @@ test('demo launcher selects an unused explicit temporary root on every launch wi
   assert.equal(original.CHAUSAR_DEMO_PROFILE_ROOT, '/real/profile');
   assert.equal(desktopLaunchEnvironment(original, false).CHAUSAR_DEMO_PROFILE_ROOT, '/real/profile');
 });
+
+test('a parent launcher can select the same fresh temporary directory it gives the child', async t => {
+  const temporary = await mkdtemp(join(tmpdir(), 'chausar-parent-launch-test-'));
+  t.after(() => rm(temporary, { recursive: true, force: true }));
+  const environment = { TEMP: temporary, TMP: temporary, TMPDIR: temporary };
+  const launch = desktopLaunchEnvironment(environment, true, temporary);
+  assert.equal(dirname(launch.CHAUSAR_DEMO_PROFILE_ROOT), realpathSync(temporary));
+  assert.equal(existsSync(launch.CHAUSAR_DEMO_PROFILE_ROOT), false);
+  assert.equal(launch.TEMP, temporary); assert.equal(launch.TMPDIR, temporary);
+});
