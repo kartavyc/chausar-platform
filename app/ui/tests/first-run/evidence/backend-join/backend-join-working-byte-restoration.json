@@ -1,0 +1,22 @@
+[
+  {
+    "path": "app/ui/design-screen-inventory.json",
+    "priorSha256": "1189a3057b353e75d90da0f50dd7865a61d9d0163828784cc5c898bea7d687ec",
+    "canonicalSha256": "71f9d7ea1481625e959860036a966ba5b73565ed9be6748e1eed87ae1f26d77b",
+    "priorBytes": 516149,
+    "canonicalBytes": 501034,
+    "canonicalGitBlob": "eafb7211dd0b5afa3817100afb1b2d278744ee91",
+    "exactCrLfToLfEquivalence": true,
+    "gitContentChanged": false
+  },
+  {
+    "path": "scripts/check-ui-source.mjs",
+    "priorSha256": "1abad885977f7d423152e3aec75b5d0be4320b5bf2c96f60161f63b1d8b4ced4",
+    "canonicalSha256": "ddfbdff01b4b02353769a6a5b3b888bd7ecd8c6a9074203b29190dbe2a4dbe1f",
+    "priorBytes": 50355,
+    "canonicalBytes": 49678,
+    "canonicalGitBlob": "aa924586834be1e0f168a30edf1681334794f04d",
+    "exactCrLfToLfEquivalence": true,
+    "gitContentChanged": false
+  }
+]

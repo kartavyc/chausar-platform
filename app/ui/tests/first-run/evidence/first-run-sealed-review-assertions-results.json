@@ -1,0 +1,24 @@
+{
+  "kind": "independent-first-run-sealed-review-assertions",
+  "passed": true,
+  "controllerCases": 17,
+  "terminalDomScenarios": 21,
+  "remountScenarios": 2,
+  "genuineDictionaries": 6,
+  "compiledSums": 42,
+  "currentSourceHashes": {
+    "contracts.ts": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66",
+    "digest.ts": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27",
+    "review.ts": "d20a0e32b457cf99e744bb7a85bf67fbb6ee5d76db34c8ee3ad3dc1d7bc90069",
+    "controller.ts": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f",
+    "FirstRun.tsx": "bdff78fdd2d4c29632de7ec91bfc20206b8caca898bb539f41e2207e6ccb45d9",
+    "Meanings.tsx": "40f81e46fd3005bc1a6703ab466d1d9cc4939a67c484cddd0ed9e233c4a0aba6",
+    "PickPack.tsx": "af0fede010cf4bebf4e5f630e4c91d82b2c9e270dd77a29cf00edac43d58912a",
+    "rows.tsx": "6daf65521f226ccc4f917bb2cc050e6ea587cacd25f08c5d6ab0879de900ae70",
+    "text.tsx": "ebb9db3dcbfd51e4e622eb2e5cc58c199b1bb4543987e71398404fd1e936a7d5",
+    "text/en.json": "8ac4a43ad7755e9af7adbb632bb841aa758b62440773bcf7bb04fa1335f574ab",
+    "text/hi.json": "115a118736fa757315dad30f476259101692b1dc0e858840c3b3e160c6c34eaa",
+    "FirstRun.module.css": "3c42529ca5ebab090e1831863503b4183c2f1809885c9ced8728864edf9e3d82"
+  },
+  "notes": "Settings synchronous callback precedes queued loss; delayed Settings admission after loss is null. No browser/native launch or product source writes."
+}

@@ -1,0 +1,451 @@
+{
+  "scope": "Synthetic React DOM/source text only. No browser/native app/service/real business data. Source hash pins define this review; overall acceptance belongs to coordinator.",
+  "at": "2026-10-04T08:02:51.672Z",
+  "sourceStableDuringRun": true,
+  "budgetStates": 4896,
+  "closedRowChecks": 4320,
+  "hashesBefore": {
+    "contracts.ts": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66",
+    "controller.ts": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f",
+    "digest.ts": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27",
+    "review.ts": "d20a0e32b457cf99e744bb7a85bf67fbb6ee5d76db34c8ee3ad3dc1d7bc90069",
+    "FirstRun.tsx": "bdff78fdd2d4c29632de7ec91bfc20206b8caca898bb539f41e2207e6ccb45d9",
+    "Meanings.tsx": "293229a3aa21b8088fe74a79855931ab231008b0dbb77a7e2ae6aebd03ea1835",
+    "PickPack.tsx": "af0fede010cf4bebf4e5f630e4c91d82b2c9e270dd77a29cf00edac43d58912a",
+    "rows.tsx": "6fce9bb55c51119909241e73d10423a5ca851a12c9196d878a19ecc5823ef755",
+    "text.tsx": "ebb9db3dcbfd51e4e622eb2e5cc58c199b1bb4543987e71398404fd1e936a7d5",
+    "FirstRun.module.css": "3c42529ca5ebab090e1831863503b4183c2f1809885c9ced8728864edf9e3d82",
+    "text/en.json": "022c96c0bd5e654ca536d1c39a47ba4702b5945219d31fe0f65f4044640b962b",
+    "text/hi.json": "b85aa908c124e3dd2b85a7daa4d99f16be3c1ad9376d84c5ad76989940e115ed"
+  },
+  "hashesAfter": {
+    "contracts.ts": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66",
+    "controller.ts": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f",
+    "digest.ts": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27",
+    "review.ts": "d20a0e32b457cf99e744bb7a85bf67fbb6ee5d76db34c8ee3ad3dc1d7bc90069",
+    "FirstRun.tsx": "bdff78fdd2d4c29632de7ec91bfc20206b8caca898bb539f41e2207e6ccb45d9",
+    "Meanings.tsx": "293229a3aa21b8088fe74a79855931ab231008b0dbb77a7e2ae6aebd03ea1835",
+    "PickPack.tsx": "af0fede010cf4bebf4e5f630e4c91d82b2c9e270dd77a29cf00edac43d58912a",
+    "rows.tsx": "6fce9bb55c51119909241e73d10423a5ca851a12c9196d878a19ecc5823ef755",
+    "text.tsx": "ebb9db3dcbfd51e4e622eb2e5cc58c199b1bb4543987e71398404fd1e936a7d5",
+    "FirstRun.module.css": "3c42529ca5ebab090e1831863503b4183c2f1809885c9ced8728864edf9e3d82",
+    "text/en.json": "022c96c0bd5e654ca536d1c39a47ba4702b5945219d31fe0f65f4044640b962b",
+    "text/hi.json": "b85aa908c124e3dd2b85a7daa4d99f16be3c1ad9376d84c5ad76989940e115ed"
+  },
+  "results": [
+    {
+      "screen": "FR-06",
+      "language": "en",
+      "words": 60,
+      "actionButtonLabels": []
+    },
+    {
+      "screen": "FR-06",
+      "language": "hi",
+      "words": 60,
+      "actionButtonLabels": []
+    },
+    {
+      "screen": "FR-08 all accepted closed",
+      "language": "en",
+      "words": 58,
+      "filledButtons": [
+        "Publish"
+      ]
+    },
+    {
+      "screen": "FR-08 all accepted closed",
+      "language": "hi",
+      "words": 59,
+      "filledButtons": [
+        "प्रकाशित करें"
+      ]
+    },
+    {
+      "screen": "FR-08 accepted billed open",
+      "words": 78,
+      "text": "You Vault Model Your books Meanings waiting for you First answer Online brand Agree what your words mean 7/7 Change pack Billed Accepted Invoice value excluding tax, by invoice date. A correction replaces the earlier claim; credit notes are separate refunds. Evidence: none yet Change Received Settled cash… Accepted Earned Goods delivered… Accepted Refunds Positive value… Accepted Costs Order or… Accepted Purchases Purchase register… Accepted Currency, GST Accepted Pending: calendar, ordering, Today. Nothing has left this computer. Publish",
+      "fullMeaningPresent": true
+    },
+    {
+      "screen": "FR-08 accepted row being edited",
+      "filledButtons": [
+        "Save"
+      ],
+      "publishVisibleDuringUnsavedEdit": false,
+      "textareaPresent": true,
+      "wordsIncludingTextareaValue": 79
+    },
+    {
+      "screen": "FR-08 editor Escape",
+      "editorClosed": true,
+      "focusRow": "billed"
+    },
+    {
+      "screen": "FR-08 row arrow keyboard",
+      "focusRow": "received"
+    },
+    {
+      "screen": "FR-06 language keyboard",
+      "languageAfterArrow": "hi",
+      "focusAfterArrow": "हिंदी",
+      "languageAfterActivatingFocusedRadio": "hi"
+    },
+    {
+      "screen": "FR-08 all expanded rows",
+      "scenarios": 504,
+      "maximum": {
+        "pack": "ecommerce",
+        "language": "en",
+        "phase": "proposed",
+        "view": "books",
+        "row": "earned",
+        "words": 96,
+        "fullMeaningPresent": true
+      },
+      "maximaByView": {
+        "simple": {
+          "pack": "ecommerce",
+          "language": "en",
+          "phase": "proposed",
+          "view": "simple",
+          "row": "earned",
+          "words": 86,
+          "fullMeaningPresent": true
+        },
+        "guided": {
+          "pack": "ecommerce",
+          "language": "en",
+          "phase": "proposed",
+          "view": "guided",
+          "row": "earned",
+          "words": 91,
+          "fullMeaningPresent": true
+        },
+        "books": {
+          "pack": "ecommerce",
+          "language": "en",
+          "phase": "proposed",
+          "view": "books",
+          "row": "earned",
+          "words": 96,
+          "fullMeaningPresent": true
+        }
+      },
+      "overBudgetCounts": {
+        "simple": 0,
+        "guided": 0,
+        "books": 0
+      },
+      "overBudgetCases": []
+    },
+    {
+      "screen": "FR-08 all initial editors including textarea value",
+      "scenarios": 432,
+      "maximum": {
+        "pack": "ecommerce",
+        "language": "en",
+        "phase": "proposed",
+        "view": "books",
+        "row": "earned",
+        "words": 94,
+        "textareaWords": 26,
+        "textareaExact": true,
+        "filledButtons": [
+          "Save"
+        ]
+      },
+      "maximaByView": {
+        "simple": {
+          "pack": "ecommerce",
+          "language": "en",
+          "phase": "proposed",
+          "view": "simple",
+          "row": "earned",
+          "words": 84,
+          "textareaWords": 26,
+          "textareaExact": true,
+          "filledButtons": [
+            "Save"
+          ]
+        },
+        "guided": {
+          "pack": "ecommerce",
+          "language": "en",
+          "phase": "proposed",
+          "view": "guided",
+          "row": "earned",
+          "words": 89,
+          "textareaWords": 26,
+          "textareaExact": true,
+          "filledButtons": [
+            "Save"
+          ]
+        },
+        "books": {
+          "pack": "ecommerce",
+          "language": "en",
+          "phase": "proposed",
+          "view": "books",
+          "row": "earned",
+          "words": 94,
+          "textareaWords": 26,
+          "textareaExact": true,
+          "filledButtons": [
+            "Save"
+          ]
+        }
+      },
+      "overBudgetCounts": {
+        "simple": 0,
+        "guided": 0,
+        "books": 0
+      },
+      "overBudgetCases": []
+    },
+    {
+      "screen": "FR-08 all closed reviews",
+      "scenarios": 72,
+      "maximum": {
+        "pack": "distributor",
+        "language": "en",
+        "phase": "proposed",
+        "view": "books",
+        "row": "closed",
+        "words": 69
+      },
+      "maximaByView": {
+        "simple": {
+          "pack": "distributor",
+          "language": "en",
+          "phase": "proposed",
+          "view": "simple",
+          "row": "closed",
+          "words": 57
+        },
+        "guided": {
+          "pack": "distributor",
+          "language": "en",
+          "phase": "proposed",
+          "view": "guided",
+          "row": "closed",
+          "words": 63
+        },
+        "books": {
+          "pack": "distributor",
+          "language": "en",
+          "phase": "proposed",
+          "view": "books",
+          "row": "closed",
+          "words": 69
+        }
+      },
+      "overBudgetCounts": {
+        "simple": 0,
+        "guided": 0,
+        "books": 0
+      },
+      "overBudgetCases": []
+    },
+    {
+      "screen": "FR-08 changed/accepted changed meanings and original replacement",
+      "scenarios": 3024,
+      "maximum": {
+        "pack": "ecommerce",
+        "language": "hi",
+        "phase": "changed",
+        "view": "books",
+        "row": "earned",
+        "stage": "editor discarded",
+        "words": 98,
+        "filledButtons": [
+          "स्वीकारें"
+        ],
+        "actionLabelsOver22": [],
+        "textareaAbsent": true,
+        "exactCurrentVisible": true,
+        "focusRow": "earned"
+      },
+      "maximaByView": {
+        "simple": {
+          "pack": "ecommerce",
+          "language": "hi",
+          "phase": "changed",
+          "view": "simple",
+          "row": "earned",
+          "stage": "editor discarded",
+          "words": 88,
+          "filledButtons": [
+            "स्वीकारें"
+          ],
+          "actionLabelsOver22": [],
+          "textareaAbsent": true,
+          "exactCurrentVisible": true,
+          "focusRow": "earned"
+        },
+        "guided": {
+          "pack": "ecommerce",
+          "language": "hi",
+          "phase": "changed",
+          "view": "guided",
+          "row": "earned",
+          "stage": "editor discarded",
+          "words": 93,
+          "filledButtons": [
+            "स्वीकारें"
+          ],
+          "actionLabelsOver22": [],
+          "textareaAbsent": true,
+          "exactCurrentVisible": true,
+          "focusRow": "earned"
+        },
+        "books": {
+          "pack": "ecommerce",
+          "language": "hi",
+          "phase": "changed",
+          "view": "books",
+          "row": "earned",
+          "stage": "editor discarded",
+          "words": 98,
+          "filledButtons": [
+            "स्वीकारें"
+          ],
+          "actionLabelsOver22": [],
+          "textareaAbsent": true,
+          "exactCurrentVisible": true,
+          "focusRow": "earned"
+        }
+      },
+      "overBudgetCounts": {
+        "simple": 0,
+        "guided": 0,
+        "books": 0
+      },
+      "overBudgetCases": [],
+      "preservationFailures": [],
+      "filledActionFailures": []
+    },
+    {
+      "screen": "FR-08 bounded changed and published meanings/original replacement",
+      "scenarios": 864,
+      "maximum": {
+        "pack": "ecommerce",
+        "language": "hi",
+        "phase": "changed-published",
+        "view": "books",
+        "row": "earned",
+        "stage": "published current restored",
+        "words": 99,
+        "filledButtons": [],
+        "rowActionButtons": [],
+        "exactCurrentVisible": true
+      },
+      "maximaByView": {
+        "simple": {
+          "pack": "ecommerce",
+          "language": "hi",
+          "phase": "changed-published",
+          "view": "simple",
+          "row": "earned",
+          "stage": "published current restored",
+          "words": 89,
+          "filledButtons": [],
+          "rowActionButtons": [],
+          "exactCurrentVisible": true
+        },
+        "guided": {
+          "pack": "ecommerce",
+          "language": "hi",
+          "phase": "changed-published",
+          "view": "guided",
+          "row": "earned",
+          "stage": "published current restored",
+          "words": 94,
+          "filledButtons": [],
+          "rowActionButtons": [],
+          "exactCurrentVisible": true
+        },
+        "books": {
+          "pack": "ecommerce",
+          "language": "hi",
+          "phase": "changed-published",
+          "view": "books",
+          "row": "earned",
+          "stage": "published current restored",
+          "words": 99,
+          "filledButtons": [],
+          "rowActionButtons": [],
+          "exactCurrentVisible": true
+        }
+      },
+      "overBudgetCounts": {
+        "simple": 0,
+        "guided": 0,
+        "books": 0
+      },
+      "overBudgetCases": [],
+      "preservationFailures": [],
+      "filledActionFailures": []
+    },
+    {
+      "screen": "FR-08 required closed proposal meaning slot",
+      "inspectedClosedRows": 4320,
+      "failures": []
+    },
+    {
+      "screen": "FR-08 changed Hindi accepted",
+      "exactMeaningPreserved": true,
+      "langAttribute": null,
+      "originAttribute": "changed",
+      "originalRetainedInDOM": true,
+      "originalInitiallyClosed": true,
+      "exactOriginalVisibleAfterOpeningDisclosure": true
+    },
+    {
+      "screen": "FR-08 earned previews",
+      "examples": [
+        {
+          "pack": "ecommerce",
+          "full": "Goods delivered to the buyer excluding tax, by delivery date; fulfilled order events must be imported explicitly. Platform fees and shipping are separately classified cost events.",
+          "text": "Goods delivered…",
+          "truncated": true
+        },
+        {
+          "pack": "retail",
+          "full": "Goods transferred to the retail customer excluding tax, by sale date. Stock movements and bank receipts do not imply a sale.",
+          "text": "Goods transferred…",
+          "truncated": true
+        },
+        {
+          "pack": "services",
+          "full": "Work delivered under an accepted milestone excluding tax, by completion date. An advance or invoice does not imply completed work.",
+          "text": "Work delivered…",
+          "truncated": true
+        },
+        {
+          "pack": "distributor",
+          "full": "Goods delivered to the distributor excluding tax, by delivery date. Credit terms and collections are separate from revenue recognition.",
+          "text": "Goods delivered…",
+          "truncated": true
+        },
+        {
+          "pack": "manufacturing",
+          "full": "Finished goods delivered excluding tax, by delivery date. Production, inventory and material purchases are separate events.",
+          "text": "Finished goods…",
+          "truncated": true
+        },
+        {
+          "pack": "saas",
+          "full": "Subscription service delivered during the period; import explicit recognition events, never assume invoices are earned.",
+          "text": "Subscription service…",
+          "truncated": true
+        }
+      ]
+    },
+    {
+      "screen": "Lifecycle/publication",
+      "unmountCancellations": 1,
+      "publishCallsWithoutExplicitUserPublish": 0
+    }
+  ]
+}

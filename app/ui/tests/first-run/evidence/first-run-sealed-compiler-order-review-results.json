@@ -1,0 +1,37 @@
+{
+  "kind": "independent-first-run-sealed-compiler-order-review",
+  "syntheticOnly": true,
+  "beforeSourceHashes": {
+    "contracts.ts": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66",
+    "digest.ts": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27"
+  },
+  "afterSourceHashes": {
+    "contracts.ts": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66",
+    "digest.ts": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27"
+  },
+  "sourceUnchangedDuringRun": true,
+  "results": [
+    {
+      "case": "genuine-engine-proof",
+      "genuineUi": 6,
+      "genuineEngineArtifacts": 42
+    },
+    {
+      "case": "original-fixed-compiler-order",
+      "engineAccepted": true,
+      "engineCode": null,
+      "uiVerified": true
+    },
+    {
+      "case": "recomputed-reversed-wire-order",
+      "engineAccepted": false,
+      "engineCode": "COMPILED_SUM_MISMATCH",
+      "uiVerified": false
+    },
+    {
+      "case": "six-pack-accessor-reply",
+      "refused": true,
+      "accessorReads": 0
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+
+ RUN  v5.0.3 C:/Users/karta/Documents/Codex/2026-10-04/task-2/first-run-checkout
+
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > local catalogues are complete, do not shadow shared keys, and keep the copy rules; every local Button label exists in both languages within 22 code points 13ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > FR-06: six plain pack rows in Engine order, each a draft not yet checked; the conversation link is a real internal link that cancels first 647ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > FR-08: closed rows carry the exact first words of the meaning; the open row carries the whole text and evidence; only Accept accepts; keys move and open rows 780ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > the settings row shows the exact proposal and needs its own Accept; Publish exists only after everything; the square stays on Meanings through publication; Continue is a checked departure that cancels first 1543ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > a retained Continue after a cancel, a lock, a dead guard or a context replacement hands the parent nothing; two presses hand over once 6672ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > a retained settings Change after a pack change, a lock or a dead guard hands the parent nothing; a valid one cancels this screen before the parent runs 886ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > Continue consumes admission at the actual parent callback: synchronous and queued LEFT loss by cancel, lock, dispose or a dead guard delivers nothing 8536ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > settings Change consumes admission immediately: synchronous LEFT cancel, lock, dispose or a dead guard delivers no draft 707ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > uncertified earlier stages are drawn as not sure, and the square rests there instead of on this step 124ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > Change edits the words only: Publish is withdrawn while an edit is open, the meaning is not repeated beside the editor, Escape discards, Save resets the row, keeps the pack text behind a closed disclosure, and the publication carries the change 3408ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > Change immediately revokes a retained connected Publish before React commits; separately committed clicks also issue nothing, and Escape restores a fresh Publish 2377ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > ending an edit in the same batch never revives the previous Publish token; pack replacement ends the editor and retains fresh review pins 2392ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > provenance is the text, not the acceptance: an accepted and published Hindi meaning stays the person's own words, never Engine English, and the original stays inspectable 1390ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > an open editor ends with the state it was opened in: a publish in flight, a verified publication and a lock each withdraw Save and Discard 1429ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > Hindi: interface words are Hindi, Engine meanings stay exact English marked as English, and nothing is missing 185ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > the language choice moves the focus with the choice, so Enter or Space on the focused word keeps the language it shows 186ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > leaving during a held publish never resurrects evidence; the neutral unknown state asks for a readback; the late reply stays hidden 1102ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > unmounting cancels the controller: late reads land nowhere and an issued publish stays pinned without a retry 1177ms
+stdout | app/ui/tests/first-run/first-run.test.tsx > Simple in en keeps nonempty exact current previews in all six definitions of every pack and review phase, and opens the full current/original text with its provenance
+{"regression":"Simple exact previews","language":"en","closedChecks":1296,"openedChecks":216,"originalChecks":108}
+
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > a viewer seat sees the read-only sentence and no control; an Engine refusal returns the review with nothing published 1088ms
+stdout | app/ui/tests/first-run/first-run.test.tsx > Simple in hi keeps nonempty exact current previews in all six definitions of every pack and review phase, and opens the full current/original text with its provenance
+{"regression":"Simple exact previews","language":"hi","closedChecks":1296,"openedChecks":216,"originalChecks":108}
+
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > Simple in en keeps nonempty exact current previews in all six definitions of every pack and review phase, and opens the full current/original text with its provenance 5582ms
+stdout | app/ui/tests/first-run/first-run.test.tsx > main copy in simple stays within Simple 90, Guided 120 and Books 170 in English and Hindi for every pack, proposed/accepted/published and bounded changed meanings, initial/changed textarea values, settled original disclosures and unknown states; one filled button and action labels within 22 code points
+{"view":"simple","measuredStates":978,"maximumWords":90,"maximumCase":"ecommerce earned published engine-prefix bounded en earned open [simple]","budget":90}
+
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > Simple in hi keeps nonempty exact current previews in all six definitions of every pack and review phase, and opens the full current/original text with its provenance 5569ms
+stdout | app/ui/tests/first-run/first-run.test.tsx > main copy in guided stays within Simple 90, Guided 120 and Books 170 in English and Hindi for every pack, proposed/accepted/published and bounded changed meanings, initial/changed textarea values, settled original disclosures and unknown states; one filled button and action labels within 22 code points
+{"view":"guided","measuredStates":978,"maximumWords":95,"maximumCase":"ecommerce earned published engine-prefix bounded en earned open [guided]","budget":120}
+
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > main copy in simple stays within Simple 90, Guided 120 and Books 170 in English and Hindi for every pack, proposed/accepted/published and bounded changed meanings, initial/changed textarea values, settled original disclosures and unknown states; one filled button and action labels within 22 code points 18957ms
+stdout | app/ui/tests/first-run/first-run.test.tsx > main copy in books stays within Simple 90, Guided 120 and Books 170 in English and Hindi for every pack, proposed/accepted/published and bounded changed meanings, initial/changed textarea values, settled original disclosures and unknown states; one filled button and action labels within 22 code points
+{"view":"books","measuredStates":978,"maximumWords":100,"maximumCase":"ecommerce earned published engine-prefix bounded en earned open [books]","budget":170}
+
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > main copy in guided stays within Simple 90, Guided 120 and Books 170 in English and Hindi for every pack, proposed/accepted/published and bounded changed meanings, initial/changed textarea values, settled original disclosures and unknown states; one filled button and action labels within 22 code points 22002ms
+ Ô£ô app/ui/tests/first-run/first-run.test.tsx > main copy in books stays within Simple 90, Guided 120 and Books 170 in English and Hindi for every pack, proposed/accepted/published and bounded changed meanings, initial/changed textarea values, settled original disclosures and unknown states; one filled button and action labels within 22 code points 21151ms
+
+ Test Files  1 passed (1)
+      Tests  24 passed (24)
+   Start at  13:34:13
+   Duration  111.32s (tests 97%, environment 2%, transform 1%, import 1%)

@@ -1,0 +1,95 @@
+{
+  "phase": "inventory",
+  "recordedAt": "2026-10-04T08:08:18.497Z",
+  "checkout": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout",
+  "head": "da7da1a39116ed263d47498ed6740d863652b81c",
+  "immutable": "da7da1a39116ed263d47498ed6740d863652b81c",
+  "findings": [],
+  "commands": [
+    {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "scripts/generate-design-inventory.mjs",
+        "--check"
+      ],
+      "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout",
+      "environment": {
+        "UI_DESIGN_INPUTS": "C:/Users/karta/Documents/Codex/2026-10-01/task-18/inputs"
+      },
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "stdout": "Design inventory matches all four source documents.\n",
+      "stderr": ""
+    },
+    {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "app/ui/tests/inventory.test.ts",
+        "app/ui/tests/first-run/inventory-qualification.test.ts"
+      ],
+      "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout",
+      "environment": {
+        "UI_DESIGN_INPUTS": "C:/Users/karta/Documents/Codex/2026-10-01/task-18/inputs"
+      },
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "stdout": "TAP version 13\n# Subtest: canonical LF inventory passes the unchanged generator raw-byte check\nok 1 - canonical LF inventory passes the unchanged generator raw-byte check\n  ---\n  duration_ms: 166.4527\n  type: 'test'\n  ...\n# Subtest: CRLF is exactly equivalent after LF normalization, but still fails the unchanged raw-byte check\nok 2 - CRLF is exactly equivalent after LF normalization, but still fails the unchanged raw-byte check\n  ---\n  duration_ms: 180.4134\n  type: 'test'\n  ...\n# Subtest: a semantic mutation with canonical LF also fails the unchanged generator\nok 3 - a semantic mutation with canonical LF also fails the unchanged generator\n  ---\n  duration_ms: 147.3934\n  type: 'test'\n  ...\n# Subtest: all 123 source screen entries survive, with exact codes, titles and per-area counts\nok 4 - all 123 source screen entries survive, with exact codes, titles and per-area counts\n  ---\n  duration_ms: 3.6939\n  type: 'test'\n  ...\n# Subtest: every screen retains its exact source schedule and stated or explicitly inherited purpose\nok 5 - every screen retains its exact source schedule and stated or explicitly inherited purpose\n  ---\n  duration_ms: 2.2073\n  type: 'test'\n  ...\n# Subtest: inventory and proposed methods make no working-screen or live-engine claim\nok 6 - inventory and proposed methods make no working-screen or live-engine claim\n  ---\n  duration_ms: 84.8783\n  type: 'test'\n  ...\n# Subtest: direct engine references are exact source references, with reuse recorded separately\nok 7 - direct engine references are exact source references, with reuse recorded separately\n  ---\n  duration_ms: 2.1452\n  type: 'test'\n  ...\n# Subtest: all seven desktop places and every source sub-place remain available in the inventory\nok 8 - all seven desktop places and every source sub-place remain available in the inventory\n  ---\n  duration_ms: 0.3768\n  type: 'test'\n  ...\n# Subtest: expanded enterprise inventory preserves exact IDs, editions and all 176 surfaces\nok 9 - expanded enterprise inventory preserves exact IDs, editions and all 176 surfaces\n  ---\n  duration_ms: 2.249\n  type: 'test'\n  ...\n# Subtest: customer window and seventeen internal console surfaces remain rules-only and undrawn\nok 10 - customer window and seventeen internal console surfaces remain rules-only and undrawn\n  ---\n  duration_ms: 0.6215\n  type: 'test'\n  ...\n# Subtest: all eleven CA screens retain separate client vaults and source-only post-day-ten timing\nok 11 - all eleven CA screens retain separate client vaults and source-only post-day-ten timing\n  ---\n  duration_ms: 6.0994\n  type: 'test'\n  ...\n# Subtest: phone scope preserves five entries, headline-only boundaries and deferred PH-04\nok 12 - phone scope preserves five entries, headline-only boundaries and deferred PH-04\n  ---\n  duration_ms: 0.5332\n  type: 'test'\n  ...\n# Subtest: canonical source bytes and deterministic regeneration match the checked-in inventory\nok 13 - canonical source bytes and deterministic regeneration match the checked-in inventory\n  ---\n  duration_ms: 147.8841\n  type: 'test'\n  ...\n1..13\n# tests 13\n# suites 0\n# pass 13\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 679.6151\n",
+      "stderr": ""
+    }
+  ],
+  "inventory": {
+    "gitBlob": "eafb7211dd0b5afa3817100afb1b2d278744ee91",
+    "bytes": 501034,
+    "sha256": "71f9d7ea1481625e959860036a966ba5b73565ed9be6748e1eed87ae1f26d77b",
+    "beforeBytes": 516149,
+    "beforeSha256": "1189a3057b353e75d90da0f50dd7865a61d9d0163828784cc5c898bea7d687ec",
+    "normalizedEquivalent": true,
+    "jsonEquivalent": true,
+    "rawCheckStillRejectsCRLF": true,
+    "generatorSha256": "e2bb08e9a4f73825ebf97c23e946a644c80be89e0dbd873496b788cab091f35d",
+    "generatorGitBlob": "fbb1913071be3ed7a9f4e643efe6f8759410b044",
+    "originalTestsSha256": "bfde2d56f0398b76216eb486c9f0ae34d7bb21704720b17da3e5ea028c110b7c",
+    "existingGeneratorAndTestsHaveNoSourceDiff": true,
+    "qualificationTestsSha256": "36136324c8818d4570ff6c586b8742274d4c6187641faeec0a7e263217bc119e",
+    "attributes": "app/ui/design-screen-inventory.json: text: set\napp/ui/design-screen-inventory.json: eol: lf",
+    "inputs": [
+      {
+        "file": "inputs/2026-10-01-chausar-app-frontend.md",
+        "bytes": 59029,
+        "lines": 689,
+        "sha256": "d849c23b3538c85f3d16d3305f1f2a3aae29220955e7d24d8152067a08e0dbfb",
+        "actualBytes": 59029,
+        "actualSha256": "d849c23b3538c85f3d16d3305f1f2a3aae29220955e7d24d8152067a08e0dbfb"
+      },
+      {
+        "file": "inputs/build.md",
+        "bytes": 39532,
+        "lines": 531,
+        "sha256": "ed2ba61360d4a32048b847920b5e44912f35ae003062d7b9f28bb63f1fc5a539",
+        "actualBytes": 39532,
+        "actualSha256": "ed2ba61360d4a32048b847920b5e44912f35ae003062d7b9f28bb63f1fc5a539"
+      },
+      {
+        "file": "inputs/enterprise.md",
+        "bytes": 36045,
+        "lines": 421,
+        "sha256": "8602ec99de60c7a1caa503e3ce04ba464e9c1c5b0ded27b0453068fb3bbd7606",
+        "actualBytes": 36045,
+        "actualSha256": "8602ec99de60c7a1caa503e3ce04ba464e9c1c5b0ded27b0453068fb3bbd7606"
+      },
+      {
+        "file": "inputs/screens.md",
+        "bytes": 68918,
+        "lines": 1113,
+        "sha256": "908342a0877822e787aa6edd95e1c2b909716f8eb6af77831631c687329387f5",
+        "actualBytes": 68918,
+        "actualSha256": "908342a0877822e787aa6edd95e1c2b909716f8eb6af77831631c687329387f5"
+      }
+    ]
+  },
+  "status": "review-passed"
+}

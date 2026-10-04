@@ -1,0 +1,83 @@
+[
+  {
+    "path": "app/ui/src/screens/first-run/README.md",
+    "rawSha256": "df35ddea436cb438e405ed24d0430fd4d71c5d73deef4f27f45e73d5ecb66ad4",
+    "canonicalSha256": "9bca9d3e30b165c7d291d46eb026bf91690c8d9427949e4cf0e6a0b70b5e7fcd",
+    "rawBytes": 16229,
+    "canonicalBytes": 16159,
+    "exactCrLfToLfEquivalence": true,
+    "changedWorkingBytes": true
+  },
+  {
+    "path": "app/ui/src/screens/first-run/contracts.ts",
+    "rawSha256": "d36be431ae7601508d49ceb900ce165a3497fc0c4d7e700937db85f463d3c71d",
+    "canonicalSha256": "bfe37efd5f87a7dc39f78369e27094fb424a16c69bf9c3c09859095cbdefbe7d",
+    "rawBytes": 30102,
+    "canonicalBytes": 29651,
+    "exactCrLfToLfEquivalence": true,
+    "changedWorkingBytes": true
+  },
+  {
+    "path": "app/ui/src/screens/first-run/controller.ts",
+    "rawSha256": "23cd01df0e90e81e3fbcf898401829d8329d4a1694cf226f8b914a5680119230",
+    "canonicalSha256": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+    "rawBytes": 47395,
+    "canonicalBytes": 46825,
+    "exactCrLfToLfEquivalence": true,
+    "changedWorkingBytes": true
+  },
+  {
+    "path": "app/ui/src/screens/first-run/index.ts",
+    "rawSha256": "ae52d073bbfdf265bd3e702858362fc7d4cab61ef36fa820ac678ff42716c897",
+    "canonicalSha256": "5bfd042b061ce7d010b40a16657373b427893bb508e8443061f83e27fce03c0c",
+    "rawBytes": 2312,
+    "canonicalBytes": 2285,
+    "exactCrLfToLfEquivalence": true,
+    "changedWorkingBytes": true
+  },
+  {
+    "path": "app/ui/tests/first-run/contracts.test.ts",
+    "rawSha256": "85d4ab48fb4061fa745f8b47ae7517d97eb682a1a8bcd021752b74561be2cca2",
+    "canonicalSha256": "9ec3af794361c52e70cc591e55631862501e60c6bfc92938bf17c9afbf2299a5",
+    "rawBytes": 25207,
+    "canonicalBytes": 25005,
+    "exactCrLfToLfEquivalence": true,
+    "changedWorkingBytes": true
+  },
+  {
+    "path": "app/ui/tests/first-run/controller.test.ts",
+    "rawSha256": "1687c5a60f51e9919f9339a576720bd74e7bc3c615d5c231bfbfd2279ab24e5e",
+    "canonicalSha256": "edbd042d48b4be0219a281751e66b1a06bdce103d665ff595d96998091db698e",
+    "rawBytes": 93893,
+    "canonicalBytes": 92822,
+    "exactCrLfToLfEquivalence": true,
+    "changedWorkingBytes": true
+  },
+  {
+    "path": "app/ui/tests/first-run/engine-join.fixture.ts",
+    "rawSha256": "c0a0c996525d33177289dab9d9926a1c4c4739395b6ea7d87ab2cc7b33ed9f75",
+    "canonicalSha256": "c0a0c996525d33177289dab9d9926a1c4c4739395b6ea7d87ab2cc7b33ed9f75",
+    "rawBytes": 7337,
+    "canonicalBytes": 7337,
+    "exactCrLfToLfEquivalence": true,
+    "changedWorkingBytes": false
+  },
+  {
+    "path": "app/ui/tests/first-run/engine-join.test.ts",
+    "rawSha256": "806558e26c24e94cc1e7a30b98e6be02b609885717f7cbd40a806b0a8c9ea357",
+    "canonicalSha256": "806558e26c24e94cc1e7a30b98e6be02b609885717f7cbd40a806b0a8c9ea357",
+    "rawBytes": 22623,
+    "canonicalBytes": 22623,
+    "exactCrLfToLfEquivalence": true,
+    "changedWorkingBytes": false
+  },
+  {
+    "path": "app/ui/tests/first-run/fixture.ts",
+    "rawSha256": "b665d41ea85ec8a06b295db1f8fc23a6e4d1363ac9b8b49a5f15e8656d9f90c1",
+    "canonicalSha256": "f10bce1b3904cabbcc63630b55153f26e059ec92c02511eab52289af3a42492b",
+    "rawBytes": 15158,
+    "canonicalBytes": 14932,
+    "exactCrLfToLfEquivalence": true,
+    "changedWorkingBytes": true
+  }
+]

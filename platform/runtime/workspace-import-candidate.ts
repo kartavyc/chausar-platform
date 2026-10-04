@@ -23,8 +23,13 @@ export function proveEmptyWorkspaceTarget(target: EmptyTargetInspection, sourceP
   requireValue(target.ready === true, 'INTERCHANGE_NOT_READY', 'Target storage is not ready for a reviewed candidate.');
   const profile = workspaceStateProfile();
   const legacy = workspaceStateProfile({});
-  requireValue(equal(target.profile, profile) || (sourceProfile === undefined || sourceProfile.id === STATE_PROFILE) && equal(target.profile, legacy),
-    'INTERCHANGE_PROFILE', 'Retained namespace imports require every supported target namespace; legacy targets support legacy archives only.');
+  // The exact pre-ontology retained target capability remains sufficient for
+  // its original profiles. It cannot admit a source carrying modern ontology.
+  const { ontologyNamespaces: _ontologyCapabilities, ...retainedLegacyTarget } = profile;
+  const modernSource = sourceProfile?.ontologyNamespaces !== undefined;
+  requireValue(equal(target.profile, profile) || !modernSource && equal(target.profile, retainedLegacyTarget)
+    || (sourceProfile === undefined || sourceProfile.id === STATE_PROFILE) && !modernSource && equal(target.profile, legacy),
+  'INTERCHANGE_PROFILE', 'The exact target capability must support every declared source namespace.');
   requireValue(Array.isArray(target.stores) && equal(target.stores, target.profile.stores.map(store => ({ name: store.name, records: 0 }))) &&
     Array.isArray(target.categoryCounts) && equal(target.categoryCounts, profile.artifactCategories.map(category => ({ category, count: 0 }))) &&
     target.authorityRecords === 0 && Array.isArray(target.unexpectedEntries) && target.unexpectedEntries.length === 0,

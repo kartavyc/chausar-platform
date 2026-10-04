@@ -1,0 +1,15 @@
+{
+  "recordedAt": "2026-10-04T08:26:28.052Z",
+  "files": [
+    {
+      "path": "scripts/check-ui-source.mjs",
+      "priorWorkingSha256": "4159f2a01f02870efa4c3adc442473e8c2c2a03c19df0a0a58d1a127244e09c0",
+      "canonicalGitSha256": "ddfbdff01b4b02353769a6a5b3b888bd7ecd8c6a9074203b29190dbe2a4dbe1f",
+      "priorWorkingCrlf": 470,
+      "normalizedByteEquivalent": true,
+      "canonicalWorkingEqualsStagedBytes": true,
+      "preservedPath": "qualified-before-canonical-scripts-check-ui-source.mjs"
+    }
+  ],
+  "globalGitSettingsChanged": false
+}

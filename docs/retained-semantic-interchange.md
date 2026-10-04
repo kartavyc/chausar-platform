@@ -15,7 +15,7 @@ Presence is declared by the exact profile store list, pinned into the inventory 
 
 Nested store JSON stays in original `JSON.stringify` order inside text payloads. Export/read retain record IDs, revision/branch/run identities, evidence cuts, receipt IDs and values, review/approval/retirement events, arrays and digests without resealing. Outer canonical JSON and existing cryptography are unchanged. Retained scenario input cuts must also retain every original source and mapping recipe required by their imports, even when that import is absent from current top-level state. Missing bodies remain unsupported; capture neither reconstructs nor fetches them. Recursive private namespaces inside scenario input evidence refuse.
 
-`workspaceStateProfile(savedState)` describes that cut's exact presence. The no-argument form enumerates the complete 28-store supported target. Candidate admission accepts exact old target proofs only for legacy v1 archives; v2 requires the full current empty target proof, including a namespace absent from that particular source cut.
+`workspaceStateProfile(savedState)` describes that cut's exact presence. The joined ontology extension also declares exact nested `ontologyNamespaces` when present; their absence preserves the original profiles and bytes above. The no-argument form enumerates the complete 28-store supported target plus the declared ontology capabilities. Exact pre-ontology c4 target proofs still admit original source profiles, while modern ontology sources require the current full capability. See [the joined profile and projection contract](ontology-retained-interchange.md).
 
 ## Current release and fresh-owner behavior
 

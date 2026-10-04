@@ -1,0 +1,291 @@
+/* First run has no rail: a top bar with the wordmark and the language choice, then one
+   centred column of 720 with the six steps across it (main design, part 4). Rows sit
+   between hairlines at the 54 pixel minimum. Every size and colour is a token. */
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp4);
+  min-height: var(--topbar);
+  padding: 0 var(--rail-pad);
+}
+
+/* The language choice: a row of words, the chosen one underlined and in ink. */
+.language {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.languageWords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp4);
+}
+
+.languageWord {
+  font: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  min-height: var(--target);
+  color: var(--mute);
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.languageChosen {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-thickness: var(--hair);
+  text-underline-offset: 4px;
+}
+
+.page {
+  justify-self: center;
+  width: var(--col);
+  max-width: 100%;
+  padding: var(--page-top) 0 var(--sp6);
+  outline-offset: calc(-1 * var(--focus));
+}
+
+.steps {
+  margin-bottom: var(--sp7);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--hair) solid var(--line);
+}
+
+.row {
+  border-bottom: var(--hair) solid var(--line);
+}
+
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--target);
+  align-items: center;
+  min-height: var(--row);
+  column-gap: var(--sp3);
+}
+
+/* The control that opens a row. Accept and Change are separate buttons under it, never inside it. */
+.main {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp3);
+  width: 100%;
+  min-width: 0;
+  min-height: var(--row);
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: var(--fs-row);
+  color: var(--fg);
+  text-align: start;
+  background: none;
+  border: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.word {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.open .word {
+  font-weight: var(--fw-medium);
+}
+
+/* The grey meaning of a closed row: the exact first words, clipped by the row, never a paraphrase. */
+.preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+.state {
+  margin-inline-start: auto;
+  flex: 0 0 auto;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+.arrowSlot {
+  display: inline-flex;
+  justify-content: center;
+  color: var(--mute);
+}
+
+.arrow {
+  width: var(--square);
+  height: var(--square);
+}
+.arrowOpen {
+  transform: rotate(90deg);
+}
+
+.panel {
+  display: grid;
+  gap: var(--sp3);
+  padding: 0 0 var(--sp4) calc(var(--square) + var(--sp3));
+  font-size: var(--fs-read);
+  color: var(--fg2);
+}
+
+.meaning {
+  margin: 0;
+  color: var(--fg);
+}
+
+.detail {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+/* The exact pack meaning behind a closed disclosure, shown one full version at a time
+   after a change. The summary is a real control and meets the
+   minimum target height. */
+.disclosure {
+  margin: 0;
+}
+.summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--target);
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.quote {
+  margin: 0;
+  padding-inline-start: var(--sp4);
+  border-left: var(--hair) solid var(--line2);
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp3);
+}
+
+.pairs {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--sp4);
+  row-gap: var(--sp1);
+  font-size: var(--fs-note2);
+}
+.pairs dt {
+  color: var(--mute);
+}
+.pairs dd {
+  margin: 0;
+}
+
+.editor {
+  display: grid;
+  gap: var(--sp1);
+}
+.editorLabel {
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+}
+.textarea {
+  font: inherit;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  border-bottom: var(--hair) solid var(--line2);
+  padding: var(--sp2) 0;
+  min-height: calc(var(--row) * 2);
+  resize: vertical;
+}
+.textarea[aria-invalid='true'] {
+  border-bottom-color: var(--red);
+}
+.problem {
+  margin: 0;
+  font-size: var(--fs-note);
+  color: var(--red);
+}
+
+.footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp4);
+  padding-top: var(--sp5);
+}
+
+.lines {
+  display: grid;
+  gap: var(--sp1);
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+.status {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+}
+
+.hash {
+  font-size: var(--fs-note);
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.after {
+  margin: var(--sp4) 0 0;
+}
+
+/* A real navigation link in the underlined vocabulary of the link button. */
+.link {
+  color: var(--fg);
+  border-radius: var(--radius);
+  text-decoration: underline;
+  text-decoration-color: var(--line2);
+  text-decoration-thickness: var(--hair);
+  text-underline-offset: 3px;
+}
+.link:hover {
+  text-decoration-color: var(--fg);
+}
+
+/* Under 1024 the column takes the width with side padding only. */
+@media (max-width: 1023px) {
+  .page {
+    width: 100%;
+    padding-inline: var(--sp4);
+  }
+  .top {
+    padding: 0 var(--sp4);
+  }
+}

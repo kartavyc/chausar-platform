@@ -1,0 +1,59 @@
+{
+  "sourceHashesAfter": [
+    {
+      "path": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout\\app\\ui\\src\\screens\\first-run\\Meanings.tsx",
+      "sha256": "40f81e46fd3005bc1a6703ab466d1d9cc4939a67c484cddd0ed9e233c4a0aba6"
+    },
+    {
+      "path": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout\\app\\ui\\src\\screens\\first-run\\FirstRun.module.css",
+      "sha256": "3c42529ca5ebab090e1831863503b4183c2f1809885c9ced8728864edf9e3d82"
+    },
+    {
+      "path": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout\\app\\ui\\src\\screens\\first-run\\text\\en.json",
+      "sha256": "8ac4a43ad7755e9af7adbb632bb841aa758b62440773bcf7bb04fa1335f574ab"
+    },
+    {
+      "path": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout\\app\\ui\\src\\screens\\first-run\\text\\hi.json",
+      "sha256": "115a118736fa757315dad30f476259101692b1dc0e858840c3b3e160c6c34eaa"
+    },
+    {
+      "path": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout\\app\\ui\\tests\\first-run\\first-run.test.tsx",
+      "sha256": "733faa541a71e62400cab2c8fe5fe4d389009e6aefc461cb616c25f27bd0adf3"
+    }
+  ],
+  "scope": "Actual React DOM in jsdom, actual first-run controller and synthetic Engine fixture; no native/browser/service/network/real data.",
+  "command": "node node_modules/vitest/vitest.mjs run --config app/ui/tests/first-run/vitest.config.mjs --configLoader native --reporter verbose",
+  "exitCode": 0,
+  "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout",
+  "finishedUtc": "2026-10-04T07:26:34.2555195Z",
+  "stdoutStderr": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\verification\\codex-ui-final-react.txt",
+  "sourceHashesBefore": [
+    {
+      "path": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout\\app\\ui\\src\\screens\\first-run\\Meanings.tsx",
+      "sha256": "40f81e46fd3005bc1a6703ab466d1d9cc4939a67c484cddd0ed9e233c4a0aba6"
+    },
+    {
+      "path": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout\\app\\ui\\src\\screens\\first-run\\FirstRun.module.css",
+      "sha256": "3c42529ca5ebab090e1831863503b4183c2f1809885c9ced8728864edf9e3d82"
+    },
+    {
+      "path": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout\\app\\ui\\src\\screens\\first-run\\text\\en.json",
+      "sha256": "8ac4a43ad7755e9af7adbb632bb841aa758b62440773bcf7bb04fa1335f574ab"
+    },
+    {
+      "path": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout\\app\\ui\\src\\screens\\first-run\\text\\hi.json",
+      "sha256": "115a118736fa757315dad30f476259101692b1dc0e858840c3b3e160c6c34eaa"
+    },
+    {
+      "path": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout\\app\\ui\\tests\\first-run\\first-run.test.tsx",
+      "sha256": "733faa541a71e62400cab2c8fe5fe4d389009e6aefc461cb616c25f27bd0adf3"
+    }
+  ],
+  "startedUtc": "2026-10-04T07:24:01.9747340Z",
+  "checkpointOutput": {
+    "file": "react.txt",
+    "sha256": "3197bdcc3775f5342a720eaa29b7e33b65bfbc546a977067a536da750153b6b3",
+    "rawOutputSha256": "2ce2b6819b0f71b711691f9e2de2a935817c4c41ebe4b48c9405d7138aa08586",
+    "normalization": "Only trailing whitespace trimmed in the checkpoint copy; original full raw stdout/stderr remains unchanged in the coordinator workspace."
+  }
+}

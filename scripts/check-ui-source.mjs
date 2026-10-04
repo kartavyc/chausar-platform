@@ -225,28 +225,195 @@ export function checkCssSource(text, file) {
 }
 
 /** Only literal message IDs inside the action Button component are identifiable statically. */
-export function staticButtonMessageIds(text, file, ts) {
-  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const ids = new Set();
+function literalButtonMessages(button, source, ts) {
+  const messages = [];
   const readLabel = node => {
-    if (ts.isCallExpression(node) && nodeName(node.expression, ts) === 't' && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) ids.add(node.arguments[0].text);
+    if (ts.isCallExpression(node) && nodeName(node.expression, ts) === 't' && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) messages.push({ id: node.arguments[0].text, node, kind: 'calls' });
     if (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) {
       const name = node.tagName.getText(source);
       if (name === 'T' || name === 'FormattedMessage') {
         const attribute = node.attributes.properties.find(item => ts.isJsxAttribute(item) && item.name.getText(source) === (name === 'T' ? 'k' : 'id'));
-        if (attribute?.initializer && ts.isStringLiteral(attribute.initializer)) ids.add(attribute.initializer.text);
+        if (attribute?.initializer && ts.isStringLiteral(attribute.initializer)) messages.push({ id: attribute.initializer.text, node, kind: 'elements' });
       }
     }
     ts.forEachChild(node, readLabel);
   };
+  for (const child of button.children) readLabel(child);
+  return messages;
+}
+
+export function staticButtonMessageIds(text, file, ts) {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const ids = new Set();
   const visit = node => {
-    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(source) === 'Button') {
-      for (const child of node.children) readLabel(child);
-    }
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(source) === 'Button') for (const { id } of literalButtonMessages(node, source, ts)) ids.add(id);
     ts.forEachChild(node, visit);
   };
   visit(source);
   return [...ids].sort();
+}
+
+/**
+ * The one documented local layer: FirstRunScreen -> FirstRunText -> its existing
+ * FirstRun/Meanings components. This is a narrow JSX reachability check, not a
+ * general React provider analysis. Unreachable buttons, other files and explicit
+ * reading-fixture IDs remain shared. A shared caller of a scoped component also
+ * requires its labels in the shared catalogue; local keys never form a global union.
+ */
+function firstRunButtonScopes(entries, references, src, ts) {
+  const entryFile = resolve(src, 'screens/first-run/FirstRun.tsx');
+  const providerFile = resolve(src, 'screens/first-run/text.tsx');
+  const owned = new Set([entryFile, resolve(src, 'screens/first-run/Meanings.tsx')]);
+  const sharedProviderFile = resolve(src, 'app/text.tsx');
+  const resolvedImports = new Map(references.map(item => [`${resolve(item.importer)}\0${item.name}`, resolve(item.resolvedPath)]));
+  const tables = new Map();
+  for (const entry of entries) {
+    if (!/\.tsx$/.test(entry.path)) continue;
+    const source = ts.createSourceFile(entry.path, entry.text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const table = { path: resolve(entry.path), source, imports: new Map(), declarations: new Map() };
+    for (const node of source.statements) {
+      if (ts.isFunctionDeclaration(node) && node.name && node.body) table.declarations.set(node.name.text, node);
+      if (ts.isVariableStatement(node)) for (const declaration of node.declarationList.declarations) if (ts.isIdentifier(declaration.name) && declaration.initializer) table.declarations.set(declaration.name.text, declaration.initializer);
+      if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && !node.importClause?.isTypeOnly) {
+        const module = node.moduleSpecifier.text;
+        const target = resolvedImports.get(`${table.path}\0${module}`) ?? resolve(dirname(table.path), module);
+        const bindings = node.importClause?.namedBindings;
+        if (bindings && ts.isNamedImports(bindings)) for (const item of bindings.elements) if (!item.isTypeOnly) table.imports.set(item.name.text, { target, name: (item.propertyName ?? item.name).text, module });
+        if (node.importClause?.name) table.imports.set(node.importClause.name.text, { target, name: 'default', module });
+      }
+    }
+    tables.set(table.path, table);
+  }
+  const provider = tables.get(providerFile);
+  const unwrap = node => node && (ts.isAsExpression(node) || ts.isParenthesizedExpression(node) || ts.isSatisfiesExpression(node)) ? unwrap(node.expression) : node;
+  const returned = declaration => declaration && ts.isFunctionDeclaration(declaration) && declaration.body?.statements.length === 1 && ts.isReturnStatement(declaration.body.statements[0]) ? unwrap(declaration.body.statements[0].expression) : null;
+  const imported = (table, name, target, exported) => table?.imports.get(name)?.target === target && (!exported || table.imports.get(name)?.name === exported);
+  const catalogueMap = (name, directory) => {
+    const value = unwrap(provider?.declarations.get(name));
+    return value && ts.isObjectLiteralExpression(value) && value.properties.length === 2 && ['en', 'hi'].every(language => {
+      const property = value.properties.find(item => (ts.isPropertyAssignment(item) || ts.isShorthandPropertyAssignment(item)) && nodeName(item.name, ts) === language);
+      const initializer = property && (ts.isShorthandPropertyAssignment(property) ? property.name : property.initializer);
+      return initializer && ts.isIdentifier(initializer) && imported(provider, initializer.text, resolve(src, directory, `${language}.json`), 'default');
+    });
+  };
+  const messages = returned(provider?.declarations.get('firstRunMessages'));
+  const layeredMessages = messages && ts.isObjectLiteralExpression(messages) && messages.properties.length === 2 && messages.properties.every((property, index) => ts.isSpreadAssignment(property) && ts.isElementAccessExpression(property.expression) && ts.isIdentifier(property.expression.expression) && property.expression.expression.text === ['SHARED', 'LOCAL'][index] && property.expression.argumentExpression?.getText(provider.source) === 'language');
+  const wrapper = returned(provider?.declarations.get('FirstRunText'));
+  const intl = wrapper && ts.isJsxElement(wrapper) ? wrapper.children.find(child => ts.isJsxElement(child) && provider.imports.get(child.openingElement.tagName.getText(provider.source))?.module === 'react-intl' && provider.imports.get(child.openingElement.tagName.getText(provider.source))?.name === 'IntlProvider') : null;
+  const messagesAttribute = intl?.openingElement.attributes.properties.find(item => ts.isJsxAttribute(item) && item.name.getText(provider.source) === 'messages');
+  const messagesCall = messagesAttribute?.initializer && ts.isJsxExpression(messagesAttribute.initializer) ? messagesAttribute.initializer.expression : null;
+  const renderedChildren = node => node?.children?.filter(child => !ts.isJsxText(child) || child.text.trim());
+  const children = renderedChildren(intl);
+  const enclosedChildren = renderedChildren(wrapper)?.length === 1 && renderedChildren(wrapper)[0] === intl && children?.length === 1 && ts.isJsxExpression(children[0]) && children[0].expression && ts.isIdentifier(children[0].expression) && children[0].expression.text === 'children';
+  const verifiedProvider = catalogueMap('SHARED', 'text') && catalogueMap('LOCAL', 'screens/first-run/text') && layeredMessages && wrapper && ts.isJsxElement(wrapper) && imported(provider, wrapper.openingElement.tagName.getText(provider.source), sharedProviderFile, 'TextProvider') && enclosedChildren && messagesCall && ts.isCallExpression(messagesCall) && messagesCall.expression.getText(provider.source) === 'firstRunMessages' && messagesCall.arguments.length === 1 && messagesCall.arguments[0].getText(provider.source) === 'language';
+  const layeredLabels = new Set();
+  const sharedLabels = new Set();
+  const visited = new Set();
+  const component = (table, name) => {
+    if (table.declarations.has(name)) return { table, declaration: table.declarations.get(name), name };
+    const binding = table.imports.get(name);
+    const target = binding && owned.has(binding.target) ? tables.get(binding.target) : null;
+    return target?.declarations.has(binding.name) ? { table: target, declaration: target.declarations.get(binding.name), name: binding.name } : null;
+  };
+  const intrinsicTag = tag => ts.isIdentifier(tag) && /^[a-z]/.test(tag.text);
+  // Prove only direct JSX slot forwarding under DOM/fragment ancestors. A wrapper
+  // with an unknown/provider ancestor may render its passed labels in another layer.
+  const preservesSlot = (table, name, slot) => {
+    const binding = table.imports.get(name);
+    const target = table.declarations.has(name) ? table : binding && tables.get(binding.target);
+    const declaration = target?.declarations.get(binding?.name ?? name);
+    let uses = 0;
+    let safe = Boolean(declaration?.body);
+    const inspect = node => {
+      if (ts.isIdentifier(node) && node.text === slot) {
+        uses++;
+        let rendered = false;
+        for (let parent = node.parent; parent && parent !== declaration; parent = parent.parent) {
+          if (ts.isJsxExpression(parent)) rendered = true;
+          const tag = ts.isJsxElement(parent) ? parent.openingElement.tagName : ts.isJsxOpeningElement(parent) || ts.isJsxSelfClosingElement(parent) ? parent.tagName : null;
+          if (ts.isFunctionLike(parent) || ts.isCallExpression(parent) || ts.isNewExpression(parent) || ts.isTaggedTemplateExpression(parent) || (tag && !intrinsicTag(tag))) safe = false;
+        }
+        // Aliases, calls and other non-JSX uses cannot prove a provider context.
+        if (!rendered) safe = false;
+      }
+      ts.forEachChild(node, inspect);
+    };
+    if (declaration?.body) inspect(declaration.body);
+    return safe && uses > 0;
+  };
+  const hasJsx = node => {
+    let found = false;
+    const inspect = child => {
+      if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) found = true;
+      ts.forEachChild(child, inspect);
+    };
+    inspect(node);
+    return found;
+  };
+  const walkComponent = (item, layered) => {
+    const key = `${item.table.path}\0${item.name}\0${layered}`;
+    if (visited.has(key)) return;
+    visited.add(key);
+    walk(item.declaration, item.table, layered, layered);
+  };
+  const walk = (node, table, layered, evaluated = layered, withinButton = false) => {
+    if (ts.isJsxElement(node)) {
+      const name = node.openingElement.tagName.getText(table.source);
+      const binding = table.imports.get(name);
+      if (binding?.target === providerFile && binding.name === 'FirstRunText') {
+        for (const child of node.children) walk(child, table, Boolean(verifiedProvider), evaluated, withinButton);
+        return;
+      }
+      if ((binding?.target === sharedProviderFile && binding.name === 'TextProvider') || (binding?.module === 'react-intl' && binding.name === 'IntlProvider')) {
+        for (const child of node.children) walk(child, table, false, evaluated, withinButton);
+        return;
+      }
+      if (name === 'Button') withinButton = true;
+    }
+    if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const opening = ts.isJsxElement(node) ? node.openingElement : node;
+      const name = opening.tagName.getText(table.source);
+      if (!intrinsicTag(opening.tagName) && name !== 'T' && name !== 'FormattedMessage') {
+        const slots = opening.attributes.properties.filter(item => ts.isJsxAttribute(item) && item.initializer && hasJsx(item.initializer)).map(item => item.name.getText(table.source));
+        if (ts.isJsxElement(node) && renderedChildren(node)?.length) slots.push('children');
+        const passedLayer = layered && slots.every(slot => preservesSlot(table, name, slot));
+        const item = component(table, name);
+        if (item) walkComponent(item, layered);
+        walk(opening.attributes, table, passedLayer, evaluated, withinButton);
+        if (ts.isJsxElement(node)) for (const child of node.children) walk(child, table, passedLayer, evaluated, withinButton);
+        return;
+      }
+    }
+    // t() runs in the owning component; JSX message components run below the nearest provider.
+    if (withinButton && ts.isCallExpression(node) && nodeName(node.expression, ts) === 't') (evaluated ? layeredLabels : sharedLabels).add(`${table.path}\0${node.pos}\0calls`);
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const name = node.tagName.getText(table.source);
+      if (withinButton && (name === 'T' || name === 'FormattedMessage')) (layered ? layeredLabels : sharedLabels).add(`${table.path}\0${node.pos}\0elements`);
+      const item = component(table, name);
+      if (item) walkComponent(item, layered);
+    }
+    ts.forEachChild(node, child => walk(child, table, layered, evaluated, withinButton));
+  };
+  const entry = tables.get(entryFile);
+  const root = entry && component(entry, 'FirstRunScreen');
+  if (root) walkComponent(root, false);
+  // Direct JSX use from outside the configured subtree must not borrow its layer.
+  for (const table of tables.values()) if (!owned.has(table.path) && table.path !== providerFile) walk(table.source, table, false);
+  const result = { shared: new Set(), layered: new Set() };
+  for (const table of tables.values()) {
+    const collect = node => {
+      if (ts.isJsxElement(node) && node.openingElement.tagName.getText(table.source) === 'Button') {
+        for (const { id, node: label, kind } of literalButtonMessages(node, table.source, ts)) {
+          const key = `${table.path}\0${label.pos}\0${kind}`;
+          const scopes = layeredLabels.has(key) ? sharedLabels.has(key) ? [result.shared, result.layered] : [result.layered] : [result.shared];
+          for (const scope of scopes) scope.add(id);
+        }
+      }
+      ts.forEachChild(node, collect);
+    };
+    collect(table.source);
+  }
+  return result;
 }
 
 /** Real TS resolution plus syntactic export tables; no semantic program or React stand-ins. */
@@ -429,6 +596,7 @@ export async function checkUiSource({ root = defaultRoot, compilerPath } = {}) {
     else compilerOptions = ts.parseJsonConfigFileContent(config.config, ts.sys, dirname(tsconfig)).options;
   }
   const modules = await checkLocalModules(moduleEntries, ts, { compilerOptions });
+  const buttonScopes = firstRunButtonScopes(moduleEntries.filter(entry => renderRoots.has(portable(relative(src, entry.path)).split('/')[0])), modules.references, src, ts);
   findings.push(...modules.findings.map(item => ({ ...item, file: portable(relative(src, item.file)) })));
   for (const dependency of modules.externalDependencies) if (!dependency.resolved) pending.push(`External import ${dependency.name} is unresolved; operator provisioning is required.`);
   if (modules.unverifiedExports.length) pending.push('Some local barrel exports depend on external export-star modules; those names require full dependency typechecking.');
@@ -454,10 +622,27 @@ export async function checkUiSource({ root = defaultRoot, compilerPath } = {}) {
     const bannedFile = resolve(src, 'text/banned.txt');
     const banned = existsSync(bannedFile) ? (await readFile(bannedFile, 'utf8')).split(/\r?\n/).map(value => value.trim()).filter(value => value && !value.startsWith('#')) : [];
     if (!existsSync(bannedFile)) pending.push('The authoritative text/banned.txt list is not present; banned terms are not verified.');
-    const buttonMessageIds = [...new Set([...sourceButtonIds, ...budgetCases.flatMap(item => Array.isArray(item?.buttonMessageIds) ? item.buttonMessageIds : [])])];
+    const buttonMessageIds = [...new Set([...buttonScopes.shared, ...budgetCases.flatMap(item => Array.isArray(item?.buttonMessageIds) ? item.buttonMessageIds : [])])];
     try { findings.push(...checkCatalogs(catalogs.get(enFile), catalogs.get(hiFile), { buttonMessageIds, banned })); }
     catch (error) { findings.push({ file: 'text/en.json or text/hi.json', rule: 'catalogue-shape', message: String(error.message) }); }
-    if (!buttonMessageIds.length) pending.push('No literal action Button message IDs or explicit fixture IDs; 22-character button-label limits are not verified.');
+    const localFiles = { en: resolve(src, 'screens/first-run/text/en.json'), hi: resolve(src, 'screens/first-run/text/hi.json') };
+    if (catalogs.has(localFiles.en) || catalogs.has(localFiles.hi) || buttonScopes.layered.size) {
+      try {
+        const local = { en: flattenCatalog(catalogs.get(localFiles.en) ?? {}), hi: flattenCatalog(catalogs.get(localFiles.hi) ?? {}) };
+        const shared = { en: flattenCatalog(catalogs.get(enFile)), hi: flattenCatalog(catalogs.get(hiFile)) };
+        findings.push(...checkCatalogs(local.en, local.hi, { banned }).map(item => ({ ...item, file: `screens/first-run/${item.file}` })));
+        const effective = { en: { ...shared.en, ...local.en }, hi: { ...shared.hi, ...local.hi } };
+        for (const id of buttonScopes.layered) {
+          const labelFindings = checkCatalogs(effective.en, effective.hi, { buttonMessageIds: [id] }).filter(item => item.rule.startsWith('button-'));
+          findings.push(...labelFindings.map(item => {
+            const language = item.file === 'text/en.json' ? 'en' : 'hi';
+            const localMessage = id in local[language] || !(id in shared.en || id in shared.hi);
+            return { ...item, file: localMessage ? `screens/first-run/${item.file}` : item.file };
+          }));
+        }
+      } catch (error) { findings.push({ file: 'screens/first-run/text/en.json or screens/first-run/text/hi.json', rule: 'catalogue-shape', message: String(error.message) }); }
+    }
+    if (!buttonMessageIds.length && !buttonScopes.layered.size) pending.push('No literal action Button message IDs or explicit fixture IDs; 22-character button-label limits are not verified.');
     pending.push('Dynamic button labels and ICU values still require rendered button-label verification.');
   } else pending.push('Both text/en.json and text/hi.json are required before catalogue parity can be checked.');
   if (!renderFiles) pending.push('No rendering TS/TSX files exist yet; only currently present files were inspected.');

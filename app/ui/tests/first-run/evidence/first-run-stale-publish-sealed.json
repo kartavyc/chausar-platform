@@ -1,0 +1,71 @@
+{
+  "scope": "Synthetic React/jsdom DOM and actual first-run controller over synthetic port with frozen Engine compiler. No network/native/service/real data. Runtime transpilation is not a strict typecheck.",
+  "at": "2026-10-04T07:24:20.184Z",
+  "sourceStableDuringRun": true,
+  "changedFiles": [],
+  "hashesBefore": {
+    "controller.ts": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f",
+    "review.ts": "d20a0e32b457cf99e744bb7a85bf67fbb6ee5d76db34c8ee3ad3dc1d7bc90069",
+    "Meanings.tsx": "40f81e46fd3005bc1a6703ab466d1d9cc4939a67c484cddd0ed9e233c4a0aba6",
+    "FirstRun.tsx": "bdff78fdd2d4c29632de7ec91bfc20206b8caca898bb539f41e2207e6ccb45d9",
+    "contracts.ts": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66",
+    "digest.ts": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27"
+  },
+  "hashesAfter": {
+    "controller.ts": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f",
+    "review.ts": "d20a0e32b457cf99e744bb7a85bf67fbb6ee5d76db34c8ee3ad3dc1d7bc90069",
+    "Meanings.tsx": "40f81e46fd3005bc1a6703ab466d1d9cc4939a67c484cddd0ed9e233c4a0aba6",
+    "FirstRun.tsx": "bdff78fdd2d4c29632de7ec91bfc20206b8caca898bb539f41e2207e6ccb45d9",
+    "contracts.ts": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66",
+    "digest.ts": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27"
+  },
+  "load": {
+    "ok": true
+  },
+  "choose": {
+    "ok": true
+  },
+  "initiallyAllReviewed": true,
+  "initiallyPublishVisible": true,
+  "withinBatch": [
+    {
+      "stage": "after Change before commit",
+      "retainedPublishConnected": true,
+      "editorVisible": false,
+      "controllerKind": "review",
+      "publishing": false,
+      "publishCalls": 0
+    },
+    {
+      "stage": "after retained Publish before await",
+      "retainedPublishConnected": true,
+      "editorVisible": false,
+      "controllerKind": "review",
+      "publishing": false,
+      "publishCalls": 0
+    }
+  ],
+  "after": {
+    "kind": "review",
+    "publishCalls": 0,
+    "issuedExactPreviouslyAcceptedDraft": false,
+    "editorVisible": true,
+    "methods": [
+      "ui.context",
+      "ontology.packs",
+      "ontology.get",
+      "ui.context"
+    ],
+    "issuanceEvents": []
+  },
+  "separatedControl": {
+    "afterCommittedChange": {
+      "retainedPublishConnected": false,
+      "editorVisible": true
+    },
+    "publishCalls": 0,
+    "controllerKind": "review",
+    "publishing": false,
+    "editorStillVisible": true
+  }
+}

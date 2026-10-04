@@ -9,6 +9,9 @@ export const RETAINED_NAMESPACE_STORES = [
   { name: 'scenarioRecords', kind: 'collection' },
   { name: 'lessonState', kind: 'singleton' },
 ] as const;
+/** Nested ontology presence is declared without inventing additional State stores. */
+export const RETAINED_ONTOLOGY_NAMESPACES = ['firstRunReviewRequired', 'historicalPublicationEvidence', 'publicationAttempts'] as const;
+export type RetainedOntologyNamespace = typeof RETAINED_ONTOLOGY_NAMESPACES[number];
 export const COLLECTION_STORES = [
   'members', 'facts', 'imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs',
   'learning', 'plugins', 'modelReceipts', 'activity', 'conflicts', 'merges', 'tombstones',
@@ -25,6 +28,8 @@ export type StoreProfile = {
   id: string;
   stores: { name: string; kind: 'collection' | 'singleton' }[];
   artifactCategories: string[];
+  /** Absent for legacy profiles. Present names must be exact, sorted and nonempty. */
+  ontologyNamespaces?: RetainedOntologyNamespace[];
 };
 export type StoreManifest = {
   name: string; kind: 'collection' | 'singleton'; records: number;

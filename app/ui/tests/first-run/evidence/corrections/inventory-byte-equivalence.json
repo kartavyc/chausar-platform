@@ -1,0 +1,24 @@
+{
+  "recordedAt": "2026-10-04T07:59:50.928Z",
+  "path": "app/ui/design-screen-inventory.json",
+  "frozenParent": "5edf751b5fc58181e0a0c1e4c025dcc8ad5bcbfd",
+  "originalCheckpoint": "da7da1a39116ed263d47498ed6740d863652b81c",
+  "before": {
+    "bytes": 516149,
+    "crlf": 15115,
+    "sha256": "1189a3057b353e75d90da0f50dd7865a61d9d0163828784cc5c898bea7d687ec"
+  },
+  "canonical": {
+    "bytes": 501034,
+    "crlf": 0,
+    "sha256": "71f9d7ea1481625e959860036a966ba5b73565ed9be6748e1eed87ae1f26d77b"
+  },
+  "normalizedEquivalent": true,
+  "parsedEquivalent": true,
+  "frozenGitBlob": "eafb7211dd0b5afa3817100afb1b2d278744ee91",
+  "checkpointGitBlob": "eafb7211dd0b5afa3817100afb1b2d278744ee91",
+  "canonicalWorkingCopyIsFrozenGitBytes": true,
+  "attributes": "app/ui/.gitattributes: /design-screen-inventory.json text eol=lf",
+  "globalGitSettingsChanged": false,
+  "generatorAndExistingInventoryTestsChanged": false
+}

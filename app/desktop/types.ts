@@ -22,6 +22,7 @@ import type { ScenarioDiscoveryRequest, ScenarioDiscoveryPage } from '../../plat
 import type { EngineTodayGetRequest, EngineTodayMethods, TodayPrepareTilesRequest, TodayAttentionResolveRequest } from '../../platform/runtime/engine-today-contracts.ts';
 import type { TodayReviewReference, TodayReviewPageRequest } from '../../platform/runtime/today-review.ts';
 import type { TodayEventsRequest } from '../../platform/runtime/today-events.ts';
+import type { Dictionary, DictionaryDraft, OntologyGetRequest, OntologyPublishRequest, OntologySnapshot } from '../../platform/runtime/ontology.ts';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue; }
@@ -81,7 +82,8 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'today.resolveReview': { reference: TodayReviewReference };
   'today.resolveEvent': TodayEventsRequest & { eventId: string };
   'today.resolveAttention': TodayAttentionResolveRequest;
-  'workspace.create': JsonObject & { name: string; passphrase: string; folder?: string; demo?: boolean; pack?: string };
+  'workspace.create': JsonObject & { name: string; passphrase: string; folder?: string; demo?: boolean; pack?: string; dictionaryMode?: 'legacy' | 'deferred' };
+  'ontology.publish': OntologyPublishRequest | DictionaryDraft;
   'workspace.open': JsonObject & { passphrase: string; folder?: string };
   'workspace.recover': JsonObject & { recoveryCode: string; passphrase: string; folder?: string };
   'workspace.restore': JsonObject & { backupFile: string; passphrase: string; folder?: string };
@@ -159,10 +161,12 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'updates.verify': JsonObject & { manifest: JsonObject | string; signature: string };
   'updates.stage': JsonObject & { manifest: JsonObject | string; signature: string; confirmed: true };
 };
-type OptionalPayloads = { 'today.review': TodayReviewPageRequest; 'ui.context': Record<string, never>; 'conversation.history': { limit?: number; cursor?: string }; 'scenarios.discover': ScenarioDiscoveryRequest; 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
+type OptionalPayloads = { 'today.review': TodayReviewPageRequest; 'ui.context': Record<string, never>; 'ontology.get': OntologyGetRequest; 'conversation.history': { limit?: number; cursor?: string }; 'scenarios.discover': ScenarioDiscoveryRequest; 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
 export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
 export type DesktopResult<M extends DesktopMethod> =
+  M extends 'ontology.get' ? OntologySnapshot :
+  M extends 'ontology.publish' ? Dictionary :
   M extends 'today.get' ? ReturnType<EngineTodayMethods['get']> :
   M extends 'today.prepareTiles' ? Awaited<ReturnType<EngineTodayMethods['prepareTiles']>> :
   M extends 'today.review' ? ReturnType<EngineTodayMethods['review']> :

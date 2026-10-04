@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { ChausarError, type State } from './contracts.ts';
 import type { CalculationReceipt } from './calculator.ts';
+import { assertRetainedOntology } from './ontology.ts';
 import {
   COLLECTION_STORES, SINGLETON_STORES, RETAINED_ARTIFACT_CATEGORIES, INTERCHANGE_FORMAT, STATE_PROFILE,
-  RETAINED_INTERCHANGE_FORMAT, RETAINED_STATE_PROFILE, RETAINED_NAMESPACE_STORES,
+  RETAINED_INTERCHANGE_FORMAT, RETAINED_STATE_PROFILE, RETAINED_NAMESPACE_STORES, RETAINED_ONTOLOGY_NAMESPACES,
   type ArtifactCapture, type ArtifactManifest, type Generation, type StoreProfile, type StoreManifest,
-  type WorkspaceCapture, type WorkspaceInterchange, type WorkspaceInventory,
+  type WorkspaceCapture, type WorkspaceInterchange, type WorkspaceInventory, type RetainedOntologyNamespace,
 } from './workspace-interchange-contracts.ts';
 
 const MAX_BYTES = 64 * 1024 * 1024;
@@ -25,17 +26,22 @@ const coreProfile: StoreProfile = {
 function requireValue(condition: unknown, code: string, message: string): asserts condition {
   if (!condition) throw new ChausarError(code, message);
 }
-function profileWithRetainedNamespaces(retained: ReadonlyArray<StoreProfile['stores'][number]>): StoreProfile {
-  return retained.length === 0 ? coreProfile : {
+function profileWithRetainedNamespaces(retained: ReadonlyArray<StoreProfile['stores'][number]>, ontologyNamespaces: ReadonlyArray<RetainedOntologyNamespace> = []): StoreProfile {
+  return retained.length === 0 && ontologyNamespaces.length === 0 ? coreProfile : {
     ...coreProfile, id: RETAINED_STATE_PROFILE,
     stores: [...coreProfile.stores, ...retained].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    ...(ontologyNamespaces.length ? { ontologyNamespaces: [...ontologyNamespaces] } : {}),
   };
+}
+function ontologyNamespacePresence(ontology: unknown): RetainedOntologyNamespace[] {
+  return RETAINED_ONTOLOGY_NAMESPACES.filter(name => record(ontology) && Object.hasOwn(ontology, name));
 }
 /** Without a State, enumerate every supported namespace for a fresh target.
  * With a State, retain the exact optional namespace presence of that saved cut. */
-export function workspaceStateProfile(state?: Pick<State, 'scenarioRecords' | 'lessonState'>): StoreProfile {
+export function workspaceStateProfile(state?: Partial<Pick<State, 'scenarioRecords' | 'lessonState' | 'ontology'>>): StoreProfile {
   const retained = RETAINED_NAMESPACE_STORES.filter(store => state === undefined || Object.hasOwn(state, store.name));
-  return structuredClone(profileWithRetainedNamespaces(retained));
+  const ontologyNamespaces = state === undefined ? [...RETAINED_ONTOLOGY_NAMESPACES] : ontologyNamespacePresence(state.ontology);
+  return structuredClone(profileWithRetainedNamespaces(retained, ontologyNamespaces));
 }
 /** Canonical persisted JSON. Undefined object properties follow Vault JSON semantics. */
 export function canonicalInterchangeJson(value: unknown): string {
@@ -107,8 +113,9 @@ function assertProfile(profile: unknown): asserts profile is StoreProfile {
   requireValue(record(profile) && profile.id === RETAINED_STATE_PROFILE && Array.isArray(profile.stores),
     'INTERCHANGE_PROFILE', 'This codec requires an explicitly supported versioned persisted-state profile.');
   const retained = RETAINED_NAMESPACE_STORES.filter(store => profile.stores.some((item: any) => item?.name === store.name));
-  requireValue(retained.length > 0 && same(profile, profileWithRetainedNamespaces(retained)),
-    'INTERCHANGE_PROFILE', 'Only the declared scenario and lesson namespaces may extend the legacy profile.');
+  const ontologyNamespaces = RETAINED_ONTOLOGY_NAMESPACES.filter(name => Array.isArray(profile.ontologyNamespaces) && profile.ontologyNamespaces.includes(name));
+  requireValue((retained.length > 0 || ontologyNamespaces.length > 0) && same(profile, profileWithRetainedNamespaces(retained, ontologyNamespaces)),
+    'INTERCHANGE_PROFILE', 'Only exact declared scenario, lesson and ontology namespaces may extend the legacy profile.');
 }
 function assertState(state: unknown, profile: StoreProfile): asserts state is State {
   exact(state, profile.stores.map(store => store.name), 'INTERCHANGE_STORES');
@@ -120,6 +127,10 @@ function assertState(state: unknown, profile: StoreProfile): asserts state is St
     typeof state.workspace.currency === 'string' && typeof state.workspace.demo === 'boolean' && typeof state.workspace.createdAt === 'string',
   'INTERCHANGE_STATE', 'The workspace identity is incomplete.');
   requireValue(record(state.policy) && (state.ontology === null || record(state.ontology)), 'INTERCHANGE_STATE', 'Policy and readable ontology must be retained.');
+  const ontologyNamespaces = ontologyNamespacePresence(state.ontology);
+  requireValue(same(profile.ontologyNamespaces ?? [], ontologyNamespaces), 'INTERCHANGE_PROFILE',
+    'Ontology namespace presence must match the exact retained profile.');
+  if (ontologyNamespaces.length) assertRetainedOntology(state as State);
   if (Object.hasOwn(state, 'lessonState')) {
     exact(state.lessonState, ['workspaceId', 'episodes', 'lessons'], 'INTERCHANGE_STORES');
     requireValue(state.lessonState.workspaceId === state.workspace.id && Array.isArray(state.lessonState.episodes)
@@ -144,7 +155,7 @@ function assertRetainedImportBodies(state: State, artifacts: WorkspaceInterchang
       requireValue(record(evidence) && record(evidence.state), 'INTERCHANGE_STATE', 'Retained scenario evidence must contain its complete input State.');
       requireValue(!Object.hasOwn(evidence.state, 'scenarioRecords') && !Object.hasOwn(evidence.state, 'lessonState'),
         'INTERCHANGE_STATE', 'Scenario evidence cannot recursively retain private namespaces.');
-      assertState(evidence.state, coreProfile);
+      assertState(evidence.state, workspaceStateProfile(evidence.state));
       assertRetainedStateImportBodies(evidence.state, artifacts);
     }
   }
