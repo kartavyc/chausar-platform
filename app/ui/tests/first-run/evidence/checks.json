@@ -1,0 +1,211 @@
+{
+  "frozenParent": "5edf751b5fc58181e0a0c1e4c025dcc8ad5bcbfd",
+  "generatedAt": "2026-10-04T07:33:49.020Z",
+  "scope": "Source and synthetic code/React tests only. No native/browser/service/PostgreSQL/real business data execution.",
+  "dependencies": {
+    "node": "24.13.1",
+    "typescript": "5.9.3",
+    "react": "19.3.0",
+    "vitest": "5.0.3",
+    "readOnlySource": "C:/Users/karta/Documents/Codex/2026-10-01/task-18/node_modules"
+  },
+  "commands": {
+    "sealed-ui-strict": {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--project",
+        "app/ui/tsconfig.json",
+        "--skipLibCheck",
+        "false"
+      ],
+      "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout",
+      "startedAt": "2026-10-04T07:25:05.106Z",
+      "completedAt": "2026-10-04T07:25:15.954Z",
+      "status": 0,
+      "signal": null,
+      "error": null
+    },
+    "sealed-tests-strict": {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--project",
+        "app/ui/tests/first-run/tsconfig.json",
+        "--skipLibCheck",
+        "false"
+      ],
+      "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout",
+      "startedAt": "2026-10-04T07:24:41.483Z",
+      "completedAt": "2026-10-04T07:24:54.281Z",
+      "status": 0,
+      "signal": null,
+      "error": null
+    },
+    "sealed-node": {
+      "command": "node",
+      "args": [
+        "--test",
+        "app/ui/tests/first-run/contracts.test.ts",
+        "app/ui/tests/first-run/review.test.ts",
+        "app/ui/tests/first-run/controller.test.ts"
+      ],
+      "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout",
+      "startedAt": "2026-10-04T07:08:12.487Z",
+      "completedAt": "2026-10-04T07:08:13.303Z",
+      "status": 0,
+      "signal": null,
+      "error": null
+    },
+    "sealed-ui-source": {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "scripts/check-ui-source.mjs"
+      ],
+      "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout",
+      "startedAt": "2026-10-04T07:16:34.881Z",
+      "completedAt": "2026-10-04T07:16:37.255Z",
+      "status": 1,
+      "signal": null,
+      "error": null
+    },
+    "sealed-inventory-with-references": {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "--test",
+        "app/ui/tests/inventory.test.ts"
+      ],
+      "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-checkout",
+      "startedAt": "2026-10-04T07:19:16.145Z",
+      "completedAt": "2026-10-04T07:19:16.988Z",
+      "status": 1,
+      "signal": null,
+      "error": null
+    }
+  },
+  "nodeTests": {
+    "passed": 53,
+    "failed": 0
+  },
+  "reactTests": {
+    "passed": 22,
+    "failed": 0,
+    "evidence": "react.json",
+    "rawOutputSha256": "2ce2b6819b0f71b711691f9e2de2a935817c4c41ebe4b48c9405d7138aa08586",
+    "checkpointOutputSha256": "3197bdcc3775f5342a720eaa29b7e33b65bfbc546a977067a536da750153b6b3",
+    "budgetStates": 2934
+  },
+  "independentCopy": {
+    "states": 4896,
+    "maxima": {
+      "simple": 90,
+      "guided": 100,
+      "books": 105
+    },
+    "evidence": "copy-review.json",
+    "fullRawEvidenceSha256": "08c27c3010a51ca638ef5d861fddc34cd1d5f1d938c417cc4eedcb6d8b0f64f0",
+    "sourceStableDuringRun": true
+  },
+  "sharedSourceChecker": {
+    "status": "static-checks-failed",
+    "findings": [
+      {
+        "file": "text/en.json",
+        "rule": "button-message-missing",
+        "message": "Button message FR.again does not exist."
+      },
+      {
+        "file": "text/en.json",
+        "rule": "button-message-missing",
+        "message": "Button message FR-08.changePack does not exist."
+      },
+      {
+        "file": "text/en.json",
+        "rule": "button-message-missing",
+        "message": "Button message FR-08.reconcile does not exist."
+      },
+      {
+        "file": "text/hi.json",
+        "rule": "button-message-missing",
+        "message": "Button message FR.again does not exist."
+      },
+      {
+        "file": "text/hi.json",
+        "rule": "button-message-missing",
+        "message": "Button message FR-08.changePack does not exist."
+      },
+      {
+        "file": "text/hi.json",
+        "rule": "button-message-missing",
+        "message": "Button message FR-08.reconcile does not exist."
+      }
+    ],
+    "qualification": "Owned layered labels exist and are runtime-tested. The unchanged shared checker resolves only shared catalogues; global check remains failed."
+  },
+  "inventory": {
+    "passed": 9,
+    "failed": 1,
+    "inputEnvironment": {
+      "UI_DESIGN_INPUTS": "C:/Users/karta/Documents/Codex/2026-10-01/task-18/inputs"
+    },
+    "byteEvidence": {
+      "path": "app/ui/design-screen-inventory.json",
+      "frozenParent": "5edf751b5fc58181e0a0c1e4c025dcc8ad5bcbfd",
+      "workingCRLF": 15115,
+      "frozenCRLF": 0,
+      "workingSha256": "1189a3057b353e75d90da0f50dd7865a61d9d0163828784cc5c898bea7d687ec",
+      "frozenSha256": "71f9d7ea1481625e959860036a966ba5b73565ed9be6748e1eed87ae1f26d77b",
+      "normalizedEqual": true
+    },
+    "qualification": "The first run without UI_DESIGN_INPUTS failed because retained references live outside this isolated checkout. With the supported input variable, the unchanged test has exactly the frozen CRLF regeneration failure."
+  },
+  "independent": [
+    {
+      "file": "first-run-sealed-review-assertions-results.json",
+      "sha256": "d09122e71f795c1a927bd6c11765c2a7748433a4993881048265abca0ac0255d",
+      "scenarios": null,
+      "sourceUnchangedDuringRun": null
+    },
+    {
+      "file": "first-run-sealed-controller-review-results.json",
+      "sha256": "8f848865eab5f6b63b6400f592094c555be1248f28a4e5164da8fae85493b8b2",
+      "scenarios": 17,
+      "sourceUnchangedDuringRun": true
+    },
+    {
+      "file": "first-run-sealed-compiler-order-review-results.json",
+      "sha256": "16b3f21fcdfd53b89048bbc46b8b8227d972824585ef5e00bd85bad300fc9e50",
+      "scenarios": 4,
+      "sourceUnchangedDuringRun": true
+    },
+    {
+      "file": "first-run-sealed-review-digest-live-results.json",
+      "sha256": "12852bdccd8451c7aa6c606be21a3703ccf517286915b2a02ba79855ac6a5ef9",
+      "scenarios": null,
+      "sourceUnchangedDuringRun": null
+    },
+    {
+      "file": "first-run-sealed-terminal-dom-review-results.json",
+      "sha256": "6eb5c2367a07658265eae2727301a6c3cb2e2c52a6fcadefb145cee8e0154f2a",
+      "scenarios": 21,
+      "sourceUnchangedDuringRun": true
+    },
+    {
+      "file": "first-run-sealed-remount-dom-review-results.json",
+      "sha256": "d17482ae360b589c409fc6592217f048ea8cf710a2502dcc3c13b32898483d7f",
+      "scenarios": 2,
+      "sourceUnchangedDuringRun": true
+    }
+  ],
+  "independentAsserted": {
+    "controllerCases": 17,
+    "terminalDomScenarios": 21,
+    "remountScenarios": 2,
+    "genuineDictionaries": 6,
+    "compiledSums": 42,
+    "passed": true,
+    "notes": "Settings synchronous callback precedes queued loss; delayed Settings admission after loss is null. No browser/native launch or product source writes."
+  }
+}

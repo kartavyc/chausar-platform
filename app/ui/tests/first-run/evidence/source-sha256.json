@@ -1,0 +1,86 @@
+[
+  {
+    "path": "app/ui/src/screens/first-run/contracts.ts",
+    "sha256": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/controller.ts",
+    "sha256": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/digest.ts",
+    "sha256": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/FirstRun.module.css",
+    "sha256": "3c42529ca5ebab090e1831863503b4183c2f1809885c9ced8728864edf9e3d82"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/FirstRun.tsx",
+    "sha256": "bdff78fdd2d4c29632de7ec91bfc20206b8caca898bb539f41e2207e6ccb45d9"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/index.ts",
+    "sha256": "3d5aace001a4adbcfdb55eb6c9784c2b7387509b4a994e1da75ef0a95ea59b3c"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/Meanings.tsx",
+    "sha256": "40f81e46fd3005bc1a6703ab466d1d9cc4939a67c484cddd0ed9e233c4a0aba6"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/PickPack.tsx",
+    "sha256": "af0fede010cf4bebf4e5f630e4c91d82b2c9e270dd77a29cf00edac43d58912a"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/README.md",
+    "sha256": "965180d5f68f928e2a7469da5b1a241668e74361145fdbe61c9094d9561b4c38"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/review.ts",
+    "sha256": "d20a0e32b457cf99e744bb7a85bf67fbb6ee5d76db34c8ee3ad3dc1d7bc90069"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/rows.tsx",
+    "sha256": "6daf65521f226ccc4f917bb2cc050e6ea587cacd25f08c5d6ab0879de900ae70"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/text.tsx",
+    "sha256": "ebb9db3dcbfd51e4e622eb2e5cc58c199b1bb4543987e71398404fd1e936a7d5"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/text/en.json",
+    "sha256": "8ac4a43ad7755e9af7adbb632bb841aa758b62440773bcf7bb04fa1335f574ab"
+  },
+  {
+    "path": "app/ui/src/screens/first-run/text/hi.json",
+    "sha256": "115a118736fa757315dad30f476259101692b1dc0e858840c3b3e160c6c34eaa"
+  },
+  {
+    "path": "app/ui/tests/first-run/contracts.test.ts",
+    "sha256": "2e33faeee5cf603af82ddf78aacf1c36a8ab936f88195ca12a623bd06dce1895"
+  },
+  {
+    "path": "app/ui/tests/first-run/controller.test.ts",
+    "sha256": "258f9474f5bd9c17131416e17080be21fc5b4694730f56b8d84bad841c2b8d59"
+  },
+  {
+    "path": "app/ui/tests/first-run/first-run.test.tsx",
+    "sha256": "733faa541a71e62400cab2c8fe5fe4d389009e6aefc461cb616c25f27bd0adf3"
+  },
+  {
+    "path": "app/ui/tests/first-run/fixture.ts",
+    "sha256": "11f887e7fa721710bb2e21ddec196083a660dfd6d53b978c78ecd56120546c7f"
+  },
+  {
+    "path": "app/ui/tests/first-run/review.test.ts",
+    "sha256": "747a888900868657077b24c64b78a32bffbce01ba29e205a1cb2f278edd3ce87"
+  },
+  {
+    "path": "app/ui/tests/first-run/tsconfig.json",
+    "sha256": "eb9e467af33649aeb1d9a3711f4cbe3564b6d468042639e488faf1170043d5b6"
+  },
+  {
+    "path": "app/ui/tests/first-run/vitest.config.mjs",
+    "sha256": "7c108e08985c2f0e3e5285f97dd77e5594b468fd45f01583ac42a3a373ab2008"
+  }
+]
