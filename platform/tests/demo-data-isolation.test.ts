@@ -14,6 +14,7 @@ import { CalculatorService } from '../runtime/calculator.ts';
 import { EngineConnectorService, type EngineConnectorOptions, type EngineConnectorProfile } from '../runtime/engine-connectors.ts';
 import { ConnectorCapabilityRegistry, type ConnectorCapability, type ConnectorOperationScope, type SyntheticConnectorEvidence } from '../runtime/connector-framework/index.ts';
 import { conversationPurpose } from '../runtime/conversation-purpose.ts';
+import { invoiceConnectorId, invoiceJobType } from '../runtime/invoice-follow-up.ts';
 import type { ConnectorService, HttpRequest } from '../runtime/connectors.ts';
 import type { Engine, EngineOptions } from '../runtime/engine.ts';
 
@@ -64,7 +65,7 @@ async function engineVm() {
     constructor(_store: unknown, options: unknown = {}) { this.options = options; }
   }
   const globals: Record<string, unknown> = {
-    AsyncLocalStorage, resolve, join, authorize, audit, check, ChausarError, hash, newId, now, structuredClone, conversationPurpose, digest,
+    AsyncLocalStorage, resolve, join, authorize, audit, check, ChausarError, hash, newId, now, structuredClone, conversationPurpose, digest, invoiceConnectorId, invoiceJobType,
     compareVersions: () => 0, OntologyService, ImportService, CalculatorService, EngineConnectorService,
     ConnectorService: LegacyConnector, importPublicRecord, installedConversationSynthesisCodec: {},
     safeDirectory: async (path: string) => { directoryBindings.push(path); return path; },

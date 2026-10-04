@@ -8,6 +8,7 @@ import vm from 'node:vm';
 import { authorize, audit, check, ChausarError, hash, initialState, newId, now, type Context, type State, type StateStore } from '../runtime/contracts.ts';
 import { ModelGateway, type GatewayOptions, type ModelRequest, type RouteKind } from '../runtime/gateway.ts';
 import { conversationPurpose } from '../runtime/conversation-purpose.ts';
+import { invoiceConnectorId, invoiceJobType } from '../runtime/invoice-follow-up.ts';
 
 // In-memory state and authored fake ports only. The VM removes host imports so
 // no native services, user profiles, database or credential helpers can run.
@@ -124,7 +125,7 @@ async function engineVm() {
     constructor(_store: unknown, options: unknown = {}) { this.options = options; }
   }
   const globals: Record<string, unknown> = {
-    AsyncLocalStorage, resolve, join, authorize, audit, check, ChausarError, hash, newId, now, structuredClone, conversationPurpose, Object,
+    AsyncLocalStorage, resolve, join, authorize, audit, check, ChausarError, hash, newId, now, structuredClone, conversationPurpose, Object, invoiceConnectorId, invoiceJobType,
     compareVersions: () => 0, ModelGateway, installedConversationSynthesisCodec: {},
     safeDirectory: async (path: string) => { filesystemCalls.push(path); return path; },
     createWorkspaceInterchangeLocalPorts: () => ({ ports: {} }),
