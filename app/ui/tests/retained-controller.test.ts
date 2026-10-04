@@ -2,6 +2,7 @@ import { createDesktopRequestPort } from '../src/bridge/client.ts';
 import { loadElectronPreloadFixture } from '../../../platform/tests/fixtures/electron-context-bridge.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { engine as frozenFirstRunEngine, nodeDigest } from './first-run/fixture.ts';
 import { createHostController } from '../src/host/controller.ts';
 import type { HostRpcPayloads, HostRpcPort, UiContext } from '../src/host/contracts.ts';
 import {
@@ -21,12 +22,21 @@ import { fullCalculationReceiptFixture, HUGE_INTEGER } from './fixtures.ts';
  */
 const hex = (character: string) => character.repeat(64);
 const AT = '2026-10-01T09:00:00.000Z';
+const dictionaryReadback = async () => {
+  const frozen = await frozenFirstRunEngine(), current = frozen.compile(frozen.pack(0), 1, 'member_fixture', AT);
+  return { current, history: [current] };
+};
 /** The only methods this frontend may ever dispatch; everything else is asserted absent by name. */
-const ALLOWED_METHODS = ['ui.context', 'dashboard.get', 'receipts.get', 'models.list', 'workspace.lock', 'scenarios.discover', 'scenarios.reopen', 'memory.lessons', 'memory.decideLesson'];
+const ALLOWED_METHODS = ['ui.context', 'ontology.get', 'dashboard.get', 'receipts.get', 'models.list', 'workspace.lock', 'scenarios.discover', 'scenarios.reopen', 'memory.lessons', 'memory.decideLesson'];
 const context = (contextKey = 'a'.repeat(64), role = 'owner') => ({ workspace: { id: 'workspace_fixture', name: 'Synthetic host fixture', demo: true }, member: { id: 'member_fixture', name: 'Fixture owner', role, epoch: 1, branches: ['*'] }, contextKey });
 const uiContext = (role: 'owner' | 'cofounder' | 'accountant' | 'viewer' = 'owner', workspaceId = 'workspace_fixture'): UiContext => ({ workspace: { id: workspaceId, name: 'Synthetic host fixture', demo: true }, member: { id: 'member_fixture', name: 'Fixture owner', role, epoch: 1, branches: ['*'] as readonly string[] }, contextKey: 'a'.repeat(64) });
 const route = { id: 'route_fixture', kind: 'codex-cli', model: 'model_fixture', enabled: true, installationVerified: false, label: 'Synthetic route' };
 const clock = () => Date.parse('2026-10-03T12:00:00.000Z');
+// This fixture's existing October dashboard is an explicit synthetic host contract.
+const hostOptions = { now: clock, timeZone: 'UTC',
+  firstRun: { digest: nodeDigest },
+  dashboard: { title: 'Today', date: '2026-10-03', request: { period: { from: '2026-10-01', to: '2026-10-31' } },
+    selections: [{ operation: 'billed', figureKey: 'total' }, { operation: 'received', figureKey: 'total' }, { operation: 'margin', figureKey: 'contribution' }] } };
 function receipt(operation: string) {
   const fixture = fullCalculationReceiptFixture();
   const rows = fixture.rows.map(row => ({ ...row, validFrom: '2026-10-01' }));
@@ -49,6 +59,7 @@ function transport(reply?: Reply) {
     calls.push({ method, payload: structuredClone(payload) });
     if (reply) { const value = await reply(method, payload); if (value !== undefined) return value; }
     if (method === 'ui.context') return context();
+    if (method === 'ontology.get') return dictionaryReadback();
     if (method === 'dashboard.get') return dashboard();
     if (method === 'receipts.get') return receipt((payload as { id: string }).id.slice('receipt_'.length));
     if (method === 'models.list') return [route];
@@ -61,7 +72,7 @@ function transport(reply?: Reply) {
   return { port, calls, count, methods, forbidden };
 }
 async function ready(reply?: Reply) {
-  const fixture = transport(reply), host = createHostController(fixture.port, { now: clock });
+  const fixture = transport(reply), host = createHostController(fixture.port, hostOptions);
   await host.refresh(); assert.equal(host.snapshot().phase, 'ready');
   return { ...fixture, host };
 }
@@ -399,14 +410,14 @@ test('S8 a late reply cannot restore data after a newer view, a context change, 
   // A late refusal cannot overwrite the newer successful view either.
   const refusing = deferred<unknown>(); hold = true;
   const port2 = transport(method => method === 'scenarios.reopen' ? (hold ? refusing.promise : scenarioView()) : undefined);
-  const host2 = createHostController(port2.port, { now: clock }); await host2.refresh();
+  const host2 = createHostController(port2.port, hostOptions); await host2.refresh();
   const slow = host2.retained.openScenario(PIN); await issued(port2, 'scenarios.reopen', 1); hold = false; await host2.retained.openScenario(PIN);
   refusing.reject(refusal('SCENARIO_RETENTION_EXPIRED')); assert.deepEqual(await slow, { ok: false, code: 'READ_INVALIDATED' });
   assert.equal(host2.retained.snapshot().scenario.kind, 'ready'); host2.dispose();
   for (const interrupt of ['route', 'lock', 'context', 'dispose', 'refresh'] as const) {
     const held = deferred<unknown>(); let key = 'a'.repeat(64);
     const port3 = transport(method => method === 'ui.context' ? context(key) : method === 'scenarios.reopen' ? held.promise : undefined);
-    const host3 = createHostController(port3.port, { now: clock }); await host3.refresh();
+    const host3 = createHostController(port3.port, hostOptions); await host3.refresh();
     const pending = host3.retained.openScenario(PIN); await issued(port3, 'scenarios.reopen', 1);
     if (interrupt === 'route') host3.selectRoute('route_fixture');
     else if (interrupt === 'lock') await host3.lock();
@@ -799,7 +810,7 @@ test('L6 a decision reply for another candidate or a contradictory status is dis
   }
   const held = deferred<unknown>(); let key = 'a'.repeat(64);
   const fixture = transport(method => method === 'ui.context' ? context(key) : method === 'memory.lessons' ? [lessonView()] : method === 'memory.decideLesson' ? held.promise : undefined);
-  const host = createHostController(fixture.port, { now: clock }); await host.refresh();
+  const host = createHostController(fixture.port, hostOptions); await host.refresh();
   await host.retained.readLessons(); host.retained.selectLesson('lesson_fixture');
   const deciding = host.retained.decideLesson(intent(), 'reason'); await issued(fixture, 'memory.decideLesson', 1);
   key = 'b'.repeat(64); held.resolve(approved());
@@ -1466,7 +1477,7 @@ test('D4 a held discovery page or chosen reopen cannot publish after lock, conte
       if (interrupt === 'context' && outcome === 'refusal') continue;
       const held = deferred<unknown>(); let key = 'a'.repeat(64);
       const port = transport(method => method === 'ui.context' ? context(key) : method === 'scenarios.discover' ? held.promise : undefined);
-      const host = createHostController(port.port, { now: clock }); await host.refresh();
+      const host = createHostController(port.port, hostOptions); await host.refresh();
       const pending = host.retained.readDiscovery(); await issued(port, 'scenarios.discover', 1);
       assert.equal(host.retained.snapshot().discovery.kind, 'loading');
       const release = () => { if (outcome === 'success') held.resolve(FIRST_PAGE()); else held.reject(refusal('SCENARIO_AUTHORITY_CHANGED')); };
@@ -1919,13 +1930,14 @@ async function copiedRetainedDesktop(
       const call = envelope as { method: string; payload: unknown };
       calls.push(structuredClone(call));
       if (call.method === 'ui.context') return { ok: true, result: context() };
+      if (call.method === 'ontology.get') return { ok: true, result: await dictionaryReadback() };
       if (call.method === 'dashboard.get') return { ok: true, result: dashboard() };
       if (call.method === 'receipts.get') return { ok: true, result: receipt((call.payload as { id: string }).id.slice('receipt_'.length)) };
       if (call.method === 'models.list') return { ok: true, result: [route] };
       return reply(call.method, call.payload);
     },
   });
-  const host = createHostController(createDesktopRequestPort(api), { now: clock });
+  const host = createHostController(createDesktopRequestPort(api), hostOptions);
   await host.refresh();
   assert.equal(host.snapshot().phase, 'ready');
   return { host, calls };

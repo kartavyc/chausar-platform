@@ -330,6 +330,7 @@ export interface Address {
 }
 
 export type PlaceId =
+  | 'first-run'
   | 'today'
   | 'ask'
   | 'work'

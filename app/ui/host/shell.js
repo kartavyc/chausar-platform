@@ -13,7 +13,8 @@ const port = { async request(method, payload) {
   if (!response.ok || value.error) throw denied(value.error?.code ?? 'REQUEST_FAILED');
   return value.result;
 } };
-const controller = createHostController(port, { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+// Business calendar, timezone and metric policy await explicit trusted configuration.
+const controller = createHostController(port, { todayProducer: {} });
 const mounted = mountHost(container, controller, { onLegacyReturn: () => location.assign(desktop ? '/index.html' : `/index.html${token ? '#token=' + encodeURIComponent(token) : ''}`) });
 const check = () => { void controller.checkAuthority().catch(() => controller.invalidate('ACCESS_DENIED')); };
 const focus = () => { if (document.visibilityState === 'visible') check(); };

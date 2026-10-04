@@ -111,7 +111,9 @@ test('actual synthetic Engine transport opens Today with fresh receipts and clea
     if (response.error) throw Object.assign(new Error('Synthetic host request refused'), response.error);
     return response.result;
   } };
-  const controller = createHostController(port, {now:()=>Date.parse('2026-10-03T12:00:00Z'),timeZone:'UTC'});
+  const controller = createHostController(port, {now:()=>Date.parse('2026-10-03T12:00:00Z'),timeZone:'UTC',
+    dashboard: { title: 'Today', date: '2026-10-03', request: { period: { from: '2026-10-01', to: '2026-10-31' } },
+      selections: [{ operation: 'billed', figureKey: 'total' }, { operation: 'received', figureKey: 'total' }, { operation: 'margin', figureKey: 'contribution' }] } });
   t.after(()=>controller.dispose()); await controller.refresh();
   const state = controller.snapshot(); assert.equal(state.phase, 'ready', state.code);
   assert.equal(state.selectedRouteId, null); assert.equal(state.context?.workspace.demo, true);

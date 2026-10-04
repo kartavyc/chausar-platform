@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { engine as frozenFirstRunEngine, nodeDigest } from '../../app/ui/tests/first-run/fixture';
 import { mountHost } from '../../app/ui/src/host/bootstrap';
 import { createHostController } from '../../app/ui/src/host/controller';
 import type { HostRpcPort } from '../../app/ui/src/host/contracts';
@@ -39,6 +40,10 @@ function transport() {
     calls.push({ method, payload: structuredClone(payload) });
     switch (method) {
       case 'ui.context': return context;
+      case 'ontology.get': {
+        const frozen = await frozenFirstRunEngine(), current = frozen.compile(frozen.pack(0), 1, 'member_fixture', '2026-10-01T09:00:00.000Z');
+        return { current, history: [current] };
+      }
       case 'models.list': return [route];
       case 'dashboard.get': return { workspace: { ...context.workspace, currency: 'INR', createdAt: '2026-10-01T09:00:00.000Z' }, calculations: receipts, factCount: 3, sources: 2, decisions: [], waitingActions: [], jobs: [], policy: { send: 'nothing', autonomy: false, allowedSources: ['*'], retentionDays: 90, sharing: false }, dictionary: null, lastActivity: [] };
       case 'receipts.get': return receipts.find(receipt => receipt.id === (payload as { id: string }).id);
@@ -59,12 +64,16 @@ function transport() {
 
 async function mounted() {
   const fixture = transport();
-  const controller = createHostController(fixture.port, { now: () => Date.parse('2026-10-03T12:00:00.000Z'), timeZone: 'UTC' });
+  const controller = createHostController(fixture.port, { now: () => Date.parse('2026-10-03T12:00:00.000Z'), timeZone: 'UTC',
+    firstRun: { digest: nodeDigest },
+    dashboard: { title: 'Today', date: '2026-10-03', request: { period: { from: '2026-10-01', to: '2026-10-31' } },
+      selections: [{ operation: 'billed', figureKey: 'total' }, { operation: 'received', figureKey: 'total' }, { operation: 'margin', figureKey: 'contribution' }] } });
   const container = document.createElement('div'); document.body.append(container);
   await act(async () => {
     const host = mountHost(container, controller); disposals.push(host.dispose);
   });
   await waitFor(() => expect(controller.snapshot().routes).toHaveLength(1));
+  await waitFor(() => expect(controller.snapshot().today).not.toBeNull());
   act(() => { key('2', true); });
   const route = await screen.findByRole('combobox');
   await userEvent.setup().selectOptions(route, 'route_fixture');

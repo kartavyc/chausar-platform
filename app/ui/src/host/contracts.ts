@@ -5,6 +5,7 @@ import { ReplyValidationError } from '../bridge/validate.ts';
 import type { LessonDecisionRequest, ScenarioDiscoveryRequest, ScenarioReopenRequest } from './retained-contracts.ts';
 import type { TodayEnginePayloads } from '../bridge/today-engine.ts';
 import type { TodayNavigationPayloads } from '../bridge/today-navigation.ts';
+import type { FirstRunRpcPayloads } from '../screens/first-run/contracts.ts';
 
 export interface UiContext {
   readonly workspace: { readonly id: string; readonly name: string; readonly demo: boolean };
@@ -20,13 +21,23 @@ export interface UiModelRoute {
   /** The existing catalogue explicitly does not qualify native/provider access. */
   readonly installationVerified: false;
 }
-export interface HostRpcPayloads extends ConversationPayloads, TodayEnginePayloads, TodayNavigationPayloads {
+export interface WorkspaceCreateInput {
+  readonly name: string;
+  readonly passphrase: string;
+  readonly folder?: string;
+}
+export interface CreatedWorkspace {
+  readonly workspace: { readonly id: string; readonly name: string; readonly demo: false };
+  readonly recoveryKit: string;
+}
+export interface HostRpcPayloads extends ConversationPayloads, TodayEnginePayloads, TodayNavigationPayloads, FirstRunRpcPayloads {
   'ui.context': Record<string, never>;
   'models.list': Record<string, never>;
   'dashboard.get': DashboardTodayRequest;
   'reports.brief': BriefTodayRequest;
   'receipts.get': { readonly id: string };
   'workspace.lock': Record<string, never>;
+  'workspace.create': WorkspaceCreateInput & { readonly dictionaryMode: 'deferred'; readonly demo: false };
   /** Retained reader slice: bounded discovery of released what-if revisions, exact reopen of a pin,
    * current lesson views, one human decision. Discovery carries only the declared plain limit/cursor. */
   'scenarios.discover': ScenarioDiscoveryRequest;
@@ -36,6 +47,15 @@ export interface HostRpcPayloads extends ConversationPayloads, TodayEnginePayloa
 }
 export interface HostRpcPort {
   request<M extends keyof HostRpcPayloads>(method: M, payload: HostRpcPayloads[M]): Promise<unknown>;
+}
+/** Select only the nonsecret identity and the one-time recovery kit from actual creation. */
+export function validateCreatedWorkspace(value: unknown): CreatedWorkspace {
+  const reply = record(value, 'workspace.create');
+  const workspace = record(reply.workspace, 'workspace.create.workspace');
+  if (workspace.demo !== false) invalid('workspace.create.workspace.demo');
+  const kit = text(reply.recoveryKit, 'workspace.create.recoveryKit', 16384);
+  if (Object.hasOwn(reply, 'recoveryCode') && reply.recoveryCode !== kit) invalid('workspace.create.recoveryCode');
+  return Object.freeze({ workspace: Object.freeze({ id: identity(workspace.id, 'workspace.create.workspace.id'), name: text(workspace.name, 'workspace.create.workspace.name', 100), demo: false }), recoveryKit: kit });
 }
 function invalid(path: string): never { throw new ReplyValidationError(path); }
 function record(value: unknown, path: string): Record<string, unknown> {

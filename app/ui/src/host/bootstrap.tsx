@@ -25,6 +25,9 @@ import type { TodayConsumerState } from './today-controller.ts';
 import type { TodayDetail } from '../bridge/today-navigation.ts';
 import type { UiContext, UiModelRoute } from './contracts.ts';
 import type { HostController, HostReceiptSelection, HostState } from './controller.ts';
+import type { FirstRunResult } from '../screens/first-run/controller.ts';
+import { FirstRunScreen } from '../screens/first-run/FirstRun';
+import type { FirstRunStagesDone } from '../screens/first-run/FirstRun';
 import { discoveryRowFor, lessonDecisionAvailability, sameScenarioSelection, scenarioProof } from './retained-contracts.ts';
 import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, ScenarioDiscoveryRow, ScenarioSelection } from './retained-contracts.ts';
 import type { LessonReviewState, RetainedScenarioState, RetainedState, ScenarioContinuation, ScenarioDetailOrigin, ScenarioListOrigin, ScenarioRowOrigin } from './retained-controller.ts';
@@ -54,16 +57,20 @@ export interface HostMountOptions {
    * data or snapshots.
    */
   readonly scenarioSelection?: ScenarioSelection;
+  /** Certification of the earlier steps belongs to the trusted parent journey. */
+  readonly firstRunStagesDone?: FirstRunStagesDone;
 }
 export interface MountedHost {
-  /** Both names dispose the injected controller and unmount the one React root. */
+  /** Detaches the surface while retaining the injected host and any pending attempt. */
   unmount(): void;
-  dispose(): void;
+  /** Ends the host only when its pending-effect fence permits it. */
+  dispose(): FirstRunResult;
 }
 
 const TODAY: Address = { place: 'today', sub: 'today' };
 const ASK: Address = { place: 'ask', sub: 'new' };
 const MODELS: Address = { place: 'trust', sub: 'models' };
+const FIRST_RUN: Address = { place: 'first-run', sub: 'review' };
 const ROLE_KEY = { owner: 'roleOwner', cofounder: 'roleCofounder', accountant: 'roleAccountant', viewer: 'roleViewer' } as const;
 
 function navigate(address: Address): void { window.location.hash = formatAddress(address); }
@@ -365,7 +372,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const settings = controller.questionSettings();
   const conversationEnabled = !viewer && selectedRoute !== undefined && settings !== null && settings.routeId === selectedRoute.id;
   const projection = useMemo(() => {
-    if (state.today === null) return { kind: 'missing' } as const;
+    if (state.today === null || controller.timeZone === null) return { kind: 'missing' } as const;
     try { return { kind: 'ready', value: projectTodayHostForUi(state.today, { language, timeZone: controller.timeZone, missingWords: hostMissingWords(language) }) } as const; }
     catch { return { kind: 'invalid' } as const; }
   }, [state.today, language, controller.timeZone]);
@@ -745,8 +752,8 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   if (projection.kind === 'invalid') return <State state={{ kind: 'failed', code: 'INVALID_REPLY' }} />;
   const words = hostMissingWords(language);
   const data: TodayData = todayCurrent !== null && consumer !== null ? projectTodayConsumer(todayCurrent, consumer.input, language) : projection.kind === 'ready' ? projection.value.data : {
-    state: { kind: 'loading' }, date: '', review: { count: { exact: null, display: words['not-loaded-yet'] }, rows: [] },
-    thisMonthMissing: 'not-loaded-yet', earlierTodayMissing: 'unknown',
+    state: { kind: 'not-yet' }, date: '', review: { count: { exact: null, display: words.unknown }, rows: [] },
+    thisMonthMissing: 'unknown', earlierTodayMissing: 'unknown',
   };
   const legacyLink = <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>;
   /** For a proof or provenance that replaced the chosen row's detail: the way back to that detail, and a close bound to the chosen chain. */
@@ -852,6 +859,63 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     : <App key={contextKey} {...app} />;
 }
 
+const FIRST_RUN_WORDS = {
+  en: { title: 'Create a workspace for reviewed meanings', name: 'Business name', folder: 'Workspace folder', passphrase: 'Passphrase', confirm: 'Repeat passphrase', create: 'Create workspace', creating: 'Creating your encrypted workspace…', mismatch: 'The passphrases must match.', kit: 'Save your recovery kit', kitLabel: 'Recovery kit', copy: 'Copy recovery kit', saved: 'I have saved this recovery kit separately.', enter: 'Review my business meanings', unknown: 'Creation was issued, but its result is unknown. Do not create it again. Return to the existing workspace entry to inspect or reopen it.', resume: 'Return to dictionary review', pending: 'Calendar, business timezone, ordering and Today metrics are not configured.' },
+  hi: { title: 'अर्थों की समीक्षा के लिए कार्यस्थान बनाएँ', name: 'व्यवसाय का नाम', folder: 'कार्यस्थान फ़ोल्डर', passphrase: 'पासफ़्रेज़', confirm: 'पासफ़्रेज़ दोहराएँ', create: 'कार्यस्थान बनाएँ', creating: 'आपका एन्क्रिप्टेड कार्यस्थान बन रहा है…', mismatch: 'दोनों पासफ़्रेज़ एक जैसे होने चाहिए।', kit: 'अपनी रिकवरी किट सहेजें', kitLabel: 'रिकवरी किट', copy: 'रिकवरी किट कॉपी करें', saved: 'मैंने यह रिकवरी किट अलग जगह सहेज ली है।', enter: 'व्यवसाय के अर्थों की समीक्षा करें', unknown: 'कार्यस्थान बनाने का अनुरोध भेजा गया, लेकिन उसका परिणाम अज्ञात है। इसे दोबारा न बनाएँ। जाँचने या फिर खोलने के लिए मौजूदा कार्यस्थान प्रवेश पर लौटें।', resume: 'डिक्शनरी की समीक्षा पर लौटें', pending: 'कैलेंडर, व्यवसाय का समय क्षेत्र, क्रम और आज के माप अभी तय नहीं हैं।' },
+} as const;
+
+function WorkspaceStart({ controller, state, language, onAcknowledged }: { controller: HostController; state: HostState; language: Language; onAcknowledged: (workspaceId: string) => void }) {
+  const words = FIRST_RUN_WORDS[language];
+  const [acknowledged, setAcknowledged] = useState(false);
+  const acknowledgement = useRef(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const name = useRef<HTMLInputElement>(null), folder = useRef<HTMLInputElement>(null);
+  const passphrase = useRef<HTMLInputElement>(null), confirm = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => { acknowledgement.current = false; setAcknowledged(false); }, [state.creation, state.phase]);
+  if (state.creation.kind === 'creating') return <p role="status">{words.creating}</p>;
+  if (state.creation.kind === 'unknown') return <p role="alert">{words.unknown}</p>;
+  if (state.creation.kind === 'recovery-held') return null;
+  if (state.creation.kind === 'recovery-required') {
+    const rendered = state.creation, kit = rendered.value.recoveryKit;
+    return <main data-first-run-recovery=""><h1>{words.kit}</h1>
+      <label>{words.kitLabel}<textarea readOnly value={kit} /></label>
+      <Button variant="quiet" onClick={() => {
+        const current = controller.snapshot();
+        if (current.phase !== 'loading' || current.creation !== rendered) return;
+        if (!navigator.clipboard) { setNotice(hostMessage(language, 'unavailable')); return; }
+        void navigator.clipboard.writeText(kit).catch(() => setNotice(hostMessage(language, 'unavailable')));
+      }}>{words.copy}</Button>
+      <label><input type="checkbox" checked={acknowledged} onChange={event => { acknowledgement.current = event.currentTarget.checked; setAcknowledged(acknowledgement.current); }} />{words.saved}</label>
+      <Button variant="filled" disabled={!acknowledged} onClick={() => {
+        const current = controller.snapshot();
+        if (acknowledgement.current && current.phase === 'loading' && current.creation === rendered) {
+          void controller.acknowledgeRecovery(rendered.value).then(admitted => {
+            const qualified = controller.snapshot();
+            if (admitted && qualified.phase === 'ready' && qualified.context?.workspace.id === rendered.value.workspace.id) onAcknowledged(rendered.value.workspace.id);
+          });
+        }
+      }}>{words.enter}</Button>
+      {notice !== null && <p role="status">{notice}</p>}
+    </main>;
+  }
+  return <main data-first-run-create=""><h1>{words.title}</h1><form onSubmit={event => {
+    event.preventDefault();
+    const secret = passphrase.current?.value ?? '', repeated = confirm.current?.value ?? '';
+    if (secret !== repeated) { setNotice(words.mismatch); return; }
+    const input = { name: name.current?.value.trim() ?? '', folder: folder.current?.value.trim() ?? '', passphrase: secret };
+    if (passphrase.current) passphrase.current.value = ''; if (confirm.current) confirm.current.value = '';
+    setNotice(null); void controller.createWorkspace(input);
+  }}>
+    <label>{words.name}<input ref={name} required minLength={2} maxLength={100} autoComplete="organization" /></label>
+    <label>{words.folder}<input ref={folder} required pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,63}" autoComplete="off" /></label>
+    <label>{words.passphrase}<input ref={passphrase} type="password" required minLength={12} autoComplete="new-password" /></label>
+    <label>{words.confirm}<input ref={confirm} type="password" required minLength={12} autoComplete="new-password" /></label>
+    <Button variant="filled" submit>{words.create}</Button>
+    {state.creation.kind === 'failed' && <p role="alert">{state.creation.code}</p>}
+    {notice !== null && <p role="alert">{notice}</p>}
+  </form></main>;
+}
+
 function HostWorkspace({ controller, options, onLegacyReturn }: {
   controller: HostController;
   options: HostMountOptions;
@@ -860,28 +924,53 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
   const state = useSyncExternalStore(controller.subscribe, controller.snapshot, controller.snapshot);
   const [language, setLanguage] = useState<Language>(options.language ?? 'en');
   const [view, setView] = useState<View>(options.view ?? 'guided');
+  const [address, setAddress] = useState(() => parseAddress(window.location.hash));
+  const [vaultAcknowledged, setVaultAcknowledged] = useState<string | null>(null);
+  useLayoutEffect(() => {
+    let mounted = true;
+    controller.setFirstRunSurface(() => mounted && sameAddress(parseAddress(window.location.hash), FIRST_RUN));
+    const changed = () => { const next = parseAddress(window.location.hash); if (!sameAddress(next, FIRST_RUN)) controller.firstRun.cancel(); setAddress(next); };
+    window.addEventListener('hashchange', changed);
+    return () => { mounted = false; window.removeEventListener('hashchange', changed); controller.setFirstRunSurface(null); };
+  }, [controller]);
+  useLayoutEffect(() => {
+    if (state.phase !== 'ready' || state.context === null) return;
+    if (state.dictionaryReviewRequired) { navigate(FIRST_RUN); setAddress(FIRST_RUN); }
+    else if (!window.location.hash) { navigate(TODAY); setAddress(TODAY); }
+  }, [state.dictionaryReviewRequired, state.context?.workspace.id, state.phase]);
   useEffect(() => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); }, [controller]);
   useEffect(() => {
     document.documentElement.lang = language;
+    document.documentElement.dataset.view = view;
     document.documentElement.removeAttribute('data-theme');
-  }, [language]);
+  }, [language, view]);
   const authorized = state.phase === 'ready' && state.context !== null;
+  if (authorized && state.dictionaryReviewRequired) {
+    return sameAddress(address, FIRST_RUN) ? <FirstRunScreen controller={controller.firstRun} language={language} onLanguage={setLanguage} view={view}
+      stagesDone={options.firstRunStagesDone ?? { you: false, vault: vaultAcknowledged === state.context.workspace.id, model: false, books: false }}
+      intents={{ onContinue: handoff => { if (controller.completeFirstRun(handoff)) { navigate(ASK); void controller.refresh(); } } }} />
+      : <TextProvider language={language}><Button variant="link" onClick={() => { navigate(FIRST_RUN); setAddress(FIRST_RUN); }}>{FIRST_RUN_WORDS[language].resume}</Button></TextProvider>;
+  }
   return <TextProvider language={language}>
     <div style={{ height: '100vh', display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp4)', padding: 'var(--sp2) var(--sp4)', borderBottom: 'var(--hair) solid var(--line)' }}>
-        <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>
+        <Button variant="link" onClick={onLegacyReturn} disabled={state.creation.kind === 'creating' || state.creation.kind === 'recovery-required'}>{hostMessage(language, 'legacy')}</Button>
         <Button variant="link" onClick={() => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); }} disabled={state.phase === 'loading' || state.phase === 'locked'}>{hostMessage(language, 'refresh')}</Button>
       </div>
       <div data-host-workspace="" style={{ minHeight: 0, overflow: 'auto' }}>
-        {authorized && state.context !== null
+        {state.phase === 'locked' && <p role="status">{hostMessage(language, 'locked')}</p>}
+        {state.creation.kind !== 'idle' || state.phase === 'locked'
+          ? <WorkspaceStart controller={controller} state={state} language={language} onAcknowledged={setVaultAcknowledged} />
+          : authorized && state.context !== null
           ? <AuthorizedWorkspace key={JSON.stringify([state.context.contextKey, state.selectedRouteId])}
             controller={controller} state={state} context={state.context} language={language} view={view}
             setLanguage={setLanguage} setView={setView} onLegacyReturn={onLegacyReturn} scenarioSelection={options.scenarioSelection ?? null} />
           : <div style={{ padding: 'var(--sp6)' }}>
-            <p role="status">{hostMessage(language, state.phase === 'loading' ? 'loading' : state.phase === 'locked' ? 'locked' : 'unavailable')}</p>
+            <p role="status">{hostMessage(language, state.phase === 'loading' ? 'loading' : 'unavailable')}</p>
             {state.code !== undefined && <p>{hostMessage(language, 'code', { code: state.code })}</p>}
           </div>}
       </div>
+      {authorized && !state.dictionaryReviewRequired && state.todayConfiguration === 'not-configured' && <p role="status" data-today-configuration="">{FIRST_RUN_WORDS[language].pending}</p>}
     </div>
   </TextProvider>;
 }
@@ -889,15 +978,18 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
 /** Called only by the trusted, same-origin opt-in entry after injecting its controller.
  * The mount starts one read-only refresh; no route is chosen and no model is contacted. */
 export function mountHost(container: HTMLElement, controller: HostController, options: HostMountOptions = {}): MountedHost {
-  navigate(TODAY);
   document.documentElement.removeAttribute('data-theme');
   const root = createRoot(container);
-  let disposed = false;
+  let unmounted = false;
+  const unmount = () => { if (unmounted) return; unmounted = true; controller.setFirstRunSurface(null); root.unmount(); };
   const dispose = () => {
-    if (disposed) return;
-    disposed = true; controller.dispose(); root.unmount();
+    const result = controller.dispose(); unmount(); return result;
   };
   root.render(<HostWorkspace controller={controller} options={options}
-    onLegacyReturn={() => { dispose(); if (options.onLegacyReturn) options.onLegacyReturn(); else window.location.assign('/index.html'); }} />);
-  return Object.freeze({ unmount: dispose, dispose });
+    onLegacyReturn={() => {
+      if (controller.firstRun.issuance() !== 'none') { controller.firstRun.cancel(); return; }
+      const ended = controller.dispose(); if (!ended.ok) return;
+      unmount(); if (options.onLegacyReturn) options.onLegacyReturn(); else window.location.assign('/index.html');
+    }} />);
+  return Object.freeze({ unmount, dispose });
 }

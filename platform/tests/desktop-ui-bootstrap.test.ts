@@ -172,7 +172,9 @@ test('fresh packaged UI has an actual synthetic workspace before window construc
   const creates = d.harnesses[0].requests.filter(request => request.method === 'workspace.create');
   assert.equal(creates.length, 1); assert.equal(creates[0].payload.demo, true); assert.equal(creates[0].payload.folder, 'main');
   assert.equal(creates[0].payload.pack, 'ecommerce'); assert.match(creates[0].payload.passphrase, /^[A-Za-z0-9_-]{43}$/);
-  const controller = createHostController({ request: d.rpc } as HostRpcPort, { now: () => Date.parse('2026-09-30T12:00:00Z'), timeZone: 'UTC' });
+  const controller = createHostController({ request: d.rpc } as HostRpcPort, { now: () => Date.parse('2026-09-30T12:00:00Z'), timeZone: 'UTC',
+    dashboard: { title: 'Today', date: '2026-09-30', request: { period: { from: '2026-09-01', to: '2026-09-30' } },
+      selections: [{ operation: 'billed', figureKey: 'total' }, { operation: 'received', figureKey: 'total' }, { operation: 'margin', figureKey: 'contribution' }] } });
   t.after(() => controller.dispose()); await controller.refresh();
   const state = controller.snapshot(); assert.equal(state.phase, 'ready', state.code); assert.equal(state.context?.workspace.demo, true);
   assert.ok(state.today); assert.equal(state.today.receipts.length, 4); assert.equal(state.selectedRouteId, null);
@@ -191,7 +193,9 @@ test('current-month packaged preview displays authored demo figures and fresh re
   const d = await fixture(t); await d.ready();
   assert.deepEqual(d.errors, []);
   assert.ok(d.windows[0].demoFactsAtConstruction > 0, 'The calendar regression must not be a missing-seed failure.');
-  const controller = createHostController({ request: d.rpc } as HostRpcPort, { timeZone: 'UTC' });
+  const controller = createHostController({ request: d.rpc } as HostRpcPort, { timeZone: 'UTC',
+    dashboard: { title: 'Today', date: '2026-10-04', request: { period: { from: '2026-10-01', to: '2026-10-31' } },
+      selections: [{ operation: 'billed', figureKey: 'total' }, { operation: 'received', figureKey: 'total' }, { operation: 'margin', figureKey: 'contribution' }] } });
   t.after(() => controller.dispose()); await controller.refresh();
   const state = controller.snapshot();
   assert.equal(state.phase, 'ready', state.code); assert.ok(state.today);

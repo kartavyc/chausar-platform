@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { createHostController, currentMonth } from '../src/host/controller.ts';
-import type { HostController } from '../src/host/controller.ts';
+import type { HostController, HostOptions } from '../src/host/controller.ts';
 import { validateModelRoutes, validateUiContext } from '../src/host/contracts.ts';
 import type { HostRpcPayloads, HostRpcPort } from '../src/host/contracts.ts';
 import type { ConversationRequest } from '../src/bridge/conversation-contract.ts';
@@ -13,11 +13,55 @@ import type { TodayConsumerController } from '../src/host/today-controller.ts';
 import { validateLessonReviewList } from '../src/host/retained-contracts.ts';
 import { approvalFixture, groundedFixture, planningPreviewFixture, readbackFixture, synthesisPreviewFixture, synthesisReplyFixture } from './conversation-fixtures.ts';
 import { fullCalculationReceiptFixture, HUGE_INTEGER } from './fixtures.ts';
+import { engine as dictionaryEngine, nodeDigest, settle, syntheticEngine } from './first-run/fixture.ts';
+import { FIRST_RUN_METHODS } from '../src/screens/first-run/contracts.ts';
+import type { FirstRunMethod, FirstRunRpcPayloads } from '../src/screens/first-run/contracts.ts';
+import { handoffPinOf } from '../src/screens/first-run/controller.ts';
+import { pinOf } from '../src/screens/first-run/review.ts';
+import type { Review } from '../src/screens/first-run/review.ts';
 
 /** Synthetic host transport; no real vault, network, process or model dispatch. */
 const context = (contextKey = 'a'.repeat(64)) => ({ workspace: { id: 'workspace_fixture', name: 'Synthetic host fixture', demo: true }, member: { id: 'member_fixture', name: 'Fixture owner', role: 'owner', epoch: 1, branches: ['*'] }, contextKey });
 const route = { id: 'route_fixture', kind: 'codex-cli', model: 'model_fixture', enabled: true, installationVerified: false, label: 'Synthetic route' };
 const clock = () => Date.parse('2026-10-03T12:00:00.000Z');
+const compiler = await dictionaryEngine();
+const publishedDictionary = compiler.compile(compiler.pack(0), 1, 'member_fixture', '2026-10-01T09:00:00.000Z');
+const ontology = () => ({ current: structuredClone(publishedDictionary), history: [structuredClone(publishedDictionary)] });
+const legacyHostOptions = (): HostOptions => ({ now: clock, timeZone: 'UTC', firstRun: { digest: nodeDigest }, dashboard: {
+  title: 'Today', date: '2026-10-03', request: { period: { from: '2026-10-01', to: '2026-10-31' } },
+  selections: [{ operation: 'billed', figureKey: 'total' }, { operation: 'received', figureKey: 'total' }, { operation: 'margin', figureKey: 'contribution' }],
+} });
+/** Explicit four-method model using the retained CAS/receipt fixture; every other call must be named. */
+async function firstRunHost(options: Pick<HostOptions, 'todayProducer' | 'dashboard' | 'timeZone'> = { todayProducer: {} }, reply?: (method: keyof HostRpcPayloads, payload: unknown) => unknown) {
+  const fixture = await syntheticEngine();
+  const calls: string[] = [];
+  const port: HostRpcPort = { async request(method, payload) {
+    calls.push(method);
+    if (FIRST_RUN_METHODS.includes(method as FirstRunMethod)) return fixture.port.request(method as FirstRunMethod, payload as FirstRunRpcPayloads[FirstRunMethod]);
+    if (method === 'models.list') return [];
+    if (method === 'workspace.lock') return { locked: true };
+    const value = reply?.(method, payload); if (value !== undefined) return value;
+    throw Error(`Unexpected first-run host method ${method}`);
+  } };
+  const host = createHostController(port, { now: clock, firstRun: { digest: nodeDigest, createAttemptId: () => 'host-reviewed-attempt' }, ...options });
+  let live = true;
+  host.setFirstRunSurface(() => live);
+  await host.refresh(); await host.firstRun.load();
+  return { fixture, host, calls, depart: () => { live = false; host.setFirstRunSurface(null); } };
+}
+async function reviewFirstRun(host: HostController) {
+  assert.deepEqual(host.firstRun.choosePack('ecommerce'), { ok: true }); await settle();
+  let shown = host.firstRun.snapshot(); if (shown.kind !== 'review') throw Error('Expected checked review');
+  for (const row of shown.review.rows) {
+    shown = host.firstRun.snapshot(); if (shown.kind !== 'review') throw Error('Review departed');
+    assert.deepEqual(host.firstRun.acceptRow(row.definition.name, checkedReviewPin(shown.review)), { ok: true });
+  }
+  shown = host.firstRun.snapshot(); if (shown.kind !== 'review') throw Error('Review departed');
+  assert.deepEqual(host.firstRun.acceptSettings(checkedReviewPin(shown.review)), { ok: true });
+  shown = host.firstRun.snapshot(); if (shown.kind !== 'review') throw Error('Review departed');
+  return checkedReviewPin(shown.review);
+}
+function checkedReviewPin(review: Review) { const pin = pinOf(review); assert.ok(pin, 'review digest must be ready'); return pin; }
 function receipt(operation: string) {
   const fixture = fullCalculationReceiptFixture();
   const rows = fixture.rows.map(row => ({ ...row, validFrom: '2026-10-01' }));
@@ -48,6 +92,7 @@ function transport(reply?: (method: keyof HostRpcPayloads, payload: unknown) => 
   const calls: { method: keyof HostRpcPayloads; payload: unknown }[] = [];
   const port: HostRpcPort = { async request(method, payload) {
     calls.push({ method, payload: structuredClone(payload) });
+    if (method === 'ontology.get') return ontology();
     if (reply) return reply(method, payload);
     if (method === 'ui.context') return context();
     if (method === 'dashboard.get') return dashboard();
@@ -60,12 +105,264 @@ function transport(reply?: (method: keyof HostRpcPayloads, payload: unknown) => 
   return { port, calls, count };
 }
 
+test('deferred gate issues no catalogue, Saved, Today or figure requests before reviewed publication', async () => {
+  const { host, calls } = await firstRunHost();
+  assert.equal(host.snapshot().dictionaryReviewRequired, true);
+  assert.equal(host.snapshot().todayConfiguration, 'not-configured'); assert.equal(host.timeZone, null);
+  assert.deepEqual([...new Set(calls)].sort(), ['ontology.get', 'ontology.packs', 'ui.context']);
+  await host.conversation.open('synthetic-saved');
+  assert.equal(calls.includes('conversation.get'), false);
+  host.dispose();
+});
+test('own publication adopts its verified context and Continue has a final synchronous host admission', async () => {
+  const { fixture, host } = await firstRunHost();
+  const pin = await reviewFirstRun(host), before = host.snapshot().context?.contextKey;
+  assert.deepEqual(await host.firstRun.publishDictionary(pin), { ok: true });
+  const shown = host.firstRun.snapshot(); if (shown.kind !== 'published') throw Error('Expected publication');
+  assert.notEqual(shown.context.contextKey, before); assert.equal(host.snapshot().context?.contextKey, fixture.contextKey());
+  const leave = await host.firstRun.leave(handoffPinOf(shown)); assert.equal(leave.ok, true);
+  if (!leave.ok) throw Error('Expected admitted departure');
+  const handoff = leave.admit(); assert.ok(handoff);
+  let revoke = true;
+  const stop = host.subscribe(() => { if (revoke && !host.snapshot().dictionaryReviewRequired) { revoke = false; host.invalidate('ACCESS_DENIED'); } });
+  assert.equal(host.completeFirstRun(handoff), false, 'a synchronous revocation observer has the last word');
+  assert.equal(leave.admit(), null); assert.equal(host.snapshot().context, null); stop(); host.dispose();
+});
+test('lost publication acknowledgement retains its attempt through refused host disposal and rereads without retry', async () => {
+  const { fixture, host, calls } = await firstRunHost();
+  const pin = await reviewFirstRun(host);
+  fixture.onRequest((method, _payload, defaults) => { if (method === 'ontology.publish') { defaults(); throw refusal('REQUEST_FAILED'); } return undefined; });
+  await host.firstRun.publishDictionary(pin);
+  assert.equal(host.firstRun.issuance(), 'unresolved');
+  assert.deepEqual(host.dispose(), { ok: false, code: 'PUBLISH_UNRESOLVED' });
+  assert.deepEqual(host.firstRun.snapshot(), { kind: 'unknown', code: 'READ_INVALIDATED', reconciling: false, attempt: null });
+  host.setFirstRunSurface(() => true); fixture.onRequest(null);
+  assert.deepEqual(await host.firstRun.reconcile(), { ok: true });
+  assert.equal(calls.filter(method => method === 'ontology.publish').length, 1);
+  const shown = host.firstRun.snapshot(); if (shown.kind !== 'published') throw Error('Expected attributed readback');
+  const leave = await host.firstRun.leave(handoffPinOf(shown)); if (!leave.ok) throw Error('Expected departure');
+  const handoff = leave.admit(); assert.ok(handoff); assert.equal(host.completeFirstRun(handoff), true);
+  assert.equal(host.snapshot().dictionaryReviewRequired, false); assert.equal(host.snapshot().today, null);
+  assert.equal(host.snapshot().todayConfiguration, 'not-configured'); host.dispose();
+});
+
+test('explicit same-owner requalification after reopen resolves the original lost-ack attempt and rejects changed authority without retry', async () => {
+  const { fixture, host, calls } = await firstRunHost(); const original = host.firstRun;
+  const pin = await reviewFirstRun(host);
+  fixture.onRequest((method, _payload, defaults) => {
+    if (method === 'ontology.publish') { host.invalidate('VAULT_LOCKED'); defaults(); throw refusal('REQUEST_FAILED'); }
+    return undefined;
+  });
+  await host.firstRun.publishDictionary(pin); assert.equal(host.firstRun.issuance(), 'unresolved');
+  assert.equal(host.snapshot().context, null); host.setFirstRunSurface(null);
+  const hiddenCalls = calls.length; await host.refresh(); await host.checkAuthority(); assert.equal(calls.length, hiddenCalls, 'ordinary locked refresh and poll read nothing');
+  for (const change of ['workspace', 'member', 'epoch', 'role'] as const) {
+    fixture.onRequest((method, _payload, defaults) => {
+      if (method !== 'ui.context') return undefined;
+      const current = validateUiContext(defaults());
+      return change === 'workspace' ? { ...current, workspace: { ...current.workspace, id: 'workspace_other' } }
+        : { ...current, member: { ...current.member, ...(change === 'member' ? { id: 'member_other' } : change === 'epoch' ? { epoch: current.member.epoch + 1 } : { role: 'cofounder' }) } };
+    });
+    const before = calls.length; assert.equal(await host.requalifyFirstRunAfterReopen(), false, change);
+    assert.deepEqual(calls.slice(before), ['ui.context'], change); assert.equal(host.snapshot().context, null, change); assert.equal(host.firstRun.issuance(), 'unresolved', change);
+  }
+  const reached = deferred<void>(), held = deferred<unknown>();
+  fixture.onRequest(method => { if (method === 'ui.context') { reached.resolve(); return held.promise; } return undefined; });
+  const pending = host.requalifyFirstRunAfterReopen(); await reached.promise; host.invalidate('VAULT_LOCKED');
+  fixture.onRequest(null); held.resolve(await fixture.port.request('ui.context', {})); assert.equal(await pending, false, 'invalidated metadata cannot restore the surface');
+  const before = calls.length; assert.equal(await host.requalifyFirstRunAfterReopen(), true);
+  assert.deepEqual(calls.slice(before), ['ui.context']); assert.equal(host.firstRun, original);
+  assert.equal(host.snapshot().dictionaryReviewRequired, true); assert.equal(host.snapshot().todayConfiguration, 'not-configured');
+  assert.deepEqual(host.snapshot().routes, []); assert.equal(host.snapshot().today, null); assert.equal(host.snapshot().receipt, null);
+  const noSurfaceCalls = calls.length; assert.equal((await host.firstRun.reconcile()).ok, false); assert.equal(calls.length, noSurfaceCalls, 'requalification does not restore a departed surface');
+  host.setFirstRunSurface(() => true); assert.deepEqual(await host.firstRun.reconcile(), { ok: true });
+  assert.equal(calls.filter(method => method === 'ontology.publish').length, 1); assert.equal(host.firstRun.issuance(), 'none');
+  const resolved = host.firstRun.snapshot(); if (resolved.kind !== 'published') throw Error('Expected original attempt readback');
+  assert.equal(resolved.published.hash, fixture.current()?.hash); assert.equal(await host.requalifyFirstRunAfterReopen(), false, 'a resolved pin cannot be reused'); host.dispose();
+});
+test('a synchronous child denial during requalification keeps the host denied and its original attempt unresolved until fresh explicit re-entry', async () => {
+  const { fixture, host, calls } = await firstRunHost(); const pin = await reviewFirstRun(host);
+  fixture.onRequest((method, _payload, defaults) => { if (method === 'ontology.publish') { defaults(); throw refusal('REQUEST_FAILED'); } return undefined; });
+  await host.firstRun.publishDictionary(pin); host.invalidate('VAULT_LOCKED'); fixture.onRequest(null);
+  let once = true;
+  const stop = host.conversation.subscribe(() => { if (once) { once = false; host.invalidate('ACCESS_DENIED'); } });
+  const before = calls.length;
+  assert.equal(await host.requalifyFirstRunAfterReopen(), false);
+  assert.deepEqual(calls.slice(before), ['ui.context']); assert.equal(host.snapshot().phase, 'unavailable');
+  assert.equal(host.snapshot().code, 'ACCESS_DENIED'); assert.equal(host.snapshot().context, null);
+  assert.equal(host.firstRun.issuance(), 'unresolved'); assert.equal(calls.filter(method => method === 'ontology.publish').length, 1);
+  stop(); assert.equal(await host.requalifyFirstRunAfterReopen(), true);
+  host.setFirstRunSurface(() => true); assert.deepEqual(await host.firstRun.reconcile(), { ok: true });
+  assert.equal(calls.filter(method => method === 'ontology.publish').length, 1); assert.equal(host.firstRun.issuance(), 'none'); host.dispose();
+});
+
+test('deferred creation emits the exact envelope, holds its recovery acknowledgement and retains no request secrets', async () => {
+  const payloads: unknown[] = []; let opened = false;
+  const port: HostRpcPort = { async request(method, payload) {
+    if (method === 'ui.context') { if (!opened) throw refusal('VAULT_LOCKED'); return { ...context(), workspace: { ...context().workspace, demo: false } }; }
+    if (method === 'workspace.create') { payloads.push(structuredClone(payload)); opened = true; return { workspace: { ...context().workspace, demo: false }, recoveryKit: 'SYNTHETIC recovery kit', recoveryCode: 'SYNTHETIC recovery kit' }; }
+    if (method === 'ontology.get') return { current: null, history: [] };
+    throw Error(`Unexpected creation fixture method ${method}`);
+  } };
+  const host = createHostController(port, { firstRun: { digest: nodeDigest } }); await host.refresh();
+  await host.createWorkspace({ name: 'SYNTHETIC creation', folder: 'synthetic', passphrase: 'Synthetic passphrase' });
+  assert.deepEqual(payloads, [{ name: 'SYNTHETIC creation', folder: 'synthetic', passphrase: 'Synthetic passphrase', dictionaryMode: 'deferred', demo: false }]);
+  const payload = payloads[0]; assert.ok(payload && typeof payload === 'object');
+  assert.equal(Object.hasOwn(payload, 'pack'), false); assert.equal(Object.hasOwn(payload, 'demoFixtureMonth'), false);
+  assert.equal(JSON.stringify(host.snapshot()).includes('Synthetic passphrase'), false);
+  assert.deepEqual(host.dispose(), { ok: false, code: 'PUBLISH_UNRESOLVED' });
+  assert.equal(host.snapshot().creation.kind, 'recovery-required');
+  const held = host.snapshot().creation; if (held.kind !== 'recovery-required') throw Error('Expected held recovery kit');
+  await host.acknowledgeRecovery(structuredClone(held.value));
+  assert.equal(host.snapshot().creation.kind, 'recovery-required', 'only the exact rendered kit can be acknowledged');
+  host.invalidate('VAULT_LOCKED'); await host.acknowledgeRecovery(held.value);
+  assert.equal(host.snapshot().creation.kind, 'recovery-held');
+  assert.equal(JSON.stringify(host.snapshot()).includes('SYNTHETIC recovery kit'), false);
+  await host.refresh();
+  assert.equal(host.snapshot().creation.kind, 'recovery-required', 'a fresh exact-workspace admin read resumes the held kit');
+  await host.acknowledgeRecovery(held.value); assert.equal(host.snapshot().creation.kind, 'idle');
+  assert.equal(JSON.stringify(host.snapshot()).includes('SYNTHETIC recovery kit'), false);
+  assert.equal(host.snapshot().dictionaryReviewRequired, true); host.dispose();
+});
+
+test('synchronous child denials fence unissued creation and pinned acknowledgement without exposing a kit or starting metadata', async () => {
+  const calls: string[] = []; let opened = false;
+  const kit = 'SYNTHETIC synchronous kit';
+  const port: HostRpcPort = { async request(method) {
+    calls.push(method);
+    if (method === 'ui.context') { if (!opened) throw refusal('VAULT_LOCKED'); return { ...context(), workspace: { ...context().workspace, demo: false } }; }
+    if (method === 'workspace.create') { opened = true; return { workspace: { ...context().workspace, demo: false }, recoveryKit: kit, recoveryCode: kit }; }
+    if (method === 'ontology.get') return { current: null, history: [] };
+    throw Error(`Unexpected synchronous creation fixture method ${method}`);
+  } };
+  const host = createHostController(port, { firstRun: { digest: nodeDigest } }); await host.refresh();
+  let deny = true;
+  const stopCreate = host.conversation.subscribe(() => { if (deny) { deny = false; host.invalidate('ACCESS_DENIED'); } });
+  const beforeCreate = calls.length; await host.createWorkspace({ name: 'SYNTHETIC unissued', passphrase: 'Synthetic secret' });
+  assert.equal(calls.length, beforeCreate); assert.equal(host.snapshot().phase, 'unavailable'); assert.equal(host.snapshot().code, 'ACCESS_DENIED');
+  assert.deepEqual(host.snapshot().creation, { kind: 'idle' }, 'a known unissued creation owns no disposal fence');
+  stopCreate(); host.invalidate('VAULT_LOCKED'); await host.createWorkspace({ name: 'SYNTHETIC issued', passphrase: 'Synthetic secret' });
+  const shown = host.snapshot().creation; if (shown.kind !== 'recovery-required') throw Error('Expected single issued creation kit');
+  deny = true;
+  const snapshots: string[] = [], stopShown = host.subscribe(() => { snapshots.push(JSON.stringify(host.snapshot())); });
+  const stopAck = host.conversation.subscribe(() => { if (deny) { deny = false; host.invalidate('ACCESS_DENIED'); } });
+  const beforeAck = calls.length; assert.equal(await host.acknowledgeRecovery(shown.value), false);
+  assert.equal(calls.length, beforeAck); assert.equal(host.snapshot().phase, 'unavailable'); assert.equal(host.snapshot().code, 'ACCESS_DENIED');
+  assert.equal(host.snapshot().creation.kind, 'recovery-held'); assert.equal(snapshots.some(value => value.includes(kit)), false);
+  assert.deepEqual(host.dispose(), { ok: false, code: 'PUBLISH_UNRESOLVED' }); stopAck(); stopShown();
+  await host.refresh(); const resumed = host.snapshot().creation; if (resumed.kind !== 'recovery-required') throw Error('Expected trusted exact-workspace release');
+  assert.equal(await host.acknowledgeRecovery(resumed.value), true); assert.equal(calls.filter(method => method === 'workspace.create').length, 1); host.dispose();
+});
+
+test('a create reply after lock or authority denial holds its sole kit until a fresh exact-workspace admin release without retry', { timeout: 10000 }, async () => {
+  for (const code of ['VAULT_LOCKED', 'ACCESS_DENIED'] as const) {
+    const waiting = deferred<unknown>(), reached = deferred<void>(); let creates = 0;
+    let authority: ReturnType<typeof context> | null = null;
+    const kit = `SYNTHETIC late kit ${code}`;
+    const created = { workspace: { ...context().workspace, demo: false as const }, recoveryKit: kit, recoveryCode: kit };
+    const port: HostRpcPort = { async request(method) {
+      if (method === 'ui.context') { if (authority === null) throw refusal('VAULT_LOCKED'); return authority; }
+      if (method === 'workspace.create') { creates++; reached.resolve(); return waiting.promise; }
+      if (method === 'ontology.get') return { current: null, history: [] };
+      throw Error(`Unexpected late-create method ${method}`);
+    } };
+    const host = createHostController(port, { firstRun: { digest: nodeDigest } }); await host.refresh();
+    const creating = host.createWorkspace({ name: 'SYNTHETIC late creation', passphrase: 'Synthetic secret' }); await reached.promise;
+    assert.deepEqual(host.dispose(), { ok: false, code: 'IN_FLIGHT' }, code);
+    host.invalidate(code); const invalidated = host.snapshot().phase;
+    waiting.resolve(created); await creating;
+    assert.equal(host.snapshot().phase, invalidated, code); assert.equal(host.snapshot().creation.kind, 'recovery-held', code);
+    assert.equal(JSON.stringify(host.snapshot()).includes(kit), false, code); assert.equal(JSON.stringify(host.snapshot()).includes('Synthetic secret'), false, code);
+    assert.deepEqual(host.dispose(), { ok: false, code: 'PUBLISH_UNRESOLVED' }, code);
+    await host.createWorkspace({ name: 'SYNTHETIC duplicate', passphrase: 'Synthetic other secret' }); assert.equal(creates, 1, code);
+    await host.acknowledgeRecovery({ workspace: created.workspace, recoveryKit: kit }); assert.equal(host.snapshot().creation.kind, 'recovery-held', code);
+    authority = { ...context(), workspace: { ...context().workspace, id: 'workspace_other', demo: false } }; await host.refresh();
+    assert.equal(host.snapshot().creation.kind, 'recovery-held', 'another workspace cannot release the kit'); assert.equal(JSON.stringify(host.snapshot()).includes(kit), false);
+    authority = { ...context(), workspace: { ...context().workspace, demo: false }, member: { ...context().member, role: 'viewer' } }; await host.refresh();
+    assert.equal(host.snapshot().creation.kind, 'recovery-held', 'a viewer cannot release the kit'); assert.equal(JSON.stringify(host.snapshot()).includes(kit), false);
+    authority = { ...context(), workspace: { ...context().workspace, demo: false } }; await host.refresh();
+    const released = host.snapshot().creation; if (released.kind !== 'recovery-required') throw Error('Expected fresh exact-workspace admin release');
+    assert.equal(host.snapshot().phase, 'loading'); assert.equal(released.value.recoveryKit, kit);
+    await host.acknowledgeRecovery(released.value); assert.equal(host.snapshot().dictionaryReviewRequired, true);
+    assert.equal(host.snapshot().creation.kind, 'idle'); assert.equal(JSON.stringify(host.snapshot()).includes(kit), false); assert.equal(creates, 1);
+    host.dispose();
+  }
+});
+
+test('recovery acknowledgement holds the created workspace through its first context read and refuses a consistent different workspace', { timeout: 10000 }, async () => {
+  const reached = deferred<void>(), held = deferred<void>(); let opened = false, holdAcknowledgement = false, other = false, creates = 0;
+  const kit = 'SYNTHETIC bound recovery kit';
+  const port: HostRpcPort = { async request(method) {
+    if (method === 'ui.context') {
+      if (!opened) throw refusal('VAULT_LOCKED');
+      if (holdAcknowledgement) { holdAcknowledgement = false; reached.resolve(); await held.promise; }
+      return { ...context(other ? 'b'.repeat(64) : undefined), workspace: { ...context().workspace, id: other ? 'workspace_other' : 'workspace_fixture', demo: false } };
+    }
+    if (method === 'workspace.create') { opened = true; creates++; return { workspace: { ...context().workspace, demo: false }, recoveryKit: kit, recoveryCode: kit }; }
+    if (method === 'ontology.get') return { current: null, history: [] };
+    throw Error(`Unexpected acknowledgement fixture method ${method}`);
+  } };
+  const host = createHostController(port, { firstRun: { digest: nodeDigest } }); await host.refresh();
+  await host.createWorkspace({ name: 'SYNTHETIC bound creation', passphrase: 'Synthetic binding secret' });
+  const shown = host.snapshot().creation; if (shown.kind !== 'recovery-required') throw Error('Expected created kit');
+  holdAcknowledgement = true; const acknowledging = host.acknowledgeRecovery(shown.value); await reached.promise;
+  assert.equal(host.snapshot().creation.kind, 'recovery-held'); assert.equal(JSON.stringify(host.snapshot()).includes(kit), false);
+  other = true; held.resolve(); assert.equal(await acknowledging, false);
+  assert.equal(host.snapshot().context, null); assert.equal(host.snapshot().code, 'ACCESS_DENIED'); assert.equal(host.snapshot().creation.kind, 'recovery-held');
+  other = false; await host.refresh(); const resumed = host.snapshot().creation; if (resumed.kind !== 'recovery-required') throw Error('Expected exact-workspace recovery resume');
+  assert.equal(await host.acknowledgeRecovery(resumed.value), true); assert.equal(host.snapshot().context?.workspace.id, 'workspace_fixture'); assert.equal(creates, 1); host.dispose();
+});
+
+test('own publication retires initial Today and legacy policy until explicit fresh dictionary-bound input is installed', async () => {
+  let currentPack = { ...installedPack };
+  const { host, calls } = await firstRunHost({ timeZone: 'UTC', dashboard: legacyHostOptions().dashboard!, todayProducer: { display: displayedDay, configuration: explicitConfiguration() } }, method => {
+    if (method === 'today.get') return { ...producerReply(), starterPack: { ...currentPack } };
+    if (method === 'scenarios.discover') return emptyDiscoveryPage();
+    throw Error(`Unexpected rebound Today method ${method}`);
+  });
+  const originalFirstRun = host.firstRun, retired = requireToday(host), held = retired.snapshot();
+  assert.equal(host.bindTodayProducer({}), false, 'the deferred dictionary gate cannot be bypassed');
+  const pin = await reviewFirstRun(host); assert.deepEqual(await host.firstRun.publishDictionary(pin), { ok: true });
+  assert.equal(host.todayConsumer, null);
+  const beforeRetired = calls.length;
+  await retired.refresh(); assert.equal(await retired.prepare(held, liveToday), false);
+  assert.equal(await retired.activity(held, liveToday), null); assert.equal(calls.length, beforeRetired, 'held old consumer controls issue nothing');
+  const published = host.firstRun.snapshot(); if (published.kind !== 'published') throw Error('Expected verified publication');
+  currentPack = { id: published.published.pack, dictionaryHash: published.published.hash, version: published.published.version };
+  const left = await host.firstRun.leave(handoffPinOf(published)); if (!left.ok) throw Error('Expected admitted Continue');
+  const handoff = left.admit(); assert.ok(handoff); assert.equal(host.completeFirstRun(handoff), true);
+  await host.refreshToday(); await host.refreshToday();
+  assert.equal(host.firstRun, originalFirstRun, 'rebind retains the original first-run attempt owner');
+  assert.equal(host.snapshot().todayConfiguration, 'not-configured'); assert.equal(host.snapshot().today, null);
+  assert.equal(host.todayConsumer, null); assert.equal(calls.includes('today.get'), false); assert.equal(calls.includes('dashboard.get'), false);
+  const beforePending = calls.length;
+  assert.deepEqual(await host.retained.readDiscovery(), { ok: false, code: 'READ_INVALIDATED' });
+  await host.conversation.open('synthetic-saved');
+  assert.equal(calls.length, beforePending, 'Saved stays pending without even a raw metadata read'); assert.equal(host.snapshot().phase, 'ready');
+  assert.ok(calls.includes('models.list'), 'route catalogue remains available after admitted Continue');
+  assert.equal(host.bindTodayProducer({ display: displayedDay, configuration: explicitConfiguration() }), false, 'old pack/hash/version is refused');
+  assert.equal(host.bindTodayProducer({ display: displayedDay }), false, 'a display alone has no dictionary pin');
+  assert.equal(host.bindTodayProducer({ display: displayedDay, surprise: true }), false, 'unknown input keys are refused');
+  assert.equal(host.bindTodayProducer({}), true); await host.refreshToday();
+  assert.equal(host.snapshot().todayConfiguration, 'not-configured'); assert.equal(calls.includes('today.get'), false);
+  const beforeMissing = calls.length; assert.deepEqual(await host.retained.readDiscovery(), { ok: false, code: 'READ_INVALIDATED' }); assert.equal(calls.length, beforeMissing);
+  const request = { ...explicitConfiguration().request, dictionaryHash: currentPack.dictionaryHash };
+  const fresh: TodayConfiguration = { ...explicitConfiguration(), starterPack: currentPack, request, configurationDigest: createHash('sha256').update(JSON.stringify(request)).digest('hex') };
+  assert.equal(host.bindTodayProducer({ display: displayedDay, configuration: fresh }), true);
+  const active = requireToday(host); assert.notEqual(active, retired); assert.equal(host.snapshot().todayConfiguration, 'configured');
+  assert.equal(calls.includes('today.get'), false, 'binding issues no business read');
+  await host.refreshToday(); assert.equal(active.snapshot().phase, 'ready');
+  assert.equal(calls.filter(method => method === 'today.get').length, 1); assert.equal(calls.includes('dashboard.get'), false);
+  assert.deepEqual(await host.retained.readDiscovery(), { ok: true }); assert.equal(calls.filter(method => method === 'scenarios.discover').length, 1);
+  const beforeOld = calls.length; await retired.refresh(); assert.equal(await retired.activity(held, liveToday), null); assert.equal(calls.length, beforeOld);
+  host.dispose();
+});
 test('calendar month is explicit in the host timezone, including leap day', () => {
   assert.deepEqual(currentMonth(Date.parse('2024-03-01T00:15:00.000Z'), 'America/Los_Angeles'), { date: '2024-02-29', period: { from: '2024-02-01', to: '2024-02-29' } });
   assert.throws(() => currentMonth(NaN, 'UTC'));
 });
 test('mount refresh reads current-month Today and every receipt without choosing or calling a model', async () => {
-  const fixture = transport(), host = createHostController(fixture.port, { now: clock });
+  const fixture = transport(), host = createHostController(fixture.port, legacyHostOptions());
   await host.refresh();
   assert.equal(host.snapshot().phase, 'ready');
   assert.equal(host.snapshot().today?.statsEvidence.length, 3);
@@ -79,7 +376,7 @@ test('mount refresh reads current-month Today and every receipt without choosing
   host.dispose();
 });
 test('route selection is explicit, checked, stable and clears prior private selection', async () => {
-  const fixture = transport(), host = createHostController(fixture.port, { now: clock });
+  const fixture = transport(), host = createHostController(fixture.port, legacyHostOptions());
   await host.refresh();
   host.selectRoute('route_fixture');
   const settings = host.questionSettings();
@@ -96,15 +393,16 @@ test('route selection is explicit, checked, stable and clears prior private sele
   assert.equal(host.snapshot().today, null);
   host.dispose();
 });
-test('context replacement during an awaited aggregate clears every private surface', async () => {
-  const waiting = deferred<unknown>(); let key = 'a'.repeat(64);
+test('context replacement during an awaited aggregate clears every private surface', { timeout: 10000 }, async () => {
+  const waiting = deferred<unknown>(), reached = deferred<void>(); let key = 'a'.repeat(64);
   const fixture = transport(method => {
     if (method === 'ui.context') return context(key);
-    if (method === 'dashboard.get') return waiting.promise;
+    if (method === 'models.list') return [route];
+    if (method === 'dashboard.get') { reached.resolve(); return waiting.promise; }
     throw Error('Receipt read must not begin after authority change');
   });
-  const host = createHostController(fixture.port, { now: clock }), refresh = host.refresh();
-  for (let count = 0; count < 8 && !fixture.calls.some(call => call.method === 'dashboard.get'); count++) await Promise.resolve();
+  const host = createHostController(fixture.port, legacyHostOptions()), refresh = host.refresh();
+  await reached.promise;
   assert.equal(fixture.calls.some(call => call.method === 'dashboard.get'), true);
   key = 'b'.repeat(64); waiting.resolve(dashboard()); await refresh;
   assert.equal(host.snapshot().context, null);
@@ -123,9 +421,9 @@ test('lock clears evidence before its transport completes and discards old recei
     if (method === 'workspace.lock') return locking.promise;
     throw Error('Unexpected synthetic call');
   });
-  const host = createHostController(fixture.port, { now: clock }); await host.refresh(); holdReceipt = true;
+  const host = createHostController(fixture.port, legacyHostOptions()); await host.refresh(); holdReceipt = true;
   const reading = host.openReceipt('receipt_billed', { place: 'today', sub: 'today', sheet: 'receipt_billed' });
-  for (let count = 0; count < 8 && fixture.calls.filter(call => call.method === 'receipts.get').length < 5; count++) await Promise.resolve();
+  for (let count = 0; count < 100 && fixture.calls.filter(call => call.method === 'receipts.get').length < 5; count++) await Promise.resolve();
   const locked = host.lock();
   assert.equal(host.snapshot().phase, 'locked'); assert.equal(host.snapshot().today, null); assert.equal(host.snapshot().receipt, null);
   waiting.resolve(receipt('billed')); locking.resolve({ locked: true }); await reading; await locked;
@@ -140,7 +438,7 @@ test('receipt replacement and disposal cannot release an earlier reply', async (
     if (method === 'receipts.get') return holdReceipt ? waiting.promise : receipt((payload as { id: string }).id.slice('receipt_'.length));
     throw Error('Unexpected synthetic call');
   });
-  const host = createHostController(fixture.port, { now: clock }); await host.refresh(); holdReceipt = true;
+  const host = createHostController(fixture.port, legacyHostOptions()); await host.refresh(); holdReceipt = true;
   const reading = host.openReceipt('receipt_billed', { place: 'today', sub: 'today', sheet: 'receipt_billed' });
   host.closeReceipt(); host.dispose(); waiting.resolve(receipt('billed')); await reading;
   assert.equal(host.snapshot().today, null); assert.equal(host.snapshot().receipt, null);
@@ -154,7 +452,7 @@ test('malformed context/catalogue and accessors fail without evaluation or priva
   assert.throws(() => validateUiContext(malformed)); assert.equal(accessed, false);
 });
 test('an Ask intent cannot preview an unselected route', async () => {
-  const fixture = transport(), host = createHostController(fixture.port, { now: clock }); await host.refresh();
+  const fixture = transport(), host = createHostController(fixture.port, legacyHostOptions()); await host.refresh();
   const result = await host.conversation.preview({ question: '  Fixture question  ', purpose: 'conversation', questionDisclosure: 'verbatim', routeId: 'route_fixture' });
   assert.equal(result.ok, false);
   assert.equal(fixture.calls.some(call => call.method === 'models.preview'), false);
@@ -168,7 +466,7 @@ test('a viewer may hide its own workspace without issuing the admin-only Engine 
     if (method === 'receipts.get') return receipt((payload as { id: string }).id.slice('receipt_'.length));
     throw Error('Viewer must not invoke Engine lock');
   });
-  const host = createHostController(fixture.port, { now: clock }); await host.refresh();
+  const host = createHostController(fixture.port, legacyHostOptions()); await host.refresh();
   host.selectRoute('route_fixture'); assert.equal(host.questionSettings(), null);
   await host.lock(); assert.equal(host.snapshot().phase, 'locked'); assert.equal(host.snapshot().today, null);
   const beforeRefresh = fixture.calls.length; await host.refresh(); assert.equal(fixture.calls.length, beforeRefresh);
@@ -183,7 +481,7 @@ test('idle authority checks read metadata only and clear private evidence on rep
     if (method === 'receipts.get') return receipt((payload as { id: string }).id.slice('receipt_'.length));
     throw Error('Unexpected synthetic call');
   });
-  const host = createHostController(fixture.port, { now: clock }); await host.refresh();
+  const host = createHostController(fixture.port, legacyHostOptions()); await host.refresh();
   const callCount = fixture.calls.length; key = 'b'.repeat(64); await host.checkAuthority();
   assert.deepEqual(fixture.calls.slice(callCount).map(call => call.method), ['ui.context']);
   assert.equal(host.snapshot().today, null); assert.equal(host.snapshot().context, null); assert.equal(host.snapshot().code, 'ACCESS_DENIED'); host.dispose();
@@ -200,7 +498,7 @@ test('a conversation readback cancelled while the host holds its own before-disp
     if (method === 'conversation.get') return saved;
     throw Error(`Unexpected synthetic dispatch ${String(method)}`);
   });
-  const host = createHostController(fixture.port, { now: clock }); await host.refresh();
+  const host = createHostController(fixture.port, legacyHostOptions()); await host.refresh();
   const before = fixture.calls.length; armed = true;
   const pending = host.conversation.open(saved.id);
   // The conversation published its busy readback and the host's own inner context read is held; no raw readback was issued.
@@ -233,7 +531,7 @@ test('an issued readback denied after its cancellation or replacement invalidate
       if (method === 'conversation.get') return hold ? denial.promise : saved;
       throw Error(`Unexpected synthetic dispatch ${String(method)}`);
     });
-    const host = createHostController(fixture.port, { now: clock }); await host.refresh(); hold = true;
+    const host = createHostController(fixture.port, legacyHostOptions()); await host.refresh(); hold = true;
     const pending = host.conversation.open(saved.id);
     // The raw readback was actually issued and is held.
     for (let i = 0; i < 64 && fixture.count('conversation.get') < 1; i++) await Promise.resolve();
@@ -282,7 +580,7 @@ test('every conversation stage carries its own operation guard and legitimate mu
     if (method === 'conversation.synthesis.run') return final;
     throw Error(`Unexpected synthetic dispatch ${String(method)}`);
   });
-  const host = createHostController(fixture.port, { now: clock }); await host.refresh(); host.selectRoute('route_fixture');
+  const host = createHostController(fixture.port, legacyHostOptions()); await host.refresh(); host.selectRoute('route_fixture');
   const before = fixture.calls.length;
   assert.deepEqual(await host.conversation.preview(reviewedRequest), { ok: true });
   assert.deepEqual(await host.conversation.sendReviewed(consentFor(host)), { ok: true });
@@ -363,14 +661,14 @@ function lessonReview(): ReviewRow {
 }
 
 test('omitting the trusted Today producer retains the legacy refresh journey and exact locked empty snapshot', { timeout: 10000 }, async () => {
-  const fixture = transport(), host = createHostController(fixture.port, { now: clock });
+  const fixture = transport(), host = createHostController(fixture.port, legacyHostOptions());
   assert.equal(host.todayConsumer, null);
   await host.refreshToday();
   assert.equal(host.snapshot().today?.statsEvidence.length, 3);
   assert.equal(fixture.count('dashboard.get'), 1); assert.equal(fixture.count('receipts.get'), 4);
   assert.deepEqual(todayMethods(fixture.calls), []);
   await host.lock();
-  assert.deepEqual(host.snapshot(), { phase: 'locked', code: 'VAULT_LOCKED', context: null, today: null, routes: [], selectedRouteId: null, receipt: null });
+  assert.deepEqual(host.snapshot(), { phase: 'locked', code: 'VAULT_LOCKED', context: null, today: null, routes: [], selectedRouteId: null, receipt: null, dictionaryReviewRequired: false, todayConfiguration: 'not-configured', creation: { kind: 'idle' } });
   host.dispose();
 });
 test('explicit missing Today display is honest missing state with zero Today get or prepare and no clock inference', { timeout: 10000 }, async () => {
@@ -386,7 +684,7 @@ test('explicit missing Today display is honest missing state with zero Today get
 test('explicit display with no configuration reads metadata then actual Today get without dashboard, defaults or automatic prepare', { timeout: 10000 }, async () => {
   const fixture = producerTransport(), host = createHostController(fixture.port, { todayProducer: { display: displayedDay }, now: () => { throw Error('Today display must remain explicit'); }, timeZone: 'America/Los_Angeles' });
   await host.refreshToday(); const consumer = requireToday(host);
-  assert.deepEqual(fixture.calls.map(call => call.method), ['ui.context', 'ui.context', 'models.list', 'ui.context', 'ui.context', 'today.get', 'ui.context']);
+  assert.deepEqual(fixture.calls.map(call => call.method), ['ui.context', 'ontology.get', 'ui.context', 'ui.context', 'models.list', 'ui.context', 'ui.context', 'today.get', 'ui.context']);
   assert.deepEqual(fixture.calls.find(call => call.method === 'today.get')?.payload, displayedDay);
   assert.equal(host.snapshot().today, null); assert.equal(consumer.snapshot().phase, 'ready');
   assert.equal(consumer.snapshot().response?.atomic, false); assert.equal(consumer.snapshot().response?.noAction, true); assert.equal(consumer.snapshot().response?.productReviewCount, null);
@@ -515,7 +813,7 @@ test('review resolves the exact full row pin before a genuine action list read, 
     assert.equal(detail?.kind ?? null, outcome === 'accepted' ? 'action' : null, outcome);
     assert.deepEqual(fixture.calls.find(call => call.method === 'today.resolveReview')?.payload, { reference: row.reference });
     assert.equal(fixture.count('actions.list'), outcome === 'resolver-changed' ? 0 : 1, outcome);
-    assert.deepEqual(fixture.calls.filter(call => !['ui.context', 'models.list'].includes(call.method)).map(call => call.method), outcome === 'resolver-changed' ? ['today.get', 'today.resolveReview'] : ['today.get', 'today.resolveReview', 'actions.list']);
+    assert.deepEqual(fixture.calls.filter(call => !['ui.context', 'models.list'].includes(call.method)).map(call => call.method), outcome === 'resolver-changed' ? ['ontology.get', 'today.get', 'today.resolveReview'] : ['ontology.get', 'today.get', 'today.resolveReview', 'actions.list']);
     const before = fixture.calls.length; assert.equal(await consumer.review(view, chosen, liveToday), null); assert.equal(fixture.calls.length, before, outcome);
     assert.equal(fixture.calls.some(call => ['actions.approve', 'jobs.approve', 'jobs.accept', 'memory.decideLesson'].includes(call.method)), false); host.dispose();
   }
@@ -686,7 +984,7 @@ test('an import event resolves exact native IDs before legacy sources.list; only
     assert.equal(detail?.kind ?? null, outcome === 'accepted' ? 'import' : null, outcome); assert.equal(getterCalls, 0, outcome);
     assert.deepEqual(fixture.calls.find(call => call.method === 'today.resolveEvent')?.payload, { ...displayedDay, eventId: event.id });
     assert.equal(fixture.count('sources.list'), resolverChanged ? 0 : 1, outcome);
-    assert.deepEqual(fixture.calls.filter(call => !['ui.context', 'models.list'].includes(call.method)).map(call => call.method), resolverChanged ? ['today.get', 'today.resolveEvent'] : ['today.get', 'today.resolveEvent', 'sources.list']);
+    assert.deepEqual(fixture.calls.filter(call => !['ui.context', 'models.list'].includes(call.method)).map(call => call.method), resolverChanged ? ['ontology.get', 'today.get', 'today.resolveEvent'] : ['ontology.get', 'today.get', 'today.resolveEvent', 'sources.list']);
     if (outcome === 'accepted') {
       const { expectedTotals: omitted, ...expected } = imported; assert.equal(omitted, undefined);
       assert.deepEqual(detail?.record, { event, current: expected }); assert.equal(detail?.title, event.reference.sourceId); assert.deepEqual(detail?.receiptIds, []);

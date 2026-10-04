@@ -2,11 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import {
   createDesktopRequestPort, createDesktopReceiptReader, readFailureCode, unwrapDesktopRequestEnvelope,
 } from '../../app/ui/src/bridge/client.ts';
 import { createHostController } from '../../app/ui/src/host/controller.ts';
 import { createConversationHost } from '../../app/ui/src/bridge/conversation-host.ts';
+import { todayRefusalCodes } from '../../app/ui/src/bridge/contract.ts';
+import { ENGINE_DICTIONARY_REFUSALS, firstRunFailure, type FirstRunMethod } from '../../app/ui/src/screens/first-run/contracts.ts';
+import { createFirstRunController, type IssuanceEvent } from '../../app/ui/src/screens/first-run/controller.ts';
+import { allReviewed, pinOf } from '../../app/ui/src/screens/first-run/review.ts';
+import { engine as frozenFirstRunEngine, nodeDigest, settle, syntheticEngine } from '../../app/ui/tests/first-run/fixture.ts';
 import { fullCalculationReceiptFixture } from '../../app/ui/tests/fixtures.ts';
 import { loadElectronPreloadFixture } from './fixtures/electron-context-bridge.ts';
 
@@ -17,6 +23,11 @@ interface FixtureApi {
 const preloadPath = new URL('../../app/desktop/preload.cjs', import.meta.url);
 const preloadSource = await readFile(preloadPath, 'utf8');
 const refusal = (code: string) => ({ ok: false, error: { code, message: 'Synthetic private detail must stay in preload.' } });
+const require = createRequire(import.meta.url);
+const { validateRequest, publicError } = require('../../app/desktop/ipc-contract.cjs') as {
+  validateRequest(input: unknown): { method: string; payload: Record<string, unknown> };
+  publicError(error: unknown): { code: string; message: string };
+};
 function fixture(invoke: (method: string, payload: unknown) => unknown | Promise<unknown>) {
   const calls: { method: string; payload: unknown }[] = [];
   const { api } = loadElectronPreloadFixture<FixtureApi>({ source: preloadSource, filename: preloadPath.pathname,
@@ -27,6 +38,16 @@ function fixture(invoke: (method: string, payload: unknown) => unknown | Promise
     },
   });
   return { api, port: createDesktopRequestPort(api), calls };
+}
+// Actual IPC validation/error projection, preload source and renderer adapter;
+// the dispatcher and both Electron data copies remain source-only fixtures.
+function validatedFixture(dispatch: (method: string, payload: Record<string, unknown>) => unknown | Promise<unknown>) {
+  return fixture(async (method, payload) => {
+    try {
+      const request = validateRequest({ method, payload });
+      return { ok: true, result: await dispatch(request.method, request.payload) };
+    } catch (error) { return { ok: false, error: publicError(error) }; }
+  });
 }
 
 test('copied legacy Error loses VAULT_LOCKED but resolved envelope preserves it through the actual preload', async t => {
@@ -98,7 +119,11 @@ test('preload and renderer refusal allowlists agree and unknown failures carry n
   const clientSource = await readFile(new URL('../../app/ui/src/bridge/client.ts', import.meta.url), 'utf8');
   const codes = (source: string, expression: RegExp) => [...source.match(expression)![1]!.matchAll(/'([A-Z_]+)'/g)].map(match => match[1]!).sort();
   const preloadCodes = codes(preloadSource, /const refusalCodes = new Set\(\[([\s\S]*?)\]\);/);
-  assert.deepEqual(preloadCodes, codes(clientSource, /const desktopRefusalCodes = \[([\s\S]*?)\] as const;/));
+  assert.match(clientSource, /\.\.\.todayRefusalCodes/);
+  const rendererCodes = [...codes(clientSource, /const desktopRefusalCodes = \[([\s\S]*?)\] as const;/), ...todayRefusalCodes].sort();
+  assert.equal(new Set(preloadCodes).size, preloadCodes.length);
+  assert.equal(new Set(rendererCodes).size, rendererCodes.length);
+  assert.deepEqual(preloadCodes, rendererCodes);
   for (const code of preloadCodes) {
     const h = fixture(() => refusal(code));
     await assert.rejects(h.port.request('ui.context', {}), { code });
@@ -113,6 +138,76 @@ test('preload and renderer refusal allowlists agree and unknown failures carry n
   }
   const h = fixture(() => { throw Object.assign(new Error('VAULT_LOCKED: synthetic private SQL'), { code: 'VAULT_LOCKED', cause: 'secret' }); });
   assert.deepEqual(await h.api.requestEnvelope('ui.context'), { version: 1, ok: false, error: { code: 'REQUEST_FAILED' } });
+});
+
+test('dictionary and deferred-creation refusals cross IPC validation and both bridge copies with only their safe code', async () => {
+  const draft = (await frozenFirstRunEngine()).rawPack(0);
+  for (const code of [...ENGINE_DICTIONARY_REFUSALS, 'INVALID_DICTIONARY_MODE'] as const) {
+    const method = code === 'INVALID_DICTIONARY_MODE' ? 'workspace.create' : 'ontology.publish';
+    const payload = code === 'INVALID_DICTIONARY_MODE'
+      ? { name: 'Synthetic bridge creation', passphrase: 'Synthetic transport fixture only', dictionaryMode: 'deferred', demo: false }
+      : { draft, expectedCurrentHash: null, attemptId: 'synthetic_bridge_publication' };
+    const expectedJson = JSON.stringify(payload);
+    const h = validatedFixture((actualMethod, actualPayload) => {
+      assert.equal(actualMethod, method); assert.equal(JSON.stringify(actualPayload), expectedJson);
+      throw Object.assign(new Error('Synthetic private publication detail'), { code, cause: 'Synthetic private cause' });
+    });
+    const wire = await h.api.requestEnvelope(method, payload);
+    assert.deepEqual(wire, { version: 1, ok: false, error: { code } });
+    assert.equal(Object.isFrozen(wire), true);
+    assert.equal(Object.isFrozen((wire as { error: object }).error), true);
+    await assert.rejects(h.port.request(method, payload), error => {
+      const local = error as Error & { code: string };
+      assert.equal(local.code, code); assert.equal(local.message, 'The desktop request failed.');
+      assert.equal(Object.hasOwn(local, 'cause'), false);
+      assert.equal(JSON.stringify(local).includes('Synthetic private'), false);
+      assert.equal(local.stack?.includes('Synthetic private'), false);
+      if (code !== 'INVALID_DICTIONARY_MODE') assert.deepEqual(firstRunFailure(local), { code: 'PUBLISH_REFUSED', engineCode: code });
+      return true;
+    });
+    assert.deepEqual(h.calls, [{ method, payload }, { method, payload }], 'Each explicit transport probe dispatches once without retry.');
+  }
+});
+
+test('first-run publication settles a bridged CAS refusal but retains an unknown bridged outcome without retry', async () => {
+  for (const code of ['DICTIONARY_CONFLICT', 'SYNTHETIC_DICTIONARY_PRIVATE'] as const) {
+    const synthetic = await syntheticEngine();
+    synthetic.onRequest(method => {
+      if (method === 'ontology.publish') throw Object.assign(new Error('Synthetic private publication refusal'), { code });
+      return undefined;
+    });
+    const h = validatedFixture((method, payload) => synthetic.port.request(method as FirstRunMethod, payload as never));
+    const controller = createFirstRunController(h.port, { guard: { live: () => true }, digest: nodeDigest,
+      createAttemptId: () => 'synthetic_bridge_controller_attempt' });
+    const events: IssuanceEvent[] = [];
+    controller.onIssuance(event => { events.push(event); });
+    assert.deepEqual(await controller.load(), { ok: true });
+    assert.deepEqual(controller.choosePack('ecommerce'), { ok: true });
+    await settle();
+    const review = controller.snapshot(); assert.ok(review.kind === 'review');
+    const pin = pinOf(review.review); assert.ok(pin);
+    for (const row of review.review.rows) assert.deepEqual(controller.acceptRow(row.definition.name, pin), { ok: true });
+    assert.deepEqual(controller.acceptSettings(pin), { ok: true });
+    const result = await controller.publishDictionary(pin);
+    assert.equal(synthetic.count('ontology.publish'), 1); assert.equal(synthetic.current(), null);
+    if (code === 'DICTIONARY_CONFLICT') {
+      assert.deepEqual(result, { ok: false, code: 'PUBLISH_REFUSED' });
+      const shown = controller.snapshot(); assert.ok(shown.kind === 'review');
+      assert.deepEqual(shown.notice, { code: 'PUBLISH_REFUSED', engineCode: 'DICTIONARY_CONFLICT' });
+      assert.equal(allReviewed(shown.review), true); assert.equal(controller.issuance(), 'none');
+      assert.deepEqual(events, [{ kind: 'issued' }, { kind: 'settled', outcome: 'not-committed' }]);
+      assert.deepEqual(controller.dispose(), { ok: true });
+    } else {
+      assert.deepEqual(result, { ok: false, code: 'PUBLISH_UNKNOWN' });
+      assert.equal(controller.snapshot().kind, 'unknown'); assert.equal(controller.issuance(), 'unresolved');
+      assert.deepEqual(events, [{ kind: 'issued' }, { kind: 'settled', outcome: 'unresolved' }]);
+      assert.deepEqual(await controller.reconcile(), { ok: false, code: 'PUBLISH_UNKNOWN' });
+      assert.equal(controller.issuance(), 'unresolved', 'An absent receipt cannot settle an issued publication.');
+      assert.deepEqual(controller.dispose(), { ok: false, code: 'PUBLISH_UNRESOLVED' });
+      assert.equal(synthetic.count('ontology.publish'), 1, 'Readback must not retry publication.');
+    }
+    assert.equal(JSON.stringify(controller.snapshot()).includes('Synthetic private'), false);
+  }
 });
 
 test('renderer rejects malformed envelopes without reading getters, coercing codes or accepting prototypes', async () => {

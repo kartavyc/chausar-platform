@@ -2,6 +2,7 @@ import { useRef, useState, type ReactElement } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { createHash, webcrypto } from 'node:crypto';
+import { engine as frozenFirstRunEngine, nodeDigest } from '../../app/ui/tests/first-run/fixture';
 import userEvent from '@testing-library/user-event';
 import { AskLine, useVoiceHold, type AskLineProps } from '../../app/ui/src/app/AskLine';
 import { TextProvider } from '../../app/ui/src/app/text';
@@ -393,6 +394,10 @@ function todayTransport() {
     calls.push({ method, payload: structuredClone(payload) });
     if (method === 'ui.context') return contexts.shift()?.promise ?? structuredClone(CONTEXT);
     const override = behavior.get(method); if (override) return override(payload);
+    if (method === 'ontology.get') {
+      const frozen = await frozenFirstRunEngine(), current = frozen.compile(frozen.pack(0), 1, 'member_fixture', TODAY_AT);
+      return { current, history: [current] };
+    }
     if (method === 'models.list') return [];
     if (method === 'today.get') return { ...engineToday(), ...('tileCapture' in payload ? { tiles: { state: 'prepared', value: prepared } } : {}) };
     if (method === 'today.prepareTiles') return prepared;
@@ -421,7 +426,9 @@ function todayTransport() {
 }
 async function mountedToday(input: TodayProducerInput = { display: DISPLAY }, view: 'guided' | 'simple' | 'books' = 'guided', language: 'en' | 'hi' = 'en') {
   const fixture = todayTransport();
-  const controller = createHostController(fixture.port, { todayProducer: input, now: () => { throw Error('Producer Today must not infer its business display from the clock'); } });
+  const controller = createHostController(fixture.port, { todayProducer: input,
+    firstRun: { digest: nodeDigest },
+    now: () => { throw Error('Producer Today must not infer its business display from the clock'); } });
   const container = document.createElement('div'); document.body.append(container);
   const legacy = vi.fn();
   await act(async () => { const mounted = mountHost(container, controller, { view, language, onLegacyReturn: legacy }); todayDisposals.push(mounted.dispose); });

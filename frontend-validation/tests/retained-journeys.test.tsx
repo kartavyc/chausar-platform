@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { engine as frozenFirstRunEngine, nodeDigest } from '../../app/ui/tests/first-run/fixture';
 import { parse, type Root, type Rule } from 'postcss';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
@@ -273,6 +274,10 @@ function transport() {
     }
     switch (method) {
       case 'ui.context': return behavior.context;
+      case 'ontology.get': {
+        const frozen = await frozenFirstRunEngine(), current = frozen.compile(frozen.pack(0), 1, 'member_fixture', AT);
+        return { current, history: [current] };
+      }
       case 'models.list': return [route];
       case 'dashboard.get': return { workspace: { ...behavior.context.workspace, currency: 'INR', createdAt: AT }, calculations: receipts, factCount: 3, sources: 2, decisions: [], waitingActions: [], jobs: [], policy: { send: 'nothing', autonomy: false, allowedSources: ['*'], retentionDays: 90, sharing: false }, dictionary: null, lastActivity: [] };
       case 'receipts.get': { const id = (payload as { id: string }).id; return receipts.find(item => item.id === id) ?? (id === 'receipt_fixture' ? fullCalculationReceiptFixture() : undefined); }
@@ -311,7 +316,7 @@ function transport() {
   } };
   const count = (method: string) => calls.filter(call => call.method === method).length;
   const methods = (from = 0) => calls.slice(from).map(call => call.method);
-  const retainedOrDomain = (from = 0) => methods(from).filter(method => !['ui.context', 'dashboard.get', 'receipts.get', 'models.list', 'workspace.lock'].includes(method));
+  const retainedOrDomain = (from = 0) => methods(from).filter(method => !['ui.context', 'ontology.get', 'dashboard.get', 'receipts.get', 'models.list', 'workspace.lock'].includes(method));
   const payloads = (method: string) => calls.filter(call => call.method === method).map(call => call.payload);
   /** Holds the next raw call of `method` after it was issued (it is counted first). */
   const hold = (method: string) => { const held = gate(); behavior.holds[method] = held; return () => { held.release(); }; };
@@ -329,13 +334,20 @@ function transport() {
 }
 
 async function mounted(language: 'en' | 'hi' = 'en', scenarioSelection: typeof PIN | null = PIN) {
+  // Each independent synthetic host starts on Today; the real mount preserves incoming routes.
+  // Replace the address before mounting so an earlier fixture's Saved route issues no new reads.
+  window.history.replaceState(null, '', '#/today');
   const fixture = transport();
-  const controller = createHostController(fixture.port, { now: () => Date.parse('2026-10-03T12:00:00.000Z'), timeZone: 'UTC' });
+  const controller = createHostController(fixture.port, { now: () => Date.parse('2026-10-03T12:00:00.000Z'), timeZone: 'UTC',
+    firstRun: { digest: nodeDigest },
+    dashboard: { title: 'Today', date: '2026-10-03', request: { period: { from: '2026-10-01', to: '2026-10-31' } },
+      selections: [{ operation: 'billed', figureKey: 'total' }, { operation: 'received', figureKey: 'total' }, { operation: 'margin', figureKey: 'contribution' }] } });
   const container = document.createElement('div'); document.body.append(container);
   await act(async () => {
     const host = mountHost(container, controller, { language, ...(scenarioSelection === null ? {} : { scenarioSelection }) }); disposals.push(host.dispose);
   });
   await waitFor(() => expect(controller.snapshot().phase).toBe('ready'));
+  await waitFor(() => expect(controller.snapshot().today).not.toBeNull());
   // Today's own global receipt reads happen at mount; retained journeys must add none.
   const globalReads = fixture.count('receipts.get');
   // Synthetic inputs omit timer spacing; user-event keeps dispatch, pointer and disabled-control checks.

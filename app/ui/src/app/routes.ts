@@ -14,7 +14,7 @@ export type SevenPlace = 'today' | 'ask' | 'work' | 'books' | 'reports' | 'tools
 
 export const SEVEN_PLACES: ReadonlyArray<SevenPlace> = ['today', 'ask', 'work', 'books', 'reports', 'tools', 'trust'];
 
-const KNOWN: ReadonlySet<string> = new Set<string>([...SEVEN_PLACES, 'company', 'clients', 'more']);
+const KNOWN: ReadonlySet<string> = new Set<string>([...SEVEN_PLACES, 'company', 'clients', 'more', 'first-run']);
 
 function isPlaceId(s: string): s is PlaceId {
   return KNOWN.has(s);

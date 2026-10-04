@@ -17,7 +17,7 @@ interface Controller {
 }
 interface BundleExports {
   createDesktopRequestPort(bridge: { requestEnvelope(method: string, payload?: unknown): Promise<unknown> }): RequestPort;
-  createHostController(port: RequestPort, options?: { timeZone: string }): Controller;
+  createHostController(port: RequestPort, options?: { timeZone?: string; todayProducer?: object }): Controller;
   mountHost: (...args: unknown[]) => unknown;
 }
 async function loadActualBundle(context: Context = createContext({})) {
@@ -89,8 +89,8 @@ async function shellFixture(protocol: 'chausar:' | 'https:', token: string | nul
   });
   const hostBoundary = new SyntheticModule(['createDesktopRequestPort', 'createHostController', 'mountHost'], function () {
     this.setExport('createDesktopRequestPort', actual.exports.createDesktopRequestPort);
-    this.setExport('createHostController', (port: RequestPort, options: { timeZone: string }) => {
-      capturedPort = port; assert.equal(options.timeZone, 'UTC');
+    this.setExport('createHostController', (port: RequestPort, options: { todayProducer: object }) => {
+      capturedPort = port; assert.deepEqual(ordinary(options), { todayProducer: {} });
       return { async checkAuthority() { checks++; }, invalidate(code: string) { invalidations.push(code); } };
     });
     this.setExport('mountHost', (element: unknown, _controller: unknown, options: { onLegacyReturn(): void }) => {
@@ -131,7 +131,8 @@ test('actual bundled adapter and controller preserve VAULT_LOCKED and clear priv
   const controller = actual.exports.createHostController(port, { timeZone: 'UTC' });
   try {
     await controller.refresh();
-    assert.deepEqual(ordinary(controller.snapshot()), { phase: 'locked', code: 'VAULT_LOCKED', context: null, today: null, routes: [], selectedRouteId: null, receipt: null });
+    assert.deepEqual(ordinary(controller.snapshot()), { phase: 'locked', code: 'VAULT_LOCKED', context: null, today: null, routes: [], selectedRouteId: null, receipt: null,
+      dictionaryReviewRequired: false, todayConfiguration: 'not-configured', creation: { kind: 'idle' } });
     assert.deepEqual(calls, ['ui.context']);
   } finally { controller.dispose(); }
 });
