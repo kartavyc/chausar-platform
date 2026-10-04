@@ -12,7 +12,8 @@ import type {
 export type EngineScenarioOptions = {
   calculatorOptions(view: StateStore, phase: 'calculate' | 'reopen'): ScenarioCalculatorOptions;
   /** Trusted synchronous generation covering all external readiness dependencies.
-   * Must change on every withdrawal/restoration; never supplied by RPC. Required for discovery. */
+   * Must change on every withdrawal/restoration; never supplied by RPC.
+   * Required for discovery and complete retained interchange admission. */
   discoveryAuthorityRevision?: (state: State) => string;
   now?: () => string;
 };
@@ -263,6 +264,58 @@ export class EngineScenarioService {
   }
   reopen(ctx: Context, id: string, revisionId: string): Promise<ScenarioView> {
     return this.#read(ctx, (service, current) => service.reopen(current, id, revisionId));
+  }
+  /** Trusted synchronous admission inside the interchange owner's existing custody fence.
+   * Retained history is released only through the actual immutable readers; this
+   * performs no snapshot acquisition, calculation, refresh or custody mutation.
+   * Reassert the returned current fence after reading other retained namespaces. */
+  assertInterchangeRead(context: Context, historical: State): () => void {
+    const ctx = structuredClone(context), state = this.#vault.read();
+    authorize(this.#store, ctx);
+    const retained = records(historical);
+    check(new Set(retained.map(record => record?.id)).size === retained.length,
+      'SCENARIO_CUSTODY_INVALID', 'Interchange requires distinct exact retained scenario identities.');
+    const authorityRevision = () => {
+      check(typeof this.#options.discoveryAuthorityRevision === 'function', 'SCENARIO_HOST_REQUIRED',
+        'Install a trusted current readiness generation before copying retained scenarios.');
+      const value: unknown = this.#options.discoveryAuthorityRevision(structuredClone(state));
+      if (value instanceof Promise) void value.catch(() => {});
+      check(typeof value === 'string' && value.length > 0 && value.length <= 512,
+        'SCENARIO_HOST_REQUIRED', 'Retained scenario readiness must have a synchronous bounded authority revision.');
+      return value;
+    };
+    const readiness = retained.length ? authorityRevision() : null;
+    const operation = this.#service(state, ctx, false);
+    for (const saved of retained) {
+      const current = operation.resolveReference(saved.id);
+      // Existing artifact digests canonicalize object keys. The interchange
+      // contract also preserves their original JSON order and every field.
+      check(JSON.stringify(current) === JSON.stringify(saved), 'SCENARIO_ARTIFACT_CHANGED',
+        'The complete retained scenario no longer matches exact current encrypted custody.');
+      check(current.revisions.length > 0, 'SCENARIO_REVISION_UNAVAILABLE', 'Retained scenario history needs its issued revisions.');
+      for (const revision of current.revisions) {
+        operation.service.reopen(ctx, current.id, revision.id);
+        // Discovery's graph reader includes immutable comparison receipts that
+        // an advanced evaluation ledger may no longer select for ordinary reopen.
+        operation.service.describe(ctx, current.id, revision.id);
+      }
+    }
+    const assertRelease = () => {
+      operation.assertRelease();
+      // A later record or namespace guard can withdraw an earlier record's
+      // readiness without changing Vault custody. One generation spans the read.
+      if (readiness !== null) check(authorityRevision() === readiness, 'SCENARIO_AUTHORITY_CHANGED',
+        'Source readiness changed while complete retained scenario history was read.');
+      // Readiness factories may cross a retention cutoff. Finish those callbacks
+      // before checking all historical records at the same final release instant.
+      if (retained.length) {
+        const releaseAt = (this.#options.now ?? now)();
+        for (const saved of retained) assertRetention(state, saved, releaseAt);
+      }
+      authorize(this.#store, ctx);
+    };
+    assertRelease();
+    return assertRelease;
   }
   /** Read-only historical metadata, authorized exactly as an immutable reopen. */
   discover(context: Context, request: ScenarioDiscoveryRequest = {}): Promise<ScenarioDiscoveryPage> {

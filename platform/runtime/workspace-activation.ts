@@ -1,5 +1,5 @@
 import { authorize, check, ChausarError, hash, type Context, type Member, type State } from './contracts.ts';
-import { compileDictionary, type Dictionary, type DictionaryDraft } from './ontology.ts';
+import { assertRetainedOntology, compileDictionary, type Dictionary, type DictionaryDraft, type HistoricalDictionaryPublicationEvidence } from './ontology.ts';
 import { canSeeFact } from './memory.ts';
 import { assertSourceAccess } from './trust.ts';
 import { proveEmptyWorkspaceTarget, WorkspaceImportCandidateService } from './workspace-import-candidate.ts';
@@ -18,17 +18,24 @@ export type WorkspaceActivationPolicy = {
 export type WorkspaceActivationAuthority = {
   workspaceId: string; owner: Member; context: Context; sessionAuthorityId: string; createdAt: string;
 };
-export type WorkspaceBusinessProjection = {
-  format: 'chausar.synthetic-business-projection.v1';
+export type WorkspaceOntologyDisposition = {
+  format: 'chausar.ontology-historical-projection.v1'; sourceWorkspaceId: string; sourceOntologyDigest: string;
+  publicationAttempts: 'absent' | 'inert-origin-evidence'; historicalPublicationEvidence: 'absent' | 'preserved';
+};
+type BusinessProjectionFields = {
   workspace: { name: string; currency: string };
   /** Reviewed fresh local policy, never the historical policy. */
   policy: State['policy'];
   ontology: State['ontology']; facts: State['facts']; imports: State['imports'];
   conflicts: State['conflicts']; merges: State['merges']; tombstones: State['tombstones']; sourceRules: State['sourceRules'];
 };
+export type WorkspaceBusinessProjection = BusinessProjectionFields & (
+  { format: 'chausar.synthetic-business-projection.v1' }
+  | { format: 'chausar.synthetic-business-projection.v2'; ontologyDisposition: WorkspaceOntologyDisposition }
+);
 export type WorkspaceActivationEvidence = {
   format: 'chausar.workspace-activation-evidence.v1'; inert: true;
-  /** Exact original authenticated candidate text and independent pin, including the complete historical archive. */
+  /** Exact original authenticated candidate text and independent pin, including unchanged private namespace history. */
   content: string; pin: WorkspaceInterchangeCustodyRecord['pin'];
 };
 export type WorkspaceActivationRecord = {
@@ -78,6 +85,8 @@ export type WorkspaceActivationReview = {
   qualification: 'test-fixture' | 'encrypted-local-host';
   liveStores: string[]; inertStores: string[]; facts: number; artifacts: number;
   legacyImportIds: string[]; inertImportIds: string[]; inertSourceRuleIds: string[];
+  /** Present only for the explicitly reviewed modern ontology projection. */
+  ontologyDisposition?: WorkspaceOntologyDisposition;
 };
 export type WorkspaceActivationSummary = {
   activationId: string; candidateId: string; workspaceId: string; targetId: string;
@@ -122,6 +131,32 @@ const equal = (a: unknown, b: unknown) => canonicalInterchangeJson(a) === canoni
 const legacyFormats = ['csv', 'bank-csv', 'tally-xml', 'zoho-json', 'shopify-json', 'gst-json'];
 const liveStores = ['ontology', 'facts', 'imports', 'conflicts', 'merges', 'tombstones', 'sourceRules'];
 const inertStores = ['members', 'policy', 'workspace', 'schemaVersion', 'revision', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning', 'plugins', 'modelReceipts', 'activity', 'conversations', 'routes', 'sessions', 'unsupported', 'schedules'];
+function historicalInertStores(historical: State): string[] {
+  // Presence is archive evidence even after purge. Do not invent an absent
+  // legacy namespace or rewrite an empty/pinned private lifecycle as live state.
+  return [...inertStores, ...(['scenarioRecords', 'lessonState'] as const).filter(name => Object.hasOwn(historical, name)),
+    ...(['publicationAttempts', 'historicalPublicationEvidence'] as const)
+      .filter(name => Object.hasOwn(historical.ontology ?? {}, name)).map(name => `ontology.${name}`)];
+}
+/** Preserve authenticated origins explicitly, instead of promoting historical
+ * receipts into the fresh owner's live attempt namespace. */
+function projectOntology(historical: State): { ontology: State['ontology']; disposition?: WorkspaceOntologyDisposition } {
+  const source = historical.ontology;
+  const modern = ['publicationAttempts', 'firstRunReviewRequired', 'historicalPublicationEvidence'].some(key => Object.hasOwn(source ?? {}, key));
+  if (!modern) { assertOntology(source); return { ontology: structuredClone(source) }; }
+  assertRetainedOntology(historical);
+  check(!Object.hasOwn(source, 'firstRunReviewRequired'), 'ACTIVATION_DICTIONARY',
+    'An unpublished deferred dictionary remains historical; fresh provisioning requires a separately reviewed policy.');
+  const published = { current: source.current, history: source.history };
+  assertOntology(published);
+  const evidence: HistoricalDictionaryPublicationEvidence[] = structuredClone(source.historicalPublicationEvidence ?? []);
+  if (Object.hasOwn(source, 'publicationAttempts')) evidence.push({ workspaceId: historical.workspace.id, publicationAttempts: structuredClone(source.publicationAttempts) });
+  return { ontology: { ...structuredClone(published), historicalPublicationEvidence: evidence },
+    disposition: { format: 'chausar.ontology-historical-projection.v1', sourceWorkspaceId: historical.workspace.id,
+      sourceOntologyDigest: interchangeDigest(source),
+      publicationAttempts: Object.hasOwn(source, 'publicationAttempts') ? 'inert-origin-evidence' : 'absent',
+      historicalPublicationEvidence: Object.hasOwn(source, 'historicalPublicationEvidence') ? 'preserved' : 'absent' } };
+}
 function assertDictionary(dictionary: Dictionary) {
   check(dictionary && typeof dictionary === 'object' && !Array.isArray(dictionary), 'ACTIVATION_DICTIONARY', 'Active ontology requires a complete published dictionary.');
   const { hash: publishedHash, ...content } = dictionary;
@@ -234,7 +269,7 @@ export class WorkspaceActivationHost {
     return { candidate, pin, historical, read: structuredClone(read) };
   }
   #project(historical: State): WorkspaceBusinessProjection {
-    assertOntology(historical.ontology);
+    const ontology = projectOntology(historical);
     const sources = [...new Set(historical.facts.map(f => f.sourceId))];
     check(sources.every(source => this.#policy.allowedSyntheticSourceIds.includes(source)), 'ACTIVATION_SOURCE_PROFILE', 'Every historical fact requires an explicitly approved synthetic source profile.');
     const managed = historical.imports.filter(item => typeof item?.type === 'string' && item.type.startsWith('connector-'));
@@ -269,10 +304,13 @@ export class WorkspaceActivationHost {
         && rule.sourceIds.every((source: unknown) => plainId(source) && this.#policy.allowedSyntheticSourceIds.includes(source)),
       'ACTIVATION_SOURCE_RULE', 'Historical precedence requires a complete inert business rule without carried access authority.');
     }
-    return structuredClone({ format: 'chausar.synthetic-business-projection.v1', workspace: { name: historical.workspace.name, currency: historical.workspace.currency },
+    const projected: WorkspaceBusinessProjection = { ...(ontology.disposition
+      ? { format: 'chausar.synthetic-business-projection.v2' as const, ontologyDisposition: ontology.disposition }
+      : { format: 'chausar.synthetic-business-projection.v1' as const }), workspace: { name: historical.workspace.name, currency: historical.workspace.currency },
       policy: { send: 'nothing', autonomy: false, allowedSources: [...this.#policy.allowedSyntheticSourceIds], retentionDays: this.#policy.retentionDays, sharing: false },
-      ontology: historical.ontology, facts: historical.facts, imports, conflicts: historical.conflicts,
-      merges: historical.merges, tombstones: historical.tombstones, sourceRules });
+      ontology: ontology.ontology, facts: historical.facts, imports, conflicts: historical.conflicts,
+      merges: historical.merges, tombstones: historical.tombstones, sourceRules };
+    return structuredClone(projected);
   }
   async #transaction<T>(context: Context, checked: CheckedCandidate, work: (lease: WorkspaceActivationLease, projection: WorkspaceBusinessProjection, current: () => Promise<void>) => Promise<T>): Promise<T> {
     let calls = 0;
@@ -321,13 +359,18 @@ export class WorkspaceActivationHost {
     'ACTIVATION_AUTHORITY', 'Root must allocate a distinct workspace with a fresh unrestricted owner and independent current desktop session authority.');
   }
   #state(projection: WorkspaceBusinessProjection, authority: WorkspaceActivationAuthority): State {
-    return { schemaVersion: 1, revision: 0,
+    // Private scenario ownership and lesson approvals belong to the original
+    // workspace/member/epoch. Their exact bytes remain in inert evidence only;
+    // the fresh workspace starts without either runtime namespace.
+    const state: State = { schemaVersion: 1, revision: 0,
       workspace: { id: authority.workspaceId, ...structuredClone(projection.workspace), demo: true, createdAt: authority.createdAt },
       members: [structuredClone(authority.owner)],
       policy: structuredClone(projection.policy),
       ontology: structuredClone(projection.ontology), facts: structuredClone(projection.facts), imports: structuredClone(projection.imports),
       conflicts: structuredClone(projection.conflicts), merges: structuredClone(projection.merges), tombstones: structuredClone(projection.tombstones), sourceRules: structuredClone(projection.sourceRules),
       receipts: [], answers: [], decisions: [], actions: [], jobs: [], learning: [], plugins: [], modelReceipts: [], activity: [], conversations: [], routes: [], sessions: [], unsupported: [], schedules: [] };
+    assertRetainedOntology(state);
+    return state;
   }
   async review(contextInput: Context, input: { candidateId: string; reviewedDigest: string }): Promise<WorkspaceActivationReview> {
     exact(input, ['candidateId', 'reviewedDigest']); const context = structuredClone(contextInput);
@@ -338,9 +381,10 @@ export class WorkspaceActivationHost {
       return { candidateId: checked.pin.recordId, reviewedDigest: checked.pin.candidateDigest, projectionDigest: interchangeDigest(projection),
         packageDigest: checked.pin.packageDigest, targetId: checked.pin.target.targetId, workspaceId: checked.pin.target.workspaceId,
         sourceWorkspaceId: checked.pin.inventory.generation.workspaceId, qualification: checked.read.measurement.qualification,
-        liveStores: [...liveStores], inertStores: [...inertStores], facts: projection.facts.length, artifacts: checked.pin.inventory.artifacts.length,
+        liveStores: [...liveStores], inertStores: historicalInertStores(checked.historical), facts: projection.facts.length, artifacts: checked.pin.inventory.artifacts.length,
         legacyImportIds: projection.imports.map(item => item.id), inertImportIds: checked.historical.imports.filter(item => !legacyFormats.includes(item?.format)).map(item => item.id),
-        inertSourceRuleIds: checked.historical.sourceRules.filter(rule => !projection.sourceRules.some(active => equal(rule, active))).map(rule => rule.id) };
+        inertSourceRuleIds: checked.historical.sourceRules.filter(rule => !projection.sourceRules.some(active => equal(rule, active))).map(rule => rule.id),
+        ...(projection.format === 'chausar.synthetic-business-projection.v2' ? { ontologyDisposition: structuredClone(projection.ontologyDisposition) } : {}) };
     });
   }
   #readback(value: WorkspaceActivationReadback, activationId: string, context: Context, expected?: WorkspaceActivationCommit): WorkspaceActivationSummary {

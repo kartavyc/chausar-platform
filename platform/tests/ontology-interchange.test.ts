@@ -44,21 +44,22 @@ function deferredState(): State {
   return state;
 }
 
-test('deferred review marker survives exact interchange readback and independent pin rejects coherent removal', async t => {
+test('deferred review marker survives exact interchange readback, rejects invalid values and pins coherent removal', async t => {
   const state = deferredState();
   const capture = captureWorkspaceInterchange(state, artifactsFor(state));
   const accepted = validateWorkspaceInterchange(encodeWorkspaceInterchange(capture.package), capture.inventory);
   assert.deepEqual(readHistoricalWorkspaceState(accepted).ontology, state.ontology);
   assert.equal(accepted.stores.find(store => store.manifest.name === 'ontology')!.text, JSON.stringify(state.ontology));
   assert.deepEqual(JSON.parse(accepted.readable.definitions), state.ontology);
-  for (const [name, mutate] of [
-    ['removed marker', (copy: State) => { delete copy.ontology.firstRunReviewRequired; }],
-    ['disabled marker', (copy: State) => { copy.ontology.firstRunReviewRequired = false; }],
-  ] as const) await t.test(name, () => {
-    const copy = structuredClone(state); mutate(copy);
+  await t.test('removed marker', () => {
+    const copy = structuredClone(state); delete copy.ontology.firstRunReviewRequired;
     const rewritten = encodeWorkspaceInterchange(captureWorkspaceInterchange(copy, artifactsFor(copy)).package);
     assert.doesNotThrow(() => inspectWorkspaceInterchange(rewritten));
     assert.throws(() => validateWorkspaceInterchange(rewritten, capture.inventory), code('INTERCHANGE_AUTHORITY_CHANGED'));
+  });
+  await t.test('disabled marker', () => {
+    const copy = structuredClone(state); copy.ontology.firstRunReviewRequired = false;
+    assert.throws(() => captureWorkspaceInterchange(copy, artifactsFor(copy)), code('INVALID_DICTIONARY_OPTIONS'));
   });
   const activation = activationReview(readHistoricalWorkspaceState(accepted));
   await assert.rejects(activation.review(), code('ACTIVATION_DICTIONARY'));
@@ -88,7 +89,7 @@ test('reconstructed deferred source requires exact reviewed attempt before its f
   assert.deepEqual(readHistoricalWorkspaceState(validateWorkspaceInterchange(encodeWorkspaceInterchange(complete.package), complete.inventory)), published);
 });
 
-test('legacy interchange retains publication receipts, exact dictionary history and original actor bindings', async () => {
+test('versioned interchange retains publication receipts, exact dictionary history and original actor bindings', async () => {
   const state = await publicationState(), profileBefore = workspaceStateProfile();
   const capture = captureWorkspaceInterchange(state, artifactsFor(state));
   const wire = encodeWorkspaceInterchange(capture.package);
@@ -110,23 +111,27 @@ test('legacy interchange retains publication receipts, exact dictionary history 
   assert.deepEqual(readHistoricalWorkspaceState(accepted).ontology, state.ontology);
 });
 
-test('independently pinned interchange refuses receipt removal and coherent origin or publication rewrites', async t => {
+test('interchange rejects malformed receipt rewrites and independently pins structurally valid receipt changes', async t => {
   const state = await publicationState();
   const original = captureWorkspaceInterchange(state, artifactsFor(state));
-  const changes: [string, (copy: State) => void][] = [
-    ['missing receipt namespace', copy => { delete copy.ontology.publicationAttempts; }],
-    ['empty receipt namespace', copy => { copy.ontology.publicationAttempts = []; }],
-    ['attempt identity', copy => { copy.ontology.publicationAttempts[0].attemptId = 'different_attempt'; }],
-    ['fresh workspace', copy => { copy.ontology.publicationAttempts[0].workspaceId = 'fresh_workspace'; }],
-    ['fresh owner', copy => { copy.ontology.publicationAttempts[0].memberId = 'fresh_owner'; }],
-    ['fresh epoch', copy => { copy.ontology.publicationAttempts[0].epoch++; }],
-    ['draft digest', copy => { copy.ontology.publicationAttempts[0].draftDigest = 'a'.repeat(64); }],
-    ['reviewed baseline', copy => { copy.ontology.publicationAttempts[0].expectedCurrentHash = null; }],
-    ['later dictionary', copy => { copy.ontology.publicationAttempts[0].dictionaryHash = copy.ontology.current.hash; }],
-    ['later version', copy => { copy.ontology.publicationAttempts[0].version++; }],
+  const changes: [string, (copy: State) => void, boolean][] = [
+    ['missing receipt namespace', copy => { delete copy.ontology.publicationAttempts; }, false],
+    ['empty receipt namespace', copy => { copy.ontology.publicationAttempts = []; }, false],
+    ['attempt identity', copy => { copy.ontology.publicationAttempts[0].attemptId = 'different_attempt'; }, false],
+    ['fresh workspace', copy => { copy.ontology.publicationAttempts[0].workspaceId = 'fresh_workspace'; }, true],
+    ['fresh owner', copy => { copy.ontology.publicationAttempts[0].memberId = 'fresh_owner'; }, true],
+    ['fresh epoch', copy => { copy.ontology.publicationAttempts[0].epoch++; }, false],
+    ['draft digest', copy => { copy.ontology.publicationAttempts[0].draftDigest = 'a'.repeat(64); }, true],
+    ['reviewed baseline', copy => { copy.ontology.publicationAttempts[0].expectedCurrentHash = null; }, false],
+    ['later dictionary', copy => { copy.ontology.publicationAttempts[0].dictionaryHash = copy.ontology.current.hash; }, true],
+    ['later version', copy => { copy.ontology.publicationAttempts[0].version++; }, true],
   ];
-  for (const [name, change] of changes) await t.test(name, () => {
+  for (const [name, change, malformed] of changes) await t.test(name, () => {
     const copy = structuredClone(state); change(copy);
+    if (malformed) {
+      assert.throws(() => captureWorkspaceInterchange(copy, artifactsFor(copy)), code('INVALID_DICTIONARY_RECEIPT'));
+      return;
+    }
     // Recapture recomputes every internal checksum. Structural consistency does
     // not replace independently retained source provenance.
     const rewritten = encodeWorkspaceInterchange(captureWorkspaceInterchange(copy, artifactsFor(copy)).package);
@@ -174,12 +179,18 @@ function activationReview(state: State) {
   }), counts: () => ({ allocations, commits, guards }) };
 }
 
-test('existing fresh-owner activation explicitly refuses the unreviewed publication receipt namespace', async t => {
+test('fresh-owner review explicitly declares publication receipts as inert origin evidence', async t => {
   const state = await publicationState();
   for (const retained of [state.ontology.publicationAttempts, []]) await t.test(retained.length ? 'retained attempts' : 'empty attempts', async () => {
     const copy = structuredClone(state); copy.ontology.publicationAttempts = retained;
     const activation = activationReview(copy);
-    await assert.rejects(activation.review(), code('ACTIVATION_DICTIONARY'));
+    const review = await activation.review();
+    assert.deepEqual(review.ontologyDisposition, {
+      format: 'chausar.ontology-historical-projection.v1', sourceWorkspaceId: copy.workspace.id,
+      sourceOntologyDigest: interchangeDigest(copy.ontology), publicationAttempts: 'inert-origin-evidence',
+      historicalPublicationEvidence: 'absent',
+    });
+    assert.ok(review.inertStores.includes('ontology.publicationAttempts'));
     assert.equal(activation.counts().allocations, 0); assert.equal(activation.counts().commits, 0);
     assert.ok(activation.counts().guards > 0);
     assert.deepEqual(copy.ontology.publicationAttempts, retained);

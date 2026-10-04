@@ -26,9 +26,9 @@ function reseal(value: any): string {
 
 test('reviewed profile exhaustively matches every actual persisted State key', () => {
   const actual = Object.keys(initialState('synthetic profile fixture', true)).sort();
-  assert.deepEqual(workspaceStateProfile().stores.map(store => store.name), actual);
+  assert.deepEqual(workspaceStateProfile(initialState('synthetic profile fixture', true)).stores.map(store => store.name), actual);
   assert.equal(COLLECTION_STORES.length, 21); assert.equal(SINGLETON_STORES.length, 5);
-  const profile = workspaceStateProfile(); profile.stores.pop(); assert.equal(workspaceStateProfile().stores.length, 26);
+  const profile = workspaceStateProfile(); profile.stores.pop(); assert.equal(workspaceStateProfile().stores.length, 28);
 });
 
 test('codec deterministically preserves every store, literal, readable meaning and retained byte', () => {

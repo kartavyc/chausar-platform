@@ -15,6 +15,8 @@ export type DictionaryPublicationReceipt = {
   attemptId: string; workspaceId: string; memberId: string; epoch: number;
   draftDigest: string; expectedCurrentHash: string | null; dictionaryHash: string; version: number;
 };
+/** Authenticated transfer evidence, never a live publication receipt. */
+export type HistoricalDictionaryPublicationEvidence = { workspaceId: string; publicationAttempts: DictionaryPublicationReceipt[] };
 export type OntologySnapshot = { current: Dictionary | null; history: Dictionary[]; attempt?: DictionaryPublicationReceipt | null };
 
 const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
@@ -73,15 +75,14 @@ function currentDictionary(state: State): Dictionary | null {
   const value = state.ontology;
   return value?.current ?? (value?.operations ? value : null);
 }
-function retainedAttempts(state: State): DictionaryPublicationReceipt[] {
-  const value = state.ontology?.publicationAttempts;
-  if (value === undefined) return [];
+type OntologyState = Pick<State, 'workspace' | 'ontology'>;
+function validateAttempts(state: OntologyState, value: unknown, workspaceId: string): DictionaryPublicationReceipt[] {
   check(Array.isArray(value), 'INVALID_DICTIONARY_RECEIPT', 'Retained publication evidence must be a collection.');
   const identities = new Set<string>();
   for (const receipt of value) {
     check(exactKeys(receipt, ['attemptId', 'workspaceId', 'memberId', 'epoch', 'draftDigest', 'expectedCurrentHash', 'dictionaryHash', 'version'])
       && attemptIdentity(receipt.attemptId) && !identities.has(receipt.attemptId)
-      && receipt.workspaceId === state.workspace.id && typeof receipt.memberId === 'string' && receipt.memberId.length > 0
+      && receipt.workspaceId === workspaceId && typeof receipt.memberId === 'string' && receipt.memberId.length > 0
       && Number.isSafeInteger(receipt.epoch) && (receipt.epoch as number) > 0
       && digest(receipt.draftDigest) && (receipt.expectedCurrentHash === null || digest(receipt.expectedCurrentHash))
       && digest(receipt.dictionaryHash) && Number.isSafeInteger(receipt.version) && (receipt.version as number) > 0,
@@ -98,6 +99,51 @@ function retainedAttempts(state: State): DictionaryPublicationReceipt[] {
       'INVALID_DICTIONARY_RECEIPT', 'Retained publication evidence must match its published draft.');
   }
   return value as DictionaryPublicationReceipt[];
+}
+function retainedAttempts(state: OntologyState): DictionaryPublicationReceipt[] {
+  return Object.hasOwn(state.ontology ?? {}, 'publicationAttempts')
+    ? validateAttempts(state, state.ontology.publicationAttempts, state.workspace.id) : [];
+}
+function historicalPublicationEvidence(state: OntologyState): HistoricalDictionaryPublicationEvidence[] {
+  if (!Object.hasOwn(state.ontology ?? {}, 'historicalPublicationEvidence')) return [];
+  const evidence: unknown = state.ontology.historicalPublicationEvidence;
+  check(Array.isArray(evidence), 'INVALID_DICTIONARY_RECEIPT', 'Historical publication evidence requires its explicit collection.');
+  const origins = new Set<string>();
+  for (const item of evidence) {
+    check(exactKeys(item, ['workspaceId', 'publicationAttempts']) && typeof item.workspaceId === 'string'
+      && /^[A-Za-z0-9_.:-]{1,200}$/.test(item.workspaceId) && item.workspaceId !== state.workspace.id && !origins.has(item.workspaceId),
+    'INVALID_DICTIONARY_RECEIPT', 'Historical publication origins must remain distinct from current workspace authority.');
+    origins.add(item.workspaceId);
+    validateAttempts(state, item.publicationAttempts, item.workspaceId);
+  }
+  return evidence as HistoricalDictionaryPublicationEvidence[];
+}
+/** Exact modern ontology schema shared by publication and versioned historical
+ * codecs. Legacy namespace absence requires no invented fields or migration. */
+export function assertRetainedOntology(state: OntologyState): void {
+  const ontology = state.ontology;
+  if (!['publicationAttempts', 'firstRunReviewRequired', 'historicalPublicationEvidence'].some(key => Object.hasOwn(ontology ?? {}, key))) return;
+  check(exactKeys(ontology, ['current', 'history'], ['publicationAttempts', 'firstRunReviewRequired', 'historicalPublicationEvidence'])
+    && Array.isArray(ontology.history), 'INVALID_DICTIONARY_RECEIPT', 'Retained ontology requires its exact declared review and evidence fields.');
+  if (Object.hasOwn(ontology, 'firstRunReviewRequired')) {
+    check(ontology.firstRunReviewRequired === true && ontology.current === null && ontology.history.length === 0
+      && !Object.hasOwn(ontology, 'publicationAttempts') && !Object.hasOwn(ontology, 'historicalPublicationEvidence'),
+    'INVALID_DICTIONARY_OPTIONS', 'Deferred review must retain an empty unpublished dictionary without publication evidence.');
+    return;
+  }
+  check(ontology.current && ontology.history.length > 0 && JSON.stringify(ontology.current) === JSON.stringify(ontology.history.at(-1))
+    && ontology.history.every((dictionary: Dictionary, index: number) => dictionary && digest(dictionary.hash)
+      && Number.isSafeInteger(dictionary.version) && dictionary.version > 0
+      && (index === 0 || dictionary.version > ontology.history[index - 1].version)
+      && hash(Object.fromEntries(Object.entries(dictionary).filter(([key]) => key !== 'hash'))) === dictionary.hash),
+  'INVALID_DICTIONARY_RECEIPT', 'Publication evidence requires exact current and ordered dictionary history.');
+  const live = retainedAttempts(state), historical = historicalPublicationEvidence(state);
+  const historicalIds = new Set(historical.flatMap(origin => origin.publicationAttempts.map(receipt => receipt.attemptId)));
+  check(live.every(receipt => !historicalIds.has(receipt.attemptId)), 'INVALID_DICTIONARY_RECEIPT', 'A historical attempt cannot acquire current publication authority.');
+}
+function assertNotHistoricalAttempt(state: OntologyState, attemptId: string): void {
+  check(!historicalPublicationEvidence(state).some(origin => origin.publicationAttempts.some(receipt => receipt.attemptId === attemptId)),
+    'DICTIONARY_ATTEMPT_AUTHORITY', 'This publication attempt remains evidence of another workspace and cannot authorize a fresh publication.');
 }
 function assertAttemptActor(receipt: DictionaryPublicationReceipt, state: State, ctx: Context) {
   check(receipt.workspaceId === state.workspace.id && receipt.memberId === ctx.memberId && receipt.epoch === ctx.epoch,
@@ -191,6 +237,8 @@ export class OntologyService {
     const state = this.store.read();
     const result: OntologySnapshot = { current: structuredClone(currentDictionary(state)), history: structuredClone(state.ontology?.history ?? []) };
     if (lookup) {
+      assertRetainedOntology(state);
+      assertNotHistoricalAttempt(state, request.attemptId!);
       const receipt = retainedAttempts(state).find(item => item.attemptId === request.attemptId);
       if (receipt) assertAttemptActor(receipt, state, ctx);
       // Absence is unknown, including while an accepted update is still queued.
@@ -222,8 +270,10 @@ export class OntologyService {
     try { return await this.store.update(state => {
       authorize(this.store, actor, 'admin');
       check(state.workspace.id === workspaceId, 'ACCESS_REVOKED', 'Your workspace access has changed. Sign in again.');
+      assertRetainedOntology(state);
       const attempts = retainedAttempts(state);
       if (retainedOptions.attemptId) {
+        assertNotHistoricalAttempt(state, retainedOptions.attemptId);
         const receipt = attempts.find(item => item.attemptId === retainedOptions.attemptId);
         if (receipt) {
           assertAttemptActor(receipt, state, actor);
@@ -247,7 +297,9 @@ export class OntologyService {
         draftDigest, expectedCurrentHash: retainedOptions.expectedCurrentHash!, dictionaryHash: compiled.hash, version: compiled.version,
       });
       state.ontology = { current: compiled, history: [...(state.ontology?.history ?? []), compiled],
-        ...(attempts.length ? { publicationAttempts: attempts } : {}) };
+        ...(attempts.length || Object.hasOwn(state.ontology ?? {}, 'publicationAttempts') ? { publicationAttempts: attempts } : {}),
+        ...(Object.hasOwn(state.ontology ?? {}, 'historicalPublicationEvidence')
+          ? { historicalPublicationEvidence: structuredClone(state.ontology.historicalPublicationEvidence) } : {}) };
       for (const answer of [...state.answers, ...state.receipts]) { answer.stale = true; answer.staleReason = 'The dictionary changed.'; }
       state.learning.push({ id: `dictionary_${compiled.hash}`, at: now(), category: 'dictionary', decision: 'published', version: compiled.version, definitionNames: compiled.definitions.map(d => d.name), shared: false });
       audit(state, 'dictionary.published', { version: compiled.version, hash: compiled.hash, pack: compiled.pack });

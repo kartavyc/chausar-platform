@@ -358,6 +358,70 @@ export class LessonService {
     this.authorize(context); this.unchanged(basis);
     return structuredClone(record);
   }
+  /** Complete historical read admission for an installed trusted interchange host.
+   * The clock and policy are sampled by that host under its existing custody
+   * fence. No lesson, approval or target is changed or promoted by this read. */
+  assertInterchangeRead(context: Context, historical: LessonState, retention: { at: string; days: number }): void {
+    context = immutableContext(context);
+    const basis = this.basis(); this.authorize(context);
+    fields(historical, ['workspaceId', 'episodes', 'lessons']); this.workspace(historical.workspaceId);
+    check(Array.isArray(historical.episodes) && Array.isArray(historical.lessons)
+      && new Set(historical.episodes.map(episode => episode?.id)).size === historical.episodes.length
+      && new Set(historical.lessons.map(record => record?.id)).size === historical.lessons.length,
+    'INVALID_LESSON_STATE', 'Interchange requires distinct retained episode and lesson identities.');
+    check(retention && typeof retention.at === 'string' && typeof retention.days === 'number',
+      'LESSON_RETENTION_EXPIRED', 'Supply the trusted current lesson retention sample.');
+    const instant = Date.parse(retention.at), days = retention.days;
+    check(Number.isFinite(instant) && Number.isInteger(days) && days >= 1 && days <= 3650,
+      'LESSON_RETENTION_EXPIRED', 'Current lesson retention authority is unavailable.');
+    const cutoff = instant - days * 86400000;
+    const retainedDate = (value: string) => check(typeof value === 'string' && Number.isFinite(Date.parse(value))
+      && Date.parse(value) >= cutoff, 'LESSON_RETENTION_EXPIRED', 'The complete retained lesson exceeds current retention.');
+    const current = this.store.read();
+    for (const episode of historical.episodes) {
+      fields(episode, ['kind', 'id', 'evidence', 'recordedBy', 'recordedAt', 'digest']);
+      check(episode.kind === 'episode' && text(episode.id) && same(episode.recordedBy, actor(context)),
+        'LESSON_OWNER_REQUIRED', 'Retained episodes belong to their exact owner and permission epoch.');
+      intact(episode); retainedDate(episode.recordedAt);
+      const matches = current.episodes.filter(item => item.id === episode.id);
+      check(matches.length === 1 && JSON.stringify(matches[0]) === JSON.stringify(episode),
+        'LESSON_CHANGED', 'The retained episode no longer matches exact current encrypted custody.');
+      const evidence = this.options.evidence.assertCurrent(context, [episode.evidence.pin]);
+      assertLessonEvidenceSnapshot(evidence, [episode.evidence]);
+    }
+    for (const record of historical.lessons) {
+      const matches = current.lessons.filter(item => item.id === record.id);
+      check(matches.length === 1 && JSON.stringify(matches[0]) === JSON.stringify(record),
+        'LESSON_CHANGED', 'The complete lesson no longer matches exact current encrypted custody.');
+      // Unlike the current-guidance listing, history includes terminal lessons,
+      // every candidate revision and every historical evaluation binding.
+      const released = this.history(context, record.id);
+      check(JSON.stringify(released) === JSON.stringify(record), 'LESSON_CHANGED', 'Retained lesson history changed at release.');
+      for (const candidate of record.revisions) {
+        retainedDate(candidate.proposedAt);
+        check(Array.isArray(candidate.episodeIds) && candidate.episodeIds.length === candidate.evidence.length
+          && new Set(candidate.episodeIds).size === candidate.episodeIds.length,
+        'LESSON_CHANGED', 'The complete candidate episode coverage changed.');
+        for (const [index, id] of candidate.episodeIds.entries()) {
+          const episodes = historical.episodes.filter(episode => episode.id === id);
+          check(episodes.length === 1 && same(episodes[0].recordedBy, candidate.owner)
+            && episodes[0].recordedAt === candidate.proposedAt && same(episodes[0].evidence, candidate.evidence[index]),
+          'LESSON_CHANGED', 'Every candidate must retain its exact evidence episode and owner.');
+        }
+        if (candidate.supersedes) this.assertHistoricalPin(historical, candidate.supersedes);
+      }
+      for (const event of record.events) {
+        retainedDate(event.at);
+        if (event.successor) this.assertHistoricalPin(historical, event.successor);
+      }
+    }
+    this.authorize(context); this.unchanged(basis);
+  }
+  private assertHistoricalPin(state: LessonState, reference: LessonPin) {
+    const matches = state.lessons.filter(record => record.id === reference.id)
+      .flatMap(record => record.revisions.filter(candidate => same(pin(candidate), reference)));
+    check(matches.length === 1, 'LESSON_CHANGED', 'Retained lifecycle references need their exact complete candidate history.');
+  }
   private guidance(context: Context, record: LessonRecord, scope: LessonApplicableContext): LessonGuidance | undefined {
     this.integrity(record); const candidate = this.candidate(record); this.access(context, candidate);
     const view = this.view(record);

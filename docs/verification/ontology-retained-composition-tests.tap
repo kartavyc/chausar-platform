@@ -1,0 +1,3632 @@
+TAP version 13
+# Subtest: fresh packaged UI has an actual synthetic workspace before window construction and usable trusted receipts
+ok 1 - fresh packaged UI has an actual synthetic workspace before window construction and usable trusted receipts
+  ---
+  duration_ms: 554.669261
+  type: 'test'
+  ...
+# Subtest: current-month packaged preview displays authored demo figures and fresh receipts while retaining honest Today gaps
+ok 2 - current-month packaged preview displays authored demo figures and fresh receipts while retaining honest Today gaps
+  ---
+  duration_ms: 445.05281
+  type: 'test'
+  ...
+# Subtest: unpackaged UI, legacy demo and production never automatically seed a workspace
+ok 3 - unpackaged UI, legacy demo and production never automatically seed a workspace
+  ---
+  duration_ms: 24.274209
+  type: 'test'
+  ...
+# Subtest: ordinary UI preserves an existing locked workspace and its trusted return to legacy
+ok 4 - ordinary UI preserves an existing locked workspace and its trusted return to legacy
+  ---
+  duration_ms: 352.122497
+  type: 'test'
+  ...
+# Subtest: seed failure refuses every window path without recovery or retry
+ok 5 - seed failure refuses every window path without recovery or retry
+  ---
+  duration_ms: 10.753206
+  type: 'test'
+  ...
+# Subtest: pending seed blocks activate and second-instance until startup is complete
+ok 6 - pending seed blocks activate and second-instance until startup is complete
+  ---
+  duration_ms: 234.252183
+  type: 'test'
+  ...
+# Subtest: quit during pending seed drains exactly once and never publishes a late window
+ok 7 - quit during pending seed drains exactly once and never publishes a late window
+  ---
+  duration_ms: 222.376917
+  type: 'test'
+  ...
+# Subtest: occupied synthetic workspace is retained when a fresh packaged bootstrap cannot create main
+ok 8 - occupied synthetic workspace is retained when a fresh packaged bootstrap cannot create main
+  ---
+  duration_ms: 364.113581
+  type: 'test'
+  ...
+# Subtest: reused profiles and explicit user-data-dir cannot fall back to a real profile or start an Engine
+ok 9 - reused profiles and explicit user-data-dir cannot fall back to a real profile or start an Engine
+  ---
+  duration_ms: 13.254975
+  type: 'test'
+  ...
+# Subtest: deferred Engine creation and fresh reopen publish no dictionary until the exact reviewed first submission
+ok 10 - deferred Engine creation and fresh reopen publish no dictionary until the exact reviewed first submission
+  ---
+  duration_ms: 528.978356
+  type: 'test'
+  ...
+# Subtest: deferred review requirement is present in the initial encrypted commit before Engine attaches the Vault
+ok 11 - deferred review requirement is present in the initial encrypted commit before Engine attaches the Vault
+  ---
+  duration_ms: 318.60272
+  type: 'test'
+  ...
+# Subtest: omitted and explicit legacy creation retain immediate starter and synthetic demo behavior
+    # Subtest: omitted legacy
+    ok 1 - omitted legacy
+      ---
+      duration_ms: 144.307991
+      type: 'test'
+      ...
+    # Subtest: explicit legacy
+    ok 2 - explicit legacy
+      ---
+      duration_ms: 149.044747
+      type: 'test'
+      ...
+    # Subtest: synthetic demo legacy
+    ok 3 - synthetic demo legacy
+      ---
+      duration_ms: 177.405852
+      type: 'test'
+      ...
+    1..3
+ok 12 - omitted and explicit legacy creation retain immediate starter and synthetic demo behavior
+  ---
+  duration_ms: 471.938888
+  type: 'test'
+  ...
+# Subtest: invalid or ambiguous deferred creation refuses before workspace custody is created
+ok 13 - invalid or ambiguous deferred creation refuses before workspace custody is created
+  ---
+  duration_ms: 3.482596
+  type: 'test'
+  ...
+# Subtest: deferred creation retains its initial options across asynchronous workspace creation
+ok 14 - deferred creation retains its initial options across asynchronous workspace creation
+  ---
+  duration_ms: 326.138374
+  type: 'test'
+  ...
+# Subtest: deferred creation retains the legacy fresh-owner authorization requirement
+    # Subtest: synthetic-other-owner:owner:1
+    ok 1 - synthetic-other-owner:owner:1
+      ---
+      duration_ms: 161.34146
+      type: 'test'
+      ...
+    # Subtest: owner:owner:2
+    ok 2 - owner:owner:2
+      ---
+      duration_ms: 151.684642
+      type: 'test'
+      ...
+    # Subtest: owner:cofounder:1
+    ok 3 - owner:cofounder:1
+      ---
+      duration_ms: 115.589597
+      type: 'test'
+      ...
+    # Subtest: owner:viewer:1
+    ok 4 - owner:viewer:1
+      ---
+      duration_ms: 159.095514
+      type: 'test'
+      ...
+    1..4
+ok 15 - deferred creation retains the legacy fresh-owner authorization requirement
+  ---
+  duration_ms: 589.019918
+  type: 'test'
+  ...
+# Subtest: Engine preserves adjacent publication CAS and attempts and rejects forged request options
+ok 16 - Engine preserves adjacent publication CAS and attempts and rejects forged request options
+  ---
+  duration_ms: 166.264585
+  type: 'test'
+  ...
+# Subtest: Engine dispatch preserves legacy direct drafts and named starter packs with explicit publication options
+ok 17 - Engine dispatch preserves legacy direct drafts and named starter packs with explicit publication options
+  ---
+  duration_ms: 204.549561
+  type: 'test'
+  ...
+# Subtest: Engine dropped publication response is attributable only by its exact retained attempt after later publication
+ok 18 - Engine dropped publication response is attributable only by its exact retained attempt after later publication
+  ---
+  duration_ms: 165.173093
+  type: 'test'
+  ...
+# Subtest: private scenario retention expiry during actual encrypted commit refuses release without replaying publication
+ok 19 - private scenario retention expiry during actual encrypted commit refuses release without replaying publication
+  ---
+  duration_ms: 315.882226
+  type: 'test'
+  ...
+# Subtest: private custody commit failure releases no result and preserves actual encrypted namespaces
+    # Subtest: scenario
+    ok 1 - scenario
+      ---
+      duration_ms: 342.693797
+      type: 'test'
+      ...
+    # Subtest: lesson
+    ok 2 - lesson
+      ---
+      duration_ms: 309.824678
+      type: 'test'
+      ...
+    1..2
+ok 20 - private custody commit failure releases no result and preserves actual encrypted namespaces
+  ---
+  duration_ms: 653.455768
+  type: 'test'
+  ...
+# Subtest: two queued exact-head scenario writes serialize and only one original head can commit
+ok 21 - two queued exact-head scenario writes serialize and only one original head can commit
+  ---
+  duration_ms: 257.459383
+  type: 'test'
+  ...
+# Subtest: private scenario captures exclude derived namespaces and detach retained callback and result aliases
+ok 22 - private scenario captures exclude derived namespaces and detach retained callback and result aliases
+  ---
+  duration_ms: 384.253817
+  type: 'test'
+  ...
+# Subtest: actual encrypted custody refuses malformed or recursively captured private namespaces before publication
+    # Subtest: retained evidence containing scenarioRecords
+    ok 1 - retained evidence containing scenarioRecords
+      ---
+      duration_ms: 2.670539
+      type: 'test'
+      ...
+    # Subtest: retained evidence containing lessonState
+    ok 2 - retained evidence containing lessonState
+      ---
+      duration_ms: 2.481192
+      type: 'test'
+      ...
+    # Subtest: malformed scenarioRecords
+    ok 3 - malformed scenarioRecords
+      ---
+      duration_ms: 2.479605
+      type: 'test'
+      ...
+    # Subtest: malformed lessonState
+    ok 4 - malformed lessonState
+      ---
+      duration_ms: 2.695831
+      type: 'test'
+      ...
+    1..4
+ok 23 - actual encrypted custody refuses malformed or recursively captured private namespaces before publication
+  ---
+  duration_ms: 210.073853
+  type: 'test'
+  ...
+# Subtest: imported fact fields cannot establish private source existence or additional cleanup grant roots
+ok 24 - imported fact fields cannot establish private source existence or additional cleanup grant roots
+  ---
+  duration_ms: 236.107747
+  type: 'test'
+  ...
+# Subtest: retention cleanup purges whole private records and episodes without refreshing their old evidence
+    # Subtest: fresh scenario head does not renew its original retained cut
+    ok 1 - fresh scenario head does not renew its original retained cut
+      ---
+      duration_ms: 380.345304
+      type: 'test'
+      ...
+    # Subtest: lesson and episode age expires even while their original trusted job remains
+    ok 2 - lesson and episode age expires even while their original trusted job remains
+      ---
+      duration_ms: 348.100188
+      type: 'test'
+      ...
+    1..2
+ok 25 - retention cleanup purges whole private records and episodes without refreshing their old evidence
+  ---
+  duration_ms: 729.296986
+  type: 'test'
+  ...
+# Subtest: evaluation-only source deletion purges the whole lesson and its owned episodes while retaining unrelated custody
+ok 26 - evaluation-only source deletion purges the whole lesson and its owned episodes while retaining unrelated custody
+  ---
+  duration_ms: 367.930979
+  type: 'test'
+  ...
+# Subtest: zero-row requested source is a private deletion root and malformed receipt lineage cannot commit
+    # Subtest: malformed actual receipt import collection refuses encrypted publication
+    ok 1 - malformed actual receipt import collection refuses encrypted publication
+      ---
+      duration_ms: 2.545796
+      type: 'test'
+      ...
+    1..1
+ok 27 - zero-row requested source is a private deletion root and malformed receipt lineage cannot commit
+  ---
+  duration_ms: 379.130078
+  type: 'test'
+  ...
+# Subtest: synthetic SQL-verifier refusal leaves the issued scenario run retryable without new run identity
+ok 28 - synthetic SQL-verifier refusal leaves the issued scenario run retryable without new run identity
+  ---
+  duration_ms: 306.09195
+  type: 'test'
+  ...
+# Subtest: synchronous configured lesson authority withdrawal rolls back the whole encrypted transaction
+ok 29 - synchronous configured lesson authority withdrawal rolls back the whole encrypted transaction
+  ---
+  duration_ms: 155.940126
+  type: 'test'
+  ...
+# Subtest: queued private writes recheck durable member deactivation and epoch withdrawal before callback publication
+    # Subtest: deactivate
+    ok 1 - deactivate
+      ---
+      duration_ms: 165.383426
+      type: 'test'
+      ...
+    # Subtest: epoch
+    ok 2 - epoch
+      ---
+      duration_ms: 108.211089
+      type: 'test'
+      ...
+    1..2
+ok 30 - queued private writes recheck durable member deactivation and epoch withdrawal before callback publication
+  ---
+  duration_ms: 274.517375
+  type: 'test'
+  ...
+# Subtest: scenario release after held publication observes member and source withdrawals queued before its fresh read
+    # Subtest: epoch
+    ok 1 - epoch
+      ---
+      duration_ms: 120.199878
+      type: 'test'
+      ...
+    # Subtest: source
+    ok 2 - source
+      ---
+      duration_ms: 114.664949
+      type: 'test'
+      ...
+    1..2
+ok 31 - scenario release after held publication observes member and source withdrawals queued before its fresh read
+  ---
+  duration_ms: 235.612235
+  type: 'test'
+  ...
+# Subtest: lesson callback and result aliases cannot mutate business state or revive an inherited microtask writer
+ok 32 - lesson callback and result aliases cannot mutate business state or revive an inherited microtask writer
+  ---
+  duration_ms: 129.557066
+  type: 'test'
+  ...
+# Subtest: Engine Today exposes the same scoped first four and full review queue without implicit preparation or effects
+ok 33 - Engine Today exposes the same scoped first four and full review queue without implicit preparation or effects
+  ---
+  duration_ms: 428.4657
+  type: 'test'
+  ...
+# Subtest: Engine Today rejects revoked contexts and undeclared top-level input before reaching producer methods
+ok 34 - Engine Today rejects revoked contexts and undeclared top-level input before reaching producer methods
+  ---
+  duration_ms: 159.704676
+  type: 'test'
+  ...
+# Subtest: Engine Today prepares only explicit tiles, freshly reopens every receipt, and refuses the capture after lock and reopen
+ok 35 - Engine Today prepares only explicit tiles, freshly reopens every receipt, and refuses the capture after lock and reopen
+  ---
+  duration_ms: 2038.265539
+  type: 'test'
+  ...
+# Subtest: Engine Today exact review references and continuation refuse a real action revision
+ok 36 - Engine Today exact review references and continuation refuse a real action revision
+  ---
+  duration_ms: 284.573409
+  type: 'test'
+  ...
+# Subtest: synthetic job evidence reaches exact candidate, bound evaluation, human approval and applicable guidance without protected writes
+ok 37 - synthetic job evidence reaches exact candidate, bound evaluation, human approval and applicable guidance without protected writes
+  ---
+  duration_ms: 92.203023
+  type: 'test'
+  ...
+# Subtest: calculation evidence carries the exact released source markings and receipt revision
+ok 38 - calculation evidence carries the exact released source markings and receipt revision
+  ---
+  duration_ms: 33.557977
+  type: 'test'
+  ...
+# Subtest: an absent evaluation authority cannot synthesize results or issue a review
+ok 39 - an absent evaluation authority cannot synthesize results or issue a review
+  ---
+  duration_ms: 12.727716
+  type: 'test'
+  ...
+# Subtest: both completed evaluation sets are required before human review or promotion
+ok 40 - both completed evaluation sets are required before human review or promotion
+  ---
+  duration_ms: 15.956953
+  type: 'test'
+  ...
+# Subtest: a incomplete synthetic hidden result blocks review and leaves no active guidance
+ok 41 - a incomplete synthetic hidden result blocks review and leaves no active guidance
+  ---
+  duration_ms: 22.532894
+  type: 'test'
+  ...
+# Subtest: a declined synthetic hidden result blocks review and leaves no active guidance
+ok 42 - a declined synthetic hidden result blocks review and leaves no active guidance
+  ---
+  duration_ms: 21.68816
+  type: 'test'
+  ...
+# Subtest: higher-is-better regression in either supplied evaluation set blocks promotion
+ok 43 - higher-is-better regression in either supplied evaluation set blocks promotion
+  ---
+  duration_ms: 42.986771
+  type: 'test'
+  ...
+# Subtest: lower-is-better regression in either supplied evaluation set blocks promotion
+ok 44 - lower-is-better regression in either supplied evaluation set blocks promotion
+  ---
+  duration_ms: 40.87596
+  type: 'test'
+  ...
+# Subtest: equal metrics meet the explicit supplied directions without an invented improvement threshold
+ok 45 - equal metrics meet the explicit supplied directions without an invented improvement threshold
+  ---
+  duration_ms: 38.751018
+  type: 'test'
+  ...
+# Subtest: evaluation provenance binds baseline, candidate, build, configuration, comparison and qualification
+ok 46 - evaluation provenance binds baseline, candidate, build, configuration, comparison and qualification
+  ---
+  duration_ms: 95.220392
+  type: 'test'
+  ...
+# Subtest: undeclared hidden evaluation baseline fields cannot enter lesson summaries
+ok 47 - undeclared hidden evaluation baseline fields cannot enter lesson summaries
+  ---
+  duration_ms: 17.7476
+  type: 'test'
+  ...
+# Subtest: undeclared hidden evaluation treatment fields cannot enter lesson summaries
+ok 48 - undeclared hidden evaluation treatment fields cannot enter lesson summaries
+  ---
+  duration_ms: 9.728225
+  type: 'test'
+  ...
+# Subtest: undeclared hidden evaluation metric fields cannot enter lesson summaries
+ok 49 - undeclared hidden evaluation metric fields cannot enter lesson summaries
+  ---
+  duration_ms: 9.045894
+  type: 'test'
+  ...
+# Subtest: open and hidden suites retain independently supplied authority and metric provenance
+ok 50 - open and hidden suites retain independently supplied authority and metric provenance
+  ---
+  duration_ms: 34.763304
+  type: 'test'
+  ...
+# Subtest: a changed evaluation summary under the original run digest cannot authorize human approval
+ok 51 - a changed evaluation summary under the original run digest cannot authorize human approval
+  ---
+  duration_ms: 27.456632
+  type: 'test'
+  ...
+# Subtest: a candidate diff, pin, or review token changed after review cannot be approved
+ok 52 - a candidate diff, pin, or review token changed after review cannot be approved
+  ---
+  duration_ms: 114.675553
+  type: 'test'
+  ...
+# Subtest: revision preserves the prior candidate and invalidates its review and evaluation binding
+ok 53 - revision preserves the prior candidate and invalidates its review and evaluation binding
+  ---
+  duration_ms: 80.484761
+  type: 'test'
+  ...
+# Subtest: current target revision and exact before value must still match through approval
+ok 54 - current target revision and exact before value must still match through approval
+  ---
+  duration_ms: 33.37693
+  type: 'test'
+  ...
+# Subtest: target schemas, evidence scope, conditions and counterexamples are required explicit inputs
+ok 55 - target schemas, evidence scope, conditions and counterexamples are required explicit inputs
+  ---
+  duration_ms: 6.898761
+  type: 'test'
+  ...
+# Subtest: episodes, procedures, business rules and protected ontology or calculation targets cannot enter personal lessons
+ok 56 - episodes, procedures, business rules and protected ontology or calculation targets cannot enter personal lessons
+  ---
+  duration_ms: 4.961873
+  type: 'test'
+  ...
+# Subtest: tainted contexts, evidence and source markings cannot create or approve reusable guidance
+ok 57 - tainted contexts, evidence and source markings cannot create or approve reusable guidance
+  ---
+  duration_ms: 34.303414
+  type: 'test'
+  ...
+# Subtest: changed evidence revisions, summaries or markings invalidate already reviewed approval
+ok 58 - changed evidence revisions, summaries or markings invalidate already reviewed approval
+  ---
+  duration_ms: 160.892345
+  type: 'test'
+  ...
+# Subtest: revoked current member, source, branch and evaluation-source access blocks promotion and guidance
+ok 59 - revoked current member, source, branch and evaluation-source access blocks promotion and guidance
+  ---
+  duration_ms: 413.226034
+  type: 'test'
+  ...
+# Subtest: preparer and viewer roles cannot supply human owner approval, and owner lessons remain private
+ok 60 - preparer and viewer roles cannot supply human owner approval, and owner lessons remain private
+  ---
+  duration_ms: 46.732717
+  type: 'test'
+  ...
+# Subtest: guidance is supplied only inside its explicit source, branch, conditions and counterexample scope
+ok 61 - guidance is supplied only inside its explicit source, branch, conditions and counterexample scope
+  ---
+  duration_ms: 67.724613
+  type: 'test'
+  ...
+# Subtest: human reject records a distinct decision and supplies no active guidance
+ok 62 - human reject records a distinct decision and supplies no active guidance
+  ---
+  duration_ms: 48.814788
+  type: 'test'
+  ...
+# Subtest: human defer records a distinct decision and supplies no active guidance
+ok 63 - human defer records a distinct decision and supplies no active guidance
+  ---
+  duration_ms: 46.485892
+  type: 'test'
+  ...
+# Subtest: retirement removes current and old-summary guidance while retaining permitted review history
+ok 64 - retirement removes current and old-summary guidance while retaining permitted review history
+  ---
+  duration_ms: 65.55161
+  type: 'test'
+  ...
+# Subtest: an explicitly approved successor supersedes old guidance without reviving cached summary pins
+ok 65 - an explicitly approved successor supersedes old guidance without reviving cached summary pins
+  ---
+  duration_ms: 120.073731
+  type: 'test'
+  ...
+# Subtest: returned detached candidates and history cannot mutate saved review or guidance
+ok 66 - returned detached candidates and history cannot mutate saved review or guidance
+  ---
+  duration_ms: 41.045735
+  type: 'test'
+  ...
+# Subtest: failed updates roll back and concurrent revisions require the same immutable pin
+ok 67 - failed updates roll back and concurrent revisions require the same immutable pin
+  ---
+  duration_ms: 17.801295
+  type: 'test'
+  ...
+# Subtest: workspace identity fences storage, evidence and old summary references
+ok 68 - workspace identity fences storage, evidence and old summary references
+  ---
+  duration_ms: 40.246674
+  type: 'test'
+  ...
+# Subtest: evidence resolver receives a frozen detached workspace, actor and immutable reference
+ok 69 - evidence resolver receives a frozen detached workspace, actor and immutable reference
+  ---
+  duration_ms: 1.594324
+  type: 'test'
+  ...
+# Subtest: evaluation source revocation prevents lesson views and history from exposing bound results
+ok 70 - evaluation source revocation prevents lesson views and history from exposing bound results
+  ---
+  duration_ms: 49.499123
+  type: 'test'
+  ...
+# Subtest: deferred decisions consume review tokens and rebinding evaluations requires a fresh human review
+ok 71 - deferred decisions consume review tokens and rebinding evaluations requires a fresh human review
+  ---
+  duration_ms: 77.459797
+  type: 'test'
+  ...
+# Subtest: propose rolls back when its final target validation revokes current member access
+ok 72 - propose rolls back when its final target validation revokes current member access
+  ---
+  duration_ms: 1.273165
+  type: 'test'
+  ...
+# Subtest: propose rolls back when its final target validation revokes current source access
+ok 73 - propose rolls back when its final target validation revokes current source access
+  ---
+  duration_ms: 1.176017
+  type: 'test'
+  ...
+# Subtest: review rolls back when its final target validation revokes current member access
+ok 74 - review rolls back when its final target validation revokes current member access
+  ---
+  duration_ms: 19.888477
+  type: 'test'
+  ...
+# Subtest: review rolls back when its final target validation revokes current source access
+ok 75 - review rolls back when its final target validation revokes current source access
+  ---
+  duration_ms: 20.435352
+  type: 'test'
+  ...
+# Subtest: decideLesson rolls back when its final target validation revokes current member access
+ok 76 - decideLesson rolls back when its final target validation revokes current member access
+  ---
+  duration_ms: 31.262506
+  type: 'test'
+  ...
+# Subtest: decideLesson rolls back when its final target validation revokes current source access
+ok 77 - decideLesson rolls back when its final target validation revokes current source access
+  ---
+  duration_ms: 31.616534
+  type: 'test'
+  ...
+# Subtest: current target authority refusal hides lesson previews, history and guidance
+ok 78 - current target authority refusal hides lesson previews, history and guidance
+  ---
+  duration_ms: 47.228477
+  type: 'test'
+  ...
+# Subtest: a later lesson resolver revoking an earlier source cannot release previously collected guidance or previews
+ok 79 - a later lesson resolver revoking an earlier source cannot release previously collected guidance or previews
+  ---
+  duration_ms: 143.914508
+  type: 'test'
+  ...
+# Subtest: queued human decisions keep the invocation context when callers change taint and channel flags
+ok 80 - queued human decisions keep the invocation context when callers change taint and channel flags
+  ---
+  duration_ms: 14.69555
+  type: 'test'
+  ...
+# Subtest: queued proposals retain tainted invocation context after the caller clears its flags
+ok 81 - queued proposals retain tainted invocation context after the caller clears its flags
+  ---
+  duration_ms: 0.475992
+  type: 'test'
+  ...
+# Subtest: retiring the approved predecessor invalidates a bound successor before human review
+ok 82 - retiring the approved predecessor invalidates a bound successor before human review
+  ---
+  duration_ms: 43.953947
+  type: 'test'
+  ...
+# Subtest: changed predecessor evaluation provenance invalidates an already bound successor review
+ok 83 - changed predecessor evaluation provenance invalidates an already bound successor review
+  ---
+  duration_ms: 66.483596
+  type: 'test'
+  ...
+# Subtest: revision-zero deferred review survives complete encrypted backup and inert restore before and after reviewed first publication
+ok 84 - revision-zero deferred review survives complete encrypted backup and inert restore before and after reviewed first publication
+  ---
+  duration_ms: 1605.056407
+  type: 'test'
+  ...
+# Subtest: publication before and after complete backups preserves exact old attempts, excludes later attempts from the first cut and reopens idempotently
+ok 85 - publication before and after complete backups preserves exact old attempts, excludes later attempts from the first cut and reopens idempotently
+  ---
+  duration_ms: 2300.930501
+  type: 'test'
+  ...
+# Subtest: backup-derived reviewed projection retains exact origin receipts as inert evidence and a fresh owner cannot replay them after reopen
+ok 86 - backup-derived reviewed projection retains exact origin receipts as inert evidence and a fresh owner cannot replay them after reopen
+  ---
+  duration_ms: 1900.583025
+  type: 'test'
+  ...
+# Subtest: deferred review marker survives exact interchange readback, rejects invalid values and pins coherent removal
+    # Subtest: removed marker
+    ok 1 - removed marker
+      ---
+      duration_ms: 25.328849
+      type: 'test'
+      ...
+    # Subtest: disabled marker
+    ok 2 - disabled marker
+      ---
+      duration_ms: 0.83138
+      type: 'test'
+      ...
+    1..2
+ok 87 - deferred review marker survives exact interchange readback, rejects invalid values and pins coherent removal
+  ---
+  duration_ms: 223.542165
+  type: 'test'
+  ...
+# Subtest: reconstructed deferred source requires exact reviewed attempt before its first retained v1 publication
+ok 88 - reconstructed deferred source requires exact reviewed attempt before its first retained v1 publication
+  ---
+  duration_ms: 109.694441
+  type: 'test'
+  ...
+# Subtest: versioned interchange retains publication receipts, exact dictionary history and original actor bindings
+ok 89 - versioned interchange retains publication receipts, exact dictionary history and original actor bindings
+  ---
+  duration_ms: 130.179188
+  type: 'test'
+  ...
+# Subtest: interchange rejects malformed receipt rewrites and independently pins structurally valid receipt changes
+    # Subtest: missing receipt namespace
+    ok 1 - missing receipt namespace
+      ---
+      duration_ms: 54.047937
+      type: 'test'
+      ...
+    # Subtest: empty receipt namespace
+    ok 2 - empty receipt namespace
+      ---
+      duration_ms: 49.464058
+      type: 'test'
+      ...
+    # Subtest: attempt identity
+    ok 3 - attempt identity
+      ---
+      duration_ms: 49.44757
+      type: 'test'
+      ...
+    # Subtest: fresh workspace
+    ok 4 - fresh workspace
+      ---
+      duration_ms: 2.745911
+      type: 'test'
+      ...
+    # Subtest: fresh owner
+    ok 5 - fresh owner
+      ---
+      duration_ms: 2.752552
+      type: 'test'
+      ...
+    # Subtest: fresh epoch
+    ok 6 - fresh epoch
+      ---
+      duration_ms: 61.233442
+      type: 'test'
+      ...
+    # Subtest: draft digest
+    ok 7 - draft digest
+      ---
+      duration_ms: 2.360361
+      type: 'test'
+      ...
+    # Subtest: reviewed baseline
+    ok 8 - reviewed baseline
+      ---
+      duration_ms: 66.314106
+      type: 'test'
+      ...
+    # Subtest: later dictionary
+    ok 9 - later dictionary
+      ---
+      duration_ms: 2.461106
+      type: 'test'
+      ...
+    # Subtest: later version
+    ok 10 - later version
+      ---
+      duration_ms: 2.373572
+      type: 'test'
+      ...
+    1..10
+ok 90 - interchange rejects malformed receipt rewrites and independently pins structurally valid receipt changes
+  ---
+  duration_ms: 315.696226
+  type: 'test'
+  ...
+# Subtest: fresh-owner review explicitly declares publication receipts as inert origin evidence
+    # Subtest: retained attempts
+    ok 1 - retained attempts
+      ---
+      duration_ms: 500.025016
+      type: 'test'
+      ...
+    # Subtest: empty attempts
+    ok 2 - empty attempts
+      ---
+      duration_ms: 606.812077
+      type: 'test'
+      ...
+    1..2
+ok 91 - fresh-owner review explicitly declares publication receipts as inert origin evidence
+  ---
+  duration_ms: 1116.001432
+  type: 'test'
+  ...
+# Subtest: deferred first-run marker survives reopen and requires an explicit empty baseline with a retained reviewed attempt
+ok 92 - deferred first-run marker survives reopen and requires an explicit empty baseline with a retained reviewed attempt
+  ---
+  duration_ms: 335.719687
+  type: 'test'
+  ...
+# Subtest: Vault creation rejects explicit invalid dictionary modes and deferred demo mode before touching existing authority
+ok 93 - Vault creation rejects explicit invalid dictionary modes and deferred demo mode before touching existing authority
+  ---
+  duration_ms: 142.297681
+  type: 'test'
+  ...
+# Subtest: fresh encrypted authority remains unpublished after reopen and explicit reviewed publication starts at version one
+ok 94 - fresh encrypted authority remains unpublished after reopen and explicit reviewed publication starts at version one
+  ---
+  duration_ms: 461.792433
+  type: 'test'
+  ...
+# Subtest: stale reviewed hash refuses before compilation and leaves all authority bytes and side effects unchanged
+ok 95 - stale reviewed hash refuses before compilation and leaves all authority bytes and side effects unchanged
+  ---
+  duration_ms: 166.423596
+  type: 'test'
+  ...
+# Subtest: serialized competing submissions against one reviewed hash commit one publication and one exact attempt
+ok 96 - serialized competing submissions against one reviewed hash commit one publication and one exact attempt
+  ---
+  duration_ms: 157.232339
+  type: 'test'
+  ...
+# Subtest: identical concurrent draft and actor do not attribute the other attempt from matching content
+ok 97 - identical concurrent draft and actor do not attribute the other attempt from matching content
+  ---
+  duration_ms: 156.263342
+  type: 'test'
+  ...
+# Subtest: dropped publication response is recoverable only by exact durable receipt and idempotent readback after later publication
+ok 98 - dropped publication response is recoverable only by exact durable receipt and idempotent readback after later publication
+  ---
+  duration_ms: 253.831891
+  type: 'test'
+  ...
+# Subtest: queued duplicate attempt returns the original dictionary with one durable publication and no duplicate writes
+ok 99 - queued duplicate attempt returns the original dictionary with one durable publication and no duplicate writes
+  ---
+  duration_ms: 215.89183
+  type: 'test'
+  ...
+# Subtest: missing receipt during a queued request can subsequently commit and is not proof of non-publication
+ok 100 - missing receipt during a queued request can subsequently commit and is not proof of non-publication
+  ---
+  duration_ms: 176.427047
+  type: 'test'
+  ...
+# Subtest: publish snapshots context draft and options before queued work
+ok 101 - publish snapshots context draft and options before queued work
+  ---
+  duration_ms: 148.0628
+  type: 'test'
+  ...
+# Subtest: authorization is rechecked inside publication after queued revocation epoch change and role change
+    # Subtest: inactive
+    ok 1 - inactive
+      ---
+      duration_ms: 209.356292
+      type: 'test'
+      ...
+    # Subtest: epoch
+    ok 2 - epoch
+      ---
+      duration_ms: 141.6093
+      type: 'test'
+      ...
+    # Subtest: role
+    ok 3 - role
+      ---
+      duration_ms: 158.424549
+      type: 'test'
+      ...
+    1..3
+ok 102 - authorization is rechecked inside publication after queued revocation epoch change and role change
+  ---
+  duration_ms: 510.913775
+  type: 'test'
+  ...
+# Subtest: attempt authority remains bound to exact actor and epoch, while valid cofounders can publish their own attempts
+ok 103 - attempt authority remains bound to exact actor and epoch, while valid cofounders can publish their own attempts
+  ---
+  duration_ms: 173.290465
+  type: 'test'
+  ...
+# Subtest: same attempt with changed exact draft or baseline refuses without changing history audit learning or ciphertext
+ok 104 - same attempt with changed exact draft or baseline refuses without changing history audit learning or ciphertext
+  ---
+  duration_ms: 149.812331
+  type: 'test'
+  ...
+# Subtest: publication options and exact attempt lookup reject forged unknown inherited and executable properties before any write
+ok 105 - publication options and exact attempt lookup reject forged unknown inherited and executable properties before any write
+  ---
+  duration_ms: 147.761725
+  type: 'test'
+  ...
+# Subtest: forged draft properties are refused without executing getters or retaining executable values
+ok 106 - forged draft properties are refused without executing getters or retaining executable values
+  ---
+  duration_ms: 145.888286
+  type: 'test'
+  ...
+# Subtest: legacy omitted CAS remains distinct from explicit null and pack requests retain legacy publication behavior
+ok 107 - legacy omitted CAS remains distinct from explicit null and pack requests retain legacy publication behavior
+  ---
+  duration_ms: 152.141119
+  type: 'test'
+  ...
+# Subtest: synthetic recovery preserves durable publication receipts original history and exact retry attribution
+ok 108 - synthetic recovery preserves durable publication receipts original history and exact retry attribution
+  ---
+  duration_ms: 519.946359
+  type: 'test'
+  ...
+# Subtest: malformed retained evidence refuses exact lookup and publication without repairing or writing authority
+    # Subtest: unknown receipt field
+    ok 1 - unknown receipt field
+      ---
+      duration_ms: 298.306252
+      type: 'test'
+      ...
+    # Subtest: duplicate attempt identity
+    ok 2 - duplicate attempt identity
+      ---
+      duration_ms: 272.362598
+      type: 'test'
+      ...
+    # Subtest: missing dictionary history
+    ok 3 - missing dictionary history
+      ---
+      duration_ms: 247.559318
+      type: 'test'
+      ...
+    # Subtest: missing history collection
+    ok 4 - missing history collection
+      ---
+      duration_ms: 238.485898
+      type: 'test'
+      ...
+    # Subtest: duplicate dictionary history entry
+    ok 5 - duplicate dictionary history entry
+      ---
+      duration_ms: 287.948164
+      type: 'test'
+      ...
+    # Subtest: tampered dictionary content
+    ok 6 - tampered dictionary content
+      ---
+      duration_ms: 319.482537
+      type: 'test'
+      ...
+    # Subtest: mismatched exact draft digest
+    ok 7 - mismatched exact draft digest
+      ---
+      duration_ms: 296.693652
+      type: 'test'
+      ...
+    # Subtest: mismatched dictionary hash
+    ok 8 - mismatched dictionary hash
+      ---
+      duration_ms: 296.965137
+      type: 'test'
+      ...
+    # Subtest: mismatched dictionary version
+    ok 9 - mismatched dictionary version
+      ---
+      duration_ms: 299.58778
+      type: 'test'
+      ...
+    # Subtest: different workspace origin
+    ok 10 - different workspace origin
+      ---
+      duration_ms: 295.928312
+      type: 'test'
+      ...
+    # Subtest: invalid retained epoch
+    ok 11 - invalid retained epoch
+      ---
+      duration_ms: 260.040964
+      type: 'test'
+      ...
+    # Subtest: invalid reviewed hash encoding
+    ok 12 - invalid reviewed hash encoding
+      ---
+      duration_ms: 300.663156
+      type: 'test'
+      ...
+    # Subtest: noncollection attempt evidence
+    ok 13 - noncollection attempt evidence
+      ---
+      duration_ms: 249.859332
+      type: 'test'
+      ...
+    # Subtest: null retained attempt
+    ok 14 - null retained attempt
+      ---
+      duration_ms: 244.060398
+      type: 'test'
+      ...
+    # Subtest: dictionary actor differs from receipt actor
+    ok 15 - dictionary actor differs from receipt actor
+      ---
+      duration_ms: 238.467126
+      type: 'test'
+      ...
+    1..15
+ok 109 - malformed retained evidence refuses exact lookup and publication without repairing or writing authority
+  ---
+  duration_ms: 4150.136309
+  type: 'test'
+  ...
+# Subtest: receipt publications on both sides of retained scenario capture survive exact backup and encrypted source reopen
+    # Subtest: publication before scenario capture
+    ok 1 - publication before scenario capture
+      ---
+      duration_ms: 5563.610177
+      type: 'test'
+      ...
+    # Subtest: publication after scenario capture
+    ok 2 - publication after scenario capture
+      ---
+      duration_ms: 3068.214687
+      type: 'test'
+      ...
+    1..2
+ok 110 - receipt publications on both sides of retained scenario capture survive exact backup and encrypted source reopen
+  ---
+  duration_ms: 8633.877431
+  type: 'test'
+  ...
+# Subtest: fresh-owner activation retains exact original receipts as inert evidence and refuses attribution or replay across reopen
+ok 111 - fresh-owner activation retains exact original receipts as inert evidence and refuses attribution or replay across reopen
+  ---
+  duration_ms: 12725.403613
+  type: 'test'
+  ...
+# Subtest: activation preserves legacy receipt absence and explicit empty modern receipt evidence distinctly
+    # Subtest: legacy receipt absence
+    ok 1 - legacy receipt absence
+      ---
+      duration_ms: 1024.37253
+      type: 'test'
+      ...
+    # Subtest: explicit empty receipt namespace
+    ok 2 - explicit empty receipt namespace
+      ---
+      duration_ms: 1040.363468
+      type: 'test'
+      ...
+    1..2
+ok 112 - activation preserves legacy receipt absence and explicit empty modern receipt evidence distinctly
+  ---
+  duration_ms: 2065.898606
+  type: 'test'
+  ...
+# Subtest: deferred source backup and encrypted reopen retain review state while activation refuses an unpublished policy
+    # Subtest: no scenario or lesson namespaces
+    ok 1 - no scenario or lesson namespaces
+      ---
+      duration_ms: 1391.016147
+      type: 'test'
+      ...
+    # Subtest: empty scenario and lesson namespaces
+    ok 2 - empty scenario and lesson namespaces
+      ---
+      duration_ms: 1453.183061
+      type: 'test'
+      ...
+    1..2
+ok 113 - deferred source backup and encrypted reopen retain review state while activation refuses an unpublished policy
+  ---
+  duration_ms: 2845.469214
+  type: 'test'
+  ...
+# Subtest: exact pre-ontology c4 target proof still prepares and reviews each original retained source profile
+ok 114 - exact pre-ontology c4 target proof still prepares and reviews each original retained source profile
+  ---
+  duration_ms: 386.193988
+  type: 'test'
+  ...
+# Subtest: old target capabilities refuse every modern ontology source, including empty namespace presence
+ok 115 - old target capabilities refuse every modern ontology source, including empty namespace presence
+  ---
+  duration_ms: 432.615047
+  type: 'test'
+  ...
+# Subtest: compatibility admits only exact old target profiles and preserves legacy-only source limits
+ok 116 - compatibility admits only exact old target profiles and preserves legacy-only source limits
+  ---
+  duration_ms: 85.376296
+  type: 'test'
+  ...
+# Subtest: discovery descriptions expose exact same-label revisions and preserve partial, running, stale and reused history
+ok 117 - discovery descriptions expose exact same-label revisions and preserve partial, running, stale and reused history
+  ---
+  duration_ms: 882.919528
+  type: 'test'
+  ...
+# Subtest: discovery descriptions preserve independent reused descendants and retained stale original vectors
+ok 118 - discovery descriptions preserve independent reused descendants and retained stale original vectors
+  ---
+  duration_ms: 1201.380378
+  type: 'test'
+  ...
+# Subtest: discovery descriptions refuse sealed invalid graph hashes, evaluation manifests and mixed ready selections
+    # Subtest: input digest
+    ok 1 - input digest
+      ---
+      duration_ms: 420.090115
+      type: 'test'
+      ...
+    # Subtest: missing evaluation job
+    ok 2 - missing evaluation job
+      ---
+      duration_ms: 355.726482
+      type: 'test'
+      ...
+    # Subtest: mixed ready run
+    ok 3 - mixed ready run
+      ---
+      duration_ms: 318.210263
+      type: 'test'
+      ...
+    # Subtest: false reuse
+    ok 4 - false reuse
+      ---
+      duration_ms: 297.098632
+      type: 'test'
+      ...
+    # Subtest: mixed receipt
+    ok 5 - mixed receipt
+      ---
+      duration_ms: 297.838019
+      type: 'test'
+      ...
+    # Subtest: parent cycle
+    ok 6 - parent cycle
+      ---
+      duration_ms: 300.209719
+      type: 'test'
+      ...
+    1..6
+ok 119 - discovery descriptions refuse sealed invalid graph hashes, evaluation manifests and mixed ready selections
+  ---
+  duration_ms: 1991.766478
+  type: 'test'
+  ...
+# Subtest: discovery comparison manifests keep their own immutable run pins after a later coherent ledger selection
+ok 120 - discovery comparison manifests keep their own immutable run pins after a later coherent ledger selection
+  ---
+  duration_ms: 409.584593
+  type: 'test'
+  ...
+# Subtest: discovery refuses an aging receipt substituted from a different exact observation date
+ok 121 - discovery refuses an aging receipt substituted from a different exact observation date
+  ---
+  duration_ms: 580.762968
+  type: 'test'
+  ...
+# Subtest: discovery refuses altered receipt rows, actual sources, exclusions and import lineage outside exact original evidence
+    # Subtest: unknown revoked row
+    ok 1 - unknown revoked row
+      ---
+      duration_ms: 304.07957
+      type: 'test'
+      ...
+    # Subtest: unknown actual source
+    ok 2 - unknown actual source
+      ---
+      duration_ms: 319.73176
+      type: 'test'
+      ...
+    # Subtest: unknown row pin
+    ok 3 - unknown row pin
+      ---
+      duration_ms: 299.104791
+      type: 'test'
+      ...
+    # Subtest: unknown exclusion
+    ok 4 - unknown exclusion
+      ---
+      duration_ms: 300.234146
+      type: 'test'
+      ...
+    # Subtest: unknown import
+    ok 5 - unknown import
+      ---
+      duration_ms: 297.892337
+      type: 'test'
+      ...
+    1..5
+ok 122 - discovery refuses altered receipt rows, actual sources, exclusions and import lineage outside exact original evidence
+  ---
+  duration_ms: 1522.125155
+  type: 'test'
+  ...
+# Subtest: discovery lineage checks preserve compound calculator receipts using a published custom money field
+ok 123 - discovery lineage checks preserve compound calculator receipts using a published custom money field
+  ---
+  duration_ms: 448.999799
+  type: 'test'
+  ...
+# Subtest: discovery metadata is withheld after source, account and callback revocation
+    # Subtest: source
+    ok 1 - source
+      ---
+      duration_ms: 18.849633
+      type: 'test'
+      ...
+    # Subtest: account
+    ok 2 - account
+      ---
+      duration_ms: 17.483916
+      type: 'test'
+      ...
+    # Subtest: callback
+    ok 3 - callback
+      ---
+      duration_ms: 21.19022
+      type: 'test'
+      ...
+    1..3
+ok 124 - discovery metadata is withheld after source, account and callback revocation
+  ---
+  duration_ms: 58.111997
+  type: 'test'
+  ...
+# Subtest: import → same-label alternatives → changed assumption rejects a late mixed-revision descendant; retained history and explicit current recomputation stay separate
+ok 125 - import → same-label alternatives → changed assumption rejects a late mixed-revision descendant; retained history and explicit current recomputation stay separate
+  ---
+  duration_ms: 2223.891176
+  type: 'test'
+  ...
+# Subtest: an independent calculator job is reused while dependent descendants invalidate transitively
+ok 126 - an independent calculator job is reused while dependent descendants invalidate transitively
+  ---
+  duration_ms: 1112.995006
+  type: 'test'
+  ...
+# Subtest: authored lexical requests, effective request pins and detached return values retain their exact identities
+ok 127 - authored lexical requests, effective request pins and detached return values retain their exact identities
+  ---
+  duration_ms: 320.508089
+  type: 'test'
+  ...
+# Subtest: all required jobs gate finalization even when root alternatives are complete
+ok 128 - all required jobs gate finalization even when root alternatives are complete
+  ---
+  duration_ms: 476.922393
+  type: 'test'
+  ...
+# Subtest: empty and unreconciled evidence retain uncertainty and no-action semantics
+ok 129 - empty and unreconciled evidence retain uncertainty and no-action semantics
+  ---
+  duration_ms: 232.273557
+  type: 'test'
+  ...
+# Subtest: reviewed receipts exclude outside sources while complete retained input custody conservatively withholds after any retained source revocation
+ok 130 - reviewed receipts exclude outside sources while complete retained input custody conservatively withholds after any retained source revocation
+  ---
+  duration_ms: 613.465165
+  type: 'test'
+  ...
+# Subtest: excluded selected-source evidence and source tombstones are checked when reopening
+ok 131 - excluded selected-source evidence and source tombstones are checked when reopening
+  ---
+  duration_ms: 402.101329
+  type: 'test'
+  ...
+# Subtest: retained and current scenario access is withheld after member deactivation
+ok 132 - retained and current scenario access is withheld after member deactivation
+  ---
+  duration_ms: 561.091194
+  type: 'test'
+  ...
+# Subtest: retained and current scenario access is withheld after member epoch
+ok 133 - retained and current scenario access is withheld after member epoch
+  ---
+  duration_ms: 575.556388
+  type: 'test'
+  ...
+# Subtest: retained and current scenario access is withheld after branch grant
+ok 134 - retained and current scenario access is withheld after branch grant
+  ---
+  duration_ms: 586.077418
+  type: 'test'
+  ...
+# Subtest: retained and current scenario access is withheld after source policy
+ok 135 - retained and current scenario access is withheld after source policy
+  ---
+  duration_ms: 584.236121
+  type: 'test'
+  ...
+# Subtest: retained and current scenario access is withheld after source tombstone
+ok 136 - retained and current scenario access is withheld after source tombstone
+  ---
+  duration_ms: 585.230379
+  type: 'test'
+  ...
+# Subtest: another currently authorized member cannot reopen private retained revisions
+ok 137 - another currently authorized member cannot reopen private retained revisions
+  ---
+  duration_ms: 34.130492
+  type: 'test'
+  ...
+# Subtest: same-member current role and source grants apply to retained evaluation while original source precedence remains pinned
+ok 138 - same-member current role and source grants apply to retained evaluation while original source precedence remains pinned
+  ---
+  duration_ms: 2932.180799
+  type: 'test'
+  ...
+# Subtest: access revocation while awaiting calculator completion withholds a new retained result
+ok 139 - access revocation while awaiting calculator completion withholds a new retained result
+  ---
+  duration_ms: 184.423565
+  type: 'test'
+  ...
+# Subtest: source revocation inside a synchronous consumer guard withholds a retained view
+ok 140 - source revocation inside a synchronous consumer guard withholds a retained view
+  ---
+  duration_ms: 579.465946
+  type: 'test'
+  ...
+# Subtest: member revocation inside a synchronous custody callback prevents a newly retained result from escaping
+ok 141 - member revocation inside a synchronous custody callback prevents a newly retained result from escaping
+  ---
+  duration_ms: 179.132184
+  type: 'test'
+  ...
+# Subtest: explicit empty source scope keeps a distinct request identity from omitted full-source scope
+ok 142 - explicit empty source scope keeps a distinct request identity from omitted full-source scope
+  ---
+  duration_ms: 1106.799666
+  type: 'test'
+  ...
+# Subtest: head advance during awaited completion retains the issued revision without finalizing a mixed graph
+ok 143 - head advance during awaited completion retains the issued revision without finalizing a mixed graph
+  ---
+  duration_ms: 256.713069
+  type: 'test'
+  ...
+# Subtest: atomic retention refusal leaves no published result or overwritten revision
+ok 144 - atomic retention refusal leaves no published result or overwritten revision
+  ---
+  duration_ms: 178.279609
+  type: 'test'
+  ...
+# Subtest: missing custody authentication, altered pins and missing retained artifacts fail closed
+ok 145 - missing custody authentication, altered pins and missing retained artifacts fail closed
+  ---
+  duration_ms: 45.873298
+  type: 'test'
+  ...
+# Subtest: required calculator readiness guards see retained snapshots and refuse unavailable publication
+ok 146 - required calculator readiness guards see retained snapshots and refuse unavailable publication
+  ---
+  duration_ms: 576.848438
+  type: 'test'
+  ...
+# Subtest: undeclared models, implicit assumptions and invalid revision/dependency scope are rejected
+ok 147 - undeclared models, implicit assumptions and invalid revision/dependency scope are rejected
+  ---
+  duration_ms: 107.395985
+  type: 'test'
+  ...
+# Subtest: fresh-owner activation retains service-produced private history exactly and exposes no old authority
+ok 148 - fresh-owner activation retains service-produced private history exactly and exposes no old authority
+  ---
+  duration_ms: 9369.488144
+  type: 'test'
+  ...
+# Subtest: activation explicitly distinguishes absent legacy namespaces from present empty historical namespaces
+    # Subtest: legacy absence
+    ok 1 - legacy absence
+      ---
+      duration_ms: 1252.98854
+      type: 'test'
+      ...
+    # Subtest: scenarioRecords
+    ok 2 - scenarioRecords
+      ---
+      duration_ms: 1346.468079
+      type: 'test'
+      ...
+    # Subtest: lessonState
+    ok 3 - lessonState
+      ---
+      duration_ms: 1328.626231
+      type: 'test'
+      ...
+    # Subtest: scenarioRecords+lessonState
+    ok 4 - scenarioRecords+lessonState
+      ---
+      duration_ms: 1340.25334
+      type: 'test'
+      ...
+    1..4
+ok 149 - activation explicitly distinguishes absent legacy namespaces from present empty historical namespaces
+  ---
+  duration_ms: 5269.796235
+  type: 'test'
+  ...
+# Subtest: retained lesson evaluation withdrawal refuses activation before fresh authority or publication
+ok 150 - retained lesson evaluation withdrawal refuses activation before fresh authority or publication
+  ---
+  duration_ms: 5412.845933
+  type: 'test'
+  ...
+# Subtest: fixture activation keeps complete encrypted history inert and issues fresh owner/session authority
+ok 151 - fixture activation keeps complete encrypted history inert and issues fresh owner/session authority
+  ---
+  duration_ms: 1078.723086
+  type: 'test'
+  ...
+# Subtest: fixture target activation and restarted host produce three new business-equivalent receipts under fresh authority
+ok 152 - fixture target activation and restarted host produce three new business-equivalent receipts under fresh authority
+  ---
+  duration_ms: 940.789542
+  type: 'test'
+  ...
+# Subtest: fixture explicit knowledge cuts preserve correction order, source precedence, merge undo and tombstones
+ok 153 - fixture explicit knowledge cuts preserve correction order, source precedence, merge undo and tombstones
+  ---
+  duration_ms: 804.365021
+  type: 'test'
+  ...
+# Subtest: fixture admission refuses labels, managed imports, source scope and unreviewed policy
+    # Subtest: demo and synthetic source labels do not approve an unknown workspace identity
+    ok 1 - demo and synthetic source labels do not approve an unknown workspace identity
+      ---
+      duration_ms: 91.588738
+      type: 'test'
+      ...
+    # Subtest: legacy-looking connector metadata does not bypass managed gates
+    ok 2 - legacy-looking connector metadata does not bypass managed gates
+      ---
+      duration_ms: 174.174184
+      type: 'test'
+      ...
+    # Subtest: unapproved source refuses entire activation without a scope cut
+    ok 3 - unapproved source refuses entire activation without a scope cut
+      ---
+      duration_ms: 184.524485
+      type: 'test'
+      ...
+    # Subtest: runtime typed records cannot masquerade as legacy inputs
+    ok 4 - runtime typed records cannot masquerade as legacy inputs
+      ---
+      duration_ms: 185.104745
+      type: 'test'
+      ...
+    # Subtest: import-only sources also require current access
+    ok 5 - import-only sources also require current access
+      ---
+      duration_ms: 139.791609
+      type: 'test'
+      ...
+    # Subtest: even authenticated dictionaries require a supported compiler catalogue
+    ok 6 - even authenticated dictionaries require a supported compiler catalogue
+      ---
+      duration_ms: 195.866617
+      type: 'test'
+      ...
+    # Subtest: changed fresh retention policy changes acknowledged projection
+    ok 7 - changed fresh retention policy changes acknowledged projection
+      ---
+      duration_ms: 505.190683
+      type: 'test'
+      ...
+    1..7
+ok 154 - fixture admission refuses labels, managed imports, source scope and unreviewed policy
+  ---
+  duration_ms: 1478.11334
+  type: 'test'
+  ...
+# Subtest: fixture exact acknowledgement and changing fences refuse before publication
+    # Subtest: current source inventory
+    ok 1 - current source inventory
+      ---
+      duration_ms: 390.201482
+      type: 'test'
+      ...
+    # Subtest: reserved target generation
+    ok 2 - reserved target generation
+      ---
+      duration_ms: 382.395389
+      type: 'test'
+      ...
+    # Subtest: consumer readiness
+    ok 3 - consumer readiness
+      ---
+      duration_ms: 379.433534
+      type: 'test'
+      ...
+    # Subtest: complete row access
+    ok 4 - complete row access
+      ---
+      duration_ms: 357.828079
+      type: 'test'
+      ...
+    # Subtest: target replacement during a held precommit fence
+    ok 5 - target replacement during a held precommit fence
+      ---
+      duration_ms: 360.881709
+      type: 'test'
+      ...
+    # Subtest: review digest and explicit confirmation are exact
+    ok 6 - review digest and explicit confirmation are exact
+      ---
+      duration_ms: 341.70826
+      type: 'test'
+      ...
+    1..6
+ok 155 - fixture exact acknowledgement and changing fences refuse before publication
+  ---
+  duration_ms: 2213.568581
+  type: 'test'
+  ...
+# Subtest: fixture restart preserves single-use and explicit unknown-commit resolution never retries
+ok 156 - fixture restart preserves single-use and explicit unknown-commit resolution never retries
+  ---
+  duration_ms: 1291.481972
+  type: 'test'
+  ...
+# Subtest: fixture corrupt readback or lease-exit failure leaves publication unresolved with no cleanup/retry
+    # Subtest: exact encrypted readback cannot attach an old session
+    ok 1 - exact encrypted readback cannot attach an old session
+      ---
+      duration_ms: 605.796617
+      type: 'test'
+      ...
+    # Subtest: authority change on lease exit is unknown even after successful commit
+    ok 2 - authority change on lease exit is unknown even after successful commit
+      ---
+      duration_ms: 661.244817
+      type: 'test'
+      ...
+    # Subtest: consistent canonical hashes cannot hide reordered semantic keys on restart
+    ok 3 - consistent canonical hashes cannot hide reordered semantic keys on restart
+      ---
+      duration_ms: 731.970359
+      type: 'test'
+      ...
+    1..3
+ok 157 - fixture corrupt readback or lease-exit failure leaves publication unresolved with no cleanup/retry
+  ---
+  duration_ms: 1999.652489
+  type: 'test'
+  ...
+# Subtest: fixture malformed authority, missing ports, budgets, taint and guard values fail closed
+    # Subtest: fresh owner cannot reuse historical owner tuple
+    ok 1 - fresh owner cannot reuse historical owner tuple
+      ---
+      duration_ms: 534.079045
+      type: 'test'
+      ...
+    # Subtest: root constructor ports and budgets are mandatory
+    ok 2 - root constructor ports and budgets are mandatory
+      ---
+      duration_ms: 47.00831
+      type: 'test'
+      ...
+    # Subtest: budgets refuse the complete archive without truncation
+    ok 3 - budgets refuse the complete archive without truncation
+      ---
+      duration_ms: 98.405863
+      type: 'test'
+      ...
+    # Subtest: boolean guard admission is refused
+    ok 4 - boolean guard admission is refused
+      ---
+      duration_ms: 114.417873
+      type: 'test'
+      ...
+    # Subtest: source-tainted context cannot review
+    ok 5 - source-tainted context cannot review
+      ---
+      duration_ms: 48.794995
+      type: 'test'
+      ...
+    # Subtest: ciphertext modification is not an authenticated candidate
+    ok 6 - ciphertext modification is not an authenticated candidate
+      ---
+      duration_ms: 46.643244
+      type: 'test'
+      ...
+    1..6
+ok 158 - fixture malformed authority, missing ports, budgets, taint and guard values fail closed
+  ---
+  duration_ms: 890.566323
+  type: 'test'
+  ...
+# Subtest: explicit journal capability separately authenticates every measured ciphertext and excludes it from source archive bytes
+ok 159 - explicit journal capability separately authenticates every measured ciphertext and excludes it from source archive bytes
+  ---
+  duration_ms: 491.974144
+  type: 'test'
+  ...
+# Subtest: omitted journal capability and a mere outside declaration both refuse without opening or changing journal custody
+ok 160 - omitted journal capability and a mere outside declaration both refuse without opening or changing journal custody
+  ---
+  duration_ms: 309.370851
+  type: 'test'
+  ...
+# Subtest: journal constructor capability must identify one distinct direct actual experimental-file Vault with no extra declarations
+ok 161 - journal constructor capability must identify one distinct direct actual experimental-file Vault with no extra declarations
+  ---
+  duration_ms: 464.694748
+  type: 'test'
+  ...
+# Subtest: an empty interchange target is measured only with its exact authenticated source-owned wit reservation
+ok 162 - an empty interchange target is measured only with its exact authenticated source-owned wit reservation
+  ---
+  duration_ms: 441.806566
+  type: 'test'
+  ...
+# Subtest: foreign, malformed and artifact-mismatched interchange reservations refuse before an unbound target is read
+ok 163 - foreign, malformed and artifact-mismatched interchange reservations refuse before an unbound target is read
+  ---
+  duration_ms: 472.302114
+  type: 'test'
+  ...
+# Subtest: replaced or populated interchange targets require their issued physical generation and committed encrypted manifest
+ok 164 - replaced or populated interchange targets require their issued physical generation and committed encrypted manifest
+  ---
+  duration_ms: 428.172226
+  type: 'test'
+  ...
+# Subtest: journal private and authority tampering, unknown private namespaces and unclassified journal siblings fail authenticated custody
+ok 165 - journal private and authority tampering, unknown private namespaces and unclassified journal siblings fail authenticated custody
+  ---
+  duration_ms: 394.914164
+  type: 'test'
+  ...
+# Subtest: journal ciphertext and physical enumeration share explicit file, total-byte and depth budgets
+ok 166 - journal ciphertext and physical enumeration share explicit file, total-byte and depth budgets
+  ---
+  duration_ms: 424.827556
+  type: 'test'
+  ...
+# Subtest: the source lease pins independently authenticated journal ciphertext and refuses an in-lease rewrite
+ok 167 - the source lease pins independently authenticated journal ciphertext and refuses an in-lease rewrite
+  ---
+  duration_ms: 384.126697
+  type: 'test'
+  ...
+# Subtest: unknown activation attempt staging refuses before any token or credential bytes are opened
+ok 168 - unknown activation attempt staging refuses before any token or credential bytes are opened
+  ---
+  duration_ms: 367.998027
+  type: 'test'
+  ...
+# Subtest: durable journal-issued prepared staging and committed target manifests measure only their exact encrypted files
+ok 169 - durable journal-issued prepared staging and committed target manifests measure only their exact encrypted files
+  ---
+  duration_ms: 601.657096
+  type: 'test'
+  ...
+# Subtest: actual fresh Vault revisions require narrow current-live authentication while immutable evidence and unknown tokens remain unissued
+ok 170 - actual fresh Vault revisions require narrow current-live authentication while immutable evidence and unknown tokens remain unissued
+  ---
+  duration_ms: 2778.452242
+  type: 'test'
+  ...
+# Subtest: exact original envelopes and all private controls survive archive roundtrip and real credential authentication
+ok 171 - exact original envelopes and all private controls survive archive roundtrip and real credential authentication
+  ---
+  duration_ms: 740.56684
+  type: 'test'
+  ...
+# Subtest: pure codec preserves valid whitespace and insertion order inside original encrypted envelope bytes
+ok 172 - pure codec preserves valid whitespace and insertion order inside original encrypted envelope bytes
+  ---
+  duration_ms: 206.978203
+  type: 'test'
+  ...
+# Subtest: strict archive refuses missing, duplicate, unknown, truncated, tampered and wrong-bound entries
+ok 173 - strict archive refuses missing, duplicate, unknown, truncated, tampered and wrong-bound entries
+  ---
+  duration_ms: 247.928863
+  type: 'test'
+  ...
+# Subtest: independent source pin rejects coherent attacker rehash after omissions or workspace substitution
+ok 174 - independent source pin rejects coherent attacker rehash after omissions or workspace substitution
+  ---
+  duration_ms: 185.128527
+  type: 'test'
+  ...
+# Subtest: encrypted envelopes reject invalid JSON duplicates, UTF-8, ciphertext shapes and filesystem case aliases
+ok 175 - encrypted envelopes reject invalid JSON duplicates, UTF-8, ciphertext shapes and filesystem case aliases
+  ---
+  duration_ms: 196.692163
+  type: 'test'
+  ...
+# Subtest: explicit byte, count, depth and node budgets refuse whole captures without silently truncating scope
+ok 176 - explicit byte, count, depth and node budgets refuse whole captures without silently truncating scope
+  ---
+  duration_ms: 233.133888
+  type: 'test'
+  ...
+# Subtest: host holds source and empty-target guards through exact authenticated inert custody readback
+ok 177 - host holds source and empty-target guards through exact authenticated inert custody readback
+  ---
+  duration_ms: 236.54147
+  type: 'test'
+  ...
+# Subtest: host refuses unauthorized/deferred owners and public paths, ports or unreviewed digests before publication
+ok 178 - host refuses unauthorized/deferred owners and public paths, ports or unreviewed digests before publication
+  ---
+  duration_ms: 187.877616
+  type: 'test'
+  ...
+# Subtest: source publication/readback/lease-exit failures remove only the exact owned custody record
+ok 179 - source publication/readback/lease-exit failures remove only the exact owned custody record
+  ---
+  duration_ms: 242.075165
+  type: 'test'
+  ...
+# Subtest: owner epoch revocation during awaited custody read is rechecked before any target publication
+ok 180 - owner epoch revocation during awaited custody read is rechecked before any target publication
+  ---
+  duration_ms: 190.166898
+  type: 'test'
+  ...
+# Subtest: target nonempty, partial receipt, altered readback and final lease failure cannot leave an adopted restore
+ok 181 - target nonempty, partial receipt, altered readback and final lease failure cannot leave an adopted restore
+  ---
+  duration_ms: 333.5324
+  type: 'test'
+  ...
+# Subtest: root source/target leases must invoke callbacks exactly once and clean prior owned publication on duplicate callback
+ok 182 - root source/target leases must invoke callbacks exactly once and clean prior owned publication on duplicate callback
+  ---
+  duration_ms: 226.113456
+  type: 'test'
+  ...
+# Subtest: authenticated public readback reopens committed custody through reconstructed hosts and returns metadata only
+ok 183 - authenticated public readback reopens committed custody through reconstructed hosts and returns metadata only
+  ---
+  duration_ms: 227.870662
+  type: 'test'
+  ...
+# Subtest: public backup read refuses malformed payloads, stale contexts, unavailable source readiness and unauthenticated archives
+ok 184 - public backup read refuses malformed payloads, stale contexts, unavailable source readiness and unauthenticated archives
+  ---
+  duration_ms: 220.607894
+  type: 'test'
+  ...
+# Subtest: public backup read rechecks exact issuance, measurements and owner epoch after awaited authentication
+ok 185 - public backup read rechecks exact issuance, measurements and owner epoch after awaited authentication
+  ---
+  duration_ms: 218.382557
+  type: 'test'
+  ...
+# Subtest: public inert target readback refuses changed complete target bytes, pins, receipts and late binding changes
+ok 186 - public inert target readback refuses changed complete target bytes, pins, receipts and late binding changes
+  ---
+  duration_ms: 291.667283
+  type: 'test'
+  ...
+# Subtest: empty target proof independently covers all collections, singleton stores and retained artifact categories
+ok 187 - empty target proof independently covers all collections, singleton stores and retained artifact categories
+  ---
+  duration_ms: 9.091697
+  type: 'test'
+  ...
+# Subtest: every persisted target store refuses both a record and an omitted inventory entry
+    # Subtest: collection actions must be absent and explicitly enumerated
+    ok 1 - collection actions must be absent and explicitly enumerated
+      ---
+      duration_ms: 67.891567
+      type: 'test'
+      ...
+    # Subtest: collection activity must be absent and explicitly enumerated
+    ok 2 - collection activity must be absent and explicitly enumerated
+      ---
+      duration_ms: 51.659759
+      type: 'test'
+      ...
+    # Subtest: collection answers must be absent and explicitly enumerated
+    ok 3 - collection answers must be absent and explicitly enumerated
+      ---
+      duration_ms: 49.032768
+      type: 'test'
+      ...
+    # Subtest: collection conflicts must be absent and explicitly enumerated
+    ok 4 - collection conflicts must be absent and explicitly enumerated
+      ---
+      duration_ms: 48.071474
+      type: 'test'
+      ...
+    # Subtest: collection conversations must be absent and explicitly enumerated
+    ok 5 - collection conversations must be absent and explicitly enumerated
+      ---
+      duration_ms: 48.353007
+      type: 'test'
+      ...
+    # Subtest: collection decisions must be absent and explicitly enumerated
+    ok 6 - collection decisions must be absent and explicitly enumerated
+      ---
+      duration_ms: 53.755725
+      type: 'test'
+      ...
+    # Subtest: collection facts must be absent and explicitly enumerated
+    ok 7 - collection facts must be absent and explicitly enumerated
+      ---
+      duration_ms: 53.70668
+      type: 'test'
+      ...
+    # Subtest: collection imports must be absent and explicitly enumerated
+    ok 8 - collection imports must be absent and explicitly enumerated
+      ---
+      duration_ms: 55.728558
+      type: 'test'
+      ...
+    # Subtest: collection jobs must be absent and explicitly enumerated
+    ok 9 - collection jobs must be absent and explicitly enumerated
+      ---
+      duration_ms: 52.954016
+      type: 'test'
+      ...
+    # Subtest: collection learning must be absent and explicitly enumerated
+    ok 10 - collection learning must be absent and explicitly enumerated
+      ---
+      duration_ms: 50.255855
+      type: 'test'
+      ...
+    # Subtest: singleton lessonState must be absent and explicitly enumerated
+    ok 11 - singleton lessonState must be absent and explicitly enumerated
+      ---
+      duration_ms: 50.271753
+      type: 'test'
+      ...
+    # Subtest: collection members must be absent and explicitly enumerated
+    ok 12 - collection members must be absent and explicitly enumerated
+      ---
+      duration_ms: 51.889591
+      type: 'test'
+      ...
+    # Subtest: collection merges must be absent and explicitly enumerated
+    ok 13 - collection merges must be absent and explicitly enumerated
+      ---
+      duration_ms: 49.059999
+      type: 'test'
+      ...
+    # Subtest: collection modelReceipts must be absent and explicitly enumerated
+    ok 14 - collection modelReceipts must be absent and explicitly enumerated
+      ---
+      duration_ms: 56.305501
+      type: 'test'
+      ...
+    # Subtest: singleton ontology must be absent and explicitly enumerated
+    ok 15 - singleton ontology must be absent and explicitly enumerated
+      ---
+      duration_ms: 49.811949
+      type: 'test'
+      ...
+    # Subtest: collection plugins must be absent and explicitly enumerated
+    ok 16 - collection plugins must be absent and explicitly enumerated
+      ---
+      duration_ms: 53.995355
+      type: 'test'
+      ...
+    # Subtest: singleton policy must be absent and explicitly enumerated
+    ok 17 - singleton policy must be absent and explicitly enumerated
+      ---
+      duration_ms: 49.064018
+      type: 'test'
+      ...
+    # Subtest: collection receipts must be absent and explicitly enumerated
+    ok 18 - collection receipts must be absent and explicitly enumerated
+      ---
+      duration_ms: 48.849122
+      type: 'test'
+      ...
+    # Subtest: singleton revision must be absent and explicitly enumerated
+    ok 19 - singleton revision must be absent and explicitly enumerated
+      ---
+      duration_ms: 49.208878
+      type: 'test'
+      ...
+    # Subtest: collection routes must be absent and explicitly enumerated
+    ok 20 - collection routes must be absent and explicitly enumerated
+      ---
+      duration_ms: 49.469837
+      type: 'test'
+      ...
+    # Subtest: collection scenarioRecords must be absent and explicitly enumerated
+    ok 21 - collection scenarioRecords must be absent and explicitly enumerated
+      ---
+      duration_ms: 48.931201
+      type: 'test'
+      ...
+    # Subtest: collection schedules must be absent and explicitly enumerated
+    ok 22 - collection schedules must be absent and explicitly enumerated
+      ---
+      duration_ms: 47.761363
+      type: 'test'
+      ...
+    # Subtest: singleton schemaVersion must be absent and explicitly enumerated
+    ok 23 - singleton schemaVersion must be absent and explicitly enumerated
+      ---
+      duration_ms: 49.055662
+      type: 'test'
+      ...
+    # Subtest: collection sessions must be absent and explicitly enumerated
+    ok 24 - collection sessions must be absent and explicitly enumerated
+      ---
+      duration_ms: 47.904592
+      type: 'test'
+      ...
+    # Subtest: collection sourceRules must be absent and explicitly enumerated
+    ok 25 - collection sourceRules must be absent and explicitly enumerated
+      ---
+      duration_ms: 75.895749
+      type: 'test'
+      ...
+    # Subtest: collection tombstones must be absent and explicitly enumerated
+    ok 26 - collection tombstones must be absent and explicitly enumerated
+      ---
+      duration_ms: 60.471328
+      type: 'test'
+      ...
+    # Subtest: collection unsupported must be absent and explicitly enumerated
+    ok 27 - collection unsupported must be absent and explicitly enumerated
+      ---
+      duration_ms: 48.548848
+      type: 'test'
+      ...
+    # Subtest: singleton workspace must be absent and explicitly enumerated
+    ok 28 - singleton workspace must be absent and explicitly enumerated
+      ---
+      duration_ms: 53.779863
+      type: 'test'
+      ...
+    1..28
+ok 188 - every persisted target store refuses both a record and an omitted inventory entry
+  ---
+  duration_ms: 1476.837633
+  type: 'test'
+  ...
+# Subtest: every retained target artifact category refuses both retained material and omitted enumeration
+    # Subtest: conversation-files
+    ok 1 - conversation-files
+      ---
+      duration_ms: 48.477327
+      type: 'test'
+      ...
+    # Subtest: dictionary-artifacts
+    ok 2 - dictionary-artifacts
+      ---
+      duration_ms: 81.031968
+      type: 'test'
+      ...
+    # Subtest: mapping-recipes
+    ok 3 - mapping-recipes
+      ---
+      duration_ms: 61.802315
+      type: 'test'
+      ...
+    # Subtest: other-retained
+    ok 4 - other-retained
+      ---
+      duration_ms: 48.669967
+      type: 'test'
+      ...
+    # Subtest: plugin-assets
+    ok 5 - plugin-assets
+      ---
+      duration_ms: 53.341652
+      type: 'test'
+      ...
+    # Subtest: report-files
+    ok 6 - report-files
+      ---
+      duration_ms: 47.715255
+      type: 'test'
+      ...
+    # Subtest: research-evidence
+    ok 7 - research-evidence
+      ---
+      duration_ms: 51.764572
+      type: 'test'
+      ...
+    # Subtest: source-originals
+    ok 8 - source-originals
+      ---
+      duration_ms: 52.389528
+      type: 'test'
+      ...
+    # Subtest: sync-evidence
+    ok 9 - sync-evidence
+      ---
+      duration_ms: 79.719364
+      type: 'test'
+      ...
+    1..9
+ok 189 - every retained target artifact category refuses both retained material and omitted enumeration
+  ---
+  duration_ms: 526.623831
+  type: 'test'
+  ...
+# Subtest: authority records, unclassified entries, duplicate inventory entries and missing fields defeat empty proof
+    # Subtest: existing authority
+    ok 1 - existing authority
+      ---
+      duration_ms: 1.391185
+      type: 'test'
+      ...
+    # Subtest: unexpected retained file
+    ok 2 - unexpected retained file
+      ---
+      duration_ms: 1.384687
+      type: 'test'
+      ...
+    # Subtest: duplicate store
+    ok 3 - duplicate store
+      ---
+      duration_ms: 1.191448
+      type: 'test'
+      ...
+    # Subtest: duplicate category
+    ok 4 - duplicate category
+      ---
+      duration_ms: 1.288752
+      type: 'test'
+      ...
+    # Subtest: missing authority count
+    ok 5 - missing authority count
+      ---
+      duration_ms: 0.370401
+      type: 'test'
+      ...
+    # Subtest: missing unexpected-entry inventory
+    ok 6 - missing unexpected-entry inventory
+      ---
+      duration_ms: 0.26453
+      type: 'test'
+      ...
+    # Subtest: unknown proof field
+    ok 7 - unknown proof field
+      ---
+      duration_ms: 0.27776
+      type: 'test'
+      ...
+    # Subtest: negative authority count
+    ok 8 - negative authority count
+      ---
+      duration_ms: 1.271162
+      type: 'test'
+      ...
+    # Subtest: fractional record count
+    ok 9 - fractional record count
+      ---
+      duration_ms: 1.69965
+      type: 'test'
+      ...
+    # Subtest: unknown store
+    ok 10 - unknown store
+      ---
+      duration_ms: 1.192519
+      type: 'test'
+      ...
+    # Subtest: unknown artifact category
+    ok 11 - unknown artifact category
+      ---
+      duration_ms: 1.258941
+      type: 'test'
+      ...
+    1..11
+ok 190 - authority records, unclassified entries, duplicate inventory entries and missing fields defeat empty proof
+  ---
+  duration_ms: 13.411802
+  type: 'test'
+  ...
+# Subtest: target proof refuses unavailable storage, unsupported profile and malformed identity or access pins
+    # Subtest: not ready
+    ok 1 - not ready
+      ---
+      duration_ms: 0.89415
+      type: 'test'
+      ...
+    # Subtest: changed profile
+    ok 2 - changed profile
+      ---
+      duration_ms: 1.399242
+      type: 'test'
+      ...
+    # Subtest: missing profile store
+    ok 3 - missing profile store
+      ---
+      duration_ms: 1.416297
+      type: 'test'
+      ...
+    # Subtest: path-shaped target identity
+    ok 4 - path-shaped target identity
+      ---
+      duration_ms: 0.619267
+      type: 'test'
+      ...
+    # Subtest: empty workspace identity
+    ok 5 - empty workspace identity
+      ---
+      duration_ms: 0.633904
+      type: 'test'
+      ...
+    # Subtest: missing generation fence
+    ok 6 - missing generation fence
+      ---
+      duration_ms: 0.557796
+      type: 'test'
+      ...
+    # Subtest: invalid access digest
+    ok 7 - invalid access digest
+      ---
+      duration_ms: 0.571302
+      type: 'test'
+      ...
+    1..7
+ok 191 - target proof refuses unavailable storage, unsupported profile and malformed identity or access pins
+  ---
+  duration_ms: 7.165927
+  type: 'test'
+  ...
+# Subtest: prepare and review retain historical identities and executable-looking evidence inertly without source or target writes
+ok 192 - prepare and review retain historical identities and executable-looking evidence inertly without source or target writes
+  ---
+  duration_ms: 56.031375
+  type: 'test'
+  ...
+# Subtest: candidate identity is deterministic and detached mutations cannot overwrite the retained archive or review pins
+ok 193 - candidate identity is deterministic and detached mutations cannot overwrite the retained archive or review pins
+  ---
+  duration_ms: 97.214241
+  type: 'test'
+  ...
+# Subtest: review needs the exact complete candidate digest and a retained candidate identity
+ok 194 - review needs the exact complete candidate digest and a retained candidate identity
+  ---
+  duration_ms: 39.986051
+  type: 'test'
+  ...
+# Subtest: the host must supply all three synchronous source, target and complete-read guards
+ok 195 - the host must supply all three synchronous source, target and complete-read guards
+  ---
+  duration_ms: 0.373211
+  type: 'test'
+  ...
+# Subtest: denied complete-read guard prevents candidate retention during prepare and withholds review afterward
+ok 196 - denied complete-read guard prevents candidate retention during prepare and withholds review afterward
+  ---
+  duration_ms: 118.156929
+  type: 'test'
+  ...
+# Subtest: asynchronous, rejected and non-void complete-read results cannot grant import authority
+    # Subtest: prepare: async success
+    ok 1 - prepare: async success
+      ---
+      duration_ms: 76.057715
+      type: 'test'
+      ...
+    # Subtest: review: async success
+    ok 2 - review: async success
+      ---
+      duration_ms: 66.254548
+      type: 'test'
+      ...
+    # Subtest: prepare: async access denial
+    ok 3 - prepare: async access denial
+      ---
+      duration_ms: 48.509515
+      type: 'test'
+      ...
+    # Subtest: review: async access denial
+    ok 4 - review: async access denial
+      ---
+      duration_ms: 76.35924
+      type: 'test'
+      ...
+    # Subtest: prepare: resolved Promise
+    ok 5 - prepare: resolved Promise
+      ---
+      duration_ms: 52.146953
+      type: 'test'
+      ...
+    # Subtest: review: resolved Promise
+    ok 6 - review: resolved Promise
+      ---
+      duration_ms: 46.090605
+      type: 'test'
+      ...
+    # Subtest: prepare: rejected Promise
+    ok 7 - prepare: rejected Promise
+      ---
+      duration_ms: 67.81904
+      type: 'test'
+      ...
+    # Subtest: review: rejected Promise
+    ok 8 - review: rejected Promise
+      ---
+      duration_ms: 78.154157
+      type: 'test'
+      ...
+    # Subtest: prepare: false
+    ok 9 - prepare: false
+      ---
+      duration_ms: 71.403662
+      type: 'test'
+      ...
+    # Subtest: review: false
+    ok 10 - review: false
+      ---
+      duration_ms: 74.918944
+      type: 'test'
+      ...
+    # Subtest: prepare: true
+    ok 11 - prepare: true
+      ---
+      duration_ms: 74.802215
+      type: 'test'
+      ...
+    # Subtest: review: true
+    ok 12 - review: true
+      ---
+      duration_ms: 79.02472
+      type: 'test'
+      ...
+    # Subtest: prepare: zero
+    ok 13 - prepare: zero
+      ---
+      duration_ms: 74.827552
+      type: 'test'
+      ...
+    # Subtest: review: zero
+    ok 14 - review: zero
+      ---
+      duration_ms: 78.600065
+      type: 'test'
+      ...
+    # Subtest: prepare: claimed permission text
+    ok 15 - prepare: claimed permission text
+      ---
+      duration_ms: 75.378599
+      type: 'test'
+      ...
+    # Subtest: review: claimed permission text
+    ok 16 - review: claimed permission text
+      ---
+      duration_ms: 79.361819
+      type: 'test'
+      ...
+    # Subtest: prepare: object result
+    ok 17 - prepare: object result
+      ---
+      duration_ms: 74.393319
+      type: 'test'
+      ...
+    # Subtest: review: object result
+    ok 18 - review: object result
+      ---
+      duration_ms: 79.443077
+      type: 'test'
+      ...
+    # Subtest: prepare: thenable result
+    ok 19 - prepare: thenable result
+      ---
+      duration_ms: 74.625627
+      type: 'test'
+      ...
+    # Subtest: review: thenable result
+    ok 20 - review: thenable result
+      ---
+      duration_ms: 79.638704
+      type: 'test'
+      ...
+    1..20
+ok 197 - asynchronous, rejected and non-void complete-read results cannot grant import authority
+  ---
+  duration_ms: 1432.957
+  type: 'test'
+  ...
+# Subtest: historical membership revocation and insufficient administrator role refuse preparation before full read
+    # Subtest: revoked owner
+    ok 1 - revoked owner
+      ---
+      duration_ms: 33.982981
+      type: 'test'
+      ...
+    # Subtest: changed owner epoch
+    ok 2 - changed owner epoch
+      ---
+      duration_ms: 32.321543
+      type: 'test'
+      ...
+    # Subtest: viewer membership
+    ok 3 - viewer membership
+      ---
+      duration_ms: 33.956663
+      type: 'test'
+      ...
+    # Subtest: accountant membership
+    ok 4 - accountant membership
+      ---
+      duration_ms: 33.255868
+      type: 'test'
+      ...
+    1..4
+ok 198 - historical membership revocation and insufficient administrator role refuse preparation before full read
+  ---
+  duration_ms: 134.574317
+  type: 'test'
+  ...
+# Subtest: distinct root target identity and the requested root target inspection are mandatory
+ok 199 - distinct root target identity and the requested root target inspection are mandatory
+  ---
+  duration_ms: 52.192586
+  type: 'test'
+  ...
+# Subtest: review refuses changed source generation, content, current access, readiness and target fences
+    # Subtest: source capture
+    ok 1 - source capture
+      ---
+      duration_ms: 43.189829
+      type: 'test'
+      ...
+    # Subtest: source revision
+    ok 2 - source revision
+      ---
+      duration_ms: 42.617467
+      type: 'test'
+      ...
+    # Subtest: source content
+    ok 3 - source content
+      ---
+      duration_ms: 43.173406
+      type: 'test'
+      ...
+    # Subtest: source access
+    ok 4 - source access
+      ---
+      duration_ms: 42.873551
+      type: 'test'
+      ...
+    # Subtest: source readiness
+    ok 5 - source readiness
+      ---
+      duration_ms: 41.007413
+      type: 'test'
+      ...
+    # Subtest: target fence
+    ok 6 - target fence
+      ---
+      duration_ms: 57.85206
+      type: 'test'
+      ...
+    # Subtest: target identity
+    ok 7 - target identity
+      ---
+      duration_ms: 58.538354
+      type: 'test'
+      ...
+    # Subtest: target access
+    ok 8 - target access
+      ---
+      duration_ms: 57.697453
+      type: 'test'
+      ...
+    # Subtest: target readiness
+    ok 9 - target readiness
+      ---
+      duration_ms: 57.182237
+      type: 'test'
+      ...
+    # Subtest: target authority
+    ok 10 - target authority
+      ---
+      duration_ms: 57.384597
+      type: 'test'
+      ...
+    1..10
+ok 200 - review refuses changed source generation, content, current access, readiness and target fences
+  ---
+  duration_ms: 503.815559
+  type: 'test'
+  ...
+# Subtest: review refuses changes to any preparing context pin
+    # Subtest: member
+    ok 1 - member
+      ---
+      duration_ms: 41.707401
+      type: 'test'
+      ...
+    # Subtest: role
+    ok 2 - role
+      ---
+      duration_ms: 41.803613
+      type: 'test'
+      ...
+    # Subtest: epoch
+    ok 3 - epoch
+      ---
+      duration_ms: 41.063979
+      type: 'test'
+      ...
+    # Subtest: channel
+    ok 4 - channel
+      ---
+      duration_ms: 41.319587
+      type: 'test'
+      ...
+    # Subtest: source taint
+    ok 5 - source taint
+      ---
+      duration_ms: 41.606307
+      type: 'test'
+      ...
+    1..5
+ok 201 - review refuses changes to any preparing context pin
+  ---
+  duration_ms: 208.75272
+  type: 'test'
+  ...
+# Subtest: source and target changes inside complete-read guards defeat both prepare and review
+    # Subtest: prepare: source generation
+    ok 1 - prepare: source generation
+      ---
+      duration_ms: 77.24979
+      type: 'test'
+      ...
+    # Subtest: review: source generation
+    ok 2 - review: source generation
+      ---
+      duration_ms: 57.224738
+      type: 'test'
+      ...
+    # Subtest: prepare: source access
+    ok 3 - prepare: source access
+      ---
+      duration_ms: 76.807718
+      type: 'test'
+      ...
+    # Subtest: review: source access
+    ok 4 - review: source access
+      ---
+      duration_ms: 58.040791
+      type: 'test'
+      ...
+    # Subtest: prepare: source readiness
+    ok 5 - prepare: source readiness
+      ---
+      duration_ms: 76.399429
+      type: 'test'
+      ...
+    # Subtest: review: source readiness
+    ok 6 - review: source readiness
+      ---
+      duration_ms: 56.316952
+      type: 'test'
+      ...
+    # Subtest: prepare: target generation
+    ok 7 - prepare: target generation
+      ---
+      duration_ms: 73.020449
+      type: 'test'
+      ...
+    # Subtest: review: target generation
+    ok 8 - review: target generation
+      ---
+      duration_ms: 51.938953
+      type: 'test'
+      ...
+    # Subtest: prepare: target access
+    ok 9 - prepare: target access
+      ---
+      duration_ms: 75.668741
+      type: 'test'
+      ...
+    # Subtest: review: target access
+    ok 10 - review: target access
+      ---
+      duration_ms: 61.39022
+      type: 'test'
+      ...
+    # Subtest: prepare: target readiness
+    ok 11 - prepare: target readiness
+      ---
+      duration_ms: 52.562332
+      type: 'test'
+      ...
+    # Subtest: review: target readiness
+    ok 12 - review: target readiness
+      ---
+      duration_ms: 32.545519
+      type: 'test'
+      ...
+    # Subtest: prepare: target authority
+    ok 13 - prepare: target authority
+      ---
+      duration_ms: 42.456227
+      type: 'test'
+      ...
+    # Subtest: review: target authority
+    ok 14 - review: target authority
+      ---
+      duration_ms: 31.939355
+      type: 'test'
+      ...
+    1..14
+ok 202 - source and target changes inside complete-read guards defeat both prepare and review
+  ---
+  duration_ms: 826.556733
+  type: 'test'
+  ...
+# Subtest: source and target inspection TOCTOU after returning a matching snapshot are caught by final fence rechecks
+    # Subtest: prepare: source
+    ok 1 - prepare: source
+      ---
+      duration_ms: 73.521458
+      type: 'test'
+      ...
+    # Subtest: review: source
+    ok 2 - review: source
+      ---
+      duration_ms: 57.88508
+      type: 'test'
+      ...
+    # Subtest: prepare: target
+    ok 3 - prepare: target
+      ---
+      duration_ms: 79.18344
+      type: 'test'
+      ...
+    # Subtest: review: target
+    ok 4 - review: target
+      ---
+      duration_ms: 59.749886
+      type: 'test'
+      ...
+    1..4
+ok 203 - source and target inspection TOCTOU after returning a matching snapshot are caught by final fence rechecks
+  ---
+  duration_ms: 271.31948
+  type: 'test'
+  ...
+# Subtest: discard removes only the inert retained candidate and requires its exact preparing context
+ok 204 - discard removes only the inert retained candidate and requires its exact preparing context
+  ---
+  duration_ms: 61.604114
+  type: 'test'
+  ...
+# Subtest: encrypted export and independent pin retain exact inert material with bounded public summaries
+ok 205 - encrypted export and independent pin retain exact inert material with bounded public summaries
+  ---
+  duration_ms: 156.841162
+  type: 'test'
+  ...
+# Subtest: candidate prepare/review survives host reopening and leaves all source authority inert and unchanged
+ok 206 - candidate prepare/review survives host reopening and leaves all source authority inert and unchanged
+  ---
+  duration_ms: 734.250747
+  type: 'test'
+  ...
+# Subtest: requires explicit confirmed destinations and separates open export from encrypted default
+ok 207 - requires explicit confirmed destinations and separates open export from encrypted default
+  ---
+  duration_ms: 170.031374
+  type: 'test'
+  ...
+# Subtest: export cannot overwrite an owned archive or invent missing category attestations
+ok 208 - export cannot overwrite an owned archive or invent missing category attestations
+  ---
+  duration_ms: 164.325152
+  type: 'test'
+  ...
+# Subtest: full export refuses phone context before custody writes
+ok 209 - full export refuses phone context before custody writes
+  ---
+  duration_ms: 12.189056
+  type: 'test'
+  ...
+# Subtest: full export refuses tainted context before custody writes
+ok 210 - full export refuses tainted context before custody writes
+  ---
+  duration_ms: 11.680868
+  type: 'test'
+  ...
+# Subtest: full export refuses wrong epoch context before custody writes
+ok 211 - full export refuses wrong epoch context before custody writes
+  ---
+  duration_ms: 11.830445
+  type: 'test'
+  ...
+# Subtest: full export refuses viewer context before custody writes
+ok 212 - full export refuses viewer context before custody writes
+  ---
+  duration_ms: 12.57916
+  type: 'test'
+  ...
+# Subtest: current complete source access and readiness are mandatory despite historical owner membership
+ok 213 - current complete source access and readiness are mandatory despite historical owner membership
+  ---
+  duration_ms: 149.472648
+  type: 'test'
+  ...
+# Subtest: source changes or access revocation during encrypted creation refuse and remove the exact orphan
+ok 214 - source changes or access revocation during encrypted creation refuse and remove the exact orphan
+  ---
+  duration_ms: 125.490962
+  type: 'test'
+  ...
+# Subtest: last outer source/target fence failures remove the exact created pair after lease exit
+ok 215 - last outer source/target fence failures remove the exact created pair after lease exit
+  ---
+  duration_ms: 496.729629
+  type: 'test'
+  ...
+# Subtest: creation cleanup covers a root lease release error after a successful callback
+ok 216 - creation cleanup covers a root lease release error after a successful callback
+  ---
+  duration_ms: 54.987614
+  type: 'test'
+  ...
+# Subtest: late cleanup cannot delete a same-content encrypted replacement with a different creation instance
+ok 217 - late cleanup cannot delete a same-content encrypted replacement with a different creation instance
+  ---
+  duration_ms: 54.875081
+  type: 'test'
+  ...
+# Subtest: all caller destinations and exact review/discard inputs are detached before awaited custody
+ok 218 - all caller destinations and exact review/discard inputs are detached before awaited custody
+  ---
+  duration_ms: 487.221964
+  type: 'test'
+  ...
+# Subtest: open export detaches reviewed destination and cleans output after late guard or byte-count failure
+ok 219 - open export detaches reviewed destination and cleans output after late guard or byte-count failure
+  ---
+  duration_ms: 110.626082
+  type: 'test'
+  ...
+# Subtest: open export reports retained output precisely if exact owned cleanup cannot complete
+ok 220 - open export reports retained output precisely if exact owned cleanup cannot complete
+  ---
+  duration_ms: 33.706741
+  type: 'test'
+  ...
+# Subtest: open-export cleanup cannot remove identical replacement bytes from another creation instance
+ok 221 - open-export cleanup cannot remove identical replacement bytes from another creation instance
+  ---
+  duration_ms: 35.620689
+  type: 'test'
+  ...
+# Subtest: candidate prepare refuses stale independent source pins even when stored wire is internally valid
+ok 222 - candidate prepare refuses stale independent source pins even when stored wire is internally valid
+  ---
+  duration_ms: 74.374902
+  type: 'test'
+  ...
+# Subtest: actual target must be exclusively uninitialized and independently allocated
+ok 223 - actual target must be exclusively uninitialized and independently allocated
+  ---
+  duration_ms: 619.912317
+  type: 'test'
+  ...
+# Subtest: target creation races during candidate custody refuse and remove candidate without touching source/export
+ok 224 - target creation races during candidate custody refuse and remove candidate without touching source/export
+  ---
+  duration_ms: 146.113532
+  type: 'test'
+  ...
+# Subtest: durable review refuses changed target/current source/context and wrong exact candidate digest
+ok 225 - durable review refuses changed target/current source/context and wrong exact candidate digest
+  ---
+  duration_ms: 1099.130348
+  type: 'test'
+  ...
+# Subtest: independent encrypted pin rejects re-sealed export wire and candidate mutations
+ok 226 - independent encrypted pin rejects re-sealed export wire and candidate mutations
+  ---
+  duration_ms: 354.134771
+  type: 'test'
+  ...
+# Subtest: ciphertext archive and independent-pin authentication are required on durable reopening
+ok 227 - ciphertext archive and independent-pin authentication are required on durable reopening
+  ---
+  duration_ms: 105.258179
+  type: 'test'
+  ...
+# Subtest: custody record identities cannot be swapped under independently bound record AAD
+ok 228 - custody record identities cannot be swapped under independently bound record AAD
+  ---
+  duration_ms: 51.313262
+  type: 'test'
+  ...
+# Subtest: review checks encrypted record again under both held fences and refuses mid-review replacement
+ok 229 - review checks encrypted record again under both held fences and refuses mid-review replacement
+  ---
+  duration_ms: 310.15628
+  type: 'test'
+  ...
+# Subtest: discard survives reopen, checks current complete owner and removes only reviewed archive/pin
+ok 230 - discard survives reopen, checks current complete owner and removes only reviewed archive/pin
+  ---
+  duration_ms: 364.305811
+  type: 'test'
+  ...
+# Subtest: malformed or incomplete host custody and boolean async guard admission refuse
+ok 231 - malformed or incomplete host custody and boolean async guard admission refuse
+  ---
+  duration_ms: 11.644337
+  type: 'test'
+  ...
+# Subtest: unmeasured custody and a failed exact orphan cleanup are reported without success claims
+ok 232 - unmeasured custody and a failed exact orphan cleanup are reported without success claims
+  ---
+  duration_ms: 62.027998
+  type: 'test'
+  ...
+# Subtest: actual encrypted Vault/FS custody preserves all stores, opaque managed backups, independent pins and a durable empty target
+ok 233 - actual encrypted Vault/FS custody preserves all stores, opaque managed backups, independent pins and a durable empty target
+  ---
+  duration_ms: 1730.588897
+  type: 'test'
+  ...
+# {"sourceOnly":true,"nativeQualified":false,"archiveCiphertextBytes":215697,"inventoryPinCiphertextBytes":17761,"candidateCiphertextBytes":216573,"measuredCaptureMs":21.791678000000047,"stores":26,"artifacts":5,"reopenVerified":true,"activation":false,"fullWorkspacePortabilityQualified":false}
+# Subtest: discard authenticates both digests, revokes issuance before deletion and makes custody IDs durable single-use
+ok 234 - discard authenticates both digests, revokes issuance before deletion and makes custody IDs durable single-use
+  ---
+  duration_ms: 734.880436
+  type: 'test'
+  ...
+# Subtest: root target allocation refuses unrelated pre-existing directories and detects every unexpected actual target entry
+ok 235 - root target allocation refuses unrelated pre-existing directories and detects every unexpected actual target entry
+  ---
+  duration_ms: 1261.345394
+  type: 'test'
+  ...
+# Subtest: missing legacy originals, altered hashes, unclassified filesystem entries and plugin bodies refuse a complete capture
+ok 236 - missing legacy originals, altered hashes, unclassified filesystem entries and plugin bodies refuse a complete capture
+  ---
+  duration_ms: 214.892116
+  type: 'test'
+  ...
+# Subtest: actual connector pages and full reviewed recipes are preserved without promoting qualification; changed raw/provenance pins refuse
+ok 237 - actual connector pages and full reviewed recipes are preserved without promoting qualification; changed raw/provenance pins refuse
+  ---
+  duration_ms: 390.735609
+  type: 'test'
+  ...
+# Subtest: current authority and actual source file changes invalidate review while another owner context cannot read custody
+ok 238 - current authority and actual source file changes invalidate review while another owner context cannot read custody
+  ---
+  duration_ms: 872.934955
+  type: 'test'
+  ...
+# Subtest: a failed final source fence revokes its exact newly-created custody without leaving a published candidate
+ok 239 - a failed final source fence revokes its exact newly-created custody without leaving a published candidate
+  ---
+  duration_ms: 262.492202
+  type: 'test'
+  ...
+# Subtest: post-publication commit acknowledgement failure is resolved to a revoked tombstone and exact ciphertext cleanup
+ok 240 - post-publication commit acknowledgement failure is resolved to a revoked tombstone and exact ciphertext cleanup
+  ---
+  duration_ms: 325.678636
+  type: 'test'
+  ...
+# Subtest: post-publication archive and pin acknowledgement faults clean up their exact unacknowledged owned ciphertexts
+    # Subtest: archive
+    ok 1 - archive
+      ---
+      duration_ms: 400.375262
+      type: 'test'
+      ...
+    # Subtest: pin
+    ok 2 - pin
+      ---
+      duration_ms: 353.77751
+      type: 'test'
+      ...
+    1..2
+ok 241 - post-publication archive and pin acknowledgement faults clean up their exact unacknowledged owned ciphertexts
+  ---
+  duration_ms: 755.197583
+  type: 'test'
+  ...
+# Subtest: post-publication target reservation acknowledgement failure revokes only the actual owned reservation and empty directory
+ok 242 - post-publication target reservation acknowledgement failure revokes only the actual owned reservation and empty directory
+  ---
+  duration_ms: 425.325506
+  type: 'test'
+  ...
+# Subtest: retained private forks are admitted against CURRENT historical source rights and must have their owned issuance binding
+ok 243 - retained private forks are admitted against CURRENT historical source rights and must have their owned issuance binding
+  ---
+  duration_ms: 430.877924
+  type: 'test'
+  ...
+# Subtest: two individually permitted files exceeding the aggregate budget refuse the second allocation
+ok 244 - two individually permitted files exceeding the aggregate budget refuse the second allocation
+  ---
+  duration_ms: 318.029421
+  type: 'test'
+  ...
+# Subtest: a private active issuance with missing retained payloads refuses completeness while a discarded tombstone is inert
+ok 245 - a private active issuance with missing retained payloads refuses completeness while a discarded tombstone is inert
+  ---
+  duration_ms: 283.346107
+  type: 'test'
+  ...
+# Subtest: ontology-absent legacy and original scenario/lesson profiles keep exact prior bytes and digests
+ok 246 - ontology-absent legacy and original scenario/lesson profiles keep exact prior bytes and digests
+  ---
+  duration_ms: 73.586131
+  type: 'test'
+  ...
+# Subtest: nested ontology profiles preserve exact namespace presence including empty live and inert evidence
+    # Subtest: published; no private stores
+    ok 1 - published; no private stores
+      ---
+      duration_ms: 48.383388
+      type: 'test'
+      ...
+    # Subtest: published; scenarioRecords
+    ok 2 - published; scenarioRecords
+      ---
+      duration_ms: 51.167424
+      type: 'test'
+      ...
+    # Subtest: published; lessonState
+    ok 3 - published; lessonState
+      ---
+      duration_ms: 49.421606
+      type: 'test'
+      ...
+    # Subtest: published; scenarioRecords,lessonState
+    ok 4 - published; scenarioRecords,lessonState
+      ---
+      duration_ms: 47.270871
+      type: 'test'
+      ...
+    # Subtest: empty published; no private stores
+    ok 5 - empty published; no private stores
+      ---
+      duration_ms: 35.044307
+      type: 'test'
+      ...
+    # Subtest: empty published; scenarioRecords
+    ok 6 - empty published; scenarioRecords
+      ---
+      duration_ms: 34.500367
+      type: 'test'
+      ...
+    # Subtest: empty published; lessonState
+    ok 7 - empty published; lessonState
+      ---
+      duration_ms: 35.232479
+      type: 'test'
+      ...
+    # Subtest: empty published; scenarioRecords,lessonState
+    ok 8 - empty published; scenarioRecords,lessonState
+      ---
+      duration_ms: 35.156112
+      type: 'test'
+      ...
+    # Subtest: inert origin; no private stores
+    ok 9 - inert origin; no private stores
+      ---
+      duration_ms: 44.872926
+      type: 'test'
+      ...
+    # Subtest: inert origin; scenarioRecords
+    ok 10 - inert origin; scenarioRecords
+      ---
+      duration_ms: 49.575123
+      type: 'test'
+      ...
+    # Subtest: inert origin; lessonState
+    ok 11 - inert origin; lessonState
+      ---
+      duration_ms: 43.801097
+      type: 'test'
+      ...
+    # Subtest: inert origin; scenarioRecords,lessonState
+    ok 12 - inert origin; scenarioRecords,lessonState
+      ---
+      duration_ms: 46.662309
+      type: 'test'
+      ...
+    # Subtest: empty inert; no private stores
+    ok 13 - empty inert; no private stores
+      ---
+      duration_ms: 35.481257
+      type: 'test'
+      ...
+    # Subtest: empty inert; scenarioRecords
+    ok 14 - empty inert; scenarioRecords
+      ---
+      duration_ms: 37.103635
+      type: 'test'
+      ...
+    # Subtest: empty inert; lessonState
+    ok 15 - empty inert; lessonState
+      ---
+      duration_ms: 38.730923
+      type: 'test'
+      ...
+    # Subtest: empty inert; scenarioRecords,lessonState
+    ok 16 - empty inert; scenarioRecords,lessonState
+      ---
+      duration_ms: 38.883011
+      type: 'test'
+      ...
+    # Subtest: empty origin record; no private stores
+    ok 17 - empty origin record; no private stores
+      ---
+      duration_ms: 36.558975
+      type: 'test'
+      ...
+    # Subtest: empty origin record; scenarioRecords
+    ok 18 - empty origin record; scenarioRecords
+      ---
+      duration_ms: 40.642553
+      type: 'test'
+      ...
+    # Subtest: empty origin record; lessonState
+    ok 19 - empty origin record; lessonState
+      ---
+      duration_ms: 36.406334
+      type: 'test'
+      ...
+    # Subtest: empty origin record; scenarioRecords,lessonState
+    ok 20 - empty origin record; scenarioRecords,lessonState
+      ---
+      duration_ms: 34.881752
+      type: 'test'
+      ...
+    # Subtest: live and inert; no private stores
+    ok 21 - live and inert; no private stores
+      ---
+      duration_ms: 48.047798
+      type: 'test'
+      ...
+    # Subtest: live and inert; scenarioRecords
+    ok 22 - live and inert; scenarioRecords
+      ---
+      duration_ms: 52.021985
+      type: 'test'
+      ...
+    # Subtest: live and inert; lessonState
+    ok 23 - live and inert; lessonState
+      ---
+      duration_ms: 52.654592
+      type: 'test'
+      ...
+    # Subtest: live and inert; scenarioRecords,lessonState
+    ok 24 - live and inert; scenarioRecords,lessonState
+      ---
+      duration_ms: 44.912683
+      type: 'test'
+      ...
+    # Subtest: deferred review; no private stores
+    ok 25 - deferred review; no private stores
+      ---
+      duration_ms: 14.259198
+      type: 'test'
+      ...
+    # Subtest: deferred review; scenarioRecords
+    ok 26 - deferred review; scenarioRecords
+      ---
+      duration_ms: 15.520394
+      type: 'test'
+      ...
+    # Subtest: deferred review; lessonState
+    ok 27 - deferred review; lessonState
+      ---
+      duration_ms: 15.247647
+      type: 'test'
+      ...
+    # Subtest: deferred review; scenarioRecords,lessonState
+    ok 28 - deferred review; scenarioRecords,lessonState
+      ---
+      duration_ms: 18.703983
+      type: 'test'
+      ...
+    1..28
+ok 247 - nested ontology profiles preserve exact namespace presence including empty live and inert evidence
+  ---
+  duration_ms: 1090.962734
+  type: 'test'
+  ...
+# Subtest: profile inspection refuses missing, unknown, duplicate, unordered or falsely declared ontology metadata
+    # Subtest: missing metadata
+    ok 1 - missing metadata
+      ---
+      duration_ms: 3.395347
+      type: 'test'
+      ...
+    # Subtest: empty metadata
+    ok 2 - empty metadata
+      ---
+      duration_ms: 3.900448
+      type: 'test'
+      ...
+    # Subtest: unknown metadata
+    ok 3 - unknown metadata
+      ---
+      duration_ms: 2.88585
+      type: 'test'
+      ...
+    # Subtest: duplicate metadata
+    ok 4 - duplicate metadata
+      ---
+      duration_ms: 2.933152
+      type: 'test'
+      ...
+    # Subtest: wrong declared presence
+    ok 5 - wrong declared presence
+      ---
+      duration_ms: 5.716037
+      type: 'test'
+      ...
+    # Subtest: unordered metadata
+    ok 6 - unordered metadata
+      ---
+      duration_ms: 3.416137
+      type: 'test'
+      ...
+    # Subtest: extra profile field
+    ok 7 - extra profile field
+      ---
+      duration_ms: 3.873414
+      type: 'test'
+      ...
+    # Subtest: legacy downgrade
+    ok 8 - legacy downgrade
+      ---
+      duration_ms: 6.144579
+      type: 'test'
+      ...
+    1..8
+ok 248 - profile inspection refuses missing, unknown, duplicate, unordered or falsely declared ontology metadata
+  ---
+  duration_ms: 86.806391
+  type: 'test'
+  ...
+# Subtest: modern ontology wrappers validate exact data and refuse unknown or forged retained evidence
+    # Subtest: unknown wrapper key
+    ok 1 - unknown wrapper key
+      ---
+      duration_ms: 1.4879
+      type: 'test'
+      ...
+    # Subtest: undefined live namespace
+    ok 2 - undefined live namespace
+      ---
+      duration_ms: 1.57786
+      type: 'test'
+      ...
+    # Subtest: undefined inert namespace
+    ok 3 - undefined inert namespace
+      ---
+      duration_ms: 1.561117
+      type: 'test'
+      ...
+    # Subtest: deferred marker mixed with published evidence
+    ok 4 - deferred marker mixed with published evidence
+      ---
+      duration_ms: 1.470733
+      type: 'test'
+      ...
+    # Subtest: wrong live workspace
+    ok 5 - wrong live workspace
+      ---
+      duration_ms: 2.008223
+      type: 'test'
+      ...
+    # Subtest: duplicate live attempts
+    ok 6 - duplicate live attempts
+      ---
+      duration_ms: 1.657302
+      type: 'test'
+      ...
+    # Subtest: unlinked history
+    ok 7 - unlinked history
+      ---
+      duration_ms: 1.804954
+      type: 'test'
+      ...
+    # Subtest: unknown receipt field
+    ok 8 - unknown receipt field
+      ---
+      duration_ms: 1.770597
+      type: 'test'
+      ...
+    # Subtest: origin equals live workspace
+    ok 9 - origin equals live workspace
+      ---
+      duration_ms: 2.170282
+      type: 'test'
+      ...
+    # Subtest: duplicate origin
+    ok 10 - duplicate origin
+      ---
+      duration_ms: 1.804157
+      type: 'test'
+      ...
+    # Subtest: rewritten origin receipt
+    ok 11 - rewritten origin receipt
+      ---
+      duration_ms: 2.210594
+      type: 'test'
+      ...
+    1..11
+ok 249 - modern ontology wrappers validate exact data and refuse unknown or forged retained evidence
+  ---
+  duration_ms: 22.507371
+  type: 'test'
+  ...
+# Subtest: scenario evidence cuts validate their own exact ontology profile and original workspace binding
+    # Subtest: published
+    ok 1 - published
+      ---
+      duration_ms: 52.846868
+      type: 'test'
+      ...
+    # Subtest: inherited
+    ok 2 - inherited
+      ---
+      duration_ms: 50.820735
+      type: 'test'
+      ...
+    # Subtest: deferred
+    ok 3 - deferred
+      ---
+      duration_ms: 31.290793
+      type: 'test'
+      ...
+    1..3
+ok 250 - scenario evidence cuts validate their own exact ontology profile and original workspace binding
+  ---
+  duration_ms: 140.231996
+  type: 'test'
+  ...
+# Subtest: namespace absence stays exact legacy v1; empty presence explicitly selects versioned v2
+ok 251 - namespace absence stays exact legacy v1; empty presence explicitly selects versioned v2
+  ---
+  duration_ms: 261.423139
+  type: 'test'
+  ...
+# Subtest: version/profile mismatches, unknown namespaces and malformed empty namespaces still refuse
+ok 252 - version/profile mismatches, unknown namespaces and malformed empty namespaces still refuse
+  ---
+  duration_ms: 53.115519
+  type: 'test'
+  ...
+# Subtest: legacy archives retain exact legacy target-proof compatibility; v2 requires retained namespace enumeration
+ok 253 - legacy archives retain exact legacy target-proof compatibility; v2 requires retained namespace enumeration
+  ---
+  duration_ms: 208.227683
+  type: 'test'
+  ...
+# Subtest: capture refuses malformed State accessors before any getter can run
+ok 254 - capture refuses malformed State accessors before any getter can run
+  ---
+  duration_ms: 6.35333
+  type: 'test'
+  ...
+# Subtest: real scenario and approved lesson export/read retain exact nested JSON, lifecycle history, answers and pins
+ok 255 - real scenario and approved lesson export/read retain exact nested JSON, lifecycle history, answers and pins
+  ---
+  duration_ms: 6041.233553
+  type: 'test'
+  ...
+# Subtest: ordinary encrypted reopen preserves scenario selections, lesson guidance and subsequent exact export
+ok 256 - ordinary encrypted reopen preserves scenario selections, lesson guidance and subsequent exact export
+  ---
+  duration_ms: 5799.454363
+  type: 'test'
+  ...
+# Subtest: historical scenario cuts require their original source and recipe bodies after current import removal
+ok 257 - historical scenario cuts require their original source and recipe bodies after current import removal
+  ---
+  duration_ms: 2285.106765
+  type: 'test'
+  ...
+# Subtest: public source deletion purges both namespaces to explicit empties that round trip and reopen
+ok 258 - public source deletion purges both namespaces to explicit empties that round trip and reopen
+  ---
+  duration_ms: 2316.732147
+  type: 'test'
+  ...
+# Subtest: changed scenario artifacts cannot pass real retained release checks during export
+ok 259 - changed scenario artifacts cannot pass real retained release checks during export
+  ---
+  duration_ms: 2141.225699
+  type: 'test'
+  ...
+# Subtest: a later scenario readiness callback cannot withdraw an earlier scenario receipt during the same export read
+ok 260 - a later scenario readiness callback cannot withdraw an earlier scenario receipt during the same export read
+  ---
+  duration_ms: 2627.617588
+  type: 'test'
+  ...
+# Subtest: lesson evidence callbacks cannot withdraw previously checked scenario readiness before export release
+ok 261 - lesson evidence callbacks cannot withdraw previously checked scenario readiness before export release
+  ---
+  duration_ms: 2476.194486
+  type: 'test'
+  ...
+# Subtest: changed lesson source evidence cannot pass real exact-evidence release checks during export
+ok 262 - changed lesson source evidence cannot pass real exact-evidence release checks during export
+  ---
+  duration_ms: 2436.3888
+  type: 'test'
+  ...
+# Subtest: canonical-equivalent nested key reordering cannot substitute exact retained custody
+ok 263 - canonical-equivalent nested key reordering cannot substitute exact retained custody
+  ---
+  duration_ms: 2139.121218
+  type: 'test'
+  ...
+# Subtest: retired lessons remain exact exportable history and retain their historical evaluation checks
+ok 264 - retired lessons remain exact exportable history and retain their historical evaluation checks
+  ---
+  duration_ms: 5066.651947
+  type: 'test'
+  ...
+# Subtest: revoked demo-export evidence still retained in custody refuses export
+ok 265 - revoked demo-export evidence still retained in custody refuses export
+  ---
+  duration_ms: 2181.344728
+  type: 'test'
+  ...
+# Subtest: revoked source-job evidence still retained in custody refuses export
+ok 266 - revoked source-job evidence still retained in custody refuses export
+  ---
+  duration_ms: 2533.192319
+  type: 'test'
+  ...
+# Subtest: revoked source-eval evidence still retained in custody refuses export
+ok 267 - revoked source-eval evidence still retained in custody refuses export
+  ---
+  duration_ms: 2560.077179
+  type: 'test'
+  ...
+# Subtest: expired retained evidence refuses export through the existing retention gates
+ok 268 - expired retained evidence refuses export through the existing retention gates
+  ---
+  duration_ms: 2137.033495
+  type: 'test'
+  ...
+# Subtest: expired lesson lifecycle refuses export independently from scenario retention
+ok 269 - expired lesson lifecycle refuses export independently from scenario retention
+  ---
+  duration_ms: 2100.588234
+  type: 'test'
+  ...
+# Subtest: changed completed evaluation bodies refuse export of an otherwise approved lesson
+ok 270 - changed completed evaluation bodies refuse export of an otherwise approved lesson
+  ---
+  duration_ms: 2435.506484
+  type: 'test'
+  ...
+# Subtest: unsupported installed scenario evidence and absent evaluation authority stay unsupported for export
+ok 271 - unsupported installed scenario evidence and absent evaluation authority stay unsupported for export
+  ---
+  duration_ms: 2476.329843
+  type: 'test'
+  ...
+# Subtest: reviewed profile exhaustively matches every actual persisted State key
+ok 272 - reviewed profile exhaustively matches every actual persisted State key
+  ---
+  duration_ms: 4.182287
+  type: 'test'
+  ...
+# Subtest: codec deterministically preserves every store, literal, readable meaning and retained byte
+ok 273 - codec deterministically preserves every store, literal, readable meaning and retained byte
+  ---
+  duration_ms: 108.643019
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store members
+ok 274 - refuses omitted persisted State store members
+  ---
+  duration_ms: 15.494898
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store members even after package resealing
+ok 275 - refuses missing wire and inventory store members even after package resealing
+  ---
+  duration_ms: 16.79122
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store facts
+ok 276 - refuses omitted persisted State store facts
+  ---
+  duration_ms: 14.198431
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store facts even after package resealing
+ok 277 - refuses missing wire and inventory store facts even after package resealing
+  ---
+  duration_ms: 17.912404
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store imports
+ok 278 - refuses omitted persisted State store imports
+  ---
+  duration_ms: 16.010753
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store imports even after package resealing
+ok 279 - refuses missing wire and inventory store imports even after package resealing
+  ---
+  duration_ms: 21.093524
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store receipts
+ok 280 - refuses omitted persisted State store receipts
+  ---
+  duration_ms: 14.867435
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store receipts even after package resealing
+ok 281 - refuses missing wire and inventory store receipts even after package resealing
+  ---
+  duration_ms: 16.955903
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store answers
+ok 282 - refuses omitted persisted State store answers
+  ---
+  duration_ms: 13.887701
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store answers even after package resealing
+ok 283 - refuses missing wire and inventory store answers even after package resealing
+  ---
+  duration_ms: 15.92739
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store decisions
+ok 284 - refuses omitted persisted State store decisions
+  ---
+  duration_ms: 13.781397
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store decisions even after package resealing
+ok 285 - refuses missing wire and inventory store decisions even after package resealing
+  ---
+  duration_ms: 16.177162
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store actions
+ok 286 - refuses omitted persisted State store actions
+  ---
+  duration_ms: 13.912051
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store actions even after package resealing
+ok 287 - refuses missing wire and inventory store actions even after package resealing
+  ---
+  duration_ms: 16.328991
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store jobs
+ok 288 - refuses omitted persisted State store jobs
+  ---
+  duration_ms: 13.821673
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store jobs even after package resealing
+ok 289 - refuses missing wire and inventory store jobs even after package resealing
+  ---
+  duration_ms: 16.871878
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store learning
+ok 290 - refuses omitted persisted State store learning
+  ---
+  duration_ms: 14.131946
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store learning even after package resealing
+ok 291 - refuses missing wire and inventory store learning even after package resealing
+  ---
+  duration_ms: 16.957028
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store plugins
+ok 292 - refuses omitted persisted State store plugins
+  ---
+  duration_ms: 13.605059
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store plugins even after package resealing
+ok 293 - refuses missing wire and inventory store plugins even after package resealing
+  ---
+  duration_ms: 16.467429
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store modelReceipts
+ok 294 - refuses omitted persisted State store modelReceipts
+  ---
+  duration_ms: 13.464714
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store modelReceipts even after package resealing
+ok 295 - refuses missing wire and inventory store modelReceipts even after package resealing
+  ---
+  duration_ms: 15.957325
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store activity
+ok 296 - refuses omitted persisted State store activity
+  ---
+  duration_ms: 13.89664
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store activity even after package resealing
+ok 297 - refuses missing wire and inventory store activity even after package resealing
+  ---
+  duration_ms: 16.52128
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store conflicts
+ok 298 - refuses omitted persisted State store conflicts
+  ---
+  duration_ms: 14.372176
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store conflicts even after package resealing
+ok 299 - refuses missing wire and inventory store conflicts even after package resealing
+  ---
+  duration_ms: 16.253873
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store merges
+ok 300 - refuses omitted persisted State store merges
+  ---
+  duration_ms: 13.767802
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store merges even after package resealing
+ok 301 - refuses missing wire and inventory store merges even after package resealing
+  ---
+  duration_ms: 16.203568
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store tombstones
+ok 302 - refuses omitted persisted State store tombstones
+  ---
+  duration_ms: 14.466159
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store tombstones even after package resealing
+ok 303 - refuses missing wire and inventory store tombstones even after package resealing
+  ---
+  duration_ms: 17.02444
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store conversations
+ok 304 - refuses omitted persisted State store conversations
+  ---
+  duration_ms: 13.928904
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store conversations even after package resealing
+ok 305 - refuses missing wire and inventory store conversations even after package resealing
+  ---
+  duration_ms: 17.181672
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store routes
+ok 306 - refuses omitted persisted State store routes
+  ---
+  duration_ms: 14.332143
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store routes even after package resealing
+ok 307 - refuses missing wire and inventory store routes even after package resealing
+  ---
+  duration_ms: 16.076007
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store sessions
+ok 308 - refuses omitted persisted State store sessions
+  ---
+  duration_ms: 13.775203
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store sessions even after package resealing
+ok 309 - refuses missing wire and inventory store sessions even after package resealing
+  ---
+  duration_ms: 17.202629
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store unsupported
+ok 310 - refuses omitted persisted State store unsupported
+  ---
+  duration_ms: 13.884949
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store unsupported even after package resealing
+ok 311 - refuses missing wire and inventory store unsupported even after package resealing
+  ---
+  duration_ms: 19.175062
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store schedules
+ok 312 - refuses omitted persisted State store schedules
+  ---
+  duration_ms: 14.880992
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store schedules even after package resealing
+ok 313 - refuses missing wire and inventory store schedules even after package resealing
+  ---
+  duration_ms: 18.059142
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store sourceRules
+ok 314 - refuses omitted persisted State store sourceRules
+  ---
+  duration_ms: 13.468335
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store sourceRules even after package resealing
+ok 315 - refuses missing wire and inventory store sourceRules even after package resealing
+  ---
+  duration_ms: 17.559034
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store schemaVersion
+ok 316 - refuses omitted persisted State store schemaVersion
+  ---
+  duration_ms: 13.328005
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store schemaVersion even after package resealing
+ok 317 - refuses missing wire and inventory store schemaVersion even after package resealing
+  ---
+  duration_ms: 16.411361
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store revision
+ok 318 - refuses omitted persisted State store revision
+  ---
+  duration_ms: 13.414727
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store revision even after package resealing
+ok 319 - refuses missing wire and inventory store revision even after package resealing
+  ---
+  duration_ms: 16.842873
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store workspace
+ok 320 - refuses omitted persisted State store workspace
+  ---
+  duration_ms: 14.080046
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store workspace even after package resealing
+ok 321 - refuses missing wire and inventory store workspace even after package resealing
+  ---
+  duration_ms: 15.486924
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store policy
+ok 322 - refuses omitted persisted State store policy
+  ---
+  duration_ms: 13.963656
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store policy even after package resealing
+ok 323 - refuses missing wire and inventory store policy even after package resealing
+  ---
+  duration_ms: 15.280706
+  type: 'test'
+  ...
+# Subtest: refuses omitted persisted State store ontology
+ok 324 - refuses omitted persisted State store ontology
+  ---
+  duration_ms: 13.709383
+  type: 'test'
+  ...
+# Subtest: refuses missing wire and inventory store ontology even after package resealing
+ok 325 - refuses missing wire and inventory store ontology even after package resealing
+  ---
+  duration_ms: 15.102562
+  type: 'test'
+  ...
+# Subtest: refuses newly introduced unreviewed stores and noncollection payloads
+ok 326 - refuses newly introduced unreviewed stores and noncollection payloads
+  ---
+  duration_ms: 15.68151
+  type: 'test'
+  ...
+# Subtest: refuses corrupt bytes/counts/digests, duplicate stores, partial inventories and unreadable definitions
+ok 327 - refuses corrupt bytes/counts/digests, duplicate stores, partial inventories and unreadable definitions
+  ---
+  duration_ms: 221.476647
+  type: 'test'
+  ...
+# Subtest: independent root inventory refuses a consistently rewritten complete package
+ok 328 - independent root inventory refuses a consistently rewritten complete package
+  ---
+  duration_ms: 61.542366
+  type: 'test'
+  ...
+# Subtest: refuses mixed State/artifact generations, omitted category attestations and duplicate/path-like artifacts
+ok 329 - refuses mixed State/artifact generations, omitted category attestations and duplicate/path-like artifacts
+  ---
+  duration_ms: 40.962358
+  type: 'test'
+  ...
+# Subtest: complete export refuses legacy hash-only recipe and source bodies
+ok 330 - complete export refuses legacy hash-only recipe and source bodies
+  ---
+  duration_ms: 7.772106
+  type: 'test'
+  ...
+# Subtest: readable recipe claims refuse hash-matched binary/nonrecipe bodies and missing import pins
+ok 331 - readable recipe claims refuse hash-matched binary/nonrecipe bodies and missing import pins
+  ---
+  duration_ms: 32.271309
+  type: 'test'
+  ...
+# Subtest: recipe semantic pins accept faithful pretty JSON while independently checking retained byte checksums
+ok 332 - recipe semantic pins accept faithful pretty JSON while independently checking retained byte checksums
+  ---
+  duration_ms: 37.672777
+  type: 'test'
+  ...
+# Subtest: wire refuses unsupported schema/format, duplicate keys, truncation and forged binary encodings
+ok 333 - wire refuses unsupported schema/format, duplicate keys, truncation and forged binary encodings
+  ---
+  duration_ms: 43.657552
+  type: 'test'
+  ...
+# Subtest: persisted JSON is bounded and refuses callbacks/accessors/cycles/classes/sparse arrays
+ok 334 - persisted JSON is bounded and refuses callbacks/accessors/cycles/classes/sparse arrays
+  ---
+  duration_ms: 1.086464
+  type: 'test'
+  ...
+# Subtest: resource bounds refuse oversized artifact inventories and excessive JSON nodes
+ok 335 - resource bounds refuse oversized artifact inventories and excessive JSON nodes
+  ---
+  duration_ms: 904.027831
+  type: 'test'
+  ...
+1..335
+# tests 597
+# suites 0
+# pass 597
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 97583.356232
