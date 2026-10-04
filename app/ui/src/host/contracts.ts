@@ -3,6 +3,8 @@ import type { ConversationPayloads } from '../bridge/conversation-contract.ts';
 import type { DashboardTodayRequest, BriefTodayRequest } from '../bridge/today-host.ts';
 import { ReplyValidationError } from '../bridge/validate.ts';
 import type { LessonDecisionRequest, ScenarioDiscoveryRequest, ScenarioReopenRequest } from './retained-contracts.ts';
+import type { TodayEnginePayloads } from '../bridge/today-engine.ts';
+import type { TodayNavigationPayloads } from '../bridge/today-navigation.ts';
 
 export interface UiContext {
   readonly workspace: { readonly id: string; readonly name: string; readonly demo: boolean };
@@ -18,7 +20,7 @@ export interface UiModelRoute {
   /** The existing catalogue explicitly does not qualify native/provider access. */
   readonly installationVerified: false;
 }
-export interface HostRpcPayloads extends ConversationPayloads {
+export interface HostRpcPayloads extends ConversationPayloads, TodayEnginePayloads, TodayNavigationPayloads {
   'ui.context': Record<string, never>;
   'models.list': Record<string, never>;
   'dashboard.get': DashboardTodayRequest;

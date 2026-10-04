@@ -46,7 +46,7 @@ export interface SheetProps {
   /** Other actions: quiet buttons and links. */
   actions?: ReactNode;
   /** Where focus returns on close. */
-  origin: HTMLElement | null;
+  origin: HTMLElement | SVGElement | null;
   /** A small label at the top right, such as a marking in the enterprise version. */
   corner?: ReactNode;
   children: ReactNode;

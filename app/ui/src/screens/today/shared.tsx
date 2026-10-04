@@ -4,9 +4,14 @@
  */
 
 import { useRef, useState } from 'react';
-import type { Address, RowItem, View } from '../../app/presentation.ts';
+import type { Address, RowItem, View, StatTile } from '../../app/presentation.ts';
 import { useT } from '../../app/text';
 import { Button } from '../../parts/Button';
+import { RowList } from '../../parts/RowList';
+import { Stat } from '../../parts/Stat';
+import { DayLine } from '../../parts/DayLine';
+import { MissingWords } from '../../parts/Figure';
+import s from './Today.module.css';
 import { TODAY_ATTENTION_MAX, TODAY_REVIEW_MAX, type TodayData, type TodayIntents } from './TodayData.ts';
 
 export interface TodayScreenProps {
@@ -115,4 +120,51 @@ export function useInPlaceRows() {
   const toggle = (id: string) => setOpenId((cur) => (cur === id ? undefined : id));
   const originOf = (id: string) => origins.current.get(id) ?? null;
   return { openId, toggle, registerOrigin, originOf };
+}
+
+/** The independent producer's scoped controls are absent from legacy callers. */
+export function TodayConsumerControls({ data, intents }: { data: TodayData; intents: TodayIntents }) {
+  const t = useT(); if (data.review.scoped === undefined) return null;
+  return <>
+    {intents.onSeeAll && <Button variant="link" onClick={intents.onSeeAll}>{t('TODAY_ENGINE.seeAll')}</Button>}
+    {intents.onPrepareTiles && <>
+      <p>{t('TODAY_ENGINE.prepareNote')}</p>
+      <Button variant="quiet" disabled={intents.preparingTiles} onClick={event => intents.onPrepareTiles?.(event.currentTarget)}>{t(intents.preparingTiles ? 'TODAY_ENGINE.preparing' : 'TODAY_ENGINE.prepare')}</Button>
+    </>}
+  </>;
+}
+/** Books keeps the genuine review ledger while accounting-specific fields are missing. */
+export function TodayConsumerLedger({ data, intents }: { data: TodayData; intents: TodayIntents }) {
+  const inPlace = useInPlaceRows();
+  if (data.review.scoped === undefined) return null;
+  const { review, worth } = attentionRows(data, []);
+  return <RowList rows={[...review, ...worth]} openId={inPlace.openId} onOpen={inPlace.toggle} opens={opensInPlace} onReceipt={intents.onReceipt} registerOrigin={inPlace.registerOrigin}
+    expansion={row => <RowExpansion row={row} intents={intents} origin={inPlace.originOf(row.id)} />} />;
+}
+/** Capture the exact chart mark or figure before its receipt callback is dispatched. */
+export function TodayStat({ tile, intents }: { tile: StatTile; intents: TodayIntents }) {
+  const t = useT(), origin = useRef<HTMLElement | SVGElement | null>(null);
+  if (intents.onOpenTile === undefined) return <Stat tile={tile} onReceipt={intents.onReceipt} />;
+  const capture = (target: EventTarget | null) => {
+    const control = target instanceof Element ? target.closest('button,[role="button"]') : null;
+    origin.current = control instanceof HTMLElement || control instanceof SVGElement ? control : null;
+  };
+  return <div onClickCapture={event => capture(event.target)} onKeyDownCapture={event => capture(event.target)}>
+    <Stat tile={tile} onReceipt={id => intents.onReceipt(id, origin.current)} />
+    <Button variant="link" onClick={event => intents.onOpenTile?.(tile.id, event.currentTarget)}>{t('TODAY_ENGINE.definition')}</Button>
+  </div>;
+}
+/** Every view can read the same supplied figures, individual bucket receipts and six events. */
+export function TodayProducerSections({ data, intents }: { data: TodayData; intents: TodayIntents }) {
+  const t = useT(); if (data.review.scoped === undefined) return null;
+  return <>
+    <section className={s.section}><h2 className={s.label}>{t('TODAY_ENGINE.figures')}</h2>
+      {data.thisMonth?.length ? <div className={s.tiles}>{data.thisMonth.map(tile => <TodayStat key={tile.id} tile={tile} intents={intents} />)}</div>
+        : <p className={s.missing}><MissingWords missing={data.thisMonthMissing ?? 'unknown'} /></p>}
+    </section>
+    <section className={s.section}><h2 className={s.label}>{t('TD-01.earlier')}</h2>
+      {data.earlierToday?.length ? <DayLine events={data.earlierToday} onReceipt={intents.onReceipt} onOpenEvent={intents.onOpenEvent} onOpenAll={intents.onOpenActivity} />
+        : <p className={s.missing}><MissingWords missing={data.earlierTodayMissing ?? 'unknown'} /></p>}
+    </section>
+  </>;
 }

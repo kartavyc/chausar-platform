@@ -19,6 +19,8 @@ export interface TodayReview {
   readonly rows: ReadonlyArray<RowItem>;
   /** When the engine cut the list: the total, for "See all 7". */
   readonly total?: Count;
+  /** Exact scoped coverage; none of these counts is a whole-product total. */
+  readonly scoped?: { readonly completeness: 'complete' | 'incomplete' | 'unavailable'; readonly count: number | null; readonly knownCount: number | null; readonly hasMore: boolean };
 }
 
 /** Books view: one row of the queue table. */
@@ -86,17 +88,25 @@ export interface TodayData {
   readonly queue?: ReadonlyArray<BooksQueueRow>;
   readonly close?: { readonly month: string; readonly steps: ReadonlyArray<CloseStep> };
   readonly enterprise?: TodayEnterprise;
+  readonly cashMissing?: Missing;
+  readonly queueMissing?: Missing;
+  readonly closeMissing?: Missing;
+  readonly enterpriseMissing?: Missing;
 }
 
 export interface TodayIntents {
   /** The Review button on an opened row. The origin is the row, for focus return. */
   onReview: (rowId: string, origin: HTMLElement | null) => void;
   onPrepare?: ((rowId: string) => void) | undefined;
+  onPrepareTiles?: ((origin: HTMLElement | null) => void) | undefined;
+  readonly preparingTiles?: boolean;
   /** A worth-a-look row opens its receipt or its page. */
   onOpenRow?: ((rowId: string, origin: HTMLElement | null) => void) | undefined;
   /** Required: every figure and every chart mark on Today opens its receipt. */
-  onReceipt: (receiptId: string) => void;
+  onReceipt: (receiptId: string, origin?: HTMLElement | SVGElement | null) => void;
+  onOpenTile?: ((tileId: string, origin: HTMLElement | null) => void) | undefined;
   onOpenActivity?: (() => void) | undefined;
+  onOpenEvent?: ((eventId: string, origin: HTMLElement | null) => void) | undefined;
   onSeeAll?: (() => void) | undefined;
   onResumeSetup?: (() => void) | undefined;
   onUpdate?: (() => void) | undefined;

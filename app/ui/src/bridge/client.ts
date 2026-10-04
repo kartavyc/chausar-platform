@@ -3,6 +3,7 @@ import type {
   EvidenceDenialCode, EnterpriseReadPort, EnterpriseStatusReader, ReadFailureCode, ReadResult,
 } from './contract.ts';
 import { ReplyValidationError, projectCalculationReceipt, validateEnterpriseStatus } from './validate.ts';
+import { todayRefusalCodes } from './contract.ts';
 
 /** Additive preload protocol; callers still receive raw results or a local Error. */
 export interface DesktopEnvelopePort {
@@ -26,6 +27,7 @@ const desktopRefusalCodes = [
   'LESSON_OWNER_REQUIRED', 'LESSON_WORKSPACE_CHANGED', 'LESSON_NOT_FOUND', 'LESSON_CHANGED', 'INVALID_LESSON', 'INVALID_LESSON_DECISION',
   'INVALID_LESSON_STATE', 'INVALID_LESSON_TARGET', 'APP_LESSON_REVIEW_REQUIRED', 'TAINTED_LESSON', 'LESSON_CONFLICT', 'INVALID_SUPERSESSION',
   'INVALID_REQUEST', 'REQUEST_TOO_LARGE', 'UNTRUSTED_SENDER', 'REQUEST_FAILED',
+  ...todayRefusalCodes,
 ] as const;
 export type DesktopRefusalCode = typeof desktopRefusalCodes[number];
 export type DesktopRequestEnvelope<T = unknown> =

@@ -13,6 +13,10 @@ import { validateModelRoutes, validateUiContext } from './contracts.ts';
 import type { HostRpcPayloads, HostRpcPort, UiContext, UiModelRoute } from './contracts.ts';
 import { createRetainedController } from './retained-controller.ts';
 import type { EffectGuard, RetainedController, RetainedPort } from './retained-controller.ts';
+import { createTodayConsumer } from './today-controller.ts';
+import type { TodayConsumerController } from './today-controller.ts';
+import type { TodayProducerInput } from '../bridge/today-engine.ts';
+import type { TodayReadPort } from '../bridge/today-navigation.ts';
 
 export type HostFailureCode = ReadFailureCode;
 export type HostReceiptSelection =
@@ -28,15 +32,20 @@ export interface HostState {
   readonly selectedRouteId: string | null;
   readonly receipt: HostReceiptSelection | null;
 }
-export interface HostOptions { readonly now?: () => number; readonly timeZone?: string }
+export interface HostOptions { readonly now?: () => number; readonly timeZone?: string; readonly todayProducer?: TodayProducerInput }
 export interface HostController {
   readonly conversation: ConversationHost;
   /** Retained scenario reopen and lesson review, joined to every host invalidation. */
   readonly retained: RetainedController;
+  readonly todayConsumer: TodayConsumerController | null;
   readonly timeZone: string;
   snapshot(): HostState;
   subscribe(listener: () => void): () => void;
   refresh(): Promise<void>;
+  /** Independent metadata bootstrap for the explicitly injected Today capability. */
+  refreshToday(): Promise<void>;
+  /** Issued trusted producer changes invalidate Today/Saved even after a lost reply. */
+  invalidateTrustedProducer(): void;
   /** Trusted focus/status/poll hooks reread metadata only, never calculations. */
   checkAuthority(): Promise<void>;
   /** A catalogue route is chosen by an explicit user intent, never its priority. */
@@ -129,7 +138,7 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
   }
   // The same seam under two names: the generic guarded port for the existing readers, and the retained
   // port whose every call must carry its guard to the raw boundary.
-  const guardedPort: HostRpcPort & RetainedPort = { request: guardedRequest, guarded: guardedRequest };
+  const guardedPort: HostRpcPort & RetainedPort & TodayReadPort = { request: guardedRequest, guarded: guardedRequest };
   const todayReader = createDesktopTodayReader(guardedPort);
   const receiptReader = createDesktopReceiptReader(guardedPort);
   /**
@@ -149,9 +158,11 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
   const conversationPort: ConversationHostPort = { request: conversationRequest };
   const conversation: ConversationHost = createConversationHost(conversationPort, { now });
   const retained = createRetainedController(guardedPort, { context: () => (state.phase === 'ready' ? state.context : null) });
-  function clearPrivate() {
+  const todayConsumer = Object.hasOwn(options, 'todayProducer') ? createTodayConsumer(guardedPort, options.todayProducer ?? {}, { context: () => state.phase === 'ready' ? state.context : null }) : null;
+  function clearPrivate(keepTodayCapture = false) {
     generation = Symbol(); receiptGeneration = Symbol(); settings = null;
     todayReader.invalidate(); receiptReader.invalidate(); conversation.invalidate(); retained.invalidate();
+    if (keepTodayCapture) todayConsumer?.cancelSelection(); else todayConsumer?.invalidate();
   }
   function invalidate(code: HostFailureCode = 'READ_INVALIDATED') {
     clearPrivate();
@@ -180,6 +191,21 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
       publish({ ...state, today: today.value, routes });
     } catch (error) { if (isCurrent(token)) invalidate(readFailureCode(error)); }
   }
+  async function refreshToday() {
+    if (todayConsumer === null) return refresh();
+    if (disposed || state.phase === 'locked') return;
+    const previousContext = state.context, previousRoute = state.selectedRouteId;
+    clearPrivate(true); publish(emptyState('loading'));
+    const token = generation;
+    try {
+      const context = await contextRead(); if (!isCurrent(token)) return;
+      if (previousContext !== null && previousContext.contextKey !== context.contextKey || previousRoute !== null) todayConsumer.invalidate();
+      publish({ ...emptyState('ready'), context });
+      const routes = validateModelRoutes(await guardedRequest('models.list', {})); if (!isCurrent(token)) return;
+      publish({ ...state, routes });
+      await todayConsumer.refresh(() => isCurrent(token));
+    } catch (error) { if (isCurrent(token)) invalidate(readFailureCode(error)); }
+  }
   function checkAuthority(): Promise<void> {
     if (authorityCheck !== null) return authorityCheck;
     const token = generation, expected = state.context;
@@ -199,6 +225,7 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
     clearPrivate();
     settings = route === null || route === undefined || state.context.member.role === 'viewer' ? null : Object.freeze({ purpose: 'conversation', questionDisclosure: 'verbatim', routeId: route.id });
     publish({ ...state, selectedRouteId: settings?.routeId ?? null, receipt: null });
+    if (todayConsumer !== null) { const token = generation; void todayConsumer.refresh(() => isCurrent(token)); }
   }
   async function openReceipt(id: string, address: Address) {
     if (disposed || state.context === null || state.phase !== 'ready') return;
@@ -227,9 +254,9 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
     catch (error) { if (!disposed) invalidate(readFailureCode(error)); }
   }
   return Object.freeze({
-    conversation, retained, timeZone, snapshot: () => state,
+    conversation, retained, todayConsumer, timeZone, snapshot: () => state,
     subscribe(listener: () => void) { if (disposed) return () => {}; listeners.add(listener); return () => { listeners.delete(listener); }; },
-    refresh, checkAuthority, selectRoute, questionSettings: () => settings, openReceipt, closeReceipt, invalidate, lock,
-    dispose() { if (disposed) return; clearPrivate(); publish(emptyState('unavailable', 'READ_INVALIDATED')); disposed = true; listeners.clear(); },
+    refresh, refreshToday, invalidateTrustedProducer: () => invalidate('READ_INVALIDATED'), checkAuthority, selectRoute, questionSettings: () => settings, openReceipt, closeReceipt, invalidate, lock,
+    dispose() { if (disposed) return; clearPrivate(); todayConsumer?.dispose(); publish(emptyState('unavailable', 'READ_INVALIDATED')); disposed = true; listeners.clear(); },
   });
 }

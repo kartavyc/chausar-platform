@@ -8,9 +8,12 @@ function retainedHostIntents(): TodayIntents {
   return {
     onReview: () => {},
     onPrepare: () => {},
+    onPrepareTiles: () => {},
     onOpenRow: () => {},
     onReceipt: () => {},
     onOpenActivity: () => {},
+    onOpenEvent: () => {},
+    onOpenTile: () => {},
     onSeeAll: () => {},
     onResumeSetup: () => {},
     onUpdate: () => {},
@@ -30,11 +33,11 @@ for (const state of readOnlyStates) {
     const offered = retainedHostIntents();
     const safe = todayIntentsForState(state, offered);
     assert.equal(allowsTodayMutation(state), false);
-    for (const action of ['onPrepare', 'onResumeSetup', 'onUpdate', 'onSaveClosing'] as const) {
+    for (const action of ['onPrepare', 'onPrepareTiles', 'onResumeSetup', 'onUpdate', 'onSaveClosing'] as const) {
       assert.equal(safe[action], undefined, action);
       assert.equal(typeof offered[action], 'function', `${action} remains untouched on the host object`);
     }
-    for (const reading of ['onReview', 'onOpenRow', 'onReceipt', 'onOpenActivity', 'onSeeAll', 'onOpenQueueRow', 'onLens'] as const) {
+    for (const reading of ['onReview', 'onOpenRow', 'onReceipt', 'onOpenEvent', 'onOpenTile', 'onOpenActivity', 'onSeeAll', 'onOpenQueueRow', 'onLens'] as const) {
       assert.equal(safe[reading], offered[reading], reading);
     }
   });

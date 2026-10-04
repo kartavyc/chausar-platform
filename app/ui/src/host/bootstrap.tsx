@@ -19,6 +19,10 @@ import { RetainedScenario, ScenarioProvenanceBody, type RetainedScenarioShown } 
 import { LessonReviewSheet } from '../screens/reports/LessonReview';
 import { RetainedPlace, retainedSurface } from '../screens/retained/RetainedPlace';
 import type { TodayData } from '../screens/today/TodayData.ts';
+import { TodayDestination } from '../screens/today/TodayDestination.tsx';
+import { projectTodayConsumer } from './today-controller.ts';
+import type { TodayConsumerState } from './today-controller.ts';
+import type { TodayDetail } from '../bridge/today-navigation.ts';
 import type { UiContext, UiModelRoute } from './contracts.ts';
 import type { HostController, HostReceiptSelection, HostState } from './controller.ts';
 import { discoveryRowFor, lessonDecisionAvailability, sameScenarioSelection, scenarioProof } from './retained-contracts.ts';
@@ -307,10 +311,16 @@ function LessonPanel({ id, scope, lessons, context, origin, onClose, onAdjacent,
  * provenance that replaced that detail; a trusted pin's proof or provenance, opened from the page, carries none. */
 type LocalSheet = {
   readonly address: Address;
-  readonly kind: 'about' | 'reference' | 'help' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson';
+  readonly kind: 'about' | 'reference' | 'help' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof';
   readonly id?: string;
   readonly chosen?: ScenarioSelection;
+  readonly todayView?: TodayConsumerState;
+  readonly todayOrigin?: HTMLElement | SVGElement | null;
+  readonly todayBack?: boolean;
 };
+const noTodaySubscribe = (_listener: () => void) => () => {};
+const noTodaySnapshot = () => null;
+const todayChain = (address: Address) => address.place === 'today' && (address.sheet === undefined || ['today-review', 'today-record', 'today-proof'].includes(address.sheet));
 type SavedSelection = NonNullable<ConversationWorkspaceProps['readback']>;
 const WHAT_IF_SHEET = 'what-if';
 const PROOF_SHEET = 'what-if-proof';
@@ -335,6 +345,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const t = useT();
   const contextKey = JSON.stringify([context.contextKey, state.selectedRouteId]);
   const retained = useSyncExternalStore(controller.retained.subscribe, controller.retained.snapshot, controller.retained.snapshot);
+  const consumer = controller.todayConsumer;
+  const todayCurrent = useSyncExternalStore(consumer?.subscribe ?? noTodaySubscribe, consumer?.snapshot ?? noTodaySnapshot, consumer?.snapshot ?? noTodaySnapshot);
+  const todayOperation = useRef(Symbol());
+  const todayPending = useRef<{ readonly prior: LocalSheet | null; readonly view: TodayConsumerState; readonly token: symbol } | null>(null);
   const active = useRef<Address | null>(TODAY);
   const origin = useRef<HTMLElement | null>(null);
   const helpFallback = useRef<HTMLElement | null>(null);
@@ -365,6 +379,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     if (current !== null && (address === null || !sameAddress(current.address, address))) {
       // Leaving a lesson sheet's exact address drops its selection: captured controls go inert.
       if (current.kind === LESSON_SHEET) controller.retained.selectLesson(null);
+      if (current.todayView !== undefined) { todayOperation.current = Symbol(); localSheetRef.current = null; controller.todayConsumer?.cancelSelection(); }
       setLocalSheet(null);
     }
     // Retained lifecycle: leaving a place or sub-place clears its private view so a return needs a
@@ -374,10 +389,16 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     // chosen row's reopen in flight is exactly the operation that movement shows.
     if (previous === null || address === null || !samePlace(previous, address)) controller.retained.invalidate();
     else if (!sameAddress(previous, address) && !(scenarioChain(previous) && scenarioChain(address))) controller.retained.cancelPending();
+    if (previous !== null && (address === null || !sameAddress(previous, address)) && !(address !== null && todayChain(previous) && todayChain(address))) {
+      todayOperation.current = Symbol(); controller.todayConsumer?.cancelSelection();
+    }
+    if (address !== null && todayChain(address) && address.sheet === undefined && previous !== null && !todayChain(previous)) {
+      void controller.todayConsumer?.refresh(() => sameAddress(parseAddress(window.location.hash), address));
+    }
     // A retained sheet address that no open sheet owns (after a remount or a pasted hash) is reduced to its
     // surface at rest: the sheet opens only from a live press, never from the address alone.
     const owned = current !== null && address !== null && sameAddress(current.address, address);
-    if (address !== null && !owned && (address.sheet === WHAT_IF_SHEET || address.sheet === PROOF_SHEET || address.sheet === PROVENANCE_SHEET || address.sheet === LESSON_SHEET)) navigate(withoutSheet(address));
+    if (address !== null && !owned && (address.sheet === WHAT_IF_SHEET || address.sheet === PROOF_SHEET || address.sheet === PROVENANCE_SHEET || address.sheet === LESSON_SHEET || address.sheet?.startsWith('today-'))) navigate(withoutSheet(address));
   }, [controller]);
   const stillAuthorized = () => {
     const current = controller.snapshot();
@@ -390,6 +411,50 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     return current.phase === 'ready' && current.context?.contextKey === context.contextKey && current.selectedRouteId === state.selectedRouteId
       && sameAddress(parseAddress(window.location.hash), address);
   }, [controller, context.contextKey, state.selectedRouteId]);
+  /** Bind the rendered consumer view and current sheet before any asynchronous read. */
+  const launchToday = (from: TodayConsumerState, kind: 'today-review' | 'today-record' | 'today-proof', rowOrigin: HTMLElement | SVGElement | null,
+    read: (current: () => boolean) => Promise<boolean | TodayDetail | null>) => {
+    if (consumer === null || consumer.snapshot() !== from) return;
+    const address = parseAddress(window.location.hash), prior = localSheetRef.current;
+    if (!todayChain(address) || !live(address) || address.sheet !== undefined && (prior?.todayView !== from || !sameAddress(prior.address, address))) return;
+    const token = Symbol(); todayOperation.current = token;
+    const current = () => todayOperation.current === token && live(address) && localSheetRef.current === prior;
+    const operation = read(current), pendingView = consumer.snapshot();
+    todayPending.current = pendingView === from ? null : { prior, view: pendingView, token };
+    void operation.then(accepted => {
+      if (todayPending.current?.token === token) todayPending.current = null;
+      if (!accepted || !current()) return;
+      const shown = consumer.snapshot();
+      if (kind === 'today-review' ? shown.page === null : shown.detail === null) return;
+      const rootOrigin = prior?.todayOrigin ?? rowOrigin;
+      origin.current = rootOrigin instanceof HTMLElement ? rootOrigin : null;
+      const selection: LocalSheet = { address: withSheet(address, kind), kind, todayView: shown, todayOrigin: rootOrigin, todayBack: kind === 'today-proof' && from.detail !== null };
+      localSheetRef.current = selection; setLocalSheet(selection); navigate(selection.address);
+    });
+  };
+  const closeToday = (from: LocalSheet, rendered: TodayConsumerState | null) => {
+    if (localSheetRef.current !== from || from.todayView === undefined || consumer === null || !live(from.address)) return;
+    const pending = todayPending.current, shown = consumer.snapshot();
+    if (rendered !== shown) return;
+    if (shown !== from.todayView && !(pending?.prior === from && pending.token === todayOperation.current && pending.view === shown)) return;
+    todayPending.current = null;
+    todayOperation.current = Symbol(); consumer.cancelSelection();
+    localSheetRef.current = null; setLocalSheet(null); navigate(withoutSheet(from.address));
+    if (from.todayOrigin?.isConnected) from.todayOrigin.focus();
+  };
+  const backToday = (from: LocalSheet) => {
+    if (localSheetRef.current !== from || from.todayView === undefined || consumer?.snapshot() !== from.todayView || !live(from.address)) return;
+    const accepted = consumer.back(from.todayView); if (accepted === null) return;
+    todayOperation.current = Symbol();
+    const selection: LocalSheet = { ...from, address: withSheet(from.address, 'today-record'), kind: 'today-record', todayView: consumer.snapshot() };
+    localSheetRef.current = selection; setLocalSheet(selection); navigate(selection.address);
+  };
+  useEffect(() => {
+    const current = localSheetRef.current;
+    if (todayCurrent?.phase !== 'failed' || current?.todayView === undefined) return;
+    todayOperation.current = Symbol(); localSheetRef.current = null; setLocalSheet(null);
+    if (sameAddress(parseAddress(window.location.hash), current.address)) navigate(withoutSheet(current.address));
+  }, [todayCurrent]);
   const dropLessonSelection = () => { if (localSheetRef.current?.kind === LESSON_SHEET) controller.retained.selectLesson(null); };
   /** A sheet that replaces the chosen row's what-if chain (Help, About, a reference or a receipt) drops the chosen view, from
    * exactly what is shown now: returning to Saved is the ledger at rest, and nothing revives the earlier choice. */
@@ -679,7 +744,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   if (projection.kind === 'invalid') return <State state={{ kind: 'failed', code: 'INVALID_REPLY' }} />;
   const words = hostMissingWords(language);
-  const data: TodayData = projection.kind === 'ready' ? projection.value.data : {
+  const data: TodayData = todayCurrent !== null && consumer !== null ? projectTodayConsumer(todayCurrent, consumer.input, language) : projection.kind === 'ready' ? projection.value.data : {
     state: { kind: 'loading' }, date: '', review: { count: { exact: null, display: words['not-loaded-yet'] }, rows: [] },
     thisMonthMissing: 'not-loaded-yet', earlierTodayMissing: 'unknown',
   };
@@ -697,7 +762,16 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const sheet: AppProps['sheet'] = state.receipt !== null ? {
     address: state.receipt.address,
     content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} origin={origin.current} onClose={closeSheet} />,
-  } : localSheet === null ? undefined : localSheet.kind === WHAT_IF_SHEET && localSheet.chosen !== undefined ? {
+  } : localSheet === null ? undefined : localSheet.todayView !== undefined && consumer !== null ? {
+    address: localSheet.address,
+    content: <TodayDestination detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
+      onClose={() => closeToday(localSheet, todayCurrent)}
+      onReview={(row, rowOrigin) => launchToday(localSheet.todayView!, 'today-record', rowOrigin, current => consumer.review(localSheet.todayView!, row, current))}
+      onNext={localSheet.todayView.page?.nextCursor ? () => launchToday(localSheet.todayView!, 'today-review', localSheet.todayOrigin ?? null, current => consumer.page(localSheet.todayView!, true, current)) : undefined}
+      onFresh={() => launchToday(localSheet.todayView!, 'today-review', localSheet.todayOrigin ?? null, current => consumer.page(localSheet.todayView!, false, current))}
+      onReceipt={(id, proofOrigin) => launchToday(localSheet.todayView!, 'today-proof', proofOrigin, current => consumer.receipt(localSheet.todayView!, id, current))}
+      back={localSheet.kind === 'today-proof' && localSheet.todayBack === true ? { label: t('TODAY_ENGINE.detail'), onBack: () => backToday(localSheet) } : undefined} />,
+  } : localSheet.kind === WHAT_IF_SHEET && localSheet.chosen !== undefined ? {
     address: localSheet.address,
     content: <ScenarioDetailPanel key={pinKey(localSheet.chosen)} chosen={localSheet.chosen} retained={retained} origin={origin.current}
       onClose={binding => closeChosen(localSheet, binding)} onRead={binding => readChosenAgain(localSheet, binding)} onProof={openProof} onProvenance={openProvenance} />,
@@ -741,7 +815,27 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       selectedRoute === undefined ? hostMessage(language, 'routeMissing') : hostMessage(language, 'routeSelected', { label: selectedRoute.label }),
     ],
     capabilities: {},
-    today: { data, intents: { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } },
+    today: { data, intents: consumer !== null && todayCurrent !== null ? {
+      onReview: (id, rowOrigin) => {
+        const rows = todayCurrent.response?.review.state === 'available' ? todayCurrent.response.review.value.rows : [];
+        const row = rows[Number(id.replace(/^review-/, ''))];
+        if (row) launchToday(todayCurrent, 'today-record', rowOrigin, current => consumer.review(todayCurrent, row, current));
+      },
+      onOpenRow: (id, rowOrigin) => launchToday(todayCurrent, 'today-record', rowOrigin, current => consumer.attention(todayCurrent, id, current)),
+      onReceipt: (id, receiptOrigin) => launchToday(todayCurrent, 'today-proof', receiptOrigin ?? (document.activeElement instanceof HTMLElement || document.activeElement instanceof SVGElement ? document.activeElement : null), current => consumer.receipt(todayCurrent, id, current)),
+      onOpenTile: (id, tileOrigin) => launchToday(todayCurrent, 'today-record', tileOrigin, current => consumer.tile(todayCurrent, id, current)),
+      onOpenEvent: (id, rowOrigin) => launchToday(todayCurrent, 'today-record', rowOrigin, current => consumer.event(todayCurrent, id, current)),
+      onSeeAll: () => launchToday(todayCurrent, 'today-review', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.page(todayCurrent, false, current)),
+      ...(viewer ? {} : todayCurrent.phase === 'ready' && consumer.input?.display && consumer.input.configuration ? {
+        preparingTiles: todayCurrent.preparing,
+        onPrepareTiles: () => {
+          const address = parseAddress(window.location.hash);
+          if (!todayChain(address) || address.sheet !== undefined || !live(address) || consumer.snapshot() !== todayCurrent) return;
+          void consumer.prepare(todayCurrent, () => live(address) && localSheetRef.current === null);
+        },
+      } : {}),
+      ...(!viewer && (context.member.role === 'owner' || context.member.role === 'cofounder') ? { onOpenActivity: () => launchToday(todayCurrent, 'today-record', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.activity(todayCurrent, current)) } : {}),
+    } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } },
     sheet, onAddress, onHelp: showHelp,
     renderPlace: address => retainedSurface(address) !== null
       ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
@@ -766,7 +860,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
   const state = useSyncExternalStore(controller.subscribe, controller.snapshot, controller.snapshot);
   const [language, setLanguage] = useState<Language>(options.language ?? 'en');
   const [view, setView] = useState<View>(options.view ?? 'guided');
-  useEffect(() => { void controller.refresh(); }, [controller]);
+  useEffect(() => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); }, [controller]);
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.removeAttribute('data-theme');
@@ -776,7 +870,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
     <div style={{ height: '100vh', display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp4)', padding: 'var(--sp2) var(--sp4)', borderBottom: 'var(--hair) solid var(--line)' }}>
         <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>
-        <Button variant="link" onClick={() => { void controller.refresh(); }} disabled={state.phase === 'loading' || state.phase === 'locked'}>{hostMessage(language, 'refresh')}</Button>
+        <Button variant="link" onClick={() => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); }} disabled={state.phase === 'loading' || state.phase === 'locked'}>{hostMessage(language, 'refresh')}</Button>
       </div>
       <div data-host-workspace="" style={{ minHeight: 0, overflow: 'auto' }}>
         {authorized && state.context !== null
