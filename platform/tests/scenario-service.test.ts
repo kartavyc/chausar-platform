@@ -48,6 +48,7 @@ class SyntheticScenarioHost implements ScenarioHost {
   rejectNextRetention = false;
   nextConsumerGuard?: () => void;
   nextRetention?: () => void;
+  blockedReceiptId?: string;
   ready = true;
   now() { return this.time; }
   resolveScenario(ctx: Context, id: string) {
@@ -82,7 +83,10 @@ class SyntheticScenarioHost implements ScenarioHost {
     };
     return {
       consumerGuard: (ctx: Context) => { record(ctx, 'request'); const callback = this.nextConsumerGuard; this.nextConsumerGuard = undefined; callback?.(); },
-      receiptGuard: (ctx: Context) => record(ctx, 'receipt'),
+      receiptGuard: (ctx: Context, receipt: ScenarioRunResult['receipt']) => {
+        record(ctx, 'receipt');
+        check(receipt.id !== this.blockedReceiptId, 'SCENARIO_NOT_READY', 'Synthetic exact retained receipt is unavailable.');
+      },
     };
   }
 }
@@ -130,6 +134,163 @@ function resultFor(value: Fixture, scenarioId: string, view: ScenarioView, jobId
   const result = value.host.records.get(scenarioId)!.results.find(result => result.runId === runId);
   assert.ok(result); return result;
 }
+const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical)
+  : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, child]) => [key, canonical(child)])) : value;
+function reseal<T extends { digest: string }>(value: T): T {
+  const { digest: ignored, ...body } = value; value.digest = hash(canonical(body)); return value;
+}
+function alteredRecord(value: Fixture, id: string, change: (record: ScenarioRecord) => void) {
+  const record = value.host.records.get(id)!;
+  change(record);
+  for (const item of [...record.revisions, ...record.runs, ...record.results, ...record.comparisons]) reseal(item);
+  reseal(record); value.host.authentic.add(record.digest);
+}
+
+test('discovery descriptions expose exact same-label revisions and preserve partial, running, stale and reused history', async () => {
+  const value = await setup(), first = value.service.create(owner, createRequest()), second = value.service.create(owner, createRequest());
+  const metadata = value.service.describe(owner, first.scenarioId, first.revision.id);
+  assert.deepEqual(Object.keys(metadata).sort(), ['createdAt', 'isHead', 'label', 'noAction', 'revisionId', 'revisionMode', 'scenarioId', 'status']);
+  assert.equal(metadata.label, value.service.describe(owner, second.scenarioId, second.revision.id).label);
+  assert.notEqual(metadata.scenarioId, second.scenarioId);
+  assert.equal(metadata.status, 'partial'); assert.equal(metadata.isHead, true); assert.equal(metadata.noAction, true);
+  const issued = value.service.beginRun(owner, first.scenarioId, first.revision.id, first.revision.branches[0].rootJobId);
+  assert.equal(value.service.describe(owner, first.scenarioId, first.revision.id).status, 'partial');
+  await value.service.evaluate(owner, first.scenarioId, issued.id); await complete(value, first);
+  const changed = value.service.changeAssumption(owner, first.scenarioId, first.revision.id, first.revision.branches[1].id, '3000');
+  assert.equal(value.service.describe(owner, first.scenarioId, changed.revision.id).status, 'partial');
+  assert.deepEqual(value.service.describe(owner, first.scenarioId, first.revision.id), { ...metadata, status: 'complete', isHead: false });
+  assert.deepEqual(value.service.reopen(owner, first.scenarioId, first.revision.id).revision, first.revision);
+  await complete(value, changed); value.service.finalize(owner, first.scenarioId, changed.revision.id);
+  assert.equal(value.service.describe(owner, first.scenarioId, changed.revision.id).status, 'complete');
+  const recomputed = value.service.recompute(owner, first.scenarioId, changed.revision.id);
+  assert.equal(value.service.describe(owner, first.scenarioId, recomputed.revision.id).status, 'partial');
+});
+
+test('discovery descriptions preserve independent reused descendants and retained stale original vectors', async () => {
+  const value = await setup(), first = value.service.create(owner, createRequest()), branch = first.revision.branches[1];
+  const graph = value.service.addAnalysis(owner, first.scenarioId, first.revision.id, {
+    branchId: branch.id, label: 'Independent child', request: measuredRequest(), dependsOn: [], usesBranchAssumptions: false,
+  });
+  const independent = graph.revision.jobs.find(item => item.label === 'Independent child')!;
+  const descendant = value.service.addAnalysis(owner, first.scenarioId, graph.revision.id, {
+    branchId: branch.id, label: 'Reused descendant', request: measuredRequest(), dependsOn: [independent.id], usesBranchAssumptions: false,
+  });
+  await complete(value, descendant); value.service.finalize(owner, first.scenarioId, descendant.revision.id);
+  const changed = value.service.changeAssumption(owner, first.scenarioId, descendant.revision.id, branch.id, '2500');
+  assert.equal(value.service.describe(owner, first.scenarioId, changed.revision.id).status, 'partial');
+  await complete(value, changed); value.service.finalize(owner, first.scenarioId, changed.revision.id);
+  assert.equal(value.service.describe(owner, first.scenarioId, changed.revision.id).status, 'complete');
+});
+
+test('discovery descriptions refuse sealed invalid graph hashes, evaluation manifests and mixed ready selections', async t => {
+  for (const invalid of ['input digest', 'missing evaluation job', 'mixed ready run', 'false reuse', 'mixed receipt', 'parent cycle'] as const) await t.test(invalid, async () => {
+    const value = await setup(), first = value.service.create(owner, createRequest()); await complete(value, first);
+    alteredRecord(value, first.scenarioId, record => {
+      if (invalid === 'input digest') record.revisions[0].jobs[0].inputDigest = 'a'.repeat(64);
+      if (invalid === 'missing evaluation job') record.evaluations[0].jobs.pop();
+      if (invalid === 'mixed ready run') record.evaluations[0].jobs[0].runId = record.evaluations[0].jobs[1].runId;
+      if (invalid === 'false reuse') record.evaluations[0].jobs[0].reusedFromRevisionId = first.revision.id;
+      if (invalid === 'mixed receipt') {
+        record.results[0].receipt = structuredClone(record.results[1].receipt);
+        record.results[0].receiptDigest = hash(canonical(record.results[0].receipt));
+      }
+      if (invalid === 'parent cycle') record.revisions[0].parentRevisionId = first.revision.id;
+    });
+    assert.throws(() => value.service.describe(owner, first.scenarioId, first.revision.id),
+      { code: ['missing evaluation job', 'parent cycle'].includes(invalid) ? 'SCENARIO_GRAPH_INVALID' : 'SCENARIO_VECTOR_MISMATCH' });
+  });
+});
+
+test('discovery comparison manifests keep their own immutable run pins after a later coherent ledger selection', async () => {
+  const value = await setup(), first = value.service.create(owner, createRequest()); await complete(value, first);
+  const comparison = value.service.finalize(owner, first.scenarioId, first.revision.id);
+  alteredRecord(value, first.scenarioId, record => {
+    const state = record.evaluations[0].jobs[0], previous = record.runs.find(item => item.id === state.runId)!;
+    const run = reseal({ ...structuredClone(previous), id: `${previous.id}_later` });
+    const receipt = structuredClone(record.results.find(item => item.runId === previous.id)!.receipt); receipt.id += '_later';
+    const result = reseal({ ...structuredClone(record.results.find(item => item.runId === previous.id)!), runId: run.id,
+      runDigest: run.digest, receipt, receiptDigest: hash(canonical(receipt)) });
+    record.runs.push(run); record.results.push(result); state.runId = run.id;
+  });
+  assert.equal(value.service.describe(owner, first.scenarioId, first.revision.id).status, 'complete');
+  assert.deepEqual(value.service.reopen(owner, first.scenarioId, first.revision.id).comparisons, [comparison]);
+  value.host.blockedReceiptId = comparison.requiredJobs[0].receiptId;
+  assert.equal(value.service.reopen(owner, first.scenarioId, first.revision.id).status, 'complete', 'The immutable comparison receipt is outside the later ledger selection.');
+  assert.throws(() => value.service.describe(owner, first.scenarioId, first.revision.id), { code: 'SCENARIO_NOT_READY' });
+  delete value.host.blockedReceiptId;
+  alteredRecord(value, first.scenarioId, record => {
+    record.comparisons[0].requiredJobs[0].runId = record.comparisons[0].requiredJobs[1].runId;
+  });
+  assert.throws(() => value.service.describe(owner, first.scenarioId, first.revision.id), { code: 'SCENARIO_VECTOR_MISMATCH' });
+});
+
+test('discovery refuses an aging receipt substituted from a different exact observation date', async () => {
+  const value = await setup(), first = value.service.create(owner, createRequest()), branch = first.revision.branches[1];
+  const early = value.service.addAnalysis(owner, first.scenarioId, first.revision.id, {
+    branchId: branch.id, label: 'Early aging', request: { ...measuredRequest(), operation: 'aging', onDate: '2026-09-15' },
+    dependsOn: [], usesBranchAssumptions: false,
+  });
+  const late = value.service.addAnalysis(owner, first.scenarioId, early.revision.id, {
+    branchId: branch.id, label: 'Late aging', request: { ...measuredRequest(), operation: 'aging', onDate: '2026-09-30' },
+    dependsOn: [], usesBranchAssumptions: false,
+  });
+  const ready = await complete(value, late);
+  assert.equal(value.service.describe(owner, first.scenarioId, late.revision.id).status, 'complete');
+  const earlyJob = ready.revision.jobs.find(item => item.label === 'Early aging')!, lateJob = ready.revision.jobs.find(item => item.label === 'Late aging')!;
+  const earlyResult = resultFor(value, first.scenarioId, ready, earlyJob.id), lateResult = resultFor(value, first.scenarioId, ready, lateJob.id);
+  assert.notEqual(earlyResult.receipt.assumptions.onDate, lateResult.receipt.assumptions.onDate);
+  alteredRecord(value, first.scenarioId, record => {
+    const original = record.results.find(item => item.runId === earlyResult.runId)!;
+    original.receipt = structuredClone(lateResult.receipt); original.receiptDigest = lateResult.receiptDigest;
+  });
+  assert.throws(() => value.service.describe(owner, first.scenarioId, late.revision.id), { code: 'SCENARIO_VECTOR_MISMATCH' });
+});
+
+test('discovery refuses altered receipt rows, actual sources, exclusions and import lineage outside exact original evidence', async t => {
+  for (const invalid of ['unknown revoked row', 'unknown actual source', 'unknown row pin', 'unknown exclusion', 'unknown import'] as const)
+    await t.test(invalid, async () => {
+      const value = await setup(), first = value.service.create(owner, createRequest()); await complete(value, first);
+      value.store.mutate(state => { state.sourceRules.push({ sourceId: 'revoked-external-source', revoked: true }); });
+      alteredRecord(value, first.scenarioId, record => {
+        const result = record.results[0], receipt = result.receipt;
+        if (invalid === 'unknown revoked row') {
+          receipt.rows[0] = { ...receipt.rows[0], factId: 'external-private-row', sourceId: 'revoked-external-source' };
+          receipt.rowIds = receipt.rows.map(row => row.factId); receipt.sourceIds = [...new Set(receipt.rows.map(row => row.sourceId))];
+        }
+        if (invalid === 'unknown actual source') receipt.sourceIds.push('revoked-external-source');
+        if (invalid === 'unknown row pin') receipt.rowIds[0] = 'external-private-row';
+        if (invalid === 'unknown exclusion') receipt.exclusions.push({ rowId: 'external-private-row', reason: 'Synthetic inaccessible retained exclusion' });
+        if (invalid === 'unknown import') receipt.coverage.importIds.push('external-private-import');
+        result.receiptDigest = hash(canonical(receipt));
+      });
+      assert.throws(() => value.service.describe(owner, first.scenarioId, first.revision.id), { code: 'SCENARIO_VECTOR_MISMATCH' });
+    });
+});
+
+test('discovery lineage checks preserve compound calculator receipts using a published custom money field', async () => {
+  const value = await setup(), draft = structuredClone(starterPacks.find(pack => pack.pack === 'retail')!);
+  draft.fields.feeMinor = 'money'; draft.definitions.find(item => item.name === 'earned')!.field = 'feeMinor';
+  const dictionary = compileDictionary(draft, 2, owner.memberId, '2026-01-01T00:00:01.000Z');
+  value.store.mutate(state => {
+    state.ontology = { current: dictionary, history: [...state.ontology.history, dictionary] };
+    for (const fact of state.facts) fact.fields.feeMinor = '5';
+  });
+  const first = value.service.create(owner, createRequest()), ready = await complete(value, first);
+  assert.ok(ready.results.every(result => result.receipt.rows.every(row => row.measureField === 'feeMinor')));
+  assert.equal(value.service.describe(owner, first.scenarioId, first.revision.id).status, 'complete');
+});
+
+test('discovery metadata is withheld after source, account and callback revocation', async t => {
+  for (const change of ['source', 'account', 'callback'] as const) await t.test(change, async () => {
+    const value = await setup(), first = value.service.create(owner, createRequest());
+    if (change === 'account') value.store.mutate(state => { state.members[0].active = false; });
+    else if (change === 'source') value.store.mutate(state => { state.sourceRules.push({ sourceId, revoked: true }); });
+    else value.host.nextConsumerGuard = () => value.store.mutate(state => { state.sourceRules.push({ sourceId, revoked: true }); });
+    assert.throws(() => value.service.describe(owner, first.scenarioId, first.revision.id),
+      { code: change === 'account' ? 'ACCESS_REVOKED' : 'SOURCE_REVOKED' });
+  });
+});
 
 test('import → same-label alternatives → changed assumption rejects a late mixed-revision descendant; retained history and explicit current recomputation stay separate', async () => {
   const value = await setup(), liveBefore = value.store.read(), writesBefore = value.store.writes;

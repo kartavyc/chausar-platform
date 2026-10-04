@@ -12,6 +12,8 @@ import { createWorkerEngine } from '../runtime/worker.ts';
 import type { Engine } from '../runtime/engine.ts';
 import { createHostController } from '../../app/ui/src/host/controller.ts';
 import type { HostRpcPort } from '../../app/ui/src/host/contracts.ts';
+import type { TodayStatEvidence } from '../../app/ui/src/bridge/today-host.ts';
+import type { TodayView } from '../../app/ui/src/bridge/presentation.ts';
 
 const mainUrl = new URL('../../app/desktop/main.cjs', import.meta.url);
 const mainRequire = createRequire(mainUrl);
@@ -116,6 +118,7 @@ async function fixture(t: TestContext, options: FixtureOptions = {}) {
     ipcMain: { handle: (channel: string, handler: any) => handlers.set(channel, handler) },
   };
   const context = vm.createContext({ __dirname: dirname(fileURLToPath(mainUrl)),
+    Date,
     process: { argv: ['electron', 'synthetic-app', ...args], env: environment, platform: process.platform, resourcesPath: join(temporary, 'synthetic-unread-resources') },
     console: { error: (message: string) => diagnostics.push(message) }, URL, Response, Buffer,
     require: (name: string) => {
@@ -160,6 +163,7 @@ async function fixture(t: TestContext, options: FixtureOptions = {}) {
 }
 
 test('fresh packaged UI has an actual synthetic workspace before window construction and usable trusted receipts', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-09-30T12:00:00Z') });
   const d = await fixture(t); await d.ready();
   assert.deepEqual(d.errors, []); assert.equal(d.windows.length, 1);
   assert.equal(d.windows[0].workspaceReadyAtConstruction, true, 'Fresh preview window opened before a synthetic workspace was ready.');
@@ -172,10 +176,43 @@ test('fresh packaged UI has an actual synthetic workspace before window construc
   t.after(() => controller.dispose()); await controller.refresh();
   const state = controller.snapshot(); assert.equal(state.phase, 'ready', state.code); assert.equal(state.context?.workspace.demo, true);
   assert.ok(state.today); assert.equal(state.today.receipts.length, 4); assert.equal(state.selectedRouteId, null);
+  const billed = state.today.today.stats.find(stat => stat.id === 'billed:total'); assert.ok(billed);
+  assert.equal(billed.figure.kind, 'money');
+  if (billed.figure.kind !== 'money') assert.fail('The unchanged September sample must remain displayable.');
+  assert.equal(billed.figure.paise, '300000');
   const receipt = state.today.receipts[0]!; await controller.openReceipt(receipt.id, { place: 'today', sub: 'today', sheet: receipt.id });
   assert.equal(controller.snapshot().receipt?.kind, 'ready');
   assert.deepEqual(d.calls(), { modelCalls: 0, credentialReads: 0 });
   assert.equal(d.pathReads.some(read => ['userData', 'sessionData'].includes(read.name) && !read.bound), false);
+});
+
+test('current-month packaged preview displays authored demo figures and fresh receipts while retaining honest Today gaps', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-04T12:00:00Z') });
+  const d = await fixture(t); await d.ready();
+  assert.deepEqual(d.errors, []);
+  assert.ok(d.windows[0].demoFactsAtConstruction > 0, 'The calendar regression must not be a missing-seed failure.');
+  const controller = createHostController({ request: d.rpc } as HostRpcPort, { timeZone: 'UTC' });
+  t.after(() => controller.dispose()); await controller.refresh();
+  const state = controller.snapshot();
+  assert.equal(state.phase, 'ready', state.code); assert.ok(state.today);
+  for (const [id, paise] of [['billed:total', '300000'], ['received:total', '260000'], ['margin:contribution', '130000']] as const) {
+    const stat: TodayView['stats'][number] | undefined = state.today.today.stats.find(item => item.id === id);
+    assert.ok(stat, `Missing current-month ${id}`);
+    assert.equal(stat.figure.kind, 'money', `${id} must display the authored sample amount rather than an empty-period unknown`);
+    if (stat.figure.kind !== 'money') assert.fail('The authored sample figure was unavailable.');
+    assert.equal(stat.figure.paise, paise);
+    const evidence: TodayStatEvidence | undefined = state.today.statsEvidence.find(item => item.statId === id);
+    assert.ok(evidence); assert.deepEqual(evidence.scope.period, { from: '2026-10-01', to: '2026-10-31' });
+    assert.ok(d.harnesses[0].requests.some(request => request.method === 'receipts.get' && request.payload.id === evidence.receiptId));
+  }
+  assert.deepEqual(state.today.today.state, { kind: 'partial', asOf: null, reasonCode: 'TODAY_ENGINE_CONTRACT_PARTIAL' });
+  assert.equal(state.today.today.pendingCount, null);
+  assert.deepEqual(state.today.today.attention, []); assert.deepEqual(state.today.today.worthLook, []); assert.deepEqual(state.today.today.dayEvents, []);
+  assert.ok(state.today.today.stats.every(stat => stat.chart === null));
+  const receipt = state.today.receipts.find(item => item.operation === 'billed'); assert.ok(receipt);
+  await controller.openReceipt(receipt.id, { place: 'today', sub: 'today', sheet: receipt.id });
+  assert.equal(controller.snapshot().receipt?.kind, 'ready');
+  assert.deepEqual(d.calls(), { modelCalls: 0, credentialReads: 0 });
 });
 
 test('unpackaged UI, legacy demo and production never automatically seed a workspace', async t => {

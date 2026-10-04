@@ -60,9 +60,32 @@ function brief(receipts: readonly FullReceipt[] = [marginReceipt()]) {
       gaps: ['Synthetic fixture: contribution includes imported costs only.'], html: `<html>${PRIVATE}</html>`, delivery: 'local-draft',
     },
     decisions: [{ id: 'decision_fixture', text: PRIVATE, receiptIds }],
+    alerts: { configured: false, evaluated: false, checkedAt: sourceTime,
+      scope: { branch: receipts[0]?.branch ?? null, sourceIds: receipts[0]?.requestedSourceIds ?? null },
+      items: [], receiptIds: [], pin: 'd'.repeat(64) },
     compliance: { entries: [], calendarVersion: null, status: 'No published compliance calendar. No dates were guessed.' },
     delivery: { state: 'draft', channels: ['email', 'whatsapp'], requiresApproval: true }, receiptIds,
   };
+}
+
+/** Current reports.brief shape from reports.ts and alerts-contracts.ts. Synthetic
+ * alert evidence qualifies only this source contract, never a live workspace. */
+function currentBrief(reportReceipts: readonly FullReceipt[] = [marginReceipt()], alertReceipts: readonly FullReceipt[] = []) {
+  const snapshot = brief(reportReceipts);
+  const alertReceiptIds = [...new Set(alertReceipts.map(receipt => receipt.id))].sort();
+  const alerts = {
+    configured: alertReceipts.length > 0, evaluated: false, checkedAt: sourceTime,
+    scope: { branch: null, sourceIds: null },
+    items: alertReceipts.length ? [{
+      alertId: 'alert_fixture', conditionId: 'condition_fixture', label: PRIVATE, revision: 1, definitionDigest: 'c'.repeat(64),
+      branch: null, sourceIds: ['source_fixture'],
+      episodes: [{ id: 'episode_fixture', status: 'open', severity: 'critical', openedAt: sourceTime, reopenCount: 0, uncertain: false, observationIds: ['observation_fixture'] }],
+      observation: { id: 'observation_fixture', observedAt: sourceTime, recordedAt: sourceTime, state: 'breach', receiptId: alertReceipts.at(-1)!.id },
+      evidence: { state: 'current', issues: [] }, receiptIds: alertReceiptIds,
+    }] : [],
+    receiptIds: alertReceiptIds, pin: 'd'.repeat(64),
+  };
+  return { ...snapshot, alerts, receiptIds: [...new Set([...snapshot.receiptIds, ...alerts.receiptIds])] };
 }
 
 function dashboardInput(): DashboardTodayInput {
@@ -268,6 +291,176 @@ test('desktop and browser readers use distinct ports and reread every successful
   assert.equal(browser.environment, 'browser');
   assert.equal((await browser.brief(briefInput())).ok, true);
   assert.deepEqual(browserCalls, [{ method: 'reports.brief', payload: briefInput().request }, { method: 'receipts.get', payload: { id: 'receipt_margin' } }]);
+});
+
+test('current reports.brief empty alerts envelopes retain draft and partial Today qualification', async () => {
+  const receipt = marginReceipt();
+  for (const configured of [false, true]) for (const environment of ['desktop', 'browser'] as const) {
+    const snapshot = currentBrief([receipt]);
+    snapshot.alerts.configured = configured;
+    const calls: unknown[] = [];
+    async function read(method: string, payload: unknown) {
+      calls.push({ method, payload });
+      if (method === 'reports.brief') return snapshot;
+      assert.equal(method, 'receipts.get');
+      assert.deepEqual(payload, { id: receipt.id });
+      return receipt;
+    }
+    const reader = environment === 'desktop' ? createDesktopTodayReader({ request: read })
+      : createBrowserTodayReader({ call: message => read(message.method, message.payload) });
+    const result = await reader.brief(briefInput());
+    assert.equal(result.ok, true, `${environment} rejected the current empty alerts contract (configured=${configured})`);
+    if (!result.ok) assert.fail('Current reports.brief envelope was rejected');
+    assert.deepEqual(calls, [{ method: 'reports.brief', payload: briefInput().request }, { method: 'receipts.get', payload: { id: receipt.id } }]);
+    assert.deepEqual(result.value.today.state, { kind: 'partial', asOf: null, reasonCode: 'TODAY_ENGINE_CONTRACT_PARTIAL' });
+    assert.equal(result.value.today.pendingCount, null);
+    assert.deepEqual(result.value.today.attention, []);
+    assert.deepEqual(result.value.today.worthLook, []);
+    assert.deepEqual(result.value.today.dayEvents, []);
+    assert.ok(result.value.today.stats.every(tile => tile.chart === null));
+    assert.equal(result.value.brief?.delivery.state, 'draft');
+    const ui = projectTodayHostForUi(result.value, uiConfig);
+    assert.equal(ui.data.earlierTodayMissing, 'unknown');
+    assert.deepEqual(ui.data.review.count, { exact: null, display: 'Not known' });
+    assert.equal(JSON.stringify(ui).includes(PRIVATE), false);
+  }
+});
+
+test('current reports.brief rereads the report and alert receipt union once without promoting alert-only evidence to report stats', async () => {
+  const reportReceipt = marginReceipt(), billed = sumReceipt('billed');
+  const alertReceipt: FullReceipt = { ...billed, period: { from: '2026-08-01', to: '2026-08-31' }, rows: billed.rows.map(row => ({ ...row, validFrom: '2026-08-10' })) };
+  const snapshot = currentBrief([reportReceipt], [reportReceipt, alertReceipt]);
+  assert.deepEqual(snapshot.report.receiptIds, [reportReceipt.id]);
+  assert.deepEqual(snapshot.alerts.receiptIds, [alertReceipt.id, reportReceipt.id]);
+  assert.deepEqual(snapshot.receiptIds, [reportReceipt.id, alertReceipt.id]);
+  const input = { ...briefInput(), selections: [{ operation: 'margin', figureKey: 'contribution' }, { operation: 'billed', figureKey: 'total' }] };
+  for (const environment of ['desktop', 'browser'] as const) {
+    const calls: unknown[] = [];
+    async function read(method: string, payload: unknown) {
+      calls.push({ method, payload });
+      if (method === 'reports.brief') return snapshot;
+      assert.equal(method, 'receipts.get');
+      return [reportReceipt, alertReceipt].find(receipt => receipt.id === (payload as { id: string }).id);
+    }
+    const reader = environment === 'desktop' ? createDesktopTodayReader({ request: read })
+      : createBrowserTodayReader({ call: message => read(message.method, message.payload) });
+    const result = await reader.brief(input);
+    assert.equal(result.ok, true, `${environment} rejected the current alert receipt union`);
+    if (!result.ok) assert.fail('Current report and alert receipt union was rejected');
+    assert.deepEqual(calls, [{ method: 'reports.brief', payload: input.request }, ...snapshot.receiptIds.map(id => ({ method: 'receipts.get', payload: { id } }))]);
+    assert.equal(stat(result.value, 'margin', 'contribution').evidence.receiptId, reportReceipt.id);
+    assert.equal(result.value.statsEvidence.length, 1);
+    assert.deepEqual(result.value.unavailableSelections, [{ operation: 'billed', figureKey: 'total', reasonCode: 'CALCULATION_UNAVAILABLE' }]);
+    assert.deepEqual(result.value.today.attention, []);
+    assert.equal(result.value.today.pendingCount, null);
+    assert.deepEqual(result.value.today.dayEvents, []);
+    assert.equal(Object.hasOwn(result.value, 'alerts'), false);
+    const ui = projectTodayHostForUi(result.value, uiConfig);
+    assert.equal(ui.data.earlierTodayMissing, 'unknown');
+    assert.equal(JSON.stringify(result).includes(PRIVATE), false);
+    assert.equal(JSON.stringify(ui).includes(PRIVATE), false);
+    for (const receiptIds of [[reportReceipt.id], [alertReceipt.id, reportReceipt.id], [reportReceipt.id, alertReceipt.id, alertReceipt.id], [reportReceipt.id, 'receipt_unreferenced']]) {
+      invalid(() => projectBriefToday({ ...snapshot, receiptIds }, fresh([reportReceipt, alertReceipt]), input));
+    }
+  }
+});
+
+test('current reports.brief accepts lexically sorted alert receipt IDs independently of alert item order', async () => {
+  const reportReceipt = marginReceipt();
+  const highReceipt: FullReceipt = { ...sumReceipt('billed'), id: 'receipt_z' };
+  const lowReceipt: FullReceipt = { ...sumReceipt('billed'), id: 'receipt_a' };
+  const snapshot = currentBrief([reportReceipt], [highReceipt, lowReceipt]);
+  const item = snapshot.alerts.items[0]!;
+  snapshot.alerts.items = [
+    { ...item, alertId: 'alert_a', conditionId: 'condition_a', receiptIds: [highReceipt.id],
+      episodes: [{ ...item.episodes[0]!, id: 'episode_a', observationIds: ['observation_a'] }],
+      observation: { ...item.observation, id: 'observation_a', receiptId: highReceipt.id } },
+    { ...item, alertId: 'alert_z', conditionId: 'condition_z', receiptIds: [lowReceipt.id],
+      episodes: [{ ...item.episodes[0]!, id: 'episode_z', observationIds: ['observation_z'] }],
+      observation: { ...item.observation, id: 'observation_z', receiptId: lowReceipt.id } },
+  ];
+  snapshot.alerts.receiptIds = [lowReceipt.id, highReceipt.id];
+  snapshot.receiptIds = [reportReceipt.id, ...snapshot.alerts.receiptIds];
+  assert.deepEqual(snapshot.alerts.items.map(value => value.alertId), ['alert_a', 'alert_z']);
+  assert.deepEqual(snapshot.alerts.items.flatMap(value => value.receiptIds), [highReceipt.id, lowReceipt.id]);
+  assert.deepEqual(snapshot.receiptIds, [reportReceipt.id, lowReceipt.id, highReceipt.id]);
+  for (const environment of ['desktop', 'browser'] as const) {
+    const calls: unknown[] = [];
+    async function read(method: string, payload: unknown) {
+      calls.push({ method, payload });
+      if (method === 'reports.brief') return snapshot;
+      assert.equal(method, 'receipts.get');
+      return [reportReceipt, highReceipt, lowReceipt].find(receipt => receipt.id === (payload as { id: string }).id);
+    }
+    const reader = environment === 'desktop' ? createDesktopTodayReader({ request: read })
+      : createBrowserTodayReader({ call: message => read(message.method, message.payload) });
+    const result = await reader.brief(briefInput());
+    assert.equal(result.ok, true, `${environment} rejected producer-sorted alert receipt IDs`);
+    if (!result.ok) assert.fail('Sorted alert receipt IDs were tied to alert item order');
+    assert.deepEqual(calls, [{ method: 'reports.brief', payload: briefInput().request }, ...snapshot.receiptIds.map(id => ({ method: 'receipts.get', payload: { id } }))]);
+    assert.deepEqual(result.value.receipts.map(receipt => receipt.id), [reportReceipt.id]);
+    assert.equal(stat(result.value, 'margin', 'contribution').evidence.receiptId, reportReceipt.id);
+    assert.equal(result.value.statsEvidence.length, 1);
+    assert.equal(projectTodayHostForUi(result.value, uiConfig).data.earlierTodayMissing, 'unknown');
+    assert.equal(JSON.stringify(result).includes(PRIVATE), false);
+  }
+});
+
+test('current reports.brief accepts bounded observation IDs with spaces and Unicode without releasing private alert metadata', async () => {
+  const reportReceipt = marginReceipt(), alertReceipt = sumReceipt('billed');
+  const observationIds = ['daily check 1', 'सुबह जाँच २'];
+  for (const observationId of observationIds) for (const environment of ['desktop', 'browser'] as const) {
+    const snapshot = currentBrief([reportReceipt], [alertReceipt]);
+    const item = snapshot.alerts.items[0]!;
+    item.observation.id = observationId;
+    item.episodes[0]!.observationIds = [...observationIds];
+    const calls: unknown[] = [];
+    async function read(method: string, payload: unknown) {
+      calls.push({ method, payload });
+      if (method === 'reports.brief') return snapshot;
+      assert.equal(method, 'receipts.get');
+      return [reportReceipt, alertReceipt].find(receipt => receipt.id === (payload as { id: string }).id);
+    }
+    const reader = environment === 'desktop' ? createDesktopTodayReader({ request: read })
+      : createBrowserTodayReader({ call: message => read(message.method, message.payload) });
+    const result = await reader.brief(briefInput());
+    assert.equal(result.ok, true, `${environment} rejected a producer-valid observation ID`);
+    if (!result.ok) assert.fail('Legal observation text was treated as a route identifier');
+    assert.deepEqual(calls, [{ method: 'reports.brief', payload: briefInput().request }, ...snapshot.receiptIds.map(id => ({ method: 'receipts.get', payload: { id } }))]);
+    assert.deepEqual(result.value.receipts.map(receipt => receipt.id), [reportReceipt.id]);
+    assert.deepEqual(result.value.today.state, { kind: 'partial', asOf: null, reasonCode: 'TODAY_ENGINE_CONTRACT_PARTIAL' });
+    assert.deepEqual(result.value.today.attention, []);
+    const ui = projectTodayHostForUi(result.value, uiConfig);
+    for (const privateText of [PRIVATE, ...observationIds]) {
+      assert.equal(JSON.stringify(result).includes(privateText), false);
+      assert.equal(JSON.stringify(ui).includes(privateText), false);
+    }
+  }
+});
+
+test('current reports.brief alert-only receipt authority loss refuses all values after a prior successful read', async () => {
+  const reportReceipt = marginReceipt(), alertReceipt = sumReceipt('billed');
+  const snapshot = currentBrief([reportReceipt], [reportReceipt, alertReceipt]);
+  for (const environment of ['desktop', 'browser'] as const) for (const [engineCode, expected] of [['SOURCE_REVOKED', 'ACCESS_DENIED'], ['VAULT_LOCKED', 'VAULT_LOCKED'], ['RECEIPT_NOT_FOUND', 'EVIDENCE_UNAVAILABLE']] as const) {
+    let revoked = false;
+    const calls: unknown[] = [];
+    async function read(method: string, payload: unknown) {
+      calls.push({ method, payload });
+      if (method === 'reports.brief') return snapshot;
+      assert.equal(method, 'receipts.get');
+      const id = (payload as { id: string }).id;
+      if (id === alertReceipt.id && revoked) throw denial(engineCode);
+      return [reportReceipt, alertReceipt].find(receipt => receipt.id === id);
+    }
+    const reader = environment === 'desktop' ? createDesktopTodayReader({ request: read })
+      : createBrowserTodayReader({ call: message => read(message.method, message.payload) });
+    assert.equal((await reader.brief(briefInput())).ok, true, `${environment} could not establish the current brief before authority loss`);
+    calls.length = 0; revoked = true;
+    const result = await reader.brief(briefInput());
+    assert.deepEqual(result, { ok: false, code: expected });
+    assert.deepEqual(calls, [{ method: 'reports.brief', payload: briefInput().request }, ...snapshot.receiptIds.map(id => ({ method: 'receipts.get', payload: { id } }))]);
+    assert.equal(JSON.stringify(result).includes(PRIVATE), false);
+  }
 });
 
 test('unsafe or unsupported request filters fail before any transport call', async () => {

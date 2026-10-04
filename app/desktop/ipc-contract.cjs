@@ -6,12 +6,13 @@ const TRUSTED_DOCUMENT = 'chausar://app/index.html';
 const MAX_REQUEST_BYTES = 2_000_000;
 const METHODS = Object.freeze([
   'ui.context',
+  'today.get', 'today.prepareTiles', 'today.review', 'today.resolveReview', 'today.resolveEvent', 'today.resolveAttention',
   'workspace.status', 'workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.backup', 'workspace.export', 'workspace.delete',
   'workspace.backup.v2.create', 'workspace.backup.v2.read', 'workspace.backup.v2.restoreInert', 'workspace.backup.v2.readRestored', 'workspace.backup.v2.inspectRestored', 'workspace.backup.v2.diagnostics',
   'workspace.activation.target.create', 'workspace.activation.target.get', 'workspace.backup.activation.prepare', 'workspace.backup.activation.inspect', 'workspace.activation.review', 'workspace.activation.execute', 'workspace.activation.get',
   'workspace.interchange.export', 'workspace.interchange.prepare', 'workspace.interchange.review', 'workspace.interchange.discard', 'workspace.interchange.diagnostics',
   'trials.create', 'trials.evaluate', 'trials.get', 'trials.receiptContext', 'trials.list', 'trials.savedQuestions', 'trials.discard', 'trials.impact', 'trials.promote',
-  'scenarios.create', 'scenarios.beginRun', 'scenarios.changeAssumption', 'scenarios.addAnalysis', 'scenarios.evaluate', 'scenarios.finalize', 'scenarios.reopen', 'scenarios.recompute',
+  'scenarios.create', 'scenarios.beginRun', 'scenarios.changeAssumption', 'scenarios.addAnalysis', 'scenarios.evaluate', 'scenarios.finalize', 'scenarios.reopen', 'scenarios.discover', 'scenarios.recompute',
   'auth.invite', 'auth.accept', 'auth.session', 'auth.revoke', 'auth.sessions',
   'phone.invite', 'phone.sessions', 'phone.revoke', 'phone.conversation.offer',
   'sync.status', 'sync.identity', 'sync.enable', 'sync.trust', 'sync.preview', 'sync.approve', 'sync.push', 'sync.pull',

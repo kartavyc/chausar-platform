@@ -178,10 +178,69 @@ function dashboard(value: unknown): DashboardSnapshot {
 interface BriefSection {
   readonly operation: string; readonly receiptId: string; readonly shared: Readonly<Record<string, unknown>>;
 }
-interface BriefSnapshot { readonly sections: readonly BriefSection[]; readonly evidence: BriefTodayEvidence; readonly rawGaps: readonly string[] }
+interface BriefAlertSnapshot {
+  readonly receiptIds: readonly string[];
+  readonly scope: { readonly branch: string | null; readonly sourceIds: readonly string[] | null };
+}
+/** Alerts are retained private observations, not Today statistics or activity.
+ * Check the current envelope and its authorization references without releasing it. */
+function briefAlerts(value: unknown): BriefAlertSnapshot {
+  const obj = record(value, 'brief.alerts', ['configured', 'evaluated', 'checkedAt', 'scope', 'items', 'receiptIds', 'pin']);
+  if (typeof obj.configured !== 'boolean' || obj.evaluated !== false) invalid('brief.alerts');
+  assertISOInstant(obj.checkedAt, 'brief.alerts.checkedAt'); text(obj.pin, 'brief.alerts.pin', 200);
+  const scope = record(obj.scope, 'brief.alerts.scope', ['branch', 'sourceIds']);
+  if (scope.branch !== null) text(scope.branch, 'brief.alerts.scope.branch', 200);
+  if (scope.sourceIds !== null) {
+    list(scope.sourceIds, 'brief.alerts.scope.sourceIds', 64);
+    scope.sourceIds.forEach(id => sourceIdentifier(id, 'brief.alerts.scope.sourceIds')); unique(scope.sourceIds, 'brief.alerts.scope.sourceIds');
+  }
+  list(obj.receiptIds, 'brief.alerts.receiptIds', 10000);
+  obj.receiptIds.forEach(id => identifier(id, 'brief.alerts.receiptIds')); unique(obj.receiptIds, 'brief.alerts.receiptIds');
+  list(obj.items, 'brief.alerts.items', 10000);
+  const alertIds: string[] = [], itemReceiptIds: string[] = [];
+  for (const value of obj.items) {
+    const item = record(value, 'brief.alert', ['alertId', 'conditionId', 'label', 'revision', 'definitionDigest', 'branch', 'sourceIds', 'episodes', 'observation', 'evidence', 'receiptIds']);
+    identifier(item.alertId, 'brief.alert.alertId'); text(item.conditionId, 'brief.alert.conditionId', 200); text(item.label, 'brief.alert.label'); text(item.definitionDigest, 'brief.alert.definitionDigest', 200);
+    alertIds.push(item.alertId);
+    if (typeof item.revision !== 'number' || !Number.isSafeInteger(item.revision) || item.revision < 1) invalid('brief.alert.revision');
+    if (item.branch !== null) text(item.branch, 'brief.alert.branch', 200);
+    list(item.sourceIds, 'brief.alert.sourceIds', 64); item.sourceIds.forEach(id => sourceIdentifier(id, 'brief.alert.sourceIds')); unique(item.sourceIds, 'brief.alert.sourceIds');
+    list(item.receiptIds, 'brief.alert.receiptIds', 10000); item.receiptIds.forEach(id => identifier(id, 'brief.alert.receiptIds')); unique(item.receiptIds, 'brief.alert.receiptIds');
+    itemReceiptIds.push(...item.receiptIds as string[]);
+    list(item.episodes, 'brief.alert.episodes', 10000);
+    const episodeIds: string[] = [];
+    for (const value of item.episodes) {
+      const episode = record(value, 'brief.alert.episode', ['id', 'status', 'severity', 'openedAt', 'reopenCount', 'uncertain', 'observationIds'], ['clearedAt', 'reopenedAt']);
+      identifier(episode.id, 'brief.alert.episode.id'); episodeIds.push(episode.id);
+      if (!['open', 'cleared', 'retracted'].includes(episode.status as string) || !['warning', 'critical'].includes(episode.severity as string)) invalid('brief.alert.episode');
+      assertISOInstant(episode.openedAt, 'brief.alert.episode.openedAt');
+      for (const key of ['clearedAt', 'reopenedAt']) if (Object.hasOwn(episode, key)) assertISOInstant(episode[key], `brief.alert.episode.${key}`);
+      if (typeof episode.reopenCount !== 'number' || !Number.isSafeInteger(episode.reopenCount) || episode.reopenCount < 0 || typeof episode.uncertain !== 'boolean') invalid('brief.alert.episode');
+      list(episode.observationIds, 'brief.alert.episode.observationIds', 10000);
+      episode.observationIds.forEach(id => text(id, 'brief.alert.episode.observationIds', 200)); unique(episode.observationIds, 'brief.alert.episode.observationIds');
+    }
+    unique(episodeIds, 'brief.alert.episodes');
+    if (item.observation !== null) {
+      const observation = record(item.observation, 'brief.alert.observation', ['id', 'observedAt', 'recordedAt', 'state', 'receiptId']);
+      text(observation.id, 'brief.alert.observation.id', 200); assertISOInstant(observation.observedAt, 'brief.alert.observation.observedAt'); assertISOInstant(observation.recordedAt, 'brief.alert.observation.recordedAt');
+      if (!['breach', 'clear', 'band', 'unknown'].includes(observation.state as string)) invalid('brief.alert.observation.state');
+      if (observation.receiptId !== null) { identifier(observation.receiptId, 'brief.alert.observation.receiptId'); if (!item.receiptIds.includes(observation.receiptId)) invalid('brief.alert.observation.receiptId'); }
+    }
+    const evidence = record(item.evidence, 'brief.alert.evidence', ['state', 'issues']);
+    if (evidence.state !== 'current' && evidence.state !== 'uncertain') invalid('brief.alert.evidence.state');
+    list(evidence.issues, 'brief.alert.evidence.issues', 10000); evidence.issues.forEach(issue => text(issue, 'brief.alert.evidence.issues'));
+  }
+  unique(alertIds, 'brief.alerts.items');
+  if (!same(obj.receiptIds, [...new Set(itemReceiptIds)].sort()) || (obj.configured === false && obj.items.length !== 0)) invalid('brief.alerts.receiptIds');
+  return { receiptIds: obj.receiptIds as string[], scope: { branch: scope.branch as string | null, sourceIds: scope.sourceIds as string[] | null } };
+}
+interface BriefSnapshot {
+  readonly sections: readonly BriefSection[]; readonly evidence: BriefTodayEvidence; readonly rawGaps: readonly string[];
+  readonly receiptIds: readonly string[]; readonly alertScope: BriefAlertSnapshot['scope'];
+}
 function brief(value: unknown): BriefSnapshot {
   json(value, 'brief');
-  const obj = record(value, 'brief', ['id', 'ritual', 'onDate', 'headline', 'report', 'decisions', 'compliance', 'delivery', 'receiptIds']);
+  const obj = record(value, 'brief', ['id', 'ritual', 'onDate', 'headline', 'report', 'decisions', 'alerts', 'compliance', 'delivery', 'receiptIds']);
   identifier(obj.id, 'brief.id'); assertISODate(obj.onDate, 'brief.onDate'); text(obj.headline, 'brief.headline');
   if (obj.ritual !== 'monday' && obj.ritual !== 'friday') invalid('brief.ritual');
   list(obj.decisions, 'brief.decisions', 10000);
@@ -204,8 +263,10 @@ function brief(value: unknown): BriefSnapshot {
     return { operation: section.title, receiptId: section.receiptId, shared: section };
   });
   const sectionIds = sections.map(section => section.receiptId); unique(sectionIds, 'brief.sections'); unique(sections.map(s => s.operation), 'brief.sections.operation');
-  if (!same(report.receiptIds, sectionIds) || !same(obj.receiptIds, sectionIds)) invalid('brief.receiptIds');
-  return freeze({ sections: structuredClone(sections), rawGaps: [...report.gaps] as string[], evidence: {
+  const alerts = briefAlerts(obj.alerts), receiptIds = [...new Set([...sectionIds, ...alerts.receiptIds])];
+  list(obj.receiptIds, 'brief.receiptIds', 10000);
+  if (!same(report.receiptIds, sectionIds) || !same(obj.receiptIds, receiptIds)) invalid('brief.receiptIds');
+  return freeze({ sections: structuredClone(sections), rawGaps: [...report.gaps] as string[], receiptIds, alertScope: structuredClone(alerts.scope), evidence: {
     id: obj.id, ritual: obj.ritual, onDate: obj.onDate, headline: obj.headline,
     report: { id: report.id, title: report.title, type: 'investor', createdAt: report.createdAt, status: report.status as 'partial' | 'review-ready', gaps: [], delivery: 'local-draft' },
     delivery: { state: 'draft', channels: ['email', 'whatsapp'], requiresApproval: true },
@@ -217,8 +278,8 @@ function scope(receipt: CalculationReceiptEvidence, request: BriefTodayRequest):
   if (!same(receipt.requestedSourceIds, request.sourceIds)) invalid('today.receipt.requestedSourceIds');
   if (request.asOf !== undefined && receipt.asOf !== new Date(request.asOf).toISOString()) invalid('today.receipt.asOf');
 }
-function fresh(values: readonly CalculationReceiptEvidence[], ids: readonly string[]): readonly CalculationReceiptEvidence[] {
-  json(values, 'today.receipts'); list(values, 'today.receipts', 5);
+function fresh(values: readonly CalculationReceiptEvidence[], ids: readonly string[], max = 5): readonly CalculationReceiptEvidence[] {
+  json(values, 'today.receipts'); list(values, 'today.receipts', max);
   const checked = values.map(validateReceiptEvidence); unique(checked.map(r => r.id), 'today.receipts');
   if (checked.length !== ids.length || ids.some(id => !checked.some(r => r.id === id))) invalid('today.receipts.identity');
   return ids.map(id => checked.find(r => r.id === id)!);
@@ -256,7 +317,13 @@ export function projectDashboardToday(raw: unknown, authorizedReceipts: readonly
 
 export function projectBriefToday(raw: unknown, authorizedReceipts: readonly CalculationReceiptEvidence[], requested: BriefTodayInput): TodayHostProjection {
   const checkedInput = input(requested, 'brief'), snapshot = brief(raw);
-  const values = fresh(authorizedReceipts, snapshot.sections.map(section => section.receiptId));
+  const authorized = fresh(authorizedReceipts, snapshot.receiptIds, 10000);
+  // Alert evidence can cover other periods. It must be authorized, but only
+  // report-section receipts are bound to this request and released as report data.
+  const values = snapshot.sections.map(section => authorized.find(receipt => receipt.id === section.receiptId)!);
+  const alertSources = snapshot.alertScope.sourceIds === null ? null : [...snapshot.alertScope.sourceIds].sort();
+  const requestedAlertSources = checkedInput.request.sourceIds === undefined ? null : [...checkedInput.request.sourceIds].sort();
+  if (snapshot.alertScope.branch !== (checkedInput.request.branch ?? null) || !same(alertSources, requestedAlertSources)) invalid('brief.alerts.scope');
   if (checkedInput.request.onDate !== undefined && snapshot.evidence.onDate !== checkedInput.request.onDate) invalid('brief.onDate');
   if (snapshot.evidence.ritual !== (checkedInput.request.ritual ?? 'monday')) invalid('brief.ritual');
   for (const value of values) {
@@ -294,7 +361,7 @@ function reader(environment: 'desktop' | 'browser', readDashboard: (request: Das
     brief(requested: BriefTodayInput) {
       const currentGeneration = generation; let checked: BriefTodayInput;
       return checkedRead(async () => { checked = input(requested, 'brief'); return readBrief(checked.request); }, async raw => {
-        const snapshot = brief(raw); const freshReceipts = await reread(snapshot.sections.map(s => s.receiptId));
+        const snapshot = brief(raw); const freshReceipts = await reread(snapshot.receiptIds);
         return projectBriefToday(raw, freshReceipts, checked);
       }, () => generation === currentGeneration, invalidate);
     },

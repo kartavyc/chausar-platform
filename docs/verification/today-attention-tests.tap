@@ -1,0 +1,514 @@
+TAP version 13
+# Subtest: reconciled receipts activate one episode, respect hysteresis, escalate, clear and reopen through encrypted restart
+ok 1 - reconciled receipts activate one episode, respect hysteresis, escalate, clear and reopen through encrypted restart
+  ---
+  duration_ms: 7131.501845
+  type: 'test'
+  ...
+# Subtest: missing, partial and stale low evidence preserve an open breach and reset clearance persistence
+ok 2 - missing, partial and stale low evidence preserve an open breach and reset clearance persistence
+  ---
+  duration_ms: 1096.922032
+  type: 'test'
+  ...
+# Subtest: later real import receipts append traceable amendments, retract and restore the original episode
+ok 3 - later real import receipts append traceable amendments, retract and restore the original episode
+  ---
+  duration_ms: 588.497946
+  type: 'test'
+  ...
+# Subtest: definition validation, private drafts, publication and one condition identity
+ok 4 - definition validation, private drafts, publication and one condition identity
+  ---
+  duration_ms: 138.376521
+  type: 'test'
+  ...
+# Subtest: duplicate identities and duplicate recalculated receipts never advance persistence or notices
+ok 5 - duplicate identities and duplicate recalculated receipts never advance persistence or notices
+  ---
+  duration_ms: 107.11161
+  type: 'test'
+  ...
+# Subtest: default calculator cuts remain distinct samples of unchanged reconciled facts
+ok 6 - default calculator cuts remain distinct samples of unchanged reconciled facts
+  ---
+  duration_ms: 93.80283
+  type: 'test'
+  ...
+# Subtest: a missing tick cannot let a moving measurement window move backwards
+ok 7 - a missing tick cannot let a moving measurement window move backwards
+  ---
+  duration_ms: 128.79299
+  type: 'test'
+  ...
+# Subtest: on-observation severity can fall in the hysteresis band while the episode stays open
+ok 8 - on-observation severity can fall in the hysteresis band while the episode stays open
+  ---
+  duration_ms: 164.698192
+  type: 'test'
+  ...
+# Subtest: late complete evidence can amend an unavailable fixed-window observation
+ok 9 - late complete evidence can amend an unavailable fixed-window observation
+  ---
+  duration_ms: 117.586403
+  type: 'test'
+  ...
+# Subtest: exact below thresholds preserve huge integer values and inclusive boundaries
+ok 10 - exact below thresholds preserve huge integer values and inclusive boundaries
+  ---
+  duration_ms: 87.624627
+  type: 'test'
+  ...
+# Subtest: freshness and sample gaps break activation continuity without inventing a clear
+ok 11 - freshness and sample gaps break activation continuity without inventing a clear
+  ---
+  duration_ms: 216.342877
+  type: 'test'
+  ...
+# Subtest: reads and commit entry recheck source, branch, epoch and private owner authority
+ok 12 - reads and commit entry recheck source, branch, epoch and private owner authority
+  ---
+  duration_ms: 198.035949
+  type: 'test'
+  ...
+# Subtest: queued commit uses current transaction authority and view-aware host guards
+ok 13 - queued commit uses current transaction authority and view-aware host guards
+  ---
+  duration_ms: 51.244632
+  type: 'test'
+  ...
+# Subtest: host receipt guard denials, meaning changes and evidence mutations gate reopening
+ok 14 - host receipt guard denials, meaning changes and evidence mutations gate reopening
+  ---
+  duration_ms: 184.165029
+  type: 'test'
+  ...
+# Subtest: narrower source or customer scope, changed window and changed units cannot clear
+ok 15 - narrower source or customer scope, changed window and changed units cannot clear
+  ---
+  duration_ms: 258.942989
+  type: 'test'
+  ...
+# Subtest: unknown corrections retain breaches and qualified corrections append retractions
+ok 16 - unknown corrections retain breaches and qualified corrections append retractions
+  ---
+  duration_ms: 115.858796
+  type: 'test'
+  ...
+# Subtest: new-episode and never reopening policies preserve a single active episode
+ok 17 - new-episode and never reopening policies preserve a single active episode
+  ---
+  duration_ms: 434.351306
+  type: 'test'
+  ...
+# Subtest: basis-point thresholds use the real ratio figure and a missing denominator cannot clear
+ok 18 - basis-point thresholds use the real ratio figure and a missing denominator cannot clear
+  ---
+  duration_ms: 223.407831
+  type: 'test'
+  ...
+# Subtest: source scope is a set even when callers enumerate sources in different orders
+ok 19 - source scope is a set even when callers enumerate sources in different orders
+  ---
+  duration_ms: 118.876958
+  type: 'test'
+  ...
+# Subtest: an accountant can confirm an explicitly owned draft; snapshots, return values and audit are detached
+ok 20 - an accountant can confirm an explicitly owned draft; snapshots, return values and audit are detached
+  ---
+  duration_ms: 288.507688
+  type: 'test'
+  ...
+# Subtest: a draft digest never gives the client authority to substitute saved evidence
+ok 21 - a draft digest never gives the client authority to substitute saved evidence
+  ---
+  duration_ms: 137.359639
+  type: 'test'
+  ...
+# Subtest: a valid client-computed digest still cannot confirm fabricated authoritative receipt content
+ok 22 - a valid client-computed digest still cannot confirm fabricated authoritative receipt content
+  ---
+  duration_ms: 158.216835
+  type: 'test'
+  ...
+# Subtest: confirmation rechecks evidence changed inside the transaction rather than its earlier committed copy
+ok 23 - confirmation rechecks evidence changed inside the transaction rather than its earlier committed copy
+  ---
+  duration_ms: 145.851341
+  type: 'test'
+  ...
+# Subtest: the configured calculator receipt guard also receives the callback-state receipt
+ok 24 - the configured calculator receipt guard also receives the callback-state receipt
+  ---
+  duration_ms: 148.53879
+  type: 'test'
+  ...
+# Subtest: concurrent rich revision and review consume one expected revision and audit only the winner
+ok 25 - concurrent rich revision and review consume one expected revision and audit only the winner
+  ---
+  duration_ms: 160.438923
+  type: 'test'
+  ...
+# Subtest: transaction callback rechecks caller permission epoch and rolls back the refused rich write
+ok 26 - transaction callback rechecks caller permission epoch and rolls back the refused rich write
+  ---
+  duration_ms: 191.26256
+  type: 'test'
+  ...
+# Subtest: transaction callback rechecks current caller branch and rolls back the refused rich write
+ok 27 - transaction callback rechecks current caller branch and rolls back the refused rich write
+  ---
+  duration_ms: 153.598082
+  type: 'test'
+  ...
+# Subtest: transaction callback rechecks current decision owner and rolls back the refused rich write
+ok 28 - transaction callback rechecks current decision owner and rolls back the refused rich write
+  ---
+  duration_ms: 142.336414
+  type: 'test'
+  ...
+# Subtest: transaction callback rechecks saved receipt ownership and rolls back the refused rich write
+ok 29 - transaction callback rechecks saved receipt ownership and rolls back the refused rich write
+  ---
+  duration_ms: 173.982405
+  type: 'test'
+  ...
+# Subtest: transaction callback rechecks source grant and rolls back the refused rich write
+ok 30 - transaction callback rechecks source grant and rolls back the refused rich write
+  ---
+  duration_ms: 147.9377
+  type: 'test'
+  ...
+# Subtest: a permission change already queued ahead of a journal write takes effect before mutation
+ok 31 - a permission change already queued ahead of a journal write takes effect before mutation
+  ---
+  duration_ms: 157.111874
+  type: 'test'
+  ...
+# Subtest: current and proposed owners must be active with the decision branch; inactive ownership cannot be transferred
+ok 32 - current and proposed owners must be active with the decision branch; inactive ownership cannot be transferred
+  ---
+  duration_ms: 171.105295
+  type: 'test'
+  ...
+# Subtest: a viewer cannot prepare a rich journal or bypass the preparation permission with a reviewed digest
+ok 33 - a viewer cannot prepare a rich journal or bypass the preparation permission with a reviewed digest
+  ---
+  duration_ms: 141.545338
+  type: 'test'
+  ...
+# Subtest: retained stale evidence stays historical; relinking it or measuring from it requires fresh evidence
+ok 34 - retained stale evidence stays historical; relinking it or measuring from it requires fresh evidence
+  ---
+  duration_ms: 192.992634
+  type: 'test'
+  ...
+# Subtest: excluded receipt rows remain access dependencies on reads and transaction writes
+ok 35 - excluded receipt rows remain access dependencies on reads and transaction writes
+  ---
+  duration_ms: 178.758574
+  type: 'test'
+  ...
+# Subtest: a source named only by receipt lineage is reauthorized even without a counted row
+ok 36 - a source named only by receipt lineage is reauthorized even without a counted row
+  ---
+  duration_ms: 175.624198
+  type: 'test'
+  ...
+# Subtest: dropping every current citation does not remove access checks for historical snapshots and revisions
+ok 37 - dropping every current citation does not remove access checks for historical snapshots and revisions
+  ---
+  duration_ms: 223.660928
+  type: 'test'
+  ...
+# Subtest: execution links require the trusted resolver; the client cannot forge an execution snapshot
+ok 38 - execution links require the trusted resolver; the client cannot forge an execution snapshot
+  ---
+  duration_ms: 321.342904
+  type: 'test'
+  ...
+# Subtest: execution snapshots come from the resolver, detach, preserve review history and stay dependencies after revision
+ok 39 - execution snapshots come from the resolver, detach, preserve review history and stay dependencies after revision
+  ---
+  duration_ms: 262.857042
+  type: 'test'
+  ...
+# Subtest: retained execution IDs are resolved again with the current transaction view and on reads
+ok 40 - retained execution IDs are resolved again with the current transaction view and on reads
+  ---
+  duration_ms: 189.678076
+  type: 'test'
+  ...
+# Subtest: changed resolver lineage cannot release access checks for saved execution snapshot history
+ok 41 - changed resolver lineage cannot release access checks for saved execution snapshot history
+  ---
+  duration_ms: 198.059453
+  type: 'test'
+  ...
+# Subtest: execution row access is checked independently of a resolver that returns a successful synthetic receipt
+ok 42 - execution row access is checked independently of a resolver that returns a successful synthetic receipt
+  ---
+  duration_ms: 162.428037
+  type: 'test'
+  ...
+# Subtest: trusted execution snapshots still refuse oversized, non-JSON and mismatched resolver results without audit
+ok 43 - trusted execution snapshots still refuse oversized, non-JSON and mismatched resolver results without audit
+  ---
+  duration_ms: 234.837112
+  type: 'test'
+  ...
+# Subtest: execution records normalize optional undefined properties into detached JSON history
+ok 44 - execution records normalize optional undefined properties into detached JSON history
+  ---
+  duration_ms: 174.111684
+  type: 'test'
+  ...
+# Subtest: the trusted resolver receives a detached read-only state view
+ok 45 - the trusted resolver receives a detached read-only state view
+  ---
+  duration_ms: 214.860034
+  type: 'test'
+  ...
+# Subtest: retention cleanup removes a journal whose only expired dependency is an execution receipt row
+ok 46 - retention cleanup removes a journal whose only expired dependency is an execution receipt row
+  ---
+  duration_ms: 184.666107
+  type: 'test'
+  ...
+# Subtest: legacy reviews remain compatible while every revision-bearing record requires the rich review path
+ok 47 - legacy reviews remain compatible while every revision-bearing record requires the rich review path
+  ---
+  duration_ms: 199.872402
+  type: 'test'
+  ...
+# Subtest: legacy creation and review also recheck callback-state branch and receipt access
+ok 48 - legacy creation and review also recheck callback-state branch and receipt access
+  ---
+  duration_ms: 186.476524
+  type: 'test'
+  ...
+# Subtest: due lists preserve mixed legacy and rich order, filter dates, detach and keep the legacy INVALID_DATE contract
+ok 49 - due lists preserve mixed legacy and rich order, filter dates, detach and keep the legacy INVALID_DATE contract
+  ---
+  duration_ms: 178.016415
+  type: 'test'
+  ...
+# Subtest: exact measured figures and a declared observation do not imply causality or an automatic outcome-window gate
+ok 50 - exact measured figures and a declared observation do not imply causality or an automatic outcome-window gate
+  ---
+  duration_ms: 190.591437
+  type: 'test'
+  ...
+# Subtest: drafts only referenced receipts and confirms an explicit open decision with full lineage
+ok 51 - drafts only referenced receipts and confirms an explicit open decision with full lineage
+  ---
+  duration_ms: 9.331926
+  type: 'test'
+  ...
+# Subtest: normalizes only top-level text and keeps digests independent of key order but not array order
+ok 52 - normalizes only top-level text and keeps digests independent of key order but not array order
+  ---
+  duration_ms: 6.075167
+  type: 'test'
+  ...
+# Subtest: keeps inputs, drafts and confirmed decisions deeply detached from each other
+ok 53 - keeps inputs, drafts and confirmed decisions deeply detached from each other
+  ---
+  duration_ms: 2.860885
+  type: 'test'
+  ...
+# Subtest: confirmation rejects tampered drafts, another reviewed digest and changed or unusable fresh evidence
+ok 54 - confirmation rejects tampered drafts, another reviewed digest and changed or unusable fresh evidence
+  ---
+  duration_ms: 6.592154
+  type: 'test'
+  ...
+# Subtest: confirmation requires an explicit ID, actor and ISO timestamp and keeps the owner separate from the actor
+ok 55 - confirmation requires an explicit ID, actor and ISO timestamp and keeps the owner separate from the actor
+  ---
+  duration_ms: 5.142103
+  type: 'test'
+  ...
+# Subtest: drafting rejects missing, duplicate and stale receipts and missing or ambiguous figure keys
+ok 56 - drafting rejects missing, duplicate and stale receipts and missing or ambiguous figure keys
+  ---
+  duration_ms: 1.151042
+  type: 'test'
+  ...
+# Subtest: drafting refuses unknown fields, invalid selections, duplicate IDs and invalid dates or windows
+ok 57 - drafting refuses unknown fields, invalid selections, duplicate IDs and invalid dates or windows
+  ---
+  duration_ms: 1.619324
+  type: 'test'
+  ...
+# Subtest: revision replaces full content, removes an omitted branch and keeps bounded before-content history
+ok 58 - revision replaces full content, removes an omitted branch and keeps bounded before-content history
+  ---
+  duration_ms: 23.747079
+  type: 'test'
+  ...
+# Subtest: revision carries unchanged scoped references on retained history and needs fresh evidence for relinked ones
+ok 59 - revision carries unchanged scoped references on retained history and needs fresh evidence for relinked ones
+  ---
+  duration_ms: 5.640069
+  type: 'test'
+  ...
+# Subtest: revision compares retained receipt identity ignoring only staleness and appends new evidence once
+ok 60 - revision compares retained receipt identity ignoring only staleness and appends new evidence once
+  ---
+  duration_ms: 3.39956
+  type: 'test'
+  ...
+# Subtest: review copies exact calculator figures and binds a human-declared assessment to the reviewed revision
+ok 61 - review copies exact calculator figures and binds a human-declared assessment to the reviewed revision
+  ---
+  duration_ms: 2.463096
+  type: 'test'
+  ...
+# Subtest: records all six observation states and four explicit conclusions without deriving either
+ok 62 - records all six observation states and four explicit conclusions without deriving either
+  ---
+  duration_ms: 11.60177
+  type: 'test'
+  ...
+# Subtest: continue keeps or reschedules the review date and reopens, while other conclusions close
+ok 63 - continue keeps or reschedules the review date and reopens, while other conclusions close
+  ---
+  duration_ms: 13.227104
+  type: 'test'
+  ...
+# Subtest: a later amended review appends without rewriting the earlier assessment or evidence
+ok 64 - a later amended review appends without rewriting the earlier assessment or evidence
+  ---
+  duration_ms: 2.570893
+  type: 'test'
+  ...
+# Subtest: measurements need an explicit figure key and fresh evidence even for a retained receipt
+ok 65 - measurements need an explicit figure key and fresh evidence even for a retained receipt
+  ---
+  duration_ms: 3.580079
+  type: 'test'
+  ...
+# Subtest: scenario projections can inform options but are refused as measured outcomes
+ok 66 - scenario projections can inform options but are refused as measured outcomes
+  ---
+  duration_ms: 2.428682
+  type: 'test'
+  ...
+# Subtest: review refuses revision conflicts, undeclared states or conclusions and extra causal fields without mutation
+ok 67 - review refuses revision conflicts, undeclared states or conclusions and extra causal fields without mutation
+  ---
+  duration_ms: 5.902834
+  type: 'test'
+  ...
+# Subtest: due helper filters mixed rich and legacy records by inclusive open cutoff and the branch rule
+ok 68 - due helper filters mixed rich and legacy records by inclusive open cutoff and the branch rule
+  ---
+  duration_ms: 2.429325
+  type: 'test'
+  ...
+# Subtest: Today requires an explicit valid civil date and timezone without accepting calendar data from callers
+ok 69 - Today requires an explicit valid civil date and timezone without accepting calendar data from callers
+  ---
+  duration_ms: 34.007071
+  type: 'test'
+  ...
+# Subtest: real repeated observations and duplicate receipt attempts produce one retained episode row
+ok 70 - real repeated observations and duplicate receipt attempts produce one retained episode row
+  ---
+  duration_ms: 668.290085
+  type: 'test'
+  ...
+# Subtest: new lower source data and expired evidence cannot clear a retained breach during Today read
+ok 71 - new lower source data and expired evidence cannot clear a retained breach during Today read
+  ---
+  duration_ms: 502.52438
+  type: 'test'
+  ...
+# Subtest: uncertain amendments preserve breach history and measured amendments expose retained retractions
+ok 72 - uncertain amendments preserve breach history and measured amendments expose retained retractions
+  ---
+  duration_ms: 522.817602
+  type: 'test'
+  ...
+# Subtest: each retained episode exposes its own latest observation and keeps existing deterministic order
+ok 73 - each retained episode exposes its own latest observation and keeps existing deterministic order
+  ---
+  duration_ms: 556.658869
+  type: 'test'
+  ...
+# Subtest: due decisions are open and today or overdue in retained service order, with typed references
+ok 74 - due decisions are open and today or overdue in retained service order, with typed references
+  ---
+  duration_ms: 252.665818
+  type: 'test'
+  ...
+# Subtest: revoked sources suppress alert, decision and calendar rows without leaking hidden references or counts
+ok 75 - revoked sources suppress alert, decision and calendar rows without leaking hidden references or counts
+  ---
+  duration_ms: 323.855247
+  type: 'test'
+  ...
+# Subtest: revoked member epochs reject held authority and new epochs cannot reuse old private alerts or decision receipts
+ok 76 - revoked member epochs reject held authority and new epochs cannot reuse old private alerts or decision receipts
+  ---
+  duration_ms: 285.632985
+  type: 'test'
+  ...
+# Subtest: reviewed calendar window is exactly displayed day through day plus six, preserving unknown applicability and provenance
+ok 77 - reviewed calendar window is exactly displayed day through day plus six, preserving unknown applicability and provenance
+  ---
+  duration_ms: 2.262706
+  type: 'test'
+  ...
+# Subtest: calendar distinguishes missing, reviewed empty, explicit unsupported and legacy source contract
+ok 78 - calendar distinguishes missing, reviewed empty, explicit unsupported and legacy source contract
+  ---
+  duration_ms: 4.89278
+  type: 'test'
+  ...
+# Subtest: missing reviewed provenance and applicability are unsupported rather than inferred
+ok 79 - missing reviewed provenance and applicability are unsupported rather than inferred
+  ---
+  duration_ms: 9.035513
+  type: 'test'
+  ...
+# Subtest: trusted calendar adapter extra fields are never forwarded into Today domain rows
+ok 80 - trusted calendar adapter extra fields are never forwarded into Today domain rows
+  ---
+  duration_ms: 1.24038
+  type: 'test'
+  ...
+# Subtest: calendar must explicitly cover all seven days in the displayed timezone across month and leap-day boundaries
+ok 81 - calendar must explicitly cover all seven days in the displayed timezone across month and leap-day boundaries
+  ---
+  duration_ms: 4.479468
+  type: 'test'
+  ...
+# Subtest: held responses pin readiness, decision lifecycle, calendar provenance and caller integrity
+ok 82 - held responses pin readiness, decision lifecycle, calendar provenance and caller integrity
+  ---
+  duration_ms: 529.493369
+  type: 'test'
+  ...
+# Subtest: Today and held revalidation leave the real state and encrypted authority bytes unchanged
+ok 83 - Today and held revalidation leave the real state and encrypted authority bytes unchanged
+  ---
+  duration_ms: 347.184529
+  type: 'test'
+  ...
+# Subtest: a trusted hook cannot release references based on authority superseded during the read
+ok 84 - a trusted hook cannot release references based on authority superseded during the read
+  ---
+  duration_ms: 2.712369
+  type: 'test'
+  ...
+1..84
+# tests 84
+# suites 0
+# pass 84
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9162.451572
