@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
 import { initialState, type Context, type State, type StateStore } from '../runtime/contracts.ts';
@@ -10,6 +10,9 @@ import { digest } from '../runtime/actions.ts';
 import { OntologyService } from '../runtime/ontology.ts';
 import { CalculatorService, type CalculatorOptions } from '../runtime/calculator.ts';
 import { EngineConnectorService, type EngineConnectorOptions, type EngineConnectorProfile } from '../runtime/engine-connectors.ts';
+import { EngineScenarioService } from '../runtime/engine-scenarios.ts';
+import { Vault } from '../runtime/vault.ts';
+import type { ScenarioCreateRequest } from '../runtime/scenario-contracts.ts';
 import {
   ConnectorCapabilityRegistry, CursorImportService, connectorOperationKey,
   type ConnectorOperationScope, type ConnectorCapability, type SyntheticConnectorEvidence,
@@ -91,14 +94,14 @@ async function fixture(controls: Parameters<typeof fixtureOptions>[1] = {}) {
   const guards: CalculatorOptions = { consumerGuard: (ctx, request) => service.assertCalculationReady(ctx, request), receiptGuard: (ctx, receipt) => service.assertReceiptReady(ctx, receipt) };
   return { store, service, setup, calculator: new CalculatorService(store, guards), guards };
 }
-async function captured(value: Awaited<ReturnType<typeof fixture>>, key = 'synthetic-capture-v1') {
+async function captured(value: Pick<Awaited<ReturnType<typeof fixture>>, 'service' | 'setup'>, key = 'synthetic-capture-v1') {
   const read = await value.service.request(owner, 'connectors.read', { profileId: 'synthetic-sales' });
   const review = await value.service.request(owner, 'connectors.reviewMapping', { profileId: 'synthetic-sales', recipe,
     evidence: { reportId: 'synthetic-schema-review', sha256: decoder.schemaSha256 } });
   const capture = await value.service.request(owner, 'connectors.capture', { acquisitionId: read.acquisitionId, reviewId: review.id, recipe, idempotencyKey: key });
   return { read, review, capture };
 }
-async function published(value: Awaited<ReturnType<typeof fixture>>, key = 'synthetic-capture-v1') {
+async function published(value: Pick<Awaited<ReturnType<typeof fixture>>, 'service' | 'setup'>, key = 'synthetic-capture-v1') {
   const result = await captured(value, key);
   const publication = await value.service.request(owner, 'connectors.publish', { profileId: 'synthetic-sales', captureId: result.capture.id, sourceTotals: value.setup.totals });
   assert.equal(publication.status, 'published'); return { ...result, publication };
@@ -151,6 +154,55 @@ test('discovery readiness getter must be synchronous and stable throughout the p
     const invalid = new EngineConnectorService(store, { readinessRevision: () => revision as string });
     assert.throws(() => invalid.discoveryReadinessRevision(), code('SCENARIO_HOST_REQUIRED'));
   }
+});
+test('managed freshness expiry hides only its scenario revision while unrelated exact revisions remain discoverable', async t => {
+  const base = await realpath(tmpdir()), directory = await realpath(await mkdtemp(join(base, 'chausar-discovery-source-expiry-')));
+  const vault = (await Vault.create({ directory, storage: 'experimental-file',
+    passphrase: 'Synthetic managed discovery expiry passphrase', name: 'Synthetic managed discovery expiry' })).vault;
+  t.after(async () => {
+    await vault.close();
+    const actual = await realpath(directory), child = relative(base, actual);
+    assert.equal(dirname(actual), base);
+    assert.ok(child && !isAbsolute(child) && !child.startsWith('..') && child.startsWith('chausar-discovery-source-expiry-'));
+    await rm(actual, { recursive: true, force: true });
+  });
+  await new OntologyService(vault).publish(owner, fixtureDictionaryDraft);
+  const setup = fixtureOptions(vault), options = { ...setup.options, readinessRevision: () => 'synthetic-readiness-1' };
+  const service = new EngineConnectorService(vault, options);
+  await published({ service, setup });
+  const readonly = (state: State): StateStore => ({ read: () => structuredClone(state), update: async () => {
+    throw new Error('Synthetic discovery source authority is read only.');
+  } });
+  const scenarios = new EngineScenarioService(vault, {
+    now: () => new Date(options.clock!.nowMs()).toISOString(),
+    discoveryAuthorityRevision: state => new EngineConnectorService(readonly(state), options).discoveryReadinessRevision(),
+    calculatorOptions: view => {
+      const current = new EngineConnectorService(view, options);
+      return { consumerGuard: (ctx, request) => current.assertCalculationReady(ctx, request),
+        receiptGuard: (ctx, receipt) => current.assertReceiptReady(ctx, receipt) };
+    },
+  });
+  const request = (label: string, sourceId: string): ScenarioCreateRequest => ({ version: 1, label,
+    baseline: { label: 'Synthetic retained baseline', request: { operation: 'scenario', sourceIds: [sourceId],
+      branch: 'main', period, assumptions: { priceChangeBps: '0' }, asOf: new Date(options.clock!.nowMs()).toISOString() } },
+    alternatives: [{ label: 'Synthetic retained alternative', priceChangeBps: '1000' }],
+  });
+  const deniedLabel = 'Synthetic hidden expired managed scenario';
+  const managed = await scenarios.create(owner, request(deniedLabel, 'fixture-source'));
+  const unmanaged = await scenarios.create(owner, request('Synthetic reachable unmanaged scenario', 'unmanaged-source'));
+  const initial = await scenarios.discover(owner, { limit: 1 });
+  assert.equal(initial.items.length, 1); assert.match(initial.nextCursor!, /^[a-f0-9]{64}$/);
+  const before = vault.read(); setup.advance(60_001);
+  await assert.rejects(scenarios.reopen(owner, managed.scenarioId, managed.revision.id), code('CONNECTOR_SOURCE_NOT_CURRENT'));
+  assert.deepEqual((await scenarios.reopen(owner, unmanaged.scenarioId, unmanaged.revision.id)).revision, unmanaged.revision);
+  const page = await scenarios.discover(owner, { limit: 1 });
+  assert.deepEqual(Object.keys(page).sort(), ['items', 'mode', 'nextCursor', 'noAction']);
+  assert.equal(page.items.length, 1); assert.equal(page.nextCursor, null);
+  assert.equal(page.items[0].scenarioId, unmanaged.scenarioId); assert.equal(page.items[0].revisionId, unmanaged.revision.id);
+  assert.equal(page.items[0].label, 'Synthetic reachable unmanaged scenario');
+  assert.equal(JSON.stringify(page).includes(deniedLabel), false); assert.equal(JSON.stringify(page).includes(managed.scenarioId), false);
+  await assert.rejects(scenarios.discover(owner, { limit: 1, cursor: initial.nextCursor! }), code('SCENARIO_AUTHORITY_CHANGED'));
+  assert.deepEqual(vault.read(), before, 'Freshness withdrawal and discovery release perform no Vault mutation.');
 });
 test('approved scope retains exact fifty plan groups plus six additions without discarding legacy enterprise entries', () => {
   assert.equal(APPROVED_CONNECTOR_GROUPS.length, 56); assert.equal(new Set(APPROVED_CONNECTOR_GROUPS.map(group => group.id)).size, 56);

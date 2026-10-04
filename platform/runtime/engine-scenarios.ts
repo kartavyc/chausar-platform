@@ -80,6 +80,11 @@ const undiscoverable = new Set([
   'SCENARIO_REVISION_UNAVAILABLE', 'SCENARIO_EVIDENCE_UNAVAILABLE', 'SCENARIO_RUN_UNAVAILABLE',
   'SCENARIO_BRANCH_UNAVAILABLE', 'SCENARIO_GRAPH_INVALID', 'SCENARIO_VECTOR_MISMATCH',
   'SOURCE_REVOKED', 'BRANCH_FORBIDDEN', 'FORBIDDEN_BRANCH', 'RECEIPT_FORBIDDEN', 'SOURCE_NOT_READY',
+  'CONNECTOR_BRANCH_FORBIDDEN', 'CONNECTOR_PROFILE_NOT_INSTALLED', 'CONNECTOR_SOURCE_NOT_CURRENT',
+  'CONNECTOR_NOT_QUALIFIED', 'CONNECTOR_DEFINITION_UNQUALIFIED', 'CONNECTOR_CONSUMER_BINDING_REQUIRED',
+  'CONNECTOR_CONSUMER_BINDING_CHANGED', 'CONNECTOR_MAPPING_REVIEW_CHANGED', 'CONNECTOR_AUTHORITY_CHANGED',
+  'CONNECTOR_READ_CUSTODY_REQUIRED', 'CONNECTOR_SEMANTIC_GATE_REQUIRED', 'CONNECTOR_SEMANTIC_QUALIFICATION_CHANGED',
+  'CONNECTOR_DOMAIN_INCOMPLETE', 'CONNECTOR_DOMAIN_REQUIRED',
 ]);
 function discoveryRequest(request: ScenarioDiscoveryRequest) {
   check(request && typeof request === 'object' && Object.getPrototypeOf(request) === Object.prototype,
@@ -325,10 +330,11 @@ export class EngineScenarioService {
         check(hash(canonical(current)) === hash(canonical(row)), 'SCENARIO_AUTHORITY_CHANGED',
           'The selected discovery projection changed before release.');
       }
-      // Check all selected records at one release instant after the last guard callback.
+      // Check the complete candidate set at one release instant after the last
+      // guard callback: continuation must not hint at newly expired hidden rows.
       const releaseAt = (this.#options.now ?? now)();
-      for (const { row } of selected) {
-        const record = records(state).find(item => item.id === row.scenarioId)!;
+      for (const id of new Set(available.map(item => item.row.scenarioId))) {
+        const record = records(state).find(item => item.id === id)!;
         assertRetention(state, record, releaseAt);
       }
       // No readiness or clock callbacks run after this shared generation fence.

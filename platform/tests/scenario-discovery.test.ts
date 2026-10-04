@@ -322,3 +322,26 @@ test('discovery requires its trusted authority revision capability while existin
   assert.deepEqual(reopened, created);
   assert.deepEqual(f.vault.read(), before); assert.deepEqual(await f.ciphertext(), ciphertext);
 });
+
+test('discovery refuses a continuation when an unselected candidate expires during selected release', async t => {
+  const f = await fixture(t); let clock = '2026-10-02T00:00:00.000Z', armed = false, newerGuardCalls = 0;
+  const service = f.scenarios({ now: () => clock, calculatorOptions: view => ({
+    consumerGuard: (ctx, request) => {
+      authorize(view, ctx);
+      if (armed && request.sourceIds?.includes('synthetic-newer-retention-source') && ++newerGuardCalls === 3)
+        clock = '2026-10-04T00:00:00.000Z';
+    }, receiptGuard: ctx => { authorize(view, ctx); },
+  }) });
+  await f.vault.update(state => { state.policy.retentionDays = 1; });
+  const older = await service.create(OWNER, request('Synthetic older continuation private name', 'synthetic-older-retention-source', 'main', clock));
+  clock = cut;
+  const newer = await service.create(OWNER, request('Synthetic newer selected private name', 'synthetic-newer-retention-source', 'main', clock));
+  const before = f.vault.read(), ciphertext = await f.ciphertext(); let releasedPage = false;
+  armed = true;
+  await assert.rejects(service.discover(OWNER, { limit: 1 }).then(page => { releasedPage = true; return page; }), code('SCENARIO_RETENTION_EXPIRED'));
+  assert.ok(newerGuardCalls >= 3); assert.equal(clock, '2026-10-04T00:00:00.000Z');
+  assert.equal(releasedPage, false, 'An expired unselected candidate cannot be revealed through a continuation cursor.');
+  assert.equal((await service.reopen(OWNER, newer.scenarioId, newer.revision.id)).revision.id, newer.revision.id);
+  await assert.rejects(service.reopen(OWNER, older.scenarioId, older.revision.id), code('SCENARIO_RETENTION_EXPIRED'));
+  assert.deepEqual(f.vault.read(), before); assert.deepEqual(await f.ciphertext(), ciphertext);
+});
