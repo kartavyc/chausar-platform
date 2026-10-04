@@ -54,6 +54,16 @@ export type WorkspaceInterchangeLocalDiagnostics = {
   controlArtifactsExcluded: number;
   measuredCaptureMs: number;
 };
+/** Constructor-only accounting by the existing control custodian. Inspection runs
+ * inside interchange's source snapshot; it must not enqueue another Vault snapshot. */
+export type WorkspaceInterchangeLocalControlInventory = {
+  artifacts: { ref: PrivateArtifactRef; sha256: string }[];
+  namespaceDigest: string;
+};
+export interface WorkspaceInterchangeLocalControlCustody {
+  inspectInterchangeControls(context: Context, source: { vault: Vault; applicationDirectory: string },
+    inventory: readonly PrivateArtifactRef[]): Promise<WorkspaceInterchangeLocalControlInventory>;
+}
 export type WorkspaceInterchangeLocalOptions = {
   vault: Vault;
   /** A trusted root-owned application folder, never an IPC-selected arbitrary path. */
@@ -61,6 +71,8 @@ export type WorkspaceInterchangeLocalOptions = {
   /** Root must check CURRENT owner, all row/source permissions and managed consumer readiness. */
   assertCompleteOwner(context: Context, historicalState: State): Promise<void>;
   qualification?: WorkspaceInterchangeCustodyMeasurement['qualification'];
+  /** Trusted same-source backup owner; never an IPC capability or filename allowlist. */
+  backupControlCustody?: WorkspaceInterchangeLocalControlCustody;
 };
 export type WorkspaceInterchangeLocalMeasurement = {
   recordId: string; state: 'committed' | 'discarded'; archiveCiphertextBytes: number; inventoryPinCiphertextBytes: number;
@@ -129,6 +141,8 @@ export class WorkspaceInterchangeLocalCustody {
       && !child.includes(sep), 'INTERCHANGE_SOURCE_SCOPE', 'The Vault must be one direct managed workspace below the application directory.');
     check(options.qualification === undefined || ['test-fixture', 'encrypted-local-host'].includes(options.qualification),
       'INTERCHANGE_HOST_REQUIRED', 'Use the explicit local or test-fixture custody classification.');
+    check(options.backupControlCustody === undefined || typeof options.backupControlCustody.inspectInterchangeControls === 'function',
+      'INTERCHANGE_HOST_REQUIRED', 'Backup control accounting requires its trusted typed custody owner.');
     this.#options = { ...options, applicationDirectory };
     this.ports = {
       withSource: (context, expected, work) => this.#withSource(context, expected, work),
@@ -350,11 +364,24 @@ export class WorkspaceInterchangeLocalCustody {
     }
     return bodies;
   }
-  async #controlInventory(): Promise<PrivateArtifactRef[]> {
+  async #controlInventory(context: Context) {
     await this.#inspectPrivateFiles('workspace-interchange');
     const refs = await this.#options.vault.listArtifacts({ purpose: 'workspace-interchange' });
-    const entries = new Map(refs.map(ref => [ref.id, ref]));
-    for (const ref of refs) {
+    const owned = this.#options.backupControlCustody
+      ? await this.#options.backupControlCustody.inspectInterchangeControls(structuredClone(context),
+        { vault: this.#options.vault, applicationDirectory: this.#options.applicationDirectory }, structuredClone(refs))
+      : { artifacts: [], namespaceDigest: interchangeDigest([]) };
+    const claimed = new Set<string>();
+    check(owned && Array.isArray(owned.artifacts) && digestPattern.test(owned.namespaceDigest),
+      'INTERCHANGE_CUSTODY_INCOMPLETE', 'Control custody must return exact measured inventory claims.');
+    for (const item of owned.artifacts) {
+      const actual = refs.find(ref => ref.id === item.ref?.id);
+      check(actual && same(refIdentity(actual), item.ref) && digestPattern.test(item.sha256) && !claimed.has(actual.id),
+        'INTERCHANGE_CUSTODY_INCOMPLETE', 'Control custody claims must uniquely match actual authenticated ciphertext refs.');
+      claimed.add(actual.id);
+    }
+    const ownRefs = refs.filter(ref => !claimed.has(ref.id)), entries = new Map(ownRefs.map(ref => [ref.id, ref]));
+    for (const ref of ownRefs) {
       check(/^(?:wic_[a-f0-9]{64}_(?:archive|pin|commit)|wit_[a-f0-9]{64}_reservation)$/.test(ref.id),
         'INTERCHANGE_CUSTODY_INCOMPLETE', 'An unclassified interchange administrative artifact requires root inspection.');
       if (ref.id.endsWith('_reservation')) {
@@ -375,11 +402,11 @@ export class WorkspaceInterchangeLocalCustody {
         'INTERCHANGE_CUSTODY_INCOMPLETE', 'A commit marker has missing or changed bound archive/pin ciphertext.');
       else check(!archive && !pin, 'INTERCHANGE_CUSTODY_CLEANUP_REQUIRED', 'A revoked issuance still has ciphertext pending exact root cleanup.');
     }
-    for (const ref of refs.filter(item => item.id.endsWith('_archive') || item.id.endsWith('_pin'))) {
+    for (const ref of ownRefs.filter(item => item.id.endsWith('_archive') || item.id.endsWith('_pin'))) {
       const prefix = ref.id.slice(0, ref.id.lastIndexOf('_'));
       check(entries.has(`${prefix}_commit`), 'INTERCHANGE_CUSTODY_INCOMPLETE', 'An orphan archive/pin is uncommitted and cannot be adopted automatically.');
     }
-    return refs;
+    return { refs, owned };
   }
   async #privateBody(context: Context, ref: PrivateArtifactRef, value: any) {
     const current = this.#options.vault.read();
@@ -449,11 +476,15 @@ export class WorkspaceInterchangeLocalCustody {
       const bytes = Buffer.from(text); retainedBytes += bytes.length;
       bodies.push({ id: `private_trial_${sha(ref.id)}`, category: 'other-retained', mediaType: 'application/json', bytes });
     }
-    const control = await this.#controlInventory();
+    const control = await this.#controlInventory(context);
     const witness = { state: interchangeDigest(state), files: files.map(item => item.witness), trials: trials.map(refIdentity),
       bodies: bodies.map(item => ({ id: item.id, bytes: item.bytes.length, sha256: sha(item.bytes) })) };
-    const fence = interchangeDigest(witness), generation: Generation = {
-      workspaceId: state.workspace.id, revision: state.revision, captureId: `capture_${fence}`,
+    const businessFence = interchangeDigest(witness);
+    // Account for backup controls during this operation without changing the
+    // historical business inventory when administrative custody changes later.
+    const fence = control.owned.artifacts.length ? interchangeDigest({ businessFence, backupControls: control.owned }) : businessFence;
+    const generation: Generation = {
+      workspaceId: state.workspace.id, revision: state.revision, captureId: `capture_${businessFence}`,
     };
     const retained = [
       ...bodies.map(item => artifact(item.id, item.category, item.mediaType, item.bytes, generation)),
@@ -475,9 +506,9 @@ export class WorkspaceInterchangeLocalCustody {
       externalKeyCustodyDependencies: files.filter(item => /\.(backup|vault)$/.test(item.witness.name))
         .map(item => item.witness.name),
       files: retained.map(item => ({ logicalId: item.id, category: item.category, bytes: item.bytes.byteLength, sha256: sha(item.bytes) })),
-      controlArtifactsExcluded: control.length, measuredCaptureMs: performance.now() - started,
+      controlArtifactsExcluded: control.refs.length, measuredCaptureMs: performance.now() - started,
     };
-    return { artifacts: { complete: true, enumerationId: `enumeration_${fence}`, generation,
+    return { artifacts: { complete: true, enumerationId: `enumeration_${businessFence}`, generation,
       categories: workspaceStateProfile().artifactCategories, artifacts: retained }, fence };
   }
   async #withSource<T>(context: Context, expected: WorkspaceInventory | null,

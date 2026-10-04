@@ -10,6 +10,7 @@ import { assertSourceAccess } from './trust.ts';
 import { safeDirectory, Vault, type PrivateArtifactRef, type VaultEncryptedCustodyCapture } from './vault.ts';
 import { interchangeDigest } from './workspace-interchange.ts';
 import type { WorkspaceActivationCommit } from './workspace-activation.ts';
+import type { WorkspaceInterchangeLocalControlCustody, WorkspaceInterchangeLocalControlInventory } from './workspace-interchange-local.ts';
 import {
   captureWorkspaceBackupV2, encodeWorkspaceBackupV2, inspectWorkspaceBackupV2, validateWorkspaceBackupV2, workspaceBackupV2Bytes,
   type WorkspaceBackupV2Archive, type WorkspaceBackupV2Budgets, type WorkspaceBackupV2Capture,
@@ -54,6 +55,7 @@ type Reservation = {
   state: 'empty' | 'restored' | 'rolled-back'; creationId: string | null; archiveDigest: string | null; containerSha256: string | null;
 };
 type TargetScope = { context: Context; reservation: Reservation; ref: PrivateArtifactRef; target: WorkspaceBackupV2EmptyTarget };
+type ControlTargetWitness = { targetId: string } & ({ absent: true } | { physical: Physical; empty: true } | { physical: Physical; file: Witness });
 type Inventory = { physical: Physical; directories: { path: string; physical: Physical }[]; files: Witness[]; namespaces: WorkspaceBackupV2Namespace[] };
 type Captured = { capture: WorkspaceBackupV2Capture; state: State; inventory: Inventory };
 type InterchangeReservation = { format: 'chausar.interchange-target-reservation.v1'; sourceVaultId: string; sourceWorkspaceId: string;
@@ -146,7 +148,7 @@ async function readRegular(path: string, logical: string, maximum: number): Prom
 }
 
 /** Experimental local ciphertext custody. No historical authority is mounted or admitted. */
-export class WorkspaceBackupV2LocalCustody {
+export class WorkspaceBackupV2LocalCustody implements WorkspaceInterchangeLocalControlCustody {
   readonly ports: WorkspaceBackupV2HostPorts;
   readonly #options: WorkspaceBackupV2LocalOptions;
   readonly #scope = new AsyncLocalStorage<Scope>();
@@ -209,6 +211,121 @@ export class WorkspaceBackupV2LocalCustody {
    * archive/target lock. Readers supplied below stay under that same exclusion. */
   withHeldSource<T>(context: Context, work: () => Promise<T>): Promise<T> {
     return this.#snapshot(context, async () => { await this.#guard(context, this.#options.vault.read()); return work(); });
+  }
+  /** Root-only cross-module join. The caller already holds this exact Vault's
+   * source snapshot. No nested snapshot, publication, adoption or cleanup occurs. */
+  async inspectInterchangeControls(context: Context, source: { vault: Vault; applicationDirectory: string },
+    inventory: readonly PrivateArtifactRef[]): Promise<WorkspaceInterchangeLocalControlInventory> {
+    const vault = this.#options.vault;
+    check(source.vault === vault && source.applicationDirectory === this.#options.applicationDirectory,
+      'BACKUP_SOURCE_SCOPE', 'Control accounting must use the same open source Vault and canonical application root.');
+    await this.#guard(context, vault.read());
+    const refs = inventory.filter(ref => /^wb2_[a-f0-9]{64}_(?:archive|pin|binding)$/.test(ref.id)
+      || /^wbt2_[a-f0-9]{64}_reservation$/.test(ref.id));
+    const entries = new Map(refs.map(ref => [ref.id, ref])), claimed = new Set<string>();
+    const artifacts: WorkspaceInterchangeLocalControlInventory['artifacts'] = [], targets: ControlTargetWitness[] = [];
+    let measuredBytes = 0, measuredFiles = 0;
+    const measure = async (path: string, logical: string) => {
+      check(++measuredFiles <= this.#options.filesystemBudgets.maxFiles, 'BACKUP_LIMIT', 'Control accounting exceeds its existing file budget.');
+      const file = await readRegular(path, logical, this.#options.filesystemBudgets.maxBytes - measuredBytes);
+      measuredBytes += file.bytes.length; return file;
+    };
+    const claim = async (ref: PrivateArtifactRef) => {
+      check(ref.purpose === 'workspace-interchange' && !claimed.has(ref.id)
+        && same(entries.get(ref.id), ref), 'BACKUP_CUSTODY_CHANGED', 'Every claimed control must equal its exact enumerated reference.');
+      const file = await measure(join(vault.directory, 'private-artifacts', ref.purpose, `${ref.id}.encrypted.json`), ref.id);
+      const read = await vault.readArtifact(ref);
+      check(file.bytes.length === ref.diskBytes && same(identity(read), ref),
+        'BACKUP_CUSTODY_CHANGED', 'Control ciphertext bytes and authenticated ownership changed during accounting.');
+      artifacts.push({ ref: identity(ref), sha256: file.witness.sha256 }); claimed.add(ref.id);
+    };
+    for (const ref of refs.filter(item => item.id.endsWith('_binding'))) {
+      const read = await vault.readArtifact(ref), binding = read.value as Binding;
+      check(same(identity(read), ref) && binding?.format === 'chausar.backup-local-binding.v2'
+        && Object.keys(binding).sort().join(',') === 'archive,archiveDigest,contextDigest,creationId,format,pin,pinDigest,recordId,state'
+        && typeof binding.recordId === 'string' && idPattern.test(binding.recordId) && ref.id === controlId(binding.recordId, 'binding')
+        && typeof binding.creationId === 'string' && idPattern.test(binding.creationId)
+        && typeof binding.archiveDigest === 'string' && digestPattern.test(binding.archiveDigest)
+        && typeof binding.pinDigest === 'string' && digestPattern.test(binding.pinDigest)
+        && binding.contextDigest === sha(canonical(context)) && ['preparing', 'committed', 'discarded'].includes(binding.state),
+      'BACKUP_CUSTODY_CHANGED', 'Backup control accounting requires its exact issued record, creation, owner and digest binding.');
+      for (const [part, issued] of [['archive', binding.archive], ['pin', binding.pin]] as const) {
+        check(issued === null || issued && Object.keys(issued).sort().join(',') === 'diskBytes,id,purpose,valueDigest'
+          && issued.id === controlId(binding.recordId, part) && issued.purpose === 'workspace-interchange'
+          && typeof issued.valueDigest === 'string' && digestPattern.test(issued.valueDigest)
+          && Number.isSafeInteger(issued.diskBytes) && issued.diskBytes > 0,
+        'BACKUP_CUSTODY_CHANGED', 'Backup issuance references must retain their exact typed payload identities.');
+      }
+      check(binding.state !== 'preparing', 'BACKUP_CLEANUP_REQUIRED', 'Unresolved preparing backup custody requires exact owner cleanup.');
+      const archive = entries.get(controlId(binding.recordId, 'archive')), pin = entries.get(controlId(binding.recordId, 'pin'));
+      if (binding.state === 'discarded') {
+        check(!archive && !pin, 'BACKUP_CLEANUP_REQUIRED', 'Discarded backup payloads must be fully removed before control exclusion.');
+      } else {
+        const retained = await this.#readUnlocked(context, binding.recordId), custodyPin = retained.record.pin;
+        check(same(retained.ref, ref) && same(retained.binding, binding) && archive && pin
+          && Object.keys(custodyPin).sort().join(',') === 'archiveDigest,contextDigest,creationId,format,recordId,sourcePin'
+          && custodyPin.format === 'chausar.backup-custody-pin.v2' && custodyPin.recordId === binding.recordId
+          && custodyPin.creationId === binding.creationId && custodyPin.contextDigest === binding.contextDigest,
+        'BACKUP_CUSTODY_CHANGED', 'Independent backup custody pin must retain the exact issued provenance.');
+        const checked = validateWorkspaceBackupV2(retained.record.content, custodyPin.sourcePin, this.#options.budgets);
+        const historical = await vault.authenticateEncryptedCustody(workspaceBackupV2Bytes(checked, this.#options.budgets), this.#vaultBudget());
+        await this.#guard(context, historical);
+        await claim(archive); await claim(pin);
+      }
+      await claim(ref);
+    }
+    for (const ref of refs.filter(item => item.id.endsWith('_reservation'))) {
+      const read = await vault.readArtifact(ref), reservation = read.value as Reservation;
+      const hasPublication = reservation?.creationId !== null;
+      check(same(identity(read), ref) && reservation?.format === 'chausar.backup-local-target.v2'
+        && Object.keys(reservation).sort().join(',') === 'archiveDigest,containerSha256,contextDigest,creationId,format,generation,locationId,physical,state,targetId,vaultId,workspaceId'
+        && typeof reservation.targetId === 'string' && slotPattern.test(reservation.targetId) && ref.id === reservationId(reservation.targetId)
+        && reservation.vaultId === vault.vaultId && reservation.workspaceId === vault.read().workspace.id
+        && reservation.contextDigest === sha(canonical(context)) && typeof reservation.locationId === 'string' && idPattern.test(reservation.locationId)
+        && typeof reservation.generation === 'string' && idPattern.test(reservation.generation) && physicalValue(reservation.physical)
+        && ['empty', 'restored', 'rolled-back'].includes(reservation.state)
+        && (hasPublication ? typeof reservation.creationId === 'string' && idPattern.test(reservation.creationId)
+          && typeof reservation.archiveDigest === 'string' && digestPattern.test(reservation.archiveDigest)
+          && typeof reservation.containerSha256 === 'string' && digestPattern.test(reservation.containerSha256)
+          : reservation.archiveDigest === null && reservation.containerSha256 === null)
+        && (reservation.state === 'restored' ? hasPublication : reservation.state !== 'empty' || !hasPublication),
+      'BACKUP_TARGET_CHANGED', 'Backup reservation exclusion requires its exact typed source, owner, physical identity and publication state.');
+      const path = this.targetPath(reservation.targetId), directory = await directoryIfPresent(path);
+      if (!directory) {
+        check(reservation.state === 'rolled-back' && !hasPublication,
+          'BACKUP_TARGET_CLEANUP_REQUIRED', 'Only failed empty allocation cleanup may leave an absent reserved target.');
+        targets.push({ targetId: reservation.targetId, absent: true });
+      } else {
+        const actual = await this.#reservation(context, reservation.targetId);
+        check(same(actual.ref, ref) && same(actual.reservation, reservation), 'BACKUP_TARGET_CHANGED', 'Reserved inert target changed during accounting.');
+        const names = (await readdir(directory)).sort();
+        if (reservation.state === 'restored') {
+          await this.#readRestoredUnlocked(context, { targetId: reservation.targetId, creationId: reservation.creationId! });
+          const file = await measure(join(directory, INERT), `target/${reservation.targetId}/${INERT}`);
+          check(file.witness.sha256 === reservation.containerSha256, 'BACKUP_TARGET_CHANGED', 'Owned inert container changed during accounting.');
+          targets.push({ targetId: reservation.targetId, physical: reservation.physical, file: file.witness });
+        } else {
+          check(names.length === 0, 'BACKUP_TARGET_CLEANUP_REQUIRED', 'Empty or rolled-back targets must have no unresolved payloads or unknown entries.');
+          targets.push({ targetId: reservation.targetId, physical: reservation.physical, empty: true });
+        }
+      }
+      await claim(ref);
+    }
+    check(refs.every(ref => claimed.has(ref.id)), 'BACKUP_CUSTODY_CHANGED', 'Orphan backup archive or pin controls cannot be adopted.');
+    // Only the existing reviewed process-lock sections are owned. A stale staging
+    // file has no durable manifest and must continue to require root inspection.
+    const control = await directoryIfPresent(join(this.#options.applicationDirectory, CONTROL));
+    if (control) for (const section of await readdir(control)) {
+      check(['records', 'targets'].includes(section), 'BACKUP_INVENTORY_INCOMPLETE', 'Unknown backup process control sections require root inspection.');
+      const directory = await safeDirectory(join(control, section));
+      for (const name of await readdir(directory)) {
+        check(/^[a-f0-9]{64}\.lock(?:\.[a-f0-9-]{36}\.tmp|\.recovery-[a-f0-9]{64}\.lock(?:\.[a-f0-9-]{36}\.tmp)?)?$/.test(name),
+          'BACKUP_INVENTORY_INCOMPLETE', 'Unowned backup staging or process entries cannot be excluded.');
+        await measure(join(directory, name), `control/${section}/${name}`);
+      }
+    }
+    await this.#guard(context, vault.read());
+    return { artifacts: artifacts.sort((a, b) => a.ref.id.localeCompare(b.ref.id)), namespaceDigest: sha(canonical(targets)) };
   }
   /** Trusted composition only: measure the complete current profile under source→journal exclusion. */
   async inspectHeldNamespaces(): Promise<Inventory> {
