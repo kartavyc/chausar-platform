@@ -51,7 +51,7 @@ import { PluginService } from './plugins.ts';
 import { LearningService } from './learning.ts';
 import { MCPService } from './mcp.ts';
 import { ConnectorService, type CredentialBroker } from './connectors.ts';
-import { EngineConnectorService, type EngineConnectorOptions } from './engine-connectors.ts';
+import { EngineConnectorService, connectorDiscoveryGeneration, type EngineConnectorOptions } from './engine-connectors.ts';
 import { PrivateTrialHostService } from './private-trial-host.ts';
 import { EngineScenarioService } from './engine-scenarios.ts';
 import { createEngineLessonService, type EngineLessonOptions } from './engine-lessons.ts';
@@ -550,6 +550,28 @@ export class Engine {
       return { ...(database ? { verifier: (receipt: CalculationReceipt) => database.verify(receipt) } : {}),
         consumerGuard: (ctx, request) => connectors.assertCalculationReady(ctx, request),
         receiptGuard: (ctx, receipt) => connectors.assertReceiptReady(ctx, receipt) };
+    }, discoveryAuthorityRevision: state => {
+      const options = this.options.connectorRuntime;
+      // Bracket factories too: a profile/semantic factory can change host-owned
+      // readiness before the constructed connector's own stamp is available.
+      const generation = connectorDiscoveryGeneration(options);
+      const namespace = state.scenarioRecords ?? [];
+      check(Array.isArray(namespace) && namespace.every(record => Array.isArray(record?.evidence)
+        && record.evidence.every(evidence => evidence?.state && Array.isArray(evidence.state.sourceRules))),
+      'SCENARIO_CUSTODY_INVALID', 'Discovery requires complete retained connector authority views.');
+      const stamps = [state, ...namespace.flatMap(record => record.evidence.map(evidence => evidence.state))].map(retained => {
+        const authority = { ...structuredClone(retained), members: structuredClone(state.members), policy: structuredClone(state.policy),
+          sourceRules: [...structuredClone(retained.sourceRules.filter(rule => typeof rule.sourceId !== 'string')),
+            ...structuredClone(state.sourceRules.filter(rule => typeof rule.sourceId === 'string'))] };
+        delete authority.scenarioRecords; delete authority.lessonState;
+        const readonly: StateStore = { read: () => structuredClone(authority), update: async () => {
+          throw new ChausarError('SCENARIO_READ_ONLY', 'Discovery connector authority is read only.');
+        } };
+        return new EngineConnectorService(readonly, options).discoveryReadinessRevision();
+      });
+      check(connectorDiscoveryGeneration(options) === generation, 'SCENARIO_AUTHORITY_CHANGED',
+        'Connector discovery readiness changed while retained authority was resolved.');
+      return digest({ generation, stamps });
     }, now });
     if (this.options.lessons) this.services.lessons = createEngineLessonService(store, this.options.lessons);
     else delete this.services.lessons;

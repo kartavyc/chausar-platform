@@ -11,6 +11,9 @@ import type {
 /** Installed Engine capabilities only. No custody, verifier or clock comes from RPC. */
 export type EngineScenarioOptions = {
   calculatorOptions(view: StateStore, phase: 'calculate' | 'reopen'): ScenarioCalculatorOptions;
+  /** Trusted synchronous generation covering all external readiness dependencies.
+   * Must change on every withdrawal/restoration; never supplied by RPC. Required for discovery. */
+  discoveryAuthorityRevision?: (state: State) => string;
   now?: () => string;
 };
 
@@ -107,6 +110,7 @@ export class EngineScenarioService {
   readonly #discoveryKey = randomBytes(32);
   constructor(vault: Vault, options: EngineScenarioOptions) {
     check(vault instanceof Vault && options && typeof options.calculatorOptions === 'function'
+      && (options.discoveryAuthorityRevision === undefined || typeof options.discoveryAuthorityRevision === 'function')
       && (options.now === undefined || typeof options.now === 'function'),
       'SCENARIO_HOST_REQUIRED', 'Install an unlocked encrypted Vault and current calculator capabilities.');
     this.#vault = vault; this.#store = serializedVaultStateStore(vault); this.#options = { ...options };
@@ -262,6 +266,18 @@ export class EngineScenarioService {
       authorize(this.#store, ctx);
       check(!ctx.sourceTainted, 'SCENARIO_TAINTED_CONTEXT', 'Imported source text cannot discover private scenarios.');
       const identity = this.#vault.readIdentity();
+      const authorityRevision = () => {
+        check(typeof this.#options.discoveryAuthorityRevision === 'function', 'SCENARIO_HOST_REQUIRED',
+          'Install a trusted current readiness generation before scenario discovery.');
+        const value: unknown = this.#options.discoveryAuthorityRevision(structuredClone(state));
+        if (value instanceof Promise) void value.catch(() => {});
+        check(typeof value === 'string' && value.length > 0 && value.length <= 512,
+          'SCENARIO_HOST_REQUIRED', 'Discovery readiness must have a synchronous bounded authority revision.');
+        return value;
+      };
+      const readiness = authorityRevision();
+      const assertReadiness = () => check(authorityRevision() === readiness, 'SCENARIO_AUTHORITY_CHANGED',
+        'Source readiness changed during scenario discovery. Restart from the first page.');
       const available: { row: ScenarioDiscoveryRow; recordDigest: string }[] = [];
       const attempt = <T>(work: () => T): T | undefined => {
         try { return work(); }
@@ -288,10 +304,11 @@ export class EngineScenarioService {
           if (row) available.push({ row, recordDigest: record.digest });
         }
       }
+      assertReadiness();
       available.sort((a, b) => discoveryOrder(a.row, b.row));
       // The key hides even authority revision/namespace positions. The complete
       // authorized projection also fences clock/readiness changes without a write.
-      const fence = hash(canonical({ identity, memberId: ctx.memberId, role: ctx.role, epoch: ctx.epoch,
+      const fence = hash(canonical({ identity, readiness, memberId: ctx.memberId, role: ctx.role, epoch: ctx.epoch,
         limit: input.limit, available }));
       const cursorFor = (row: ScenarioDiscoveryRow) => createHmac('sha256', this.#discoveryKey)
         .update(JSON.stringify([fence, row.scenarioId, row.revisionId])).digest('hex');
@@ -308,6 +325,14 @@ export class EngineScenarioService {
         check(hash(canonical(current)) === hash(canonical(row)), 'SCENARIO_AUTHORITY_CHANGED',
           'The selected discovery projection changed before release.');
       }
+      // Check all selected records at one release instant after the last guard callback.
+      const releaseAt = (this.#options.now ?? now)();
+      for (const { row } of selected) {
+        const record = records(state).find(item => item.id === row.scenarioId)!;
+        assertRetention(state, record, releaseAt);
+      }
+      // No readiness or clock callbacks run after this shared generation fence.
+      assertReadiness();
       authorize(this.#store, ctx);
       check(hash(this.#vault.readIdentity()) === hash(identity), 'SCENARIO_AUTHORITY_CHANGED', 'Scenario discovery authority changed.');
       return structuredClone({ mode: 'retained-revisions' as const, items: selected.map(item => item.row),

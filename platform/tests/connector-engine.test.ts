@@ -112,6 +112,46 @@ test('host defaults install no adapters/grants and renderer cannot inject profil
   await assert.rejects(value.service.request(owner, 'connectors.read', { profileId: 'synthetic-sales', endpoint: 'renderer-selected' }), code('INVALID_CONNECTOR_REQUEST'));
   await assert.rejects(value.service.read(owner, 'synthetic-sales'), code('CONNECTOR_HOST_GRANTS_REQUIRED')); assert.equal(value.setup.requests, 0);
 });
+test('discovery readiness stamps require dynamic host generations without changing ordinary source use', async () => {
+  const value = await fixture();
+  assert.throws(() => value.service.discoveryReadinessRevision(), code('SCENARIO_HOST_REQUIRED'));
+  const acquired = await value.service.read(owner, 'synthetic-sales');
+  assert.equal(acquired.profileId, 'synthetic-sales', 'Existing connector operations do not require the discovery generation.');
+  const empty = new EngineConnectorService(new Store());
+  assert.equal(empty.discoveryReadinessRevision(), empty.discoveryReadinessRevision());
+  for (const options of [
+    { profiles: () => [] },
+    { semanticGate: { beforePublish: () => { throw new Error('No semantic call'); }, assertReady: () => { throw new Error('No semantic call'); } } },
+    { clock: value.setup.options.clock },
+  ]) assert.throws(() => new EngineConnectorService(value.store, options).discoveryReadinessRevision(), code('SCENARIO_HOST_REQUIRED'));
+});
+test('pure discovery stamps fence registry revocation, freshness eligibility and external readiness generation', async () => {
+  const value = await fixture(); await published(value);
+  let generation = 'synthetic-readiness-1', semanticCalls = 0;
+  const stamp = new EngineConnectorService(value.store, { ...value.setup.options, readinessRevision: () => generation,
+    semanticGate: { beforePublish: () => { semanticCalls++; throw new Error('Stamp cannot publish'); },
+      assertReady: () => { semanticCalls++; throw new Error('Stamp cannot invoke semantic readiness'); } } });
+  const before = value.store.read(), ready = stamp.discoveryReadinessRevision();
+  value.setup.advance(1000);
+  assert.equal(stamp.discoveryReadinessRevision(), ready, 'Time passing within the same eligibility window leaves the stamp stable.');
+  generation = 'synthetic-readiness-2';
+  const changed = stamp.discoveryReadinessRevision(); assert.notEqual(changed, ready);
+  value.setup.advance(60_001);
+  const expired = stamp.discoveryReadinessRevision(); assert.notEqual(expired, changed);
+  assert.throws(() => value.service.ready(owner, 'synthetic-sales'), code('CONNECTOR_SOURCE_NOT_CURRENT'));
+  value.setup.registry.revokeEvidence('synthetic-evidence-1', new Date(value.setup.options.clock!.nowMs()).toISOString(), 'Synthetic stamp revocation');
+  assert.notEqual(stamp.discoveryReadinessRevision(), expired);
+  assert.equal(semanticCalls, 0); assert.deepEqual(value.store.read(), before);
+});
+test('discovery readiness getter must be synchronous and stable throughout the pure stamp', async () => {
+  const store = new Store(); let generation = 0;
+  const changing = new EngineConnectorService(store, { readinessRevision: () => `synthetic-generation-${generation++}` });
+  assert.throws(() => changing.discoveryReadinessRevision(), code('SCENARIO_AUTHORITY_CHANGED'));
+  for (const revision of ['', ' generation ', undefined, Promise.reject(new Error('Synthetic invalid asynchronous generation'))]) {
+    const invalid = new EngineConnectorService(store, { readinessRevision: () => revision as string });
+    assert.throws(() => invalid.discoveryReadinessRevision(), code('SCENARIO_HOST_REQUIRED'));
+  }
+});
 test('approved scope retains exact fifty plan groups plus six additions without discarding legacy enterprise entries', () => {
   assert.equal(APPROVED_CONNECTOR_GROUPS.length, 56); assert.equal(new Set(APPROVED_CONNECTOR_GROUPS.map(group => group.id)).size, 56);
   assert.equal(APPROVED_CONNECTOR_GROUPS.filter(group => group.scope === 'original-plan-group').length, 50);

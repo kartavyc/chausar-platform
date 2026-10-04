@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -6,17 +6,23 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import type { Context } from '../runtime/contracts.ts';
 import type { EngineScenarioService } from '../runtime/engine-scenarios.ts';
+import type { EngineConnectorOptions } from '../runtime/engine-connectors.ts';
 import type { ScenarioCreateRequest, ScenarioDiscoveryPage, ScenarioDiscoveryRequest, ScenarioView } from '../runtime/scenario-contracts.ts';
 
 const OWNER: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
+const request: ScenarioCreateRequest = {
+  version: 1, label: 'Synthetic retained dispatch scenario',
+  baseline: { label: 'Synthetic baseline', request: {
+    operation: 'scenario', branch: 'main', period: { from: '2026-09-01', to: '2026-09-30' },
+    assumptions: { priceChangeBps: '0' },
+  } },
+  alternatives: [{ label: 'Synthetic alternative', priceChangeBps: '1000' }],
+};
 
-// Actual Engine authorization, dispatch, encrypted Vault and scenario service.
-// The explicit experimental host performs no SQL, native/browser operation,
-// external provider request, acquisition or credential retrieval.
-test('Engine.requestAs dispatches only strict discovery parameters under current authorization', async t => {
+async function fixture(t: TestContext, connectorRuntime?: EngineConnectorOptions) {
   const base = await realpath(tmpdir());
   const directory = await realpath(await mkdtemp(join(base, 'chausar-scenario-dispatch-')));
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file' });
+  const engine = new Engine({ directory, demo: true, storage: 'experimental-file', connectorRuntime });
   t.after(async () => {
     await engine.shutdown();
     const actual = await realpath(directory), child = relative(base, actual);
@@ -28,14 +34,14 @@ test('Engine.requestAs dispatches only strict discovery parameters under current
     name: 'Synthetic discovery dispatcher workspace', demo: false,
     passphrase: 'Synthetic discovery dispatcher passphrase',
   });
-  const request: ScenarioCreateRequest = {
-    version: 1, label: 'Synthetic retained dispatch scenario',
-    baseline: { label: 'Synthetic baseline', request: {
-      operation: 'scenario', branch: 'main', period: { from: '2026-09-01', to: '2026-09-30' },
-      assumptions: { priceChangeBps: '0' },
-    } },
-    alternatives: [{ label: 'Synthetic alternative', priceChangeBps: '1000' }],
-  };
+  return engine;
+}
+
+// Actual Engine authorization, dispatch, encrypted Vault and scenario service.
+// The explicit experimental host performs no SQL, native/browser operation,
+// external provider request, acquisition or credential retrieval.
+test('Engine.requestAs dispatches only strict discovery parameters under current authorization', async t => {
+  const engine = await fixture(t);
   const first: ScenarioView = await engine.requestAs(OWNER, 'scenarios.create', request);
   const second: ScenarioView = await engine.requestAs(OWNER, 'scenarios.create', request);
   const service = engine.services.scenarios as EngineScenarioService;
@@ -72,4 +78,34 @@ test('Engine.requestAs dispatches only strict discovery parameters under current
     scenarioId: initial.items[0].scenarioId, revisionId: initial.items[0].revisionId,
   });
   assert.equal(reopened.revision.id, initial.items[0].revisionId);
+});
+
+test('Engine discovery requires a dynamic connector generation while exact reopening remains available', async t => {
+  const engine = await fixture(t, { profiles: () => [] });
+  const retained: ScenarioView = await engine.requestAs(OWNER, 'scenarios.create', request);
+  await assert.rejects(engine.requestAs(OWNER, 'scenarios.discover'), { code: 'SCENARIO_HOST_REQUIRED' });
+  const reopened: ScenarioView = await engine.requestAs(OWNER, 'scenarios.reopen', {
+    scenarioId: retained.scenarioId, revisionId: retained.revision.id,
+  });
+  assert.deepEqual(reopened.revision, retained.revision);
+});
+
+test('Engine discovery fences host generation across continuation and profile construction without Vault writes', async t => {
+  let revision = 1, changeInFactory = false;
+  const engine = await fixture(t, { readinessRevision: () => `synthetic-readiness-${revision}`, profiles: () => {
+    if (changeInFactory) { revision++; changeInFactory = false; }
+    return [];
+  } });
+  await engine.requestAs(OWNER, 'scenarios.create', request);
+  await engine.requestAs(OWNER, 'scenarios.create', request);
+  const before = engine.vault!.read();
+  const page: ScenarioDiscoveryPage = await engine.requestAs(OWNER, 'scenarios.discover', { limit: 1 });
+  assert.match(page.nextCursor!, /^[a-f0-9]{64}$/);
+  revision++;
+  await assert.rejects(engine.requestAs(OWNER, 'scenarios.discover', { limit: 1, cursor: page.nextCursor }), { code: 'SCENARIO_AUTHORITY_CHANGED' });
+  const current: ScenarioDiscoveryPage = await engine.requestAs(OWNER, 'scenarios.discover');
+  assert.equal(current.items.length, 2);
+  changeInFactory = true;
+  await assert.rejects(engine.requestAs(OWNER, 'scenarios.discover'), { code: 'SCENARIO_AUTHORITY_CHANGED' });
+  assert.deepEqual(engine.vault!.read(), before);
 });

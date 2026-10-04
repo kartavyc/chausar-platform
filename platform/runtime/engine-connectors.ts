@@ -43,8 +43,22 @@ export type EngineConnectorOptions = {
   authorizeRead?: (context: Context, ...args: Parameters<ReadAuthorizationGuard>) => ReturnType<ReadAuthorizationGuard>;
   semanticGate?: ConnectorSemanticPort | ((store: StateStore) => ConnectorSemanticPort);
   clock?: ReadClock;
+  /** Trusted generation for dynamic discovery readiness. Advance without reuse
+   * whenever callback-owned readiness changes; never supplied by an RPC. */
+  readinessRevision?: () => string;
   custody?: { maximumPendingReads: number; maximumBytes: number; ttlMs: number };
 };
+/** Discovery alone needs a generation fence for callback-owned authority. */
+export function connectorDiscoveryGeneration(options: EngineConnectorOptions = {}): string {
+  const dynamic = options.semanticGate !== undefined || typeof options.profiles === 'function' || options.clock !== undefined;
+  check(options.readinessRevision === undefined ? !dynamic : typeof options.readinessRevision === 'function',
+    'SCENARIO_HOST_REQUIRED', 'Dynamic connector discovery requires a trusted readiness generation.');
+  const revision: unknown = options.readinessRevision === undefined ? 'static' : options.readinessRevision();
+  if (revision instanceof Promise) void revision.catch(() => {});
+  check(typeof revision === 'string' && revision.trim() === revision && revision.length >= 1 && revision.length <= 200
+    && !/[\u0000-\u001f]/.test(revision), 'SCENARIO_HOST_REQUIRED', 'Supply a bounded synchronous connector readiness generation.');
+  return revision;
+}
 /** Literal RPC methods retain their actual service result; dynamic dispatch returns the result union. */
 export type EngineConnectorRpcResults = {
   'connectors.profiles': ReturnType<EngineConnectorService['profiles']>;
@@ -135,6 +149,27 @@ export class EngineConnectorService {
   }
 
   #at() { return new Date(this.#clock.nowMs()).toISOString(); }
+  /** Host-local stamp; invokes no source, credential, semantic or consumer port. */
+  discoveryReadinessRevision(): string {
+    const generation = connectorDiscoveryGeneration(this.#options), time = this.#clock.nowMs();
+    check(Number.isFinite(time) && Number.isFinite(new Date(time).getTime()),
+      'SCENARIO_HOST_REQUIRED', 'Connector discovery needs a valid current clock.');
+    const at = new Date(time).toISOString(), state = this.#store.read();
+    const profiles = [...this.#profiles.values()].map(runtime => ({ id: runtime.profile.id, digest: runtime.digest,
+      read: this.#registry.qualification(runtime.profile.readOperation, at, levels[runtime.profile.environment]).digest,
+      imported: this.#registry.qualification(runtime.profile.importOperation, at, levels[runtime.profile.environment]).digest,
+    })).sort((a, b) => a.id.localeCompare(b.id));
+    const freshness = captures(state).map(capture => {
+      const binding = bindingFor(state, capture.id), runtime = binding && this.#profiles.get(binding.profileId);
+      const generated = binding?.freshness?.oldestSourceGeneratedAtMs;
+      return { captureId: capture.id, profileId: binding?.profileId ?? null,
+        eligible: !!runtime && typeof generated === 'number' && Number.isFinite(generated) && generated <= time
+          && time - generated <= runtime.profile.maximumSourceAgeMs };
+    }).sort((a, b) => a.captureId.localeCompare(b.captureId));
+    check(connectorDiscoveryGeneration(this.#options) === generation, 'SCENARIO_AUTHORITY_CHANGED',
+      'Connector discovery readiness changed while its stamp was built.');
+    return digest({ generation, profiles, freshness, closed: this.#closed });
+  }
   #runtime(profileId: unknown): RuntimeProfile {
     check(!this.#closed, 'CONNECTOR_RUNTIME_CLOSED', 'Open the workspace before using connectors.');
     const runtime = typeof profileId === 'string' ? this.#profiles.get(profileId) : undefined;

@@ -51,6 +51,7 @@ async function fixture(t: TestContext) {
   });
   return { vault, adapter,
     scenarios: (options: Partial<EngineScenarioOptions> = {}) => new EngineScenarioService(vault, { now: () => cut,
+      discoveryAuthorityRevision: state => String(state.revision),
       calculatorOptions: view => ({ consumerGuard: ctx => { authorize(view, ctx); }, receiptGuard: ctx => { authorize(view, ctx); } }), ...options }),
     ciphertext: () => readFile(join(directory, 'authority.encrypted.json')),
   };
@@ -225,8 +226,8 @@ test('delayed discovery queued behind revocation checks the committed account be
 });
 
 test('current installed readiness withdrawal changes cursor authority without a Vault mutation and unknown guard errors refuse the page', async t => {
-  const f = await fixture(t); let unavailable = false, unknown = false;
-  const service = f.scenarios({ calculatorOptions: view => ({
+  const f = await fixture(t); let unavailable = false, unknown = false, authorityGeneration = 0;
+  const service = f.scenarios({ discoveryAuthorityRevision: state => `${state.revision}:${authorityGeneration}`, calculatorOptions: view => ({
     consumerGuard: (ctx, request) => {
       authorize(view, ctx);
       if (unknown) throw new ChausarError('SYNTHETIC_GUARD_FAILURE', 'Unknown installed guard failure must refuse the whole page.');
@@ -236,13 +237,18 @@ test('current installed readiness withdrawal changes cursor authority without a 
   }) });
   const hidden = await service.create(OWNER, request('Synthetic readiness private name', 'synthetic-readiness-source'));
   const shown = await service.create(OWNER, request('Synthetic readiness still available'));
-  const page = await service.discover(OWNER, { limit: 1 }), before = f.vault.read(), ciphertext = await f.ciphertext();
-  assert.ok(page.nextCursor); unavailable = true;
+  let page = await service.discover(OWNER, { limit: 1 });
+  const before = f.vault.read(), ciphertext = await f.ciphertext();
+  assert.ok(page.nextCursor); authorityGeneration++;
+  await assert.rejects(service.discover(OWNER, { limit: 1, cursor: page.nextCursor! }), code('SCENARIO_AUTHORITY_CHANGED'));
+  page = await service.discover(OWNER, { limit: 1 });
+  assert.equal(page.items.length, 1); assert.ok(page.nextCursor, 'A pure authority generation change still leaves both rows reachable.');
+  unavailable = true; authorityGeneration++;
   await assert.rejects(service.discover(OWNER, { limit: 1, cursor: page.nextCursor! }), code('SCENARIO_AUTHORITY_CHANGED'));
   const fresh = await service.discover(OWNER, { limit: 1 });
   assert.equal(fresh.items.length, 1); assert.equal(fresh.items[0].scenarioId, shown.scenarioId); assert.equal(fresh.nextCursor, null);
   await assert.rejects(service.reopen(OWNER, hidden.scenarioId, hidden.revision.id), code('SOURCE_NOT_READY'));
-  unknown = true;
+  unknown = true; authorityGeneration++;
   await assert.rejects(service.discover(OWNER, {}), code('SYNTHETIC_GUARD_FAILURE'));
   assert.deepEqual(f.vault.read(), before); assert.deepEqual(await f.ciphertext(), ciphertext);
 });
@@ -258,8 +264,8 @@ test('source deletion removes discovery pins and exact reopen preserves the exis
 });
 
 test('discovery withholds completed metadata when its retained receipts lose installed release readiness', async t => {
-  const f = await fixture(t); let unavailable = false, receiptChecks = 0;
-  const service = f.scenarios({ calculatorOptions: view => ({
+  const f = await fixture(t); let unavailable = false, receiptChecks = 0, authorityGeneration = 0;
+  const service = f.scenarios({ discoveryAuthorityRevision: state => `${state.revision}:${authorityGeneration}`, calculatorOptions: view => ({
     consumerGuard: ctx => { authorize(view, ctx); },
     receiptGuard: ctx => {
       authorize(view, ctx); receiptChecks++;
@@ -273,9 +279,46 @@ test('discovery withholds completed metadata when its retained receipts lose ins
     await service.evaluate(OWNER, created.scenarioId, run.id);
   }
   assert.equal((await service.discover(OWNER, {})).items[0].status, 'complete');
-  const before = f.vault.read(), ciphertext = await f.ciphertext(), checks = receiptChecks; unavailable = true;
+  const before = f.vault.read(), ciphertext = await f.ciphertext(), checks = receiptChecks; unavailable = true; authorityGeneration++;
   assert.deepEqual(await service.discover(OWNER, {}), { mode: 'retained-revisions', items: [], nextCursor: null, noAction: true });
   assert.ok(receiptChecks > checks, 'Metadata release must apply the existing exact retained receipt guards.');
   await assert.rejects(service.reopen(OWNER, created.scenarioId, created.revision.id), code('SOURCE_NOT_READY'));
+  assert.deepEqual(f.vault.read(), before); assert.deepEqual(await f.ciphertext(), ciphertext);
+});
+
+test('cross-row readiness withdrawal during selected release refuses the whole discovery page', async t => {
+  const f = await fixture(t); let clock = cut, armed = false, earlierReady = true, laterGuardCalls = 0, authorityGeneration = 0;
+  const service = f.scenarios({ now: () => clock, discoveryAuthorityRevision: state => `${state.revision}:${authorityGeneration}`,
+    calculatorOptions: view => ({ consumerGuard: (ctx, request) => {
+      authorize(view, ctx);
+      if (armed && request.sourceIds?.includes('synthetic-later-release-source') && ++laterGuardCalls === 3) {
+        earlierReady = false; authorityGeneration++;
+      }
+      if (!earlierReady && request.sourceIds?.includes('synthetic-earlier-release-source'))
+        throw new ChausarError('SOURCE_NOT_READY', 'Synthetic earlier row readiness withdrawn by a later release guard.');
+    }, receiptGuard: ctx => { authorize(view, ctx); } }),
+  });
+  await service.create(OWNER, request('Synthetic later selected private name', 'synthetic-later-release-source'));
+  clock = '2026-10-03T01:00:00.000Z';
+  const earlier = await service.create(OWNER, request('Synthetic earlier selected private name', 'synthetic-earlier-release-source'));
+  const before = f.vault.read(), ciphertext = await f.ciphertext(); let releasedLabels: string[] = [];
+  armed = true;
+  const operation = service.discover(OWNER, { limit: 2 }).then(page => {
+    releasedLabels = page.items.map(row => row.label); return page;
+  });
+  await assert.rejects(operation, code('SCENARIO_AUTHORITY_CHANGED'));
+  assert.equal(earlierReady, false); assert.equal(authorityGeneration, 1); assert.ok(laterGuardCalls >= 3);
+  assert.deepEqual(releasedLabels, [], 'No selected label can escape when a later release guard revokes an earlier row.');
+  await assert.rejects(service.reopen(OWNER, earlier.scenarioId, earlier.revision.id), code('SOURCE_NOT_READY'));
+  assert.deepEqual(f.vault.read(), before); assert.deepEqual(await f.ciphertext(), ciphertext);
+});
+
+test('discovery requires its trusted authority revision capability while existing creation and exact reopen remain usable', async t => {
+  const f = await fixture(t), service = f.scenarios({ discoveryAuthorityRevision: undefined });
+  const created = await service.create(OWNER, request('Synthetic exact reopen without discovery capability'));
+  const before = f.vault.read(), ciphertext = await f.ciphertext();
+  await assert.rejects(service.discover(OWNER, {}), code('SCENARIO_HOST_REQUIRED'));
+  const reopened = await service.reopen(OWNER, created.scenarioId, created.revision.id);
+  assert.deepEqual(reopened, created);
   assert.deepEqual(f.vault.read(), before); assert.deepEqual(await f.ciphertext(), ciphertext);
 });
