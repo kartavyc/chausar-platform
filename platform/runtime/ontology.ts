@@ -44,7 +44,7 @@ function snapshotDraft(value: unknown): DictionaryDraft {
     if (Array.isArray(item)) {
       check(Object.getPrototypeOf(item) === Array.prototype
         && Reflect.ownKeys(item).length === item.length + 1
-        && Object.getOwnPropertyDescriptors(item).length?.value === item.length,
+        && Object.getOwnPropertyDescriptors<object>(item).length?.value === item.length,
       'INVALID_DICTIONARY', 'Dictionary arrays must contain ordinary dense data.');
       for (let index = 0; index < item.length; index++) {
         const descriptor = Object.getOwnPropertyDescriptor(item, String(index));
@@ -125,16 +125,17 @@ export function assertRetainedOntology(state: OntologyState): void {
   if (!['publicationAttempts', 'firstRunReviewRequired', 'historicalPublicationEvidence'].some(key => Object.hasOwn(ontology ?? {}, key))) return;
   check(exactKeys(ontology, ['current', 'history'], ['publicationAttempts', 'firstRunReviewRequired', 'historicalPublicationEvidence'])
     && Array.isArray(ontology.history), 'INVALID_DICTIONARY_RECEIPT', 'Retained ontology requires its exact declared review and evidence fields.');
+  const history = ontology.history;
   if (Object.hasOwn(ontology, 'firstRunReviewRequired')) {
-    check(ontology.firstRunReviewRequired === true && ontology.current === null && ontology.history.length === 0
+    check(ontology.firstRunReviewRequired === true && ontology.current === null && history.length === 0
       && !Object.hasOwn(ontology, 'publicationAttempts') && !Object.hasOwn(ontology, 'historicalPublicationEvidence'),
     'INVALID_DICTIONARY_OPTIONS', 'Deferred review must retain an empty unpublished dictionary without publication evidence.');
     return;
   }
-  check(ontology.current && ontology.history.length > 0 && JSON.stringify(ontology.current) === JSON.stringify(ontology.history.at(-1))
-    && ontology.history.every((dictionary: Dictionary, index: number) => dictionary && digest(dictionary.hash)
+  check(ontology.current && history.length > 0 && JSON.stringify(ontology.current) === JSON.stringify(history.at(-1))
+    && history.every((dictionary: Dictionary, index: number) => dictionary && digest(dictionary.hash)
       && Number.isSafeInteger(dictionary.version) && dictionary.version > 0
-      && (index === 0 || dictionary.version > ontology.history[index - 1].version)
+      && (index === 0 || dictionary.version > history[index - 1].version)
       && hash(Object.fromEntries(Object.entries(dictionary).filter(([key]) => key !== 'hash'))) === dictionary.hash),
   'INVALID_DICTIONARY_RECEIPT', 'Publication evidence requires exact current and ordered dictionary history.');
   const live = retainedAttempts(state), historical = historicalPublicationEvidence(state);
@@ -254,7 +255,8 @@ export class OntologyService {
       check(exactKeys(payload, [draftInput ? 'draft' : 'pack'], ['expectedCurrentHash', 'attemptId']),
         'INVALID_DICTIONARY_OPTIONS', 'Choose exactly one draft or starter pack and the declared publication options.');
       const options = Object.fromEntries(Object.entries(payload).filter(([key]) => key === 'expectedCurrentHash' || key === 'attemptId'));
-      const input = draftInput ? payload.draft : payload.pack;
+      const publicationData: Record<string, unknown> = payload;
+      const input = draftInput ? publicationData.draft : publicationData.pack;
       check(draftInput || typeof input === 'string', 'INVALID_DICTIONARY_OPTIONS', 'Choose a named starter pack.');
       return this.publish(ctx, input as DictionaryDraft | string, options);
     }

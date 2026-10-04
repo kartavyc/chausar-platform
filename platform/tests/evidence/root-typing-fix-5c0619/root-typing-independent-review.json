@@ -1,0 +1,795 @@
+{
+  "schemaVersion": 1,
+  "result": "pass",
+  "reviewedAt": "2026-10-04T09:45:26Z",
+  "reviewer": "/root/qualification_review",
+  "checkout": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-root-typing-fix",
+  "baselineCommit": "5c0619dbce581f4329eab11521205e7fcfdcefbf",
+  "sourceSha256": {
+    "platform/runtime/ontology.ts": "00aa10dd120c205928c0bd48fca67cd565a3c64cd8abc6f82e0e1805b8ca22d5",
+    "platform/tests/ontology-data-validation.test.ts": "6577d937340aa102ad7dd468e11ab4ccc9f257481140c9d95c4c4ed5ff699c8b",
+    "platform/runtime/contracts.ts": "52d930eac796f0edaf65ddf2d8e63dfc01a697e1cb6152b999eb33b550423c09",
+    "platform/runtime/compiled-calculation.ts": "b649f4fe4c8a10ab1691ad24cc2a9ccbf5d25f83f8476c9066a65139218747e2",
+    "tsconfig.json": "6db1606392da27ab876a1bf7cd38b5a99f8c1c017d4e35792cf40f18275c12c3"
+  },
+  "baselineOntologySourceSha256": "86639aa617690bac40d7d8f6ce8c70cd25c011bc57e24a2eecc34d2e0f21ed83",
+  "sourceStable": true,
+  "sourceSha256Before": {
+    "platform/runtime/ontology.ts": "00aa10dd120c205928c0bd48fca67cd565a3c64cd8abc6f82e0e1805b8ca22d5",
+    "platform/tests/ontology-data-validation.test.ts": "6577d937340aa102ad7dd468e11ab4ccc9f257481140c9d95c4c4ed5ff699c8b",
+    "platform/runtime/contracts.ts": "52d930eac796f0edaf65ddf2d8e63dfc01a697e1cb6152b999eb33b550423c09",
+    "platform/runtime/compiled-calculation.ts": "b649f4fe4c8a10ab1691ad24cc2a9ccbf5d25f83f8476c9066a65139218747e2",
+    "tsconfig.json": "6db1606392da27ab876a1bf7cd38b5a99f8c1c017d4e35792cf40f18275c12c3"
+  },
+  "sourceSha256After": {
+    "platform/runtime/ontology.ts": "00aa10dd120c205928c0bd48fca67cd565a3c64cd8abc6f82e0e1805b8ca22d5",
+    "platform/tests/ontology-data-validation.test.ts": "6577d937340aa102ad7dd468e11ab4ccc9f257481140c9d95c4c4ed5ff699c8b",
+    "platform/runtime/contracts.ts": "52d930eac796f0edaf65ddf2d8e63dfc01a697e1cb6152b999eb33b550423c09",
+    "platform/runtime/compiled-calculation.ts": "b649f4fe4c8a10ab1691ad24cc2a9ccbf5d25f83f8476c9066a65139218747e2",
+    "tsconfig.json": "6db1606392da27ab876a1bf7cd38b5a99f8c1c017d4e35792cf40f18275c12c3"
+  },
+  "scope": {
+    "productSource": "platform/runtime/ontology.ts; three changes addressing four root TypeScript diagnostics",
+    "newTests": "platform/tests/ontology-data-validation.test.ts",
+    "repositoryMutationsByReviewer": [],
+    "artifactDirectory": "verification",
+    "excluded": [
+      "native or PostgreSQL execution",
+      "services",
+      "dependency acquisition or changes",
+      "shared host or preview changes",
+      "settings or global configuration",
+      "remote publication or push"
+    ]
+  },
+  "staticReview": {
+    "result": "pass",
+    "blockingFindings": [],
+    "assertionsPreserved": true,
+    "changes": [
+      {
+        "location": "ontology.ts:47",
+        "change": "Explicit <object> type argument to Object.getOwnPropertyDescriptors; runtime operation and descriptor assertions are unchanged after type erasure."
+      },
+      {
+        "location": "ontology.ts:128",
+        "change": "Capture the Array.isArray-validated history in a local alias; preserve length, current/last, self-hash, and strict increasing-version assertions."
+      },
+      {
+        "location": "ontology.ts:258",
+        "change": "Assign the exact-key validated publication payload to Record<string, unknown> before selecting draft or pack; preserve downstream validation and refusal order."
+      }
+    ],
+    "qualificationLimit": "Behavior equality is tested for ordinary JSON-compatible data and the enumerated malformed objects. Capturing history reads the property once; arbitrary reentrant Proxy behavior is not claimed identical.",
+    "publicContract": "An own draft: undefined wrapper retains the baseline UNKNOWN_PACK refusal. It does not reach a state write or become INVALID_DICTIONARY."
+  },
+  "independentCommands": [
+    {
+      "command": "node verification/root-typing-independent-probes.mjs first-run-root-typing-fix",
+      "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2",
+      "exitCode": 0,
+      "passed": 30,
+      "total": 30,
+      "transcript": "verification/root-typing-independent-probes.txt",
+      "method": "Execute type-erased exact immutable baseline and frozen fixed ontology source, sharing unchanged runtime imports, with isolated deterministic time. Compare complete replies, state, refusal codes, writes, and getter counts; exclude only random activity IDs."
+    },
+    {
+      "command": "node --test --test-reporter=spec platform/tests/ontology-data-validation.test.ts",
+      "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-root-typing-fix",
+      "exitCode": 0,
+      "passed": 23,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "durationMs": 289.8068,
+      "transcript": "✔ ordinary dense frozen arrays preserve exact draft digest and authored definitions (9.7733ms)\n▶ nonordinary arrays are refused before getters or StateStore writes\n  ✔ sparse index (1.24ms)\n  ✔ accessor index (0.6796ms)\n  ✔ hidden index (0.5706ms)\n  ✔ extra string property (0.5319ms)\n  ✔ extra symbol property (0.7224ms)\n  ✔ custom array prototype (0.5174ms)\n✔ nonordinary arrays are refused before getters or StateStore writes (5.6608ms)\n✔ valid ordered history remains available and accepts its exact next CAS publication (5.0742ms)\n▶ self-hashed reversed and equal-version histories refuse lookup and publication without writes\n  ✔ reversed (3.8154ms)\n  ✔ equal versions (2.9233ms)\n✔ self-hashed reversed and equal-version histories refuse lookup and publication without writes (9.2503ms)\n▶ direct drafts and legacy or CAS wrappers preserve public publication contracts\n  ✔ direct draft (1.3475ms)\n  ✔ legacy pack (1.6713ms)\n  ✔ CAS draft (1.3937ms)\n  ✔ CAS pack (1.522ms)\n✔ direct drafts and legacy or CAS wrappers preserve public publication contracts (6.8861ms)\n▶ malformed publication wrappers cannot bypass exact-key or data-only validation\n  ✔ unknown wrapper field (0.3658ms)\n  ✔ both draft and pack (0.4196ms)\n  ✔ nonstring pack (0.2957ms)\n  ✔ accessor wrapper (0.2587ms)\n  ✔ undefined draft (0.3128ms)\n✔ malformed publication wrappers cannot bypass exact-key or data-only validation (2.488ms)\nℹ tests 23\nℹ suites 0\nℹ pass 23\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 289.8068\n"
+    },
+    {
+      "command": "node ./node_modules/typescript/bin/tsc --project tsconfig.json --noEmit --skipLibCheck false --incremental false",
+      "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-root-typing-fix",
+      "exitCode": 0,
+      "diagnostics": "",
+      "skipLibCheck": false,
+      "incremental": false
+    }
+  ],
+  "differentialProbeEvidence": {
+    "parent": "5c0619dbce581f4329eab11521205e7fcfdcefbf",
+    "checkout": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-root-typing-fix",
+    "before": {
+      "platform/runtime/ontology.ts": "00aa10dd120c205928c0bd48fca67cd565a3c64cd8abc6f82e0e1805b8ca22d5",
+      "platform/tests/ontology-data-validation.test.ts": "6577d937340aa102ad7dd468e11ab4ccc9f257481140c9d95c4c4ed5ff699c8b",
+      "platform/runtime/contracts.ts": "52d930eac796f0edaf65ddf2d8e63dfc01a697e1cb6152b999eb33b550423c09",
+      "platform/runtime/compiled-calculation.ts": "b649f4fe4c8a10ab1691ad24cc2a9ccbf5d25f83f8476c9066a65139218747e2",
+      "tsconfig.json": "6db1606392da27ab876a1bf7cd38b5a99f8c1c017d4e35792cf40f18275c12c3"
+    },
+    "after": {
+      "platform/runtime/ontology.ts": "00aa10dd120c205928c0bd48fca67cd565a3c64cd8abc6f82e0e1805b8ca22d5",
+      "platform/tests/ontology-data-validation.test.ts": "6577d937340aa102ad7dd468e11ab4ccc9f257481140c9d95c4c4ed5ff699c8b",
+      "platform/runtime/contracts.ts": "52d930eac796f0edaf65ddf2d8e63dfc01a697e1cb6152b999eb33b550423c09",
+      "platform/runtime/compiled-calculation.ts": "b649f4fe4c8a10ab1691ad24cc2a9ccbf5d25f83f8476c9066a65139218747e2",
+      "tsconfig.json": "6db1606392da27ab876a1bf7cd38b5a99f8c1c017d4e35792cf40f18275c12c3"
+    },
+    "sourceStable": true,
+    "baselineGitBlobSourceSha256": "86639aa617690bac40d7d8f6ce8c70cd25c011bc57e24a2eecc34d2e0f21ed83",
+    "fixedRawSourceSha256": "00aa10dd120c205928c0bd48fca67cd565a3c64cd8abc6f82e0e1805b8ca22d5",
+    "fixedLfSourceSha256": "00aa10dd120c205928c0bd48fca67cd565a3c64cd8abc6f82e0e1805b8ca22d5",
+    "dependencyDeclarationHashesVerified": 120,
+    "dependencyCompilerBytesVerified": true,
+    "cases": [
+      {
+        "name": "dense frozen definitions",
+        "baseline": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "c9f43aa416a33a12bcc6689f78c7779827c8ad338415432865cf795463fce34e"
+        },
+        "fixed": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "c9f43aa416a33a12bcc6689f78c7779827c8ad338415432865cf795463fce34e"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "direct reordered draft",
+        "baseline": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "2e298eb6419e583395194b19a7b91ebe7d09d99b419857855869b4fc75c56b62"
+        },
+        "fixed": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "2e298eb6419e583395194b19a7b91ebe7d09d99b419857855869b4fc75c56b62"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "legacy draft wrapper",
+        "baseline": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "b6a87339203f88538b5e8565c5145d5bcf64ddd9aa0abbfc7579e2a5e4187deb"
+        },
+        "fixed": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "b6a87339203f88538b5e8565c5145d5bcf64ddd9aa0abbfc7579e2a5e4187deb"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "legacy pack wrapper",
+        "baseline": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "e3a69e3918c7ef4918164d55bbbe42f48bef1d6d7077d51ac28b1561f9c74a26"
+        },
+        "fixed": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "e3a69e3918c7ef4918164d55bbbe42f48bef1d6d7077d51ac28b1561f9c74a26"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "CAS draft wrapper",
+        "baseline": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "84c46714f4b360818effdbe0378aaf923e77b269702ea1822fd443d0777f3e6d"
+        },
+        "fixed": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "84c46714f4b360818effdbe0378aaf923e77b269702ea1822fd443d0777f3e6d"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "CAS pack wrapper",
+        "baseline": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "afee62fcd3506f2774f45977674cd4c6be35d3c20e5275271b6eab643f08588c"
+        },
+        "fixed": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "afee62fcd3506f2774f45977674cd4c6be35d3c20e5275271b6eab643f08588c"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "null prototype CAS wrapper",
+        "baseline": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "ba772f250062fcccb7222dbd234680e12118b42416d7794a1547edc91552e2b5"
+        },
+        "fixed": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "ba772f250062fcccb7222dbd234680e12118b42416d7794a1547edc91552e2b5"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "sparse index",
+        "baseline": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "accessor index",
+        "baseline": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "hidden index",
+        "baseline": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "extra string index",
+        "baseline": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "extra symbol index",
+        "baseline": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "custom array prototype",
+        "baseline": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "c6625063c509b6d729eaba15aabb0d98a19b12df3cdfb3bd565be12a65bc6938"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "unknown wrapper field",
+        "baseline": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "both draft and pack",
+        "baseline": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "nonstring pack",
+        "baseline": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "accessor wrapper",
+        "baseline": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "inherited wrapper",
+        "baseline": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "undefined draft preserves existing code",
+        "baseline": {
+          "code": "UNKNOWN_PACK",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "8b847446edadd17d8a308d801f22c865732f9720e33d0b3f583463593f71675e"
+        },
+        "fixed": {
+          "code": "UNKNOWN_PACK",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "8b847446edadd17d8a308d801f22c865732f9720e33d0b3f583463593f71675e"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "undefined reviewed baseline",
+        "baseline": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "e061df1d53c605d100b6086cccb9dcf2ec692f6a46fa703ed47aa38f736f483b"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "ordered history and next CAS",
+        "baseline": {
+          "code": null,
+          "writes": 1,
+          "version": 3,
+          "getters": 0,
+          "semanticDigest": "6a75522a07c20c53bf8eb3ccc4de19f2d28d5fa1f6bed2886cd37e1a01654fc9"
+        },
+        "fixed": {
+          "code": null,
+          "writes": 1,
+          "version": 3,
+          "getters": 0,
+          "semanticDigest": "6a75522a07c20c53bf8eb3ccc4de19f2d28d5fa1f6bed2886cd37e1a01654fc9"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "reversed self-hashed history",
+        "baseline": {
+          "code": "INVALID_DICTIONARY_RECEIPT",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "3463b4aaffcedabb4ebc3a9d12bcb7adf9e6c106fae9614d23c45c3c9113953f"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY_RECEIPT",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "3463b4aaffcedabb4ebc3a9d12bcb7adf9e6c106fae9614d23c45c3c9113953f"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "equal-version self-hashed history",
+        "baseline": {
+          "code": "INVALID_DICTIONARY_RECEIPT",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "ae337ed601dcdf917118a4253e1051168fba409dc1a1a7522b30a5789e5766f8"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY_RECEIPT",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "ae337ed601dcdf917118a4253e1051168fba409dc1a1a7522b30a5789e5766f8"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "current differs from last history",
+        "baseline": {
+          "code": "INVALID_DICTIONARY_RECEIPT",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "0d8bd1176c331e57bc24502c06b36b783bf4d95b6374e9ea2dcbeb9b910e4d0d"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY_RECEIPT",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "0d8bd1176c331e57bc24502c06b36b783bf4d95b6374e9ea2dcbeb9b910e4d0d"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "tampered dictionary self-hash",
+        "baseline": {
+          "code": "INVALID_DICTIONARY_RECEIPT",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "4065d88159e7bd7d87b6eb4f8aa07fa1b7a2ce44c7a4e528679a55015da63091"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY_RECEIPT",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "4065d88159e7bd7d87b6eb4f8aa07fa1b7a2ce44c7a4e528679a55015da63091"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "deferred first explicit CAS",
+        "baseline": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "ce6bd9b392ce6dcda86a950f4a990a60eb9f6b3013a527bca6bca46c3ca202b0"
+        },
+        "fixed": {
+          "code": null,
+          "writes": 1,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "ce6bd9b392ce6dcda86a950f4a990a60eb9f6b3013a527bca6bca46c3ca202b0"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "invalid deferred nonempty history",
+        "baseline": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "43ace62d01d3762d9b4760a5ab5b841774defe429c3334f64273abca854565de"
+        },
+        "fixed": {
+          "code": "INVALID_DICTIONARY_OPTIONS",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "43ace62d01d3762d9b4760a5ab5b841774defe429c3334f64273abca854565de"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "stale CAS preserves all state",
+        "baseline": {
+          "code": "DICTIONARY_CONFLICT",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "2f922fc95846f009fa94148016d5b89805dec7b6a9e625f64ffc95f05487f9f8"
+        },
+        "fixed": {
+          "code": "DICTIONARY_CONFLICT",
+          "writes": 0,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "2f922fc95846f009fa94148016d5b89805dec7b6a9e625f64ffc95f05487f9f8"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "same retained attempt after supersession does not write",
+        "baseline": {
+          "code": null,
+          "writes": 2,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "2a507c7a70446ed63bcfbd1adc83b21d3548e03e9ba8694e8e8169997373917c"
+        },
+        "fixed": {
+          "code": null,
+          "writes": 2,
+          "version": 1,
+          "getters": 0,
+          "semanticDigest": "2a507c7a70446ed63bcfbd1adc83b21d3548e03e9ba8694e8e8169997373917c"
+        },
+        "status": "passed"
+      },
+      {
+        "name": "changed retained attempt refuses without write",
+        "baseline": {
+          "code": "DICTIONARY_ATTEMPT_REUSED",
+          "writes": 1,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "7e7de2eaa2208e1a1928049a5ca8bf1b2b1731e18a84704621f17f2c6e5549d4"
+        },
+        "fixed": {
+          "code": "DICTIONARY_ATTEMPT_REUSED",
+          "writes": 1,
+          "version": null,
+          "getters": 0,
+          "semanticDigest": "7e7de2eaa2208e1a1928049a5ca8bf1b2b1731e18a84704621f17f2c6e5549d4"
+        },
+        "status": "passed"
+      }
+    ],
+    "passed": 30,
+    "total": 30,
+    "result": "pass"
+  },
+  "dependencyVerification": {
+    "evidence": "verification/root-typing-dependencies.json",
+    "evidenceSha256": "69bb0e11b74922ee7cc80b750feec5fda7db8c3ce90c11c6f3ec5f63fc2ac2ba",
+    "existingJunction": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-root-typing-fix\\node_modules",
+    "readOnlyTree": "D:\\Chausar\\build-tools\\project-dependencies\\20261001000938489\\node_modules",
+    "packages": {
+      "pg": {
+        "version": "8.23.0",
+        "manifestSha256": "e42dd36cba6e9dd8dbb6f773a2f7be8a8c3c273e18b155e42e75961a4cb8bc28"
+      },
+      "@types/pg": {
+        "version": "8.15.5",
+        "manifestSha256": "c4aada18c29f91eeedabf92e585bb31786f60eaad4a542e2b9fc86153d6112a4"
+      },
+      "typescript": {
+        "version": "5.9.3",
+        "manifestSha256": "822ef7ca6452205657b6288b066481ecf508bfbf43455d715cf7d3ec457561e6"
+      },
+      "@types/node": {
+        "version": "24.0.0",
+        "manifestSha256": "54803cf67a79a623d61e39bf214cab803243c14353110064d26ecc5664f70c5f"
+      },
+      "electron": {
+        "version": "44.4.5",
+        "manifestSha256": "255fc856265d3926c006672615c94f138a03da3ce4c7d1f62d6a1e7124bc3cec"
+      },
+      "@duckdb/node-api": {
+        "version": "1.5.5-r.3",
+        "manifestSha256": "679ade1d68b6c086d0935e66b50f27568788c52984f6e3c0e77970f717741e07"
+      }
+    },
+    "declarationHashesIndependentlyVerified": 120,
+    "compilerFileHashesIndependentlyVerified": 5,
+    "compilerMatchesExistingFrontendBytes": true,
+    "packageManifestsAndVersionsIndependentlyVerified": true,
+    "acquisitions": 0
+  },
+  "parentRecordedEvidence": {
+    "rootStrict": {
+      "command": {
+        "executable": "C:\\Program Files\\nodejs\\node.exe",
+        "args": [
+          "C:\\Users\\karta\\Documents\\Codex\\2026-10-01\\task-18\\node_modules\\typescript\\bin\\tsc",
+          "--project",
+          "tsconfig.json",
+          "--noEmit",
+          "--skipLibCheck",
+          "false",
+          "--incremental",
+          "false"
+        ]
+      },
+      "startedAt": "2026-10-04T09:38:14.327Z",
+      "finishedAt": "2026-10-04T09:38:40.743Z",
+      "exitCode": 0,
+      "sourceStable": true,
+      "changedDuringRun": [],
+      "sourceSha256": {
+        "platform/runtime/ontology.ts": "00aa10dd120c205928c0bd48fca67cd565a3c64cd8abc6f82e0e1805b8ca22d5",
+        "platform/tests/ontology-data-validation.test.ts": "6577d937340aa102ad7dd468e11ab4ccc9f257481140c9d95c4c4ed5ff699c8b"
+      },
+      "metadataSha256": "91c6745813cb8d547102829b11af3bbcadb9b056e371b222a3168cdc3232b7d6",
+      "transcriptSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "metadata": "verification/root-typing-final-root-strict-frozen.json",
+      "transcript": "verification/root-typing-final-root-strict-frozen.txt"
+    },
+    "focusedRegressions": {
+      "command": {
+        "executable": "C:\\Program Files\\nodejs\\node.exe",
+        "args": [
+          "--test",
+          "platform/tests/ontology-data-validation.test.ts",
+          "platform/tests/ontology-publication.test.ts",
+          "platform/tests/engine-ontology-review.test.ts",
+          "platform/tests/ontology-interchange.test.ts",
+          "platform/tests/ontology-backup-composition.test.ts",
+          "platform/tests/ontology-retained-activation.test.ts",
+          "platform/tests/ontology-retained-target-compatibility.test.ts",
+          "platform/tests/workspace-interchange-ontology-profile.test.ts",
+          "app/ui/tests/first-run/engine-join.test.ts"
+        ]
+      },
+      "startedAt": "2026-10-04T09:38:07.666Z",
+      "finishedAt": "2026-10-04T09:38:45.356Z",
+      "exitCode": 0,
+      "sourceStable": true,
+      "changedDuringRun": [],
+      "sourceSha256": {
+        "platform/runtime/ontology.ts": "00aa10dd120c205928c0bd48fca67cd565a3c64cd8abc6f82e0e1805b8ca22d5",
+        "platform/tests/ontology-data-validation.test.ts": "6577d937340aa102ad7dd468e11ab4ccc9f257481140c9d95c4c4ed5ff699c8b"
+      },
+      "metadataSha256": "b70ca9091309b5fc2bf3551b54832f680bc9d34868eff2fce8281b8fc14068cb",
+      "transcriptSha256": "3e09eb4430c44576c9c8db045fe93a627b0e639f8d57650beb6baa7eaa9c038f",
+      "metadata": "verification/root-typing-final-regressions.json",
+      "transcript": "verification/root-typing-final-regressions.txt",
+      "passed": 187,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "durationMs": 37604.3128
+    },
+    "syntax": {
+      "command": {
+        "executable": "C:\\Program Files\\nodejs\\node.exe",
+        "args": [
+          "scripts/check.mjs"
+        ]
+      },
+      "startedAt": "2026-10-04T09:38:04.911Z",
+      "finishedAt": "2026-10-04T09:38:50.693Z",
+      "exitCode": 0,
+      "sourceStable": true,
+      "changedDuringRun": [],
+      "sourceSha256": {
+        "platform/runtime/ontology.ts": "00aa10dd120c205928c0bd48fca67cd565a3c64cd8abc6f82e0e1805b8ca22d5",
+        "platform/tests/ontology-data-validation.test.ts": "6577d937340aa102ad7dd468e11ab4ccc9f257481140c9d95c4c4ed5ff699c8b"
+      },
+      "metadataSha256": "69b70727875de72c0bc0ba11a4a2e0484bdfc3f54d7621d31356e9b55af4f9d4",
+      "transcriptSha256": "5104676b42fd5f78def9cad9bbd8a6574405ef9fb214547e1959344930d46706",
+      "metadata": "verification/root-typing-final-syntax.json",
+      "transcript": "verification/root-typing-final-syntax.txt",
+      "sourceFiles": 621
+    }
+  },
+  "historicalDiagnostics": "The earlier seven root strict diagnostics are historical: four source typing diagnostics are fixed, and three pg fixture diagnostics resolve through the genuine existing dependency declarations. The fixture is unchanged. Current independent and parent full-root strict commands both exit 0.",
+  "artifactSha256": {
+    "verification/root-typing-independent-probes.mjs": "3d87017b8e63b639cb0c9be37778b5825e49b686726fb3f0bcebfba8465efec6",
+    "verification/root-typing-independent-probes.txt": "e3649a8d5ba511d9858d46fed0d73d127e5423c4aa5973979a649a8610cc744a"
+  },
+  "remainingBlockers": []
+}
