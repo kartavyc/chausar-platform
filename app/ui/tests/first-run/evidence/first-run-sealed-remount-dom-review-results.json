@@ -1,0 +1,90 @@
+{
+  "kind": "independent-first-run-sealed-remount-dom-review",
+  "syntheticOnly": true,
+  "nativeOrBrowserLaunch": false,
+  "beforeSourceHashes": {
+    "controller.ts": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f",
+    "FirstRun.tsx": "bdff78fdd2d4c29632de7ec91bfc20206b8caca898bb539f41e2207e6ccb45d9"
+  },
+  "afterSourceHashes": {
+    "controller.ts": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f",
+    "FirstRun.tsx": "bdff78fdd2d4c29632de7ec91bfc20206b8caca898bb539f41e2207e6ccb45d9"
+  },
+  "sourceUnchangedDuringRun": true,
+  "results": [
+    {
+      "scenario": "strict-effect-replay",
+      "beforeRelease": {
+        "state": "choose",
+        "visiblePackRows": 6,
+        "calls": [
+          "ui.context",
+          "ui.context",
+          "ontology.packs",
+          "ontology.get",
+          "ui.context"
+        ],
+        "states": [
+          "loading",
+          "idle",
+          "loading",
+          "choose"
+        ]
+      },
+      "afterRelease": {
+        "state": "choose",
+        "visiblePackRows": 6,
+        "calls": [
+          "ui.context",
+          "ui.context",
+          "ontology.packs",
+          "ontology.get",
+          "ui.context"
+        ],
+        "states": [
+          "loading",
+          "idle",
+          "loading",
+          "choose"
+        ]
+      }
+    },
+    {
+      "scenario": "same-controller-immediate-remount",
+      "beforeRelease": {
+        "state": "choose",
+        "visiblePackRows": 6,
+        "calls": [
+          "ui.context",
+          "ui.context",
+          "ontology.packs",
+          "ontology.get",
+          "ui.context"
+        ],
+        "states": [
+          "loading",
+          "idle",
+          "loading",
+          "choose"
+        ]
+      },
+      "afterRelease": {
+        "state": "choose",
+        "visiblePackRows": 6,
+        "calls": [
+          "ui.context",
+          "ui.context",
+          "ontology.packs",
+          "ontology.get",
+          "ui.context"
+        ],
+        "states": [
+          "loading",
+          "idle",
+          "loading",
+          "choose"
+        ]
+      }
+    }
+  ]
+}

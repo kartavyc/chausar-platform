@@ -1,0 +1,253 @@
+{
+  "kind": "independent-first-run-sealed-controller-review",
+  "syntheticOnly": true,
+  "beforeSourceHashes": {
+    "contracts.ts": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66",
+    "digest.ts": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27",
+    "review.ts": "d20a0e32b457cf99e744bb7a85bf67fbb6ee5d76db34c8ee3ad3dc1d7bc90069",
+    "controller.ts": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f"
+  },
+  "afterSourceHashes": {
+    "contracts.ts": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66",
+    "digest.ts": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27",
+    "review.ts": "d20a0e32b457cf99e744bb7a85bf67fbb6ee5d76db34c8ee3ad3dc1d7bc90069",
+    "controller.ts": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f"
+  },
+  "sourceUnchangedDuringRun": true,
+  "results": [
+    {
+      "case": "other-same-seat-identical-next-after-lost-reply",
+      "result": {
+        "ok": false,
+        "code": "PUBLISH_UNATTRIBUTED"
+      },
+      "state": {
+        "kind": "unknown",
+        "attempt": {
+          "pack": "ecommerce",
+          "label": "Online brand",
+          "reviewDigest": "dc5cbb7a691676f339b55e447845abce09d622e4a63c33482cf4c38f71be0350"
+        },
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "issued-observer-after-dispatch-known-reply-retained",
+      "countWhenIssued": 1,
+      "result": {
+        "ok": false,
+        "code": "READ_INVALIDATED"
+      },
+      "hiddenAfterIssue": {
+        "kind": "unknown",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      },
+      "reconcileResult": {
+        "ok": true
+      },
+      "finalState": {
+        "kind": "published",
+        "attempt": null,
+        "exposesWorkspace": true,
+        "exposesMember": true
+      }
+    },
+    {
+      "case": "resolved-observer-lock-no-state-resurrection",
+      "result": {
+        "ok": true
+      },
+      "state": {
+        "kind": "unavailable",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "dispose-observer-cannot-start-read",
+      "disposed": {
+        "ok": true
+      },
+      "extraContextReads": 0,
+      "nestedResult": {
+        "ok": false,
+        "code": "NO_AUTHORITY"
+      },
+      "state": {
+        "kind": "idle",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "guard-loss-during-success",
+      "result": {
+        "ok": false,
+        "code": "READ_INVALIDATED"
+      },
+      "state": {
+        "kind": "unknown",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "guard-loss-during-fail",
+      "result": {
+        "ok": false,
+        "code": "PUBLISH_UNKNOWN"
+      },
+      "state": {
+        "kind": "unknown",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "guard-loss-during-refused",
+      "result": {
+        "ok": false,
+        "code": "PUBLISH_REFUSED"
+      },
+      "state": {
+        "kind": "unavailable",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "guard-loss-during-invalid-reply",
+      "result": {
+        "ok": false,
+        "code": "INVALID_REPLY"
+      },
+      "state": {
+        "kind": "unknown",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "guard-loss-during-mismatched-reply",
+      "result": {
+        "ok": false,
+        "code": "PUBLISH_MISMATCH"
+      },
+      "state": {
+        "kind": "unknown",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "preflight-digest-exception-plus-guard-loss",
+      "result": {
+        "ok": false,
+        "code": "REQUEST_FAILED"
+      },
+      "rawCount": 0,
+      "state": {
+        "kind": "unavailable",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "authority-loss-after-normal-reply",
+      "result": {
+        "ok": false,
+        "code": "ACCESS_DENIED"
+      },
+      "state": {
+        "kind": "unknown",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "reconcile-exception-plus-guard-loss",
+      "result": {
+        "ok": false,
+        "code": "REQUEST_FAILED"
+      },
+      "state": {
+        "kind": "unknown",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "leave-left-observer-lock-before-secret-return",
+      "resultOk": false,
+      "secretReturnedAfterLock": false,
+      "state": {
+        "kind": "unavailable",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "settings-left-observer-lock-before-secret-return",
+      "resultOk": false,
+      "secretReturnedAfterLock": false,
+      "state": {
+        "kind": "unavailable",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "leave-admission-is-one-shot-and-secret-free",
+      "success": true,
+      "resultKeys": [
+        "ok",
+        "admit"
+      ],
+      "firstAdmitted": true,
+      "secondAdmitted": false,
+      "state": {
+        "kind": "left",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "leave-queued-lock-before-admission",
+      "ticketOk": true,
+      "admitted": false,
+      "state": {
+        "kind": "unavailable",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    },
+    {
+      "case": "settings-queued-lock-before-delayed-admission",
+      "ticketOk": true,
+      "admitted": false,
+      "state": {
+        "kind": "unavailable",
+        "attempt": null,
+        "exposesWorkspace": false,
+        "exposesMember": false
+      }
+    }
+  ]
+}

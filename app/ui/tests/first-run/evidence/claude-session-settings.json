@@ -1,0 +1,8 @@
+{
+  "model": "claude-fable-5-1",
+  "effortLevel": "high",
+  "fastMode": false,
+  "switchModelsOnFlag": false,
+  "fallbackModels": [],
+  "ultracode": false
+}

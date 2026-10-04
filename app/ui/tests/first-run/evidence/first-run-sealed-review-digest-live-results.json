@@ -1,0 +1,9 @@
+{
+  "kind": "independent-first-run-review-digest-live-intermediate",
+  "syntheticOnly": true,
+  "controllerHash": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f",
+  "state": "unavailable",
+  "releasedDigestAfterGuardLoss": false,
+  "exposesWorkspace": false,
+  "exposesMember": false
+}
