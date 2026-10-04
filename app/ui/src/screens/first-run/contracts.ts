@@ -10,7 +10,11 @@
  * - `ui.context`      payload {}        → trusted workspace/member/contextKey (host/contracts.ts)
  * - `ontology.packs`  payload {}        → DictionaryDraft[] in Engine order
  * - `ontology.get`    payload {}        → { current: Dictionary | null, history: Dictionary[] }
- * - `ontology.publish` payload { draft } → Dictionary (compiled, hashed)
+ * - `ontology.publish` payload { draft, expectedCurrentHash, attemptId } → Dictionary
+ *
+ * Authorized `ontology.get({ attemptId })` adds the exact `attempt` receipt or null.
+ * Reviewed publication sends `{ draft, expectedCurrentHash, attemptId }` and still
+ * returns a compiled Dictionary. A null attempt readback leaves the outcome unknown.
  *
  * Every reply is validated structurally before it is trusted: plain objects only, own
  * enumerable data properties only, exact key sets, bounded sizes, no undefined, no
@@ -21,8 +25,8 @@
  *
  * Two pack identities are kept apart. The selectable starters are exactly the six the
  * frozen Engine ships, in its order. A published or historical dictionary may carry a
- * custom identity (the Engine's `compileDictionary` never checks `pack`, and the frozen
- * Engine test suite publishes `Custom Acme workspace`), so current/history accept a
+ * custom identity (the Engine accepts a nonempty custom `pack`, and its source
+ * tests publish `Custom Acme workspace`), so current/history accept a
  * bounded single-line text there and are never offered as a starter.
  */
 
@@ -109,11 +113,27 @@ export interface OntologyReadback {
   readonly history: readonly PublishedDictionary[];
 }
 
+/** Exact private evidence returned only for an authorized attempt lookup. */
+export interface DictionaryPublicationReceipt {
+  readonly attemptId: string;
+  readonly workspaceId: string;
+  readonly memberId: string;
+  readonly epoch: number;
+  readonly draftDigest: string;
+  readonly expectedCurrentHash: string | null;
+  readonly dictionaryHash: string;
+  readonly version: number;
+}
+
+export interface OntologyAttemptReadback extends OntologyReadback {
+  readonly attempt: DictionaryPublicationReceipt | null;
+}
+
 export interface FirstRunRpcPayloads {
   'ui.context': Record<string, never>;
   'ontology.packs': Record<string, never>;
-  'ontology.get': Record<string, never>;
-  'ontology.publish': { readonly draft: DictionaryDraft };
+  'ontology.get': { readonly attemptId?: string };
+  'ontology.publish': { readonly draft: DictionaryDraft; readonly expectedCurrentHash: string | null; readonly attemptId: string };
 }
 export type FirstRunMethod = keyof FirstRunRpcPayloads;
 export const FIRST_RUN_METHODS: readonly FirstRunMethod[] = Object.freeze(['ui.context', 'ontology.packs', 'ontology.get', 'ontology.publish']);
@@ -142,7 +162,7 @@ export const MAX_DEFINITIONS = 100;
 export const MAX_OPERATIONS = 200;
 export const MAX_HISTORY = 500;
 export const MAX_MEANING_LENGTH = 4000;
-/** A published dictionary's identity is bounded text; the Engine itself never checks it. */
+/** Published custom identity remains bounded text at this UI boundary. */
 export const MAX_PACK_IDENTITY_LENGTH = 100;
 /** The Engine's own rule: `meaning.trim().length > 10`. */
 export const MIN_MEANING_TRIMMED_LENGTH = 11;
@@ -151,6 +171,8 @@ const MEASURE_NAME = /^[a-z][a-z0-9_]{0,63}$/;
 const FIELD_NAME = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
 const CURRENCY = /^[A-Z]{3}$/;
 export const HEX_64 = /^[a-f0-9]{64}$/;
+export const ATTEMPT_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+const AUTHORITY_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/;
 /** Control characters other than newline and tab are never part of a meaning or label. */
 const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 
@@ -361,12 +383,34 @@ export function validatePublished(value: unknown, path = 'dictionary'): Publishe
   return frozenClone(obj as unknown as PublishedDictionary);
 }
 
-/** `ontology.get` at this HEAD returns the `{ current, history }` envelope (engine.ts:1444). */
+/** Ordinary `ontology.get({})` retains its exact current/history envelope. */
 export function validateOntologyReadback(value: unknown): OntologyReadback {
   const obj = exact(value, 'ontology.get', ['current', 'history']);
   const current = obj.current === null ? null : validatePublished(obj.current, 'ontology.get.current');
   const history = Object.freeze(list(obj.history, 'ontology.get.history', MAX_HISTORY).map((item, index) => validatePublished(item, `ontology.get.history[${index}]`)));
   return Object.freeze({ current, history });
+}
+
+/** A missing receipt remains unknown; this validator never infers publication. */
+export function validateOntologyAttemptReadback(value: unknown): OntologyAttemptReadback {
+  const path = 'ontology.get';
+  const obj = exact(value, path, ['current', 'history', 'attempt']);
+  const readback = validateOntologyReadback({ current: obj.current, history: obj.history });
+  if (obj.attempt === null) return Object.freeze({ ...readback, attempt: null });
+  const receiptPath = `${path}.attempt`;
+  const receipt = exact(obj.attempt, receiptPath,
+    ['attemptId', 'workspaceId', 'memberId', 'epoch', 'draftDigest', 'expectedCurrentHash', 'dictionaryHash', 'version']);
+  pattern(receipt.attemptId, `${receiptPath}.attemptId`, ATTEMPT_ID);
+  pattern(receipt.workspaceId, `${receiptPath}.workspaceId`, AUTHORITY_ID);
+  pattern(receipt.memberId, `${receiptPath}.memberId`, AUTHORITY_ID);
+  wholeNumber(receipt.epoch, `${receiptPath}.epoch`, 1);
+  pattern(receipt.draftDigest, `${receiptPath}.draftDigest`, HEX_64);
+  if (receipt.expectedCurrentHash !== null) pattern(receipt.expectedCurrentHash, `${receiptPath}.expectedCurrentHash`, HEX_64);
+  const hash = pattern(receipt.dictionaryHash, `${receiptPath}.dictionaryHash`, HEX_64);
+  const version = wholeNumber(receipt.version, `${receiptPath}.version`, 1);
+  const matches = readback.history.filter(dictionary => dictionary.hash === hash && dictionary.version === version);
+  if (matches.length !== 1 || matches[0]?.publishedBy !== receipt.memberId) invalid(receiptPath);
+  return Object.freeze({ ...readback, attempt: frozenClone(receipt as unknown as DictionaryPublicationReceipt) });
 }
 
 /** The draft part of a published dictionary, in the key order the dictionary carries it. */
@@ -437,15 +481,18 @@ export type FirstRunCode =
   | 'PUBLISH_REFUSED' | 'PUBLISH_MISMATCH' | 'READBACK_MISMATCH' | 'PUBLISH_UNKNOWN' | 'REVIEW_NOT_CURRENT'
   /** An earlier issued publish has settled without a verified outcome; nothing else may start until it is read back. */
   | 'PUBLISH_UNRESOLVED'
-  /** Read back: the Engine state is exactly what it was before the attempt, so the attempt published nothing. */
+  /** An authentic refusal of the issued publication established no commit. */
   | 'PUBLISH_NOT_COMMITTED'
   /** Read back: the reviewed dictionary was already current before the attempt, so the attempt published nothing new. */
   | 'ALREADY_CURRENT'
   /** Read back: the reviewed dictionary is current as a new revision, but its version or author is not what this attempt would have produced. */
   | 'PUBLISH_UNATTRIBUTED';
 
-/** The Engine's own dictionary refusals (ontology.ts, compiled-calculation.ts). Each is thrown before any state is assigned. */
-export const ENGINE_DICTIONARY_REFUSALS = Object.freeze(['INVALID_DICTIONARY', 'INVALID_CURRENCY', 'INVALID_GST_MODE', 'INVALID_FIELD', 'INVALID_DEFINITION', 'RESERVED_MEASURE', 'UNKNOWN_PACK', 'COMPILED_SUM_INVALID'] as const);
+/** Declared publication refusals occur before the serialized authority commit.
+ * Only a refusal of the issued raw publish establishes no commit; a lookup error
+ * cannot establish the outcome of an earlier request. */
+export const ENGINE_DICTIONARY_REFUSALS = Object.freeze(['INVALID_DICTIONARY', 'INVALID_CURRENCY', 'INVALID_GST_MODE', 'INVALID_FIELD', 'INVALID_DEFINITION', 'RESERVED_MEASURE', 'UNKNOWN_PACK', 'COMPILED_SUM_INVALID',
+  'INVALID_DICTIONARY_OPTIONS', 'INVALID_DICTIONARY_RECEIPT', 'DICTIONARY_REVIEW_REQUIRED', 'DICTIONARY_CONFLICT', 'DICTIONARY_ATTEMPT_REUSED', 'DICTIONARY_ATTEMPT_AUTHORITY'] as const);
 export type EngineDictionaryRefusal = (typeof ENGINE_DICTIONARY_REFUSALS)[number];
 
 export interface FirstRunFailure { readonly code: FirstRunCode; readonly engineCode?: EngineDictionaryRefusal }

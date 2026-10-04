@@ -1,0 +1,8 @@
+
+ RUN  v5.0.3 C:/Users/karta/Documents/Codex/2026-10-04/task-2/first-run-cas-join
+
+
+ Test Files  1 passed (1)
+      Tests  24 passed (24)
+   Start at  14:49:24
+   Duration  109.59s (tests 97%, environment 2%, transform 1%, import 1%)

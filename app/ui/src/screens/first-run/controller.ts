@@ -18,14 +18,13 @@
  * observer called in between, the guard, the state, the review identity and the role are
  * checked again, the attempt is pinned and the raw call is made. Only then does the
  * `issued` event fire, so an observer that locks or cancels inside it changes what
- * happens after the effect, never whether the effect exists. The Engine has no
- * current-hash precondition and no attempt identifier, so a change that lands between
- * that last read and the Engine's own update cannot be excluded by this client; that
- * residual race is documented, not claimed away.
+ * happens after the effect, never whether the effect exists. The call carries the exact
+ * reviewed current hash (or null) and a fresh private attempt identifier. The Engine
+ * compares that baseline atomically with publication and retains the attempt's receipt.
  *
  * Attempts. The moment the raw call is issued a private attempt is pinned: the reviewed
  * bytes and digest, the reviewed context, the dictionary that was current before (hash
- * and version), the version and author this publication would produce. When the raw
+ * and version), the private identifier, the version and author this publication would produce. When the raw
  * reply arrives and is itself a verified publication of exactly the reviewed bytes as the
  * expected next revision by this seat, its hash is pinned privately as the returned
  * publication, even if the surface was left meanwhile. The attempt is never discarded by
@@ -37,16 +36,13 @@
  * a neutral `unknown` with no workspace, member, draft, pack, label or digest in it; the
  * private pin stays for the readback. Nothing is ever retried by this code.
  *
- * Verdicts. The Engine state exactly equal to the pinned baseline means this attempt
- * published nothing: `ALREADY_CURRENT` when the reviewed bytes were already current,
- * `PUBLISH_NOT_COMMITTED` otherwise. Another dictionary current means this attempt is not
- * what is current (`REVIEW_NOT_CURRENT`). The reviewed bytes current as a new revision
- * are adopted as this attempt's publication only when their hash is the privately pinned
- * returned publication; without a returned reply the expected version and author are
- * necessary but not unique (the same seat can publish the identical draft from another
- * surface), so the candidate stays `PUBLISH_UNATTRIBUTED` and unresolved. The Engine's
- * missing attempt identifier is the recovery blocker here; it is reported, not worked
- * around.
+ * Verdicts. Reconciliation reads `ontology.get({ attemptId })`. A null attempt remains
+ * unknown: an issued call may still commit, even while the baseline is unchanged. A
+ * receipt must match every private input and exactly one verified historical dictionary.
+ * Only that publication still current permits a handoff. Its receipt in history proves
+ * commitment after supersession, releases the attempt, and reports `REVIEW_NOT_CURRENT`.
+ * Only a declared Engine refusal from the raw publish call proves noncommit. Generic
+ * failures never release the attempt, and reconciliation never retries publication.
  *
  * Guard at every exit. The live guard is read not only before an operation and after each
  * awaited reply, but at every release of public state: a success, a rejection, a refusal
@@ -74,17 +70,16 @@
  * after a cancel, a lock, a guard loss, a pack change or a context replacement hands the
  * parent nothing.
  *
- * Nothing here calls `workspace.create` (which auto-publishes the default pack) or any
- * other method.
+ * Workspace creation and activation remain parent-owned. Nothing here calls those methods.
  */
 
 import { validateUiContext } from '../../host/contracts.ts';
 import type { UiContext } from '../../host/contracts.ts';
 import {
-  canPublish, draftOf, firstRunFailure, frozenClone, sameAuthority, sameContext,
-  validateOntologyReadback, validatePacks, validatePublished,
+  ATTEMPT_ID, canPublish, draftOf, firstRunFailure, frozenClone, sameAuthority, sameContext,
+  validateOntologyAttemptReadback, validateOntologyReadback, validatePacks, validatePublished,
 } from './contracts.ts';
-import type { DictionaryDraft, EngineDictionaryRefusal, FirstRunCode, FirstRunPort, PublishedDictionary } from './contracts.ts';
+import type { DictionaryDraft, EngineDictionaryRefusal, FirstRunCode, FirstRunPort, OntologyAttemptReadback, PublishedDictionary } from './contracts.ts';
 import { draftJson, publishedVerified, webCryptoDigest } from './digest.ts';
 import type { TextDigest } from './digest.ts';
 import { acceptRow, acceptSettings, allReviewed, changeMeaning, pinMatches, startReview, withDigest } from './review.ts';
@@ -98,6 +93,8 @@ export interface FirstRunControllerOptions {
   readonly guard?: FirstRunGuard | undefined;
   /** SHA-256 over text. Defaults to WebCrypto; tests may inject one. */
   readonly digest?: TextDigest | undefined;
+  /** One fresh opaque identifier per dispatch. Defaults to the browser's cryptographic UUID generator. */
+  readonly createAttemptId?: (() => string) | undefined;
 }
 
 export interface PublishedSummary {
@@ -206,7 +203,7 @@ export interface FirstRunController {
   changeMeaning(name: string, meaning: string, revision: string): FirstRunResult;
   /** The one mutation, for the exact rendered review. See the file comment. */
   publishDictionary(pin: ReviewPin): Promise<FirstRunResult>;
-  /** After an unresolved attempt: read the dictionary back and reach a verdict. Adopts only this attempt's own returned publication. */
+  /** Read this private attempt's receipt and exact dictionary back; null remains unresolved. */
   reconcile(): Promise<FirstRunResult>;
   /**
    * Continue, for the exact rendered publication. Reads one fresh `ui.context` that must equal the published
@@ -230,6 +227,8 @@ export interface FirstRunController {
 
 interface Attempt {
   phase: 'issued' | 'unresolved';
+  readonly attemptId: string;
+  readonly expectedCurrentHash: string | null;
   readonly pack: string;
   readonly label: string;
   readonly reviewDigest: string;
@@ -274,6 +273,7 @@ let controllers = 0;
 
 export function createFirstRunController(port: FirstRunPort, options: FirstRunControllerOptions = {}): FirstRunController {
   const digestOf = options.digest ?? webCryptoDigest();
+  const createAttemptId = options.createAttemptId ?? (() => globalThis.crypto.randomUUID());
   controllers += 1;
   const instance = controllers;
   let selections = 0;
@@ -303,9 +303,36 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
     if (disposed) return false;
     try { return options.guard?.live() === true; } catch { return false; }
   }
+  /** The guard is parent code: it may synchronously end or replace the operation while answering. */
+  function unchanged(token: symbol, shown: FirstRunState): boolean {
+    return current(token) && state === shown;
+  }
   const context = () => port.request('ui.context', {}).then(validateUiContext);
   const summaryOfAttempt = (pending: Attempt): AttemptSummary | null =>
     pending.held === null ? null : Object.freeze({ pack: pending.pack, label: pending.label, reviewDigest: pending.reviewDigest });
+
+  /** The lookup is evidence only after every receipt input and its unique historical dictionary agree. */
+  async function publicationOf(pending: Attempt, readback: OntologyAttemptReadback): Promise<
+    { readonly kind: 'unknown' } | { readonly kind: 'mismatch' } | { readonly kind: 'verified'; readonly dictionary: PublishedDictionary }
+  > {
+    const receipt = readback.attempt;
+    if (receipt === null) return { kind: 'unknown' };
+    if (receipt.attemptId !== pending.attemptId || receipt.workspaceId !== pending.reviewed.workspace.id
+      || receipt.memberId !== pending.reviewed.member.id || receipt.epoch !== pending.reviewed.member.epoch
+      || receipt.draftDigest !== pending.reviewDigest || receipt.expectedCurrentHash !== pending.expectedCurrentHash
+      || receipt.version !== pending.expectedVersion || (pending.returned !== null && receipt.dictionaryHash !== pending.returned)) return { kind: 'mismatch' };
+    const matches = readback.history.filter(dictionary => dictionary.hash === receipt.dictionaryHash && dictionary.version === receipt.version);
+    if (matches.length !== 1 || readback.current === null
+      || JSON.stringify(readback.current) !== JSON.stringify(readback.history.at(-1))) return { kind: 'mismatch' };
+    const dictionary = matches[0]!;
+    if (dictionary.publishedBy !== pending.expectedActor || draftJson(draftOf(dictionary)) !== pending.draftJson
+      || (await digestOf(draftJson(draftOf(dictionary)))) !== receipt.draftDigest
+      || !(await publishedVerified(dictionary, digestOf))) return { kind: 'mismatch' };
+    if (readback.current.hash === dictionary.hash) {
+      if (JSON.stringify(readback.current) !== JSON.stringify(dictionary)) return { kind: 'mismatch' };
+    } else if (!(await publishedVerified(readback.current, digestOf))) return { kind: 'mismatch' };
+    return { kind: 'verified', dictionary };
+  }
 
   /** The latch every other operation reads first. */
   function fence(): FirstRunRefusal | null {
@@ -340,29 +367,42 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
     const blocked = fence();
     if (blocked !== null) return blocked;
     if (state.kind === 'loading') return refused('IN_FLIGHT');
-    if (!live()) return lost('NO_AUTHORITY');
+    const entered = generation, shown = state, authorized = live();
+    if (!unchanged(entered, shown)) return refused('READ_INVALIDATED');
+    if (!authorized) return lost('NO_AUTHORITY');
     generation = Symbol(); digestGeneration = Symbol();
     const token = generation;
     publish({ kind: 'loading' });
     try {
+      if (!current(token)) return refused('READ_INVALIDATED');
       const before = await context();
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return departed();
+      const beforeAuthorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!beforeAuthorized) return departed();
       if (!canPublish(before)) { publish({ kind: 'read-only', context: before }); return refused('ROLE_FORBIDDEN'); }
       const packs = validatePacks(await port.request('ontology.packs', {}));
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return departed();
+      const packsAuthorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!packsAuthorized) return departed();
       const readback = validateOntologyReadback(await port.request('ontology.get', {}));
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return departed();
+      const readbackAuthorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!readbackAuthorized) return departed();
       // The current dictionary becomes the baseline of a later attempt, so its Engine proof is checked before it is kept.
       const verified = readback.current === null ? true : await publishedVerified(readback.current, digestOf);
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return departed();
+      const verifiedAuthorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!verifiedAuthorized) return departed();
       if (!verified) return lost('READBACK_MISMATCH');
       const after = await context();
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return departed();
+      const afterAuthorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!afterAuthorized) return departed();
       if (!sameAuthority(before, after)) return lost('ACCESS_DENIED');
       if (!sameContext(before, after)) return lost('CONTEXT_CHANGED');
       publish({ kind: 'choose', context: after, packs, current: readback.current === null ? null : summaryOf(readback.current) });
@@ -378,17 +418,22 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
    * change, is dropped; a result that arrives after the guard went dead hides the review instead of releasing it.
    */
   function hashReview(review: Review): void {
+    if (disposed || state.kind !== 'review' || state.review !== review) return;
     const token = generation, operation = Symbol();
     digestGeneration = operation;
     void digestOf(review.draftJson).then(digest => {
       if (!current(token) || digestGeneration !== operation) return;
-      if (!live()) { clear('NO_AUTHORITY'); return; }
+      const authorized = live();
+      if (!current(token) || digestGeneration !== operation) return;
+      if (!authorized) { clear('NO_AUTHORITY'); return; }
       const shown = state;
       if (shown.kind !== 'review' || shown.review.revision !== review.revision || shown.review.draftJson !== review.draftJson || shown.review.digest !== null) return;
       publish({ ...shown, review: withDigest(shown.review, digest) });
     }, () => {
       if (!current(token) || digestGeneration !== operation) return;
-      if (!live()) { clear('NO_AUTHORITY'); return; }
+      const authorized = live();
+      if (!current(token) || digestGeneration !== operation) return;
+      if (!authorized) { clear('NO_AUTHORITY'); return; }
       lost('DIGEST_UNAVAILABLE');
     });
   }
@@ -396,8 +441,9 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
   function choosePack(pack: string): FirstRunResult {
     const blocked = fence();
     if (blocked !== null) return blocked;
-    if (!live()) return lost('NO_AUTHORITY');
-    const shown = state;
+    const token = generation, shown = state, authorized = live();
+    if (!unchanged(token, shown)) return refused('READ_INVALIDATED');
+    if (!authorized) return lost('NO_AUTHORITY');
     if (shown.kind !== 'choose' && shown.kind !== 'review') return refused('SELECTION_INVALID');
     const draft = shown.packs.find(item => item.pack === pack);
     if (draft === undefined) return refused('PACK_UNKNOWN');
@@ -411,8 +457,9 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
   function backToPacks(): FirstRunResult {
     const blocked = fence();
     if (blocked !== null) return blocked;
-    if (!live()) return lost('NO_AUTHORITY');
-    const shown = state;
+    const token = generation, shown = state, authorized = live();
+    if (!unchanged(token, shown)) return refused('READ_INVALIDATED');
+    if (!authorized) return lost('NO_AUTHORITY');
     if (shown.kind !== 'review') return refused('SELECTION_INVALID');
     digestGeneration = Symbol();
     publish({ kind: 'choose', context: shown.context, packs: shown.packs, current: shown.current });
@@ -422,8 +469,9 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
   function withReview(change: (review: Review) => Review | null, failure: FirstRunCode): FirstRunResult {
     const blocked = fence();
     if (blocked !== null) return blocked;
-    if (!live()) return lost('NO_AUTHORITY');
-    const shown = state;
+    const token = generation, shown = state, authorized = live();
+    if (!unchanged(token, shown)) return refused('READ_INVALIDATED');
+    if (!authorized) return lost('NO_AUTHORITY');
     if (shown.kind !== 'review') return refused('SELECTION_INVALID');
     const review = change(shown.review);
     if (review === null) return refused(failure);
@@ -439,11 +487,13 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
     if (shown.kind !== 'review') return refused('SELECTION_INVALID');
     if (!pinMatches(shown.review, pin)) return refused('DIGEST_STALE');
     if (!allReviewed(shown.review)) return refused('NOT_REVIEWED');
-    if (!live()) return lost('NO_AUTHORITY');
+    const token = generation, authorized = live();
+    if (!unchanged(token, shown)) return refused('READ_INVALIDATED');
+    if (!authorized) return lost('NO_AUTHORITY');
     if (!canPublish(shown.context)) return lost('ROLE_FORBIDDEN');
     // The synchronous latch: a second press, a load or a pack change sees it before anything is awaited.
     publishing = true;
-    const token = generation, review = shown.review, reviewed = shown.context, reviewDigest = pin.digest;
+    const review = shown.review, reviewed = shown.context, reviewDigest = pin.digest;
     publish({ ...shown, publishing: true, notice: null });
     let pending: Attempt | null = null;
     let stage: 'before' | 'raw' | 'after' = 'before';
@@ -478,25 +528,37 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
     };
     try {
       // Hash first: the exact reviewed bytes must still produce the reviewed digest.
+      if (!current(token)) return refused('READ_INVALIDATED');
       const fresh = await digestOf(review.draftJson);
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return departed();
+      const digestAuthorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!digestAuthorized) return departed();
       if (fresh !== reviewDigest || draftJson(review.draft) !== review.draftJson) return atRest({ code: 'DIGEST_STALE' });
       // Then the final fresh context: the reviewed authority must be the one still present, contextKey included.
       // A changed key means the Engine state the review was read against moved on, and no publish is issued.
       const before = await context();
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return departed();
+      const beforeAuthorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!beforeAuthorized) return departed();
       if (!sameAuthority(before, reviewed)) return lost('ACCESS_DENIED');
       if (!sameContext(before, reviewed)) return lost('CONTEXT_CHANGED');
       if (!canPublish(before)) return lost('ROLE_FORBIDDEN');
+      const attemptId = createAttemptId();
+      if (typeof attemptId !== 'string' || !ATTEMPT_ID.test(attemptId)) throw Object.assign(new Error('The publication attempt identity is unavailable.'), { code: 'INVALID_DICTIONARY_OPTIONS' });
+      const authorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!authorized) return departed();
       const now = state;
       if (now.kind !== 'review' || now.review !== review || !allReviewed(review)) return atRest({ code: 'DIGEST_STALE' });
+      if (!canPublish(now.context)) return lost('ROLE_FORBIDDEN');
       // Nothing is awaited and no observer is called between here and the raw call. The attempt is pinned
       // before the effect can exist; the `issued` event follows the dispatch, so a reentrant lock or cancel
       // inside it cannot be told "issued" about a call that was then withheld.
       pending = {
-        phase: 'issued', pack: review.pack, label: review.draft.label, reviewDigest, draftJson: review.draftJson, reviewed,
+        phase: 'issued', attemptId, expectedCurrentHash: now.current?.hash ?? null,
+        pack: review.pack, label: review.draft.label, reviewDigest, draftJson: review.draftJson, reviewed,
         baseline: now.current === null ? null : { hash: now.current.hash, version: now.current.version },
         expectedVersion: (now.current === null ? 0 : now.current.version) + 1,
         expectedActor: reviewed.member.id,
@@ -505,13 +567,13 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
       };
       attempt = pending;
       stage = 'raw';
-      const raw = port.request('ontology.publish', { draft: structuredClone(review.draft) });
+      const raw = port.request('ontology.publish', { draft: structuredClone(review.draft), expectedCurrentHash: pending.expectedCurrentHash, attemptId });
       notify({ kind: 'issued' });
       const reply = await raw;
       stage = 'after';
       // The reply is this attempt's own, whatever happened to the surface meanwhile. If it is a verified
       // publication of exactly the reviewed bytes as the expected next revision by this seat, its hash is
-      // the one proof this client can ever hold that this attempt produced that revision.
+      // retained as an additional pin to compare with the Engine's scoped receipt.
       const published = validatePublished(reply);
       const verified = await publishedVerified(published, digestOf);
       const attributable = verified && draftJson(draftOf(published)) === review.draftJson
@@ -522,17 +584,36 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
       if (!attributable) return unresolved('PUBLISH_MISMATCH');
       const after = await context();
       if (!current(token)) return settledHidden();
-      if (!live()) return unresolved('READ_INVALIDATED', true);
-      if (!sameAuthority(after, reviewed)) return unresolved('ACCESS_DENIED', true);
-      const readback = validateOntologyReadback(await port.request('ontology.get', {}));
+      const afterAuthorized = live();
       if (!current(token)) return settledHidden();
-      if (!live()) return unresolved('READ_INVALIDATED', true);
-      if (readback.current === null || readback.current.hash !== published.hash || JSON.stringify(readback.current) !== JSON.stringify(published)) return unresolved('READBACK_MISMATCH');
+      if (!afterAuthorized) return unresolved('READ_INVALIDATED', true);
+      if (!sameAuthority(after, reviewed)) return unresolved('ACCESS_DENIED', true);
+      const readback = validateOntologyAttemptReadback(await port.request('ontology.get', { attemptId: pending.attemptId }));
+      if (!current(token)) return settledHidden();
+      const lookupAuthorized = live();
+      if (!current(token)) return settledHidden();
+      if (!lookupAuthorized) return unresolved('READ_INVALIDATED', true);
+      const publication = await publicationOf(pending, readback);
+      if (!current(token)) return settledHidden();
+      const verifiedAuthorized = live();
+      if (!current(token)) return settledHidden();
+      if (!verifiedAuthorized) return unresolved('READ_INVALIDATED', true);
       const settled = await context();
       if (!current(token)) return settledHidden();
-      if (!live()) return unresolved('READ_INVALIDATED', true);
+      const settledAuthorized = live();
+      if (!current(token)) return settledHidden();
+      if (!settledAuthorized) return unresolved('READ_INVALIDATED', true);
       if (!sameAuthority(settled, reviewed) || settled.contextKey !== after.contextKey) return unresolved('ACCESS_DENIED', true);
+      if (publication.kind === 'unknown') return unresolved('PUBLISH_UNKNOWN');
+      if (publication.kind === 'mismatch' || settled.contextKey === reviewed.contextKey
+        || JSON.stringify(publication.dictionary) !== JSON.stringify(published)) return unresolved('READBACK_MISMATCH');
       attempt = null;
+      if (readback.current?.hash !== published.hash) {
+        const result = lost('REVIEW_NOT_CURRENT');
+        notify({ kind: 'settled', outcome: 'verified' });
+        notify({ kind: 'resolved', outcome: 'not-current' });
+        return result;
+      }
       const summary = summaryOf(published);
       publish({ kind: 'published', context: settled, published: summary, review, reviewDigest, handoff: handoffOf(settled, summary, reviewDigest) });
       notify({ kind: 'settled', outcome: 'verified' });
@@ -552,7 +633,7 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
         notify({ kind: 'settled', outcome: 'not-committed' });
         return result;
       }
-      if (AUTHORITY_CODES.includes(failure.code)) return unresolved(failure.code, true);
+      if (AUTHORITY_CODES.includes(failure.code) || failure.engineCode === 'DICTIONARY_ATTEMPT_AUTHORITY') return unresolved(failure.code, true);
       return unresolved(failure.code === 'REQUEST_FAILED' ? 'PUBLISH_UNKNOWN' : failure.code);
     } finally {
       publishing = false;
@@ -566,14 +647,15 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
     if (pending.phase === 'issued') return refused('IN_FLIGHT');
     const shown = state;
     if (shown.kind !== 'unknown') return refused('SELECTION_INVALID');
-    if (!live()) {
+    const token = generation, authorized = live();
+    if (!unchanged(token, shown) || attempt !== pending) return refused('READ_INVALIDATED');
+    if (!authorized) {
       // No authority: nothing is read, and the held decisions go private as on any other authority loss.
       pending.held = null;
       publish({ kind: 'unknown', code: shown.code, reconciling: false, attempt: null });
       return refused('NO_AUTHORITY');
     }
     reconciling = true;
-    const token = generation;
     publish({ ...shown, reconciling: true });
     const still = (code: FirstRunCode, neutral = false): FirstRunResult => {
       const authorized = live();
@@ -595,51 +677,36 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
       return result;
     };
     try {
+      if (!current(token)) return refused('READ_INVALIDATED');
       const before = await context();
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return left();
+      const beforeAuthorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!beforeAuthorized) return left();
       if (!sameAuthority(before, pending.reviewed)) return still('ACCESS_DENIED', true);
-      const readback = validateOntologyReadback(await port.request('ontology.get', {}));
+      const readback = validateOntologyAttemptReadback(await port.request('ontology.get', { attemptId: pending.attemptId }));
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return left();
-      const dictionary = readback.current;
-      const verified = dictionary === null ? true : await publishedVerified(dictionary, digestOf);
-      const digest = dictionary === null ? null : await digestOf(draftJson(draftOf(dictionary)));
+      const lookupAuthorized = live();
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return left();
+      if (!lookupAuthorized) return left();
+      const publication = await publicationOf(pending, readback);
+      if (!current(token)) return refused('READ_INVALIDATED');
+      const verifiedAuthorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!verifiedAuthorized) return left();
       // The final context is read after every digest await. Its key equal to the first read's key proves the
       // ontology did not move while the readback was taken, so the retained readback is still current.
       const after = await context();
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return left();
+      const afterAuthorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!afterAuthorized) return left();
       if (!sameAuthority(after, pending.reviewed)) return still('ACCESS_DENIED', true);
       if (!sameContext(before, after)) return still('CONTEXT_CHANGED');
-      if (!verified) return still('READBACK_MISMATCH');
-      const untouched = dictionary === null ? pending.baseline === null : pending.baseline !== null && dictionary.hash === pending.baseline.hash;
-      const keyUnchanged = after.contextKey === pending.reviewed.contextKey;
-      // The key covers the ontology: it cannot be unchanged while the dictionary changed.
-      if (keyUnchanged && !untouched) return still('READBACK_MISMATCH');
-      if (untouched) {
-        // The Engine state is exactly the pinned baseline, so this attempt published nothing. Whether the reviewed
-        // dictionary happened to be current already is said separately; neither is adopted as a publication.
-        const identical = dictionary !== null && digest === pending.reviewDigest && dictionary.pack === pending.pack;
-        const code: FirstRunCode = identical ? 'ALREADY_CURRENT' : 'PUBLISH_NOT_COMMITTED';
-        const held = pending.held;
-        return resolve(identical ? 'already-current' : 'not-committed', () => {
-          if (held !== null && keyUnchanged) {
-            publish({ kind: 'review', context: after, packs: held.packs, current: held.current, review: held.review, publishing: false, notice: { code } });
-            return refused(code);
-          }
-          return lost(code);
-        });
-      }
-      if (dictionary === null) return still('READBACK_MISMATCH');
-      if (digest !== pending.reviewDigest || dictionary.pack !== pending.pack) return resolve('not-current', () => lost('REVIEW_NOT_CURRENT'));
-      // The reviewed bytes are current as a new revision. Only the hash of this attempt's own validated raw
-      // reply attributes it to this attempt: the expected version and author are necessary, not unique, because
-      // the same seat can publish the identical draft from another surface and the Engine keeps no attempt id.
-      if (pending.returned === null) return still('PUBLISH_UNATTRIBUTED');
-      if (dictionary.hash !== pending.returned) return resolve('not-current', () => lost('REVIEW_NOT_CURRENT'));
+      if (publication.kind === 'unknown') return still('PUBLISH_UNKNOWN');
+      if (publication.kind === 'mismatch' || after.contextKey === pending.reviewed.contextKey) return still('READBACK_MISMATCH');
+      const dictionary = publication.dictionary;
+      if (readback.current?.hash !== dictionary.hash) return resolve('not-current', () => lost('REVIEW_NOT_CURRENT'));
       const summary = summaryOf(dictionary);
       const held = pending.held;
       return resolve('published', () => {
@@ -649,7 +716,7 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
     } catch (error) {
       if (!current(token)) return refused('READ_INVALIDATED');
       const failure = firstRunFailure(error);
-      return still(failure.code, AUTHORITY_CODES.includes(failure.code));
+      return still(failure.code, AUTHORITY_CODES.includes(failure.code) || failure.engineCode === 'DICTIONARY_ATTEMPT_AUTHORITY');
     } finally { reconciling = false; }
   }
 
@@ -684,15 +751,20 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
     const shown = state;
     if (shown.kind !== 'published') return refused('SELECTION_INVALID');
     if (shown.published.hash !== pin.hash || shown.context.contextKey !== pin.contextKey || shown.reviewDigest !== pin.reviewDigest) return refused('DIGEST_STALE');
-    if (!live()) return lost('NO_AUTHORITY');
+    const token = generation, authorized = live();
+    if (!unchanged(token, shown)) return refused('READ_INVALIDATED');
+    if (!authorized) return lost('NO_AUTHORITY');
+    const reentered = fence();
+    if (reentered !== null) return reentered;
     // The synchronous latch: a second press sees it before anything is awaited.
     leaving = true;
-    const token = generation;
     try {
       // The published context must still be the one present: same seat, same key, so the same ontology.
       const fresh = await context();
       if (!current(token)) return refused('READ_INVALIDATED');
-      if (!live()) return departed();
+      const freshAuthorized = live();
+      if (!current(token)) return refused('READ_INVALIDATED');
+      if (!freshAuthorized) return departed();
       if (!sameAuthority(fresh, shown.context)) return lost('ACCESS_DENIED');
       if (!sameContext(fresh, shown.context)) return lost('CONTEXT_CHANGED');
       if (state !== shown) return refused('SELECTION_INVALID');
@@ -710,7 +782,9 @@ export function createFirstRunController(port: FirstRunPort, options: FirstRunCo
     const shown = state;
     if (shown.kind !== 'review' || shown.publishing) return refused('SELECTION_INVALID');
     if (shown.review.revision !== revision) return refused('DIGEST_STALE');
-    if (!live()) return lost('NO_AUTHORITY');
+    const token = generation, authorized = live();
+    if (!unchanged(token, shown)) return refused('READ_INVALIDATED');
+    if (!authorized) return lost('NO_AUTHORITY');
     return departure(shown.review.draft);
   }
 

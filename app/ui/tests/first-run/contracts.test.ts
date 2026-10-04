@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  COMPILED_SUM_CONTENT_KEYS, STARTER_PACK_IDS, canPublish, compiledSumContentJson, draftOf, firstRunFailure, isStarterPackId, meaningText, publishedContentJson, sameAuthority, sameContext,
-  validateDraft, validateOntologyReadback, validatePacks, validatePublished, withMeaning,
+  ATTEMPT_ID, COMPILED_SUM_CONTENT_KEYS, ENGINE_DICTIONARY_REFUSALS, STARTER_PACK_IDS, canPublish, compiledSumContentJson, draftOf, firstRunFailure, isStarterPackId, meaningText, publishedContentJson, sameAuthority, sameContext,
+  validateDraft, validateOntologyAttemptReadback, validateOntologyReadback, validatePacks, validatePublished, withMeaning,
 } from '../../src/screens/first-run/contracts.ts';
 import type { Definition } from '../../src/screens/first-run/contracts.ts';
 import { compiledSumsVerified, definitionJson, draftJson, publishedHashVerified, publishedVerified, settingsJson, webCryptoDigest } from '../../src/screens/first-run/digest.ts';
@@ -166,6 +166,70 @@ test('ontology.get is the current/history envelope at this HEAD; a custom publis
   rejects(() => validateOntologyReadback(structuredClone(compiled)), 'bare dictionary');
   rejects(() => validateOntologyReadback({ current: null }), 'missing history');
   rejects(() => validateOntologyReadback({ current: null, history: [], extra: 1 }), 'extra key');
+});
+
+test('exact attempt lookup preserves an original history receipt after current advances', async () => {
+  const frozen = await engine(), draft = frozen.rawPack(0);
+  const original = frozen.compileRaw(draft, 1, 'member_fixture');
+  const later = frozen.compileRaw(frozen.rawPack(1), 2, 'member_fixture');
+  const receipt = { attemptId: 'reviewed_attempt-1', workspaceId: 'workspace_fixture', memberId: 'member_fixture', epoch: 1,
+    draftDigest: sha256(JSON.stringify(draft)), expectedCurrentHash: null, dictionaryHash: original.hash, version: 1 };
+  const source = { current: later, history: [original, later], attempt: receipt };
+  const checked = validateOntologyAttemptReadback(source);
+  assert.deepEqual(checked.attempt, receipt);
+  assert.equal(checked.current?.hash, later.hash);
+  assert.equal(checked.history[0]?.hash, original.hash);
+  assert.ok(Object.isFrozen(checked) && Object.isFrozen(checked.attempt) && Object.isFrozen(checked.history));
+  receipt.attemptId = 'changed_after_read';
+  assert.equal(checked.attempt?.attemptId, 'reviewed_attempt-1', 'private evidence is detached');
+  assert.deepEqual(validateOntologyAttemptReadback({ current: null, history: [], attempt: null }), { current: null, history: [], attempt: null });
+  assert.equal(validateOntologyAttemptReadback({ current: later, history: [original, later], attempt: null }).attempt, null);
+  rejects(() => validateOntologyReadback(source), 'ordinary get exposes no attempt namespace');
+  rejects(() => validateOntologyAttemptReadback({ current: null, history: [] }), 'scoped lookup requires own attempt property');
+  rejects(() => validateOntologyAttemptReadback({ current: null, history: [], receipt: null }), 'there is no receipt wire field');
+});
+
+test('attempt lookup requires eight ordinary receipt fields and one exact history result', async () => {
+  const frozen = await engine(), draft = frozen.rawPack(0);
+  const dictionary = frozen.compileRaw(draft, 1, 'member_fixture');
+  const receipt = { attemptId: 'reviewed_attempt', workspaceId: 'workspace_fixture', memberId: 'member_fixture', epoch: 1,
+    draftDigest: sha256(JSON.stringify(draft)), expectedCurrentHash: null, dictionaryHash: dictionary.hash, version: 1 };
+  const lookup = (attempt: unknown, history: unknown[] = [dictionary]) => ({ current: dictionary, history, attempt });
+  const bad: Record<string, unknown> = { attemptId: 'unsafe/id', workspaceId: '', memberId: '', epoch: 0,
+    draftDigest: 'A'.repeat(64), expectedCurrentHash: undefined, dictionaryHash: '0'.repeat(63), version: 0 };
+  for (const [key, value] of Object.entries(bad)) {
+    rejects(() => validateOntologyAttemptReadback(lookup({ ...receipt, [key]: value })), key);
+    const missing: Record<string, unknown> = { ...receipt }; delete missing[key];
+    rejects(() => validateOntologyAttemptReadback(lookup(missing)), `missing ${key}`);
+  }
+  for (const attempt of [undefined, [], new Date(), { ...receipt, extra: true }, Object.assign(Object.create({ origin: true }), receipt),
+    { ...receipt, [Symbol('authority')]: true }, Object.defineProperty({ ...receipt }, 'epoch', { value: 1, enumerable: false })]) {
+    rejects(() => validateOntologyAttemptReadback(lookup(attempt)), 'undeclared or executable evidence');
+  }
+  let getters = 0;
+  const accessor = Object.defineProperty({ ...receipt }, 'attemptId', { enumerable: true, get() { getters++; return receipt.attemptId; } });
+  rejects(() => validateOntologyAttemptReadback(lookup(accessor)), 'receipt getter');
+  const outer = Object.defineProperty({ current: dictionary, history: [dictionary] }, 'attempt', { enumerable: true, get() { getters++; return receipt; } });
+  rejects(() => validateOntologyAttemptReadback(outer), 'lookup getter');
+  assert.equal(getters, 0);
+  rejects(() => validateOntologyAttemptReadback(lookup(receipt, [])), 'missing original history');
+  rejects(() => validateOntologyAttemptReadback(lookup(receipt, [dictionary, dictionary])), 'ambiguous original history');
+  rejects(() => validateOntologyAttemptReadback(lookup({ ...receipt, memberId: 'different_actor' })), 'result actor mismatch');
+  rejects(() => validateOntologyAttemptReadback(lookup({ ...receipt, dictionaryHash: '0'.repeat(64) })), 'result hash absent');
+  rejects(() => validateOntologyAttemptReadback(lookup({ ...receipt, version: 2 })), 'result version absent');
+  assert.equal(validateOntologyAttemptReadback(lookup({ ...receipt, expectedCurrentHash: '0'.repeat(64) })).attempt?.expectedCurrentHash, '0'.repeat(64));
+  assert.equal(ATTEMPT_ID.test('A' + '_'.repeat(127)), true);
+  for (const value of ['', '_first', 'unsafe/id', 'a'.repeat(129)]) assert.equal(ATTEMPT_ID.test(value), false);
+});
+
+test('declared publication refusals preserve fixed codes and unknown errors do not', () => {
+  for (const engineCode of ENGINE_DICTIONARY_REFUSALS) {
+    assert.deepEqual(firstRunFailure(Object.assign(new Error('private diagnostic'), { code: engineCode })), { code: 'PUBLISH_REFUSED', engineCode });
+  }
+  assert.deepEqual(firstRunFailure(Object.assign(new Error('private transport diagnostic'), { code: 'UNKNOWN_COMMIT_FAILURE' })), { code: 'REQUEST_FAILED' });
+  let getters = 0;
+  assert.deepEqual(firstRunFailure(Object.defineProperty({}, 'code', { get() { getters++; return 'DICTIONARY_CONFLICT'; } })), { code: 'REQUEST_FAILED' });
+  assert.equal(getters, 0);
 });
 
 test('a changed meaning keeps every other binding, the key order and the other definitions exactly', async () => {

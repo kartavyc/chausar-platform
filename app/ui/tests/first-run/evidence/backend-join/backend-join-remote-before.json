@@ -1,0 +1,16 @@
+{
+  "repository": "kartavyc/chausar-platform",
+  "origin": "https://github.com/kartavyc/chausar-platform.git",
+  "private": true,
+  "ownerLogin": "kartavyc",
+  "ownerNodeId": "U_kgDOD7nyog",
+  "defaultBranch": "main",
+  "main": "87c400870563b92803841d3a198cee801f7740df",
+  "originalBranch": "private/first-run-fr06-fr08-5edf751b-20261004-01a0ef70",
+  "originalHead": "da7da1a39116ed263d47498ed6740d863652b81c",
+  "correctionBranch": "private/first-run-qualification-da7da1a-20261004-01a0ef70",
+  "correctionHead": "82e0045dd17e69e70c9879e807257bc79395e81d",
+  "newBranch": "private/first-run-cas-join-52d1226-20261004-01a0ef70",
+  "newBranchExists": false,
+  "verification": "gh api exact repository identity plus targeted git ls-remote; no authfile inspection"
+}

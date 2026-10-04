@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { FIRST_RUN_METHODS } from '../../src/screens/first-run/contracts.ts';
-import type { FirstRunCode, FirstRunMethod } from '../../src/screens/first-run/contracts.ts';
+import { FIRST_RUN_METHODS, validateDraft } from '../../src/screens/first-run/contracts.ts';
+import type { DictionaryPublicationReceipt, FirstRunCode, FirstRunMethod } from '../../src/screens/first-run/contracts.ts';
 import { createFirstRunController, handoffPinOf } from '../../src/screens/first-run/controller.ts';
 import type { FirstRunController, FirstRunState, IssuanceEvent } from '../../src/screens/first-run/controller.ts';
 import { draftJson } from '../../src/screens/first-run/digest.ts';
@@ -13,21 +13,24 @@ import {
 } from './fixture.ts';
 import type { Role, SyntheticEngine } from './fixture.ts';
 
-/** Synthetic port, synthetic seat, the frozen Engine's own packs and compiler through the fixture boundary. No transport, vault, model or business facts. */
+/** Controller contract simulation using the Engine's own packs/compiler. Actual Engine join evidence is separate. */
 const PUBLISH_SEQUENCE: FirstRunMethod[] = ['ui.context', 'ontology.publish', 'ui.context', 'ontology.get', 'ui.context'];
 const NAMES = ['billed', 'received', 'earned', 'refunds', 'costs', 'purchases'];
 const must = <T>(value: T | null | undefined, what = 'value'): T => { if (value === null || value === undefined) throw new Error(`missing ${what}`); return value; };
+
+let attemptIds = 0;
+const createAttemptId = () => `attempt_fixture_${++attemptIds}`;
 
 function expect<K extends FirstRunState['kind']>(controller: FirstRunController, kind: K): Extract<FirstRunState, { kind: K }> {
   const state = controller.snapshot();
   assert.equal(state.kind, kind, `expected ${kind}, got ${state.kind}`);
   return state as Extract<FirstRunState, { kind: K }>;
 }
-interface Options { role?: Role; live?: boolean; current?: unknown; digest?: TextDigest }
+interface Options { role?: Role; live?: boolean; current?: unknown; digest?: TextDigest; createAttemptId?: () => string }
 async function loaded(options: Options = {}) {
   const fixture = await syntheticEngine({ ...(options.role === undefined ? {} : { role: options.role }), ...(options.current === undefined ? {} : { current: options.current }) });
   const live = guard(options.live ?? true);
-  const controller = createFirstRunController(fixture.port, { guard: live, digest: options.digest ?? nodeDigest });
+  const controller = createFirstRunController(fixture.port, { guard: live, digest: options.digest ?? nodeDigest, createAttemptId: options.createAttemptId ?? createAttemptId });
   const events: IssuanceEvent[] = [];
   controller.onIssuance(event => { events.push(event); });
   const result = await controller.load();
@@ -72,7 +75,7 @@ const onlyKnownMethods = (fixture: SyntheticEngine) => assert.deepEqual(fixture.
 /** The public snapshot holds no workspace or member name, no id, no pack, no label, no digest and no key. */
 function assertNeutral(controller: FirstRunController): void {
   const text = JSON.stringify(controller.snapshot());
-  for (const secret of [WORKSPACE.name, WORKSPACE.id, MEMBER_NAME, MEMBER_ID, 'ecommerce', 'Online brand']) assert.equal(text.includes(secret), false, `public state must not carry ${secret}`);
+  for (const secret of [WORKSPACE.name, WORKSPACE.id, MEMBER_NAME, MEMBER_ID, 'ecommerce', 'Online brand', 'attempt_fixture_']) assert.equal(text.includes(secret), false, `public state must not carry ${secret}`);
   assert.doesNotMatch(text, /[a-f0-9]{64}/, 'public state must not carry a digest, hash or key');
 }
 
@@ -180,8 +183,12 @@ test('a reviewed publish is issued once, verified by hash, artifacts, draft equa
   assert.deepEqual(results.slice(1).map(result => (result.ok ? null : result.code)), ['IN_FLIGHT', 'IN_FLIGHT']);
   assert.deepEqual(sinceIndex(fixture, from), PUBLISH_SEQUENCE);
   assert.equal(fixture.count('ontology.publish'), 1);
-  const sent = fixture.calls.find(call => call.method === 'ontology.publish')?.payload as { draft: unknown };
-  assert.equal(JSON.stringify(sent.draft), reviewed.review.draftJson, 'the exact reviewed bytes were sent, as { draft }');
+  const sent = fixture.calls.find(call => call.method === 'ontology.publish')?.payload as { draft: unknown; expectedCurrentHash: string | null; attemptId: string };
+  assert.deepEqual(Object.keys(sent).sort(), ['attemptId', 'draft', 'expectedCurrentHash']);
+  assert.equal(JSON.stringify(sent.draft), reviewed.review.draftJson, 'the exact reviewed bytes were sent');
+  assert.equal(sent.expectedCurrentHash, null);
+  assert.match(sent.attemptId, /^attempt_fixture_\d+$/);
+  assert.deepEqual(fixture.calls.filter(call => call.method === 'ontology.get').at(-1)?.payload, { attemptId: sent.attemptId });
   const state = expect(controller, 'published');
   const current = must(fixture.current());
   assert.equal(state.published.hash, current.hash);
@@ -391,7 +398,7 @@ test('a lock after the raw call keeps the attempt private: neutral public state,
   assert.equal(fixture.count('ontology.publish'), 1);
 });
 
-test('a lost reply is unresolved, never retried, and the readback tells committed-but-unattributable, not committed and superseded apart', async () => {
+test('a lost reply recovers only through its receipt; null stays unknown and a historical receipt proves supersession', async () => {
   const frozen = await engine();
   const committed = await readyToPublish();
   lostReply(committed.fixture, true);
@@ -400,39 +407,31 @@ test('a lost reply is unresolved, never retried, and the readback tells committe
   assert.deepEqual(unknown.attempt, { pack: 'ecommerce', label: 'Online brand', reviewDigest: committed.pin.digest }, 'the surface that issued it may still name it');
   assert.equal(committed.fixture.count('ontology.publish'), 1);
   assert.deepEqual(await committed.controller.load(), { ok: false, code: 'PUBLISH_UNRESOLVED' });
-  // The Engine committed the reviewed bytes as the expected next version by this seat, but the reply never
-  // arrived. Version and author are necessary, not unique: the same seat could have published the identical
-  // draft from another surface, and the Engine keeps no attempt identifier. Nothing is adopted.
-  assert.deepEqual(await committed.controller.reconcile(), { ok: false, code: 'PUBLISH_UNATTRIBUTED' });
-  const open = expect(committed.controller, 'unknown');
-  assert.equal(open.code, 'PUBLISH_UNATTRIBUTED');
-  assert.deepEqual(open.attempt, { pack: 'ecommerce', label: 'Online brand', reviewDigest: committed.pin.digest }, 'the held summary stays while the surface is present');
-  assert.equal(committed.controller.issuance(), 'unresolved');
-  assert.deepEqual(await committed.controller.load(), { ok: false, code: 'PUBLISH_UNRESOLVED' }, 'the recovery blocker is the missing Engine attempt id; nothing is retried or erased');
+  assert.deepEqual(await committed.controller.reconcile(), { ok: true });
+  assert.equal(expect(committed.controller, 'published').published.hash, must(committed.fixture.current()).hash);
+  assert.equal(committed.controller.issuance(), 'none');
   assert.equal(committed.fixture.count('ontology.publish'), 1);
-  assert.deepEqual(committed.events.at(-1), { kind: 'settled', outcome: 'unresolved' }, 'no resolved event was invented');
+  assert.deepEqual(committed.events.at(-1), { kind: 'resolved', outcome: 'published' });
 
   const dropped = await readyToPublish();
   lostReply(dropped.fixture, false);
   assert.deepEqual(await dropped.controller.publishDictionary(dropped.pin), { ok: false, code: 'PUBLISH_UNKNOWN' });
-  assert.deepEqual(await dropped.controller.reconcile(), { ok: false, code: 'PUBLISH_NOT_COMMITTED' });
-  const back = expect(dropped.controller, 'review');
-  assert.deepEqual(back.notice, { code: 'PUBLISH_NOT_COMMITTED' });
-  assert.equal(allReviewed(back.review), true, 'the held review is back for a press by the person, never an automatic retry');
+  assert.deepEqual(await dropped.controller.reconcile(), { ok: false, code: 'PUBLISH_UNKNOWN' });
+  expect(dropped.controller, 'unknown');
   assert.equal(dropped.fixture.count('ontology.publish'), 1);
-  assert.equal(dropped.controller.issuance(), 'none');
-  assert.deepEqual(dropped.events.at(-1), { kind: 'resolved', outcome: 'not-committed' });
-  assert.deepEqual(await dropped.controller.publishDictionary(must(pinOf(back.review))), { ok: true });
-  assert.equal(dropped.fixture.count('ontology.publish'), 2);
-  assert.equal(expect(dropped.controller, 'published').published.version, 1);
+  assert.equal(dropped.controller.issuance(), 'unresolved');
+  assert.equal(dropped.events.some(event => event.kind === 'resolved'), false);
+  assert.deepEqual(await dropped.controller.publishDictionary(dropped.pin), { ok: false, code: 'PUBLISH_UNRESOLVED' });
+  assert.deepEqual(dropped.controller.dispose(), { ok: false, code: 'PUBLISH_UNRESOLVED' });
 
   const superseded = await readyToPublish();
   lostReply(superseded.fixture, false);
   await superseded.controller.publishDictionary(superseded.pin);
   superseded.fixture.commit(frozen.rawPack(1));
-  assert.deepEqual(await superseded.controller.reconcile(), { ok: false, code: 'REVIEW_NOT_CURRENT' }, 'another dictionary is current, not the reviewed one');
-  expect(superseded.controller, 'unavailable');
-  assert.deepEqual(superseded.events.at(-1), { kind: 'resolved', outcome: 'not-current' });
+  assert.deepEqual(await superseded.controller.reconcile(), { ok: false, code: 'PUBLISH_UNKNOWN' }, 'another current dictionary cannot prove this attempt never committed');
+  expect(superseded.controller, 'unknown');
+  assert.equal(superseded.controller.issuance(), 'unresolved');
+  assert.equal(superseded.events.some(event => event.kind === 'resolved'), false);
 
   const overtaken = await readyToPublish();
   lostReply(overtaken.fixture, true);
@@ -440,6 +439,9 @@ test('a lost reply is unresolved, never retried, and the readback tells committe
   overtaken.fixture.commit(frozen.rawPack(1));
   assert.deepEqual(await overtaken.controller.reconcile(), { ok: false, code: 'REVIEW_NOT_CURRENT' }, 'committed, then superseded: this attempt is not what is current');
   expect(overtaken.controller, 'unavailable');
+  assert.equal(overtaken.controller.issuance(), 'none');
+  assert.deepEqual(overtaken.events.at(-1), { kind: 'resolved', outcome: 'not-current' });
+  assert.deepEqual(await overtaken.controller.leave({ hash: must(overtaken.fixture.current()).hash, contextKey: overtaken.fixture.contextKey(), reviewDigest: overtaken.pin.digest }), { ok: false, code: 'SELECTION_INVALID' });
 });
 
 test('a pre-existing identical dictionary is never mistaken for the lost publication', async () => {
@@ -448,17 +450,14 @@ test('a pre-existing identical dictionary is never mistaken for the lost publica
   const { fixture, controller, pin, events } = await readyToPublish('ecommerce', { current: old });
   lostReply(fixture, false);
   assert.deepEqual(await controller.publishDictionary(pin), { ok: false, code: 'PUBLISH_UNKNOWN' });
-  assert.deepEqual(await controller.reconcile(), { ok: false, code: 'ALREADY_CURRENT' });
-  const back = expect(controller, 'review');
-  assert.deepEqual(back.notice, { code: 'ALREADY_CURRENT' });
+  assert.deepEqual(await controller.reconcile(), { ok: false, code: 'PUBLISH_UNKNOWN' });
+  expect(controller, 'unknown');
   assert.equal(must(fixture.current()).hash, old.hash, 'the old publication is still the only one');
   assert.equal(must(fixture.current()).version, 1);
-  assert.deepEqual(events.at(-1), { kind: 'resolved', outcome: 'already-current' });
-  assert.equal(controller.issuance(), 'none');
+  assert.equal(events.some(event => event.kind === 'resolved'), false);
+  assert.equal(controller.issuance(), 'unresolved');
   assert.equal(fixture.count('ontology.publish'), 1);
-  // The person may publish again, explicitly; that is a new revision by this seat.
-  assert.deepEqual(await controller.publishDictionary(must(pinOf(back.review))), { ok: true });
-  assert.equal(expect(controller, 'published').published.version, 2);
+  assert.deepEqual(await controller.publishDictionary(pin), { ok: false, code: 'PUBLISH_UNRESOLVED' });
 });
 
 test('the reviewed bytes current as a new revision by another author stay unresolved: no proof names this attempt', async () => {
@@ -467,10 +466,10 @@ test('the reviewed bytes current as a new revision by another author stay unreso
   lostReply(fixture, false);
   assert.deepEqual(await controller.publishDictionary(pin), { ok: false, code: 'PUBLISH_UNKNOWN' });
   fixture.commitRaw(frozen.rawPack(0), 'someone_else');
-  assert.deepEqual(await controller.reconcile(), { ok: false, code: 'PUBLISH_UNATTRIBUTED' });
-  assert.equal(expect(controller, 'unknown').code, 'PUBLISH_UNATTRIBUTED');
+  assert.deepEqual(await controller.reconcile(), { ok: false, code: 'PUBLISH_UNKNOWN' });
+  assert.equal(expect(controller, 'unknown').code, 'PUBLISH_UNKNOWN');
   assert.equal(controller.issuance(), 'unresolved');
-  assert.deepEqual(await controller.reconcile(), { ok: false, code: 'PUBLISH_UNATTRIBUTED' }, 'reading back again does not invent attribution');
+  assert.deepEqual(await controller.reconcile(), { ok: false, code: 'PUBLISH_UNKNOWN' }, 'reading back again does not invent attribution');
   assert.deepEqual(await controller.load(), { ok: false, code: 'PUBLISH_UNRESOLVED' });
   assert.equal(controller.choosePack('retail').ok, false);
   assert.equal(fixture.count('ontology.publish'), 1, 'never retried');
@@ -487,15 +486,15 @@ test('a separate identical publication by the same seat after our raw call faile
   const theirs = must(fixture.current());
   assert.equal(theirs.version, 1);
   assert.equal(theirs.publishedBy, MEMBER_ID);
-  assert.deepEqual(await controller.reconcile(), { ok: false, code: 'PUBLISH_UNATTRIBUTED' }, 'expected version and actor are not unique attribution');
-  assert.equal(expect(controller, 'unknown').code, 'PUBLISH_UNATTRIBUTED');
+  assert.deepEqual(await controller.reconcile(), { ok: false, code: 'PUBLISH_UNKNOWN' }, 'expected version and actor are not unique attribution');
+  assert.equal(expect(controller, 'unknown').code, 'PUBLISH_UNKNOWN');
   assert.equal(controller.issuance(), 'unresolved');
   assert.equal(events.some(event => event.kind === 'resolved'), false);
-  assert.deepEqual(await controller.reconcile(), { ok: false, code: 'PUBLISH_UNATTRIBUTED' }, 'reading back again does not invent attribution');
+  assert.deepEqual(await controller.reconcile(), { ok: false, code: 'PUBLISH_UNKNOWN' }, 'reading back again does not invent attribution');
   assert.equal(fixture.count('ontology.publish'), 1, 'never retried');
 });
 
-test('a validated raw reply is the one attribution: pinned privately even after a cancel, and the readback adopts exactly that hash and nothing else', async () => {
+test('a validated raw reply adds a private attribution pin even after a cancel; the receipt must identify exactly that dictionary', async () => {
   const frozen = await engine();
   // The reply arrives after the surface was cancelled: it is still this attempt's own reply.
   const late = await readyToPublish();
@@ -574,12 +573,13 @@ test('an observer that locks inside the resolved event has the last word: no ver
   assert.deepEqual(adopted.controller.snapshot(), { kind: 'unavailable', code: 'VAULT_LOCKED' }, 'the lock wins; nothing is published after the event');
   assertNeutral(adopted.controller);
   assert.equal(adopted.controller.issuance(), 'none');
-  // Verdict "not committed": the held review is not resurrected over the lock either.
+  // Verdict "not current": an attributed historical publication is not resurrected over the lock either.
   const dropped = await readyToPublish();
-  lostReply(dropped.fixture, false);
+  lostReply(dropped.fixture, true);
   await dropped.controller.publishDictionary(dropped.pin);
+  dropped.fixture.commitRaw((await engine()).rawPack(1));
   dropped.controller.onIssuance(event => { if (event.kind === 'resolved') { dropped.live.set(false); dropped.controller.invalidate('VAULT_LOCKED'); } });
-  assert.deepEqual(await dropped.controller.reconcile(), { ok: false, code: 'PUBLISH_NOT_COMMITTED' });
+  assert.deepEqual(await dropped.controller.reconcile(), { ok: false, code: 'REVIEW_NOT_CURRENT' });
   assert.deepEqual(dropped.controller.snapshot(), { kind: 'unavailable', code: 'VAULT_LOCKED' });
   assertNeutral(dropped.controller);
   assert.equal(dropped.fixture.count('ontology.publish'), 1);
@@ -669,12 +669,12 @@ test('dispose seals the controller before any observer is told, and refuses whil
   assert.equal(sealed.fixture.count('ontology.publish'), 0);
   // A pinned attempt is host-owned evidence: dispose refuses and the controller stays alive for the readback.
   const pinned = await readyToPublish();
-  lostReply(pinned.fixture, false);
+  lostReply(pinned.fixture, true);
   await pinned.controller.publishDictionary(pinned.pin);
   assert.deepEqual(pinned.controller.dispose(), { ok: false, code: 'PUBLISH_UNRESOLVED' });
   assert.equal(pinned.controller.issuance(), 'unresolved');
-  assert.deepEqual(await pinned.controller.reconcile(), { ok: false, code: 'PUBLISH_NOT_COMMITTED' });
-  expect(pinned.controller, 'review');
+  assert.deepEqual(await pinned.controller.reconcile(), { ok: true });
+  expect(pinned.controller, 'published');
   assert.deepEqual(pinned.controller.dispose(), { ok: true }, 'once resolved, dispose is allowed');
   const issuedOne = await readyToPublish();
   const gate = hold(issuedOne.fixture, 'ontology.publish');
@@ -948,7 +948,7 @@ test('preflight digest and context rejections with guard loss hide the full revi
 
 test('a reconcile context rejection with guard loss hides attempt metadata, pins replay and permits only a later authorized readback', async () => {
   const context = await readyToPublish();
-  lostReply(context.fixture, false);
+  lostReply(context.fixture, true);
   assert.deepEqual(await context.controller.publishDictionary(context.pin), { ok: false, code: 'PUBLISH_UNKNOWN' });
   assert.equal(expect(context.controller, 'unknown').attempt?.pack, 'ecommerce');
   context.fixture.onRequest(method => {
@@ -964,9 +964,9 @@ test('a reconcile context rejection with guard loss hides attempt metadata, pins
   assert.deepEqual(await context.controller.publishDictionary(context.pin), { ok: false, code: 'PUBLISH_UNRESOLVED' });
   assert.equal(context.fixture.count('ontology.publish'), 1);
   context.live.set(true);
-  assert.deepEqual(await context.controller.reconcile(), { ok: false, code: 'PUBLISH_NOT_COMMITTED' });
+  assert.deepEqual(await context.controller.reconcile(), { ok: true });
   assert.equal(context.controller.issuance(), 'none');
-  assertNeutral(context.controller);
+  assert.equal(expect(context.controller, 'published').review, null, 'the departed decisions remain hidden after authorized recovery');
   assert.equal(context.fixture.count('ontology.publish'), 1);
 });
 
@@ -1050,7 +1050,7 @@ test('a reply whose draft, hash, artifacts, version or author does not match, or
 
   const stale = await readyToPublish();
   const before = frozen.compileRaw(frozen.rawPack(3), 9, 'someone_else');
-  stale.fixture.onRequest(method => (method === 'ontology.get' ? { current: before, history: [before] } : undefined));
+  stale.fixture.onRequest((method, _payload, defaults) => method === 'ontology.get' ? { ...(defaults() as Record<string, unknown>), current: { ...before, hash: 'e'.repeat(64) } } : undefined);
   assert.deepEqual(await stale.controller.publishDictionary(stale.pin), { ok: false, code: 'READBACK_MISMATCH' });
   expect(stale.controller, 'unknown');
 
@@ -1135,4 +1135,381 @@ test('publishing again over an existing dictionary reports the current one, pins
   const state = expect(controller, 'published');
   assert.equal(state.published.version, 2);
   assert.notEqual(state.published.hash, existing.hash);
+});
+
+test('attempt IDs are generated once and remain private and stable while a null lookup waits for a later commit', async () => {
+  let generated = 0;
+  const context = await readyToPublish('ecommerce', { createAttemptId: () => { generated += 1; return 'stable_pending_attempt'; } });
+  const accepted: { commit: (() => unknown) | null } = { commit: null };
+  context.fixture.onRequest((method, _payload, defaults) => {
+    if (method !== 'ontology.publish') return undefined;
+    context.fixture.onRequest(null);
+    accepted.commit = defaults;
+    throw new Error('response lost before the accepted operation completed');
+  });
+  assert.deepEqual(await context.controller.publishDictionary(context.pin), { ok: false, code: 'PUBLISH_UNKNOWN' });
+  context.controller.cancel();
+  assertNeutral(context.controller);
+  assert.deepEqual(await context.controller.reconcile(), { ok: false, code: 'PUBLISH_UNKNOWN' });
+  assert.equal(context.controller.issuance(), 'unresolved');
+  assert.deepEqual(context.controller.dispose(), { ok: false, code: 'PUBLISH_UNRESOLVED' });
+  assert.equal(context.fixture.count('ontology.publish'), 1);
+  must(accepted.commit)();
+  assert.deepEqual(await context.controller.reconcile(), { ok: true });
+  assert.equal(expect(context.controller, 'published').review, null);
+  assert.equal(generated, 1);
+  const lookups = context.fixture.calls.filter(call => call.method === 'ontology.get').slice(1);
+  assert.ok(lookups.length >= 2);
+  for (const lookup of lookups) assert.deepEqual(lookup.payload, { attemptId: 'stable_pending_attempt' });
+  assert.equal(context.fixture.count('ontology.publish'), 1, 'recovery never retries');
+});
+
+test('the injected attempt factory cannot issue after cancelling, locking, disposing or killing the live guard', async () => {
+  for (const action of ['cancel', 'lock', 'dispose', 'guard'] as const) {
+    const context = await readyToPublish('ecommerce', { createAttemptId: () => {
+      if (action === 'cancel') context.controller.cancel();
+      if (action === 'lock') context.controller.invalidate('VAULT_LOCKED');
+      if (action === 'dispose') context.controller.dispose();
+      if (action === 'guard') context.live.set(false);
+      return 'reentrant_attempt';
+    } });
+    assert.equal((await context.controller.publishDictionary(context.pin)).ok, false, action);
+    assert.equal(context.fixture.count('ontology.publish'), 0, action);
+    assert.equal(context.controller.issuance(), 'none', action);
+    assert.deepEqual(context.events, []);
+    assertNeutral(context.controller);
+  }
+  const malformed = await readyToPublish('ecommerce', { createAttemptId: () => 'invalid attempt identity' });
+  assert.deepEqual(await malformed.controller.publishDictionary(malformed.pin), { ok: false, code: 'PUBLISH_REFUSED' });
+  assert.deepEqual(expect(malformed.controller, 'review').notice, { code: 'PUBLISH_REFUSED', engineCode: 'INVALID_DICTIONARY_OPTIONS' });
+  assert.equal(malformed.fixture.count('ontology.publish'), 0);
+  assert.deepEqual(malformed.events, []);
+});
+
+test('a competing publication after preflight is atomically refused against the pinned baseline', async () => {
+  const context = await readyToPublish();
+  const frozen = await engine();
+  context.fixture.onRequest((method, _payload, defaults) => {
+    if (method !== 'ontology.publish') return undefined;
+    context.fixture.onRequest(null);
+    context.fixture.commitRaw(frozen.rawPack(1));
+    return defaults();
+  });
+  assert.deepEqual(await context.controller.publishDictionary(context.pin), { ok: false, code: 'PUBLISH_REFUSED' });
+  assert.deepEqual(expect(context.controller, 'review').notice, { code: 'PUBLISH_REFUSED', engineCode: 'DICTIONARY_CONFLICT' });
+  assert.equal(must(context.fixture.current()).pack, 'retail');
+  assert.equal(must(context.fixture.current()).version, 1);
+  assert.equal(context.controller.issuance(), 'none');
+  assert.deepEqual(context.events, [{ kind: 'issued' }, { kind: 'settled', outcome: 'not-committed' }]);
+  const payload = context.fixture.calls.find(call => call.method === 'ontology.publish')?.payload as { attemptId: string };
+  const readback = await context.fixture.port.request('ontology.get', { attemptId: payload.attemptId }) as { attempt: unknown; history: unknown[] };
+  assert.equal(readback.attempt, null);
+  assert.equal(readback.history.length, 1);
+});
+
+test('every receipt binding must match the private attempt; invalid lookup evidence never releases it', async () => {
+  const mutations: Readonly<Record<keyof DictionaryPublicationReceipt, unknown>> = {
+    attemptId: 'another_attempt', workspaceId: 'another_workspace', memberId: 'another_member', epoch: 2,
+    draftDigest: 'd'.repeat(64), expectedCurrentHash: 'b'.repeat(64), dictionaryHash: 'e'.repeat(64), version: 2,
+  };
+  for (const [field, value] of Object.entries(mutations)) {
+    const context = await readyToPublish();
+    lostReply(context.fixture, true);
+    await context.controller.publishDictionary(context.pin);
+    context.fixture.onRequest((method, _payload, defaults) => {
+      if (method !== 'ontology.get') return undefined;
+      const readback = defaults() as { attempt: DictionaryPublicationReceipt; current: unknown; history: unknown[] };
+      return { ...readback, attempt: { ...readback.attempt, [field]: value } };
+    });
+    assert.equal((await context.controller.reconcile()).ok, false, field);
+    expect(context.controller, 'unknown');
+    assert.equal(context.controller.issuance(), 'unresolved', field);
+    assert.equal(context.events.some(event => event.kind === 'resolved'), false, field);
+    assert.equal(context.fixture.count('ontology.publish'), 1);
+    context.controller.cancel();
+    assertNeutral(context.controller);
+  }
+});
+
+test('a known refusal during receipt lookup remains unknown, while the same code at raw dispatch proves noncommit', async () => {
+  for (const code of ['INVALID_DICTIONARY_OPTIONS', 'INVALID_DICTIONARY_RECEIPT', 'DICTIONARY_REVIEW_REQUIRED', 'DICTIONARY_CONFLICT', 'DICTIONARY_ATTEMPT_REUSED', 'DICTIONARY_ATTEMPT_AUTHORITY']) {
+    const raw = await readyToPublish();
+    raw.fixture.onRequest(method => { if (method === 'ontology.publish') throw refusal(code); return undefined; });
+    assert.deepEqual(await raw.controller.publishDictionary(raw.pin), { ok: false, code: 'PUBLISH_REFUSED' }, code);
+    assert.equal(raw.controller.issuance(), 'none', code);
+    const lookup = await readyToPublish();
+    lostReply(lookup.fixture, true);
+    await lookup.controller.publishDictionary(lookup.pin);
+    lookup.fixture.onRequest(method => { if (method === 'ontology.get') throw refusal(code); return undefined; });
+    assert.deepEqual(await lookup.controller.reconcile(), { ok: false, code: 'PUBLISH_REFUSED' }, code);
+    assert.equal(lookup.controller.issuance(), 'unresolved', code);
+    assert.equal(lookup.events.some(event => event.kind === 'resolved'), false, code);
+    if (code === 'DICTIONARY_ATTEMPT_AUTHORITY') assertNeutral(lookup.controller);
+  }
+});
+
+test('a scoped attempt authority rejection hides decisions even while the local guard is live', async () => {
+  const context = await readyToPublish();
+  context.fixture.onRequest(method => method === 'ontology.get' ? (() => { throw refusal('DICTIONARY_ATTEMPT_AUTHORITY'); })() : undefined);
+  assert.deepEqual(await context.controller.publishDictionary(context.pin), { ok: false, code: 'PUBLISH_REFUSED' });
+  assertNeutral(context.controller);
+  assert.equal(context.controller.issuance(), 'unresolved');
+  assert.equal(expect(context.controller, 'unknown').attempt, null);
+  assert.deepEqual(await context.controller.reconcile(), { ok: false, code: 'PUBLISH_REFUSED' });
+  assertNeutral(context.controller);
+  context.fixture.onRequest(null);
+  assert.deepEqual(await context.controller.reconcile(), { ok: true });
+  assert.equal(expect(context.controller, 'published').review, null, 'held decisions cannot reappear after an authority denial');
+  assert.equal(context.fixture.count('ontology.publish'), 1);
+});
+
+test('an identical retained payload returns its original dictionary after supersession without enabling an old handoff', async () => {
+  const context = await readyToPublish();
+  lostReply(context.fixture, true);
+  await context.controller.publishDictionary(context.pin);
+  const original = must(context.fixture.current());
+  const captured = context.fixture.calls.find(call => call.method === 'ontology.publish')?.payload as { draft: unknown; expectedCurrentHash: string | null; attemptId: string };
+  const payload = { ...captured, draft: validateDraft(captured.draft) };
+  const newer = context.fixture.commitRaw((await engine()).rawPack(1));
+  const returned = await context.fixture.port.request('ontology.publish', payload);
+  assert.deepEqual(returned, original);
+  assert.equal(must(context.fixture.current()).hash, newer.hash);
+  assert.equal(must(context.fixture.current()).version, 2);
+  await assert.rejects(context.fixture.port.request('ontology.publish', { ...payload, expectedCurrentHash: 'e'.repeat(64) }), { code: 'DICTIONARY_ATTEMPT_REUSED' });
+  assert.deepEqual(await context.controller.reconcile(), { ok: false, code: 'REVIEW_NOT_CURRENT' });
+  assert.equal(context.controller.issuance(), 'none');
+  assert.deepEqual(context.controller.snapshot(), { kind: 'unavailable', code: 'REVIEW_NOT_CURRENT' });
+  assert.deepEqual(await context.controller.leave({ hash: original.hash, contextKey: context.fixture.contextKey(), reviewDigest: context.pin.digest }), { ok: false, code: 'SELECTION_INVALID' });
+});
+
+test('a receipt cannot adopt an inconsistent current/history pair or an unchanged publication context', async () => {
+  for (const mode of ['current-history', 'unchanged-context'] as const) {
+    const context = await readyToPublish();
+    const reviewedKey = expect(context.controller, 'review').context.contextKey;
+    const other = (await engine()).compileRaw((await engine()).rawPack(1), 2, MEMBER_ID);
+    context.fixture.onRequest((method, _payload, defaults) => {
+      if (method === 'ontology.get' && mode === 'current-history') return { ...(defaults() as Record<string, unknown>), current: other };
+      if (method === 'ui.context' && mode === 'unchanged-context') return { ...(defaults() as Record<string, unknown>), contextKey: reviewedKey };
+      return undefined;
+    });
+    assert.deepEqual(await context.controller.publishDictionary(context.pin), { ok: false, code: 'READBACK_MISMATCH' }, mode);
+    assert.equal(context.controller.issuance(), 'unresolved');
+    assert.equal(context.events.some(event => event.kind === 'resolved'), false);
+    assert.deepEqual(await context.controller.reconcile(), { ok: false, code: 'READBACK_MISMATCH' }, mode);
+    assert.equal(context.controller.issuance(), 'unresolved');
+    context.fixture.onRequest(null);
+    assert.deepEqual(await context.controller.reconcile(), { ok: true });
+    assert.equal(context.fixture.count('ontology.publish'), 1);
+  }
+});
+
+test('missing or null attempt lookup evidence never releases the attempt even after a matching dictionary committed', async () => {
+  for (const missing of [true, false]) {
+    const context = await readyToPublish();
+    lostReply(context.fixture, true);
+    await context.controller.publishDictionary(context.pin);
+    context.fixture.onRequest((method, _payload, defaults) => {
+      if (method !== 'ontology.get') return undefined;
+      const reply = defaults() as { current: unknown; history: unknown[]; attempt: unknown };
+      return missing ? { current: reply.current, history: reply.history } : { ...reply, attempt: null };
+    });
+    assert.equal((await context.controller.reconcile()).ok, false);
+    assert.equal(context.controller.issuance(), 'unresolved');
+    assert.equal(context.events.some(event => event.kind === 'resolved'), false);
+    assert.deepEqual(context.controller.dispose(), { ok: false, code: 'PUBLISH_UNRESOLVED' });
+    context.fixture.onRequest(null);
+    assert.deepEqual(await context.controller.reconcile(), { ok: true });
+    assert.equal(context.fixture.count('ontology.publish'), 1);
+  }
+});
+
+test('selected historical receipt evidence must verify its whole hash and compiled proof before releasing the attempt', async () => {
+  for (const mode of ['hash', 'compiled-proof'] as const) {
+    const context = await readyToPublish();
+    lostReply(context.fixture, true);
+    await context.controller.publishDictionary(context.pin);
+    context.fixture.commitRaw((await engine()).rawPack(1));
+    context.fixture.onRequest((method, _payload, defaults) => {
+      if (method !== 'ontology.get') return undefined;
+      const reply = defaults() as { current: unknown; history: Record<string, unknown>[]; attempt: DictionaryPublicationReceipt };
+      let selected = must(reply.history[0]);
+      if (mode === 'hash') selected.hash = 'e'.repeat(64);
+      else {
+        must((selected.compiledSums as Record<string, unknown>[])[0]).digest = 'e'.repeat(64);
+        selected = rehashed(selected);
+      }
+      return { ...reply, history: [selected, ...reply.history.slice(1)], attempt: { ...reply.attempt, dictionaryHash: selected.hash } };
+    });
+    assert.deepEqual(await context.controller.reconcile(), { ok: false, code: 'READBACK_MISMATCH' }, mode);
+    assert.equal(context.controller.issuance(), 'unresolved');
+    assert.equal(context.events.some(event => event.kind === 'resolved'), false);
+    context.fixture.onRequest(null);
+    assert.deepEqual(await context.controller.reconcile(), { ok: false, code: 'REVIEW_NOT_CURRENT' });
+    assert.equal(context.controller.issuance(), 'none');
+    assert.equal(context.fixture.count('ontology.publish'), 1);
+  }
+});
+
+test('a final live guard that synchronously cancels or locks cannot resurrect publication decisions', async () => {
+  for (const action of ['cancel', 'lock'] as const) {
+    const fixture = await syntheticEngine();
+    let reenter = false;
+    const controller = createFirstRunController(fixture.port, { digest: nodeDigest, createAttemptId, guard: { live: () => {
+      if (reenter) {
+        reenter = false;
+        if (action === 'cancel') controller.cancel();
+        else controller.invalidate('VAULT_LOCKED');
+      }
+      return true;
+    } } });
+    const events: IssuanceEvent[] = [];
+    controller.onIssuance(event => { events.push(event); });
+    assert.deepEqual(await controller.load(), { ok: true });
+    assert.equal(controller.choosePack('ecommerce').ok, true);
+    await settle();
+    const pin = must(pinOf(expect(controller, 'review').review));
+    acceptEverything(controller, pin);
+    fixture.onRequest((method, _payload, defaults) => {
+      if (method === 'ui.context' && fixture.count('ontology.publish') === 1 && fixture.count('ontology.get') === 2) {
+        fixture.onRequest(null);
+        reenter = true;
+        return defaults();
+      }
+      return undefined;
+    });
+    assert.deepEqual(await controller.publishDictionary(pin), { ok: false, code: 'READ_INVALIDATED' }, action);
+    assertNeutral(controller);
+    assert.equal(controller.issuance(), 'unresolved');
+    assert.equal(events.some(event => event.kind === 'resolved'), false);
+    assert.deepEqual(await controller.reconcile(), { ok: true });
+    assert.equal(expect(controller, 'published').review, null);
+    assert.equal(fixture.count('ontology.publish'), 1);
+  }
+});
+
+test('reentry from every load guard preserves cancellation, lock or disposal and stops the next read', async () => {
+  for (const role of ['owner', 'viewer'] as const) {
+    for (const at of role === 'owner' ? [1, 2, 3, 4, 5, 6] : [1, 2]) {
+      for (const action of ['cancel', 'lock', 'dispose'] as const) {
+        const fixture = await syntheticEngine({ role });
+        let guards = 0;
+        const controller = createFirstRunController(fixture.port, { digest: nodeDigest, createAttemptId, guard: { live: () => {
+          guards += 1;
+          if (guards === at) {
+            if (action === 'cancel') controller.cancel();
+            else if (action === 'lock') controller.invalidate('VAULT_LOCKED');
+            else controller.dispose();
+          }
+          return true;
+        } } });
+        assert.deepEqual(await controller.load(), { ok: false, code: 'READ_INVALIDATED' }, `${role}/${at}/${action}`);
+        assertNeutral(controller);
+        assert.deepEqual(controller.snapshot(), action === 'lock' ? { kind: 'unavailable', code: 'VAULT_LOCKED' } : { kind: 'idle' });
+        assert.equal(fixture.calls.length, [0, 1, 2, 3, 3, 4][at - 1]);
+        assert.equal(fixture.count('ontology.publish'), 0);
+      }
+    }
+  }
+});
+
+test('entry guards cannot revive captured reviews, attempts, handoffs or settings drafts after cancelling or locking', async () => {
+  for (const operation of ['load', 'choose', 'back', 'row', 'settings', 'meaning', 'publish', 'reconcile', 'leave', 'leave-settings'] as const) {
+    for (const action of ['cancel', 'lock'] as const) {
+      const context = await readyToPublish();
+      if (operation === 'leave') assert.deepEqual(await context.controller.publishDictionary(context.pin), { ok: true });
+      if (operation === 'reconcile') {
+        lostReply(context.fixture, true);
+        await context.controller.publishDictionary(context.pin);
+      }
+      const shown = context.controller.snapshot();
+      const from = context.fixture.calls.length, events = context.events.length;
+      const original = context.live.live;
+      context.live.live = () => {
+        context.live.live = original;
+        if (action === 'cancel') context.controller.cancel();
+        else context.controller.invalidate('VAULT_LOCKED');
+        return true;
+      };
+      const result = await (() => {
+        switch (operation) {
+          case 'load': return context.controller.load();
+          case 'choose': return context.controller.choosePack('retail');
+          case 'back': return context.controller.backToPacks();
+          case 'row': return context.controller.acceptRow('billed', context.pin);
+          case 'settings': return context.controller.acceptSettings(context.pin);
+          case 'meaning': return context.controller.changeMeaning('billed', 'The reviewed invoiced amount.', context.pin.revision);
+          case 'publish': return context.controller.publishDictionary(context.pin);
+          case 'reconcile': return context.controller.reconcile();
+          case 'leave': {
+            assert.equal(shown.kind, 'published');
+            return context.controller.leave(handoffPinOf(shown as Extract<FirstRunState, { kind: 'published' }>));
+          }
+          case 'leave-settings': return context.controller.leaveToSettings(context.pin.revision);
+        }
+      })();
+      assert.deepEqual(result, { ok: false, code: 'READ_INVALIDATED' }, `${operation}/${action}`);
+      assertNeutral(context.controller);
+      assert.equal(context.fixture.calls.length, from, 'the invalidated entry reads or dispatches nothing');
+      assert.equal(context.events.length, events);
+      if (operation === 'reconcile') {
+        assert.equal(context.controller.issuance(), 'unresolved');
+        assert.equal(expect(context.controller, 'unknown').attempt, null);
+        assert.deepEqual(await context.controller.reconcile(), { ok: true });
+        assert.equal(expect(context.controller, 'published').review, null);
+        assert.equal(context.fixture.count('ontology.publish'), 1);
+      }
+    }
+  }
+});
+
+test('a guard that replaces the review cannot apply a captured decision or digest failure to the new review', async () => {
+  const context = await reviewing();
+  const original = context.live.live;
+  context.live.live = () => {
+    context.live.live = original;
+    assert.equal(context.controller.choosePack('retail').ok, true);
+    return true;
+  };
+  assert.deepEqual(context.controller.acceptRow('billed', context.pin), { ok: false, code: 'READ_INVALIDATED' });
+  await settle();
+  assert.equal(expect(context.controller, 'review').review.pack, 'retail');
+  assert.deepEqual(acceptedRows(expect(context.controller, 'review').review), []);
+
+  const gate = deferred<string>();
+  let holdDigest = false;
+  const delayed = await reviewing('ecommerce', { digest: text => holdDigest ? gate.promise : nodeDigest(text) });
+  holdDigest = true;
+  assert.equal(delayed.controller.choosePack('retail').ok, true);
+  const guardLive = delayed.live.live;
+  delayed.live.live = () => {
+    delayed.live.live = guardLive;
+    holdDigest = false;
+    assert.equal(delayed.controller.choosePack('services').ok, true);
+    return true;
+  };
+  gate.reject(new Error('digest unavailable'));
+  await settle();
+  assert.equal(expect(delayed.controller, 'review').review.pack, 'services');
+  assert.notEqual(expect(delayed.controller, 'review').review.digest, null);
+});
+
+test('an observer that ends loading or reconciliation prevents its first context read', async () => {
+  const loading = await syntheticEngine();
+  const first = createFirstRunController(loading.port, { digest: nodeDigest, guard: guard(), createAttemptId });
+  first.subscribe(() => { if (first.snapshot().kind === 'loading') first.cancel(); });
+  assert.deepEqual(await first.load(), { ok: false, code: 'READ_INVALIDATED' });
+  assert.deepEqual(loading.calls, []);
+  assertNeutral(first);
+  const context = await readyToPublish();
+  lostReply(context.fixture, true);
+  await context.controller.publishDictionary(context.pin);
+  const from = context.fixture.calls.length;
+  context.controller.subscribe(() => {
+    const shown = context.controller.snapshot();
+    if (shown.kind === 'unknown' && shown.reconciling) context.controller.cancel();
+  });
+  assert.deepEqual(await context.controller.reconcile(), { ok: false, code: 'READ_INVALIDATED' });
+  assert.equal(context.fixture.calls.length, from);
+  assertNeutral(context.controller);
+  assert.equal(context.controller.issuance(), 'unresolved');
 });

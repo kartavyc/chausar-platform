@@ -1,0 +1,169 @@
+{
+  "checks": {
+    "ui-strict": {
+      "exitCode": 0,
+      "sourceStable": true,
+      "args": [
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--project",
+        "app/ui/tsconfig.json",
+        "--skipLibCheck",
+        "false",
+        "--incremental",
+        "false"
+      ]
+    },
+    "tests-strict": {
+      "exitCode": 0,
+      "sourceStable": true,
+      "args": [
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--project",
+        "app/ui/tests/first-run/tsconfig.json",
+        "--skipLibCheck",
+        "false",
+        "--incremental",
+        "false"
+      ]
+    },
+    "node": {
+      "exitCode": 0,
+      "sourceStable": true,
+      "args": [
+        "--test",
+        "app/ui/tests/first-run/contracts.test.ts",
+        "app/ui/tests/first-run/review.test.ts",
+        "app/ui/tests/first-run/controller.test.ts",
+        "app/ui/tests/first-run/engine-join.test.ts",
+        "app/ui/tests/source-safety.test.ts",
+        "app/ui/tests/first-run/catalogue-scope.test.mjs"
+      ]
+    },
+    "react": {
+      "exitCode": 0,
+      "sourceStable": true,
+      "args": [
+        "./node_modules/vitest/vitest.mjs",
+        "run",
+        "--config",
+        "./app/ui/tests/first-run/vitest.config.mjs",
+        "--configLoader",
+        "native"
+      ]
+    },
+    "root-strict": {
+      "exitCode": 2,
+      "sourceStable": true,
+      "args": [
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--project",
+        "tsconfig.json",
+        "--skipLibCheck",
+        "false",
+        "--incremental",
+        "false"
+      ]
+    },
+    "source": {
+      "exitCode": 0,
+      "sourceStable": true,
+      "args": [
+        "./scripts/check-ui-source.mjs",
+        "--root",
+        ".",
+        "--typescript",
+        "./node_modules/typescript/lib/typescript.js"
+      ]
+    },
+    "inventory": {
+      "exitCode": 0,
+      "sourceStable": true,
+      "args": [
+        "--test",
+        "app/ui/tests/inventory.test.ts",
+        "app/ui/tests/first-run/inventory-qualification.test.ts"
+      ]
+    },
+    "syntax": {
+      "exitCode": 0,
+      "sourceStable": true,
+      "args": [
+        "./scripts/check.mjs"
+      ]
+    }
+  },
+  "counts": {
+    "node": 139,
+    "react": 24,
+    "inventory": 13,
+    "backendSource": 84,
+    "independentProbes": 14
+  },
+  "rootStrictErrors": 7,
+  "rootStrictStatus": "Current external blocker; no exclusions or relaxed settings",
+  "historicalEvidenceFilesUnchanged": 39,
+  "sourceManifestVerified": true,
+  "backendTipUnmodified": true,
+  "publishedTranscriptIdentity": {
+    "backend-join-final-ui-strict": {
+      "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicationSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "lineEndingsCanonicalizedToLF": true,
+      "trailingBlankLinesTrimmed": true
+    },
+    "backend-join-final-tests-strict": {
+      "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "publicationSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "lineEndingsCanonicalizedToLF": true,
+      "trailingBlankLinesTrimmed": true
+    },
+    "backend-join-final-node": {
+      "rawSha256": "7632918683e02ae4432103cb511c0dc1b84958c9b25d91a6b1a1098b9f55ba92",
+      "publicationSha256": "7632918683e02ae4432103cb511c0dc1b84958c9b25d91a6b1a1098b9f55ba92",
+      "lineEndingsCanonicalizedToLF": true,
+      "trailingBlankLinesTrimmed": true
+    },
+    "backend-join-final-react": {
+      "rawSha256": "b6a1fc1294da5b9ea4d57d8ff332318b3f9d6ddf4e96743ca9b354d8506a031c",
+      "publicationSha256": "d98105fc0079a3c3c6953bf96d7b7e115c7138c0c5e0c8f3663d7113b9356320",
+      "lineEndingsCanonicalizedToLF": true,
+      "trailingBlankLinesTrimmed": true
+    },
+    "backend-join-final-root-strict": {
+      "rawSha256": "0576676dea79894b4445c95cdc577380e10c8327e14a4aa90e529e14a9a627df",
+      "publicationSha256": "e115ea56dafdba84e6cc35aff4b456e21363b5600580f6670463944712ba1f2f",
+      "lineEndingsCanonicalizedToLF": true,
+      "trailingBlankLinesTrimmed": true
+    },
+    "backend-join-final-source": {
+      "rawSha256": "83a49f1ff4c1053e4c24f02c0d56c300f7edad0e4ff6f12ada05c67bc440412a",
+      "publicationSha256": "83a49f1ff4c1053e4c24f02c0d56c300f7edad0e4ff6f12ada05c67bc440412a",
+      "lineEndingsCanonicalizedToLF": true,
+      "trailingBlankLinesTrimmed": true
+    },
+    "backend-join-final-inventory": {
+      "rawSha256": "861d962ecaff47ebc17bf891bc8f9ffce0761741cc5ba2f8245d8101bcec5bb6",
+      "publicationSha256": "861d962ecaff47ebc17bf891bc8f9ffce0761741cc5ba2f8245d8101bcec5bb6",
+      "lineEndingsCanonicalizedToLF": true,
+      "trailingBlankLinesTrimmed": true
+    },
+    "backend-join-final-syntax": {
+      "rawSha256": "a6ac98a15e9ddc57ec213cbdbaf9878a018e4c50449d14b289453db411c89475",
+      "publicationSha256": "a6ac98a15e9ddc57ec213cbdbaf9878a018e4c50449d14b289453db411c89475",
+      "lineEndingsCanonicalizedToLF": true,
+      "trailingBlankLinesTrimmed": true
+    },
+    "backend-join-engine-source": {
+      "rawSha256": "a29549bbb5b44e71421c3f20ea855003697fa147b648a2490baaeb5b7b37185a",
+      "publicationSha256": "a29549bbb5b44e71421c3f20ea855003697fa147b648a2490baaeb5b7b37185a",
+      "lineEndingsCanonicalizedToLF": true,
+      "trailingBlankLinesTrimmed": true
+    }
+  },
+  "scope": "Source and React/actual Engine synthetic qualification only; no native/browser/PostgreSQL/services/acquisition/authfile inspection",
+  "originalAuthorshipEvidence": "../authorship.json",
+  "currentJoinAuthorship": "User-authorized Codex continuation; no new Claude call or model fallback"
+}

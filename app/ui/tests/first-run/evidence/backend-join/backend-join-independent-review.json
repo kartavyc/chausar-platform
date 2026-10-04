@@ -1,0 +1,1084 @@
+{
+  "schemaVersion": 2,
+  "reviewer": "/root/qualification_review",
+  "checkout": "C:/Users/karta/Documents/Codex/2026-10-04/task-2/first-run-cas-join",
+  "head": "0eb8edc6a3670b7745bcd2c92ee775725f003c65",
+  "backendBaseline": "52d1226f0eac6bfd18d7b68074b44b2d42a33bc0",
+  "verdict": {
+    "directEngineController": "passed on canonical staged Git bytes in the reviewed synthetic scope",
+    "independentProbes": 14,
+    "independentPassed": 14,
+    "selectedNodePassed": 93,
+    "selectedNodeFailed": 0,
+    "sourceStable": true,
+    "sharedDesktopMount": "unqualified; 14 refusal codes omitted by both sanitized allowlists",
+    "rootStrict": "CURRENT BLOCKER: fresh full strict compile exits 2 with seven diagnostics"
+  },
+  "reviewedSourceHashes": {
+    "app/ui/src/screens/first-run/controller.ts": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+    "app/ui/src/screens/first-run/contracts.ts": "bfe37efd5f87a7dc39f78369e27094fb424a16c69bf9c3c09859095cbdefbe7d",
+    "app/ui/tests/first-run/controller.test.ts": "edbd042d48b4be0219a281751e66b1a06bdce103d665ff595d96998091db698e",
+    "app/ui/tests/first-run/contracts.test.ts": "9ec3af794361c52e70cc591e55631862501e60c6bfc92938bf17c9afbf2299a5",
+    "app/ui/tests/first-run/review.test.ts": "db9d81c5ee64dca6c382b653e50030114359eec215e83f376a30da9d9edaecc6",
+    "app/ui/tests/first-run/engine-join.fixture.ts": "c0a0c996525d33177289dab9d9926a1c4c4739395b6ea7d87ab2cc7b33ed9f75",
+    "app/ui/tests/first-run/engine-join.test.ts": "806558e26c24e94cc1e7a30b98e6be02b609885717f7cbd40a806b0a8c9ea357",
+    "app/ui/tests/first-run/fixture.ts": "f10bce1b3904cabbcc63630b55153f26e059ec92c02511eab52289af3a42492b",
+    "app/ui/design-screen-inventory.json": "71f9d7ea1481625e959860036a966ba5b73565ed9be6748e1eed87ae1f26d77b",
+    "scripts/check-ui-source.mjs": "ddfbdff01b4b02353769a6a5b3b888bd7ecd8c6a9074203b29190dbe2a4dbe1f",
+    "platform/runtime/ontology.ts": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+    "platform/runtime/engine.ts": "13409cb8e4968e5d8dc94c5c5652f4a8c0ca0c45a4341bae010142308e1824d5",
+    "app/desktop/preload.cjs": "a707bb382f76057d26a5e425e05b9d5e65d09ac2a6d7a2e0de6d3f9a843e4cb1",
+    "app/ui/src/bridge/client.ts": "8235f844fcc2d87e60df590a9e5d81540eec71e38b957705b1c546d46dbe3d9f",
+    "app/ui/src/screens/first-run/README.md": "9bca9d3e30b165c7d291d46eb026bf91690c8d9427949e4cf0e6a0b70b5e7fcd",
+    "app/ui/src/screens/first-run/index.ts": "5bfd042b061ce7d010b40a16657373b427893bb508e8443061f83e27fce03c0c"
+  },
+  "independentCommands": {
+    "falsification": {
+      "command": "@'\n\nimport assert from 'node:assert/strict';\nimport { createHash } from 'node:crypto';\nimport { readFileSync } from 'node:fs';\nimport { resolve } from 'node:path';\nimport { pathToFileURL } from 'node:url';\nconst root = process.cwd();\nconst load = path => import(pathToFileURL(resolve(root, path)).href);\nconst { createFirstRunController } = await load('app/ui/src/screens/first-run/controller.ts');\nconst { pinOf } = await load('app/ui/src/screens/first-run/review.ts');\nconst { actualEngineJoin, engineJoinDigest, engineJoinGuard } = await load('app/ui/tests/first-run/engine-join.fixture.ts');\nconst hash = bytes => createHash('sha256').update(bytes).digest('hex');\nconst hashText = text => hash(Buffer.from(text));\nconst paths = ['app/ui/src/screens/first-run/contracts.ts', 'app/ui/src/screens/first-run/controller.ts', 'app/ui/src/screens/first-run/digest.ts', 'app/ui/src/screens/first-run/review.ts', 'app/ui/tests/first-run/engine-join.fixture.ts', 'app/ui/tests/first-run/engine-join.test.ts', 'platform/runtime/engine.ts', 'platform/runtime/ontology.ts', 'platform/runtime/compiled-calculation.ts', 'app/desktop/preload.cjs', 'app/ui/src/bridge/client.ts'];\nconst sourceHashes = () => Object.fromEntries(paths.map(path => [path, hash(readFileSync(resolve(root, path)))]));\nconst before = sourceHashes();\nconst results = [];\nlet sequence = 0;\nasync function digestReady(controller) {\n  for (let index = 0; index < 64; index++) {\n    const value = controller.snapshot();\n    if (value.kind === 'review' && value.review.digest !== null) return value.review;\n    await Promise.resolve();\n  }\n  throw new Error('Review digest did not settle');\n}\nasync function acceptAll(controller) {\n  const review = await digestReady(controller), pin = pinOf(review);\n  assert.ok(pin);\n  for (const row of review.rows) assert.deepEqual(controller.acceptRow(row.definition.name, pin), { ok: true });\n  assert.deepEqual(controller.acceptSettings(pin), { ok: true });\n  return { pin, draft: structuredClone(review.draft), draftJson: review.draftJson };\n}\nasync function setup(fixture, pack = 'services') {\n  const guard = engineJoinGuard();\n  let identities = 0;\n  const attemptId = 'independent-engine-join-' + (++sequence);\n  const controller = createFirstRunController(fixture.port, { guard, digest: engineJoinDigest, createAttemptId: () => { identities++; return attemptId; } });\n  assert.deepEqual(await controller.load(), { ok: true });\n  assert.deepEqual(controller.choosePack(pack), { ok: true });\n  const reviewed = await acceptAll(controller);\n  return { controller, guard, attemptId, identities: () => identities, ...reviewed };\n}\nfunction sent(fixture) {\n  const payload = fixture.calls.find(call => call.method === 'ontology.publish')?.payload;\n  assert.ok(payload);\n  assert.deepEqual(Object.keys(payload), ['draft', 'expectedCurrentHash', 'attemptId']);\n  return payload;\n}\nfunction loseCommittedReply(fixture) {\n  fixture.intercept(async (method, payload, forward) => {\n    if (method !== 'ontology.publish') return forward();\n    fixture.intercept(null);\n    await forward();\n    throw new Error('Synthetic independent dropped reply after actual commit');\n  });\n}\nasync function probe(name, work) {\n  const cleanup = [];\n  const detail = { name };\n  try {\n    const fixture = await actualEngineJoin({ after: callback => { cleanup.push(callback); } });\n    Object.assign(detail, await work(fixture));\n    detail.status = 'passed';\n  } catch (error) {\n    detail.status = 'failed';\n    detail.error = error.stack ?? String(error);\n  } finally {\n    for (const callback of cleanup.reverse()) {\n      try { await callback(); } catch (error) { detail.status = 'failed'; detail.cleanupError = error.stack ?? String(error); }\n    }\n  }\n  results.push(detail);\n}\nfor (const shape of ['null', 'missing-key']) await probe('actual committed receipt ' + shape + ' cannot resolve or retry the attempt', async f => {\n  const r = await setup(f);\n  loseCommittedReply(f);\n  assert.deepEqual(await r.controller.publishDictionary(r.pin), { ok: false, code: 'PUBLISH_UNKNOWN' });\n  const payload = sent(f);\n  f.intercept(async (method, body, forward) => {\n    const value = await forward();\n    if (method !== 'ontology.get' || !Object.hasOwn(body, 'attemptId')) return value;\n    const copied = structuredClone(value);\n    if (shape === 'null') copied.attempt = null;\n    else delete copied.attempt;\n    return copied;\n  });\n  const result = await r.controller.reconcile();\n  assert.deepEqual(result, { ok: false, code: shape === 'null' ? 'PUBLISH_UNKNOWN' : 'INVALID_REPLY' });\n  assert.equal(r.controller.snapshot().kind, 'unknown');\n  assert.equal(r.controller.issuance(), 'unresolved');\n  assert.deepEqual(await r.controller.load(), { ok: false, code: 'PUBLISH_UNRESOLVED' });\n  assert.deepEqual(r.controller.dispose(), { ok: false, code: 'PUBLISH_UNRESOLVED' });\n  assert.equal(f.count('ontology.publish'), 1);\n  assert.equal(r.identities(), 1);\n  assert.equal(JSON.stringify(r.controller.snapshot()).includes(payload.attemptId), false);\n  f.intercept(null);\n  assert.deepEqual(await r.controller.reconcile(), { ok: true });\n  assert.equal(r.controller.snapshot().kind, 'published');\n  assert.equal(f.count('ontology.publish'), 1);\n  assert.equal(r.identities(), 1);\n  const real = await f.request('ontology.get', { attemptId: payload.attemptId });\n  assert.equal(real.attempt.attemptId, r.attemptId);\n  return { refusedCode: result.code, publishDispatches: 1, identityCreations: 1, finalState: 'published' };\n});\nawait probe('recomputed dictionary and artifact hashes cannot conceal a wrong definition hash in receipt history', async f => {\n  const r = await setup(f);\n  loseCommittedReply(f);\n  assert.deepEqual(await r.controller.publishDictionary(r.pin), { ok: false, code: 'PUBLISH_UNKNOWN' });\n  f.intercept(async (method, body, forward) => {\n    const value = await forward();\n    if (method !== 'ontology.get' || !Object.hasOwn(body, 'attemptId')) return value;\n    const copied = structuredClone(value);\n    const dictionary = copied.history.find(item => item.hash === copied.attempt.dictionaryHash);\n    assert.ok(dictionary?.compiledSums?.length);\n    const artifact = dictionary.compiledSums[0];\n    assert.notEqual(artifact.definitionHash, '0'.repeat(64));\n    artifact.definitionHash = '0'.repeat(64);\n    artifact.digest = hashText(JSON.stringify(Object.fromEntries(Object.entries(artifact).filter(([key]) => key !== 'digest'))));\n    dictionary.hash = hashText(JSON.stringify(Object.fromEntries(Object.entries(dictionary).filter(([key]) => key !== 'hash'))));\n    copied.current = structuredClone(dictionary);\n    copied.attempt.dictionaryHash = dictionary.hash;\n    return copied;\n  });\n  const result = await r.controller.reconcile();\n  assert.deepEqual(result, { ok: false, code: 'READBACK_MISMATCH' });\n  assert.equal(r.controller.snapshot().kind, 'unknown');\n  assert.equal(r.controller.issuance(), 'unresolved');\n  assert.equal(f.count('ontology.publish'), 1);\n  f.intercept(null);\n  assert.deepEqual(await r.controller.reconcile(), { ok: true });\n  assert.equal(f.count('ontology.publish'), 1);\n  return { refusedCode: result.code, publishDispatches: 1, finalState: 'published' };\n});\nawait probe('exact ordered drafts survive real CAS while changed-pack pins dispatch nothing', async f => {\n  const original = await f.request('ontology.packs', {});\n  const expectedKeys = Object.keys(original.find(item => item.pack === 'retail')).reverse();\n  f.intercept(async (method, body, forward) => {\n    const value = await forward();\n    return method === 'ontology.packs' ? value.map(item => Object.fromEntries(Object.entries(item).reverse())) : value;\n  });\n  const r = await setup(f);\n  assert.deepEqual(r.controller.choosePack('retail'), { ok: true });\n  assert.deepEqual(await r.controller.publishDictionary(r.pin), { ok: false, code: 'DIGEST_STALE' });\n  assert.equal(f.count('ontology.publish'), 0);\n  assert.equal(r.identities(), 0);\n  const next = await acceptAll(r.controller);\n  assert.deepEqual(await r.controller.publishDictionary(next.pin), { ok: true });\n  const payload = sent(f);\n  assert.deepEqual(Object.keys(payload.draft), expectedKeys);\n  assert.equal(JSON.stringify(payload.draft), next.draftJson);\n  assert.equal(payload.expectedCurrentHash, null);\n  const readback = await f.request('ontology.get', { attemptId: payload.attemptId });\n  assert.equal(readback.attempt.draftDigest, hashText(JSON.stringify(payload.draft)));\n  assert.equal(readback.attempt.version, 1);\n  assert.equal(f.count('ontology.publish'), 1);\n  assert.equal(r.identities(), 1);\n  return { stalePinCode: 'DIGEST_STALE', orderedKeys: expectedKeys, publishDispatches: 1, identityCreations: 1, finalState: 'published' };\n});\nawait probe('an actual competing commit yields a definite source CAS refusal without automatic replay', async f => {\n  const r = await setup(f);\n  f.intercept(async (method, body, forward) => {\n    if (method !== 'ontology.publish') return forward();\n    f.intercept(null);\n    await f.request('ontology.publish', { draft: r.draft, expectedCurrentHash: null, attemptId: 'independent-competing-attempt-' + (++sequence) });\n    return forward();\n  });\n  assert.deepEqual(await r.controller.publishDictionary(r.pin), { ok: false, code: 'PUBLISH_REFUSED' });\n  const value = r.controller.snapshot();\n  assert.equal(value.kind, 'review');\n  assert.equal(value.notice.engineCode, 'DICTIONARY_CONFLICT');\n  assert.equal(r.controller.issuance(), 'none');\n  assert.equal(f.count('ontology.publish'), 1);\n  assert.equal(r.identities(), 1);\n  assert.deepEqual(await r.controller.publishDictionary(r.pin), { ok: false, code: 'CONTEXT_CHANGED' });\n  assert.equal(f.count('ontology.publish'), 1);\n  return { sourceCode: 'DICTIONARY_CONFLICT', classification: 'PUBLISH_REFUSED', publishDispatches: 1, subsequentCode: 'CONTEXT_CHANGED' };\n});\nawait probe('a later actual lookup refusal cannot release a committed attempt as noncommit', async f => {\n  const r = await setup(f);\n  f.intercept(async (method, body, forward) => {\n    if (method === 'ontology.get' && Object.hasOwn(body, 'attemptId')) return f.request('ontology.get', { attemptId: '!' });\n    return forward();\n  });\n  assert.deepEqual(await r.controller.publishDictionary(r.pin), { ok: false, code: 'PUBLISH_REFUSED' });\n  assert.equal(r.controller.snapshot().kind, 'unknown');\n  assert.equal(r.controller.issuance(), 'unresolved');\n  assert.deepEqual(r.controller.dispose(), { ok: false, code: 'PUBLISH_UNRESOLVED' });\n  assert.equal(f.count('ontology.publish'), 1);\n  f.intercept(null);\n  assert.deepEqual(await r.controller.reconcile(), { ok: true });\n  assert.equal(f.count('ontology.publish'), 1);\n  assert.equal(r.identities(), 1);\n  return { laterSourceCode: 'INVALID_DICTIONARY_OPTIONS', stateBeforeRecovery: 'unknown', publishDispatches: 1, finalState: 'published' };\n});\nconst after = sourceHashes();\nconst stable = JSON.stringify(before) === JSON.stringify(after);\nconst failed = results.filter(item => item.status !== 'passed');\nconsole.log(JSON.stringify({ kind: 'independent-actual-Engine-falsification', cwd: root, before, after, sourceStable: stable, probes: results, status: stable && failed.length === 0 ? 'passed' : 'failed' }, null, 2));\nprocess.exitCode = stable && failed.length === 0 ? 0 : 1;\n\n'@ | node --input-type=module",
+      "exitCode": 0,
+      "stdout": "{\n  \"kind\": \"independent-actual-Engine-falsification\",\n  \"cwd\": \"C:\\\\Users\\\\karta\\\\Documents\\\\Codex\\\\2026-10-04\\\\task-2\\\\first-run-cas-join\",\n  \"before\": {\n    \"app/ui/src/screens/first-run/contracts.ts\": \"bfe37efd5f87a7dc39f78369e27094fb424a16c69bf9c3c09859095cbdefbe7d\",\n    \"app/ui/src/screens/first-run/controller.ts\": \"b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664\",\n    \"app/ui/src/screens/first-run/digest.ts\": \"1953bca94d38a36695be6dc103dedbccb1f7bf5638969bfb4a8b4e7d29821076\",\n    \"app/ui/src/screens/first-run/review.ts\": \"e2edc264027b7913f719af91d840c08922a06e6f0c9fa6b5ef1983298f781572\",\n    \"app/ui/tests/first-run/engine-join.fixture.ts\": \"c0a0c996525d33177289dab9d9926a1c4c4739395b6ea7d87ab2cc7b33ed9f75\",\n    \"app/ui/tests/first-run/engine-join.test.ts\": \"806558e26c24e94cc1e7a30b98e6be02b609885717f7cbd40a806b0a8c9ea357\",\n    \"platform/runtime/engine.ts\": \"13409cb8e4968e5d8dc94c5c5652f4a8c0ca0c45a4341bae010142308e1824d5\",\n    \"platform/runtime/ontology.ts\": \"35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede\",\n    \"platform/runtime/compiled-calculation.ts\": \"8d7628a5a84ccd86427f6dd88b3ee43820bf420fc1d545326a414fccfb48c829\",\n    \"app/desktop/preload.cjs\": \"a707bb382f76057d26a5e425e05b9d5e65d09ac2a6d7a2e0de6d3f9a843e4cb1\",\n    \"app/ui/src/bridge/client.ts\": \"8235f844fcc2d87e60df590a9e5d81540eec71e38b957705b1c546d46dbe3d9f\"\n  },\n  \"after\": {\n    \"app/ui/src/screens/first-run/contracts.ts\": \"bfe37efd5f87a7dc39f78369e27094fb424a16c69bf9c3c09859095cbdefbe7d\",\n    \"app/ui/src/screens/first-run/controller.ts\": \"b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664\",\n    \"app/ui/src/screens/first-run/digest.ts\": \"1953bca94d38a36695be6dc103dedbccb1f7bf5638969bfb4a8b4e7d29821076\",\n    \"app/ui/src/screens/first-run/review.ts\": \"e2edc264027b7913f719af91d840c08922a06e6f0c9fa6b5ef1983298f781572\",\n    \"app/ui/tests/first-run/engine-join.fixture.ts\": \"c0a0c996525d33177289dab9d9926a1c4c4739395b6ea7d87ab2cc7b33ed9f75\",\n    \"app/ui/tests/first-run/engine-join.test.ts\": \"806558e26c24e94cc1e7a30b98e6be02b609885717f7cbd40a806b0a8c9ea357\",\n    \"platform/runtime/engine.ts\": \"13409cb8e4968e5d8dc94c5c5652f4a8c0ca0c45a4341bae010142308e1824d5\",\n    \"platform/runtime/ontology.ts\": \"35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede\",\n    \"platform/runtime/compiled-calculation.ts\": \"8d7628a5a84ccd86427f6dd88b3ee43820bf420fc1d545326a414fccfb48c829\",\n    \"app/desktop/preload.cjs\": \"a707bb382f76057d26a5e425e05b9d5e65d09ac2a6d7a2e0de6d3f9a843e4cb1\",\n    \"app/ui/src/bridge/client.ts\": \"8235f844fcc2d87e60df590a9e5d81540eec71e38b957705b1c546d46dbe3d9f\"\n  },\n  \"sourceStable\": true,\n  \"probes\": [\n    {\n      \"name\": \"actual committed receipt null cannot resolve or retry the attempt\",\n      \"refusedCode\": \"PUBLISH_UNKNOWN\",\n      \"publishDispatches\": 1,\n      \"identityCreations\": 1,\n      \"finalState\": \"published\",\n      \"status\": \"passed\"\n    },\n    {\n      \"name\": \"actual committed receipt missing-key cannot resolve or retry the attempt\",\n      \"refusedCode\": \"INVALID_REPLY\",\n      \"publishDispatches\": 1,\n      \"identityCreations\": 1,\n      \"finalState\": \"published\",\n      \"status\": \"passed\"\n    },\n    {\n      \"name\": \"recomputed dictionary and artifact hashes cannot conceal a wrong definition hash in receipt history\",\n      \"refusedCode\": \"READBACK_MISMATCH\",\n      \"publishDispatches\": 1,\n      \"finalState\": \"published\",\n      \"status\": \"passed\"\n    },\n    {\n      \"name\": \"exact ordered drafts survive real CAS while changed-pack pins dispatch nothing\",\n      \"stalePinCode\": \"DIGEST_STALE\",\n      \"orderedKeys\": [\n        \"definitions\",\n        \"fields\",\n        \"gstMode\",\n        \"currency\",\n        \"label\",\n        \"pack\"\n      ],\n      \"publishDispatches\": 1,\n      \"identityCreations\": 1,\n      \"finalState\": \"published\",\n      \"status\": \"passed\"\n    },\n    {\n      \"name\": \"an actual competing commit yields a definite source CAS refusal without automatic replay\",\n      \"sourceCode\": \"DICTIONARY_CONFLICT\",\n      \"classification\": \"PUBLISH_REFUSED\",\n      \"publishDispatches\": 1,\n      \"subsequentCode\": \"CONTEXT_CHANGED\",\n      \"status\": \"passed\"\n    },\n    {\n      \"name\": \"a later actual lookup refusal cannot release a committed attempt as noncommit\",\n      \"laterSourceCode\": \"INVALID_DICTIONARY_OPTIONS\",\n      \"stateBeforeRecovery\": \"unknown\",\n      \"publishDispatches\": 1,\n      \"finalState\": \"published\",\n      \"status\": \"passed\"\n    }\n  ],\n  \"status\": \"passed\"\n}\n",
+      "parsed": {
+        "kind": "independent-actual-Engine-falsification",
+        "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-cas-join",
+        "before": {
+          "app/ui/src/screens/first-run/contracts.ts": "bfe37efd5f87a7dc39f78369e27094fb424a16c69bf9c3c09859095cbdefbe7d",
+          "app/ui/src/screens/first-run/controller.ts": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+          "app/ui/src/screens/first-run/digest.ts": "1953bca94d38a36695be6dc103dedbccb1f7bf5638969bfb4a8b4e7d29821076",
+          "app/ui/src/screens/first-run/review.ts": "e2edc264027b7913f719af91d840c08922a06e6f0c9fa6b5ef1983298f781572",
+          "app/ui/tests/first-run/engine-join.fixture.ts": "c0a0c996525d33177289dab9d9926a1c4c4739395b6ea7d87ab2cc7b33ed9f75",
+          "app/ui/tests/first-run/engine-join.test.ts": "806558e26c24e94cc1e7a30b98e6be02b609885717f7cbd40a806b0a8c9ea357",
+          "platform/runtime/engine.ts": "13409cb8e4968e5d8dc94c5c5652f4a8c0ca0c45a4341bae010142308e1824d5",
+          "platform/runtime/ontology.ts": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+          "platform/runtime/compiled-calculation.ts": "8d7628a5a84ccd86427f6dd88b3ee43820bf420fc1d545326a414fccfb48c829",
+          "app/desktop/preload.cjs": "a707bb382f76057d26a5e425e05b9d5e65d09ac2a6d7a2e0de6d3f9a843e4cb1",
+          "app/ui/src/bridge/client.ts": "8235f844fcc2d87e60df590a9e5d81540eec71e38b957705b1c546d46dbe3d9f"
+        },
+        "after": {
+          "app/ui/src/screens/first-run/contracts.ts": "bfe37efd5f87a7dc39f78369e27094fb424a16c69bf9c3c09859095cbdefbe7d",
+          "app/ui/src/screens/first-run/controller.ts": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+          "app/ui/src/screens/first-run/digest.ts": "1953bca94d38a36695be6dc103dedbccb1f7bf5638969bfb4a8b4e7d29821076",
+          "app/ui/src/screens/first-run/review.ts": "e2edc264027b7913f719af91d840c08922a06e6f0c9fa6b5ef1983298f781572",
+          "app/ui/tests/first-run/engine-join.fixture.ts": "c0a0c996525d33177289dab9d9926a1c4c4739395b6ea7d87ab2cc7b33ed9f75",
+          "app/ui/tests/first-run/engine-join.test.ts": "806558e26c24e94cc1e7a30b98e6be02b609885717f7cbd40a806b0a8c9ea357",
+          "platform/runtime/engine.ts": "13409cb8e4968e5d8dc94c5c5652f4a8c0ca0c45a4341bae010142308e1824d5",
+          "platform/runtime/ontology.ts": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+          "platform/runtime/compiled-calculation.ts": "8d7628a5a84ccd86427f6dd88b3ee43820bf420fc1d545326a414fccfb48c829",
+          "app/desktop/preload.cjs": "a707bb382f76057d26a5e425e05b9d5e65d09ac2a6d7a2e0de6d3f9a843e4cb1",
+          "app/ui/src/bridge/client.ts": "8235f844fcc2d87e60df590a9e5d81540eec71e38b957705b1c546d46dbe3d9f"
+        },
+        "sourceStable": true,
+        "probes": [
+          {
+            "name": "actual committed receipt null cannot resolve or retry the attempt",
+            "refusedCode": "PUBLISH_UNKNOWN",
+            "publishDispatches": 1,
+            "identityCreations": 1,
+            "finalState": "published",
+            "status": "passed"
+          },
+          {
+            "name": "actual committed receipt missing-key cannot resolve or retry the attempt",
+            "refusedCode": "INVALID_REPLY",
+            "publishDispatches": 1,
+            "identityCreations": 1,
+            "finalState": "published",
+            "status": "passed"
+          },
+          {
+            "name": "recomputed dictionary and artifact hashes cannot conceal a wrong definition hash in receipt history",
+            "refusedCode": "READBACK_MISMATCH",
+            "publishDispatches": 1,
+            "finalState": "published",
+            "status": "passed"
+          },
+          {
+            "name": "exact ordered drafts survive real CAS while changed-pack pins dispatch nothing",
+            "stalePinCode": "DIGEST_STALE",
+            "orderedKeys": [
+              "definitions",
+              "fields",
+              "gstMode",
+              "currency",
+              "label",
+              "pack"
+            ],
+            "publishDispatches": 1,
+            "identityCreations": 1,
+            "finalState": "published",
+            "status": "passed"
+          },
+          {
+            "name": "an actual competing commit yields a definite source CAS refusal without automatic replay",
+            "sourceCode": "DICTIONARY_CONFLICT",
+            "classification": "PUBLISH_REFUSED",
+            "publishDispatches": 1,
+            "subsequentCode": "CONTEXT_CHANGED",
+            "status": "passed"
+          },
+          {
+            "name": "a later actual lookup refusal cannot release a committed attempt as noncommit",
+            "laterSourceCode": "INVALID_DICTIONARY_OPTIONS",
+            "stateBeforeRecovery": "unknown",
+            "publishDispatches": 1,
+            "finalState": "published",
+            "status": "passed"
+          }
+        ],
+        "status": "passed"
+      }
+    },
+    "loadGuard": {
+      "command": "@'\nimport { createHash } from 'node:crypto';\nimport { readFile } from 'node:fs/promises';\nimport { resolve } from 'node:path';\nimport { pathToFileURL } from 'node:url';\nconst at = p => pathToFileURL(resolve(p)).href;\nconst { createFirstRunController } = await import(at('app/ui/src/screens/first-run/controller.ts'));\nconst { actualEngineJoin, engineJoinDigest } = await import(at('app/ui/tests/first-run/engine-join.fixture.ts'));\nconst source = 'app/ui/src/screens/first-run/controller.ts';\nconst digest = async () => createHash('sha256').update(await readFile(source)).digest('hex');\nconst before = await digest(), cases = [];\nfor (const stage of ['initial', 'final']) for (const departure of ['cancel', 'invalidate']) {\n const cleanup = [];\n try {\n  const f = await actualEngineJoin({ after: callback => cleanup.push(callback) });\n  let controller, triggered = false, guardCalls = 0;\n  const guard = { live() {\n   guardCalls++;\n   if (!triggered && controller && (stage === 'initial' ? (controller.snapshot().kind === 'idle' && f.count('ui.context') === 0) : (controller.snapshot().kind === 'loading' && f.count('ui.context') === 2))) {\n    triggered = true;\n    if (departure === 'cancel') controller.cancel(); else controller.invalidate('VAULT_LOCKED');\n   }\n   return true;\n  }};\n  controller = createFirstRunController(f.port, { guard, digest: engineJoinDigest });\n  const result = await controller.load();\n  const actual = controller.snapshot();\n  cases.push({ stage, departure, triggered, guardCalls, result, actualState: actual.kind, requests: f.calls.length,\n   metadataRestored: Object.hasOwn(actual, 'context') || Object.hasOwn(actual, 'packs'),\n   expected: { result: { ok:false, code:'READ_INVALIDATED' }, state: departure === 'cancel' ? 'idle' : 'unavailable' },\n   status: triggered && result.ok === false && result.code === 'READ_INVALIDATED' && !Object.hasOwn(actual,'context') ? 'passed':'failed' });\n } catch (error) { cases.push({ stage, departure, status:'error', error: String(error) }); }\n finally { for (const done of cleanup.reverse()) await done(); }\n}\nconst after = await digest();\nconsole.log(JSON.stringify({kind:'independent-guard-load-reentry',before,after,sourceStable:before===after,cases},null,2));\n'@ | node --input-type=module",
+      "exitCode": 0,
+      "stdout": "{\n  \"kind\": \"independent-guard-load-reentry\",\n  \"before\": \"b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664\",\n  \"after\": \"b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664\",\n  \"sourceStable\": true,\n  \"cases\": [\n    {\n      \"stage\": \"initial\",\n      \"departure\": \"cancel\",\n      \"triggered\": true,\n      \"guardCalls\": 1,\n      \"result\": {\n        \"ok\": false,\n        \"code\": \"READ_INVALIDATED\"\n      },\n      \"actualState\": \"idle\",\n      \"requests\": 0,\n      \"metadataRestored\": false,\n      \"expected\": {\n        \"result\": {\n          \"ok\": false,\n          \"code\": \"READ_INVALIDATED\"\n        },\n        \"state\": \"idle\"\n      },\n      \"status\": \"passed\"\n    },\n    {\n      \"stage\": \"initial\",\n      \"departure\": \"invalidate\",\n      \"triggered\": true,\n      \"guardCalls\": 1,\n      \"result\": {\n        \"ok\": false,\n        \"code\": \"READ_INVALIDATED\"\n      },\n      \"actualState\": \"unavailable\",\n      \"requests\": 0,\n      \"metadataRestored\": false,\n      \"expected\": {\n        \"result\": {\n          \"ok\": false,\n          \"code\": \"READ_INVALIDATED\"\n        },\n        \"state\": \"unavailable\"\n      },\n      \"status\": \"passed\"\n    },\n    {\n      \"stage\": \"final\",\n      \"departure\": \"cancel\",\n      \"triggered\": true,\n      \"guardCalls\": 6,\n      \"result\": {\n        \"ok\": false,\n        \"code\": \"READ_INVALIDATED\"\n      },\n      \"actualState\": \"idle\",\n      \"requests\": 4,\n      \"metadataRestored\": false,\n      \"expected\": {\n        \"result\": {\n          \"ok\": false,\n          \"code\": \"READ_INVALIDATED\"\n        },\n        \"state\": \"idle\"\n      },\n      \"status\": \"passed\"\n    },\n    {\n      \"stage\": \"final\",\n      \"departure\": \"invalidate\",\n      \"triggered\": true,\n      \"guardCalls\": 6,\n      \"result\": {\n        \"ok\": false,\n        \"code\": \"READ_INVALIDATED\"\n      },\n      \"actualState\": \"unavailable\",\n      \"requests\": 4,\n      \"metadataRestored\": false,\n      \"expected\": {\n        \"result\": {\n          \"ok\": false,\n          \"code\": \"READ_INVALIDATED\"\n        },\n        \"state\": \"unavailable\"\n      },\n      \"status\": \"passed\"\n    }\n  ]\n}\n",
+      "parsed": {
+        "kind": "independent-guard-load-reentry",
+        "before": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+        "after": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+        "sourceStable": true,
+        "cases": [
+          {
+            "stage": "initial",
+            "departure": "cancel",
+            "triggered": true,
+            "guardCalls": 1,
+            "result": {
+              "ok": false,
+              "code": "READ_INVALIDATED"
+            },
+            "actualState": "idle",
+            "requests": 0,
+            "metadataRestored": false,
+            "expected": {
+              "result": {
+                "ok": false,
+                "code": "READ_INVALIDATED"
+              },
+              "state": "idle"
+            },
+            "status": "passed"
+          },
+          {
+            "stage": "initial",
+            "departure": "invalidate",
+            "triggered": true,
+            "guardCalls": 1,
+            "result": {
+              "ok": false,
+              "code": "READ_INVALIDATED"
+            },
+            "actualState": "unavailable",
+            "requests": 0,
+            "metadataRestored": false,
+            "expected": {
+              "result": {
+                "ok": false,
+                "code": "READ_INVALIDATED"
+              },
+              "state": "unavailable"
+            },
+            "status": "passed"
+          },
+          {
+            "stage": "final",
+            "departure": "cancel",
+            "triggered": true,
+            "guardCalls": 6,
+            "result": {
+              "ok": false,
+              "code": "READ_INVALIDATED"
+            },
+            "actualState": "idle",
+            "requests": 4,
+            "metadataRestored": false,
+            "expected": {
+              "result": {
+                "ok": false,
+                "code": "READ_INVALIDATED"
+              },
+              "state": "idle"
+            },
+            "status": "passed"
+          },
+          {
+            "stage": "final",
+            "departure": "invalidate",
+            "triggered": true,
+            "guardCalls": 6,
+            "result": {
+              "ok": false,
+              "code": "READ_INVALIDATED"
+            },
+            "actualState": "unavailable",
+            "requests": 4,
+            "metadataRestored": false,
+            "expected": {
+              "result": {
+                "ok": false,
+                "code": "READ_INVALIDATED"
+              },
+              "state": "unavailable"
+            },
+            "status": "passed"
+          }
+        ]
+      }
+    },
+    "entryGuard": {
+      "command": "@'\nimport { createHash } from 'node:crypto';\nimport { readFile } from 'node:fs/promises';\nimport { resolve } from 'node:path';\nimport { pathToFileURL } from 'node:url';\nconst at=p=>pathToFileURL(resolve(p)).href;\nconst {createFirstRunController}=await import(at('app/ui/src/screens/first-run/controller.ts'));\nconst {pinOf}=await import(at('app/ui/src/screens/first-run/review.ts'));\nconst {actualEngineJoin,engineJoinDigest}=await import(at('app/ui/tests/first-run/engine-join.fixture.ts'));\nconst digest=async()=>createHash('sha256').update(await readFile('app/ui/src/screens/first-run/controller.ts')).digest('hex');\nconst before=await digest(),cases=[];\nfor(const operation of ['settings','publish']) for(const departure of ['cancel','invalidate']){\n const cleanup=[];\n try {\n  const f=await actualEngineJoin({after:callback=>cleanup.push(callback)});\n  let controller,armed=false,triggered=false;\n  const guard={live(){\n   if(armed&&!triggered){triggered=true;if(departure==='cancel')controller.cancel();else controller.invalidate('VAULT_LOCKED');}\n   return true;\n  }};\n  controller=createFirstRunController(f.port,{guard,digest:engineJoinDigest,createAttemptId:()=> 'independent-reentry-'+operation+'-'+departure});\n  await controller.load();controller.choosePack('retail');\n  for(let i=0;i<64;i++)await Promise.resolve();\n  const review=controller.snapshot().review,pin=pinOf(review);\n  for(const row of review.rows)controller.acceptRow(row.definition.name,pin);\n  controller.acceptSettings(pin);armed=true;\n  let result,leaked=false;\n  if(operation==='settings'){\n   const response=controller.leaveToSettings(review.revision);\n   if(response.ok)leaked=response.admit()!==null;\n   result=response.ok?{ok:true,admitted:leaked}:response;\n  }else result=await controller.publishDictionary(pin);\n  cases.push({operation,departure,triggered,result,state:controller.snapshot().kind,\n   publishDispatches:f.count('ontology.publish'),settingsAdmitted:leaked,\n   status:triggered && !leaked && f.count('ontology.publish')===0 && result.ok===false ? 'passed':'failed'});\n }catch(error){cases.push({operation,departure,status:'error',error:String(error)});}\n finally{for(const done of cleanup.reverse())await done();}\n}\nconst after=await digest();console.log(JSON.stringify({kind:'independent-entry-guard-reentry',before,after,sourceStable:before===after,cases},null,2));\n'@ | node --input-type=module",
+      "exitCode": 0,
+      "stdout": "{\n  \"kind\": \"independent-entry-guard-reentry\",\n  \"before\": \"b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664\",\n  \"after\": \"b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664\",\n  \"sourceStable\": true,\n  \"cases\": [\n    {\n      \"operation\": \"settings\",\n      \"departure\": \"cancel\",\n      \"triggered\": true,\n      \"result\": {\n        \"ok\": false,\n        \"code\": \"READ_INVALIDATED\"\n      },\n      \"state\": \"idle\",\n      \"publishDispatches\": 0,\n      \"settingsAdmitted\": false,\n      \"status\": \"passed\"\n    },\n    {\n      \"operation\": \"settings\",\n      \"departure\": \"invalidate\",\n      \"triggered\": true,\n      \"result\": {\n        \"ok\": false,\n        \"code\": \"READ_INVALIDATED\"\n      },\n      \"state\": \"unavailable\",\n      \"publishDispatches\": 0,\n      \"settingsAdmitted\": false,\n      \"status\": \"passed\"\n    },\n    {\n      \"operation\": \"publish\",\n      \"departure\": \"cancel\",\n      \"triggered\": true,\n      \"result\": {\n        \"ok\": false,\n        \"code\": \"READ_INVALIDATED\"\n      },\n      \"state\": \"idle\",\n      \"publishDispatches\": 0,\n      \"settingsAdmitted\": false,\n      \"status\": \"passed\"\n    },\n    {\n      \"operation\": \"publish\",\n      \"departure\": \"invalidate\",\n      \"triggered\": true,\n      \"result\": {\n        \"ok\": false,\n        \"code\": \"READ_INVALIDATED\"\n      },\n      \"state\": \"unavailable\",\n      \"publishDispatches\": 0,\n      \"settingsAdmitted\": false,\n      \"status\": \"passed\"\n    }\n  ]\n}\n",
+      "parsed": {
+        "kind": "independent-entry-guard-reentry",
+        "before": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+        "after": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+        "sourceStable": true,
+        "cases": [
+          {
+            "operation": "settings",
+            "departure": "cancel",
+            "triggered": true,
+            "result": {
+              "ok": false,
+              "code": "READ_INVALIDATED"
+            },
+            "state": "idle",
+            "publishDispatches": 0,
+            "settingsAdmitted": false,
+            "status": "passed"
+          },
+          {
+            "operation": "settings",
+            "departure": "invalidate",
+            "triggered": true,
+            "result": {
+              "ok": false,
+              "code": "READ_INVALIDATED"
+            },
+            "state": "unavailable",
+            "publishDispatches": 0,
+            "settingsAdmitted": false,
+            "status": "passed"
+          },
+          {
+            "operation": "publish",
+            "departure": "cancel",
+            "triggered": true,
+            "result": {
+              "ok": false,
+              "code": "READ_INVALIDATED"
+            },
+            "state": "idle",
+            "publishDispatches": 0,
+            "settingsAdmitted": false,
+            "status": "passed"
+          },
+          {
+            "operation": "publish",
+            "departure": "invalidate",
+            "triggered": true,
+            "result": {
+              "ok": false,
+              "code": "READ_INVALIDATED"
+            },
+            "state": "unavailable",
+            "publishDispatches": 0,
+            "settingsAdmitted": false,
+            "status": "passed"
+          }
+        ]
+      }
+    },
+    "nodeTests": {
+      "command": "node --test --test-reporter=spec app/ui/tests/first-run/contracts.test.ts app/ui/tests/first-run/review.test.ts app/ui/tests/first-run/controller.test.ts app/ui/tests/first-run/engine-join.test.ts",
+      "exitCode": 0,
+      "stdout": "✔ the six Engine starter packs validate in Engine order, exactly six, and come back frozen and detached (36.3575ms)\n✔ malformed, inherited, accessor, oversized and unsafe pack data is refused (11.755ms)\n✔ a compiled dictionary validates, its Engine hash and compiled artifact hashes are verified over its exact content, and tampering is detected (52.3992ms)\n✔ a compiled sum digest is over the compiler's fixed field order, exactly as the Engine reconstructs it: a reordered artifact digested over its wire order is refused with the Engine, a reordered artifact with the compiler digest is accepted with the Engine (18.8906ms)\n✔ ontology.get is the current/history envelope at this HEAD; a custom published identity is accepted there; a bare dictionary is refused (4.7164ms)\n✔ exact attempt lookup preserves an original history receipt after current advances (5.63ms)\n✔ attempt lookup requires eight ordinary receipt fields and one exact history result (29.067ms)\n✔ declared publication refusals preserve fixed codes and unknown errors do not (0.771ms)\n✔ a changed meaning keeps every other binding, the key order and the other definitions exactly (1.1976ms)\n✔ authority identity and failure mapping are fixed codes, never raw errors (0.968ms)\n✔ load reads context, packs and the current dictionary between two matching context reads (30.378ms)\n✔ with no guard there is no authority: nothing is read and every operation refuses (1.428ms)\n✔ accountant and viewer seats are read only: one context read, no packs, no mutation control (1.0197ms)\n✔ a changed Engine state, a changed seat, or an unverifiable current dictionary during the load clears the read (14.9945ms)\n✔ a valid custom published identity is tolerated as current and is never offered as a starter (13.2259ms)\n✔ choosing a pack starts a review with a generation and a SHA-256 review digest over the exact draft JSON (1.8139ms)\n✔ Publish is refused until every row and the settings are accepted; nothing is sent before that (1.7412ms)\n✔ a reviewed publish is issued once, verified by hash, artifacts, draft equality, version, author and readback, and adopts the new contextKey (9.3578ms)\n✔ before dispatch the draft is rehashed first, then one fresh context is read, then the raw call follows with nothing awaited between (7.211ms)\n✔ a contextKey change during the rehash is caught by the final context read: nothing is dispatched (6.2874ms)\n✔ a changed meaning resets only its row and the revision, is sent exactly, and the Engine publication carries it (10.0579ms)\n✔ a rendered control names its review: a same-pack round trip, an old editor and an old Publish press are all refused (6.4734ms)\n✔ a departure during the context read before publish issues nothing and hides the review (1.858ms)\n✔ a changed contextKey or seat before publish refuses the mutation and clears the review (3.498ms)\n✔ a rehash that no longer equals the reviewed digest stops the publish before dispatch (1.6217ms)\n✔ cancelling after the raw call is issued cannot retract it: the public state is neutral, the latch and then the unresolved fence hold, and only a readback adopts (7.6807ms)\n✔ a lock after the raw call keeps the attempt private: neutral public state, fenced replay, and a later trusted readback adopts only this attempt (8.2707ms)\n✔ a lost reply recovers only through its receipt; null stays unknown and a historical receipt proves supersession (24.9258ms)\n✔ a pre-existing identical dictionary is never mistaken for the lost publication (4.4535ms)\n✔ the reviewed bytes current as a new revision by another author stay unresolved: no proof names this attempt (3.9072ms)\n✔ a separate identical publication by the same seat after our raw call failed without a commit is never adopted as ours (5.2872ms)\n✔ a validated raw reply adds a private attribution pin even after a cancel; the receipt must identify exactly that dictionary (12.8695ms)\n✔ an observer that locks inside the issued event cannot withhold a call that was issued, and the event order is truthful: dispatch, then issued, then a neutral settlement (6.254ms)\n✔ an observer that locks inside the resolved event has the last word: no verdict resurrects the published or held state afterwards (10.311ms)\n✔ every authority or surface loss the controller detects itself hides the held decisions, exactly as a parent lock does (11.7101ms)\n✔ a background digest that lands after the guard went dead hides the review instead of releasing it (1.7351ms)\n✔ dispose seals the controller before any observer is told, and refuses while an attempt is pinned (8.1607ms)\n✔ Continue is a controller-checked departure: the exact rendered publication, a live guard and an unchanged fresh context, cancelled before the handoff is handed over, once (28.3995ms)\n✔ the settings change is a controller-checked departure for the exact rendered review revision, cancelled before the draft is handed over (6.0362ms)\n✔ LEFT observers end a departure before any handoff or settings draft can be admitted (21.7709ms)\n✔ admission at the actual callback closes the queued microtask gap and is consumed even when refused (19.9505ms)\n✔ a valid admission invokes the parent once while LEFT, and an earlier departure cannot admit during a later LEFT (6.5612ms)\n✔ failed raw continuations neutralize a dead guard without losing the private unresolved fence or retrying (6.7247ms)\n✔ preflight digest and context rejections with guard loss hide the full review and issue no effect (3.1658ms)\n✔ a reconcile context rejection with guard loss hides attempt metadata, pins replay and permits only a later authorized readback (3.6097ms)\n✔ a readback is adopted only if the context is unchanged after every digest await: a change during verification releases nothing (10.0975ms)\n✔ the Engine refusing the dictionary is known not to have committed and returns the review with its code (4.2858ms)\n✔ a refusal code thrown by a later read is not proof of no commit: it stays unresolved (3.7586ms)\n✔ a reply whose draft, hash, artifacts, version or author does not match, or a readback that differs, is unresolved and never adopted (21.5491ms)\n✔ a pack change, a lock, a read-only turn and a dispose each drop every decision and keep late evidence out (3.1765ms)\n✔ a late digest for an earlier draft never lands on a newer review (0.9123ms)\n✔ publishing again over an existing dictionary reports the current one, pins it as the baseline and makes the next version (6.4931ms)\n✔ attempt IDs are generated once and remain private and stable while a null lookup waits for a later commit (3.4115ms)\n✔ the injected attempt factory cannot issue after cancelling, locking, disposing or killing the live guard (4.1517ms)\n✔ a competing publication after preflight is atomically refused against the pinned baseline (2.4272ms)\n✔ every receipt binding must match the private attempt; invalid lookup evidence never releases it (24.447ms)\n✔ a known refusal during receipt lookup remains unknown, while the same code at raw dispatch proves noncommit (18.6653ms)\n✔ a scoped attempt authority rejection hides decisions even while the local guard is live (8.7073ms)\n✔ an identical retained payload returns its original dictionary after supersession without enabling an old handoff (6.8143ms)\n✔ a receipt cannot adopt an inconsistent current/history pair or an unchanged publication context (13.1865ms)\n✔ missing or null attempt lookup evidence never releases the attempt even after a matching dictionary committed (9.0443ms)\n✔ selected historical receipt evidence must verify its whole hash and compiled proof before releasing the attempt (13.4959ms)\n✔ a final live guard that synchronously cancels or locks cannot resurrect publication decisions (11.472ms)\n✔ reentry from every load guard preserves cancellation, lock or disposal and stops the next read (9.5397ms)\n✔ entry guards cannot revive captured reviews, attempts, handoffs or settings drafts after cancelling or locking (32.0936ms)\n✔ a guard that replaces the review cannot apply a captured decision or digest failure to the new review (2.0119ms)\n✔ an observer that ends loading or reconciliation prevents its first context read (2.0668ms)\n✔ actual Engine deferred first-run publishes exact reviewed bytes and returns the scoped eight-field receipt (634.5289ms)\n✔ an accepted actual Engine publication queued behind a Vault snapshot stays unknown when its lookup is null (122.2166ms)\n✔ a dropped reply after actual Engine commit is recovered by the own attempt receipt without a retry (112.3866ms)\n▶ actual Engine CAS refuses a competing commit after the final context read; a generic failure remains unknown\n  ✔ real competing publication (110.5545ms)\n  ✔ generic failure with a currently empty lookup (101.4787ms)\n✔ actual Engine CAS refuses a competing commit after the final context read; a generic failure remains unknown (212.752ms)\n✔ actual Engine idempotency returns its historical commit while the controller refuses Continue for a newer current dictionary (134.884ms)\n✔ actual Engine receipt scope refuses another actor and a new epoch before releasing evidence (134.1823ms)\n▶ altering one scope field of an actual receipt never attributes that publication to this UI attempt\n  ✔ workspaceId (119.1855ms)\n  ✔ memberId (117.6124ms)\n  ✔ epoch (111.8352ms)\n  ✔ attemptId (111.237ms)\n  ✔ draftDigest (116.3465ms)\n  ✔ expectedCurrentHash (115.2285ms)\n  ✔ dictionaryHash (125.9154ms)\n  ✔ version (115.3073ms)\n✔ altering one scope field of an actual receipt never attributes that publication to this UI attempt (934.41ms)\n✔ a later actual Engine lookup refusal cannot prove that the earlier publication did not commit (123.1354ms)\n▶ cancel and actual lock hide a delayed publication reply while retaining one ID, draft and baseline across remount\n  ✔ cancel (160.4136ms)\n  ✔ lock (254.6494ms)\n✔ cancel and actual lock hide a delayed publication reply while retaining one ID, draft and baseline across remount (416.2035ms)\n✔ a changed pack invalidates retained clicks and a cancelled late actual read cannot restore the earlier review (134.9965ms)\n✔ a new review proposes everything, accepts nothing, has no digest yet and carries its generation (21.8071ms)\n✔ only an Accept with the current revision and digest accepts, and it pins the exact definition text (2.3333ms)\n✔ all rows plus the settings make the review complete; a pack change starts from nothing with a new generation (3.0104ms)\n✔ a changed meaning resets only that row, clears the digest, moves the revision, keeps the original text and the other bindings (2.4217ms)\nℹ tests 93\nℹ suites 0\nℹ pass 93\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 3287.2942\n",
+      "parsed": null
+    }
+  },
+  "priorCandidateHistory": {
+    "status": "Historical failures fixed on reviewed current source; these are not the current verdict",
+    "controller": "1a9b00331f0f3752326d0312789805731af9a2592a62924921431dfd7c46e822",
+    "actualEngineCasReceiptProbes": {
+      "count": 6,
+      "status": "passed",
+      "sourceStable": true
+    },
+    "guardLoad": {
+      "kind": "independent-guard-load-reentry",
+      "before": "1a9b00331f0f3752326d0312789805731af9a2592a62924921431dfd7c46e822",
+      "after": "1a9b00331f0f3752326d0312789805731af9a2592a62924921431dfd7c46e822",
+      "sourceStable": true,
+      "cases": [
+        {
+          "departure": "cancel",
+          "triggered": true,
+          "guardCalls": 6,
+          "result": {
+            "ok": true
+          },
+          "actualState": "choose",
+          "metadataRestored": true,
+          "expected": {
+            "result": {
+              "ok": false,
+              "code": "READ_INVALIDATED"
+            },
+            "state": "idle"
+          },
+          "status": "failed"
+        },
+        {
+          "departure": "invalidate",
+          "triggered": true,
+          "guardCalls": 6,
+          "result": {
+            "ok": true
+          },
+          "actualState": "choose",
+          "metadataRestored": true,
+          "expected": {
+            "result": {
+              "ok": false,
+              "code": "READ_INVALIDATED"
+            },
+            "state": "unavailable"
+          },
+          "status": "failed"
+        }
+      ]
+    },
+    "guardEntry": {
+      "kind": "independent-entry-guard-reentry",
+      "before": "1a9b00331f0f3752326d0312789805731af9a2592a62924921431dfd7c46e822",
+      "after": "1a9b00331f0f3752326d0312789805731af9a2592a62924921431dfd7c46e822",
+      "sourceStable": true,
+      "cases": [
+        {
+          "operation": "settings",
+          "departure": "cancel",
+          "triggered": true,
+          "result": {
+            "ok": true,
+            "admitted": true
+          },
+          "state": "left",
+          "publishDispatches": 0,
+          "settingsAdmitted": true,
+          "status": "failed"
+        },
+        {
+          "operation": "settings",
+          "departure": "invalidate",
+          "triggered": true,
+          "result": {
+            "ok": true,
+            "admitted": true
+          },
+          "state": "left",
+          "publishDispatches": 0,
+          "settingsAdmitted": true,
+          "status": "failed"
+        },
+        {
+          "operation": "publish",
+          "departure": "cancel",
+          "triggered": true,
+          "result": {
+            "ok": true
+          },
+          "state": "published",
+          "publishDispatches": 1,
+          "settingsAdmitted": false,
+          "status": "failed"
+        },
+        {
+          "operation": "publish",
+          "departure": "invalidate",
+          "triggered": true,
+          "result": {
+            "ok": true
+          },
+          "state": "published",
+          "publishDispatches": 1,
+          "settingsAdmitted": false,
+          "status": "failed"
+        }
+      ]
+    }
+  },
+  "staticSharedAudit": {
+    "command": "PowerShell literal stdin here-string | node --input-type=module",
+    "program": "import {readFileSync} from 'node:fs';\nimport {createHash} from 'node:crypto';\nconst h=p=>createHash('sha256').update(readFileSync(p)).digest('hex');\nconst p=['app/ui/src/screens/first-run/controller.ts','app/ui/src/screens/first-run/contracts.ts','app/ui/tests/first-run/controller.test.ts','app/ui/tests/first-run/contracts.test.ts','app/ui/tests/first-run/review.test.ts','app/ui/tests/first-run/engine-join.fixture.ts','app/ui/tests/first-run/engine-join.test.ts','app/ui/tests/first-run/fixture.ts','app/ui/design-screen-inventory.json','scripts/check-ui-source.mjs','platform/runtime/ontology.ts','platform/runtime/engine.ts','app/desktop/preload.cjs','app/ui/src/bridge/client.ts'];\nconst source=readFileSync(p[1],'utf8');\nconst block=source.match(/ENGINE_DICTIONARY_REFUSALS[^=]*=\\s*(?:Object\\.freeze\\()?(\\[[\\s\\S]*?\\])/)[1];\nconst codes=[...block.matchAll(/'([A-Z_]+)'/g)].map(m=>m[1]);\nconst sets={};\nfor(const file of p.slice(-2)){\n const text=readFileSync(file,'utf8'),name=file.endsWith('preload.cjs')?'refusalCodes':'desktopRefusalCodes';\n const block=text.match(new RegExp(name+'\\\\s*=\\\\s*(?:new Set\\\\()?\\\\[([\\\\s\\\\S]*?)\\\\]'))[1];\n const declared=[...block.matchAll(/'([A-Z_]+)'/g)].map(m=>m[1]);\n sets[file]={sourceHash:h(file),declared,missing:codes.filter(c=>!declared.includes(c)),intersection:codes.filter(c=>declared.includes(c))};\n}\nconsole.log(JSON.stringify({cwd:process.cwd(),observedAt:new Date().toISOString(),sourceHashes:Object.fromEntries(p.map(f=>[f,h(f)])),codes,sets},null,2));",
+    "exitCode": 0,
+    "result": {
+      "cwd": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-cas-join",
+      "observedAt": "2026-10-04T09:20:23.082Z",
+      "sourceHashes": {
+        "app/ui/src/screens/first-run/controller.ts": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+        "app/ui/src/screens/first-run/contracts.ts": "bfe37efd5f87a7dc39f78369e27094fb424a16c69bf9c3c09859095cbdefbe7d",
+        "app/ui/tests/first-run/controller.test.ts": "edbd042d48b4be0219a281751e66b1a06bdce103d665ff595d96998091db698e",
+        "app/ui/tests/first-run/contracts.test.ts": "9ec3af794361c52e70cc591e55631862501e60c6bfc92938bf17c9afbf2299a5",
+        "app/ui/tests/first-run/review.test.ts": "db9d81c5ee64dca6c382b653e50030114359eec215e83f376a30da9d9edaecc6",
+        "app/ui/tests/first-run/engine-join.fixture.ts": "c0a0c996525d33177289dab9d9926a1c4c4739395b6ea7d87ab2cc7b33ed9f75",
+        "app/ui/tests/first-run/engine-join.test.ts": "806558e26c24e94cc1e7a30b98e6be02b609885717f7cbd40a806b0a8c9ea357",
+        "app/ui/tests/first-run/fixture.ts": "f10bce1b3904cabbcc63630b55153f26e059ec92c02511eab52289af3a42492b",
+        "app/ui/design-screen-inventory.json": "71f9d7ea1481625e959860036a966ba5b73565ed9be6748e1eed87ae1f26d77b",
+        "scripts/check-ui-source.mjs": "ddfbdff01b4b02353769a6a5b3b888bd7ecd8c6a9074203b29190dbe2a4dbe1f",
+        "platform/runtime/ontology.ts": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+        "platform/runtime/engine.ts": "13409cb8e4968e5d8dc94c5c5652f4a8c0ca0c45a4341bae010142308e1824d5",
+        "app/desktop/preload.cjs": "a707bb382f76057d26a5e425e05b9d5e65d09ac2a6d7a2e0de6d3f9a843e4cb1",
+        "app/ui/src/bridge/client.ts": "8235f844fcc2d87e60df590a9e5d81540eec71e38b957705b1c546d46dbe3d9f"
+      },
+      "codes": [
+        "INVALID_DICTIONARY",
+        "INVALID_CURRENCY",
+        "INVALID_GST_MODE",
+        "INVALID_FIELD",
+        "INVALID_DEFINITION",
+        "RESERVED_MEASURE",
+        "UNKNOWN_PACK",
+        "COMPILED_SUM_INVALID",
+        "INVALID_DICTIONARY_OPTIONS",
+        "INVALID_DICTIONARY_RECEIPT",
+        "DICTIONARY_REVIEW_REQUIRED",
+        "DICTIONARY_CONFLICT",
+        "DICTIONARY_ATTEMPT_REUSED",
+        "DICTIONARY_ATTEMPT_AUTHORITY"
+      ],
+      "sets": {
+        "app/desktop/preload.cjs": {
+          "sourceHash": "a707bb382f76057d26a5e425e05b9d5e65d09ac2a6d7a2e0de6d3f9a843e4cb1",
+          "declared": [
+            "INVALID_REPLY",
+            "READ_INVALIDATED",
+            "ACCESS_DENIED",
+            "VAULT_LOCKED",
+            "UNAUTHENTICATED",
+            "EVIDENCE_UNAVAILABLE",
+            "ACCESS_REVOKED",
+            "SOURCE_REVOKED",
+            "BRANCH_FORBIDDEN",
+            "RECEIPT_FORBIDDEN",
+            "FORBIDDEN",
+            "RECEIPT_NOT_FOUND",
+            "INVALID_SESSION",
+            "ROUTE_REVOKED",
+            "OUTBOUND_APPROVAL_REQUIRED",
+            "CONVERSATION_CONTINUATION_RESOLVED",
+            "CONVERSATION_CONTINUATION_LIMIT",
+            "PREVIEW_STALE",
+            "PAYLOAD_CHANGED",
+            "PREVIEW_REQUEST_CHANGED",
+            "SYNTHESIS_STALE",
+            "CONVERSATION_CONTINUATION_STALE",
+            "MODEL_RECEIPT_EXPIRED",
+            "CALCULATION_STALE",
+            "CONVERSATION_NOT_FOUND",
+            "CONVERSATION_CONTINUATION_UNAVAILABLE",
+            "MODEL_RECEIPT_NOT_FOUND",
+            "SYNTHESIS_UNAVAILABLE",
+            "SCENARIO_UNAVAILABLE",
+            "SCENARIO_REVISION_UNAVAILABLE",
+            "SCENARIO_EVIDENCE_UNAVAILABLE",
+            "SCENARIO_FORBIDDEN",
+            "SCENARIO_AUTHORITY_CHANGED",
+            "SCENARIO_ARTIFACT_CHANGED",
+            "SCENARIO_RETENTION_EXPIRED",
+            "SCENARIO_HOST_REQUIRED",
+            "SCENARIO_CUSTODY_INVALID",
+            "SCENARIO_CUSTODY_CONFLICT",
+            "SCENARIO_TAINTED_CONTEXT",
+            "SCENARIO_WORKSPACE_CHANGED",
+            "SCENARIO_RUN_UNAVAILABLE",
+            "SCENARIO_READ_ONLY",
+            "SCENARIO_HEAD_CHANGED",
+            "SCENARIO_JOB_UNAVAILABLE",
+            "SCENARIO_BRANCH_UNAVAILABLE",
+            "SCENARIO_GRAPH_INVALID",
+            "SCENARIO_VECTOR_MISMATCH",
+            "INVALID_SCENARIO",
+            "LESSON_AUTHORITY_REQUIRED",
+            "LESSON_AUTHORITY_REVISION_REQUIRED",
+            "LESSON_AUTHORITY_CHANGED",
+            "LESSON_REVIEW_CHANGED",
+            "LESSON_EVALUATION_BLOCKED",
+            "EVALUATION_AUTHORITY_REQUIRED",
+            "EVALUATION_CHANGED",
+            "EVALUATION_CANDIDATE_MISMATCH",
+            "EVALUATION_PROVENANCE_REQUIRED",
+            "EVALUATION_COMPARISON_MISMATCH",
+            "INVALID_LESSON_EVALUATION",
+            "LESSON_EVIDENCE_UNAVAILABLE",
+            "LESSON_EVIDENCE_CHANGED",
+            "LESSON_TARGET_CHANGED",
+            "LESSON_OWNER_REQUIRED",
+            "LESSON_WORKSPACE_CHANGED",
+            "LESSON_NOT_FOUND",
+            "LESSON_CHANGED",
+            "INVALID_LESSON",
+            "INVALID_LESSON_DECISION",
+            "INVALID_LESSON_STATE",
+            "INVALID_LESSON_TARGET",
+            "APP_LESSON_REVIEW_REQUIRED",
+            "TAINTED_LESSON",
+            "LESSON_CONFLICT",
+            "INVALID_SUPERSESSION",
+            "TODAY_INVALID_REQUEST",
+            "INVALID_TODAY_REQUEST",
+            "TODAY_AUTHORITY_REQUIRED",
+            "TODAY_HOST_AUTHORITY_REQUIRED",
+            "TODAY_SERVICE_REQUIRED",
+            "TODAY_AUTHORITY_STORE_MISMATCH",
+            "TODAY_AUTHORITY_UNAVAILABLE",
+            "TODAY_AUTHORITY_CHANGED",
+            "TODAY_READ_ONLY",
+            "TODAY_SELECTION_POLICY_REQUIRED",
+            "TODAY_SELECTION_INVALID",
+            "TODAY_CONFIGURATION_INVALID",
+            "TODAY_PREPARATION_FORBIDDEN",
+            "TODAY_CAPTURE_UNAVAILABLE",
+            "TODAY_TILES_SERVICE_UNAVAILABLE",
+            "TODAY_TILES_CALCULATOR_REQUIRED",
+            "TODAY_TILES_INVALID_REQUEST",
+            "TODAY_TILES_DEFINITION_CHANGED",
+            "TODAY_TILES_INPUT_CHANGED",
+            "TODAY_TILES_RECEIPT_CHANGED",
+            "TODAY_TILES_HELD_RESULT_FORBIDDEN",
+            "TODAY_TILES_RECEIPT_MISMATCH",
+            "TODAY_TILES_RETENTION_EXPIRED",
+            "TODAY_ATTENTION_SERVICE_UNAVAILABLE",
+            "INVALID_TODAY_ATTENTION",
+            "TODAY_ATTENTION_STALE",
+            "TODAY_ATTENTION_REFERENCE_UNAVAILABLE",
+            "TODAY_EVENTS_SERVICE_UNAVAILABLE",
+            "INVALID_TODAY_DAY",
+            "INVALID_TODAY_EVENT_REFERENCE",
+            "TODAY_VIEW_CHANGED",
+            "TODAY_HELD_RESULT_FORBIDDEN",
+            "TODAY_EVENT_REFERENCE_UNAVAILABLE",
+            "TODAY_REVIEW_SERVICE_UNAVAILABLE",
+            "REVIEW_WORKSPACE_CHANGED",
+            "REVIEW_AUTHORITY_UNAVAILABLE",
+            "REVIEW_AUTHORITY_CHANGED",
+            "INVALID_REVIEW_PAGE",
+            "REVIEW_QUEUE_CHANGED",
+            "REVIEW_REFERENCE_UNAVAILABLE",
+            "INVALID_JOB_ACCEPTANCE_REFERENCE",
+            "PREVIEW_CHANGED",
+            "JOB_EVIDENCE_REVOKED",
+            "INVALID_REQUEST",
+            "REQUEST_TOO_LARGE",
+            "UNTRUSTED_SENDER",
+            "REQUEST_FAILED"
+          ],
+          "missing": [
+            "INVALID_DICTIONARY",
+            "INVALID_CURRENCY",
+            "INVALID_GST_MODE",
+            "INVALID_FIELD",
+            "INVALID_DEFINITION",
+            "RESERVED_MEASURE",
+            "UNKNOWN_PACK",
+            "COMPILED_SUM_INVALID",
+            "INVALID_DICTIONARY_OPTIONS",
+            "INVALID_DICTIONARY_RECEIPT",
+            "DICTIONARY_REVIEW_REQUIRED",
+            "DICTIONARY_CONFLICT",
+            "DICTIONARY_ATTEMPT_REUSED",
+            "DICTIONARY_ATTEMPT_AUTHORITY"
+          ],
+          "intersection": []
+        },
+        "app/ui/src/bridge/client.ts": {
+          "sourceHash": "8235f844fcc2d87e60df590a9e5d81540eec71e38b957705b1c546d46dbe3d9f",
+          "declared": [
+            "INVALID_REPLY",
+            "READ_INVALIDATED",
+            "ACCESS_DENIED",
+            "VAULT_LOCKED",
+            "UNAUTHENTICATED",
+            "EVIDENCE_UNAVAILABLE",
+            "ACCESS_REVOKED",
+            "SOURCE_REVOKED",
+            "BRANCH_FORBIDDEN",
+            "RECEIPT_FORBIDDEN",
+            "FORBIDDEN",
+            "RECEIPT_NOT_FOUND",
+            "INVALID_SESSION",
+            "ROUTE_REVOKED",
+            "OUTBOUND_APPROVAL_REQUIRED",
+            "CONVERSATION_CONTINUATION_RESOLVED",
+            "CONVERSATION_CONTINUATION_LIMIT",
+            "PREVIEW_STALE",
+            "PAYLOAD_CHANGED",
+            "PREVIEW_REQUEST_CHANGED",
+            "SYNTHESIS_STALE",
+            "CONVERSATION_CONTINUATION_STALE",
+            "MODEL_RECEIPT_EXPIRED",
+            "CALCULATION_STALE",
+            "CONVERSATION_NOT_FOUND",
+            "CONVERSATION_CONTINUATION_UNAVAILABLE",
+            "MODEL_RECEIPT_NOT_FOUND",
+            "SYNTHESIS_UNAVAILABLE",
+            "SCENARIO_UNAVAILABLE",
+            "SCENARIO_REVISION_UNAVAILABLE",
+            "SCENARIO_EVIDENCE_UNAVAILABLE",
+            "SCENARIO_FORBIDDEN",
+            "SCENARIO_AUTHORITY_CHANGED",
+            "SCENARIO_ARTIFACT_CHANGED",
+            "SCENARIO_RETENTION_EXPIRED",
+            "SCENARIO_HOST_REQUIRED",
+            "SCENARIO_CUSTODY_INVALID",
+            "SCENARIO_CUSTODY_CONFLICT",
+            "SCENARIO_TAINTED_CONTEXT",
+            "SCENARIO_WORKSPACE_CHANGED",
+            "SCENARIO_RUN_UNAVAILABLE",
+            "SCENARIO_READ_ONLY",
+            "SCENARIO_HEAD_CHANGED",
+            "SCENARIO_JOB_UNAVAILABLE",
+            "SCENARIO_BRANCH_UNAVAILABLE",
+            "SCENARIO_GRAPH_INVALID",
+            "SCENARIO_VECTOR_MISMATCH",
+            "INVALID_SCENARIO",
+            "LESSON_AUTHORITY_REQUIRED",
+            "LESSON_AUTHORITY_REVISION_REQUIRED",
+            "LESSON_AUTHORITY_CHANGED",
+            "LESSON_REVIEW_CHANGED",
+            "LESSON_EVALUATION_BLOCKED",
+            "EVALUATION_AUTHORITY_REQUIRED",
+            "EVALUATION_CHANGED",
+            "EVALUATION_CANDIDATE_MISMATCH",
+            "EVALUATION_PROVENANCE_REQUIRED",
+            "EVALUATION_COMPARISON_MISMATCH",
+            "INVALID_LESSON_EVALUATION",
+            "LESSON_EVIDENCE_UNAVAILABLE",
+            "LESSON_EVIDENCE_CHANGED",
+            "LESSON_TARGET_CHANGED",
+            "LESSON_OWNER_REQUIRED",
+            "LESSON_WORKSPACE_CHANGED",
+            "LESSON_NOT_FOUND",
+            "LESSON_CHANGED",
+            "INVALID_LESSON",
+            "INVALID_LESSON_DECISION",
+            "INVALID_LESSON_STATE",
+            "INVALID_LESSON_TARGET",
+            "APP_LESSON_REVIEW_REQUIRED",
+            "TAINTED_LESSON",
+            "LESSON_CONFLICT",
+            "INVALID_SUPERSESSION",
+            "INVALID_REQUEST",
+            "REQUEST_TOO_LARGE",
+            "UNTRUSTED_SENDER",
+            "REQUEST_FAILED"
+          ],
+          "missing": [
+            "INVALID_DICTIONARY",
+            "INVALID_CURRENCY",
+            "INVALID_GST_MODE",
+            "INVALID_FIELD",
+            "INVALID_DEFINITION",
+            "RESERVED_MEASURE",
+            "UNKNOWN_PACK",
+            "COMPILED_SUM_INVALID",
+            "INVALID_DICTIONARY_OPTIONS",
+            "INVALID_DICTIONARY_RECEIPT",
+            "DICTIONARY_REVIEW_REQUIRED",
+            "DICTIONARY_CONFLICT",
+            "DICTIONARY_ATTEMPT_REUSED",
+            "DICTIONARY_ATTEMPT_AUTHORITY"
+          ],
+          "intersection": []
+        }
+      }
+    }
+  },
+  "sharedHostFindings": {
+    "refusalCodes": [
+      "INVALID_DICTIONARY",
+      "INVALID_CURRENCY",
+      "INVALID_GST_MODE",
+      "INVALID_FIELD",
+      "INVALID_DEFINITION",
+      "RESERVED_MEASURE",
+      "UNKNOWN_PACK",
+      "COMPILED_SUM_INVALID",
+      "INVALID_DICTIONARY_OPTIONS",
+      "INVALID_DICTIONARY_RECEIPT",
+      "DICTIONARY_REVIEW_REQUIRED",
+      "DICTIONARY_CONFLICT",
+      "DICTIONARY_ATTEMPT_REUSED",
+      "DICTIONARY_ATTEMPT_AUTHORITY"
+    ],
+    "requiredSharedFiles": [
+      "app/desktop/preload.cjs",
+      "app/ui/src/bridge/client.ts"
+    ],
+    "observedIntersectionEach": [],
+    "consequence": "Both sanitized allowlists replace each listed source refusal with REQUEST_FAILED; this safely retains uncertainty but cannot qualify desktop definite-source-refusal handling.",
+    "mountRequirements": [
+      "Dedicated trusted four-method raw port preserving exact CAS and attempt payloads; ordinary guardedRequest rejects the legitimate publication contextKey change.",
+      "Parent-owned first-run mount before eager Today refresh and forced Today navigation, outside existing main landmark.",
+      "One controller retained across remount; synchronous live guard; invalidate on lock/revocation, cancel on departure; do not dispose while pinned.",
+      "Subscribe issuance; treat Today and Saved as possibly stale from dispatch and refresh under resolved context.",
+      "Controlled language and view, root data-view, honest stage certification and explicit destinations; preserve four not-configured fields and consume one-shot Admission immediately before final parent authority gate.",
+      "Explicit dictionaryMode deferred and demo false for first publish only after reviewed acceptance; omitted dictionaryMode remains legacy publication."
+    ],
+    "qualificationLimit": "Direct Engine port synthetic tests qualify no desktop bridge, browser/native/Electron/provider/PostgreSQL/acquisition or live mount journey."
+  },
+  "rootOwnedEvidenceReadOnlyReview": [
+    {
+      "name": "backend-join-final-root-strict",
+      "args": [
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--project",
+        "tsconfig.json",
+        "--skipLibCheck",
+        "false",
+        "--incremental",
+        "false"
+      ],
+      "exitCode": 2,
+      "startedAt": "2026-10-04T09:20:06.463Z",
+      "endedAt": "2026-10-04T09:20:31.535Z",
+      "sourceStable": true,
+      "controllerBefore": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "controllerAfter": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "ontologyBefore": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "ontologyAfter": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "output": "platform/runtime/ontology.ts(47,59): error TS2551: Property 'value' does not exist on type 'number'. Did you mean 'valueOf'?\r\nplatform/runtime/ontology.ts(137,47): error TS18046: 'ontology.history' is of type 'unknown'.\r\nplatform/runtime/ontology.ts(257,42): error TS2339: Property 'draft' does not exist on type 'DictionaryDraft | OntologyPublishRequest'.\r\n  Property 'draft' does not exist on type 'DictionaryDraft'.\r\nplatform/runtime/ontology.ts(257,58): error TS2339: Property 'pack' does not exist on type 'DictionaryDraft | OntologyPublishRequest'.\r\n  Property 'pack' does not exist on type '{ draft: DictionaryDraft; } & DictionaryPublishOptions'.\r\nplatform/tests/fixtures/postgres-transfer-independent-native-probes.ts(4,60): error TS2307: Cannot find module 'pg' or its corresponding type declarations.\r\nplatform/tests/fixtures/postgres-transfer-independent-native-probes.ts(106,40): error TS7006: Parameter 'client' implicitly has an 'any' type.\r\nplatform/tests/fixtures/postgres-transfer-independent-native-probes.ts(116,10): error TS2571: Object is of type 'unknown'.\r\n"
+    },
+    {
+      "name": "backend-join-final-ui-strict",
+      "args": [
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--project",
+        "app/ui/tsconfig.json",
+        "--skipLibCheck",
+        "false",
+        "--incremental",
+        "false"
+      ],
+      "exitCode": 0,
+      "startedAt": "2026-10-04T09:19:20.940Z",
+      "endedAt": "2026-10-04T09:19:26.661Z",
+      "sourceStable": true,
+      "controllerBefore": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "controllerAfter": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "ontologyBefore": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "ontologyAfter": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "output": ""
+    },
+    {
+      "name": "backend-join-final-tests-strict",
+      "args": [
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--project",
+        "app/ui/tests/first-run/tsconfig.json",
+        "--skipLibCheck",
+        "false",
+        "--incremental",
+        "false"
+      ],
+      "exitCode": 0,
+      "startedAt": "2026-10-04T09:19:13.312Z",
+      "endedAt": "2026-10-04T09:19:20.407Z",
+      "sourceStable": true,
+      "controllerBefore": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "controllerAfter": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "ontologyBefore": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "ontologyAfter": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "output": ""
+    },
+    {
+      "name": "backend-join-final-node",
+      "args": [
+        "--test",
+        "app/ui/tests/first-run/contracts.test.ts",
+        "app/ui/tests/first-run/review.test.ts",
+        "app/ui/tests/first-run/controller.test.ts",
+        "app/ui/tests/first-run/engine-join.test.ts",
+        "app/ui/tests/source-safety.test.ts",
+        "app/ui/tests/first-run/catalogue-scope.test.mjs"
+      ],
+      "exitCode": 0,
+      "startedAt": "2026-10-04T09:19:16.201Z",
+      "endedAt": "2026-10-04T09:19:20.404Z",
+      "sourceStable": true,
+      "controllerBefore": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "controllerAfter": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "ontologyBefore": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "ontologyAfter": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "output": "✔ copy punctuation, explicit banned list and button label limits use real text (0.7604ms)\n✔ only literal localized action-button labels are statically identified (2.6478ms)\n✔ real local module resolution follows named/type/default exports and aliases (15.7023ms)\n✔ missing local modules and drifted named exports fail while absent packages remain blockers (14.5396ms)\n✔ cyclic export-star barrels reach a stable export table and never export a default implicitly (12.3986ms)\n✔ names behind unresolved external export-star barrels are explicitly unverified (8.9045ms)\n✔ reading ceilings are inclusive, separate for each view and sheet (24.2278ms)\nℹ tests 139\nℹ suites 0\nℹ pass 139\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 4076.5676\n"
+    },
+    {
+      "name": "backend-join-final-source",
+      "args": [
+        "./scripts/check-ui-source.mjs",
+        "--root",
+        ".",
+        "--typescript",
+        "./node_modules/typescript/lib/typescript.js"
+      ],
+      "exitCode": 0,
+      "startedAt": "2026-10-04T09:20:09.633Z",
+      "endedAt": "2026-10-04T09:20:11.343Z",
+      "sourceStable": true,
+      "controllerBefore": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "controllerAfter": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "ontologyBefore": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "ontologyAfter": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "output": "    ],\n    \"unverifiedExports\": []\n  },\n  \"pending\": [\n    \"Separate full strict React typecheck and production build evidence; this static check alone does not verify them.\",\n    \"Rendered English/Hindi main-area and sheet word counts, visible primary-button count, and labels.\",\n    \"Receipt opening and keyboard access for every numeric chart mark, including missing-value gaps.\",\n    \"Playwright browser/Electron journeys, 200 percent zoom, axe and human screen-reader checks.\",\n    \"Approved reference pixel comparisons in both OS themes and all three views.\",\n    \"Hindi review by a native reader and exact local font assets.\",\n    \"No complete rendered reading-budget/button fixture JSON exists; those limits are not verified.\",\n    \"The authoritative text/banned.txt list is not present; banned terms are not verified.\",\n    \"Dynamic button labels and ICU values still require rendered button-label verification.\"\n  ]\n}\n"
+    },
+    {
+      "name": "backend-join-final-inventory",
+      "args": [
+        "--test",
+        "app/ui/tests/inventory.test.ts",
+        "app/ui/tests/first-run/inventory-qualification.test.ts"
+      ],
+      "exitCode": 0,
+      "startedAt": "2026-10-04T09:20:13.698Z",
+      "endedAt": "2026-10-04T09:20:14.529Z",
+      "sourceStable": true,
+      "controllerBefore": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "controllerAfter": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "ontologyBefore": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "ontologyAfter": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "output": "✔ direct engine references are exact source references, with reuse recorded separately (2.1634ms)\n✔ all seven desktop places and every source sub-place remain available in the inventory (0.4496ms)\n✔ expanded enterprise inventory preserves exact IDs, editions and all 176 surfaces (2.0807ms)\n✔ customer window and seventeen internal console surfaces remain rules-only and undrawn (0.7301ms)\n✔ all eleven CA screens retain separate client vaults and source-only post-day-ten timing (4.8234ms)\n✔ phone scope preserves five entries, headline-only boundaries and deferred PH-04 (0.6802ms)\n✔ canonical source bytes and deterministic regeneration match the checked-in inventory (118.2527ms)\nℹ tests 13\nℹ suites 0\nℹ pass 13\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 680.98\n"
+    },
+    {
+      "name": "backend-join-final-syntax",
+      "args": [
+        "./scripts/check.mjs"
+      ],
+      "exitCode": 0,
+      "startedAt": "2026-10-04T09:20:17.230Z",
+      "endedAt": "2026-10-04T09:20:59.452Z",
+      "sourceStable": true,
+      "controllerBefore": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "controllerAfter": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "ontologyBefore": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "ontologyAfter": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "output": "Syntax and JSON validation passed for 620 source files.\n"
+    },
+    {
+      "name": "backend-join-final-react",
+      "args": [
+        "./node_modules/vitest/vitest.mjs",
+        "run",
+        "--config",
+        "./app/ui/tests/first-run/vitest.config.mjs",
+        "--configLoader",
+        "native"
+      ],
+      "exitCode": 0,
+      "startedAt": "2026-10-04T09:19:23.851Z",
+      "endedAt": "2026-10-04T09:21:14.254Z",
+      "sourceStable": true,
+      "controllerBefore": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "controllerAfter": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+      "ontologyBefore": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "ontologyAfter": "35419b3b65f39506f08e73d1167ec1f1440dab9ad37c909ec577d7728e9ffede",
+      "output": "\n RUN  v5.0.3 C:/Users/karta/Documents/Codex/2026-10-04/task-2/first-run-cas-join\n\n\n Test Files  1 passed (1)\n      Tests  24 passed (24)\n   Start at  14:49:24\n   Duration  109.59s (tests 97%, environment 2%, transform 1%, import 1%)\n\n"
+    }
+  ],
+  "rootStrictBlockerDetails": [
+    {
+      "file": "platform/runtime/ontology.ts",
+      "line": 47,
+      "column": 59,
+      "code": "TS2551",
+      "message": "Property 'value' does not exist on type 'number'."
+    },
+    {
+      "file": "platform/runtime/ontology.ts",
+      "line": 137,
+      "column": 47,
+      "code": "TS18046",
+      "message": "ontology.history is of type unknown."
+    },
+    {
+      "file": "platform/runtime/ontology.ts",
+      "line": 257,
+      "column": 42,
+      "code": "TS2339",
+      "message": "Property draft does not exist on DictionaryDraft | OntologyPublishRequest."
+    },
+    {
+      "file": "platform/runtime/ontology.ts",
+      "line": 257,
+      "column": 58,
+      "code": "TS2339",
+      "message": "Property pack does not exist on DictionaryDraft | OntologyPublishRequest."
+    },
+    {
+      "file": "platform/tests/fixtures/postgres-transfer-independent-native-probes.ts",
+      "line": 4,
+      "column": 60,
+      "code": "TS2307",
+      "message": "Cannot find module pg or its corresponding type declarations."
+    },
+    {
+      "file": "platform/tests/fixtures/postgres-transfer-independent-native-probes.ts",
+      "line": 106,
+      "column": 40,
+      "code": "TS7006",
+      "message": "Parameter client implicitly has an any type."
+    },
+    {
+      "file": "platform/tests/fixtures/postgres-transfer-independent-native-probes.ts",
+      "line": 116,
+      "column": 10,
+      "code": "TS2571",
+      "message": "Object is of type unknown."
+    }
+  ],
+  "fixtureAudit": {
+    "actualRuntime": "Engine.requestAs",
+    "storage": "encrypted experimental-file Vault",
+    "temporaryPath": "Verified direct child of actual Temp directory with chausar-ui-first-run-engine-join- prefix; tracked gates/requests released, Engine closed and verified bounded child deleted in cleanup",
+    "coverage": "Deferred zero dictionary; exact CAS payload and eight-field receipt; queued actual accepted request with null receipt; lost reply; real competing CAS; exact historical replay without another write; another actor/epoch; all eight real DTO field mutations; later lookup refusal; cancellation/actual lock/reopen with nonnull baseline/version2; changed pack pins; late cancelled preflight.",
+    "strictBoundary": "Checked nonliteral runtime import keeps backend out of UI test type graph; full root strict compilation remains separate and failed."
+  },
+  "authorizationAndLimits": {
+    "repositoryWrites": 0,
+    "externalWrites": [
+      "verification/backend-join-independent-review.md",
+      "verification/backend-join-independent-review.json"
+    ],
+    "syntheticTempWrites": "Only existing actual Engine fixture creates and cleans bounded synthetic Temp children",
+    "prohibitedActionsTaken": [],
+    "notQualified": [
+      "Shared desktop bridge or live mount",
+      "Native, browser, Electron, PostgreSQL services or provider execution",
+      "Real business data journeys",
+      "Acquisition or dependency changes",
+      "Pixel geometry/accessibility/native Hindi/font qualification"
+    ],
+    "instructions": "No AGENTS.md was found in checked checkout/workspace ancestors."
+  },
+  "preCanonicalQualificationHistory": {
+    "controllerHash": "23cd01df0e90e81e3fbcf898401829d8329d4a1694cf226f8b914a5680119230",
+    "independentPassed": 14,
+    "selectedNodePassed": 93,
+    "sourceStable": true,
+    "status": "Preserved passing raw-byte run; current canonical verdict comes from actual reruns, not normalization inference",
+    "archiveHashes": {
+      "verification/backend-join-independent-review-before-canonical.md": "31759a65a32bb7f37cb22e6f45c40d4e5675a75a80e39f36eb8930a3ae3d3780",
+      "verification/backend-join-independent-review-before-canonical.json": "9844087302b64902160cc75e69964038db419c2d0e7651c136565355caed72ee"
+    },
+    "rootCommandArchivePrefix": "verification/backend-join-final-*-before-canonical.{json,txt}"
+  },
+  "canonicalByteVerification": {
+    "rootProof": "verification/backend-join-code-eol-equivalence.json",
+    "program": "import assert from 'node:assert/strict';\nimport {readFileSync} from 'node:fs';\nimport {createHash} from 'node:crypto';\nimport {basename,resolve} from 'node:path';\nimport {spawnSync} from 'node:child_process';\nconst checkout=resolve('first-run-cas-join');\nconst hash=b=>createHash('sha256').update(b).digest('hex');\nconst entries=JSON.parse(readFileSync('verification/backend-join-code-eol-equivalence.json','utf8'));\nconst normalize=b=>Buffer.from([...b].filter((byte,index)=>!(byte===13&&b[index+1]===10)));\nconst checks=entries.map(entry=>{\n const rawPath=entry.changedWorkingBytes?'verification/join-before-canonical-'+basename(entry.path)+'.raw':resolve(checkout,entry.path);\n const raw=readFileSync(rawPath),current=readFileSync(resolve(checkout,entry.path));\n const staged=spawnSync('git',['-c','safe.directory='+checkout.replaceAll('\\\\','/'),'show',':'+entry.path],{cwd:checkout,maxBuffer:1024*1024*4});\n assert.equal(staged.status,0);\n assert.equal(hash(raw),entry.rawSha256);assert.equal(hash(current),entry.canonicalSha256);\n assert.equal(raw.length,entry.rawBytes);assert.equal(current.length,entry.canonicalBytes);\n assert.ok(normalize(raw).equals(current),'Exact CRLF replacement failed: '+entry.path);\n assert.ok(staged.stdout.equals(current),'Staged Git bytes differ: '+entry.path);\n return {path:entry.path,rawPath,rawSha256:hash(raw),canonicalSha256:hash(current),\n rawBytes:raw.length,canonicalBytes:current.length,exactCrLfToLf:true,workingEqualsStagedGitBytes:true};\n});\nconst archived={};\nfor(const[file,expected]of Object.entries({\n 'verification/backend-join-independent-review-before-canonical.md':'31759a65a32bb7f37cb22e6f45c40d4e5675a75a80e39f36eb8930a3ae3d3780',\n 'verification/backend-join-independent-review-before-canonical.json':'9844087302b64902160cc75e69964038db419c2d0e7651c136565355caed72ee'\n})){archived[file]=hash(readFileSync(file));assert.equal(archived[file],expected);}\nconsole.log(JSON.stringify({checks,changedFiles:entries.filter(e=>e.changedWorkingBytes).length,unchangedFiles:entries.filter(e=>!e.changedWorkingBytes).length,archiveHashes:archived,status:'passed'},null,2));",
+    "exitCode": 0,
+    "result": {
+      "checks": [
+        {
+          "path": "app/ui/src/screens/first-run/README.md",
+          "rawPath": "verification/join-before-canonical-README.md.raw",
+          "rawSha256": "df35ddea436cb438e405ed24d0430fd4d71c5d73deef4f27f45e73d5ecb66ad4",
+          "canonicalSha256": "9bca9d3e30b165c7d291d46eb026bf91690c8d9427949e4cf0e6a0b70b5e7fcd",
+          "rawBytes": 16229,
+          "canonicalBytes": 16159,
+          "exactCrLfToLf": true,
+          "workingEqualsStagedGitBytes": true
+        },
+        {
+          "path": "app/ui/src/screens/first-run/contracts.ts",
+          "rawPath": "verification/join-before-canonical-contracts.ts.raw",
+          "rawSha256": "d36be431ae7601508d49ceb900ce165a3497fc0c4d7e700937db85f463d3c71d",
+          "canonicalSha256": "bfe37efd5f87a7dc39f78369e27094fb424a16c69bf9c3c09859095cbdefbe7d",
+          "rawBytes": 30102,
+          "canonicalBytes": 29651,
+          "exactCrLfToLf": true,
+          "workingEqualsStagedGitBytes": true
+        },
+        {
+          "path": "app/ui/src/screens/first-run/controller.ts",
+          "rawPath": "verification/join-before-canonical-controller.ts.raw",
+          "rawSha256": "23cd01df0e90e81e3fbcf898401829d8329d4a1694cf226f8b914a5680119230",
+          "canonicalSha256": "b65a55e5a8ae44e0462d4efed18df97a4862bed156885475b3257eadbf1e0664",
+          "rawBytes": 47395,
+          "canonicalBytes": 46825,
+          "exactCrLfToLf": true,
+          "workingEqualsStagedGitBytes": true
+        },
+        {
+          "path": "app/ui/src/screens/first-run/index.ts",
+          "rawPath": "verification/join-before-canonical-index.ts.raw",
+          "rawSha256": "ae52d073bbfdf265bd3e702858362fc7d4cab61ef36fa820ac678ff42716c897",
+          "canonicalSha256": "5bfd042b061ce7d010b40a16657373b427893bb508e8443061f83e27fce03c0c",
+          "rawBytes": 2312,
+          "canonicalBytes": 2285,
+          "exactCrLfToLf": true,
+          "workingEqualsStagedGitBytes": true
+        },
+        {
+          "path": "app/ui/tests/first-run/contracts.test.ts",
+          "rawPath": "verification/join-before-canonical-contracts.test.ts.raw",
+          "rawSha256": "85d4ab48fb4061fa745f8b47ae7517d97eb682a1a8bcd021752b74561be2cca2",
+          "canonicalSha256": "9ec3af794361c52e70cc591e55631862501e60c6bfc92938bf17c9afbf2299a5",
+          "rawBytes": 25207,
+          "canonicalBytes": 25005,
+          "exactCrLfToLf": true,
+          "workingEqualsStagedGitBytes": true
+        },
+        {
+          "path": "app/ui/tests/first-run/controller.test.ts",
+          "rawPath": "verification/join-before-canonical-controller.test.ts.raw",
+          "rawSha256": "1687c5a60f51e9919f9339a576720bd74e7bc3c615d5c231bfbfd2279ab24e5e",
+          "canonicalSha256": "edbd042d48b4be0219a281751e66b1a06bdce103d665ff595d96998091db698e",
+          "rawBytes": 93893,
+          "canonicalBytes": 92822,
+          "exactCrLfToLf": true,
+          "workingEqualsStagedGitBytes": true
+        },
+        {
+          "path": "app/ui/tests/first-run/engine-join.fixture.ts",
+          "rawPath": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-cas-join\\app\\ui\\tests\\first-run\\engine-join.fixture.ts",
+          "rawSha256": "c0a0c996525d33177289dab9d9926a1c4c4739395b6ea7d87ab2cc7b33ed9f75",
+          "canonicalSha256": "c0a0c996525d33177289dab9d9926a1c4c4739395b6ea7d87ab2cc7b33ed9f75",
+          "rawBytes": 7337,
+          "canonicalBytes": 7337,
+          "exactCrLfToLf": true,
+          "workingEqualsStagedGitBytes": true
+        },
+        {
+          "path": "app/ui/tests/first-run/engine-join.test.ts",
+          "rawPath": "C:\\Users\\karta\\Documents\\Codex\\2026-10-04\\task-2\\first-run-cas-join\\app\\ui\\tests\\first-run\\engine-join.test.ts",
+          "rawSha256": "806558e26c24e94cc1e7a30b98e6be02b609885717f7cbd40a806b0a8c9ea357",
+          "canonicalSha256": "806558e26c24e94cc1e7a30b98e6be02b609885717f7cbd40a806b0a8c9ea357",
+          "rawBytes": 22623,
+          "canonicalBytes": 22623,
+          "exactCrLfToLf": true,
+          "workingEqualsStagedGitBytes": true
+        },
+        {
+          "path": "app/ui/tests/first-run/fixture.ts",
+          "rawPath": "verification/join-before-canonical-fixture.ts.raw",
+          "rawSha256": "b665d41ea85ec8a06b295db1f8fc23a6e4d1363ac9b8b49a5f15e8656d9f90c1",
+          "canonicalSha256": "f10bce1b3904cabbcc63630b55153f26e059ec92c02511eab52289af3a42492b",
+          "rawBytes": 15158,
+          "canonicalBytes": 14932,
+          "exactCrLfToLf": true,
+          "workingEqualsStagedGitBytes": true
+        }
+      ],
+      "changedFiles": 7,
+      "unchangedFiles": 2,
+      "archiveHashes": {
+        "verification/backend-join-independent-review-before-canonical.md": "31759a65a32bb7f37cb22e6f45c40d4e5675a75a80e39f36eb8930a3ae3d3780",
+        "verification/backend-join-independent-review-before-canonical.json": "9844087302b64902160cc75e69964038db419c2d0e7651c136565355caed72ee"
+      },
+      "status": "passed"
+    },
+    "scope": "Only exact removal of CR bytes immediately before LF; all other byte values/order preserved. Each of nine owned paths independently equals staged Git bytes. Seven changed and two actual Engine files unchanged. No checker/compiler normalization rule or strict setting was relaxed.",
+    "gitAccess": "Known checkout trusted only with per-invocation git -c safe.directory=... on a read-only show; no global or local configuration written."
+  }
+}

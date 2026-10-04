@@ -3,7 +3,9 @@
  * IPC, network, model or real business data: the packs are the Engine's own
  * `starterPacks`, publication uses the Engine's own `compileDictionary`, and the
  * contextKey is a hash over the synthetic seat and the synthetic ontology, so a
- * publish changes it exactly as the real `ui.context` does. Nothing in app code
+ * publish changes it as the real `ui.context` does. This in-memory fixture models
+ * the declared CAS/attempt protocol only for rendering and tampering tests; the
+ * separate engine-join fixture checks actual Engine dispatch and custody. Nothing in app code
  * imports this file.
  *
  * The frozen Engine module is loaded at runtime through a checked boundary (a dynamic
@@ -14,7 +16,7 @@
 
 import { createHash } from 'node:crypto';
 import { validatePacks, validatePublished } from '../../src/screens/first-run/contracts.ts';
-import type { DictionaryDraft, FirstRunMethod, FirstRunPort, PublishedDictionary } from '../../src/screens/first-run/contracts.ts';
+import type { DictionaryDraft, DictionaryPublicationReceipt, FirstRunMethod, FirstRunPort, PublishedDictionary } from '../../src/screens/first-run/contracts.ts';
 import type { FirstRunGuard } from '../../src/screens/first-run/controller.ts';
 import type { TextDigest } from '../../src/screens/first-run/digest.ts';
 
@@ -138,9 +140,10 @@ export async function syntheticEngine(options: { role?: Role; current?: unknown 
   let touched = 0;
   const initial: unknown = options.current ?? null;
   let ontology: { current: unknown; history: unknown[] } = { current: initial, history: initial === null ? [] : [initial] };
+  const attempts = new Map<string, { receipt: DictionaryPublicationReceipt; dictionary: Record<string, unknown> }>();
   let override: Reply | null = null;
   const calls: Call[] = [];
-  const contextKey = () => sha256(JSON.stringify({ kind: 'synthetic-first-run-context', workspace: WORKSPACE.id, member: { id: MEMBER_ID, role, epoch }, ontology, touched }));
+  const contextKey = () => sha256(JSON.stringify({ kind: 'synthetic-first-run-context', workspace: WORKSPACE.id, member: { id: MEMBER_ID, role, epoch }, ontology, attempts: [...attempts.values()].map(item => item.receipt), touched }));
   const currentVersion = (): number => {
     const item = ontology.current;
     return isRecord(item) && typeof item['version'] === 'number' ? item['version'] : 0;
@@ -156,12 +159,35 @@ export async function syntheticEngine(options: { role?: Role; current?: unknown 
         return { workspace: { ...WORKSPACE }, member: { id: MEMBER_ID, name: MEMBER_NAME, role, epoch, branches: ['*'] }, contextKey: contextKey() };
       case 'ontology.packs':
         return frozen.rawPacks();
-      case 'ontology.get':
-        return structuredClone(ontology);
+      case 'ontology.get': {
+        const body = isRecord(payload) ? payload : {};
+        if (!Object.hasOwn(body, 'attemptId')) return structuredClone(ontology);
+        if (role !== 'owner' && role !== 'cofounder') throw refusal('FORBIDDEN');
+        const found = typeof body['attemptId'] === 'string' ? attempts.get(body['attemptId']) : undefined;
+        if (found !== undefined && (found.receipt.memberId !== MEMBER_ID || found.receipt.epoch !== epoch)) throw refusal('DICTIONARY_ATTEMPT_AUTHORITY');
+        return { ...structuredClone(ontology), attempt: found === undefined ? null : structuredClone(found.receipt) };
+      }
       case 'ontology.publish': {
         if (role !== 'owner' && role !== 'cofounder') throw refusal('ACCESS_DENIED');
         const body = isRecord(payload) ? payload : {};
-        return commitRaw(body['draft']);
+        const attemptId = body['attemptId'], expectedCurrentHash = body['expectedCurrentHash'];
+        if (Object.keys(body).sort().join(',') !== 'attemptId,draft,expectedCurrentHash'
+          || typeof attemptId !== 'string' || !(expectedCurrentHash === null || typeof expectedCurrentHash === 'string')) throw refusal('INVALID_DICTIONARY_OPTIONS');
+        const draftDigest = sha256(JSON.stringify(body['draft']));
+        const previous = attempts.get(attemptId);
+        if (previous !== undefined) {
+          if (previous.receipt.epoch !== epoch) throw refusal('DICTIONARY_ATTEMPT_AUTHORITY');
+          if (previous.receipt.draftDigest !== draftDigest || previous.receipt.expectedCurrentHash !== expectedCurrentHash) throw refusal('DICTIONARY_ATTEMPT_REUSED');
+          return structuredClone(previous.dictionary);
+        }
+        const currentHash = isRecord(ontology.current) ? ontology.current['hash'] : null;
+        if (currentHash !== expectedCurrentHash) throw refusal('DICTIONARY_CONFLICT');
+        const compiled = commitRaw(body['draft']);
+        const dictionary = validatePublished(compiled);
+        const receipt: DictionaryPublicationReceipt = { attemptId, workspaceId: WORKSPACE.id, memberId: MEMBER_ID, epoch,
+          draftDigest, expectedCurrentHash, dictionaryHash: dictionary.hash, version: dictionary.version };
+        attempts.set(attemptId, { receipt, dictionary: structuredClone(compiled) });
+        return compiled;
       }
     }
   };

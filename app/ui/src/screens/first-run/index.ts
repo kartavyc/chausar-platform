@@ -10,13 +10,13 @@ export type {
   HandoffPin, IssuanceEvent, IssuanceStatus, LeaveResult, PublishedSummary, ReviewNotice, SettingsLeaveResult,
 } from './controller.ts';
 export {
-  COMPILED_SUM_CONTENT_KEYS, FIRST_RUN_METHODS, ENGINE_DICTIONARY_REFUSALS, STARTER_PACK_IDS, canPublish, compiledSumContentJson, draftOf, firstRunFailure, frozenClone,
-  isStarterPackId, meaningText, publishedContentJson, sameAuthority, sameContext, validateDraft, validateOntologyReadback, validatePacks,
+  ATTEMPT_ID, COMPILED_SUM_CONTENT_KEYS, FIRST_RUN_METHODS, ENGINE_DICTIONARY_REFUSALS, STARTER_PACK_IDS, canPublish, compiledSumContentJson, draftOf, firstRunFailure, frozenClone,
+  isStarterPackId, meaningText, publishedContentJson, sameAuthority, sameContext, validateDraft, validateOntologyAttemptReadback, validateOntologyReadback, validatePacks,
   validatePublished, withMeaning,
 } from './contracts.ts';
 export type {
-  CompiledSum, Definition, DictionaryDraft, EngineDictionaryRefusal, FieldType, FirstRunCode, FirstRunFailure, FirstRunMethod, FirstRunPort,
-  FirstRunRpcPayloads, GstMode, MemberRole, NullRule, OntologyReadback, Operation, PublishedDictionary, StarterPackId,
+  CompiledSum, Definition, DictionaryDraft, DictionaryPublicationReceipt, EngineDictionaryRefusal, FieldType, FirstRunCode, FirstRunFailure, FirstRunMethod, FirstRunPort,
+  FirstRunRpcPayloads, GstMode, MemberRole, NullRule, OntologyAttemptReadback, OntologyReadback, Operation, PublishedDictionary, StarterPackId,
 } from './contracts.ts';
 export {
   compiledSumsVerified, definitionJson, draftJson, publishedHashVerified, publishedVerified, reviewDigestOf, settingsJson, webCryptoDigest,
