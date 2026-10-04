@@ -11,7 +11,7 @@ const connectorMethods = [
 ] as const;
 const addedJobMethods = ['jobs.types', 'jobs.amend', 'jobs.cancel', 'jobs.reconcile', 'jobs.progress'] as const;
 const calendarMethods = ['jobs.calendar.preview', 'jobs.calendar.configure', 'jobs.calendar.pause', 'jobs.calendar.resume'] as const;
-type RequestMethod = typeof connectorMethods[number] | typeof addedJobMethods[number] | typeof calendarMethods[number] | 'jobs.create' | 'jobs.accept' | 'sources.groups';
+type RequestMethod = typeof connectorMethods[number] | typeof addedJobMethods[number] | typeof calendarMethods[number] | 'jobs.create' | 'jobs.accept' | 'sources.groups' | 'scenarios.discover';
 
 const recipe = {
   version: 1, id: 'reviewed-mapping', system: 'fixture', edition: '1',
@@ -24,6 +24,7 @@ const recipe = {
 } satisfies DesktopPayload<'connectors.capture'>['recipe'];
 const requests = {
   'sources.groups': {},
+  'scenarios.discover': { limit: 25, cursor: 'a'.repeat(64) },
   'jobs.types': {},
   'jobs.create': { type: 'owner-brief', goal: 'Review current business evidence', budgetMinor: '900719925474099301', reserveMinor: '100', stopRule: { maxRuns: 1, deadline: '2030-01-01T00:00:00.000Z' } },
   'jobs.amend': { id: 'job-fixture', config: { type: 'evidence-review', input: { receiptIds: ['receipt-fixture'] }, goal: 'Review current calculation receipts', budgetMinor: '100', stopRule: { maxRuns: 1, deadline: '2030-01-01T00:00:00.000Z' }, limits: { modelUnits: 0, durationMs: 1000, actionExposureMinor: '0' } } },
@@ -57,12 +58,12 @@ test('desktop runtime and TypeScript declaration expose the same unique method t
   assert.equal(new Set(METHODS).size, METHODS.length);
 });
 
-test('desktop jobs and connectors whitelist covers exactly the actual dispatch methods', async () => {
+test('desktop jobs, connectors and scenarios whitelist covers exactly the actual dispatch methods', async () => {
   const [engine, connectors] = await Promise.all([
     readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8'),
     readFile(new URL('../runtime/engine-connectors.ts', import.meta.url), 'utf8'),
   ]);
-  for (const [namespace, source] of [['jobs', engine], ['connectors', connectors]]) {
+  for (const [namespace, source] of [['jobs', engine], ['connectors', connectors], ['scenarios', engine]]) {
     const dispatched = [...source.matchAll(/case '([^']+)':/g)].map(match => match[1]).filter(method => method.startsWith(`${namespace}.`));
     assert.ok(dispatched.length > 0, `${namespace} needs real dispatcher cases.`);
     assert.deepEqual(METHODS.filter((method: string) => method.startsWith(`${namespace}.`)).sort(), [...new Set(dispatched)].sort());
@@ -70,7 +71,7 @@ test('desktop jobs and connectors whitelist covers exactly the actual dispatch m
   for (const method of [...addedJobMethods, ...calendarMethods, ...connectorMethods]) assert.ok(METHODS.includes(method), `${method} must reach the engine.`);
 });
 
-test('desktop forwards new connector and job payloads without changing JSON values', () => {
+test('desktop forwards connector, job and scenario discovery payloads without changing JSON values', () => {
   for (const [method, payload] of Object.entries(requests)) {
     const forwarded = validateRequest({ method, payload });
     assert.deepEqual(forwarded, { method, payload });
@@ -79,6 +80,7 @@ test('desktop forwards new connector and job payloads without changing JSON valu
   assert.deepEqual(validateRequest({ method: 'connectors.profiles' }), { method: 'connectors.profiles', payload: {} });
   assert.deepEqual(validateRequest({ method: 'jobs.types' }), { method: 'jobs.types', payload: {} });
   assert.deepEqual(validateRequest({ method: 'sources.groups' }), { method: 'sources.groups', payload: {} });
+  assert.deepEqual(validateRequest({ method: 'scenarios.discover' }), { method: 'scenarios.discover', payload: {} });
 });
 
 test('desktop retains legacy source requests and refuses invented connector or job methods', async () => {
@@ -88,7 +90,7 @@ test('desktop retains legacy source requests and refuses invented connector or j
   assert.ok(sourceMethods.includes('sources.groups'), 'The planned family catalogue must be publicly dispatched.');
   assert.deepEqual(METHODS.filter((method: string) => method.startsWith('sources.')).sort(), [...new Set(sourceMethods)].sort());
   for (const method of sourceMethods) assert.deepEqual(validateRequest({ method, payload: {} }), { method, payload: {} });
-  for (const method of ['connectors.install', 'connectors.readBytes', 'jobs.executePlan', 'jobs.calendar.installRules']) {
+  for (const method of ['connectors.install', 'connectors.readBytes', 'jobs.executePlan', 'jobs.calendar.installRules', 'scenarios.list', 'scenarios.lookupLabel']) {
     assert.throws(() => validateRequest({ method, payload: {} }), (error: any) => error.code === 'INVALID_REQUEST');
   }
 });

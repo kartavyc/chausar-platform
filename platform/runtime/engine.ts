@@ -1027,6 +1027,10 @@ export class Engine {
         const input = this.journalPayload(payload, ['scenarioId', 'revisionId'], ['scenarioId', 'revisionId'], 'INVALID_SCENARIO');
         return s.scenarios.reopen(ctx, input.scenarioId, input.revisionId);
       }
+      case 'scenarios.discover': {
+        const input = this.journalPayload(payload, ['limit', 'cursor'], [], 'INVALID_SCENARIO');
+        return s.scenarios.discover(ctx, input);
+      }
       case 'scenarios.recompute': {
         const input = this.journalPayload(payload, ['scenarioId', 'expectedHeadRevisionId'],
           ['scenarioId', 'expectedHeadRevisionId'], 'INVALID_SCENARIO');

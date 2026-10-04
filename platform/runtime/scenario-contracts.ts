@@ -140,6 +140,26 @@ export type ScenarioView = {
   comparisons: ScenarioComparison[];
   noAction: true;
 };
+/** Discovery selects an exact historical revision, never a label or implicit head. */
+export type ScenarioDiscoveryRequest = { limit?: number; cursor?: string };
+export type ScenarioDiscoveryRow = {
+  readonly scenarioId: string;
+  readonly revisionId: string;
+  readonly label: string;
+  readonly createdAt: string;
+  readonly revisionMode: ScenarioRevision['mode'];
+  readonly status: ScenarioView['status'];
+  /** Descriptive at release only. A later head change cannot replace revisionId. */
+  readonly isHead: boolean;
+  readonly noAction: true;
+};
+export type ScenarioDiscoveryPage = {
+  readonly mode: 'retained-revisions';
+  readonly items: ScenarioDiscoveryRow[];
+  /** Opaque, process-local and bound to current authority and the authorized projection. */
+  readonly nextCursor: string | null;
+  readonly noAction: true;
+};
 /** Existing calculator verification and current synchronous guards, supplied by a trusted host. */
 export type ScenarioCalculatorOptions = Required<Pick<CalculatorOptions, 'consumerGuard' | 'receiptGuard'>>
   & Pick<CalculatorOptions, 'verifier'>;

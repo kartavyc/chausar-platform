@@ -5,7 +5,7 @@ import { assertSourceAccess } from './trust.ts';
 import type {
   ScenarioAnalysisRequest, ScenarioBranch, ScenarioComparison, ScenarioCreateRequest, ScenarioEvidence,
   ScenarioHost, ScenarioJob, ScenarioJobState, ScenarioRecord, ScenarioRevision, ScenarioRun,
-  ScenarioRunResult, ScenarioView,
+  ScenarioRunResult, ScenarioView, ScenarioDiscoveryRow,
 } from './scenario-contracts.ts';
 
 const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical)
@@ -102,6 +102,192 @@ function revision(record: ScenarioRecord, id: string) {
 function evaluation(record: ScenarioRecord, id: string) {
   const result = record.evaluations.find(item => item.revisionId === id);
   check(result, 'SCENARIO_REVISION_UNAVAILABLE', 'The retained evaluation manifest is unavailable.'); return result;
+}
+/** Metadata is released only for an exact internally coherent retained graph.
+ * This checks hashes and issued pins only; it never calculates or refreshes a job. */
+function assertDiscoveryGraph(record: ScenarioRecord, selected: ScenarioRevision) {
+  const graph = (condition: unknown) => check(condition, 'SCENARIO_GRAPH_INVALID', 'The exact retained scenario graph is unavailable.');
+  const vector = (condition: unknown) => check(condition, 'SCENARIO_VECTOR_MISMATCH', 'The exact retained scenario vectors are incompatible.');
+  graph(new Set(record.revisions.map(item => item.id)).size === record.revisions.length
+    && record.revisions.some(item => item.id === record.headRevisionId)
+    && new Set(record.evidence.map(item => item.id)).size === record.evidence.length
+    && new Set(record.runs.map(item => item.id)).size === record.runs.length
+    && new Set(record.results.map(item => item.runId)).size === record.results.length);
+  const checked = new Set<string>();
+  const inspectRevision = (rev: ScenarioRevision): ScenarioEvidence => {
+    const evidence = record.evidence.find(item => item.id === rev.evidenceId);
+    vector(evidence && evidence.digest === rev.evidenceDigest && rev.scenarioId === record.id);
+    if (checked.has(rev.id)) return evidence!;
+    const dictionary = evidence!.state.ontology?.current ?? evidence!.state.ontology;
+    vector(dictionary && dictionary.hash === evidence!.dictionaryHash && dictionary.version === evidence!.dictionaryVersion);
+    graph(typeof rev.createdAt === 'string' && Number.isFinite(Date.parse(rev.createdAt))
+      && ['initial', 'assumption-change', 'graph-change', 'current-state-recompute'].includes(rev.mode)
+      && (rev.mode === 'initial' ? rev.parentRevisionId === null : record.revisions.some(parent => parent.id === rev.parentRevisionId
+        && parent.id !== rev.id && parent.scenarioId === record.id))
+      && Array.isArray(rev.branches) && rev.branches.length > 1 && Array.isArray(rev.jobs) && rev.jobs.length >= rev.branches.length
+      && new Set(rev.branches.map(item => item.id)).size === rev.branches.length
+      && rev.branches.filter(item => item.role === 'baseline' && item.id === record.baselineBranchId).length === 1
+      && rev.branches.filter(item => item.role === 'baseline').length === 1);
+    for (const branch of rev.branches) {
+      const root = rev.jobs.find(item => item.id === branch.rootJobId);
+      graph(root && root.branchId === branch.id && Array.isArray(root.dependsOn) && root.dependsOn.length === 0
+        && root.usesBranchAssumptions === true && ['baseline', 'alternative'].includes(branch.role));
+      price(branch.priceChangeBps);
+      vector(branch.role !== 'baseline' || BigInt(branch.priceChangeBps) === 0n);
+    }
+    for (const item of rev.jobs) {
+      const branch = rev.branches.find(branch => branch.id === item.branchId);
+      graph(branch && typeof item.usesBranchAssumptions === 'boolean');
+      const operation = requestValid(evidence!.state, item.request);
+      requestValid(evidence!.state, item.authoredRequest);
+      vector(item.authoredRequestDigest === digest(item.authoredRequest) && item.requestDigest === digest(item.request)
+        && digest(item.request) === digest({ ...item.authoredRequest, asOf: evidence!.knowledgeCut })
+        && item.usesBranchAssumptions === (operation.type === 'scenario')
+        && (!item.usesBranchAssumptions || item.request.assumptions?.priceChangeBps === branch!.priceChangeBps)
+        && scope(item.request) === scope(rev.jobs[0].request));
+    }
+    const pinned = pinJobs(evidence!, rev.branches, rev.jobs);
+    vector(pinned.every((item, index) => item.inputDigest === rev.jobs[index].inputDigest));
+    checked.add(rev.id); return evidence!;
+  };
+  inspectRevision(selected);
+  const isAncestor = (ancestor: string, descendant: ScenarioRevision) => {
+    const seen = new Set<string>(); let current: ScenarioRevision | undefined = descendant;
+    while (current) {
+      graph(!seen.has(current.id)); seen.add(current.id);
+      if (current.id === ancestor) return true;
+      const parent: ScenarioRevision | undefined = record.revisions.find(item => item.id === current!.parentRevisionId);
+      graph(current.parentRevisionId === null || parent); current = parent;
+    }
+    return false;
+  };
+  // Also reject a parent cycle in a revision whose runs have not started yet.
+  graph(selected.parentRevisionId === null || !isAncestor(selected.id, record.revisions.find(item => item.id === selected.parentRevisionId)!));
+  const runs = new Set<string>(), inspecting = new Set<string>();
+  const referencedResults = new Map<string, ScenarioRunResult>();
+  const inspectRun = (id: string): ScenarioRun => {
+    const run = record.runs.find(item => item.id === id);
+    vector(run);
+    if (runs.has(id)) return run!;
+    graph(!inspecting.has(id)); inspecting.add(id);
+    const original = record.revisions.find(item => item.id === run!.revisionId);
+    vector(original);
+    const evidence = inspectRevision(original!);
+    const item = original!.jobs.find(item => item.id === run!.jobId);
+    vector(item && run!.scenarioId === record.id && run!.revisionDigest === original!.digest
+      && run!.evidenceId === original!.evidenceId && run!.evidenceDigest === original!.evidenceDigest
+      && run!.branchId === item.branchId && run!.requestDigest === item.requestDigest && run!.inputDigest === item.inputDigest);
+    graph(Array.isArray(run!.dependencies) && run!.dependencies.length === item!.dependsOn.length);
+    for (const [index, dependency] of run!.dependencies.entries()) {
+      const predecessor = original!.jobs.find(item => item.id === dependency.jobId);
+      const prior = inspectRun(dependency.runId), result = record.results.find(item => item.runId === prior.id);
+      vector(dependency.jobId === item!.dependsOn[index] && predecessor && prior.jobId === predecessor.id
+        && prior.branchId === predecessor.branchId && prior.inputDigest === predecessor.inputDigest
+        && prior.requestDigest === predecessor.requestDigest && prior.evidenceId === original!.evidenceId
+        && prior.evidenceDigest === original!.evidenceDigest && dependency.inputDigest === predecessor.inputDigest
+        && result && result.digest === dependency.resultDigest && isAncestor(prior.revisionId, original!));
+    }
+    const result = record.results.find(item => item.runId === id);
+    vector(!result || result.runDigest === run!.digest);
+    if (result) {
+      const receipt = result.receipt, request = item!.request;
+      const operation = requestValid(evidence.state, request);
+      vector(receipt.period !== undefined && receipt.comparePeriod !== undefined
+        && receipt.assumptions && typeof receipt.assumptions === 'object'
+        && receipt.memberId === record.memberId && receipt.epoch === record.epoch
+        && receipt.operation === request.operation && receipt.asOf === evidence.knowledgeCut
+        && receipt.dictionaryHash === evidence.dictionaryHash && receipt.ontologyVersion === evidence.dictionaryVersion
+        && receipt.branch === (request.branch ?? null) && digest(receipt.period) === digest(request.period ?? null)
+        && digest(receipt.comparePeriod) === digest(request.comparePeriod ?? null)
+        && (request.sourceIds === undefined ? !Object.hasOwn(receipt, 'requestedSourceIds')
+          : Array.isArray(receipt.requestedSourceIds) && digest(receipt.requestedSourceIds) === digest(request.sourceIds))
+        && (!item!.usesBranchAssumptions || receipt.assumptions.priceChangeBps === String(BigInt(request.assumptions!.priceChangeBps)))
+        && (operation.type !== 'aging' || receipt.assumptions.onDate === (request.onDate ?? evidence.knowledgeCut.slice(0, 10))));
+      graph(Array.isArray(receipt.rows) && Array.isArray(receipt.rowIds) && Array.isArray(receipt.sourceIds)
+        && Array.isArray(receipt.exclusions) && receipt.coverage && Array.isArray(receipt.coverage.importIds));
+      vector(new Set(receipt.rowIds).size === receipt.rowIds.length
+        && digest(receipt.rowIds) === digest(receipt.rows.map(row => row.factId))
+        && digest(receipt.sourceIds) === digest([...new Set(receipt.rows.map(row => row.sourceId))]));
+      const originalFact = (id: string) => {
+        const matches = evidence.state.facts.filter(fact => fact.id === id);
+        vector(matches.length === 1 && (!request.branch || matches[0].branch === request.branch)
+          && (request.sourceIds === undefined || request.sourceIds.includes(matches[0].sourceId)));
+        return matches[0];
+      };
+      for (const row of receipt.rows) {
+        const fact = originalFact(row.factId);
+        vector(row.sourceId === fact.sourceId && row.entityId === fact.entityId && row.sourceRow === fact.sourceRow
+          && row.kind === fact.kind && row.branch === fact.branch && row.validFrom === fact.validFrom);
+      }
+      for (const exclusion of receipt.exclusions) originalFact(exclusion.rowId);
+      const rowIds = new Set(receipt.rowIds);
+      vector(digest(receipt.coverage.importIds) === digest(evidence.state.imports
+        .filter(input => input.rowIds?.some((id: string) => rowIds.has(id))).map(input => input.id)));
+      referencedResults.set(id, result);
+    }
+    inspecting.delete(id); runs.add(id); return run!;
+  };
+  const matchingRun = (id: string, item: ScenarioJob) => {
+    const run = inspectRun(id);
+    vector(run.jobId === item.id && run.branchId === item.branchId && run.inputDigest === item.inputDigest
+      && run.requestDigest === item.requestDigest && run.evidenceId === selected.evidenceId
+      && run.evidenceDigest === selected.evidenceDigest && isAncestor(run.revisionId, selected));
+    return run;
+  };
+  const evaluations = record.evaluations.filter(item => item.revisionId === selected.id);
+  graph(evaluations.length === 1 && Array.isArray(evaluations[0].jobs));
+  const states = evaluations[0].jobs;
+  graph(states.length === selected.jobs.length && new Set(states.map(item => item.jobId)).size === states.length
+    && states.every(state => selected.jobs.some(item => item.id === state.jobId)));
+  for (const state of states) {
+    const item = selected.jobs.find(item => item.id === state.jobId)!;
+    graph(['pending', 'stale', 'running', 'ready'].includes(state.status)
+      && (state.status === 'ready' ? !!state.runId && !state.activeRunId : !state.runId && !state.reusedFromRevisionId)
+      && (state.status === 'running' ? !!state.activeRunId : !state.activeRunId)
+      && (state.status !== 'pending' || !state.retainedRunId));
+    if (state.retainedRunId) {
+      const retained = inspectRun(state.retainedRunId);
+      vector(retained.jobId === item.id && retained.branchId === item.branchId
+        && record.results.some(result => result.runId === retained.id) && isAncestor(retained.revisionId, selected));
+    }
+    if (state.activeRunId) {
+      const active = matchingRun(state.activeRunId, item);
+      vector(active.revisionId === selected.id && !record.results.some(result => result.runId === active.id));
+    }
+    if (state.runId) {
+      const run = matchingRun(state.runId, item);
+      vector(record.results.some(result => result.runId === run.id));
+      if (run.revisionId !== selected.id) {
+        const previous = record.revisions.find(item => item.id === state.reusedFromRevisionId);
+        const prior = record.evaluations.filter(item => item.revisionId === previous?.id);
+        vector(previous && previous.id === selected.parentRevisionId && prior.length === 1
+          && previous.jobs.some(job => job.id === item.id && job.inputDigest === item.inputDigest)
+          && prior[0].jobs.some(state => state.jobId === item.id && state.status === 'ready' && state.runId === run.id));
+      } else vector(!state.reusedFromRevisionId);
+      for (const dependency of run.dependencies) vector(states.some(state => state.jobId === dependency.jobId
+        && state.status === 'ready' && state.runId === dependency.runId));
+    }
+  }
+  // Comparisons keep their own immutable run selection even if an evaluation ledger later advances.
+  for (const comparison of record.comparisons.filter(item => item.revisionId === selected.id)) {
+    vector(comparison.scenarioId === record.id && comparison.revisionDigest === selected.digest
+      && comparison.evidenceId === selected.evidenceId && comparison.evidenceDigest === selected.evidenceDigest
+      && comparison.noAction === true);
+    graph(Array.isArray(comparison.requiredJobs) && comparison.requiredJobs.length === selected.jobs.length
+      && new Set(comparison.requiredJobs.map(item => item.jobId)).size === selected.jobs.length);
+    for (const pin of comparison.requiredJobs) {
+      const item = selected.jobs.find(item => item.id === pin.jobId);
+      vector(item); const run = matchingRun(pin.runId, item!);
+      const result = record.results.find(item => item.runId === run.id);
+      vector(result && pin.branchId === item!.branchId && pin.requestDigest === item!.requestDigest
+        && pin.inputDigest === item!.inputDigest && pin.runRevisionId === run.revisionId
+        && pin.receiptId === result.receipt.id && pin.receiptDigest === result.receiptDigest
+        && (run.revisionId === selected.id ? pin.reusedFromRevisionId === null : pin.reusedFromRevisionId === selected.parentRevisionId));
+      for (const dependency of run.dependencies) vector(comparison.requiredJobs.some(pin => pin.jobId === dependency.jobId
+        && pin.runId === dependency.runId && pin.inputDigest === dependency.inputDigest));
+    }
+  }
+  return [...referencedResults.values()];
 }
 const limitations = [
   'Only published calculator analyses are supported. Price scenarios hold volume constant and are hypothetical, not qualified demand forecasts or causal predictions.',
@@ -370,6 +556,30 @@ export class ScenarioService {
     return structuredClone(comparison);
   }
   reopen(ctx: Context, id: string, revisionId: string): ScenarioView { return this.#view(ctx, this.#load(ctx, id), revisionId); }
+  describe(ctx: Context, id: string, revisionId: string): ScenarioDiscoveryRow {
+    const record = this.#load(ctx, id), view = this.#view(ctx, record, revisionId);
+    const results = assertDiscoveryGraph(record, view.revision);
+    label(record.label);
+    // An immutable comparison may still pin a receipt replaced in the mutable evaluation ledger.
+    // Guard every graph-referenced receipt using its exact original evidence before releasing metadata.
+    for (const result of results) {
+      const run = record.runs.find(item => item.id === result.runId)!;
+      const original = revision(record, run.revisionId), request = original.jobs.find(item => item.id === run.jobId)!.request;
+      const evidence = this.#evidence(record, original);
+      this.#access(ctx, evidence, record);
+      this.#requestAccess(ctx, request);
+      assertSourceAccess(this.#live.read(), ctx, result.receipt.sourceIds);
+      this.#guard(readOnly(this.#currentAuthority(evidence.state)), 'reopen').receiptGuard(ctx, structuredClone(result.receipt));
+      this.#access(ctx, evidence, record); this.#requestAccess(ctx, request);
+      assertSourceAccess(this.#live.read(), ctx, result.receipt.sourceIds);
+    }
+    // Repeat the ordinary release guards after the view-specific callbacks.
+    this.#access(ctx, this.#evidence(record, view.revision), record);
+    for (const item of view.revision.jobs) this.#requestAccess(ctx, item.request);
+    return { scenarioId: record.id, revisionId: view.revision.id, label: record.label,
+      createdAt: view.revision.createdAt, revisionMode: view.revision.mode, status: view.status,
+      isHead: record.headRevisionId === view.revision.id, noAction: true };
+  }
   recompute(ctx: Context, id: string, expectedHead: string): ScenarioView {
     const record = this.#load(ctx, id), old = this.#head(record, expectedHead); this.#view(ctx, record, old.id);
     const captured = digest(inputState(this.#live.read())), evidence = this.#snapshot(ctx, this.#clock());

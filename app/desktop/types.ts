@@ -18,6 +18,7 @@ import type { InvestigationSearchRequest } from '../../platform/runtime/investig
 import type { ResearchSearchService } from '../../platform/runtime/research-search.ts';
 import type { ConversationHistoryService, ConversationResultReference } from '../../platform/runtime/conversation-history.ts';
 import type { ModelRequest } from '../../platform/runtime/gateway.ts';
+import type { ScenarioDiscoveryRequest, ScenarioDiscoveryPage } from '../../platform/runtime/scenario-contracts.ts';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue; }
@@ -150,10 +151,11 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'updates.verify': JsonObject & { manifest: JsonObject | string; signature: string };
   'updates.stage': JsonObject & { manifest: JsonObject | string; signature: string; confirmed: true };
 };
-type OptionalPayloads = { 'ui.context': Record<string, never>; 'conversation.history': { limit?: number; cursor?: string }; 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
+type OptionalPayloads = { 'ui.context': Record<string, never>; 'conversation.history': { limit?: number; cursor?: string }; 'scenarios.discover': ScenarioDiscoveryRequest; 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
 export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
 export type DesktopResult<M extends DesktopMethod> =
+  M extends 'scenarios.discover' ? ScenarioDiscoveryPage :
   M extends 'forecasts.evaluate' | 'forecasts.get' ? SavedForecastEvaluation :
   M extends 'alerts.create' | 'alerts.publish' | 'alerts.get' ? BusinessAlert : M extends 'alerts.evaluate' ? AlertEvaluation : M extends 'alerts.list' ? BusinessAlert[] :
   M extends 'sync.writer.status' | 'sync.writer.review' ? SyncWriterStatus : M extends 'sync.reconcile' ? Awaited<ReturnType<SyncService['reconcile']>> :

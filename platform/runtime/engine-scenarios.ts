@@ -1,8 +1,10 @@
+import { createHmac, randomBytes } from 'node:crypto';
 import { authorize, check, ChausarError, hash, now, type Context, type State, type StateStore } from './contracts.ts';
 import { Vault } from './vault.ts';
 import { ScenarioService } from './scenario-service.ts';
 import type {
   ScenarioAnalysisRequest, ScenarioCalculatorOptions, ScenarioComparison, ScenarioCreateRequest,
+  ScenarioDiscoveryPage, ScenarioDiscoveryRequest, ScenarioDiscoveryRow,
   ScenarioHost, ScenarioRecord, ScenarioRun, ScenarioRunResult, ScenarioView,
 } from './scenario-contracts.ts';
 
@@ -68,11 +70,41 @@ function serializedVaultStateStore(vault: Vault): StateStore {
   return { read: () => vault.read(), update: change => vault.update(change) };
 }
 
+// Only known row-level release refusals become absence. Account/fence/host failures
+// and unexpected exceptions refuse the entire page, rather than losing valid rows.
+const undiscoverable = new Set([
+  'SCENARIO_UNAVAILABLE', 'SCENARIO_FORBIDDEN', 'SCENARIO_RETENTION_EXPIRED', 'SCENARIO_ARTIFACT_CHANGED',
+  'SCENARIO_REVISION_UNAVAILABLE', 'SCENARIO_EVIDENCE_UNAVAILABLE', 'SCENARIO_RUN_UNAVAILABLE',
+  'SCENARIO_BRANCH_UNAVAILABLE', 'SCENARIO_GRAPH_INVALID', 'SCENARIO_VECTOR_MISMATCH',
+  'SOURCE_REVOKED', 'BRANCH_FORBIDDEN', 'FORBIDDEN_BRANCH', 'RECEIPT_FORBIDDEN', 'SOURCE_NOT_READY',
+]);
+function discoveryRequest(request: ScenarioDiscoveryRequest) {
+  check(request && typeof request === 'object' && Object.getPrototypeOf(request) === Object.prototype,
+    'INVALID_SCENARIO', 'Supply only the declared discovery parameters.');
+  const fields = Object.getOwnPropertyDescriptors(request);
+  check(Reflect.ownKeys(request).every(key => typeof key === 'string' && ['limit', 'cursor'].includes(key)
+    && fields[key].enumerable && Object.hasOwn(fields[key], 'value')),
+  'INVALID_SCENARIO', 'Supply only plain discovery limit and cursor values.');
+  const limit = request.limit === undefined ? 25 : request.limit;
+  check(Number.isInteger(limit) && limit >= 1 && limit <= 50, 'INVALID_SCENARIO', 'Use a discovery page size from one to fifty.');
+  check(request.cursor === undefined || typeof request.cursor === 'string' && /^[a-f0-9]{64}$/.test(request.cursor),
+    'INVALID_SCENARIO', 'Use the opaque discovery continuation or start a fresh page.');
+  return { limit, cursor: request.cursor };
+}
+function discoveryOrder(a: ScenarioDiscoveryRow, b: ScenarioDiscoveryRow): number {
+  // Newest first, with exact identities breaking timestamp/label ties.
+  for (const [left, right] of [[b.createdAt, a.createdAt], [a.scenarioId, b.scenarioId], [a.revisionId, b.revisionId]]) {
+    if (left !== right) return left < right ? -1 : 1;
+  }
+  return 0;
+}
+
 /** Only producer-issued scenario identities cross this API. All custody is in the encrypted Vault. */
 export class EngineScenarioService {
   readonly #vault: Vault;
   readonly #store: StateStore;
   readonly #options: EngineScenarioOptions;
+  readonly #discoveryKey = randomBytes(32);
   constructor(vault: Vault, options: EngineScenarioOptions) {
     check(vault instanceof Vault && options && typeof options.calculatorOptions === 'function'
       && (options.now === undefined || typeof options.now === 'function'),
@@ -222,6 +254,66 @@ export class EngineScenarioService {
   }
   reopen(ctx: Context, id: string, revisionId: string): Promise<ScenarioView> {
     return this.#read(ctx, (service, current) => service.reopen(current, id, revisionId));
+  }
+  /** Read-only historical metadata, authorized exactly as an immutable reopen. */
+  discover(context: Context, request: ScenarioDiscoveryRequest = {}): Promise<ScenarioDiscoveryPage> {
+    const input = discoveryRequest(request), ctx = structuredClone(context);
+    return this.#vault.snapshot(async state => {
+      authorize(this.#store, ctx);
+      check(!ctx.sourceTainted, 'SCENARIO_TAINTED_CONTEXT', 'Imported source text cannot discover private scenarios.');
+      const identity = this.#vault.readIdentity();
+      const available: { row: ScenarioDiscoveryRow; recordDigest: string }[] = [];
+      const attempt = <T>(work: () => T): T | undefined => {
+        try { return work(); }
+        catch (error) {
+          if (error instanceof ChausarError && undiscoverable.has(error.code)) return undefined;
+          throw error;
+        }
+      };
+      const ids = [...new Set(records(state).filter(record => record?.workspaceId === state.workspace.id
+        && record.memberId === ctx.memberId && record.epoch === ctx.epoch).map(record => record.id))];
+      // Scan the complete current namespace; an output bound is never a hidden
+      // scan bound that drops reachable authorized revisions behind denied rows.
+      for (const id of ids) {
+        const record = attempt(() => this.#service(state, ctx, false).resolveReference(id));
+        if (!record) continue;
+        for (const revision of record.revisions) {
+          const row = attempt(() => {
+            // A refused revision must not pollute another row's release references.
+            const operation = this.#service(state, ctx, false);
+            const projection = operation.service.describe(ctx, id, revision.id);
+            operation.assertRelease();
+            return projection;
+          });
+          if (row) available.push({ row, recordDigest: record.digest });
+        }
+      }
+      available.sort((a, b) => discoveryOrder(a.row, b.row));
+      // The key hides even authority revision/namespace positions. The complete
+      // authorized projection also fences clock/readiness changes without a write.
+      const fence = hash(canonical({ identity, memberId: ctx.memberId, role: ctx.role, epoch: ctx.epoch,
+        limit: input.limit, available }));
+      const cursorFor = (row: ScenarioDiscoveryRow) => createHmac('sha256', this.#discoveryKey)
+        .update(JSON.stringify([fence, row.scenarioId, row.revisionId])).digest('hex');
+      const anchor = input.cursor === undefined ? -1 : available.findIndex(item => cursorFor(item.row) === input.cursor);
+      check(input.cursor === undefined || anchor >= 0, 'SCENARIO_AUTHORITY_CHANGED',
+        'Discovery continuation is unavailable under current authority. Restart from the first page.');
+      const selected = available.slice(anchor + 1, anchor + 1 + input.limit);
+      // Recheck selected metadata at the actual release boundary. Guards and the
+      // retention clock may have changed during an earlier synchronous callback.
+      for (const { row } of selected) {
+        const operation = this.#service(state, ctx, false);
+        const current = operation.service.describe(ctx, row.scenarioId, row.revisionId);
+        operation.assertRelease();
+        check(hash(canonical(current)) === hash(canonical(row)), 'SCENARIO_AUTHORITY_CHANGED',
+          'The selected discovery projection changed before release.');
+      }
+      authorize(this.#store, ctx);
+      check(hash(this.#vault.readIdentity()) === hash(identity), 'SCENARIO_AUTHORITY_CHANGED', 'Scenario discovery authority changed.');
+      return structuredClone({ mode: 'retained-revisions' as const, items: selected.map(item => item.row),
+        nextCursor: anchor + 1 + selected.length < available.length ? cursorFor(selected[selected.length - 1].row) : null,
+        noAction: true as const });
+    });
   }
   recompute(ctx: Context, id: string, expectedHead: string): Promise<ScenarioView> {
     return this.#write(ctx, (service, current) => service.recompute(current, id, expectedHead));
