@@ -5,7 +5,7 @@ import type { CalculationReceiptEvidence } from '../bridge/presentation.ts';
 import { createDesktopTodayReader } from '../bridge/today-host.ts';
 import type { DashboardTodayInput, TodayHostProjection } from '../bridge/today-host.ts';
 import { createConversationHost } from '../bridge/conversation-host.ts';
-import type { ConversationFailureCode, ConversationHost } from '../bridge/conversation-host.ts';
+import type { ConversationFailureCode, ConversationHost, ConversationHostPort } from '../bridge/conversation-host.ts';
 import type { ConversationQuestionSettings } from '../app/conversation-surface.ts';
 import type { Address } from '../app/presentation.ts';
 import { formatAddress, parseAddress, sameAddress } from '../app/routes.ts';
@@ -86,10 +86,14 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
   }
   /**
    * The internal host seam. Every request is fenced by the host generation and the trusted context
-   * read before and after it. A retained operation additionally carries its own live guard (surface,
-   * generation, selection): it is reread after the inner context read, immediately before the raw
-   * transport call, so a departure during that read issues nothing; the guard is told the moment the
-   * raw call is actually issued. The wire method and payload are unchanged.
+   * read before and after it. A retained or conversation operation additionally carries its own live
+   * guard (surface, generation, selection; for a conversation RPC the exact state it was started under):
+   * it is reread after the inner context read, immediately before the raw transport call, after the raw
+   * reply, before the value is returned and in the catch, so a departure or cancellation during the
+   * host's own reads issues nothing, and a late reply or denial of an operation that is no longer live
+   * publishes nothing and invalidates nothing. The guard is told the moment the raw call is actually
+   * issued. A denial of a live operation is current evidence and invalidates the host as before; the
+   * trusted context checks invalidate on their own, guard or not. The wire method and payload are unchanged.
    */
   async function guardedRequest<M extends keyof HostRpcPayloads>(method: M, payload: HostRpcPayloads[M], guard?: EffectGuard): Promise<unknown> {
     const token = generation, expected = state.context;
@@ -108,14 +112,18 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
       if (!guardLive(guard)) throw failure('READ_INVALIDATED');
       guard?.issued?.();
       const value = await port.request(method, payload);
-      if (!isCurrent(token)) throw failure('READ_INVALIDATED');
+      if (!isCurrent(token) || !guardLive(guard)) throw failure('READ_INVALIDATED');
       const after = await contextRead();
       if (!isCurrent(token)) throw failure('READ_INVALIDATED');
       assertSameContext(after, expected);
+      if (!guardLive(guard)) throw failure('READ_INVALIDATED');
       return value;
     } catch (error) {
       const code = readFailureCode(error);
-      if (isCurrent(token) && (isEvidenceDenial(code) || code === 'INVALID_REPLY')) invalidate(code);
+      // Read before anything is invalidated: a denial belongs to the operation that was issued. While that operation
+      // is still live it is current evidence; once its guard is dead (cancelled, replaced or departed) the reply is
+      // obsolete and must not invalidate the newer journey that has since started.
+      if (isCurrent(token) && guardLive(guard) && (isEvidenceDenial(code) || code === 'INVALID_REPLY')) invalidate(code);
       throw error;
     }
   }
@@ -124,7 +132,22 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
   const guardedPort: HostRpcPort & RetainedPort = { request: guardedRequest, guarded: guardedRequest };
   const todayReader = createDesktopTodayReader(guardedPort);
   const receiptReader = createDesktopReceiptReader(guardedPort);
-  const conversation = createConversationHost(guardedPort, { now });
+  /**
+   * The conversation's own operation guard, captured separately for each conversation RPC. The conversation host
+   * publishes a fresh frozen state before every request it makes (busy preview, readback, continuation or
+   * synthesis-preview; busy approval, then busy ask or synthesis-run, then busy readback, each only after the
+   * preceding RPC settled) and a different state on cancellation, replacement, editing or invalidation. The exact
+   * state object current at the moment a request is made is therefore that one request's identity: it is reread
+   * at the seam after every await, immediately before the raw call and in the catch, so a cancelled or superseded
+   * conversation operation dispatches nothing and its late reply or denial neither publishes nor invalidates the
+   * newer journey, while legitimate multi-stage work completes because each stage publishes before it requests.
+   */
+  async function conversationRequest<M extends keyof HostRpcPayloads>(method: M, payload: HostRpcPayloads[M]): Promise<unknown> {
+    const started = conversation.snapshot();
+    return guardedRequest(method, payload, { live: () => conversation.snapshot() === started });
+  }
+  const conversationPort: ConversationHostPort = { request: conversationRequest };
+  const conversation: ConversationHost = createConversationHost(conversationPort, { now });
   const retained = createRetainedController(guardedPort, { context: () => (state.phase === 'ready' ? state.context : null) });
   function clearPrivate() {
     generation = Symbol(); receiptGeneration = Symbol(); settings = null;

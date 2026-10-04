@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHostController, currentMonth } from '../src/host/controller.ts';
+import type { HostController } from '../src/host/controller.ts';
 import { validateModelRoutes, validateUiContext } from '../src/host/contracts.ts';
 import type { HostRpcPayloads, HostRpcPort } from '../src/host/contracts.ts';
+import type { ConversationRequest } from '../src/bridge/conversation-contract.ts';
+import type { ModelConsent } from '../src/bridge/conversation-host.ts';
+import { approvalFixture, groundedFixture, planningPreviewFixture, readbackFixture, synthesisPreviewFixture, synthesisReplyFixture } from './conversation-fixtures.ts';
 import { fullCalculationReceiptFixture, HUGE_INTEGER } from './fixtures.ts';
 
 /** Synthetic host transport; no real vault, network, process or model dispatch. */
@@ -20,10 +24,21 @@ function dashboard(receipts = ['billed', 'received', 'earned', 'margin'].map(rec
   return { workspace: { ...context().workspace, currency: 'INR', createdAt: '2026-10-01T09:00:00.000Z' }, calculations: receipts, factCount: 3, sources: 2, decisions: [], waitingActions: [], jobs: [], policy: { send: 'nothing', autonomy: false, allowedSources: ['*'], retentionDays: 90, sharing: false }, dictionary: null, lastActivity: [] };
 }
 function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>(yes => { resolve = yes; });
-  return { promise, resolve };
+  let resolve!: (value: T) => void, reject!: (error: unknown) => void;
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
 }
+const refusal = (code: string) => Object.assign(Error(code), { code });
+/** The exact displayed review, consented once; a clicked consent must name the displayed preview and payload. */
+function consentFor(host: HostController): ModelConsent {
+  const state = host.conversation.snapshot();
+  if (state.kind !== 'review') throw Error('Expected a displayed review');
+  return { previewId: state.preview.id, digest: state.preview.digest, consent: true };
+}
+/** The reviewed question as the frame submits it; the route is the one the host selected. */
+const reviewedRequest: ConversationRequest = { question: '  What was billed?  ', purpose: 'conversation', questionDisclosure: 'verbatim', routeId: 'route_fixture' };
+/** A valid empty released page: nothing is listed, nothing is reopened. */
+const emptyDiscoveryPage = () => ({ mode: 'retained-revisions', items: [], nextCursor: null, noAction: true });
 function transport(reply?: (method: keyof HostRpcPayloads, payload: unknown) => unknown | Promise<unknown>) {
   const calls: { method: keyof HostRpcPayloads; payload: unknown }[] = [];
   const port: HostRpcPort = { async request(method, payload) {
@@ -36,7 +51,8 @@ function transport(reply?: (method: keyof HostRpcPayloads, payload: unknown) => 
     if (method === 'workspace.lock') return { locked: true };
     throw Error('Unexpected synthetic dispatch');
   } };
-  return { port, calls };
+  const count = (method: keyof HostRpcPayloads): number => calls.filter(call => call.method === method).length;
+  return { port, calls, count };
 }
 
 test('calendar month is explicit in the host timezone, including leap day', () => {
@@ -166,4 +182,113 @@ test('idle authority checks read metadata only and clear private evidence on rep
   const callCount = fixture.calls.length; key = 'b'.repeat(64); await host.checkAuthority();
   assert.deepEqual(fixture.calls.slice(callCount).map(call => call.method), ['ui.context']);
   assert.equal(host.snapshot().today, null); assert.equal(host.snapshot().context, null); assert.equal(host.snapshot().code, 'ACCESS_DENIED'); host.dispose();
+});
+
+/* ---------- Conversation operations at the host seam: each RPC carries its own operation guard ---------- */
+test('a conversation readback cancelled while the host holds its own before-dispatch context read issues no raw request; the host and the next readback are unaffected', async () => {
+  const saved = readbackFixture(groundedFixture()), reached = deferred<void>(), held = deferred<void>(); let armed = false;
+  const fixture = transport(async (method, payload) => {
+    if (method === 'ui.context') { if (armed) { armed = false; reached.resolve(); await held.promise; } return context(); }
+    if (method === 'dashboard.get') return dashboard();
+    if (method === 'models.list') return [route];
+    if (method === 'receipts.get') return receipt((payload as { id: string }).id.slice('receipt_'.length));
+    if (method === 'conversation.get') return saved;
+    throw Error(`Unexpected synthetic dispatch ${String(method)}`);
+  });
+  const host = createHostController(fixture.port, { now: clock }); await host.refresh();
+  const before = fixture.calls.length; armed = true;
+  const pending = host.conversation.open(saved.id);
+  // The conversation published its busy readback and the host's own inner context read is held; no raw readback was issued.
+  await reached.promise;
+  assert.deepEqual(host.conversation.snapshot(), { kind: 'busy', operation: 'readback' }); assert.equal(fixture.count('conversation.get'), 0);
+  // The explicit cancellation publishes idle while that inner read is still held.
+  host.conversation.cancel();
+  assert.deepEqual(host.conversation.snapshot(), { kind: 'idle' });
+  held.resolve();
+  assert.deepEqual(await pending, { ok: false, code: 'READ_INVALIDATED' });
+  // The released unchanged context reached the raw boundary and the operation's own guard refused it there: zero raw requests.
+  assert.equal(fixture.count('conversation.get'), 0);
+  assert.deepEqual(fixture.calls.slice(before).map(call => call.method), ['ui.context']);
+  assert.deepEqual(host.conversation.snapshot(), { kind: 'idle' });
+  assert.equal(host.snapshot().phase, 'ready'); assert.notEqual(host.snapshot().context, null); assert.notEqual(host.snapshot().today, null);
+  // The next journey is unaffected: a fresh readback is issued once and read back.
+  assert.deepEqual(await host.conversation.open(saved.id), { ok: true });
+  assert.equal(fixture.count('conversation.get'), 1); assert.equal(host.conversation.snapshot().kind, 'answer');
+  assert.equal(host.snapshot().phase, 'ready'); host.dispose();
+});
+test('an issued readback denied after its cancellation or replacement invalidates nothing and leaves the newer journey current; the same denial of a live readback still makes the whole host unavailable', async () => {
+  for (const outcome of ['cancelled', 'replaced', 'live'] as const) {
+    const saved = readbackFixture(groundedFixture()), denial = deferred<unknown>(); let hold = false;
+    const fixture = transport((method, payload) => {
+      if (method === 'ui.context') return context();
+      if (method === 'dashboard.get') return dashboard();
+      if (method === 'models.list') return [route];
+      if (method === 'receipts.get') return receipt((payload as { id: string }).id.slice('receipt_'.length));
+      if (method === 'scenarios.discover') return emptyDiscoveryPage();
+      if (method === 'conversation.get') return hold ? denial.promise : saved;
+      throw Error(`Unexpected synthetic dispatch ${String(method)}`);
+    });
+    const host = createHostController(fixture.port, { now: clock }); await host.refresh(); hold = true;
+    const pending = host.conversation.open(saved.id);
+    // The raw readback was actually issued and is held.
+    for (let i = 0; i < 64 && fixture.count('conversation.get') < 1; i++) await Promise.resolve();
+    assert.equal(fixture.count('conversation.get'), 1, outcome);
+    if (outcome === 'cancelled') {
+      host.conversation.cancel();
+      // The newer journey, a fresh what-if discovery, starts and completes while the cancelled readback is still held.
+      assert.deepEqual(await host.retained.readDiscovery(), { ok: true });
+      assert.equal(host.retained.snapshot().discovery.kind, 'ready');
+    } else if (outcome === 'replaced') {
+      hold = false;
+      assert.deepEqual(await host.conversation.open(saved.id), { ok: true });
+      assert.equal(host.conversation.snapshot().kind, 'answer');
+    }
+    // The held raw call is then denied by name: an evidence denial that would invalidate a live operation's host.
+    denial.reject(refusal('EVIDENCE_UNAVAILABLE'));
+    assert.deepEqual(await pending, { ok: false, code: 'READ_INVALIDATED' }, outcome);
+    if (outcome === 'live') {
+      assert.equal(host.snapshot().phase, 'unavailable'); assert.equal(host.snapshot().code, 'EVIDENCE_UNAVAILABLE');
+      assert.equal(host.snapshot().context, null); assert.equal(host.snapshot().today, null);
+      assert.deepEqual(host.conversation.snapshot(), { kind: 'unavailable', code: 'EVIDENCE_UNAVAILABLE' });
+    } else {
+      assert.equal(host.snapshot().phase, 'ready', outcome); assert.notEqual(host.snapshot().context, null); assert.notEqual(host.snapshot().today, null);
+      if (outcome === 'cancelled') {
+        assert.deepEqual(host.conversation.snapshot(), { kind: 'idle' });
+        assert.equal(host.retained.snapshot().discovery.kind, 'ready');
+      } else {
+        assert.equal(host.conversation.snapshot().kind, 'answer'); assert.equal(fixture.count('conversation.get'), 2);
+      }
+    }
+    host.dispose();
+  }
+});
+test('every conversation stage carries its own operation guard and legitimate multi-stage work completes: planning preview, approval, ask, readback, final-writing preview, approval, run and readback', async () => {
+  const planning = planningPreviewFixture(reviewedRequest), tools = groundedFixture(planning.id), writing = synthesisPreviewFixture(tools), final = synthesisReplyFixture(tools, writing);
+  const fixture = transport((method, payload) => {
+    if (method === 'ui.context') return context();
+    if (method === 'dashboard.get') return dashboard();
+    if (method === 'models.list') return [route];
+    if (method === 'receipts.get') return receipt((payload as { id: string }).id.slice('receipt_'.length));
+    if (method === 'models.preview') return planning;
+    if (method === 'models.approve') return approvalFixture((payload as { id: string }).id === planning.id ? planning : writing);
+    if (method === 'conversation.ask') return tools;
+    if (method === 'conversation.get') return readbackFixture((payload as { id: string }).id === tools.id ? tools : final);
+    if (method === 'conversation.synthesis.preview') return writing;
+    if (method === 'conversation.synthesis.run') return final;
+    throw Error(`Unexpected synthetic dispatch ${String(method)}`);
+  });
+  const host = createHostController(fixture.port, { now: clock }); await host.refresh(); host.selectRoute('route_fixture');
+  const before = fixture.calls.length;
+  assert.deepEqual(await host.conversation.preview(reviewedRequest), { ok: true });
+  assert.deepEqual(await host.conversation.sendReviewed(consentFor(host)), { ok: true });
+  assert.equal(host.conversation.snapshot().kind, 'answer');
+  assert.deepEqual(await host.conversation.previewFinalWriting(), { ok: true });
+  assert.deepEqual(await host.conversation.sendReviewed(consentFor(host)), { ok: true });
+  const result = host.conversation.snapshot(); assert.equal(result.kind, 'answer');
+  if (result.kind === 'answer') assert.equal(result.saved.kind, 'synthesized-conversation');
+  // Each raw conversation call was issued exactly once, in order, each between the host's own before and after context reads.
+  const issuedCalls = fixture.calls.slice(before).map(call => String(call.method));
+  assert.deepEqual(issuedCalls.filter(method => method !== 'ui.context'), ['models.preview', 'models.approve', 'conversation.ask', 'conversation.get', 'conversation.synthesis.preview', 'models.approve', 'conversation.synthesis.run', 'conversation.get']);
+  assert.equal(issuedCalls.filter(method => method === 'ui.context').length, 16);
+  assert.equal(host.snapshot().phase, 'ready'); host.dispose();
 });

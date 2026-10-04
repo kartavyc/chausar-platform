@@ -4,7 +4,7 @@ import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore, t
 import { App, type AppProps } from './App';
 import type { Address } from './presentation.ts';
 import type { ShellConfig } from './places.ts';
-import { formatAddress, sameAddress } from './routes.ts';
+import { formatAddress, parseAddress, sameAddress } from './routes.ts';
 import { workspaceLocked } from './composition.ts';
 import { useT } from './text';
 import { PageHeader } from './PageHeader';
@@ -14,7 +14,11 @@ import {
 } from './conversation-surface.ts';
 import type { ConversationHost, ConversationHostState, ConversationSavedAnswer, ModelConsent } from '../bridge/conversation-host.ts';
 import { ModelConsentSheet } from '../patterns/ModelConsentSheet';
+import { Button } from '../parts/Button';
 import { ConversationAnswer, type ConversationReferenceIntent } from '../screens/ask/ConversationAnswer';
+
+/** The exact selected saved answer an overview control was drawn beside: the host validates it before acting. */
+export interface SavedReadbackOrigin { readonly id: string; readonly selectionKey: string }
 
 export interface ConversationWorkspaceProps {
   readonly app: AppProps;
@@ -27,14 +31,26 @@ export interface ConversationWorkspaceProps {
   readonly onReference: (intent: ConversationReferenceIntent, saved: ConversationSavedAnswer) => void;
   /** Explicit saved-answer selection from the host's authorized journey. */
   readonly readback?: { readonly id: string; readonly address: Address; readonly selectionKey: string } | undefined;
+  /**
+   * Optional: an explicit human switch, within Saved, from the selected saved answer that owns the body to the
+   * host's Saved overview. The control names the exact readback selection it was drawn beside; the host decides
+   * whether that selection is still current, fences the answer operation itself and returns whether it accepted
+   * the transition. Only an accepted transition consumes this workspace's bound address and opened selection,
+   * synchronously, so the answer's still-connected controls are inert before React commits; a rejected older
+   * control clears nothing of a newer selected answer. Nothing here leaves the readback on its own: default
+   * rendering and precedence are unchanged.
+   */
+  readonly onSavedOverview?: ((origin: SavedReadbackOrigin) => boolean) | undefined;
 }
 
-function AskPage({ state, savedPlace, onContinue, onPreviewFinalWriting, onReference }: {
+function AskPage({ state, savedPlace, onContinue, onPreviewFinalWriting, onReference, onSavedOverview }: {
   state: ConversationHostState;
   savedPlace: boolean;
   onContinue: (id: string) => void;
   onPreviewFinalWriting: () => void;
   onReference: (intent: ConversationReferenceIntent) => void;
+  /** Bound by the parent to the exact readback selection this page was drawn for. */
+  onSavedOverview: (() => void) | undefined;
 }): ReactNode {
   const t = useT();
   let content: ReactNode;
@@ -54,10 +70,11 @@ function AskPage({ state, savedPlace, onContinue, onPreviewFinalWriting, onRefer
   return <section aria-label={t('SH-01.place.ask')}>
     {state.kind !== 'answer' && <PageHeader where={t('SH-01.place.ask')} title={t(savedPlace ? 'SH-01.sub.ask.saved' : 'SH-01.sub.ask.new')} />}
     {content}
+    {savedPlace && onSavedOverview !== undefined && <p><Button variant="link" onClick={() => onSavedOverview()}>{t('RETAINED.saved.show')}</Button></p>}
   </section>;
 }
 
-export function ConversationWorkspace({ app, conversation, questionSettings, contextKey, readback, onReference }: ConversationWorkspaceProps) {
+export function ConversationWorkspace({ app, conversation, questionSettings, contextKey, readback, onReference, onSavedOverview }: ConversationWorkspaceProps) {
   const state = useSyncExternalStore(conversation.subscribe, conversation.snapshot, conversation.snapshot);
   const [active, setActive] = useState<Address | null>(null);
   const activeRef = useRef<Address | null>(null);
@@ -130,14 +147,26 @@ export function ConversationWorkspace({ app, conversation, questionSettings, con
     retain(answerAddress(surface));
     void conversation.sendReviewed(consent);
   };
-  const continueAnswer = (id: string) => {
-    const address = conversationSurfaceAddress(shell, activeRef.current, locked);
-    if (address === null || !boundConversationAddress(bound.current, address)) return;
+  /**
+   * Whether a control drawn in the answer `owner` may still act, read synchronously at the press and before any
+   * navigation or request: the surface is still bound, the actual hash still names that bound address, and the
+   * conversation still shows exactly that answer. An answer the human has left (an accepted overview, a cancellation,
+   * a newer selection) leaves its still-connected Continue and Preview writing inert, whatever React has committed.
+   */
+  const ownedAnswer = (owner: ConversationSavedAnswer | null): Address | null => {
+    const address = conversationSurfaceAddress(shell, activeRef.current, locked), held = bound.current;
+    if (owner === null || address === null || held === null || !boundConversationAddress(held, address) || !sameAddress(parseAddress(window.location.hash), held)) return null;
+    const shown = conversation.snapshot();
+    return shown.kind === 'answer' && shown.saved === owner ? address : null;
+  };
+  const continueAnswer = (id: string, owner: ConversationSavedAnswer | null) => {
+    const address = ownedAnswer(owner);
+    if (address === null || owner === null || owner.id !== id) return;
     retain(answerAddress(address)); void conversation.selectContinuation(id);
   };
-  const previewFinalWriting = () => {
-    const address = conversationSurfaceAddress(shell, activeRef.current, locked);
-    if (address === null || !boundConversationAddress(bound.current, address)) return;
+  const previewFinalWriting = (owner: ConversationSavedAnswer | null) => {
+    const address = ownedAnswer(owner);
+    if (address === null) return;
     captureOrigin(); retain(modelConsentAddress(address)); void conversation.previewFinalWriting();
   };
 
@@ -174,8 +203,18 @@ export function ConversationWorkspace({ app, conversation, questionSettings, con
     const ownedTransition = visible && boundConversationAddress(surface, address) && openedSelection.current === readbackSelection;
     if (address.sub === 'saved' && (readback === undefined || (!sameAddress(address, readback.address) && !ownedTransition))) return app.renderPlace?.(address);
     const displayed: ConversationHostState = visible && boundConversationAddress(surface, address) ? state : { kind: 'idle' };
-    return <AskPage state={displayed} savedPlace={address.sub === 'saved'} onContinue={continueAnswer} onPreviewFinalWriting={previewFinalWriting}
-      onReference={intent => { if (displayed.kind === 'answer') onReference(intent, displayed.saved); }} />;
+    // Every answer control names the exact answer this body was drawn for; an older control names an older one.
+    const owner = displayed.kind === 'answer' ? displayed.saved : null;
+    // The overview control names the exact readback selection this body was drawn for. Only when the host accepts that exact
+    // selection does this surface consume its bound address and opened selection, synchronously, so the answer's still-connected
+    // controls are inert before React commits; a rejected older control changes nothing of a newer selected answer.
+    const overview = onSavedOverview === undefined || readback === undefined ? undefined
+      : () => {
+        if (!onSavedOverview({ id: readback.id, selectionKey: readback.selectionKey })) return;
+        bound.current = null; openedSelection.current = null;
+      };
+    return <AskPage state={displayed} savedPlace={address.sub === 'saved'} onContinue={id => continueAnswer(id, owner)} onPreviewFinalWriting={() => previewFinalWriting(owner)}
+      onReference={intent => { if (displayed.kind === 'answer') onReference(intent, displayed.saved); }} onSavedOverview={overview} />;
   };
   // Remount the frame's private draft/voice state on a trusted context replacement.
   const showHelp = app.onHelp === undefined ? undefined : (requestedOrigin?: HTMLElement | null, fallback?: HTMLElement | null) => {
