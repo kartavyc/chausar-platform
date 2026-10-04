@@ -75,8 +75,9 @@ test('the pinned package contains bilingual worked oracles, exact arithmetic and
   assert.deepEqual(expectedFor(p.cases.find(c => c.id === 'forbidden-branch')!, 'hi'),
     { kind: 'refusal', mechanism: 'error-code', code: 'FORBIDDEN_BRANCH' });
   const parser = p.cases.filter(c => c.track === 'local-question-parser');
-  assert.equal(parser.filter(c => expectedFor(c, 'en').kind === 'answer').length, 5);
-  assert.ok(parser.every(c => expectedFor(c, 'hi').kind === 'refusal'));
+  assert.equal(parser.filter(c => expectedFor(c, 'en').kind === 'answer').length, 6);
+  assert.equal(parser.filter(c => expectedFor(c, 'hi').kind === 'answer').length, 6);
+  assert.equal(parser.filter(c => expectedFor(c, 'hi').kind === 'refusal').length, 3);
 });
 
 test('package validation refuses unbounded, incomplete, model-directed and unpinned oracles', async () => {
@@ -101,7 +102,7 @@ test('package validation refuses unbounded, incomplete, model-directed and unpin
   rejects(copy => { copy.cases[0].expected.entities = ['invoice-a', 'invoice-a']; });
   rejects(copy => { copy.cases.find((c: any) => c.id === 'parser-billed').expected.hi = undefined; });
   rejects(copy => { copy.cases.find((c: any) => c.id === 'unknown-operation').expected.code = 'unknown'; });
-  rejects(copy => { copy.cases.find((c: any) => c.id === 'parser-billed').expected.hi.message = 'Close enough'; });
+  rejects(copy => { copy.cases.find((c: any) => c.id === 'parser-ambiguous').expected.hi.message = 'Close enough'; });
   for (const field of ['routeId', 'purpose', 'previewId', 'approvalId']) {
     rejects(copy => { copy.cases[0].payload[field] = 'an-unreviewed-provider-route'; });
   }
@@ -132,7 +133,7 @@ test('the scorer requires exact units, contributing identities, figures, limitat
 });
 
 test('refusal mechanisms and correctness are distinct from disjoint right/wrong/refused counts', async () => {
-  const answer = await benchmarkCase('earned'), refusal = await benchmarkCase('unknown-operation'), parser = await benchmarkCase('parser-refunds');
+  const answer = await benchmarkCase('earned'), refusal = await benchmarkCase('unknown-operation'), parser = await benchmarkCase('parser-ambiguous');
   const results = [
     scoreObservation(answer, 'en', answerObservation(answer)),
     scoreObservation(answer, 'en', { kind: 'invalid', reason: 'Non-receipt response' }),
@@ -292,7 +293,7 @@ test('the contributing source summary is a distinct string set and remains empty
 });
 
 test('the parser track submits the original Hindi question and receives its exact unsupported response', async () => {
-  const c = await benchmarkCase('parser-billed');
+  const c = await benchmarkCase('parser-ambiguous');
   const submitted: { method: string; payload?: Record<string, unknown> }[] = [];
   const port: PublicBenchmarkPort = { request: async (method, payload) => {
     submitted.push({ method, payload }); return { supported: false, receipt: null, message: UNSUPPORTED_MESSAGE };
@@ -312,13 +313,13 @@ test('two fresh public Engine runs retain all 80 outcomes, stable meaning and ho
   const directory = await ownedScratch(t), firstScratch = join(directory, 'first'), secondScratch = join(directory, 'second');
   const first = await runBilingualBenchmark({ scratchRoot: firstScratch });
   assert.equal(first.schema, 'chausar.bilingual-synthetic-report.v1'); assert.equal(first.passed, true);
-  assert.deepEqual(first.score, { total: 80, right: 39, wrong: 0, refused: 41, correct: 80, incorrect: 0,
-    expectedRefusals: 41, matchedRefusals: 41, unexpectedRefusals: 0 });
-  assert.deepEqual([first.byLanguage.en.right, first.byLanguage.en.refused, first.byLanguage.hi.right, first.byLanguage.hi.refused], [22, 18, 17, 23]);
+  assert.deepEqual(first.score, { total: 80, right: 46, wrong: 0, refused: 34, correct: 80, incorrect: 0,
+    expectedRefusals: 34, matchedRefusals: 34, unexpectedRefusals: 0 });
+  assert.deepEqual([first.byLanguage.en.right, first.byLanguage.en.refused, first.byLanguage.hi.right, first.byLanguage.hi.refused], [23, 17, 23, 17]);
   const typed = first.byTrack['authored-typed-request'], parser = first.byTrack['local-question-parser'];
   assert.deepEqual([typed.total.total, typed.total.right, typed.total.refused], [62, 34, 28]);
-  assert.deepEqual([parser.total.total, parser.total.right, parser.total.refused], [18, 5, 13]);
-  assert.deepEqual([parser.byLanguage.en.right, parser.byLanguage.en.refused, parser.byLanguage.hi.right, parser.byLanguage.hi.refused], [5, 4, 0, 9]);
+  assert.deepEqual([parser.total.total, parser.total.right, parser.total.refused], [18, 12, 6]);
+  assert.deepEqual([parser.byLanguage.en.right, parser.byLanguage.en.refused, parser.byLanguage.hi.right, parser.byLanguage.hi.refused], [6, 3, 6, 3]);
   assert.equal(first.results.length, 80); assert.ok(first.results.every(result => result.correct));
   assert.equal(first.execution.fixtureWorkspaces, 6); assert.equal(first.execution.storage, 'experimental-file');
   assert.equal(first.qualification.modelDispatches, 0);

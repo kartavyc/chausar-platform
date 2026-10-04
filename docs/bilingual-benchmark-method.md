@@ -10,10 +10,10 @@ This open, authored fixture checks deterministic calculations, saved receipts an
 | --- | ---: | ---: |
 | Authored typed requests, English | 17 | 14 |
 | Authored typed requests, Hindi | 17 | 14 |
-| Actual local question parser, English | 5 | 4 |
-| Actual local question parser, Hindi | 0 | 9 |
+| Actual local question parser, English | 6 | 3 |
+| Actual local question parser, Hindi | 6 | 3 |
 
-The typed track sends the same author-selected `calculation.run` request for each language; one case uses `receipts.get`. Its questions label the intended business meaning. No model interprets them, and the two language observations are dependent repetitions. The parser track submits each original question to `conversation.ask` without a model route. The current small English grammar refuses every included Hindi question. Those expected refusals record the present language gap; they are not successful Hindi answers.
+The typed track sends the same author-selected `calculation.run` request for each language; one case uses `receipts.get`. Its questions label the intended business meaning. No model interprets them, and the two language observations are dependent repetitions. The parser track submits each original question to `conversation.ask` without a model route. A reviewed bilingual alias pack recognizes exact, bounded phrase frames for six operations whose definitions and parameter contract still match the published starter pack. It consumes the complete question; it does not extract keywords or guess filters. The three questions about ambiguous sales, accounting profit and causation still refuse in both languages. This qualifies the included literal phrases only, not general Hindi understanding or model quality. The original pre-repair nine-Hindi-refusal result is retained in the dated source-check handoff.
 
 ## Evidence and scoring
 

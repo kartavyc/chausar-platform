@@ -1046,14 +1046,22 @@
           "completeness": "reconciled-imports"
         },
         "hi": {
-          "kind": "refusal",
-          "mechanism": "unsupported-question",
-          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+          "kind": "answer",
+          "operation": "billed",
+          "valueMinor": "220000",
+          "currency": "INR",
+          "figures": {
+            "total": "220000"
+          },
+          "entities": [
+            "invoice-a"
+          ],
+          "completeness": "reconciled-imports"
         }
       },
       "worked": {
-        "en": "Local English literal grammar chooses billed; invoice-a totals 220000 paise.",
-        "hi": "अर्थ बिलों के 220000 पैसे है। स्थानीय व्याकरण हिंदी को नहीं पढ़ता: supported:false और receipt:null अपेक्षित हैं।"
+        "en": "The bounded core alias/English literal path selects the published operation. Only invoice-a counts: INR 2,200.00 = 220000 paise. Delivery and cash are separate events.",
+        "hi": "सीमित शब्द सूची और पूरे प्रश्न का ढाँचा प्रकाशित गणना चुनते हैं। केवल invoice-a गिनें: 2,200.00 रुपये = 220000 पैसे। डिलीवरी और नकद अलग घटनाएँ हैं।"
       }
     },
     {
@@ -1089,14 +1097,25 @@
           ]
         },
         "hi": {
-          "kind": "refusal",
-          "mechanism": "unsupported-question",
-          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+          "kind": "answer",
+          "operation": "received",
+          "valueMinor": "110000",
+          "currency": "INR",
+          "figures": {
+            "total": "110000"
+          },
+          "entities": [
+            "payment-a"
+          ],
+          "completeness": "reconciled-imports",
+          "excludedEntities": [
+            "payment-cancelled"
+          ]
         }
       },
       "worked": {
-        "en": "Local English literal grammar chooses received; settled payment-a totals 110000 paise.",
-        "hi": "अर्थ निपटाए भुगतान के 110000 पैसे है। स्थानीय हिंदी प्रश्न पर supported:false और receipt:null अपेक्षित हैं।"
+        "en": "The bounded core alias/English literal path selects the published operation. INR 1,100.00 = 110000 paise. The INR 900.00 cancelled payment is excluded.",
+        "hi": "सीमित शब्द सूची और पूरे प्रश्न का ढाँचा प्रकाशित गणना चुनते हैं। 1,100.00 रुपये = 110000 पैसे। रद्द किया गया 900.00 रुपये का भुगतान न गिनें।"
       }
     },
     {
@@ -1127,17 +1146,38 @@
             "order-a",
             "order-b"
           ],
-          "completeness": "reconciled-imports"
+          "completeness": "reconciled-imports",
+          "excludedEntities": [
+            "sale-before",
+            "sale-after",
+            "sale-draft",
+            "sale-cancelled"
+          ]
         },
         "hi": {
-          "kind": "refusal",
-          "mechanism": "unsupported-question",
-          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+          "kind": "answer",
+          "operation": "earned",
+          "valueMinor": "205000",
+          "currency": "INR",
+          "figures": {
+            "total": "205000"
+          },
+          "entities": [
+            "order-a",
+            "order-b"
+          ],
+          "completeness": "reconciled-imports",
+          "excludedEntities": [
+            "sale-before",
+            "sale-after",
+            "sale-draft",
+            "sale-cancelled"
+          ]
         }
       },
       "worked": {
-        "en": "Local English literal grammar chooses earned; delivered orders total 205000 paise.",
-        "hi": "अर्थ डिलीवरी के 205000 पैसे है। स्थानीय हिंदी प्रश्न पर supported:false और receipt:null अपेक्षित हैं।"
+        "en": "The bounded core alias/English literal path selects the published operation. 1250.25 + 799.75 = INR 2050.00, or 205000 paise. Draft/cancelled orders and adjacent months are excluded.",
+        "hi": "सीमित शब्द सूची और पूरे प्रश्न का ढाँचा प्रकाशित गणना चुनते हैं। 1250.25 + 799.75 = 2050.00 रुपये, यानी 205000 पैसे। ड्राफ्ट, रद्द ऑर्डर और दूसरे महीनों को न गिनें।"
       }
     },
     {
@@ -1157,19 +1197,35 @@
       },
       "expected": {
         "en": {
-          "kind": "refusal",
-          "mechanism": "unsupported-question",
-          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+          "kind": "answer",
+          "operation": "refunds",
+          "valueMinor": "12500",
+          "currency": "INR",
+          "figures": {
+            "total": "12500"
+          },
+          "entities": [
+            "refund-a"
+          ],
+          "completeness": "reconciled-imports"
         },
         "hi": {
-          "kind": "refusal",
-          "mechanism": "unsupported-question",
-          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+          "kind": "answer",
+          "operation": "refunds",
+          "valueMinor": "12500",
+          "currency": "INR",
+          "figures": {
+            "total": "12500"
+          },
+          "entities": [
+            "refund-a"
+          ],
+          "completeness": "reconciled-imports"
         }
       },
       "worked": {
-        "en": "This exact English wording is outside the small literal grammar (what were); expect the unsupported-question object.",
-        "hi": "स्थानीय हिंदी प्रश्न के लिए supported:false और receipt:null अपेक्षित हैं; मूल अर्थ वापसी के 12500 पैसे है।"
+        "en": "The bounded core alias/English literal path selects the published operation. The credit note is positive INR 125.00 = 12500 paise; net sales deducts it once.",
+        "hi": "सीमित शब्द सूची और पूरे प्रश्न का ढाँचा प्रकाशित गणना चुनते हैं। क्रेडिट नोट धनात्मक 125.00 रुपये = 12500 पैसे है; शुद्ध बिक्री में इसे एक बार घटाएँ।"
       }
     },
     {
@@ -1204,14 +1260,24 @@
           "completeness": "reconciled-imports"
         },
         "hi": {
-          "kind": "refusal",
-          "mechanism": "unsupported-question",
-          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+          "kind": "answer",
+          "operation": "net_sales",
+          "valueMinor": "192500",
+          "currency": "INR",
+          "figures": {
+            "total": "192500"
+          },
+          "entities": [
+            "order-a",
+            "order-b",
+            "refund-a"
+          ],
+          "completeness": "reconciled-imports"
         }
       },
       "worked": {
-        "en": "Local English literal grammar chooses net_sales: 205000 - 12500 = 192500 paise.",
-        "hi": "अर्थ 205000 - 12500 = 192500 पैसे है। स्थानीय हिंदी प्रश्न पर supported:false और receipt:null अपेक्षित हैं।"
+        "en": "The bounded core alias/English literal path selects the published operation. 2050.00 - 125.00 = INR 1925.00 = 192500 paise. No invoice or payment is added.",
+        "hi": "सीमित शब्द सूची और पूरे प्रश्न का ढाँचा प्रकाशित गणना चुनते हैं। 2050.00 - 125.00 = 1925.00 रुपये = 192500 पैसे। बिल या भुगतान को न जोड़ें।"
       }
     },
     {
@@ -1254,14 +1320,32 @@
           "requiredGap": "Contribution includes imported costs only."
         },
         "hi": {
-          "kind": "refusal",
-          "mechanism": "unsupported-question",
-          "message": "I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list."
+          "kind": "answer",
+          "operation": "margin",
+          "valueMinor": "134500",
+          "currency": "INR",
+          "figures": {
+            "earned": "205000",
+            "refunds": "12500",
+            "netSales": "192500",
+            "costs": "58000",
+            "contribution": "134500",
+            "marginBps": "6987"
+          },
+          "entities": [
+            "order-a",
+            "order-b",
+            "refund-a",
+            "cost-a",
+            "cost-b"
+          ],
+          "completeness": "reconciled-imports",
+          "requiredGap": "Contribution includes imported costs only."
         }
       },
       "worked": {
-        "en": "Local English literal grammar chooses margin: 192500 - 58000 = 134500 paise; 6987 truncated bps.",
-        "hi": "अर्थ योगदान 134500 पैसे और 6987 बेसिस पॉइंट है। स्थानीय हिंदी प्रश्न पर supported:false और receipt:null अपेक्षित हैं।"
+        "en": "The bounded core alias/English literal path selects the published operation. 192500 - 58000 = 134500 paise. Truncate (134500 * 10000) / 192500 = 6987 bps (69.87%). This is contribution on imported costs, not full accounting profit.",
+        "hi": "सीमित शब्द सूची और पूरे प्रश्न का ढाँचा प्रकाशित गणना चुनते हैं। 192500 - 58000 = 134500 पैसे। (134500 * 10000) / 192500 को पूर्णांक तक काटें: 6987 बेसिस पॉइंट (69.87%)। यह आयात किए गए खर्चों पर योगदान है, पूरा लेखा लाभ नहीं।"
       }
     },
     {

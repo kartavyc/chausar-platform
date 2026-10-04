@@ -1,0 +1,305 @@
+{
+  "schema": "chausar.core-operation-aliases.v1",
+  "revision": 1,
+  "scope": "Bounded literal discovery for unchanged published INR starter-pack definitions; general interpretation remains model-routed",
+  "frames": {
+    "en-amount": [
+      "{term}",
+      "what is {term}",
+      "what was {term}",
+      "what are {term}",
+      "what were {term}",
+      "how much was {term}"
+    ],
+    "hi-amount-f": [
+      "{term}",
+      "कुल {term}",
+      "{term} कितनी है",
+      "{term} कितनी थी",
+      "{term} कितनी हुई",
+      "कृपया {term} बताएँ"
+    ],
+    "hi-earned-event": [
+      "कितनी {term} हुई",
+      "कितनी {term} हुई थी"
+    ],
+    "hi-billed-amount-event": [
+      "कितनी राशि के {term} बने",
+      "{term} की कुल राशि कितनी थी"
+    ],
+    "hi-received-cash-event": [
+      "कितना {term} मिला",
+      "{term} कितना मिला",
+      "कुल कितना {term} मिला"
+    ],
+    "hi-refund-amount-event": [
+      "कितनी {term} वापस हुई",
+      "{term} कितनी वापस हुई"
+    ],
+    "hi-contribution-m": [
+      "{term}",
+      "{term} कितना था",
+      "{term} कितना है",
+      "कितना {term} हुआ",
+      "कृपया {term} बताएँ"
+    ],
+    "hi-amount-m": [
+      "{term}",
+      "{term} कितना है",
+      "{term} कितना था",
+      "कृपया {term} बताएँ"
+    ]
+  },
+  "operations": [
+    {
+      "id": "billed",
+      "type": "sum",
+      "definitions": [
+        "billed"
+      ],
+      "terms": [
+        {
+          "language": "en",
+          "text": "billed",
+          "frames": [
+            "en-amount"
+          ]
+        },
+        {
+          "language": "en",
+          "text": "invoiced",
+          "frames": [
+            "en-amount"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "बिलों की राशि",
+          "frames": [
+            "hi-amount-f"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "चालान की राशि",
+          "frames": [
+            "hi-amount-f"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "बिल",
+          "frames": [
+            "hi-billed-amount-event"
+          ]
+        }
+      ],
+      "parameters": [
+        "period",
+        "asOf",
+        "branch",
+        "customerId",
+        "orderId"
+      ]
+    },
+    {
+      "id": "received",
+      "type": "sum",
+      "definitions": [
+        "received"
+      ],
+      "terms": [
+        {
+          "language": "en",
+          "text": "received",
+          "frames": [
+            "en-amount"
+          ]
+        },
+        {
+          "language": "en",
+          "text": "cash received",
+          "frames": [
+            "en-amount"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "प्राप्त नकद",
+          "frames": [
+            "hi-amount-f",
+            "hi-amount-m"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "नकद",
+          "frames": [
+            "hi-received-cash-event"
+          ]
+        }
+      ],
+      "parameters": [
+        "period",
+        "asOf",
+        "branch",
+        "customerId",
+        "orderId"
+      ]
+    },
+    {
+      "id": "earned",
+      "type": "sum",
+      "definitions": [
+        "earned"
+      ],
+      "terms": [
+        {
+          "language": "en",
+          "text": "earned",
+          "frames": [
+            "en-amount"
+          ]
+        },
+        {
+          "language": "en",
+          "text": "earned revenue",
+          "frames": [
+            "en-amount"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "अर्जित कमाई",
+          "frames": [
+            "hi-amount-f",
+            "hi-earned-event"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "अर्जित राजस्व",
+          "frames": [
+            "hi-amount-f",
+            "hi-earned-event",
+            "hi-amount-m"
+          ]
+        }
+      ],
+      "parameters": [
+        "period",
+        "asOf",
+        "branch",
+        "customerId",
+        "orderId"
+      ]
+    },
+    {
+      "id": "refunds",
+      "type": "sum",
+      "definitions": [
+        "refunds"
+      ],
+      "terms": [
+        {
+          "language": "en",
+          "text": "refunds",
+          "frames": [
+            "en-amount"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "वापसी की राशि",
+          "frames": [
+            "hi-amount-f"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "राशि",
+          "frames": [
+            "hi-refund-amount-event"
+          ]
+        }
+      ],
+      "parameters": [
+        "period",
+        "asOf",
+        "branch",
+        "customerId",
+        "orderId"
+      ]
+    },
+    {
+      "id": "net_sales",
+      "type": "sum",
+      "definitions": [
+        "earned",
+        "refunds"
+      ],
+      "terms": [
+        {
+          "language": "en",
+          "text": "net sales",
+          "frames": [
+            "en-amount"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "शुद्ध बिक्री",
+          "frames": [
+            "hi-amount-f"
+          ]
+        }
+      ],
+      "parameters": [
+        "period",
+        "asOf",
+        "branch",
+        "customerId",
+        "orderId"
+      ]
+    },
+    {
+      "id": "margin",
+      "type": "margin",
+      "definitions": [
+        "earned",
+        "refunds",
+        "costs"
+      ],
+      "terms": [
+        {
+          "language": "en",
+          "text": "contribution margin",
+          "frames": [
+            "en-amount"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "योगदान",
+          "frames": [
+            "hi-contribution-m"
+          ]
+        },
+        {
+          "language": "hi",
+          "text": "ऑर्डर योगदान",
+          "frames": [
+            "hi-contribution-m"
+          ]
+        }
+      ],
+      "parameters": [
+        "period",
+        "asOf",
+        "branch",
+        "customerId",
+        "orderId"
+      ]
+    }
+  ]
+}

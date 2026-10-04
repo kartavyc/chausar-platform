@@ -4,6 +4,7 @@ import { OntologyService, type Definition } from './ontology.ts';
 import { formatMinor } from './currency.ts';
 import { assertCompiledSingleSum, compileSingleSum, type CompiledCalculationBinding, type CompiledSingleSum } from './compiled-calculation.ts';
 import { assertSourceAccess } from './trust.ts';
+import { resolveCoreOperationAlias } from './core-operation-aliases.ts';
 
 export type CalculationRequest = FactFilter & { operation: string; sourceIds?: string[]; comparePeriod?: Period; onDate?: string; assumptions?: { priceChangeBps: string } };
 export type Figure = { key: string; label: string; minor: string; display: string; unit: 'money' | 'basis-points'; currency?: string };
@@ -56,7 +57,10 @@ export class CalculatorService {
   catalog(ctx: Context) { const dictionary = new OntologyService(this.store).current(ctx); check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business definitions before asking for numbers.'); return dictionary.operations; }
   guard(text: string, receipt: CalculationReceipt) { return numberGuard(text, receipt); }
   async ask(ctx: Context, question: string, filters: Omit<CalculationRequest, 'operation'> = {}) {
-    authorize(this.store, ctx); const operation = matchQuestion(question, this.catalog(ctx).map(o => o.id));
+    authorize(this.store, ctx); const dictionary = new OntologyService(this.store).current(ctx);
+    check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business definitions before asking for numbers.');
+    const discovery = resolveCoreOperationAlias(question, dictionary);
+    const operation = discovery.kind === 'matched' ? discovery.operationId : discovery.kind === 'ambiguous' ? null : matchQuestion(question, dictionary.operations.map(o => o.id));
     if (!operation) {
       await this.store.update(state => { authorize(this.store, ctx); state.unsupported.push({ id: newId('wanted'), at: now(), question, status: 'not-yet', by: ctx.memberId }); });
       return { supported: false, message: 'I cannot calculate that yet. Choose a published calculation and an explicit period; the question was added to the wanted list.', receipt: null };
