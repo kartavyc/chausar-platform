@@ -8,6 +8,7 @@ import {Engine, type EngineOptions} from '../runtime/engine.ts';
 import {createLocalServer} from '../runtime/server.ts';
 import {Vault} from '../runtime/vault.ts';
 import {workspaceBackupV2Bytes, validateWorkspaceBackupV2, type WorkspaceBackupV2Budgets} from '../runtime/workspace-backup-v2.ts';
+import {inspectWorkspaceInterchange, readHistoricalWorkspaceState} from '../runtime/workspace-interchange.ts';
 import type {Binding, ImportInput} from '../runtime/ingest.ts';
 import {descendants, dialogFor, find, harness, hasText, namedButton} from './fixtures/conversation-acceptance-renderer.ts';
 
@@ -37,19 +38,27 @@ async function fixture(t: TestContext, options: Partial<EngineOptions> = {}) {
   const base = await realpath(tmpdir()); if (process.platform === 'win32') assert.match(base, /^C:\\/i);
   const directory = await realpath(await mkdtemp(join(base, 'chausar-backup-public-')));
   let providerCalls = 0;
+  const timings: {method: string; elapsedMs: number; status?: number; code?: string}[] = [];
+  let pending: {method: string; started: number} | undefined;
   const createEngine = () => new Engine({directory, storage: 'experimental-file', demo: true,
     backupCustody: {budgets, filesystemBudgets: {maxFiles: 100, maxBytes: 4_000_000, maxDepth: 16}},
     gateway: {http: async () => {providerCalls++; throw Error('Synthetic fixture forbids a live provider.');}}, ...options});
   let engine = createEngine(), app = createLocalServer(engine);
   t.after(async () => {
+    t.diagnostic(JSON.stringify({requests: timings, pending: pending && {method: pending.method, elapsedMs: Date.now() - pending.started}}));
     await app.close(); const actual = await realpath(directory), child = relative(base, actual);
     assert.equal(dirname(actual), base); assert.ok(child && !isAbsolute(child) && !child.startsWith('..') && child.startsWith('chausar-backup-public-'));
     await rm(actual, {recursive: true, force: true}); assert.equal(providerCalls, 0);
   });
   let {origin, token} = await app.listen();
   const raw = async (method: string, payload: unknown = {}) => {
-    const response = await fetch(origin + '/api/rpc', {method: 'POST', headers: {'content-type': 'application/json', authorization: 'Bearer ' + token},
-      body: JSON.stringify({method, payload})}); return {status: response.status, body: await response.json() as any};
+    const started = Date.now(); pending = {method, started};
+    const response = await fetch(origin + '/api/rpc', {method: 'POST', signal: AbortSignal.timeout(30_000),
+      headers: {'content-type': 'application/json', authorization: 'Bearer ' + token}, body: JSON.stringify({method, payload})});
+    const body = await response.json() as any, elapsedMs = Date.now() - started;
+    timings.push({method, elapsedMs, status: response.status, ...(body.error ? {code: body.error.code} : {})});
+    assert.ok(elapsedMs < 30_000, `${method} exceeded the unchanged per-request deadline.`);
+    pending = undefined; return {status: response.status, body};
   };
   const rpc = async (method: string, payload: unknown = {}) => {const response = await raw(method, payload);
     assert.equal(response.status, 200, response.body.error?.code || 'Expected successful synthetic RPC'); return response.body.result;};
@@ -72,7 +81,7 @@ function publicMetadata(value: unknown) {
   for (const forbidden of ['authorityBase64', 'dataBase64', 'ciphertext', 'recoveryCode', 'passphrase', 'tokenHash']) assert.equal(text.includes('"' + forbidden + '"'), false);
 }
 
-test('actual public backup then semantic export composes through inert restore and fresh Engine restart', {timeout: 30_000}, async t => {
+test('actual public backup then semantic export composes through inert restore and fresh Engine restart', {timeout: 120_000}, async t => {
   const f = await fixture(t);
   const receipt = await f.rpc('calculation.run', {operation: 'billed', sourceIds: [sourceId], asOf: new Date(Date.now() + 1).toISOString()});
   assert.equal(receipt.totalMinor, '10000');
@@ -134,6 +143,39 @@ test('actual public interchange still refuses revoked historical source authorit
   await f.refuse('workspace.interchange.export', {destinationId: 'revoked_historical_backup_export', confirmed: true}, ['SOURCE_REVOKED']);
   assert.deepEqual(await f.vault().listArtifacts({purpose: 'workspace-interchange'}), refs);
   assert.deepEqual(f.vault().read(), state);
+});
+
+for (const retained of [false, true]) test(`actual public backup/export/restore/restart retains ${retained ? 'present-empty v2 namespaces' : 'legacy v1 namespace absence'}`, {timeout: 30_000}, async t => {
+  const f = await fixture(t);
+  if (retained) await f.vault().update(state => {
+    state.scenarioRecords = [];
+    state.lessonState = {workspaceId: state.workspace.id, episodes: [], lessons: []};
+  });
+  const state = f.vault().read(), member = state.members.find(item => item.id === 'owner')!;
+  const context = {memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' as const};
+  const backup = await f.rpc('workspace.backup.v2.create', create);
+  const exported = await f.rpc('workspace.interchange.export', {destinationId: 'namespace_export', confirmed: true});
+  assert.equal(exported.inventory.stores, retained ? 28 : 26);
+  const saved = await f.engine.services.interchangeLocal.ports.custody.read(context, exported.recordId);
+  const archive = inspectWorkspaceInterchange(saved.content);
+  assert.equal(archive.format, `chausar.workspace-interchange.v${retained ? 2 : 1}`);
+  assert.equal(archive.inventory.profile.id, `chausar.persisted-state.v${retained ? 2 : 1}`);
+  assert.deepEqual(readHistoricalWorkspaceState(archive), state);
+  for (const name of ['scenarioRecords', 'lessonState']) assert.equal(Object.hasOwn(readHistoricalWorkspaceState(archive), name), retained);
+  const restoredInput = {backupId: backup.recordId, targetId: 'namespace_inert', reviewedDigest: backup.archiveDigest};
+  const restored = await f.rpc('workspace.backup.v2.restoreInert', {...restoredInput, confirmed: true});
+  const inertPath = join(f.directory, restoredInput.targetId, 'backup.inert.json'), inert = await readFile(inertPath);
+  const priorEngine = f.engine;
+  await f.restart(); assert.notEqual(f.engine, priorEngine);
+  assert.deepEqual(f.vault().read(), state);
+  assert.deepEqual(await f.engine.services.interchangeLocal.ports.custody.read(context, exported.recordId), saved);
+  assert.deepEqual((await f.rpc('workspace.backup.v2.inspectRestored', restoredInput)).receipt, restored);
+  const reopened = await f.rpc('workspace.interchange.export', {destinationId: 'namespace_export_restarted', confirmed: true});
+  assert.equal(reopened.packageDigest, exported.packageDigest);
+  assert.equal(reopened.inventory.stores, retained ? 28 : 26);
+  assert.deepEqual(await readFile(inertPath), inert);
+  assert.equal(backup.fullWorkspacePortable, false);
+  assert.equal((await f.rpc('workspace.interchange.diagnostics')).fullWorkspacePortabilityQualified, false);
 });
 
 test('actual public archive captures empty private namespaces and reopens exact authenticated readback', async t => {

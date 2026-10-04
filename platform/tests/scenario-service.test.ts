@@ -629,6 +629,37 @@ test('missing custody authentication, altered pins and missing retained artifact
   assert.throws(() => value.service.reopen(owner, view.scenarioId, view.revision.id), refusal);
 });
 
+test('host readiness callbacks receive detached views while retained calculation and reopen preserve exact authority', async () => {
+  const value = await setup(), originalGuards = value.host.calculatorGuards.bind(value.host);
+  const callbacks = new Set<string>(), before = value.store.read(), writes = value.store.writes;
+  function inspectDetached(view: StateStore, phase: 'calculate' | 'reopen', kind: 'request' | 'receipt') {
+    const expected = view.read(), borrowed = view.read();
+    borrowed.members[0].active = false; borrowed.members[0].epoch++;
+    borrowed.policy.allowedSources = [];
+    borrowed.sourceRules.push({ sourceId, revoked: true });
+    borrowed.facts[0].fields.amountMinor = '999999';
+    assert.deepEqual(view.read(), expected, 'Mutating a callback read cannot alter its next authority or evidence read.');
+    callbacks.add(`${phase}:${kind}`);
+  }
+  value.host.calculatorGuards = (view, phase) => {
+    const guards = originalGuards(view, phase);
+    return {
+      consumerGuard: (ctx: Context) => { inspectDetached(view, phase, 'request'); guards.consumerGuard(ctx); },
+      receiptGuard: (ctx: Context, receipt: ScenarioRunResult['receipt']) => {
+        inspectDetached(view, phase, 'receipt'); guards.receiptGuard(ctx, receipt);
+      },
+    };
+  };
+  const initial = value.service.create(owner, createRequest()), ready = await complete(value, initial);
+  assert.deepEqual(ready.revision.branches.map(branch => resultFor(value, initial.scenarioId, ready, branch.rootJobId).receipt.totalMinor),
+    ['10010', '11011', '12012']);
+  const retained = structuredClone(value.host.records.get(initial.scenarioId));
+  assert.deepEqual(value.service.reopen(owner, initial.scenarioId, initial.revision.id), ready);
+  assert.deepEqual(value.host.records.get(initial.scenarioId), retained);
+  assert.deepEqual(value.store.read(), before); assert.equal(value.store.writes, writes);
+  assert.deepEqual([...callbacks].sort(), ['calculate:receipt', 'calculate:request', 'reopen:receipt', 'reopen:request']);
+});
+
 test('required calculator readiness guards see retained snapshots and refuse unavailable publication', async () => {
   const value = await setup(), view = value.service.create(owner, createRequest());
   const dictionaryHash = value.store.read().ontology.current.hash; await complete(value, view);

@@ -28,7 +28,7 @@ export type WorkspaceBusinessProjection = {
 };
 export type WorkspaceActivationEvidence = {
   format: 'chausar.workspace-activation-evidence.v1'; inert: true;
-  /** Exact original authenticated candidate text and independent pin, including the complete historical archive. */
+  /** Exact original authenticated candidate text and independent pin, including unchanged private namespace history. */
   content: string; pin: WorkspaceInterchangeCustodyRecord['pin'];
 };
 export type WorkspaceActivationRecord = {
@@ -122,6 +122,11 @@ const equal = (a: unknown, b: unknown) => canonicalInterchangeJson(a) === canoni
 const legacyFormats = ['csv', 'bank-csv', 'tally-xml', 'zoho-json', 'shopify-json', 'gst-json'];
 const liveStores = ['ontology', 'facts', 'imports', 'conflicts', 'merges', 'tombstones', 'sourceRules'];
 const inertStores = ['members', 'policy', 'workspace', 'schemaVersion', 'revision', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning', 'plugins', 'modelReceipts', 'activity', 'conversations', 'routes', 'sessions', 'unsupported', 'schedules'];
+function historicalInertStores(historical: State): string[] {
+  // Presence is archive evidence even after purge. Do not invent an absent
+  // legacy namespace or rewrite an empty/pinned private lifecycle as live state.
+  return [...inertStores, ...(['scenarioRecords', 'lessonState'] as const).filter(name => Object.hasOwn(historical, name))];
+}
 function assertDictionary(dictionary: Dictionary) {
   check(dictionary && typeof dictionary === 'object' && !Array.isArray(dictionary), 'ACTIVATION_DICTIONARY', 'Active ontology requires a complete published dictionary.');
   const { hash: publishedHash, ...content } = dictionary;
@@ -321,6 +326,9 @@ export class WorkspaceActivationHost {
     'ACTIVATION_AUTHORITY', 'Root must allocate a distinct workspace with a fresh unrestricted owner and independent current desktop session authority.');
   }
   #state(projection: WorkspaceBusinessProjection, authority: WorkspaceActivationAuthority): State {
+    // Private scenario ownership and lesson approvals belong to the original
+    // workspace/member/epoch. Their exact bytes remain in inert evidence only;
+    // the fresh workspace starts without either runtime namespace.
     return { schemaVersion: 1, revision: 0,
       workspace: { id: authority.workspaceId, ...structuredClone(projection.workspace), demo: true, createdAt: authority.createdAt },
       members: [structuredClone(authority.owner)],
@@ -338,7 +346,7 @@ export class WorkspaceActivationHost {
       return { candidateId: checked.pin.recordId, reviewedDigest: checked.pin.candidateDigest, projectionDigest: interchangeDigest(projection),
         packageDigest: checked.pin.packageDigest, targetId: checked.pin.target.targetId, workspaceId: checked.pin.target.workspaceId,
         sourceWorkspaceId: checked.pin.inventory.generation.workspaceId, qualification: checked.read.measurement.qualification,
-        liveStores: [...liveStores], inertStores: [...inertStores], facts: projection.facts.length, artifacts: checked.pin.inventory.artifacts.length,
+        liveStores: [...liveStores], inertStores: historicalInertStores(checked.historical), facts: projection.facts.length, artifacts: checked.pin.inventory.artifacts.length,
         legacyImportIds: projection.imports.map(item => item.id), inertImportIds: checked.historical.imports.filter(item => !legacyFormats.includes(item?.format)).map(item => item.id),
         inertSourceRuleIds: checked.historical.sourceRules.filter(rule => !projection.sourceRules.some(active => equal(rule, active))).map(rule => rule.id) };
     });

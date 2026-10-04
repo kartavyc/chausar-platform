@@ -81,7 +81,7 @@ test('actual encrypted Vault/FS custody preserves all stores, opaque managed bac
   const candidate = await f.custody.ports.custody.read(interchangeOwner, 'candidate_one');
   assert.equal(candidate.pin.kind, 'candidate');
   if (candidate.pin.kind === 'candidate') {
-    assert.equal(candidate.pin.target.stores.length, 26); assert.ok(candidate.pin.target.stores.every(item => item.records === 0));
+    assert.equal(candidate.pin.target.stores.length, 28); assert.ok(candidate.pin.target.stores.every(item => item.records === 0));
     assert.equal(candidate.pin.target.categoryCounts.length, 9); assert.ok(candidate.pin.target.categoryCounts.every(item => item.count === 0));
     assert.equal(candidate.pin.target.authorityRecords, 0);
   }

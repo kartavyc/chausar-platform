@@ -31,7 +31,7 @@ const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest(
 const storeNames = ['members', 'facts', 'imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs',
   'learning', 'plugins', 'modelReceipts', 'activity', 'conflicts', 'merges', 'tombstones', 'conversations',
   'routes', 'sessions', 'unsupported', 'schedules', 'sourceRules', 'schemaVersion', 'revision',
-  'workspace', 'policy', 'ontology'].sort();
+  'workspace', 'policy', 'ontology', 'scenarioRecords', 'lessonState'].sort();
 const categories = ['source-originals', 'mapping-recipes', 'dictionary-artifacts', 'report-files',
   'plugin-assets', 'research-evidence', 'conversation-files', 'sync-evidence', 'other-retained'].sort();
 function identity(value: string) {assert.match(value, /^[A-Za-z0-9_-]{1,100}$/);}
@@ -63,7 +63,7 @@ function assertEmpty(target: EmptyTargetInspection, targetId: string, sourceWork
   assert.ok(target.stores.every(item => item.records === 0));
   assert.deepEqual(target.categoryCounts.map(item => item.category).sort(), categories);
   assert.ok(target.categoryCounts.every(item => item.count === 0));
-  assert.equal(target.profile.id, 'chausar.persisted-state.v1');
+  assert.equal(target.profile.id, 'chausar.persisted-state.v2');
   assert.deepEqual(target.profile.stores.map(item => item.name).sort(), storeNames);
   assert.deepEqual([...target.profile.artifactCategories].sort(), categories);
 }

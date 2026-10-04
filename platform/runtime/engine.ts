@@ -1808,6 +1808,16 @@ export class Engine {
     check(historical.facts.every(fact => canSeeFact(visibility, ctx, fact)), 'INTERCHANGE_READ_SCOPE_REQUIRED', 'Workspace copying requires current access to every retained historical row.');
     const managedSourceIds = [...new Set<string>(current.imports.filter(item => ['connector-capture-v1', 'connector-consumer-binding-v1'].includes(item.type)).map(item => item.sourceId).filter((id): id is string => typeof id === 'string'))];
     this.services.connectorRuntime.assertBusinessEvidenceReady(ctx, { sourceIds, managedSourceIds, factIds: [], profileIds: [], request: {} });
+    this.retainedNamespaceOwner(ctx, historical, current);
+  }
+  private retainedNamespaceOwner(ctx: Context, historical: State, current: State) {
+    const assertScenarioRelease = historical.scenarioRecords?.length
+      ? this.services.scenarios.assertInterchangeRead(ctx, historical) : undefined;
+    if (historical.lessonState && (historical.lessonState.episodes.length || historical.lessonState.lessons.length)) {
+      check(this.services.lessons, 'LESSON_AUTHORITY_REQUIRED', 'Install current lesson evidence, target and evaluation authorities before copying retained lesson history.');
+      this.services.lessons.assertInterchangeRead(ctx, historical.lessonState, { at: now(), days: current.policy.retentionDays });
+    }
+    assertScenarioRelease?.();
   }
   private backupHost(): WorkspaceBackupV2Host {
     check(this.services.backupV2 instanceof WorkspaceBackupV2Host, 'BACKUP_STORAGE_PROFILE_REQUIRED',
@@ -1835,6 +1845,7 @@ export class Engine {
     check((this.options.sync === undefined && managedSourceIds.length === 0) || typeof this.options.backupCustody?.withCompleteOwner === 'function',
       'BACKUP_HELD_READINESS_REQUIRED', 'Configured sync and managed sources require installed held owner/source/readiness admission through archive publication.');
     this.services.connectorRuntime.assertBusinessEvidenceReady(ctx, { sourceIds, managedSourceIds, factIds: [], profileIds: [], request: {} });
+    this.retainedNamespaceOwner(ctx, historical, current);
   }
   private privatePromotionImpact(ctx: Context, state = this.store().read(), strategy?: 'prospective' | 'retrospective') {
     const view: StateStore = { read: () => structuredClone(state), update: async () => { throw new Error('Impact inspection is read-only.'); } };

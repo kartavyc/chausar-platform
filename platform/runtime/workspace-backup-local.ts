@@ -12,7 +12,7 @@ import { interchangeDigest } from './workspace-interchange.ts';
 import type { WorkspaceActivationCommit } from './workspace-activation.ts';
 import type { WorkspaceInterchangeLocalControlCustody, WorkspaceInterchangeLocalControlInventory } from './workspace-interchange-local.ts';
 import {
-  captureWorkspaceBackupV2, encodeWorkspaceBackupV2, inspectWorkspaceBackupV2, validateWorkspaceBackupV2, workspaceBackupV2Bytes,
+  captureWorkspaceBackupV2, encodeWorkspaceBackupV2, inspectWorkspaceBackupV2, validateWorkspaceBackupV2, validateWorkspaceBackupV2Capture, workspaceBackupV2Bytes,
   type WorkspaceBackupV2Archive, type WorkspaceBackupV2Budgets, type WorkspaceBackupV2Capture,
   type WorkspaceBackupV2CustodyRecord, type WorkspaceBackupV2EmptyTarget, type WorkspaceBackupV2ExternalKeyRequirement,
   type WorkspaceBackupV2HostPorts, type WorkspaceBackupV2Measurement, type WorkspaceBackupV2Namespace,
@@ -267,8 +267,9 @@ export class WorkspaceBackupV2LocalCustody implements WorkspaceInterchangeLocalC
           && custodyPin.format === 'chausar.backup-custody-pin.v2' && custodyPin.recordId === binding.recordId
           && custodyPin.creationId === binding.creationId && custodyPin.contextDigest === binding.contextDigest,
         'BACKUP_CUSTODY_CHANGED', 'Independent backup custody pin must retain the exact issued provenance.');
-        const checked = validateWorkspaceBackupV2(retained.record.content, custodyPin.sourcePin, this.#options.budgets);
-        const historical = await vault.authenticateEncryptedCustody(workspaceBackupV2Bytes(checked, this.#options.budgets), this.#vaultBudget());
+        // This private reader freshly validates the independently pinned wire and
+        // reconstructs its bytes together; retain every current custody reread.
+        const historical = await vault.authenticateEncryptedCustody(retained.capture, this.#vaultBudget());
         await this.#guard(context, historical);
         await claim(archive); await claim(pin);
       }
@@ -934,10 +935,10 @@ export class WorkspaceBackupV2LocalCustody implements WorkspaceInterchangeLocalC
       && av.recordId === recordId && pv.recordId === recordId && av.creationId === binding.creationId && pv.creationId === binding.creationId
       && typeof av.content === 'string' && pv.pin && sha(canonical(pv.pin)) === binding.pinDigest && pv.pin.archiveDigest === binding.archiveDigest,
     'BACKUP_CUSTODY_CHANGED', 'Authenticated archive and independent pin differ from their durable issuance binding.');
-    const checked = validateWorkspaceBackupV2(av.content, pv.pin.sourcePin, this.#options.budgets);
-    check(checked.digest === binding.archiveDigest, 'BACKUP_CUSTODY_CHANGED', 'The complete archive differs from its durable issuance digest.');
+    const checked = validateWorkspaceBackupV2Capture(av.content, pv.pin.sourcePin, this.#options.budgets);
+    check(checked.archive.digest === binding.archiveDigest, 'BACKUP_CUSTODY_CHANGED', 'The complete archive differs from its durable issuance digest.');
     return { record: { content: av.content, pin: structuredClone(pv.pin) } as WorkspaceBackupV2CustodyRecord,
-      measurement: this.#measure(identity(archive), identity(pin)), binding, ref: identity(retained) };
+      measurement: this.#measure(identity(archive), identity(pin)), binding, ref: identity(retained), capture: checked.capture };
   }
   async #read(context: Context, recordId: string) {
     check(idPattern.test(recordId), 'BACKUP_RECORD_ID', 'Use one explicit managed record ID.');
@@ -1118,9 +1119,9 @@ export class WorkspaceBackupV2LocalCustody implements WorkspaceInterchangeLocalC
     check(value?.format === 'chausar.backup-inert-container.v2' && Object.keys(value).sort().join(',') === 'content,format,receipt'
       && value.receipt?.creationId === input.creationId && value.receipt.targetId === input.targetId && value.receipt.archiveDigest === actual.reservation.archiveDigest
       && value.receipt.inert === true && value.receipt.activation === 'root-only', 'BACKUP_PARTIAL_RESTORE', 'Inert readback must bind exact receipt identity and archive digest.');
-    const archive = validateWorkspaceBackupV2(value.content, value.receipt.sourcePin, this.#options.budgets);
-    check(archive.digest === value.receipt.archiveDigest, 'BACKUP_PARTIAL_RESTORE', 'Complete inert archive digest differs from receipt.');
-    const historical = await this.#options.vault.authenticateEncryptedCustody(workspaceBackupV2Bytes(archive, this.#options.budgets), this.#vaultBudget()); await this.#guard(context, historical);
+    const checked = validateWorkspaceBackupV2Capture(value.content, value.receipt.sourcePin, this.#options.budgets);
+    check(checked.archive.digest === value.receipt.archiveDigest, 'BACKUP_PARTIAL_RESTORE', 'Complete inert archive digest differs from receipt.');
+    const historical = await this.#options.vault.authenticateEncryptedCustody(checked.capture, this.#vaultBudget()); await this.#guard(context, historical);
     return { content: value.content as string, receipt: value.receipt as WorkspaceBackupV2RestoreReceipt, actual };
   }
   async #readRestored(context: Context, input: { targetId: string; creationId: string }) {

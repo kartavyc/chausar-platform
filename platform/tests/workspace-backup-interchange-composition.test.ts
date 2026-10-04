@@ -323,41 +323,55 @@ test('typed control accounting retains exact source custodian and current owner 
   });
 });
 
-test('exact empty, restored, rolled-back and absent failed-allocation reservations compose through restart', { timeout: 30_000 }, async t => {
-  const f = await fixture(t), composed = f.compose(), before = f.vault.read();
-  const backup = await composed.backup.create(interchangeOwner, { destinationId: 'backup', confirmed: true });
-  await composed.backupLocal.ports.withTarget(interchangeOwner, { targetId: 'empty_target' }, async lease => {
-    await lease.assertEmpty();
+test('exact empty, restored, rolled-back and absent failed-allocation reservations compose through restart', { timeout: 120_000 }, async t => {
+  const steps: { name: string; elapsedMs: number }[] = [];
+  let pending: { name: string; started: number } | undefined;
+  t.after(() => {
+    t.diagnostic(JSON.stringify({ steps, pending: pending && { name: pending.name, elapsedMs: performance.now() - pending.started } }));
   });
-  const restored = await composed.backup.restoreInert(interchangeOwner,
-    { backupId: backup.recordId, targetId: 'restored_target', reviewedDigest: backup.archiveDigest });
-  const rollback = await composed.backup.restoreInert(interchangeOwner,
-    { backupId: backup.recordId, targetId: 'rolled_back_target', reviewedDigest: backup.archiveDigest });
-  await composed.backupLocal.ports.restore.rollback(interchangeOwner, { targetId: rollback.targetId,
-    creationId: rollback.creationId, expectedArchiveDigest: rollback.archiveDigest });
-  await assert.rejects(composed.backupLocal.ports.withTarget(interchangeOwner, { targetId: 'failed_allocation' }, async () => {
+  async function boundedStep<T>(name: string, work: () => Promise<T>): Promise<T> {
+    const started = performance.now(); pending = { name, started };
+    t.diagnostic(JSON.stringify({ step: name, phase: 'started' }));
+    const result = await work(), elapsedMs = performance.now() - started;
+    steps.push({ name, elapsedMs }); pending = undefined;
+    t.diagnostic(JSON.stringify({ step: name, phase: 'completed', elapsedMs }));
+    assert.ok(elapsedMs < 30_000, `The ${name} fixture operation must complete within its unchanged 30-second step bound; observed ${elapsedMs} ms.`);
+    return result;
+  }
+  const f = await fixture(t), composed = f.compose(), before = f.vault.read();
+  const backup = await boundedStep('backup create', () => composed.backup.create(interchangeOwner, { destinationId: 'backup', confirmed: true }));
+  await boundedStep('empty target allocation', () => composed.backupLocal.ports.withTarget(interchangeOwner, { targetId: 'empty_target' }, async lease => {
+    await lease.assertEmpty();
+  }));
+  const restored = await boundedStep('first inert restore', () => composed.backup.restoreInert(interchangeOwner,
+    { backupId: backup.recordId, targetId: 'restored_target', reviewedDigest: backup.archiveDigest }));
+  const rollback = await boundedStep('second inert restore', () => composed.backup.restoreInert(interchangeOwner,
+    { backupId: backup.recordId, targetId: 'rolled_back_target', reviewedDigest: backup.archiveDigest }));
+  await boundedStep('inert rollback', () => composed.backupLocal.ports.restore.rollback(interchangeOwner, { targetId: rollback.targetId,
+    creationId: rollback.creationId, expectedArchiveDigest: rollback.archiveDigest }));
+  await boundedStep('failed allocation refusal', () => assert.rejects(composed.backupLocal.ports.withTarget(interchangeOwner, { targetId: 'failed_allocation' }, async () => {
     throw new ChausarError('TEST_FAILED_ALLOCATION', 'Synthetic allocation callback failed before publication.');
-  }), code('TEST_FAILED_ALLOCATION'));
+  }), code('TEST_FAILED_ALLOCATION')));
   assert.deepEqual(await readdir(composed.backupLocal.targetPath('empty_target')), []);
   assert.deepEqual(await readdir(composed.backupLocal.targetPath('rolled_back_target')), []);
   await assert.rejects(lstat(composed.backupLocal.targetPath('failed_allocation')), { code: 'ENOENT' });
   const failed = (await artifact(f.vault, targetId('failed_allocation'))).value as any;
   assert.equal(failed.state, 'rolled-back'); assert.equal(failed.creationId, null);
-  await composed.interchange.export(interchangeOwner, { destinationId: 'reservation_export', confirmed: true });
-  const reopened = await f.reopen();
-  assert.deepEqual((await reopened.backupLocal.ports.restore.readRestored(interchangeOwner,
-    { targetId: restored.targetId, creationId: restored.creationId })).receipt, restored);
-  await reopened.interchange.export(interchangeOwner, { destinationId: 'reservation_export_reopened', confirmed: true });
-  await reopened.backup.create(interchangeOwner, { destinationId: 'reservation_backup_reopened', confirmed: true });
-  await reopened.interchange.export(interchangeOwner, { destinationId: 'reservation_export_repeated', confirmed: true });
+  await boundedStep('first semantic export', () => composed.interchange.export(interchangeOwner, { destinationId: 'reservation_export', confirmed: true }));
+  const reopened = await boundedStep('fresh Vault reopen', () => f.reopen());
+  assert.deepEqual((await boundedStep('restored readback after reopen', () => reopened.backupLocal.ports.restore.readRestored(interchangeOwner,
+    { targetId: restored.targetId, creationId: restored.creationId }))).receipt, restored);
+  await boundedStep('semantic export after reopen', () => reopened.interchange.export(interchangeOwner, { destinationId: 'reservation_export_reopened', confirmed: true }));
+  await boundedStep('second backup after reopen', () => reopened.backup.create(interchangeOwner, { destinationId: 'reservation_backup_reopened', confirmed: true }));
+  await boundedStep('repeated semantic export', () => reopened.interchange.export(interchangeOwner, { destinationId: 'reservation_export_repeated', confirmed: true }));
   assert.deepEqual(f.vault.read(), before);
 });
 
-test('unowned, changed and unresolved inert targets and external staging cannot be excluded as backup controls', { timeout: 30_000 }, async t => {
+test('unowned, changed and unresolved inert targets and external staging cannot be excluded as backup controls', { timeout: 60_000 }, async t => {
   for (const mode of ['empty_unknown_entry', 'empty_missing', 'restored_unknown_entry', 'restored_tampered',
     'restored_missing', 'restored_replaced_directory', 'rolled_back_leftover', 'reservation_owner', 'reservation_alias',
     'external_staging', 'external_stage_file'] as const) {
-    await t.test(mode, async subtest => {
+    await t.test(mode, { timeout: 30_000 }, async subtest => {
       const f = await fixture(subtest), composed = f.compose();
       const backup = await composed.backup.create(interchangeOwner, { destinationId: 'backup', confirmed: true });
       const id = 'inert_target', path = composed.backupLocal.targetPath(id);

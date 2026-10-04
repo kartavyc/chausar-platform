@@ -27,7 +27,7 @@ function sourceState(): State {
   state.facts = [{ id: 'historical-fact', entityId: 'invoice-1', sourceId: 'synthetic-source', sourceRow: 2, kind: 'invoice',
     validFrom: '2026-03-01', validTo: null, learnedAt: AT, supersededAt: null,
     fields: { amountMinor: '-12345', currency: 'INR', description: '=HARMLESS("literal,with,commas")', largeId: '900719925474099312345' }, branch: 'main' }];
-  for (const store of workspaceStateProfile().stores) {
+  for (const store of workspaceStateProfile(state).stores) {
     if (store.kind === 'collection' && !['members', 'facts'].includes(store.name)) {
       (state as unknown as Record<string, unknown>)[store.name] = [{ id: `historical-${store.name}`, at: AT, kind: 'synthetic-retained-evidence' }];
     }
@@ -100,12 +100,12 @@ function fixture(options: { source?: State; guard?: WorkspaceImportHooks['assert
 
 test('empty target proof independently covers all collections, singleton stores and retained artifact categories', () => {
   const target = emptyTarget();
-  assert.equal(target.profile.stores.length, 26);
-  assert.equal(target.profile.stores.filter(store => store.kind === 'collection').length, 21);
-  assert.equal(target.profile.stores.filter(store => store.kind === 'singleton').length, 5);
+  assert.equal(target.profile.stores.length, 28);
+  assert.equal(target.profile.stores.filter(store => store.kind === 'collection').length, 22);
+  assert.equal(target.profile.stores.filter(store => store.kind === 'singleton').length, 6);
   assert.equal(target.profile.artifactCategories.length, 9);
-  assert.deepEqual(target.profile.stores.filter(store => store.kind === 'collection').map(store => store.name).sort(), EXPECTED_COLLECTIONS.toSorted());
-  assert.deepEqual(target.profile.stores.filter(store => store.kind === 'singleton').map(store => store.name).sort(), EXPECTED_SINGLETONS.toSorted());
+  assert.deepEqual(target.profile.stores.filter(store => store.kind === 'collection').map(store => store.name).sort(), [...EXPECTED_COLLECTIONS, 'scenarioRecords'].toSorted());
+  assert.deepEqual(target.profile.stores.filter(store => store.kind === 'singleton').map(store => store.name).sort(), [...EXPECTED_SINGLETONS, 'lessonState'].toSorted());
   assert.deepEqual(target.profile.artifactCategories.toSorted(), EXPECTED_CATEGORIES.toSorted());
   assert.ok(target.stores.every(store => store.records === 0));
   assert.ok(target.categoryCounts.every(category => category.count === 0));

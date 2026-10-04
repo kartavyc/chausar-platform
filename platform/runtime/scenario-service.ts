@@ -17,6 +17,9 @@ const assertSealed = (value: { digest: string }) => {
   check(pin === digest(body), 'SCENARIO_ARTIFACT_CHANGED', 'A retained scenario artifact changed.');
 };
 const readOnly = (state: State): StateStore => ({ read: () => structuredClone(state), update: async () => { throw new ChausarError('SCENARIO_READ_ONLY', 'Scenario authority is read only.'); } });
+// Only #access, #requestAccess and #load use this view for pure synchronous
+// access checks on their fresh live read. Never pass it to a host or callback.
+const internalAccessView = (state: State): StateStore => ({ read: () => state, update: async () => { throw new ChausarError('SCENARIO_READ_ONLY', 'Scenario authority is read only.'); } });
 const label = (value: unknown) => check(typeof value === 'string' && value.trim().length > 0 && value.length <= 200, 'INVALID_SCENARIO', 'Supply a nonempty scenario label.');
 function dataOnly(value: unknown, seen = new Set<object>()) {
   if (value === null || ['string', 'boolean'].includes(typeof value) || (typeof value === 'number' && Number.isFinite(value))) return;
@@ -316,7 +319,7 @@ export class ScenarioService {
   }
   #access(ctx: Context, evidence: ScenarioEvidence, record?: ScenarioRecord) {
     check(!ctx.sourceTainted, 'SCENARIO_TAINTED_CONTEXT', 'Imported source text cannot authorize scenario work.');
-    const live = this.#live.read(), view = readOnly(live); authorize(view, ctx);
+    const live = this.#live.read(), view = internalAccessView(live); authorize(view, ctx);
     check(live.workspace.id === evidence.state.workspace.id, 'SCENARIO_WORKSPACE_CHANGED', 'This retained scenario belongs to another workspace.');
     if (record) check(record.workspaceId === live.workspace.id && record.memberId === ctx.memberId && record.epoch === ctx.epoch,
       'SCENARIO_FORBIDDEN', 'This private scenario belongs to another member or permission epoch.');
@@ -331,7 +334,7 @@ export class ScenarioService {
     }
   }
   #requestAccess(ctx: Context, request: CalculationRequest) {
-    const live = this.#live.read(); currentAccess(readOnly(live), ctx, request.branch);
+    const live = this.#live.read(); currentAccess(internalAccessView(live), ctx, request.branch);
     if (request.sourceIds !== undefined) assertSourceAccess(live, ctx, request.sourceIds);
   }
   #currentAuthority(state: State): State {
@@ -342,7 +345,7 @@ export class ScenarioService {
         ...structuredClone(live.sourceRules.filter(rule => typeof rule.sourceId === 'string'))] };
   }
   #load(ctx: Context, id: string): ScenarioRecord {
-    authorize(readOnly(this.#live.read()), ctx);
+    authorize(internalAccessView(this.#live.read()), ctx);
     const value = this.#host.resolveScenario(ctx, id); synchronous(value);
     const record = structuredClone(value);
     check(record?.version === 1 && record.id === id, 'SCENARIO_UNAVAILABLE', 'Authenticated scenario custody is unavailable.');
