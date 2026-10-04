@@ -2,6 +2,13 @@ import type { Context, State } from './contracts.ts';
 
 export const INTERCHANGE_FORMAT = 'chausar.workspace-interchange.v1' as const;
 export const STATE_PROFILE = 'chausar.persisted-state.v1' as const;
+export const RETAINED_INTERCHANGE_FORMAT = 'chausar.workspace-interchange.v2' as const;
+export const RETAINED_STATE_PROFILE = 'chausar.persisted-state.v2' as const;
+/** Optional persisted namespaces. Presence, including empty presence, is part of the profile. */
+export const RETAINED_NAMESPACE_STORES = [
+  { name: 'scenarioRecords', kind: 'collection' },
+  { name: 'lessonState', kind: 'singleton' },
+] as const;
 export const COLLECTION_STORES = [
   'members', 'facts', 'imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs',
   'learning', 'plugins', 'modelReceipts', 'activity', 'conflicts', 'merges', 'tombstones',
@@ -42,7 +49,7 @@ export type WorkspaceInventory = {
   categoryCounts: { category: string; count: number }[];
 };
 export type WorkspaceInterchange = {
-  format: typeof INTERCHANGE_FORMAT; inventory: WorkspaceInventory;
+  format: typeof INTERCHANGE_FORMAT | typeof RETAINED_INTERCHANGE_FORMAT; inventory: WorkspaceInventory;
   stores: { manifest: StoreManifest; text: string }[];
   artifacts: { manifest: ArtifactManifest; text: string }[];
   readable: { definitions: string; recipes: string };

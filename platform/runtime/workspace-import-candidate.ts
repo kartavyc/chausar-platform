@@ -3,7 +3,7 @@ import {
   canonicalInterchangeJson, interchangeDigest, readHistoricalWorkspaceState,
   validateWorkspaceInterchange, workspaceStateProfile,
 } from './workspace-interchange.ts';
-import type { EmptyTargetInspection, WorkspaceImportCandidate, WorkspaceImportHooks, WorkspaceInventory } from './workspace-interchange-contracts.ts';
+import { STATE_PROFILE, type EmptyTargetInspection, type StoreProfile, type WorkspaceImportCandidate, type WorkspaceImportHooks, type WorkspaceInventory } from './workspace-interchange-contracts.ts';
 
 function requireValue(condition: unknown, code: string, message: string): asserts condition {
   if (!condition) throw new ChausarError(code, message);
@@ -13,7 +13,7 @@ const digest = (value: unknown): value is string => typeof value === 'string' &&
 const equal = (left: unknown, right: unknown) => canonicalInterchangeJson(left) === canonicalInterchangeJson(right);
 
 /** This validates a ROOT inspection, never a caller-authored empty-directory claim. */
-export function proveEmptyWorkspaceTarget(target: EmptyTargetInspection): string {
+export function proveEmptyWorkspaceTarget(target: EmptyTargetInspection, sourceProfile?: StoreProfile): string {
   requireValue(target && typeof target === 'object' && !Array.isArray(target), 'INTERCHANGE_TARGET_PROOF', 'An independently enumerated target inspection is required.');
   const keys = ['targetId', 'workspaceId', 'generation', 'accessDigest', 'ready', 'profile', 'stores', 'categoryCounts', 'authorityRecords', 'unexpectedEntries'];
   requireValue(equal(Object.keys(target).sort(), keys.sort()), 'INTERCHANGE_TARGET_PROOF', 'The target inspection must include every required field.');
@@ -22,8 +22,10 @@ export function proveEmptyWorkspaceTarget(target: EmptyTargetInspection): string
     'INTERCHANGE_TARGET_PROOF', 'Target identity, immutable fence and current permission pin are required.');
   requireValue(target.ready === true, 'INTERCHANGE_NOT_READY', 'Target storage is not ready for a reviewed candidate.');
   const profile = workspaceStateProfile();
-  requireValue(equal(target.profile, profile), 'INTERCHANGE_PROFILE', 'Target storage must enumerate the exact reviewed profile.');
-  requireValue(Array.isArray(target.stores) && equal(target.stores, profile.stores.map(store => ({ name: store.name, records: 0 }))) &&
+  const legacy = workspaceStateProfile({});
+  requireValue(equal(target.profile, profile) || (sourceProfile === undefined || sourceProfile.id === STATE_PROFILE) && equal(target.profile, legacy),
+    'INTERCHANGE_PROFILE', 'Retained namespace imports require every supported target namespace; legacy targets support legacy archives only.');
+  requireValue(Array.isArray(target.stores) && equal(target.stores, target.profile.stores.map(store => ({ name: store.name, records: 0 }))) &&
     Array.isArray(target.categoryCounts) && equal(target.categoryCounts, profile.artifactCategories.map(category => ({ category, count: 0 }))) &&
     target.authorityRecords === 0 && Array.isArray(target.unexpectedEntries) && target.unexpectedEntries.length === 0,
   'INTERCHANGE_TARGET_NOT_EMPTY', 'Import requires no persisted stores, retained artifacts, existing authority or unclassified entries in the target.');
@@ -44,10 +46,10 @@ export class WorkspaceImportCandidateService {
     requireValue(source?.ready === true, 'INTERCHANGE_NOT_READY', 'Complete source inventory is not currently ready.');
     return structuredClone(source.inventory);
   }
-  #target(context: Context, targetId: string): EmptyTargetInspection {
+  #target(context: Context, targetId: string, sourceProfile?: StoreProfile): EmptyTargetInspection {
     const target = structuredClone(this.#hooks.target(structuredClone(context), targetId));
     requireValue(target?.targetId === targetId, 'INTERCHANGE_TARGET_CHANGED', 'The inspected target identity differs from the requested target.');
-    proveEmptyWorkspaceTarget(target); return target;
+    proveEmptyWorkspaceTarget(target, sourceProfile); return target;
   }
   #read(context: Context, candidate: WorkspaceImportCandidate) {
     requireValue(candidate.contextDigest === interchangeDigest(context), 'INTERCHANGE_CONTEXT_CHANGED', 'Review the candidate with the same current account, role and epoch.');
@@ -61,7 +63,7 @@ export class WorkspaceImportCandidateService {
       if (guardResult instanceof Promise) void guardResult.catch(() => {});
       throw new ChausarError('INTERCHANGE_HOST_GUARD', 'Complete-read admission must finish synchronously and return undefined; deferred or boolean admission is refused.');
     }
-    const target = this.#target(context, candidate.targetId);
+    const target = this.#target(context, candidate.targetId, archive.inventory.profile);
     requireValue(interchangeDigest(target) === candidate.targetProofDigest, 'INTERCHANGE_TARGET_CHANGED', 'Target identity, empty proof, current permissions or generation changed.');
     requireValue(target.workspaceId !== inventory.generation.workspaceId, 'INTERCHANGE_TARGET_IDENTITY', 'Root must allocate a distinct empty target workspace identity.');
   }
@@ -70,7 +72,7 @@ export class WorkspaceImportCandidateService {
     requireValue(input && identifier(input.targetId), 'INTERCHANGE_TARGET_PROOF', 'Choose one explicit root-owned target.');
     const inventory = this.#source(context);
     const archive = validateWorkspaceInterchange(input.text, inventory);
-    const target = this.#target(context, input.targetId);
+    const target = this.#target(context, input.targetId, archive.inventory.profile);
     const pins = { targetId: input.targetId, targetWorkspaceId: target.workspaceId, packageDigest: archive.digest,
       sourceInventoryDigest: interchangeDigest(inventory), targetProofDigest: interchangeDigest(target), contextDigest: interchangeDigest(context) };
     const candidate: WorkspaceImportCandidate = { format: 'chausar.workspace-import-candidate.v1', id: `import_${interchangeDigest(pins)}`,

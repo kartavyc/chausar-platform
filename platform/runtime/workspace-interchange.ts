@@ -3,6 +3,7 @@ import { ChausarError, type State } from './contracts.ts';
 import type { CalculationReceipt } from './calculator.ts';
 import {
   COLLECTION_STORES, SINGLETON_STORES, RETAINED_ARTIFACT_CATEGORIES, INTERCHANGE_FORMAT, STATE_PROFILE,
+  RETAINED_INTERCHANGE_FORMAT, RETAINED_STATE_PROFILE, RETAINED_NAMESPACE_STORES,
   type ArtifactCapture, type ArtifactManifest, type Generation, type StoreProfile, type StoreManifest,
   type WorkspaceCapture, type WorkspaceInterchange, type WorkspaceInventory,
 } from './workspace-interchange-contracts.ts';
@@ -24,7 +25,18 @@ const coreProfile: StoreProfile = {
 function requireValue(condition: unknown, code: string, message: string): asserts condition {
   if (!condition) throw new ChausarError(code, message);
 }
-export function workspaceStateProfile(): StoreProfile { return structuredClone(coreProfile); }
+function profileWithRetainedNamespaces(retained: ReadonlyArray<StoreProfile['stores'][number]>): StoreProfile {
+  return retained.length === 0 ? coreProfile : {
+    ...coreProfile, id: RETAINED_STATE_PROFILE,
+    stores: [...coreProfile.stores, ...retained].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+  };
+}
+/** Without a State, enumerate every supported namespace for a fresh target.
+ * With a State, retain the exact optional namespace presence of that saved cut. */
+export function workspaceStateProfile(state?: Pick<State, 'scenarioRecords' | 'lessonState'>): StoreProfile {
+  const retained = RETAINED_NAMESPACE_STORES.filter(store => state === undefined || Object.hasOwn(state, store.name));
+  return structuredClone(profileWithRetainedNamespaces(retained));
+}
 /** Canonical persisted JSON. Undefined object properties follow Vault JSON semantics. */
 export function canonicalInterchangeJson(value: unknown): string {
   let nodes = 0;
@@ -91,11 +103,16 @@ function generation(value: unknown): asserts value is Generation {
   requireValue(identifier(value.workspaceId) && identifier(value.captureId) && safeCount(value.revision), 'INTERCHANGE_GENERATION', 'A complete immutable capture identity is required.');
 }
 function assertProfile(profile: unknown): asserts profile is StoreProfile {
-  requireValue(same(profile, coreProfile), 'INTERCHANGE_PROFILE', 'This codec requires the exact reviewed persisted-state profile. New stores require a new codec profile.');
+  if (same(profile, coreProfile)) return;
+  requireValue(record(profile) && profile.id === RETAINED_STATE_PROFILE && Array.isArray(profile.stores),
+    'INTERCHANGE_PROFILE', 'This codec requires an explicitly supported versioned persisted-state profile.');
+  const retained = RETAINED_NAMESPACE_STORES.filter(store => profile.stores.some((item: any) => item?.name === store.name));
+  requireValue(retained.length > 0 && same(profile, profileWithRetainedNamespaces(retained)),
+    'INTERCHANGE_PROFILE', 'Only the declared scenario and lesson namespaces may extend the legacy profile.');
 }
-function assertState(state: unknown): asserts state is State {
-  exact(state, coreProfile.stores.map(store => store.name), 'INTERCHANGE_STORES');
-  for (const store of coreProfile.stores) if (store.kind === 'collection') {
+function assertState(state: unknown, profile: StoreProfile): asserts state is State {
+  exact(state, profile.stores.map(store => store.name), 'INTERCHANGE_STORES');
+  for (const store of profile.stores) if (store.kind === 'collection') {
     requireValue(Array.isArray(state[store.name]), 'INTERCHANGE_STORES', 'Every persisted collection must be an explicit array, including empty collections.');
   }
   requireValue(state.schemaVersion === 1 && safeCount(state.revision), 'INTERCHANGE_SCHEMA', 'Unsupported State schema or revision.');
@@ -103,6 +120,11 @@ function assertState(state: unknown): asserts state is State {
     typeof state.workspace.currency === 'string' && typeof state.workspace.demo === 'boolean' && typeof state.workspace.createdAt === 'string',
   'INTERCHANGE_STATE', 'The workspace identity is incomplete.');
   requireValue(record(state.policy) && (state.ontology === null || record(state.ontology)), 'INTERCHANGE_STATE', 'Policy and readable ontology must be retained.');
+  if (Object.hasOwn(state, 'lessonState')) {
+    exact(state.lessonState, ['workspaceId', 'episodes', 'lessons'], 'INTERCHANGE_STORES');
+    requireValue(state.lessonState.workspaceId === state.workspace.id && Array.isArray(state.lessonState.episodes)
+      && Array.isArray(state.lessonState.lessons), 'INTERCHANGE_STATE', 'The lesson namespace must retain its exact workspace, episodes and lessons.');
+  }
 }
 function readable(state: State, artifacts: WorkspaceInterchange['artifacts']): WorkspaceInterchange['readable'] {
   const pretty = (value: unknown) => JSON.stringify(JSON.parse(canonicalInterchangeJson(value)), null, 2);
@@ -113,6 +135,21 @@ function readable(state: State, artifacts: WorkspaceInterchange['artifacts']): W
   };
 }
 function assertRetainedImportBodies(state: State, artifacts: WorkspaceInterchange['artifacts']) {
+  assertRetainedStateImportBodies(state, artifacts);
+  // Older scenario cuts may require originals/recipes absent from today's
+  // top-level imports. Recovery requires those exact bodies as well.
+  for (const scenario of state.scenarioRecords ?? []) {
+    requireValue(record(scenario) && Array.isArray(scenario.evidence), 'INTERCHANGE_STATE', 'Retained scenarios need their complete evidence cuts.');
+    for (const evidence of scenario.evidence) {
+      requireValue(record(evidence) && record(evidence.state), 'INTERCHANGE_STATE', 'Retained scenario evidence must contain its complete input State.');
+      requireValue(!Object.hasOwn(evidence.state, 'scenarioRecords') && !Object.hasOwn(evidence.state, 'lessonState'),
+        'INTERCHANGE_STATE', 'Scenario evidence cannot recursively retain private namespaces.');
+      assertState(evidence.state, coreProfile);
+      assertRetainedStateImportBodies(evidence.state, artifacts);
+    }
+  }
+}
+function assertRetainedStateImportBodies(state: State, artifacts: WorkspaceInterchange['artifacts']) {
   const recipePins = new Map<string, { legacy: string; canonical: string }>();
   for (const item of artifacts.filter(artifact => artifact.manifest.category === 'mapping-recipes')) {
     requireValue(item.manifest.representation === 'literal-utf8' && item.manifest.mediaType === 'application/json',
@@ -198,8 +235,12 @@ function packageDigest(value: unknown): string { return interchangeDigest(value)
 
 /** Root must capture State and ALL retained artifact bytes under the same snapshot fence. */
 export function captureWorkspaceInterchange(stateInput: State, artifactCapture: ArtifactCapture): WorkspaceCapture {
-  const state = JSON.parse(persistedJson(stateInput)) as State;
-  assertState(state);
+  const stateText = persistedJson(stateInput);
+  requireValue(record(stateInput), 'INTERCHANGE_STORES', 'Persisted State must contain the exact supported stores.');
+  const profile = workspaceStateProfile(stateInput);
+  assertState(stateInput, profile);
+  const state = JSON.parse(stateText) as State;
+  assertState(state, profile);
   exact(artifactCapture, ['complete', 'enumerationId', 'generation', 'categories', 'artifacts']);
   generation(artifactCapture.generation);
   requireValue(artifactCapture.complete === true && identifier(artifactCapture.enumerationId) &&
@@ -225,13 +266,13 @@ export function captureWorkspaceInterchange(stateInput: State, artifactCapture: 
     text: literal ? utf8 : bytes.toString('base64') };
   }).sort((a, b) => a.manifest.id < b.manifest.id ? -1 : a.manifest.id > b.manifest.id ? 1 : 0);
   assertRetainedImportBodies(state, artifacts);
-  const stores = coreProfile.stores.map(item => ({ manifest: storeManifest(item.name, item.kind, state[item.name as keyof State], artifactCapture.generation),
+  const stores = profile.stores.map(item => ({ manifest: storeManifest(item.name, item.kind, state[item.name as keyof State], artifactCapture.generation),
     text: persistedJson(state[item.name as keyof State]) }));
-  const inventory: WorkspaceInventory = { format: 'chausar.workspace-inventory.v1', profile: workspaceStateProfile(),
+  const inventory: WorkspaceInventory = { format: 'chausar.workspace-inventory.v1', profile,
     generation: structuredClone(artifactCapture.generation), enumerationId: artifactCapture.enumerationId,
     accessDigest: interchangeDigest({ members: state.members, policy: state.policy }), stateDigest: interchangeDigest(state),
     stores: stores.map(item => item.manifest), artifacts: artifacts.map(item => item.manifest), categoryCounts: categoryCounts(artifacts.map(item => item.manifest)) };
-  const unsigned = { format: INTERCHANGE_FORMAT, inventory, stores, artifacts, readable: readable(state, artifacts) };
+  const unsigned = { format: profile.id === STATE_PROFILE ? INTERCHANGE_FORMAT : RETAINED_INTERCHANGE_FORMAT, inventory, stores, artifacts, readable: readable(state, artifacts) };
   const result: WorkspaceInterchange = { ...unsigned, digest: packageDigest(unsigned) };
   // Apply the wire-size bound before returning an apparently usable capture.
   canonicalInterchangeJson(result);
@@ -258,25 +299,29 @@ function parsePersistedJson(text: string): any {
 export function inspectWorkspaceInterchange(text: string): WorkspaceInterchange {
   const value = parseCanonical(text);
   exact(value, ['format', 'inventory', 'stores', 'artifacts', 'readable', 'digest']);
-  requireValue(value.format === INTERCHANGE_FORMAT, 'INTERCHANGE_FORMAT', 'Unsupported workspace interchange version.');
+  requireValue(value.format === INTERCHANGE_FORMAT || value.format === RETAINED_INTERCHANGE_FORMAT,
+    'INTERCHANGE_FORMAT', 'Unsupported workspace interchange version.');
   exact(value.inventory, ['format', 'profile', 'generation', 'enumerationId', 'accessDigest', 'stateDigest', 'stores', 'artifacts', 'categoryCounts']);
   const inventory = value.inventory;
   requireValue(inventory.format === 'chausar.workspace-inventory.v1', 'INTERCHANGE_FORMAT', 'Unsupported inventory version.');
   assertProfile(inventory.profile); generation(inventory.generation);
+  const profile = inventory.profile as StoreProfile;
+  requireValue(value.format === (profile.id === STATE_PROFILE ? INTERCHANGE_FORMAT : RETAINED_INTERCHANGE_FORMAT),
+    'INTERCHANGE_FORMAT', 'The wire version must match its explicit persisted-state profile.');
   requireValue(identifier(inventory.enumerationId) && digestPattern.test(inventory.accessDigest) && digestPattern.test(inventory.stateDigest),
     'INTERCHANGE_INVENTORY', 'A complete trusted inventory pin is required.');
-  requireValue(Array.isArray(value.stores) && value.stores.length === coreProfile.stores.length, 'INTERCHANGE_STORES', 'Omitted and extra stores are refused.');
+  requireValue(Array.isArray(value.stores) && value.stores.length === profile.stores.length, 'INTERCHANGE_STORES', 'Omitted and extra stores are refused.');
   const state: Record<string, unknown> = Object.create(null);
-  for (let index = 0; index < coreProfile.stores.length; index++) {
+  for (let index = 0; index < profile.stores.length; index++) {
     const item = value.stores[index]; exact(item, ['manifest', 'text']);
     exact(item.manifest, ['name', 'kind', 'records', 'bytes', 'sha256', 'generation']);
-    const expected = coreProfile.stores[index]; const stored = parsePersistedJson(item.text);
+    const expected = profile.stores[index]; const stored = parsePersistedJson(item.text);
     if (expected.kind === 'collection') requireValue(Array.isArray(stored), 'INTERCHANGE_STORES', 'A collection payload must be a complete explicit JSON array.');
     requireValue(item.manifest.name === expected.name && same(item.manifest, storeManifest(expected.name, expected.kind, stored, inventory.generation)),
       'INTERCHANGE_CHECKSUM', 'Store name, generation, count or checksum differs from its complete payload.');
     state[expected.name] = stored;
   }
-  assertState(state);
+  assertState(state, profile);
   requireValue(state.workspace.id === inventory.generation.workspaceId && state.revision === inventory.generation.revision,
     'INTERCHANGE_GENERATION', 'The declared generation does not match historical State.');
   requireValue(Array.isArray(value.artifacts) && value.artifacts.length <= MAX_ARTIFACTS, 'INTERCHANGE_ARTIFACT', 'Retained artifacts must be exhaustively listed.');
