@@ -1,0 +1,16 @@
+{
+  "frozenSource": "5edf751b5fc58181e0a0c1e4c025dcc8ad5bcbfd",
+  "document": "TODAY-PUBLIC-CONTRACT.md",
+  "bytes": 65255,
+  "sha256": "4182b190dced4f361fec0d6b7d20ce37d7197ddf5f0698fbd88f2012545e8205",
+  "literalDeclarationsVerified": 79,
+  "sourceFileHashesVerified": 18,
+  "fixedRefusalCodes": 121,
+  "todayReviewJobPinRefusalCodes": 43,
+  "publicTypesStrictDiagnostics": 0,
+  "publicJsonDependenciesClosed": true,
+  "immutableSourceLinks": true,
+  "hostCapabilitiesNotFlattened": true,
+  "newNativeCommands": false,
+  "packageCommands": false
+}
