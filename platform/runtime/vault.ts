@@ -62,7 +62,7 @@ export type VaultWriterGuard = <T>(input: { state: State; vaultId: string },
 /** Trusted application cleanup only; the Vault owns storage and private paths. */
 export type VaultDeletionCleanup = (input: { privateArtifactPaths: readonly string[]; assertCurrent: () => void }) => Promise<void>;
 type Common = { directory: string; storage: Storage; keychain?: KeychainHook; writerGuard?: VaultWriterGuard };
-export type CreateVaultOptions = Common & { passphrase: string; name: string; demo?: boolean };
+export type CreateVaultOptions = Common & { passphrase: string; name: string; demo?: boolean; dictionaryMode?: 'legacy' | 'deferred' };
 export type VaultBootstrapBudgets = { maxStateBytes: number; maxJsonDepth: number; maxJsonNodes: number; maxRecords: number };
 /** Trusted constructor capability only: State must come from validated WorkspaceActivationHost publication. */
 export type CreateBootstrapVaultOptions = Common & {
@@ -519,7 +519,10 @@ export class Vault implements StateStore {
   }
   static async create(options: CreateVaultOptions): Promise<{ vault: Vault; recoveryCode: string }> {
     let directory: string, adapter: EncryptedSnapshotAdapter, lock: Lock;
+    const dictionaryMode = Object.hasOwn(options, 'dictionaryMode') ? options.dictionaryMode : 'legacy', demo = options.demo;
     try {
+      if (dictionaryMode !== 'legacy' && dictionaryMode !== 'deferred') fail('INVALID_DICTIONARY_MODE', 'Choose an explicit dictionary creation mode.');
+      if (dictionaryMode === 'deferred' && demo !== undefined && demo !== false) fail('INVALID_DICTIONARY_MODE', 'Deferred review requires a fresh workspace without demo data.');
       passphrase(options.passphrase);
       if (typeof options.name !== 'string' || !options.name.trim() || options.name.length > 200) fail('INVALID_NAME', 'Choose a workspace name.');
       directory = await safeDirectory(options.directory, true); adapter = adapterFor(directory, options.storage); lock = await takeLock(directory);
@@ -530,7 +533,10 @@ export class Vault implements StateStore {
       key = randomBytes(32);
       id = randomUUID(); const recoveryCode = `CHR-${randomBytes(32).toString('base64url')}`;
       const [primary, recovery] = await Promise.all([wrap(options.passphrase, key, id, 'passphrase'), wrap(recoveryCode, key, id, 'recovery')]);
-      const state = initialState(options.name, options.demo ?? false);
+      const state = initialState(options.name, demo ?? false);
+      // The first encrypted commit retains this mode even if Engine attachment
+      // is interrupted; there is no reopenable unmarked initialization interval.
+      if (dictionaryMode === 'deferred') state.ontology = { current: null, history: [], firstRunReviewRequired: true };
       const envelope = encodeSnapshot(state, { format: FORMAT, id, revision: 0, passphrase: primary, recovery }, key);
       await adapter.commit(envelope, null);
       committed = true;

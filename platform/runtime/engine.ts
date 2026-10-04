@@ -950,14 +950,22 @@ export class Engine {
       check(this.options.sync === undefined, 'SYNC_EXISTING_WORKSPACE_REQUIRED', 'Create a local workspace before enrolling its exact identity in device sync.');
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before creating another.');
       check(typeof payload.name === 'string' && payload.name.trim().length >= 2 && payload.name.length <= 100, 'INVALID_NAME', 'Give your business a name.');
-      if (payload.demoFixtureMonth !== undefined) check(this.#demo && payload.demo === true, 'DEMO_ONLY', 'Only a synthetic launch may select a sample fixture month.');
-      const pack = payload.pack ?? 'ecommerce'; check(new OntologyService({ read: () => { throw new Error('No vault'); }, update: async () => { throw new Error('No vault'); } }).packs().some(p => p.pack === pack), 'UNKNOWN_PACK', 'Choose an available business starter pack.');
+      const name = payload.name.trim(), passphrase = payload.passphrase, demo = payload.demo, demoFixtureMonth = payload.demoFixtureMonth;
+      const dictionaryMode = Object.hasOwn(payload, 'dictionaryMode') ? payload.dictionaryMode : 'legacy';
+      check(dictionaryMode === 'legacy' || dictionaryMode === 'deferred', 'INVALID_DICTIONARY_MODE', 'Choose legacy starter publication or an explicit first-run dictionary review.');
+      if (dictionaryMode === 'deferred') check((demo === undefined || demo === false) && !Object.hasOwn(payload, 'demoFixtureMonth') && !Object.hasOwn(payload, 'pack'),
+        'INVALID_DICTIONARY_MODE', 'Deferred dictionary review requires a fresh workspace without a demo fixture or selected starter pack.');
+      if (demoFixtureMonth !== undefined) check(this.#demo && demo === true, 'DEMO_ONLY', 'Only a synthetic launch may select a sample fixture month.');
+      const pack = dictionaryMode === 'legacy' ? payload.pack ?? 'ecommerce' : undefined;
+      if (pack !== undefined) check(new OntologyService({ read: () => { throw new Error('No vault'); }, update: async () => { throw new Error('No vault'); } }).packs().some(p => p.pack === pack), 'UNKNOWN_PACK', 'Choose an available business starter pack.');
       const folder = payload.folder ?? 'main';
       return this.withWorkspaceStorage(folder, 'create', async storage => {
-      const result = await Vault.create({ directory: this.workspacePath(folder), passphrase: payload.passphrase, name: payload.name.trim(), demo: !!payload.demo, storage, keychain: this.options.keychain });
+      const result = await Vault.create({ directory: this.workspacePath(folder), passphrase, name, demo: !!demo, dictionaryMode, storage, keychain: this.options.keychain });
       try {
-        await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
-        if (payload.demo) await seedDemo(this.store(), this.context, payload.demoFixtureMonth);
+        await this.attach(result.vault);
+        authorize(result.vault, this.context, 'admin');
+        if (dictionaryMode === 'legacy') await this.services.ontology.publish(this.context, pack);
+        if (demo) await seedDemo(this.store(), this.context, demoFixtureMonth);
         return { workspace: this.store().read().workspace, recoveryKit: result.recoveryCode, recoveryCode: result.recoveryCode, experimental: !!this.options.demo };
       } catch (error) { await this.deleteVault(result.vault); throw error; }
       });
@@ -1441,8 +1449,8 @@ export class Engine {
       case 'sources.workbookPreview': return s.imports.preview(ctx, this.workbookInput(payload));
       case 'sources.workbookImport': return s.imports.commit(ctx, this.workbookInput(payload));
       case 'ontology.packs': return s.ontology.packs();
-      case 'ontology.get': return { current: s.ontology.current(ctx), history: s.ontology.history(ctx) };
-      case 'ontology.publish': return s.ontology.publish(ctx, payload.draft ?? payload.pack ?? payload);
+      case 'ontology.get': return s.ontology.get(ctx, payload);
+      case 'ontology.publish': return s.ontology.publishPayload(ctx, payload);
       case 'memory.list': return s.memory.query(ctx, payload);
       case 'memory.lessons': {
         this.journalPayload(payload, [], [], 'INVALID_LESSON');
