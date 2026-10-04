@@ -2,7 +2,7 @@
 import type { ConversationPayloads } from '../bridge/conversation-contract.ts';
 import type { DashboardTodayRequest, BriefTodayRequest } from '../bridge/today-host.ts';
 import { ReplyValidationError } from '../bridge/validate.ts';
-import type { LessonDecisionRequest, ScenarioReopenRequest } from './retained-contracts.ts';
+import type { LessonDecisionRequest, ScenarioDiscoveryRequest, ScenarioReopenRequest } from './retained-contracts.ts';
 
 export interface UiContext {
   readonly workspace: { readonly id: string; readonly name: string; readonly demo: boolean };
@@ -25,7 +25,9 @@ export interface HostRpcPayloads extends ConversationPayloads {
   'reports.brief': BriefTodayRequest;
   'receipts.get': { readonly id: string };
   'workspace.lock': Record<string, never>;
-  /** Retained reader slice: exact reopen of a trusted pin, current lesson views, one human decision. */
+  /** Retained reader slice: bounded discovery of released what-if revisions, exact reopen of a pin,
+   * current lesson views, one human decision. Discovery carries only the declared plain limit/cursor. */
+  'scenarios.discover': ScenarioDiscoveryRequest;
   'scenarios.reopen': ScenarioReopenRequest;
   'memory.lessons': Record<string, never>;
   'memory.decideLesson': LessonDecisionRequest;

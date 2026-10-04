@@ -1,0 +1,39 @@
+/* The Saved ledger holds layout only: plain ground, grey notes, rows between hairlines. The
+   list stays where it is; a chosen what-if opens in the frame's one right sheet, never beneath
+   the rows. No boxes, no colour of its own. */
+
+.page,
+.group {
+  display: grid;
+  gap: var(--sp4);
+  align-content: start;
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--fs-note2);
+  font-weight: var(--fw-regular);
+  color: var(--mute);
+}
+
+/* Source labels as written: nothing is cut here; the row cuts with three dots and the opened view keeps the whole. */
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp3);
+}

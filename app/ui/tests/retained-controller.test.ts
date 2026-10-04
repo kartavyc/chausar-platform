@@ -5,10 +5,10 @@ import test from 'node:test';
 import { createHostController } from '../src/host/controller.ts';
 import type { HostRpcPayloads, HostRpcPort, UiContext } from '../src/host/contracts.ts';
 import {
-  lessonDecisionAvailability, retainedFailureCode, scenarioColumns, scenarioOutcomeFigure, scenarioProof,
-  validateLessonReviewList, validateLessonReviewView, validateRetainedScenarioView, validateScenarioSelection,
+  SCENARIO_PAGE_SIZE, discoveryRowSelection, lessonDecisionAvailability, retainedFailureCode, sameScenarioSelection, scenarioColumns, scenarioDiscoveryRequest, scenarioOutcomeFigure, scenarioProof,
+  validateLessonReviewList, validateLessonReviewView, validateRetainedScenarioView, validateScenarioDiscoveryPage, validateScenarioSelection,
 } from '../src/host/retained-contracts.ts';
-import type { LessonDecisionIntent, LessonStatus, RetainedScenarioView } from '../src/host/retained-contracts.ts';
+import type { LessonDecisionIntent, LessonStatus, RetainedScenarioView, ScenarioDiscoveryRow } from '../src/host/retained-contracts.ts';
 import { fullCalculationReceiptFixture, HUGE_INTEGER } from './fixtures.ts';
 
 /**
@@ -22,7 +22,7 @@ import { fullCalculationReceiptFixture, HUGE_INTEGER } from './fixtures.ts';
 const hex = (character: string) => character.repeat(64);
 const AT = '2026-10-01T09:00:00.000Z';
 /** The only methods this frontend may ever dispatch; everything else is asserted absent by name. */
-const ALLOWED_METHODS = ['ui.context', 'dashboard.get', 'receipts.get', 'models.list', 'workspace.lock', 'scenarios.reopen', 'memory.lessons', 'memory.decideLesson'];
+const ALLOWED_METHODS = ['ui.context', 'dashboard.get', 'receipts.get', 'models.list', 'workspace.lock', 'scenarios.discover', 'scenarios.reopen', 'memory.lessons', 'memory.decideLesson'];
 const context = (contextKey = 'a'.repeat(64), role = 'owner') => ({ workspace: { id: 'workspace_fixture', name: 'Synthetic host fixture', demo: true }, member: { id: 'member_fixture', name: 'Fixture owner', role, epoch: 1, branches: ['*'] }, contextKey });
 const uiContext = (role: 'owner' | 'cofounder' | 'accountant' | 'viewer' = 'owner', workspaceId = 'workspace_fixture'): UiContext => ({ workspace: { id: workspaceId, name: 'Synthetic host fixture', demo: true }, member: { id: 'member_fixture', name: 'Fixture owner', role, epoch: 1, branches: ['*'] as readonly string[] }, contextKey: 'a'.repeat(64) });
 const route = { id: 'route_fixture', kind: 'codex-cli', model: 'model_fixture', enabled: true, installationVerified: false, label: 'Synthetic route' };
@@ -171,6 +171,46 @@ function scenarioView(options: { alternative?: AlternativeStatus; headRevisionId
   return { scenarioId: PIN.scenarioId, headRevisionId: options.headRevisionId ?? PIN.revisionId, mode: 'retained-revision', revision, jobs: [{ jobId: 'scenario_job_base', status: 'ready', runId: 'scenario_run_base' }, altState, ...agingStates], status: alternative === 'ready' ? 'complete' : 'partial', results, comparisons, noAction: true };
 }
 const scenarioReply = (view: unknown): Reply => method => method === 'scenarios.reopen' ? view : undefined;
+
+/* ---------- Discovery fixtures (scenarios.discover page shape) ---------- */
+const CURSOR = 'c'.repeat(64), CURSOR_2 = 'd'.repeat(64);
+const DISCOVER_REQUEST = { limit: SCENARIO_PAGE_SIZE };
+const HEAD_PIN = { scenarioId: PIN.scenarioId, revisionId: 'scenario_revision_head' };
+const OTHER_PIN = { scenarioId: 'scenario_other', revisionId: 'scenario_other_revision' };
+function discoveryRow(overrides: Record<string, unknown> = {}) {
+  return { scenarioId: PIN.scenarioId, revisionId: PIN.revisionId, label: 'Price up five percent', createdAt: AT, revisionMode: 'initial', status: 'complete', isHead: false, noAction: true, ...overrides };
+}
+/** Newest first, as the Engine sorts: the current head of the fixture scenario, its historical revision a, and another
+ * scenario's partial head. All three carry one label; only the two identities distinguish the rows. */
+const ROW_HEAD = discoveryRow({ revisionId: HEAD_PIN.revisionId, createdAt: '2026-10-02T09:00:00.000Z', revisionMode: 'assumption-change', isHead: true });
+const ROW_A = discoveryRow();
+const ROW_OTHER = discoveryRow({ scenarioId: OTHER_PIN.scenarioId, revisionId: OTHER_PIN.revisionId, createdAt: '2026-09-30T09:00:00.000Z', status: 'partial', isHead: true });
+const laterRows = (count: number, start: number) => Array.from({ length: count }, (_, index) => discoveryRow({
+  scenarioId: `scenario_later_${String(start + index)}`, revisionId: `scenario_later_revision_${String(start + index)}`,
+  createdAt: `2026-09-${String(29 - start - index).padStart(2, '0')}T09:00:00.000Z`, isHead: true,
+}));
+const discoveryPage = (items: readonly unknown[], nextCursor: string | null = null) => ({ mode: 'retained-revisions', items: [...items], nextCursor, noAction: true });
+/** Two issued pages of five: the first full page with a continuation, then the terminal page of two. */
+const FIRST_PAGE = () => discoveryPage([ROW_HEAD, ROW_A, ROW_OTHER, ...laterRows(2, 1)], CURSOR);
+const SECOND_PAGE = () => discoveryPage(laterRows(2, 3));
+const cursorOf = (payload: unknown) => (payload as { cursor?: string }).cursor;
+const twoPages = (payload: unknown) => (cursorOf(payload) === undefined ? FIRST_PAGE() : SECOND_PAGE());
+/** The exact reopen view for a pin: revision a of the fixture scenario under its later head, that head itself, or the other scenario. */
+function viewFor(payload: unknown): unknown {
+  const pin = payload as { scenarioId: string; revisionId: string };
+  if (pin.scenarioId === OTHER_PIN.scenarioId) return edit(scenarioView(), ['scenarioId', OTHER_PIN.scenarioId], ['revision.scenarioId', OTHER_PIN.scenarioId], ['revision.id', OTHER_PIN.revisionId], ['headRevisionId', OTHER_PIN.revisionId]);
+  if (pin.revisionId === HEAD_PIN.revisionId) return edit(scenarioView({ headRevisionId: HEAD_PIN.revisionId }), ['revision.id', HEAD_PIN.revisionId]);
+  return scenarioView({ headRevisionId: HEAD_PIN.revisionId });
+}
+const discoveryReply = (page: (payload: unknown) => unknown): Reply => (method, payload) => method === 'scenarios.discover' ? page(payload) : method === 'scenarios.reopen' ? viewFor(payload) : undefined;
+const refuseWith = (code: string): never => { throw refusal(code); };
+/** The exact checked rows a controller publishes for a page, for binding controls in tests. */
+const checkedRows = (page: unknown, request: { limit: number } = DISCOVER_REQUEST): readonly ScenarioDiscoveryRow[] => validateScenarioDiscoveryPage(page, request).items;
+const readyRows = (fixture: { host: ReturnType<typeof createHostController> }) => {
+  const discovery = fixture.host.retained.snapshot().discovery;
+  if (discovery.kind !== 'ready') assert.fail(`expected released rows, got ${discovery.kind}`);
+  return discovery;
+};
 
 /* ---------- Lesson fixtures (released evidence and candidate shape) ---------- */
 const member = { memberId: 'member_fixture', role: 'owner', epoch: 1 };
@@ -1155,6 +1195,714 @@ test('V1 malformed lesson and scenario replies are refused without touching acce
   assert.equal(Object.isFrozen(frozen.results[0]?.receipt.figures), true);
 });
 
+/* ---------- Scenario discovery ---------- */
+test('D1 a discovery page is released whole or not at all: exact rows in Engine order with same-label revisions distinct, bounded by the issued limit; every malformed, decorated, oversized or accessor-bearing page releases no label', async () => {
+  const fixture = await ready(discoveryReply(() => discoveryPage([ROW_HEAD, ROW_A, ROW_OTHER], CURSOR)));
+  const receiptsBefore = fixture.count('receipts.get');
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { kind: 'idle' });
+  assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+  // The request carries only the declared plain limit: no cursor, actor, workspace or readiness generation; nothing is reopened.
+  assert.deepEqual(fixture.calls.filter(call => call.method === 'scenarios.discover').map(call => call.payload), [{ limit: 5 }]);
+  assert.equal(fixture.count('scenarios.reopen'), 0); assert.equal(fixture.count('receipts.get'), receiptsBefore);
+  const discovery = readyRows(fixture);
+  assert.deepEqual(discovery.rows, [ROW_HEAD, ROW_A, ROW_OTHER]);
+  assert.deepEqual(discovery.rows.map(row => row.label), ['Price up five percent', 'Price up five percent', 'Price up five percent']);
+  assert.deepEqual(discovery.rows.map(row => [row.scenarioId, row.revisionId, row.createdAt, row.revisionMode, row.status, row.isHead]), [
+    [PIN.scenarioId, HEAD_PIN.revisionId, '2026-10-02T09:00:00.000Z', 'assumption-change', 'complete', true],
+    [PIN.scenarioId, PIN.revisionId, AT, 'initial', 'complete', false],
+    [OTHER_PIN.scenarioId, OTHER_PIN.revisionId, '2026-09-30T09:00:00.000Z', 'initial', 'partial', true],
+  ]);
+  assert.equal(discovery.cursor, CURSOR); assert.equal(discovery.page, 0); assert.equal(discovery.selected, null);
+  assert.equal(Object.isFrozen(discovery.rows), true); assert.equal(Object.isFrozen(discovery.rows[0]), true);
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'idle' });
+  assert.deepEqual(fixture.forbidden(), []);
+  fixture.host.dispose();
+  // An empty valid page is an empty ready list: no selection, no reopen, no absence inferred about retention.
+  const empty = await ready(discoveryReply(() => discoveryPage([])));
+  assert.deepEqual(await empty.host.retained.readDiscovery(), { ok: true });
+  assert.deepEqual(empty.host.retained.snapshot().discovery, { kind: 'ready', rows: [], cursor: null, page: 0, selected: null });
+  assert.equal(empty.count('scenarios.reopen'), 0);
+  empty.host.dispose();
+  // The outbound request admits only the producer's declared bounds and never sends a null or decorated cursor.
+  assert.deepEqual(scenarioDiscoveryRequest({}), { limit: 25 });
+  assert.deepEqual(Object.keys(scenarioDiscoveryRequest({ limit: 5, cursor: null })), ['limit']);
+  assert.deepEqual(scenarioDiscoveryRequest({ limit: 50, cursor: CURSOR }), { limit: 50, cursor: CURSOR });
+  for (const bad of [{ limit: 0 }, { limit: 51 }, { limit: 2.5 }, { limit: Number.NaN }, { cursor: 'C'.repeat(64) }, { cursor: 'c'.repeat(63) }, { cursor: ' '.repeat(64) }]) assert.throws(() => scenarioDiscoveryRequest(bad), JSON.stringify(bad));
+  // Table-driven refusals: the producer's declared shape and bounds, nothing stricter and nothing looser.
+  const valid = () => discoveryPage([ROW_HEAD, ROW_A], CURSOR);
+  assert.doesNotThrow(() => validateScenarioDiscoveryPage(valid(), DISCOVER_REQUEST));
+  const hostile: (readonly [string, unknown])[] = [
+    ['page noAction false', edit(valid(), ['noAction', false])],
+    ['row noAction false', edit(valid(), ['items.1.noAction', false])],
+    ['wrong mode', edit(valid(), ['mode', 'retained-revision'])],
+    ['missing nextCursor', edit(valid(), ['nextCursor', undefined])],
+    ['missing row key', edit(valid(), ['items.1.isHead', undefined])],
+    ['extra page key', { ...valid(), total: 2 }],
+    ['hidden-row count', { ...valid(), hiddenRows: 3 }],
+    ['extra row key', edit(valid(), ['items.1.amount', '100'])],
+    ['row figure', edit(valid(), ['items.1.figure', { minor: '100' }])],
+    ['malformed scenario pin', edit(valid(), ['items.1.scenarioId', '../scenario'])],
+    ['empty revision pin', edit(valid(), ['items.1.revisionId', ''])],
+    ['invalid status', edit(valid(), ['items.1.status', 'ready'])],
+    ['invalid revision mode', edit(valid(), ['items.1.revisionMode', 'recompute'])],
+    ['head not boolean', edit(valid(), ['items.1.isHead', 'true'])],
+    ['blank label', edit(valid(), ['items.1.label', '   '])],
+    ['label over the producer bound', edit(valid(), ['items.1.label', 'x'.repeat(201)])],
+    ['label not a string', edit(valid(), ['items.1.label', 7])],
+    ['date-only createdAt', edit(valid(), ['items.1.createdAt', '2026-10-01'])],
+    ['upper-case cursor', edit(valid(), ['nextCursor', 'C'.repeat(64)])],
+    ['short cursor', edit(valid(), ['nextCursor', 'c'.repeat(63)])],
+    ['numeric cursor', edit(valid(), ['nextCursor', 1])],
+    ['repeated revision', discoveryPage([ROW_HEAD, { ...ROW_HEAD, label: 'Same revision twice' }])],
+    ['items not an array', edit(valid(), ['items', { 0: ROW_HEAD, length: 1 }])],
+    ['page over the issued limit', discoveryPage([ROW_HEAD, ROW_A, ROW_OTHER, ...laterRows(3, 1)])],
+  ];
+  for (const [name, page] of hostile) assert.throws(() => validateScenarioDiscoveryPage(page, DISCOVER_REQUEST), name);
+  // The issued limit bounds the page; an unspecified request is bounded by the producer's default of twenty-five.
+  assert.equal(checkedRows(discoveryPage([ROW_HEAD, ROW_A, ROW_OTHER, ...laterRows(3, 1)]), { limit: 10 }).length, 6);
+  assert.equal(validateScenarioDiscoveryPage(discoveryPage(laterRows(25, 1)), {}).items.length, 25);
+  assert.throws(() => validateScenarioDiscoveryPage(discoveryPage(laterRows(26, 1)), {}));
+  // A label at the producer bound is retained byte for byte; it is never trimmed or cut.
+  assert.equal(checkedRows(discoveryPage([edit(ROW_A, ['label', ` ${'y'.repeat(198)} `])]))[0]?.label, ` ${'y'.repeat(198)} `);
+  // Producer parity, nothing stricter: the backend admits every nonblank label of at most 200 code units and releases it
+  // verbatim (scenario-service.ts `label`, `dataOnly`, `describe`), so a label holding a control character, a tab or a
+  // newline is a valid released row, kept byte for byte, and never refuses the page. A label still identifies nothing.
+  for (const admitted of ['label\u0007', 'tab\tlabel', 'two\nlines', '\u001b[0m', 'x'.repeat(200)]) {
+    const rows = checkedRows(discoveryPage([edit(ROW_HEAD, ['label', admitted]), ROW_A]));
+    const released = rows[0];
+    assert.equal(rows.length, 2, JSON.stringify(admitted)); assert.ok(released !== undefined); assert.equal(released.label, admitted, JSON.stringify(admitted));
+    assert.deepEqual(discoveryRowSelection(released), HEAD_PIN);
+  }
+  const controlLabelled = await ready(discoveryReply(() => discoveryPage([edit(ROW_HEAD, ['label', 'label\u0007']), ROW_A])));
+  assert.deepEqual(await controlLabelled.host.retained.readDiscovery(), { ok: true });
+  assert.deepEqual(readyRows(controlLabelled).rows.map(row => row.label), ['label\u0007', 'Price up five percent']);
+  assert.deepEqual(await controlLabelled.host.retained.openDiscovered(HEAD_PIN, { rows: readyRows(controlLabelled).rows, page: 0, from: null }), { ok: true });
+  assert.deepEqual(controlLabelled.calls.filter(call => call.method === 'scenarios.reopen').map(call => call.payload), [HEAD_PIN]);
+  controlLabelled.host.dispose();
+  // Sparse arrays, symbols, prototypes and accessors are refused before being read.
+  const sparse: unknown[] = [ROW_HEAD]; sparse.length = 2;
+  assert.throws(() => validateScenarioDiscoveryPage(discoveryPage(sparse), DISCOVER_REQUEST));
+  const symbolic = [ROW_HEAD] as unknown[] & Record<symbol, unknown>; symbolic[Symbol('hidden')] = 1;
+  assert.throws(() => validateScenarioDiscoveryPage({ mode: 'retained-revisions', items: symbolic, nextCursor: null, noAction: true }, DISCOVER_REQUEST));
+  let accessed = false;
+  const trapped: Record<string, unknown> = { ...ROW_A };
+  Object.defineProperty(trapped, 'label', { enumerable: true, get() { accessed = true; return 'Trapped label'; } });
+  assert.throws(() => validateScenarioDiscoveryPage(discoveryPage([ROW_HEAD, trapped]), DISCOVER_REQUEST)); assert.equal(accessed, false);
+  const inherited: Record<string, unknown> = Object.assign(Object.create({ hidden: true }) as Record<string, unknown>, ROW_A);
+  assert.throws(() => validateScenarioDiscoveryPage(discoveryPage([inherited]), DISCOVER_REQUEST));
+  const pageTrap: Record<string, unknown> = { mode: 'retained-revisions', nextCursor: null, noAction: true };
+  Object.defineProperty(pageTrap, 'items', { enumerable: true, get() { accessed = true; return [ROW_HEAD]; } });
+  assert.throws(() => validateScenarioDiscoveryPage(pageTrap, DISCOVER_REQUEST)); assert.equal(accessed, false);
+  // Through the controller a valid first row followed by an invalid second row releases neither label; the state is bounded.
+  const partial = await ready(discoveryReply(() => discoveryPage([ROW_HEAD, edit(ROW_A, ['status', 'ready'])])));
+  assert.deepEqual(await partial.host.retained.readDiscovery(), { ok: false, code: 'INVALID_REPLY' });
+  assert.deepEqual(partial.host.retained.snapshot().discovery, { kind: 'unavailable', code: 'INVALID_REPLY' });
+  assert.equal(JSON.stringify(partial.host.retained.snapshot()).includes('Price up'), false);
+  assert.equal(partial.host.snapshot().phase, 'ready');
+  partial.host.dispose();
+});
+test('D2 a human choice from the exact checked rows reopens exactly both identities: same-label historical revisions stay distinct, a later head is never substituted, decorated pins and rows off the list are refused without dispatch, and a foreign reply releases nothing', async () => {
+  let view: (payload: unknown) => unknown = viewFor;
+  const fixture = await ready((method, payload) => method === 'scenarios.discover' ? discoveryPage([ROW_HEAD, ROW_A, ROW_OTHER]) : method === 'scenarios.reopen' ? view(payload) : undefined);
+  const receiptsBefore = fixture.count('receipts.get');
+  assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+  const listed = readyRows(fixture);
+  // Discovery chose nothing: no reopen before a human press, whatever the head flags say.
+  assert.equal(fixture.count('scenarios.reopen'), 0);
+  assert.equal(listed.rows.filter(row => row.label === 'Price up five percent').length, 3);
+  // The historical revision a is chosen by both identities; the request is exactly the pin, nothing from the row travels with it.
+  const historical = listed.rows[1];
+  assert.ok(historical !== undefined); assert.deepEqual(discoveryRowSelection(historical), PIN);
+  assert.deepEqual(await fixture.host.retained.openDiscovered(discoveryRowSelection(historical), { rows: listed.rows, page: 0, from: null }), { ok: true });
+  assert.deepEqual(fixture.calls.filter(call => call.method === 'scenarios.reopen').map(call => call.payload), [PIN]);
+  const scenario = fixture.host.retained.snapshot().scenario;
+  assert.equal(scenario.kind, 'ready');
+  if (scenario.kind !== 'ready') return;
+  assert.equal(scenario.historical, true); assert.equal(scenario.view.revision.id, PIN.revisionId); assert.equal(scenario.view.headRevisionId, HEAD_PIN.revisionId);
+  assert.equal(scenario.view.revision.createdAt, AT);
+  const chosen = readyRows(fixture);
+  assert.equal(chosen.rows, listed.rows); assert.equal(sameScenarioSelection(chosen.selected, PIN), true);
+  // A decorated pin, a label, a row off the list or a head-substituted copy is refused before any dispatch, and the list stays.
+  const calls = fixture.calls.length;
+  for (const bad of [{ ...PIN, label: 'Price up five percent' }, { ...PIN, isHead: false }, { scenarioId: PIN.scenarioId }, { scenarioId: 'scenario_absent', revisionId: PIN.revisionId }, { scenarioId: PIN.scenarioId, revisionId: 'scenario_revision_other' }, 'Price up five percent']) {
+    assert.deepEqual(await fixture.host.retained.openDiscovered(bad, { rows: listed.rows, page: 0, from: PIN }), { ok: false, code: 'SELECTION_INVALID' }, JSON.stringify(bad));
+  }
+  assert.equal(fixture.calls.length, calls); assert.equal(fixture.host.retained.snapshot().discovery, chosen);
+  // The head advanced further between discovery and reopen: an exact checked reply for the chosen revision is still the historical view.
+  // Read again names exactly the pin, checked view, rows and window it was drawn for.
+  view = () => scenarioView({ headRevisionId: 'scenario_revision_later_head' });
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain({ selection: PIN, view: scenario.view, list: { rows: listed.rows, page: 0 } }), { ok: true });
+  const later = fixture.host.retained.snapshot().scenario;
+  assert.equal(later.kind === 'ready' && later.historical && later.view.revision.id === PIN.revisionId && later.view.headRevisionId === 'scenario_revision_later_head', true);
+  assert.equal(readyRows(fixture).rows, listed.rows);
+  // A reply for the head instead of the chosen revision is refused: no graph, figure or proof is released, no retry, and no row
+  // name or pin stays beside the refusal: the chosen row's ephemeral pin is gone with its rows, so nothing can be re-read from it.
+  view = () => edit(scenarioView({ headRevisionId: HEAD_PIN.revisionId }), ['revision.id', HEAD_PIN.revisionId]);
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: listed.rows, page: 0, from: PIN }), { ok: false, code: 'INVALID_REPLY' });
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'unavailable', selection: null, code: 'INVALID_REPLY' });
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { kind: 'idle' });
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain({ selection: PIN, view: null, list: { rows: listed.rows, page: 0 } }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain({ selection: PIN, view: null, list: null }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.equal(JSON.stringify(fixture.host.retained.snapshot()).includes(HUGE_INTEGER), false);
+  assert.equal(JSON.stringify(fixture.host.retained.snapshot()).includes('Price up'), false);
+  await settle(); assert.equal(fixture.count('scenarios.reopen'), 3);
+  // The same-label row of another scenario opens its own exact tuple; nothing was looked up by label.
+  view = viewFor;
+  assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+  const again = readyRows(fixture);
+  assert.deepEqual(await fixture.host.retained.openDiscovered(OTHER_PIN, { rows: again.rows, page: 0, from: null }), { ok: true });
+  assert.deepEqual(fixture.calls.filter(call => call.method === 'scenarios.reopen').at(-1)?.payload, OTHER_PIN);
+  const other = fixture.host.retained.snapshot().scenario;
+  assert.equal(other.kind === 'ready' && other.view.scenarioId === OTHER_PIN.scenarioId && !other.historical, true);
+  // Nothing else was ever dispatched: no create, change, recompute, evaluate, finalize, model, lesson decision or global receipt.
+  assert.equal(fixture.count('receipts.get'), receiptsBefore);
+  assert.deepEqual(fixture.forbidden(), []);
+  fixture.host.dispose();
+});
+test('D3 a continuation carries the exact issued cursor and the same limit; a terminal page offers none; a stale continuation is refused explicitly with every row, cursor, selection and view cleared, and only an explicit fresh read without a cursor continues', async () => {
+  let refuseCursor: string | null = null, refuseAll: Error | null = null;
+  const fixture = await ready((method, payload) => {
+    if (method === 'scenarios.reopen') return viewFor(payload);
+    if (method !== 'scenarios.discover') return undefined;
+    if (refuseAll !== null) throw refuseAll;
+    if (cursorOf(payload) !== undefined && refuseCursor !== null) throw refusal(refuseCursor);
+    return twoPages(payload);
+  });
+  const payloads = () => fixture.calls.filter(call => call.method === 'scenarios.discover').map(call => call.payload);
+  assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+  const first = readyRows(fixture);
+  assert.equal(first.rows.length, 5); assert.equal(first.cursor, CURSOR);
+  // Inert controls: a copied rows array, a copied cursor on another window, a cursor the Engine did not issue, a control
+  // drawn beside a selection that is not the current one.
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: [...first.rows], cursor: CURSOR, page: 0, from: null }), { ok: false, code: 'PAGE_INVALID' });
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: first.rows, cursor: CURSOR, page: 1, from: null }), { ok: false, code: 'PAGE_INVALID' });
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: first.rows, cursor: CURSOR_2, page: 0, from: null }), { ok: false, code: 'PAGE_INVALID' });
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: first.rows, cursor: CURSOR, page: 0, from: PIN }), { ok: false, code: 'PAGE_INVALID' });
+  assert.equal(fixture.count('scenarios.discover'), 1); assert.equal(fixture.host.retained.snapshot().discovery, first);
+  // The genuine continuation: the exact issued cursor, the same limit, nothing else.
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: first.rows, cursor: CURSOR, page: 0, from: null }), { ok: true });
+  assert.deepEqual(payloads(), [{ limit: 5 }, { limit: 5, cursor: CURSOR }]);
+  assert.deepEqual(Object.keys(payloads()[1] as object).sort(), ['cursor', 'limit']);
+  const second = readyRows(fixture);
+  assert.deepEqual(second.rows.map(row => row.revisionId), [...first.rows.map(row => row.revisionId), 'scenario_later_revision_3', 'scenario_later_revision_4']);
+  assert.equal(second.cursor, null); assert.equal(second.page, 1); assert.equal(second.selected, null);
+  // Terminal: no further continuation; the consumed control and the earlier rows' control are inert.
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: second.rows, cursor: CURSOR, page: 1, from: null }), { ok: false, code: 'PAGE_INVALID' });
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: first.rows, cursor: CURSOR, page: 0, from: null }), { ok: false, code: 'PAGE_INVALID' });
+  assert.equal(fixture.count('scenarios.discover'), 2);
+  // The window moves locally over the rows read so far, from the exact window and selection the control was drawn beside, within those rows.
+  fixture.host.retained.pageDiscovery(second.rows, 1, 0, null);
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { ...second, page: 0 });
+  fixture.host.retained.pageDiscovery(second.rows, 1, 0, null); fixture.host.retained.pageDiscovery(second.rows, 0, 2, null); fixture.host.retained.pageDiscovery([...second.rows], 0, 1, null);
+  fixture.host.retained.pageDiscovery(second.rows, 0, 0.5, null); fixture.host.retained.pageDiscovery(second.rows, 0, 1, PIN);
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { ...second, page: 0 });
+  fixture.host.retained.pageDiscovery(second.rows, 0, 1, null);
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, second);
+  assert.equal(fixture.count('scenarios.discover'), 2);
+  // A fresh read starts again from the first page without a cursor and publishes only its own page.
+  assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+  const fresh = readyRows(fixture);
+  assert.deepEqual(payloads().at(-1), { limit: 5 }); assert.equal(fresh.rows.length, 5); assert.equal(fresh.page, 0);
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: fresh.rows, page: 0, from: null }), { ok: true });
+  assert.equal(fixture.host.retained.snapshot().scenario.kind, 'ready');
+  // Under an unchanged ui.context the Engine refuses the continuation as stale: rows, cursor, selection and the chosen view are
+  // all gone, the exact refusal code is kept, nothing is retried or repaired, and the old controls cannot act.
+  refuseCursor = 'SCENARIO_AUTHORITY_CHANGED';
+  const chosenView = fixture.host.retained.snapshot().scenario;
+  const chosenDetail = { selection: PIN, view: chosenView.kind === 'ready' ? chosenView.view : null, list: { rows: fresh.rows, page: 0 } };
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: fresh.rows, cursor: CURSOR, page: 0, from: PIN }), { ok: false, code: 'SCENARIO_AUTHORITY_CHANGED' });
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { kind: 'unavailable', code: 'SCENARIO_AUTHORITY_CHANGED' });
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'idle' });
+  assert.equal(JSON.stringify(fixture.host.retained.snapshot()).includes('Price up'), false);
+  assert.equal(JSON.stringify(fixture.host.retained.snapshot()).includes(CURSOR), false);
+  await settle(); assert.equal(fixture.count('scenarios.discover'), 4);
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: fresh.rows, cursor: CURSOR, page: 0, from: PIN }), { ok: false, code: 'PAGE_INVALID' });
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: fresh.rows, page: 0, from: PIN }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain(chosenDetail), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(fixture.host.retained.closeScenario(chosenDetail), { ok: false, code: 'SELECTION_INVALID' });
+  assert.equal(fixture.count('scenarios.discover'), 4); assert.equal(fixture.count('scenarios.reopen'), 1);
+  assert.equal(fixture.host.snapshot().phase, 'ready');
+  // Only an explicit fresh first page continues, and it omits the cursor.
+  refuseCursor = null;
+  assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+  assert.deepEqual(payloads().at(-1), { limit: 5 });
+  assert.deepEqual(readyRows(fixture).rows.map(row => row.revisionId), fresh.rows.map(row => row.revisionId));
+  // Page refusals after an earlier success leave no old or partial row and no raw prose; an unsupported method or missing
+  // host capability is honest missing capability, never an empty list.
+  for (const [thrown, expected] of [
+    [refusal('SCENARIO_RETENTION_EXPIRED'), 'SCENARIO_RETENTION_EXPIRED'], [refusal('SCENARIO_HOST_REQUIRED'), 'SCENARIO_HOST_REQUIRED'],
+    [refusal('INVALID_REQUEST'), 'UNSUPPORTED_TRANSPORT'], [Object.assign(Error('Synthetic private engine prose about hidden rows'), { code: 'SOMETHING_PRIVATE' }), 'REQUEST_FAILED'],
+  ] as const) {
+    assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+    refuseAll = thrown;
+    assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: false, code: expected });
+    assert.deepEqual(fixture.host.retained.snapshot().discovery, { kind: 'unavailable', code: expected });
+    assert.equal(JSON.stringify(fixture.host.retained.snapshot()).includes('Price up'), false);
+    assert.equal(JSON.stringify(fixture.host.retained.snapshot()).includes('private engine prose'), false);
+    assert.equal(fixture.host.snapshot().phase, 'ready');
+    refuseAll = null;
+  }
+  assert.deepEqual(fixture.forbidden(), []);
+  fixture.host.dispose();
+  // Account revocation follows the existing whole-host invalidation.
+  const revoked = await ready(method => method === 'scenarios.discover' ? refuseWith('ACCESS_REVOKED') : undefined);
+  assert.deepEqual(await revoked.host.retained.readDiscovery(), { ok: false, code: 'READ_INVALIDATED' });
+  assert.equal(revoked.host.snapshot().phase, 'unavailable'); assert.deepEqual(revoked.host.retained.snapshot().discovery, { kind: 'idle' });
+  revoked.host.dispose();
+  // Missing discovery capability fabricates no row or default scenario; the separately trusted exact pin still opens, alone.
+  const pinned = await ready(method => method === 'scenarios.discover' ? refuseWith('INVALID_REQUEST') : method === 'scenarios.reopen' ? scenarioView() : undefined);
+  assert.deepEqual(await pinned.host.retained.readDiscovery(), { ok: false, code: 'UNSUPPORTED_TRANSPORT' });
+  assert.equal(pinned.count('scenarios.reopen'), 0);
+  assert.deepEqual(await pinned.host.retained.openScenario(PIN), { ok: true });
+  assert.deepEqual(pinned.host.retained.snapshot().discovery, { kind: 'idle' });
+  assert.equal(pinned.host.retained.snapshot().scenario.kind, 'ready');
+  pinned.host.dispose();
+});
+test('D4 a held discovery page or chosen reopen cannot publish after lock, context change, route change, refresh, invalidation, disposal, a left surface, a newer page or a newer selection, whether it succeeds or refuses; a live operation publishes', async () => {
+  for (const interrupt of ['route', 'lock', 'context', 'dispose', 'refresh', 'invalidate'] as const) {
+    for (const outcome of ['success', 'refusal'] as const) {
+      // A changed trusted context is discovered by the host's trailing context read of a successful reply (S8); a refusal
+      // under a silently changed context is a bounded sanitized failure until the host's next authority read, as for reopen.
+      if (interrupt === 'context' && outcome === 'refusal') continue;
+      const held = deferred<unknown>(); let key = 'a'.repeat(64);
+      const port = transport(method => method === 'ui.context' ? context(key) : method === 'scenarios.discover' ? held.promise : undefined);
+      const host = createHostController(port.port, { now: clock }); await host.refresh();
+      const pending = host.retained.readDiscovery(); await issued(port, 'scenarios.discover', 1);
+      assert.equal(host.retained.snapshot().discovery.kind, 'loading');
+      const release = () => { if (outcome === 'success') held.resolve(FIRST_PAGE()); else held.reject(refusal('SCENARIO_AUTHORITY_CHANGED')); };
+      if (interrupt === 'route') host.selectRoute('route_fixture');
+      else if (interrupt === 'lock') await host.lock();
+      else if (interrupt === 'context') key = 'b'.repeat(64);
+      else if (interrupt === 'dispose') host.dispose();
+      else if (interrupt === 'invalidate') host.invalidate();
+      else { const refresh = host.refresh(); release(); await refresh; }
+      release();
+      assert.equal((await pending).ok, false, `${interrupt} ${outcome}`);
+      assert.deepEqual(host.retained.snapshot().discovery, { kind: 'idle' }, `${interrupt} ${outcome}`);
+      if (interrupt === 'context') assert.equal(host.snapshot().phase, 'unavailable');
+      host.dispose();
+    }
+  }
+  // A left surface, read at every awaited boundary, drops a held page or a held chosen reopen; a live fence publishes.
+  let onSurface = true, gate: ReturnType<typeof deferred<unknown>> | null = null, reopenGate: ReturnType<typeof deferred<unknown>> | null = null;
+  const fixture = await ready((method, payload) => method === 'scenarios.discover' ? (gate !== null ? gate.promise : FIRST_PAGE()) : method === 'scenarios.reopen' ? (reopenGate !== null ? reopenGate.promise : viewFor(payload)) : undefined);
+  assert.deepEqual(await fixture.host.retained.readDiscovery(() => onSurface), { ok: true });
+  const live = readyRows(fixture);
+  gate = deferred<unknown>(); const reading = fixture.host.retained.readDiscovery(() => onSurface);
+  await issued(fixture, 'scenarios.discover', 2);
+  assert.equal(fixture.host.retained.snapshot().discovery.kind, 'loading');
+  onSurface = false; const heldPage = gate; gate = null; heldPage.resolve(FIRST_PAGE());
+  assert.deepEqual(await reading, { ok: false, code: 'READ_INVALIDATED' });
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { kind: 'idle' });
+  onSurface = true;
+  assert.deepEqual(await fixture.host.retained.readDiscovery(() => onSurface), { ok: true });
+  const rows = readyRows(fixture);
+  assert.notEqual(rows.rows, live.rows);
+  reopenGate = deferred<unknown>(); const opening = fixture.host.retained.openDiscovered(PIN, { rows: rows.rows, page: 0, from: null }, () => onSurface);
+  await issued(fixture, 'scenarios.reopen', 1);
+  assert.equal(fixture.host.retained.snapshot().scenario.kind, 'loading'); assert.equal(sameScenarioSelection(readyRows(fixture).selected, PIN), true);
+  onSurface = false; const heldReopen = reopenGate; reopenGate = null; heldReopen.resolve(viewFor(PIN));
+  assert.deepEqual(await opening, { ok: false, code: 'READ_INVALIDATED' });
+  // Dropped with its selection: no row stays current with no view behind it, and the rows read so far are kept.
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'idle' });
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { ...rows, selected: null });
+  // A press whose surface is already gone issues nothing.
+  const calls = fixture.calls.length;
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: rows.rows, page: 0, from: null }, () => onSurface), { ok: false, code: 'READ_INVALIDATED' });
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: rows.rows, cursor: CURSOR, page: 0, from: null }, () => onSurface), { ok: false, code: 'READ_INVALIDATED' });
+  assert.deepEqual(await fixture.host.retained.readDiscovery(() => onSurface), { ok: false, code: 'READ_INVALIDATED' });
+  assert.equal(fixture.calls.length, calls);
+  onSurface = true;
+  fixture.host.dispose();
+  // A held first page while a newer read succeeds: releasing the old success or the old refusal cannot replace the new page.
+  for (const outcome of ['success', 'refusal'] as const) {
+    const waiting = deferred<unknown>(); let hold = true;
+    const racing = await ready(method => method === 'scenarios.discover' ? (hold ? waiting.promise : discoveryPage([ROW_OTHER])) : undefined);
+    const old = racing.host.retained.readDiscovery(); await issued(racing, 'scenarios.discover', 1); hold = false;
+    assert.deepEqual(await racing.host.retained.readDiscovery(), { ok: true });
+    const newer = readyRows(racing);
+    assert.deepEqual(newer.rows.map(row => row.revisionId), [OTHER_PIN.revisionId]);
+    if (outcome === 'success') waiting.resolve(FIRST_PAGE()); else waiting.reject(refusal('SCENARIO_RETENTION_EXPIRED'));
+    assert.deepEqual(await old, { ok: false, code: 'READ_INVALIDATED' });
+    assert.equal(racing.host.retained.snapshot().discovery, newer);
+    racing.host.dispose();
+  }
+  // A held reopen chosen from page A while a newer page replaces A, or while another row is chosen: releasing it restores
+  // neither A's graph, proof nor name; the newer page or selection stands. The page replacement alone changes the guard.
+  for (const replacement of ['page', 'selection', 'continuation'] as const) {
+    const slow = deferred<unknown>(); let holdReopen = true;
+    const racing = await ready((method, payload) => method === 'scenarios.discover' ? twoPages(payload) : method === 'scenarios.reopen' ? (holdReopen ? slow.promise : viewFor(payload)) : undefined);
+    assert.deepEqual(await racing.host.retained.readDiscovery(), { ok: true });
+    const pageA = readyRows(racing);
+    const oldOpen = racing.host.retained.openDiscovered(PIN, { rows: pageA.rows, page: 0, from: null }); await issued(racing, 'scenarios.reopen', 1); holdReopen = false;
+    if (replacement === 'page') assert.deepEqual(await racing.host.retained.readDiscovery(), { ok: true });
+    else if (replacement === 'continuation') assert.deepEqual(await racing.host.retained.continueDiscovery({ rows: pageA.rows, cursor: CURSOR, page: 0, from: PIN }), { ok: true });
+    else assert.deepEqual(await racing.host.retained.openDiscovered(OTHER_PIN, { rows: pageA.rows, page: 0, from: PIN }), { ok: true });
+    const settled = racing.host.retained.snapshot();
+    slow.resolve(viewFor(PIN));
+    assert.deepEqual(await oldOpen, { ok: false, code: 'READ_INVALIDATED' }, replacement);
+    assert.equal(racing.host.retained.snapshot(), settled, replacement);
+    if (replacement === 'selection') {
+      assert.equal(settled.scenario.kind === 'ready' && settled.scenario.view.scenarioId === OTHER_PIN.scenarioId, true);
+      assert.equal(sameScenarioSelection(readyRows(racing).selected, OTHER_PIN), true);
+    } else {
+      assert.deepEqual(settled.scenario, { kind: 'idle' }); assert.equal(readyRows(racing).selected, null);
+      assert.equal(readyRows(racing).rows.length, replacement === 'page' ? 5 : 7);
+    }
+    assert.equal(JSON.stringify(settled).includes(HUGE_INTEGER), replacement === 'selection');
+    racing.host.dispose();
+  }
+});
+test('D5 the host seam rereads the operation guard after its own inner context read and before the raw call: a surface left during that read issues no discovery and no chosen reopen; a reply already issued when the surface is left publishes nothing', async () => {
+  let onSurface = true, stage: 'idle' | 'armed' | 'held' | 'released' = 'idle';
+  let inner = deferred<unknown>(), reached = deferred<void>();
+  const fixture = await ready((method, payload) => {
+    if (method === 'scenarios.discover') return FIRST_PAGE();
+    if (method === 'scenarios.reopen') return viewFor(payload);
+    if (method !== 'ui.context' || stage !== 'armed') return undefined;
+    // The first context read after arming is the host's own BEFORE read inside guardedRequest for the retained call.
+    stage = 'held'; reached.resolve(); return inner.promise;
+  });
+  stage = 'armed';
+  const reading = fixture.host.retained.readDiscovery(() => onSurface);
+  await reached.promise;
+  assert.equal(stage, 'held'); assert.equal(fixture.count('scenarios.discover'), 0); assert.equal(fixture.host.retained.snapshot().discovery.kind, 'loading');
+  // The surface is left while that inner read is held; the unchanged authorized context is then released.
+  onSurface = false; stage = 'released'; inner.resolve(context());
+  assert.deepEqual(await reading, { ok: false, code: 'READ_INVALIDATED' });
+  assert.equal(fixture.count('scenarios.discover'), 0);
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { kind: 'idle' });
+  // Back on the surface a genuine read issues exactly one discovery; then a chosen row's inner read is held the same way.
+  onSurface = true; stage = 'idle';
+  assert.deepEqual(await fixture.host.retained.readDiscovery(() => onSurface), { ok: true });
+  assert.equal(fixture.count('scenarios.discover'), 1);
+  const listed = readyRows(fixture);
+  inner = deferred<unknown>(); reached = deferred<void>(); stage = 'armed';
+  const opening = fixture.host.retained.openDiscovered(PIN, { rows: listed.rows, page: 0, from: null }, () => onSurface);
+  await reached.promise;
+  assert.equal(stage, 'held'); assert.equal(fixture.count('scenarios.reopen'), 0);
+  assert.equal(fixture.host.retained.snapshot().scenario.kind, 'loading'); assert.equal(sameScenarioSelection(readyRows(fixture).selected, PIN), true);
+  onSurface = false; stage = 'released'; inner.resolve(context());
+  assert.deepEqual(await opening, { ok: false, code: 'READ_INVALIDATED' });
+  assert.equal(fixture.count('scenarios.reopen'), 0);
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'idle' });
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { ...listed, selected: null });
+  // Live counterpart: the same armed hold with the surface kept issues exactly one reopen and publishes the view.
+  onSurface = true; inner = deferred<unknown>(); reached = deferred<void>(); stage = 'armed';
+  const genuine = fixture.host.retained.openDiscovered(PIN, { rows: listed.rows, page: 0, from: null }, () => onSurface);
+  await reached.promise; stage = 'released'; inner.resolve(context());
+  assert.deepEqual(await genuine, { ok: true });
+  assert.equal(fixture.count('scenarios.reopen'), 1); assert.equal(fixture.host.retained.snapshot().scenario.kind, 'ready');
+  assert.deepEqual(fixture.forbidden(), []);
+  fixture.host.dispose();
+  // Separately, a reply already issued (the raw call counted) and then the surface left: the reply is discarded, nothing publishes.
+  let surface = true, gate: ReturnType<typeof deferred<unknown>> | null = null;
+  const issuedThenLeft = await ready((method, payload) => method === 'scenarios.discover' ? (gate !== null ? gate.promise : FIRST_PAGE()) : method === 'scenarios.reopen' ? (gate !== null ? gate.promise : viewFor(payload)) : undefined);
+  gate = deferred<unknown>(); const page = issuedThenLeft.host.retained.readDiscovery(() => surface);
+  await issued(issuedThenLeft, 'scenarios.discover', 1);
+  surface = false; const heldPage = gate; gate = null; heldPage.resolve(FIRST_PAGE());
+  assert.deepEqual(await page, { ok: false, code: 'READ_INVALIDATED' });
+  assert.deepEqual(issuedThenLeft.host.retained.snapshot().discovery, { kind: 'idle' });
+  surface = true;
+  assert.deepEqual(await issuedThenLeft.host.retained.readDiscovery(() => surface), { ok: true });
+  const rows = readyRows(issuedThenLeft);
+  gate = deferred<unknown>(); const open = issuedThenLeft.host.retained.openDiscovered(PIN, { rows: rows.rows, page: 0, from: null }, () => surface);
+  await issued(issuedThenLeft, 'scenarios.reopen', 1);
+  surface = false; const heldOpen = gate; gate = null; heldOpen.resolve(viewFor(PIN));
+  assert.deepEqual(await open, { ok: false, code: 'READ_INVALIDATED' });
+  assert.deepEqual(issuedThenLeft.host.retained.snapshot().scenario, { kind: 'idle' });
+  assert.equal(JSON.stringify(issuedThenLeft.host.retained.snapshot()).includes(HUGE_INTEGER), false);
+  issuedThenLeft.host.dispose();
+});
+test('D6 row and continuation controls act only for the exact rows, window and selection they were drawn for: a replaced list, a consumed continuation, a moved window or a newer selection leaves them inert, a copied pin or same-label row cannot revive them, and fresh controls work', async () => {
+  const fixture = await ready(discoveryReply(twoPages));
+  const receiptsBefore = fixture.count('receipts.get');
+  assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+  const pageA = readyRows(fixture);
+  const oldRow = { rows: pageA.rows, page: 0, from: null }, oldMore = { rows: pageA.rows, cursor: CURSOR, page: 0, from: null };
+  // A replaces itself at the same address: the same bytes, a new checked list.
+  assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+  const pageB = readyRows(fixture);
+  assert.notEqual(pageB.rows, pageA.rows); assert.deepEqual(pageB.rows, pageA.rows);
+  const reopens = fixture.count('scenarios.reopen'), discovers = fixture.count('scenarios.discover');
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, oldRow), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(await fixture.host.retained.openDiscovered({ ...PIN }, oldRow), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(await fixture.host.retained.openDiscovered(HEAD_PIN, oldRow), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(await fixture.host.retained.continueDiscovery(oldMore), { ok: false, code: 'PAGE_INVALID' });
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ ...oldMore, rows: [...oldMore.rows] }), { ok: false, code: 'PAGE_INVALID' });
+  assert.equal(fixture.count('scenarios.reopen'), reopens); assert.equal(fixture.count('scenarios.discover'), discovers);
+  assert.equal(fixture.host.retained.snapshot().discovery, pageB);
+  // Fresh controls of B: a row opens exactly its tuple.
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: pageB.rows, page: 0, from: null }), { ok: true });
+  assert.deepEqual(fixture.calls.filter(call => call.method === 'scenarios.reopen').map(call => call.payload), [PIN]);
+  // A row drawn beside no selection cannot act once a selection exists; the same-label row drawn beside the current selection switches.
+  assert.deepEqual(await fixture.host.retained.openDiscovered(OTHER_PIN, { rows: pageB.rows, page: 0, from: null }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(await fixture.host.retained.openDiscovered(OTHER_PIN, { rows: pageB.rows, page: 0, from: { ...PIN } }), { ok: true });
+  const switched = fixture.host.retained.snapshot().scenario;
+  assert.equal(switched.kind, 'ready');
+  if (switched.kind !== 'ready') return;
+  assert.equal(switched.selection.scenarioId, OTHER_PIN.scenarioId);
+  assert.deepEqual(fixture.calls.filter(call => call.method === 'scenarios.reopen').map(call => call.payload), [PIN, OTHER_PIN]);
+  // The old row drawn beside PIN is now stale too; a copied current pin does not make it current.
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: pageB.rows, page: 0, from: PIN }), { ok: false, code: 'SELECTION_INVALID' });
+  // Back to the list names the exact chosen row, view, rows and window it was drawn for: a control drawn for the earlier
+  // choice, a copied view or another window is inert; the current one keeps the rows and drops the selection, and a row
+  // drawn beside no selection acts again.
+  const switchedDetail = { selection: OTHER_PIN, view: switched.view, list: { rows: pageB.rows, page: 0 } };
+  assert.deepEqual(fixture.host.retained.closeScenario({ selection: PIN, view: switched.view, list: { rows: pageB.rows, page: 0 } }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(fixture.host.retained.closeScenario({ ...switchedDetail, view: structuredClone(switched.view) }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(fixture.host.retained.closeScenario({ ...switchedDetail, list: { rows: [...pageB.rows], page: 0 } }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(fixture.host.retained.closeScenario({ ...switchedDetail, list: { rows: pageB.rows, page: 1 } }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(fixture.host.retained.closeScenario({ ...switchedDetail, list: null }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.equal(fixture.host.retained.snapshot().scenario, switched);
+  assert.deepEqual(fixture.host.retained.closeScenario(switchedDetail), { ok: true });
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'idle' }); assert.deepEqual(fixture.host.retained.snapshot().discovery, { ...pageB, selected: null });
+  assert.deepEqual(fixture.host.retained.closeScenario(switchedDetail), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: pageB.rows, page: 0, from: null }), { ok: true });
+  // The continuation consumes B: the old More and the old rows' row controls are inert, the earlier window's row needs the window back.
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: pageB.rows, cursor: CURSOR, page: 0, from: PIN }), { ok: true });
+  const pageC = readyRows(fixture);
+  assert.equal(pageC.rows.length, 7); assert.equal(pageC.page, 1); assert.equal(pageC.selected, null); assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'idle' });
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: pageB.rows, cursor: CURSOR, page: 0, from: PIN }), { ok: false, code: 'PAGE_INVALID' });
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: pageB.rows, page: 0, from: null }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: pageC.rows, page: 0, from: null }), { ok: false, code: 'SELECTION_INVALID' });
+  fixture.host.retained.pageDiscovery(pageC.rows, 1, 0, null);
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: pageC.rows, page: 1, from: null }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: pageC.rows, page: 0, from: null }), { ok: true });
+  assert.deepEqual(fixture.calls.filter(call => call.method === 'scenarios.reopen').map(call => call.payload), [PIN, OTHER_PIN, PIN, PIN]);
+  // Nothing was computed, prepared or read beyond the exact pages and the exact reopens; discovery never granted an action.
+  assert.equal(readyRows(fixture).rows.every(row => row.noAction), true);
+  assert.equal(fixture.count('receipts.get'), receiptsBefore);
+  assert.deepEqual(fixture.forbidden(), []);
+  fixture.host.dispose();
+});
+
+test('D7 a local window movement supersedes the chosen row: a reopen held at the host inner context read issues nothing, a reply already issued publishes nothing, window and continuation controls drawn beside an earlier selection cannot act under a newer one, and fresh controls work', async () => {
+  let stage: 'idle' | 'armed' | 'held' | 'released' = 'idle', holdReopen: ReturnType<typeof deferred<unknown>> | null = null;
+  let inner = deferred<unknown>(), reached = deferred<void>();
+  const fixture = await ready((method, payload) => {
+    if (method === 'scenarios.discover') return twoPages(payload);
+    if (method === 'scenarios.reopen') return holdReopen !== null ? holdReopen.promise : viewFor(payload);
+    if (method !== 'ui.context' || stage !== 'armed') return undefined;
+    // The first context read after arming is the host's own BEFORE read inside guardedRequest for the retained call.
+    stage = 'held'; reached.resolve(); return inner.promise;
+  });
+  const receiptsBefore = fixture.count('receipts.get');
+  assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+  const first = readyRows(fixture);
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: first.rows, cursor: CURSOR, page: 0, from: null }), { ok: true });
+  const joined = readyRows(fixture);
+  assert.equal(joined.rows.length, 7); assert.equal(joined.page, 1);
+  fixture.host.retained.pageDiscovery(joined.rows, 1, 0, null);
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { ...joined, page: 0 });
+  // (a) The chosen row's reopen is held at the host's inner authority read; the window moves on before the raw call.
+  stage = 'armed';
+  const heldInner = fixture.host.retained.openDiscovered(PIN, { rows: joined.rows, page: 0, from: null });
+  await reached.promise;
+  assert.equal(stage, 'held'); assert.equal(fixture.count('scenarios.reopen'), 0);
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'loading', selection: PIN });
+  fixture.host.retained.pageDiscovery(joined.rows, 0, 1, PIN);
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { ...joined, page: 1, selected: null });
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'idle' });
+  stage = 'released'; inner.resolve(context());
+  assert.deepEqual(await heldInner, { ok: false, code: 'READ_INVALIDATED' });
+  assert.equal(fixture.count('scenarios.reopen'), 0, 'the operation guard refused the raw call for the earlier window');
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'idle' });
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { ...joined, page: 1, selected: null });
+  // (b) A reply already issued for the earlier window: the window moves, the reply is discarded, nothing publishes.
+  stage = 'idle';
+  fixture.host.retained.pageDiscovery(joined.rows, 1, 0, null);
+  holdReopen = deferred<unknown>();
+  const issuedThenMoved = fixture.host.retained.openDiscovered(PIN, { rows: joined.rows, page: 0, from: null });
+  await issued(fixture, 'scenarios.reopen', 1);
+  fixture.host.retained.pageDiscovery(joined.rows, 0, 1, PIN);
+  const moved = fixture.host.retained.snapshot();
+  const release = holdReopen; holdReopen = null; release.resolve(viewFor(PIN));
+  assert.deepEqual(await issuedThenMoved, { ok: false, code: 'READ_INVALIDATED' });
+  assert.equal(fixture.host.retained.snapshot(), moved);
+  assert.deepEqual(moved.scenario, { kind: 'idle' }); assert.deepEqual(moved.discovery, { ...joined, page: 1, selected: null });
+  assert.equal(JSON.stringify(moved).includes(HUGE_INTEGER), false);
+  // The same held reply, moved back by a window control drawn beside the earlier selection: that control is inert, so the
+  // window stays and the reply still publishes nothing; only the window control drawn beside the current state moves it.
+  fixture.host.retained.pageDiscovery(joined.rows, 1, 0, PIN);
+  assert.equal(fixture.host.retained.snapshot(), moved);
+  fixture.host.retained.pageDiscovery(joined.rows, 1, 0, null);
+  const back = readyRows(fixture);
+  assert.equal(back.page, 0); assert.equal(back.selected, null);
+  // (c) Live counterpart: the chosen row's reopen with the window kept issues one reopen and publishes; its window and
+  // continuation controls, drawn beside no selection, are now inert, while those drawn beside the choice act.
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: joined.rows, page: 0, from: null }), { ok: true });
+  assert.equal(fixture.count('scenarios.reopen'), 2); assert.equal(fixture.host.retained.snapshot().scenario.kind, 'ready');
+  const chosenRows = readyRows(fixture);
+  assert.equal(sameScenarioSelection(chosenRows.selected, PIN), true);
+  fixture.host.retained.pageDiscovery(joined.rows, 0, 1, null);
+  assert.equal(fixture.host.retained.snapshot().discovery, chosenRows); assert.equal(fixture.host.retained.snapshot().scenario.kind, 'ready');
+  // A continuation drawn beside no selection, or beside another selection, cannot act under this choice (the terminal
+  // page has no cursor here, so the refusal is the control's, before any request is formed).
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: joined.rows, cursor: CURSOR, page: 1, from: null }), { ok: false, code: 'PAGE_INVALID' });
+  assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: joined.rows, cursor: CURSOR, page: 1, from: HEAD_PIN }), { ok: false, code: 'PAGE_INVALID' });
+  // The window control drawn beside the choice moves the window, supersedes the chosen view and drops the choice.
+  fixture.host.retained.pageDiscovery(joined.rows, 0, 1, PIN);
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { ...joined, page: 1, selected: null });
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'idle' });
+  assert.equal(JSON.stringify(fixture.host.retained.snapshot()).includes(HUGE_INTEGER), false);
+  // (d) An old continuation drawn beside no selection, pressed after a newer same-address selection: it neither reads a
+  // page nor clears the newer choice; the continuation drawn beside that choice does, with the exact issued cursor.
+  const fresh = await ready(discoveryReply(twoPages));
+  assert.deepEqual(await fresh.host.retained.readDiscovery(), { ok: true });
+  const page = readyRows(fresh);
+  const oldMore = { rows: page.rows, cursor: CURSOR, page: 0, from: null };
+  assert.deepEqual(await fresh.host.retained.openDiscovered(HEAD_PIN, { rows: page.rows, page: 0, from: null }), { ok: true });
+  const chosenHead = fresh.host.retained.snapshot();
+  assert.deepEqual(await fresh.host.retained.continueDiscovery(oldMore), { ok: false, code: 'PAGE_INVALID' });
+  assert.equal(fresh.host.retained.snapshot(), chosenHead); assert.equal(fresh.count('scenarios.discover'), 1);
+  assert.deepEqual(await fresh.host.retained.continueDiscovery({ ...oldMore, from: HEAD_PIN }), { ok: true });
+  assert.deepEqual(fresh.calls.filter(call => call.method === 'scenarios.discover').map(call => call.payload), [{ limit: 5 }, { limit: 5, cursor: CURSOR }]);
+  assert.equal(readyRows(fresh).rows.length, 7); assert.equal(readyRows(fresh).selected, null); assert.deepEqual(fresh.host.retained.snapshot().scenario, { kind: 'idle' });
+  assert.equal(fixture.count('receipts.get'), receiptsBefore, 'no global receipt read entered the window movement');
+  assert.deepEqual(fixture.forbidden(), []); assert.deepEqual(fresh.forbidden(), []);
+  fixture.host.dispose(); fresh.host.dispose();
+});
+test('D8 a refused chosen row is ephemeral: an authority-changed or changed-view reopen or proof refusal clears its pin, rows, cursor and view, nothing is re-read from it or rescued, and only an explicit fresh first page without a cursor continues; the trusted host pin keeps its pin and may be re-read', async () => {
+  let refuse: string | null = null, view: (payload: unknown) => unknown = viewFor;
+  const fixture = await ready((method, payload) => {
+    if (method === 'scenarios.discover') return twoPages(payload);
+    if (method !== 'scenarios.reopen') return undefined;
+    if (refuse !== null) throw refusal(refuse);
+    return view(payload);
+  });
+  const payloads = () => fixture.calls.filter(call => call.method === 'scenarios.discover').map(call => call.payload);
+  const receiptsBefore = fixture.count('receipts.get');
+  for (const code of ['SCENARIO_AUTHORITY_CHANGED', 'SCENARIO_EVIDENCE_UNAVAILABLE', 'SCENARIO_RETENTION_EXPIRED'] as const) {
+    refuse = null;
+    assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+    const listed = readyRows(fixture);
+    assert.equal(listed.cursor, CURSOR);
+    const reopens = fixture.count('scenarios.reopen');
+    // The chosen row's reopen is refused: no pin, row, cursor or figure survives beside the sanitized code.
+    refuse = code;
+    assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: listed.rows, page: 0, from: null }), { ok: false, code });
+    assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'unavailable', selection: null, code });
+    assert.deepEqual(fixture.host.retained.snapshot().discovery, { kind: 'idle' });
+    const snapshot = JSON.stringify(fixture.host.retained.snapshot());
+    assert.equal(snapshot.includes('Price up'), false); assert.equal(snapshot.includes(CURSOR), false); assert.equal(snapshot.includes(PIN.revisionId), false);
+    await settle();
+    assert.equal(fixture.count('scenarios.reopen'), reopens + 1, 'no automatic retry');
+    // Nothing is re-read from the refused pin: the detail controls it was drawn for, a copied pin alone, or the old row.
+    const calls = fixture.calls.length;
+    assert.deepEqual(await fixture.host.retained.readScenarioAgain({ selection: PIN, view: null, list: { rows: listed.rows, page: 0 } }), { ok: false, code: 'SELECTION_INVALID' });
+    assert.deepEqual(await fixture.host.retained.readScenarioAgain({ selection: PIN, view: null, list: null }), { ok: false, code: 'SELECTION_INVALID' });
+    assert.deepEqual(fixture.host.retained.closeScenario({ selection: PIN, view: null, list: { rows: listed.rows, page: 0 } }), { ok: false, code: 'SELECTION_INVALID' });
+    assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: listed.rows, page: 0, from: PIN }), { ok: false, code: 'SELECTION_INVALID' });
+    assert.deepEqual(await fixture.host.retained.continueDiscovery({ rows: listed.rows, cursor: CURSOR, page: 0, from: PIN }), { ok: false, code: 'PAGE_INVALID' });
+    assert.equal(fixture.calls.length, calls);
+    assert.equal(fixture.host.snapshot().phase, 'ready');
+    // The only continuation is an explicit fresh first page, without a cursor, which then chooses afresh.
+    refuse = null;
+    assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+    assert.deepEqual(payloads().at(-1), { limit: 5 });
+    assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'idle' });
+    assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: readyRows(fixture).rows, page: 0, from: null }), { ok: true });
+    assert.equal(fixture.host.retained.snapshot().scenario.kind, 'ready');
+  }
+  // A proof press on the chosen row refused by the Engine, or refused because the fresh view changed, clears the same way.
+  for (const outcome of ['refusal', 'changed'] as const) {
+    refuse = null; view = viewFor;
+    assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+    const listed = readyRows(fixture);
+    assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: listed.rows, page: 0, from: null }), { ok: true });
+    const shown = fixture.host.retained.snapshot().scenario;
+    if (shown.kind !== 'ready') assert.fail('expected the chosen view');
+    if (outcome === 'refusal') refuse = 'SCENARIO_AUTHORITY_CHANGED'; else view = () => scenarioView({ headRevisionId: 'scenario_revision_moved' });
+    const expected = outcome === 'refusal' ? 'SCENARIO_AUTHORITY_CHANGED' : 'SCENARIO_VIEW_CHANGED';
+    assert.deepEqual(await fixture.host.retained.confirmScenario(shown.selection, shown.view), { ok: false, code: expected });
+    assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'unavailable', selection: null, code: expected });
+    assert.deepEqual(fixture.host.retained.snapshot().discovery, { kind: 'idle' });
+    assert.equal(JSON.stringify(fixture.host.retained.snapshot()).includes(HUGE_INTEGER), false);
+    const calls = fixture.calls.length;
+    assert.deepEqual(await fixture.host.retained.readScenarioAgain({ selection: PIN, view: shown.view, list: { rows: listed.rows, page: 0 } }), { ok: false, code: 'SELECTION_INVALID' });
+    assert.deepEqual(await fixture.host.retained.confirmScenario(shown.selection, shown.view), { ok: false, code: 'SELECTION_INVALID' });
+    assert.equal(fixture.calls.length, calls);
+  }
+  refuse = null; view = viewFor;
+  assert.equal(fixture.count('receipts.get'), receiptsBefore);
+  assert.deepEqual(fixture.forbidden(), []);
+  fixture.host.dispose();
+  // The separately trusted host pin: the same refusal keeps its pin, and the explicit Read again for that exact pin re-reads it.
+  const trusted = await ready((method, payload) => method === 'scenarios.reopen' ? (refuse !== null ? refuseWith(refuse) : viewFor(payload)) : undefined);
+  refuse = 'SCENARIO_AUTHORITY_CHANGED';
+  assert.deepEqual(await trusted.host.retained.openScenario(PIN), { ok: false, code: 'SCENARIO_AUTHORITY_CHANGED' });
+  assert.deepEqual(trusted.host.retained.snapshot().scenario, { kind: 'unavailable', selection: PIN, code: 'SCENARIO_AUTHORITY_CHANGED' });
+  assert.deepEqual(await trusted.host.retained.readScenarioAgain({ selection: PIN, view: null, list: { rows: [], page: 0 } }), { ok: false, code: 'SELECTION_INVALID' });
+  refuse = null;
+  assert.deepEqual(await trusted.host.retained.readScenarioAgain({ selection: PIN, view: null, list: null }), { ok: true });
+  assert.equal(trusted.count('scenarios.reopen'), 2); assert.equal(trusted.count('scenarios.discover'), 0);
+  assert.equal(trusted.host.retained.snapshot().scenario.kind, 'ready');
+  trusted.host.dispose();
+});
+test('D9 detail controls name the exact chosen row, view, rows and window they were drawn for: after a newer same-address choice an old Read again or Back changes nothing and dispatches nothing, while the fresh controls of the newer view work', async () => {
+  let hold: ReturnType<typeof deferred<unknown>> | null = null;
+  const fixture = await ready((method, payload) => method === 'scenarios.discover' ? discoveryPage([ROW_HEAD, ROW_A, ROW_OTHER]) : method === 'scenarios.reopen' ? (hold !== null ? hold.promise : viewFor(payload)) : undefined);
+  assert.deepEqual(await fixture.host.retained.readDiscovery(), { ok: true });
+  const listed = readyRows(fixture);
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: listed.rows, page: 0, from: null }), { ok: true });
+  const shownA = fixture.host.retained.snapshot().scenario;
+  if (shownA.kind !== 'ready') assert.fail('expected A ready');
+  const detailA = { selection: PIN, view: shownA.view, list: { rows: listed.rows, page: 0 } };
+  // The fresh controls of A act: Read again re-reads exactly A; the chosen row stays chosen beside the same rows.
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain(detailA), { ok: true });
+  assert.equal(fixture.count('scenarios.reopen'), 2); assert.equal(sameScenarioSelection(readyRows(fixture).selected, PIN), true);
+  const reread = fixture.host.retained.snapshot().scenario;
+  if (reread.kind !== 'ready') assert.fail('expected A re-read');
+  // A Read again drawn for the earlier checked view object of the same pin is inert; the one drawn for the current view acts.
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain(detailA), { ok: false, code: 'SELECTION_INVALID' });
+  assert.equal(fixture.count('scenarios.reopen'), 2);
+  const currentA = { selection: PIN, view: reread.view, list: { rows: listed.rows, page: 0 } };
+  // B is chosen and its reopen held: before anything commits, A's still-connected controls are pressed.
+  hold = deferred<unknown>();
+  const opening = fixture.host.retained.openDiscovered(HEAD_PIN, { rows: listed.rows, page: 0, from: PIN });
+  await issued(fixture, 'scenarios.reopen', 3);
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'loading', selection: HEAD_PIN });
+  const calls = fixture.calls.length;
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain(currentA), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(fixture.host.retained.closeScenario(currentA), { ok: false, code: 'SELECTION_INVALID' });
+  assert.equal(fixture.calls.length, calls);
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'loading', selection: HEAD_PIN });
+  assert.equal(sameScenarioSelection(readyRows(fixture).selected, HEAD_PIN), true);
+  const release = hold; hold = null; release.resolve(viewFor(HEAD_PIN));
+  assert.deepEqual(await opening, { ok: true });
+  const shownB = fixture.host.retained.snapshot().scenario;
+  if (shownB.kind !== 'ready') assert.fail('expected B ready');
+  assert.equal(shownB.view.revision.id, HEAD_PIN.revisionId);
+  // A's old controls stay inert beside the ready B; B's fresh controls act, and Back drops B keeping the rows.
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain(currentA), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(fixture.host.retained.closeScenario(currentA), { ok: false, code: 'SELECTION_INVALID' });
+  assert.equal(fixture.host.retained.snapshot().scenario, shownB);
+  const detailB = { selection: HEAD_PIN, view: shownB.view, list: { rows: listed.rows, page: 0 } };
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain(detailB), { ok: true });
+  assert.equal(fixture.count('scenarios.reopen'), 4);
+  const rereadB = fixture.host.retained.snapshot().scenario;
+  if (rereadB.kind !== 'ready') assert.fail('expected B re-read');
+  assert.deepEqual(fixture.host.retained.closeScenario({ ...detailB, view: rereadB.view }), { ok: true });
+  assert.deepEqual(fixture.host.retained.snapshot().scenario, { kind: 'idle' });
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { ...listed, selected: null });
+  // A chosen row's control that names no list, and a trusted pin's control that names a list, are both inert.
+  assert.deepEqual(await fixture.host.retained.openDiscovered(PIN, { rows: listed.rows, page: 0, from: null }), { ok: true });
+  const chosen = fixture.host.retained.snapshot().scenario;
+  if (chosen.kind !== 'ready') assert.fail('expected the chosen view');
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain({ selection: PIN, view: chosen.view, list: null }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(await fixture.host.retained.openScenario(PIN), { ok: true });
+  assert.deepEqual(fixture.host.retained.snapshot().discovery, { kind: 'idle' });
+  const alone = fixture.host.retained.snapshot().scenario;
+  if (alone.kind !== 'ready') assert.fail('expected the trusted pin shown alone');
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain({ selection: PIN, view: alone.view, list: { rows: listed.rows, page: 0 } }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(fixture.host.retained.closeScenario({ selection: PIN, view: alone.view, list: null }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.deepEqual(await fixture.host.retained.readScenarioAgain({ selection: PIN, view: alone.view, list: null }), { ok: true });
+  assert.equal(fixture.count('scenarios.reopen'), 7);
+  assert.deepEqual(fixture.forbidden(), []);
+  fixture.host.dispose();
+});
+
 async function copiedRetainedDesktop(
   reply: (method: string, payload: unknown) => unknown | Promise<unknown>,
 ) {
@@ -1222,6 +1970,40 @@ test('copied desktop SCENARIO_HEAD_CHANGED clears a displayed proof and never re
     ok: false, code: 'SELECTION_INVALID',
   });
   assert.equal(h.calls.length, callsBeforeOldPress, 'The discarded proof cannot issue another request.');
+});
+
+test('copied desktop discovery releases the exact page through the real preload envelope; a stale continuation refusal clears every row and the chosen view and names no private detail', async t => {
+  let deny = false;
+  const h = await copiedRetainedDesktop((method, payload) => {
+    if (method === 'scenarios.reopen') return { ok: true, result: viewFor(payload) };
+    assert.equal(method, 'scenarios.discover');
+    return deny ? copiedRetainedRefusal('SCENARIO_AUTHORITY_CHANGED') : { ok: true, result: twoPages(payload) };
+  });
+  t.after(() => h.host.dispose());
+  assert.deepEqual(await h.host.retained.readDiscovery(), { ok: true });
+  const listed = readyRows(h);
+  assert.deepEqual(h.calls.filter(call => call.method === 'scenarios.discover').map(call => call.payload), [{ limit: 5 }]);
+  assert.equal(listed.rows.length, 5); assert.equal(listed.cursor, CURSOR);
+  assert.deepEqual(await h.host.retained.openDiscovered(PIN, { rows: listed.rows, page: 0, from: null }), { ok: true });
+  assert.deepEqual(h.calls.filter(call => call.method === 'scenarios.reopen').map(call => call.payload), [PIN]);
+  assert.equal(JSON.stringify(h.host.retained.snapshot()).includes(HUGE_INTEGER), true);
+  deny = true;
+  h.calls.length = 0;
+  assert.deepEqual(await h.host.retained.continueDiscovery({ rows: listed.rows, cursor: CURSOR, page: 0, from: PIN }), { ok: false, code: 'SCENARIO_AUTHORITY_CHANGED' });
+  assert.deepEqual(h.host.retained.snapshot().discovery, { kind: 'unavailable', code: 'SCENARIO_AUTHORITY_CHANGED' });
+  assert.deepEqual(h.host.retained.snapshot().scenario, { kind: 'idle' });
+  const snapshot = JSON.stringify(h.host.retained.snapshot());
+  assert.equal(snapshot.includes('Price up'), false); assert.equal(snapshot.includes(HUGE_INTEGER), false); assert.equal(snapshot.includes('private engine detail'), false);
+  assert.equal(h.host.snapshot().phase, 'ready', 'A stale continuation is not fabricated workspace revocation.');
+  await settle();
+  assert.deepEqual(h.calls, [
+    { method: 'ui.context', payload: {} },
+    { method: 'scenarios.discover', payload: { limit: 5, cursor: CURSOR } },
+  ]);
+  const callsBeforeOldPress = h.calls.length;
+  assert.deepEqual(await h.host.retained.continueDiscovery({ rows: listed.rows, cursor: CURSOR, page: 0, from: PIN }), { ok: false, code: 'PAGE_INVALID' });
+  assert.deepEqual(await h.host.retained.openDiscovered(PIN, { rows: listed.rows, page: 0, from: PIN }), { ok: false, code: 'SELECTION_INVALID' });
+  assert.equal(h.calls.length, callsBeforeOldPress, 'No discarded row, cursor or retry dispatch survives.');
 });
 
 test('copied desktop lesson authority, stale and unknown refusals clear the released selection without a decision', async t => {
