@@ -4,6 +4,10 @@
  * Source mapping (type-only; no Engine runtime is imported into the browser):
  *   ScenarioView, ScenarioRevision, ScenarioJobState, ScenarioRunResult, ScenarioComparison
  *     platform/runtime/scenario-contracts.ts (`scenarios.reopen` reply)
+ *   ScenarioDiscoveryRequest, ScenarioDiscoveryRow, ScenarioDiscoveryPage
+ *     platform/runtime/scenario-contracts.ts (`scenarios.discover` request and reply); the
+ *     request bounds are engine-scenarios.ts `discoveryRequest` (default 25, integer 1..50,
+ *     cursor an opaque lower-case 64-hex token), the label bound is scenario-service.ts `label`
  *   receipt scope/assumption fields  platform/runtime/calculator.ts receipt creation
  *   LessonView, LessonCandidate, LessonEvaluationBinding, LessonReview, LessonDecision
  *     platform/runtime/lesson-contracts.ts (`memory.lessons`, `memory.decideLesson`)
@@ -26,9 +30,34 @@ import type { UiContext } from './contracts.ts';
 
 /* ---------- Scenario projections ---------- */
 
-/** An exact trusted host-supplied pin. Never a catalogue entry, snapshot or typed-in identity. */
+/** An exact pin: supplied by the trusted host, or projected from the exact checked discovery row a
+ * person chose. Never a label, a snapshot, a typed-in identity or a substituted head. */
 export interface ScenarioSelection { readonly scenarioId: string; readonly revisionId: string }
 export type ScenarioReopenRequest = ScenarioSelection;
+/** The only declared discovery parameters: a plain page size and the opaque issued continuation. */
+export interface ScenarioDiscoveryRequest { readonly limit?: number; readonly cursor?: string }
+/** One released historical revision, exactly as `scenarios.discover` describes it: display label,
+ * clock-written creation instant, revision kind, graph readiness and whether it was the head at
+ * release. No figure, receipt, freshness, owner, count or action is part of this projection. */
+export interface ScenarioDiscoveryRow {
+  readonly scenarioId: string;
+  readonly revisionId: string;
+  readonly label: string;
+  readonly createdAt: string;
+  readonly revisionMode: RetainedScenarioRevisionMode;
+  readonly status: 'partial' | 'complete';
+  /** Descriptive at release only; it never chooses a row and never replaces `revisionId`. */
+  readonly isHead: boolean;
+  readonly noAction: true;
+}
+export interface ScenarioDiscoveryPage {
+  readonly mode: 'retained-revisions';
+  /** In Engine order (newest first, exact identities breaking ties), at most the issued limit. */
+  readonly items: readonly ScenarioDiscoveryRow[];
+  /** Opaque and bound to current authority; present only while another authorized row remains. */
+  readonly nextCursor: string | null;
+  readonly noAction: true;
+}
 export interface RetainedPeriod { readonly from: string; readonly to: string }
 /** CalculationRequest as retained by a scenario job: declared calculator parameters only. */
 export interface RetainedCalculationRequest {
@@ -543,6 +572,80 @@ export function validateRetainedScenarioView(value: unknown, requested: Scenario
 
 /** The viewed revision is historical when the Engine head has advanced past it. */
 export function isHistoricalRevision(view: RetainedScenarioView): boolean { return view.revision.id !== view.headRevisionId; }
+
+/* ---------- Scenario discovery ---------- */
+
+/** The producer's declared request bounds (engine-scenarios.ts `discoveryRequest`). */
+export const SCENARIO_DISCOVERY_DEFAULT_LIMIT = 25;
+export const SCENARIO_DISCOVERY_MAX_LIMIT = 50;
+/** The consistent bounded request this interface issues: five released rows at rest, in Engine order,
+ * every further row reachable only through the exact issued continuation. A transport bound, not a total. */
+export const SCENARIO_PAGE_SIZE = 5;
+/** The at-rest window that holds `index` of the rows read so far, or the last existing window. */
+export function scenarioPageOf(index: number, total: number): number {
+  const last = Math.max(0, Math.ceil(total / SCENARIO_PAGE_SIZE) - 1);
+  return Math.min(Math.max(0, Math.floor(index / SCENARIO_PAGE_SIZE)), last);
+}
+/** The exact outbound `scenarios.discover` payload: declared plain data only. An absent cursor is omitted,
+ * never sent as null; a cursor is sent byte for byte as issued, never derived, repaired or lower-cased. */
+export function scenarioDiscoveryRequest(input: { readonly limit?: number; readonly cursor?: string | null }): ScenarioDiscoveryRequest {
+  const limit = input.limit ?? SCENARIO_DISCOVERY_DEFAULT_LIMIT;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > SCENARIO_DISCOVERY_MAX_LIMIT) invalid('scenarios.discover.limit');
+  if (input.cursor === undefined || input.cursor === null) return freeze({ limit });
+  return freeze({ limit, cursor: hex(input.cursor, 'scenarios.discover.cursor') });
+}
+/**
+ * The producer's own label rule, nothing stricter (scenario-service.ts `label` and `dataOnly`, released
+ * verbatim by `describe`): any string that is not blank and holds at most 200 code units. A label is
+ * display text only; it never identifies a row, so no character class of its own is refused here. The
+ * shared `text()` control-character rule belongs to the other validators and is deliberately not applied.
+ */
+function producerLabel(value: unknown, path: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0 || value.length > 200) invalid(path);
+  return value;
+}
+function discoveryRow(value: unknown, path: string): ScenarioDiscoveryRow {
+  const obj = exact(value, path, ['scenarioId', 'revisionId', 'label', 'createdAt', 'revisionMode', 'status', 'isHead', 'noAction']);
+  if (obj.noAction !== true) invalid(`${path}.noAction`);
+  return {
+    scenarioId: identity(obj.scenarioId, `${path}.scenarioId`), revisionId: identity(obj.revisionId, `${path}.revisionId`),
+    label: producerLabel(obj.label, `${path}.label`), createdAt: instant(obj.createdAt, `${path}.createdAt`),
+    revisionMode: choice(obj.revisionMode, `${path}.revisionMode`, ['initial', 'assumption-change', 'graph-change', 'current-state-recompute']),
+    status: choice(obj.status, `${path}.status`, ['partial', 'complete']), isHead: boolean(obj.isHead, `${path}.isHead`), noAction: true,
+  };
+}
+const rowKey = (row: ScenarioSelection) => JSON.stringify([row.scenarioId, row.revisionId]);
+/**
+ * The exact `scenarios.discover` reply for the exact issued request: a complete checked page or nothing.
+ * Rows are kept in Engine order with their labels, instants, kinds, readiness and head descriptions byte for
+ * byte; a page longer than the issued limit, a repeated revision, a malformed row, an unknown key or a
+ * malformed continuation refuses the whole page before any label is released.
+ */
+export function validateScenarioDiscoveryPage(value: unknown, request: ScenarioDiscoveryRequest): ScenarioDiscoveryPage {
+  const path = 'scenarios.discover';
+  const limit = request.limit ?? SCENARIO_DISCOVERY_DEFAULT_LIMIT;
+  const obj = exact(value, path, ['mode', 'items', 'nextCursor', 'noAction']);
+  if (obj.mode !== 'retained-revisions' || obj.noAction !== true) invalid(path);
+  const items = list(obj.items, `${path}.items`, limit).map((item, index) => discoveryRow(item, `${path}.items[${index}]`));
+  if (new Set(items.map(rowKey)).size !== items.length) invalid(`${path}.items`);
+  const nextCursor = obj.nextCursor === null ? null : hex(obj.nextCursor, `${path}.nextCursor`);
+  return freeze({ mode: 'retained-revisions', items, nextCursor, noAction: true });
+}
+/** The rows read so far followed by a continuation page; a revision released twice is not a continuation. */
+export function joinDiscoveryRows(previous: readonly ScenarioDiscoveryRow[], page: ScenarioDiscoveryPage): readonly ScenarioDiscoveryRow[] {
+  const rows = [...previous, ...page.items];
+  if (new Set(rows.map(rowKey)).size !== rows.length) invalid('scenarios.discover.items.repeated');
+  return Object.freeze(rows);
+}
+/** Exactly the two identities of a checked row, detached: what a human choice carries into `scenarios.reopen`. */
+export function discoveryRowSelection(row: ScenarioDiscoveryRow): ScenarioSelection { return freeze({ scenarioId: row.scenarioId, revisionId: row.revisionId }); }
+export function sameScenarioSelection(a: ScenarioSelection | null, b: ScenarioSelection | null): boolean {
+  return a === b || (a !== null && b !== null && a.scenarioId === b.scenarioId && a.revisionId === b.revisionId);
+}
+/** The exact checked row that carries both pins, if it is on this list; a label never identifies a row. */
+export function discoveryRowFor(rows: readonly ScenarioDiscoveryRow[], selection: ScenarioSelection): ScenarioDiscoveryRow | undefined {
+  return rows.find(row => row.scenarioId === selection.scenarioId && row.revisionId === selection.revisionId);
+}
 
 export interface ScenarioColumnEntry {
   readonly job: RetainedScenarioJob;

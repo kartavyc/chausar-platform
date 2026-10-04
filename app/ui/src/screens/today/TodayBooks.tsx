@@ -21,6 +21,7 @@ import { Button } from '../../parts/Button';
 import { Chart } from '../../parts/charts/Chart';
 import { State } from '../../patterns/States';
 import type { TodayScreenProps } from './shared';
+import { TodayConsumerControls, TodayConsumerLedger, TodayProducerSections } from './shared';
 import { allowsTodayMutation, todayIntentsForState } from './permissions.ts';
 import s from './Today.module.css';
 
@@ -78,6 +79,9 @@ export function TodayBooks({ data, intents: offeredIntents, sheetId }: TodayScre
     <div className={s.today}>
       <PageHeader where={data.date} title={t('TD-01.title')} titleId={titleId} count={data.review.count} />
       <State state={data.state} />
+      <TodayConsumerControls data={data} intents={intents} />
+      <TodayConsumerLedger data={data} intents={intents} />
+      {data.queueMissing !== undefined && <p className={s.missing}>{t('TODAY_ENGINE.queueMissing')}</p>}
 
       {queue.length === 0 && data.state.kind === 'ready' ? (
         <State state={{ kind: 'empty' }} emptyKey="ST.empty.review" />
@@ -160,6 +164,8 @@ export function TodayBooks({ data, intents: offeredIntents, sheetId }: TodayScre
           </ul>
         </section>
       )}
+      {data.closeMissing !== undefined && <p className={s.missing}>{t('TODAY_ENGINE.closeMissing')}</p>}
+      <TodayProducerSections data={data} intents={intents} />
     </div>
   );
 }

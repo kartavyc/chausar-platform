@@ -17,7 +17,6 @@ import type { RowItem } from '../../app/presentation.ts';
 import { useT } from '../../app/text';
 import { PageHeader } from '../../app/PageHeader';
 import { RowList } from '../../parts/RowList';
-import { Stat } from '../../parts/Stat';
 import { DayLine } from '../../parts/DayLine';
 import { Button } from '../../parts/Button';
 import { MissingWords } from '../../parts/Figure';
@@ -26,7 +25,7 @@ import { LensRow } from '../../patterns/Lens';
 import { TodaySimple } from './TodaySimple';
 import { TodayBooks } from './TodayBooks';
 import { todayIntentsForState } from './permissions.ts';
-import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, type TodayScreenProps } from './shared';
+import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, TodayConsumerControls, TodayStat, type TodayScreenProps } from './shared';
 import s from './Today.module.css';
 
 export type { TodayScreenProps } from './shared';
@@ -75,6 +74,7 @@ function TodayGuided({ data, intents: offeredIntents }: TodayScreenProps) {
       />
 
       <State state={data.state} />
+      <TodayConsumerControls data={data} intents={intents} />
 
       {review.length === 0 && data.state.kind === 'ready' ? (
         <State state={{ kind: 'empty' }} emptyKey="ST.empty.review" />
@@ -103,12 +103,12 @@ function TodayGuided({ data, intents: offeredIntents }: TodayScreenProps) {
 
       <section className={s.section} aria-labelledby={monthId}>
         <h2 id={monthId} className={s.label}>
-          {enterprise ? t('EN.month') : t('TD-01.month')}
+          {data.review.scoped ? t('TODAY_ENGINE.figures') : enterprise ? t('EN.month') : t('TD-01.month')}
         </h2>
         {data.thisMonth && data.thisMonth.length > 0 ? (
           <div className={[s.tiles, data.thisMonth.length > 3 ? s.tilesFour : ''].join(' ')}>
             {data.thisMonth.map((tile) => (
-              <Stat key={tile.id} tile={tile} onReceipt={intents.onReceipt} />
+              <TodayStat key={tile.id} tile={tile} intents={intents} />
             ))}
           </div>
         ) : (
@@ -140,7 +140,7 @@ function TodayGuided({ data, intents: offeredIntents }: TodayScreenProps) {
             {t('TD-01.earlier')}
           </h2>
           {data.earlierToday && data.earlierToday.length > 0 ? (
-            <DayLine events={data.earlierToday} onReceipt={intents.onReceipt} onOpenAll={intents.onOpenActivity} labelledBy={earlierId} />
+            <DayLine events={data.earlierToday} onReceipt={intents.onReceipt} onOpenEvent={intents.onOpenEvent} onOpenAll={intents.onOpenActivity} labelledBy={earlierId} />
           ) : (
             <p className={s.missing}>{data.earlierTodayMissing !== undefined
               ? <MissingWords missing={data.earlierTodayMissing} />

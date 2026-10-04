@@ -17,7 +17,7 @@ import { Figure, MissingWords } from '../../parts/Figure';
 import { Columns } from '../../parts/charts/Columns';
 import { State } from '../../patterns/States';
 import { todayIntentsForState } from './permissions.ts';
-import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, type TodayScreenProps } from './shared';
+import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, TodayConsumerControls, TodayProducerSections, type TodayScreenProps } from './shared';
 import s from './Today.module.css';
 
 export function TodaySimple({ data, intents: offeredIntents }: TodayScreenProps) {
@@ -47,6 +47,7 @@ export function TodaySimple({ data, intents: offeredIntents }: TodayScreenProps)
     <div className={s.today}>
       <PageHeader where={data.date} title={t('TD-01.title')} titleId={titleId} count={data.review.count} />
       <State state={data.state} />
+      <TodayConsumerControls data={data} intents={intents} />
 
       {rows.length === 0 && data.state.kind === 'ready' ? (
         <State state={{ kind: 'empty' }} emptyKey="ST.empty.review" />
@@ -88,6 +89,8 @@ export function TodaySimple({ data, intents: offeredIntents }: TodayScreenProps)
           <Columns chart={data.cash.week} onReceipt={intents.onReceipt} className={s.cashChart} />
         </section>
       )}
+      {data.cashMissing !== undefined && <p className={s.missing}>{t('TODAY_ENGINE.cashMissing')}</p>}
+      <TodayProducerSections data={data} intents={intents} />
     </div>
   );
 }

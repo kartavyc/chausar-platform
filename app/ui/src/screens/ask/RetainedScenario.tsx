@@ -1,12 +1,13 @@
 /**
  * RetainedScenario (AS-11 on Ask, Saved; A9.1 one column per option): one saved what-if,
- * drawn only from the fresh checked `scenarios.reopen` view the host read for an exact
- * trusted pin. The label "What if" sits by the title; each column is a branch with its
- * assumption as before and after; each ready analysis shows the figures its embedded
- * receipt states, unchanged, and every figure opens that embedded receipt as its proof.
- * Rules kept here.
- * - Nothing is listed, searched, persisted or recomputed. With no host pin the page says
- *   plainly that saved what-ifs cannot be listed or opened here yet.
+ * drawn only from the fresh checked `scenarios.reopen` view the host read for an exact pin:
+ * the trusted host pin, or both identities of the exact checked row a person chose on the
+ * Saved ledger (`SavedScenarios`). The label "What if" sits by the title; each column is a
+ * branch with its assumption as before and after; each ready analysis shows the figures its
+ * embedded receipt states, unchanged, and every figure opens that embedded receipt as its
+ * proof. Rules kept here.
+ * - Nothing is listed, searched, persisted or recomputed by this view. The ledger above it
+ *   owns the released rows; this view holds only the one fresh checked graph.
  * - A job that is pending, stale or running shows its state in words and no figure. Earlier
  *   retained runs are cued once for the whole view, in a few words, never drawn as a current
  *   figure; each exact run identity and explanation is in the provenance sheet. Missing is
@@ -16,22 +17,27 @@
  *   receipt's own display string; nothing is derived. Without a comparable issued outcome
  *   there is no chart, in words. A mark names a receipt identity that belongs to exactly
  *   one embedded result, so it resolves to one exact run.
- * - At rest the page holds short revision, readiness, no-action and comparison cues (about
+ * - At rest the view holds short revision, readiness, no-action and comparison cues (about
  *   forty words). Exact identities, dates, explanations, job, digest and comparison
  *   provenance open in the one sheet (`ScenarioProvenanceBody`).
- * - Every figure and provenance control names the exact checked view it was rendered for;
- *   a newer view published before React commits cannot be substituted into an old press.
- * - A refusal replaces the whole view; this screen keeps no copy of an earlier read.
+ * - Every figure, provenance, Read again and Back control names the exact pin and checked view
+ *   it was rendered for; a newer view published before React commits cannot be substituted into
+ *   an old press, and an old control cannot act on a newer choice.
+ * - A refusal replaces the whole view; this screen keeps no copy of an earlier read. Back to
+ *   the list, offered only for a chosen row, drops the view and keeps the rows read so far. A
+ *   refusal without a pin to re-read (a chosen row's ephemeral pin is cleared with it) offers
+ *   no re-read here; the ledger offers the fresh list.
+ * - Drawn in the page for the trusted host pin, or in the one right sheet for a chosen row,
+ *   where the sheet's own top line names it and this view draws no second heading.
  */
 
 import { useId, type ReactNode } from 'react';
 import type { ColumnsChart, ChartValue, Figure as AppFigure, FigureLabel } from '../../app/presentation.ts';
 import { useT, type TextValues } from '../../app/text';
-import { PageHeader } from '../../app/PageHeader';
 import type { CalculationReceiptEvidence, EngineFigureEvidence } from '../../bridge/presentation.ts';
 import type { RetainedScenarioState } from '../../host/retained-controller.ts';
 import { isTransportUnavailable, scenarioColumns, scenarioOutcomeFigure } from '../../host/retained-contracts.ts';
-import type { RetainedScenarioJobStatus, RetainedScenarioView, ScenarioColumn, ScenarioColumnEntry } from '../../host/retained-contracts.ts';
+import type { RetainedFailureCode, RetainedScenarioJobStatus, RetainedScenarioView, ScenarioColumn, ScenarioColumnEntry, ScenarioSelection } from '../../host/retained-contracts.ts';
 import { Button } from '../../parts/Button';
 import { Label } from '../../parts/Label';
 import { MissingWords } from '../../parts/Figure';
@@ -40,17 +46,21 @@ import { Columns } from '../../parts/charts/Columns';
 import { State } from '../../patterns/States';
 import s from './RetainedScenario.module.css';
 
+/** What a Read again or Back control names: the exact pin it was drawn for and the exact checked view (null while loading or refused). */
+export interface RetainedScenarioShown { readonly selection: ScenarioSelection; readonly view: RetainedScenarioView | null }
+
 export interface RetainedScenarioProps {
   state: RetainedScenarioState;
-  /** Whether the trusted host supplied an exact scenario pin for this mount at all. */
-  selectionSupplied: boolean;
-  onRead: () => void;
+  /** A fresh reopen of the exact pin the control names, still shown, loading or refused. */
+  onRead: (shown: RetainedScenarioShown) => void;
   /** Opens the proof behind a figure: the embedded receipt of this exact run of this exact rendered view, after a fresh confirming read. */
   onProof: (runId: string, origin: HTMLElement | null, view: RetainedScenarioView) => void;
   /** Opens the exact provenance of this exact rendered view in the sheet, after a fresh confirming read. */
   onProvenance: (origin: HTMLElement | null, view: RetainedScenarioView) => void;
-  /** The existing return to the previous interface, kept under this surface. */
-  legacy?: ReactNode;
+  /** Back to the ledger from the exact chosen what-if the control names; absent when a trusted host pin is shown alone. */
+  onBack?: ((shown: RetainedScenarioShown) => void) | undefined;
+  /** Whether the view draws its own heading; false inside the sheet, whose top line already names it. */
+  heading?: boolean | undefined;
 }
 
 const JOB_MARK = { pending: 'busy', running: 'busy', stale: 'unsure', ready: 'cha' } as const;
@@ -238,12 +248,14 @@ export function ScenarioProvenanceBody({ view, historical }: { view: RetainedSce
   );
 }
 
-function Comparison({ view, historical, checking, onProof, onProvenance, onRead }: {
-  view: RetainedScenarioView; historical: boolean; checking: boolean;
-  onProof: RetainedScenarioProps['onProof']; onProvenance: RetainedScenarioProps['onProvenance']; onRead: () => void;
+function Comparison({ selection, view, historical, checking, heading, onProof, onProvenance, onRead, onBack }: {
+  selection: ScenarioSelection; view: RetainedScenarioView; historical: boolean; checking: boolean; heading: boolean;
+  onProof: RetainedScenarioProps['onProof']; onProvenance: RetainedScenarioProps['onProvenance']; onRead: RetainedScenarioProps['onRead']; onBack: RetainedScenarioProps['onBack'];
 }) {
   const t = useT();
   const titleId = useId();
+  // Every control of this view names exactly the pin and checked view object it was drawn from.
+  const shown: RetainedScenarioShown = { selection, view };
   const columns = scenarioColumns(view);
   const baseline = columns.find((column) => column.branch.role === 'baseline');
   const chart = comparisonChart(columns, (figure) => t('RETAINED.scenario.chartSentence', { figure }));
@@ -257,10 +269,12 @@ function Comparison({ view, historical, checking, onProof, onProvenance, onRead 
     if (result !== undefined) onProof(result.runId, document.activeElement instanceof HTMLElement ? document.activeElement : null, view);
   };
   return (
-    <section className={s.scenario} aria-labelledby={titleId}>
-      <h2 id={titleId} className={s.title}>
-        <Label kind="what-if" /> {t('RETAINED.scenario.title')}
-      </h2>
+    <section className={s.scenario} {...(heading ? { 'aria-labelledby': titleId } : { 'aria-label': t('RETAINED.scenario.title') })}>
+      {heading && (
+        <h2 id={titleId} className={s.title}>
+          <Label kind="what-if" /> {t('RETAINED.scenario.title')}
+        </h2>
+      )}
       <p className={[s.identity, 'fig'].join(' ')}>{t('RETAINED.scenario.revisionCue', { revision: view.revision.id, createdAt: view.revision.createdAt })}</p>
       <p className={s.note}>{historical ? t('RETAINED.scenario.historical', { head: view.headRevisionId }) : t('RETAINED.scenario.current')}</p>
       <p className={s.note}>{t(view.status === 'complete' ? 'RETAINED.scenario.complete' : 'RETAINED.scenario.partial')}</p>
@@ -308,36 +322,31 @@ function Comparison({ view, historical, checking, onProof, onProvenance, onRead 
       <p className={s.note}>{t(view.comparisons.length === 0 ? 'RETAINED.scenario.comparisonNone' : 'RETAINED.scenario.comparisonCue')}</p>
       <div className={s.actions}>
         <Button variant="quiet" disabled={checking} onClick={(event) => onProvenance(event.currentTarget, view)}>{t('RETAINED.scenario.provenance')}</Button>
-        <Button variant="link" onClick={onRead}>{t('RETAINED.readAgain')}</Button>
+        <Button variant="link" onClick={() => onRead(shown)}>{t('RETAINED.readAgain')}</Button>
+        {onBack !== undefined && <Button variant="link" onClick={() => onBack(shown)}>{t('RETAINED.saved.back')}</Button>}
       </div>
     </section>
   );
 }
 
-export function RetainedScenario({ state, selectionSupplied, onRead, onProof, onProvenance, legacy }: RetainedScenarioProps) {
+/** The words for a refused what-if: a changed view, a missing capability, or a bounded unavailable state. */
+export function scenarioRefusalKey(code: RetainedFailureCode): string {
+  return code === 'SCENARIO_VIEW_CHANGED' ? 'RETAINED.scenario.changed' : isTransportUnavailable(code) ? 'RETAINED.scenario.transport' : 'RETAINED.scenario.unavailable';
+}
+
+/** The one shown what-if: its fresh checked comparison, its loading words or its bounded refusal; nothing while idle. */
+export function RetainedScenario({ state, onRead, onProof, onProvenance, onBack, heading = true }: RetainedScenarioProps) {
   const t = useT();
-  let body: ReactNode;
-  if (!selectionSupplied) {
-    body = (
-      <>
-        <p role="status" className={s.text}>{t('RETAINED.scenario.noDiscovery')}</p>
-        <p className={s.note}>{t('RETAINED.scenario.readbackNote')}</p>
-      </>
-    );
-  } else if (state.kind === 'ready') {
-    body = <Comparison view={state.view} historical={state.historical} checking={state.checking} onProof={onProof} onProvenance={onProvenance} onRead={onRead} />;
-  } else if (state.kind === 'unavailable') {
-    const what = state.code === 'SCENARIO_VIEW_CHANGED' ? 'RETAINED.scenario.changed'
-      : isTransportUnavailable(state.code) ? 'RETAINED.scenario.transport' : 'RETAINED.scenario.unavailable';
-    body = <State state={{ kind: 'failed', code: state.code, what: t(what) }} action={{ label: t('RETAINED.readAgain'), onPress: onRead }} />;
-  } else {
-    body = <p role="status" className={s.text}>{t('RETAINED.scenario.loading')}</p>;
+  if (state.kind === 'idle') return null;
+  if (state.kind === 'ready') {
+    return <Comparison selection={state.selection} view={state.view} historical={state.historical} checking={state.checking} heading={heading}
+      onProof={onProof} onProvenance={onProvenance} onRead={onRead} onBack={onBack} />;
   }
-  return (
-    <section className={s.page} aria-label={t('SH-01.sub.ask.saved')}>
-      <PageHeader where={t('SH-01.place.ask')} title={t('SH-01.sub.ask.saved')} />
-      {body}
-      {legacy}
-    </section>
-  );
+  if (state.kind === 'unavailable') {
+    // Only a pin that may be re-read offers Read again; a cleared ephemeral pin leaves the fresh list to the ledger.
+    const selection = state.selection;
+    const action = selection === null ? undefined : { label: t('RETAINED.readAgain'), onPress: () => onRead({ selection, view: null }) };
+    return <State state={{ kind: 'failed', code: state.code, what: t(scenarioRefusalKey(state.code)) }} action={action} />;
+  }
+  return <p role="status" className={s.text}>{t('RETAINED.scenario.loading')}</p>;
 }

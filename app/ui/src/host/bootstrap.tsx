@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App, type AppProps } from '../app/App';
-import { ConversationWorkspace, type ConversationWorkspaceProps } from '../app/ConversationWorkspace';
+import { ConversationWorkspace, type ConversationWorkspaceProps, type SavedReadbackOrigin } from '../app/ConversationWorkspace';
 import { PageHeader } from '../app/PageHeader';
 import type { Address, Language, View } from '../app/presentation.ts';
 import { formatAddress, parseAddress, sameAddress, withoutSheet, withSheet } from '../app/routes.ts';
@@ -12,18 +12,22 @@ import type { CalculationReceiptEvidence, ReceiptPeriod } from '../bridge/presen
 import { projectTodayHostForUi } from '../bridge/today-host.ts';
 import { Button } from '../parts/Button';
 import { Label } from '../parts/Label';
-import { Sheet } from '../parts/Sheet';
+import { Sheet, type SheetProps } from '../parts/Sheet';
 import { State } from '../patterns/States';
 import type { ConversationReferenceIntent } from '../screens/ask/ConversationAnswer';
-import { ScenarioProvenanceBody } from '../screens/ask/RetainedScenario';
+import { RetainedScenario, ScenarioProvenanceBody, type RetainedScenarioShown } from '../screens/ask/RetainedScenario';
 import { LessonReviewSheet } from '../screens/reports/LessonReview';
 import { RetainedPlace, retainedSurface } from '../screens/retained/RetainedPlace';
 import type { TodayData } from '../screens/today/TodayData.ts';
+import { TodayDestination } from '../screens/today/TodayDestination.tsx';
+import { projectTodayConsumer } from './today-controller.ts';
+import type { TodayConsumerState } from './today-controller.ts';
+import type { TodayDetail } from '../bridge/today-navigation.ts';
 import type { UiContext, UiModelRoute } from './contracts.ts';
 import type { HostController, HostReceiptSelection, HostState } from './controller.ts';
-import { lessonDecisionAvailability, scenarioProof } from './retained-contracts.ts';
-import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, ScenarioSelection } from './retained-contracts.ts';
-import type { LessonReviewState, RetainedScenarioState } from './retained-controller.ts';
+import { discoveryRowFor, lessonDecisionAvailability, sameScenarioSelection, scenarioProof } from './retained-contracts.ts';
+import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, ScenarioDiscoveryRow, ScenarioSelection } from './retained-contracts.ts';
+import type { LessonReviewState, RetainedScenarioState, RetainedState, ScenarioContinuation, ScenarioDetailOrigin, ScenarioListOrigin, ScenarioRowOrigin } from './retained-controller.ts';
 import { hostMessage, hostMissingWords } from './text.ts';
 import detail from '../patterns/ModelConsentSheet.module.css';
 import '../tokens/index.css';
@@ -43,9 +47,11 @@ export interface HostMountOptions {
   readonly onLegacyReturn?: () => void;
   /**
    * An exact retained scenario pin chosen by the trusted host, opened on Ask, Saved with a
-   * fresh authorized `scenarios.reopen`. The Engine has no scenario enumeration, so without
-   * this pin saved what-ifs cannot be listed or opened here. This is a callback seam only:
-   * no native host supplies it yet, and it never carries catalogue data or snapshots.
+   * fresh authorized `scenarios.reopen` and shown alone. Without it Saved lists the released
+   * what-if revisions through `scenarios.discover`; a row a person chooses is ephemeral
+   * controller state and is never rescued by this static option after an invalidation. This
+   * is a callback seam only: no native host supplies it yet, and it never carries catalogue
+   * data or snapshots.
    */
   readonly scenarioSelection?: ScenarioSelection;
 }
@@ -183,12 +189,14 @@ function ShortcutHelpBody({ language }: { language: Language }) {
   </>;
 }
 
-/** The proof behind a what-if figure: the embedded receipt of the exact run in the fresh, confirmed reopen view. */
-function ScenarioProofPanel({ runId, scenario, language, origin, onClose }: {
+/** The proof behind a what-if figure: the embedded receipt of the exact run in the fresh, confirmed reopen view.
+ * Opened from a chosen row's detail sheet it replaces that sheet, and `back` leads back to the detail. */
+function ScenarioProofPanel({ runId, scenario, language, origin, back, onClose }: {
   runId: string;
   scenario: RetainedScenarioState;
   language: Language;
   origin: HTMLElement | null;
+  back: SheetProps['back'];
   onClose: () => void;
 }) {
   const t = useT();
@@ -198,7 +206,7 @@ function ScenarioProofPanel({ runId, scenario, language, origin, onClose }: {
       <dt className={detail.name}>{name}</dt><dd className={[detail.value, 'fig'].join(' ')}>{content}</dd>
     </div>)}
   </dl>;
-  return <Sheet kind={t('RETAINED.proof.kind')} title={proof === null ? t('RETAINED.proof.kind') : proof.result.receipt.id} origin={origin} onClose={onClose}>
+  return <Sheet kind={t('RETAINED.proof.kind')} title={proof === null ? t('RETAINED.proof.kind') : proof.result.receipt.id} origin={origin} back={back} onClose={onClose}>
     {proof === null ? <p role="status">{t('RETAINED.proof.unavailable')}</p> : <>
       <p className={detail.note}><Label kind="what-if" /> {t('RETAINED.proof.note')}</p>
       {pairs([
@@ -218,14 +226,43 @@ function ScenarioProofPanel({ runId, scenario, language, origin, onClose }: {
   </Sheet>;
 }
 
-/** The exact provenance of the displayed, confirmed what-if view, in the one sheet. */
-function ScenarioProvenancePanel({ scenario, origin, onClose }: { scenario: RetainedScenarioState; origin: HTMLElement | null; onClose: () => void }) {
+/** The exact provenance of the displayed, confirmed what-if view, in the one sheet; from a chosen row's detail it replaces that sheet with a way back. */
+function ScenarioProvenancePanel({ scenario, origin, back, onClose }: { scenario: RetainedScenarioState; origin: HTMLElement | null; back: SheetProps['back']; onClose: () => void }) {
   const t = useT();
   const ready = scenario.kind === 'ready' ? scenario : null;
-  return <Sheet kind={t('RETAINED.scenario.provenance')} title={ready === null ? t('RETAINED.scenario.title') : ready.view.revision.id} origin={origin} onClose={onClose}>
+  return <Sheet kind={t('RETAINED.scenario.provenance')} title={ready === null ? t('RETAINED.scenario.title') : ready.view.revision.id} origin={origin} back={back} onClose={onClose}>
     {ready === null ? <p role="status">{t('RETAINED.proof.unavailable')}</p>
       : <><p className={detail.note}><Label kind="what-if" /> {t('RETAINED.scenario.identity', { scenario: ready.view.scenarioId, revision: ready.view.revision.id, createdAt: ready.view.revision.createdAt })}</p>
         <ScenarioProvenanceBody view={ready.view} historical={ready.historical} /></>}
+  </Sheet>;
+}
+
+/**
+ * The what-if chosen from the Saved ledger, in the one right sheet beside the stationary list: the exact checked
+ * comparison, charts and figures `RetainedScenario` draws from its fresh reopen, under the row's label as written.
+ * Every control is bound to the exact chosen pin, checked view, rows and window this panel was drawn for: Esc, Close and
+ * Back to the list all name that origin, and Read again re-reads exactly that pin. Once the chosen row is no longer the
+ * list's selection the panel says so and the host closes it; nothing newer is substituted into an old control.
+ */
+function ScenarioDetailPanel({ chosen, retained, origin, onClose, onRead, onProof, onProvenance }: {
+  chosen: ScenarioSelection;
+  retained: RetainedState;
+  origin: HTMLElement | null;
+  onClose: (binding: ScenarioDetailOrigin) => void;
+  onRead: (binding: ScenarioDetailOrigin) => void;
+  onProof: (runId: string, origin: HTMLElement | null, view: RetainedScenarioView) => void;
+  onProvenance: (origin: HTMLElement | null, view: RetainedScenarioView) => void;
+}) {
+  const t = useT();
+  const listed = retained.discovery, shown = retained.scenario;
+  const list: ScenarioListOrigin | null = listed.kind === 'ready' ? { rows: listed.rows, page: listed.page } : null;
+  const row = listed.kind === 'ready' ? discoveryRowFor(listed.rows, chosen) : undefined;
+  const current = shown.kind !== 'idle' && sameScenarioSelection(shown.selection, chosen) && listed.kind === 'ready' && sameScenarioSelection(listed.selected, chosen);
+  const bind = (named: RetainedScenarioShown): ScenarioDetailOrigin => ({ selection: named.selection, view: named.view, list });
+  const closeBinding: ScenarioDetailOrigin = { selection: chosen, view: shown.kind === 'ready' ? shown.view : null, list };
+  return <Sheet kind={t('RETAINED.scenario.title')} title={row?.label ?? t('RETAINED.scenario.title')} corner={<Label kind="what-if" />} origin={origin} onClose={() => onClose(closeBinding)}>
+    {current ? <RetainedScenario state={shown} heading={false} onRead={named => onRead(bind(named))} onBack={named => onClose(bind(named))} onProof={onProof} onProvenance={onProvenance} />
+      : <p role="status">{t('RETAINED.proof.unavailable')}</p>}
   </Sheet>;
 }
 
@@ -270,11 +307,29 @@ function LessonPanel({ id, scope, lessons, context, origin, onClose, onAdjacent,
     onClose={close} onAdjacent={adjacent} onDecide={onDecide} />;
 }
 
-type LocalSheet = { readonly address: Address; readonly kind: 'about' | 'reference' | 'help' | 'what-if-proof' | 'what-if-provenance' | 'lesson'; readonly id?: string };
+/** One open sheet. `chosen` marks the what-if chain of a row chosen from the Saved ledger: its detail, or the proof or
+ * provenance that replaced that detail; a trusted pin's proof or provenance, opened from the page, carries none. */
+type LocalSheet = {
+  readonly address: Address;
+  readonly kind: 'about' | 'reference' | 'help' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof';
+  readonly id?: string;
+  readonly chosen?: ScenarioSelection;
+  readonly todayView?: TodayConsumerState;
+  readonly todayOrigin?: HTMLElement | SVGElement | null;
+  readonly todayBack?: boolean;
+};
+const noTodaySubscribe = (_listener: () => void) => () => {};
+const noTodaySnapshot = () => null;
+const todayChain = (address: Address) => address.place === 'today' && (address.sheet === undefined || ['today-review', 'today-record', 'today-proof'].includes(address.sheet));
 type SavedSelection = NonNullable<ConversationWorkspaceProps['readback']>;
+const WHAT_IF_SHEET = 'what-if';
 const PROOF_SHEET = 'what-if-proof';
 const PROVENANCE_SHEET = 'what-if-provenance';
 const LESSON_SHEET = 'lesson';
+/** The what-if chain at Saved: the ledger at rest, the chosen row's detail sheet, and the proof or provenance sheet. */
+const scenarioChain = (address: Address) => retainedSurface(address) === 'scenario'
+  && (address.sheet === undefined || address.sheet === WHAT_IF_SHEET || address.sheet === PROOF_SHEET || address.sheet === PROVENANCE_SHEET);
+const pinKey = (pin: ScenarioSelection) => JSON.stringify([pin.scenarioId, pin.revisionId]);
 
 function AuthorizedWorkspace({ controller, state, context, language, view, setLanguage, setView, onLegacyReturn, scenarioSelection }: {
   controller: HostController;
@@ -287,14 +342,21 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   onLegacyReturn: () => void;
   scenarioSelection: ScenarioSelection | null;
 }) {
+  const t = useT();
   const contextKey = JSON.stringify([context.contextKey, state.selectedRouteId]);
   const retained = useSyncExternalStore(controller.retained.subscribe, controller.retained.snapshot, controller.retained.snapshot);
+  const consumer = controller.todayConsumer;
+  const todayCurrent = useSyncExternalStore(consumer?.subscribe ?? noTodaySubscribe, consumer?.snapshot ?? noTodaySnapshot, consumer?.snapshot ?? noTodaySnapshot);
+  const todayOperation = useRef(Symbol());
+  const todayPending = useRef<{ readonly prior: LocalSheet | null; readonly view: TodayConsumerState; readonly token: symbol } | null>(null);
   const active = useRef<Address | null>(TODAY);
   const origin = useRef<HTMLElement | null>(null);
   const helpFallback = useRef<HTMLElement | null>(null);
   const returnSavedId = useRef<string | null>(null);
   const selectionCounter = useRef(0);
   const [readback, setReadback] = useState<SavedSelection | undefined>(undefined);
+  /** The selected saved answer as of this instant, before React commits: the synchronous owner every answer control is checked against. */
+  const readbackRef = useRef<SavedSelection | undefined>(undefined);
   const [localSheet, setLocalSheet] = useState<LocalSheet | null>(null);
   const localSheetRef = useRef(localSheet);
   localSheetRef.current = localSheet;
@@ -317,16 +379,26 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     if (current !== null && (address === null || !sameAddress(current.address, address))) {
       // Leaving a lesson sheet's exact address drops its selection: captured controls go inert.
       if (current.kind === LESSON_SHEET) controller.retained.selectLesson(null);
+      if (current.todayView !== undefined) { todayOperation.current = Symbol(); localSheetRef.current = null; controller.todayConsumer?.cancelSelection(); }
       setLocalSheet(null);
     }
     // Retained lifecycle: leaving a place or sub-place clears its private view so a return needs a
-    // fresh authorized read; any sheet change at the same place fences every pending operation.
+    // fresh authorized read; any sheet change at the same place fences every pending operation. Movement
+    // within Saved's own what-if chain (the ledger, the chosen row's detail, its proof or provenance) is
+    // not such a boundary: every step of it is an intent that fences or binds its own operation, and the
+    // chosen row's reopen in flight is exactly the operation that movement shows.
     if (previous === null || address === null || !samePlace(previous, address)) controller.retained.invalidate();
-    else if (!sameAddress(previous, address)) controller.retained.cancelPending();
+    else if (!sameAddress(previous, address) && !(scenarioChain(previous) && scenarioChain(address))) controller.retained.cancelPending();
+    if (previous !== null && (address === null || !sameAddress(previous, address)) && !(address !== null && todayChain(previous) && todayChain(address))) {
+      todayOperation.current = Symbol(); controller.todayConsumer?.cancelSelection();
+    }
+    if (address !== null && todayChain(address) && address.sheet === undefined && previous !== null && !todayChain(previous)) {
+      void controller.todayConsumer?.refresh(() => sameAddress(parseAddress(window.location.hash), address));
+    }
     // A retained sheet address that no open sheet owns (after a remount or a pasted hash) is reduced to its
     // surface at rest: the sheet opens only from a live press, never from the address alone.
     const owned = current !== null && address !== null && sameAddress(current.address, address);
-    if (address !== null && !owned && (address.sheet === PROOF_SHEET || address.sheet === PROVENANCE_SHEET || address.sheet === LESSON_SHEET)) navigate(withoutSheet(address));
+    if (address !== null && !owned && (address.sheet === WHAT_IF_SHEET || address.sheet === PROOF_SHEET || address.sheet === PROVENANCE_SHEET || address.sheet === LESSON_SHEET || address.sheet?.startsWith('today-'))) navigate(withoutSheet(address));
   }, [controller]);
   const stillAuthorized = () => {
     const current = controller.snapshot();
@@ -339,7 +411,60 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     return current.phase === 'ready' && current.context?.contextKey === context.contextKey && current.selectedRouteId === state.selectedRouteId
       && sameAddress(parseAddress(window.location.hash), address);
   }, [controller, context.contextKey, state.selectedRouteId]);
+  /** Bind the rendered consumer view and current sheet before any asynchronous read. */
+  const launchToday = (from: TodayConsumerState, kind: 'today-review' | 'today-record' | 'today-proof', rowOrigin: HTMLElement | SVGElement | null,
+    read: (current: () => boolean) => Promise<boolean | TodayDetail | null>) => {
+    if (consumer === null || consumer.snapshot() !== from) return;
+    const address = parseAddress(window.location.hash), prior = localSheetRef.current;
+    if (!todayChain(address) || !live(address) || address.sheet !== undefined && (prior?.todayView !== from || !sameAddress(prior.address, address))) return;
+    const token = Symbol(); todayOperation.current = token;
+    const current = () => todayOperation.current === token && live(address) && localSheetRef.current === prior;
+    const operation = read(current), pendingView = consumer.snapshot();
+    todayPending.current = pendingView === from ? null : { prior, view: pendingView, token };
+    void operation.then(accepted => {
+      if (todayPending.current?.token === token) todayPending.current = null;
+      if (!accepted || !current()) return;
+      const shown = consumer.snapshot();
+      if (kind === 'today-review' ? shown.page === null : shown.detail === null) return;
+      const rootOrigin = prior?.todayOrigin ?? rowOrigin;
+      origin.current = rootOrigin instanceof HTMLElement ? rootOrigin : null;
+      const selection: LocalSheet = { address: withSheet(address, kind), kind, todayView: shown, todayOrigin: rootOrigin, todayBack: kind === 'today-proof' && from.detail !== null };
+      localSheetRef.current = selection; setLocalSheet(selection); navigate(selection.address);
+    });
+  };
+  const closeToday = (from: LocalSheet, rendered: TodayConsumerState | null) => {
+    if (localSheetRef.current !== from || from.todayView === undefined || consumer === null || !live(from.address)) return;
+    const pending = todayPending.current, shown = consumer.snapshot();
+    if (rendered !== shown) return;
+    if (shown !== from.todayView && !(pending?.prior === from && pending.token === todayOperation.current && pending.view === shown)) return;
+    todayPending.current = null;
+    todayOperation.current = Symbol(); consumer.cancelSelection();
+    localSheetRef.current = null; setLocalSheet(null); navigate(withoutSheet(from.address));
+    if (from.todayOrigin?.isConnected) from.todayOrigin.focus();
+  };
+  const backToday = (from: LocalSheet) => {
+    if (localSheetRef.current !== from || from.todayView === undefined || consumer?.snapshot() !== from.todayView || !live(from.address)) return;
+    const accepted = consumer.back(from.todayView); if (accepted === null) return;
+    todayOperation.current = Symbol();
+    const selection: LocalSheet = { ...from, address: withSheet(from.address, 'today-record'), kind: 'today-record', todayView: consumer.snapshot() };
+    localSheetRef.current = selection; setLocalSheet(selection); navigate(selection.address);
+  };
+  useEffect(() => {
+    const current = localSheetRef.current;
+    if (todayCurrent?.phase !== 'failed' || current?.todayView === undefined) return;
+    todayOperation.current = Symbol(); localSheetRef.current = null; setLocalSheet(null);
+    if (sameAddress(parseAddress(window.location.hash), current.address)) navigate(withoutSheet(current.address));
+  }, [todayCurrent]);
   const dropLessonSelection = () => { if (localSheetRef.current?.kind === LESSON_SHEET) controller.retained.selectLesson(null); };
+  /** A sheet that replaces the chosen row's what-if chain (Help, About, a reference or a receipt) drops the chosen view, from
+   * exactly what is shown now: returning to Saved is the ledger at rest, and nothing revives the earlier choice. */
+  const dropChosenScenario = () => {
+    const current = localSheetRef.current;
+    if (current?.chosen === undefined) return;
+    const shown = controller.retained.snapshot();
+    if (shown.scenario.kind === 'idle' || shown.discovery.kind !== 'ready') return;
+    controller.retained.closeScenario({ selection: current.chosen, view: shown.scenario.kind === 'ready' ? shown.scenario.view : null, list: { rows: shown.discovery.rows, page: shown.discovery.page } });
+  };
   // A lesson sheet stays open only while its exact candidate is the controller's selection. The hash
   // is reduced to the surface only while it still names this sheet: a departure already under way
   // (an actual hash change React has not yet committed) is never pulled back.
@@ -352,9 +477,12 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   }, [lessonSelection]);
   const selectSaved = (id: string) => {
     if (!stillAuthorized() || !conversationEnabled) return;
+    // Consume the previous answer before its still-connected controls can act at this same Saved address.
+    controller.conversation.cancel();
     const address: Address = { place: 'ask', sub: 'saved' };
     selectionCounter.current += 1;
-    setReadback({ id, address, selectionKey: String(selectionCounter.current) });
+    const selection: SavedSelection = { id, address, selectionKey: String(selectionCounter.current) };
+    readbackRef.current = selection; setReadback(selection);
     navigate(address);
   };
   const closeSheet = () => {
@@ -370,37 +498,155 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   const openReceipt = (id: string, savedId: string | null = null) => {
     if (!stillAuthorized() || active.current === null) return;
-    origin.current = currentOrigin(); returnSavedId.current = savedId; dropLessonSelection(); controller.retained.cancelPending(); setLocalSheet(null);
+    origin.current = currentOrigin(); returnSavedId.current = savedId; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); setLocalSheet(null);
     const address = withSheet(active.current, 'receipt');
     navigate(address); void controller.openReceipt(id, address);
   };
   /**
    * A what-if sheet (the proof of a figure, or the exact provenance) opens only after a fresh
-   * `scenarios.reopen` of the same pin still equals the displayed checked view, and only if this
-   * bare address is still live and no other sheet opened meanwhile. The press names the exact
-   * checked view its control was rendered for: a newer view published at the same address before
-   * React commits is refused, never substituted into the old press. A changed view refuses the
-   * old press and clears the stale figures. The proof is the embedded receipt of the exact run;
+   * `scenarios.reopen` of the same pin still equals the displayed checked view, and only if the
+   * address it was pressed at is still live and no other sheet opened meanwhile. It opens from the
+   * page at rest, where the trusted pin is shown alone, or from the chosen row's own detail sheet,
+   * which it then replaces in the same one sheet with a way back; sheets never nest. The press names
+   * the exact checked view its control was rendered for: a newer view published at the same address
+   * before React commits is refused, never substituted into the old press. A changed view refuses
+   * the old press and clears the stale figures. The proof is the embedded receipt of the exact run;
    * it never reads `receipts.get`.
    */
   const openScenarioSheet = (kind: typeof PROOF_SHEET | typeof PROVENANCE_SHEET, runId: string | undefined, suppliedOrigin: HTMLElement | null, rendered: RetainedScenarioView) => {
     const address = active.current;
-    if (address === null || address.sheet !== undefined || retainedSurface(address) !== 'scenario' || !live(address)) return;
+    if (address === null || retainedSurface(address) !== 'scenario' || !live(address)) return;
+    const current = localSheetRef.current;
+    // The chosen pin of the detail sheet this press came from, read once from the open sheet: null from the page at rest.
+    const detailChosen: ScenarioSelection | null = current !== null && address.sheet === WHAT_IF_SHEET && current.kind === WHAT_IF_SHEET && current.chosen !== undefined && sameAddress(current.address, address) ? current.chosen : null;
+    const fromDetail = detailChosen === null ? null : current;
+    if (address.sheet !== undefined && fromDetail === null) return;
     const shown = controller.retained.snapshot().scenario;
     if (shown.kind !== 'ready' || shown.checking || shown.view !== rendered || (runId !== undefined && scenarioProof(shown.view, runId) === null)) return;
+    if (detailChosen !== null && !sameScenarioSelection(shown.selection, detailChosen)) return;
     const opener = suppliedOrigin ?? currentOrigin();
     void controller.retained.confirmScenario(shown.selection, shown.view, () => live(address)).then(result => {
-      if (!result.ok || localSheetRef.current !== null || controller.snapshot().receipt !== null || !live(address)) return;
+      if (!result.ok || localSheetRef.current !== fromDetail || controller.snapshot().receipt !== null || !live(address)) return;
       const latest = controller.retained.snapshot().scenario;
       if (latest.kind !== 'ready' || latest.checking || latest.view !== shown.view || (runId !== undefined && scenarioProof(latest.view, runId) === null)) return;
-      origin.current = opener?.isConnected ? opener : currentOrigin(); returnSavedId.current = null; dropLessonSelection();
+      // From the page, focus returns to the figure control that opened the proof; from the detail sheet it keeps
+      // returning to the accepted row the whole chain was opened from.
+      if (fromDetail === null) origin.current = opener?.isConnected ? opener : currentOrigin();
+      returnSavedId.current = null; dropLessonSelection();
       const sheetAddress = withSheet(address, kind);
-      const selection: LocalSheet = runId === undefined ? { address: sheetAddress, kind } : { address: sheetAddress, kind, id: runId };
+      const selection: LocalSheet = { address: sheetAddress, kind, ...(runId === undefined ? {} : { id: runId }), ...(detailChosen === null ? {} : { chosen: detailChosen }) };
       localSheetRef.current = selection; setLocalSheet(selection); navigate(sheetAddress);
     });
   };
   const openProof = (runId: string, suppliedOrigin: HTMLElement | null, rendered: RetainedScenarioView) => openScenarioSheet(PROOF_SHEET, runId, suppliedOrigin, rendered);
   const openProvenance = (suppliedOrigin: HTMLElement | null, rendered: RetainedScenarioView) => openScenarioSheet(PROVENANCE_SHEET, undefined, suppliedOrigin, rendered);
+  /**
+   * An explicit human transition to the released what-ifs, or to one of them, leaves any saved-answer readback.
+   * The control that asks for it names the selection it was drawn beside: a control from the selected answer names
+   * that exact readback, a ledger control names none. A control whose selection is no longer current is inert and
+   * clears nothing. For an accepted transition the answer operation and its selection, reference and receipt-return
+   * ownership are consumed synchronously, through the conversation host's own generation fence, before any await:
+   * a held answer success or refusal publishes nothing, and a still-connected answer control cannot re-establish
+   * the answer's return. A default Saved render never does this: while a readback is selected at rest, Saved is the
+   * answer, and no discovery is issued behind it.
+   */
+  const leaveReadback = (named: SavedReadbackOrigin | undefined): boolean => {
+    const current = readbackRef.current;
+    if (named === undefined ? current !== undefined : current === undefined || current.id !== named.id || current.selectionKey !== named.selectionKey) return false;
+    if (current !== undefined) { readbackRef.current = undefined; controller.conversation.cancel(); setReadback(undefined); }
+    returnSavedId.current = null;
+    return true;
+  };
+  /** The bare Saved address a what-if control may act for: live at rest, or within the what-if chain this host owns; null when left. */
+  const savedBase = (): Address | null => {
+    const address = active.current;
+    if (address === null || !scenarioChain(address) || !live(address)) return null;
+    if (address.sheet !== undefined && (localSheetRef.current === null || !sameAddress(localSheetRef.current.address, address))) return null;
+    return withoutSheet(address);
+  };
+  /**
+   * Whether a what-if list operation started for `base` may still act: the trusted context is unchanged and the actual
+   * hash, read synchronously at every awaited boundary and at the raw transport boundary, still names Saved at rest or
+   * within its what-if chain. A departure to any other address or sheet drops the operation before it dispatches.
+   */
+  const liveChain = (base: Address) => stillAuthorized() && scenarioChain(parseAddress(window.location.hash)) && samePlace(parseAddress(window.location.hash), base);
+  /**
+   * One human choice of a released what-if row: both exact identities of the exact checked row, bound to the
+   * rows, window and selection it was drawn beside, enter a fresh `scenarios.reopen` through the controller,
+   * which refuses a replaced list, a moved window or a newer selection React has not yet committed. Only an
+   * accepted choice captures the pressed row as the origin focus returns to, and opens the detail sheet beside
+   * the stationary list (replacing an earlier what-if sheet); a refused press changes nothing at all.
+   */
+  const openScenarioRow = (selection: ScenarioSelection, rowOrigin: HTMLElement, binding: ScenarioRowOrigin): boolean => {
+    const base = savedBase();
+    if (base === null || !leaveReadback(undefined)) return false;
+    const before = controller.retained.snapshot().discovery;
+    void controller.retained.openDiscovered(selection, binding, () => liveChain(base));
+    const after = controller.retained.snapshot().discovery;
+    if (after === before || after.kind !== 'ready' || !sameScenarioSelection(after.selected, selection)) return false;
+    origin.current = rowOrigin; returnSavedId.current = null; dropLessonSelection(); controller.closeReceipt();
+    const detail: LocalSheet = { address: withSheet(base, WHAT_IF_SHEET), kind: WHAT_IF_SHEET, chosen: selection };
+    localSheetRef.current = detail; setLocalSheet(detail);
+    if (!sameAddress(parseAddress(window.location.hash), detail.address)) navigate(detail.address);
+    return true;
+  };
+  /** An explicit fresh first page of the released what-ifs at the live Saved address; the cursor is omitted. Returns whether
+   * the transition was accepted, so the control's own surface can consume its captured answer controls synchronously. */
+  const showSavedOverview = (named?: SavedReadbackOrigin): boolean => {
+    const base = savedBase();
+    if (base === null || !leaveReadback(named)) return false;
+    void controller.retained.readDiscovery(() => liveChain(base));
+    return true;
+  };
+  /** The next page from the exact rows, cursor, window and selection the control was drawn beside; the controller refuses an obsolete one. */
+  const continueScenarios = (continuation: ScenarioContinuation) => {
+    const base = savedBase();
+    if (base === null || !leaveReadback(undefined)) return;
+    void controller.retained.continueDiscovery(continuation, () => liveChain(base));
+  };
+  /** Moves the at-rest window from the exact rows, window and selection the control was drawn beside; a chosen row of the window left behind is superseded. */
+  const pageScenarios = (rows: readonly ScenarioDiscoveryRow[], from: number, page: number, selection: ScenarioSelection | null) => {
+    const base = savedBase();
+    if (base === null || !leaveReadback(undefined)) return;
+    controller.retained.pageDiscovery(rows, from, page, selection);
+  };
+  /** Read again from the chosen row's detail sheet: exactly the pin, view, rows and window the control named, at its live sheet address. */
+  const readChosenAgain = (from: LocalSheet, binding: ScenarioDetailOrigin) => {
+    const current = localSheetRef.current;
+    if (current !== from || current.chosen === undefined || !live(current.address)) return;
+    void controller.retained.readScenarioAgain(binding, () => live(current.address));
+  };
+  /**
+   * Esc, Close or Back to the list on a sheet of the chosen row's chain: it acts only while that exact sheet is still the
+   * open one at its live address, for exactly the pin, view, rows and window it named. An old control pressed after an
+   * actual hash departure, or after a newer choice at the same address, changes nothing, dispatches nothing and moves no
+   * focus; an accepted close drops the chosen view and returns focus to the accepted row.
+   */
+  const closeChosen = (from: LocalSheet, binding: ScenarioDetailOrigin) => {
+    const current = localSheetRef.current;
+    if (current !== from || current.chosen === undefined || !live(current.address)) return;
+    if (!controller.retained.closeScenario(binding).ok) return;
+    closeSheet();
+  };
+  /** Back from the proof or provenance that replaced the chosen row's detail to that detail, while the row is still chosen. */
+  const returnToDetail = (from: LocalSheet) => {
+    const current = localSheetRef.current;
+    if (current !== from || current.chosen === undefined || !live(current.address)) return;
+    const shown = controller.retained.snapshot();
+    if (shown.scenario.kind === 'idle' || shown.discovery.kind !== 'ready' || !sameScenarioSelection(shown.discovery.selected, current.chosen)) return;
+    const detail: LocalSheet = { address: withSheet(current.address, WHAT_IF_SHEET), kind: WHAT_IF_SHEET, chosen: current.chosen };
+    localSheetRef.current = detail; setLocalSheet(detail); navigate(detail.address);
+  };
+  // The chosen row's sheet chain stays open only while that exact row is still the list's choice with a view behind it.
+  // A refusal, a moved window, a fresh list, a lock or a departure drops the choice and the sheet goes with it; the hash is
+  // reduced to the ledger only while it still names the sheet, so a departure already under way is never pulled back.
+  const chosenKey = retained.discovery.kind === 'ready' && retained.discovery.selected !== null && retained.scenario.kind !== 'idle' ? pinKey(retained.discovery.selected) : null;
+  useEffect(() => {
+    const current = localSheetRef.current;
+    if (current?.chosen === undefined || pinKey(current.chosen) === chosenKey) return;
+    localSheetRef.current = null; setLocalSheet(null);
+    if (sameAddress(parseAddress(window.location.hash), current.address)) navigate(withoutSheet(current.address));
+  }, [chosenKey]);
   /** The candidate whose lesson sheet is open right now, before React commits anything newer; null at rest. */
   const openLessonId = () => (localSheetRef.current?.kind === LESSON_SHEET ? localSheetRef.current.id ?? null : null);
   /**
@@ -454,11 +700,22 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   const showReference = (id: string, savedId: string | null = null) => {
     if (!stillAuthorized() || active.current === null) return;
-    origin.current = currentOrigin(); returnSavedId.current = savedId; dropLessonSelection(); controller.retained.cancelPending(); controller.closeReceipt();
+    origin.current = currentOrigin(); returnSavedId.current = savedId; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
     const address = withSheet(active.current, 'reference');
     setLocalSheet({ address, kind: 'reference', id }); navigate(address);
   };
   const onReference = (intent: ConversationReferenceIntent, saved: ConversationSavedAnswer) => {
+    // An answer control acts only at the actual live address it was drawn for: the hash, which selecting a saved answer
+    // and every sheet opening set synchronously, must still name the committed address, so a control of the answer just
+    // left (before React commits) neither navigates, nor opens a receipt, nor changes the return owner. On Saved the
+    // control also names the selected saved answer it was drawn in, read from the synchronous owner, so once an explicit
+    // transition has left or replaced that readback the still-connected control is inert. On Ask, New the answer is the
+    // conversation itself, as before.
+    const address = active.current;
+    if (address === null || !live(address)) return;
+    const current = readbackRef.current;
+    if (retainedSurface(address) === 'scenario'
+      && (current === undefined || !(current.id === saved.id || (saved.kind === 'clarification' && saved.answer.modelReceiptId === current.id)))) return;
     if (intent.kind === 'calculation-receipt') openReceipt(intent.id, saved.id);
     else if (intent.kind === 'answer') selectSaved(intent.id);
     else showReference(intent.kind === 'synthesis-receipt' ? intent.receipt.id : intent.id, saved.id);
@@ -469,7 +726,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   const showAbout = () => {
     if (!stillAuthorized() || active.current === null) return;
-    origin.current = currentOrigin(); returnSavedId.current = null; dropLessonSelection(); controller.retained.cancelPending(); controller.closeReceipt();
+    origin.current = currentOrigin(); returnSavedId.current = null; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
     const address = withSheet(active.current, 'about'); setLocalSheet({ address, kind: 'about' }); navigate(address);
   };
   const showHelp = (suppliedOrigin?: HTMLElement | null, fallback?: HTMLElement | null) => {
@@ -480,27 +737,51 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     helpFallback.current = fallback?.isConnected ? fallback : null;
     origin.current = opener?.isConnected ? opener : fallback?.isConnected ? fallback : null;
     // Help is a lifecycle boundary: pending retained operations are fenced before the hash changes.
-    returnSavedId.current = null; dropLessonSelection(); controller.retained.cancelPending(); controller.closeReceipt();
+    returnSavedId.current = null; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
     const address = withSheet(active.current, 'help');
     const selection: LocalSheet = { address, kind: 'help' };
     localSheetRef.current = selection; setLocalSheet(selection); navigate(address);
   };
   if (projection.kind === 'invalid') return <State state={{ kind: 'failed', code: 'INVALID_REPLY' }} />;
   const words = hostMissingWords(language);
-  const data: TodayData = projection.kind === 'ready' ? projection.value.data : {
+  const data: TodayData = todayCurrent !== null && consumer !== null ? projectTodayConsumer(todayCurrent, consumer.input, language) : projection.kind === 'ready' ? projection.value.data : {
     state: { kind: 'loading' }, date: '', review: { count: { exact: null, display: words['not-loaded-yet'] }, rows: [] },
     thisMonthMissing: 'not-loaded-yet', earlierTodayMissing: 'unknown',
   };
   const legacyLink = <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>;
+  /** For a proof or provenance that replaced the chosen row's detail: the way back to that detail, and a close bound to the chosen chain. */
+  const chainBack = (current: LocalSheet): SheetProps['back'] => current.chosen === undefined ? undefined : { label: t('RETAINED.scenario.title'), onBack: () => returnToDetail(current) };
+  const chainClose = (current: LocalSheet) => {
+    const chosen = current.chosen;
+    if (chosen === undefined) return closeSheet;
+    return () => closeChosen(current, {
+      selection: chosen, view: retained.scenario.kind === 'ready' ? retained.scenario.view : null,
+      list: retained.discovery.kind === 'ready' ? { rows: retained.discovery.rows, page: retained.discovery.page } : null,
+    });
+  };
   const sheet: AppProps['sheet'] = state.receipt !== null ? {
     address: state.receipt.address,
     content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} origin={origin.current} onClose={closeSheet} />,
-  } : localSheet === null ? undefined : localSheet.kind === PROOF_SHEET && localSheet.id !== undefined ? {
+  } : localSheet === null ? undefined : localSheet.todayView !== undefined && consumer !== null ? {
     address: localSheet.address,
-    content: <ScenarioProofPanel key={localSheet.id} runId={localSheet.id} scenario={retained.scenario} language={language} origin={origin.current} onClose={closeSheet} />,
+    content: <TodayDestination detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
+      onClose={() => closeToday(localSheet, todayCurrent)}
+      onReview={(row, rowOrigin) => launchToday(localSheet.todayView!, 'today-record', rowOrigin, current => consumer.review(localSheet.todayView!, row, current))}
+      onNext={localSheet.todayView.page?.nextCursor ? () => launchToday(localSheet.todayView!, 'today-review', localSheet.todayOrigin ?? null, current => consumer.page(localSheet.todayView!, true, current)) : undefined}
+      onFresh={() => launchToday(localSheet.todayView!, 'today-review', localSheet.todayOrigin ?? null, current => consumer.page(localSheet.todayView!, false, current))}
+      onReceipt={(id, proofOrigin) => launchToday(localSheet.todayView!, 'today-proof', proofOrigin, current => consumer.receipt(localSheet.todayView!, id, current))}
+      back={localSheet.kind === 'today-proof' && localSheet.todayBack === true ? { label: t('TODAY_ENGINE.detail'), onBack: () => backToday(localSheet) } : undefined} />,
+  } : localSheet.kind === WHAT_IF_SHEET && localSheet.chosen !== undefined ? {
+    address: localSheet.address,
+    content: <ScenarioDetailPanel key={pinKey(localSheet.chosen)} chosen={localSheet.chosen} retained={retained} origin={origin.current}
+      onClose={binding => closeChosen(localSheet, binding)} onRead={binding => readChosenAgain(localSheet, binding)} onProof={openProof} onProvenance={openProvenance} />,
+  } : localSheet.kind === PROOF_SHEET && localSheet.id !== undefined ? {
+    address: localSheet.address,
+    content: <ScenarioProofPanel key={localSheet.id} runId={localSheet.id} scenario={retained.scenario} language={language} origin={origin.current}
+      back={chainBack(localSheet)} onClose={chainClose(localSheet)} />,
   } : localSheet.kind === PROVENANCE_SHEET ? {
     address: localSheet.address,
-    content: <ScenarioProvenancePanel scenario={retained.scenario} origin={origin.current} onClose={closeSheet} />,
+    content: <ScenarioProvenancePanel scenario={retained.scenario} origin={origin.current} back={chainBack(localSheet)} onClose={chainClose(localSheet)} />,
   } : localSheet.kind === LESSON_SHEET && localSheet.id !== undefined ? {
     address: localSheet.address,
     content: <LessonPanel key={localSheet.id} id={localSheet.id} scope={`${formatAddress(localSheet.address)}:${contextKey}`} lessons={retained.lessons} context={context}
@@ -534,10 +815,32 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       selectedRoute === undefined ? hostMessage(language, 'routeMissing') : hostMessage(language, 'routeSelected', { label: selectedRoute.label }),
     ],
     capabilities: {},
-    today: { data, intents: { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } },
+    today: { data, intents: consumer !== null && todayCurrent !== null ? {
+      onReview: (id, rowOrigin) => {
+        const rows = todayCurrent.response?.review.state === 'available' ? todayCurrent.response.review.value.rows : [];
+        const row = rows[Number(id.replace(/^review-/, ''))];
+        if (row) launchToday(todayCurrent, 'today-record', rowOrigin, current => consumer.review(todayCurrent, row, current));
+      },
+      onOpenRow: (id, rowOrigin) => launchToday(todayCurrent, 'today-record', rowOrigin, current => consumer.attention(todayCurrent, id, current)),
+      onReceipt: (id, receiptOrigin) => launchToday(todayCurrent, 'today-proof', receiptOrigin ?? (document.activeElement instanceof HTMLElement || document.activeElement instanceof SVGElement ? document.activeElement : null), current => consumer.receipt(todayCurrent, id, current)),
+      onOpenTile: (id, tileOrigin) => launchToday(todayCurrent, 'today-record', tileOrigin, current => consumer.tile(todayCurrent, id, current)),
+      onOpenEvent: (id, rowOrigin) => launchToday(todayCurrent, 'today-record', rowOrigin, current => consumer.event(todayCurrent, id, current)),
+      onSeeAll: () => launchToday(todayCurrent, 'today-review', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.page(todayCurrent, false, current)),
+      ...(viewer ? {} : todayCurrent.phase === 'ready' && consumer.input?.display && consumer.input.configuration ? {
+        preparingTiles: todayCurrent.preparing,
+        onPrepareTiles: () => {
+          const address = parseAddress(window.location.hash);
+          if (!todayChain(address) || address.sheet !== undefined || !live(address) || consumer.snapshot() !== todayCurrent) return;
+          void consumer.prepare(todayCurrent, () => live(address) && localSheetRef.current === null);
+        },
+      } : {}),
+      ...(!viewer && (context.member.role === 'owner' || context.member.role === 'cofounder') ? { onOpenActivity: () => launchToday(todayCurrent, 'today-record', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.activity(todayCurrent, current)) } : {}),
+    } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } },
     sheet, onAddress, onHelp: showHelp,
     renderPlace: address => retainedSurface(address) !== null
       ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
+        onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
+        onContinueScenarios={continueScenarios} onPageScenarios={pageScenarios}
         onProof={openProof} onProvenance={openProvenance} onOpenLesson={(id, rowOrigin, from) => openLesson(id, rowOrigin, from)} legacy={legacyLink} />
       : address.place === 'trust' && address.sub === 'models' || address.place === 'ask' && (address.sub === undefined || address.sub === 'new')
       ? <RoutePicker routes={state.routes} selected={state.selectedRouteId} language={language} viewer={viewer} onSelect={chooseRoute} />
@@ -545,7 +848,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   return conversationEnabled && settings !== null
     ? <ConversationWorkspace app={app} conversation={controller.conversation} questionSettings={settings}
-      contextKey={contextKey} readback={readback} onReference={onReference} />
+      contextKey={contextKey} readback={readback} onReference={onReference} onSavedOverview={named => showSavedOverview(named)} />
     : <App key={contextKey} {...app} />;
 }
 
@@ -557,7 +860,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
   const state = useSyncExternalStore(controller.subscribe, controller.snapshot, controller.snapshot);
   const [language, setLanguage] = useState<Language>(options.language ?? 'en');
   const [view, setView] = useState<View>(options.view ?? 'guided');
-  useEffect(() => { void controller.refresh(); }, [controller]);
+  useEffect(() => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); }, [controller]);
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.removeAttribute('data-theme');
@@ -567,7 +870,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
     <div style={{ height: '100vh', display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp4)', padding: 'var(--sp2) var(--sp4)', borderBottom: 'var(--hair) solid var(--line)' }}>
         <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>
-        <Button variant="link" onClick={() => { void controller.refresh(); }} disabled={state.phase === 'loading' || state.phase === 'locked'}>{hostMessage(language, 'refresh')}</Button>
+        <Button variant="link" onClick={() => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); }} disabled={state.phase === 'loading' || state.phase === 'locked'}>{hostMessage(language, 'refresh')}</Button>
       </div>
       <div data-host-workspace="" style={{ minHeight: 0, overflow: 'auto' }}>
         {authorized && state.context !== null

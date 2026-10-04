@@ -12,6 +12,7 @@ export function todayIntentsForState(state: ScreenState, intents: TodayIntents):
   return {
     ...intents,
     onPrepare: undefined,
+    onPrepareTiles: undefined,
     onResumeSetup: undefined,
     onUpdate: undefined,
     onSaveClosing: undefined,

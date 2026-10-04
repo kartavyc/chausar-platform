@@ -19,11 +19,12 @@ export interface DayLineProps {
   onReceipt: (receiptId: string) => void;
   /** Opens the full activity list. */
   onOpenAll?: (() => void) | undefined;
+  onOpenEvent?: ((eventId: string, origin: HTMLElement | null) => void) | undefined;
   labelledBy?: string | undefined;
   className?: string | undefined;
 }
 
-export function DayLine({ events, onReceipt, onOpenAll, labelledBy, className }: DayLineProps) {
+export function DayLine({ events, onReceipt, onOpenAll, onOpenEvent, labelledBy, className }: DayLineProps) {
   const t = useT();
   const shown = events.slice(0, DAYLINE_MAX);
   return (
@@ -40,7 +41,9 @@ export function DayLine({ events, onReceipt, onOpenAll, labelledBy, className }:
         );
         return (
           <li key={ev.id} className={s.mark}>
-            {onOpenAll && i === shown.length - 1 ? (
+            {onOpenEvent ? (
+              <button type="button" className={s.button} onClick={event => onOpenEvent(ev.id, event.currentTarget)}>{body}</button>
+            ) : onOpenAll && i === shown.length - 1 ? (
               <button type="button" className={s.button} onClick={onOpenAll}>
                 {body}
               </button>
@@ -49,6 +52,7 @@ export function DayLine({ events, onReceipt, onOpenAll, labelledBy, className }:
             )}
             {ev.note !== undefined && <span className={s.note}>{ev.note}</span>}
             {ev.figure !== undefined && <Figure value={ev.figure} onReceipt={onReceipt} className={s.figure} />}
+            {onOpenEvent && onOpenAll && i === shown.length - 1 && <button type="button" className={s.button} onClick={onOpenAll}>{t('TODAY_ENGINE.activity')}</button>}
             {i === 0 && ev.folded !== undefined && <span className={s.folded}>{t('TD-01.folded', { count: ev.folded.display })}</span>}
           </li>
         );
