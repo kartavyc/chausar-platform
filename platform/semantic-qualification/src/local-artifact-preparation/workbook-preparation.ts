@@ -150,6 +150,7 @@ function literalCell(node: XmlNode, shared: string[], formats: string[]): Pick<O
   const raw = scalar(value, 'v');
   // Numeric/date lexemes retain original XML scalar spelling; encoded scalar values are unsupported.
   check(value.rawText === raw, 'LEXEME_REFUSED', 'Entity-encoded numeric/date/index values are outside the exact lexical profile.');
+  if (type === 'n' && raw === '') return { type: 'blank', lexeme: '', numberFormat };
   if (type === 's') {
     const index = integer(raw, shared.length - 1); return { type: 'text', lexeme: shared[index], numberFormat };
   }

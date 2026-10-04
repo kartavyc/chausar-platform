@@ -174,6 +174,27 @@ test('mixed literal cells preserve exact numbers, date serials, ISO dates, boole
   assert.ok(output.limitations.length); assert.ok(observation.limitations.every(item => output.limitations.includes(item)));
 });
 
+test('explicit empty numeric values become blanks while other empty scalars refuse', async t => {
+  for (const [name, type, value] of [
+    ['untyped self-closing value', '', '<v/>'],
+    ['untyped paired value', '', '<v></v>'],
+    ['numeric self-closing value', ' t="n"', '<v/>'],
+    ['numeric paired value', ' t="n"', '<v></v>'],
+  ]) await t.test(name, () => {
+    const observation = inspect(packageParts([{ name: 'Synthetic Empty Values', rows: header(['Amount']) + `<row r="2"><c r="A2"${type} s="0">${value}</c></row>` }], { styles: '<cellXfs count="1"><xf numFmtId="14"/></cellXfs>' }));
+    const expected = { sheetId: 'sheet-1', row: 2, columnId: 'column-1', type: 'blank', lexeme: '', displayLexeme: null, numberFormat: 'mm-dd-yy', formula: null, cachedLexeme: null };
+    assert.deepEqual(observation.cells, [expected]);
+    assert.deepEqual(observation.sheets[0].columns[0].types, ['blank']);
+    const plan = proposeWorkbookMinimization(observation, 'empty-values', '1');
+    const projected = createWorkbookMinimizer().project(observation, plan, PREPARATION_LIMITS);
+    assert.deepEqual(projected.cells, [expected]);
+    assert.equal(projected.cellReceipts[0].sourceCellHash, hashData(expected));
+  });
+  for (const [name, type, value] of [
+    ['empty boolean', 'b', ''], ['empty date', 'd', ''], ['empty shared index', 's', ''], ['whitespace numeric', 'n', ' '],
+  ]) await t.test(name, () => refuse(() => inspect(packageParts([{ name: 'Synthetic Invalid Empty', rows: header(['Amount']) + `<row r="2"><c r="A2" t="${type}"><v>${value}</v></c></row>` }]))));
+});
+
 test('header-only sheets remain represented without invented data or types', () => {
   const observation = inspect(packageParts([{ name: 'Synthetic Header Only', rows: header(['InvoiceNo', 'Country']) }]));
   assert.deepEqual(observation.sheets[0].dataRows, []); assert.deepEqual(observation.sheets[0].columns.map(column => column.types), [[], []]); assert.deepEqual(observation.cells, []);
@@ -291,7 +312,11 @@ test('minimization requires the complete ordered explicit plan and refuses forbi
     (plan: typeof originalPlan) => { plan.minimizer.profileHash = hashData('different profile'); },
   ];
   for (const [index, change] of changes.entries()) await t.test(`invalid plan ${index}`, () => { const plan = structuredClone(originalPlan); change(plan); refuse(() => minimizer.project(observation, plan, PREPARATION_LIMITS)); });
-  await t.test('caller cannot raise projection cell limits', () => refuse(() => minimizer.project(observation, originalPlan, { ...PREPARATION_LIMITS, cells: PREPARATION_LIMITS.cells + 1 }), 'XLSX_LIMIT'));
+  await t.test('caller cannot raise projection cell limits', () => {
+    // Deliberately violate the fixed literal contract to exercise runtime refusal.
+    const raisedLimits = { ...PREPARATION_LIMITS, cells: PREPARATION_LIMITS.cells + 1 } as typeof PREPARATION_LIMITS;
+    refuse(() => minimizer.project(observation, originalPlan, raisedLimits), 'XLSX_LIMIT');
+  });
 });
 
 // Explicit synthetic fixture reviews model the existing preparation ports. They
