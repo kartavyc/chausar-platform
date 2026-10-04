@@ -10,6 +10,9 @@ const { readUiAsset } = require('./ui-assets.cjs');
 const { bindDemoProfile, assertDemoProfile } = require('./demo-profile.cjs');
 const packageMetadata = require('../../package.json');
 const demo = packageMetadata.chausarPreview === true || process.argv.includes('--demo');
+const uiPreview = process.argv.includes('--ui-preview');
+const firstRunPreview = process.argv.includes('--first-run-preview');
+const firstRunPreviewRequested = process.argv.some(value => value === '--first-run-preview' || value.startsWith('--first-run-preview='));
 let demoProfile; let previewLifecycle; let singleInstance = false; let startupStage = 'preview-mode';
 function startupDiagnostic(error, stage) {
   // Log a bounded location and fixed code, never error text, full paths or env.
@@ -28,6 +31,13 @@ function startupDiagnostic(error, stage) {
 }
 try {
   if (packageMetadata.chausarPreview === true && process.argv.includes('--production')) throw new Error('This unsigned preview supports synthetic data only.');
+  const firstRunArguments = process.argv.slice(1);
+  if (firstRunPreviewRequested && (app.isPackaged !== true || packageMetadata.chausarPreview !== true
+    || new Set(firstRunArguments).size !== firstRunArguments.length
+    || firstRunArguments.some(value => !['--first-run-preview', '--demo', '--ui-preview', '--background'].includes(value))
+    || ['--first-run-preview', '--demo', '--ui-preview'].some(flag => !firstRunArguments.includes(flag)))) {
+    throw new Error('First-run preview requires a packaged unsigned preview with exactly --demo and --ui-preview.');
+  }
   if (demo) { startupStage = 'profile-bind'; demoProfile = bindDemoProfile(app); }
   if (packageMetadata.chausarPreview === true && process.env.CHAUSAR_PREVIEW_OBSERVER_NONCE !== undefined) {
     startupStage = 'preview-observer';
@@ -43,7 +53,6 @@ let window; let engine; let database; let tray; let demoMode = demo; let stoppin
 let previewStopResult; const previewStopErrors = [];
 let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
-const uiPreview = process.argv.includes('--ui-preview');
 let selectedDocument = uiPreview ? 'chausar://app/ui/index.html' : 'chausar://app/index.html';
 const root = resolve(__dirname, '../..');
 const renderer = join(root, 'app/renderer');
@@ -59,8 +68,8 @@ function lifecycleChanged() {
   });
 }
 async function bootstrapPreviewWorkspace() {
-  // The read-only UI mounts against an open workspace. Only this unsigned,
-  // packaged synthetic preview owns automatic creation in its fresh profile.
+  // The default unsigned preview owns automatic sample creation in its fresh profile.
+  // Explicit first-run preview leaves creation and recovery acknowledgement to the UI.
   if (app.isPackaged !== true || packageMetadata.chausarPreview !== true || !demo || !uiPreview || stopping) return;
   assertDemoProfile(app, demoProfile);
   let method = 'workspace.status';
@@ -70,6 +79,7 @@ async function bootstrapPreviewWorkspace() {
       throw Object.assign(new Error('The synthetic preview workspace state is unexpected.'), { code: 'PREVIEW_WORKSPACE_STATE' });
     }
     if (stopping) return;
+    if (firstRunPreview) return;
     method = 'workspace.create';
     await engine.request(method, { name: 'Chausar Preview (synthetic business)', folder: 'main', pack: 'ecommerce',
       demo: true, demoFixtureMonth: new Date().toISOString().slice(0, 7), passphrase: randomBytes(32).toString('base64url') });

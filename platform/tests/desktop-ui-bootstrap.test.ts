@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { lstat, mkdir, readFile, realpath, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +14,8 @@ import { createHostController } from '../../app/ui/src/host/controller.ts';
 import type { HostRpcPort } from '../../app/ui/src/host/contracts.ts';
 import type { TodayStatEvidence } from '../../app/ui/src/bridge/today-host.ts';
 import type { TodayView } from '../../app/ui/src/bridge/presentation.ts';
+import { handoffPinOf } from '../../app/ui/src/screens/first-run/controller.ts';
+import { pinOf } from '../../app/ui/src/screens/first-run/review.ts';
 
 const mainUrl = new URL('../../app/desktop/main.cjs', import.meta.url);
 const mainRequire = createRequire(mainUrl);
@@ -25,7 +27,8 @@ function latch() {
   return { promise, release };
 }
 type FixtureOptions = { args?: string[]; preview?: boolean; packaged?: boolean; production?: boolean;
-  createGate?: ReturnType<typeof latch>; createFailure?: boolean; existingLocked?: boolean; reuseProfile?: boolean };
+  createGate?: ReturnType<typeof latch>; createFailure?: boolean; existingLocked?: boolean; reuseProfile?: boolean;
+  statusReply?: Record<string, unknown> };
 
 /** Actual main/Engine/controller composition; Electron is a recording boundary.
  * No Electron, worker process, SQL/native helper, model, vendor, or credential store runs. */
@@ -44,7 +47,7 @@ async function fixture(t: TestContext, options: FixtureOptions = {}) {
   const handlers = new Map<string, any>(), completed: string[] = [], pathReads: { name: string; bound: boolean }[] = [];
   const paths: Record<string, string> = { userData: logicalDefault, sessionData: logicalDefault };
   const bound = new Set<string>(), createEntered = latch(), stopped = latch();
-  let readyTask: Promise<unknown> = Promise.resolve(), modelCalls = 0, credentialReads = 0;
+  let readyTask: Promise<unknown> = Promise.resolve(), modelCalls = 0, credentialReads = 0, instanceLockCalls = 0;
   if (options.reuseProfile) await mkdir(profileRoot, { mode: 0o700 });
   const app = new EventEmitter() as any;
   app.isPackaged = options.packaged ?? true; app.quits = 0;
@@ -57,7 +60,7 @@ async function fixture(t: TestContext, options: FixtureOptions = {}) {
     return paths[name];
   };
   app.setPath = (name: string, path: string) => { paths[name] = path; bound.add(name); };
-  app.requestSingleInstanceLock = () => true;
+  app.requestSingleInstanceLock = () => { instanceLockCalls++; return true; };
   app.whenReady = () => ({ then(callback: () => Promise<unknown>) { readyTask = Promise.resolve().then(callback); return readyTask; } });
   app.quit = () => { app.quits++; stopped.release(); };
   class Window extends EventEmitter {
@@ -101,6 +104,9 @@ async function fixture(t: TestContext, options: FixtureOptions = {}) {
         if (options.createGate) await options.createGate.promise;
         if (options.createFailure) throw Object.assign(new Error(`${seedFailureMarker}; key=${canonical.passphrase}; path=${profileRoot}`), { code: 'EACCES' });
       }
+      if (method === 'workspace.status' && options.statusReply !== undefined) {
+        completed.push(method); return structuredClone(options.statusReply);
+      }
       const result = this.actual ? await this.actual.request(method, canonical) : { open: false, experimental: false };
       completed.push(method); return result;
     }
@@ -119,7 +125,7 @@ async function fixture(t: TestContext, options: FixtureOptions = {}) {
   };
   const context = vm.createContext({ __dirname: dirname(fileURLToPath(mainUrl)),
     Date,
-    process: { argv: ['electron', 'synthetic-app', ...args], env: environment, platform: process.platform, resourcesPath: join(temporary, 'synthetic-unread-resources') },
+    process: { argv: app.isPackaged ? ['synthetic-packaged-executable', ...args] : ['electron', 'synthetic-app', ...args], env: environment, platform: process.platform, resourcesPath: join(temporary, 'synthetic-unread-resources') },
     console: { error: (message: string) => diagnostics.push(message) }, URL, Response, Buffer,
     require: (name: string) => {
       if (name === 'electron') return electron;
@@ -156,6 +162,7 @@ async function fixture(t: TestContext, options: FixtureOptions = {}) {
   }
   return { app, windows, harnesses, handlers, errors, diagnostics, pathReads, paths, profileRoot, ready: () => readyTask,
     createEntered: createEntered.promise, stopped: stopped.promise, rpc, calls: () => ({ modelCalls, credentialReads }),
+    instanceLockCalls: () => instanceLockCalls,
     navigateLegacy() { const window = windows.at(-1); assert.ok(window); let prevented = false;
       window.webContents.emit('will-navigate', { preventDefault() { prevented = true; } }, 'chausar://app/index.html');
       assert.equal(prevented, false); window.webContents.mainFrame.url = 'chausar://app/index.html'; },
@@ -217,6 +224,99 @@ test('current-month packaged preview displays authored demo figures and fresh re
   await controller.openReceipt(receipt.id, { place: 'today', sub: 'today', sheet: receipt.id });
   assert.equal(controller.snapshot().receipt?.kind, 'ready');
   assert.deepEqual(d.calls(), { modelCalls: 0, credentialReads: 0 });
+});
+
+test('explicit packaged first-run preview leaves creation to the host and admits only a reviewed dictionary with Today pending', { timeout: 20000 }, async t => {
+  const d = await fixture(t, { args: ['--demo', '--ui-preview', '--first-run-preview'] }); await d.ready();
+  assert.deepEqual(d.errors, []); assert.equal(d.windows.length, 1);
+  assert.equal(d.windows[0].webContents.mainFrame.url, 'chausar://app/ui/index.html');
+  assert.equal(d.windows[0].workspaceReadyAtConstruction, false); assert.equal(d.windows[0].demoFactsAtConstruction, 0);
+  assert.deepEqual(d.harnesses[0].requests.map(request => request.method), ['workspace.status'], 'Fresh experimental storage must be checked before the first-run window opens.');
+  assert.equal(d.harnesses[0].actual!.vault, null);
+  const controller = createHostController({ request: d.rpc } as HostRpcPort, { todayProducer: {}, firstRun: {
+    digest: async text => createHash('sha256').update(text).digest('hex'), createAttemptId: () => 'packaged-reviewed-first-run-attempt',
+  } });
+  t.after(() => { controller.dispose(); }); await controller.refresh();
+  assert.equal(controller.snapshot().phase, 'locked'); assert.equal(controller.snapshot().today, null);
+  await controller.createWorkspace({ name: 'SYNTHETIC reviewed preview', folder: 'reviewed', passphrase: 'synthetic-preview-passphrase' });
+  const creates = d.harnesses[0].requests.filter(request => request.method === 'workspace.create');
+  assert.deepEqual(creates.map(request => request.payload), [{ name: 'SYNTHETIC reviewed preview', folder: 'reviewed',
+    passphrase: 'synthetic-preview-passphrase', dictionaryMode: 'deferred', demo: false }]);
+  assert.equal(Object.hasOwn(creates[0].payload, 'pack'), false); assert.equal(Object.hasOwn(creates[0].payload, 'demoFixtureMonth'), false);
+  const created = controller.snapshot().creation; if (created.kind !== 'recovery-required') assert.fail('The host must retain the sole recovery kit for acknowledgement.');
+  assert.equal(d.harnesses[0].actual!.vault!.read().ontology.current, null);
+  assert.equal(d.harnesses[0].actual!.vault!.read().facts.length, 0);
+  assert.equal(await controller.acknowledgeRecovery(created.value), true);
+  assert.equal(controller.snapshot().creation.kind, 'idle'); assert.equal(controller.snapshot().dictionaryReviewRequired, true);
+  assert.equal(JSON.stringify(controller.snapshot()).includes(created.value.recoveryKit), false);
+  controller.setFirstRunSurface(() => true);
+  assert.deepEqual(await controller.firstRun.load(), { ok: true });
+  assert.deepEqual(controller.firstRun.choosePack('ecommerce'), { ok: true });
+  for (let tick = 0; tick < 32; tick++) await Promise.resolve();
+  let shown = controller.firstRun.snapshot(); if (shown.kind !== 'review') assert.fail('The actual starter must produce a checked review.');
+  for (const name of shown.review.rows.map(row => row.definition.name)) {
+    shown = controller.firstRun.snapshot(); if (shown.kind !== 'review') assert.fail('The checked review must remain current.');
+    const pin = pinOf(shown.review); assert.ok(pin);
+    assert.deepEqual(controller.firstRun.acceptRow(name, pin), { ok: true });
+  }
+  shown = controller.firstRun.snapshot(); if (shown.kind !== 'review') assert.fail('The exact settings review must remain current.');
+  let pin = pinOf(shown.review); assert.ok(pin); assert.deepEqual(controller.firstRun.acceptSettings(pin), { ok: true });
+  shown = controller.firstRun.snapshot(); if (shown.kind !== 'review') assert.fail('The accepted review must remain current.');
+  pin = pinOf(shown.review); assert.ok(pin); assert.deepEqual(await controller.firstRun.publishDictionary(pin), { ok: true });
+  const published = controller.firstRun.snapshot(); if (published.kind !== 'published') assert.fail('Publication must be attributed and verified before Continue.');
+  assert.equal(d.harnesses[0].actual!.vault!.read().ontology.current!.hash, published.published.hash);
+  const left = await controller.firstRun.leave(handoffPinOf(published)); if (!left.ok) assert.fail('The exact published authority must admit Continue.');
+  const handoff = left.admit(); assert.ok(handoff); assert.equal(controller.completeFirstRun(handoff), true); assert.equal(left.admit(), null);
+  await controller.refreshToday();
+  assert.equal(controller.snapshot().phase, 'ready'); assert.equal(controller.snapshot().dictionaryReviewRequired, false);
+  assert.equal(controller.snapshot().todayConfiguration, 'not-configured'); assert.equal(controller.snapshot().today, null); assert.equal(controller.todayConsumer, null);
+  const methods = d.harnesses[0].requests.map(request => request.method);
+  assert.equal(methods.filter(method => method === 'workspace.create').length, 1); assert.equal(methods.filter(method => method === 'ontology.publish').length, 1);
+  assert.equal(methods.some(method => ['today.get', 'dashboard.get', 'calculation.run', 'receipts.get', 'sources.commitImport'].includes(method)), false);
+  assert.deepEqual(controller.dispose(), { ok: true }); d.navigateLegacy();
+  const period = { from: '2026-10-01', to: '2026-10-31' };
+  const receipt = await d.rpc('calculation.run', { operation: 'billed', period });
+  assert.equal(receipt.operation, 'billed'); assert.deepEqual(receipt.period, period);
+  assert.equal(receipt.dictionaryHash, published.published.hash); assert.equal(receipt.ontologyVersion, published.published.version);
+  assert.equal(receipt.valueMinor, '0'); assert.equal(receipt.totalMinor, '0'); assert.deepEqual(receipt.rows, []);
+  assert.deepEqual(receipt.coverage, { selectedRows: 0, countedRows: 0, excludedRows: 0, unresolvedConflicts: 0, importIds: [],
+    completeness: 'empty', gaps: ['No visible facts were counted. An empty selection is not proof that the business activity was zero.'] });
+  assert.deepEqual(await d.rpc('receipts.get', { id: receipt.id }), receipt);
+  assert.equal(d.harnesses[0].requests.filter(request => request.method === 'calculation.run').length, 1);
+  assert.equal(d.harnesses[0].requests.filter(request => request.method === 'receipts.get').length, 1);
+  assert.deepEqual(d.calls(), { modelCalls: 0, credentialReads: 0 });
+  assert.equal(d.pathReads.some(read => ['userData', 'sessionData'].includes(read.name) && !read.bound), false);
+});
+
+test('explicit first-run packaged argv refuses unsupported modes, duplicate flags and extra inputs before profile or instance setup', async t => {
+  const valid = ['--demo', '--ui-preview', '--first-run-preview'];
+  const refusals: FixtureOptions[] = [
+    { args: ['--first-run-preview'] }, { args: ['--demo', '--first-run-preview'] }, { args: ['--ui-preview', '--first-run-preview'] },
+    { args: ['--production', '--ui-preview', '--first-run-preview'] }, { args: [...valid, '--production'] },
+    { args: [...valid, '--first-run-preview'] }, { args: [...valid, '--demo'] }, { args: [...valid, '--ui-preview'] },
+    { args: [...valid, '--background', '--background'] }, { args: [...valid, '--no-sandbox'] },
+    { args: [...valid, '--production=false'] }, { args: [...valid, 'synthetic-extra-document'] },
+    { args: ['--demo', '--ui-preview', '--first-run-preview=false'] }, { args: valid, packaged: false }, { args: valid, preview: false },
+  ];
+  for (const options of refusals) {
+    const d = await fixture(t, options); await d.ready();
+    assert.equal(d.errors.length, 1, JSON.stringify(options)); assert.equal(d.app.quits, 1);
+    assert.equal(d.instanceLockCalls(), 0); assert.deepEqual(d.pathReads, []);
+    assert.equal(d.harnesses.length, 0); assert.equal(d.windows.length, 0);
+    await assert.rejects(lstat(d.profileRoot), { code: 'ENOENT' });
+    assert.deepEqual(d.calls(), { modelCalls: 0, credentialReads: 0 });
+  }
+});
+
+test('explicit first-run preview still refuses an open or nonexperimental storage status before any window or creation', async t => {
+  for (const statusReply of [{ open: true, experimental: true, storage: 'experimental-file' },
+    { open: false, experimental: false, storage: 'experimental-file' }, { open: false, experimental: true, storage: 'postgres' }]) {
+    const d = await fixture(t, { args: ['--demo', '--ui-preview', '--first-run-preview'], statusReply }); await d.ready();
+    assert.equal(d.errors.length, 1); assert.equal(d.windows.length, 0); assert.equal(d.app.quits, 1);
+    assert.deepEqual(d.harnesses[0].requests.map(request => request.method), ['workspace.status']);
+    assert.ok(d.diagnostics.includes('Chausar preview workspace bootstrap failed: method=workspace.status; code=PREVIEW_WORKSPACE_STATE'));
+    assert.equal(d.harnesses[0].actual!.vault, null); assert.deepEqual(d.calls(), { modelCalls: 0, credentialReads: 0 });
+  }
 });
 
 test('unpackaged UI, legacy demo and production never automatically seed a workspace', async t => {
@@ -297,7 +397,9 @@ test('occupied synthetic workspace is retained when a fresh packaged bootstrap c
 });
 
 test('reused profiles and explicit user-data-dir cannot fall back to a real profile or start an Engine', async t => {
-  for (const options of [{ reuseProfile: true }, { args: ['--demo', '--ui-preview', '--user-data-dir=synthetic-unowned-profile'] }]) {
+  for (const options of [{ reuseProfile: true }, { args: ['--demo', '--ui-preview', '--user-data-dir=synthetic-unowned-profile'] },
+    { reuseProfile: true, args: ['--demo', '--ui-preview', '--first-run-preview'] },
+    { args: ['--demo', '--ui-preview', '--first-run-preview', '--user-data-dir=synthetic-unowned-profile'] }]) {
     const d = await fixture(t, options); await d.ready();
     assert.equal(d.errors.length, 1); assert.equal(d.app.quits, 1); assert.equal(d.harnesses.length, 0); assert.equal(d.windows.length, 0);
     assert.equal(d.pathReads.some(read => ['userData', 'sessionData'].includes(read.name) && !read.bound), false);

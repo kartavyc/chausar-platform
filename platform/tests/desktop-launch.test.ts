@@ -8,15 +8,30 @@ const modulePath = '../../scripts/desktop-launch.mjs';
 const { desktopLaunchArguments, desktopLaunchPrerequisites, desktopLaunchEnvironment } = await import(modulePath);
 
 test('desktop launcher requires an explicit mode and accepts no arbitrary Electron flags', () => {
-  assert.deepEqual(desktopLaunchArguments(['--demo', '--background', '--check']), { demo: true, background: true, checkOnly: true, uiPreview: false });
-  assert.deepEqual(desktopLaunchArguments(['--production']), { demo: false, background: false, checkOnly: false, uiPreview: false });
+  assert.deepEqual(desktopLaunchArguments(['--demo', '--background', '--check']), { demo: true, background: true, checkOnly: true, uiPreview: false, firstRunPreview: false });
+  assert.deepEqual(desktopLaunchArguments(['--production']), { demo: false, background: false, checkOnly: false, uiPreview: false, firstRunPreview: false });
   for (const args of [[], ['--demo', '--production'], ['--demo', '--demo'], ['--demo', '--no-sandbox'], ['--demo', '--remote-debugging-port=9222']]) assert.throws(() => desktopLaunchArguments(args));
 });
 
 test('desktop launcher accepts the UI preview opt-in with an explicit mode', () => {
-  assert.deepEqual(desktopLaunchArguments(['--demo', '--ui-preview']), { demo: true, background: false, checkOnly: false, uiPreview: true });
-  assert.deepEqual(desktopLaunchArguments(['--production', '--ui-preview', '--check']), { demo: false, background: false, checkOnly: true, uiPreview: true });
+  assert.deepEqual(desktopLaunchArguments(['--demo', '--ui-preview']), { demo: true, background: false, checkOnly: false, uiPreview: true, firstRunPreview: false });
+  assert.deepEqual(desktopLaunchArguments(['--production', '--ui-preview', '--check']), { demo: false, background: false, checkOnly: true, uiPreview: true, firstRunPreview: false });
   for (const args of [['--ui-preview'], ['--demo', '--ui-preview', '--ui-preview'], ['--demo', '--ui-preview', '--no-sandbox']]) assert.throws(() => desktopLaunchArguments(args));
+});
+
+test('first-run preview requires both explicit demo and UI modes without production, duplicate or arbitrary flags', () => {
+  assert.deepEqual(desktopLaunchArguments(['--demo', '--ui-preview', '--first-run-preview']), { demo: true, background: false, checkOnly: false, uiPreview: true, firstRunPreview: true });
+  assert.deepEqual(desktopLaunchArguments(['--demo', '--ui-preview', '--first-run-preview', '--check']), { demo: true, background: false, checkOnly: true, uiPreview: true, firstRunPreview: true });
+  for (const args of [
+    ['--first-run-preview'], ['--demo', '--first-run-preview'], ['--production', '--ui-preview', '--first-run-preview'],
+    ['--demo', '--production', '--ui-preview', '--first-run-preview'], ['--demo', '--ui-preview', '--first-run-preview', '--first-run-preview'],
+    ['--demo', '--demo', '--ui-preview', '--first-run-preview'], ['--demo', '--ui-preview', '--ui-preview', '--first-run-preview'],
+    ['--demo', '--ui-preview', '--first-run-preview', '--no-sandbox'], ['--demo', '--ui-preview', '--first-run-preview=false'],
+  ]) assert.throws(() => desktopLaunchArguments(args), (error: unknown) => error instanceof Error && [
+    'Use --demo or --production, with optional --ui-preview, --background and --check; --first-run-preview requires --demo and --ui-preview.',
+    'Select exactly one launch mode: --demo or --production.',
+    'First-run preview requires --demo and --ui-preview.',
+  ].includes(error.message), JSON.stringify(args));
 });
 
 test('launcher fails closed on missing, mismatched or redirected local Electron without running it', async t => {

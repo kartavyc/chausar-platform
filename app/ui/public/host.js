@@ -9414,7 +9414,7 @@ function fe(e) {
 	return t;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/@formatjs/icu-messageformat-parser/index.js
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/@formatjs/icu-messageformat-parser/index.js
 var pe = /* @__PURE__ */ function(e) {
 	return e[e.EXPECT_ARGUMENT_CLOSING_BRACE = 1] = "EXPECT_ARGUMENT_CLOSING_BRACE", e[e.EMPTY_ARGUMENT = 2] = "EMPTY_ARGUMENT", e[e.MALFORMED_ARGUMENT = 3] = "MALFORMED_ARGUMENT", e[e.EXPECT_ARGUMENT_TYPE = 4] = "EXPECT_ARGUMENT_TYPE", e[e.INVALID_ARGUMENT_TYPE = 5] = "INVALID_ARGUMENT_TYPE", e[e.EXPECT_ARGUMENT_STYLE = 6] = "EXPECT_ARGUMENT_STYLE", e[e.INVALID_NUMBER_SKELETON = 7] = "INVALID_NUMBER_SKELETON", e[e.INVALID_DATE_TIME_SKELETON = 8] = "INVALID_DATE_TIME_SKELETON", e[e.EXPECT_NUMBER_SKELETON = 9] = "EXPECT_NUMBER_SKELETON", e[e.EXPECT_DATE_TIME_SKELETON = 10] = "EXPECT_DATE_TIME_SKELETON", e[e.UNCLOSED_QUOTE_IN_ARGUMENT_STYLE = 11] = "UNCLOSED_QUOTE_IN_ARGUMENT_STYLE", e[e.EXPECT_SELECT_ARGUMENT_OPTIONS = 12] = "EXPECT_SELECT_ARGUMENT_OPTIONS", e[e.EXPECT_PLURAL_ARGUMENT_OFFSET_VALUE = 13] = "EXPECT_PLURAL_ARGUMENT_OFFSET_VALUE", e[e.INVALID_PLURAL_ARGUMENT_OFFSET_VALUE = 14] = "INVALID_PLURAL_ARGUMENT_OFFSET_VALUE", e[e.EXPECT_SELECT_ARGUMENT_SELECTOR = 15] = "EXPECT_SELECT_ARGUMENT_SELECTOR", e[e.EXPECT_PLURAL_ARGUMENT_SELECTOR = 16] = "EXPECT_PLURAL_ARGUMENT_SELECTOR", e[e.EXPECT_SELECT_ARGUMENT_SELECTOR_FRAGMENT = 17] = "EXPECT_SELECT_ARGUMENT_SELECTOR_FRAGMENT", e[e.EXPECT_PLURAL_ARGUMENT_SELECTOR_FRAGMENT = 18] = "EXPECT_PLURAL_ARGUMENT_SELECTOR_FRAGMENT", e[e.INVALID_PLURAL_ARGUMENT_SELECTOR = 19] = "INVALID_PLURAL_ARGUMENT_SELECTOR", e[e.DUPLICATE_PLURAL_ARGUMENT_SELECTOR = 20] = "DUPLICATE_PLURAL_ARGUMENT_SELECTOR", e[e.DUPLICATE_SELECT_ARGUMENT_SELECTOR = 21] = "DUPLICATE_SELECT_ARGUMENT_SELECTOR", e[e.MISSING_OTHER_CLAUSE = 22] = "MISSING_OTHER_CLAUSE", e[e.INVALID_TAG = 23] = "INVALID_TAG", e[e.INVALID_TAG_NAME = 25] = "INVALID_TAG_NAME", e[e.UNMATCHED_CLOSING_TAG = 26] = "UNMATCHED_CLOSING_TAG", e[e.UNCLOSED_TAG = 27] = "UNCLOSED_TAG", e;
 }({}), me = /* @__PURE__ */ function(e) {
@@ -11193,7 +11193,7 @@ function Ye(e, t = {}) {
 	return t?.captureLocation || Je(n.val), n.val;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/intl-messageformat/index.js
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/intl-messageformat/index.js
 var Xe = /* @__PURE__ */ function(e) {
 	return e.MISSING_VALUE = "MISSING_VALUE", e.INVALID_VALUE = "INVALID_VALUE", e.MISSING_INTL_API = "MISSING_INTL_API", e;
 }({}), Ze = class extends Error {
@@ -11922,7 +11922,7 @@ function rn(e, t) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react/cjs/react-jsx-runtime.production.js
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react/cjs/react-jsx-runtime.production.js
 var an = /* @__PURE__ */ o(((e) => {
 	var t = Symbol.for("react.transitional.element"), n = Symbol.for("react.fragment");
 	function r(e, n, r) {
@@ -13840,25 +13840,25 @@ function pr(e, t, n) {
 	return i === -1 ? (n ? r[r.length - 1] : r[0]) ?? null : r[(i + (n ? -1 : 1) + r.length) % r.length] ?? null;
 }
 var mr = {
-	rail: "_rail_1nm2z_1",
-	top: "_top_1nm2z_11",
-	wordmark: "_wordmark_1nm2z_15",
-	mark: "_mark_1nm2z_21",
-	m1: "_m1_1nm2z_25",
-	m2: "_m2_1nm2z_26",
-	word: "_word_1nm2z_15",
-	places: "_places_1nm2z_35",
-	subs: "_subs_1nm2z_36",
-	placeItem: "_placeItem_1nm2z_42",
-	place: "_place_1nm2z_35",
-	sub: "_sub_1nm2z_36",
-	here: "_here_1nm2z_61",
-	count: "_count_1nm2z_65",
-	foot: "_foot_1nm2z_78",
-	topbar: "_topbar_1nm2z_83",
-	menu: "_menu_1nm2z_93",
-	summary: "_summary_1nm2z_97",
-	menuBody: "_menuBody_1nm2z_109"
+	rail: "_rail_ona72_1",
+	top: "_top_ona72_21",
+	wordmark: "_wordmark_ona72_29",
+	mark: "_mark_ona72_41",
+	m1: "_m1_ona72_49",
+	m2: "_m2_ona72_51",
+	word: "_word_ona72_29",
+	places: "_places_ona72_69",
+	subs: "_subs_ona72_71",
+	placeItem: "_placeItem_ona72_83",
+	place: "_place_ona72_69",
+	sub: "_sub_ona72_71",
+	here: "_here_ona72_121",
+	count: "_count_ona72_129",
+	foot: "_foot_ona72_155",
+	topbar: "_topbar_ona72_165",
+	menu: "_menu_ona72_185",
+	summary: "_summary_ona72_193",
+	menuBody: "_menuBody_ona72_217"
 };
 //#endregion
 //#region app/ui/src/app/Rail.tsx
@@ -13999,15 +13999,15 @@ function gr({ shell: e, address: t, onNavigate: n, counts: r, foot: i, narrow: a
 	});
 }
 var _r = {
-	square: "_square_1buaq_1",
-	cha: "_cha_1buaq_12",
-	you: "_you_1buaq_14",
-	wait: "_wait_1buaq_16",
-	busy: "_busy_1buaq_18",
-	unsure: "_unsure_1buaq_20",
-	guess: "_guess_1buaq_22",
-	off: "_off_1buaq_24",
-	words: "_words_1buaq_26"
+	square: "_square_10hhu_1",
+	cha: "_cha_10hhu_23",
+	you: "_you_10hhu_27",
+	wait: "_wait_10hhu_31",
+	busy: "_busy_10hhu_35",
+	unsure: "_unsure_10hhu_39",
+	guess: "_guess_10hhu_43",
+	off: "_off_10hhu_47",
+	words: "_words_10hhu_51"
 }, vr = {
 	cha: "MARK.cha",
 	you: "MARK.you",
@@ -14032,11 +14032,11 @@ function yr({ mark: e, wordsKey: t, showWords: n = !1, className: r }) {
 	})] });
 }
 var br = {
-	button: "_button_4s53g_1",
-	filled: "_filled_4s53g_19",
-	quiet: "_quiet_4s53g_30",
-	link: "_link_4s53g_35",
-	danger: "_danger_4s53g_47"
+	button: "_button_6ng2l_1",
+	filled: "_filled_6ng2l_37",
+	quiet: "_quiet_6ng2l_59",
+	link: "_link_6ng2l_69",
+	danger: "_danger_6ng2l_93"
 };
 //#endregion
 //#region app/ui/src/parts/Button.tsx
@@ -14061,18 +14061,18 @@ function xr(e) {
 	return e.trim().length === 0 ? null : e;
 }
 var Sr = {
-	line: "_line_11wcx_1",
-	about: "_about_11wcx_12",
-	aboutClear: "_aboutClear_11wcx_20",
-	input: "_input_11wcx_24",
-	mic: "_mic_11wcx_40",
-	glyph: "_glyph_11wcx_59",
-	hold: "_hold_11wcx_64",
-	key: "_key_11wcx_70",
-	state: "_state_11wcx_77",
-	suggestions: "_suggestions_11wcx_86",
-	suggestion: "_suggestion_11wcx_86",
-	kind: "_kind_11wcx_115"
+	line: "_line_jtsgi_1",
+	about: "_about_jtsgi_23",
+	aboutClear: "_aboutClear_jtsgi_39",
+	input: "_input_jtsgi_47",
+	mic: "_mic_jtsgi_79",
+	glyph: "_glyph_jtsgi_117",
+	hold: "_hold_jtsgi_127",
+	key: "_key_jtsgi_139",
+	state: "_state_jtsgi_153",
+	suggestions: "_suggestions_jtsgi_171",
+	suggestion: "_suggestion_jtsgi_171",
+	kind: "_kind_jtsgi_229"
 };
 //#endregion
 //#region app/ui/src/app/AskLine.tsx
@@ -14242,9 +14242,9 @@ function Tr() {
 	});
 }
 var Er = {
-	line: "_line_1fry5_1",
-	fact: "_fact_1fry5_12",
-	simple: "_simple_1fry5_22"
+	line: "_line_hxugh_1",
+	fact: "_fact_hxugh_23",
+	simple: "_simple_hxugh_43"
 };
 //#endregion
 //#region app/ui/src/app/StatusLine.tsx
@@ -14284,14 +14284,14 @@ function Dr({ status: e, view: t, onNavigate: n, simpleSentences: r }) {
 	});
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/chain.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/chain.mjs
 function Or(...e) {
 	return (...t) => {
 		for (let n of e) typeof n == "function" && n(...t);
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLayoutEffect.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLayoutEffect.mjs
 var kr = typeof document < "u" ? _.useLayoutEffect : () => {}, Ar = {
 	prefix: String(Math.round(Math.random() * 1e10)),
 	current: 0
@@ -14335,7 +14335,7 @@ function Vr() {
 	return typeof _.useSyncExternalStore == "function" ? _.useSyncExternalStore(Br, Rr, zr) : (0, _.useContext)(Mr);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useValueEffect.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useValueEffect.mjs
 function Hr(e) {
 	let [t, n] = (0, _.useState)(e), r = (0, _.useRef)(t), i = (0, _.useRef)(null), a = (0, _.useRef)(() => {
 		if (!i.current) return;
@@ -14353,7 +14353,7 @@ function Hr(e) {
 	}, [a])];
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useId.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useId.mjs
 var Ur = !!(typeof window < "u" && window.document && window.document.createElement), Wr = /* @__PURE__ */ new Map(), Gr;
 typeof FinalizationRegistry < "u" && (Gr = new FinalizationRegistry((e) => {
 	Wr.delete(e);
@@ -14397,7 +14397,7 @@ function Yr(e = []) {
 	]), n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/mergeRefs.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/mergeRefs.mjs
 function Xr(...e) {
 	return e.length === 1 && e[0] ? e[0] : (t) => {
 		let n = !1, r = e.map((e) => {
@@ -14416,7 +14416,7 @@ function Zr(e, t) {
 	e != null && (e.current = t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/clsx/dist/clsx.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/clsx/dist/clsx.mjs
 function Qr(e) {
 	var t, n, r = "";
 	if (typeof e == "string" || typeof e == "number") r += e;
@@ -14433,7 +14433,7 @@ function $r() {
 	return r;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/mergeProps.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/mergeProps.mjs
 function ei(...e) {
 	let t = { ...e[0] };
 	for (let n = 1; n < e.length; n++) {
@@ -14446,7 +14446,7 @@ function ei(...e) {
 	return t;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useObjectRef.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useObjectRef.mjs
 function ti(e) {
 	let t = (0, _.useRef)(null), n = (0, _.useRef)(void 0), r = (0, _.useCallback)((t) => {
 		if (typeof e == "function") {
@@ -14469,7 +14469,7 @@ function ti(e) {
 	}), [r]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/utils.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/utils.mjs
 var ni = Symbol("default");
 function ri({ values: e, children: t }) {
 	for (let [n, r] of e) t = /*#__PURE__*/ _.createElement(n.Provider, { value: r }, t);
@@ -14564,7 +14564,7 @@ var li = {}, ui = new Proxy({}, { get(e, t) {
 	return n || (n = /*#__PURE__*/ (0, _.forwardRef)(ci.bind(null, t)), li[t] = n), n;
 } });
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/collections/Hidden.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/collections/Hidden.mjs
 typeof HTMLTemplateElement < "u" && (Object.defineProperty(HTMLTemplateElement.prototype, "firstChild", {
 	configurable: !0,
 	enumerable: !0,
@@ -14604,7 +14604,7 @@ function mi() {
 	return (0, _.useContext)(di);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/filterDOMProps.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/filterDOMProps.mjs
 var hi = /* @__PURE__ */ new Set(["id"]), gi = /* @__PURE__ */ new Set([
 	"aria-label",
 	"aria-labelledby",
@@ -14631,7 +14631,7 @@ function xi(e, t = {}) {
 	return s;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLabels.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLabels.mjs
 function Si(e, t) {
 	let { id: n, "aria-label": r, "aria-labelledby": i } = e;
 	return n = qr(n), i && r ? i = [.../* @__PURE__ */ new Set([n, ...i.trim().split(/\s+/)])].join(" ") : i &&= i.trim().split(/\s+/).join(" "), !r && !i && t && (r = t), {
@@ -14641,7 +14641,7 @@ function Si(e, t) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/utils.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/utils.mjs
 var Ci = /* @__PURE__ */ new Set([
 	"Arab",
 	"Syrc",
@@ -14684,7 +14684,7 @@ function Ti(e) {
 	return wi.has(t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/useDefaultLocale.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/useDefaultLocale.mjs
 var Ei = Symbol.for("react-aria.i18n.locale");
 function Di() {
 	let e = typeof window < "u" && window[Ei] || typeof navigator < "u" && (navigator.language || navigator.userLanguage) || "en-US";
@@ -14713,19 +14713,19 @@ function ji() {
 	} : t;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/I18nProvider.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/i18n/I18nProvider.mjs
 var Mi = /*#__PURE__*/ _.createContext(null);
 function Ni() {
 	let e = ji();
 	return (0, _.useContext)(Mi) || e;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/utils/number.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/utils/number.mjs
 function Pi(e, t = -Infinity, n = Infinity) {
 	return Math.min(Math.max(e, t), n);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/ProgressBar.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/ProgressBar.mjs
 var Fi = /*#__PURE__*/ (0, _.createContext)(null), Ii = 7e3, Li = null;
 function Ri(e, t = "assertive", n = Ii) {
 	Li ? Li.announce(e, t, n) : (Li = new zi(), (typeof IS_REACT_ACT_ENVIRONMENT == "boolean" ? IS_REACT_ACT_ENVIRONMENT : typeof jest < "u") ? Li.announce(e, t, n) : setTimeout(() => {
@@ -14769,7 +14769,7 @@ var zi = class {
 	}
 };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/focusWithoutScrolling.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/focusWithoutScrolling.mjs
 function Bi(e) {
 	if (Hi()) e.focus({ preventScroll: !0 });
 	else {
@@ -14806,7 +14806,7 @@ function Wi(e) {
 	for (let { element: t, scrollTop: n, scrollLeft: r } of e) t.scrollTop = n, t.scrollLeft = r;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/domHelpers.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/domHelpers.mjs
 var Gi = (e) => Ji(e) ? e.document : Yi(e) ? e : e?.ownerDocument ?? (typeof document < "u" ? document : void 0), Ki = (e) => Gi(e)?.defaultView ?? (typeof window < "u" ? window : void 0);
 function qi(e) {
 	return typeof e == "object" && !!e && "nodeType" in e && typeof e.nodeType == "number";
@@ -14842,13 +14842,13 @@ function Qi(e, t, n, r) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/flags/flags.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/flags/flags.mjs
 var $i = !1;
 function ea() {
 	return $i;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/shadowdom/DOMFunctions.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/shadowdom/DOMFunctions.mjs
 function ta(e, t) {
 	if (!ea()) return t && e ? e.contains(t) : !1;
 	if (!e || !t) return !1;
@@ -14889,7 +14889,7 @@ function ia(e) {
 	return r != null && e.contains(r);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isElementVisible.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isElementVisible.mjs
 var aa = typeof Element < "u" && "checkVisibility" in Element.prototype;
 function oa(e) {
 	let t = Ki(e);
@@ -14908,7 +14908,7 @@ function ca(e, t) {
 	return aa ? e.checkVisibility({ visibilityProperty: !0 }) && !e.closest("[data-react-aria-prevent-focus]") : e.nodeName !== "#comment" && oa(e) && sa(e, t) && (!e.parentElement || ca(e.parentElement, e));
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isFocusable.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isFocusable.mjs
 var la = [
 	"input:not([disabled]):not([type=hidden])",
 	"select:not([disabled])",
@@ -14942,7 +14942,7 @@ function ma(e) {
 	return !1;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/utils.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/utils.mjs
 function ha(e) {
 	let t = e;
 	return t.nativeEvent = e, t.isDefaultPrevented = () => t.defaultPrevented, t.isPropagationStopped = () => t.cancelBubble, t.persist = () => {}, t;
@@ -15010,7 +15010,7 @@ function ya(e) {
 	return d;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/platform.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/platform.mjs
 function ba(e) {
 	if (typeof window > "u" || window.navigator == null) return !1;
 	let t = window.navigator.userAgentData?.brands;
@@ -15043,7 +15043,7 @@ var Ca = Sa(function() {
 	return ba(/(Firefox|FxiOS)/i);
 });
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isVirtualEvent.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isVirtualEvent.mjs
 function Ma(e) {
 	return e.pointerType === "" && e.isTrusted ? !0 : Aa() && e.pointerType ? e.type === "click" && e.buttons === 1 : e.detail === 0 && !e.pointerType;
 }
@@ -15051,7 +15051,7 @@ function Na(e) {
 	return !Aa() && e.width === 0 && e.height === 0 || Aa() && e.width === 1 && e.height === 1 && e.pressure === 0 && e.detail === 0 && e.pointerType === "mouse";
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/openLink.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/openLink.mjs
 var Pa = /*#__PURE__*/ (0, _.createContext)({
 	isNative: !0,
 	open: za,
@@ -15111,7 +15111,7 @@ function Va(e, t, n, r) {
 	!t.isNative && e.currentTarget instanceof HTMLAnchorElement && e.currentTarget.href && !e.isDefaultPrevented() && Ia(e.currentTarget, e) && n && (e.preventDefault(), t.open(e.currentTarget, e, n, r));
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusVisible.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusVisible.mjs
 var Ha = null, Ua = /* @__PURE__ */ new Set(), Wa = /* @__PURE__ */ new Map(), Ga = !1, Ka = !1, qa = {
 	Tab: !0,
 	Escape: !0
@@ -15209,7 +15209,7 @@ function lo(e, t, n) {
 	}, t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/runAfterTransition.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/runAfterTransition.mjs
 var uo = /* @__PURE__ */ new Map(), fo = /* @__PURE__ */ new Set();
 function po() {
 	if (typeof window > "u") return;
@@ -15242,7 +15242,7 @@ function ho(e) {
 	});
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/focusSafely.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/focusSafely.mjs
 function go(e) {
 	if (!e.isConnected) return;
 	let t = Gi(e);
@@ -15255,7 +15255,7 @@ function go(e) {
 	} else Bi(e);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocus.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocus.mjs
 function _o(e) {
 	let { isDisabled: t, onFocus: n, onBlur: r, onFocusChange: i } = e, a = (0, _.useCallback)((e) => {
 		if (L(e) === e.currentTarget) return r && r(e), i && i(!1), !0;
@@ -15273,7 +15273,7 @@ function _o(e) {
 	} };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/createEventHandler.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/createEventHandler.mjs
 function vo(e) {
 	if (e) return (t) => {
 		let n = !0;
@@ -15298,7 +15298,7 @@ function vo(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/createKeyboardShortcutHandler.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/createKeyboardShortcutHandler.mjs
 var yo = /* @__PURE__ */ new Set([
 	"shift",
 	"alt",
@@ -15382,7 +15382,7 @@ function Ao(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useKeyboard.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useKeyboard.mjs
 function jo(e) {
 	let { shortcuts: t, allowRepeats: n = !1, allowComposing: r = !1 } = e, i, a;
 	if (t) {
@@ -15415,7 +15415,7 @@ function jo(e) {
 	} };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useSyncRef.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useSyncRef.mjs
 function Mo(e, t) {
 	kr(() => {
 		if (e && e.ref && t) return e.ref.current = t.current, () => {
@@ -15424,7 +15424,7 @@ function Mo(e, t) {
 	});
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusable.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusable.mjs
 var No = /*#__PURE__*/ _.createContext(null);
 function Po(e) {
 	let t = (0, _.useContext)(No) || {};
@@ -15444,7 +15444,7 @@ function Fo(e, t) {
 	}, o) };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/textSelection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/textSelection.mjs
 var Io = "default", Lo = "", Ro = /* @__PURE__ */ new WeakMap();
 function zo(e) {
 	if (Ea() && Oa()) {
@@ -15475,7 +15475,7 @@ function Bo(e) {
 	}
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getMetaValue.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getMetaValue.mjs
 function Vo(e, t) {
 	let n = Ki(t), r = Gi(t);
 	if (r == null || n == null) return;
@@ -15483,18 +15483,18 @@ function Vo(e, t) {
 	return o && o instanceof n.HTMLMetaElement && (e === "csp-nonce" && o.nonce && (i ??= o.nonce || void 0), o.content && (i ??= o.content || void 0)), e === "csp-nonce" && (i ??= n.__webpack_nonce__ || globalThis.__webpack_nonce__ || void 0), i;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getNonce.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getNonce.mjs
 var Ho = /* @__PURE__ */ new WeakMap();
 function Uo(e) {
 	let t = Gi(e), n = Ho.get(t);
 	return n ??= Vo("csp-nonce", t), n !== void 0 && Ho.set(t, n), n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/context.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/context.mjs
 var Wo = _.createContext({ register: () => {} });
 Wo.displayName = "PressResponderContext";
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useEffectEvent.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useEffectEvent.mjs
 var Go = _.useInsertionEffect ?? kr;
 function Ko(e) {
 	let t = (0, _.useRef)(null);
@@ -15506,7 +15506,7 @@ function Ko(e) {
 	}, []);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useGlobalListeners.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useGlobalListeners.mjs
 function qo() {
 	let e = (0, _.useRef)(/* @__PURE__ */ new Map()), t = (0, _.useCallback)((t, n, r, i) => {
 		let a = i?.once ? (...t) => {
@@ -15533,7 +15533,7 @@ function qo() {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/usePress.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/usePress.mjs
 var Jo = /* @__PURE__ */ c(m(), 1);
 function Yo(e) {
 	let t = (0, _.useContext)(Wo);
@@ -15802,7 +15802,7 @@ function ss(e, t) {
 	return e.type === "checkbox" || e.type === "radio" ? t === " " : os.has(e.type);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/button/useButton.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/button/useButton.mjs
 function cs(e, t) {
 	let { elementType: n = "button", isDisabled: r, onPress: i, onPressStart: a, onPressEnd: o, onPressUp: s, onPressChange: c, preventFocusOnPress: l, allowFocusWhenDisabled: u, onClick: d, href: f, target: p, rel: m, type: h = "button" } = e, g;
 	g = n === "button" ? {
@@ -15851,7 +15851,7 @@ function cs(e, t) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusWithin.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useFocusWithin.mjs
 function ls(e) {
 	let { isDisabled: t, onBlurWithin: n, onFocusWithin: r, onFocusWithinChange: i } = e, a = (0, _.useRef)({ isFocusWithin: !1 }), { addGlobalListener: o, removeAllGlobalListeners: s } = qo(), c = (0, _.useCallback)((e) => {
 		ta(e.currentTarget, L(e)) && a.current.isFocusWithin && !ta(e.currentTarget, e.relatedTarget) && (a.current.isFocusWithin = !1, s(), n && n(e), i && i(!1));
@@ -15892,7 +15892,7 @@ function ls(e) {
 	} };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/focus/useFocusRing.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/focus/useFocusRing.mjs
 function us(e = {}) {
 	let { autoFocus: t = !1, isTextInput: n, within: r } = e, i = (0, _.useRef)({
 		isFocused: !1,
@@ -15920,7 +15920,7 @@ function us(e = {}) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useHover.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useHover.mjs
 var ds = !1, fs = 0;
 function ps() {
 	ds = !0, setTimeout(() => {
@@ -15989,7 +15989,7 @@ function gs(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Button.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Button.mjs
 var _s = /*#__PURE__*/ (0, _.createContext)({}), vs = /*#__PURE__*/ pi(function(e, t) {
 	[e, t] = oi(e, t, _s);
 	let n = e, { isPending: r } = n, { buttonProps: i, isPressed: a } = cs(e, t);
@@ -16045,7 +16045,7 @@ function bs(e, t) {
 	return e;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/collections/BaseCollection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/collections/BaseCollection.mjs
 var xs = class {
 	constructor(e) {
 		this.value = null, this.level = 0, this.hasChildNodes = !1, this.rendered = null, this.textValue = "", this["aria-label"] = void 0, this.index = 0, this.parentKey = null, this.prevKey = null, this.nextKey = null, this.firstChildKey = null, this.lastChildKey = null, this.props = {}, this.colSpan = null, this.colIndex = null, this.type = this.constructor.type, this.key = e;
@@ -16193,7 +16193,7 @@ function Os(e, t, n, r) {
 	return [i?.key ?? null, a?.key ?? null];
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/collections/Document.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/collections/Document.mjs
 var ks = class {
 	constructor(e) {
 		this._firstChild = null, this._lastChild = null, this._previousSibling = null, this._nextSibling = null, this._parentNode = null, this._minInvalidChildIndex = null, this.ownerDocument = e;
@@ -16375,7 +16375,7 @@ var ks = class {
 	}
 };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/collections/useCachedChildren.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/collections/useCachedChildren.mjs
 function Ms(e) {
 	let { children: t, items: n, idScope: r, addIdAndValue: i, dependencies: a = [] } = e, o = (0, _.useMemo)(() => void 0, [t]), s = (0, _.useMemo)(() => /* @__PURE__ */ new WeakMap(), [...a, o]);
 	return (0, _.useMemo)(() => {
@@ -16416,7 +16416,7 @@ function Ns(e) {
 	}
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js
 var Ps = /* @__PURE__ */ o(((e) => {
 	var t = u();
 	function n(e, t) {
@@ -16549,7 +16549,7 @@ function Zs({ children: e }) {
 	return Vr() ? /*#__PURE__*/ _.createElement(Us.Provider, { value: t }, n) : /*#__PURE__*/ (0, Jo.createPortal)(n, t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Collection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Collection.mjs
 var Qs = /*#__PURE__*/ (0, _.createContext)(null), $s = {
 	CollectionRoot({ collection: e, renderDropIndicator: t }) {
 		return ec(e, null, t);
@@ -16597,10 +16597,10 @@ function rc(e) {
 	return (0, _.useMemo)(() => e == null ? null : /* @__PURE__ */ new Set([e]), [e]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/constants.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/constants.mjs
 var ic = "react-aria-clear-focus", ac = "react-aria-focus";
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/focus/virtualFocus.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/focus/virtualFocus.mjs
 function oc(e) {
 	let t = lc(Gi(e));
 	t !== e && (t && sc(t, e), e && cc(e, t));
@@ -16622,7 +16622,7 @@ function lc(e) {
 	return n && e.getElementById(n) || t;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/keyboard.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/keyboard.mjs
 function uc(e) {
 	return Ca() ? e.metaKey : e.ctrlKey;
 }
@@ -16641,7 +16641,7 @@ function fc(e) {
 	return e instanceof HTMLInputElement && !dc.has(e.type) || e instanceof HTMLTextAreaElement || e instanceof HTMLElement && e.isContentEditable;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useEvent.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useEvent.mjs
 function pc(e, t, n, r) {
 	let i = Ko(n), a = n == null;
 	(0, _.useEffect)(() => {
@@ -16654,7 +16654,7 @@ function pc(e, t, n, r) {
 	]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/@internationalized/string/dist/private/LocalizedStringDictionary.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/@internationalized/string/dist/private/LocalizedStringDictionary.mjs
 var mc = Symbol.for("react-aria.i18n.locale"), hc = Symbol.for("react-aria.i18n.strings"), gc = void 0, _c = class e {
 	constructor(e, t = "en-US") {
 		this.strings = Object.fromEntries(Object.entries(e).filter(([, e]) => e)), this.defaultLocale = t;
@@ -16697,7 +16697,7 @@ function bc(e) {
 	if (Intl.Locale) return new Intl.Locale(e).script;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/@internationalized/string/dist/private/LocalizedStringFormatter.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/@internationalized/string/dist/private/LocalizedStringFormatter.mjs
 var xc = /* @__PURE__ */ new Map(), Sc = /* @__PURE__ */ new Map(), Cc = class {
 	constructor(e, t) {
 		this.locale = e, this.strings = t;
@@ -16733,7 +16733,7 @@ function Dc(e, t) {
 	return (0, _.useMemo)(() => new Cc(n, r), [n, r]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/utils/useControlledState.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/utils/useControlledState.mjs
 var Oc = typeof document < "u" ? _.useInsertionEffect ?? _.useLayoutEffect : () => {};
 function kc(e, t, n) {
 	let [r, i] = (0, _.useState)(e || t), a = (0, _.useRef)(r), o = (0, _.useRef)(e !== void 0), s = e !== void 0;
@@ -16751,7 +16751,7 @@ function kc(e, t, n) {
 	}, [n])];
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Autocomplete.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Autocomplete.mjs
 var Ac = /*#__PURE__*/ (0, _.createContext)(null), jc = /*#__PURE__*/ (0, _.createContext)(null), Mc = /*#__PURE__*/ (0, _.createContext)({}), Nc = /*#__PURE__*/ Ks(Cs, function(e, t) {
 	return [e, t] = oi(e, t, Mc), /*#__PURE__*/ _.createElement(ui.header, {
 		className: "react-aria-Header",
@@ -16865,7 +16865,7 @@ function Lc(e, t, n, r) {
 	return ea() ? new Ic(e, t, n, r) : e.createTreeWalker(t, n, r);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/ariaHideOutside.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/ariaHideOutside.mjs
 var Rc = typeof HTMLElement < "u" && "inert" in HTMLElement.prototype;
 function zc(e) {
 	return e.dataset.liveAnnouncer === "true" || e.dataset.reactAriaTopLayer !== void 0;
@@ -16960,7 +16960,7 @@ function Uc(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/calculatePosition.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/calculatePosition.mjs
 var Wc = {
 	top: "top",
 	bottom: "top",
@@ -17144,7 +17144,7 @@ function dl(e) {
 	return t.transform !== "none" || /transform|perspective/.test(t.willChange) || t.filter !== "none" || t.contain === "paint" || "backdropFilter" in t && t.backdropFilter !== "none" || "WebkitBackdropFilter" in t && t.WebkitBackdropFilter !== "none";
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useCloseOnScroll.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useCloseOnScroll.mjs
 var fl = /* @__PURE__ */ new WeakMap();
 function pl(e) {
 	let { triggerRef: t, isOpen: n, onClose: r } = e;
@@ -17160,7 +17160,7 @@ function pl(e) {
 	]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useResizeObserver.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useResizeObserver.mjs
 function ml() {
 	return window.ResizeObserver !== void 0;
 }
@@ -17184,7 +17184,7 @@ function hl(e) {
 	}, [t, n]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlayPosition.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlayPosition.mjs
 var gl = typeof document < "u" ? window.visualViewport : null;
 function _l(e) {
 	let { direction: t } = Ni(), { arrowSize: n, targetRef: r, overlayRef: i, arrowRef: a, scrollRef: o = i, placement: s = "bottom", containerPadding: c = 12, shouldFlip: l = !0, boundaryElement: u = typeof document < "u" ? document.body : null, offset: d = 0, crossOffset: f = 0, shouldUpdatePosition: p = !0, isOpen: m = !0, onClose: h, maxHeight: g, arrowBoundaryOffset: v = 0, getTargetRect: y } = e, [b, x] = (0, _.useState)(null), S = [
@@ -17304,7 +17304,7 @@ function yl(e, t) {
 	return t === "rtl" ? e.replace("start", "right").replace("end", "left") : e.replace("start", "left").replace("end", "right");
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/focus/FocusScope.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/focus/FocusScope.mjs
 var bl = /*#__PURE__*/ _.createContext(null), xl = "react-aria-focus-scope-restore", Sl = null;
 function Cl(e) {
 	let { children: t, contain: n, restoreFocus: r, autoFocus: i } = e, a = (0, _.useRef)(null), o = (0, _.useRef)(null), s = (0, _.useRef)([]), { parentNode: c } = (0, _.useContext)(bl) || {}, l = (0, _.useMemo)(() => new Gl({ scopeRef: s }), [s]);
@@ -17648,7 +17648,7 @@ var Wl = class e {
 	}
 }, Kl = new Wl();
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useInteractOutside.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useInteractOutside.mjs
 function ql(e) {
 	let { ref: t, onInteractOutside: n, isDisabled: r, onInteractOutsideStart: i } = e, a = (0, _.useRef)({
 		isPointerDown: !1,
@@ -17682,7 +17682,7 @@ function Jl(e, t) {
 	return t.current ? !e.composedPath().includes(t.current) : !1;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlay.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlay.mjs
 var Yl = [];
 function Xl(e, t) {
 	let { onClose: n, shouldCloseOnBlur: r, isOpen: i, isDismissable: a = !1, isKeyboardDismissDisabled: o = !1, shouldCloseOnInteractOutside: s } = e, c = (0, _.useRef)(void 0);
@@ -17726,21 +17726,21 @@ function Xl(e, t) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isScrollable.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/isScrollable.mjs
 function Zl(e, t) {
 	if (!e) return !1;
 	let n = window.getComputedStyle(e), r = document.scrollingElement || document.documentElement, i = /(auto|scroll)/.test(n.overflow + n.overflowX + n.overflowY);
 	return e === r && n.overflow !== "hidden" && (i = !0), i && t && (i = e.scrollHeight !== e.clientHeight || e.scrollWidth !== e.clientWidth), i;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getScrollParent.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getScrollParent.mjs
 function Ql(e, t) {
 	let n = e;
 	for (Zl(n, t) && (n = n.parentElement); n && !Zl(n, t);) n = n.parentElement;
 	return n || document.scrollingElement || document.documentElement;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/usePreventScroll.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/usePreventScroll.mjs
 var $l = typeof document < "u" && window.visualViewport, eu = 0, tu;
 function nu(e = {}) {
 	let { isDisabled: t } = e;
@@ -17823,7 +17823,7 @@ function ou(e) {
 	}
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/usePopover.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/usePopover.mjs
 function su(e, t) {
 	let { triggerRef: n, popoverRef: r, groupRef: i, isNonModal: a, isKeyboardDismissDisabled: o, shouldCloseOnInteractOutside: s, ...c } = e, l = c.trigger === "SubmenuTrigger", { overlayProps: u, underlayProps: d } = Xl({
 		isOpen: t.isOpen,
@@ -17858,143 +17858,143 @@ function su(e, t) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ar-AE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ar-AE.mjs
 var cu = {};
 cu = { dismiss: "تجاهل" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/bg-BG.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/bg-BG.mjs
 var lu = {};
 lu = { dismiss: "Отхвърляне" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/cs-CZ.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/cs-CZ.mjs
 var uu = {};
 uu = { dismiss: "Odstranit" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/da-DK.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/da-DK.mjs
 var du = {};
 du = { dismiss: "Luk" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/de-DE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/de-DE.mjs
 var fu = {};
 fu = { dismiss: "Schließen" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/el-GR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/el-GR.mjs
 var pu = {};
 pu = { dismiss: "Απόρριψη" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/en-US.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/en-US.mjs
 var mu = {};
 mu = { dismiss: "Dismiss" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/es-ES.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/es-ES.mjs
 var hu = {};
 hu = { dismiss: "Descartar" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/et-EE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/et-EE.mjs
 var gu = {};
 gu = { dismiss: "Lõpeta" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/fi-FI.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/fi-FI.mjs
 var _u = {};
 _u = { dismiss: "Hylkää" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/fr-FR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/fr-FR.mjs
 var vu = {};
 vu = { dismiss: "Rejeter" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/he-IL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/he-IL.mjs
 var yu = {};
 yu = { dismiss: "התעלם" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/hr-HR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/hr-HR.mjs
 var bu = {};
 bu = { dismiss: "Odbaci" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/hu-HU.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/hu-HU.mjs
 var xu = {};
 xu = { dismiss: "Elutasítás" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/it-IT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/it-IT.mjs
 var Su = {};
 Su = { dismiss: "Ignora" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ja-JP.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ja-JP.mjs
 var Cu = {};
 Cu = { dismiss: "閉じる" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ko-KR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ko-KR.mjs
 var wu = {};
 wu = { dismiss: "무시" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/lt-LT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/lt-LT.mjs
 var Tu = {};
 Tu = { dismiss: "Atmesti" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/lv-LV.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/lv-LV.mjs
 var Eu = {};
 Eu = { dismiss: "Nerādīt" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/nb-NO.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/nb-NO.mjs
 var Du = {};
 Du = { dismiss: "Lukk" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/nl-NL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/nl-NL.mjs
 var Ou = {};
 Ou = { dismiss: "Negeren" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pl-PL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pl-PL.mjs
 var ku = {};
 ku = { dismiss: "Zignoruj" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pt-BR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pt-BR.mjs
 var Au = {};
 Au = { dismiss: "Descartar" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pt-PT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/pt-PT.mjs
 var ju = {};
 ju = { dismiss: "Dispensar" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ro-RO.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ro-RO.mjs
 var Mu = {};
 Mu = { dismiss: "Revocare" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ru-RU.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/ru-RU.mjs
 var Nu = {};
 Nu = { dismiss: "Пропустить" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sk-SK.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sk-SK.mjs
 var Pu = {};
 Pu = { dismiss: "Zrušiť" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sl-SI.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sl-SI.mjs
 var Fu = {};
 Fu = { dismiss: "Opusti" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sr-SP.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sr-SP.mjs
 var Iu = {};
 Iu = { dismiss: "Odbaci" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sv-SE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/sv-SE.mjs
 var Lu = {};
 Lu = { dismiss: "Avvisa" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/tr-TR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/tr-TR.mjs
 var Ru = {};
 Ru = { dismiss: "Kapat" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/uk-UA.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/uk-UA.mjs
 var zu = {};
 zu = { dismiss: "Скасувати" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/zh-CN.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/zh-CN.mjs
 var Bu = {};
 Bu = { dismiss: "取消" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/zh-TW.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/overlays/zh-TW.mjs
 var Vu = {};
 Vu = { dismiss: "關閉" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/intlStrings.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/intlStrings.mjs
 var Hu = {};
 Hu = {
 	"ar-AE": cu,
@@ -18033,7 +18033,7 @@ Hu = {
 	"zh-TW": Vu
 };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/visually-hidden/VisuallyHidden.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/visually-hidden/VisuallyHidden.mjs
 var Uu = {
 	border: 0,
 	clip: "rect(0 0 0 0)",
@@ -18064,7 +18064,7 @@ function Gu(e) {
 	return /*#__PURE__*/ _.createElement(n, ei(a, o), t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/DismissButton.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/DismissButton.mjs
 function Ku(e) {
 	return e && e.__esModule ? e.default : e;
 }
@@ -18083,7 +18083,7 @@ function qu(e) {
 	}));
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/PressResponder.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/PressResponder.mjs
 var Ju = /*#__PURE__*/ _.forwardRef(({ children: e, ...t }, n) => {
 	let r = (0, _.useRef)(!1), i = (0, _.useContext)(Wo), a = ei(i || {}, {
 		...t,
@@ -18100,13 +18100,13 @@ function Yu({ children: e }) {
 	return /*#__PURE__*/ _.createElement(Wo.Provider, { value: t }, e);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/PortalProvider.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/PortalProvider.mjs
 var Xu = /*#__PURE__*/ (0, _.createContext)({});
 function Zu() {
 	return (0, _.useContext)(Xu) ?? {};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/Overlay.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/Overlay.mjs
 var Qu = /*#__PURE__*/ _.createContext(null);
 function $u(e) {
 	let t = Vr(), { portalContainer: n = t ? null : document.body, isExiting: r } = e, [i, a] = (0, _.useState)(!1), o = (0, _.useMemo)(() => ({
@@ -18121,7 +18121,7 @@ function $u(e) {
 	}, c)), c = /*#__PURE__*/ _.createElement(Qu.Provider, { value: o }, /*#__PURE__*/ _.createElement(Yu, null, /*#__PURE__*/ _.createElement(No.Provider, { value: null }, c))), /*#__PURE__*/ Jo.createPortal(c, n);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/overlays/useOverlayTriggerState.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/overlays/useOverlayTriggerState.mjs
 function ed(e) {
 	let [t, n] = kc(e.isOpen, e.defaultOpen || !1, e.onOpenChange), [r, i] = (0, _.useState)(null);
 	return {
@@ -18141,7 +18141,7 @@ function ed(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/animation.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/animation.mjs
 function td(e, t = !0) {
 	let [n, r] = (0, _.useState)(!0), i = n && t;
 	return kr(() => {
@@ -18190,7 +18190,7 @@ function rd(e, t, n) {
 	]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Popover.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Popover.mjs
 var id = /*#__PURE__*/ (0, _.createContext)(null), ad = /*#__PURE__*/ (0, _.createContext)(null), od = /*#__PURE__*/ (0, _.forwardRef)(function(e, t) {
 	[e, t] = oi(e, t, id);
 	let n = (0, _.useContext)(dd), r = ed(e), i = e.isOpen != null || e.defaultOpen != null || !n ? r : n, a = nd(t, i.isOpen), o = e.isExiting || !e.shouldSkipAnimation && a || !1, s = mi(), { direction: c } = Ni();
@@ -18298,10 +18298,10 @@ function sd({ state: e, isExiting: t, UNSTABLE_portalContainer: n, clearContexts
 	}, /*#__PURE__*/ _.createElement(ad.Provider, { value: o }, D)));
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Text.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Text.mjs
 var cd = /*#__PURE__*/ (0, _.createContext)({});
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/menu/useMenuTriggerState.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/menu/useMenuTriggerState.mjs
 function ld(e) {
 	let t = ed(e), [n, r] = (0, _.useState)(null), [i, a] = (0, _.useState)([]), o = () => {
 		a([]), t.close();
@@ -18328,7 +18328,7 @@ function ld(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlayTrigger.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/overlays/useOverlayTrigger.mjs
 function ud(e, t, n) {
 	let { type: r } = e, { isOpen: i } = t;
 	(0, _.useEffect)(() => {
@@ -18348,14 +18348,14 @@ function ud(e, t, n) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Dialog.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Dialog.mjs
 var dd = /*#__PURE__*/ (0, _.createContext)(null), fd = /*#__PURE__*/ (0, _.createContext)(null);
 function pd(e) {
 	let t = (0, _.useRef)({});
 	return /*#__PURE__*/ _.createElement(fd.Provider, { value: t }, e.children);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/SelectionIndicator.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/SelectionIndicator.mjs
 var md = /*#__PURE__*/ (0, _.createContext)({ isSelected: !1 }), hd = /*#__PURE__*/ (0, _.createContext)({});
 (class extends xs {
 	static {
@@ -18371,143 +18371,143 @@ var md = /*#__PURE__*/ (0, _.createContext)({ isSelected: !1 }), hd = /*#__PURE_
 	}
 });
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ar-AE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ar-AE.mjs
 var gd = {};
 gd = { longPressMessage: "اضغط مطولاً أو اضغط على Alt + السهم لأسفل لفتح القائمة" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/bg-BG.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/bg-BG.mjs
 var _d = {};
 _d = { longPressMessage: "Натиснете продължително или натиснете Alt+ стрелка надолу, за да отворите менюто" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/cs-CZ.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/cs-CZ.mjs
 var vd = {};
 vd = { longPressMessage: "Dlouhým stiskem nebo stisknutím kláves Alt + šipka dolů otevřete nabídku" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/da-DK.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/da-DK.mjs
 var yd = {};
 yd = { longPressMessage: "Langt tryk eller tryk på Alt + pil ned for at åbne menuen" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/de-DE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/de-DE.mjs
 var bd = {};
 bd = { longPressMessage: "Drücken Sie lange oder drücken Sie Alt + Nach-unten, um das Menü zu öffnen" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/el-GR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/el-GR.mjs
 var xd = {};
 xd = { longPressMessage: "Πιέστε παρατεταμένα ή πατήστε Alt + κάτω βέλος για να ανοίξετε το μενού" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/en-US.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/en-US.mjs
 var Sd = {};
 Sd = { longPressMessage: "Long press or press Alt + ArrowDown to open menu" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/es-ES.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/es-ES.mjs
 var Cd = {};
 Cd = { longPressMessage: "Mantenga pulsado o pulse Alt + flecha abajo para abrir el menú" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/et-EE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/et-EE.mjs
 var wd = {};
 wd = { longPressMessage: "Menüü avamiseks vajutage pikalt või vajutage klahve Alt + allanool" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/fi-FI.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/fi-FI.mjs
 var Td = {};
 Td = { longPressMessage: "Avaa valikko painamalla pohjassa tai näppäinyhdistelmällä Alt + Alanuoli" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/fr-FR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/fr-FR.mjs
 var Ed = {};
 Ed = { longPressMessage: "Appuyez de manière prolongée ou appuyez sur Alt\xA0+\xA0Flèche vers le bas pour ouvrir le menu." };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/he-IL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/he-IL.mjs
 var Dd = {};
 Dd = { longPressMessage: "לחץ לחיצה ארוכה או הקש Alt + ArrowDown כדי לפתוח את התפריט" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/hr-HR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/hr-HR.mjs
 var Od = {};
 Od = { longPressMessage: "Dugo pritisnite ili pritisnite Alt + strelicu prema dolje za otvaranje izbornika" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/hu-HU.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/hu-HU.mjs
 var kd = {};
 kd = { longPressMessage: "Nyomja meg hosszan, vagy nyomja meg az Alt + lefele nyíl gombot a menü megnyitásához" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/it-IT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/it-IT.mjs
 var Ad = {};
 Ad = { longPressMessage: "Premi a lungo o premi Alt + Freccia giù per aprire il menu" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ja-JP.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ja-JP.mjs
 var jd = {};
 jd = { longPressMessage: "長押しまたは Alt+下矢印キーでメニューを開く" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ko-KR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ko-KR.mjs
 var Md = {};
 Md = { longPressMessage: "길게 누르거나 Alt + 아래쪽 화살표를 눌러 메뉴 열기" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/lt-LT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/lt-LT.mjs
 var Nd = {};
 Nd = { longPressMessage: "Norėdami atidaryti meniu, nuspaudę palaikykite arba paspauskite „Alt + ArrowDown“." };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/lv-LV.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/lv-LV.mjs
 var Pd = {};
 Pd = { longPressMessage: "Lai atvērtu izvēlni, turiet nospiestu vai nospiediet taustiņu kombināciju Alt + lejupvērstā bultiņa" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/nb-NO.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/nb-NO.mjs
 var Fd = {};
 Fd = { longPressMessage: "Langt trykk eller trykk Alt + PilNed for å åpne menyen" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/nl-NL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/nl-NL.mjs
 var Id = {};
 Id = { longPressMessage: "Druk lang op Alt + pijl-omlaag of druk op Alt om het menu te openen" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pl-PL.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pl-PL.mjs
 var Ld = {};
 Ld = { longPressMessage: "Naciśnij i przytrzymaj lub naciśnij klawisze Alt + Strzałka w dół, aby otworzyć menu" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pt-BR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pt-BR.mjs
 var Rd = {};
 Rd = { longPressMessage: "Pressione e segure ou pressione Alt + Seta para baixo para abrir o menu" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pt-PT.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/pt-PT.mjs
 var zd = {};
 zd = { longPressMessage: "Prima continuamente ou prima Alt + Seta Para Baixo para abrir o menu" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ro-RO.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ro-RO.mjs
 var Bd = {};
 Bd = { longPressMessage: "Apăsați lung sau apăsați pe Alt + săgeată în jos pentru a deschide meniul" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ru-RU.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/ru-RU.mjs
 var Vd = {};
 Vd = { longPressMessage: "Нажмите и удерживайте или нажмите Alt + Стрелка вниз, чтобы открыть меню" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sk-SK.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sk-SK.mjs
 var Hd = {};
 Hd = { longPressMessage: "Ponuku otvoríte dlhým stlačením alebo stlačením klávesu Alt + klávesu so šípkou nadol" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sl-SI.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sl-SI.mjs
 var Ud = {};
 Ud = { longPressMessage: "Za odprtje menija pritisnite in držite gumb ali pritisnite Alt+puščica navzdol" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sr-SP.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sr-SP.mjs
 var Wd = {};
 Wd = { longPressMessage: "Dugo pritisnite ili pritisnite Alt + strelicu prema dole da otvorite meni" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sv-SE.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/sv-SE.mjs
 var Gd = {};
 Gd = { longPressMessage: "Håll nedtryckt eller tryck på Alt + pil nedåt för att öppna menyn" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/tr-TR.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/tr-TR.mjs
 var Kd = {};
 Kd = { longPressMessage: "Menüyü açmak için uzun basın veya Alt + Aşağı Ok tuşuna basın" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/uk-UA.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/uk-UA.mjs
 var qd = {};
 qd = { longPressMessage: "Довго або звичайно натисніть комбінацію клавіш Alt і стрілка вниз, щоб відкрити меню" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/zh-CN.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/zh-CN.mjs
 var Jd = {};
 Jd = { longPressMessage: "长按或按 Alt + 向下方向键以打开菜单" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/zh-TW.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/intl/menu/zh-TW.mjs
 var Yd = {};
 Yd = { longPressMessage: "長按或按 Alt+向下鍵以開啟功能表" };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/intlStrings.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/intlStrings.mjs
 var Xd = {};
 Xd = {
 	"ar-AE": gd,
@@ -18546,7 +18546,7 @@ Xd = {
 	"zh-TW": Yd
 };
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useDescription.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useDescription.mjs
 var Zd = 0, Qd = /* @__PURE__ */ new Map();
 function $d(e) {
 	let [t, n] = (0, _.useState)();
@@ -18569,7 +18569,7 @@ function $d(e) {
 	}, [e]), { "aria-describedby": e ? t : void 0 };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useLongPress.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useLongPress.mjs
 var ef = 500;
 function tf(e) {
 	let { isDisabled: t, pointerType: n, onLongPressStart: r, onLongPressEnd: i, onLongPress: a, threshold: o = ef, accessibilityDescription: s } = e, c = (0, _.useRef)(void 0), { addGlobalListener: l, removeAllGlobalListeners: u } = qo(), d = (e) => n ? e.pointerType === n : e.pointerType === "mouse" || e.pointerType === "touch", { pressProps: f } = es({
@@ -18603,7 +18603,7 @@ function tf(e) {
 	return { longPressProps: ei(f, $d(a && !t ? s : void 0)) };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useContextMenu.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/interactions/useContextMenu.mjs
 function nf(e) {
 	let { onContextMenu: t } = e, n = (0, _.useRef)(!1), { longPressProps: r } = tf({
 		onLongPressStart() {
@@ -18647,7 +18647,7 @@ function nf(e) {
 	}) } : { contextMenuProps: {} };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuTrigger.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuTrigger.mjs
 function rf(e) {
 	return e && e.__esModule ? e.default : e;
 }
@@ -18730,10 +18730,10 @@ function af(e, t, n) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/utils.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/utils.mjs
 var of = /* @__PURE__ */ new WeakMap();
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/utils.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/utils.mjs
 function sf(e) {
 	return Da() ? e.altKey : e.ctrlKey;
 }
@@ -18750,14 +18750,14 @@ function df(e) {
 	return lf.get(e);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getScrollParents.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/getScrollParents.mjs
 function ff(e, t) {
 	let n = [], r = document.scrollingElement || document.documentElement;
 	for (; e && (Zl(e, t) && n.push(e), e !== r);) e = e.parentElement;
 	return n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/scrollIntoView.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/scrollIntoView.mjs
 function pf(e, t, n = {}) {
 	e !== t && mf(e, t, t.getBoundingClientRect(), n);
 }
@@ -18812,7 +18812,7 @@ function hf(e, t = {}) {
 	}
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useTypeSelect.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useTypeSelect.mjs
 var gf = 1e3;
 function _f(e) {
 	let { keyboardDelegate: t, selectionManager: n, onTypeSelect: r } = e, i = (0, _.useRef)({
@@ -18858,7 +18858,7 @@ function vf(e) {
 	return e.length === 1 || !/^[A-Z]/i.test(e) ? e : "";
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useUpdateLayoutEffect.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useUpdateLayoutEffect.mjs
 function yf(e, t) {
 	let n = (0, _.useRef)(!0), r = (0, _.useRef)(null);
 	kr(() => (n.current = !0, () => {
@@ -18868,7 +18868,7 @@ function yf(e, t) {
 	}, t);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableCollection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableCollection.mjs
 function bf(e) {
 	let { selectionManager: t, keyboardDelegate: n, ref: r, autoFocus: i = !1, shouldFocusWrap: a = !1, disallowEmptySelection: o = !1, disallowSelectAll: s = !1, escapeKeyBehavior: c = "clearSelection", selectOnFocus: l = t.selectionBehavior === "replace", disallowTypeAhead: u = !1, shouldUseVirtualFocus: d, allowsTabNavigation: f = !1, scrollRef: p = r, linkBehavior: m = "action", UNSTABLE_focusOnEntry: h } = e, { direction: g } = Ni(), v = Fa(), y = (e, n, i) => {
 		if (n != null) {
@@ -19125,7 +19125,7 @@ function bf(e) {
 	}) };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/DOMLayoutDelegate.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/DOMLayoutDelegate.mjs
 var xf = class {
 	constructor(e) {
 		this.ref = e;
@@ -19291,7 +19291,7 @@ function wf(e) {
 	return Cf.set(n, r), r;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableList.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableList.mjs
 function Tf(e) {
 	let { selectionManager: t, collection: n, disabledKeys: r, ref: i, keyboardDelegate: a, layoutDelegate: o, orientation: s } = e, c = wf({
 		usage: "search",
@@ -19322,7 +19322,7 @@ function Tf(e) {
 	return { listProps: d };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenu.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenu.mjs
 function Ef(e, t, n) {
 	let { shouldFocusWrap: r = !0, onKeyDown: i, onKeyUp: a, ...o } = e;
 	!e["aria-label"] && e["aria-labelledby"];
@@ -19351,7 +19351,7 @@ function Ef(e, t, n) {
 	}) };
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableItem.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/selection/useSelectableItem.mjs
 function Df(e) {
 	let { id: t, selectionManager: n, key: r, ref: i, shouldSelectOnPressUp: a, shouldUseVirtualFocus: o, focus: s, isDisabled: c, onAction: l, allowsDifferentPressOrigin: u, linkBehavior: d = "action" } = e, f = Fa();
 	t = qr(t);
@@ -19488,7 +19488,7 @@ function kf(e) {
 	return e === " ";
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/collections/getChildNodes.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/collections/getChildNodes.mjs
 function Af(e, t) {
 	return typeof t.getChildren == "function" ? t.getChildren(e.key) : e.childNodes;
 }
@@ -19514,7 +19514,7 @@ function Pf(e, t) {
 	return n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/collections/getItemCount.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/collections/getItemCount.mjs
 var Ff = /* @__PURE__ */ new WeakMap();
 function If(e) {
 	let t = Ff.get(e);
@@ -19525,7 +19525,7 @@ function If(e) {
 	return r(e), Ff.set(e, n), n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuItem.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuItem.mjs
 function Lf(e, t, n) {
 	let { id: r, key: i, closeOnSelect: a, shouldCloseOnSelect: o, isVirtualized: s, "aria-haspopup": c, onPressStart: l, onPressUp: u, onPress: d, onPressChange: f, onPressEnd: p, onClick: m, onHoverStart: h, onHoverChange: g, onHoverEnd: v, onKeyDown: y, onKeyUp: b, onFocus: x, onFocusChange: S, onBlur: C, selectionManager: w = t.selectionManager } = e, T = !!c, E = T && e["aria-expanded"] === "true", D = e.isDisabled ?? w.isDisabled(i), ee = e.isSelected ?? w.isSelected(i), te = of.get(t), O = t.collection.getItem(i), k = e.onClose || te.onClose, ne = Fa(), re = () => {
 		if (!T && (O?.props?.onAction ? O.props.onAction() : e.onAction && e.onAction(i), te.onAction)) {
@@ -19638,7 +19638,7 @@ function Lf(e, t, n) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuSection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/menu/useMenuSection.mjs
 function Rf(e) {
 	let { heading: t, "aria-label": n } = e, r = qr();
 	return {
@@ -19655,13 +19655,13 @@ function Rf(e) {
 	};
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/inertValue.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/inertValue.mjs
 function zf(e) {
 	let t = _.version.split(".");
 	return parseInt(t[0], 10) >= 19 ? e : e ? "true" : void 0;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLoadMoreSentinel.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria/dist/private/utils/useLoadMoreSentinel.mjs
 function Bf(e, t) {
 	let { collection: n, onLoadMore: r, scrollOffset: i = 1, direction: a = "end" } = e, o = (0, _.useRef)(null), s = Ko((e) => {
 		for (let t of e) t.isIntersecting && r && r();
@@ -19685,7 +19685,7 @@ function Bf(e, t) {
 	]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/selection/Selection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/selection/Selection.mjs
 var Vf = class e extends Set {
 	constructor(t, n, r) {
 		super(t), t instanceof e ? (this.anchorKey = n ?? t.anchorKey, this.currentKey = r ?? t.currentKey) : (this.anchorKey = n ?? null, this.currentKey = r ?? null);
@@ -20072,7 +20072,7 @@ function qf(e) {
 	return e[0].toUpperCase() + e.slice(1);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/collections/useCollection.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/collections/useCollection.mjs
 function Jf(e, t, n) {
 	let r = (0, _.useMemo)(() => new Wf(), []), { children: i, items: a, collection: o } = e;
 	return (0, _.useMemo)(() => o || t(r.build({
@@ -20088,7 +20088,7 @@ function Jf(e, t, n) {
 	]);
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/selection/useMultipleSelectionState.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/selection/useMultipleSelectionState.mjs
 function Yf(e, t) {
 	if (e.size !== t.size) return !1;
 	for (let n of e) if (!t.has(n)) return !1;
@@ -20132,7 +20132,7 @@ function Zf(e, t) {
 	return e ? e === "all" ? "all" : new Vf(e) : t;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-stately/dist/private/tree/useTreeState.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-stately/dist/private/tree/useTreeState.mjs
 function Qf(e) {
 	let { onExpandedChange: t } = e, [n, r] = kc(e.expandedKeys ? new Set(e.expandedKeys) : void 0, e.defaultExpandedKeys ? new Set(e.defaultExpandedKeys) : /* @__PURE__ */ new Set(), t), i = Xf(e), a = (0, _.useMemo)(() => e.disabledKeys ? new Set(e.disabledKeys) : /* @__PURE__ */ new Set(), [e.disabledKeys]), o = Jf(e, (0, _.useCallback)((e) => new Uf(e, { expandedKeys: n }), [n]), null);
 	return (0, _.useEffect)(() => {
@@ -20153,7 +20153,7 @@ function $f(e, t) {
 	return n.has(t) ? n.delete(t) : n.add(t), n;
 }
 //#endregion
-//#region ../../../../2026-10-01/task-18/node_modules/react-aria-components/dist/private/Menu.mjs
+//#region ../../../../../Documents/Codex/2026-10-01/task-18/node_modules/react-aria-components/dist/private/Menu.mjs
 var ep = /*#__PURE__*/ (0, _.createContext)(null), tp = /*#__PURE__*/ (0, _.createContext)(null), np = /*#__PURE__*/ (0, _.createContext)(null), rp = /*#__PURE__*/ (0, _.createContext)(null);
 function ip(e) {
 	let t = ld(e), n = (0, _.useRef)(null), { menuTriggerProps: r, menuProps: i } = af({
@@ -20386,16 +20386,16 @@ Ks(ws, function(e, t, n) {
 	}, l.children)));
 });
 var pp = {
-	trigger: "_trigger_61a49_1",
-	name: "_name_61a49_16",
-	who: "_who_61a49_20",
-	demo: "_demo_61a49_21",
-	popover: "_popover_61a49_26",
-	menu: "_menu_61a49_33",
-	section: "_section_61a49_39",
-	header: "_header_61a49_48",
-	item: "_item_61a49_53",
-	chosen: "_chosen_61a49_71"
+	trigger: "_trigger_bg7o4_1",
+	name: "_name_bg7o4_31",
+	who: "_who_bg7o4_39",
+	demo: "_demo_bg7o4_41",
+	popover: "_popover_bg7o4_51",
+	menu: "_menu_bg7o4_65",
+	section: "_section_bg7o4_77",
+	header: "_header_bg7o4_95",
+	item: "_item_bg7o4_105",
+	chosen: "_chosen_bg7o4_141"
 }, mp = [
 	"simple",
 	"guided",
@@ -20501,10 +20501,10 @@ function gp(e) {
 	})] });
 }
 var _p = {
-	stack: "_stack_eo4ru_1",
-	banner: "_banner_eo4ru_5",
-	text: "_text_eo4ru_15",
-	action: "_action_eo4ru_20"
+	stack: "_stack_t94ey_1",
+	banner: "_banner_t94ey_9",
+	text: "_text_t94ey_29",
+	action: "_action_t94ey_39"
 }, vp = [
 	"driving",
 	"demo-clock",
@@ -20543,14 +20543,14 @@ function xp({ items: e }) {
 	});
 }
 var Sp = {
-	sheet: "_sheet_1jt9z_1",
-	top: "_top_1jt9z_12",
-	kind: "_kind_1jt9z_21",
-	back: "_back_1jt9z_25",
-	close: "_close_1jt9z_26",
-	title: "_title_1jt9z_31",
-	body: "_body_1jt9z_39",
-	actions: "_actions_1jt9z_47"
+	sheet: "_sheet_lmnzb_1",
+	top: "_top_lmnzb_23",
+	kind: "_kind_lmnzb_41",
+	back: "_back_lmnzb_49",
+	close: "_close_lmnzb_51",
+	title: "_title_lmnzb_61",
+	body: "_body_lmnzb_77",
+	actions: "_actions_lmnzb_93"
 }, Cp = (0, _.createContext)({
 	setPrimary: () => {},
 	setClose: () => {},
@@ -20623,15 +20623,15 @@ function wp({ kind: e, position: t, title: n, back: r, onClose: i, onAdjacent: a
 	});
 }
 var Tp = {
-	frame: "_frame_17mz4_1",
-	main: "_main_17mz4_8",
-	pageCol: "_pageCol_17mz4_16",
-	column: "_column_17mz4_25",
-	wide: "_wide_17mz4_29",
-	withSheet: "_withSheet_17mz4_32",
-	page: "_page_17mz4_16",
-	sheetCol: "_sheetCol_17mz4_45",
-	narrow: "_narrow_17mz4_67"
+	frame: "_frame_ww527_1",
+	main: "_main_ww527_15",
+	pageCol: "_pageCol_ww527_31",
+	column: "_column_ww527_49",
+	wide: "_wide_ww527_57",
+	withSheet: "_withSheet_ww527_63",
+	page: "_page_ww527_31",
+	sheetCol: "_sheetCol_ww527_89",
+	narrow: "_narrow_ww527_133"
 };
 //#endregion
 //#region app/ui/src/app/Frame.tsx
@@ -20771,14 +20771,14 @@ function Op({ shell: e, address: t, onNavigate: n, counts: r, menu: i, banners: 
 	});
 }
 var kp = {
-	lock: "_lock_7wnxk_1",
-	form: "_form_7wnxk_8",
-	title: "_title_7wnxk_14",
-	unlock: "_unlock_7wnxk_22",
-	problem: "_problem_7wnxk_26",
-	actions: "_actions_7wnxk_32",
-	forgot: "_forgot_7wnxk_38",
-	paused: "_paused_7wnxk_48"
+	lock: "_lock_2tqwh_1",
+	form: "_form_2tqwh_15",
+	title: "_title_2tqwh_27",
+	unlock: "_unlock_2tqwh_43",
+	problem: "_problem_2tqwh_51",
+	actions: "_actions_2tqwh_63",
+	forgot: "_forgot_2tqwh_75",
+	paused: "_paused_2tqwh_95"
 };
 //#endregion
 //#region app/ui/src/app/LockScreen.tsx
@@ -20838,8 +20838,8 @@ function jp(e) {
 	return t === "0" ? 0 : t === "1" ? 1 : 2;
 }
 var Mp = {
-	label: "_label_9a4ch_1",
-	amber: "_amber_9a4ch_10"
+	label: "_label_u479a_1",
+	amber: "_amber_u479a_19"
 };
 //#endregion
 //#region app/ui/src/parts/Label.tsx
@@ -20863,14 +20863,14 @@ function Fp(e) {
 	return e.kind === "missing" ? e.missing : "unknown";
 }
 var Ip = {
-	figure: "_figure_qy1mi_1",
-	row: "_row_qy1mi_9",
-	tile: "_tile_qy1mi_10",
-	big: "_big_qy1mi_11",
-	button: "_button_qy1mi_13",
-	missing: "_missing_qy1mi_28",
-	asWritten: "_asWritten_qy1mi_34",
-	label: "_label_qy1mi_40"
+	figure: "_figure_145bm_1",
+	row: "_row_145bm_17",
+	tile: "_tile_145bm_19",
+	big: "_big_145bm_21",
+	button: "_button_145bm_25",
+	missing: "_missing_145bm_55",
+	asWritten: "_asWritten_145bm_67",
+	label: "_label_145bm_79"
 }, Lp = {
 	absent: "MISSING.absent",
 	null: "MISSING.null",
@@ -20930,10 +20930,10 @@ function zp({ value: e, size: t = "row", onReceipt: n, tabStop: r = !0, statemen
 	});
 }
 var Bp = {
-	state: "_state_1wqfm_1",
-	p: "_p_1wqfm_8",
-	note: "_note_1wqfm_12",
-	code: "_code_1wqfm_18"
+	state: "_state_n7dls_1",
+	p: "_p_n7dls_15",
+	note: "_note_n7dls_23",
+	code: "_code_n7dls_35"
 }, Vp = {
 	"no-change": "ST.noChange.plain",
 	loading: "ST.loading",
@@ -21143,13 +21143,13 @@ function Hp({ state: e, action: t, emptyKey: n = "ST.empty.review", className: r
 	}
 }
 var Up = {
-	header: "_header_1a5lt_1",
-	whereLine: "_whereLine_1a5lt_7",
-	titleLine: "_titleLine_1a5lt_8",
-	where: "_where_1a5lt_7",
-	title: "_title_1a5lt_8",
-	count: "_count_1a5lt_32",
-	aside: "_aside_1a5lt_38"
+	header: "_header_cmhed_1",
+	whereLine: "_whereLine_cmhed_13",
+	titleLine: "_titleLine_cmhed_15",
+	where: "_where_cmhed_13",
+	title: "_title_cmhed_15",
+	count: "_count_cmhed_63",
+	aside: "_aside_cmhed_75"
 };
 //#endregion
 //#region app/ui/src/app/PageHeader.tsx
@@ -21179,21 +21179,21 @@ function Wp({ where: e, title: t, titleId: n, count: r, aside: i, top: a }) {
 	});
 }
 var Gp = {
-	row: "_row_19isk_2",
-	line: "_line_19isk_8",
-	main: "_main_19isk_16",
-	static: "_static_19isk_34",
-	what: "_what_19isk_38",
-	title: "_title_19isk_47",
-	note: "_note_19isk_53",
-	asWritten: "_asWritten_19isk_54",
-	figure: "_figure_19isk_62",
-	arrowSlot: "_arrowSlot_19isk_66",
-	arrow: "_arrow_19isk_66",
-	arrowOpen: "_arrowOpen_19isk_78",
-	selected: "_selected_19isk_82",
-	open: "_open_19isk_83",
-	expansion: "_expansion_19isk_87"
+	row: "_row_1yyun_3",
+	line: "_line_1yyun_15",
+	main: "_main_1yyun_31",
+	static: "_static_1yyun_67",
+	what: "_what_1yyun_75",
+	title: "_title_1yyun_93",
+	note: "_note_1yyun_105",
+	asWritten: "_asWritten_1yyun_107",
+	figure: "_figure_1yyun_123",
+	arrowSlot: "_arrowSlot_1yyun_131",
+	arrow: "_arrow_1yyun_131",
+	arrowOpen: "_arrowOpen_1yyun_155",
+	selected: "_selected_1yyun_163",
+	open: "_open_1yyun_165",
+	expansion: "_expansion_1yyun_173"
 };
 //#endregion
 //#region app/ui/src/parts/Row.tsx
@@ -21286,8 +21286,8 @@ function qp({ row: e, selected: t = !1, open: n = !1, tabStop: r, onOpen: i, onR
 	});
 }
 var Jp = {
-	list: "_list_utcc2_1",
-	seeAll: "_seeAll_utcc2_8"
+	list: "_list_1ihao_1",
+	seeAll: "_seeAll_1ihao_15"
 }, Yp = "[data-row-main]", Xp = "[data-row-figure] button";
 function Zp({ rows: e, selectedId: t, openId: n, onOpen: r, opens: i, onReceipt: a, expansion: o, seeAll: s, labelledBy: c, registerOrigin: l, className: u }) {
 	let d = P(), f = (0, _.useRef)(null), [p, m] = (0, _.useState)(void 0), h = (e) => r !== void 0 && (i === void 0 || i(e)), g = e.filter(h), v = g.some((e) => e.id === p) ? p : g[0]?.id, y = (e, t) => {
@@ -21340,16 +21340,16 @@ function Zp({ rows: e, selectedId: t, openId: n, onOpen: r, opens: i, onReceipt:
 	});
 }
 var Qp = {
-	line: "_line_bz97d_1",
-	mark: "_mark_bz97d_10",
-	button: "_button_bz97d_28",
-	static: "_static_bz97d_29",
-	markRow: "_markRow_bz97d_47",
-	time: "_time_bz97d_53",
-	words: "_words_bz97d_58",
-	note: "_note_bz97d_66",
-	figure: "_figure_bz97d_67",
-	folded: "_folded_bz97d_74"
+	line: "_line_ohus2_1",
+	mark: "_mark_ohus2_19",
+	button: "_button_ohus2_55",
+	static: "_static_ohus2_57",
+	markRow: "_markRow_ohus2_93",
+	time: "_time_ohus2_105",
+	words: "_words_ohus2_115",
+	note: "_note_ohus2_131",
+	figure: "_figure_ohus2_133",
+	folded: "_folded_ohus2_147"
 };
 function $p({ events: e, onReceipt: t, onOpenAll: n, onOpenEvent: r, labelledBy: i, className: a }) {
 	let o = P(), s = e.slice(0, 6);
@@ -21413,12 +21413,12 @@ function $p({ events: e, onReceipt: t, onOpenAll: n, onOpenEvent: r, labelledBy:
 	});
 }
 var em = {
-	choice: "_choice_1xti7_1",
-	label: "_label_1xti7_8",
-	words: "_words_1xti7_13",
-	word: "_word_1xti7_13",
-	chosen: "_chosen_1xti7_34",
-	pair: "_pair_1xti7_42"
+	choice: "_choice_1hgu4_1",
+	label: "_label_1hgu4_15",
+	words: "_words_1hgu4_25",
+	word: "_word_1hgu4_25",
+	chosen: "_chosen_1hgu4_67",
+	pair: "_pair_1hgu4_83"
 };
 //#endregion
 //#region app/ui/src/parts/Choice.tsx
@@ -21486,12 +21486,12 @@ function rm({ value: e, onChange: t, className: n }) {
 	});
 }
 var im = {
-	field: "_field_6mo0j_1",
-	label: "_label_6mo0j_8",
-	line: "_line_6mo0j_13",
-	prefix: "_prefix_6mo0j_20",
-	input: "_input_6mo0j_24",
-	problem: "_problem_6mo0j_42"
+	field: "_field_11rmk_1",
+	label: "_label_11rmk_15",
+	line: "_line_11rmk_25",
+	prefix: "_prefix_11rmk_39",
+	input: "_input_11rmk_47",
+	problem: "_problem_11rmk_83"
 };
 //#endregion
 //#region app/ui/src/parts/Field.tsx
@@ -21587,32 +21587,32 @@ function mm(e, t, n, r) {
 	};
 }
 var hm = {
-	svg: "_svg_zkehr_4",
-	baseline: "_baseline_zkehr_12",
-	gap: "_gap_zkehr_17",
-	mark: "_mark_zkehr_23",
-	hit: "_hit_zkehr_28",
-	bar: "_bar_zkehr_33",
-	outline: "_outline_zkehr_38",
-	ink: "_ink_zkehr_44",
-	dim: "_dim_zkehr_45",
-	r1: "_r1_zkehr_46",
-	r2: "_r2_zkehr_47",
-	r3: "_r3_zkehr_48",
-	r4: "_r4_zkehr_49",
-	segment: "_segment_zkehr_51",
-	line: "_line_zkehr_55",
-	point: "_point_zkehr_64",
-	ring: "_ring_zkehr_69",
-	dot: "_dot_zkehr_74",
-	label: "_label_zkehr_83",
-	labelInk: "_labelInk_zkehr_87",
-	missing: "_missing_zkehr_91",
-	missingItem: "_missingItem_zkehr_96",
-	unavailable: "_unavailable_zkehr_101",
-	values: "_values_zkehr_108",
-	valueItem: "_valueItem_zkehr_114",
-	valueLabel: "_valueLabel_zkehr_120"
+	svg: "_svg_mrrmu_7",
+	baseline: "_baseline_mrrmu_23",
+	gap: "_gap_mrrmu_33",
+	mark: "_mark_mrrmu_45",
+	hit: "_hit_mrrmu_55",
+	bar: "_bar_mrrmu_65",
+	outline: "_outline_mrrmu_75",
+	ink: "_ink_mrrmu_87",
+	dim: "_dim_mrrmu_89",
+	r1: "_r1_mrrmu_91",
+	r2: "_r2_mrrmu_93",
+	r3: "_r3_mrrmu_95",
+	r4: "_r4_mrrmu_97",
+	segment: "_segment_mrrmu_101",
+	line: "_line_mrrmu_109",
+	point: "_point_mrrmu_127",
+	ring: "_ring_mrrmu_137",
+	dot: "_dot_mrrmu_147",
+	label: "_label_mrrmu_165",
+	labelInk: "_labelInk_mrrmu_173",
+	missing: "_missing_mrrmu_181",
+	missingItem: "_missingItem_mrrmu_191",
+	unavailable: "_unavailable_mrrmu_201",
+	values: "_values_mrrmu_215",
+	valueItem: "_valueItem_mrrmu_227",
+	valueLabel: "_valueLabel_mrrmu_239"
 };
 //#endregion
 //#region app/ui/src/parts/charts/marks.tsx
@@ -21967,12 +21967,12 @@ function Pm({ chart: e, onReceipt: t, width: n, height: r, className: i }) {
 	}
 }
 var Fm = {
-	stat: "_stat_l7cap_1",
-	label: "_label_l7cap_7",
-	figureLine: "_figureLine_l7cap_12",
-	change: "_change_l7cap_19",
-	chart: "_chart_l7cap_24",
-	unavailable: "_unavailable_l7cap_29"
+	stat: "_stat_qaegp_1",
+	label: "_label_qaegp_13",
+	figureLine: "_figureLine_qaegp_23",
+	change: "_change_qaegp_37",
+	chart: "_chart_qaegp_47",
+	unavailable: "_unavailable_qaegp_57"
 }, Im = {
 	CHART_NOT_PROVIDED: "CHART.unavailable.CHART_NOT_PROVIDED",
 	CHART_FORM_NOT_IMPLEMENTED: "CHART.unavailable.CHART_FORM_NOT_IMPLEMENTED",
@@ -22021,34 +22021,34 @@ function Lm({ tile: e, onReceipt: t, chartWidth: n, chartHeight: r, className: i
 	});
 }
 var R = {
-	today: "_today_fgw6n_3",
-	section: "_section_fgw6n_11",
-	label: "_label_fgw6n_16",
-	tiles: "_tiles_fgw6n_23",
-	tilesFour: "_tilesFour_fgw6n_28",
-	missing: "_missing_fgw6n_41",
-	quiet: "_quiet_fgw6n_46",
-	cash: "_cash_fgw6n_57",
-	cashForm: "_cashForm_fgw6n_65",
-	cashLabel: "_cashLabel_fgw6n_71",
-	cashField: "_cashField_fgw6n_77",
-	cashEntered: "_cashEntered_fgw6n_81",
-	cashChart: "_cashChart_fgw6n_85",
-	table: "_table_fgw6n_90",
-	queueMain: "_queueMain_fgw6n_117",
-	selected: "_selected_fgw6n_138",
-	thMark: "_thMark_fgw6n_142",
-	tdMark: "_tdMark_fgw6n_143",
-	num: "_num_fgw6n_147",
-	end: "_end_fgw6n_151",
-	asWritten: "_asWritten_fgw6n_156",
-	since: "_since_fgw6n_157",
-	then: "_then_fgw6n_158",
-	close: "_close_fgw6n_163",
-	closeRow: "_closeRow_fgw6n_170",
-	closeName: "_closeName_fgw6n_179",
-	closeStatus: "_closeStatus_fgw6n_185",
-	closeEnd: "_closeEnd_fgw6n_190"
+	today: "_today_4baaa_5",
+	section: "_section_4baaa_21",
+	label: "_label_4baaa_31",
+	tiles: "_tiles_4baaa_45",
+	tilesFour: "_tilesFour_4baaa_55",
+	missing: "_missing_4baaa_81",
+	quiet: "_quiet_4baaa_91",
+	cash: "_cash_4baaa_113",
+	cashForm: "_cashForm_4baaa_129",
+	cashLabel: "_cashLabel_4baaa_141",
+	cashField: "_cashField_4baaa_153",
+	cashEntered: "_cashEntered_4baaa_161",
+	cashChart: "_cashChart_4baaa_169",
+	table: "_table_4baaa_179",
+	queueMain: "_queueMain_4baaa_233",
+	selected: "_selected_4baaa_275",
+	thMark: "_thMark_4baaa_283",
+	tdMark: "_tdMark_4baaa_285",
+	num: "_num_4baaa_293",
+	end: "_end_4baaa_301",
+	asWritten: "_asWritten_4baaa_311",
+	since: "_since_4baaa_313",
+	then: "_then_4baaa_315",
+	close: "_close_4baaa_325",
+	closeRow: "_closeRow_4baaa_339",
+	closeName: "_closeName_4baaa_357",
+	closeStatus: "_closeStatus_4baaa_369",
+	closeEnd: "_closeEnd_4baaa_379"
 }, Rm = "system:setup", zm = "system:update";
 function Bm(e, t) {
 	let n = P(), r = [];
@@ -24094,17 +24094,17 @@ function o_(e, t) {
 	return t === a_[e] ? `ASK.consent.disclosure.${e}` : void 0;
 }
 var V = {
-	note: "_note_13we6_3",
-	block: "_block_13we6_10",
-	label: "_label_13we6_16",
-	exact: "_exact_13we6_24",
-	pairs: "_pairs_13we6_30",
-	pair: "_pair_13we6_30",
-	name: "_name_13we6_43",
-	value: "_value_13we6_49",
-	exchanges: "_exchanges_13we6_57",
-	exchange: "_exchange_13we6_57",
-	payload: "_payload_13we6_71"
+	note: "_note_c7qto_5",
+	block: "_block_c7qto_19",
+	label: "_label_c7qto_31",
+	exact: "_exact_c7qto_47",
+	pairs: "_pairs_c7qto_59",
+	pair: "_pair_c7qto_59",
+	name: "_name_c7qto_85",
+	value: "_value_c7qto_97",
+	exchanges: "_exchanges_c7qto_113",
+	exchange: "_exchange_c7qto_113",
+	payload: "_payload_c7qto_141"
 }, s_ = {
 	conversation: "planning",
 	"conversation-synthesis": "final-writing"
@@ -24348,35 +24348,35 @@ function p_({ stage: e, preview: t, origin: n, onClose: r, onSendReviewed: i, di
 	});
 }
 var H = {
-	answer: "_answer_7xx6j_4",
-	question: "_question_7xx6j_13",
-	section: "_section_7xx6j_30",
-	group: "_group_7xx6j_31",
-	label: "_label_7xx6j_37",
-	text: "_text_7xx6j_45",
-	note: "_note_7xx6j_51",
-	missing: "_missing_7xx6j_57",
-	code: "_code_7xx6j_62",
-	paragraph: "_paragraph_7xx6j_69",
-	tool: "_tool_7xx6j_75",
-	rows: "_rows_7xx6j_81",
-	row: "_row_7xx6j_81",
-	result: "_result_7xx6j_89",
-	tags: "_tags_7xx6j_103",
-	tag: "_tag_7xx6j_103",
-	pairs: "_pairs_7xx6j_126",
-	refs: "_refs_7xx6j_127",
-	figures: "_figures_7xx6j_128",
-	pair: "_pair_7xx6j_126",
-	name: "_name_7xx6j_141",
-	value: "_value_7xx6j_146",
-	figure: "_figure_7xx6j_128",
-	id: "_id_7xx6j_173",
-	ids: "_ids_7xx6j_181",
-	actions: "_actions_7xx6j_189",
-	more: "_more_7xx6j_197",
-	summary: "_summary_7xx6j_201",
-	detail: "_detail_7xx6j_212"
+	answer: "_answer_1q75t_7",
+	question: "_question_1q75t_25",
+	section: "_section_1q75t_59",
+	group: "_group_1q75t_61",
+	label: "_label_1q75t_73",
+	text: "_text_1q75t_89",
+	note: "_note_1q75t_101",
+	missing: "_missing_1q75t_113",
+	code: "_code_1q75t_123",
+	paragraph: "_paragraph_1q75t_137",
+	tool: "_tool_1q75t_149",
+	rows: "_rows_1q75t_161",
+	row: "_row_1q75t_161",
+	result: "_result_1q75t_177",
+	tags: "_tags_1q75t_205",
+	tag: "_tag_1q75t_205",
+	pairs: "_pairs_1q75t_251",
+	refs: "_refs_1q75t_253",
+	figures: "_figures_1q75t_255",
+	pair: "_pair_1q75t_251",
+	name: "_name_1q75t_281",
+	value: "_value_1q75t_291",
+	figure: "_figure_1q75t_255",
+	id: "_id_1q75t_345",
+	ids: "_ids_1q75t_361",
+	actions: "_actions_1q75t_377",
+	more: "_more_1q75t_393",
+	summary: "_summary_1q75t_401",
+	detail: "_detail_1q75t_423"
 }, m_ = {
 	"business.describe": "ASK.answer.tool.business",
 	"calculator.calculate": "ASK.answer.tool.calculation"
@@ -27422,32 +27422,32 @@ function ub(e) {
 	return e === "UNSUPPORTED_TRANSPORT" || e === "SCENARIO_HOST_REQUIRED" || e === "LESSON_AUTHORITY_REQUIRED" || e === "LESSON_AUTHORITIES_REQUIRED" || e === "EVALUATION_AUTHORITY_REQUIRED";
 }
 var K = {
-	page: "_page_ons6j_4",
-	scenario: "_scenario_ons6j_5",
-	group: "_group_ons6j_6",
-	title: "_title_ons6j_13",
-	heading: "_heading_ons6j_22",
-	identity: "_identity_ons6j_30",
-	text: "_text_ons6j_31",
-	note: "_note_ons6j_37",
-	table: "_table_ons6j_48",
-	head: "_head_ons6j_22",
-	column: "_column_ons6j_62",
-	columnLabel: "_columnLabel_ons6j_68",
-	cell: "_cell_ons6j_74",
-	jobs: "_jobs_ons6j_79",
-	list: "_list_ons6j_80",
-	job: "_job_ons6j_79",
-	jobTitle: "_jobTitle_ons6j_95",
-	state: "_state_ons6j_101",
-	figures: "_figures_ons6j_110",
-	pairs: "_pairs_ons6j_111",
-	pair: "_pair_ons6j_111",
-	value: "_value_ons6j_128",
-	name: "_name_ons6j_132",
-	figure: "_figure_ons6j_110",
-	label: "_label_ons6j_150",
-	actions: "_actions_ons6j_154"
+	page: "_page_1bn9e_7",
+	scenario: "_scenario_1bn9e_9",
+	group: "_group_1bn9e_11",
+	title: "_title_1bn9e_25",
+	heading: "_heading_1bn9e_43",
+	identity: "_identity_1bn9e_59",
+	text: "_text_1bn9e_61",
+	note: "_note_1bn9e_73",
+	table: "_table_1bn9e_95",
+	head: "_head_1bn9e_43",
+	column: "_column_1bn9e_123",
+	columnLabel: "_columnLabel_1bn9e_135",
+	cell: "_cell_1bn9e_147",
+	jobs: "_jobs_1bn9e_157",
+	list: "_list_1bn9e_159",
+	job: "_job_1bn9e_157",
+	jobTitle: "_jobTitle_1bn9e_189",
+	state: "_state_1bn9e_201",
+	figures: "_figures_1bn9e_219",
+	pairs: "_pairs_1bn9e_221",
+	pair: "_pair_1bn9e_221",
+	value: "_value_1bn9e_255",
+	name: "_name_1bn9e_263",
+	figure: "_figure_1bn9e_219",
+	label: "_label_1bn9e_299",
+	actions: "_actions_1bn9e_307"
 }, db = {
 	pending: "busy",
 	running: "busy",
@@ -27997,21 +27997,21 @@ function xb({ state: e, onRead: t, onProof: n, onProvenance: r, onBack: i, headi
 	});
 }
 var q = {
-	page: "_page_14jpc_3",
-	group: "_group_14jpc_4",
-	heading: "_heading_14jpc_11",
-	text: "_text_14jpc_19",
-	note: "_note_14jpc_25",
-	pairs: "_pairs_14jpc_32",
-	pair: "_pair_14jpc_32",
-	name: "_name_14jpc_45",
-	value: "_value_14jpc_50",
-	list: "_list_14jpc_57",
-	item: "_item_14jpc_65",
-	payload: "_payload_14jpc_73",
-	more: "_more_14jpc_83",
-	summary: "_summary_14jpc_87",
-	actions: "_actions_14jpc_98"
+	page: "_page_11gbb_5",
+	group: "_group_11gbb_7",
+	heading: "_heading_11gbb_21",
+	text: "_text_11gbb_37",
+	note: "_note_11gbb_49",
+	pairs: "_pairs_11gbb_63",
+	pair: "_pair_11gbb_63",
+	name: "_name_11gbb_89",
+	value: "_value_11gbb_99",
+	list: "_list_11gbb_113",
+	item: "_item_11gbb_129",
+	payload: "_payload_11gbb_145",
+	more: "_more_11gbb_165",
+	summary: "_summary_11gbb_173",
+	actions: "_actions_11gbb_195"
 }, Sb = 5;
 function Cb(e, t) {
 	let n = Math.max(0, Math.ceil(e.length / Sb) - 1), r = Math.min(Math.max(0, t), n) * Sb, i = e.slice(r, r + Sb);
@@ -30340,15 +30340,15 @@ function hC(e, t, n) {
 	});
 }
 var gC = {
-	steps: "_steps_1wcg0_1",
-	step: "_step_1wcg0_1",
-	dot: "_dot_1wcg0_30",
-	done: "_done_1wcg0_38",
-	here: "_here_1wcg0_42",
-	name: "_name_1wcg0_46",
-	state: "_state_1wcg0_57",
-	at: "_at_1wcg0_58",
-	walker: "_walker_1wcg0_66"
+	steps: "_steps_xpub7_1",
+	step: "_step_xpub7_1",
+	dot: "_dot_xpub7_59",
+	done: "_done_xpub7_75",
+	here: "_here_xpub7_83",
+	name: "_name_xpub7_91",
+	state: "_state_xpub7_113",
+	at: "_at_xpub7_115",
+	walker: "_walker_xpub7_131"
 }, _C = (e) => `STEPSTATE.${e}`;
 function vC({ steps: e, className: t }) {
 	let n = P(), r = Math.max(e.length, 2), i = e.findIndex((e) => e.state !== "done"), a = e.length > 0 && i === -1, o = a ? e.length - 1 : Math.max(i, 0), s = {
