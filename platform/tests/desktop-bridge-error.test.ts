@@ -132,3 +132,63 @@ test('renderer rejects malformed envelopes without reading getters, coercing cod
   const rejecting = createDesktopRequestPort({ async requestEnvelope() { throw new Error('VAULT_LOCKED: private SQL'); } });
   await assert.rejects(rejecting.request('ui.context'), { code: 'REQUEST_FAILED', message: 'The desktop request failed.' });
 });
+
+const retainedPublicRefusalCodes = [
+  'SCENARIO_UNAVAILABLE', 'SCENARIO_REVISION_UNAVAILABLE',
+  'SCENARIO_EVIDENCE_UNAVAILABLE', 'SCENARIO_FORBIDDEN',
+  'SCENARIO_AUTHORITY_CHANGED', 'SCENARIO_ARTIFACT_CHANGED',
+  'SCENARIO_RETENTION_EXPIRED', 'SCENARIO_HOST_REQUIRED',
+  'SCENARIO_CUSTODY_INVALID', 'SCENARIO_CUSTODY_CONFLICT',
+  'SCENARIO_TAINTED_CONTEXT', 'SCENARIO_WORKSPACE_CHANGED',
+  'SCENARIO_RUN_UNAVAILABLE', 'SCENARIO_READ_ONLY',
+  'SCENARIO_HEAD_CHANGED', 'SCENARIO_JOB_UNAVAILABLE',
+  'SCENARIO_BRANCH_UNAVAILABLE', 'SCENARIO_GRAPH_INVALID',
+  'SCENARIO_VECTOR_MISMATCH', 'INVALID_SCENARIO',
+  'LESSON_AUTHORITY_REQUIRED', 'LESSON_AUTHORITY_REVISION_REQUIRED',
+  'LESSON_AUTHORITY_CHANGED', 'LESSON_REVIEW_CHANGED',
+  'LESSON_EVALUATION_BLOCKED', 'EVALUATION_AUTHORITY_REQUIRED',
+  'EVALUATION_CHANGED', 'EVALUATION_CANDIDATE_MISMATCH',
+  'EVALUATION_PROVENANCE_REQUIRED', 'EVALUATION_COMPARISON_MISMATCH',
+  'INVALID_LESSON_EVALUATION', 'LESSON_EVIDENCE_UNAVAILABLE',
+  'LESSON_EVIDENCE_CHANGED', 'LESSON_TARGET_CHANGED',
+  'LESSON_OWNER_REQUIRED', 'LESSON_WORKSPACE_CHANGED',
+  'LESSON_NOT_FOUND', 'LESSON_CHANGED', 'INVALID_LESSON',
+  'INVALID_LESSON_DECISION', 'INVALID_LESSON_STATE',
+  'INVALID_LESSON_TARGET', 'APP_LESSON_REVIEW_REQUIRED',
+  'TAINTED_LESSON', 'LESSON_CONFLICT', 'INVALID_SUPERSESSION',
+] as const;
+
+test('public retained refusals preserve only their exact code through actual preload copies', async () => {
+  assert.equal(retainedPublicRefusalCodes.length, 46);
+  assert.equal(new Set(retainedPublicRefusalCodes).size, 46);
+  for (const code of retainedPublicRefusalCodes) {
+    const method = code.startsWith('SCENARIO_') || code === 'INVALID_SCENARIO'
+      ? 'scenarios.reopen' : 'memory.lessons';
+    const h = fixture(() => refusal(code));
+    const wire = await h.api.requestEnvelope(method, {});
+    assert.deepEqual(wire, { version: 1, ok: false, error: { code } }, code);
+    assert.equal(Object.isFrozen(wire), true);
+    assert.equal(Object.isFrozen((wire as { error: object }).error), true);
+    assert.equal(JSON.stringify(wire).includes('Synthetic private detail'), false);
+    await assert.rejects(h.port.request(method, {}), {
+      code, message: 'The desktop request failed.',
+    });
+    assert.equal(h.calls.length, 2, 'Each explicit probe dispatches once; neither retries.');
+  }
+});
+
+test('private, unemitted and unknown retained codes remain generic at both bridge copies', async () => {
+  for (const code of [
+    'LESSON_AUTHORITIES_REQUIRED', 'PROTECTED_LESSON_TARGET',
+    'INVALID_LESSON_STATE_NAMESPACE', 'SYNTHETIC_RETAINED_UNKNOWN',
+  ]) {
+    const h = fixture(() => refusal(code));
+    assert.deepEqual(await h.api.requestEnvelope('memory.lessons', {}), {
+      version: 1, ok: false, error: { code: 'REQUEST_FAILED' },
+    });
+    await assert.rejects(h.port.request('memory.lessons', {}), {
+      code: 'REQUEST_FAILED', message: 'The desktop request failed.',
+    });
+    assert.equal(h.calls.length, 2);
+  }
+});

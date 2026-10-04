@@ -1,0 +1,103 @@
+/* Proposed lessons hold layout only: plain ground, grey names, rows between hairlines. */
+
+.page,
+.group {
+  display: grid;
+  gap: var(--sp4);
+  align-content: start;
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--fs-note2);
+  font-weight: var(--fw-regular);
+  color: var(--mute);
+}
+
+/* Source text as written: its spaces and line breaks are kept and nothing is cut. */
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.pairs {
+  margin: 0;
+  display: grid;
+  gap: var(--sp2);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  column-gap: var(--sp4);
+  align-items: baseline;
+}
+
+.name {
+  color: var(--mute);
+  font-size: var(--fs-note2);
+}
+
+.value {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-note2);
+  overflow-wrap: anywhere;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--sp3);
+}
+
+.item {
+  display: grid;
+  gap: var(--sp2);
+  padding-bottom: var(--sp3);
+  border-bottom: var(--hair) solid var(--line);
+}
+
+/* An exact value as supplied: the number face with a hairline at the left. */
+.payload {
+  margin: 0;
+  padding: var(--sp1) 0 var(--sp1) var(--sp4);
+  border-left: var(--hair) solid var(--line2);
+  font-size: var(--fs-note);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--fg2);
+}
+
+.more {
+  min-width: 0;
+}
+
+.summary {
+  min-height: var(--target);
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+  cursor: pointer;
+}
+
+.more[open] > .summary {
+  margin-bottom: var(--sp2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp3);
+}
