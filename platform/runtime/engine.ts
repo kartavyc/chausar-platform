@@ -55,6 +55,12 @@ import { EngineConnectorService, connectorDiscoveryGeneration, type EngineConnec
 import { PrivateTrialHostService } from './private-trial-host.ts';
 import { EngineScenarioService } from './engine-scenarios.ts';
 import { createEngineLessonService, type EngineLessonOptions } from './engine-lessons.ts';
+import { EngineTodayService } from './engine-today.ts';
+import type { TodayAttentionSelectionPolicy } from './engine-today-contracts.ts';
+import { TodayTilesService } from './today-tiles.ts';
+import { TodayAttentionService, type TodayAttentionOptions } from './today-attention.ts';
+import { TodayEventsService } from './today-events.ts';
+import { TodayReviewService } from './today-review.ts';
 import type { LessonDecision } from './lesson-contracts.ts';
 import type { PrivateTrialAtomicPublication } from './private-trial-host.ts';
 import type { PrivateTrialRecipeEvidence } from './private-trial-contracts.ts';
@@ -78,7 +84,17 @@ export type EngineBackupCustodyOptions = {
   /** Trusted installed host capability, never supplied by an RPC payload. */
   withCompleteOwner?<T>(context: Context, historical: State, work: (assertCurrent: () => void) => Promise<T>): Promise<T>;
 };
+/** Installed display and live read authority. RPCs cannot install these ports
+ * or select implicit tile presets, business zones, or attention ordering. */
+export type EngineTodayHostOptions = {
+  calendarRules?: CalendarRules;
+  calendar?: TodayAttentionOptions['calendar'];
+  selection?: TodayAttentionSelectionPolicy;
+  /** Advance for every outside-State report, job, lesson or calendar guard change. */
+  authorityRevision?: () => string;
+};
 export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
+  today?: EngineTodayHostOptions;
   /** Trusted host custody for direct Vault lifecycles, never an RPC or archive.
    * No native platform provider is installed or qualified by this contract. */
   keychain?: KeychainHook;
@@ -757,6 +773,72 @@ export class Engine {
       inputSchema: { type: 'object', additionalProperties: false, required: ['operation'], properties: { operation: { type: 'string', enum: ['billed', 'received', 'earned', 'refunds', 'costs', 'purchases', 'revenue', 'net_sales', 'margin', 'aging', 'change', 'scenario'] }, period: { type: 'object' }, asOf: { type: 'string' }, branch: { type: 'string' }, customerId: { type: 'string' }, orderId: { type: 'string' }, comparePeriod: { type: 'object' }, assumptions: { type: 'object' }, onDate: { type: 'string' } } },
       calculate: async (request: any, ctx: Context) => { const receipt = await this.services.calculator.calculate(ctx, request); return { value: receipt.totalMinor, receipt }; },
     }], receiptReader: (ctx: Context, id: string) => this.services.calculator.receipt(ctx, id) });
+    const todayHost = this.options.today, installedReports = this.options.reports,
+      installedJobs = this.options.durableJobs, installedLessons = this.options.lessons,
+      installedConnectors = this.options.connectorRuntime, installedCalendar = this.options.jobCalendar;
+    const rules = todayHost?.calendarRules ?? installedCalendar?.rules;
+    const externalRevision = todayHost?.authorityRevision, calendar = todayHost?.calendar,
+      selection = todayHost?.selection;
+    const selectionRevision = selection?.revision, selectAttention = selection?.select, selectionId = selection?.id;
+    const assertTodayConfiguration = () => {
+      check(this.options.today === todayHost && this.options.reports === installedReports
+        && this.options.durableJobs === installedJobs && this.options.lessons === installedLessons
+        && this.options.connectorRuntime === installedConnectors && this.options.jobCalendar === installedCalendar
+        && todayHost?.authorityRevision === externalRevision && todayHost?.calendar === calendar
+        && todayHost?.selection === selection && selection?.revision === selectionRevision
+        && selection?.select === selectAttention && selection?.id === selectionId
+        && (todayHost?.calendarRules ?? installedCalendar?.rules) === rules,
+      'TODAY_AUTHORITY_CHANGED', 'Installed Today authorities changed. Reopen the workspace before reading again.');
+    };
+    const readTodayHostRevision = () => {
+      check(!(installedReports?.executionReceipt || installedJobs || installedLessons || calendar || selection) || typeof externalRevision === 'function',
+        'TODAY_HOST_AUTHORITY_REQUIRED', 'Install a live Today generation for outside-workspace read guards.');
+      const revision: unknown = externalRevision?.();
+      if (revision instanceof Promise) void revision.catch(() => {});
+      check(!externalRevision || typeof revision === 'string' && revision.trim() === revision && revision.length >= 1
+        && revision.length <= 200 && !/[\u0000-\u001f]/.test(revision),
+      'TODAY_HOST_AUTHORITY_REQUIRED', 'Supply a bounded synchronous live Today generation.');
+      return revision ?? null;
+    };
+    const readTodaySelectionRevision = () => {
+      const revision: unknown = selectionRevision?.call(selection);
+      if (revision instanceof Promise) void revision.catch(() => {});
+      check(!selection || typeof revision === 'string' && revision.trim() === revision && revision.length >= 1
+        && revision.length <= 4096 && !/[\u0000-\u001f]/.test(revision),
+      'TODAY_HOST_AUTHORITY_REQUIRED', 'Supply the current synchronous installed attention policy generation.');
+      return revision ?? null;
+    };
+    const todayAuthorityRevision = () => {
+      assertTodayConfiguration();
+      const before = readTodayHostRevision(), policyBefore = readTodaySelectionRevision(),
+        connectors = connectorRuntime.discoveryReadinessRevision(), policyAfter = readTodaySelectionRevision(),
+        after = readTodayHostRevision();
+      assertTodayConfiguration();
+      check(before === after && policyBefore === policyAfter, 'TODAY_AUTHORITY_CHANGED', 'Outside-workspace Today authority changed while current connector readiness was checked.');
+      return hash({ connectors, external: after, selection: selection ? { id: selectionId, revision: policyAfter } : null,
+        calendarRules: rules ? { revision: rules.revision, minYear: rules.minYear, maxYear: rules.maxYear } : null });
+    };
+    const currentCalculationOptions = (view: StateStore): CalculatorOptions => {
+      const connectors = connectorForView(view);
+      return { ...calculationOptions,
+        consumerGuard: (member, request) => connectors.assertCalculationReady(member, request),
+        receiptGuard: (member, receipt) => connectors.assertReceiptReady(member, receipt) };
+    };
+    const review = new TodayReviewService(store, { actions: this.services.actions, jobs: this.services.jobs,
+      authorityRevision: todayAuthorityRevision,
+      ...(installedLessons?.evaluations ? { lessons: { service: this.services.lessons,
+        targets: installedLessons.targets, evaluations: installedLessons.evaluations } } : {}),
+      unsupportedMutations: { actionConnectors: [invoiceConnectorId], jobTypes: [invoiceJobType] } });
+    this.services.today = new EngineTodayService({ store, authorityRevision: todayAuthorityRevision,
+      tiles: new TodayTilesService(this.services.calculator),
+      attention: new TodayAttentionService(store, {
+        alertsOptions: view => ({ calculatorOptions: currentCalculationOptions }),
+        reportOptions: view => ({ ...reportOptions, ...currentCalculationOptions(view) }),
+        ...(calendar ? { calendar } : {}) }),
+      events: new TodayEventsService({ store, ...(rules ? { rules } : {}), services: {
+        learning: this.services.learning, calculator: this.services.calculator,
+        actions: this.services.actions, reports: this.services.reports, jobs: this.services.jobs } }),
+      review, ...(selection ? { selection } : {}) });
   }
   private builtinActions(store: StateStore): any {
     const draft = {
@@ -868,13 +950,14 @@ export class Engine {
       check(this.options.sync === undefined, 'SYNC_EXISTING_WORKSPACE_REQUIRED', 'Create a local workspace before enrolling its exact identity in device sync.');
       check(!this.vault, 'VAULT_OPEN', 'Lock the current workspace before creating another.');
       check(typeof payload.name === 'string' && payload.name.trim().length >= 2 && payload.name.length <= 100, 'INVALID_NAME', 'Give your business a name.');
+      if (payload.demoFixtureMonth !== undefined) check(this.#demo && payload.demo === true, 'DEMO_ONLY', 'Only a synthetic launch may select a sample fixture month.');
       const pack = payload.pack ?? 'ecommerce'; check(new OntologyService({ read: () => { throw new Error('No vault'); }, update: async () => { throw new Error('No vault'); } }).packs().some(p => p.pack === pack), 'UNKNOWN_PACK', 'Choose an available business starter pack.');
       const folder = payload.folder ?? 'main';
       return this.withWorkspaceStorage(folder, 'create', async storage => {
       const result = await Vault.create({ directory: this.workspacePath(folder), passphrase: payload.passphrase, name: payload.name.trim(), demo: !!payload.demo, storage, keychain: this.options.keychain });
       try {
         await this.attach(result.vault); await this.services.ontology.publish(this.context, pack);
-        if (payload.demo) await seedDemo(this.store(), this.context);
+        if (payload.demo) await seedDemo(this.store(), this.context, payload.demoFixtureMonth);
         return { workspace: this.store().read().workspace, recoveryKit: result.recoveryCode, recoveryCode: result.recoveryCode, experimental: !!this.options.demo };
       } catch (error) { await this.deleteVault(result.vault); throw error; }
       });
@@ -930,6 +1013,31 @@ export class Engine {
       check(s.invoiceFollowUp, 'INVOICE_HOST_UNAVAILABLE', 'A trusted synthetic invoice host with explicit policy is required.');
     }
     switch (method) {
+      case 'today.prepareTiles': {
+        this.journalPayload(payload, ['date', 'timeZone', 'starterPack', 'configurationId', 'configurationDigest', 'request'],
+          ['date', 'timeZone', 'starterPack', 'configurationId', 'configurationDigest', 'request'], 'INVALID_TODAY_REQUEST');
+        return s.today.prepareTiles(ctx, payload);
+      }
+      case 'today.get': {
+        this.journalPayload(payload, ['date', 'timeZone', 'tileCapture'], ['date', 'timeZone'], 'INVALID_TODAY_REQUEST');
+        return this.vault!.snapshot(async () => s.today.get(ctx, payload));
+      }
+      case 'today.review': {
+        this.journalPayload(payload, ['limit', 'cursor'], [], 'INVALID_TODAY_REQUEST');
+        return this.vault!.snapshot(async () => s.today.review(ctx, payload));
+      }
+      case 'today.resolveReview': {
+        this.journalPayload(payload, ['reference'], ['reference'], 'INVALID_TODAY_REQUEST');
+        return this.vault!.snapshot(async () => s.today.resolveReview(ctx, payload.reference));
+      }
+      case 'today.resolveEvent': {
+        this.journalPayload(payload, ['date', 'timeZone', 'eventId'], ['date', 'timeZone', 'eventId'], 'INVALID_TODAY_REQUEST');
+        return this.vault!.snapshot(async () => s.today.resolveEvent(ctx, payload));
+      }
+      case 'today.resolveAttention': {
+        this.journalPayload(payload, ['date', 'timeZone', 'reference'], ['date', 'timeZone', 'reference'], 'INVALID_TODAY_REQUEST');
+        return this.vault!.snapshot(async () => s.today.resolveAttention(ctx, payload));
+      }
       case 'ui.context': {
         this.journalPayload(payload, [], [], 'INVALID_UI_CONTEXT');
         const member = authorize(store, ctx), state = store.read();
@@ -1433,7 +1541,7 @@ export class Engine {
       case 'jobs.accept': {
         const job = s.jobs.find(store.read(), payload.id); s.jobs.owner(store.read(), ctx, job);
         if (job.plan) check(this.jobRunner().canRelease(ctx, job), 'JOB_EVIDENCE_REVOKED', 'Review currently accessible evidence before accepting this result.');
-        return s.jobs.accept(ctx, payload.id, payload.repeat === true);
+        return s.jobs.accept(ctx, payload.id, payload.repeat === true, payload.reference);
       }
       case 'jobs.approve': return s.jobs.approve(ctx, payload.id, payload.digest);
       case 'jobs.reject': return s.jobs.reject(ctx, payload.id, payload.reason);

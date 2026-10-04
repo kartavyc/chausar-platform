@@ -353,10 +353,22 @@ export class ImportService {
     const csv = adapter.utils.sheet_to_csv(sheet); return this.preview(ctx, { ...input, format: 'csv', content: csv });
   }
 }
-export async function seedDemo(store: StateStore, ctx: Context) {
+/** Calendar-only copy of the authored synthetic fixture. Ordinary seed callers
+ * retain the fixed fixture; the guarded native preview selects its UTC month. */
+export function demoCsvForMonth(month: string): string {
+  check(typeof month === 'string' && /^\d{4}-(?:0[1-9]|1[0-2])$/.test(month)
+    && month >= '0001-01' && validDate(`${month}-01`), 'INVALID_REQUEST', 'Select a valid synthetic fixture calendar month.');
+  const preceding = new Date(`${month}-01T00:00:00.000Z`);
+  preceding.setUTCMonth(preceding.getUTCMonth() - 1);
+  const precedingMonth = preceding.toISOString().slice(0, 7);
+  return demoCsv.replace(/\b2026-(08|09)-(\d{2})\b/g,
+    (_date, sourceMonth: string, day: string) => `${sourceMonth === '08' ? precedingMonth : month}-${day}`);
+}
+export async function seedDemo(store: StateStore, ctx: Context, month?: string) {
   check(store.read().workspace.demo, 'DEMO_ONLY', 'Synthetic demo fixtures can only be seeded in a labelled demo workspace.');
+  const content = month === undefined ? demoCsv : demoCsvForMonth(month);
   const ontology = new OntologyService(store); if (!ontology.current(ctx)) await ontology.publish(ctx, 'ecommerce');
-  return new ImportService(store).commit(ctx, { sourceId: 'demo-export', format: 'csv', content: demoCsv, recipe: structuredClone(demoRecipe), expectedTotals: { rowCount: 10, amountMinor: '1230000' } });
+  return new ImportService(store).commit(ctx, { sourceId: 'demo-export', format: 'csv', content, recipe: structuredClone(demoRecipe), expectedTotals: { rowCount: 10, amountMinor: '1230000' } });
 }
 
 export function matchGstPurchases(gst: FactInput[], purchases: FactInput[]) {

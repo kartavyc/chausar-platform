@@ -11,7 +11,7 @@ const connectorMethods = [
 ] as const;
 const addedJobMethods = ['jobs.types', 'jobs.amend', 'jobs.cancel', 'jobs.reconcile', 'jobs.progress'] as const;
 const calendarMethods = ['jobs.calendar.preview', 'jobs.calendar.configure', 'jobs.calendar.pause', 'jobs.calendar.resume'] as const;
-type RequestMethod = typeof connectorMethods[number] | typeof addedJobMethods[number] | typeof calendarMethods[number] | 'jobs.create' | 'jobs.accept' | 'sources.groups' | 'scenarios.discover';
+type RequestMethod = typeof connectorMethods[number] | typeof addedJobMethods[number] | typeof calendarMethods[number] | 'jobs.create' | 'jobs.accept' | 'sources.groups' | 'scenarios.discover' | 'today.get' | 'today.review' | 'today.resolveReview' | 'today.resolveEvent' | 'today.resolveAttention';
 
 const recipe = {
   version: 1, id: 'reviewed-mapping', system: 'fixture', edition: '1',
@@ -23,6 +23,11 @@ const recipe = {
   allowedKinds: ['sale'], allowedStatuses: ['delivered'], onUnmapped: 'reject',
 } satisfies DesktopPayload<'connectors.capture'>['recipe'];
 const requests = {
+  'today.get': { date: '2026-10-04', timeZone: 'Asia/Kolkata' },
+  'today.review': { limit: 4 },
+  'today.resolveReview': { reference: { kind: 'job-acceptance', id: 'job-fixture', revision: 1, digest: 'a'.repeat(64), deliverableDigest: 'b'.repeat(64) } },
+  'today.resolveEvent': { date: '2026-10-04', timeZone: 'Asia/Kolkata', eventId: 'event-fixture' },
+  'today.resolveAttention': { date: '2026-10-04', timeZone: 'Asia/Kolkata', reference: { kind: 'decision', decisionId: 'decision-fixture' } },
   'sources.groups': {},
   'scenarios.discover': { limit: 25, cursor: 'a'.repeat(64) },
   'jobs.types': {},
@@ -63,7 +68,7 @@ test('desktop jobs, connectors and scenarios whitelist covers exactly the actual
     readFile(new URL('../runtime/engine.ts', import.meta.url), 'utf8'),
     readFile(new URL('../runtime/engine-connectors.ts', import.meta.url), 'utf8'),
   ]);
-  for (const [namespace, source] of [['jobs', engine], ['connectors', connectors], ['scenarios', engine]]) {
+  for (const [namespace, source] of [['jobs', engine], ['connectors', connectors], ['scenarios', engine], ['today', engine]]) {
     const dispatched = [...source.matchAll(/case '([^']+)':/g)].map(match => match[1]).filter(method => method.startsWith(`${namespace}.`));
     assert.ok(dispatched.length > 0, `${namespace} needs real dispatcher cases.`);
     assert.deepEqual(METHODS.filter((method: string) => method.startsWith(`${namespace}.`)).sort(), [...new Set(dispatched)].sort());
@@ -90,7 +95,7 @@ test('desktop retains legacy source requests and refuses invented connector or j
   assert.ok(sourceMethods.includes('sources.groups'), 'The planned family catalogue must be publicly dispatched.');
   assert.deepEqual(METHODS.filter((method: string) => method.startsWith('sources.')).sort(), [...new Set(sourceMethods)].sort());
   for (const method of sourceMethods) assert.deepEqual(validateRequest({ method, payload: {} }), { method, payload: {} });
-  for (const method of ['connectors.install', 'connectors.readBytes', 'jobs.executePlan', 'jobs.calendar.installRules', 'scenarios.list', 'scenarios.lookupLabel']) {
+  for (const method of ['connectors.install', 'connectors.readBytes', 'jobs.executePlan', 'jobs.calendar.installRules', 'scenarios.list', 'scenarios.lookupLabel', 'today.install', 'today.approve', 'today.execute']) {
     assert.throws(() => validateRequest({ method, payload: {} }), (error: any) => error.code === 'INVALID_REQUEST');
   }
 });

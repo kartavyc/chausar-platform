@@ -330,15 +330,17 @@ export class EngineScenarioService {
         check(hash(canonical(current)) === hash(canonical(row)), 'SCENARIO_AUTHORITY_CHANGED',
           'The selected discovery projection changed before release.');
       }
-      // Check the complete candidate set at one release instant after the last
-      // guard callback: continuation must not hint at newly expired hidden rows.
+      // Finish all readiness callbacks before sampling the final retention clock.
+      // Computing a stable readiness stamp can itself cross a retention cutoff.
+      assertReadiness();
+      // Check the complete candidate set at one release instant: continuation
+      // must not hint at newly expired hidden rows.
       const releaseAt = (this.#options.now ?? now)();
       for (const id of new Set(available.map(item => item.row.scenarioId))) {
         const record = records(state).find(item => item.id === id)!;
         assertRetention(state, record, releaseAt);
       }
-      // No readiness or clock callbacks run after this shared generation fence.
-      assertReadiness();
+      // No readiness or clock callbacks run after this shared retention fence.
       authorize(this.#store, ctx);
       check(hash(this.#vault.readIdentity()) === hash(identity), 'SCENARIO_AUTHORITY_CHANGED', 'Scenario discovery authority changed.');
       return structuredClone({ mode: 'retained-revisions' as const, items: selected.map(item => item.row),

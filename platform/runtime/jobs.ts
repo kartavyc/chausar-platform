@@ -17,6 +17,8 @@ export type JobConfig = {
   catchup?: 'skip' | 'latest'; graceMs?: number; requiresApproval?: boolean; sourceIds?: string[];
 };
 export type Lease = { token: string; workerId: string; fence: number; expiresAt: string; reservedMinor: string; chargedMinor: string };
+/** A read pin is compared again inside the acceptance authority transaction. */
+export type JobAcceptanceReference = { kind: 'job-acceptance'; id: string; revision: number; digest: string; deliverableDigest: string };
 export type Job = {
   calendar?: JobCalendar;
   input?: unknown; plan?: GoalPlan; limits?: GoalLimits; allowedActions?: string[]; testedRoutes?: string[]; background?: boolean; execution?: GoalExecution; archivedExecutions?: GoalExecution[];
@@ -258,9 +260,21 @@ export class JobService {
       job.runs += 1; job.deliverable = clean; job.status = 'awaiting-acceptance'; job.ledger.push({ at: this.timestamp(), event: 'delivered', fence: lease.fence, amountMinor: String(totalCost) }); audit(state, 'job.delivered', { jobId: id, spentMinor: job.spentMinor }); return this.view(context, job, state);
     });
   }
-  async accept(context: Context, id: string, repeat = false): Promise<Job> {
+  async accept(context: Context, id: string, repeat = false, reference?: JobAcceptanceReference): Promise<Job> {
+    check(reference === undefined || reference !== null && typeof reference === 'object' && !Array.isArray(reference)
+      && Object.getPrototypeOf(reference) === Object.prototype
+      && Object.keys(reference).length === 5 && Object.keys(reference).every(key => ['kind', 'id', 'revision', 'digest', 'deliverableDigest'].includes(key))
+      && reference.kind === 'job-acceptance' && typeof reference.id === 'string' && reference.id.length >= 1 && reference.id.length <= 200
+      && Number.isSafeInteger(reference.revision) && reference.revision >= 1
+      && typeof reference.digest === 'string' && /^[a-f0-9]{64}$/.test(reference.digest)
+      && typeof reference.deliverableDigest === 'string' && /^[a-f0-9]{64}$/.test(reference.deliverableDigest),
+    'INVALID_JOB_ACCEPTANCE_REFERENCE', 'Supply the complete exact reviewed acceptance reference.');
+    const expected = reference === undefined ? undefined : structuredClone(reference);
     return this.store.update(state => {
       const job = this.find(state, id); this.owner(state, context, job); check(context.memberId === job.ownerId && context.epoch === job.ownerEpoch && context.role === job.ownerRole, 'JOB_OWNER_REQUIRED', 'Only the pinned owner may accept the result.'); check(!context.sourceTainted && context.channel !== 'phone', 'APP_ACCEPTANCE_REQUIRED', 'Accept delivered work inside the app.'); check(job.status === 'awaiting-acceptance', 'INVALID_JOB_STATE', 'A human can accept a delivered result.');
+      check(!expected || expected.id === id && expected.revision === job.revision && expected.digest === job.digest
+        && job.digest === this.identity(job) && job.deliverable !== undefined && expected.deliverableDigest === digest(job.deliverable),
+      'PREVIEW_CHANGED', 'Review this exact current objective and deliverable before accepting it.');
       if (job.plan || job.type === 'owner-brief') check(this.deliverableGuard?.(context, structuredClone(job), this.evidenceView(state)) === true, 'JOB_EVIDENCE_REVOKED', 'Accept only currently accessible evidence for this exact objective.');
       job.ledger.push({ at: this.timestamp(), event: 'accepted' }); job.status = 'accepted';
       if (job.calendar?.current) { const c = job.calendar; const record = c.records.find(x => x.id === c.current)!; record.status = 'accepted'; if (c.definition.overlap === 'skip') c.skipOverlapWindows.push({ from: record.at, to: this.timestamp() }); delete c.current; }

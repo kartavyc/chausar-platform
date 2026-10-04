@@ -72,7 +72,7 @@ async function bootstrapPreviewWorkspace() {
     if (stopping) return;
     method = 'workspace.create';
     await engine.request(method, { name: 'Chausar Preview (synthetic business)', folder: 'main', pack: 'ecommerce',
-      demo: true, passphrase: randomBytes(32).toString('base64url') });
+      demo: true, demoFixtureMonth: new Date().toISOString().slice(0, 7), passphrase: randomBytes(32).toString('base64url') });
     if (stopping) return;
     assertDemoProfile(app, demoProfile);
     method = 'ui.context';

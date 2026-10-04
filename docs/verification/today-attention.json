@@ -1,0 +1,50 @@
+{
+  "baseCommit": "2bc59dc1f527ec67dafa8fa350fd9832f3f705ba",
+  "baseRemoteRef": "refs/heads/private/joined-source-corpus-native-fable-20261003",
+  "baseRemoteShaVerified": "2bc59dc1f527ec67dafa8fa350fd9832f3f705ba",
+  "privateBranch": "private/today-attention-20261004",
+  "runtime": "Node.js v24.19.0",
+  "sourceHashes": {
+    "platform/runtime/today-attention.ts": "f5984aef96f05797aaa34867f90de5ede1ad1ec031284f12c89df0f7d23da616",
+    "platform/tests/today-attention.test.ts": "6c1a81f5cd2812f575aa6ec31f4e5661c35092088606194899d584f7639b21de"
+  },
+  "tests": {
+    "command": "node --test --test-reporter=tap platform/tests/today-attention.test.ts platform/tests/alerts.test.ts platform/tests/alerts-acceptance.test.ts platform/tests/decision-journal.test.ts platform/tests/decision-journal-facade.test.ts",
+    "passed": 84,
+    "failed": 0,
+    "skipped": 0,
+    "focusedTodayTests": 16,
+    "affectedRegressions": 68,
+    "output": "docs/verification/today-attention-tests.tap",
+    "realServiceProof": "Real CSV import, ontology, calculation, AlertsService and ReportService over synthetic business data in encrypted experimental-file Vault storage; restart and unchanged authority bytes verified."
+  },
+  "syntax": {
+    "command": "node scripts/check.mjs",
+    "passed": true,
+    "validatedSourceFiles": 573
+  },
+  "strictTypecheck": {
+    "available": false,
+    "reason": "tsc is not on PATH; repository node_modules/typescript and node_modules/.bin/tsc are absent; TypeScript module resolution is unavailable. No package was acquired."
+  },
+  "independentSourceReview": {
+    "completed": true,
+    "remainingBlockingFindings": 0,
+    "correctedFindings": [
+      "Calendar output explicitly selects declared properties instead of forwarding adapter payloads.",
+      "Sparse source/entry arrays are rejected as incomplete provenance.",
+      "Source links require a parsed HTTPS URL with a hostname.",
+      "Initial state is cloned before final snapshot comparison."
+    ]
+  },
+  "scope": {
+    "engineRegistration": "parent-owned; untouched",
+    "sharedTodayDto": "parent-owned; untouched",
+    "desktopAllowlist": "parent-owned; untouched",
+    "frontend": "parent-owned; untouched",
+    "previewAcceptance": "partial; no flag changed",
+    "legacyCalendar": "unsupported until a trusted explicit source contract supplies missing provenance",
+    "nativeSqlProductionStorageDesktopConnectorQualification": "not established",
+    "externalCalendarFeedQualification": "not established"
+  }
+}

@@ -192,6 +192,25 @@ test('clock-only retention expiry invalidates stale cursors and omits expired me
   await assert.rejects(service.reopen(OWNER, first.scenarioId, first.revision.id), code('SCENARIO_UNAVAILABLE'));
 });
 
+test('discovery refuses expired metadata when the final authority callback advances the retention clock', async t => {
+  const f = await fixture(t); let clock = cut, armed = false, generationReads = 0;
+  const service = f.scenarios({ now: () => clock, discoveryAuthorityRevision: state => {
+    if (armed && ++generationReads === 3) clock = '2026-10-05T00:00:00.000Z';
+    return String(state.revision);
+  } });
+  await f.vault.update(state => { state.policy.retentionDays = 1; });
+  const created = await service.create(OWNER, request('Synthetic final callback expired private name'));
+  assert.equal(created.revision.createdAt, cut);
+  const before = f.vault.read(), ciphertext = await f.ciphertext(); let releasedPage = false;
+  armed = true;
+  await assert.rejects(service.discover(OWNER, {}).then(page => { releasedPage = true; return page; }), code('SCENARIO_RETENTION_EXPIRED'));
+  assert.equal(generationReads, 3, 'The clock advances at the final discovery authority read without a generation change.');
+  assert.equal(clock, '2026-10-05T00:00:00.000Z');
+  assert.equal(releasedPage, false, 'No page or private metadata can escape after the final callback expires its row.');
+  assert.deepEqual(f.vault.read(), before, 'Read-only retention refusal cannot mutate encrypted custody.');
+  assert.deepEqual(await f.ciphertext(), ciphertext);
+});
+
 test('current account revocation and tainted contexts refuse discovery rather than releasing empty pages', async t => {
   for (const withdrawal of ['member', 'epoch', 'role'] as const) await t.test(withdrawal, async sub => {
     const f = await fixture(sub), service = f.scenarios();

@@ -1,5 +1,5 @@
 import type { DesktopMethod } from './ipc-contract.cjs';
-import type { JobConfig } from '../../platform/runtime/jobs.ts';
+import type { JobConfig, JobAcceptanceReference } from '../../platform/runtime/jobs.ts';
 import type { InvoiceJobInput, InvoiceConsent } from '../../platform/runtime/invoice-follow-up.ts';
 import type { ForecastRequest, SavedForecastEvaluation } from '../../platform/runtime/forecast-contracts.ts';
 import type { AlertCreate, AlertEvaluate, BusinessAlert, AlertEvaluation } from '../../platform/runtime/alerts-contracts.ts';
@@ -19,6 +19,9 @@ import type { ResearchSearchService } from '../../platform/runtime/research-sear
 import type { ConversationHistoryService, ConversationResultReference } from '../../platform/runtime/conversation-history.ts';
 import type { ModelRequest } from '../../platform/runtime/gateway.ts';
 import type { ScenarioDiscoveryRequest, ScenarioDiscoveryPage } from '../../platform/runtime/scenario-contracts.ts';
+import type { EngineTodayGetRequest, EngineTodayMethods, TodayPrepareTilesRequest, TodayAttentionResolveRequest } from '../../platform/runtime/engine-today-contracts.ts';
+import type { TodayReviewReference, TodayReviewPageRequest } from '../../platform/runtime/today-review.ts';
+import type { TodayEventsRequest } from '../../platform/runtime/today-events.ts';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue; }
@@ -73,6 +76,11 @@ export type DesktopJobConfig = (JobPayloadFields & { type: 'owner-brief'; input?
 type IdMethods = Extract<DesktopMethod, 'receipts.get' | 'sources.delete' | 'memory.undo' | 'actions.execute' | 'actions.reconcile' | 'jobs.pause' | 'jobs.resume' | 'jobs.run' | 'members.revoke' | 'models.approve' | 'speech.approve' | 'plugins.disable' | 'plugins.remove' | 'plugins.run'>;
 type DigestMethods = Extract<DesktopMethod, 'actions.approve' | 'jobs.approve' | 'plugins.enable'>;
 type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M in DigestMethods]: JsonObject & { id: string; digest: string } } & {
+  'today.get': EngineTodayGetRequest;
+  'today.prepareTiles': TodayPrepareTilesRequest;
+  'today.resolveReview': { reference: TodayReviewReference };
+  'today.resolveEvent': TodayEventsRequest & { eventId: string };
+  'today.resolveAttention': TodayAttentionResolveRequest;
   'workspace.create': JsonObject & { name: string; passphrase: string; folder?: string; demo?: boolean; pack?: string };
   'workspace.open': JsonObject & { passphrase: string; folder?: string };
   'workspace.recover': JsonObject & { recoveryCode: string; passphrase: string; folder?: string };
@@ -131,7 +139,7 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'jobs.cancel': { id: string };
   'jobs.reconcile': { id: string };
   'jobs.progress': { id: string };
-  'jobs.accept': { id: string; repeat?: boolean };
+  'jobs.accept': { id: string; repeat?: boolean; reference?: JobAcceptanceReference };
   'jobs.calendar.preview': { id: string };
   'jobs.calendar.pause': { id: string };
   'jobs.calendar.resume': { id: string };
@@ -151,10 +159,16 @@ type RequiredPayloads = { [M in IdMethods]: JsonObject & { id: string } } & { [M
   'updates.verify': JsonObject & { manifest: JsonObject | string; signature: string };
   'updates.stage': JsonObject & { manifest: JsonObject | string; signature: string; confirmed: true };
 };
-type OptionalPayloads = { 'ui.context': Record<string, never>; 'conversation.history': { limit?: number; cursor?: string }; 'scenarios.discover': ScenarioDiscoveryRequest; 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
+type OptionalPayloads = { 'today.review': TodayReviewPageRequest; 'ui.context': Record<string, never>; 'conversation.history': { limit?: number; cursor?: string }; 'scenarios.discover': ScenarioDiscoveryRequest; 'jobs.types': Record<string, never>; 'connectors.profiles': Record<string, never>; 'sources.groups': Record<string, never>; 'analysis.bridge.profiles': Record<string, never>; 'investigations.list': Record<string, never>; 'decisions.journal.due': { dueOn?: string; branch?: string }; 'business.profile.history': { field?: BusinessProfileInput['field'] } };
 export type DesktopPayload<M extends DesktopMethod> = M extends keyof RequiredPayloads ? RequiredPayloads[M] : M extends keyof OptionalPayloads ? OptionalPayloads[M] : JsonObject;
 export type EngineStatus = Readonly<{ healthy: boolean; state: 'starting' | 'ready' | 'failed' | 'stopping' | 'stopped' }>;
 export type DesktopResult<M extends DesktopMethod> =
+  M extends 'today.get' ? ReturnType<EngineTodayMethods['get']> :
+  M extends 'today.prepareTiles' ? Awaited<ReturnType<EngineTodayMethods['prepareTiles']>> :
+  M extends 'today.review' ? ReturnType<EngineTodayMethods['review']> :
+  M extends 'today.resolveReview' ? ReturnType<EngineTodayMethods['resolveReview']> :
+  M extends 'today.resolveEvent' ? ReturnType<EngineTodayMethods['resolveEvent']> :
+  M extends 'today.resolveAttention' ? ReturnType<EngineTodayMethods['resolveAttention']> :
   M extends 'scenarios.discover' ? ScenarioDiscoveryPage :
   M extends 'forecasts.evaluate' | 'forecasts.get' ? SavedForecastEvaluation :
   M extends 'alerts.create' | 'alerts.publish' | 'alerts.get' ? BusinessAlert : M extends 'alerts.evaluate' ? AlertEvaluation : M extends 'alerts.list' ? BusinessAlert[] :
