@@ -1,0 +1,70 @@
+✔ ordinary dense frozen arrays preserve exact draft digest and authored definitions (8.633ms)
+▶ nonordinary arrays are refused before getters or StateStore writes
+  ✔ sparse index (1.2587ms)
+  ✔ accessor index (0.5318ms)
+  ✔ hidden index (0.4042ms)
+  ✔ extra string property (0.3743ms)
+  ✔ extra symbol property (0.5127ms)
+  ✔ custom array prototype (0.4348ms)
+✔ nonordinary arrays are refused before getters or StateStore writes (4.6356ms)
+✔ valid ordered history remains available and accepts its exact next CAS publication (4.2393ms)
+▶ self-hashed reversed and equal-version histories refuse lookup and publication without writes
+  ✔ reversed (4.3381ms)
+  ✔ equal versions (2.945ms)
+✔ self-hashed reversed and equal-version histories refuse lookup and publication without writes (9.5855ms)
+▶ direct drafts and legacy or CAS wrappers preserve public publication contracts
+  ✔ direct draft (1.2245ms)
+  ✔ legacy pack (1.49ms)
+  ✔ CAS draft (1.2938ms)
+  ✔ CAS pack (1.3023ms)
+✔ direct drafts and legacy or CAS wrappers preserve public publication contracts (6.1339ms)
+▶ malformed publication wrappers cannot bypass exact-key or data-only validation
+  ✔ unknown wrapper field (0.2957ms)
+  ✔ both draft and pack (0.2012ms)
+  ✔ nonstring pack (0.1882ms)
+  ✔ accessor wrapper (0.203ms)
+  ✖ undefined draft (1.4206ms)
+✖ malformed publication wrappers cannot bypass exact-key or data-only validation (2.9809ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 21
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 276.9819
+
+✖ failing tests:
+
+test at platform\tests\ontology-data-validation.test.ts:117:37
+✖ undefined draft (1.4206ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    Comparison {
+  +   code: 'UNKNOWN_PACK'
+  -   code: 'INVALID_DICTIONARY'
+    }
+
+      at async TestContext.<anonymous> (file:///C:/Users/karta/Documents/Codex/2026-10-04/task-2/first-run-root-typing-fix/platform/tests/ontology-data-validation.test.ts:119:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async TestContext.<anonymous> (file:///C:/Users/karta/Documents/Codex/2026-10-04/task-2/first-run-root-typing-fix/platform/tests/ontology-data-validation.test.ts:117:29)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:785:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: ChausarError: Choose one of the published starter packs.
+        at check (file:///C:/Users/karta/Documents/Codex/2026-10-04/task-2/first-run-root-typing-fix/platform/runtime/contracts.ts:10:25)
+        at OntologyService.publish (file:///C:/Users/karta/Documents/Codex/2026-10-04/task-2/first-run-root-typing-fix/platform/runtime/ontology.ts:270:5)
+        at OntologyService.publishPayload (file:///C:/Users/karta/Documents/Codex/2026-10-04/task-2/first-run-root-typing-fix/platform/runtime/ontology.ts:261:19)
+        at TestContext.<anonymous> (file:///C:/Users/karta/Documents/Codex/2026-10-04/task-2/first-run-root-typing-fix/platform/tests/ontology-data-validation.test.ts:119:37)
+        at Test.runInAsyncScope (node:async_hooks:214:14)
+        at Test.run (node:internal/test_runner/test:1103:25)
+        at Test.start (node:internal/test_runner/test:1000:17)
+        at TestContext.test (node:internal/test_runner/test:367:20)
+        at TestContext.<anonymous> (file:///C:/Users/karta/Documents/Codex/2026-10-04/task-2/first-run-root-typing-fix/platform/tests/ontology-data-validation.test.ts:117:37)
+        at async Test.run (node:internal/test_runner/test:1110:7),
+    expected: { code: 'INVALID_DICTIONARY' },
+    operator: 'rejects',
+    diff: 'simple'
+  }

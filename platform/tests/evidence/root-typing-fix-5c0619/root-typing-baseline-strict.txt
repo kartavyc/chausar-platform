@@ -1,0 +1,9 @@
+platform/runtime/ontology.ts(47,59): error TS2551: Property 'value' does not exist on type 'number'. Did you mean 'valueOf'?
+platform/runtime/ontology.ts(137,47): error TS18046: 'ontology.history' is of type 'unknown'.
+platform/runtime/ontology.ts(257,42): error TS2339: Property 'draft' does not exist on type 'DictionaryDraft | OntologyPublishRequest'.
+  Property 'draft' does not exist on type 'DictionaryDraft'.
+platform/runtime/ontology.ts(257,58): error TS2339: Property 'pack' does not exist on type 'DictionaryDraft | OntologyPublishRequest'.
+  Property 'pack' does not exist on type '{ draft: DictionaryDraft; } & DictionaryPublishOptions'.
+platform/tests/fixtures/postgres-transfer-independent-native-probes.ts(4,60): error TS2307: Cannot find module 'pg' or its corresponding type declarations.
+platform/tests/fixtures/postgres-transfer-independent-native-probes.ts(106,40): error TS7006: Parameter 'client' implicitly has an 'any' type.
+platform/tests/fixtures/postgres-transfer-independent-native-probes.ts(116,10): error TS2571: Object is of type 'unknown'.
