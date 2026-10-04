@@ -1,0 +1,175 @@
+{
+  "scope": "Synthetic React/jsdom and actual controller with frozen Engine compiler through synthetic port. Setup publications are synthetic. No browser/native/network/service/real data or source edits; runtime transpilation is not strict validation.",
+  "at": "2026-10-04T08:01:43.886Z",
+  "sourceStableDuringRun": true,
+  "changedFiles": [],
+  "hashesBefore": {
+    "contracts.ts": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66",
+    "controller.ts": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f",
+    "digest.ts": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27",
+    "review.ts": "d20a0e32b457cf99e744bb7a85bf67fbb6ee5d76db34c8ee3ad3dc1d7bc90069",
+    "Meanings.tsx": "293229a3aa21b8088fe74a79855931ab231008b0dbb77a7e2ae6aebd03ea1835",
+    "FirstRun.tsx": "bdff78fdd2d4c29632de7ec91bfc20206b8caca898bb539f41e2207e6ccb45d9",
+    "rows.tsx": "6fce9bb55c51119909241e73d10423a5ca851a12c9196d878a19ecc5823ef755",
+    "FirstRun.module.css": "3c42529ca5ebab090e1831863503b4183c2f1809885c9ced8728864edf9e3d82",
+    "text/en.json": "022c96c0bd5e654ca536d1c39a47ba4702b5945219d31fe0f65f4044640b962b",
+    "text/hi.json": "b85aa908c124e3dd2b85a7daa4d99f16be3c1ad9376d84c5ad76989940e115ed"
+  },
+  "hashesAfter": {
+    "contracts.ts": "6889eef84789c91f5b60a5918f1505ecc1cc3548e0b827d628c7e1f331afed66",
+    "controller.ts": "5c7ea2805ada038d0324bf856442d7fa3b1f7d005740e7ebf94c71d3bddbfb2f",
+    "digest.ts": "5530d7d788d2f6f1d7d8e6ab3e0b81c19b605c5ce91af472ee6c47f765face27",
+    "review.ts": "d20a0e32b457cf99e744bb7a85bf67fbb6ee5d76db34c8ee3ad3dc1d7bc90069",
+    "Meanings.tsx": "293229a3aa21b8088fe74a79855931ab231008b0dbb77a7e2ae6aebd03ea1835",
+    "FirstRun.tsx": "bdff78fdd2d4c29632de7ec91bfc20206b8caca898bb539f41e2207e6ccb45d9",
+    "rows.tsx": "6fce9bb55c51119909241e73d10423a5ca851a12c9196d878a19ecc5823ef755",
+    "FirstRun.module.css": "3c42529ca5ebab090e1831863503b4183c2f1809885c9ced8728864edf9e3d82",
+    "text/en.json": "022c96c0bd5e654ca536d1c39a47ba4702b5945219d31fe0f65f4044640b962b",
+    "text/hi.json": "b85aa908c124e3dd2b85a7daa4d99f16be3c1ad9376d84c5ad76989940e115ed"
+  },
+  "results": [
+    {
+      "name": "continue: valid repeated press",
+      "callbackCount": 1,
+      "callbackActions": [
+        "continue"
+      ],
+      "liveAtDelivery": [
+        true
+      ],
+      "controllerKindsAtDelivery": [
+        "left"
+      ],
+      "controllerKind": "left",
+      "methodsDuringIntent": [
+        "ui.context"
+      ],
+      "pending": {
+        "calendar": "not-configured",
+        "timeZone": "not-configured",
+        "ordering": "not-configured",
+        "todayDefaults": "not-configured"
+      }
+    },
+    {
+      "name": "continue: cancel before click",
+      "callbackCount": 0,
+      "callbackActions": [],
+      "liveAtDelivery": [],
+      "controllerKindsAtDelivery": [],
+      "controllerKind": "idle",
+      "methodsDuringIntent": []
+    },
+    {
+      "name": "continue: false live guard before click",
+      "callbackCount": 0,
+      "callbackActions": [],
+      "liveAtDelivery": [],
+      "controllerKindsAtDelivery": [],
+      "controllerKind": "unavailable",
+      "methodsDuringIntent": []
+    },
+    {
+      "name": "continue: lock before click",
+      "callbackCount": 0,
+      "callbackActions": [],
+      "liveAtDelivery": [],
+      "controllerKindsAtDelivery": [],
+      "controllerKind": "unavailable",
+      "methodsDuringIntent": []
+    },
+    {
+      "name": "settings: valid repeated press",
+      "callbackCount": 1,
+      "callbackActions": [
+        "settings"
+      ],
+      "liveAtDelivery": [
+        true
+      ],
+      "controllerKindsAtDelivery": [
+        "left"
+      ],
+      "controllerKind": "left",
+      "methodsDuringIntent": []
+    },
+    {
+      "name": "settings: cancel before click",
+      "callbackCount": 0,
+      "callbackActions": [],
+      "liveAtDelivery": [],
+      "controllerKindsAtDelivery": [],
+      "controllerKind": "idle",
+      "methodsDuringIntent": []
+    },
+    {
+      "name": "settings: false live guard before click",
+      "callbackCount": 0,
+      "callbackActions": [],
+      "liveAtDelivery": [],
+      "controllerKindsAtDelivery": [],
+      "controllerKind": "unavailable",
+      "methodsDuringIntent": []
+    },
+    {
+      "name": "settings: lock before click",
+      "callbackCount": 0,
+      "callbackActions": [],
+      "liveAtDelivery": [],
+      "controllerKindsAtDelivery": [],
+      "controllerKind": "unavailable",
+      "methodsDuringIntent": []
+    },
+    {
+      "name": "continue: context changed before click",
+      "callbackCount": 0,
+      "callbackActions": [],
+      "liveAtDelivery": [],
+      "controllerKindsAtDelivery": [],
+      "controllerKind": "unavailable",
+      "methodsDuringIntent": [
+        "ui.context"
+      ]
+    },
+    {
+      "name": "continue: cancel during final context read",
+      "callbackCount": 0,
+      "callbackActions": [],
+      "liveAtDelivery": [],
+      "controllerKindsAtDelivery": [],
+      "controllerKind": "idle",
+      "methodsDuringIntent": [
+        "ui.context"
+      ]
+    },
+    {
+      "name": "settings: changed pack before retained click",
+      "callbackCount": 0,
+      "callbackActions": [],
+      "liveAtDelivery": [],
+      "controllerKindsAtDelivery": [],
+      "controllerKind": "review",
+      "methodsDuringIntent": []
+    },
+    {
+      "name": "continue: lock inside LEFT observer",
+      "callbackCount": 0,
+      "callbackActions": [],
+      "liveAtDelivery": [],
+      "controllerKindsAtDelivery": [],
+      "controllerKind": "unavailable",
+      "methodsDuringIntent": [
+        "ui.context"
+      ]
+    },
+    {
+      "name": "settings: lock inside LEFT observer",
+      "callbackCount": 0,
+      "callbackActions": [],
+      "liveAtDelivery": [],
+      "controllerKindsAtDelivery": [],
+      "controllerKind": "unavailable",
+      "methodsDuringIntent": []
+    }
+  ]
+}

@@ -20,7 +20,7 @@
   "FR-06.conversation": "Start from a conversation",
 
   "FR-08.title": "Agree what your words mean",
-  "FR-08.progress": "{done} of {of}",
+  "FR-08.progress": "{done}/{of}",
   "FR-08.changePack": "Change pack",
   "FR-08.state.proposed": "proposed",
   "FR-08.state.changed": "Changed",
@@ -36,7 +36,7 @@
   "FR-08.edit.discard": "Discard",
   "FR-08.edit.problem": "At least eleven characters.",
 
-  "FR-08.settings.word": "Currency and GST",
+  "FR-08.settings.word": "Currency, GST",
   "FR-08.settings.currency": "Currency",
   "FR-08.settings.gst": "GST mode",
   "FR-08.settings.gst.regular": "regular",
@@ -46,12 +46,12 @@
   "FR-08.settings.current": "Published now: version {version}, pack {pack}.",
   "FR-08.settings.blocked": "Not available in this step.",
 
-  "FR-08.footer.calendar": "Not configured: calendar, ordering, Today.",
+  "FR-08.footer.calendar": "Pending: calendar, ordering, Today.",
   "FR-08.footer.local": "Nothing has left this computer.",
-  "FR-08.footer.review": "Accept every row to publish.",
+  "FR-08.footer.review": "Accept every row.",
   "FR-08.publish": "Publish",
   "FR-08.publishing": "Publishing. Waiting for the dictionary to be read back.",
-  "FR-08.published": "Version {version} published and read back.",
+  "FR-08.published": "Version {version} published, read back.",
   "FR-08.published.hash": "Hash {hash}",
   "FR-08.unknown": "The publish result is unknown. The dictionary may or may not have changed. Read it back to find out.",
   "FR-08.unknown.left": "This step was left while publishing. Read the dictionary back to see what is current.",

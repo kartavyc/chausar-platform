@@ -20,7 +20,7 @@
   "FR-06.conversation": "बातचीत से शुरू करें",
 
   "FR-08.title": "आपके शब्दों का मतलब तय करें",
-  "FR-08.progress": "{of} में से {done}",
+  "FR-08.progress": "{done}/{of}",
   "FR-08.changePack": "पैक बदलें",
   "FR-08.state.proposed": "प्रस्तावित",
   "FR-08.state.changed": "बदला",
@@ -36,7 +36,7 @@
   "FR-08.edit.discard": "छोड़ें",
   "FR-08.edit.problem": "ग्यारह अक्षर चाहिए।",
 
-  "FR-08.settings.word": "मुद्रा और GST",
+  "FR-08.settings.word": "मुद्रा, GST",
   "FR-08.settings.currency": "मुद्रा",
   "FR-08.settings.gst": "GST मोड",
   "FR-08.settings.gst.regular": "नियमित",
@@ -46,8 +46,8 @@
   "FR-08.settings.current": "अभी प्रकाशित: संस्करण {version}, पैक {pack}।",
   "FR-08.settings.blocked": "इस चरण में उपलब्ध नहीं।",
 
-  "FR-08.footer.calendar": "कैलेंडर, क्रम, आज: तय नहीं।",
-  "FR-08.footer.local": "इस कंप्यूटर से कुछ नहीं गया।",
+  "FR-08.footer.calendar": "कैलेंडर, क्रम, आज: बाकी।",
+  "FR-08.footer.local": "कंप्यूटर से कुछ नहीं गया।",
   "FR-08.footer.review": "हर पंक्ति स्वीकारें।",
   "FR-08.publish": "प्रकाशित करें",
   "FR-08.publishing": "प्रकाशित हो रहा है। शब्दकोश के वापस पढ़े जाने का इंतज़ार है।",
