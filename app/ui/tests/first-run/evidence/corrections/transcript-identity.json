@@ -1,0 +1,7 @@
+{
+  "transcriptName": "correction-simple-final-pass-react.txt",
+  "completeRawTranscriptPreservedOutsideCheckpoint": true,
+  "rawSha256": "76368270b21a64f11e231404581441707860b5b2d446be20f23ee269a57c57de",
+  "publicationWorkingSha256": "cc21403250c46a84f5154f89e202859cc8d87862e51baa6cc6b9162fd6ffc484",
+  "transformation": "Blank EOF lines only; test output, timestamps, exits and source pins retained."
+}

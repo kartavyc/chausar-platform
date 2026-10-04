@@ -35,12 +35,12 @@ export function moveBetweenRows(event: KeyboardEvent<HTMLButtonElement>): void {
 /**
  * How many words of the exact meaning a closed row shows, by the parent's chosen view
  * (build.md part 4: Simple 90, Guided 120, Books 170 visible words in the main area at
- * rest). Two keeps the whole step, with one row open, inside the Guided budget in Hindi as
- * well as English; Books has room for three; Simple has room for none, so there a closed
- * row is the word and its state and the exact meaning opens with the row. The view is a
+ * rest). Every view keeps a nonempty exact meaning preview beside the word and state:
+ * one word in Simple, two in Guided and three in Books. The open row shows the full text
+ * rather than repeating the preview. The view is a
  * presentational choice handed down by the parent; this slice draws no view selector.
  */
-export const PREVIEW_WORDS_BY_VIEW: Readonly<Record<View, number>> = Object.freeze({ simple: 0, guided: 2, books: 3 });
+export const PREVIEW_WORDS_BY_VIEW: Readonly<Record<View, number>> = Object.freeze({ simple: 1, guided: 2, books: 3 });
 export const PREVIEW_WORDS = PREVIEW_WORDS_BY_VIEW.guided;
 
 export interface MeaningPreview {

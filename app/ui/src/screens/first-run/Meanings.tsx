@@ -3,7 +3,7 @@
  * one row per proposed meaning and one row for the proposed currency and GST mode,
  * each a hairline row of square, word, grey meaning, grey state and arrow. The grey
  * meaning on a closed row is the first words of the exact meaning, clearly truncated,
- * as many as the parent's view has room for (none in Simple); the open row shows the
+ * as many as the parent's view has room for (at least one in Simple); the open row shows the
  * whole exact text, the evidence ("none yet": the Engine supplies none here),
  * Accept (filled) and Change (quiet).
  * Change edits the plain-language meaning only: the editor holds the whole exact text,

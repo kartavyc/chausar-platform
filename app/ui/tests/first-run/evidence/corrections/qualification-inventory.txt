@@ -1,0 +1,21 @@
+✔ canonical LF inventory passes the unchanged generator raw-byte check (157.566ms)
+✔ CRLF is exactly equivalent after LF normalization, but still fails the unchanged raw-byte check (161.2838ms)
+✔ a semantic mutation with canonical LF also fails the unchanged generator (134.0872ms)
+✔ all 123 source screen entries survive, with exact codes, titles and per-area counts (4.3477ms)
+✔ every screen retains its exact source schedule and stated or explicitly inherited purpose (1.5275ms)
+✔ inventory and proposed methods make no working-screen or live-engine claim (87.0355ms)
+✔ direct engine references are exact source references, with reuse recorded separately (1.9657ms)
+✔ all seven desktop places and every source sub-place remain available in the inventory (0.3955ms)
+✔ expanded enterprise inventory preserves exact IDs, editions and all 176 surfaces (2.3311ms)
+✔ customer window and seventeen internal console surfaces remain rules-only and undrawn (0.6989ms)
+✔ all eleven CA screens retain separate client vaults and source-only post-day-ten timing (4.4573ms)
+✔ phone scope preserves five entries, headline-only boundaries and deferred PH-04 (0.8515ms)
+✔ canonical source bytes and deterministic regeneration match the checked-in inventory (115.9725ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 636.9579

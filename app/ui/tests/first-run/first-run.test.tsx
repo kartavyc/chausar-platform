@@ -195,7 +195,7 @@ test('FR-08: closed rows carry the exact first words of the meaning; the open ro
   const pack = frozen.pack(0);
   const { fixture } = await mount();
   const user = await pick();
-  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean0 of 7');
+  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean0/7');
   expect(main().getByText('Online brand')).toBeTruthy();
   expect(currentStep()).toContain('Meanings');
   expect(rowIds()).toEqual(['billed', 'received', 'earned', 'refunds', 'costs', 'purchases', 'settings']);
@@ -238,14 +238,14 @@ test('FR-08: closed rows carry the exact first words of the meaning; the open ro
   await user.keyboard(' ');
   expect(rowButton('received').getAttribute('aria-expanded')).toBe('false');
   // Nothing was accepted by opening rows.
-  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean0 of 7');
+  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean0/7');
   await user.click(rowButton('earned'));
   await user.click(button('Accept', within(row('earned'))));
   await flush();
   expect(document.activeElement).toBe(rowButton('earned'));
   expect(within(row('earned')).getByText('Accepted', { selector: 'span[aria-hidden="true"]' })).toBeTruthy();
   expect(within(row('earned')).queryByRole('button', { name: 'Accept' })).toBeNull();
-  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean1 of 7');
+  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean1/7');
   expect(filled()).toBe(0);
   expect(fixture.count('ontology.publish')).toBe(0);
   // Up and Down move between the row controls of this list only.
@@ -280,7 +280,7 @@ test('the settings row shows the exact proposal and needs its own Accept; Publis
     await flush();
   }
   expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
-  expect(main().getByText('Accept every row to publish.')).toBeTruthy();
+  expect(main().getByText('Accept every row.')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
   await user.click(rowButton('settings'));
   await user.click(button('Accept', within(row('settings'))));
@@ -290,18 +290,18 @@ test('the settings row shows the exact proposal and needs its own Accept; Publis
   expect(filled()).toBe(1);
   expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
   expect(fixture.count('ontology.publish')).toBe(0);
-  expect(main().getByText('Not configured: calendar, ordering, Today.')).toBeTruthy();
+  expect(main().getByText('Pending: calendar, ordering, Today.')).toBeTruthy();
   expect(main().getByText('Nothing has left this computer.')).toBeTruthy();
   const from = fixture.calls.length;
   await user.click(publish);
   await flush();
   expect(fixture.methods().slice(from)).toEqual(['ui.context', 'ontology.publish', 'ui.context', 'ontology.get', 'ui.context']);
   const current = must(fixture.current());
-  expect(main().getByRole('status').textContent).toBe('Version 1 published and read back.');
+  expect(main().getByRole('status').textContent).toBe('Version 1 published, read back.');
   expect(main().getByText(`Hash ${current.hash}`)).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
   expect(filled()).toBe(0);
-  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean7 of 7');
+  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean7/7');
   expect(main().getByText('Neighbourhood retail')).toBeTruthy();
   expect(currentStep()).toContain('Meanings');
   expect(currentStep()).not.toContain('First answer');
@@ -520,7 +520,7 @@ test('Change edits the words only: Publish is withdrawn while an edit is open, t
   expect(original.open).toBe(false);
   expect(within(original).getByText('Original')).toBeTruthy();
   expect(within(original).getByText(proposed).getAttribute('lang')).toBe('en');
-  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean6 of 7');
+  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean6/7');
   await user.click(rowButton('earned'));
   expect(must(preview('earned')).textContent).toBe(firstWords(edited));
   expect(must(preview('earned')).getAttribute('lang')).toBeNull();
@@ -530,7 +530,7 @@ test('Change edits the words only: Publish is withdrawn while an edit is open, t
   await user.click(button('Publish'));
   await flush();
   expect(must(fixture.current()).definitions.find(item => item.name === 'earned')?.meaning).toBe(edited);
-  expect(main().getByRole('status').textContent).toBe('Version 1 published and read back.');
+  expect(main().getByRole('status').textContent).toBe('Version 1 published, read back.');
 });
 
 test('Change immediately revokes a retained connected Publish before React commits; separately committed clicks also issue nothing, and Escape restores a fresh Publish', async () => {
@@ -677,7 +677,7 @@ test('an open editor ends with the state it was opened in: a publish in flight, 
   expect(screen.queryByRole('button', { name: 'Change pack' })).toBeNull();
   expect(filled()).toBe(0);
   await act(async () => { gate.resolve(undefined); await settle(); });
-  expect(main().getByRole('status').textContent).toBe('Version 1 published and read back.');
+  expect(main().getByRole('status').textContent).toBe('Version 1 published, read back.');
   expect(document.querySelector('textarea')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Change' })).toBeNull();
   cleanup();
@@ -699,11 +699,11 @@ test('Hindi: interface words are Hindi, Engine meanings stay exact English marke
   const frozen = await engine();
   const { rerender } = await mount('hi');
   const user = await pick();
-  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('आपके शब्दों का मतलब तय करें7 में से 0');
-  expect(main().getByText('7 में से 0')).toBeTruthy();
+  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('आपके शब्दों का मतलब तय करें0/7');
+  expect(main().getByText('0/7')).toBeTruthy();
   expect(main().getAllByText('प्रस्तावित', { selector: 'span[aria-hidden="true"]' })).toHaveLength(6);
-  expect(main().getByText('कैलेंडर, क्रम, आज: तय नहीं।')).toBeTruthy();
-  expect(main().getByText('इस कंप्यूटर से कुछ नहीं गया।')).toBeTruthy();
+  expect(main().getByText('कैलेंडर, क्रम, आज: बाकी।')).toBeTruthy();
+  expect(main().getByText('कंप्यूटर से कुछ नहीं गया।')).toBeTruthy();
   expect(main().getByText('हर पंक्ति स्वीकारें।')).toBeTruthy();
   expect(must(preview('costs')).getAttribute('lang')).toBe('en');
   await user.click(rowButton('costs'));
@@ -716,7 +716,7 @@ test('Hindi: interface words are Hindi, Engine meanings stay exact English marke
   expect(button('बदलें', within(row('costs')))).toBeTruthy();
   expect(screen.getByRole('main').closest('[lang]')?.getAttribute('lang')).toBe('hi');
   rerender('en');
-  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean0 of 7');
+  expect(main().getByRole('heading', { level: 1 }).textContent).toBe('Agree what your words mean0/7');
 });
 
 function LanguageHost({ controller }: { controller: FirstRunController }) {
@@ -785,7 +785,7 @@ test('leaving during a held publish never resurrects evidence; the neutral unkno
   live.set(true);
   await user.click(button('Read back'));
   await flush();
-  expect(main().getByRole('status').textContent).toBe('Version 1 published and read back.');
+  expect(main().getByRole('status').textContent).toBe('Version 1 published, read back.');
   expect(fixture.count('ontology.publish')).toBe(1);
   expect(controller.issuance()).toBe('none');
 });
@@ -857,6 +857,95 @@ function fixed(state: FirstRunState): FirstRunController {
     cancel() {}, invalidate() {}, dispose: () => OK,
   };
 }
+
+test.each(['en', 'hi'] as const)('Simple in %s keeps nonempty exact current previews in all six definitions of every pack and review phase, and opens the full current/original text with its provenance', async language => {
+  const frozen = await engine();
+  const packs = frozen.packs();
+  const context: UiContext = { workspace: { ...WORKSPACE }, member: { id: MEMBER_ID, name: MEMBER_NAME, role: 'owner', epoch: 1, branches: ['*'] }, contextKey: 'a'.repeat(64) };
+  const DIGEST = 'b'.repeat(64);
+  const accepted = (initial: Review): Review => {
+    let review = initial;
+    for (const item of review.rows) review = must(acceptRow(review, item.definition.name, must(pinOf(review))));
+    return must(acceptSettings(review, must(pinOf(review))));
+  };
+  let closedChecks = 0;
+  let openedChecks = 0;
+  let originalChecks = 0;
+  for (const pack of packs) {
+    const proposed = withDigest(startReview(pack, `simple-${pack.pack}`), DIGEST);
+    let changed = proposed;
+    for (const item of pack.definitions) changed = withDigest(must(changeMeaning(changed, item.name, `Reviewed: ${item.meaning}`, changed.revision)), DIGEST);
+    const acceptedOriginal = accepted(proposed);
+    const acceptedChanged = accepted(changed);
+    for (const [phase, review, published] of [
+      ['proposed', proposed, false], ['accepted', acceptedOriginal, false],
+      ['changed', changed, false], ['changed accepted', acceptedChanged, false],
+      ['published', acceptedOriginal, true], ['changed published', acceptedChanged, true],
+    ] as const) {
+      const summary = summaryOf(frozen.compile(review.draft, 1));
+      const state: FirstRunState = published ? {
+        kind: 'published', context, published: summary, review, reviewDigest: DIGEST,
+        handoff: { workspaceId: WORKSPACE.id, memberId: MEMBER_ID, contextKey: context.contextKey, dictionary: summary, reviewDigest: DIGEST, pending: { calendar: 'not-configured', timeZone: 'not-configured', ordering: 'not-configured', todayDefaults: 'not-configured' } },
+      } : { kind: 'review', context, packs, current: null, review, publishing: false, notice: null };
+      const rendered = render(<FirstRunScreen controller={fixed(state)} language={language} onLanguage={() => {}} view="simple" stagesDone={ALL_DONE} intents={{ onContinue() {} }} />);
+      const checkClosed = (openId: string | null) => {
+        for (const item of review.rows) {
+          const id = item.definition.name;
+          if (id === openId) { expect(preview(id)).toBeNull(); continue; }
+          const meaning = item.definition.meaning;
+          const shown = must(preview(id), `${pack.pack} ${phase} ${language} ${id} Simple preview`);
+          // Independent of the preview policy/helper: Simple must actually display a meaning word.
+          const parts = meaning.split(/\s+/u).filter(Boolean);
+          expect(shown.textContent?.trim().length).toBeGreaterThan(0);
+          expect(shown.textContent).toBe(parts.length === 1 ? parts[0] : `${parts[0]}…`);
+          expect(shown.closest('[data-row-main]')).toBe(rowButton(id));
+          expect(shown.getAttribute('lang')).toBe(meaning === item.proposed ? 'en' : null);
+          expect(rowButton(id).getAttribute('aria-expanded')).toBe('false');
+          closedChecks += 1;
+        }
+        expect(preview('settings')).toBeNull();
+        expect(filled()).toBeLessThanOrEqual(1);
+      };
+      checkClosed(null);
+      for (const item of review.rows) {
+        const id = item.definition.name;
+        const original = item.definition.meaning === item.proposed;
+        act(() => { rowButton(id).click(); });
+        checkClosed(id);
+        const current = must(row(id).querySelector<HTMLElement>('[data-origin]'));
+        expect(current.textContent).toBe(item.definition.meaning);
+        expect(current.hidden).toBe(false);
+        expect(current.getAttribute('lang')).toBe(original ? 'en' : null);
+        expect(current.getAttribute('data-origin')).toBe(original ? 'engine' : 'changed');
+        expect(within(row(id)).getByText(text(language, 'FR-08.row.evidence'))).toBeTruthy();
+        openedChecks += 1;
+        if (!original) {
+          expect(within(row(id)).getByText(text(language, 'FR-08.row.yourWords'))).toBeTruthy();
+          const detail = must(disclosure(id, 'original'));
+          expect(detail.open).toBe(false);
+          const summaryControl = must(detail.querySelector('summary'));
+          act(() => { summaryControl.click(); });
+          expect(detail.open).toBe(true);
+          expect(current.hidden).toBe(true);
+          const quote = must(detail.querySelector('[data-origin="engine"]'));
+          expect(quote.textContent).toBe(item.proposed);
+          expect(quote.getAttribute('lang')).toBe('en');
+          act(() => { summaryControl.click(); });
+          expect(detail.open).toBe(false);
+          expect(current.hidden).toBe(false);
+          expect(current.textContent).toBe(item.definition.meaning);
+          originalChecks += 1;
+        }
+        act(() => { rowButton(id).click(); });
+      }
+      rendered.unmount();
+    }
+  }
+  expect(closedChecks).toBe(1296);
+  expect(openedChecks).toBe(216);
+  expect(originalChecks).toBe(108);
+  console.info(JSON.stringify({ regression: 'Simple exact previews', language, closedChecks, openedChecks, originalChecks }));
+});
 
 test.each(VIEWS)('main copy in %s stays within Simple 90, Guided 120 and Books 170 in English and Hindi for every pack, proposed/accepted/published and bounded changed meanings, initial/changed textarea values, settled original disclosures and unknown states; one filled button and action labels within 22 code points', async view => {
   const frozen = await engine();
@@ -965,6 +1054,6 @@ test.each(VIEWS)('main copy in %s stays within Simple 90, Guided 120 and Books 1
   const widest = measured.reduce((a, b) => (a.words >= b.words ? a : b));
   expect(widest.words, widest.case).toBeLessThanOrEqual(BUDGET[view]);
   console.info(JSON.stringify({ view, measuredStates: measured.length, maximumWords: widest.words, maximumCase: widest.case, budget: BUDGET[view] }));
-  // Simple rows carry no preview; Guided and Books carry the exact first words.
-  expect(PREVIEW_WORDS_BY_VIEW).toEqual({ simple: 0, guided: 2, books: 3 });
+  // All three views carry exact meaning words beside the word and state.
+  expect(PREVIEW_WORDS_BY_VIEW).toEqual({ simple: 1, guided: 2, books: 3 });
 });
