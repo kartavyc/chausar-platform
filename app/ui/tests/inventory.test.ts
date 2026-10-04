@@ -71,14 +71,21 @@ test('inventory and proposed methods make no working-screen or live-engine claim
     assert.equal(method.status, 'proposed');
     assert.equal(method.contractStatus, 'requires-engine-owner-agreement');
     const line = sourceLines('build.md')[method.source.line - 1];
-    assert.ok(line.split('|')[1].includes(`\`${method.name}\``));
+    assert.ok(line !== undefined, `Missing build.md line ${method.source.line} for proposed method ${method.name}`);
+    const methodColumn = line.split('|')[1];
+    assert.ok(methodColumn !== undefined, `Missing method column at build.md line ${method.source.line} for proposed method ${method.name}`);
+    assert.ok(methodColumn.includes(`\`${method.name}\``));
   }
 });
 
 test('direct engine references are exact source references, with reuse recorded separately', () => {
   const methods = new Set(inventory.proposedEngineMethods.map((entry: { name: string }) => entry.name));
   for (const entry of inventory.screens) {
-    const expected = unique([...String(entry.engineSourceText ?? '').matchAll(/`([^`]+)`/g)].map(match => match[1]));
+    const expected = unique([...String(entry.engineSourceText ?? '').matchAll(/`([^`]+)`/g)].map(match => {
+      const name = match[1];
+      assert.ok(name !== undefined, `Missing engine method capture in source text of ${entry.code}`);
+      return name;
+    }));
     assert.deepEqual(entry.engineMethodRefs.map((ref: { name: string }) => ref.name), expected);
     assert.equal(entry.engineContractStatus, 'proposed-screen-requirement');
     for (const ref of entry.engineMethodRefs) {
@@ -119,7 +126,9 @@ test('expanded enterprise inventory preserves exact IDs, editions and all 176 su
   assert.deepEqual(inventory.enterpriseSurfaces.map((entry: { id: string }) => entry.id), expectedIds);
   const lines = sourceLines('enterprise.md');
   for (const entry of inventory.enterpriseSurfaces) {
-    const columns = lines[entry.source.line - 1].split('|').slice(1, -1).map(value => value.trim());
+    const row = lines[entry.source.line - 1];
+    assert.ok(row !== undefined, `Missing enterprise.md line ${entry.source.line} for enterprise surface ${entry.id}`);
+    const columns = row.split('|').slice(1, -1).map(value => value.trim());
     assert.deepEqual([entry.declaredId, entry.title, entry.edition, entry.location, entry.builtFrom], columns);
   }
   assert.match(inventory.preservedRules.enterpriseNavigation.text, /\*\*Plans\*\*/);
@@ -159,7 +168,9 @@ test('all eleven CA screens retain separate client vaults and source-only post-d
     assert.deepEqual(entry.engineMethodRefs, []);
     assert.equal(entry.schedule.afterDayTen, true);
     assert.deepEqual(entry.schedule.mentionedBuildDays, []);
-    const columns = sourceLines('enterprise.md')[entry.source.line - 1].split('|').slice(1, -1).map(value => value.trim());
+    const row = sourceLines('enterprise.md')[entry.source.line - 1];
+    assert.ok(row !== undefined, `Missing enterprise.md line ${entry.source.line} for CA screen ${entry.code}`);
+    const columns = row.split('|').slice(1, -1).map(value => value.trim());
     assert.deepEqual([entry.code, entry.title, entry.shows], columns);
   }
   assert.match(inventory.preservedRules.caBoundary.text, /It holds no figure, no name of a client's customer, and no document/);

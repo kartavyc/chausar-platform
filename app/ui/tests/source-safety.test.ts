@@ -58,7 +58,7 @@ test('network, storage, files, bridge calls and dynamic code are detected', () =
     navigator.sendBeacon('/send'); localStorage.setItem('x','y');
     new FileReader(); showOpenFilePicker(); window.chausar.request('reports.get');
     eval('x'); new Function('return 1'); setInterval(() => {}, 100);`);
-  for (const rule of ['forbidden-runtime-import', 'renderer-network', 'renderer-storage', 'renderer-files', 'renderer-bridge-call', 'dynamic-code', 'repeating-timer']) assert.ok(found.has(rule), rule);
+  for (const rule of ['forbidden-runtime-import', 'renderer-network', 'renderer-storage', 'renderer-files', 'renderer-bridge-call', 'dynamic-code', 'repeating-timer'] as const) assert.ok(found.has(rule), rule);
   assert.ok(rules('const transport = require("node:fs");').has('forbidden-runtime-import'));
   assert.ok(rules('const transport = import("node:fs");').has('forbidden-runtime-import'));
   assert.ok(rules('export { readFile } from "node:fs";').has('forbidden-runtime-import'));
@@ -190,8 +190,10 @@ test('cyclic export-star barrels reach a stable export table and never export a 
     'view.ts': 'import { named } from "./b.ts"; import nope from "./a.ts";',
   });
   assert.equal(result.findings.length, 1);
-  assert.equal(result.findings[0].rule, 'local-export-not-found');
-  assert.match(result.findings[0].message, /default/);
+  const finding = result.findings[0];
+  assert.ok(finding !== undefined, 'cyclic barrel fixture must report its implicit default import');
+  assert.equal(finding.rule, 'local-export-not-found');
+  assert.match(finding.message, /default/);
 });
 
 test('names behind unresolved external export-star barrels are explicitly unverified', async () => {
@@ -201,7 +203,9 @@ test('names behind unresolved external export-star barrels are explicitly unveri
   });
   assert.deepEqual(result.findings, []);
   assert.equal(result.unverifiedExports.length, 1);
-  assert.equal(result.unverifiedExports[0].name, 'suppliedByOperator');
+  const unverified = result.unverifiedExports[0];
+  assert.ok(unverified !== undefined, 'external export-star fixture must report its unverified name');
+  assert.equal(unverified.name, 'suppliedByOperator');
 });
 
 test('reading ceilings are inclusive, separate for each view and sheet', () => {
