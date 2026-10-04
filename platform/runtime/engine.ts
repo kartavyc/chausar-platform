@@ -608,15 +608,12 @@ export class Engine {
       resolvePromotionImpact: (ctx, _fork, _evaluation, strategy) => this.privatePromotionImpact(ctx, this.store().read(), strategy),
       promoteAtomic: (ctx, publication) => this.promotePrivateTrial(ctx, publication),
     });
-    const interchangeLocal = createWorkspaceInterchangeLocalPorts({ vault, applicationDirectory,
-      assertCompleteOwner: async (ctx, historical) => this.interchangeOwner(ctx, historical) });
-    this.services.interchangeLocal = interchangeLocal;
-    this.services.interchange = new WorkspaceInterchangeHost(interchangeLocal.ports);
+    let backupLocal: ReturnType<typeof createWorkspaceBackupV2LocalPorts> | undefined;
+    let installedActivation: EngineWorkspaceActivation | undefined;
     if (vault.storageKind === 'experimental-file') {
       const backup = this.options.backupCustody;
       const budgets = backup?.budgets ?? defaultBackupBudgets;
-      let installedActivation: EngineWorkspaceActivation | undefined;
-      const backupLocal = createWorkspaceBackupV2LocalPorts({ vault, applicationDirectory, budgets,
+      backupLocal = createWorkspaceBackupV2LocalPorts({ vault, applicationDirectory, budgets,
         ...(this.options.workspaceActivation ? {workspaceActivation: {journalVault: this.options.workspaceActivation.journalVault,
           inspectCurrentLive: async (input: Parameters<EngineWorkspaceActivation['inspectCurrentLive']>[0]) => {
             check(installedActivation, 'ACTIVATION_ROOT_REQUIRED', 'Complete the trusted activation composition before live custody inspection.');
@@ -646,8 +643,15 @@ export class Engine {
       });
       this.services.backupLocal = backupLocal;
       this.services.backupV2 = new WorkspaceBackupV2Host(backupLocal.ports, budgets);
-      const activation = this.options.workspaceActivation;
-      if (activation) {
+    }
+    const interchangeLocal = createWorkspaceInterchangeLocalPorts({ vault, applicationDirectory,
+      backupControlCustody: backupLocal,
+      assertCompleteOwner: async (ctx, historical) => this.interchangeOwner(ctx, historical) });
+    this.services.interchangeLocal = interchangeLocal;
+    this.services.interchange = new WorkspaceInterchangeHost(interchangeLocal.ports);
+    const activation = this.options.workspaceActivation;
+    if (backupLocal && activation) {
+        const budgets = this.options.backupCustody?.budgets ?? defaultBackupBudgets;
         check(this.options.demo === true && this.options.sync === undefined
           && !vault.read().imports.some(item => typeof item.type === 'string' && item.type.startsWith('connector-')),
         'ACTIVATION_SOURCE_PROFILE', 'This joined activation profile supports explicitly approved synthetic local sources; sync and managed connector activation need their separate qualified profiles.');
@@ -663,7 +667,6 @@ export class Engine {
               'ACTIVATION_SOURCE_PROFILE', 'Current managed connector imports need a separately qualified activation profile.');
           }});
         this.services.workspaceActivation = installedActivation;
-      }
     }
     const postgresProfile = this.options.postgresWorkspace;
     if (vault.storageKind === 'postgres' && postgresProfile) {

@@ -37,16 +37,16 @@ async function fixture(t: TestContext, options: Partial<EngineOptions> = {}) {
   const base = await realpath(tmpdir()); if (process.platform === 'win32') assert.match(base, /^C:\\/i);
   const directory = await realpath(await mkdtemp(join(base, 'chausar-backup-public-')));
   let providerCalls = 0;
-  const engine = new Engine({directory, storage: 'experimental-file', demo: true,
+  const createEngine = () => new Engine({directory, storage: 'experimental-file', demo: true,
     backupCustody: {budgets, filesystemBudgets: {maxFiles: 100, maxBytes: 4_000_000, maxDepth: 16}},
     gateway: {http: async () => {providerCalls++; throw Error('Synthetic fixture forbids a live provider.');}}, ...options});
-  const app = createLocalServer(engine);
+  let engine = createEngine(), app = createLocalServer(engine);
   t.after(async () => {
     await app.close(); const actual = await realpath(directory), child = relative(base, actual);
     assert.equal(dirname(actual), base); assert.ok(child && !isAbsolute(child) && !child.startsWith('..') && child.startsWith('chausar-backup-public-'));
     await rm(actual, {recursive: true, force: true}); assert.equal(providerCalls, 0);
   });
-  const {origin, token} = await app.listen();
+  let {origin, token} = await app.listen();
   const raw = async (method: string, payload: unknown = {}) => {
     const response = await fetch(origin + '/api/rpc', {method: 'POST', headers: {'content-type': 'application/json', authorization: 'Bearer ' + token},
       body: JSON.stringify({method, payload})}); return {status: response.status, body: await response.json() as any};
@@ -60,13 +60,81 @@ async function fixture(t: TestContext, options: Partial<EngineOptions> = {}) {
   const vault = () => engine.vault!;
   const capture = () => vault().snapshot(() => vault().captureEncryptedCustody({maxArtifacts: 99, maxEntryBytes: 1_000_000, maxTotalEntryBytes: 2_000_000}));
   const reopen = async () => {await rpc('workspace.lock'); await rpc('workspace.open', {passphrase});};
+  const restart = async () => {
+    await app.close(); engine = createEngine(); app = createLocalServer(engine);
+    ({origin, token} = await app.listen()); await rpc('workspace.open', {passphrase});
+  };
   const retained = async (id: string) => (await vault().readArtifact({id: artifactId(id), purpose: 'workspace-interchange'})).value as {content: string};
-  return {directory, engine, rpc, raw, refuse, vault, capture, reopen, retained};
+  return {directory, get engine() {return engine;}, rpc, raw, refuse, vault, capture, reopen, restart, retained};
 }
 function publicMetadata(value: unknown) {
   const text = JSON.stringify(value); assert.equal(text.includes(passphrase), false); assert.equal(text.includes(secret), false);
   for (const forbidden of ['authorityBase64', 'dataBase64', 'ciphertext', 'recoveryCode', 'passphrase', 'tokenHash']) assert.equal(text.includes('"' + forbidden + '"'), false);
 }
+
+test('actual public backup then semantic export composes through inert restore and fresh Engine restart', {timeout: 30_000}, async t => {
+  const f = await fixture(t);
+  const receipt = await f.rpc('calculation.run', {operation: 'billed', sourceIds: [sourceId], asOf: new Date(Date.now() + 1).toISOString()});
+  assert.equal(receipt.totalMinor, '10000');
+  const state = f.vault().read(), before = await f.capture();
+  const backup = await f.rpc('workspace.backup.v2.create', create);
+  assert.equal(backup.fullWorkspacePortable, false); publicMetadata(backup);
+  const backupRead = await f.rpc('workspace.backup.v2.read', {backupId: backup.recordId});
+  assert.equal(backupRead.sourcePin.authority.sha256, sha(before.authority));
+  const restoredInput = {backupId: backup.recordId, targetId: 'composition_inert', reviewedDigest: backup.archiveDigest};
+  const restored = await f.rpc('workspace.backup.v2.restoreInert', {...restoredInput, confirmed: true});
+  const inertPath = join(f.directory, restoredInput.targetId, 'backup.inert.json');
+  const inertBytes = await readFile(inertPath), retainedBackup = await f.retained(backup.recordId);
+  const exported = await f.rpc('workspace.interchange.export', {destinationId: 'after_backup', confirmed: true});
+  assert.equal(exported.inert, true); publicMetadata(exported);
+  await f.rpc('workspace.backup.v2.create', {...create, destinationId: 'after_export_backup'});
+  const candidate = await f.rpc('workspace.interchange.prepare', {exportId: exported.recordId,
+    candidateId: 'after_backup_candidate', targetId: 'composition_empty'});
+  const review = {candidateId: candidate.recordId, reviewedDigest: candidate.reviewedDigest};
+  assert.deepEqual(await f.rpc('workspace.interchange.review', review), candidate);
+  assert.deepEqual(await readdir(join(f.directory, 'composition_empty')), []);
+  const refs = await f.vault().listArtifacts({purpose: 'workspace-interchange'});
+  await f.refuse('workspace.backup.v2.create', {...create, destinationId: 'unqualified_candidate_backup'}, ['BACKUP_INVENTORY_INCOMPLETE']);
+  assert.deepEqual(await f.vault().listArtifacts({purpose: 'workspace-interchange'}), refs,
+    'Backup still requires its separately qualified activation profile to admit a semantic target reservation.');
+  assert.deepEqual(f.vault().read(), state);
+  await f.restart();
+  assert.deepEqual(f.vault().read(), state);
+  assert.deepEqual(await f.rpc('workspace.backup.v2.read', {backupId: backup.recordId}), backupRead);
+  assert.deepEqual((await f.rpc('workspace.backup.v2.inspectRestored', restoredInput)).receipt, restored);
+  assert.deepEqual(await f.rpc('workspace.interchange.review', review), candidate);
+  const reopenedExport = await f.rpc('workspace.interchange.export', {destinationId: 'after_backup_restarted', confirmed: true});
+  assert.equal(reopenedExport.packageDigest, exported.packageDigest);
+  assert.deepEqual(await f.rpc('receipts.get', {id: receipt.id}), receipt);
+  assert.deepEqual(await readFile(inertPath), inertBytes);
+  assert.deepEqual(await f.retained(backup.recordId), retainedBackup);
+  assert.deepEqual(f.vault().read(), state);
+  const diagnostics = await f.rpc('workspace.interchange.diagnostics');
+  assert.equal(diagnostics.fullWorkspacePortabilityQualified, false);
+});
+
+test('actual public interchange keeps backup control ownership constructor-only and refuses unowned artifacts', {timeout: 30_000}, async t => {
+  const f = await fixture(t), backup = await f.rpc('workspace.backup.v2.create', create);
+  await f.refuse('workspace.interchange.export', {destinationId: 'injected_control', confirmed: true,
+    backupControlCustody: {}}, ['INVALID_INTERCHANGE_REQUEST']);
+  await f.vault().writeArtifact({id: 'wb2_unowned_archive', purpose: 'workspace-interchange',
+    value: {synthetic: 'An unknown artifact is not granted backup ownership.'}, expectedDigest: null});
+  const refs = await f.vault().listArtifacts({purpose: 'workspace-interchange'}), state = f.vault().read();
+  await f.refuse('workspace.interchange.export', {destinationId: 'unowned_control_export', confirmed: true}, ['INTERCHANGE_CUSTODY_INCOMPLETE']);
+  assert.deepEqual(await f.vault().listArtifacts({purpose: 'workspace-interchange'}), refs);
+  assert.deepEqual(f.vault().read(), state);
+  assert.equal((await f.rpc('workspace.backup.v2.read', {backupId: backup.recordId})).summary.archiveDigest, backup.archiveDigest);
+});
+
+test('actual public interchange still refuses revoked historical source authority after backup', {timeout: 30_000}, async t => {
+  const f = await fixture(t);
+  await f.rpc('workspace.backup.v2.create', create);
+  await f.vault().update(state => {state.facts = []; state.imports = []; state.sourceRules.push({sourceId, revoked: true});});
+  const refs = await f.vault().listArtifacts({purpose: 'workspace-interchange'}), state = f.vault().read();
+  await f.refuse('workspace.interchange.export', {destinationId: 'revoked_historical_backup_export', confirmed: true}, ['SOURCE_REVOKED']);
+  assert.deepEqual(await f.vault().listArtifacts({purpose: 'workspace-interchange'}), refs);
+  assert.deepEqual(f.vault().read(), state);
+});
 
 test('actual public archive captures empty private namespaces and reopens exact authenticated readback', async t => {
   const f = await fixture(t), before = await f.capture(), originalState = f.vault().read();
