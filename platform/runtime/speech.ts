@@ -2,7 +2,9 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { join, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { authorize, audit, check, ChausarError, hash, newId, now } from './contracts.ts';
-import type { Context, StateStore } from './contracts.ts';
+import type { Context, State, StateStore } from './contracts.ts';
+import { moduleState, peekModuleState } from './modules/types.ts';
+import { MODULE_ID } from './models-ext/part.ts';
 import { assertSourceAccess, isNoResend, trustFingerprint } from './trust.ts';
 import { defaultProcess, validateEndpoint } from './gateway.ts';
 import type { ProcessRequest, ProcessResult } from './gateway.ts';
@@ -22,6 +24,18 @@ export const SPEECH_DISCLOSURE: Partial<Record<SpeechKind, string>> = {
 };
 export type SpeechProvider = { id?: string; kind: SpeechKind; label?: string; endpoint?: string; command?: string; model?: string; ratePerMinuteMinor?: string; budgetMinor?: string; credentialEnv?: string; enabled?: boolean; language?: string; pipelineId?: string; serviceId?: string; configEndpoint?: string };
 export type SpeechInput = { providerId: string; audioBase64?: string; mimeType?: string; durationMs?: number; transcript?: string; browserProvider?: string; sourceIds?: string[] };
+/** A provider's non-secret settings as kept in the encrypted workspace; credentials never enter it. */
+export type StoredSpeechProvider = SpeechProvider & { id: string; revision: number; enabled: boolean };
+/** Speech settings live in the models-ext namespace, under `speech`, beside the speech part's confirmations and bench runs. */
+export function speechNamespace(state: State): { providers?: StoredSpeechProvider[]; [key: string]: unknown } {
+  const ns = moduleState<{ speech?: { providers?: StoredSpeechProvider[] } }>(state, MODULE_ID, () => ({})); return ns.speech ??= {};
+}
+const BROWSER_PROVIDER: StoredSpeechProvider = { id: 'browser', kind: 'browser-transcript', label: 'Browser transcript', enabled: true, revision: 1 };
+/** Configured providers, with the built-in browser provider unless the workspace holds its own (revoked) record. */
+function storedProviders(state: State): StoredSpeechProvider[] {
+  const stored = peekModuleState<{ speech?: { providers?: StoredSpeechProvider[] } }>(state, MODULE_ID)?.speech?.providers ?? [];
+  return [...(stored.some(p => p.id === 'browser') ? [] : [BROWSER_PROVIDER]), ...stored].map(p => structuredClone(p));
+}
 export type SpeechOptions = { http?: (request: { endpoint: string; headers: Record<string, string>; body: Uint8Array; redirect: 'error'; timeoutMs: number }) => Promise<{ status: number; body: string; endpoint?: string; requestId?: string }>; process?: (request: ProcessRequest) => Promise<ProcessResult>; credentialBroker?: (id: string) => string | undefined | Promise<string | undefined> };
 
 const AUDIO_EXTENSIONS = { 'audio/wav': 'wav', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'audio/ogg': 'ogg' } as const;
@@ -43,8 +57,9 @@ async function upload(request: { endpoint: string; headers: Record<string, strin
 }
 
 export class SpeechService {
-  store: StateStore; options: SpeechOptions; #providers = new Map<string, SpeechProvider & { id: string; revision: number }>(); #credentials = new Map<string, string>();
-  constructor(store: StateStore, options: SpeechOptions = {}) { this.store = store; this.options = options; this.#providers.set('browser', { id: 'browser', kind: 'browser-transcript', label: 'Browser transcript', enabled: true, revision: 1 }); }
+  store: StateStore; options: SpeechOptions; #credentials = new Map<string, string>();
+  constructor(store: StateStore, options: SpeechOptions = {}) { this.store = store; this.options = options; }
+  #provider(id: unknown): StoredSpeechProvider | undefined { return typeof id === 'string' ? storedProviders(this.store.read()).find(p => p.id === id) : undefined; }
   async configure(context: Context, config: SpeechProvider, secret?: string) {
     authorize(this.store, context, 'admin');
     check((SPEECH_KINDS as readonly string[]).includes(config.kind), 'INVALID_SPEECH_PROVIDER', 'Choose browser transcript, local command, API upload, Sarvam, Bhashini or live voice.');
@@ -70,15 +85,29 @@ export class SpeechService {
     for (const key of ['ratePerMinuteMinor', 'budgetMinor'] as const) if (config[key] !== undefined) check(typeof config[key] === 'string' && /^\d{1,30}$/.test(config[key]), 'INVALID_BUDGET', 'Speech costs use integer paise strings.');
     if (config.credentialEnv) check(/^CHAUSAR_[A-Z0-9_]+$/.test(config.credentialEnv), 'INVALID_CREDENTIAL', 'Use a dedicated CHAUSAR credential environment variable.');
     if (secret !== undefined) check(CLOUD_SPEECH_KINDS.includes(config.kind) && typeof secret === 'string' && secret.length <= 8192 && !/[\r\n]/.test(secret) && (config.kind !== 'bhashini-asr' || /^[^:\s]{1,256}:\S{1,4096}$/.test(secret)), 'INVALID_CREDENTIAL', 'Only cloud speech providers take an API key. Bhashini takes userID:ulcaApiKey.');
-    const id = config.id || newId('speech_provider'); const previous = this.#providers.get(id);
-    const provider = { ...structuredClone(config), ...settings, id, revision: (previous?.revision || 0) + 1, enabled: config.enabled ?? true, budgetMinor: config.budgetMinor || '10000', ratePerMinuteMinor: config.ratePerMinuteMinor || '0' };
-    this.#providers.set(id, provider); if (secret) this.#credentials.set(id, secret);
-    await this.store.update(state => { audit(state, 'speech.provider.configured', { id, kind: config.kind }); }); return this.#public(provider);
+    check(config.id === undefined || (typeof config.id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(config.id)), 'INVALID_SPEECH_PROVIDER', 'Use letters, digits, hyphens or underscores for the speech provider id.');
+    check(config.label === undefined || (typeof config.label === 'string' && config.label.length <= 120), 'INVALID_SPEECH_PROVIDER', 'Use a short speech provider label.');
+    check(config.enabled === undefined || typeof config.enabled === 'boolean', 'INVALID_SPEECH_PROVIDER', 'Enabled is true or false.');
+    const id = config.id || newId('speech_provider');
+    const provider: StoredSpeechProvider = await this.store.update(state => {
+      authorize(this.store, context, 'admin'); const ns = speechNamespace(state); const providers = ns.providers ??= [];
+      const previous = storedProviders(state).find(p => p.id === id);
+      const next: StoredSpeechProvider = { ...structuredClone(config), ...settings, id, revision: (previous?.revision || 0) + 1, enabled: config.enabled ?? true, budgetMinor: config.budgetMinor || '10000', ratePerMinuteMinor: config.ratePerMinuteMinor || '0' };
+      // A key given for one service is never sent to another: a changed kind or endpoint forgets the key held in memory.
+      if (secret === undefined && previous && (previous.kind !== next.kind || previous.endpoint !== next.endpoint || previous.configEndpoint !== next.configEndpoint)) this.#credentials.delete(id);
+      ns.providers = [...providers.filter(p => p.id !== id), next];
+      audit(state, 'speech.provider.configured', { id, kind: next.kind, revision: next.revision, enabled: next.enabled }); return structuredClone(next);
+    });
+    if (secret) this.#credentials.set(id, secret);
+    return this.#public(provider);
   }
-  #public(provider: any) { return { ...structuredClone(provider), credentialConfigured: !CLOUD_SPEECH_KINDS.includes(provider.kind) || this.#credentials.has(provider.id) || Boolean(provider.credentialEnv && process.env[provider.credentialEnv]), experimental: true, verification: 'not-live-verified', network: SPEECH_NETWORK[provider.kind as SpeechKind] }; }
-  providers(context: Context) { authorize(this.store, context); return [...this.#providers.values()].map(p => this.#public(p)); }
+  async #public(provider: StoredSpeechProvider) {
+    const credentialConfigured = !CLOUD_SPEECH_KINDS.includes(provider.kind) || this.#credentials.has(provider.id) || Boolean(provider.credentialEnv && process.env[provider.credentialEnv]) || Boolean(await this.options.credentialBroker?.(provider.id));
+    return { ...structuredClone(provider), credentialConfigured, experimental: true, verification: 'not-live-verified', network: SPEECH_NETWORK[provider.kind] };
+  }
+  async providers(context: Context) { authorize(this.store, context); return Promise.all(storedProviders(this.store.read()).map(p => this.#public(p))); }
   async preview(context: Context, input: SpeechInput) {
-    authorize(this.store, context, 'prepare'); const provider = this.#providers.get(input.providerId);
+    authorize(this.store, context, 'prepare'); const provider = this.#provider(input.providerId);
     check(provider?.enabled, 'SPEECH_UNAVAILABLE', 'Configure a speech provider first.');
     const sourceIds = input.sourceIds || []; assertSourceAccess(this.store.read(), context, sourceIds);
     if (provider.kind === 'browser-transcript') {
@@ -125,7 +154,7 @@ export class SpeechService {
       const approval = { id: newId('speech_approval'), kind: 'speech-approval', previewId, digest: preview.digest, endpoint: preview.endpoint, approverId: context.memberId, approverEpoch: context.epoch, createdAt: now(), expiresAt: new Date(Date.now() + 300000).toISOString(), used: false }; state.modelReceipts.push(approval); return approval; });
   }
   #current(context: Context, preview: any) {
-    authorize(this.store, context, 'prepare'); const provider = this.#providers.get(preview.providerId);
+    authorize(this.store, context, 'prepare'); const provider = this.#provider(preview.providerId);
     check(provider?.enabled && provider.revision === preview.providerRevision && preview.memberId === context.memberId && preview.epoch === context.epoch, 'SPEECH_REVOKED', 'Speech access changed after preview.');
     assertSourceAccess(this.store.read(), context, preview.sourceIds);
     check(trustFingerprint(this.store.read(), context, preview.sourceIds) === preview.trustFingerprint, 'PREVIEW_STALE', 'Privacy settings changed after the audio preview.');
@@ -141,12 +170,12 @@ export class SpeechService {
   async transcribe(context: Context, input: { previewId?: string; approvalId?: string; providerId?: string; transcript?: string; browserProvider?: string }) {
     authorize(this.store, context, 'prepare');
     if (!input.previewId) {
-      const provider = this.#providers.get(input.providerId || ''); check(provider?.enabled && provider.kind === 'browser-transcript', 'SPEECH_UNAVAILABLE', 'Select browser transcript or create an audio preview.');
+      const provider = this.#provider(input.providerId); check(provider?.enabled && provider.kind === 'browser-transcript', 'SPEECH_UNAVAILABLE', 'Select browser transcript or create an audio preview.');
       check(typeof input.transcript === 'string' && input.transcript.trim().length > 0 && input.transcript.length <= 10000, 'INVALID_TRANSCRIPT', 'Supply a browser transcript.');
       return this.store.update(state => { authorize(this.store, context, 'prepare'); const receipt = { id: newId('speech_receipt'), kind: 'speech-receipt', memberId: context.memberId, createdAt: now(), providerId: provider.id, endpoint: 'browser://transcript-received', digest: hash(input.transcript!), transcript: input.transcript, browserProvider: input.browserProvider || 'unspecified', providerVerified: false, networkDisclosure: 'The browser speech provider may process audio remotely. Chausar received text only.', costMeasured: false, actualCostMinor: null, attempts: 0 }; state.modelReceipts.push(receipt); return { transcript: input.transcript!, receipt }; });
     }
     const preview = structuredClone(this.store.read().modelReceipts.find(r => r.id === input.previewId && r.kind === 'speech-preview'));
-    const browser = preview && this.#providers.get(preview.providerId);
+    const browser = preview && this.#provider(preview.providerId);
     if (browser?.kind === 'browser-transcript') {
       check(browser.enabled && browser.revision === preview.providerRevision && preview.memberId === context.memberId && preview.epoch === context.epoch && preview.status === 'preview', 'SPEECH_REVOKED', 'The browser transcript preview is stale.');
       assertSourceAccess(this.store.read(), context, preview.sourceIds);
@@ -202,6 +231,15 @@ export class SpeechService {
     } catch (error) { await this.store.update(state => { const receipt = state.modelReceipts.find(r => r.id === preview.id); if (receipt) { receipt.status = 'failed'; receipt.errorCode = error instanceof ChausarError ? error.code : 'SPEECH_FAILED'; } }); if (error instanceof ChausarError) throw error; throw new ChausarError('SPEECH_FAILED', 'Speech failed without a retry or fallback.'); }
     finally { if (directory) await rm(directory, { recursive: true, force: true }); }
   }
-  revoke(context: Context, providerId: string) { authorize(this.store, context, 'admin'); const provider = this.#providers.get(providerId); check(provider, 'SPEECH_UNAVAILABLE', 'Speech provider was not found.'); provider.enabled = false; provider.revision++; this.#credentials.delete(providerId); return { providerId, enabled: false }; }
+  /** Disables a provider durably. Its revision moves on, so every earlier preview is refused, also after a restart. */
+  async revoke(context: Context, providerId: string) {
+    authorize(this.store, context, 'admin');
+    const revoked = await this.store.update(state => {
+      authorize(this.store, context, 'admin'); const provider = storedProviders(state).find(p => p.id === providerId); check(provider, 'SPEECH_UNAVAILABLE', 'Speech provider was not found.');
+      const ns = speechNamespace(state); const next = { ...provider, enabled: false, revision: provider.revision + 1 };
+      ns.providers = [...(ns.providers ?? []).filter(p => p.id !== providerId), next]; audit(state, 'speech.provider.revoked', { id: providerId, kind: provider.kind, revision: next.revision }); return next;
+    });
+    this.#credentials.delete(providerId); return { providerId, enabled: false, revision: revoked.revision };
+  }
   clearCredentials() { this.#credentials.clear(); }
 }

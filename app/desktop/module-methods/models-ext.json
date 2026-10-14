@@ -18,6 +18,7 @@
   "modelsx.speechCatalogue",
   "modelsx.speechConfirm",
   "modelsx.speechInterpret",
+  "modelsx.speechRevoke",
   "smallapps.create",
   "smallapps.get",
   "smallapps.list",
