@@ -28,6 +28,9 @@ import type { UiContext, UiModelRoute } from './contracts.ts';
 import type { HostController, HostReceiptSelection, HostState } from './controller.ts';
 import type { FirstRunResult } from '../screens/first-run/controller.ts';
 import { FirstRunScreen } from '../screens/first-run/FirstRun';
+import { FirstRunJourney } from '../screens/first-run/FirstRunJourney';
+import { LockScreen } from '../app/LockScreen';
+import { UnlockControl, type UnlockResult } from './UnlockControl';
 import type { FirstRunStagesDone } from '../screens/first-run/FirstRun';
 import { discoveryRowFor, lessonDecisionAvailability, sameScenarioSelection, scenarioProof } from './retained-contracts.ts';
 import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, ScenarioDiscoveryRow, ScenarioSelection } from './retained-contracts.ts';
@@ -66,6 +69,12 @@ export interface HostMountOptions {
   readonly scenarioSelection?: ScenarioSelection;
   /** Certification of the earlier steps belongs to the trusted parent journey. */
   readonly firstRunStagesDone?: FirstRunStagesDone;
+  /**
+   * `journey`: the whole first run (FR-01..FR-13) as one journey, and a lock screen that unlocks
+   * an existing workspace. The product entry (host/shell.js) uses it. Absent: the earlier
+   * create, recovery and meanings slice, kept for the hosts and journeys built on it.
+   */
+  readonly firstRun?: 'journey';
 }
 export interface MountedHost {
   /** Detaches the surface while retaining the injected host and any pending attempt. */
@@ -951,13 +960,23 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
   const [view, setView] = useState<View>(options.view ?? 'guided');
   const [address, setAddress] = useState(() => parseAddress(window.location.hash));
   const [vaultAcknowledged, setVaultAcknowledged] = useState<string | null>(null);
+  const journeyMode = options.firstRun === 'journey';
+  const [journeyDone, setJourneyDone] = useState(false);
+  const [startNew, setStartNew] = useState(false);
+  const [unlockResult, setUnlockResult] = useState<UnlockResult | null>(null);
   useLayoutEffect(() => {
+    // The journey owns the first-run surface while it is mounted.
+    if (journeyMode) {
+      const changed = () => setAddress(parseAddress(window.location.hash));
+      window.addEventListener('hashchange', changed);
+      return () => window.removeEventListener('hashchange', changed);
+    }
     let mounted = true;
     controller.setFirstRunSurface(() => mounted && sameAddress(parseAddress(window.location.hash), FIRST_RUN));
     const changed = () => { const next = parseAddress(window.location.hash); if (!sameAddress(next, FIRST_RUN)) controller.firstRun.cancel(); setAddress(next); };
     window.addEventListener('hashchange', changed);
     return () => { mounted = false; window.removeEventListener('hashchange', changed); controller.setFirstRunSurface(null); };
-  }, [controller]);
+  }, [controller, journeyMode]);
   useLayoutEffect(() => {
     if (state.phase !== 'ready' || state.context === null) return;
     if (state.dictionaryReviewRequired) { navigate(FIRST_RUN); setAddress(FIRST_RUN); }
@@ -970,6 +989,25 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
     document.documentElement.removeAttribute('data-theme');
   }, [language, view]);
   const authorized = state.phase === 'ready' && state.context !== null;
+  if (journeyMode && !journeyDone) {
+    if (state.phase === 'locked' && state.creation.kind === 'idle' && !startNew) {
+      // SH-02: the passphrase passes straight to the engine once; the field is cleared by the control.
+      const unlock = (passphrase: string) => controller.places.request('workspace.open', { folder: 'main', passphrase }).then(
+        () => { setUnlockResult(null); return controller.unlocked(); },
+        (error: unknown) => { setUnlockResult((error as { code?: unknown })?.code === 'UNLOCK_FAILED' ? { kind: 'wrong' } : null);
+          if ((error as { code?: unknown })?.code !== 'UNLOCK_FAILED') setStartNew(true); });
+      return <TextProvider language={language}>
+        <LockScreen workspaceName={hostMessage(language, 'thisWorkspace')}
+          unlockControl={<UnlockControl unlock={unlock} result={unlockResult} onRecoveryKit={() => setStartNew(true)} />} />
+      </TextProvider>;
+    }
+    if (state.creation.kind !== 'idle' || state.phase === 'locked' || (authorized && state.dictionaryReviewRequired)) {
+      return <TextProvider language={language}><FirstRunJourney host={controller} rpc={controller.places} language={language} onLanguage={setLanguage} view={view} onView={setView}
+        onDone={() => { setJourneyDone(true); navigate(TODAY); setAddress(TODAY); void controller.refresh(); }}
+        saveRouteKey={(config, key) => controller.places.request('models.configure', { config, secret: key })}
+        onReopened={() => { setStartNew(false); void controller.unlocked(); }} /></TextProvider>;
+    }
+  }
   if (authorized && state.dictionaryReviewRequired) {
     return sameAddress(address, FIRST_RUN) ? <FirstRunScreen controller={controller.firstRun} language={language} onLanguage={setLanguage} view={view}
       stagesDone={options.firstRunStagesDone ?? { you: false, vault: vaultAcknowledged === state.context.workspace.id, model: false, books: false }}

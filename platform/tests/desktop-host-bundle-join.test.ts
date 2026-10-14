@@ -196,7 +196,7 @@ test('actual browser shell without a token refuses locally before any fetch or d
 test('actual shell offers no legacy return when the host document does not mark it available', async () => {
   for (const protocol of ['chausar:', 'https:'] as const) {
     const h = await shellFixture(protocol, 'synthetic-token', false);
-    try { assert.deepEqual(h.mountOptions, []); assert.throws(() => h.legacyReturn()); assert.deepEqual(h.assignments, []); }
+    try { assert.deepEqual(h.mountOptions, ['firstRun']); assert.throws(() => h.legacyReturn()); assert.deepEqual(h.assignments, []); }
     finally { h.pagehide(); }
   }
 });

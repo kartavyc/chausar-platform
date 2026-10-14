@@ -6,6 +6,7 @@ import hi from '../text/hi.json';
 
 const EN = {
   legacy: 'Previous interface',
+  thisWorkspace: 'Your workspace',
   refresh: 'Read again',
   loading: 'Reading your workspace.',
   unavailable: 'This workspace is unavailable. Open the previous interface to continue.',
@@ -98,6 +99,7 @@ const HI: Readonly<Record<HostTextKey, string>> = {
   helpSendGuard: 'Ctrl Enter से AI अनुरोध नहीं भेजा जाता।',
   helpUnavailable: 'आवाज़, शीट के अगले और पिछले आइटम, शब्द सूची और ऑफ़लाइन उपलब्धता यहाँ नहीं दी गई है।',
   legacy: 'पिछला इंटरफ़ेस खोलें',
+  thisWorkspace: 'आपका कार्यस्थान',
   refresh: 'फिर से पढ़ें',
   loading: 'आपका कार्यक्षेत्र पढ़ा जा रहा है।',
   unavailable: 'यह कार्यक्षेत्र उपलब्ध नहीं है। आगे बढ़ने के लिए पिछला इंटरफ़ेस खोलें।',

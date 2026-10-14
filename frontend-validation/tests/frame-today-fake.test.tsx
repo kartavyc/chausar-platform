@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { mountHost } from '../../app/ui/src/host/bootstrap';
 import type { MountedHost } from '../../app/ui/src/host/bootstrap';
 import { createHostController } from '../../app/ui/src/host/controller';
-import { createFakeEngine } from '../../app/ui/src/bridge/fake';
+import { createFakeEngine, FAKE_PASSPHRASE } from '../../app/ui/src/bridge/fake';
 import type { FakeScenario } from '../../app/ui/src/bridge/fake';
 
 // The actual host on the fake engine: synthetic demo shop only, no network, no vault.
@@ -78,4 +78,24 @@ test('the empty scenario shows missing words, never zeros or invented amounts', 
   const figures = [...page().querySelectorAll('.fig')].map(element => (element.textContent ?? '').trim());
   expect(figures.filter(value => /^[₹-]?\s*0(?:[.,]0+)?$/.test(value))).toEqual([]);
   expect(page().querySelectorAll('button.fig').length).toBe(0);
+});
+
+test('the product entry locks an existing workspace behind the lock screen and unlocks it once per press', { timeout: 20000 }, async () => {
+  const engine = createFakeEngine({ scenario: 'locked' });
+  const controller = createHostController(engine, { todayProducer: await engine.todayProducer() });
+  const container = document.createElement('div'); document.body.append(container);
+  let mounted: MountedHost | null = null;
+  await act(async () => { mounted = mountHost(container, controller, { view: 'guided', firstRun: 'journey' }); });
+  cleanups.push(() => { mounted?.unmount(); controller.dispose(); container.remove(); });
+  const user = userEvent.setup();
+  await screen.findByText('Your workspace is locked', undefined, { timeout: 5000 });
+  expect(document.querySelector('[data-region="page"]')).toBeNull();
+  const field = screen.getByLabelText(/passphrase/i) as HTMLInputElement;
+  await user.type(field, 'not-the-passphrase{Enter}');
+  await screen.findByText(/not the passphrase/, undefined, { timeout: 5000 });
+  expect(field.value).toBe('');
+  expect(engine.calls.filter(method => method === 'workspace.open')).toHaveLength(1);
+  await user.type(screen.getByLabelText(/passphrase/i), `${FAKE_PASSPHRASE}{Enter}`);
+  await waitFor(() => expect(screen.queryByText('Your workspace is locked')).toBeNull(), { timeout: 5000 });
+  expect(engine.calls.filter(method => method === 'workspace.open')).toHaveLength(2);
 });

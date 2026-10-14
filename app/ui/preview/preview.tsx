@@ -76,7 +76,7 @@ async function start() {
     setTheme(next) { heldTheme = next; applyTheme(); },
   };
   window.__chausarPreview = handle;
-  mountHost(container, controller, { language, view, onLegacyReturn: () => {} });
+  mountHost(container, controller, { language, view, firstRun: 'journey' });
   holdTheme();
   // Prepare the three configured figures once, the way the Prepare button does, so the charts and receipts show.
   let prepared = false;

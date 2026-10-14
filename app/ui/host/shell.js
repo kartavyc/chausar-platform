@@ -18,7 +18,7 @@ const controller = createHostController(port, { todayProducer: {} });
 // The new UI is the default. A return to the legacy renderer is offered only when the trusted
 // host served the document that says it is available (an explicit --legacy-renderer launch).
 const legacyAvailable = document.documentElement?.dataset?.legacy === 'available';
-const mounted = mountHost(container, controller, legacyAvailable ? { onLegacyReturn: () => location.assign(desktop ? '/index.html' : `/index.html${token ? '#token=' + encodeURIComponent(token) : ''}`) } : {});
+const mounted = mountHost(container, controller, legacyAvailable ? { firstRun: 'journey', onLegacyReturn: () => location.assign(desktop ? '/index.html' : `/index.html${token ? '#token=' + encodeURIComponent(token) : ''}`) } : { firstRun: 'journey' });
 const check = () => { void controller.checkAuthority().catch(() => controller.invalidate('ACCESS_DENIED')); };
 const focus = () => { if (document.visibilityState === 'visible') check(); };
 window.addEventListener('focus', check); document.addEventListener('visibilitychange', focus);

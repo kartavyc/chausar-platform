@@ -34,6 +34,8 @@ import {
 import type { FakeScenarioName, TodayxState } from './fixtures/todayx.ts';
 
 export type FakeScenario = FakeScenarioName;
+/** The passphrase that opens the fake's locked workspace. Synthetic; never a real secret. */
+export const FAKE_PASSPHRASE = 'synthetic-demo-passphrase';
 export const FAKE_SCENARIOS: readonly FakeScenario[] = ['populated', 'empty', 'first-run', 'locked', 'read-only'];
 
 export interface FakeEngineOptions {
@@ -311,6 +313,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'ui.context': () => uiContext(),
     'models.list': () => (populated() ? [{ ...DEMO_ROUTE }] : []),
     'workspace.lock': () => { mutating(); unlocked = false; return { locked: true }; },
+    'workspace.open': payload => {
+      if (unlocked) throw fakeRefusal('VAULT_OPEN', 'Lock the current workspace first.');
+      if (payload['passphrase'] !== FAKE_PASSPHRASE) throw fakeRefusal('UNLOCK_FAILED', 'Unable to unlock vault.');
+      unlocked = true; return { workspace: { ...workspace } };
+    },
     'workspace.create': payload => {
       if (unlocked) throw fakeRefusal('ACCESS_DENIED', 'A workspace is already open.');
       if (typeof payload['name'] !== 'string' || payload['name'].trim().length < 2 || payload['dictionaryMode'] !== 'deferred') throw fakeRefusal('INVALID_DICTIONARY_MODE', 'Create a deferred workspace.');
@@ -371,7 +378,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     if (typeof method !== 'string' || !isRecord(payload)) throw fakeRefusal('INVALID_REQUEST', 'A request is a method name and a plain payload.');
     const handler = handlers[method] ?? registry.get(method);
     if (handler === undefined) throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not serve this method yet.');
-    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create') throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
+    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open') throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
     const value = await handler(structuredClone(payload), context());
     return value === undefined ? undefined : structuredClone(value);
   }
