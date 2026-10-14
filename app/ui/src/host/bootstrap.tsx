@@ -992,6 +992,8 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
   const [journeyDone, setJourneyDone] = useState(false);
   const [startNew, setStartNew] = useState(false);
   const [unlockResult, setUnlockResult] = useState<UnlockResult | null>(null);
+  // A recovery or new workspace started from the lock screen ends when a workspace is open again.
+  useEffect(() => { if (state.phase === 'ready') setStartNew(false); }, [state.phase]);
   useLayoutEffect(() => {
     // The journey owns the first-run surface while it is mounted.
     if (journeyMode) {
@@ -1017,7 +1019,8 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
     document.documentElement.removeAttribute('data-theme');
   }, [language, view]);
   const authorized = state.phase === 'ready' && state.context !== null;
-  if (journeyMode && !journeyDone) {
+  if (journeyMode) {
+    // The lock screen holds whenever the workspace is locked, before or after first run.
     if (state.phase === 'locked' && state.creation.kind === 'idle' && !startNew) {
       // SH-02: the passphrase passes straight to the engine once; the field is cleared by the control.
       const unlock = (passphrase: string) => controller.places.request('workspace.open', { folder: 'main', passphrase }).then(
@@ -1029,7 +1032,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
           unlockControl={<UnlockControl unlock={unlock} result={unlockResult} onRecoveryKit={() => setStartNew(true)} />} />
       </TextProvider>;
     }
-    if (state.creation.kind !== 'idle' || state.phase === 'locked' || (authorized && state.dictionaryReviewRequired)) {
+    if ((!journeyDone || startNew) && (state.creation.kind !== 'idle' || state.phase === 'locked' || (authorized && state.dictionaryReviewRequired))) {
       return <TextProvider language={language}><FirstRunJourney host={controller} rpc={controller.places} language={language} onLanguage={setLanguage} view={view} onView={setView}
         onDone={() => { setJourneyDone(true); navigate(TODAY); setAddress(TODAY); void controller.refresh(); }}
         saveRouteKey={(config, key) => controller.places.request('models.configure', { config, secret: key })}

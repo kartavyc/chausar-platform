@@ -131,3 +131,18 @@ test('a lane place module wins its address and the retained lesson review keeps 
   await waitFor(() => expect(engine.calls.slice(before)).toContain('memory.lessons'), { timeout: 5000 });
   expect(within(page()).getByRole('heading', { name: 'Lessons' })).toBeTruthy();
 });
+
+test('locking after first run shows the lock screen again, never the create form or workspace data', { timeout: 20000 }, async () => {
+  const engine = createFakeEngine({ scenario: 'populated' });
+  const controller = createHostController(engine, { todayProducer: await engine.todayProducer() });
+  const container = document.createElement('div'); document.body.append(container);
+  let mounted: MountedHost | null = null;
+  await act(async () => { mounted = mountHost(container, controller, { view: 'guided', firstRun: 'journey' }); });
+  cleanups.push(() => { mounted?.unmount(); controller.dispose(); container.remove(); });
+  await screen.findByText('Send a payment reminder to Kiran Retail Demo', undefined, { timeout: 5000 });
+  await act(async () => { await controller.lock(); });
+  await screen.findByText('Your workspace is locked', undefined, { timeout: 5000 });
+  expect(screen.queryByText('Send a payment reminder to Kiran Retail Demo')).toBeNull();
+  expect(document.querySelector('[data-first-run-create]')).toBeNull();
+  expect(document.querySelector('[data-region="page"]')).toBeNull();
+});
