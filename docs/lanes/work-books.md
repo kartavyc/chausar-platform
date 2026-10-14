@@ -446,6 +446,35 @@ TrialView = { trialId; draftId: string | null; proposalId: string | null; experi
 | `books.trialPublish` | approve | `{ trialId, evaluationDigest, impactDigest }` | `{ trialId; status: 'promoted'; publicationId; draftId; proposalId }`. A draft must still pass every release rule (unchanged digest, co-sign when the team needs one, checks); a proposal must be accepted (`PROPOSAL_NOT_ACCEPTED`). Then `trials.promote` with strategy `prospective` and the reviewed impact digest; the draft or proposal is marked published. |
 | `books.trialDiscard` | prepare | `{ trialId }` | `{ trialId; status: 'discarded'; cleanupComplete }` (`trials.discard`) |
 
+### Books, design audit additions (additive)
+
+- `books.trial` and `books.trialRead` take `precedence: { kind, sourceIds }` in place of `draftId` or
+  `proposalId` (exactly one of the three). It becomes the core trial change
+  `{ type: 'source-precedence', kind, sourceIds }`: sources that disagree (BK-14) tried on a copy
+  (BK-09). Each source must be visible to the caller and hold facts (`SOURCE_NOT_FOUND`); an order
+  equal to the live rule refuses `TRIAL_NO_CHANGE` (core). `TrialView` and the `books.trialPublish`
+  reply gain `precedence: { kind, sourceIds } | null`. Publishing promotes the copy through
+  `trials.promote` (core checks the owner's seat), which publishes the order as the live source
+  rule. Purge drops a trial record that names a removed source.
+- `records.undoMatch` reply gains `cancelled: string[]` and `notCancelled: { id, code }[]`. Every
+  prepared or approved action that was never attempted, made between the join and its undo, whose
+  request or sources name one of the joined customers, is cancelled: core actions through
+  `ActionService.cancel`, write-back actions (`wb-` connectors) through `writeback.drop`. Nothing is
+  changed in place; one that refuses is listed with its code.
+- Match pairs gain `badIds: { kind: 'GSTIN' | 'PAN'; length; expected }[]` (malformed ids, not used
+  as evidence), so the screen says why in the person's language.
+- `accounts.list` rows gain `because: { code: 'group' | 'group-unsortable' | 'no-group' | 'side' |
+  'recipe' | 'learned' | 'said-no' | 'accountant'; group?; under?; side?; cls? }[]` beside the
+  English `reason`.
+- `books.memoryPropose` (prepare) `{ text, kind, receiptId? }` gives a `MemoryLine` with status
+  `proposed` (BK-17 "confirm a line proposed from the ask line", SH-04 "telling, not asking"). Work
+  that has read outside content (`sourceTainted`) proposes `outside-content`; with the caller's own
+  `receiptId` the source is `computed` (`RECEIPT_NOT_FOUND` otherwise). Confirming stays with the
+  owner or a cofounder (`books.memoryConfirm`).
+- `history.rebuild`: the full rebuild now runs on a copy rebuilt from the start: no receipts, saved
+  answers or conversations, the facts laid down again in the order they were learned, and each
+  published sum compiled again from its definition instead of the retained compiled artifact.
+
 ## Lane report
 
 ### What a person can do
@@ -568,8 +597,8 @@ TrialView = { trialId; draftId: string | null; proposalId: string | null; experi
   its kind; the learning lane's grammar keeps only what can be true. The proposal shows each
   binding as new, changed or unchanged, what was removed and why, and stays "proposed" until a
   named person accepts it.
-- **Try a change on a copy** (BK-09, `#/books/trial`, experimental): from a meaning draft or an
-  accepted proposal. Pick the saved questions, make the copy (its time and disk space are
+- **Try a change on a copy** (BK-09, `#/books/trial`, experimental): from a meaning draft, a
+  proposal (also listed on its recipe), or a source order from sources that disagree. Pick the saved questions, make the copy (its time and disk space are
   shown), then each question has two figures, now and with the change; a figure that differs
   is in ink, the rest grey. "Now" opens the saved answer's receipt; "with the change" opens the
   copy's receipt in place. Publish (owner or cofounder, the same release rules) or Discard.
@@ -713,11 +742,45 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
   setting and reads again); a newer recipe version says which versions, not what changed between
   them; registered recipes have no "who accepted" (they are seeds), and tax registration in the
   scope is unknown. A connector recipe's unmapped field cannot be mapped here.
-- BK-09: a copy is reached from a meaning draft and a proposal, not yet from "sources that
-  disagree" (BK-14); publishing uses the prospective strategy only.
+- BK-09: publishing uses the prospective strategy only. (A copy is now reached from a meaning draft,
+  a proposal, a recipe and sources that disagree; see the design audit.)
 - BK-15 has no step line of the belief over time.
 - BK-19 exchange rates and the BK-20 Delete (`deletion.request`) are not built.
 - The lane's "sending closed" gate holds for `approvals.execute`. The core
   `actions.execute` does not check it; closing that needs a core edit.
 - Phone approvals (WK-03 "Open the app") follow the core rule: the engine refuses approving
   methods from phone sessions.
+
+## Design audit: Books
+
+Each Books screen was checked against `docs/specs/CHAUSAR-APP-DESIGN.md` (For, Shows, You can,
+States, Engine, Rules) in the Simple, Guided and Books views and in English and Hindi, by reading the
+code and the tests (`platform/tests/work-books-books*.test.ts`,
+`frontend-validation/tests/work-books-books*.test.tsx`). The audit's own tests are
+`work-books-books-audit.test.ts` and `work-books-books-audit.test.tsx`. Every page draws in all three
+views: Simple keeps the columns marked simple, and Books is denser. Every word these pages draw is in
+both catalogues. Where a row says "in Hindi", a sentence that used to arrive in English from the
+engine is now said from codes.
+
+| Screen | Shows | States | You can | Rules | Views/languages | Status |
+|---|---|---|---|---|---|---|
+| BK-01 Sources | One row per source and scope, with the way in, the last read, twelve month squares and what to look at. "N fields no recipe covers" is under the table. | Loaded, loading, not loaded yet, refused (amber) and failed (amber ring and the word). Not connected. An experimental label on each source. | Open a source; add a source | An open square is never a zero. | Simple keeps the name, the last read and the squares. Audit fix: not connected, paused and a failed read now stay beside the name in Simple, which drops the "what to look at" column. Hindi. | done |
+| BK-02 One source | The way in, the last read, the months, what is loaded per kind, reads with their totals, refusals with codes, unmapped fields, the connection and the history of reads. | Loading, refused, not built (no connectors lane) | Read now, Import or Set aside, Pause or Resume, Sign in again (the address is shown as text), Remove | Remove asks again. | All three views; Hindi | partial: "where refused files are kept" is not drawn, and neither is the sign-in path before Sign in again is pressed. How old the data is shows as the last read plus the stale word, not as an age. |
+| BK-03 Add a source | Systems with full, read or import; tested or experimental; evidence counts; tier. A table per operation, then the way in, and for Tally where it lives. | Planned, not available yet. This network and another computer are labelled experimental. Sign-in happens in the browser. | Connect | A claim is per operation, never per logo. | All three views (the operation table never drops columns in Simple); Hindi | partial: "Which company?" is a typed name, because connectors-ext has no list of the companies open in Tally. The exporter and one-page guide for Tally on another computer are not built (connectors-ext). |
+| BK-04 Bring a file | The FR-07 screen | none | none | none | none | not possible here: FR-07 (`screens/first-run/BringFile.tsx`) needs the host's file picker and the journey port, and a place module receives neither. Sources only says "Bring a file" in its empty state. frame-today would need to expose FR-07 to places. |
+| BK-05 A recipe | The state, the scope in five fields, bindings with who accepted them and their grade, and the check as two totals | Questions with one of the five reasons and their choices; totals that do not match (amber); a newer version | Audit fix: the recipe lists the proposed changes to its own sources, each with "try it on a copy" (BK-09) | A binding says "proposed" until a named person accepts it. | All three views; Hindi | partial: a question cannot be answered in place (there is no method; the person reads again). A newer version names the versions, not what changes. Tax registration in the scope is unknown. |
+| BK-06 Fields no recipe covers | Field, type, how often it is filled | Empty. A connector field points to its recipe. | Map this field (file imports) | Nothing is lost silently. | All three views; Hindi | done (a connector recipe's field cannot be mapped here: connectors-ext owns those recipes) |
+| BK-07 Meanings | Word, meaning, where it came from, state | A clash is shown in amber. | Open a word; start a draft | none | All three views; Hindi | done |
+| BK-08 A meaning | What counts; the old rule struck through beside the new one; the change; what it affects; checks; reviews; "try it on a copy" | Draft; AI opinion; not reviewed; co-signed by name; checks failed, with the code | Publish, Co-sign, Discard, change the word | A release switches on everywhere at once. | All three views; Hindi | partial: there is no worked example drawing and no "date used" line, because a definition carries no example or date field. The release history names who published, not who reviewed. |
+| BK-09 Try a change on a copy | Saved questions with "now" and "with the change". Figures that differ are in ink and the rest are grey; each cell opens its receipt. | Making the copy (time and disk space); refusals in words | Pick the saved questions; Publish; Discard | The copy never runs an action or sends anything (core trials). | All three views; Hindi | done: the audit adds the two missing ways in, from sources that disagree (BK-14, as a source order) and from a recipe (BK-05, its proposed changes). Experimental, as the design marks it. |
+| BK-10 Starter packs | Pack, state, the meanings that came from it | Empty | none | none | All three views; Hindi | done |
+| BK-11 Accounts | Account, proposed class, the reason, the decision | Not sure: Chausar asks. Corrected by an accountant. | Yes, No, Change | Customer and supplier accounts are sorted by group only; their names never leave this computer. | Audit fix: the reason used to be English sentences from the engine and is now codes, said in Hindi too. The page states the names rule. | done: `learningx.accountsProposals` is called with `{}` (no names). A debtor or creditor is sorted by its group even when learning proposes another class (tested). |
+| BK-12 Customers, suppliers and items | The list. A record's details with their sources, what it owes (with a receipt), the time line, the agreement per channel, the stopped flag and what we hold. | Loading, empty, refused | Record the agreement; open what we hold and Delete (BK-20) | none | All three views; Hindi (field and kind names show as the books name them) | partial: "ask about this record from the ask line" cannot be done from a place. The frame's ask line has an `about` prop, but nothing lets a place set it, so the page now says this is not built yet. The time line holds invoices and payments from facts, not reminders or notes. |
+| BK-13 Same customer or not | Pairs with their evidence and the reason | Joined, with Undo. A malformed GSTIN or PAN is not used, and the pair says why. | Same, Not the same, Undo | A hint never joins on its own; two different PANs cannot be joined. | Audit fix: the relation, the evidence and malformed ids are now in words (they were codes and English sentences). | done: on Undo, the audit fix cancels every approval that depended on the join, through `ActionService.cancel` or `writeback.drop`. The screen says how many were cancelled and which could not be. Totals return through core identity resolution. |
+| BK-14 Sources that disagree | Both claims side by side with their sources, and the rule used | Not agreed: no value is picked. | Set which source wins (owner). Audit fix: try a source first on a copy. | Fields that belong together come from one source together. | All three views; Hindi | done: core selection picks whole claims, never field by field. This is tested end to end: the picked claim's amount, currency and date come from one fact. The page now says so, and shows "not agreed" whenever no claim is picked, even when a rule exists for other sources. |
+| BK-15 History | Then and now with their receipts; versions, with a correction and a new event drawn differently; the belief line (a step line) | Correction or credit note; loading; refusals | Choose another date; every version of one record | none | All three views; Hindi | partial: the Demo clock state is not drawn (the frame owns the clock banner). |
+| BK-16 Stale answers | Stale answers with the date each was worked out, the reason and when each was rebuilt | Rebuilt (matches); Failed, with both figures, and the answer stays stale | Rebuild | Each rebuilt answer is compared with a full rebuild from the start. | Audit fix: the stale mark now shows in Simple (beside the question) and goes away once a rebuild matches. Books view shows both exact figures. | done: the full rebuild now starts from nothing worked out. It keeps no receipts or answers, lays the facts down again in the order they were learned and compiles each sum again from its definition. |
+| BK-17 Memory | The belief, its kind, status and source, both dates and earlier versions | Outside content is remembered and never obeyed. | Filter to outside content; add a line; edit; delete. Audit fix: confirm a line proposed from the ask line. | Anything read from a file or a message is never obeyed. | Audit fix: proposed lines wait first, under "Waiting for your yes", in every view. | done for this lane: `books.memoryPropose` is added. The ask lane must call it for SH-04 statements; that is not wired there. |
+| BK-18 A photo of a bill | See WK-13 | Experimental | none | none | All three views; Hindi | done (experimental, as the design marks it; tested with a fake reader) |
+| BK-19 GST mode and exchange rates | The GST mode under Meanings; rates by date | An amount with no rate for its date is "not counted", with the count. | Enter or remove a rate (owner or cofounder) | none | All three views; Hindi | partial: the count of rows not counted is on the rates page, not on each receipt. The calculator does not read rates; that needs a core hook. |
+| BK-20 What we hold about a customer | Every store, with its count | What each store will do; the report per store | Delete (the customer id typed to confirm) | Deleting always waits for a person. | All three views; Hindi | partial: facts, receipts, answers, actions and conversations are "not possible here", because no core method deletes one customer's rows. |

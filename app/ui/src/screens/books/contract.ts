@@ -98,6 +98,10 @@ const accountClass = oneOf(ACCOUNT_CLASSES);
 export const accountRow = object({
   name, group: nullable(name), side: nullable(oneOf(['debit', 'credit'])), proposed: nullable(accountClass), reason: list(line, 50),
   decided: nullable(object({ class: accountClass, by: name, role: name, at: when })), state: oneOf(['proposed', 'unsure', 'decided']),
+}, {
+  // Audit, additive: the reason as codes, said in the person's language.
+  because: list(object({ code: oneOf(['group', 'group-unsortable', 'no-group', 'side', 'recipe', 'learned', 'said-no', 'accountant']) },
+    { group: name, under: name, side: oneOf(['debit', 'credit']), cls: name }), 20),
 });
 export type AccountRow = ReturnType<typeof accountRow>;
 export const accountsReply = object({ accounts: list(accountRow, 5000), proposals: object({ available: bool }) });
@@ -119,6 +123,10 @@ export const holdingsReply = object({ stores: list(object({ store: name, count }
 export const matchPair = object({
   left: id, right: id, relation: name, evidence: list(line, 50), reason: line,
   state: oneOf(['open', 'joined', 'not-same']), mergeId: nullable(id),
+}, {
+  // Audit, additive: malformed tax ids (not used as evidence), and after an undo the approvals that depended on the join.
+  badIds: list(object({ kind: oneOf(['GSTIN', 'PAN']), length: count, expected: count }), 20),
+  cancelled: list(id, 500), notCancelled: list(object({ id, code }), 500),
 });
 export type MatchPair = ReturnType<typeof matchPair>;
 export const matchesReply = object({ pairs: list(matchPair) });

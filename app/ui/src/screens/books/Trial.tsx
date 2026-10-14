@@ -1,6 +1,7 @@
 /**
- * BK-09 Try a change on a copy (experimental). Reached from a meaning draft (BK-08) or a
- * proposed mapping (BK-05). The address sheet is the draft id, or `p:` and the proposal id.
+ * BK-09 Try a change on a copy (experimental). Reached from a meaning draft (BK-08), a
+ * proposed mapping (BK-05) or sources that disagree (BK-14). The address sheet is the draft
+ * id, `p:` and the proposal id, or `k:` and a source order (the kind of fact, then the sources).
  * Saved questions are worked out twice on a private copy: now, and with the change. A figure
  * that differs is in ink, the rest grey. "Now" opens the saved answer's receipt; "with the
  * change" opens the copy's receipt here. The copy never runs an action and never sends anything.
@@ -12,20 +13,40 @@ import { useAct, useReply } from '../work/kit/reply.ts';
 import { day, paise } from '../work/kit/format.ts';
 import { missingWord } from '../work/kit/words.ts';
 import { trialDiscardReply, trialPublishReply, trialQuestionsReply, trialReadReply, trialView, type TrialCell, type TrialView } from './contract.ts';
-import { BooksPage, Money, Table, approves, fill, idOf, prepares, styles as s, valueOf, type BooksProps } from './shared.tsx';
+import { BooksPage, Money, Table, approves, fill, idOf, prepares, sheetOf, styles as s, valueOf, type BooksProps } from './shared.tsx';
+import { useAuditWords } from './words-audit.ts';
 import { Say, r2Styles as t } from './r2-parts.tsx';
 import { useR2, type R2 } from './words-r2.ts';
 
+type Order = { kind: string; sourceIds: string[] };
+type Target = { draftId: string } | { proposalId: string } | { precedence: Order };
+/** The sheet for a source order to try: the kind of fact, then the sources, first wins. */
+export const orderSheet = (kind: string, sourceIds: readonly string[]) => sheetOf(`k:${JSON.stringify([kind, ...sourceIds])}`);
+function orderOf(raw: string): Order | null {
+  try {
+    const value: unknown = JSON.parse(raw.slice(2));
+    if (!Array.isArray(value) || value.length < 2 || value.length > 65 || !value.every(v => typeof v === 'string' && v.length > 0 && v.length <= 200)) return null;
+    return { kind: value[0] as string, sourceIds: value.slice(1) as string[] };
+  } catch { return null; }
+}
+function targetOf(raw: string | null): Target | null {
+  if (raw === null) return null;
+  if (raw.startsWith('p:')) return { proposalId: raw.slice(2) };
+  if (raw.startsWith('k:')) { const order = orderOf(raw); return order ? { precedence: order } : null; }
+  return { draftId: raw };
+}
+
 export function Trial(props: BooksProps) {
-  const r = useR2(props.language);
+  const r = useR2(props.language), a = useAuditWords(props.language);
   const raw = idOf(props.address.sheet);
-  const target = raw === null ? null : raw.startsWith('p:') ? { proposalId: raw.slice(2) } : { draftId: raw };
+  const target = targetOf(raw);
   const { loaded, reload } = useReply(props, 'books.trialRead', target ?? { draftId: '' }, trialReadReply, raw ?? '');
   const value = target ? valueOf(loaded) : undefined;
   return (
     <BooksPage props={props} sub="trial" title={r['title.trial']} loaded={target ? loaded : undefined} reload={reload} aside={<Label kind="experimental" />}>
       <Note>{r.copyRule}</Note>
       {!target && <Note>{r.noDraft}</Note>}
+      {target && 'precedence' in target && <p>{fill(a.orderChange, { kind: target.precedence.kind, order: target.precedence.sourceIds.join(' › ') })}</p>}
       {value && (value.trial === null
         ? (prepares(props) ? <MakeCopy props={props} target={target!} onMade={reload} /> : <Note>{r.noDraft}</Note>)
         : <Compare props={props} trial={value.trial} onDone={reload} />)}
@@ -33,7 +54,7 @@ export function Trial(props: BooksProps) {
   );
 }
 
-function MakeCopy({ props, target, onMade }: { props: BooksProps; target: { draftId: string } | { proposalId: string }; onMade: () => void }) {
+function MakeCopy({ props, target, onMade }: { props: BooksProps; target: Target; onMade: () => void }) {
   const r = useR2(props.language);
   const { loaded } = useReply(props, 'books.trialQuestions', {}, trialQuestionsReply);
   const questions = valueOf(loaded);

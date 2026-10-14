@@ -11,6 +11,7 @@ import type { StepLineChart } from '../../parts/charts/types.ts';
 import { asKnownReply, beliefLineReply, staleAnswer, staleReply, versionsReply, type BeliefLine } from './contract.ts';
 import { BooksPage, Link, Money, Recorded, Table, fill, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
 import { useMoreWords } from './words-more.ts';
+import { useAuditWords } from './words-audit.ts';
 
 const OPERATIONS = ['billed', 'received', 'earned', 'costs', 'margin'] as const;
 type Operation = typeof OPERATIONS[number];
@@ -160,7 +161,7 @@ function Versions({ props, entityId }: { props: BooksProps; entityId: string }) 
 }
 
 export function Stale(props: BooksProps) {
-  const w = useWords(props.language);
+  const w = useWords(props.language), au = useAuditWords(props.language);
   const { loaded, reload } = useReply(props, 'history.stale', {}, staleReply);
   const value = valueOf(loaded);
   const act = useAct(props.rpc);
@@ -171,17 +172,19 @@ export function Stale(props: BooksProps) {
         <Table view={props.view} caption={w['title.stale']} columns={[
           { head: w['col.answer'], simple: true }, { head: w['col.workedOut'] }, { head: w['col.reason'] }, { head: w['col.rebuilt'], simple: true },
         ]} rows={value.answers.map(a => ({ key: a.id, cells: [
-          a.question ?? <span className={s.missing}>{w.noQuestion}</span>,
-          <span className={s.inline}><Label kind="stale" />{day(a.workedOutOn, props.language)}</span>,
+          // Rebuilt and matching the full rebuild: no longer stale. Otherwise it stays stale, in every view (the answer column is kept in Simple).
+          <span className={s.inline}>{!(a.rebuilt?.matches) && <Label kind="stale" />}{a.question ?? <span className={s.missing}>{w.noQuestion}</span>}</span>,
+          day(a.workedOutOn, props.language),
           a.reason ?? <span className={s.missing}>{w.noReason}</span>,
           <span className={s.inline}>
             {a.rebuilt === null ? w.notRebuilt : a.rebuilt.matches
-              ? <span data-result="match">{fill(w.rebuiltMatch, { when: dayTime(a.rebuilt.at, props.language) })}</span>
+              ? <span data-result="match">{fill(w.rebuiltMatch, { when: dayTime(a.rebuilt.at, props.language) })}{props.view === 'books' && <> · <Recorded value={a.rebuilt.quick} language={props.language} /> = <Recorded value={a.rebuilt.full} language={props.language} /></>}</span>
               : <span data-result="failed" className={s.amber}>{w.rebuildFailed} {w.quick} <Recorded value={a.rebuilt.quick} language={props.language} /> · {w.full} <Recorded value={a.rebuilt.full} language={props.language} /></span>}
             {!props.viewer && (a.rebuilt === null || !a.rebuilt.matches) && <Button onClick={() => { void rebuild(a.id); }} disabled={act.busy}>{w.rebuild}</Button>}
           </span>,
         ] }))} />
       ))}
+      {value && value.answers.length > 0 && <Note>{au.rebuiltFromStart}</Note>}
       <Refusal code={act.refusal} language={props.language} />
     </BooksPage>
   );

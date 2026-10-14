@@ -89,10 +89,13 @@ function identity(entry: RecordEntry) {
   const values = (field: string) => [...new Set(entry.facts.map(f => f.fields[field]).filter(str).map(v => v.trim()))];
   const gstins = values('gstin'), pans = values('pan');
   return { gstins, pans, bad: [...gstins.filter(g => !gstinValid(g)).map(g => badId('GSTIN', g)), ...pans.filter(p => !PAN.test(p)).map(p => badId('PAN', p))],
+    badIds: [...gstins.filter(g => !gstinValid(g)).map((g: string) => ({ kind: 'GSTIN' as const, length: g.length, expected: 15 })), ...pans.filter(p => !PAN.test(p)).map(p => ({ kind: 'PAN' as const, length: p.length, expected: 10 }))],
     phones: values('phone').map(p => p.replace(/\D/g, '').slice(-10)).filter(p => p.length === 10), emails: values('email').map(e => e.toLowerCase()), names: values('customerName').map(n => n.toLowerCase().replace(/\s+/g, ' ')) };
 }
 const pairKey = (a: string, b: string) => JSON.stringify([a, b].sort());
-type Pair = { left: string; right: string; relation: string; evidence: string[]; reason: string; state: 'open' | 'joined' | 'not-same'; mergeId: string | null };
+/** `badIds`: a GSTIN or PAN that failed its format check, not used as evidence (the screen says why in the person's language). */
+type BadId = { kind: 'GSTIN' | 'PAN'; length: number; expected: number };
+type Pair = { left: string; right: string; relation: string; evidence: string[]; reason: string; badIds: BadId[]; state: 'open' | 'joined' | 'not-same'; mergeId: string | null };
 const DISPUTED_REASON = 'One of these customers appears only in records that sources disagree on, so their tax identities are not compared. Settle the disagreement first.';
 /** Both customers have at least one selected (not disputed) fact, so the memory service can compare them. */
 const comparable = (records: Map<string, RecordEntry>, left: string, right: string) => (records.get(left)?.selected ?? 0) > 0 && (records.get(right)?.selected ?? 0) > 0;
@@ -104,7 +107,8 @@ function evaluate(host: ModuleHost, ctx: Context, records: Map<string, RecordEnt
   if (a.emails.some(e => b.emails.includes(e))) evidence.push('same-email');
   if (a.names.some(n => b.names.includes(n))) evidence.push('same-name');
   const bad = [...new Set([...a.bad, ...b.bad])];
-  return { left, right, relation: suggestion.relation, evidence, reason: [suggestion.reason, ...bad.map(r => `${r} It is not used as evidence.`)].join(' ') };
+  const badIds = [...new Map([...a.badIds, ...b.badIds].map(x => [JSON.stringify(x), x])).values()];
+  return { left, right, relation: suggestion.relation, evidence, reason: [suggestion.reason, ...bad.map(r => `${r} It is not used as evidence.`)].join(' '), badIds };
 }
 function candidates(records: Map<string, RecordEntry>): [string, string][] {
   const byKey = new Map<string, string[]>();
@@ -133,8 +137,39 @@ function matchPairs(host: ModuleHost, ctx: Context): Pair[] {
   const pairs: Pair[] = candidates(records).map(([l, r]) => ({ ...evaluate(host, ctx, records, l, r), ...storedState(state, latest(pairKey(l, r))) }));
   const seen = new Set(pairs.map(p => pairKey(p.left, p.right)));
   for (const d of decisions) { const key = pairKey(d.left, d.right); if (seen.has(key)) continue; seen.add(key); const last = latest(key)!;
-    pairs.push({ left: last.left, right: last.right, relation: last.relation, evidence: [...last.evidence], reason: last.reason, ...storedState(state, last) }); }
+    pairs.push({ left: last.left, right: last.right, relation: last.relation, evidence: [...last.evidence], reason: last.reason, badIds: [], ...storedState(state, last) }); }
   return pairs;
+}
+
+/**
+ * Prepared or approved actions that depend on a join: made after the join and before its undo,
+ * not yet attempted, naming one of the joined customers in their request or sources. Each is
+ * cancelled through its owner: core actions through `ActionService.cancel`, write-back actions
+ * through `writeback.drop`. Nothing is changed in place here; one that cannot be cancelled is
+ * listed with its code.
+ */
+export function dependentActions(state: State, mergeId: string): PreparedAction[] {
+  const merge = state.merges.find(m => m.id === mergeId && m.type === 'merge'); if (!merge) return [];
+  const undo = state.merges.find(m => m.type === 'undo' && m.mergeId === mergeId);
+  const ids: string[] = (Array.isArray(merge.entityIds) ? merge.entityIds as unknown[] : []).filter((id: unknown): id is string => typeof id === 'string');
+  return (state.actions as PreparedAction[]).filter(a => a && (a.status === 'prepared' || a.status === 'approved') && Array.isArray(a.attempts) && a.attempts.length === 0
+    && typeof a.createdAt === 'string' && a.createdAt >= merge.at && (!undo || a.createdAt <= undo.at)
+    && ids.some(id => mentions(a.payload, id) || (Array.isArray(a.sourceIds) && a.sourceIds.includes(id))));
+}
+async function cancelDependents(host: ModuleHost, ctx: Context, mergeId: string): Promise<{ cancelled: string[]; notCancelled: { id: string; code: string }[] }> {
+  const cancelled: string[] = [], notCancelled: { id: string; code: string }[] = [];
+  const actions = host.services.actions as ActionService | undefined;
+  for (const action of dependentActions(host.store.read(), mergeId)) {
+    try {
+      if (action.connector.startsWith('wb-')) await host.call('writeback.drop', { id: action.id });
+      else { check(actions, 'ACTIONS_NOT_AVAILABLE', 'Actions are not available here.'); await actions.cancel(ctx, action.id); }
+      cancelled.push(action.id);
+    } catch (error) {
+      const code = (error as { code?: unknown })?.code;
+      notCancelled.push({ id: action.id, code: typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(code) ? code : 'CANCEL_FAILED' });
+    }
+  }
+  return { cancelled, notCancelled };
 }
 
 // Sources that disagree (BK-14).
@@ -197,7 +232,8 @@ export const recordMethods: Record<string, MethodSpec> = {
       check(pair.relation !== 'cannot-match-tax-identities', 'MATCH_FORBIDDEN', 'Two different PANs cannot be the same customer.');
       mergeId = (await (host.services.memory as MemoryService).merge(ctx, [request.left, request.right], request.left)).id;
     }
-    const decision: MatchDecision = { ...pair, state: request.same ? 'joined' : 'not-same', mergeId, undoneMergeId: null, by: who.name, role: who.role, at: now() };
+    const { badIds: _bad, ...kept } = pair;
+    const decision: MatchDecision = { ...kept, state: request.same ? 'joined' : 'not-same', mergeId, undoneMergeId: null, by: who.name, role: who.role, at: now() };
     await writeBooks(host.store, ctx, 'approve', books => { books.matches.push(decision); });
     return { ...pair, state: decision.state, mergeId };
   } },
@@ -207,10 +243,12 @@ export const recordMethods: Record<string, MethodSpec> = {
     const decision = typeof mergeId === 'string' ? peekBooks(host.store.read()).matches.find(d => d.mergeId === mergeId) : undefined;
     check(decision && visible.has(decision.left) && visible.has(decision.right), 'MATCH_NOT_FOUND', 'This join was not found.');
     await (host.services.memory as MemoryService).undoMerge(ctx, mergeId);
+    // Any approval that depended on the join is cancelled (BK-13): only through the action's own service.
+    const settled = await cancelDependents(host, ctx, mergeId);
     const who = member(host.store.read(), ctx);
     const reopened: MatchDecision = { ...structuredClone(decision), state: 'open', mergeId: null, undoneMergeId: mergeId, by: who.name, role: who.role, at: now() };
     await writeBooks(host.store, ctx, 'approve', books => { books.matches.push(reopened); });
-    return { left: reopened.left, right: reopened.right, relation: reopened.relation, evidence: reopened.evidence, reason: reopened.reason, state: 'open' as const, mergeId: null };
+    return { left: reopened.left, right: reopened.right, relation: reopened.relation, evidence: reopened.evidence, reason: reopened.reason, badIds: [], state: 'open' as const, mergeId: null, ...settled };
   } },
   'records.conflicts': { permission: 'read', handler(ctx, payload, host) { input(payload, []); return conflicts(host, ctx); } },
   'records.setPrecedence': { permission: 'admin', async handler(ctx, payload, host) {

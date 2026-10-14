@@ -98,9 +98,13 @@ export const trialView = object({
   rows: list(object({ answerId: id, operation: name, period, now: trialCell, withChange: trialCell, differs: bool }), 200),
   impact: nullable(object({ digest: text(200), strategy: literal('prospective'), affectedAnswers: count, rebuild: count, activeWork: count })), impactCode: nullable(code),
   limitations: list(line, 10),
+}, {
+  // Audit, additive: a source order tried on a copy (BK-14 to BK-09).
+  precedence: nullable(object({ kind: name, sourceIds: list(name, 64) })),
 });
 export type TrialView = ReturnType<typeof trialView>;
 export const trialReadReply = object({ trial: nullable(trialView) });
 export const trialQuestionsReply = object({ available: bool, questions: list(object({ id, receiptId: id, operation: name, period, stale: bool }), 500) });
-export const trialPublishReply = object({ trialId: id, status: literal('promoted'), publicationId: id, draftId: nullable(id), proposalId: nullable(id) });
+export const trialPublishReply = object({ trialId: id, status: literal('promoted'), publicationId: id, draftId: nullable(id), proposalId: nullable(id) },
+  { precedence: nullable(object({ kind: name, sourceIds: list(name, 64) })) });
 export const trialDiscardReply = object({ trialId: id, status: literal('discarded'), cleanupComplete: bool });

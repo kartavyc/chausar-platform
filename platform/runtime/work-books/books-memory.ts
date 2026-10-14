@@ -94,6 +94,21 @@ export const memoryMethods: Record<string, MethodSpec> = {
     }
     return writeBooks(host.store, ctx, 'admin', books => { const line = live(host.store, ctx, books.memory, id); line.text = null; line.earlier = []; line.deletedAt = now(); return { id: line.id, deleted: true as const }; });
   } },
+  /**
+   * A line proposed from the ask line (SH-04 "telling, not asking", BK-17). It waits as
+   * 'proposed' until the owner or a cofounder confirms it, and changes nothing until then.
+   * Anything said by work that has read outside content is kept as outside content.
+   */
+  'books.memoryPropose': { permission: 'prepare', handler(ctx, payload, host) {
+    const request = input(payload, ['text', 'kind', 'receiptId'], ['text', 'kind']);
+    check(text(request.text, 2000) && KINDS.includes(request.kind) && (request.receiptId === undefined || (typeof request.receiptId === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(request.receiptId))), 'INVALID_MEMORY', 'A memory line needs text and one of the four kinds.');
+    if (request.receiptId !== undefined) {
+      const receipt = host.store.read().receipts.find(r => r?.id === request.receiptId);
+      check(receipt && receipt.memberId === ctx.memberId, 'RECEIPT_NOT_FOUND', 'This receipt is not available to you.');
+    }
+    const source: MemoryRecord['source'] = ctx.sourceTainted ? 'outside-content' : request.receiptId !== undefined ? 'computed' : 'told-by-owner';
+    return writeBooks(host.store, ctx, 'prepare', (_books, state) => proposeMemoryLine(state, ctx, { text: request.text, kind: request.kind, source, receiptId: source === 'computed' ? request.receiptId : null }));
+  } },
   'books.memoryConfirm': { permission: 'admin', handler(ctx, payload, host) {
     const { id } = input(payload, ['id'], ['id']);
     check(!isProfile(id), 'PROFILE_LINE_READ_ONLY', 'A business profile entry is changed where it was told, not here. It can be deleted.');

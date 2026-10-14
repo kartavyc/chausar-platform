@@ -8,12 +8,13 @@ import { day } from '../work/kit/format.ts';
 import { forgetReply, memoryLine, memoryReply, type MemoryLine } from './contract.ts';
 import { BooksPage, ConfirmButton, Link, Table, approves, fill, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
 import { useR2, type R2Key } from './words-r2.ts';
+import { useAuditWords } from './words-audit.ts';
 
 type Kind = MemoryLine['kind'];
 const KINDS: readonly Kind[] = ['preference', 'claim', 'conversation', 'working-context'];
 
 export function Memory(props: BooksProps) {
-  const w = useWords(props.language), r2 = useR2(props.language);
+  const w = useWords(props.language), r2 = useR2(props.language), au = useAuditWords(props.language);
   const [outside, setOutside] = useState(false);
   const { loaded, reload } = useReply(props, 'books.memory', outside ? { outsideOnly: true } : {}, memoryReply);
   const value = valueOf(loaded);
@@ -54,13 +55,27 @@ export function Memory(props: BooksProps) {
     </span>
   ) : (
     <span className={s.inline}>
-      {m.status === 'proposed' && <Button onClick={() => { void run('books.memoryConfirm', { id: m.id }); }} disabled={act.busy}>{w.confirm}</Button>}
+      {/* A proposed line is confirmed in "Waiting for your yes" above. */}
       <Button variant="link" onClick={() => { setEditing(m.id); setDraft(m.text); }} disabled={act.busy}>{w.edit}</Button>
       <ConfirmButton label={w.delete} confirm={w.deleteConfirm} keep={w.keep} onConfirm={() => { void run('books.forget', { id: m.id }); }} disabled={act.busy} />
     </span>
   );
   return (
     <BooksPage props={props} sub="memory" title={w['title.memory']} count={value ? String(value.lines.length) : undefined} loaded={loaded} reload={reload}>
+      {/* BK-17: lines proposed from the ask line (SH-04) wait here for a yes, first, in every view. */}
+      {value && value.lines.some(m => m.status === 'proposed') && (
+        <Section title={au.waiting}>
+          <Note>{approves(props) ? au.waitingNote : au.waitingOther}</Note>
+          <ul className={s.list} data-waiting>{value.lines.filter(m => m.status === 'proposed').map(m => (
+            <li key={m.id} className={s.inline}>
+              <span>{m.text}</span>
+              {m.source === 'outside-content' && <span className={s.amber}>{w.neverObeyed}</span>}
+              {approves(props) && <Button onClick={() => { void run('books.memoryConfirm', { id: m.id }); }} disabled={act.busy}>{w.confirm}</Button>}
+              {approves(props) && <ConfirmButton label={w.delete} confirm={w.deleteConfirm} keep={w.keep} onConfirm={() => { void run('books.forget', { id: m.id }); }} disabled={act.busy} />}
+            </li>
+          ))}</ul>
+        </Section>
+      )}
       <Choice<'all' | 'outside'> label={w.show} options={[{ value: 'all', label: w.allLines }, { value: 'outside', label: w.fromOutside }]} value={outside ? 'outside' : 'all'} onChange={v => setOutside(v === 'outside')} />
       {value && (value.lines.length === 0 ? <Note>{outside ? w['empty.outside'] : w['empty.memory']}</Note> : (
         <Table view={props.view} caption={w['title.memory']} columns={[

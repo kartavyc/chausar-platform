@@ -32,7 +32,7 @@ export type Proposal = {
   proposedBy: string; proposedById: string; at: string; state: 'proposed' | 'accepted' | 'declined' | 'published';
   decided: { by: string; role: string; at: string } | null; libraryId: string | null;
 };
-export type TrialRecord = { trialId: string; draftId: string | null; proposalId: string | null; digest: string; by: string; at: string };
+export type TrialRecord = { trialId: string; draftId: string | null; proposalId: string | null; precedence?: { kind: string; sourceIds: string[] } | null; digest: string; by: string; at: string };
 type R2 = { proposals: Proposal[]; trials: TrialRecord[] };
 /** Round-2 lists in the Books section; call only inside `store.update`. */
 export function r2(books: BooksState): R2 {
@@ -48,12 +48,17 @@ export function peekR2(state: State): R2 {
 /** Source deletion removes proposals and trial records built from the removed source. */
 export function r2Purge(state: State, sourceIds: ReadonlySet<string>): number {
   const books = (state.extensions?.['work-books'] as Record<string, unknown> | undefined)?.books as Partial<R2> | undefined;
-  if (!books || !Array.isArray(books.proposals)) return 0;
+  if (!books) return 0;
+  // A source order tried on a copy (BK-14) names its sources: the record goes with any of them.
+  const orderGone = (t: TrialRecord) => !!t.precedence && t.precedence.sourceIds.some(id => sourceIds.has(id));
+  let removed = 0;
+  if (Array.isArray(books.trials)) { const kept = books.trials.filter(t => !orderGone(t)); removed += books.trials.length - kept.length; books.trials = kept; }
+  if (!Array.isArray(books.proposals)) return removed;
   const before = books.proposals.length;
   const gone = new Set(books.proposals.filter(p => sourceIds.has(p.sourceId)).map(p => p.id));
   books.proposals = books.proposals.filter(p => !gone.has(p.id));
   if (Array.isArray(books.trials)) books.trials = books.trials.filter(t => t.proposalId === null || !gone.has(t.proposalId));
-  return before - books.proposals.length;
+  return removed + before - books.proposals.length;
 }
 
 /* ------------------------------------------------------------------ connector recipes */

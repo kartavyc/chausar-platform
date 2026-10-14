@@ -7,6 +7,7 @@ import { proposalView, recipeReply, recipesReply, type ProposalView, type Recipe
 import { BooksPage, BooksSheet, Link, Table, fill, idOf, prepares, sheetOf, styles as s, valueOf, type BooksProps } from './shared.tsx';
 import { Say, TwoTotals } from './r2-parts.tsx';
 import { useR2, type R2 } from './words-r2.ts';
+import { useAuditWords } from './words-audit.ts';
 
 export function Recipes(props: BooksProps) {
   const r = useR2(props.language);
@@ -36,7 +37,7 @@ export function Recipes(props: BooksProps) {
           </Section>
         </>
       )}
-      {open?.startsWith('r:') && <RecipeSheet props={props} recipeId={open.slice(2)} />}
+      {open?.startsWith('r:') && <RecipeSheet props={props} recipeId={open.slice(2)} proposals={value?.proposals ?? []} />}
       {open?.startsWith('p:') && <ProposalSheet props={props} id={open.slice(2)} onChanged={reload} />}
     </BooksPage>
   );
@@ -51,8 +52,9 @@ function scopeRows(v: RecipeView, r: R2, language: BooksProps['language']) {
   ];
 }
 
-function RecipeSheet({ props, recipeId }: { props: BooksProps; recipeId: string }) {
-  const r = useR2(props.language);
+type ProposalRow = NonNullable<ReturnType<typeof recipesReply>>['proposals'][number];
+function RecipeSheet({ props, recipeId, proposals }: { props: BooksProps; recipeId: string; proposals: readonly ProposalRow[] }) {
+  const r = useR2(props.language), a = useAuditWords(props.language);
   const { loaded } = useReply(props, 'books.recipe', { recipeId }, recipeReply, recipeId);
   const v = valueOf(loaded);
   return (
@@ -96,6 +98,20 @@ function RecipeSheet({ props, recipeId }: { props: BooksProps; recipeId: string 
           </Section>
           {v.newer && <p className={s.amber}>{fill(r.newer, { old: v.newer.readWith, now: v.newer.current })}</p>}
           {v.notices.length > 0 && <Section title={r.notices}><ul className={s.list}>{v.notices.map(n => <li key={n}>{n}</li>)}</ul></Section>}
+          {/* BK-05 to BK-09: a change to this recipe's sources, proposed from a field, can be tried on a copy from here. */}
+          <Section title={a.recipeProposals}>
+            {(() => {
+              const mine = proposals.filter(p => v.sourceIds.includes(p.sourceId) && p.valid && (p.state === 'proposed' || p.state === 'accepted'));
+              return mine.length === 0 ? <Note>{a.noRecipeProposals}</Note> : (
+                <ul className={s.list}>{mine.map(p => (
+                  <li key={p.id} className={s.inline}>
+                    <Link onPress={() => props.navigate({ place: 'books', sub: 'recipes', sheet: sheetOf(`p:${p.id}`) })}>{p.field}</Link> · {r[`pstate.${p.state}`]}
+                    {prepares(props) && <Button onClick={() => props.navigate({ place: 'books', sub: 'trial', sheet: sheetOf(`p:${p.id}`) })}>{r.tryCopy}</Button>}
+                  </li>
+                ))}</ul>
+              );
+            })()}
+          </Section>
         </div>
       )}
     </BooksSheet>

@@ -11,6 +11,7 @@ import { anyObject, connectionView, disconnectReply, envelopeView, proposalView,
 import { BooksPage, BooksSheet, ConfirmButton, Link, MonthSquares, Recorded, Table, approves, fill, idOf, isOwner, prepares, sheetOf, styles as s, useWords, valueOf, type BooksProps, type W } from './shared.tsx';
 import { EnvelopeCard, Say, TotalText, r2Styles } from './r2-parts.tsx';
 import { useR2, type R2 } from './words-r2.ts';
+import { useAuditWords } from './words-audit.ts';
 
 const WAY = { files: 'way.files', 'signed-in': 'way.signed-in', 'this-computer': 'way.this-computer' } as const;
 
@@ -26,7 +27,7 @@ function lookAt(row: SourceRow, w: W, r: R2, language: BooksProps['language']): 
 }
 
 export function Sources(props: BooksProps) {
-  const w = useWords(props.language), r = useR2(props.language);
+  const w = useWords(props.language), r = useR2(props.language), a = useAuditWords(props.language);
   const { loaded, reload } = useReply(props, 'books.sources', {}, sourcesReply);
   const value = valueOf(loaded);
   const open = idOf(props.address.sheet);
@@ -41,6 +42,10 @@ export function Sources(props: BooksProps) {
           <span className={s.inline}>
             <Link onPress={() => props.navigate({ place: 'books', sub: 'sources', sheet: sheetOf(row.sourceId) })}>{row.system}</Link>
             {row.experimental && <Label kind="experimental" />}
+            {/* Simple drops "what to look at": the states that matter most stay beside the name. */}
+            {props.view === 'simple' && !row.connected && <span className={s.missing}>{w.notConnected}</span>}
+            {props.view === 'simple' && row.connection?.status === 'paused' && <span className={s.note}>{a['src.paused']}</span>}
+            {props.view === 'simple' && row.lastFailure && <span className={s.amber}>{a['src.failedRead']}</span>}
           </span>,
           w[WAY[row.way]], row.scope ?? w.wholeBusiness,
           row.lastReadAt ? dayTime(row.lastReadAt, props.language) : w.neverRead,

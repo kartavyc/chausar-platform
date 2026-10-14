@@ -20,6 +20,8 @@ const en = {
   'say.MAP_FIELD_NOT_AVAILABLE': 'Only a field of an imported file can be mapped here.',
   'say.RECIPE_PROPOSALS_NOT_INSTALLED': 'Recipe proposals are not installed in this build.',
   'say.APP_APPROVAL_REQUIRED': 'Publish the copy yourself in the desktop app.',
+  'say.TRIAL_NO_CHANGE': 'This order is already the rule for this kind of fact. Choose a different source first.',
+  'say.SOURCE_NOT_FOUND': 'One of these sources is not available to you.',
   'say.COSIGN_REQUIRED': 'A second person must co-sign this change before it is published.',
 
   // Sources: connection, reads.
@@ -126,6 +128,8 @@ const hi: Readonly<Record<Key, string>> = {
   'say.MAP_FIELD_NOT_AVAILABLE': 'यहाँ सिर्फ़ आयात की गई फ़ाइल का फ़ील्ड जोड़ा जा सकता है।',
   'say.RECIPE_PROPOSALS_NOT_INSTALLED': 'रेसिपी के प्रस्ताव इस बिल्ड में नहीं हैं।',
   'say.APP_APPROVAL_REQUIRED': 'नक़ल को डेस्कटॉप ऐप में ख़ुद प्रकाशित करें।',
+  'say.TRIAL_NO_CHANGE': 'यह क्रम पहले से इस तरह के तथ्य का नियम है। पहले कोई दूसरा स्रोत चुनें।',
+  'say.SOURCE_NOT_FOUND': 'इनमें से एक स्रोत आपके लिए उपलब्ध नहीं है।',
   'say.COSIGN_REQUIRED': 'प्रकाशित करने से पहले किसी दूसरे व्यक्ति को इस बदलाव पर सह-हस्ताक्षर करना होगा।',
 
   connection: 'कनेक्शन', 'conn.active': 'पढ़ना चालू है।', 'conn.paused': 'रुका हुआ: कुछ नहीं पढ़ा जाता।',

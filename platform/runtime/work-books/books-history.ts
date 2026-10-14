@@ -20,9 +20,23 @@ function staleRow(answer: any, rebuild: Rebuild | undefined) {
   return { id: answer.id as string, question: typeof answer.question === 'string' ? answer.question : null, workedOutOn: String(answer.at ?? ''), reason: typeof answer.staleReason === 'string' ? answer.staleReason : null,
     rebuilt: rebuild ? { at: rebuild.at, matches: rebuild.matches, quick: rebuild.quick, full: rebuild.full } : null };
 }
-/** A detached copy of the workspace; the full rebuild may write its receipt only into the copy. */
+/**
+ * A detached copy of the workspace rebuilt from the start (BK-16): nothing worked out before is
+ * kept (no receipts, saved answers or conversations), the facts are laid down again in the order
+ * they were learned, and a published sum is compiled again from its definition instead of using
+ * the retained compiled artifact. The full rebuild may write its receipt only into the copy.
+ */
+export function fromStart(state: State): State {
+  const copy = structuredClone(state);
+  copy.receipts = []; copy.answers = []; copy.conversations = [];
+  const order = new Map(copy.facts.map((f, i) => [f, i] as const));
+  copy.facts = [...copy.facts].sort((a, b) => a.learnedAt.localeCompare(b.learnedAt) || order.get(a)! - order.get(b)!);
+  const dictionary = copy.ontology?.current ?? (copy.ontology?.operations ? copy.ontology : null);
+  if (dictionary && typeof dictionary === 'object') delete dictionary.compiledSums;
+  return copy;
+}
 function scratchStore(state: State): StateStore {
-  let copy = structuredClone(state);
+  let copy = fromStart(state);
   return { read: () => copy, update: async change => { const next = structuredClone(copy); const result = await change(next); copy = next; return result; } };
 }
 
