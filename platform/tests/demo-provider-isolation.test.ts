@@ -129,6 +129,8 @@ async function engineVm() {
     compareVersions: () => 0, ModelGateway, installedConversationSynthesisCodec: {},
     safeDirectory: async (path: string) => { filesystemCalls.push(path); return path; },
     createWorkspaceInterchangeLocalPorts: () => ({ ports: {} }),
+    // No engine modules are installed in this isolated composition.
+    engineModules: [], moduleMethods: new Map(),
   };
   for (const name of new Set([...code.matchAll(/new ([A-Z][a-zA-Z]+)/g)].map(match => match[1]))) {
     if (!Object.hasOwn(globals, name) && !['Set', 'Map', 'Error', 'URL'].includes(name)) globals[name] = SyntheticService;
