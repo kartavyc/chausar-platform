@@ -13,6 +13,8 @@ import type { Job, Worker } from '../db/queue.ts';
 import { MAIL_ADDRESS } from './channels.ts';
 import type { OutboundTemplate } from './channels.ts';
 import type { RelayOptions } from './config.ts';
+import { createRelayDocuments } from './documents.ts';
+import type { InboundDocument } from './documents.ts';
 
 export { relayConfig, parseRelayPrices } from './config.ts';
 export type { RelayOptions, RelayPrices } from './config.ts';
@@ -70,6 +72,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
   secretHash(deps.pepper, 'relay-check', 'pepper');
   const sealKey = Buffer.from(hkdfSync('sha256', deps.pepper, 'chausar-relay', 'relay-seal', 32));
   const adapters = { whatsapp: options.whatsapp, telegram: options.telegram, mail: options.mail };
+  const documents = createRelayDocuments(deps, options.documents ?? {});
   const now = () => deps.clock();
   const tokenHash = (token: string) => secretHash(deps.pepper, 'relay-button', token);
   const recipientHash = (channel: Channel, id: string) => secretHash(deps.pepper, 'relay-recipient', `${channel}:${id}`);
@@ -177,11 +180,22 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
     await deps.sql.transaction(async tx => {
       const accountId = await ownerOf(tx, 'whatsapp', from);
       if (!await arrived(tx, 'whatsapp', id, accountId, kind)) return;
-      // A document is acknowledged and nothing is stored or downloaded (experimental).
+      // A document from the opted-in owner is queued for a sealed download (documents.ts); anyone else's is only acknowledged.
+      if (kind === 'document') await documents.received(tx, whatsappDocument(message, accountId));
       const key: ReplyKey = kind === 'button' ? decisionReply(typeof token === 'string' ? await decide(tx, token, 'whatsapp', from) : null)
         : kind === 'document' ? 'documentReceived' : kind === 'help' || kind === 'stop' || kind === 'start' ? await command(tx, 'whatsapp', from, accountId, kind) : 'freeText';
       await queueReply(tx, { channel: 'whatsapp', accountId, key, to: from, inboundAt });
     });
+  }
+  function whatsappDocument(message: any, accountId: string | null): InboundDocument {
+    const media = message.type === 'document' ? message.document : message.image;
+    return { channel: 'whatsapp', accountId, ref: typeof media?.id === 'string' ? media.id : '', declaredType: typeof media?.mime_type === 'string' ? media.mime_type : null, declaredSize: null };
+  }
+  function telegramDocument(message: any, accountId: string | null): InboundDocument {
+    const photo = Array.isArray(message.photo) ? message.photo.slice(0, 20).filter((size: any) => typeof size?.file_id === 'string').at(-1) : undefined;
+    const media = message.document && typeof message.document === 'object' ? message.document : photo;
+    return { channel: 'telegram', accountId, ref: typeof media?.file_id === 'string' ? media.file_id : '', declaredType: typeof media?.mime_type === 'string' ? media.mime_type : photo ? 'image/jpeg' : null,
+      declaredSize: Number.isSafeInteger(media?.file_size) ? media.file_size : null };
   }
   async function statusUpdate(status: any) {
     const id = typeof status?.id === 'string' && status.id.length <= 256 ? status.id : null, rank = STATUS_RANK[status?.status];
@@ -219,12 +233,13 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
     const chatId = String(message.chat.id), text = typeof message.text === 'string' && message.text.length <= 4096 ? message.text : null;
     const seconds = Number(message.date), inboundAt = Number.isFinite(seconds) && seconds > 0 ? new Date(Math.min(seconds * 1000, now().getTime())) : now();
     const connect = text ? /^\/start\s+(\S+)$/.exec(text.trim()) : null;
-    const kind = connect ? 'connect' : text ? textCommand(text) : 'other';
+    const kind = connect ? 'connect' : text ? textCommand(text) : message.document || Array.isArray(message.photo) ? 'document' : 'other';
     await deps.sql.transaction(async tx => {
       let accountId = await ownerOf(tx, 'telegram', chatId);
       if (!await arrived(tx, 'telegram', eventId, accountId, kind)) return;
       let key: ReplyKey;
       if (connect) { const bound = await connectTelegram(tx, connect[1], chatId); accountId = bound?.accountId ?? accountId; key = bound ? (bound.on ? 'start' : 'freeText') : 'buttonGone'; }
+      else if (kind === 'document') { await documents.received(tx, telegramDocument(message, accountId)); key = 'documentReceived'; }
       else key = kind === 'help' || kind === 'stop' || kind === 'start' ? await command(tx, 'telegram', chatId, accountId, kind) : 'freeText';
       await queueReply(tx, { channel: 'telegram', accountId, key, to: chatId, inboundAt });
     });
@@ -477,6 +492,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       }
       return ok({ received: true });
     });
+    documents.routes(router);
 
     router.add('POST', '/v1/webhooks/telegram', async request => {
       const secret = options.telegramSecret;
@@ -496,7 +512,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       const reply = await queueTemplate(accountId, null, event, channel, idempotencyKey, null);
       return { messageId: (reply.body as { messageId: string }).messageId, channel };
     },
-    jobs(worker: Worker) { worker.register(DISPATCH_JOB, dispatch); },
+    jobs(worker: Worker) { worker.register(DISPATCH_JOB, dispatch); documents.jobs(worker); },
     async sweep() {
       const at = now().toISOString();
       await deps.sql.query('DELETE FROM relay_envelopes WHERE expires_at <= $1', [at]);
@@ -504,6 +520,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       await deps.sql.query('DELETE FROM relay_offers WHERE expires_at <= $1', [at]);
       await deps.sql.query('DELETE FROM relay_connect_tokens WHERE expires_at <= $1 OR used_at IS NOT NULL', [at]);
       await deps.sql.query(`UPDATE relay_messages SET reply_recipient_sealed = NULL WHERE kind = 'reply' AND reply_recipient_sealed IS NOT NULL AND window_until <= $1`, [at]);
+      await documents.sweep();
     },
   };
 }

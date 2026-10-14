@@ -2,12 +2,16 @@ import type { Env } from '../shared/module.ts';
 import { HostedError, check } from '../shared/errors.ts';
 import { mailChannel, telegramChannel, whatsappChannel } from './channels.ts';
 import type { MailChannel, TelegramChannel, WhatsAppChannel } from './channels.ts';
+import { telegramMedia, whatsappMedia } from './documents.ts';
+import type { RelayDocumentOptions } from './documents.ts';
 
 /** Per-message prices as checked on a date. A channel without a price makes the month's cost unknown, never zero. */
 export type RelayPrices = { checkedOn: string; source: string; perMessagePaise: { whatsapp?: string; telegram?: string; mail?: string } };
 export type RelayOptions = {
   whatsapp: WhatsAppChannel | null; telegram: TelegramChannel | null; mail: MailChannel | null; prices: RelayPrices | null;
   whatsappVerifyToken?: string; whatsappAppSecret?: string; telegramSecret?: string; telegramBotName?: string;
+  /** Documents sent from the phone (experimental); absent means a document is acknowledged and nothing is stored. */
+  documents?: RelayDocumentOptions;
 };
 
 export function parseRelayPrices(value: unknown): RelayPrices {
@@ -40,5 +44,6 @@ export function relayConfig(env: Env): RelayOptions {
     prices,
     whatsappVerifyToken: given(env.WHATSAPP_VERIFY_TOKEN), whatsappAppSecret: given(env.WHATSAPP_APP_SECRET),
     telegramSecret: given(env.TELEGRAM_WEBHOOK_SECRET), telegramBotName: botName,
+    documents: { whatsapp: phoneNumberId && accessToken ? whatsappMedia({ accessToken }) : null, telegram: botToken ? telegramMedia({ botToken }) : null },
   };
 }

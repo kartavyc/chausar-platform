@@ -21,5 +21,10 @@
   "hosted.worker.deleteData",
   "hosted.drive.connect",
   "hosted.drive.status",
-  "hosted.drive.disconnect"
+  "hosted.drive.disconnect",
+  "phone.documents.register",
+  "phone.documents.collect",
+  "phone.documents.list",
+  "phone.documents.preview",
+  "phone.documents.discard"
 ]

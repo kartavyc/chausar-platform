@@ -1,6 +1,7 @@
 import type { EngineModule } from './types.ts';
 import * as hosted from '../hosted-link/service.ts';
 import * as drive from '../hosted-link/drive-sync.ts';
+import * as documents from '../hosted-link/documents.ts';
 
 /** Lane-owned engine methods. Only the owning lane edits this file. */
 export const hostedLinkModule: EngineModule = {
@@ -30,7 +31,15 @@ export const hostedLinkModule: EngineModule = {
     'hosted.drive.connect': { permission: 'admin', external: true, handler: drive.driveConnect },
     'hosted.drive.status': { permission: 'read', handler: drive.driveStatus },
     'hosted.drive.disconnect': { permission: 'admin', handler: drive.driveDisconnect },
+    'phone.documents.register': { permission: 'admin', external: true, handler: documents.documentsRegister },
+    'phone.documents.collect': { permission: 'admin', external: true, handler: documents.documentsCollect },
+    'phone.documents.list': { permission: 'read', handler: documents.documentsList },
+    'phone.documents.preview': { permission: 'admin', handler: documents.documentsPreview },
+    'phone.documents.discard': { permission: 'admin', handler: documents.documentsDiscard },
   },
-  purge: (state, reason) => hosted.purgeOffers(state, reason),
-  tick: (ctx, host) => { try { drive.reattach(host, ctx); } catch { /* the next status call reports it */ } return hosted.tickCollect(ctx, host); },
+  purge: (state, reason) => hosted.purgeOffers(state, reason) + documents.purgeDocuments(state, reason),
+  tick: async (ctx, host) => {
+    try { drive.reattach(host, ctx); } catch { /* the next status call reports it */ }
+    return [...await documents.tickDocuments(ctx, host), ...await hosted.tickCollect(ctx, host)];
+  },
 };

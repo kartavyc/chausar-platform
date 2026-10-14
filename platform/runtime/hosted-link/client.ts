@@ -36,6 +36,8 @@ const KNOWN_CODES: Readonly<Record<string, string>> = Object.freeze({
   PROVIDER_OUTCOME_UNKNOWN: 'The model provider did not confirm the request. Its cost is held until it is settled.',
   REQUEST_EXISTS: 'That request was already made once.',
   NOT_FOUND: 'The server has no such item.',
+  DOCUMENT_NOT_FOUND: 'The server has no such document.',
+  DEVICE_KEY_INVALID: 'The server refused this computer\'s document key.',
 });
 export const HOSTED_CODES: readonly string[] = Object.freeze(Object.keys(KNOWN_CODES));
 
@@ -79,6 +81,8 @@ export type Counts = { month: string; sent: number; budget: number; costPaise: s
 export type BackupEntry = { backupId: string; sizeBytes: number; sha256: string; createdAt: string };
 export type AllowanceRequest = { requestId: string; route: 'anthropic' | 'openai'; model: string; system?: string; messages: { role: 'user' | 'assistant'; content: string }[]; maxOutputTokens: number };
 export type AllowanceReply = { requestId: string; text: string; usage: { inputTokens: number; outputTokens: number }; costPaise: string; balancePaise: string; route: 'anthropic' | 'openai'; model: string; pricingCheckedOn: string };
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+export type PhoneDocumentEntry = { documentId: string; channel: 'whatsapp' | 'telegram'; mediaType: 'application/pdf' | 'image/jpeg' | 'image/png' | 'text/csv'; sizeBytes: number; receivedAt: string; expiresAt: string };
 export type WorkerJob = { type: string; title: string; enabled: boolean; consentAt: string | null; uses: string };
 
 function entitlements(value: unknown): Entitlements {
@@ -326,6 +330,38 @@ export class HostedClient {
   async deleteWorkerData(token: string): Promise<{ deleted: true }> {
     const r = shape(unlabel(await this.#json('DELETE', '/v1/worker/data', { token })), ['deleted']);
     valid(r.deleted === true); return r as any;
+  }
+
+  // Phone documents (hosted/relay/documents.ts): sealed to this install's X25519 key; the server cannot open them.
+  async putDeviceKey(token: string, publicKey: string): Promise<{ deviceId: string; registered: true; updatedAt: string }> {
+    const r = shape(await this.#json('PUT', '/v1/relay/device-key', { token, json: { publicKey } }), ['deviceId', 'registered', 'updatedAt']);
+    valid(ID.test(r.deviceId ?? '') && r.registered === true && iso(r.updatedAt)); return r as any;
+  }
+  async documents(token: string): Promise<PhoneDocumentEntry[]> {
+    const r = shape(await this.#json('GET', '/v1/relay/documents', { token }), ['documents']);
+    valid(Array.isArray(r.documents) && r.documents.length <= 100);
+    return r.documents.map((value: unknown) => {
+      const d = shape(value, ['documentId', 'channel', 'mediaType', 'sizeBytes', 'receivedAt', 'expiresAt']);
+      valid(ID.test(d.documentId ?? '') && ['whatsapp', 'telegram'].includes(d.channel) && ['application/pdf', 'image/jpeg', 'image/png', 'text/csv'].includes(d.mediaType)
+        && count(d.sizeBytes) && d.sizeBytes >= 1 && d.sizeBytes <= MAX_DOCUMENT_BYTES && iso(d.receivedAt) && iso(d.expiresAt));
+      return d as PhoneDocumentEntry;
+    });
+  }
+  async document(token: string, documentId: string): Promise<Buffer> {
+    check(ID.test(documentId), 'INVALID_REQUEST', 'Use a document from this account.');
+    const reply = await this.#send('GET', `/v1/relay/documents/${encodeURIComponent(documentId)}`, { token, headers: { accept: 'application/octet-stream' } });
+    if (!reply.ok) await refusal(reply);
+    const digest = reply.headers.get('x-chausar-sha256') ?? '', length = Number(reply.headers.get('content-length') ?? '0');
+    valid(reply.status === 200 && SHA256.test(digest) && !(length > MAX_DOCUMENT_BYTES + 128));
+    let bytes: Buffer; try { bytes = Buffer.from(await reply.arrayBuffer()); } catch { throw new ChausarError('HOSTED_UNREACHABLE', 'The hosted service could not be reached.'); }
+    valid(bytes.length <= MAX_DOCUMENT_BYTES + 128);
+    check(sha256Hex(bytes) === digest, 'HOSTED_UNREACHABLE', 'The document changed on its way from the hosted service.');
+    return bytes;
+  }
+  async ackDocument(token: string, documentId: string, disposition: 'collected' | 'invalid'): Promise<{ documentId: string; disposition: string }> {
+    check(ID.test(documentId), 'INVALID_REQUEST', 'Use a document from this account.');
+    const r = shape(await this.#json('POST', `/v1/relay/documents/${encodeURIComponent(documentId)}/ack`, { token, json: { disposition } }), ['documentId', 'disposition']);
+    valid(r.documentId === documentId && r.disposition === disposition); return r as any;
   }
 
   // Health

@@ -18,6 +18,7 @@ import { BUTTONS, CHANNELS, DESTINATION_OF, HEADLINES, LINK_PAGE, MAIL_FOOTER, M
 import type { Channel, MessageEvent } from './templates.ts';
 import { newKey, openIntent, sealIntent, unwrapBackup, wrapBackup } from './seal.ts';
 import type { Decision } from './seal.ts';
+import { registerAfterPairing } from './documents.ts';
 
 export const MODULE_ID = 'hosted-link';
 export const LABELS = Object.freeze({
@@ -122,13 +123,16 @@ export async function pairFinish(ctx: Context, payload: Record<string, any>, hos
   check(typeof payload.deviceName === 'string' && payload.deviceName.trim().length > 0 && payload.deviceName.length <= 80 && !/[\x00-\x1f\x7f]/.test(payload.deviceName), 'INVALID_REQUEST', 'Name this computer in at most eighty characters.');
   const verified = await c.client.otpVerify({ challengeId: payload.challengeId, code: payload.code, deviceName: payload.deviceName.trim() });
   const pairedAt = at(c).toISOString();
-  return change(host, (m, state) => {
+  const paired = await change(host, (m, state) => {
     check(!m.pairing && m.challenge?.challengeId === payload.challengeId, 'PAIRING_NOT_STARTED', 'Ask for a code first.');
     m.pairing = { accountId: verified.accountId, deviceId: verified.deviceId, sessionToken: verified.sessionToken, sessionExpiresAt: verified.expiresAt, pairedAt, phoneMasked: m.challenge!.phoneMasked };
     m.relayKey = newKey(); m.challenge = null; m.offers = []; m.account = null;
     audit(state, 'hosted.paired', { deviceId: verified.deviceId });
     return { paired: true, accountId: verified.accountId, deviceId: verified.deviceId, pairedAt };
   });
+  // Phone documents: a fresh X25519 key for this device; when the server cannot take it now, phone.documents.collect registers it later.
+  await registerAfterPairing(ctx, host);
+  return paired;
 }
 export async function unpair(ctx: Context, _payload: Record<string, any>, host: ModuleHost) {
   desktopOnly(ctx); input(_payload, []);

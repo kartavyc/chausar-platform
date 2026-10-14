@@ -71,6 +71,25 @@ Inbound text: `HELP` gets the help reply and opens a person-help ticket; `STOP` 
 
 Webhooks: `GET /v1/webhooks/whatsapp` (Meta verify handshake), `POST /v1/webhooks/whatsapp` (`x-hub-signature-256` HMAC-SHA256 of the raw body with the app secret), `POST /v1/webhooks/telegram` (`x-telegram-bot-api-secret-token`).
 
+### Documents sent from the phone (`hosted/relay/documents.ts`, experimental)
+
+A document (WhatsApp `document` or `image`; Telegram `document` or `photo`, largest size) from the opted-in owner's number or chat gets the fixed reply `documentReceived` ("Document received.") and is queued for the worker job `relay.document`; the provider media reference is kept only sealed with a server key in the job. The job downloads it (WhatsApp: `GET https://graph.facebook.com/v21.0/<media-id>` for the URL, then that URL with the access token; Telegram: `getFile`, then `https://api.telegram.org/file/bot<token>/<file_path>`), at most 10 MiB, and keeps it only if the bytes are a PDF, JPEG or PNG, or a CSV the provider also called `text/csv` (plain UTF-8). It encrypts the document in memory to every registered, non-revoked desktop key of the account and stores only the sealed bytes, the size, the media type and the received time: no file name, caption or plaintext reaches the disk or the database. Stored nothing, reply still sent: a sender who is not the opted-in owner, a channel that is not `on`, an account without the relay entitlement or without a registered desktop key, more than twenty documents in the Indian calendar day, too large, or another type. A copy is deleted when its desktop acknowledges it, or after seven days.
+
+| Route | Body | Reply |
+|---|---|---|
+| `PUT /v1/relay/device-key` | `{ publicKey }` raw X25519 public key, 32 bytes, base64 | `{ deviceId, registered: true, updatedAt }`, bound to the caller's `deviceId`. `DEVICE_KEY_INVALID` otherwise. |
+| `GET /v1/relay/documents` | – | `{ documents: [{ documentId, channel: 'whatsapp'|'telegram', mediaType: 'application/pdf'|'image/jpeg'|'image/png'|'text/csv', sizeBytes, receivedAt, expiresAt }] }`, only copies sealed to the caller's device |
+| `GET /v1/relay/documents/:documentId` | – | `200 application/octet-stream`, the sealed copy, with `x-chausar-sha256`. `DOCUMENT_NOT_FOUND` (404) for another device or account. |
+| `POST /v1/relay/documents/:documentId/ack` | `{ disposition: 'collected'|'invalid' }` | `{ documentId, disposition }`; the copy is deleted. `DOCUMENT_NOT_FOUND` (404) for another device or account. |
+
+```text
+sealed = "CHSDOC1\0" (8 bytes) | ephemeral X25519 public key (32) | nonce (12) | AES-256-GCM ciphertext | tag (16)
+key    = HKDF-SHA256(ikm = X25519(ephemeral, desktop), salt = ephemeral public | desktop public, info = "chausar-relay-document-v1", 32 bytes)
+AAD    = "chausar-relay-document-v1|<accountId>|<deviceId>|<documentId>|<mediaType>"
+```
+
+The desktop opens and checks each copy, acknowledges it and holds it as untrusted outside data awaiting review (`phone.documents.*`); the forwarded document is data and enters the same import checks as a file brought on the computer.
+
 ## Link pages (`hosted/link`)
 
 `GET /l/:token` (Open the app, seven days, decides nothing), `GET /b/:token`, `POST /b/:token` (mail approvals sent before mail offers stopped; thirty minutes, single use): plain HTML, no data, no scripts except none, strict CSP, `noindex`, `no-referrer`, `no-store`. A changed or expired token shows "This link no longer works." The handover link is `chausar://open/<destination>`.
@@ -114,7 +133,7 @@ The proxy holds the provider keys. It reserves the most a request can cost befor
 
 - Accounts: `INVALID_PHONE`, `DEVICE_NAME_INVALID`, `DEVICE_NOT_FOUND` (404), `OTP_SEND_FAILED` (502). Sessions slide: each use moves expiry to thirty days ahead.
 - Billing: `PLAN_INVALID`, `PRICE_NOT_SET` (503), `SUBSCRIPTION_EXISTS`, `NO_SUBSCRIPTION`, `PAYMENT_PARTNER_CHANGED`, `SUBSCRIPTION_CHANGED` (all 409), `WEBHOOK_INVALID`, `PAYMENT_PARTNER_FAILED` (502). Cancelling ends paid entitlements at once; past due keeps them for a seven-day grace. Only one partner subscription is tracked per account: a new checkout while one is pending cancels the earlier checkout's partner subscription, a paid checkout replaces (and cancels at the partner) a newer pending one, and a second subscription that starts or charges beside the active or past-due one is cancelled at the partner and changes nothing. A failed partner cancel fails the webhook so the partner retries it. Plans carry `priceState` (`set` or `not-set`).
-- Relay: `EVENT_UNKNOWN`, `CHANNEL_UNKNOWN`, `OFFER_INVALID`, `OFFER_NOT_ALLOWED`, `OPT_IN_REQUIRED`, `ADDRESS_REQUIRED`, `ADDRESS_INVALID`, `ACCOUNT_PHONE_MISSING`, `MESSAGE_NOT_FOUND`, `ENVELOPE_NOT_FOUND`, `IDEMPOTENCY_CONFLICT`, `WEBHOOK_VERIFY_FAILED`, `SERVICE_WINDOW_CLOSED`, `RECIPIENT_CHANGED`, `PROVIDER_*`. A message counts against the thirty when queued; a failed send does not give it back. Approve and Not now expire after thirty minutes; the Open the app link expires after seven days because it decides nothing. After STOP only START or a new desktop opt-in turns the channel on. There is no inbound mail webhook: HELP and STOP by reply work on WhatsApp and Telegram.
+- Relay: `EVENT_UNKNOWN`, `CHANNEL_UNKNOWN`, `OFFER_INVALID`, `OFFER_NOT_ALLOWED`, `OPT_IN_REQUIRED`, `ADDRESS_REQUIRED`, `ADDRESS_INVALID`, `ACCOUNT_PHONE_MISSING`, `MESSAGE_NOT_FOUND`, `ENVELOPE_NOT_FOUND`, `IDEMPOTENCY_CONFLICT`, `WEBHOOK_VERIFY_FAILED`, `SERVICE_WINDOW_CLOSED`, `RECIPIENT_CHANGED`, `PROVIDER_*`, `DEVICE_KEY_INVALID`, `DOCUMENT_NOT_FOUND` (404). A message counts against the thirty when queued; a failed send does not give it back. Approve and Not now expire after thirty minutes; the Open the app link expires after seven days because it decides nothing. After STOP only START or a new desktop opt-in turns the channel on. There is no inbound mail webhook: HELP and STOP by reply work on WhatsApp and Telegram.
 - Backup: listing, download and delete work without the plan, so a lapsed account can take its backups home for thirty days; uploads need the plan.
 - Allowance: `PRICING_NOT_SET` (503), `PRICING_INVALID` (server start). A provider HTTP error releases the reservation (`PROVIDER_FAILED`); a network error, timeout or unreadable success keeps it (`PROVIDER_OUTCOME_UNKNOWN`).
 - Worker: `CONSENT_REQUIRED`, `JOB_TYPE_UNKNOWN` (404), `JOB_NOT_ENABLED` (409, due dates are stored only after consent). Turning the job off deletes its data. A server-side reminder goes through the relay's `notify` (first channel that is on), one per account per Indian day, and counts against the thirty.
