@@ -79,6 +79,13 @@ Every ready-made job can be exported in the Agent Skills folder format (`jobsx.t
   - `jobsx.budget` shows three meters: model use per route, clock time, and money exposure. Every ready-made job has zero money exposure.
 - **The agent.**
   - The full agent is an `AgentPort` installed by a trusted host (`EngineOptions.modules['jobs-ext'].agent`), never by RPC. Demo mode accepts only a synthetic agent.
+  - **The live agent in the installed app** (`jobs-ext/gateway-agent.ts`). The module's `hostOptions` turns it on outside demo mode. It runs over the core `ModelGateway` and the first enabled route the owner configured. The gateway accepts only an analytical plan that names a published calculation, so the live agent is a lookup, never a decision maker:
+    1. It previews a request made of fixed words and typed case codes, under the trust panel's send level. In shape mode no invoice, customer or amount is sent.
+    2. If the gateway says the send needs approval, the case waits (timeline code `AGENT_APPROVAL_REQUIRED`, with the preview's id) until you approve that exact payload with `models.approve`. Nothing is sent before.
+    3. The gateway sends it once and keeps its model receipt. One approval covers one send.
+    4. Software runs the calculation the model chose and keeps its receipt.
+    5. The case comes to you with that receipt. The decision stays with a person.
+  - The live call's cost is the gateway's measured cost at the route's token rates, or the route's reserved per-call estimate. It is reserved against the job step before the call and charged after; a local model is zero.
   - Agent text is quoted and never obeyed. A note with figures is withheld by the number guard.
   - Anything an agent touched is prepared as read-from-outside, so the autonomy switch never runs it.
   - When an agent asks for another job, that request becomes a proposal and waits for the owner. Its words are number-guarded, quoted on a card marked untrusted, and never adopted as the job's instructions.
@@ -92,9 +99,19 @@ Every ready-made job can be exported in the Agent Skills folder format (`jobsx.t
   - Consent and the caps are checked again after routing; a procedure, an agent or an answer can never override them.
   - `procedures.runs` shows the share of routed cases and the cost of routed and fallback cases.
 - **Autonomy** (`jobs-ext/autonomy.ts`):
-  - A kind can be switched on only if it is reversible and its name contains no always-waits word. The tick auto-approves and executes only prepared, untainted actions of kinds that are switched on, within the daily limit, and only while the master switch is on.
+  - A kind can be switched on only if it is reversible and its name contains no always-waits word.
+  - Outside the workspace's own local connector, a kind also needs the writeback catalogue to say explicitly that it can be undone and need not wait. An unknown or renamed connector has no switch.
+  - The tick auto-approves and executes only actions that meet every one of these:
+    - prepared by one of this lane's jobs; work prepared by hand, by a plugin, a small app or an assistant always waits;
+    - untainted and never revised;
+    - of a kind that is switched on, within the daily limit;
+    - while the master switch is on.
+  - A procedure's action steps describe what a person may approve; the executor never runs them. It only prepares reminders through its own code path.
 - **Access.** Every read and change checks that the caller is the job's pinned owner and can still read all of the job's sources, the same rule `JobService.list` uses. Procedure runs follow the same rule.
 - **Approval is one transaction.** Claiming the proposal, checking the limit, creating the mandate and stopping a replaced job commit together. Two approvals of one card create one job, and approving an edit withdraws the other pending edits of that job.
+- **Retention.** With the workspace's retention cleanup, old records go: time lines, results, answered questions, finished steps for a person, missed-run notes, decided proposals, reminders, autonomy runs, recorded agreements and procedure runs. Open questions, waiting steps and undecided proposals stay. A procedure keeps its structure when only its old runs expire.
+- **The scheduler.** The module declares `ownsJob` for `jobsx-*` jobs, so the core scheduler loop leaves them to the lane's tick.
+- **Active-job limit.** It is the lower of the lane's limit (10 by default, changeable in Trust) and the engine host's `durableJobs.maxActiveJobs` ceiling.
 - **Purge.** When a source is deleted, everything the lane derived from it is removed:
   - lane jobs, cases, time lines, results, questions, steps for a person, proposals and reminders;
   - procedure runs, and any procedure derived from a removed run;
@@ -130,7 +147,8 @@ Refusal codes that screens can tell apart are on the jobs-ext line of `laneRefus
 | Stop rules and set aside after failures | supported |
 | Acceptance by the owner, with an exact reference | supported |
 | Autonomy switch per kind, presets, caps, always-waits list, agreement counts, auto-run of safe kinds | supported |
-| Agent fallback, untested-route pause, waiting for the network | supported with a synthetic agent; experimental with a live model route |
+| Agent fallback, untested-route pause, waiting for the network | supported with a synthetic agent |
+| Live model-gateway agent: lookup, exact payload approval, one send, receipts, cost charged to the job | supported against a local fake provider (a real local HTTP server and an injected HTTP port); experimental with a live provider |
 | Procedures: traces, derivation, owner approval, routing, routed share and cost | supported with a synthetic agent; experimental live |
 | A job asking for a job waits for a yes | supported |
 | Imported skill as a job (untrusted, instructions only) | experimental (needs an agent route) |
@@ -139,6 +157,7 @@ Refusal codes that screens can tell apart are on the jobs-ext line of `laneRefus
 ## Tests
 
 - `platform/tests/jobs-ext-jobs.test.ts`: the full lifecycle through the real engine, with a labelled test clock and a synthetic agent.
+- `platform/tests/jobs-ext-gateway-agent.test.ts`: the live agent over the real `ModelGateway`, against a real local HTTP model server (Ollama format) and an injected HTTP port (OpenAI-compatible, with approval and measured cost). Also retention, the scheduler seam, the host job ceiling and the installed-app wiring.
 - `platform/tests/jobs-ext-autonomy.test.ts`
 - `platform/tests/jobs-ext-procedures.test.ts` and `jobs-ext-procedures-derive.test.ts`
 - `platform/tests/engine-modules.test.ts`: the method allowlist.
@@ -165,7 +184,5 @@ A missing method is treated as "not built", and the lane falls back to:
 - **Real sending.** Reminders are sent only once writeback is merged, which gives them its approval, read-back and unknown-state handling.
 - **Always-on jobs and the home box.** These are paid or experimental, and are only described.
 - **The OS wake timer and the background service install.** These belong to the release lane.
-- **A model or managed allowance route as the live agent.** Wiring one in as an `AgentPort` belongs to models-ext; until then only synthetic agents are tested.
-- **Retention cleanup of procedure runs.** The module purge hook receives no expired-record list, so procedure runs older than the retention period are not yet removed by retention cleanup. They are still removed with their source or job.
-- **The engine's active-job ceiling.** Lane jobs are created through `JobService` inside the lane's own transaction. They count against the lane's limit (10 by default, changeable in Trust), not the separate `durableJobs.maxActiveJobs` host ceiling.
-- **Core noise.** The core scheduler loop also tries to run `jobsx-*` jobs and records a harmless "no installed runner" entry in `tick()` results, which nobody reads. The coordinator may filter non-`owner-brief` plan-less jobs there. I left `engine.ts` unchanged.
+- **A live agent that decides.** The live gateway agent only looks up; it cannot choose remind, wait or stop, because the gateway accepts calculation plans only. A deciding live route would need a new gateway purpose (core). Procedures are therefore learned from synthetic-agent runs in tests.
+- **A stock calculation.** The calculator and dictionary measure money only (every definition binds a money field). Stock on hand would be a quantity measure, which is a new calculation kind in core `ontology.ts` and `calculator.ts`, not an additive registration. So `stock-check` keeps its refusal.
