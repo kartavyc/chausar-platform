@@ -89,7 +89,7 @@ function fakeRunner(bundled = '17.6') {
     spawnServer(executable, args) {
       const directory = option(args, '-D'), port = Number(option(args, '-p')), server = createServer(socket => socket.destroy());
       calls.push(`${basename(executable)} server`); servers.set(directory, server);
-      writeFileSync(join(directory, 'postmaster.pid'), `${process.pid}\n${directory}\n`);
+      writeFileSync(join(directory, 'postmaster.pid'), `${process.pid}\n${directory}\n0\n${port}\n\n127.0.0.1\n0\nready\n`);
       server.listen(port, '127.0.0.1');
       return { pid: process.pid, exitStatus: () => ({ exited: !servers.has(directory), code: null, failed: false }), kill: () => { server.close(); servers.delete(directory); } };
     },
