@@ -16,6 +16,8 @@ import { Figure } from '../../parts/Figure';
 import { Label } from '../../parts/Label';
 import { Sheet } from '../../parts/Sheet';
 import { State } from '../../patterns/States';
+import { createShellPort, type DesktopShellBridge } from '../../bridge/shell.ts';
+import { OutsideLink } from '../trust/kit/OutsideLink';
 import type { PlaceRenderProps } from '../../places/types.ts';
 import { words } from '../../places/types.ts';
 import { count } from '../../format/index.ts';
@@ -38,7 +40,7 @@ export interface ReportPageSheetProps extends PlaceRenderProps {
   onClose: () => void;
 }
 
-export function ReportPageSheet({ pack, page, origin, onClose, language, view, viewer, member, rpc, openReceipt }: ReportPageSheetProps) {
+export function ReportPageSheet({ pack, page, origin, onClose, language, view, viewer, member, rpc, openReceipt, openLink }: ReportPageSheetProps) {
   const w = words(WORDS, language);
   const [lang, setLang] = useState<Language>(language);
   const [today] = useState(() => indiaToday());
@@ -48,7 +50,8 @@ export function ReportPageSheet({ pack, page, origin, onClose, language, view, v
   const exporter = useSend(rpc, validateExportedFile);
   const readOnly = viewer || member.role === 'viewer';
   const title = state.kind === 'ready' ? state.value.title : w.pageKind;
-  const print = () => window.print();
+  // The system print dialog through the guarded shell port; the page's own @media print rule hides the frame.
+  const print = () => { void createShellPort((window as { chausar?: DesktopShellBridge }).chausar ?? null).print('page'); };
 
   return (
     <Sheet kind={w.pageKind} title={title} onClose={onClose} origin={origin}>
@@ -82,7 +85,7 @@ export function ReportPageSheet({ pack, page, origin, onClose, language, view, v
           </div>
         )}
       </div>
-      {state.kind === 'ready' ? <PrintedPage page={state.value} w={w} language={language} view={view} openReceipt={openReceipt} periodKind={applied.kind} /> : <State state={screenState(state)} />}
+      {state.kind === 'ready' ? <PrintedPage page={state.value} w={w} language={language} view={view} openReceipt={openReceipt} openLink={openLink} periodKind={applied.kind} /> : <State state={screenState(state)} />}
     </Sheet>
   );
 }
@@ -120,7 +123,7 @@ function PeriodPicker({ w, today, onApply }: { w: Words; today: string; onApply:
   );
 }
 
-function PrintedPage({ page, w, language, view, openReceipt, periodKind }: { page: Page; w: Words; language: Language; view: PlaceRenderProps['view']; openReceipt: (id: string) => void; periodKind: PeriodKind }) {
+function PrintedPage({ page, w, language, view, openReceipt, openLink, periodKind }: { page: Page; w: Words; language: Language; view: PlaceRenderProps['view']; openReceipt: (id: string) => void; openLink: PlaceRenderProps['openLink']; periodKind: PeriodKind }) {
   const facts = page.sections.filter((x) => !x.projection), projections = page.sections.filter((x) => x.projection);
   return (
     <article className={p.page} lang={page.language}>
@@ -159,7 +162,7 @@ function PrintedPage({ page, w, language, view, openReceipt, periodKind }: { pag
                 {note.source !== null && (
                   <p className={s.quiet}>
                     {fill(w.source, { title: note.source.title })}{' '}
-                    {href !== null ? <a href={href} target="_blank" rel="noopener noreferrer">{note.source.url}</a> : <span>{note.source.url}</span>}
+                    {href !== null ? <OutsideLink url={href} label={note.source.url} openLink={openLink} /> : <span>{note.source.url}</span>}
                     {' · '}{fill(w.checkedOn, { date: day(note.source.checkedOn, language) })}
                   </p>
                 )}

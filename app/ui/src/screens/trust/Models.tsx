@@ -5,6 +5,7 @@
  * This module takes over `trust/models`; the order the host's route picker showed stays
  * visible here as an ordered list.
  */
+import { OutsideLink } from './kit/OutsideLink';
 import { useState, type FormEvent } from 'react';
 import { words } from '../../places/types.ts';
 import { Button } from '../../parts/Button';
@@ -70,7 +71,7 @@ function RouteRow({ p, r }: { p: P; r: Route }) {
     pairs.push({ name: w.keeps, value: r.terms.keeps }, { name: w.keepsFor, value: r.terms.keepsFor }, { name: w.trains, value: r.terms.trains ? w.yes : w.no },
       { name: w.country, value: r.terms.country },
       { name: w.terms, value: fill(w.readOn, { date: dayText(r.terms.readOn, p.language) }),
-        after: <> <a className={s.link} href={r.terms.termsUrl} target="_blank" rel="noopener noreferrer">{w.termsLink}</a></> });
+        after: <> <OutsideLink url={r.terms.termsUrl} label={w.termsLink} openLink={p.openLink} /></> });
   }
   pairs.push({ name: w.lastCost, value: r.lastAnswerCostMinor === null ? w.noLastCost : rupees(r.lastAnswerCostMinor), mono: r.lastAnswerCostMinor !== null,
     after: r.lastAnswerCostMinor === null ? undefined : <> <Tag>{c.cost}</Tag></> });

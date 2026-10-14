@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { Button } from '../../parts/Button';
 import { Choice } from '../../parts/Choice';
 import { Field } from '../../parts/Field';
+import { OutsideLink } from '../trust/kit/OutsideLink';
 import type { PlaceRenderProps } from '../../places/types.ts';
 import { words } from '../../places/types.ts';
 import { useEngine, useSend } from '../trust/kit/engine.ts';
@@ -22,7 +23,7 @@ import s from './Reports.module.css';
 const OTHER = '__other';
 const KIND = /^[a-z][a-z0-9-]{1,40}$/;
 
-export function DueDates({ language, view, member, viewer, rpc }: PlaceRenderProps) {
+export function DueDates({ language, view, member, viewer, rpc, openLink }: PlaceRenderProps) {
   const w = words(WORDS, language);
   const { state, reload } = useEngine(rpc, 'reportsx.due', { language }, validateDue);
   const admin = isAdmin(member, viewer);
@@ -49,7 +50,7 @@ export function DueDates({ language, view, member, viewer, rpc }: PlaceRenderPro
                       <span className={s.stack}>
                         <span className={s.itemText}>{row.what}</span>
                         <span className={s.quiet}>
-                          {href !== null ? <a href={href} target="_blank" rel="noopener noreferrer">{row.source.title}</a> : <span>{row.source.title}</span>}
+                          {href !== null ? <OutsideLink url={href} label={row.source.title} openLink={openLink} /> : <span>{row.source.title}</span>}
                           {' · '}{fill(w.lastChecked, { date: day(row.lastChecked, language) })}
                         </span>
                         <span className={s.quiet}>{row.source.date !== null ? fill(w.sourceDate, { date: day(row.source.date, language) }) : w.sourceUndated}</span>

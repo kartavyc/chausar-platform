@@ -4,6 +4,7 @@
  * own limit sentence; the recovery contact (experimental); the version; where Restore is.
  * The deletion sheet (TR-13) opens from here.
  */
+import { RecoveryContactSettings } from '../first-run/ThisComputer';
 import { useState, type FormEvent } from 'react';
 import { withSheet } from '../../app/routes.ts';
 import { words } from '../../places/types.ts';
@@ -62,8 +63,9 @@ function VaultBody({ p, v, reload }: { p: P; v: VaultView; reload: () => void })
         <p className={s.quiet} data-limit="">{v.limit}</p>
       </Group>
       <Group title={w.recoveryTitle} note={w.recoveryNote}>
-        <p className={s.text}>{v.recoveryContact === null ? w.recoveryNone : fill(w.recoveryIs, { name: v.recoveryContact })} <Tag>{c.experimental}</Tag></p>
-        {admin && <RecoveryForm p={p} name={v.recoveryContact} reload={reload} />}
+        {/* The recovery contact is frame-today's (one source of truth, also set in first run). */}
+        <p className={s.text}><Tag>{c.experimental}</Tag></p>
+        {admin ? <RecoveryContactSettings rpc={p.rpc} /> : <p className={s.text}>{v.recoveryContact === null ? w.recoveryNone : fill(w.recoveryIs, { name: v.recoveryContact })}</p>}
       </Group>
       <Group title={w.versionTitle}>{v.version === null ? <p className={s.quiet}>{w.versionUnknown}</p> : <p className={s.mono}>{v.version}</p>}</Group>
       <Group title={w.restoreTitle}><p className={s.text}>{w.restoreNote}</p></Group>
@@ -123,22 +125,6 @@ function LockForm({ p, v, reload }: { p: P; v: VaultView; reload: () => void }) 
   );
 }
 
-function RecoveryForm({ p, name, reload }: { p: P; name: string | null; reload: () => void }) {
-  const c = words(COMMON, p.language), w = words(VAULT, p.language);
-  const [typed, setTyped] = useState(name ?? '');
-  const { sent, send } = useSend(p.rpc, validateVault);
-  const save = async (value: string | null) => { if (await send('trustx.setRecoveryContact', { name: value }) !== null && p.live(p.address)) reload(); };
-  return (
-    <form className={s.form} onSubmit={(e) => { e.preventDefault(); if (typed.trim().length > 0) void save(typed.trim()); }}>
-      <Field label={w.recoveryName} value={typed} onChange={(e) => setTyped(e.currentTarget.value)} autoComplete="off" />
-      <Button submit disabled={sent.kind === 'sending' || typed.trim().length === 0}>{c.save}</Button>
-      {name !== null && <Button variant="link" onClick={() => { setTyped(''); void save(null); }}>{w.clearRecovery}</Button>}
-      <Outcome sent={sent} language={p.language} />
-    </form>
-  );
-}
-
-/** "This computer": start at login and background mode from release's `service.*`; waking for a job is not built. */
 function ThisComputer({ p }: { p: P }) {
   const w = words(VAULT, p.language);
   const { admin } = powers(p);

@@ -112,13 +112,13 @@ function mount({ sub, sheet, language = 'en', view = 'guided', role = 'owner', v
   if (sub !== undefined) address.sub = sub;
   if (sheet !== undefined) address.sheet = sheet;
   const fake = fakeRpc(replies);
-  const navigate = vi.fn(), openReceipt = vi.fn();
+  const navigate = vi.fn(), openReceipt = vi.fn(), openLink = vi.fn();
   const module = placeModuleFor(address, reportsPlaces);
   if (module === null) throw new Error('no module');
-  const props: PlaceRenderProps = { address, language, view, viewer, member: { id: 'm1', role }, rpc: fake.rpc, live: () => true, openReceipt, navigate };
+  const props: PlaceRenderProps = { address, language, view, viewer, member: { id: 'm1', role }, rpc: fake.rpc, live: () => true, openReceipt, navigate, openLink };
   const ui = (p: PlaceRenderProps): ReactElement => <TextProvider language={p.language}>{module.render(p)}</TextProvider>;
   const view_ = render(ui(props));
-  return { ...fake, navigate, openReceipt, module, rerender: (next: Partial<PlaceRenderProps>) => view_.rerender(ui({ ...props, ...next })) };
+  return { ...fake, navigate, openReceipt, openLink, module, rerender: (next: Partial<PlaceRenderProps>) => view_.rerender(ui({ ...props, ...next })) };
 }
 
 const ALL = { 'reportsx.packs': PACKS, 'reportsx.page': PAGE, 'reportsx.weekAhead': WEEK, 'reportsx.friday': FRIDAY, 'reportsx.rhythm': RHYTHM, 'reportsx.due': DUE, 'reportsx.exports': EXPORTS };
@@ -173,8 +173,10 @@ test('RP-02 a report page: figures open receipts, missing is words, Dr and Cr, g
   const projection = page.getByRole('region', { name: 'Projection' });
   expect(within(projection).getByText('Cash in three months')).toBeTruthy();
   expect(within(projection).getByText('projection')).toBeTruthy();
-  const link = page.getByRole('link', { name: 'https://incometaxindia.gov.in/43bh' });
-  expect(link.getAttribute('href')).toBe('https://incometaxindia.gov.in/43bh');
+  // Outside addresses go through the host's link dialog (SH-10), never a direct link.
+  page.getByRole('button', { name: 'https://incometaxindia.gov.in/43bh' }).click();
+  expect(m.openLink).toHaveBeenCalledWith('https://incometaxindia.gov.in/43bh');
+  expect(page.queryAllByRole('link')).toHaveLength(0);
   expect(page.queryByRole('link', { name: 'javascript:alert(1)' })).toBeNull();
   expect(page.getByText('javascript:alert(1)')).toBeTruthy();
   expect(page.getAllByText('Not legal advice.').length).toBe(2);
@@ -381,7 +383,8 @@ test('RP-06 due dates: CA line, rows with source, last checked, what they apply 
   expect(m.sent('reportsx.due')[0]?.payload).toEqual({ language: 'en' });
   expect(screen.getByText('GSTR-3B for September')).toBeTruthy();
   expect(screen.getByText('Due 20 Oct 2026')).toBeTruthy();
-  expect(screen.getByRole('link', { name: 'Notification 82/2020-Central Tax' }).getAttribute('href')).toBe('https://gstcouncil.gov.in/n82.pdf');
+  screen.getByRole('button', { name: 'Notification 82/2020-Central Tax' }).click();
+  expect(m.openLink).toHaveBeenCalledWith('https://gstcouncil.gov.in/n82.pdf');
   expect(screen.getByText('Source dated 10 Nov 2020')).toBeTruthy();
   // An older reply without the source date or check reads as undated and not confirmed.
   expect(screen.getByText('The source states no date.')).toBeTruthy();
