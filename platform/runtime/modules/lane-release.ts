@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { check, type Context } from '../contracts.ts';
 import type { EngineModule, ModuleHost } from './types.ts';
 import { UpdateService } from '../native/update-service.ts';
@@ -8,6 +8,7 @@ import { DataGuard } from '../native/update-data-guard.ts';
 import { BackgroundService } from '../native/background-service.ts';
 import { keychainStatus } from '../native/keychain-status.ts';
 import { BundledPostgres } from '../native/postgres-lifecycle.ts';
+import { releaseModuleOptions } from '../native/release-options.ts';
 
 /**
  * Release lane: update channel, swap and rollback, the background service, keychain status
@@ -21,8 +22,15 @@ type ReleaseOptions = {
   environment?: NodeJS.ProcessEnv; http?: any; unpack?: any; serviceRunner?: any; homeDirectory?: string; uid?: number;
   postgres?: Record<string, unknown>;
 };
-const options = (host: ModuleHost) => host.options as ReleaseOptions;
+// The desktop worker passes no module options today, so its own trusted environment and package
+// description supply the defaults; explicit host options (tests, the enterprise server) win.
+let environmentDefaults: Promise<ReleaseOptions> | undefined;
+async function options(host: ModuleHost): Promise<ReleaseOptions> {
+  environmentDefaults ??= releaseModuleOptions(process.env);
+  return { ...await environmentDefaults, ...host.options as ReleaseOptions };
+}
 const updates = new Map<string, UpdateService>();
+const channelOf = (o: ReleaseOptions) => o.channel ?? (o.previewExpiresAt ? 'preview' : 'stable');
 
 function writer(ctx: Context) {
   check(ctx.channel === undefined || ctx.channel === 'desktop', 'OPEN_DESKTOP', 'Open the desktop app for this request.');
@@ -47,28 +55,28 @@ async function installId(directory: string): Promise<string> {
   catch (error: any) { if (error?.code === 'EEXIST') return (await readFile(path, 'utf8')).trim(); throw error; }
 }
 async function updateService(host: ModuleHost): Promise<UpdateService> {
-  const o = options(host);
+  const o = await options(host);
   check(typeof o.releasePublicKey === 'string' && o.releasePublicKey.length > 0, 'UPDATES_UNAVAILABLE', 'Configure a publisher-pinned release key in the engine.');
   const installRoot = o.installRoot ?? join(host.directory, 'install');
   const key = `${host.directory}\u0000${installRoot}`;
   let service = updates.get(key);
   if (!service) {
-    service = new UpdateService({ publicKey: o.releasePublicKey, version: await engineVersion(host), channel: o.channel ?? 'preview', installRoot,
+    service = new UpdateService({ publicKey: o.releasePublicKey, version: await engineVersion(host), channel: channelOf(o), installRoot,
       appDataDirectory: host.directory, feedUrl: o.feedUrl, http: o.http, unpack: o.unpack, installId: await installId(host.directory), demo: host.demo,
       dataSchemaVersion: o.dataSchemaVersion, previewExpiresAt: o.previewExpiresAt ?? null, builtAt: o.builtAt ?? null });
     updates.set(key, service);
   }
   return service;
 }
-function backgroundService(host: ModuleHost): BackgroundService {
-  const o = options(host);
+async function backgroundService(host: ModuleHost): Promise<BackgroundService> {
+  const o = await options(host);
   check(typeof o.appExecutable === 'string' && isAbsolute(o.appExecutable), 'SERVICE_UNAVAILABLE', 'Background mode needs the installed desktop app.');
   return new BackgroundService({ executable: o.appExecutable, dataDirectory: host.directory, platform: o.platform, homeDirectory: o.homeDirectory, uid: o.uid, runner: o.serviceRunner });
 }
-function bundledPostgres(host: ModuleHost): BundledPostgres {
-  const o = options(host);
+async function bundledPostgres(host: ModuleHost): Promise<BundledPostgres> {
+  const o = await options(host);
   check(typeof o.resourcesPath === 'string' && isAbsolute(o.resourcesPath), 'DATABASE_RUNTIME_UNAVAILABLE', 'The bundled database runtime is only present in the installed app.');
-  return new BundledPostgres({ runtimeRoot: join(o.resourcesPath, 'runtime-binaries'), dataRoot: join(host.directory, 'postgres'), platform: o.platform, ...(o.postgres ?? {}) } as any);
+  return new BundledPostgres({ runtimeRoot: join(o.resourcesPath, 'runtime-binaries'), dataRoot: join(dirname(host.directory), 'database'), platform: o.platform, ...(o.postgres ?? {}) } as any);
 }
 /** A vault copy taken immediately before a data-schema change, hashed for the swap's evidence. */
 async function vaultCopy(host: ModuleHost) {
@@ -81,10 +89,10 @@ export const releaseModule: EngineModule = {
   id: 'release',
   methods: {
     'release.status': { permission: 'read', async handler(_ctx, _payload, host) {
-      const o = options(host), version = await engineVersion(host);
+      const o = await options(host), version = await engineVersion(host);
       if (!o.releasePublicKey) {
         const data = await new DataGuard({ appDataDirectory: host.directory }).marker();
-        return { version, channel: o.channel ?? 'preview', configured: false, demo: host.demo, dataSchema: data };
+        return { version, channel: channelOf(o), configured: false, demo: host.demo, dataSchema: data };
       }
       return { configured: true, ...await (await updateService(host)).status() };
     } },
@@ -108,20 +116,20 @@ export const releaseModule: EngineModule = {
       writer(ctx); return (await updateService(host)).confirmHealthy();
     } },
     'native.keychainStatus': { permission: 'admin', async handler(_ctx, _payload, host) {
-      const o = options(host);
+      const o = await options(host);
       return keychainStatus({ platform: o.platform ?? process.platform, arch: o.arch ?? process.arch, environment: o.environment ?? process.env,
         resourcesPath: o.resourcesPath ?? '', demo: host.demo });
     } },
     'native.databaseStatus': { permission: 'admin', async handler(_ctx, _payload, host) {
-      return bundledPostgres(host).status();
+      return (await bundledPostgres(host)).status();
     } },
-    'service.status': { permission: 'admin', async handler(_ctx, _payload, host) { return backgroundService(host).status(); } },
-    'service.plan': { permission: 'admin', async handler(_ctx, _payload, host) { return backgroundService(host).plan(); } },
+    'service.status': { permission: 'admin', async handler(_ctx, _payload, host) { return (await backgroundService(host)).status(); } },
+    'service.plan': { permission: 'admin', async handler(_ctx, _payload, host) { return (await backgroundService(host)).plan(); } },
     'service.install': { permission: 'admin', async handler(ctx, payload, host) {
-      writer(ctx); confirmed(payload); return backgroundService(host).install({ confirmed: true });
+      writer(ctx); confirmed(payload); return (await backgroundService(host)).install({ confirmed: true });
     } },
     'service.uninstall': { permission: 'admin', async handler(ctx, payload, host) {
-      writer(ctx); confirmed(payload); return backgroundService(host).uninstall({ confirmed: true });
+      writer(ctx); confirmed(payload); return (await backgroundService(host)).uninstall({ confirmed: true });
     } },
   },
 };

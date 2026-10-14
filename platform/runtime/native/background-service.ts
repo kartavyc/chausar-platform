@@ -227,7 +227,7 @@ export class BackgroundService {
     check(Number.isSafeInteger(this.#timeoutMs) && this.#timeoutMs > 0 && this.#timeoutMs <= 300_000, 'SERVICE_OPTIONS_INVALID', 'The command timeout is out of range.');
   }
 
-  get #args(): string[] { return ['--background', '--data-dir', this.#dataDirectory]; }
+  get #args(): string[] { return ['--background']; }
   get #tool(): string {
     if (this.platform === 'win32') return win32.join(this.#systemRoot, 'System32', 'schtasks.exe');
     if (this.platform === 'darwin') return '/bin/launchctl';

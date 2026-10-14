@@ -70,7 +70,8 @@ test('macOS: writes the launch agent, replaces any loaded copy, bootstraps it an
   const service = new BackgroundService({ platform: 'darwin', executable: '/Applications/Chausar.app/Contents/MacOS/Chausar', dataDirectory: `${root}/Application Support/Chausar & <Co>`, homeDirectory: root, uid: 501, runner });
   const status = await service.install({ confirmed: true });
   assert.deepEqual(status, { platform: 'darwin', mechanism: 'macos-launchd-agent', installed: true, running: true, unitPath: `${root}/Library/LaunchAgents/in.chausar.background.plist` });
-  assert.match(await readFile(status.unitPath, 'utf8'), /Chausar &amp; &lt;Co&gt;/);
+  // The desktop app finds its own data directory; the agent passes only --background (escaping is covered by the generator tests).
+  assert.match(await readFile(status.unitPath, 'utf8'), /<string>--background<\/string>\n  <\/array>/);
   assert.deepEqual(calls.map(call => call.args.join(' ')), ['bootout gui/501/in.chausar.background', `bootstrap gui/501 ${status.unitPath}`, 'print gui/501/in.chausar.background']);
   calls.length = 0;
   const removed = await service.uninstall({ confirmed: true });

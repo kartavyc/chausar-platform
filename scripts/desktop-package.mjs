@@ -243,12 +243,17 @@ export async function validateDesktopPackagingOutput({ root = projectRoot, plan 
   return { receiptPath, expectedArtifacts };
 }
 
+export const PREVIEW_LIFETIME_DAYS = 90;
+export function previewExpiry(now = Date.now()) { return new Date(now + PREVIEW_LIFETIME_DAYS * 86_400_000).toISOString(); }
+
 /** Windows preview uses ZIP without NSIS. Final NSIS builds can execute their generated installer while extracting the uninstaller. No release/update publication is performed. */
 export async function packageDesktop({ root = projectRoot, plan = createDesktopPackagePlan(), environment = process.env, checkOnly = false } = {}) {
   const prerequisites = await desktopPackagePrerequisites({ root, plan, environment });
   if (!prerequisites.ok || checkOnly) return { ...prerequisites, packaged: false, checkOnly };
   const { receiptPath, expectedArtifacts } = await validateDesktopPackagingOutput({ root, plan, version: prerequisites.version });
-  const arguments_ = [prerequisites.cliPath, ...plan.builderArguments];
+  // A preview build expires; the app then reports that an update is needed (release.status).
+  const previewExpiresAt = plan.mode === 'preview' ? previewExpiry() : null;
+  const arguments_ = [prerequisites.cliPath, ...plan.builderArguments, ...(previewExpiresAt ? [`-c.extraMetadata.chausarPreviewExpiresAt=${previewExpiresAt}`] : [])];
   const status = await new Promise((accept, reject) => {
     const child = spawn(process.execPath, arguments_, { cwd: root, env: desktopPackagingEnvironment(plan.mode, environment), shell: false, windowsHide: true, stdio: 'inherit' });
     child.once('error', reject);
@@ -263,7 +268,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
       artifacts.push({ path: name, size: info.size, sha256: await sha256(path) });
     }
   }
-  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'preview' ? false : 'requires-native-verification', published: false, qualification: plan.qualification, checks: prerequisites.checks, artifacts };
+  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'preview' ? false : 'requires-native-verification', published: false, previewExpiresAt, qualification: plan.qualification, checks: prerequisites.checks, artifacts };
   await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   return { ...prerequisites, packaged: true, receiptPath };
 }
