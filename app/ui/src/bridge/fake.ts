@@ -356,6 +356,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'jobs.list': () => [],
     'decisions.list': () => (populated() ? [decisionRecord()] : []),
     'sources.list': () => (populated() ? [importRecord(date)] : []),
+    // Like the real engine, a file is read only against published meanings. Reading itself is not served here.
+    'sources.preview': () => { if (ontology.current === null) throw fakeRefusal('DICTIONARY_REQUIRED', 'Agree the meanings first.'); throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not read files.'); },
+    'sources.workbookPreview': () => { if (ontology.current === null) throw fakeRefusal('DICTIONARY_REQUIRED', 'Agree the meanings first.'); throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not read files.'); },
     'learning.list': () => [],
     'activity.list': () => ({ items: populated() ? dayEvents(date).map(event => ({ id: event['id'], kind: event['kind'], at: event['at'] })) : [], modelReceipts: [] }),
     'memory.lessons': () => [],

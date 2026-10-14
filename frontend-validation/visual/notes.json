@@ -1,0 +1,106 @@
+{
+  "S01-Today": {
+    "differences": [
+      "Content is synthetic: the fake engine's scoped Today producer offers three prepared requests and two worth-a-look rows, not the picture's reminders, payment and Freight Outward question; its review count is not known, so the title carries no number and the partial-scope note (not sure) sits under the title.",
+      "The populated demo workspace shows two banners (Demo clock, Jobs paused) above the page; the picture has none. They push This month and Earlier today below the fold at 768 high.",
+      "Each figure tile adds the producer's \"Definition, coverage\" link and the figures section ends with the Prepare figures button (with its note only until figures are prepared); the picture has neither.",
+      "The ask line carries the no-model note under it, and the status line's three facts are longer than the picture's, so the third wraps onto a second line.",
+      "Rail: Today has no count beside it (the scoped producer does not know the whole-app count)."
+    ],
+    "fixed": [
+      "The host's full-width \"Read again\" bar above the frame is gone once a workspace is open (Read again moved into the workspace menu); the rail and page start at the top of the window as in the picture.",
+      "The scoped controls no longer stack as separate full-width blocks between the title and the rows: Open review list sits at the right of the title, and Prepare figures sits under the figures (its note beside it only until figures are prepared).",
+      "The date, title and review rows read as one block (no 32 px grid gap between each), so the rows start right under the title.",
+      "\"See all\" in Worth a look sits at the start, as wide as its words, instead of centred across the column.",
+      "Status facts that wrap sit 4 px apart instead of 24 px.",
+      "The three figure tiles keep their labels, figures and charts on common lines: tiles of different heights no longer spread their rows apart."
+    ]
+  },
+  "S14-Today-Simple": {
+    "differences": [
+      "Synthetic rows (English record names from the fake engine inside Hindi chrome); no review count; no cash field or seven-day cash chart, because the scoped producer has no owner-entry cash producer yet (its missing line is drawn instead, below the fold).",
+      "Two banners above the page, each taller in Hindi and Simple; the picture has none.",
+      "The rail shows Today's sub-places (Today, Activity) under Today; the picture's Simple rail does not.",
+      "The status line is Simple's two sentences, longer than the picture's two short facts."
+    ],
+    "fixed": [
+      "The wordmark keeps its mono face in Hindi (the Devanagari rule had replaced it).",
+      "Rail places in Simple step 48 px (44 px targets with a 4 px gap) instead of 56 px, close to the picture's 46.",
+      "Open review list at the right of the title; the title, partial note and rows as one block; no host bar."
+    ]
+  },
+  "S15-Today-Books": {
+    "differences": [
+      "The queue is the scoped producer's review ledger as rows (what, a short label, chevron), not the picture's seven-column table: the producer does not supply party, as-written narration, amount or responsibility, and says so in a line under the rows.",
+      "No waiting line and no September close rows (no producer yet; their missing lines are drawn below the fold). Worth a look is drawn as its own table.",
+      "The rail keeps the design's 216 px width (the picture's Books rail is narrower, about 196) and shows Today's sub-places.",
+      "Banners above the page; the keys fact is in the status line as in the picture."
+    ],
+    "fixed": [
+      "Rail places in Books step 32 px (8 px gap), as in the picture, instead of 36.",
+      "No empty table: with no queue rows the column headers are not drawn (they had no cells under them).",
+      "Open review list at the right of the title; no host bar; title and ledger as one block."
+    ]
+  },
+  "S09-Setup": {
+    "differences": [
+      "The walk reaches Meanings by holding the file (the engine reads files only against agreed meanings), so the step line's walking square is on Your books, not Meanings, and a line says the file is held.",
+      "The neighbourhood retail starter pack has seven meanings (2 of 7), not the picture's five; the open row shows the meaning's words and evidence instead of a fit bar.",
+      "The steps sit 14 px lower (the first-run top bar is taller) and the blocked line is below the fold."
+    ],
+    "fixed": [
+      "Row words are vertically centred in their 54 px rows with the chevron, instead of sitting at the top with the chevron below them.",
+      "Step names sit right under their dots (a step with a state line no longer stretches its neighbours' rows), and the walking square sits on the dots' line instead of 8 px below it."
+    ]
+  },
+  "S02-Answer": {
+    "differences": [
+      "Ask lane. #/ask/new draws the route picker in the preview (no model route, no conversation), not an answer with its receipt."
+    ]
+  },
+  "S04-Approval": {
+    "differences": [
+      "Work-books lane. Approvals draws the proposed-lessons section (empty) with \"Work\" as its where-line; the picture shows the approvals list with the approval sheet open and \"Work · Approvals\"."
+    ]
+  },
+  "S05-Job": {
+    "differences": [
+      "Work-books lane. Jobs shows \"not built yet\" in the preview."
+    ]
+  },
+  "S06-Sources": {
+    "differences": [
+      "Work-books lane. Sources shows \"not built yet\" in the preview."
+    ]
+  },
+  "S07-Meaning": {
+    "differences": [
+      "Work-books lane. Meanings shows \"not built yet\" in the preview."
+    ]
+  },
+  "S08-History": {
+    "differences": [
+      "Work-books lane. History draws its query form (figure, period, as known on, Show) and a sub-place tab strip; the picture shows the as-known-then and as-known-now figures with the correction time line."
+    ]
+  },
+  "S10-Trust": {
+    "differences": [
+      "Reports-tools-trust lane. Rules shows \"not built yet\" in the preview."
+    ]
+  },
+  "S11-People": {
+    "differences": [
+      "Reports-tools-trust lane. People shows \"not built yet\" in the preview."
+    ]
+  },
+  "S12-SmallApp": {
+    "differences": [
+      "Reports-tools-trust lane. Small apps shows \"not built yet\" in the preview."
+    ]
+  },
+  "S13-Plugin": {
+    "differences": [
+      "Reports-tools-trust lane. Plugins shows \"not built yet\" in the preview."
+    ]
+  }
+}

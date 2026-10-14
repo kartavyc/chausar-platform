@@ -881,6 +881,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       workspace: { name: context.workspace.name, demo: context.workspace.demo,
         who: hostMessage(language, 'memberRole', { name: context.member.name, role: hostMessage(language, ROLE_KEY[context.member.role]) }) },
       onSetView: setView, onSetLanguage: setLanguage, onLock: () => { void controller.lock(); }, onAbout: showAbout, onHelp: () => showHelp(),
+      onReadAgain: () => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); },
     },
     ...(frame.reads.shell !== null ? {
       banners: shellBanners(frame.reads.shell, language, {
@@ -1111,12 +1112,15 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
       intents={{ onContinue: handoff => { if (controller.completeFirstRun(handoff)) { navigate(ASK); void controller.refresh(); } } }} />
       : <TextProvider language={language}><Button variant="link" onClick={() => { navigate(FIRST_RUN); setAddress(FIRST_RUN); }}>{FIRST_RUN_WORDS[language].resume}</Button></TextProvider>;
   }
+  // With a workspace open the frame fills the window and "Read again" is in the workspace menu;
+  // the bar above it is drawn only for the legacy return link or while no workspace is open.
+  const hostBar = onLegacyReturn !== null || !authorized;
   return <TextProvider language={language}>
-    <div style={{ height: '100vh', display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp4)', padding: 'var(--sp2) var(--sp4)', borderBottom: 'var(--hair) solid var(--line)' }}>
+    <div style={{ height: '100vh', display: 'grid', gridTemplateRows: hostBar ? 'auto minmax(0, 1fr)' : 'minmax(0, 1fr)' }}>
+      {hostBar && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp4)', padding: 'var(--sp2) var(--sp4)', borderBottom: 'var(--hair) solid var(--line)' }}>
         {onLegacyReturn !== null && <Button variant="link" onClick={onLegacyReturn} disabled={state.creation.kind === 'creating' || state.creation.kind === 'recovery-required'}>{hostMessage(language, 'legacy')}</Button>}
         <Button variant="link" onClick={() => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); }} disabled={state.phase === 'loading' || state.phase === 'locked'}>{hostMessage(language, 'refresh')}</Button>
-      </div>
+      </div>}
       <div data-host-workspace="" style={{ minHeight: 0, overflow: 'auto' }}>
         {state.phase === 'locked' && <p role="status">{hostMessage(language, 'locked')}</p>}
         {state.creation.kind !== 'idle' || state.phase === 'locked'

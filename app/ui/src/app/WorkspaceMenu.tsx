@@ -47,6 +47,8 @@ export interface WorkspaceMenuProps {
   onAbout: () => void;
   /** Help (SH-12), the same sheet as Ctrl /. Listed only when supplied. */
   onHelp?: (() => void) | undefined;
+  /** Read the workspace again from the engine. Listed only when supplied. */
+  onReadAgain?: (() => void) | undefined;
 }
 
 const VIEWS: ReadonlyArray<View> = ['simple', 'guided', 'books'];
@@ -65,6 +67,7 @@ export function WorkspaceMenu(p: WorkspaceMenuProps) {
     else if (kind === 'lock') p.onLock();
     else if (kind === 'about') p.onAbout();
     else if (kind === 'help') p.onHelp?.();
+    else if (kind === 'read') p.onReadAgain?.();
   };
 
   const views = p.views ?? VIEWS;
@@ -121,6 +124,11 @@ export function WorkspaceMenu(p: WorkspaceMenuProps) {
             ))}
           </MenuSection>
           <MenuSection className={[s.section].join(' ')}>
+            {p.onReadAgain && (
+              <MenuItem id="read" className={[s.item].join(' ')}>
+                {t('SH-06.readAgain')}
+              </MenuItem>
+            )}
             <MenuItem id="lock" className={[s.item].join(' ')}>
               {t('SH-06.lock')}
             </MenuItem>

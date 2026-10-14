@@ -188,16 +188,19 @@ export function useInPlaceRows() {
   return { openId, toggle, registerOrigin, originOf };
 }
 
-/** The independent producer's scoped controls are absent from legacy callers. */
-export function TodayConsumerControls({ data, intents }: { data: TodayData; intents: TodayIntents }) {
-  const t = useT(); if (data.review.scoped === undefined) return null;
-  return <>
-    {intents.onSeeAll && <Button variant="link" onClick={intents.onSeeAll}>{t('TODAY_ENGINE.seeAll')}</Button>}
-    {intents.onPrepareTiles && <>
-      <p>{t('TODAY_ENGINE.prepareNote')}</p>
-      <Button variant="quiet" disabled={intents.preparingTiles} onClick={event => intents.onPrepareTiles?.(event.currentTarget)}>{t(intents.preparingTiles ? 'TODAY_ENGINE.preparing' : 'TODAY_ENGINE.prepare')}</Button>
-    </>}
-  </>;
+/** The independent producer's scoped review list link, at the right of the title (PageHeader `aside`). Absent from legacy callers. */
+export function TodayReviewLink({ data, intents }: { data: TodayData; intents: TodayIntents }) {
+  const t = useT(); if (data.review.scoped === undefined || !intents.onSeeAll) return null;
+  return <Button variant="link" onClick={intents.onSeeAll}>{t('TODAY_ENGINE.seeAll')}</Button>;
+}
+/** The explicit preparation of the configured figures: one line under the figures. Until figures are
+ *  prepared its note says what a press does; once they are drawn the button stands alone. Absent from legacy callers. */
+export function TodayPrepare({ data, intents }: { data: TodayData; intents: TodayIntents }) {
+  const t = useT(); if (data.review.scoped === undefined || !intents.onPrepareTiles) return null;
+  return <div className={s.prepare}>
+    {!data.thisMonth?.length && <p className={s.prepareNote}>{t('TODAY_ENGINE.prepareNote')}</p>}
+    <Button variant="quiet" disabled={intents.preparingTiles} onClick={event => intents.onPrepareTiles?.(event.currentTarget)}>{t(intents.preparingTiles ? 'TODAY_ENGINE.preparing' : 'TODAY_ENGINE.prepare')}</Button>
+  </div>;
 }
 /** Books keeps the genuine review ledger while accounting-specific fields are missing. */
 export function TodayConsumerLedger({ data, intents }: { data: TodayData; intents: TodayIntents }) {
@@ -215,7 +218,7 @@ export function TodayStat({ tile, intents }: { tile: StatTile; intents: TodayInt
     const control = target instanceof Element ? target.closest('button,[role="button"]') : null;
     origin.current = control instanceof HTMLElement || control instanceof SVGElement ? control : null;
   };
-  return <div onClickCapture={event => capture(event.target)} onKeyDownCapture={event => capture(event.target)}>
+  return <div className={s.stat} onClickCapture={event => capture(event.target)} onKeyDownCapture={event => capture(event.target)}>
     <Stat tile={tile} onReceipt={id => intents.onReceipt(id, origin.current)} />
     <Button variant="link" onClick={event => intents.onOpenTile?.(tile.id, event.currentTarget)}>{t('TODAY_ENGINE.definition')}</Button>
   </div>;
@@ -227,6 +230,7 @@ export function TodayProducerSections({ data, intents }: { data: TodayData; inte
     <section className={s.section}><h2 className={s.label}>{t('TODAY_ENGINE.figures')}</h2>
       {data.thisMonth?.length ? <div className={s.tiles}>{data.thisMonth.map(tile => <TodayStat key={tile.id} tile={tile} intents={intents} />)}</div>
         : <p className={s.missing}><MissingWords missing={data.thisMonthMissing ?? 'unknown'} /></p>}
+      <TodayPrepare data={data} intents={intents} />
     </section>
     <section className={s.section}><h2 className={s.label}>{t('TD-01.earlier')}</h2>
       {data.earlierToday?.length ? <DayLine events={data.earlierToday} onReceipt={intents.onReceipt} onOpenEvent={intents.onOpenEvent} onOpenAll={intents.onOpenActivity} />
