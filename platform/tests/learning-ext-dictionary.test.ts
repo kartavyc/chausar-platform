@@ -73,7 +73,7 @@ test('three read-only layers: schema, samples governed by the send level, and th
   store.state.policy.send = 'samples';
   const samples = samplesLayer(store, owner) as any;
   assert.deepEqual(samples.fields.customerId.values, ['cust-1', 'cust-2']);
-  assert.ok(samples.fields.amountMinor.values.length <= 5);
+  assert.equal(samples.fields.amountMinor.state, 'shape'); assert.equal(Object.hasOwn(samples.fields.amountMinor, 'values'), false);
   assert.deepEqual(samples.fields.gstin.values, [{ masked: 'GSTIN', mask: maskOf('27AAPFU0939F1ZV') }]);
   assert.equal(maskOf('Inv-42'), 'Aaa-99');
 
@@ -222,8 +222,11 @@ test('the answer key can be replaced only by the owner in the app, and the sched
   assert.deepEqual(await dictionaryTick(owner, host, scheduler), [], 'autonomy is off');
   store.state.policy.autonomy = true;
   const hash = new OntologyService(store).current(owner)!.hash;
-  assert.deepEqual(await dictionaryTick(owner, host, scheduler), [{ module: 'learning-ext', proposed: 1 }]);
-  assert.deepEqual(await dictionaryTick(owner, host, scheduler), [], 'at most once a day');
+  assert.deepEqual(await dictionaryTick(owner, host, scheduler), []);
+  const waiting = (await call('learningx.edits', { status: 'awaiting-review' }, store)).items.length;
+  assert.equal(waiting, 1, 'the scheduled loop proposed one edit for review');
+  await dictionaryTick(owner, host, scheduler);
+  assert.equal((await call('learningx.edits', {}, store)).items.length, waiting, 'at most once a day');
   assert.equal(new OntologyService(store).current(owner)!.hash, hash, 'the loop never publishes');
 });
 

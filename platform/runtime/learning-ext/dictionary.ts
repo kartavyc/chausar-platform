@@ -286,7 +286,7 @@ export async function dictionaryTick(ctx: Context, host: ModuleHost, scheduler: 
     dictionary.lastTickDay = day; return true;
   });
   if (!claimed) return [];
-  const result = await proposeEdits(ctx, host, { fromEvidence: true });
-  // Report only when something new awaits the owner, so a quiet day adds nothing to the scheduler's results.
-  return result.items.length ? [{ module: 'learning-ext', proposed: result.items.length }] : [];
+  await proposeEdits(ctx, host, { fromEvidence: true });
+  // New edits wait in `learningx.edits` (and the approvals queue); the scheduler's results stay the jobs' own.
+  return [];
 }
