@@ -1,0 +1,122 @@
+/* Shared layout of the ask lane's analysis screens. */
+.part {
+  margin-top: var(--sp6);
+}
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp2);
+  margin: 0 0 var(--sp3);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-medium);
+}
+.problem {
+  margin: var(--sp2) 0 0;
+  font-size: var(--fs-note);
+  color: var(--red);
+}
+.code {
+  font-family: var(--fm);
+  color: var(--mute);
+  margin-inline-start: var(--sp1);
+}
+.form {
+  display: grid;
+  gap: var(--sp4);
+  max-width: var(--col);
+}
+.formLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp3);
+}
+.note {
+  margin: var(--sp1) 0 0;
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+.lead {
+  margin: 0 0 var(--sp3);
+  color: var(--fg2);
+}
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp5);
+}
+.tile {
+  display: grid;
+  gap: var(--sp1);
+  padding-top: var(--sp2);
+  border-top: var(--hair) solid var(--line2);
+}
+.tileLabel {
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--hair) solid var(--line);
+}
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp2) var(--sp3);
+  padding: var(--sp2) 0;
+  border-bottom: var(--hair) solid var(--line);
+  min-width: 0;
+}
+.grow {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+}
+.mono {
+  font-family: var(--fm);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-note);
+}
+.table th,
+.table td {
+  text-align: start;
+  padding: var(--sp1) var(--sp2) var(--sp1) 0;
+  border-bottom: var(--hair) solid var(--line);
+  vertical-align: baseline;
+}
+.table th {
+  color: var(--mute);
+  font-weight: var(--fw-regular);
+}
+.scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.hit {
+  color: var(--mute);
+}
+.hit mark {
+  background: none;
+  color: var(--fg);
+  font-weight: var(--fw-medium);
+}
+.input {
+  font: inherit;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  border-bottom: var(--hair) solid var(--line2);
+  padding: var(--sp1) 0;
+  min-width: 0;
+}
