@@ -24,7 +24,7 @@ export const WHATSAPP_TEMPLATE: Readonly<Record<MessageEvent, string>> = Object.
   'week-ahead-ready': 'chausar_week_ahead_ready', 'review-ready': 'chausar_review_ready',
   'document-received': 'chausar_document_received', 'due-date-near': 'chausar_due_date_near',
 });
-export const BUTTONS = Object.freeze({ approve: 'Approve', notNow: 'Not now', open: 'Open the app' });
+export const BUTTONS = Object.freeze({ approve: 'Approve', notNow: 'Not now', open: 'Open the app', confirm: 'Confirm' });
 export const REPLIES = Object.freeze({
   freeText: 'Open Chausar on your computer to see this. Reply HELP for a person, STOP to end messages.',
   help: 'A person from Chausar will reply to you here. Reply STOP to end messages.',
@@ -42,8 +42,20 @@ export const LINK_PAGE = Object.freeze({
   confirmApprove: 'Approve this one small change?',
   confirmNotNow: 'Leave this for later?',
   done: 'Done. Open Chausar on your computer to see the result.',
+  confirmAddress: 'Confirm this address for Chausar messages?',
+  addressConfirmed: 'This address is confirmed. Chausar messages will come here.',
 });
-export const MAIL_FOOTER = 'To stop these messages, turn mail off in Chausar on your computer. Chausar never asks you to reply yes.';
+export const MAIL_FOOTER = 'Reply HELP for a person, STOP to end messages. Chausar never asks you to reply yes.';
+/** Mail-only fixed texts: the one address confirmation (headline, link, note) and the subject of a fixed reply. */
+export const MAIL_TEXT = Object.freeze({
+  confirmHeadline: 'Confirm this address for Chausar messages.',
+  confirmNote: 'Open the link and press Confirm. The link works once and stops working after a day. If you did not ask for this, ignore this mail.',
+  replySubject: 'Chausar messages',
+});
+/** The exact confirmation mail body. */
+export function confirmationBody(link: string): string {
+  return [MAIL_TEXT.confirmHeadline, link, '', MAIL_TEXT.confirmNote].join('\n');
+}
 /** The opt-in wording the desktop shows; the relay stores its hash with the opt-in. */
 export const OPT_IN_TEXT: Readonly<Record<Channel, string>> = Object.freeze({
   whatsapp: 'Send me Chausar messages on WhatsApp: a headline and a link, about thirty a month. I can reply STOP at any time.',

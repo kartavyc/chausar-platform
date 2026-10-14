@@ -59,6 +59,9 @@ A Node 24 and TypeScript service set on PostgreSQL 16, with the job queue on the
 | Fixed message catalogue, no digit in any body, preview before sending | **supported** | Tested end to end on synthetic data, desktop to real hosted router |
 | Pairing, channel opt-in, counts against thirty, cost known or unknown | **supported** (code); service **experimental** until deployed | The hosted service is not deployed |
 | Simple approvals: single use, thirty minutes, owner's number only, sealed, applied once, never executes | **supported** (code, end to end with the real relay on synthetic data); WhatsApp **experimental** | WhatsApp needs Meta verification and approved templates; Telegram needs the bot; mail needs Postmark |
+| Mail address confirmation (`/v/<letters>`, a day, single use, three a day) and `phone.verify` | **supported** (code); service **experimental** until deployed | Postmark sending domain |
+| Inbound mail: HELP ticket, STOP, fixed free-text reply, confirmed senders only (`/v1/webhooks/mail/:provider`, Postmark basic auth or a generic HMAC adapter) | **experimental** | Needs a Postmark inbound address and its webhook credentials (`POSTMARK_INBOUND_USER`/`PASSWORD`) |
+| A business's own WhatsApp statuses for writeback (`hosted.businessHook.set`, `hosted.messageStatuses`) | **experimental** | Needs `API_ORIGIN` and each business pointing its own Meta app at its hook URL; Telegram has no delivery callbacks |
 | Link pages | **supported** (code) | Not deployed |
 | Blind backup upload and restore | **supported** (code, round trip into `workspace.restore`) | Not deployed |
 | Allowance proxy and route client | **experimental** | Needs provider keys, a dated pricing table checked by a person, and the models-ext route wiring |

@@ -35,7 +35,7 @@ export function buildHosted(env: Env, sql: Sql, fetch: Fetch, overrides: HostedO
     createAccountsModule(deps, { otp: overrides.otp ?? accounts.otp, entitlements, limits: accounts.limits }),
     createBillingModule(deps, { partner: overrides.partner ?? billing.partner, config: billing.config }),
     relay,
-    createLinkPages(deps, relay.buttons),
+    createLinkPages(deps, relay.buttons, relay.mailConfirm),
     createBackupModule(deps, { store: overrides.blobStore !== undefined ? overrides.blobStore : backupStore(backupConfig(env)) }),
     createAllowanceModule(deps, { providers: allowanceProviders(allowance, fetch), pricing: allowance.pricing, apiOrigin: allowance.apiOrigin }),
     createWorkerJobsModule(deps, { async sendDueDateReminder(accountId) {

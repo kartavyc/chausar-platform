@@ -4,7 +4,7 @@ import { whatsappChannel, telegramChannel, mailChannel, mailBody } from '../../h
 import type { OutboundTemplate } from '../../hosted/relay/channels.ts';
 import { createRelayModule, checkLinkOrigin, relayConfig, parseRelayPrices } from '../../hosted/relay/relay.ts';
 import { letterToken } from '../../hosted/shared/crypto.ts';
-import { BUTTONS, HEADLINES, MAIL_FOOTER, MESSAGE_EVENTS, REPLIES, WHATSAPP_TEMPLATE, hasDigit, messageBody } from '../../hosted/shared/templates.ts';
+import { BUTTONS, HEADLINES, MAIL_FOOTER, MAIL_TEXT, MESSAGE_EVENTS, REPLIES, WHATSAPP_TEMPLATE, confirmationBody, hasDigit, messageBody } from '../../hosted/shared/templates.ts';
 import type { Fetch, HostedDeps } from '../../hosted/shared/module.ts';
 
 const ORIGIN = 'https://link.chausar.app';
@@ -100,8 +100,9 @@ test('no digit in any outbound message: every event, channel, offer and reply, i
     await tg.sendTemplate(fetch, '55501234', message(event, offer));
     await mail.sendTemplate(fetch, 'owner@example.com', message(event, offer));
   }
-  for (const reply of Object.values(REPLIES)) { await wa.sendText(fetch, '919876543210', reply); await tg.sendText(fetch, '55501234', reply); await tg.answerCallback(fetch, 'callbackid', reply); }
-  assert.equal(calls.length, MESSAGE_EVENTS.length * 2 * 3 + Object.keys(REPLIES).length * 3);
+  for (const reply of Object.values(REPLIES)) { await wa.sendText(fetch, '919876543210', reply); await tg.sendText(fetch, '55501234', reply); await tg.answerCallback(fetch, 'callbackid', reply); await mail.sendText(fetch, 'owner@example.com', MAIL_TEXT.replySubject, reply); }
+  await mail.sendText(fetch, 'owner@example.com', MAIL_TEXT.confirmHeadline, confirmationBody(`${ORIGIN}/v/${letterToken()}`));
+  assert.equal(calls.length, MESSAGE_EVENTS.length * 2 * 3 + Object.keys(REPLIES).length * 4 + 1);
   let buttons = 0;
   for (const call of calls) {
     // The recipient (a phone number or chat id) and WhatsApp's positional button index are addressing, not message text.

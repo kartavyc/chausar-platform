@@ -39,6 +39,12 @@ const KNOWN_CODES: Readonly<Record<string, string>> = Object.freeze({
   NOT_FOUND: 'The server has no such item.',
   DOCUMENT_NOT_FOUND: 'The server has no such document.',
   DEVICE_KEY_INVALID: 'The server refused this computer\'s document key.',
+  MAIL_CONFIRM_LIMITED: 'Three confirmation mails were sent today. Try again tomorrow.',
+  ADDRESS_REQUIRED: 'Mail needs an address.',
+  ADDRESS_INVALID: 'The server refused that mail address.',
+  API_ORIGIN_NOT_SET: 'The hosted service has no public address for hooks yet.',
+  APP_SECRET_INVALID: 'The app secret is not valid.',
+  REFERENCE_INVALID: 'The reference is not valid.',
 });
 export const HOSTED_CODES: readonly string[] = Object.freeze(Object.keys(KNOWN_CODES));
 
@@ -77,7 +83,12 @@ export function hostedOrigin(value: unknown): string {
 
 export type Entitlements = { plan: 'free' | 'paid'; relay: boolean; backup: boolean; backupQuotaBytes: number; backupKeep: number; allowance: boolean; allowanceMonthlyPaise: string; worker: boolean; monthlyMessages: number };
 export type Me = { accountId: string; phone: string; plan: 'free' | 'paid'; entitlements: Entitlements; devices: { deviceId: string; deviceName: string; createdAt: string; lastSeenAt: string | null; current: boolean }[] };
-export type ChannelRow = { channel: Channel; status: 'off' | 'awaiting-start' | 'on' | 'stopped' | 'not-configured'; optInAt: string | null; address: string | null; connectUrl?: string };
+export const CHANNEL_STATUSES = ['off', 'awaiting-start', 'awaiting-confirmation', 'on', 'stopped', 'not-configured'] as const;
+/** `verified`: the relay confirmed the channel's address (mail: the confirmation link was used; WhatsApp: on for the OTP-verified phone). */
+export type ChannelRow = { channel: Channel; status: typeof CHANNEL_STATUSES[number]; optInAt: string | null; address: string | null; verified?: boolean; connectUrl?: string };
+export type BusinessStatus = { messageId: string; status: 'sent' | 'delivered' | 'read' | 'failed'; at: string; reference: string };
+export const BUSINESS_REFERENCE = /^[A-Za-z0-9_.:-]{1,128}$/;
+export const BUSINESS_MESSAGE_ID = /^[A-Za-z0-9._=:+/-]{1,256}$/;
 export type SealedBlob = { format: 'chausar-relay-sealed-v1'; nonce: string; ciphertext: string };
 export type SealedEnvelope = { envelopeId: string; messageId: string; purpose: 'approval-intent'; decision: 'approve' | 'not-now'; channel: Channel; createdAt: string; expiresAt: string; nonce: string; ciphertext: string };
 export type Counts = { month: string; sent: number; budget: number; costPaise: string | null; costState: 'known' | 'unknown'; byChannel: Record<Channel, number> };
@@ -95,8 +106,8 @@ function entitlements(value: unknown): Entitlements {
   return e as Entitlements;
 }
 export function channelRow(value: unknown): ChannelRow {
-  const row = shape(value, ['channel', 'status', 'optInAt', 'address'], ['connectUrl']);
-  valid(CHANNELS.includes(row.channel) && ['off', 'awaiting-start', 'on', 'stopped', 'not-configured'].includes(row.status) && isoOrNull(row.optInAt)
+  const row = shape(value, ['channel', 'status', 'optInAt', 'address'], ['verified', 'connectUrl']);
+  valid(CHANNELS.includes(row.channel) && (CHANNEL_STATUSES as readonly string[]).includes(row.status) && isoOrNull(row.optInAt) && (row.verified === undefined || typeof row.verified === 'boolean')
     && (row.address === null || text(row.address, 320)) && (row.connectUrl === undefined || (typeof row.connectUrl === 'string' && /^https:\/\/t\.me\/[A-Za-z0-9_]{1,64}\?start=[A-Za-z]{1,128}$/.test(row.connectUrl))));
   return row as ChannelRow;
 }
@@ -254,6 +265,26 @@ export class HostedClient {
     check(ID.test(envelopeId), 'INVALID_REQUEST', 'Use an envelope from this account.');
     const r = shape(await this.#json('POST', `/v1/relay/envelopes/${encodeURIComponent(envelopeId)}/ack`, { token, json: { disposition } }), ['envelopeId', 'disposition']);
     valid(r.envelopeId === envelopeId && r.disposition === disposition); return r as any;
+  }
+
+  /** Registers (or rotates) the account's own WhatsApp Business status hook. */
+  async setBusinessHook(token: string, appSecret: string): Promise<{ hookUrl: string; verifyToken: string }> {
+    const r = shape(await this.#json('PUT', '/v1/relay/business-hook', { token, json: { appSecret } }), ['hookUrl', 'verifyToken']);
+    valid(typeof r.hookUrl === 'string' && r.hookUrl.length <= 2048 && /^https:\/\/[A-Za-z0-9.-]+(?::[0-9]{1,5})?\/v1\/webhooks\/whatsapp-business\/[A-Za-z]{48}$/.test(r.hookUrl)
+      && typeof r.verifyToken === 'string' && /^[A-Za-z]{16,128}$/.test(r.verifyToken)); return r as any;
+  }
+  /** Delivery statuses of the account's own WhatsApp Business messages carrying this reference (or this message id). */
+  async businessStatuses(token: string, reference: string, messageId: string | null): Promise<BusinessStatus[]> {
+    check(BUSINESS_REFERENCE.test(reference) && (messageId === null || BUSINESS_MESSAGE_ID.test(messageId)), 'REFERENCE_INVALID', 'The reference is not valid.');
+    const query = `reference=${encodeURIComponent(reference)}${messageId === null ? '' : `&messageId=${encodeURIComponent(messageId)}`}`;
+    const r = shape(await this.#json('GET', `/v1/relay/business-statuses?${query}`, { token }), ['statuses']);
+    valid(Array.isArray(r.statuses) && r.statuses.length <= 200);
+    return r.statuses.map((value: unknown) => {
+      const s = shape(value, ['messageId', 'status', 'at', 'reference']);
+      valid(typeof s.messageId === 'string' && BUSINESS_MESSAGE_ID.test(s.messageId) && ['sent', 'delivered', 'read', 'failed'].includes(s.status) && iso(s.at)
+        && typeof s.reference === 'string' && BUSINESS_REFERENCE.test(s.reference) && (s.reference === reference || s.messageId === messageId));
+      return { messageId: s.messageId, status: s.status, at: s.at, reference: s.reference } as BusinessStatus;
+    });
   }
 
   // Backup

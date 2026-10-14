@@ -17,6 +17,7 @@ import type { AllowanceRequest, ChannelRow, Entitlements, Fetch, SealedBlob, Sea
 import { BUTTONS, CHANNELS, DESTINATION_OF, HEADLINES, LINK_PAGE, MAIL_FOOTER, MESSAGE_EVENTS, OPT_IN_TEXT, REPLIES, WHATSAPP_TEMPLATE, hasDigit, messageBody } from './templates.ts';
 import type { Channel, MessageEvent } from './templates.ts';
 import { newKey, openIntent, sealIntent, unwrapBackup, wrapBackup } from './seal.ts';
+import { confirmationPreview, isMailAddress } from './relay-extras.ts';
 import type { Decision } from './seal.ts';
 import { registerAfterPairing } from './documents.ts';
 
@@ -181,7 +182,7 @@ export async function channelsSet(ctx: Context, payload: Record<string, any>, ho
   const channel = payload.channel as Channel;
   check(CHANNELS.includes(channel) && typeof payload.enabled === 'boolean' && typeof payload.optIn === 'boolean', 'INVALID_REQUEST', 'Choose a channel and whether it is on.');
   check(!payload.enabled || payload.optIn === true, 'OPT_IN_REQUIRED', 'Tick the opt-in wording to turn this channel on.');
-  check(payload.address === undefined || (channel === 'mail' && typeof payload.address === 'string' && payload.address.length <= 254 && /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@.]{2,63}$/.test(payload.address)),
+  check(payload.address === undefined || (channel === 'mail' && isMailAddress(payload.address)),
     'INVALID_ADDRESS', 'Only mail takes an address, and it must be a mail address.');
   const { client, pairing, c } = connected(host);
   const recordedAt = at(c).toISOString(), textSha256 = optInHash(channel);
@@ -204,7 +205,7 @@ export function templatesPreview(_ctx: Context, payload: Record<string, any>, ho
     messages: MESSAGE_EVENTS.map(event => ({ event, headline: HEADLINES[event], opens: DESTINATION_OF[event], body: messageBody(event, link, channel),
       ...(channel === 'whatsapp' ? { whatsappTemplate: WHATSAPP_TEMPLATE[event] } : {}),
       buttons: event === 'review-ready' ? [BUTTONS.approve, BUTTONS.notNow, BUTTONS.open] : [BUTTONS.open] })),
-    ...(channel === 'mail' ? { footer: MAIL_FOOTER } : {}) })),
+    ...(channel === 'mail' ? { footer: MAIL_FOOTER, confirmation: confirmationPreview(`${c.linkOrigin}/v/${LINK_PLACEHOLDER}`) } : {}) })),
   approvalButtonsNote: 'Approve and Not now appear only for a small change inside your workspace that can be undone. They work once and stop working after half an hour.',
   replies: { ...REPLIES }, linkPage: { ...LINK_PAGE } };
   check(!hasDigit(JSON.stringify(preview)), 'TEMPLATE_INVALID', 'A message template contains a digit.');

@@ -5,7 +5,7 @@ import { fields, json, ok } from '../shared/http.ts';
 import { HostedError, check } from '../shared/errors.ts';
 import { hmacHex, isLetterToken, letterToken, newId, openServer, sameHex, sameText, sealServer, secretHash } from '../shared/crypto.ts';
 import { monthKey } from '../shared/clock.ts';
-import { CHANNELS, DESTINATION_OF, MESSAGE_EVENTS, OPT_IN_TEXT, REPLIES, hasDigit } from '../shared/templates.ts';
+import { CHANNELS, DESTINATION_OF, MAIL_TEXT, MESSAGE_EVENTS, OPT_IN_TEXT, REPLIES, hasDigit } from '../shared/templates.ts';
 import type { Channel, Destination, MessageEvent } from '../shared/templates.ts';
 import type { Sql, Row } from '../db/sql.ts';
 import { PermanentJobError } from '../db/queue.ts';
@@ -15,6 +15,10 @@ import type { OutboundTemplate } from './channels.ts';
 import type { RelayOptions } from './config.ts';
 import { createRelayDocuments } from './documents.ts';
 import type { InboundDocument } from './documents.ts';
+import { createMailVerify } from './mail-verify.ts';
+import type { MailConfirmPages } from './mail-verify.ts';
+import { createMailInbound } from './mail-inbound.ts';
+import { createBusinessStatuses } from './business-statuses.ts';
 
 export { relayConfig, parseRelayPrices } from './config.ts';
 export type { RelayOptions, RelayPrices } from './config.ts';
@@ -34,6 +38,8 @@ export type RelayButtons = {
 };
 export type RelayModule = HostedModule & {
   readonly buttons: RelayButtons;
+  /** The mail address confirmation link page (/v/:token). */
+  readonly mailConfirm: MailConfirmPages;
   /** Server-side sends (the always-on worker): one fixed template, no offer, on the first channel that is on. */
   notify(accountId: string, event: MessageEvent, idempotencyKey: string): Promise<{ messageId: string; channel: Channel }>;
 };
@@ -78,8 +84,15 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
   const recipientHash = (channel: Channel, id: string) => secretHash(deps.pepper, 'relay-recipient', `${channel}:${id}`);
   const addressAad = (accountId: string, channel: Channel) => `relay-address:${accountId}:${channel}`;
 
-  function channelView(channel: Channel, row: Row | undefined) {
-    return { channel, status: adapters[channel] ? (row?.status ?? 'off') : 'not-configured', optInAt: isoOf(row?.opt_in_at), address: row?.address_mask ?? null };
+  /** `verified`: mail once its address was confirmed; WhatsApp while it is on for the account's current OTP-verified phone; Telegram while bound and on. */
+  async function channelView(sql: Sql, accountId: string, channel: Channel, row: Row | undefined) {
+    let verified = false;
+    if (row?.recipient_hash && channel === 'mail') verified = !!row.confirmed_hash && sameHex(row.confirmed_hash, row.recipient_hash);
+    else if (row?.recipient_hash && row.status === 'on' && channel === 'whatsapp') {
+      const { rows: [account] } = await sql.query('SELECT phone FROM accounts WHERE id = $1', [accountId]);
+      verified = typeof account?.phone === 'string' && /^\+[1-9][0-9]{7,14}$/.test(account.phone) && sameHex(row.recipient_hash, recipientHash('whatsapp', account.phone.slice(1)));
+    } else if (row?.recipient_hash && row.status === 'on') verified = true;
+    return { channel, status: adapters[channel] ? (row?.status ?? 'off') : 'not-configured', optInAt: isoOf(row?.opt_in_at), address: row?.address_mask ?? null, verified };
   }
   async function refuse(sql: Sql, reason: string, channel: Channel, accountId: string | null = null, messageId: string | null = null) {
     await sql.query('INSERT INTO relay_refusals (id, account_id, message_id, channel, reason, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
@@ -289,7 +302,8 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       if (message.reply_callback) { await adapters.telegram.answerCallback(deps.fetch, message.reply_callback, text); return null; }
       return adapters.telegram.sendText(deps.fetch, to, text);
     }
-    throw new HostedError('CHANNEL_NOT_CONFIGURED', 'Mail replies are not sent.', 503);
+    check(adapters.mail, 'CHANNEL_NOT_CONFIGURED', 'This channel is not configured.', 503);
+    return adapters.mail.sendText(deps.fetch, to, MAIL_TEXT.replySubject, text);
   }
   /** Queues one fixed template under the month lock: idempotency, opt-in and the budget of thirty are decided together. */
   async function queueTemplate(accountId: string, deviceId: string | null, event: MessageEvent, channel: Channel, key: string, offer: { approve: Sealed; notNow: Sealed } | null) {
@@ -347,7 +361,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
     router.add('GET', '/v1/relay/channels', async request => {
       const { accountId } = await deps.authenticate(request);
       const { rows } = await deps.sql.query('SELECT * FROM relay_channels WHERE account_id = $1', [accountId]);
-      return ok({ channels: CHANNELS.map(channel => channelView(channel, rows.find(row => row.channel === channel))) });
+      return ok({ channels: await Promise.all(CHANNELS.map(channel => channelView(deps.sql, accountId, channel, rows.find(row => row.channel === channel)))) });
     });
 
     router.add('PUT', '/v1/relay/channels/:channel', async request => {
@@ -392,6 +406,8 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
           }
           if (channel === 'mail') check(sealed, 'ADDRESS_REQUIRED', 'Mail needs an address.');
           status = stoppedAt ? 'stopped' : channel === 'telegram' && !sealed ? 'awaiting-start' : 'on';
+          // Mail turns on only for a confirmed address; otherwise one confirmation mail is queued.
+          if (channel === 'mail' && status === 'on') status = await mailVerify.require(tx, accountId, recipient, existing?.confirmed_hash ?? null);
           if (status === 'awaiting-start') {
             const token = letterToken();
             await tx.query('DELETE FROM relay_connect_tokens WHERE account_id = $1', [accountId]);
@@ -407,7 +423,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
             stopped_at = EXCLUDED.stopped_at, updated_at = EXCLUDED.updated_at RETURNING *`,
           [accountId, channel, body.enabled, status, optIn ? at : existing?.opt_in_at ?? null, optIn ? optIn.recordedAt : existing?.opt_in_recorded_at ?? null,
             optIn ? optIn.textSha256 : existing?.opt_in_text_sha256 ?? null, recipient, sealed, mask, stoppedAt, at]);
-        return ok({ ...channelView(channel, row), ...(connectUrl ? { connectUrl } : {}) });
+        return ok({ ...await channelView(tx, accountId, channel, row), ...(connectUrl ? { connectUrl } : {}) });
       });
     });
 
@@ -478,6 +494,8 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
         && /^[A-Za-z0-9_-]{1,128}$/.test(challenge), 'WEBHOOK_VERIFY_FAILED', 'The webhook could not be verified.', 403);
       return { status: 200, headers: { 'content-type': 'text/plain; charset=utf-8' }, body: challenge };
     });
+    mailInbound.routes(router);
+    businessStatuses.routes(router);
 
     router.add('POST', '/v1/webhooks/whatsapp', async request => {
       const secret = options.whatsappAppSecret;
@@ -503,8 +521,12 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
     });
   }
 
+  const kit = { sealKey, linkOrigin, mail: options.mail, recipientHash, addressAad, queueReply, arrived, command };
+  const mailVerify = createMailVerify(deps, kit), mailInbound = createMailInbound(deps, kit, options.mailInbound ?? {});
+  const businessStatuses = createBusinessStatuses(deps, kit, options.apiOrigin);
+
   return {
-    id: 'relay', buttons, routes,
+    id: 'relay', buttons, routes, mailConfirm: mailVerify.pages,
     async notify(accountId, event, idempotencyKey) {
       const { rows } = await deps.sql.query(`SELECT channel FROM relay_channels WHERE account_id = $1 AND status = 'on'`, [accountId]);
       const channel = CHANNELS.find(name => adapters[name] && rows.some(row => row.channel === name));
@@ -512,7 +534,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       const reply = await queueTemplate(accountId, null, event, channel, idempotencyKey, null);
       return { messageId: (reply.body as { messageId: string }).messageId, channel };
     },
-    jobs(worker: Worker) { worker.register(DISPATCH_JOB, dispatch); documents.jobs(worker); },
+    jobs(worker: Worker) { worker.register(DISPATCH_JOB, dispatch); documents.jobs(worker); mailVerify.jobs(worker); },
     async sweep() {
       const at = now().toISOString();
       await deps.sql.query('DELETE FROM relay_envelopes WHERE expires_at <= $1', [at]);
@@ -521,6 +543,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       await deps.sql.query('DELETE FROM relay_connect_tokens WHERE expires_at <= $1 OR used_at IS NOT NULL', [at]);
       await deps.sql.query(`UPDATE relay_messages SET reply_recipient_sealed = NULL WHERE kind = 'reply' AND reply_recipient_sealed IS NOT NULL AND window_until <= $1`, [at]);
       await documents.sweep();
+      await mailVerify.sweep(); await mailInbound.sweep(); await businessStatuses.sweep();
     },
   };
 }

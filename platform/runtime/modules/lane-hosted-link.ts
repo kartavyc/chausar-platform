@@ -3,6 +3,7 @@ import * as hosted from '../hosted-link/service.ts';
 import * as drive from '../hosted-link/drive-sync.ts';
 import * as documents from '../hosted-link/documents.ts';
 import { allowanceCredential, allowanceRevoke } from '../hosted-link/allowance-credential.ts';
+import * as extras from '../hosted-link/relay-extras.ts';
 
 /** Lane-owned engine methods. Only the owning lane edits this file. */
 export const hostedLinkModule: EngineModule = {
@@ -20,6 +21,9 @@ export const hostedLinkModule: EngineModule = {
     'phone.messages.counts': { permission: 'read', external: true, handler: hosted.messageCounts },
     'phone.messages.send': { permission: 'admin', external: true, handler: hosted.messageSend },
     'phone.relay.collect': { permission: 'admin', external: true, handler: hosted.relayCollect },
+    'phone.verify': { permission: 'read', external: true, handler: extras.phoneVerify },
+    'hosted.messageStatuses': { permission: 'read', external: true, handler: extras.messageStatuses },
+    'hosted.businessHook.set': { permission: 'admin', external: true, handler: extras.businessHookSet },
     'hosted.backup.upload': { permission: 'admin', external: true, handler: hosted.backupUpload },
     'hosted.backup.list': { permission: 'read', external: true, handler: hosted.backupList },
     'hosted.backup.restore': { permission: 'admin', external: true, handler: hosted.backupRestore },

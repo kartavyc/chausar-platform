@@ -10,6 +10,7 @@ import type { MessageEvent } from '../shared/templates.ts';
 export type OutboundTemplate = { event: MessageEvent; linkOrigin: string; openToken: string; offer: { approveToken: string; notNowToken: string } | null };
 export const openLink = (origin: string, token: string) => `${origin}/l/${token}`;
 export const decideLink = (origin: string, token: string) => `${origin}/b/${token}`;
+export const confirmLink = (origin: string, token: string) => `${origin}/v/${token}`;
 
 export interface WhatsAppChannel {
   readonly channel: 'whatsapp';
@@ -27,6 +28,8 @@ export interface TelegramChannel {
 export interface MailChannel {
   readonly channel: 'mail';
   sendTemplate(fetch: Fetch, to: string, message: OutboundTemplate): Promise<string>;
+  /** One fixed text from the catalogue (the address confirmation or a fixed reply) under a fixed subject. */
+  sendText(fetch: Fetch, to: string, subject: string, text: string): Promise<string>;
 }
 
 /** 408, 429 and 5xx are retried by the queue; any other refusal ends the job (PROVIDER_REFUSED). */
@@ -106,15 +109,17 @@ export const MAIL_ADDRESS = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(\.[A-Za-
 
 export function mailChannel(config: { serverToken: string; from: string }): MailChannel {
   check(/^[A-Za-z0-9-]{20,100}$/.test(config.serverToken) && MAIL_ADDRESS.test(config.from) && config.from.length <= 254, 'RELAY_CONFIG_INVALID', 'The mail configuration is not valid.', 500);
+  const send = async (fetch: Fetch, to: string, subject: string, text: string) => {
+    recipient(to, MAIL_ADDRESS);
+    const reply = await post(fetch, 'https://api.postmarkapp.com/email', { 'x-postmark-server-token': config.serverToken },
+      // Tracking is off explicitly: a rewritten link would carry the one-time token through Postmark's click tracker, and an open pixel reports reading.
+      { From: config.from, To: to, Subject: subject, TextBody: text, MessageStream: 'outbound', TrackLinks: 'None', TrackOpens: false });
+    check(reply?.ErrorCode === 0, 'PROVIDER_REFUSED', 'The message provider refused the message.', 502);
+    return providerId(reply.MessageID);
+  };
   return {
     channel: 'mail',
-    async sendTemplate(fetch, to, message) {
-      recipient(to, MAIL_ADDRESS);
-      const reply = await post(fetch, 'https://api.postmarkapp.com/email', { 'x-postmark-server-token': config.serverToken },
-        // Tracking is off explicitly: a rewritten link would carry the one-time token through Postmark's click tracker, and an open pixel reports reading.
-        { From: config.from, To: to, Subject: HEADLINES[message.event], TextBody: mailBody(message), MessageStream: 'outbound', TrackLinks: 'None', TrackOpens: false });
-      check(reply?.ErrorCode === 0, 'PROVIDER_REFUSED', 'The message provider refused the message.', 502);
-      return providerId(reply.MessageID);
-    },
+    sendTemplate: (fetch, to, message) => send(fetch, to, HEADLINES[message.event], mailBody(message)),
+    sendText: (fetch, to, subject, text) => send(fetch, to, subject, text),
   };
 }
