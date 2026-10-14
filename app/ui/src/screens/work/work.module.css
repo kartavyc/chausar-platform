@@ -1,0 +1,25 @@
+/* Layout for the Work screens. Colours and spacing come from tokens only. */
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp5); align-items: start; }
+.split[data-open] { grid-template-columns: minmax(0, 1fr) minmax(0, var(--col-sheet)); }
+@media (max-width: 52rem) { .split[data-open] { grid-template-columns: minmax(0, 1fr); } }
+.pane { display: flex; flex-direction: column; gap: var(--sp3); min-width: 0; }
+.list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp1) var(--sp3); padding: var(--sp2) 0; border-bottom: var(--hair) solid var(--line2); }
+.open { font: inherit; text-align: start; background: none; border: 0; padding: 0; color: var(--fg); cursor: pointer; min-height: var(--target); }
+.open:focus-visible { outline: var(--focus); }
+.meta { color: var(--mute); font-size: var(--fs-note2); margin: 0; }
+.fig { font-family: var(--fm); white-space: nowrap; }
+.dots { display: inline-flex; gap: var(--sp1); align-items: center; }
+.dot { width: var(--square); height: var(--square); border-radius: 50%; border: var(--square-stroke) solid var(--dim); box-sizing: border-box; }
+.dotDone { background: var(--dim); }
+.dotBusy { border-radius: var(--square-r); border-color: var(--cha); }
+.dotYou { border-radius: var(--square-r); border-color: var(--you); }
+.dotUnsure { border-radius: var(--square-r); background: var(--amber); border-color: var(--amber); }
+.block { display: flex; flex-direction: column; gap: var(--sp2); padding-top: var(--sp3); border-top: var(--hair) solid var(--line2); }
+.form { display: flex; flex-direction: column; gap: var(--sp2); }
+.form label { display: flex; flex-direction: column; gap: var(--sp1); color: var(--fg2); font-size: var(--fs-note2); }
+.form input, .form textarea { font: inherit; color: var(--fg); background: var(--bg); border: var(--hair) solid var(--line); border-radius: var(--r1); padding: var(--sp1) var(--sp2); }
+.pick { display: flex; gap: var(--sp2); align-items: baseline; }
+.dense td, .dense th { padding: 0 var(--sp1); font-size: var(--fs-note2); }
+.asWritten { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--fm); font-size: var(--fs-note2); color: var(--fg2); }
+.h { font-size: var(--fs-read); font-weight: var(--fw-medium); margin: 0; }
