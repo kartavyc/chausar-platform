@@ -81,6 +81,9 @@ import { engineModules, moduleMethods } from './modules/registry.ts';
 import type { ModuleHost } from './modules/types.ts';
 import { registerPrivateStatePurgeHook } from './private-state-lifecycle.ts';
 
+// Engine modules register their namespace purge once, at load.
+for (const engineModule of engineModules) if (engineModule.purge) registerPrivateStatePurgeHook(engineModule.purge.bind(engineModule));
+
 export type EngineBackupCustodyOptions = {
   budgets?: WorkspaceBackupV2Budgets; filesystemBudgets?: WorkspaceBackupV2FilesystemBudgets;
   externalKeyRequirements?: WorkspaceBackupV2ExternalKeyRequirement[];
@@ -96,8 +99,6 @@ export type EngineTodayHostOptions = {
   /** Advance for every outside-State report, job, lesson or calendar guard change. */
   authorityRevision?: () => string;
 };
-for (const engineModule of engineModules) if (engineModule.purge) registerPrivateStatePurgeHook(engineModule.purge.bind(engineModule));
-
 export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
   today?: EngineTodayHostOptions;
   /** Trusted per-module host options, keyed by engine module id (platform/runtime/modules). */
