@@ -7,7 +7,7 @@ Branch `claude/lane-writeback`. Plan day 7 (actions, the catalogue, the write ta
 1. **See what Chausar can do.** `writeback.catalogue` is the written list: one row per action per system. If an action is not on it, it does not exist: asking for it (`writeback.request`, or preparing it) answers "Not in the list yet. It is on the wanted list." and the request is counted on `writeback.wanted`.
 2. **Connect a system and grant writing, action by action.** The owner adds a connection (`writeback.connect`) with account identifiers only (organisation id, shop, sender address); secrets stay in the credential broker. A new connection can read but write nothing. The owner grants each catalogue action separately (`writeback.grant`). Reading never grants writing.
 3. **Prepare, approve, do, read back, settle.** `writeback.prepare` reads the system and builds the exact change: the text as it will be sent, or each field's before and after. `writeback.approve` says yes to that exact digest. `writeback.execute` looks at the system once more, then acts once and reads back. The result is recorded field by field (`writeback.get`), and the whole record is `writeback.ledger`.
-4. **Not sure yet.** If the reply is lost, the action is `unknown` ("not sure"). Chausar never sends again. `writeback.readBack` looks at the system; when the system offers no way to look (WhatsApp without status callbacks, mail without IMAP), a person settles it with "It was sent" or "It was not sent" (`writeback.settle`), recorded as the person's word.
+4. **Not sure yet.** If the reply is lost, the action is `unknown` ("not sure"). Chausar never sends again. `writeback.readBack` looks at the system; when the system offers no way to look (WhatsApp without status callbacks, mail without IMAP), a person settles it with "It was sent" or "It was not sent" (`writeback.settle`), recorded as the person's word. The system is always read first: a person's word settles only what the system cannot show, and "not sent" never overrides a system that shows the effect.
 5. **Practice.** `writeback.practice` runs any action, a prepared action (`{ actionId }`), or a whole job's list of steps against fresh copies of the systems. It shows the preview, every request that would leave (credentials removed), what the system would hold afterwards and the read-back. Nothing is sent and nothing enters the actions record. Faults can be injected per step ("lose the reply after the system applied it").
 6. **Remind a customer who agreed.** `writeback.followUp.*` records consent, prepares a reminder with the invoice balance from the calculator, sends it once after your yes through your mail server or WhatsApp, and journals it as `sent`. `paid` is a separate later entry, only when the books show nothing due and every payment matches exactly one bank line.
 
@@ -37,7 +37,8 @@ A yes lasts 24 hours for messages, money and irreversible changes, and 7 days fo
 - **Look first.** Before dispatch the service prepares again. An effect already present is read back instead of sent. A changed target (price, contact, balance) drops the yes and prepares again ("The target changed after you approved. It was prepared again; nothing was sent.").
 - **The send journal** (`writeback/journal.ts`) is a file outside the vault, in the app's folder, holding only hashes of dispatched effect keys. It is written and flushed before a request leaves. After a restore of an older vault, an approved action whose key is in the journal is never sent again: it is read back, or a person settles it. `writeback.afterRestore` lists such actions.
 - **Integrity.** The stored action must still hash to the prepared and approved digest, or nothing is sent (`PREVIEW_CHANGED`).
-- **Evidence pins.** A reminder pins the invoice rows, the customer and the consent. If any of them changes before dispatch (a payment, an undone merge, a new address, a stop), the reminder is cancelled and nothing is sent.
+- **Taint.** Anything that read outside text may prepare, but cannot approve, change, drop, execute or settle.
+- **Evidence pins.** A reminder cannot be edited into another message (`WRITE_PREPARE_AGAIN`); its recipient must equal the agreed address at dispatch, and the daily caps are checked again on the day of sending. A reminder pins the invoice rows, the customer and the consent. If any of them changes before dispatch (a payment, an undone merge, a new address, a stop), the reminder is cancelled and nothing is sent.
 
 ## Invoice follow-up for real customers
 
@@ -45,7 +46,7 @@ Generalised from the synthetic-only host (which is untouched) to real mail and W
 
 - Consent per customer and channel (`writeback.followUp.consent`), with the agreed address. The reminder goes only to that address, never to an address found in an invoice or note.
 - Caps: one reminder per customer per day and 20 per day in all (configurable), counted in the business's time zone (default Asia/Kolkata).
-- Stop words (`STOP`, `UNSUBSCRIBE`, `BAND KARO`, `RUKO`, and Hindi forms): `writeback.followUp.inbound` compares an observed reply with them and then discards the text. A stop records consent `stopped` and drops waiting reminders.
+- Stop words (`STOP`, `UNSUBSCRIBE`, `BAND KARO`, `RUKO`, and Hindi forms): `writeback.followUp.inbound` compares an observed reply with them, ignoring punctuation and matching whole words anywhere in the reply, and then discards the text. A stop records consent `stopped` and drops waiting reminders.
 - The balance comes from the calculator's aging receipt. The text is a fixed English or Hindi template filled from the receipt; no model writes it.
 - `sent` and `paid` are two journal entries with two dates (`writeback.followUp.journal`, `writeback.followUp.checkPaid`).
 
@@ -98,6 +99,10 @@ Refusal codes reaching the desktop UI are listed on the writeback line of `laneR
 - **Credentials.** Production writes need a credential broker passed as `EngineOptions.modules.writeback.credentials`. Without it every live action refuses `WRITE_CREDENTIALS_UNAVAILABLE`. The OAuth sign-in apps for Zoho, Google and Shopify, the Razorpay keys, the Meta WhatsApp business verification and template approval, and the user's mail settings are founder or user steps.
 - **Sandbox evidence.** Promotion to `live` needs a passing run on a real sandbox (the Zoho trial organisation held by Con, the test sheet, the test mailbox). The synthetic score cannot earn it.
 - **Second ask for money.** Views mark `needsSecondAsk` for money and irreversible changes; asking for the passphrase or fingerprint belongs to the approval sheet (frame-today / work-books).
+
+## Decisions for the founder
+
+- `zoho-books payment.record` is classed as an undoable change inside your own books (tier 2, not on the always-waits list), because it records money already received and moves none. If you want recorded payments treated as money (always waits, never grouped), it is a one-line change in the catalogue.
 
 ## Gaps
 

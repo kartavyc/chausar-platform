@@ -242,3 +242,23 @@ test('a sandbox recipe pass promotes a planned-live row to live; a failure recor
   const practice = await service.connect(owner, { system: 'zoho-books', label: 'p', environment: 'practice', account: {} });
   await assert.rejects(qualifySandbox(service, owner, { connectionId: practice.id, cases: [{ action: 'invoice.createDraft', payload: draft }] }), { code: 'SANDBOX_CONNECTION_REQUIRED' });
 });
+
+test('review: a person saying "not sent" never overrides a system that shows the effect', async () => {
+  const { service, connect, zoho } = setup(); const c = await connect('zoho-books', ['payment.record']);
+  const prepared: any = await service.prepare(owner, { connectionId: c.id, action: 'payment.record', payload: { customerId: customer, invoiceId: invoice, amountMinor: '60000', date: '2026-10-14', mode: 'upi' }, intentId: 'pay-word' });
+  await service.approve(owner, prepared.id, prepared.digest); zoho.fault('drop-after-commit');
+  assert.equal((await service.execute(owner, prepared.id) as any).status, 'unknown');
+  const settled: any = await service.settle(owner, prepared.id, 'not-sent');
+  assert.equal(settled.status, 'verified'); assert.equal(settled.readBack.settledBy, 'system'); assert.equal(zoho.payments.length, 1);
+});
+test('review: imported text cannot change, drop or execute, and a changed connection binding is refused', async () => {
+  const { service, connect, store } = setup(); const c = await connect('zoho-books', ['invoice.createDraft']);
+  const prepared: any = await service.prepare(owner, { connectionId: c.id, action: 'invoice.createDraft', payload: draft, intentId: 'taint-1' });
+  const tainted = { ...owner, sourceTainted: true };
+  await assert.rejects(service.change(tainted, prepared.id, draft), { code: 'TAINTED_APPROVAL' });
+  await assert.rejects(service.drop(tainted, prepared.id), { code: 'TAINTED_APPROVAL' });
+  await service.approve(owner, prepared.id, prepared.digest);
+  await assert.rejects(service.execute(tainted, prepared.id), { code: 'TAINTED_EXECUTION' });
+  (store.state.extensions as any).writeback.connections[0].account.organizationId = '60099999999';
+  await assert.rejects(service.execute(owner, prepared.id), { code: 'WRITE_BINDING_CHANGED' });
+});

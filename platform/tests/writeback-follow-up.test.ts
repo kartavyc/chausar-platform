@@ -106,3 +106,28 @@ test('attack: an invoice note with a hidden instruction cannot redirect the remi
   assert.match(prepared.preview.asWritten, /^To: accounts@cust\.example/m);
   assert.doesNotMatch(prepared.preview.asWritten, /attacker|IGNORE/);
 });
+
+test('review: a reminder cannot be changed into another message; it is prepared again instead', async () => {
+  const f = await setup(); await f.consent('cust-1', 'yes');
+  const prepared: any = await prepareReminder(f.follow, owner, { connectionId: f.connection.id, customerId: 'cust-1', invoiceId: 'inv-1' });
+  await assert.rejects(f.service.change(owner, prepared.id, { to: ['x@evil.example'], subject: 'Hi', body: 'Pay here' }), { code: 'WRITE_PREPARE_AGAIN' });
+});
+test('review: stop words count with punctuation and inside a sentence, and a second STOP on the same day still stops', async () => {
+  const f = await setup();
+  for (const text of ['Stop!', 'please STOP sending these', 'बंद करो।']) {
+    await f.consent('cust-1', 'yes', `again-${text}`);
+    assert.equal((await inbound(f.follow, owner, { customerId: 'cust-1', channel: 'email', text, observedOn: '2026-10-14' }) as any).stopped, true, text);
+    await assert.rejects(prepareReminder(f.follow, owner, { connectionId: f.connection.id, customerId: 'cust-1', invoiceId: 'inv-1' }), { code: 'FOLLOW_UP_STOPPED' });
+  }
+  assert.equal((await inbound(f.follow, owner, { customerId: 'cust-1', channel: 'email', text: 'Unstoppable deals inside', observedOn: '2026-10-14' }) as any).stopped, false);
+});
+test('review: the daily cap is checked again on the day of sending, and the reminder carries its source lineage', async () => {
+  const f = await setup(); await f.consent('cust-1', 'yes');
+  const prepared: any = await prepareReminder(f.follow, owner, { connectionId: f.connection.id, customerId: 'cust-1', invoiceId: 'inv-1' });
+  assert.deepEqual(f.store.state.actions[0].sourceIds, ['demo-export']);
+  await f.service.approve(owner, prepared.id, prepared.digest);
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  (f.store.state.extensions as any).writeback.journal.push({ id: 'j-other', kind: 'sent', invoiceId: 'inv-x', customerId: 'cust-1', actionId: 'other', on: today, at: new Date().toISOString(), sourceIds: [], evidence: 'x' });
+  const result: any = await f.service.execute(owner, prepared.id);
+  assert.equal(result.notice.kind, 'cancelled-evidence'); assert.equal(f.mail.outbox.length, 0);
+});

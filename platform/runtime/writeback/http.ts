@@ -64,6 +64,7 @@ class SocketLines implements LineSocket {
   }
   write(data: string): Promise<void> { return new Promise((resolve, reject) => this.#socket.write(data, error => error ? reject(new ChausarError('MAIL_CONNECTION_LOST', 'The mail connection was lost.')) : resolve())); }
   async upgrade() {
+    check(this.#lines.length === 0 && this.#buffer === '', 'MAIL_TLS_FAILED', 'The mail server sent unexpected data before the secure connection.');
     const plain = this.#socket; plain.removeAllListeners('data'); plain.removeAllListeners('close'); plain.removeAllListeners('error');
     const secure = await new Promise<TLSSocket>((resolve, reject) => { const socket = tlsConnect({ socket: plain as Socket, servername: this.#endpoint.host }, () => resolve(socket)); socket.once('error', () => reject(new ChausarError('MAIL_TLS_FAILED', 'The mail server did not complete a secure connection.'))); });
     this.#socket = secure; this.#buffer = ''; this.#attach(secure);

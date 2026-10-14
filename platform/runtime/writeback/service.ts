@@ -216,13 +216,19 @@ export class WritebackService {
           const e = this.envelope(payload); const state = this.store.read(); const connection = this.#connection(state, e.connectionId, false);
           const action0 = state.actions.find(a => a.connector === connectorId(system) && a.idempotencyKey === key) as PreparedAction | undefined;
           const word = action0 && readState(state).attestations.filter(a => a.actionId === action0.id).at(-1);
-          if (word) return word.said === 'sent'
+          // The system is always read first when it can be; a person's word settles only what the system cannot show.
+          let observation: unknown = null, back: Readback | null = null;
+          if (connection.read && !connection.revokedAt) {
+            const receipt = (result?.data as any)?.receipt ?? null;
+            observation = await adapter.readBack(this.adapterContext(context, connection), structuredClone(e.payload), structuredClone(e.preparation), key, receipt);
+            back = catalogueReadback(observation, e.preparation.postconditions as any);
+            if (back.verified || back.absent) return back;
+          }
+          if (word && (observation === null || (observation as any).outcome === 'inconclusive')) return word.said === 'sent'
             ? { verified: true, businessSuccess: false, data: { outcome: 'settled-by-person', memberId: word.memberId, at: word.at } }
             : { verified: false, businessSuccess: false, absent: true, data: { outcome: 'settled-by-person', memberId: word.memberId, at: word.at } };
-          check(connection.read && !connection.revokedAt, 'WRITE_READBACK_REVOKED', 'Reading this system back is no longer allowed. A person can settle it.');
-          const receipt = (result?.data as any)?.receipt ?? null;
-          const observation = await adapter.readBack(this.adapterContext(context, connection), structuredClone(e.payload), structuredClone(e.preparation), key, receipt);
-          return catalogueReadback(observation, e.preparation.postconditions as any);
+          check(back, 'WRITE_READBACK_REVOKED', 'Reading this system back is no longer allowed. A person can settle it.');
+          return back;
         },
       };
     }
@@ -268,8 +274,10 @@ export class WritebackService {
   }
   /** A changed payload is a new exact change: the yes is gone and the preview is built again. */
   async change(context: Context, id: unknown, payload: unknown) {
+    check(!context.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot change an action.');
     const action = this.find(this.store.read(), id); this.visible(context, action);
-    const e = this.envelope(action.payload); const connection = this.#connection(this.store.read(), e.connectionId);
+    const e = this.envelope(action.payload);
+    check(!e.evidence, 'WRITE_PREPARE_AGAIN', 'This action was built from evidence. Prepare it again instead of changing it.'); const connection = this.#connection(this.store.read(), e.connectionId);
     const adapter = this.adapter(e.system, e.action); const valid = adapter.validate(JSON.parse(canonical(payload)));
     const preparation = await adapter.prepare(this.adapterContext(context, connection), structuredClone(valid), action.idempotencyKey);
     check(!preparation.alreadyApplied, 'WRITE_ALREADY_APPLIED', 'This change is already in the system.');
@@ -289,6 +297,7 @@ export class WritebackService {
     return this.view(this.store.read(), this.find(this.store.read(), action.id));
   }
   async drop(context: Context, id: unknown) {
+    check(!context.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot drop an action.');
     const action = this.find(this.store.read(), id); this.visible(context, action);
     await this.actions.cancel(context, action.id);
     return this.view(this.store.read(), this.find(this.store.read(), action.id));
@@ -314,6 +323,7 @@ export class WritebackService {
     await this.store.update(state => { current(state, context); const wb = moduleState(state, MODULE_ID, initState); wb.notices.push({ id: newId('notice'), actionId, kind, at: this.now() }); if (wb.notices.length > 500) wb.notices.splice(0, wb.notices.length - 500); audit(state, `writeback.${kind}`, { actionId }); });
   }
   async execute(context: Context, id: unknown) {
+    check(!context.sourceTainted, 'TAINTED_EXECUTION', 'Imported text cannot execute an action.');
     const action = this.find(this.store.read(), id); this.visible(context, action);
     const e = this.envelope(action.payload); const row = entry(e.system, e.action)!;
     check(row.tier !== 'prepare-only', 'PREPARE_ONLY', 'This is prepared only. You or your accountant completes it.');
@@ -322,6 +332,7 @@ export class WritebackService {
     const expired = await this.#expire(context, action); if (expired) return expired;
     const connection = this.#connection(this.store.read(), e.connectionId);
     check(connection.write.includes(e.action), 'WRITE_PERMISSION_REVOKED', 'Writing this action to the system is no longer allowed.');
+    check(e.accountDigest === digest(connection.account) && e.environment === connection.environment, 'WRITE_BINDING_CHANGED', 'The connection changed after preparation. Prepare it again.');
     if (e.evidence) {
       const derive = this.ports.evidence?.[e.evidence.kind]; check(derive, 'WRITE_EVIDENCE_UNAVAILABLE', 'The evidence this action depends on cannot be checked.');
       let fresh: string | null = null; try { fresh = await derive(context, e); } catch { fresh = null; }

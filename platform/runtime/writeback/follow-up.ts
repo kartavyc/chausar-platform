@@ -44,7 +44,8 @@ export async function invoiceEvidence(host: FollowUpHost, context: Context, inpu
   const dueDate = typeof fact?.fields.dueDate === 'string' && /^\d{4}-\d\d-\d\d$/.test(fact.fields.dueDate) ? fact.fields.dueDate : null;
   const pinned = { invoice: invoices.map((r: any) => [r.entityId, r.amountMinor, r.customerId]), payments: payments.map((r: any) => [r.entityId, r.amountMinor]), credits: credits.map((r: any) => [r.entityId, r.amountMinor]),
     fact: fact ? { entityId: fact.entityId, fields: fact.fields, supersededAt: fact.supersededAt } : null, completeness: receipt.coverage?.completeness ?? null };
-  return { receiptId: String(receipt.id), outstandingMinor: (outstanding > 0n ? outstanding : 0n).toString(), billedMinor: String(invoices[0].amountMinor), dueDate, link, disputed: fact?.fields.disputed === true,
+  const lineage = [...new Set([...invoices, ...payments, ...credits].map((row: any) => state.facts.find(f => f.id === row.factId)?.sourceId).filter((id): id is string => typeof id === 'string'))].sort();
+  return { lineage, receiptId: String(receipt.id), outstandingMinor: (outstanding > 0n ? outstanding : 0n).toString(), billedMinor: String(invoices[0].amountMinor), dueDate, link, disputed: fact?.fields.disputed === true,
     incomplete: ['partial', 'empty'].includes(String(receipt.coverage?.completeness)), payments, digest: digest(pinned) };
 }
 
@@ -93,7 +94,7 @@ export async function prepareReminder(host: FollowUpHost, context: Context, inpu
     ? { to: [consent.destination], subject: language === 'hi' ? `भुगतान की याद: बिल ${invoiceId}` : `Payment reminder: invoice ${invoiceId}`, body: lines.join('\n') }
     : { to: consent.destination, template: 'payment_reminder', language, parameters: [invoiceId, amount, evidence.dueDate ?? '-'] };
   const consentDigest = digest({ id: consent.id, destination: consent.destination, answer: consent.answer });
-  return host.service.prepare(context, { connectionId: connection.id, action: channel === 'email' ? 'smtp.send' : 'template.send', payload, sourceIds,
+  return host.service.prepare(context, { connectionId: connection.id, action: channel === 'email' ? 'smtp.send' : 'template.send', payload, sourceIds: [...new Set([...sourceIds, ...evidence.lineage])].sort(),
     intentId: `follow-up:${customerId}:${invoiceId}:${today}`,
     evidence: { kind: FOLLOW_UP, digest: digest({ invoice: evidence.digest, consent: consentDigest }), detail: { customerId, invoiceId, day: today, channel, consentId: consent.id, receiptId: evidence.receiptId, sourceIds, outstandingMinor: evidence.outstandingMinor } } });
 }
@@ -102,6 +103,12 @@ export async function reminderEvidence(host: FollowUpHost, context: Context, env
   const detail = envelope.evidence!.detail as any; const state = host.service.store.read();
   const consent = consentFor(state, detail.customerId, detail.channel);
   check(consent && consent.id === detail.consentId && consent.answer === 'yes', 'FOLLOW_UP_NO_CONSENT', 'Consent changed.');
+  const to = (envelope.payload as any).to;
+  check(canonical(Array.isArray(to) ? to : [to]) === canonical([consent.destination]), 'FOLLOW_UP_RECIPIENT_CHANGED', 'A reminder goes only to the address the customer agreed to.');
+  // Caps hold on the day of sending, not only the day of preparing.
+  const today = dayKey(host.service.now(), host.timeZone), settings = readState(state).settings;
+  const sent = readState(state).journal.filter(j => j.kind === 'sent' && j.on === today);
+  check(sent.filter(j => j.customerId === detail.customerId).length < settings.reminderCapPerCustomer && sent.length < settings.reminderCapPerDay, 'FOLLOW_UP_DAILY_CAP', 'Today\'s reminder limit is reached.');
   const evidence = await invoiceEvidence(host, context, { customerId: detail.customerId, invoiceId: detail.invoiceId, sourceIds: detail.sourceIds });
   return digest({ invoice: evidence.digest, consent: digest({ id: consent.id, destination: consent.destination, answer: consent.answer }) });
 }
@@ -131,7 +138,7 @@ export async function checkPaid(host: FollowUpHost, context: Context, input: Rec
   return host.service.store.update(state0 => {
     current(state0, context, 'prepare'); const wb = moduleState(state0, MODULE_ID, initState);
     const prior = wb.journal.find(j => j.kind === 'paid' && j.invoiceId === invoiceId && j.customerId === customerId);
-    if (!prior) { wb.journal.push({ id: newId('journal'), kind: 'paid', invoiceId, customerId, actionId: null, on: dayKey(host.service.now(), host.timeZone), at: host.service.now(), sourceIds, evidence: evidence.digest }); audit(state0, 'writeback.follow-up.paid', { invoiceId }); }
+    if (!prior) { wb.journal.push({ id: newId('journal'), kind: 'paid', invoiceId, customerId, actionId: null, on: dayKey(host.service.now(), host.timeZone), at: host.service.now(), sourceIds: [...new Set([...sourceIds, ...evidence.lineage])].sort(), evidence: evidence.digest }); audit(state0, 'writeback.follow-up.paid', { invoiceId }); }
     return { paid: true, outstandingMinor: '0', receiptId: evidence.receiptId, bankLines: used.size };
   });
 }
@@ -142,10 +149,12 @@ export async function inbound(host: FollowUpHost, context: Context, input: Recor
   const customerId = text(p.customerId, 100), channel = oneOf(p.channel, ['email', 'whatsapp'] as const), observedOn = date(p.observedOn);
   check(typeof p.text === 'string' && p.text.length <= 5000, 'INVALID_REQUEST', 'The reply is too long.');
   const words = readState(host.service.store.read()).settings.stopWords;
-  const said = p.text.trim().replace(/\s+/g, ' ').toUpperCase();
-  if (!words.some(word => said === word.toUpperCase())) return { stopped: false };
+  // Punctuation is ignored and a stop word counts anywhere as whole words ("Stop!", "please STOP sending").
+  const normal = (value: string) => ` ${value.normalize('NFC').toUpperCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim()} `;
+  const said = normal(p.text);
+  if (!words.some(word => normal(word).trim() && said.includes(normal(word)))) return { stopped: false };
   const consent = consentFor(host.service.store.read(), customerId, channel);
-  await recordConsent(host, context, { requestId: `stop:${customerId}:${channel}:${observedOn}`, customerId, channel, destination: consent?.destination ?? (channel === 'email' ? 'unknown@stop.invalid' : '10000000'), answer: 'stopped', observedOn });
+  await recordConsent(host, context, { requestId: `stop:${customerId}:${channel}:${observedOn}:${newId('reply')}`, customerId, channel, destination: consent?.destination ?? (channel === 'email' ? 'unknown@stop.invalid' : '10000000'), answer: 'stopped', observedOn });
   const dropped: string[] = [];
   for (const action of reminders(host.service.store.read(), customerId)) {
     if (!['prepared', 'approved'].includes(action.status) || (action.payload as any).evidence.detail.channel !== channel) continue;

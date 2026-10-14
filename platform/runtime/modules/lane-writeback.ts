@@ -18,7 +18,6 @@ import { initState, MODULE_ID, WritebackService, type Settings, type WritebackSt
 import { installedAdapters } from '../writeback/systems/index.ts';
 import { qualify, qualifySandbox, runPractice } from '../writeback/practice.ts';
 import { checkPaid, consents, FOLLOW_UP, inbound, journal, journalSent, prepareReminder, recordConsent, reminderEvidence, type FollowUpHost } from '../writeback/follow-up.ts';
-import { fakeFactory, qualificationCases } from '../../fakes/index.ts';
 import type { FakeBundle } from '../writeback/practice.ts';
 import type { Dialer, SystemId, Transport, WriteCredentials } from '../writeback/types.ts';
 import { audit } from '../contracts.ts';
@@ -28,6 +27,9 @@ import { integer, list, record, text } from '../writeback/validate.ts';
 /** Practice connections keep their fake systems for the life of the app, per workspace. */
 const practiceWorlds = new Map<string, Map<SystemId, FakeBundle>>();
 
+/** Practice systems load only when first used, so the app runs without them. */
+let fakes: typeof import('../../fakes/index.ts') | null = null;
+async function practiceKit() { fakes ??= await import('../../fakes/index.ts'); return fakes; }
 function services(host: ModuleHost) {
   const o = host.options as Record<string, any>;
   const clock = typeof o.clock === 'function' ? o.clock as () => string : () => new Date().toISOString();
@@ -38,6 +40,7 @@ function services(host: ModuleHost) {
     credentials: typeof o.credentials === 'function' ? o.credentials as WriteCredentials : undefined,
     clock, directory: host.directory, demo: host.demo, adapters: installedAdapters(typeof o.whatsappStatuses === 'function' ? { whatsappStatuses: o.whatsappStatuses } : {}),
     practice: (workspaceId, connection) => {
+      check(fakes, 'PRACTICE_UNAVAILABLE', 'Practice systems are not installed in this app.'); const { fakeFactory } = fakes;
       const world = practiceWorlds.get(workspaceId) ?? new Map<SystemId, FakeBundle>(); practiceWorlds.set(workspaceId, world);
       if (!world.has(connection.system)) world.set(connection.system, fakeFactory(connection.system, clock));
       const bundle = world.get(connection.system)!;
@@ -50,6 +53,11 @@ function services(host: ModuleHost) {
   return { service, follow };
 }
 const ws = (host: ModuleHost) => services(host).service;
+/** Loads the practice kit first when this workspace has a practice connection. */
+async function ready(host: ModuleHost) {
+  if ((peekModuleState<WritebackState>(host.store.read(), MODULE_ID)?.connections ?? []).some(c => c.environment === 'practice')) await practiceKit();
+  return services(host);
+}
 
 async function configure(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   const p = record(payload, [], ['approvalHours', 'reminderCapPerCustomer', 'reminderCapPerDay', 'stopWords']);
@@ -78,28 +86,28 @@ export const writebackModule: EngineModule = {
     'writeback.settings': { permission: 'read', handler: (_ctx, _p, host) => structuredClone((peekModuleState<WritebackState>(host.store.read(), MODULE_ID) ?? initState()).settings) },
     'writeback.configure': { permission: 'admin', handler: configure },
     'writeback.connections': { permission: 'read', handler: (ctx, _p, host) => ws(host).connections(ctx) },
-    'writeback.connect': { permission: 'admin', handler: (ctx, p, host) => ws(host).connect(ctx, p) },
+    'writeback.connect': { permission: 'admin', handler: async (ctx, p, host) => { if (p.environment === 'practice') await practiceKit(); return ws(host).connect(ctx, p); } },
     'writeback.grant': { permission: 'admin', handler: (ctx, p, host) => ws(host).grant(ctx, p) },
     'writeback.disconnect': { permission: 'admin', handler: (ctx, p, host) => ws(host).disconnect(ctx, p.connectionId) },
-    'writeback.prepare': { permission: 'prepare', handler: (ctx, p, host) => ws(host).prepare(ctx, { connectionId: p.connectionId, action: p.action, payload: p.payload, intentId: p.intentId, sourceIds: p.sourceIds }) },
-    'writeback.change': { permission: 'prepare', handler: (ctx, p, host) => ws(host).change(ctx, p.id, p.payload) },
-    'writeback.approve': { permission: 'approve', handler: (ctx, p, host) => ws(host).approve(ctx, p.id, p.digest) },
+    'writeback.prepare': { permission: 'prepare', handler: async (ctx, p, host) => (await ready(host)).service.prepare(ctx, { connectionId: p.connectionId, action: p.action, payload: p.payload, intentId: p.intentId, sourceIds: p.sourceIds }) },
+    'writeback.change': { permission: 'prepare', handler: async (ctx, p, host) => (await ready(host)).service.change(ctx, p.id, p.payload) },
+    'writeback.approve': { permission: 'approve', handler: async (ctx, p, host) => (await ready(host)).service.approve(ctx, p.id, p.digest) },
     'writeback.drop': { permission: 'approve', handler: (ctx, p, host) => ws(host).drop(ctx, p.id) },
-    'writeback.execute': { permission: 'prepare', handler: (ctx, p, host) => ws(host).execute(ctx, p.id) },
-    'writeback.readBack': { permission: 'prepare', handler: (ctx, p, host) => ws(host).readBack(ctx, p.id) },
-    'writeback.settle': { permission: 'approve', handler: (ctx, p, host) => ws(host).settle(ctx, p.id, p.said) },
-    'writeback.reconcile': { permission: 'admin', handler: (ctx, _p, host) => ws(host).reconcileAll(ctx) },
+    'writeback.execute': { permission: 'prepare', handler: async (ctx, p, host) => (await ready(host)).service.execute(ctx, p.id) },
+    'writeback.readBack': { permission: 'prepare', handler: async (ctx, p, host) => (await ready(host)).service.readBack(ctx, p.id) },
+    'writeback.settle': { permission: 'approve', handler: async (ctx, p, host) => (await ready(host)).service.settle(ctx, p.id, p.said) },
+    'writeback.reconcile': { permission: 'admin', handler: async (ctx, _p, host) => (await ready(host)).service.reconcileAll(ctx) },
     'writeback.afterRestore': { permission: 'read', handler: (ctx, _p, host) => ws(host).afterRestore(ctx) },
     'writeback.ledger': { permission: 'read', handler: (ctx, p, host) => ws(host).ledger(ctx, p) },
     'writeback.get': { permission: 'read', handler: (ctx, p, host) => ws(host).get(ctx, p.id) },
-    'writeback.practice': { permission: 'prepare', handler: (ctx, p, host) => runPractice(ws(host), ctx, p, fakeFactory) },
+    'writeback.practice': { permission: 'prepare', handler: async (ctx, p, host) => runPractice(ws(host), ctx, p, (await practiceKit()).fakeFactory) },
     'writeback.practiceRuns': { permission: 'read', handler: (_ctx, _p, host) => structuredClone((peekModuleState<WritebackState>(host.store.read(), MODULE_ID) ?? initState()).practiceRuns) },
-    'writeback.qualify': { permission: 'admin', handler: (ctx, _p, host) => qualify(ws(host), ctx, qualificationCases, fakeFactory) },
-    'writeback.qualifySandbox': { permission: 'admin', external: true, handler: (ctx, p, host) => qualifySandbox(ws(host), ctx, p) },
+    'writeback.qualify': { permission: 'admin', handler: async (ctx, _p, host) => { const kit = await practiceKit(); return qualify(ws(host), ctx, kit.qualificationCases, kit.fakeFactory); } },
+    'writeback.qualifySandbox': { permission: 'admin', external: true, handler: async (ctx, p, host) => qualifySandbox((await ready(host)).service, ctx, p) },
     'writeback.followUp.consent': { permission: 'prepare', handler: (ctx, p, host) => recordConsent(services(host).follow, ctx, p) },
     'writeback.followUp.consents': { permission: 'read', handler: (ctx, _p, host) => consents(services(host).follow, ctx) },
-    'writeback.followUp.prepare': { permission: 'prepare', handler: (ctx, p, host) => prepareReminder(services(host).follow, ctx, p) },
-    'writeback.followUp.inbound': { permission: 'approve', handler: (ctx, p, host) => inbound(services(host).follow, ctx, p) },
+    'writeback.followUp.prepare': { permission: 'prepare', handler: async (ctx, p, host) => prepareReminder((await ready(host)).follow, ctx, p) },
+    'writeback.followUp.inbound': { permission: 'approve', handler: async (ctx, p, host) => inbound((await ready(host)).follow, ctx, p) },
     'writeback.followUp.checkPaid': { permission: 'prepare', handler: (ctx, p, host) => checkPaid(services(host).follow, ctx, p) },
     'writeback.followUp.journal': { permission: 'read', handler: (ctx, _p, host) => journal(services(host).follow, ctx) },
   },
@@ -117,7 +125,7 @@ export const writebackModule: EngineModule = {
   },
   /** With autonomy on: drop expired yeses and expired preparations, and look at unknown results. Never sends. */
   async tick(ctx, host) {
-    const service = ws(host); const expired = await service.expireAll(ctx);
+    const { service } = await ready(host); const expired = await service.expireAll(ctx);
     let looked: unknown = null; try { if (!host.demo) looked = await service.reconcileAll(ctx); } catch { looked = null; }
     return [{ module: 'writeback', expired, looked }];
   },
