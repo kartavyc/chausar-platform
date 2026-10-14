@@ -698,7 +698,7 @@
   "TODAY_ENGINE.seeAll": "Open review list",
   "TODAY_ENGINE.next": "Next reviews",
   "TODAY_ENGINE.readAgain": "Read this scope again",
-  "TODAY_ENGINE.prepare": "Prepare configured figures",
+  "TODAY_ENGINE.prepare": "Prepare figures",
   "TODAY_ENGINE.preparing": "Preparing configured figures…",
   "TODAY_ENGINE.prepareNote": "This explicit preparation saves private receipts sequentially. A refusal may leave earlier receipts; it is never retried automatically.",
   "TODAY_ENGINE.cashMissing": "Closing cash has no connected owner-entry producer yet.",
@@ -1007,5 +1007,6 @@
   "PH-03.note": "The same headline and one link. An approval by mail uses the same one-time link. Never reply yes.",
   "PH-02.wordmark": "Chausar",
   "PH-02.open": "Open Chausar on your computer to see this.",
-  "PH-02.expired": "This link no longer works."
+  "PH-02.expired": "This link no longer works.",
+  "TODAY_ENGINE.proofShort": "Open receipt"
 }

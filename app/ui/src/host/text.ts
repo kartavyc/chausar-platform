@@ -5,7 +5,7 @@ import en from '../text/en.json';
 import hi from '../text/hi.json';
 
 const EN = {
-  legacy: 'Open the previous interface',
+  legacy: 'Previous interface',
   refresh: 'Read again',
   loading: 'Reading your workspace.',
   unavailable: 'This workspace is unavailable. Open the previous interface to continue.',

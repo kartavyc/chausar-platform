@@ -38,7 +38,7 @@ export function TodayDestination({ detail, page, origin, onClose, onReview, onNe
     </> : detail !== null ? <>
       {detail.kind === 'activity' && <p>{t('TODAY_ENGINE.activityPartial')}</p>}
       <p>{t('TODAY_ENGINE.sourceWords')}</p>
-      {detail.receiptIds.map(id => <Button key={id} variant="link" onClick={event => onReceipt(id, event.currentTarget)}>{t('TODAY_ENGINE.proof', { id })}</Button>)}
+      {detail.receiptIds.map(id => <p key={id}><Button variant="link" aria-label={t('TODAY_ENGINE.proof', { id })} onClick={event => onReceipt(id, event.currentTarget)}>{t('TODAY_ENGINE.proofShort')}</Button> <span>{id}</span></p>)}
       <RecordedValue value={detail.record} />
     </> : <p>{t('TODAY_ENGINE.unavailable')}</p>}
   </Sheet>;

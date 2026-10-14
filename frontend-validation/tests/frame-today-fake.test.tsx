@@ -40,7 +40,7 @@ test('Today on the fake engine shows the review rows, prepares the three figures
   expect(within(page()).getByText('Record an invoice for Meera Textiles Demo')).toBeTruthy();
   expect(within(page()).getByText('Refund Arjun Stores Demo for a return')).toBeTruthy();
   expect(within(page()).getByText('Review the credit limit for Kiran Retail Demo')).toBeTruthy();
-  await user.click(within(page()).getByRole('button', { name: 'Prepare configured figures' }));
+  await user.click(within(page()).getByRole('button', { name: 'Prepare figures' }));
   const billed = await within(page()).findByText('₹25,36,850', undefined, { timeout: 5000 });
   expect(within(page()).getByText('₹20,18,000')).toBeTruthy();
   expect(within(page()).getByText('₹1,86,530')).toBeTruthy();
@@ -67,8 +67,8 @@ test('a place whose engine methods do not exist yet shows "not built yet"', asyn
 
 test('the empty scenario shows missing words, never zeros or invented amounts', async () => {
   const { user } = await mountOnFake('empty');
-  await waitFor(() => expect(within(page()).getByRole('button', { name: 'Prepare configured figures' })).toBeTruthy(), { timeout: 5000 });
-  await user.click(within(page()).getByRole('button', { name: 'Prepare configured figures' }));
+  await waitFor(() => expect(within(page()).getByRole('button', { name: 'Prepare figures' })).toBeTruthy(), { timeout: 5000 });
+  await user.click(within(page()).getByRole('button', { name: 'Prepare figures' }));
   await waitFor(() => expect(within(page()).getByText('Billed')).toBeTruthy(), { timeout: 5000 });
   const text = page().textContent ?? '';
   expect(text).toContain('not sure');
