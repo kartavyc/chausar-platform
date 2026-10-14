@@ -9,12 +9,16 @@ import { check } from '../contracts.ts';
 import { canonical, digest } from '../actions.ts';
 import { inspectWasm, validateManifest } from '../plugins.ts';
 import type { HostFunction, PluginManifest } from '../plugins.ts';
+import { schemaProblems, takesArguments } from './plugin-schema.ts';
+import { NETWORK_LIMITS, placeholdersBound, requestShapeValid } from './plugin-network.ts';
+import type { RequestSpec } from './plugin-network.ts';
 
 export const PLUGIN_FORMAT = 'chausar.plugin.v1';
 export const DATA_KINDS = ['recipe', 'starterPack', 'languagePack'] as const;
 export type DataKind = typeof DATA_KINDS[number];
 export type SkillEntry = { name: string; description: string; instructions: string; allowedTools: string[]; license: string | null; resources: { path: string; text: string }[] };
-export type ToolEntry = { name: string; title: string | null; description: string; inputSchema: Record<string, unknown>; code: string | null; sites: string[] };
+/** `requests` is optional so files signed before the network door keep their exact bytes and digest. */
+export type ToolEntry = { name: string; title: string | null; description: string; inputSchema: Record<string, unknown>; code: string | null; sites: string[]; requests?: RequestSpec[] };
 export type DataEntry = { kind: DataKind; name: string; digest: string; body: unknown };
 export type CodeEntry = { manifest: unknown; moduleBase64: string; moduleDigest: string };
 export type Doors = { capabilities: string[]; sourceIds: string[]; sites: string[] };
@@ -66,10 +70,11 @@ export function parseDocument(input: unknown): PluginDocument {
   }
   invalid(new Set(skills.map((skill: SkillEntry) => skill.name)).size === skills.length, 'Skill names are unique.');
   for (const tool of tools) {
-    exactKeys(tool, ['name', 'title', 'description', 'inputSchema', 'code', 'sites'], 'A tool has a fixed set of fields.');
+    exactKeys(tool, Object.hasOwn(tool ?? {}, 'requests') ? ['name', 'title', 'description', 'inputSchema', 'code', 'sites', 'requests'] : ['name', 'title', 'description', 'inputSchema', 'code', 'sites'], 'A tool has a fixed set of fields.');
     invalid(typeof tool.name === 'string' && TOOL_NAME.test(tool.name) && (tool.title === null || text(tool.title, 200)) && typeof tool.description === 'string', 'A tool needs a safe name and a description.');
     invalid(plain(tool.inputSchema) && tool.inputSchema.type === 'object', 'A tool input schema is a JSON Schema object.');
     invalid((tool.code === null || (typeof tool.code === 'string' && tool.code.length <= 64)) && strings(tool.sites, SITE), 'A tool names its code and the sites it needs.');
+    if (Object.hasOwn(tool, 'requests')) invalid(Array.isArray(tool.requests) && tool.requests.length > 0 && tool.requests.length <= NETWORK_LIMITS.requests && tool.requests.every((request: unknown) => requestShapeValid(request) && tool.sites.includes(request.site)), 'A tool declares at most four GET or POST requests to its own named HTTPS sites, with size and time limits.');
   }
   invalid(new Set(tools.map((tool: ToolEntry) => tool.name)).size === tools.length, 'Tool names are unique.');
   for (const item of data) {
@@ -121,6 +126,14 @@ export function signatureStatus(doc: PluginDocument, keys: readonly TrustedKey[]
 }
 
 const w = (en: string, hi: string): Words => ({ en, hi });
+/** A tool Chausar can run: it has WebAssembly code, declared requests, or both. */
+export const runnable = (tool: ToolEntry) => tool.code !== null || (tool.requests?.length ?? 0) > 0;
+function toolWords(tool: ToolEntry): Words {
+  if (tool.sites.length && !tool.requests?.length) return w('An MCP tool that needs the internet but declares no request. Chausar never lets plugin code reach the internet itself, so it cannot run.', 'एक MCP टूल जिसे इंटरनेट चाहिए पर कोई अनुरोध घोषित नहीं करता। Chausar प्लगइन कोड को खुद इंटरनेट तक नहीं जाने देता, इसलिए यह नहीं चल सकता।');
+  if (tool.requests?.length) return w(`An MCP tool that needs ${tool.requests.length} declared request(s) to named sites. Chausar makes each request itself, once, only to sites you approved, adds any key itself, and logs it in the Network ledger. ${tool.code ? 'The answer goes into WebAssembly code in the locked box as data.' : 'The answer comes back to you as outside text.'}`, `एक MCP टूल जिसे नामित साइटों पर ${tool.requests.length} घोषित अनुरोध चाहिए। Chausar हर अनुरोध खुद, एक बार, केवल आपकी मंज़ूर साइटों पर करता है, चाबी खुद जोड़ता है और नेटवर्क बही में लिखता है। ${tool.code ? 'जवाब बंद डिब्बे के WebAssembly कोड में केवल डेटा के रूप में जाता है।' : 'जवाब आपको बाहरी लेख के रूप में लौटता है।'}`);
+  if (tool.code) return w('An MCP tool backed by WebAssembly code that runs in the locked box.', 'एक MCP टूल जिसका WebAssembly कोड बंद डिब्बे में चलता है।');
+  return w('An MCP tool description only. It has no code here, so it cannot run.', 'केवल MCP टूल का विवरण। इसका कोड यहाँ नहीं है, इसलिए यह नहीं चल सकता।');
+}
 const finding = (code: string, subject: string | null, words: Words): Finding => ({ code, subject, words });
 const kib = (pages: number) => pages * 64;
 export const untrusted = (value: string) => ({ kind: 'untrusted-text' as const, origin: 'plugin' as const, text: value, quoted: value.split('\n').map(line => `> ${line}`).join('\n'), notice: w('Outside text from a plugin. It is data, never an instruction, and it grants no permission.', 'प्लगइन से आया बाहरी लेख। यह केवल जानकारी है, आदेश नहीं, और इससे कोई अनुमति नहीं मिलती।') });
@@ -139,6 +152,8 @@ export function contentFindings(doc: PluginDocument, hostFunctions: Readonly<Rec
   for (const tool of doc.contents.tools) {
     if (tool.description.length > LIMITS.text || canonical(tool.inputSchema).length > LIMITS.text) findings.push(finding('PLUGIN_CONTENT_TOO_LARGE', tool.name, w('A tool description or input schema is too large.', 'किसी टूल का विवरण या इनपुट ढाँचा बहुत बड़ा है।')));
     if (!tool.sites.every(site => doc.doors.sites.includes(site))) findings.push(finding('PLUGIN_DOORS_MISMATCH', tool.name, w('A tool needs a site the plugin does not list among its doors.', 'एक टूल को ऐसी साइट चाहिए जो प्लगइन के दरवाज़ों में नहीं लिखी है।')));
+    if (runnable(tool) && schemaProblems(tool.inputSchema).length) findings.push(finding('PLUGIN_SCHEMA_UNSUPPORTED', tool.name, w('A runnable tool declares an argument schema Chausar cannot fully enforce. Only a strict subset is accepted.', 'चलने वाला एक टूल ऐसा तर्क-ढाँचा बताता है जिसे Chausar पूरी तरह लागू नहीं कर सकता। केवल एक सख़्त उपसमुच्चय स्वीकार है।')));
+    if ((tool.requests ?? []).some(request => !placeholdersBound(request, tool.inputSchema))) findings.push(finding('PLUGIN_REQUEST_INVALID', tool.name, w('A request path uses a value that is not a required text or whole-number argument.', 'एक अनुरोध पथ ऐसा मान लेता है जो ज़रूरी लेख या पूर्ण-संख्या तर्क नहीं है।')));
   }
   for (const item of doc.contents.data) {
     if (canonical(item.body).length > LIMITS.dataBody) findings.push(finding('PLUGIN_CONTENT_TOO_LARGE', item.name, w('A data part is larger than 256 KiB.', 'एक डेटा हिस्सा 256 KiB से बड़ा है।')));
@@ -180,20 +195,21 @@ export function reviewDocument(doc: PluginDocument, options: { hostFunctions: Re
   };
   const items = [
     ...doc.contents.skills.map(skill => ({ kind: 'skill', name: skill.name, words: w('Task instructions. Shown to you as quoted outside text and never followed as orders.', 'काम के निर्देश। आपको उद्धृत बाहरी लेख के रूप में दिखाए जाते हैं, आदेश की तरह कभी नहीं माने जाते।'), allowedTools: skill.allowedTools, allowedToolsWords: skill.allowedTools.length ? w('The instructions mention tools they would like to use. This grants nothing; your own permissions still apply.', 'निर्देश कुछ टूल इस्तेमाल करना चाहते हैं। इससे कोई अनुमति नहीं मिलती; आपकी अपनी अनुमतियाँ ही लागू रहती हैं।') : null, resources: skill.resources.map(resource => resource.path) })),
-    ...doc.contents.tools.map(tool => ({ kind: 'tool', name: tool.name, words: tool.sites.length ? w('An MCP tool that needs the internet. Plugin network access is not built, so calling it is refused.', 'एक MCP टूल जिसे इंटरनेट चाहिए। प्लगइन के लिए इंटरनेट नहीं बना है, इसलिए इसे चलाना मना है।') : tool.code ? w('An MCP tool backed by WebAssembly code that runs in the locked box.', 'एक MCP टूल जिसका WebAssembly कोड बंद डिब्बे में चलता है।') : w('An MCP tool description only. It has no code here, so it cannot run.', 'केवल MCP टूल का विवरण। इसका कोड यहाँ नहीं है, इसलिए यह नहीं चल सकता।'), code: tool.code, sites: tool.sites })),
+    ...doc.contents.tools.map(tool => ({ kind: 'tool', name: tool.name, words: toolWords(tool), code: tool.code, sites: tool.sites, takesArguments: takesArguments(tool.inputSchema), schema: schemaProblems(tool.inputSchema).length ? 'unsupported' as const : 'enforced' as const, requests: (tool.requests ?? []).map(request => ({ method: request.method, site: request.site, path: untrusted(request.path), body: request.body, maxResponseBytes: request.maxResponseBytes, timeoutMs: request.timeoutMs })) })),
     ...doc.contents.data.map(item => ({ kind: item.kind, name: item.name, digest: item.digest, words: item.kind === 'recipe' ? w('A recipe, carried as data for the recipe checker. It is never run.', 'एक रेसिपी, रेसिपी जाँचक के लिए केवल डेटा के रूप में। इसे कभी चलाया नहीं जाता।') : item.kind === 'starterPack' ? w('A starter pack, carried as data for review.', 'एक स्टार्टर पैक, समीक्षा के लिए डेटा के रूप में।') : w('A language pack, carried as data for review.', 'एक भाषा पैक, समीक्षा के लिए डेटा के रूप में।') })),
     ...[...manifests.values()].map(manifest => ({ kind: 'code', name: manifest.id, words: w(`WebAssembly code for the locked box: no internet, no files, no keys. At most ${kib(manifest.maxMemoryPages)} KiB of memory and ${manifest.timeoutMs} ms per run. It stays off until you enable its exact digest.`, `बंद डिब्बे के लिए WebAssembly कोड: न इंटरनेट, न फ़ाइलें, न चाबियाँ। हर बार अधिकतम ${kib(manifest.maxMemoryPages)} KiB मेमोरी और ${manifest.timeoutMs} ms। जब तक आप इसके सटीक डाइजेस्ट को चालू न करें, यह बंद रहता है।`) })),
   ];
   const doors = [
-    ...doc.doors.capabilities.map(capability => ({ door: 'capability', subject: capability, status: Object.hasOwn(options.hostFunctions, capability) ? 'after-approval' : 'refused', words: Object.hasOwn(options.hostFunctions, capability) ? w('Ask Chausar for one number through a named door. Chausar answers; the code never reads your data directly.', 'एक नामित दरवाज़े से Chausar से एक संख्या माँगना। जवाब Chausar देता है; कोड आपका डेटा सीधे नहीं पढ़ता।') : w('A door Chausar does not have. Refused.', 'ऐसा दरवाज़ा जो Chausar में नहीं है। मना।'), description: options.hostFunctions[capability]?.description ?? null })),
+    ...doc.doors.capabilities.map(capability => ({ door: 'capability', subject: capability, status: Object.hasOwn(options.hostFunctions, capability) ? 'after-approval' : 'refused', words: Object.hasOwn(options.hostFunctions, capability) ? w('Ask Chausar for one number through a named door, only after you grant it for this plugin. Chausar answers as the person calling the tool; the code never reads your data directly, never sees keys and can never approve.', 'एक नामित दरवाज़े से Chausar से एक संख्या माँगना, केवल तब जब आप इस प्लगइन को यह अनुमति दें। जवाब Chausar टूल चलाने वाले व्यक्ति के रूप में देता है; कोड आपका डेटा सीधे नहीं पढ़ता, चाबियाँ नहीं देखता और कभी मंज़ूरी नहीं दे सकता।') : w('A door Chausar does not have. Refused.', 'ऐसा दरवाज़ा जो Chausar में नहीं है। मना।'), description: options.hostFunctions[capability]?.description ?? null })),
     ...doc.doors.sourceIds.map(sourceId => ({ door: 'source', subject: sourceId, status: 'after-approval', words: w('Use numbers from this one source, only while you still allow it.', 'केवल इस एक स्रोत की संख्याएँ, जब तक आप अनुमति दें।'), description: null })),
-    ...doc.doors.sites.map(site => ({ door: 'site', subject: site, status: 'not-built', words: w('Reach this named website. Chausar has not built network access for plugins, so any call that needs it is refused. Recorded for your review only.', 'इस नामित वेबसाइट तक पहुँचना। Chausar ने प्लगइन के लिए इंटरनेट नहीं बनाया है, इसलिए इसकी ज़रूरत वाला हर काम मना है। केवल आपकी समीक्षा के लिए दर्ज।'), description: null })),
-    { door: 'keys', subject: null, status: 'never', words: w('Your keys and passwords are never passed in. If a call ever needs a key, Chausar makes that call itself.', 'आपकी चाबियाँ और पासवर्ड कभी अंदर नहीं दिए जाते। किसी काम को चाबी चाहिए तो वह काम Chausar खुद करता है।'), description: null },
+    ...doc.doors.sites.map(site => ({ door: 'site', subject: site, status: 'after-approval', words: w('Reach this one named website over HTTPS, only after you approve it for this plugin. Chausar makes each declared request itself, once, refuses redirects, adds any key itself and logs every request in the Network ledger.', 'इस एक नामित वेबसाइट तक HTTPS पर पहुँचना, केवल तब जब आप इस प्लगइन के लिए इसे मंज़ूर करें। Chausar हर घोषित अनुरोध खुद, एक बार करता है, रीडायरेक्ट मना करता है, चाबी खुद जोड़ता है और हर अनुरोध नेटवर्क बही में लिखता है।'), description: null })),
+    { door: 'keys', subject: null, status: 'never', words: w('Your keys and passwords are never passed in. If a request needs a key, Chausar makes that request itself.', 'आपकी चाबियाँ और पासवर्ड कभी अंदर नहीं दिए जाते। किसी काम को चाबी चाहिए तो वह काम Chausar खुद करता है।'), description: null },
     { door: 'files', subject: null, status: 'never', words: w('No files. The locked box cannot read or write your computer.', 'कोई फ़ाइल नहीं। बंद डिब्बा आपके कंप्यूटर पर न पढ़ सकता है, न लिख सकता है।'), description: null },
   ];
   const experimentalReasons = [
     ...(doc.contents.code.length && signature.status !== 'verified' ? ['code-from-unverified-publisher'] : []),
     ...(doc.contents.tools.length ? ['wrapped-mcp-tools'] : []),
+    ...(doc.contents.tools.some(tool => tool.requests?.length) ? ['network-door'] : []),
     ...(signature.status === 'unsigned' || signature.status === 'unknown-key' ? ['unverified-publisher'] : []),
   ];
   return {

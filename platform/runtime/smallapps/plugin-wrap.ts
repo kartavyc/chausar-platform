@@ -8,6 +8,9 @@ import { check } from '../contracts.ts';
 import { digest } from '../actions.ts';
 import { DATA_KINDS, LIMITS, PLUGIN_FORMAT, isScript, safePath } from './plugin-format.ts';
 import type { CodeEntry, DataEntry, DataKind, PluginDocument, SkillEntry, ToolEntry, Words } from './plugin-format.ts';
+import { NETWORK_LIMITS, requestShapeValid } from './plugin-network.ts';
+import type { RequestSpec } from './plugin-network.ts';
+import { schemaProblems } from './plugin-schema.ts';
 
 export type Refused = { path: string; code: string; words: Words };
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -59,14 +62,19 @@ export function wrapAgentSkill(skillMd: unknown, files: unknown = {}): { skill: 
   return { skill: { name, description, instructions: body, allowedTools, license, resources }, refused, ignoredFields: Object.keys(fields).filter(key => !known.has(key)).sort() };
 }
 
-/** Wrap an MCP `tools/list` result. A tool runs only if `code` maps it to WebAssembly in the package. */
-export function wrapMcpServer(toolsList: unknown, options: { serverInfo?: unknown; code?: unknown } = {}): { tools: ToolEntry[]; code: CodeEntry[]; sites: string[]; refused: Refused[]; server: { name: string | null; version: string | null } } {
+/**
+ * Wrap an MCP `tools/list` result. A tool runs only if `code` maps it to WebAssembly in the package and/or
+ * `requests` declares the exact HTTPS requests Chausar may make for it. A runnable tool whose argument schema
+ * falls outside the enforced subset is reported here and refused on inspection.
+ */
+export function wrapMcpServer(toolsList: unknown, options: { serverInfo?: unknown; code?: unknown; requests?: unknown } = {}): { tools: ToolEntry[]; code: CodeEntry[]; sites: string[]; refused: Refused[]; server: { name: string | null; version: string | null } } {
   let value = toolsList;
   if (typeof value === 'string') { check(value.length <= LIMITS.document, 'PLUGIN_MCP_INVALID', 'The tools list is too large.'); try { value = JSON.parse(value); } catch { check(false, 'PLUGIN_MCP_INVALID', 'The tools list is not JSON.'); } }
   if (plain(value) && plain(value.result)) value = value.result;
   check(plain(value) && Array.isArray(value.tools) && value.tools.length <= LIMITS.tools, 'PLUGIN_MCP_INVALID', 'Provide an MCP tools/list result with a tools array.');
   const info = options.serverInfo; check(info === undefined || plain(info), 'PLUGIN_MCP_INVALID', 'Server information is an object.');
   const codeMap = options.code ?? {}; check(plain(codeMap) && Object.keys(codeMap).length <= LIMITS.code, 'PLUGIN_MCP_INVALID', 'Code is a map from tool name to a manifest and module.');
+  const requestMap = options.requests ?? {}; check(plain(requestMap) && Object.keys(requestMap).length <= LIMITS.tools, 'PLUGIN_MCP_INVALID', 'Requests are a map from tool name to declared requests.');
   const refused: Refused[] = []; const sites: string[] = [];
   if (info && typeof info.url === 'string') {
     let host = ''; try { const url = new URL(info.url); host = url.protocol === 'https:' && !url.username && !url.password ? url.hostname.toLowerCase() : ''; } catch { host = ''; }
@@ -86,9 +94,16 @@ export function wrapMcpServer(toolsList: unknown, options: { serverInfo?: unknow
       codeId = mapped.manifest.id;
       if (!code.some(entry => (entry.manifest as any).id === codeId)) code.push({ manifest: structuredClone(mapped.manifest), moduleBase64: mapped.moduleBase64, moduleDigest: digest(mapped.moduleBase64) });
     }
-    tools.push({ name: tool.name, title: typeof tool.title === 'string' ? tool.title.slice(0, 200) : null, description: typeof tool.description === 'string' ? tool.description : '', inputSchema: JSON.parse(JSON.stringify(inputSchema)), code: codeId, sites: codeId ? [] : [...sites] });
+    const declared = Object.hasOwn(requestMap, tool.name) ? requestMap[tool.name] : undefined;
+    check(declared === undefined || (Array.isArray(declared) && declared.length > 0 && declared.length <= NETWORK_LIMITS.requests && declared.every(requestShapeValid)), 'PLUGIN_MCP_INVALID', 'Declared requests are GET or POST to a named HTTPS site with a path, a body choice and size and time limits.');
+    const requests = declared ? structuredClone(declared as RequestSpec[]) : undefined;
+    const entry: ToolEntry = { name: tool.name, title: typeof tool.title === 'string' ? tool.title.slice(0, 200) : null, description: typeof tool.description === 'string' ? tool.description : '', inputSchema: JSON.parse(JSON.stringify(inputSchema)), code: codeId, sites: requests ? [...new Set(requests.map(request => request.site))].sort() : codeId ? [] : [...sites] };
+    if (requests) entry.requests = requests;
+    if ((codeId || requests) && schemaProblems(entry.inputSchema).length) refused.push({ path: `tools.${tool.name}.inputSchema`, code: 'PLUGIN_SCHEMA_UNSUPPORTED', words: { en: 'This runnable tool declares an argument schema outside the strict subset Chausar enforces. The plugin will be refused on inspection.', hi: 'यह चलने वाला टूल ऐसा तर्क-ढाँचा बताता है जो Chausar के सख़्त उपसमुच्चय से बाहर है। जाँच में प्लगइन मना होगा।' } });
+    tools.push(entry);
   }
   for (const name of Object.keys(codeMap)) check(tools.some(tool => tool.name === name), 'PLUGIN_MCP_INVALID', 'Mapped code names a tool the server does not list.');
+  for (const name of Object.keys(requestMap)) check(tools.some(tool => tool.name === name), 'PLUGIN_MCP_INVALID', 'Declared requests name a tool the server does not list.');
   return { tools, code, sites, refused, server: { name: info && typeof info.name === 'string' ? info.name.slice(0, 200) : null, version: info && typeof info.version === 'string' ? info.version.slice(0, 50) : null } };
 }
 

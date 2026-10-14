@@ -1,27 +1,37 @@
 /**
- * `smallapps.plugin*`: wrap, inspect, install and run `chausar.plugin.v1` files.
+ * `smallapps.plugin*`: wrap, inspect, install, grant and run `chausar.plugin.v1` files.
  * Data parts live in the models-ext namespace under `plugins`; WebAssembly parts are installed,
  * enabled and run only through the core PluginService (`plugins.*`), which keeps them in the
- * isolated locked box: no internet, no files, no keys. Plugin network access is not built.
+ * isolated locked box: no sockets, no files, no keys. Declared network requests are made by
+ * Chausar itself (plugin-network.ts), and doors are answered host-side (plugin-host.ts).
  */
 import { audit, check, newId, now } from '../contracts.ts';
-import type { Context } from '../contracts.ts';
+import type { Context, State } from '../contracts.ts';
+import { canonical } from '../actions.ts';
 import { moduleState, peekModuleState } from '../modules/types.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { MODULE_ID } from '../models-ext/part.ts';
 import type { ModulePart } from '../models-ext/part.ts';
+import { RUN_INPUT_LIMIT } from '../plugins.ts';
 import type { HostFunction, PluginManifest } from '../plugins.ts';
-import { contentFindings, documentDigest, keyIdOf, parseDocument, publicKeyObject, reviewDocument, signDocument, untrusted } from './plugin-format.ts';
+import { contentFindings, documentDigest, keyIdOf, parseDocument, publicKeyObject, reviewDocument, runnable, signDocument, untrusted } from './plugin-format.ts';
 import type { DataEntry, Doors, PluginDocument, SkillEntry, ToolEntry, TrustedKey } from './plugin-format.ts';
 import { buildDocument, wrapAgentSkill, wrapMcpServer } from './plugin-wrap.ts';
+import { schemaProblems, takesArguments, validateArguments } from './plugin-schema.ts';
+import { NETWORK_LIMITS, fetchTransport, performRequest } from './plugin-network.ts';
+import type { CredentialBroker, Fetched, LedgerEntry, Transport } from './plugin-network.ts';
+import { bindDoors, checkRecipe, liveGrant, notChecked, prepareGranted, validateCodeGrant } from './plugin-host.ts';
+import type { CodeGrant, Grant, RecipeVerdict } from './plugin-host.ts';
 
 type InstalledCode = { codeId: string; corePluginId: string; digest: string; moduleDigest: string };
-type Installed = { id: string; digest: string; publisherId: string; name: string; version: string; description: string; signature: { status: string; keyId: string | null; origin: string | null }; unverifiedAccepted: boolean; support: 'supported' | 'experimental'; installedAt: string; installedBy: string; skills: SkillEntry[]; tools: ToolEntry[]; data: DataEntry[]; code: InstalledCode[]; doors: Doors };
-type PluginsState = { trustedKeys: TrustedKey[]; blocked: { keyIds: string[]; digests: string[] }; installed: Installed[] };
+type Installed = { id: string; digest: string; publisherId: string; name: string; version: string; description: string; signature: { status: string; keyId: string | null; origin: string | null }; unverifiedAccepted: boolean; support: 'supported' | 'experimental'; installedAt: string; installedBy: string; skills: SkillEntry[]; tools: ToolEntry[]; data: DataEntry[]; code: InstalledCode[]; doors: Doors; recipeChecks?: Record<string, RecipeVerdict> };
+type PluginsState = { trustedKeys: TrustedKey[]; blocked: { keyIds: string[]; digests: string[] }; installed: Installed[]; grants?: Record<string, Grant>; ledger?: LedgerEntry[] };
+type CorePlugin = { id: string; digest: string; manifest: PluginManifest };
 
 const empty = (): PluginsState => ({ trustedKeys: [], blocked: { keyIds: [], digests: [] }, installed: [] });
 function writable(state: Parameters<typeof moduleState>[0]): PluginsState { const ns = moduleState<Record<string, any>>(state, MODULE_ID, () => ({})); return (ns.plugins ??= empty()) as PluginsState; }
-const readable = (host: ModuleHost): PluginsState => structuredClone(peekModuleState<Record<string, any>>(host.store.read(), MODULE_ID)?.plugins ?? empty());
+const peek = (state: State): PluginsState | undefined => peekModuleState<Record<string, any>>(state, MODULE_ID)?.plugins;
+const readable = (host: ModuleHost): PluginsState => structuredClone(peek(host.store.read()) ?? empty());
 
 function fields(payload: Record<string, any>, allowed: string[], required: string[] = []) {
   check(Object.keys(payload).every(key => allowed.includes(key)) && required.every(key => Object.hasOwn(payload, key)), 'INVALID_PLUGIN_REQUEST', 'The request has missing or unknown fields.');
@@ -47,7 +57,7 @@ const IDENTIFIER = /^[a-z0-9][a-z0-9.-]{0,99}$/;
 function wrap(payload: Record<string, any>, host: ModuleHost) {
   check(payload.kind === 'agentSkill' || payload.kind === 'mcpServer', 'INVALID_PLUGIN_REQUEST', 'Wrap an agentSkill or an mcpServer.');
   if (payload.kind === 'agentSkill') fields(payload, ['kind', 'publisherId', 'name', 'version', 'description', 'skillMd', 'files', 'sign'], ['kind', 'publisherId', 'version', 'skillMd']);
-  else fields(payload, ['kind', 'publisherId', 'name', 'version', 'description', 'toolsList', 'serverInfo', 'code', 'sign'], ['kind', 'publisherId', 'name', 'version', 'toolsList']);
+  else fields(payload, ['kind', 'publisherId', 'name', 'version', 'description', 'toolsList', 'serverInfo', 'code', 'requests', 'sign'], ['kind', 'publisherId', 'name', 'version', 'toolsList']);
   check(typeof payload.publisherId === 'string' && IDENTIFIER.test(payload.publisherId), 'INVALID_PLUGIN_REQUEST', 'Use a lowercase publisher id.');
   check(payload.sign === undefined || typeof payload.sign === 'boolean', 'INVALID_PLUGIN_REQUEST', 'Sign is true or false.');
   check(payload.description === undefined || (typeof payload.description === 'string' && payload.description.length <= 1024), 'INVALID_PLUGIN_REQUEST', 'Keep the description short.');
@@ -56,7 +66,7 @@ function wrap(payload: Record<string, any>, host: ModuleHost) {
     const wrapped = wrapAgentSkill(payload.skillMd, payload.files ?? {}); refused = wrapped.refused; ignoredFields = wrapped.ignoredFields;
     doc = buildDocument({ publisherId: payload.publisherId, name: payload.name ?? wrapped.skill.name, version: payload.version, description: payload.description ?? wrapped.skill.description, skills: [wrapped.skill] });
   } else {
-    const wrapped = wrapMcpServer(payload.toolsList, { serverInfo: payload.serverInfo, code: payload.code }); refused = wrapped.refused;
+    const wrapped = wrapMcpServer(payload.toolsList, { serverInfo: payload.serverInfo, code: payload.code, requests: payload.requests }); refused = wrapped.refused;
     doc = buildDocument({ publisherId: payload.publisherId, name: payload.name, version: payload.version, description: payload.description ?? '', tools: wrapped.tools, code: wrapped.code, sites: wrapped.sites });
   }
   doc = parseDocument(doc);
@@ -93,7 +103,8 @@ async function install(ctx: Context, payload: Record<string, any>, host: ModuleH
       const mine = writable(state);
       check(!mine.blocked.digests.includes(reviewed.digest) && !(reviewed.signature.keyId && mine.blocked.keyIds.includes(reviewed.signature.keyId)), 'PLUGIN_BLOCKED', 'This plugin or its publisher key is blocked.');
       check(!mine.installed.some(item => item.publisherId === doc.publisher.id && item.name === doc.name), 'PLUGIN_ALREADY_INSTALLED', 'Remove the installed plugin before installing another version.');
-      const record: Installed = { id: newId('xplugin'), digest: reviewed.digest, publisherId: doc.publisher.id, name: doc.name, version: doc.version, description: doc.description, signature: { status: reviewed.signature.status, keyId: reviewed.signature.keyId, origin: reviewed.signature.origin }, unverifiedAccepted: reviewed.signature.status !== 'verified', support: reviewed.support, installedAt: now(), installedBy: ctx.memberId, skills: doc.contents.skills, tools: doc.contents.tools, data: doc.contents.data, code: installedCode, doors: doc.doors };
+      const record: Installed = { id: newId('xplugin'), digest: reviewed.digest, publisherId: doc.publisher.id, name: doc.name, version: doc.version, description: doc.description, signature: { status: reviewed.signature.status, keyId: reviewed.signature.keyId, origin: reviewed.signature.origin }, unverifiedAccepted: reviewed.signature.status !== 'verified', support: reviewed.support, installedAt: now(), installedBy: ctx.memberId, skills: doc.contents.skills, tools: doc.contents.tools, data: doc.contents.data, code: installedCode, doors: doc.doors,
+        recipeChecks: Object.fromEntries(doc.contents.data.filter(entry => entry.kind === 'recipe').map(entry => [entry.name, notChecked(entry.digest)])) };
       mine.installed.push(record);
       audit(state, 'smallapps.plugin.installed', { pluginId: record.id, digest: record.digest, signature: record.signature.status, code: installedCode.map(code => code.corePluginId) });
       return { id: record.id, digest: record.digest, support: record.support, signature: record.signature, code: installedCode.map(code => ({ ...code, status: 'disabled', enableWith: { method: 'plugins.enable', id: code.corePluginId, digest: code.digest } })) };
@@ -101,29 +112,146 @@ async function install(ctx: Context, payload: Record<string, any>, host: ModuleH
   } catch (error) { await rollback(); throw error; }
 }
 
-function summary(item: Installed) {
-  return { id: item.id, name: item.name, publisherId: item.publisherId, version: item.version, digest: item.digest, signature: item.signature, unverifiedAccepted: item.unverifiedAccepted, support: item.support, installedAt: item.installedAt, contains: { skills: item.skills.length, tools: item.tools.length, data: item.data.length, code: item.code.length }, code: item.code, doors: item.doors };
+function grantSummary(ns: PluginsState, item: Installed) {
+  const grant = ns.grants?.[item.id];
+  return grant ? { sites: grant.sites, code: grant.code, grantedBy: grant.grantedBy.memberId, grantedAt: grant.grantedAt, current: grant.digest === item.digest } : null;
+}
+function summary(item: Installed, ns: PluginsState) {
+  return { id: item.id, name: item.name, publisherId: item.publisherId, version: item.version, digest: item.digest, signature: item.signature, unverifiedAccepted: item.unverifiedAccepted, support: item.support, installedAt: item.installedAt, contains: { skills: item.skills.length, tools: item.tools.length, data: item.data.length, code: item.code.length }, code: item.code, doors: item.doors, grant: grantSummary(ns, item) };
 }
 const findInstalled = (ns: PluginsState, id: unknown) => { check(typeof id === 'string', 'INVALID_PLUGIN_REQUEST', 'Name the plugin.'); const item = ns.installed.find(entry => entry.id === id); check(item, 'PLUGIN_NOT_FOUND', 'That plugin is not installed.'); return item; };
 
-async function callTool(payload: Record<string, any>, host: ModuleHost) {
-  fields(payload, ['id', 'tool'], ['id', 'tool']);
-  const item = findInstalled(readable(host), payload.id);
+function transport(host: ModuleHost): Transport {
+  const injected = host.options.pluginTransport;
+  check(injected === undefined || typeof injected === 'function', 'PLUGIN_HOST_OPTIONS_INVALID', 'The plugin transport is a function.');
+  return (injected as Transport | undefined) ?? fetchTransport;
+}
+function credentials(host: ModuleHost): CredentialBroker | null {
+  const broker = host.options.pluginCredentials;
+  check(broker === undefined || typeof broker === 'function', 'PLUGIN_HOST_OPTIONS_INVALID', 'The plugin credential broker is a function.');
+  return (broker as CredentialBroker | undefined) ?? null;
+}
+async function appendLedger(host: ModuleHost, entries: LedgerEntry[]) {
+  if (!entries.length) return;
+  await host.store.update(state => {
+    const mine = writable(state); mine.ledger ??= [];
+    for (const entry of entries) { mine.ledger.push(entry); audit(state, 'network.request', { ...entry }); }
+    mine.ledger.splice(0, Math.max(0, mine.ledger.length - NETWORK_LIMITS.ledger));
+  });
+}
+const NUMBER_LABEL = { en: 'Plugin number: not a calculator receipt', hi: 'प्लगइन की संख्या: कैलकुलेटर रसीद नहीं' };
+const NUMBER_NOTE = { en: 'This number came from plugin code, not from the calculator. It has no receipt and must be labelled as a plugin number wherever it is shown.', hi: 'यह संख्या प्लगइन कोड से आई है, कैलकुलेटर से नहीं। इसकी कोई रसीद नहीं है और जहाँ भी दिखे, इसे प्लगइन की संख्या लिखा जाना चाहिए।' };
+
+/**
+ * Run one tool. Order: validate arguments as data, check the installed code, check the owner's grant for this
+ * exact plugin, answer its doors as the caller, make declared requests once each (remote only), then run the
+ * locked box with arguments and responses as bytes. A post-run prepare never approves.
+ */
+async function runTool(ctx: Context, payload: Record<string, any>, host: ModuleHost, remote: boolean) {
+  fields(payload, ['id', 'tool', 'arguments'], ['id', 'tool']);
+  const ns = readable(host); const item = findInstalled(ns, payload.id);
   const tool = item.tools.find(entry => entry.name === payload.tool); check(tool, 'PLUGIN_TOOL_NOT_FOUND', 'That plugin has no such tool.');
-  check(tool.sites.length === 0, 'PLUGIN_NETWORK_NOT_BUILT', 'This tool needs the internet. Plugin network access is not built, so it cannot run.');
-  check(tool.code !== null, 'PLUGIN_TOOL_HAS_NO_CODE', 'This tool is a description only. It has no WebAssembly code to run.');
-  check(!(Array.isArray(tool.inputSchema.required) && tool.inputSchema.required.length > 0), 'PLUGIN_TOOL_ARGUMENTS_NOT_BUILT', 'The locked box runs code without arguments; this tool needs arguments.');
-  const code = item.code.find(entry => entry.codeId === tool.code); check(code, 'PLUGIN_CODE_MISSING', 'The code for this tool is not installed.');
-  const core = (await host.call('plugins.list', {}) as { id: string; digest: string }[]).find(plugin => plugin.id === code.corePluginId);
-  check(core, 'PLUGIN_CODE_MISSING', 'The code for this tool is not installed.');
-  check(core.digest === code.digest, 'PREVIEW_CHANGED', 'The installed code changed since this plugin was installed.');
-  const run = await host.call('plugins.run', { id: code.corePluginId }) as { result: number; memoryPages: number; runId: string };
+  const requests = tool.requests ?? [];
+  if (remote) {
+    check(requests.length > 0, tool.sites.length ? 'PLUGIN_TOOL_REQUESTS_UNDECLARED' : 'PLUGIN_TOOL_NOT_REMOTE', tool.sites.length ? 'This tool needs the internet but declares no request Chausar could make for it.' : 'This tool does not reach the internet. Call it with smallapps.pluginCallTool.');
+    check(!ctx.sourceTainted, 'PLUGIN_TAINTED_CONTEXT', 'A request that has read outside text cannot send plugin requests to outside sites.');
+  } else {
+    check(tool.sites.length === 0, requests.length ? 'PLUGIN_NETWORK_USE_REMOTE' : 'PLUGIN_TOOL_REQUESTS_UNDECLARED', requests.length ? 'This tool reaches the internet. Call it with smallapps.pluginCallRemote.' : 'This tool needs the internet but declares no request Chausar could make for it.');
+    check(tool.code !== null, 'PLUGIN_TOOL_HAS_NO_CODE', 'This tool is a description only. It has no WebAssembly code to run.');
+  }
+  check(runnable(tool) && schemaProblems(tool.inputSchema).length === 0, 'PLUGIN_SCHEMA_UNSUPPORTED', 'This tool declares a schema Chausar cannot fully enforce, so it does not run.');
+  const args = validateArguments(tool.inputSchema, payload.arguments ?? {});
+  let code: InstalledCode | undefined; let core: CorePlugin | undefined;
+  if (tool.code !== null) {
+    code = item.code.find(entry => entry.codeId === tool.code); check(code, 'PLUGIN_CODE_MISSING', 'The code for this tool is not installed.');
+    core = (await host.call('plugins.list', {}) as CorePlugin[]).find(plugin => plugin.id === code!.corePluginId);
+    check(core, 'PLUGIN_CODE_MISSING', 'The code for this tool is not installed.');
+    check(core.digest === code.digest, 'PREVIEW_CHANGED', 'The installed code changed since this plugin was installed.');
+  }
+  const capabilities = core?.manifest.capabilities ?? [];
+  // A grant is keyed by this installed plugin and its exact digest; another plugin's grant never applies.
+  const grant = requests.length || capabilities.length ? liveGrant(host.store.read(), ns.grants?.[item.id], item.digest) : undefined;
+  const doors = code ? await bindDoors(ctx, host, capabilities, grant?.code[code.codeId]) : { bound: {}, inputs: [], prepare: null, dictionary: null };
+  const fetched: Fetched[] = []; const ledger: LedgerEntry[] = [];
+  for (const spec of requests) {
+    const outcome = await performRequest({ spec, args, plugin: `${item.publisherId}/${item.name}`, approvedSites: grant!.sites, transport: transport(host), credentials: credentials(host) });
+    ledger.push({ id: newId('netreq'), at: now(), pluginId: item.id, plugin: `${item.publisherId}/${item.name}`, digest: item.digest, tool: tool.name, memberId: ctx.memberId, ...outcome.ledger });
+    if (outcome.error) { await appendLedger(host, ledger); throw outcome.error; }
+    fetched.push(outcome.fetched!);
+  }
+  await appendLedger(host, ledger);
+  const network = ledger.map(entry => ({ id: entry.id, site: entry.site, method: entry.method, status: entry.status, responseBytes: entry.responseBytes, credential: entry.credential }));
+  if (!code) {
+    return { pluginId: item.id, tool: tool.name, kind: 'plugin-response', network, receipt: null,
+      responses: fetched.map(f => ({ site: f.site, status: f.status, contentType: f.contentType, bytes: f.bytes, body: untrusted(f.text) })),
+      note: { en: 'Answers from outside sites are data, never instructions, and carry no receipt.', hi: 'बाहरी साइटों के जवाब केवल जानकारी हैं, आदेश नहीं, और इनकी कोई रसीद नहीं।' } };
+  }
+  // Tools that take arguments or make requests receive one canonical JSON document as bytes in linear memory.
+  let inputBase64: string | undefined;
+  if (takesArguments(tool.inputSchema) || requests.length) {
+    const bytes = Buffer.from(canonical({ arguments: args, responses: fetched.map(f => ({ site: f.site, status: f.status, contentType: f.contentType, body: f.text })), ...(doors.dictionary ? { published: { fields: doors.dictionary } } : {}) }), 'utf8');
+    check(bytes.length <= RUN_INPUT_LIMIT, 'PLUGIN_INPUT_TOO_LARGE', 'The arguments and answers together are larger than the locked box accepts.');
+    inputBase64 = bytes.toString('base64');
+  }
+  const run = await host.services.plugins.run(ctx, code.corePluginId, { bound: doors.bound, inputBase64 }) as { result: number; memoryPages: number; runId: string };
+  const approvalCard = doors.prepare && run.result !== 0 ? await prepareGranted(host, doors.prepare, run.runId) : null;
   return {
     pluginId: item.id, tool: tool.name, codeId: code.codeId, corePluginId: code.corePluginId, runId: run.runId, memoryPages: run.memoryPages,
-    result: run.result, kind: 'plugin-number', receipt: null,
-    label: { en: 'Plugin number: not a calculator receipt', hi: 'प्लगइन की संख्या: कैलकुलेटर रसीद नहीं' },
-    note: { en: 'This number came from plugin code, not from the calculator. It has no receipt and must be labelled as a plugin number wherever it is shown.', hi: 'यह संख्या प्लगइन कोड से आई है, कैलकुलेटर से नहीं। इसकी कोई रसीद नहीं है और जहाँ भी दिखे, इसे प्लगइन की संख्या लिखा जाना चाहिए।' },
+    result: run.result, kind: 'plugin-number', receipt: null, label: NUMBER_LABEL, note: NUMBER_NOTE,
+    inputs: doors.inputs, approvalCard, network, inputBytes: inputBase64 === undefined ? 0 : Buffer.from(inputBase64, 'base64').length,
   };
+}
+
+const SITE_LIST = (value: unknown) => Array.isArray(value) && value.length <= 16 && value.every(site => typeof site === 'string') && new Set(value).size === value.length;
+async function grantDoors(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  fields(payload, ['id', 'digest', 'sites', 'code'], ['id', 'digest']); appOnly(ctx);
+  check(ctx.role === 'owner', 'PLUGIN_OWNER_REQUIRED', 'Only an owner can open doors for a plugin.');
+  const item = findInstalled(readable(host), payload.id);
+  check(payload.digest === item.digest, 'PREVIEW_CHANGED', 'Grant doors for the exact plugin you reviewed.');
+  const sites = payload.sites ?? []; check(SITE_LIST(sites), 'PLUGIN_GRANT_INVALID', 'Sites are a short list of exact names.');
+  for (const site of sites) check(item.doors.sites.includes(site), 'PLUGIN_SITE_NOT_REQUESTED', 'The plugin does not ask for that site, so it cannot be approved.');
+  const codeGrants = payload.code ?? {}; check(codeGrants && typeof codeGrants === 'object' && !Array.isArray(codeGrants), 'PLUGIN_GRANT_INVALID', 'Door grants are a map from code id to doors.');
+  const cores = Object.keys(codeGrants).length ? await host.call('plugins.list', {}) as CorePlugin[] : [];
+  const catalogue = Object.values(codeGrants).some((g: any) => g?.prepare_action) ? await host.call('actions.catalogue', {}) as { id: string; operations: { id: string }[] }[] : [];
+  const code: Record<string, CodeGrant> = {};
+  for (const [codeId, input] of Object.entries(codeGrants)) {
+    const installed = item.code.find(entry => entry.codeId === codeId); check(installed, 'PLUGIN_CODE_MISSING', 'That code is not part of this plugin.');
+    const core = cores.find(plugin => plugin.id === installed.corePluginId); check(core && core.digest === installed.digest, 'PLUGIN_CODE_MISSING', 'The code for this plugin is not installed.');
+    code[codeId] = validateCodeGrant(input, core.manifest.capabilities, catalogue);
+  }
+  return host.store.update(state => {
+    const mine = writable(state); const live = mine.installed.find(entry => entry.id === item.id);
+    check(live && live.digest === item.digest, 'PREVIEW_CHANGED', 'The plugin changed while its doors were being granted.');
+    mine.grants ??= {};
+    const grant: Grant = { digest: item.digest, sites: [...sites].sort(), code, grantedBy: { memberId: ctx.memberId, role: ctx.role, epoch: ctx.epoch }, grantedAt: now() };
+    if (!grant.sites.length && !Object.keys(code).length) delete mine.grants[item.id]; else mine.grants[item.id] = grant;
+    audit(state, 'smallapps.plugin.granted', { pluginId: item.id, digest: item.digest, sites: grant.sites, doors: Object.fromEntries(Object.entries(code).map(([id, g]) => [id, Object.keys(g).sort()])) });
+    return { id: item.id, digest: item.digest, grant: grantSummary(mine, live) };
+  });
+}
+
+const FORMATS = ['csv', 'tally-xml', 'zoho-json', 'gst-json', 'bank-csv', 'shopify-json'];
+async function checkPluginRecipe(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  fields(payload, ['id', 'recipe', 'sourceId', 'format', 'content', 'expectedTotals'], ['id', 'recipe', 'sourceId', 'format', 'content', 'expectedTotals']);
+  const item = findInstalled(readable(host), payload.id);
+  const recipe = item.data.find(entry => entry.kind === 'recipe' && entry.name === payload.recipe); check(recipe, 'PLUGIN_RECIPE_NOT_FOUND', 'That plugin carries no such recipe.');
+  check(typeof payload.sourceId === 'string' && payload.sourceId.length > 0 && payload.sourceId.length <= 200 && FORMATS.includes(payload.format) && typeof payload.content === 'string', 'INVALID_PLUGIN_REQUEST', 'Give a source, its export format and the export text.');
+  const verdict = await checkRecipe(ctx, host, { digest: recipe.digest, body: recipe.body }, { sourceId: payload.sourceId, format: payload.format, content: payload.content, expectedTotals: payload.expectedTotals });
+  return host.store.update(state => {
+    const live = writable(state).installed.find(entry => entry.id === item.id && entry.digest === item.digest);
+    check(live, 'PREVIEW_CHANGED', 'The plugin changed while its recipe was being checked.');
+    (live.recipeChecks ??= {})[recipe.name] = verdict;
+    audit(state, 'smallapps.plugin.recipeChecked', { pluginId: item.id, recipe: recipe.name, status: verdict.status, codes: verdict.codes });
+    return { id: item.id, recipe: recipe.name, verdict: structuredClone(verdict), executes: false, words: verdict.status === 'passed' ? { en: 'The recipe checker matched this export to the source’s own report totals. Nothing was imported; import it yourself if you want it.', hi: 'रेसिपी जाँचक ने इस निर्यात को स्रोत की अपनी रिपोर्ट के जोड़ से मिलाया। कुछ भी आयात नहीं हुआ; चाहें तो खुद आयात करें।' } : { en: 'The recipe did not pass the recipe checker. Nothing was imported.', hi: 'रेसिपी जाँच में पास नहीं हुई। कुछ भी आयात नहीं हुआ।' } };
+  });
+}
+
+/** Verdicts measured against a deleted source, and action grants naming it, go with the source. */
+function purge(state: State, reason: { sourceIds: readonly string[] }) {
+  const ns = peek(state); if (!ns) return 0; let removed = 0; const gone = new Set(reason.sourceIds);
+  for (const item of ns.installed) for (const [name, verdict] of Object.entries(item.recipeChecks ?? {})) if (verdict.sourceId && gone.has(verdict.sourceId)) { item.recipeChecks![name] = notChecked(verdict.recipeDigest); removed += 1; }
+  for (const grant of Object.values(ns.grants ?? {})) for (const doors of Object.values(grant.code)) if (doors.prepare_action?.sourceIds.some(id => gone.has(id))) { delete doors.prepare_action; removed += 1; }
+  return removed;
 }
 
 const methods: Record<string, MethodSpec> = {
@@ -144,15 +272,15 @@ const methods: Record<string, MethodSpec> = {
   'smallapps.pluginInstall': { permission: 'admin', handler: install },
   'smallapps.pluginList': { permission: 'read', handler(_ctx, payload, host) {
     fields(payload, []); const ns = readable(host);
-    return { installed: ns.installed.map(summary), trustedKeys: allKeys(host, ns).map(({ keyId, publisherId, origin }) => ({ keyId, publisherId, origin, blocked: ns.blocked.keyIds.includes(keyId) })), blocked: ns.blocked, network: 'not-built' };
+    return { installed: ns.installed.map(item => summary(item, ns)), trustedKeys: allKeys(host, ns).map(({ keyId, publisherId, origin }) => ({ keyId, publisherId, origin, blocked: ns.blocked.keyIds.includes(keyId) })), blocked: ns.blocked, network: 'declared-requests-only', ledgerEntries: ns.ledger?.length ?? 0 };
   } },
   'smallapps.pluginGet': { permission: 'read', handler(_ctx, payload, host) {
-    fields(payload, ['id'], ['id']); const item = findInstalled(readable(host), payload.id);
+    fields(payload, ['id'], ['id']); const ns = readable(host); const item = findInstalled(ns, payload.id);
     return {
-      ...summary(item), description: untrusted(item.description),
+      ...summary(item, ns), description: untrusted(item.description),
       skills: item.skills.map(skill => ({ name: skill.name, description: untrusted(skill.description), instructions: untrusted(skill.instructions), allowedTools: skill.allowedTools, grantsPermissions: false, license: skill.license, resources: skill.resources.map(resource => ({ path: resource.path, text: untrusted(resource.text) })) })),
-      tools: item.tools.map(tool => ({ name: tool.name, title: tool.title, description: untrusted(tool.description), inputSchema: tool.inputSchema, runnable: tool.code !== null && tool.sites.length === 0, code: tool.code, sites: tool.sites })),
-      data: item.data.map(entry => ({ kind: entry.kind, name: entry.name, digest: entry.digest, executes: false, checkWith: entry.kind === 'recipe' ? 'recipe-checker' : null, body: entry.body })),
+      tools: item.tools.map(tool => ({ name: tool.name, title: tool.title, description: untrusted(tool.description), inputSchema: tool.inputSchema, runnable: runnable(tool) && schemaProblems(tool.inputSchema).length === 0 && (tool.sites.length === 0 || (tool.requests?.length ?? 0) > 0), callWith: tool.requests?.length ? 'smallapps.pluginCallRemote' : tool.code ? 'smallapps.pluginCallTool' : null, takesArguments: takesArguments(tool.inputSchema), schema: schemaProblems(tool.inputSchema).length ? 'unsupported' : 'enforced', code: tool.code, sites: tool.sites, requests: (tool.requests ?? []).map(request => ({ method: request.method, site: request.site, path: untrusted(request.path), body: request.body, maxResponseBytes: request.maxResponseBytes, timeoutMs: request.timeoutMs })) })),
+      data: item.data.map(entry => ({ kind: entry.kind, name: entry.name, digest: entry.digest, executes: false, checkWith: entry.kind === 'recipe' ? 'recipe-checker' : null, check: entry.kind === 'recipe' ? structuredClone(item.recipeChecks?.[entry.name] ?? notChecked(entry.digest)) : null, body: entry.body })),
     };
   } },
   'smallapps.pluginBlock': { permission: 'admin', async handler(ctx, payload, host) {
@@ -172,9 +300,19 @@ const methods: Record<string, MethodSpec> = {
     fields(payload, ['id'], ['id']); appOnly(ctx); const item = findInstalled(readable(host), payload.id);
     const present = new Set((await host.call('plugins.list', {}) as { id: string }[]).map(plugin => plugin.id));
     for (const code of item.code) if (present.has(code.corePluginId)) await host.call('plugins.remove', { id: code.corePluginId });
-    return host.store.update(state => { const mine = writable(state); mine.installed = mine.installed.filter(entry => entry.id !== item.id); audit(state, 'smallapps.plugin.removed', { pluginId: item.id }); return { removed: true, id: item.id, code: item.code.map(code => code.corePluginId) }; });
+    return host.store.update(state => { const mine = writable(state); mine.installed = mine.installed.filter(entry => entry.id !== item.id); if (mine.grants) delete mine.grants[item.id]; audit(state, 'smallapps.plugin.removed', { pluginId: item.id }); return { removed: true, id: item.id, code: item.code.map(code => code.corePluginId) }; });
   } },
-  'smallapps.pluginCallTool': { permission: 'prepare', handler(_ctx, payload, host) { return callTool(payload, host); } },
+  'smallapps.pluginCallTool': { permission: 'prepare', handler(ctx, payload, host) { return runTool(ctx, payload, host, false); } },
+  'smallapps.pluginCallRemote': { permission: 'prepare', external: true, handler(ctx, payload, host) { return runTool(ctx, payload, host, true); } },
+  'smallapps.pluginGrant': { permission: 'admin', handler: grantDoors },
+  'smallapps.pluginCheckRecipe': { permission: 'prepare', handler: checkPluginRecipe },
+  'smallapps.pluginLedger': { permission: 'read', handler(_ctx, payload, host) {
+    fields(payload, ['pluginId', 'limit']);
+    check(payload.pluginId === undefined || typeof payload.pluginId === 'string', 'INVALID_PLUGIN_REQUEST', 'Name the plugin.');
+    check(payload.limit === undefined || (Number.isInteger(payload.limit) && payload.limit > 0 && payload.limit <= NETWORK_LIMITS.ledger), 'INVALID_PLUGIN_REQUEST', 'Use a limit of 1 to 1000.');
+    const entries = (readable(host).ledger ?? []).filter(entry => payload.pluginId === undefined || entry.pluginId === payload.pluginId);
+    return { entries: entries.slice(-(payload.limit ?? 100)).reverse(), total: entries.length, words: { en: 'Every request a plugin asked Chausar to make: site, method, sizes and status. Bodies, keys and paths are never kept; the path is a digest.', hi: 'हर अनुरोध जो किसी प्लगइन ने Chausar से करवाया: साइट, तरीका, आकार और स्थिति। बॉडी, चाबियाँ और पथ कभी नहीं रखे जाते; पथ केवल डाइजेस्ट है।' } };
+  } },
 };
 
-export const pluginWrapPart: ModulePart = { methods };
+export const pluginWrapPart: ModulePart = { methods, purge };

@@ -82,7 +82,7 @@ test('MCP wrapping keeps descriptors, maps WASM code and records named sites wit
   assert.deepEqual(remote.sites, ['tools.example.com']); assert.deepEqual(remote.tools[0].sites, ['tools.example.com']);
   const doc = buildDocument({ publisherId: 'acme', name: 'remote', version: '1.0.0', description: '', tools: remote.tools, sites: remote.sites });
   const review = reviewDocument(doc, none);
-  assert.equal(review.doors.find(d => d.door === 'site')?.status, 'not-built'); assert.equal(review.support, 'experimental');
+  assert.equal(review.doors.find(d => d.door === 'site')?.status, 'after-approval'); assert.equal(review.support, 'experimental');
   assert.throws(() => wrapMcpServer({ tools: [{ name: 'x' }] }, { code: { missing: { manifest: manifest('m'), moduleBase64: constant } } }), code('PLUGIN_MCP_INVALID'));
   const wanting = wrapMcpServer({ tools: [{ name: 'peek' }] }, { code: { peek: { manifest: manifest('peek', ['read_secret']), moduleBase64: importing } } });
   const unknown = reviewDocument(buildDocument({ publisherId: 'acme', name: 'peek', version: '1.0.0', description: '', tools: wanting.tools, code: wanting.code }), none);
@@ -127,12 +127,14 @@ test('wrap, sign, inspect, install, enable and call a WASM tool through the real
   const ran = await engine.request('smallapps.pluginCallTool', { id: installed.id, tool: 'answer' });
   assert.equal(ran.result, 42); assert.equal(ran.receipt, null); assert.equal(ran.kind, 'plugin-number'); assert.match(ran.note.en, /not from the calculator/);
   await assert.rejects(engine.request('smallapps.pluginCallTool', { id: installed.id, tool: 'describe_only' }), code('PLUGIN_TOOL_HAS_NO_CODE'));
-  await assert.rejects(engine.request('smallapps.pluginCallTool', { id: installed.id, tool: 'answer', arguments: {} }), code('INVALID_PLUGIN_REQUEST'));
+  await assert.rejects(engine.request('smallapps.pluginCallTool', { id: installed.id, tool: 'answer', arguments: { extra: 1 } }), code('PLUGIN_ARGUMENTS_INVALID'));
+  await assert.rejects(engine.request('smallapps.pluginCallTool', { id: installed.id, tool: 'answer', other: 1 }), code('INVALID_PLUGIN_REQUEST'));
 
-  // A remote MCP server: its tool needs a named site, and network is not built.
+  // A remote MCP server: its tool needs a named site but declares no request Chausar could make.
   const remote = await engine.request('smallapps.pluginWrap', { kind: 'mcpServer', publisherId: 'acme', name: 'remote', version: '1.0.0', toolsList: { tools: [{ name: 'lookup' }] }, serverInfo: { url: 'https://tools.example.com/mcp' }, sign: true });
   const remoteInstalled = await engine.request('smallapps.pluginInstall', { document: remote.document });
-  await assert.rejects(engine.request('smallapps.pluginCallTool', { id: remoteInstalled.id, tool: 'lookup' }), code('PLUGIN_NETWORK_NOT_BUILT'));
+  await assert.rejects(engine.request('smallapps.pluginCallTool', { id: remoteInstalled.id, tool: 'lookup' }), code('PLUGIN_TOOL_REQUESTS_UNDECLARED'));
+  await assert.rejects(engine.request('smallapps.pluginCallRemote', { id: remoteInstalled.id, tool: 'lookup' }), code('PLUGIN_TOOL_REQUESTS_UNDECLARED'));
 
   // An unsigned skill needs an owner to accept an unverified publisher; its instructions come back quoted.
   const skill = await engine.request('smallapps.pluginWrap', { kind: 'agentSkill', publisherId: 'someone', version: '0.1.0', skillMd, files: { 'send.py': 'import os', 'notes.md': 'Notes' } });
@@ -158,7 +160,7 @@ test('wrap, sign, inspect, install, enable and call a WASM tool through the real
   await assert.rejects(engine.request('smallapps.pluginInstall', { document: recipeDoc }), code('PLUGIN_BLOCKED'));
 
   const listed = await engine.request('smallapps.pluginList', {});
-  assert.equal(listed.installed.length, 3); assert.equal(listed.network, 'not-built');
+  assert.equal(listed.installed.length, 3); assert.equal(listed.network, 'declared-requests-only');
   assert.ok(listed.trustedKeys.some((key: any) => key.origin === 'host' && key.publisherId === 'acme'));
 
   await assert.rejects(engine.requestAs({ ...owner, sourceTainted: true }, 'smallapps.pluginRemove', { id: installed.id }), code('PLUGIN_TAINTED_CONTEXT'));
