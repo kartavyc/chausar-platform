@@ -93,14 +93,14 @@ function lessonExpired(record: LessonRecord, cutoff: number) {
 
 export type PrivateStatePurge = { sourceIds?: Iterable<string>; removedIds?: Iterable<string>; expiredFactIds?: Iterable<string>; cutoff?: number; at: string };
 /** Remove complete immutable derivatives in the caller's existing transaction, never redact/reseal their records. */
-export type PrivateStatePurgeHook = (state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; at: string }) => number;
+export type PrivateStatePurgeHook = (state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; at: string; cutoff?: number }) => number;
 const purgeHooks = new Set<PrivateStatePurgeHook>();
 /** Engine modules register their namespace purge here (late-bound to avoid import cycles). */
 export function registerPrivateStatePurgeHook(hook: PrivateStatePurgeHook): void { purgeHooks.add(hook); }
 export function purgePrivateState(state: State, reason: PrivateStatePurge): number {
   const sourceIds = [...(reason.sourceIds ?? [])], removedIds = new Set(reason.removedIds ?? []);
   let removed = purgeCorePrivateState(state, { ...reason, sourceIds, removedIds });
-  for (const hook of purgeHooks) removed += hook(state, { sourceIds, removedIds, at: reason.at });
+  for (const hook of purgeHooks) removed += hook(state, { sourceIds, removedIds, at: reason.at, ...(reason.cutoff === undefined ? {} : { cutoff: reason.cutoff }) });
   return removed;
 }
 function purgeCorePrivateState(state: State, reason: PrivateStatePurge): number {

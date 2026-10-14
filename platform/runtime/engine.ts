@@ -2093,7 +2093,7 @@ export class Engine {
     if (this.#closing || this.#transition || !this.vault || !this.vault.read().policy.autonomy || !host.awake || (!host.windowOpen && !host.backgroundEnabled)) return [];
     this.#activeRequests++;
     try {
-    const due = this.vault.read().jobs.filter((job: Job) => !job.plan && (host.windowOpen || job.background === true) && ((['scheduled', 'approval-blocked'].includes(job.status) && Date.parse(job.nextRunAt) <= this.services.jobs.clock()) || (job.status === 'running' && job.lease && Date.parse(job.lease.expiresAt) <= this.services.jobs.clock())));
+    const due = this.vault.read().jobs.filter((job: Job) => !job.plan && !engineModules.some(engineModule => engineModule.ownsJob?.(job)) && (host.windowOpen || job.background === true) && ((['scheduled', 'approval-blocked'].includes(job.status) && Date.parse(job.nextRunAt) <= this.services.jobs.clock()) || (job.status === 'running' && job.lease && Date.parse(job.lease.expiresAt) <= this.services.jobs.clock())));
     const results = [];
     for (const job of due) { try { results.push(await this.runJob(job.id)); } catch (error) { results.push({ id: job.id, error: (error as Error).message }); } }
     if (this.services.jobRunner) for (const member of this.vault.read().members.filter(member => member.active && ['owner', 'cofounder'].includes(member.role))) {
