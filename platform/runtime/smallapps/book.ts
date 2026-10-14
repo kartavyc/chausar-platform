@@ -14,10 +14,16 @@ export type Version = { version: number; at: string; by: string; who: string; wh
 export type Entry = { id: string; book: 'follow-up'; createdAt: string; createdBy: string; versions: Version[] };
 export const MAX_ENTRIES = 2000, MAX_VERSIONS = 200;
 
-/** Person-written text. It is kept as data and never read as an instruction. */
-export function personText(value: unknown, max: number, field: string, allowEmpty = false): string {
-  check(typeof value === 'string' && value.length <= max && (allowEmpty || value.trim().length > 0) && !/[\p{Cc}\p{Cf}]/u.test(value.replace(/[\n\t]/g, ' ')),
-    'SMALLAPP_RECORD_INVALID', `Give ${field} as plain text.`);
+/** Markup and script links: refused in stored person text so no screen can ever be handed a tag to render. */
+const MARKUP = /<\s*[A-Za-z!/?]|&#|&[a-z]+;|\b(?:javascript|vbscript|data)\s*:/i;
+/**
+ * Person-written text. It is kept as data and never read as an instruction. Numbers a person
+ * writes ("promised to pay 400") are their own record, so the small-app number guard does not apply.
+ */
+export function personText(value: unknown, max: number, field: string, allowEmpty = false, code = 'SMALLAPP_RECORD_INVALID'): string {
+  check(typeof value === 'string' && value.length <= max && (allowEmpty || value.trim().length > 0) && !/[\p{Cc}\p{Cf}\p{Co}\p{Cs}\p{Zl}\p{Zp}]/u.test(value.replace(/[\n\t]/g, ' ')),
+    code, `Give ${field} as plain text.`);
+  check(!MARKUP.test(value.normalize('NFKC')), code, `Give ${field} as plain text, without markup or script links.`);
   return value.trim();
 }
 export function whenDay(value: unknown): string { check(validDay(value), 'SMALLAPP_RECORD_INVALID', 'Give the follow-up date as a calendar day.'); return value; }

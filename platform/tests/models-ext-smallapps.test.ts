@@ -9,14 +9,15 @@ import { compileDictionary, starterPacks } from '../runtime/ontology.ts';
 import { checkAgainstMenu, parseDescriptor, resolvePeriod, staleness, type Menu } from '../runtime/smallapps/descriptor.ts';
 import { plan } from '../runtime/smallapps/planner.ts';
 import { smallAppsPart } from '../runtime/smallapps/methods.ts';
+import { coreRows } from '../runtime/smallapps/catalogue-adapter.ts';
 import { moduleState } from '../runtime/modules/types.ts';
 
 const passphrase = 'correct horse battery staple 42';
 const onDate = '2026-10-14';
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected); return true; };
 const dictionary = compileDictionary(structuredClone(starterPacks.find(p => p.pack === 'ecommerce')!));
-const catalogue = [{ id: 'local', operations: [{ id: 'reminder-draft', title: 'Create a payment reminder draft' }] }];
-const menu: Menu = { dictionary, catalogue };
+const actions = coreRows([{ id: 'local', title: 'Chausar local workspace', operations: [{ id: 'reminder-draft', title: 'Create a payment reminder draft', impact: 'reversible' }] }]).rows;
+const menu: Menu = { dictionary, actions, branches: ['main', 'west'] };
 
 async function demoShop(t: any) {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-mx-'));
@@ -52,7 +53,8 @@ test('an instruction hidden in the request line changes nothing', () => {
   // "profit" is a menu word and is honoured as a calculation; nothing else in the instruction is.
   const shape = (cards: any[]) => cards.map(({ id: _id, ...rest }) => rest);
   assert.deepEqual(shape(attacked.descriptor!.cards.filter(c => !(c.kind === 'metric' && c.operation === 'margin'))), shape(plain.descriptor!.cards));
-  assert.ok(!JSON.stringify(attacked.descriptor).match(/approve|script|https|50/i));
+  // The dictionary hash is left out: it is hex and may contain any digits.
+  assert.ok(!JSON.stringify({ ...attacked.descriptor, dictionary: null }).match(/approve|script|https|50/i));
   assert.ok(attacked.descriptor!.cards.every(c => !Object.keys(c).some(k => /approv|auto|execute/i.test(k))));
 });
 
@@ -86,7 +88,7 @@ test('period presets resolve to exact calendar days', () => {
   assert.equal(resolvePeriod({ preset: 'all-time' }, '2026-10-14'), undefined);
   const changed = compileDictionary(structuredClone(starterPacks.find(p => p.pack === 'retail')!), 2);
   const app = plan('sales this month', menu, ['*']).descriptor!;
-  assert.deepEqual(staleness(app, { dictionary: changed, catalogue }), ['The business dictionary changed since this app was built.']);
+  assert.deepEqual(staleness(app, { dictionary: changed, actions, branches: [] }), ['The business dictionary changed since this app was built.']);
 });
 
 test('pass: a viewer line becomes a running small app on the demo shop, its uses are shown and a number opens its receipt', async t => {
@@ -118,7 +120,10 @@ test('pass: a viewer line becomes a running small app on the demo shop, its uses
 
 test('figures follow the caller permissions, and missing figures are words not zero', async t => {
   const engine = await demoShop(t);
-  const proposed = await engine.request('smallapps.propose', { line: 'sales today and sales for west last month' });
+  // An owner (all branches) naming a branch that exists in the records scopes the plan to it.
+  const scoped = await engine.request('smallapps.propose', { line: 'sales for west last month' });
+  assert.equal(scoped.understood.branch, 'west'); assert.equal(scoped.descriptor.cards[0].branch, 'west');
+  const proposed = await engine.request('smallapps.propose', { line: 'sales today' });
   const descriptor = { ...proposed.descriptor };
   descriptor.cards = [proposed.descriptor.cards[0], { id: 'card-z', kind: 'metric', label: 'West sales', operation: 'revenue', period: { preset: 'last-month' }, branch: 'west' }];
   const app = await engine.request('smallapps.create', { descriptor });

@@ -6,6 +6,7 @@
 import { check } from '../contracts.ts';
 import type { Dictionary, Operation } from '../ontology.ts';
 import type { Period } from '../memory.ts';
+import type { ActionRow } from './catalogue-adapter.ts';
 
 export const SCHEMA = 'chausar.smallapp.v1';
 export const BOOKS = ['follow-up'] as const;
@@ -21,11 +22,10 @@ export type RecordsCard = { id: string; kind: 'records'; label: string; book: ty
 export type Card = CalcCard | ActionCard | RecordsCard;
 export type Uses = { calculations: string[]; actions: string[]; books: string[] };
 export type Descriptor = { schema: typeof SCHEMA; title: string; cards: Card[]; uses: Uses; dictionary: { version: number; hash: string } };
-/** What the app may use: the published dictionary and the written action catalogue, as the caller sees them. */
-export type Menu = { dictionary: Dictionary | null; catalogue: { id: string; operations: { id: string; title?: string }[] }[] };
+/** What the app may use: the published dictionary, the write catalogue rows and the workspace's branches, as the caller sees them. */
+export type Menu = { dictionary: Dictionary | null; actions: ActionRow[]; branches: string[] };
 
 const CALC_TYPES = new Set<Operation['type']>(['sum', 'margin', 'aging']);
-const NUMBER_WORDS = /\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|lakh|lakhs|crore|crores|hazaar|hazar)\b/i;
 const CODE_LIKE = /[<>{}`\\$=;|]|:\/\/|\bwww\.|\b(?:javascript|data|vbscript|file|blob)\s*:|\bon[a-z]+\s*\(|\bfunction\b|=>|\beval\b|\bimport\b|\brequire\b|\bscript\b|\biframe\b/i;
 
 function record(value: unknown, required: string[], optional: string[] = []): Record<string, any> {
@@ -43,12 +43,42 @@ function list(value: unknown, max: number): unknown[] {
     'SMALLAPP_INVALID', 'Small app lists are short plain lists.');
   return value;
 }
-/** Words a model may have written: short, no code, markup or links, and no number at all (the number guard). */
+const fold = (text: string) => text.normalize('NFKC').toLowerCase();
+const set = (...lists: string[]) => new Set(lists.join(' ').split(' ').map(fold));
+/** Number words a label may not carry: English, romanised Hindi and Devanagari. "do" and "saath" are left out (also "do" and "with"). */
+const NUMBER_WORDS = set(
+  'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty thirty forty fourty fifty sixty seventy eighty ninety',
+  'hundred hundreds thousand thousands million millions billion billions trillion dozen dozens half lakh lakhs lac lacs crore crores',
+  'ek teen chaar char paanch panch chhe chhah chheh saat aath nau das dus gyarah barah baarah terah chaudah pandrah solah satrah atharah unnees bees pachees pachchis tees chalis chaalis pachas pachaas sattar assi nabbe sau hazaar hazar hajar laakh karod karor arab kharab dedh dhai adhai sava paune',
+  'शून्य एक दो तीन चार पांच पाँच छह छः सात आठ नौ दस ग्यारह बारह बीस पच्चीस तीस चालीस पचास साठ सत्तर अस्सी नब्बे सौ हज़ार हजार लाख करोड़ करोड अरब खरब डेढ़ ढाई सवा पौने');
+/** Long English number words also caught when letters are run together or spaced out ("t w e n t y"). */
+const JOINED = [...NUMBER_WORDS].filter(w => /^[a-z]{6,}$/.test(w) && !['dozens'].includes(w));
+const ROMAN = /^(?=[MDCLXVI]{2,}$)M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/;
+/** Words that read as orders to the system or claims about approval. A label describes; it never instructs. */
+const INSTRUCTION_WORDS = set('ignore disregard override bypass jailbreak system assistant prompt prompts instruction instructions approve approved approval approvals autoapprove',
+  'automatic automatically auto execute executed executing skip unlock sudo admin manzoor manjoor अनदेखा मंजूर मंज़ूर');
+/** One script per word, and only Latin or Devanagari: look-alike letters from other scripts cannot spell around the guards. */
+const scriptOf = (ch: string) => /\p{Script=Latin}/u.test(ch) ? 'latin' : /\p{Script=Devanagari}/u.test(ch) ? 'devanagari' : /\p{M}/u.test(ch) ? 'mark' : 'other';
+
+/**
+ * Words a model may have written: short, no code, markup, links or symbols, and no number at all (the
+ * number guard). The guards read the NFKC form, so full-width and other compatibility forms of digits
+ * and letters are caught; every Unicode digit (Devanagari, Arabic-Indic, full-width, superscript,
+ * circled, Roman numeral characters) is a number. Values a person types into an action are data and
+ * do not pass through here.
+ */
 export function words(value: unknown, max = 80): string {
-  check(typeof value === 'string' && value.trim().length > 0 && value.length <= max && !/[\p{Cc}\p{Cf}]/u.test(value),
+  check(typeof value === 'string' && value.trim().length > 0 && value.length <= max && !/[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\p{Zl}\p{Zp}]/u.test(value),
     'SMALLAPP_INVALID', 'Titles and labels are short plain words.');
-  check(!CODE_LIKE.test(value), 'SMALLAPP_CODE_REFUSED', 'Small apps hold words and published references only; code, markup, links and scripts are refused.');
-  check(!/\p{N}/u.test(value) && !NUMBER_WORDS.test(value), 'UNGROUNDED_NUMBER', 'Numbers in a small app come only from calculation receipts.');
+  const nfkc = value.normalize('NFKC'), folded = nfkc.toLowerCase();
+  check(!CODE_LIKE.test(nfkc), 'SMALLAPP_CODE_REFUSED', 'Small apps hold words and published references only; code, markup, links and scripts are refused.');
+  const tokens = nfkc.split(/[^\p{L}\p{M}]+/u).filter(Boolean);
+  const numberWord = tokens.some(t => NUMBER_WORDS.has(t.toLowerCase()) || ROMAN.test(t)) || JOINED.some(w => folded.replace(/[^a-z]+/g, '').includes(w));
+  check(!/\p{N}/u.test(nfkc) && !numberWord, 'UNGROUNDED_NUMBER', 'Numbers in a small app come only from calculation receipts.');
+  check(!/\p{S}/u.test(nfkc), 'SMALLAPP_CODE_REFUSED', 'Titles and labels are words only; symbols are refused.');
+  check(tokens.every(t => { const scripts = new Set([...t].map(scriptOf).filter(s => s !== 'mark')); return scripts.size === 1 && !scripts.has('other'); }),
+    'SMALLAPP_INVALID', 'Write titles and labels in English or Hindi letters, one script per word.');
+  check(!tokens.some(t => INSTRUCTION_WORDS.has(t.toLowerCase())), 'SMALLAPP_INSTRUCTION_REFUSED', 'Titles and labels describe; they cannot carry instructions or claim an approval.');
   return value.trim();
 }
 const ident = (value: unknown, pattern: RegExp) => { check(typeof value === 'string' && pattern.test(value), 'SMALLAPP_INVALID', 'Use a published identifier.'); return value; };
@@ -65,7 +95,7 @@ function periodSpec(value: unknown): PeriodSpec {
 function card(value: unknown): Card {
   const kind = record(value, ['kind'], ['id', 'label', 'operation', 'period', 'comparePeriod', 'branch', 'rows', 'connector', 'book']).kind;
   const branchOf = (input: Record<string, any>) => 'branch' in input ? { branch: ident(input.branch, /^[A-Za-z0-9_.:-]{1,64}$/) } : {};
-  const id = (input: Record<string, any>) => ident(input.id, /^[a-z][a-z0-9-]{0,31}$/);
+  const id = (input: Record<string, any>) => ident(input.id, /^[a-z][a-z-]{0,31}$/);
   if (kind === 'metric') {
     const input = record(value, ['id', 'kind', 'label', 'operation', 'period'], ['branch']);
     return { id: id(input), kind, label: words(input.label), operation: ident(input.operation, /^[a-z][a-z0-9_]{0,63}$/), period: periodSpec(input.period), ...branchOf(input) };
@@ -120,14 +150,14 @@ export function staleness(descriptor: Descriptor, menu: Menu): string[] {
   if (!menu.dictionary) return ['No business dictionary is published.'];
   if (menu.dictionary.hash !== descriptor.dictionary.hash || menu.dictionary.version !== descriptor.dictionary.version) reasons.push('The business dictionary changed since this app was built.');
   for (const id of descriptor.uses.calculations) if (!usableOperation(menu.dictionary, id)) reasons.push('A calculation this app uses is no longer published.');
-  for (const ref of descriptor.uses.actions) if (!catalogued(menu, ref)) reasons.push('An action this app uses is no longer in the approved catalogue.');
+  for (const ref of descriptor.uses.actions) if (!actionRow(menu, ref)) reasons.push('An action this app uses is no longer in the approved catalogue.');
   return [...new Set(reasons)];
 }
 export function usableOperation(dictionary: Dictionary, id: string): Operation | undefined {
   const operation = dictionary.operations.find(o => o.id === id);
   return operation && CALC_TYPES.has(operation.type) && operation.parameters.includes('period') ? operation : undefined;
 }
-function catalogued(menu: Menu, ref: string) { const [connector, operation] = ref.split('/'); return menu.catalogue.some(c => c.id === connector && c.operations.some(o => o.id === operation)); }
+export const actionRow = (menu: Menu, ref: string): ActionRow | undefined => menu.actions.find(r => r.key === ref);
 
 /** The one checker for planner output and externally proposed descriptors. */
 export function checkAgainstMenu(descriptor: Descriptor, menu: Menu, branches: readonly string[]): Descriptor {
@@ -136,9 +166,15 @@ export function checkAgainstMenu(descriptor: Descriptor, menu: Menu, branches: r
     check(menu.dictionary.operations.some(o => o.id === id), 'SMALLAPP_UNKNOWN_OPERATION', 'A small app can use only calculations from the published menu.');
     check(usableOperation(menu.dictionary, id), 'SMALLAPP_OPERATION_UNSUPPORTED', 'Comparisons over assumptions and what-ifs are not small app calculations.');
   }
-  for (const ref of descriptor.uses.actions) check(catalogued(menu, ref), 'SMALLAPP_UNKNOWN_ACTION', 'A small app can prepare only actions from the approved catalogue.');
-  for (const c of descriptor.cards) if ('branch' in c && c.branch !== undefined)
+  for (const ref of descriptor.uses.actions) {
+    const row = actionRow(menu, ref);
+    check(row, 'SMALLAPP_UNKNOWN_ACTION', 'A small app can prepare only actions from the approved catalogue.');
+    check(row.available, 'SMALLAPP_ACTION_UNAVAILABLE', 'This action is in the catalogue but not available now, so it cannot go on a card.');
+  }
+  for (const c of descriptor.cards) if ('branch' in c && c.branch !== undefined) {
     check(branches.includes('*') || branches.includes(c.branch), 'FORBIDDEN_BRANCH', 'This branch is outside your current access.');
+    check(menu.branches.includes(c.branch), 'SMALLAPP_UNKNOWN_BRANCH', 'Use a branch that exists in your records.');
+  }
   check(staleness(descriptor, menu).length === 0, 'SMALLAPP_OUT_OF_DATE', 'This small app was built against another dictionary. Propose or rebuild it against the current one.');
   return descriptor;
 }
