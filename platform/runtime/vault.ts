@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, hkdfSync, randomBytes, randomUUID, scrypt } from 'node:crypto';
+import { createCipheriv, createDecipheriv, hkdfSync, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { constants } from 'node:fs';
 import { open, readFile, mkdir, lstat, realpath, rename, unlink, link, readdir, rmdir } from 'node:fs/promises';
 import { dirname, basename, isAbsolute, parse, resolve, join } from 'node:path';
@@ -730,7 +730,7 @@ export class Vault implements StateStore {
   async verifyPassphrase(secret: string): Promise<boolean> {
     this.#ready();
     if (typeof secret !== 'string' || secret.length < 1 || secret.length > 1024) return false;
-    try { const key = await unwrap(secret, this.#envelope.passphrase, this.#envelope.id, 'passphrase'); try { return key.equals(this.#key); } finally { key.fill(0); } }
+    try { const key = await unwrap(secret, this.#envelope.passphrase, this.#envelope.id, 'passphrase'); try { return key.length === this.#key.length && timingSafeEqual(key, this.#key); } finally { key.fill(0); } }
     catch { return false; }
   }
   /** Fresh identity metadata for trusted custody checks, without cloning State. */
