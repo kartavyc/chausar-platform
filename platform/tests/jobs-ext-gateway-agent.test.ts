@@ -121,3 +121,27 @@ test('the installed app (not demo) wires the live gateway agent over the first e
   assert.equal(agentOf({ ...host, demo: true }, owner), undefined, 'demo never reaches a live provider');
   assert.equal(agentOf({ ...host, services: { ...host.services, gateway: { listRoutes: () => [] } } }, owner), undefined, 'no enabled route, no agent');
 });
+
+test('a stale model preview is never reused or charged: new facts make a fresh preview that waits for a fresh approval', async t => {
+  const calls: HttpRequest[] = [];
+  const http = async (request: HttpRequest) => { calls.push(request); return { status: 200, endpoint: request.endpoint, body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ operation: 'aging', period: null, branch: null, customerId: null, clarification: null }) }, finish_reason: 'stop' }] }) }; };
+  const late = lateAgent();
+  const { ui, engine, clock, store } = await fixture(t, { modules: { agent: late.port } });
+  const gateway = new ModelGateway(store, { demo: false, http });
+  await ui('trust.update', { autonomy: true, send: 'shape' });
+  await gateway.configureRoute(owner, { id: 'route-api', kind: 'openai-compatible', model: 'synthetic-model', endpoint: 'https://provider.synthetic.invalid/v1/chat/completions', maxCostMinor: '300' }, 'synthetic-api-key');
+  late.set(new GatewayAgent({ gateway, routeId: 'route-api', calculate: (ctx, request) => (engine as any).services.calculator.calculate(ctx, request), clock: () => clock.now, synthetic: true }));
+  await ui('jobsx.consent.record', { customerId: 'cust-b', channel: 'mail', agreed: true, source: 'Synthetic signed form' });
+  const { job } = await startReceivables(ui, { testedRoutes: ['route-api'] });
+  await engine.tick();
+  const first = (await ui('jobsx.timeline', { id: job.id })).find((l: any) => l.code === 'AGENT_APPROVAL_REQUIRED').modelPreviewId;
+  // New facts arrive in the job's source, then the owner approves the old preview.
+  await ui('sources.import', { ...(await import('./jobs-ext-fixture.ts')).csv([{ id: 'inv-z', kind: 'invoice', date: '2026-09-01', amount: '10.00', customer: 'cust-z', invoice: 'INV-Z', due: '2026-09-10' }]) });
+  await gateway.approveOutbound(owner, first);
+  clock.now += DAY; await engine.tick();
+  assert.equal(calls.length, 0, 'nothing stale is sent');
+  assert.equal((await ui('jobsx.budget', { id: job.id })).spentMinor, '0', 'nothing unsent is charged');
+  const previews = (await ui('jobsx.timeline', { id: job.id })).filter((l: any) => l.code === 'AGENT_APPROVAL_REQUIRED').map((l: any) => l.modelPreviewId);
+  assert.ok(previews.some((id: string) => id !== first), 'a fresh preview waits for a fresh approval');
+  assert.notEqual((await ui('jobsx.get', { id: job.id })).state, 'set-aside');
+});

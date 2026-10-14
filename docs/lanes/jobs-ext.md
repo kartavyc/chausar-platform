@@ -85,6 +85,8 @@ Every ready-made job can be exported in the Agent Skills folder format (`jobsx.t
     3. The gateway sends it once and keeps its model receipt. One approval covers one send.
     4. Software runs the calculation the model chose and keeps its receipt.
     5. The case comes to you with that receipt. The decision stays with a person.
+  - A preview is reused only while its facts, privacy settings and route revision are unchanged; otherwise a fresh preview waits for a fresh approval.
+  - A call is charged only when its model receipt shows it left the machine. A measured cost above the step's reservation is charged up to the reservation and the rest is stated on the time line (`COST_ABOVE_RESERVATION`).
   - The live call's cost is the gateway's measured cost at the route's token rates, or the route's reserved per-call estimate. It is reserved against the job step before the call and charged after; a local model is zero.
   - Agent text is quoted and never obeyed. A note with figures is withheld by the number guard.
   - Anything an agent touched is prepared as read-from-outside, so the autonomy switch never runs it.
@@ -102,9 +104,9 @@ Every ready-made job can be exported in the Agent Skills folder format (`jobsx.t
   - A kind can be switched on only if it is reversible and its name contains no always-waits word.
   - Outside the workspace's own local connector, a kind also needs the writeback catalogue to say explicitly that it can be undone and need not wait. An unknown or renamed connector has no switch.
   - The tick auto-approves and executes only actions that meet every one of these:
-    - prepared by one of this lane's jobs; work prepared by hand, by a plugin, a small app or an assistant always waits;
+    - prepared by one of this lane's jobs, and exactly as the job recorded it: its private per-job key, its invoice and the job owner as author. Work prepared by hand, by a plugin, a small app or an assistant always waits;
     - untainted and never revised;
-    - of a kind that is switched on, within the daily limit;
+    - of a kind that is switched on, within the daily limit, which is checked and recorded in the same transaction so overlapping ticks cannot exceed it;
     - while the master switch is on.
   - A procedure's action steps describe what a person may approve; the executor never runs them. It only prepares reminders through its own code path.
 - **Access.** Every read and change checks that the caller is the job's pinned owner and can still read all of the job's sources, the same rule `JobService.list` uses. Procedure runs follow the same rule.
@@ -184,5 +186,8 @@ A missing method is treated as "not built", and the lane falls back to:
 - **Real sending.** Reminders are sent only once writeback is merged, which gives them its approval, read-back and unknown-state handling.
 - **Always-on jobs and the home box.** These are paid or experimental, and are only described.
 - **The OS wake timer and the background service install.** These belong to the release lane.
+- **Two core suggestions from the autonomy review (not made, core files):**
+  - `ModuleHost.call` runs as the module's caller, so an agent-touched reminder sent to `writeback.prepare` carries its outside-text mark only as a payload field (`sourceTainted: true`). Writeback must honour it, or the host could let a module add the taint mark to the call's context.
+  - `ModelGateway.approveOutbound` refuses the phone channel but not a context marked as read-from-outside. Every other approval refuses it.
 - **A live agent that decides.** The live gateway agent only looks up; it cannot choose remind, wait or stop, because the gateway accepts calculation plans only. A deciding live route would need a new gateway purpose (core). Procedures are therefore learned from synthetic-agent runs in tests.
 - **A stock calculation.** The calculator and dictionary measure money only (every definition binds a money field). Stock on hand would be a quantity measure, which is a new calculation kind in core `ontology.ts` and `calculator.ts`, not an additive registration. So `stock-check` keeps its refusal.

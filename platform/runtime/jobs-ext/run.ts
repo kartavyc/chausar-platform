@@ -74,6 +74,9 @@ type StepWork = {
 /** A case's identifier: the invoice and customer references, or their digest when that would be too long. */
 export const caseIdOf = (invoiceId: string, customerId: string) => { const id = `${invoiceId}:${customerId}`; return id.length <= 120 ? id : `case-${digest([invoiceId, customerId]).slice(0, 32)}`; };
 
+/** A job's reminder key carries a private per-job nonce, so no other preparation can claim a job's action by guessing it. */
+export const reminderKey = (meta: LaneJob, jobId: string, invoiceId: string, day: string) => `jobsx-${jobId}-${meta.keyNonce ?? 'legacy'}-${invoiceId}-${day}`.slice(0, 200);
+
 /** Each calculation and decision appears once in a trace, whoever reported it. */
 function addStep(trace: TraceStep[], step: TraceStep) { if (step.kind === 'action' || !trace.some(t => t.tool === step.tool)) trace.push(step); }
 
@@ -112,14 +115,21 @@ async function askAgent(host: ModuleHost, meter: Meter, job: Job, item: WorkCase
   try { answer = await Promise.race([agent.decide(structuredClone(item), options, controller.signal, meter.ctx), timeout]); }
   catch (error) {
     const code = (error as { code?: string }).code ?? '';
+    // A request that left the machine is charged its reservation, whatever the error; one that did not is not.
+    // An agent that cannot say (a synthetic one) is charged, since its use is unknown.
+    const dispatched = (error as { dispatched?: unknown }).dispatched;
+    if (dispatched === true || (dispatched === undefined && code !== 'AGENT_APPROVAL_REQUIRED' && !AGENT_UNAVAILABLE.has(code))) await meter.charge(ceiling > meter.remaining() ? meter.remaining() : ceiling);
     if (code === 'AGENT_APPROVAL_REQUIRED') return { kind: 'approval' as const, previewId: String((error as { previewId?: unknown }).previewId ?? ''), routeId: agent.routeId };
     if (AGENT_UNAVAILABLE.has(code)) return { kind: 'none' as const };
-    await meter.charge(ceiling); throw error;
+    throw error;
   }
   finally { clearTimeout(timer); }
   const units = Number.isSafeInteger(answer?.units) && answer.units >= 0 && answer.units <= limit ? answer.units : limit;
   const reported = typeof answer?.costMinor === 'string' && /^(0|[1-9]\d{0,17})$/.test(answer.costMinor) ? BigInt(answer.costMinor) : undefined;
-  const cost = selfPriced ? (reported ?? ceiling) : costOf(price, units); await meter.charge(cost);
+  const cost = selfPriced ? (reported ?? ceiling) : costOf(price, units); const left = meter.remaining();
+  // A measured cost above the reservation is charged up to what is left and the rest is said, never dropped silently.
+  await meter.charge(cost > left ? left : cost);
+  if (cost > left) await host.store.update(state => pushTimeline(lane(state), entry(job.id, 0, nowIso(host), { kind: 'budget', routeId: agent.routeId, costMinor: String(cost - left), text: `The model call cost ${rupees(cost - left)} more than this step had reserved. The route’s own budget counted it in full.`, code: 'COST_ABOVE_RESERVATION' })));
   const decision = options.includes(answer?.decision) ? answer.decision : undefined;
   const confidence = typeof answer?.confidence === 'number' && answer.confidence >= 0 && answer.confidence <= 1 ? answer.confidence : 0;
   const steps: TraceStep[] = (Array.isArray(answer?.steps) ? answer.steps : []).slice(0, 50).filter((step: any) => step && ['calculate', 'question', 'action', 'lookup', 'person'].includes(step.kind) && typeof step.tool === 'string' && /^[a-z][a-z0-9_.-]{0,80}$/.test(step.tool))
@@ -200,7 +210,7 @@ async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: L
       else if (sent.filter(r => r.day === today && r.customerId === item.customerId).length >= settings.reminderPerCustomerPerDay) { outcome.status = 'blocked'; outcome.reason = 'customer-cap'; }
       else {
         // Anything an agent touched is marked as read from outside: its send always waits for a person.
-        const prepared = await prepareReminder(host, tainted ? { ...ctx, sourceTainted: true } : ctx, { invoiceId: item.invoiceId, customerId: item.customerId, text: reminderText(item.invoiceId), channel: 'mail', idempotencyKey: `jobsx-${job.id}-${item.invoiceId}-${today}`, sourceIds: [item.sourceId] });
+        const prepared = await prepareReminder(host, tainted ? { ...ctx, sourceTainted: true } : ctx, { invoiceId: item.invoiceId, customerId: item.customerId, text: reminderText(item.invoiceId), channel: 'mail', idempotencyKey: reminderKey(meta, job.id, item.invoiceId, today), sourceIds: [item.sourceId] });
         outcome.actionIds = [...new Set([...outcome.actionIds, prepared.actionId])]; outcome.reason = prepared.via;
         addStep(trace, { kind: 'question', tool: 'question.decision', outcome: 'ok', durationMs: 0, units: 0 }); trace.push({ kind: 'action', tool: prepared.via === 'writeback' ? 'action.writeback.payment-reminder' : 'action.local.reminder-draft', outcome: 'ok', durationMs: 0, units: 0 });
         lines.push(entry(job.id, run, at, { kind: 'step', stepKind: 'action', needsModel: false, text: prepared.via === 'writeback' ? 'Prepared a reminder. It waits for your yes before it is sent.' : 'Prepared a reminder draft. Nothing is sent from a draft.', recordIds: [item.factId], actionIds: [prepared.actionId], receiptIds: [receipt.id], caseId }));
@@ -225,7 +235,7 @@ async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: L
       }
       if (outcome.status === 'blocked') lines.push(entry(job.id, run, at, { kind: 'stopped-by-rule', text: { 'no-agreement': 'No reminder: this customer has not agreed to reminders by mail.', 'stopped-by-customer': 'No reminder: the customer replied with the stop word.', 'daily-cap': 'The daily cap for reminders is reached. The rest wait until tomorrow.', 'customer-cap': 'This customer already has a reminder today.' }[outcome.reason as string] ?? 'Stopped by a rule.', code: (outcome.reason ?? 'rule').toUpperCase().replace(/-/g, '_'), recordIds: [item.factId], caseId }));
       for (const line of lines) pushTimeline(ns, line);
-      for (const id of outcome.actionIds.filter(a => !(prior?.actionIds ?? []).includes(a))) { ns.reminders.push({ customerId: item.customerId, invoiceId: item.invoiceId, day: today, actionId: id, jobId: job.id }); bound(ns.reminders, 5000); }
+      for (const id of outcome.actionIds.filter(a => !(prior?.actionIds ?? []).includes(a))) { ns.reminders.push({ customerId: item.customerId, invoiceId: item.invoiceId, day: today, actionId: id, jobId: job.id, key: reminderKey(meta, job.id, item.invoiceId, today), ownerId: job.ownerId }); bound(ns.reminders, 5000); }
       recordRun(state, ctx, { at, jobId: job.id, template: meta.template, caseId, route: traceRoute, ...(proc && traceRoute === 'procedure' ? { procedureId: proc.id } : {}), ...(routeId ? { routeId } : {}),
         ...(decision ? { decision } : {}), confidence, features: fields, steps: trace, costMinor: String(agentCost), latencyMs, outcome: outcome.status === 'waiting-for-you' ? 'waiting' : outcome.status === 'blocked' ? 'refused' : 'ok', ...(note ? { note } : {}), sourceIds: [item.sourceId] } as any);
     });

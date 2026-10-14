@@ -18,7 +18,8 @@ export type AutoResult = { actionId: string; kind: string; status: string } | { 
 /** Words that put a kind on the always-waits list, matched on the kind split by `.`, `-` and `_`. */
 export const ALWAYS_WAITS_WORDS: readonly string[] = Object.freeze(['price', 'prices', 'stock', 'inventory', 'listing', 'listings', 'share', 'sharing',
   'invite', 'webhook', 'tax', 'filing', 'delete', 'remove', 'refund', 'payment', 'pay', 'payout', 'transfer', 'message', 'send', 'email', 'mail',
-  'whatsapp', 'sms', 'telegram']);
+  'whatsapp', 'sms', 'telegram', 'list', 'pricing', 'publish', 'unlist', 'unpublish', 'archive', 'purge', 'erase', 'void', 'cancel', 'charge', 'grant', 'access', 'member',
+  'permission', 'notify', 'notification', 'post', 'reply', 'qty', 'quantity', 'submit', 'shared', 'link', 'invoice', 'gstr', 'return', 'file', 'upload', 'export', 'sync', 'order', 'payroll', 'salary', 'wire', 'debit', 'credit']);
 /** Word pairs that put a kind on the list when both appear (a product's status, a GST file). */
 export const ALWAYS_WAITS_PAIRS: readonly (readonly [string, string])[] = Object.freeze([['product', 'status'], ['products', 'status'], ['gst', 'file']] as const);
 export const ALWAYS_WAITS = Object.freeze({
@@ -31,9 +32,13 @@ const ROUTINE = /draft|match|reconcile|note|label|tag|sheet/;
 const IMPACTS = new Set<Impact>(['reversible', 'message', 'money', 'destructive']);
 const PART = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 
-export const words = (kind: string) => kind.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase().split(/[._-]+/).filter(Boolean);
+export const words = (kind: string) => kind.replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2').replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+/** A word and its plain stems (invites, deleting, removed, payouts), so a plural or tense never escapes the list. */
+const stems = (word: string) => [word, word.replace(/s$/, ''), word.replace(/es$/, ''), word.replace(/ing$/, ''), word.replace(/ing$/, 'e'), word.replace(/ed$/, ''), word.replace(/d$/, '')];
 export function alwaysWaits(kind: string): boolean {
-  const parts = new Set(words(kind));
+  // Anything outside plain lowercase ASCII names is treated as unknown, and so always waits.
+  if (!/^[\x20-\x7e]+$/.test(kind)) return true;
+  const parts = new Set(words(kind).flatMap(stems));
   return ALWAYS_WAITS_WORDS.some(word => parts.has(word)) || ALWAYS_WAITS_PAIRS.some(([a, b]) => parts.has(a) && parts.has(b));
 }
 export const switchable = (kind: string, impact: Impact, rowAlwaysWaits = false) => impact === 'reversible' && !rowAlwaysWaits && !alwaysWaits(kind);
@@ -92,24 +97,29 @@ export async function autoRun(ctx: Context, host: ModuleHost): Promise<AutoResul
   if (!Object.values(switches).some(entry => entry.on)) return [];
   const table = await kindTable(ctx, host); const tainted = taintedActions(state); const day = today(host);
   const visible = new Set((host.services.actions.list(ctx) as PreparedAction[]).map(action => action.id));
-  const used = new Map<string, number>(); const results: AutoResult[] = [];
-  const jobPrepared = new Set(peekLane(state).reminders.map(reminder => reminder.actionId));
+  const results: AutoResult[] = [];
+  const jobPrepared = new Map(peekLane(state).reminders.map(reminder => [reminder.actionId, reminder] as const));
   for (const action of state.actions as PreparedAction[]) {
     const kind = kindOf(action); const row = table.get(kind); const entry = switches[kind];
     if (action.status !== 'prepared' || action.attempts.length !== 0 || action.impact !== 'reversible' || !row?.switchable || !entry?.on) continue;
     // A revised action may have been changed by any context; revisions never run on their own.
     // Only work a job prepared runs on its own: a plugin, small app, assistant or manual preparation always waits.
-    if (tainted.has(action.id) || !visible.has(action.id) || action.revision !== 1 || !jobPrepared.has(action.id)) continue;
-    const count = used.get(kind) ?? usedToday(host.store.read(), kind, day);
-    if (count >= entry.dailyCount) continue;
+    // The action must be exactly the one a job recorded: its private key, its invoice and the job owner as its author.
+    const reminder = jobPrepared.get(action.id);
+    if (tainted.has(action.id) || !visible.has(action.id) || action.revision !== 1 || !reminder || reminder.key === undefined || action.idempotencyKey !== reminder.key
+      || action.payload?.invoiceId !== reminder.invoiceId || action.createdBy !== reminder.ownerId) continue;
     if (host.store.read().policy.autonomy !== true) break;
+    // The daily count is checked and the run recorded in one transaction, so overlapping ticks cannot exceed it.
+    const claimed = await host.store.update(next => {
+      const ns = lane(next); if (usedToday(next, kind, day) >= entry.dailyCount || next.policy.autonomy !== true) return false;
+      ns.autonomy.runs.push({ kind, actionId: action.id, at: new Date(host.services.jobs.clock()).toISOString() });
+      if (ns.autonomy.runs.length > RUNS_LIMIT) ns.autonomy.runs.splice(0, ns.autonomy.runs.length - RUNS_LIMIT);
+      audit(next, 'jobsx.autonomy.ran', { actionId: action.id, kind }); return true;
+    });
+    if (!claimed) continue;
     try {
-      await host.services.actions.approve(ctx, action.id, action.digest); used.set(kind, count + 1);
-      await host.store.update(next => {
-        const ns = lane(next); ns.autonomy.runs.push({ kind, actionId: action.id, at: new Date(host.services.jobs.clock()).toISOString() });
-        if (ns.autonomy.runs.length > RUNS_LIMIT) ns.autonomy.runs.splice(0, ns.autonomy.runs.length - RUNS_LIMIT);
-        audit(next, 'jobsx.autonomy.ran', { actionId: action.id, kind });
-      });
+      try { await host.services.actions.approve(ctx, action.id, action.digest); }
+      catch (error) { await host.store.update(next => { const ns = lane(next); ns.autonomy.runs = ns.autonomy.runs.filter(run => run.actionId !== action.id); }); throw error; }
       const done = await host.services.actions.execute(ctx, action.id) as PreparedAction;
       results.push({ actionId: action.id, kind, status: done.status });
     } catch (error) {

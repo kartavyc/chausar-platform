@@ -13,6 +13,7 @@
  */
 import { ChausarError, check, hash } from '../contracts.ts';
 import type { Context, StateStore } from '../contracts.ts';
+import { trustFingerprint, visibleFacts } from '../trust.ts';
 import type { AgentDecision, AgentPort, WorkCase } from '../procedures/types.ts';
 
 type Gateway = {
@@ -61,7 +62,15 @@ export class GatewayAgent implements AgentPort {
     const receipts = this.#gateway.store.read().modelReceipts;
     let preview = [...receipts].reverse().find(r => r.kind === 'model-preview' && r.status === 'preview' && r.memberId === context.memberId && r.epoch === context.epoch
       && r.routeId === this.routeId && r.questionHash === hash(question) && JSON.stringify(r.sourceIds) === JSON.stringify([...item.sourceIds].sort()));
-    preview ??= await this.#gateway.preview(context, { question, routeId: this.routeId, sourceIds: [...item.sourceIds] });
+    // Reuse only a preview that is still current: the same facts, privacy settings and route revision. Otherwise make a fresh one.
+    if (preview) {
+      const state = this.#gateway.store.read(); const route = state.routes.find((r: any) => r.id === this.routeId);
+      let current = false;
+      try { current = preview.trustFingerprint === trustFingerprint(state, context, preview.sourceIds) && preview.factDigest === hash(visibleFacts(this.#gateway.store, context, preview.sourceIds)) && route?.revision === preview.routeRevision; } catch { current = false; }
+      if (!current) preview = undefined;
+    }
+    // No automatic sample rows: only what the send level allows beyond them reaches the preview you review.
+    preview ??= await this.#gateway.preview(context, { question, routeId: this.routeId, sourceIds: [...item.sourceIds], samples: [] });
     let approvalId: string | undefined;
     if (preview.approvalRequired) {
       const approval = this.#gateway.store.read().modelReceipts.find(r => r.kind === 'outbound-approval' && r.previewId === preview.id && !r.used && Date.parse(r.expiresAt) > Date.now());
@@ -69,7 +78,13 @@ export class GatewayAgent implements AgentPort {
       approvalId = approval.id;
     }
     check(!signal.aborted, 'AGENT_TIMEOUT', 'The agent did not answer in time.');
-    const result = await this.#gateway.execute(context, { previewId: preview.id, ...(approvalId ? { approvalId } : {}) });
+    let result: any;
+    try { result = await this.#gateway.execute(context, { previewId: preview.id, ...(approvalId ? { approvalId } : {}) }); }
+    catch (error) {
+      // Whether the request left this machine decides whether it is charged: the receipt says, not the error.
+      const receipt = this.#gateway.store.read().modelReceipts.find(r => r.id === preview.id);
+      throw Object.assign(error as object, { dispatched: receipt?.attempts === 1 });
+    }
     const local = chooseRoute(this.#gateway, context, this.routeId)?.kind === 'ollama';
     // A measured cost when the route has token rates; otherwise the route's reserved per-call estimate. Local is zero.
     const costMinor = local ? '0' : String(result.receipt?.actualCostMinor ?? result.receipt?.costReservedMinor ?? '0');

@@ -66,6 +66,8 @@ export type LaneJob = {
   /** Runs while the window is closed, when background mode is on. */
   background: boolean;
   approvedDigest: string;
+  /** A private nonce in this job's action keys (never returned by any method). */
+  keyNonce?: string;
 };
 
 export type MissedNote = { id: string; jobId: string; at: string; missed: number; ran: number; rule: MissedRule; text: string; seen: boolean };
@@ -109,7 +111,7 @@ export type JobsExtState = {
   missed: MissedNote[];
   autonomy: { preset: 'ask-everything' | 'routine' | 'all-but-always-waits' | 'custom'; kinds: Record<string, AutonomyKind>; runs: AutonomyRun[] };
   consent: { customerId: string; channel: 'mail' | 'whatsapp'; agreed: boolean; source: string; at: string; stoppedAt?: string; sourceIds: string[] }[];
-  reminders: { customerId: string; invoiceId: string; day: string; actionId: string; jobId: string }[];
+  reminders: { customerId: string; invoiceId: string; day: string; actionId: string; jobId: string; key?: string; ownerId?: string }[];
   /** Procedures and their run traces live in their own sub-namespace (platform/runtime/procedures). */
   procedures: unknown;
   lastDetection?: Record<string, string>;

@@ -152,7 +152,7 @@ export async function approveProposal(host: ModuleHost, ctx: Context, id: unknow
     if (p.replacesJobId) await tx.remove(ctx, p.replacesJobId);
     p.status = 'approved'; p.decidedAt = new Date(jobs.clock()).toISOString(); p.jobId = created.id;
     const meta: LaneJob = { jobId: created.id, template: card.template, createdAt: p.decidedAt, proposalId: p.id, missedRule: card.missedRule, stepsPerDelivery: card.stepsPerDelivery, stepsDone: 0, backlog: 0,
-      failureLimit: card.extraStopRules.failures, consecutiveFailures: 0, testedRoutes: card.testedRoutes, sourceIds: card.sourceIds, cases: {}, background: card.background, approvedDigest: p.digest,
+      failureLimit: card.extraStopRules.failures, consecutiveFailures: 0, testedRoutes: card.testedRoutes, sourceIds: card.sourceIds, cases: {}, background: card.background, approvedDigest: p.digest, keyNonce: newId('nonce').slice(6, 30),
       ...(p.replacesJobId ? { replaces: p.replacesJobId } : {}) };
     ns.jobs[created.id] = meta;
     const raw = tx.find(state, created.id); raw.testedRoutes = [...card.testedRoutes]; raw.allowedActions = [...card.allowedActions]; raw.digest = tx.identity(raw);

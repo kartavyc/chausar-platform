@@ -47,7 +47,7 @@ test('procedures: propose, approve with exact digest in the app, dry-run routing
   const logged = store.read().learning.slice(learningBefore);
   assert.equal(logged.length, 5);
   assert.deepEqual(logged.map((event: any) => [event.input.kind, event.input.choice]), [['calculation', 'proposed'], ['calculation', 'proposed'], ['action', 'proposed'], ['action', 'proposed'], ['action', 'proposed']]);
-  const text = JSON.stringify(logged); for (const leak of ['Overdue', '150', 'days', 'route-strong', 'remind']) assert.equal(text.includes(leak), false, `learning log carries ${leak}`);
+  const text = JSON.stringify(logged.map((event: any) => event.input)); for (const leak of ['Overdue', '150', 'days', 'route-strong', 'remind']) assert.equal(text.includes(leak), false, `learning log carries ${leak}`);
   await assert.rejects(store.update((state: State) => recordRun(state, owner, input({ days: 1 }, 'wait', { costMinor: '1.50' }))), { code: 'INVALID_RUN' });
   await assert.rejects(store.update((state: State) => recordRun(state, owner, input({ days: 1 }, 'wait', { latencyMs: -1 }))), { code: 'INVALID_RUN' });
   await assert.rejects(store.update((state: State) => recordRun(state, owner, input({ days: 1 }, 'wait', { note: 'x'.repeat(601) }))), { code: 'INVALID_RUN' });

@@ -31,7 +31,7 @@ const prepareByHand = (engine: Engine, n: number, ctx: Context = owner) => engin
 /** As a lane job prepares it: the lane records the reminder it prepared. */
 async function prepare(engine: Engine, n: number, ctx: Context = owner) {
   const action = await prepareByHand(engine, n, ctx);
-  await (engine as any).store().update((state: any) => { lane(state).reminders.push({ customerId: `cust-${n}`, invoiceId: `inv-${n}`, day: '2026-10-05', actionId: action.id, jobId: 'synthetic-job' }); });
+  await (engine as any).store().update((state: any) => { lane(state).reminders.push({ customerId: `cust-${n}`, invoiceId: `inv-${n}`, day: '2026-10-05', actionId: action.id, jobId: 'synthetic-job', key: action.idempotencyKey, ownerId: action.createdBy }); });
   return action;
 }
 async function refused(work: Promise<unknown>, code: string) { await assert.rejects(work, (error: any) => { assert.equal(error.code, code); return true; }); }
@@ -173,4 +173,21 @@ test('only work a job prepared runs on its own: a hand-, plugin- or assistant-pr
   const status = (id: string) => actions.find((a: any) => a.id === id).status;
   assert.equal(status(byHand.id), 'prepared'); assert.equal(status(viaAssistant.id), 'prepared');
   assert.equal(status(byJob.id), 'verified');
+});
+
+test('a job’s action cannot be claimed by guessing: a hand-made action with a recorded id but another key, invoice or author waits', async t => {
+  const engine = await fixture(t);
+  await engine.request('trust.update', { autonomy: true });
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: true });
+  engine.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
+  const forged = await prepareByHand(engine, 51);
+  await (engine as any).store().update((state: any) => { lane(state).reminders.push({ customerId: 'cust-51', invoiceId: 'inv-other', day: '2026-10-05', actionId: forged.id, jobId: 'synthetic-job', key: forged.idempotencyKey, ownerId: 'owner' }); });
+  await engine.tick();
+  assert.equal((await engine.request('actions.list')).find((a: any) => a.id === forged.id).status, 'prepared', 'the invoice does not match what the job recorded');
+});
+
+test('the always-waits words also catch plurals, tenses, acronyms and non-ASCII names', () => {
+  for (const kind of ['shop.sendInvites', 'hooks.webhooks', 'crm.deleting-records', 'bank.payouts', 'msg.SMSReminder', 'shop.listProduct', 'shop.publish-product', 'books.void-invoice', 'drive.shared-link', 'gst.gstr1-submit', 'shop.set-qty', 'local.dеlete'])
+    assert.equal(alwaysWaits(kind), true, kind);
+  assert.equal(alwaysWaits('local.reminder-draft'), false);
 });
