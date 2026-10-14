@@ -1,4 +1,9 @@
 [
+  "learningx.accountsClasses",
+  "learningx.accountsDecide",
+  "learningx.accountsList",
+  "learningx.accountsPropose",
+  "learningx.accountsScore",
   "learningx.batch",
   "learningx.batches",
   "learningx.cleanSample",
@@ -6,6 +11,7 @@
   "learningx.creditName",
   "learningx.deleteBatch",
   "learningx.intakeStatus",
+  "learningx.labelDataset",
   "learningx.log",
   "learningx.outbox",
   "learningx.outboxDelete",
