@@ -8,7 +8,7 @@ import type { JobsExtState, LaneJob, TimelineEntry } from './state.ts';
 import { TEMPLATES, template, skillFile } from './templates.ts';
 import { validRule, coreCatchup, upcoming, ledgerMissed } from './catch-up.ts';
 import { routePrice } from './adapters.ts';
-import { availability, approveProposal, dismissProposal, proposeCard, proposeEdit, detect, visibleProposal, activeJobs } from './proposals.ts';
+import { availability, approveProposal, dismissProposal, proposeCard, proposeEdit, detect, visibleProposal, activeJobs, jobCap } from './proposals.ts';
 import { runLaneJob, logResultDecision } from './run.ts';
 import { purgeProcedures } from '../procedures/service.ts';
 
@@ -92,7 +92,7 @@ function resultFor(host: ModuleHost, job: Job, ns: JobsExtState) {
 
 export const jobsMethods: Record<string, MethodSpec> = {
   'jobsx.types': { permission: 'read', handler: async (ctx, _p, host) => ({ templates: await Promise.all(TEMPLATES.map(async t => ({ id: t.id, title: t.title, goal: t.goal, finishedWhen: t.finishedWhen, steps: t.steps, intervalMs: t.intervalMs, stepsPerDelivery: t.stepsPerDelivery,
-    missedRule: t.missedRule, budgetMinor: t.budgetMinor, allowedActions: t.allowedActions, experimental: t.experimental === true, skillPath: skillFile(t).path, ...await availability(host, ctx, t) }))), activeJobs: activeJobs(host.store.read()), activeJobCap: peekLane(host.store.read()).settings.activeJobCap }) },
+    missedRule: t.missedRule, budgetMinor: t.budgetMinor, allowedActions: t.allowedActions, experimental: t.experimental === true, skillPath: skillFile(t).path, ...await availability(host, ctx, t) }))), activeJobs: activeJobs(host.store.read()), activeJobCap: jobCap(host, host.store.read()) }) },
   'jobsx.templateSkill': { permission: 'read', handler: (_ctx, p) => skillFile(template(p.id)) },
   'jobsx.propose': { permission: 'prepare', handler: (ctx, p, host) => { inApp(ctx, 'TAINTED_JOB'); return proposeCard(host, ctx, { template: p.template, sentence: p.sentence, overrides: p.overrides, skill: p.skill }); } },
   'jobsx.detect': { permission: 'prepare', handler: (ctx, _p, host) => { inApp(ctx, 'TAINTED_JOB'); return detect(host, ctx); } },
@@ -109,8 +109,8 @@ export const jobsMethods: Record<string, MethodSpec> = {
     const state = host.store.read(); const ns = peekLane(state); const settings = ns.settings;
     const proposals = ns.proposals.filter(p => p.status === 'proposed' && p.card.ownerId === ctx.memberId).reverse().map(p => ({ proposalId: p.id, title: p.card.title, origin: p.origin, fromJobId: p.fromJobId ?? null, replacesJobId: p.replacesJobId ?? null, state: 'proposed', evidence: p.evidence, digest: p.digest }));
     const jobs = jobsOf(host).list(ctx).filter(job => !ns.jobs[job.id]?.deletedAt && (job.status !== 'stopped' || !!ns.jobs[job.id]?.stoppedBy)).map(job => view(host, ctx, job, ns));
-    const active = activeJobs(state);
-    return { proposals, jobs, activeJobs: active, activeJobCap: settings.activeJobCap, atLimit: active >= settings.activeJobCap };
+    const active = activeJobs(state); const cap = jobCap(host, state);
+    return { proposals, jobs, activeJobs: active, activeJobCap: cap, atLimit: active >= cap };
   } },
   'jobsx.get': { permission: 'read', handler: (ctx, p, host) => {
     const { job, meta } = owned(host, ctx, p.id); const ns = peekLane(host.store.read()); const tpl = template(meta.template);
@@ -269,9 +269,30 @@ export async function jobsTick(ctx: Context, host: ModuleHost, scheduler: Schedu
   return results;
 }
 
+/**
+ * Retention: records older than the workspace retention period go, except what a live job still needs
+ * (open questions, waiting steps, undecided proposals and the cases of a delivery in progress).
+ */
+function retention(state: State, cutoff: number | undefined): number {
+  if (cutoff === undefined) return 0;
+  const ns = lane(state); const old = (at: string | undefined) => !at || !Number.isFinite(Date.parse(at)) || Date.parse(at) < cutoff; let removed = 0;
+  const keep = <T>(list: T[], drop: (item: T) => boolean): T[] => list.filter(item => { const d = drop(item); if (d) removed++; return !d; });
+  ns.timeline = keep(ns.timeline, t => old(t.at));
+  ns.results = keep(ns.results, r => old(r.deliveredAt));
+  ns.questions = keep(ns.questions, q => q.status !== 'open' && old(q.answeredAt ?? q.askedAt));
+  ns.personSteps = keep(ns.personSteps, p => p.status === 'done' && old(p.doneAt ?? p.createdAt));
+  ns.missed = keep(ns.missed, m => old(m.at));
+  ns.proposals = keep(ns.proposals, p => p.status !== 'proposed' && old(p.decidedAt ?? p.createdAt));
+  ns.reminders = keep(ns.reminders, r => old(`${r.day}T23:59:59.999Z`));
+  ns.autonomy.runs = keep(ns.autonomy.runs, r => old(r.at));
+  ns.consent = keep(ns.consent, c => old(c.at));
+  return removed;
+}
+
 /** Source deletion removes everything this lane derived from that source. */
-export function jobsPurge(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string> }): number {
+export function jobsPurge(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; cutoff?: number }): number {
   if (!state.extensions?.['jobs-ext']) return 0;
+  const retained = retention(state, reason.cutoff);
   const ns = lane(state); const sources = new Set(reason.sourceIds); let removed = 0;
   const hit = (ids: readonly string[] | undefined) => (ids ?? []).some(x => sources.has(x) || reason.removedIds.has(x));
   const liveJobs = new Set(state.jobs.map((j: any) => j.id));
@@ -295,7 +316,7 @@ export function jobsPurge(state: State, reason: { sourceIds: readonly string[]; 
   ns.consent = keep(ns.consent, c => hit(c.sourceIds) || (scoped && !customers.has(c.customerId)));
   const liveActions = new Set(state.actions.map((a: any) => a.id));
   ns.reminders = keep(ns.reminders, r => goneJobs.has(r.jobId) || !liveActions.has(r.actionId));
-  return removed + purgeProcedures(state, reason.sourceIds, { jobIds: goneJobs, caseIds: goneCases });
+  return retained + removed + purgeProcedures(state, reason.sourceIds, { jobIds: goneJobs, caseIds: goneCases, ...(reason.cutoff === undefined ? {} : { before: reason.cutoff }) });
 }
 
 export { paise };

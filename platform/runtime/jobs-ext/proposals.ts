@@ -34,7 +34,7 @@ export async function availability(host: ModuleHost, ctx: Context, tpl: JobTempl
     if (missing.length) return { available: false, code: 'TEMPLATE_CALCULATION_MISSING', reason: 'Your published meanings have no calculation this job needs.' };
   }
   if (tpl.requires.method && !moduleMethods.has(tpl.requires.method)) return { available: false, code: 'TEMPLATE_NOT_BUILT', reason: 'This job needs a part of Chausar that is not built yet.' };
-  if (tpl.caseSource === 'goal' && !agentOf(host)) return { available: false, code: 'AGENT_ROUTE_REQUIRED', reason: 'A job in your own words needs an installed agent route. None is installed.' };
+  if (tpl.caseSource === 'goal' && !agentOf(host, ctx)) return { available: false, code: 'AGENT_ROUTE_REQUIRED', reason: 'A job in your own words needs an installed agent route. None is installed.' };
   return { available: true };
 }
 
@@ -55,7 +55,7 @@ export function buildCard(host: ModuleHost, ctx: Context, tpl: JobTemplate, goal
   const budget = o.budgetMinor ?? tpl.budgetMinor; const reserve = o.reserveMinor ?? tpl.reserveMinor;
   check(BigInt(budget) > 0n && BigInt(reserve) > 0n && BigInt(reserve) <= BigInt(budget), 'INVALID_BUDGET', 'A positive reservation must fit within the budget.');
   const sourceIds = [...new Set(o.sourceIds ?? visibleFacts(host.store, ctx).map(f => f.sourceId))].sort();
-  const agent = agentOf(host);
+  const agent = agentOf(host, ctx);
   const needsModel = tpl.steps.some(s => s.needsModel);
   const card: JobCard = {
     template: tpl.id, title: tpl.title, goal, finishedWhen: tpl.finishedWhen, ownerId: ctx.memberId,
@@ -114,6 +114,12 @@ export function visibleProposal(state: State, ctx: Context, id: unknown): Propos
   return proposal;
 }
 
+/** The lower of the lane's limit (Trust) and the engine host's durable-jobs ceiling, when one is configured. */
+export function jobCap(host: ModuleHost, state: State): number {
+  const lane = peekLane(state).settings.activeJobCap; const ceiling = host.services.jobRunner?.options?.maxActiveJobs;
+  return Number.isSafeInteger(ceiling) && ceiling > 0 ? Math.min(lane, ceiling) : lane;
+}
+
 export function activeJobs(state: State): number {
   return state.jobs.filter((job: Job) => !TERMINAL.includes(job.status) || job.execution?.attempts.some(a => ['dispatched', 'unknown'].includes(a.status))).length;
 }
@@ -139,7 +145,7 @@ export async function approveProposal(host: ModuleHost, ctx: Context, id: unknow
       check(!TERMINAL.includes(old.status) && !ns.jobs[old.id]?.deletedAt, 'INVALID_PROPOSAL_STATE', 'This job was already replaced or stopped.');
       check(!old.lease && old.status !== 'awaiting-acceptance', 'JOB_RESULT_WAITING', 'Accept or send back the job’s result, and let a running step finish, before you change it.');
     }
-    check(activeJobs(state) - (p.replacesJobId ? 1 : 0) < ns.settings.activeJobCap, 'ACTIVE_JOB_LIMIT', 'The limit of active jobs is reached. Pause or delete one first.');
+    check(activeJobs(state) - (p.replacesJobId ? 1 : 0) < jobCap(host, state), 'ACTIVE_JOB_LIMIT', 'The limit of active jobs is reached. Pause or delete one first.');
     const created = await tx.create(ctx, { type: `${LANE_JOB_PREFIX}${card.template}`, goal: card.goal, budgetMinor: card.budgetMinor, reserveMinor: card.reserveMinor,
       stopRule: card.stopRule, nextRunAt: card.nextRunAt, intervalMs: card.intervalMs, catchup: coreCatchup(card.missedRule), graceMs: Math.min(card.intervalMs, 600_000),
       requiresApproval: false, sourceIds: card.sourceIds });

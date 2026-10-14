@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { lane } from '../runtime/jobs-ext/state.ts';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -25,8 +26,14 @@ async function fixture(t: any) {
   engine.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
   return engine;
 }
-const prepare = (engine: Engine, n: number, ctx: Context = owner) => engine.requestAs(ctx, 'actions.prepare', { connector: 'local', operation: 'reminder-draft',
+const prepareByHand = (engine: Engine, n: number, ctx: Context = owner) => engine.requestAs(ctx, 'actions.prepare', { connector: 'local', operation: 'reminder-draft',
   payload: { invoiceId: `inv-${n}`, text: 'Synthetic reminder' }, idempotencyKey: `synthetic-key-${n}` });
+/** As a lane job prepares it: the lane records the reminder it prepared. */
+async function prepare(engine: Engine, n: number, ctx: Context = owner) {
+  const action = await prepareByHand(engine, n, ctx);
+  await (engine as any).store().update((state: any) => { lane(state).reminders.push({ customerId: `cust-${n}`, invoiceId: `inv-${n}`, day: '2026-10-05', actionId: action.id, jobId: 'synthetic-job' }); });
+  return action;
+}
 async function refused(work: Promise<unknown>, code: string) { await assert.rejects(work, (error: any) => { assert.equal(error.code, code); return true; }); }
 const status = async (engine: Engine, id: string) => (await engine.request('actions.list')).find((a: any) => a.id === id).status;
 const autoRuns = (results: any[]) => results.filter(r => r && typeof r.actionId === 'string');
@@ -70,7 +77,8 @@ test('a new install asks before everything; always-waits kinds have no switch; p
   assert.equal(fresh.caps.activeJobCap, 10);
   const draft = fresh.kinds.find((k: any) => k.kind === KIND); assert.equal(draft.switchable, true); assert.equal(draft.impact, 'reversible');
   const waiting = fresh.kinds.filter((k: any) => !k.switchable);
-  assert.deepEqual(waiting.map((k: any) => k.kind).sort(), ['synthetic-shop.pay-supplier', 'synthetic-shop.update-price']);
+  // Outside the local connector, a reversible kind still waits until the writeback catalogue confirms it can be undone.
+  assert.deepEqual(waiting.map((k: any) => k.kind).sort(), ['synthetic-shop.match-statement', 'synthetic-shop.pay-supplier', 'synthetic-shop.update-price']);
   for (const kind of waiting) await refused(engine.request('jobsx.setAutonomy', { kind: kind.kind, on: true }), 'ALWAYS_WAITS');
   assert.deepEqual((await engine.request('jobsx.setAutonomy', { kind: 'synthetic-shop.update-price', on: false })).on, false);
   await refused(engine.request('jobsx.setAutonomy', { kind: 'nowhere.unknown', on: true }), 'UNSUPPORTED_ACTION');
@@ -86,7 +94,7 @@ test('a new install asks before everything; always-waits kinds have no switch; p
 
   assert.deepEqual((await engine.request('jobsx.autonomyPreset', { preset: 'ask-everything' })).on, []);
   const routine = await engine.request('jobsx.autonomyPreset', { preset: 'routine' });
-  assert.deepEqual(routine.on, ['local.reminder-draft', 'synthetic-shop.match-statement']);
+  assert.deepEqual(routine.on, ['local.reminder-draft']);
   const all = await engine.request('jobsx.autonomyPreset', { preset: 'all-but-always-waits' });
   view = await engine.request('jobsx.autonomy');
   assert.equal(view.preset, 'all-but-always-waits');
@@ -150,4 +158,19 @@ test('auto-run: master switch, kind switch, daily count, taint and agreement', a
   const later = await prepare(engine, 6);
   assert.deepEqual(autoRuns(await engine.tick()), []);
   assert.equal(await status(engine, later.id), 'prepared', 'Turning the master switch off stops every kind.');
+});
+
+test('only work a job prepared runs on its own: a hand-, plugin- or assistant-prepared action of a switched-on kind waits', async t => {
+  const engine = await fixture(t);
+  await engine.request('trust.update', { autonomy: true });
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: true });
+  engine.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
+  const byHand = await prepareByHand(engine, 41);
+  const viaAssistant = await prepareByHand(engine, 42, { ...owner, channel: 'mcp' });
+  const byJob = await prepare(engine, 43);
+  await engine.tick();
+  const actions = await engine.request('actions.list');
+  const status = (id: string) => actions.find((a: any) => a.id === id).status;
+  assert.equal(status(byHand.id), 'prepared'); assert.equal(status(viaAssistant.id), 'prepared');
+  assert.equal(status(byJob.id), 'verified');
 });

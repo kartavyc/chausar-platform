@@ -113,13 +113,17 @@ export function procedureStats(state: State, key: string, ownerId?: string): Pro
 }
 
 /** Remove runs and procedures derived from the named sources. Returns the number removed. */
-export function purgeProcedures(state: State, sourceIds: readonly string[], gone: { jobIds?: ReadonlySet<string>; caseIds?: ReadonlySet<string> } = {}): number {
+export function purgeProcedures(state: State, sourceIds: readonly string[], gone: { jobIds?: ReadonlySet<string>; caseIds?: ReadonlySet<string>; before?: number } = {}): number {
   const existing = peekModuleState<{ procedures?: unknown }>(state, LANE);
   if (!existing?.procedures) return 0;
   const ns = procedureState(state), sources = new Set(sourceIds), hit = (item: { sourceIds: string[] }) => item.sourceIds.some(id => sources.has(id));
   const before = ns.runs.length + ns.procedures.length;
   // A run also goes with its job, or with a case whose records were removed.
-  const removedRuns = new Set(ns.runs.filter(run => hit(run) || gone.jobIds?.has(run.jobId) || gone.caseIds?.has(`${run.jobId}/${run.caseId}`)).map(run => run.id));
-  ns.runs = ns.runs.filter(run => !removedRuns.has(run.id)); ns.procedures = ns.procedures.filter(item => !hit(item) && !item.derivedFrom.some(id => removedRuns.has(id)));
+  const expired = (at: string) => gone.before !== undefined && (!Number.isFinite(Date.parse(at)) || Date.parse(at) < gone.before);
+  const removedRuns = new Set(ns.runs.filter(run => hit(run) || gone.jobIds?.has(run.jobId) || gone.caseIds?.has(`${run.jobId}/${run.caseId}`) || expired(run.at)).map(run => run.id));
+  // Retention expires old runs but keeps a procedure's structure; deleting a source or record removes what was derived from it.
+  const derivedGone = new Set(ns.runs.filter(run => removedRuns.has(run.id) && (hit(run) || gone.jobIds?.has(run.jobId) || gone.caseIds?.has(`${run.jobId}/${run.caseId}`))).map(run => run.id));
+  ns.runs = ns.runs.filter(run => !removedRuns.has(run.id));
+  ns.procedures = ns.procedures.filter(item => !hit(item) && !item.derivedFrom.some(id => derivedGone.has(id)));
   return before - ns.runs.length - ns.procedures.length;
 }

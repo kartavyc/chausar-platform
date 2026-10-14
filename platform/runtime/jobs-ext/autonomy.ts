@@ -43,13 +43,16 @@ export const kindOf = (action: { connector: string; operation: string }) => `${a
 /** Every action kind this workspace knows: the written connector catalogue plus writeback's rows when that lane exists. */
 export async function kindTable(ctx: Context, host: Pick<ModuleHost, 'services' | 'call'>): Promise<Map<string, KindRow>> {
   const table = new Map<string, KindRow>();
+  const remote = await optionalCall<unknown>(host, 'writeback.catalogue', {});
+  const rows = remote.available ? (Array.isArray(remote.value) ? remote.value : (remote.value as any)?.rows) : [];
+  // Outside the workspace's own local connector, a kind has a switch only when the writeback catalogue
+  // explicitly says it can be undone and need not wait. An unknown or renamed connector always waits.
+  const confirmed = (system: string, action: string) => Array.isArray(rows) && rows.some((row: any) => row && row.system === system && row.action === action && row.impact === 'reversible' && row.alwaysWaits === false);
   for (const connector of host.services.actions.catalogue(ctx) as { id: string; operations: { id: string; title: string; impact: Impact }[] }[])
     for (const op of connector.operations) {
       const kind = `${connector.id}.${op.id}`;
-      table.set(kind, { kind, operation: op.id, title: op.title, impact: op.impact, switchable: switchable(kind, op.impact) });
+      table.set(kind, { kind, operation: op.id, title: op.title, impact: op.impact, switchable: switchable(kind, op.impact) && (connector.id === 'local' || confirmed(connector.id, op.id)) });
     }
-  const remote = await optionalCall<unknown>(host, 'writeback.catalogue', {});
-  const rows = remote.available ? (Array.isArray(remote.value) ? remote.value : (remote.value as any)?.rows) : [];
   if (Array.isArray(rows)) for (const row of rows.slice(0, 2000)) {
     if (!row || typeof row !== 'object' || typeof row.system !== 'string' || typeof row.action !== 'string' || !PART.test(row.system) || !PART.test(row.action)) continue;
     if (row.impact !== undefined && !IMPACTS.has(row.impact)) continue;
@@ -90,11 +93,13 @@ export async function autoRun(ctx: Context, host: ModuleHost): Promise<AutoResul
   const table = await kindTable(ctx, host); const tainted = taintedActions(state); const day = today(host);
   const visible = new Set((host.services.actions.list(ctx) as PreparedAction[]).map(action => action.id));
   const used = new Map<string, number>(); const results: AutoResult[] = [];
+  const jobPrepared = new Set(peekLane(state).reminders.map(reminder => reminder.actionId));
   for (const action of state.actions as PreparedAction[]) {
     const kind = kindOf(action); const row = table.get(kind); const entry = switches[kind];
     if (action.status !== 'prepared' || action.attempts.length !== 0 || action.impact !== 'reversible' || !row?.switchable || !entry?.on) continue;
     // A revised action may have been changed by any context; revisions never run on their own.
-    if (tainted.has(action.id) || !visible.has(action.id) || action.revision !== 1) continue;
+    // Only work a job prepared runs on its own: a plugin, small app, assistant or manual preparation always waits.
+    if (tainted.has(action.id) || !visible.has(action.id) || action.revision !== 1 || !jobPrepared.has(action.id)) continue;
     const count = used.get(kind) ?? usedToday(host.store.read(), kind, day);
     if (count >= entry.dailyCount) continue;
     if (host.store.read().policy.autonomy !== true) break;

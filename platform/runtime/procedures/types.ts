@@ -29,6 +29,10 @@ export type AgentDecision = {
   note: string;
   /** A job may ask for another job; that request becomes a proposal that waits for the owner. */
   proposeJob?: string;
+  /** A route that reports its own cost in paise (the model gateway) instead of model units. */
+  costMinor?: string;
+  /** Receipts of calculations the agent's lookup ran, and the model receipt of the call. */
+  receiptIds?: string[]; modelReceiptId?: string;
 };
 
 /** The full agent. Installed by a trusted host (tests, Practice) or by the models lane; never by RPC. */
@@ -36,7 +40,9 @@ export interface AgentPort {
   readonly routeId: string;
   /** A labelled fake for tests, demo and Practice. Only a synthetic agent runs in demo mode. */
   readonly synthetic?: boolean;
-  decide(item: WorkCase, options: readonly string[], signal: AbortSignal): Promise<AgentDecision>;
+  decide(item: WorkCase, options: readonly string[], signal: AbortSignal, context?: import('../contracts.ts').Context): Promise<AgentDecision>;
+  /** The most one call may cost, in paise, when the route prices calls itself. */
+  maxCallCostMinor?(context: import('../contracts.ts').Context): string;
 }
 
 export type Condition = { equals?: CaseValue; min?: number; max?: number };

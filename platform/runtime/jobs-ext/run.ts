@@ -21,6 +21,7 @@ import { caseFields, invoiceCases, readyMadeDecision, reminderText, RECEIVABLE_O
 import type { AgentPort, CaseFields, TraceStep, WorkCase } from '../procedures/types.ts';
 import { approvedProcedure, recordRun } from '../procedures/service.ts';
 import { routeCase } from '../procedures/derive.ts';
+import { GatewayAgent, chooseRoute, AGENT_UNAVAILABLE } from './gateway-agent.ts';
 
 export const WORKER = 'jobsx-worker';
 export const LEASE_MS = 300_000;
@@ -41,8 +42,15 @@ function entry(jobId: string, run: number, at: string, partial: Omit<TimelineEnt
   return { id: newId('jobsx_line'), jobId, run, at, ...partial };
 }
 
-/** The installed full agent, when one exists and may be used now. Demo mode accepts only a synthetic (fake) agent. */
-export function agentOf(host: ModuleHost): AgentPort | undefined {
+/**
+ * The installed full agent, when one exists and may be used now. Demo mode accepts only a synthetic (fake)
+ * agent. Without one, the installed app uses the live model-gateway agent over the owner's enabled route.
+ */
+export function agentOf(host: ModuleHost, ctx?: Context): AgentPort | undefined {
+  if (host.options.agent === undefined && host.options.liveAgent === 'model-gateway' && !host.demo && ctx && host.services.gateway) {
+    const route = chooseRoute(host.services.gateway, ctx);
+    return route ? new GatewayAgent({ gateway: host.services.gateway, routeId: route.id, calculate: (c, request) => host.services.calculator.calculate(c, request), clock: () => (host.services.jobs as JobService).clock() }) : undefined;
+  }
   const agent = host.options.agent as AgentPort | undefined;
   if ((host.demo && agent?.synthetic !== true) || !agent || typeof agent.decide !== 'function' || typeof agent.routeId !== 'string') return undefined;
   return agent;
@@ -87,27 +95,36 @@ function figure(receipt: any, key: string): LaneResult['figures'][number] | unde
 
 /** Hands a case the ready-made rule was not sure of to the full agent, within the step's reservation. */
 async function askAgent(host: ModuleHost, meter: Meter, job: Job, item: WorkCase, options: readonly string[]) {
-  const agent = agentOf(host);
+  const agent = agentOf(host, meter.ctx);
   if (!agent) return { kind: 'none' as const };
   if (!networkUp(host)) return { kind: 'network' as const };
   if (!job.testedRoutes?.includes(agent.routeId)) return { kind: 'untested' as const, routeId: agent.routeId };
-  const price = await routePrice(host, agent.routeId);
+  // A route that prices its own calls (the model gateway) reserves its per-call maximum; others price model units.
+  const selfPriced = typeof agent.maxCallCostMinor === 'function';
+  const price = selfPriced ? { routeId: agent.routeId, unitMinor: '0', basis: 'measured' as const, pricedAt: '', source: 'host' as const } : await routePrice(host, agent.routeId);
   const limit = maxUnits(host);
-  if (costOf(price, limit) > meter.remaining()) return { kind: 'budget' as const };
+  const ceiling = selfPriced ? BigInt(agent.maxCallCostMinor!(meter.ctx)) : costOf(price, limit);
+  if (ceiling > meter.remaining()) return { kind: 'budget' as const };
   const started = Date.now(); const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
   // The call must end well inside the lease. A call that runs out is charged its full reservation: its use is unknown.
   const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new ChausarError('AGENT_TIMEOUT', 'The agent did not answer in time.')); }, agentTimeoutMs(host)); });
   let answer: Awaited<ReturnType<AgentPort['decide']>>;
-  try { answer = await Promise.race([agent.decide(structuredClone(item), options, controller.signal), timeout]); }
-  catch (error) { await meter.charge(costOf(price, limit)); throw error; }
+  try { answer = await Promise.race([agent.decide(structuredClone(item), options, controller.signal, meter.ctx), timeout]); }
+  catch (error) {
+    const code = (error as { code?: string }).code ?? '';
+    if (code === 'AGENT_APPROVAL_REQUIRED') return { kind: 'approval' as const, previewId: String((error as { previewId?: unknown }).previewId ?? ''), routeId: agent.routeId };
+    if (AGENT_UNAVAILABLE.has(code)) return { kind: 'none' as const };
+    await meter.charge(ceiling); throw error;
+  }
   finally { clearTimeout(timer); }
   const units = Number.isSafeInteger(answer?.units) && answer.units >= 0 && answer.units <= limit ? answer.units : limit;
-  const cost = costOf(price, units); await meter.charge(cost);
+  const reported = typeof answer?.costMinor === 'string' && /^(0|[1-9]\d{0,17})$/.test(answer.costMinor) ? BigInt(answer.costMinor) : undefined;
+  const cost = selfPriced ? (reported ?? ceiling) : costOf(price, units); await meter.charge(cost);
   const decision = options.includes(answer?.decision) ? answer.decision : undefined;
   const confidence = typeof answer?.confidence === 'number' && answer.confidence >= 0 && answer.confidence <= 1 ? answer.confidence : 0;
   const steps: TraceStep[] = (Array.isArray(answer?.steps) ? answer.steps : []).slice(0, 50).filter((step: any) => step && ['calculate', 'question', 'action', 'lookup', 'person'].includes(step.kind) && typeof step.tool === 'string' && /^[a-z][a-z0-9_.-]{0,80}$/.test(step.tool))
     .map((step: any) => ({ kind: step.kind, tool: step.tool, outcome: ['ok', 'refused', 'unknown'].includes(step.outcome) ? step.outcome : 'unknown', durationMs: Number.isSafeInteger(step.durationMs) && step.durationMs >= 0 ? step.durationMs : 0, units: Number.isSafeInteger(step.units) && step.units >= 0 ? step.units : 0 }));
-  return { kind: 'answered' as const, decision, confidence, steps, cost, estimate: price.basis === 'estimate', routeId: agent.routeId, latencyMs: Math.max(0, Date.now() - started), note: guardNote(answer?.note), proposeJob: typeof answer?.proposeJob === 'string' ? answer.proposeJob : undefined };
+  return { kind: 'answered' as const, decision, confidence, steps, cost, estimate: price.basis === 'estimate', routeId: agent.routeId, latencyMs: Math.max(0, Date.now() - started), note: guardNote(answer?.note), receiptIds: Array.isArray(answer?.receiptIds) ? answer.receiptIds.filter((id: unknown) => typeof id === 'string').slice(0, 20) : [], proposeJob: typeof answer?.proposeJob === 'string' ? answer.proposeJob : undefined };
 }
 
 async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: LaneJob, meter: Meter, run: number): Promise<StepWork> {
@@ -139,6 +156,8 @@ async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: L
     let decision: string | undefined; let confidence = 0; let handledBy: CaseOutcome['handledBy'] = 'ready-made'; let reason = '';
     let traceRoute: 'procedure' | 'ready-made' | 'agent' | 'person' | 'agent-unavailable' = 'ready-made'; let trace: TraceStep[] = [{ kind: 'calculate', tool: 'calculator.aging', outcome: 'ok', durationMs: 0, units: 0 }];
     let agentCost = 0n; let latencyMs = 0; let note: string | undefined; let routeId: string | undefined; let tainted = false; let estimate = false;
+    // A case already waiting for your answer waits: it is not decided, or sent to a model, again.
+    if (!answered && ns.questions.some(q => q.jobId === job.id && q.caseId === caseId && q.status === 'open')) { work.cases.push({ ...base, status: 'waiting-for-you', reason: 'question-open' }); continue; }
     if (answered) { decision = answered.answer; confidence = 1; handledBy = 'person'; traceRoute = 'person'; reason = 'your-answer'; }
     else {
       // The ready-made rule's hard guards (not due, no agreement, stopped, reminded today, reminded often) come first;
@@ -155,9 +174,16 @@ async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: L
           if (agent.kind === 'budget') { work.stop = { rule: 'budget', reason: 'The step’s rupee reservation cannot cover another agent call.', leftUndone: cases.slice(index).map(c => `Invoice ${c.invoiceId}`) }; break; }
           if (agent.kind === 'untested') { work.stop = { rule: 'untested-route', reason: `This job was not tested on the route ${agent.routeId}. It needs ${job.testedRoutes?.[0] ?? 'a tested route'}.`, leftUndone: cases.slice(index).map(c => `Invoice ${c.invoiceId}`) }; break; }
           if (agent.kind === 'network') { work.waitingNetwork = true; work.cases.push({ ...base, status: 'waiting-network', reason: 'needs-model', handledBy: 'agent' }); continue; }
+          if (agent.kind === 'approval') {
+            // An outside send waits for the owner to approve its exact payload; this case waits with it.
+            work.cases.push({ ...base, status: 'waiting-for-you', reason: 'model-request-approval', handledBy: 'agent' });
+            await host.store.update(state => { const ns = lane(state); if (!ns.timeline.some(l => l.modelPreviewId === agent.previewId))
+              pushTimeline(ns, entry(job.id, run, at, { kind: 'question', stepKind: 'lookup', needsModel: true, routeId: agent.routeId, text: 'A model request waits for your approval of its exact payload. Nothing was sent.', code: 'AGENT_APPROVAL_REQUIRED', modelPreviewId: agent.previewId, recordIds: [item.factId], caseId })); });
+            continue;
+          }
           if (agent.kind === 'answered') {
             handledBy = 'agent'; traceRoute = 'agent'; tainted = true; agentCost = agent.cost; latencyMs = agent.latencyMs; note = agent.note; routeId = agent.routeId; estimate = agent.estimate;
-            for (const step of agent.steps) addStep(trace, step); confidence = agent.confidence;
+            for (const step of agent.steps) addStep(trace, step); confidence = agent.confidence; base.receiptIds = [...base.receiptIds, ...agent.receiptIds];
             decision = agent.decision && agent.confidence >= CONFIDENT ? agent.decision : 'ask-owner';
             if (agent.proposeJob) await proposeFromJob(host, ctx, job, agent.proposeJob);
           } else { decision = 'ask-owner'; traceRoute = 'agent-unavailable'; }
@@ -250,6 +276,12 @@ async function agentStep(host: ModuleHost, ctx: Context, job: Job, meta: LaneJob
   const item: WorkCase = { id: `run-${run}`, jobId: job.id, template: meta.template, fields: { run }, recordIds: [], sourceIds: [...job.sourceIds], tainted: true };
   const answer = await askAgent(host, meter, job, item, ['done', 'needs-you']);
   if (answer.kind === 'none') { work.stop = { rule: 'needs-another-part', reason: 'No agent route is installed for jobs in your own words.', leftUndone: [job.goal] }; return work; }
+  if (answer.kind === 'approval') {
+    work.open.push('A model request waits for your approval of its exact payload. Nothing was sent.');
+    work.cases.push({ caseId: item.id, recordIds: [], handledBy: 'agent', status: 'waiting-for-you', reason: 'model-request-approval', actionIds: [], receiptIds: [], costMinor: '0', durationMs: 0 });
+    await host.store.update(state => pushTimeline(lane(state), entry(job.id, run, at, { kind: 'question', stepKind: 'lookup', needsModel: true, routeId: answer.routeId, text: 'A model request waits for your approval of its exact payload. Nothing was sent.', code: 'AGENT_APPROVAL_REQUIRED', modelPreviewId: answer.previewId, caseId: item.id })));
+    return work;
+  }
   if (answer.kind === 'network') { work.waitingNetwork = true; return work; }
   if (answer.kind === 'untested') { work.stop = { rule: 'untested-route', reason: `This job was not tested on the route ${answer.routeId}. It needs ${job.testedRoutes?.[0] ?? 'a tested route'}.`, leftUndone: [job.goal] }; return work; }
   if (answer.kind === 'budget') { work.stop = { rule: 'budget', reason: 'The step’s rupee reservation cannot cover the agent call.', leftUndone: [job.goal] }; return work; }

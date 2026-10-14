@@ -25,6 +25,8 @@ export type TimelineEntry = {
   /** Plain fixed words chosen by software. Never outside text. */
   text: string; code?: string;
   recordIds?: string[]; receiptIds?: string[]; actionIds?: string[]; caseId?: string;
+  /** A model request waiting for the owner's approval of its exact payload (`models.approve`). */
+  modelPreviewId?: string;
 };
 
 export type LaneQuestion = {
