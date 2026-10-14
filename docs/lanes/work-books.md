@@ -60,7 +60,7 @@ ApprovalDetail = ApprovalRow & {
 | `approvals.approve` | approve | `{ id, digest, secondAsk?: true }` | `ApprovalDetail` after approval. Money (`needsSecondAsk`) refuses `SECOND_ASK_REQUIRED` without `secondAsk: true`. A changed digest refuses `PREVIEW_CHANGED`. Expired refuses `APPROVAL_EXPIRED`. |
 | `approvals.notNow` | read | `{ id, hours?: 1..168 }` | `{ id, snoozedUntil }` (default 24 h; it leaves the list until then) |
 | `approvals.change` | prepare | `{ id, payload }` | `ApprovalDetail` (a new revision, prepared again) |
-| `approvals.drop` | approve | `{ id }` | `{ id, state: 'cancelled' }` |
+| `approvals.drop` | approve | `{ id }` | `{ id, state: 'cancelled' \| 'rejected' }` (an acceptance is sent back: `rejected`) |
 | `approvals.group` | read | `{ ids: string[] }` (2..10) | `{ title, undoable: true, items: ApprovalDetail[] }`. Refuses `GROUP_NOT_ALLOWED` if any item is tier-2 or prepare-only. |
 | `approvals.approveGroup` | approve | `{ items: { id, digest }[] }` | `{ results: { id, ok: boolean, code?: string, state?: string }[] }`, one approval per item |
 | `approvals.pace` | read | `{}` | `{ fastStreak: number; warn: boolean }` (warn after 3 approvals under 2 s each) |
