@@ -88,8 +88,8 @@ function resultFor(host: ModuleHost, job: Job, ns: JobsExtState) {
 }
 
 export const jobsMethods: Record<string, MethodSpec> = {
-  'jobsx.types': { permission: 'read', handler: (ctx, _p, host) => ({ templates: TEMPLATES.map(t => ({ id: t.id, title: t.title, goal: t.goal, finishedWhen: t.finishedWhen, steps: t.steps, intervalMs: t.intervalMs, stepsPerDelivery: t.stepsPerDelivery,
-    missedRule: t.missedRule, budgetMinor: t.budgetMinor, allowedActions: t.allowedActions, experimental: t.experimental === true, skillPath: skillFile(t).path, ...availability(host, ctx, t) })), activeJobs: activeJobs(host.store.read()), activeJobCap: peekLane(host.store.read()).settings.activeJobCap }) },
+  'jobsx.types': { permission: 'read', handler: async (ctx, _p, host) => ({ templates: await Promise.all(TEMPLATES.map(async t => ({ id: t.id, title: t.title, goal: t.goal, finishedWhen: t.finishedWhen, steps: t.steps, intervalMs: t.intervalMs, stepsPerDelivery: t.stepsPerDelivery,
+    missedRule: t.missedRule, budgetMinor: t.budgetMinor, allowedActions: t.allowedActions, experimental: t.experimental === true, skillPath: skillFile(t).path, ...await availability(host, ctx, t) }))), activeJobs: activeJobs(host.store.read()), activeJobCap: peekLane(host.store.read()).settings.activeJobCap }) },
   'jobsx.templateSkill': { permission: 'read', handler: (_ctx, p) => skillFile(template(p.id)) },
   'jobsx.propose': { permission: 'prepare', handler: (ctx, p, host) => { inApp(ctx, 'TAINTED_JOB'); return proposeCard(host, ctx, { template: p.template, sentence: p.sentence, overrides: p.overrides, skill: p.skill }); } },
   'jobsx.detect': { permission: 'prepare', handler: (ctx, _p, host) => { inApp(ctx, 'TAINTED_JOB'); return detect(host, ctx); } },

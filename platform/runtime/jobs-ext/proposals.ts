@@ -9,7 +9,6 @@ import type { Context, State } from '../contracts.ts';
 import { digest } from '../actions.ts';
 import type { Job, JobService } from '../jobs.ts';
 import type { ModuleHost } from '../modules/types.ts';
-import { moduleMethods } from '../modules/registry.ts';
 import { visibleFacts } from '../trust.ts';
 import { lane, peekLane, pushTimeline, inApp, paise, dayOf, isLaneJob, ownsJob, LANE_JOB_PREFIX } from './state.ts';
 import type { JobCard, LaneJob, MissedRule, Proposal } from './state.ts';
@@ -24,7 +23,9 @@ const nowIso = (host: ModuleHost) => new Date(jobsOf(host).clock()).toISOString(
 export type CardOverrides = { budgetMinor?: string; reserveMinor?: string; nextRunAt?: string; missedRule?: MissedRule; testedRoutes?: string[]; background?: boolean; sourceIds?: string[] };
 
 /** Whether this workspace can run the template now, and why not. */
-export function availability(host: ModuleHost, ctx: Context, tpl: JobTemplate): { available: boolean; code?: string; reason?: string } {
+export async function availability(host: ModuleHost, ctx: Context, tpl: JobTemplate): Promise<{ available: boolean; code?: string; reason?: string }> {
+  // Loaded late: the registry imports every lane module, this one included.
+  const { moduleMethods } = await import('../modules/registry.ts');
   if (tpl.requires.operations.length) {
     const dictionary = host.services.ontology.current(ctx);
     if (!dictionary) return { available: false, code: 'DICTIONARY_REQUIRED', reason: 'Publish your business meanings first.' };
@@ -117,7 +118,7 @@ export async function approveProposal(host: ModuleHost, ctx: Context, id: unknow
   check(proposal.status === 'proposed', 'INVALID_PROPOSAL_STATE', 'This proposal was already decided.');
   check(proposal.card.ownerId === ctx.memberId, 'JOB_OWNER_REQUIRED', 'Only the job’s owner approves its card.');
   check(expectedDigest === proposal.digest && digest(proposal.card) === proposal.digest, 'PREVIEW_CHANGED', 'The card changed. Review it again.');
-  const tpl = template(proposal.template); const ready = availability(host, ctx, tpl);
+  const tpl = template(proposal.template); const ready = await availability(host, ctx, tpl);
   check(ready.available, ready.code ?? 'TEMPLATE_NOT_BUILT', ready.reason ?? 'This job cannot run here yet.');
   const state = host.store.read(); const settings = peekLane(state).settings;
   if (proposal.replacesJobId) {
@@ -182,7 +183,7 @@ export async function detect(host: ModuleHost, ctx: Context): Promise<Proposal[]
   if (draftDays >= 3 && !found.some(f => f.template === 'receivables-week')) found.push({ template: 'receivables-week', evidence: ['You prepared payment reminders by hand on three different days.'] });
   const proposals: Proposal[] = [];
   for (const item of found) {
-    if (taken(item.template) || !availability(host, ctx, template(item.template)).available) continue;
+    if (taken(item.template) || !(await availability(host, ctx, template(item.template))).available) continue;
     proposals.push(await proposeCard(host, ctx, { template: item.template, origin: 'detector', evidence: item.evidence }));
   }
   await host.store.update(state => { const n = lane(state); n.lastDetection = { ...(n.lastDetection ?? {}), [ctx.memberId]: today }; });

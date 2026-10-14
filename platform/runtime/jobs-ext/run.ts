@@ -61,7 +61,8 @@ type StepWork = {
 };
 
 class Meter {
-  constructor(readonly host: ModuleHost, readonly ctx: Context, readonly job: Job, readonly lease: LeaseRef) {}
+  readonly host: ModuleHost; readonly ctx: Context; readonly job: Job; readonly lease: LeaseRef;
+  constructor(host: ModuleHost, ctx: Context, job: Job, lease: LeaseRef) { this.host = host; this.ctx = ctx; this.job = job; this.lease = lease; }
   /** What is left of this step's reservation, read from the live lease. */
   remaining(): bigint { const raw = jobsOf(this.host).find(this.host.store.read(), this.job.id); return raw.lease ? BigInt(raw.lease.reservedMinor) - BigInt(raw.lease.chargedMinor) : 0n; }
   async charge(minor: bigint) { if (minor > 0n) await jobsOf(this.host).charge(this.ctx, this.job.id, this.lease, String(minor)); }
