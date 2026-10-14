@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "note": "Upstream runtime archives per target. Every sha256 is null on purpose: the release operator downloads each archive, verifies it against the vendor's own published integrity data, and pins the lowercase SHA-256 here. scripts/release/stage-runtime.ts refuses a null pin with RUNTIME_SOURCE_UNPINNED and a null url with RUNTIME_SOURCE_UNAVAILABLE. URLs were checked to resolve on 2026-10-14; layouts and license paths were read from the archive listings. Entries with official=false come from a third-party redistributor because the upstream project ships no relocatable build for that target; their provenance needs separate review.",
+  "targets": {
+    "win32-x64": [
+      {
+        "component": "postgres",
+        "version": "17.6",
+        "vendor": "EnterpriseDB (zip binaries linked from postgresql.org/download/windows)",
+        "url": "https://get.enterprisedb.com/postgresql/postgresql-17.6-1-windows-x64-binaries.zip",
+        "sha256": null,
+        "license": "PostgreSQL",
+        "licenseFile": "postgres/doc/src/sgml/html/legalnotice.html",
+        "official": true,
+        "layout": { "archive": "zip", "strip": "pgsql", "into": "postgres", "include": ["bin", "lib", "share", "doc/src/sgml/html/legalnotice.html"], "materialiseSymlinks": false }
+      },
+      {
+        "component": "python",
+        "version": "3.13.7",
+        "vendor": "Python Software Foundation (Windows embeddable package)",
+        "url": "https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-amd64.zip",
+        "sha256": null,
+        "license": "PSF-2.0",
+        "licenseFile": "python/LICENSE.txt",
+        "official": true,
+        "layout": { "archive": "zip", "strip": null, "into": "python", "materialiseSymlinks": false }
+      }
+    ],
+    "win32-arm64": [
+      {
+        "component": "postgres",
+        "version": "17.6",
+        "vendor": "none identified",
+        "url": null,
+        "note": "EnterpriseDB publishes no windows-arm64 zip binaries at the x64 URL pattern (the equivalent URL is refused). Identify a genuine arm64 build before releasing this target.",
+        "sha256": null,
+        "license": "PostgreSQL",
+        "licenseFile": "postgres/doc/src/sgml/html/legalnotice.html",
+        "official": false,
+        "layout": { "archive": "zip", "strip": "pgsql", "into": "postgres", "include": ["bin", "lib", "share", "doc/src/sgml/html/legalnotice.html"], "materialiseSymlinks": false }
+      },
+      {
+        "component": "python",
+        "version": "3.13.7",
+        "vendor": "Python Software Foundation (Windows embeddable package)",
+        "url": "https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-arm64.zip",
+        "sha256": null,
+        "license": "PSF-2.0",
+        "licenseFile": "python/LICENSE.txt",
+        "official": true,
+        "layout": { "archive": "zip", "strip": null, "into": "python", "materialiseSymlinks": false }
+      }
+    ],
+    "darwin-x64": [
+      {
+        "component": "postgres",
+        "version": "17.6",
+        "vendor": "EnterpriseDB (zip binaries linked from postgresql.org/download/macosx)",
+        "url": "https://get.enterprisedb.com/postgresql/postgresql-17.6-1-osx-binaries.zip",
+        "note": "Universal Mach-O (x86_64 and arm64). lib/ holds dylib symlinks that staging materialises as regular files.",
+        "sha256": null,
+        "license": "PostgreSQL",
+        "licenseFile": "postgres/doc/postgresql/html/legalnotice.html",
+        "official": true,
+        "layout": { "archive": "zip", "strip": "pgsql", "into": "postgres", "include": ["bin", "lib", "share", "doc/postgresql/html/legalnotice.html"], "materialiseSymlinks": true }
+      },
+      {
+        "component": "python",
+        "version": "3.13.7",
+        "vendor": "astral-sh python-build-standalone 20250818 (install_only)",
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250818/cpython-3.13.7+20250818-x86_64-apple-darwin-install_only.tar.gz",
+        "note": "python.org ships only a non-relocatable macOS installer package, so this third-party relocatable build is used.",
+        "sha256": null,
+        "license": "PSF-2.0",
+        "licenseFile": "python/lib/python3.13/LICENSE.txt",
+        "official": false,
+        "layout": { "archive": "tar.gz", "strip": "python", "into": "python", "materialiseSymlinks": true }
+      }
+    ],
+    "darwin-arm64": [
+      {
+        "component": "postgres",
+        "version": "17.6",
+        "vendor": "EnterpriseDB (zip binaries linked from postgresql.org/download/macosx)",
+        "url": "https://get.enterprisedb.com/postgresql/postgresql-17.6-1-osx-binaries.zip",
+        "note": "Universal Mach-O (x86_64 and arm64). lib/ holds dylib symlinks that staging materialises as regular files.",
+        "sha256": null,
+        "license": "PostgreSQL",
+        "licenseFile": "postgres/doc/postgresql/html/legalnotice.html",
+        "official": true,
+        "layout": { "archive": "zip", "strip": "pgsql", "into": "postgres", "include": ["bin", "lib", "share", "doc/postgresql/html/legalnotice.html"], "materialiseSymlinks": true }
+      },
+      {
+        "component": "python",
+        "version": "3.13.7",
+        "vendor": "astral-sh python-build-standalone 20250818 (install_only)",
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250818/cpython-3.13.7+20250818-aarch64-apple-darwin-install_only.tar.gz",
+        "note": "python.org ships only a non-relocatable macOS installer package, so this third-party relocatable build is used.",
+        "sha256": null,
+        "license": "PSF-2.0",
+        "licenseFile": "python/lib/python3.13/LICENSE.txt",
+        "official": false,
+        "layout": { "archive": "tar.gz", "strip": "python", "into": "python", "materialiseSymlinks": true }
+      }
+    ],
+    "linux-x64": [
+      {
+        "component": "postgres",
+        "version": "17.6",
+        "vendor": "theseus-rs postgresql-binaries 17.6.0",
+        "url": "https://github.com/theseus-rs/postgresql-binaries/releases/download/17.6.0/postgresql-17.6.0-x86_64-unknown-linux-gnu.tar.gz",
+        "note": "postgresql.org publishes Linux builds only as distribution packages, not relocatable archives. This third-party build is compiled from upstream source.",
+        "sha256": null,
+        "license": "PostgreSQL",
+        "licenseFile": "postgres/COPYRIGHT",
+        "official": false,
+        "layout": { "archive": "tar.gz", "strip": "postgresql-17.6.0-x86_64-unknown-linux-gnu", "into": "postgres", "include": ["bin", "lib", "share", "COPYRIGHT"], "materialiseSymlinks": true }
+      },
+      {
+        "component": "python",
+        "version": "3.13.7",
+        "vendor": "astral-sh python-build-standalone 20250818 (install_only)",
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250818/cpython-3.13.7+20250818-x86_64-unknown-linux-gnu-install_only.tar.gz",
+        "note": "python.org publishes Linux Python only as source, so this third-party relocatable build is used.",
+        "sha256": null,
+        "license": "PSF-2.0",
+        "licenseFile": "python/lib/python3.13/LICENSE.txt",
+        "official": false,
+        "layout": { "archive": "tar.gz", "strip": "python", "into": "python", "materialiseSymlinks": true }
+      }
+    ],
+    "linux-arm64": [
+      {
+        "component": "postgres",
+        "version": "17.6",
+        "vendor": "theseus-rs postgresql-binaries 17.6.0",
+        "url": "https://github.com/theseus-rs/postgresql-binaries/releases/download/17.6.0/postgresql-17.6.0-aarch64-unknown-linux-gnu.tar.gz",
+        "note": "postgresql.org publishes Linux builds only as distribution packages, not relocatable archives. This third-party build is compiled from upstream source.",
+        "sha256": null,
+        "license": "PostgreSQL",
+        "licenseFile": "postgres/COPYRIGHT",
+        "official": false,
+        "layout": { "archive": "tar.gz", "strip": "postgresql-17.6.0-aarch64-unknown-linux-gnu", "into": "postgres", "include": ["bin", "lib", "share", "COPYRIGHT"], "materialiseSymlinks": true }
+      },
+      {
+        "component": "python",
+        "version": "3.13.7",
+        "vendor": "astral-sh python-build-standalone 20250818 (install_only)",
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250818/cpython-3.13.7+20250818-aarch64-unknown-linux-gnu-install_only.tar.gz",
+        "note": "python.org publishes Linux Python only as source, so this third-party relocatable build is used.",
+        "sha256": null,
+        "license": "PSF-2.0",
+        "licenseFile": "python/lib/python3.13/LICENSE.txt",
+        "official": false,
+        "layout": { "archive": "tar.gz", "strip": "python", "into": "python", "materialiseSymlinks": true }
+      }
+    ]
+  }
+}
