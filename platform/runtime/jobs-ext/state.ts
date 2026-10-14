@@ -31,7 +31,7 @@ export type LaneQuestion = {
   id: string; jobId: string; caseId?: string; askedAt: string; prompt: string; options: string[];
   /** The rule's own pick and how sure it is, when it has one. */
   suggested?: { option: string; confidence: number };
-  status: 'open' | 'answered' | 'withdrawn'; answer?: string; answeredBy?: string; answeredAt?: string; sourceIds: string[];
+  status: 'open' | 'answered' | 'withdrawn'; applied?: boolean; answer?: string; answeredBy?: string; answeredAt?: string; sourceIds: string[];
 };
 
 export type PersonStep = { id: string; jobId: string; title: string; assignee: string; status: 'waiting' | 'done'; createdAt: string; doneAt?: string; doneBy?: string };
@@ -57,6 +57,13 @@ export type LaneJob = {
   testedRoutes: string[]; sourceIds: string[];
   replacedBy?: string; replaces?: string; deletedAt?: string;
   cases: Record<string, CaseOutcome>;
+  /** Runs this lane started, deliveries made, and figures gathered by earlier steps of this delivery. */
+  runCounter?: number; deliveries?: number; stepFigures?: LaneResult['figures']; stepReceipts?: string[];
+  /** Work held while a person does a step (WK-16). */
+  pending?: unknown; waitingFor?: string;
+  /** Runs while the window is closed, when background mode is on. */
+  background: boolean;
+  approvedDigest: string;
 };
 
 export type MissedNote = { id: string; jobId: string; at: string; missed: number; ran: number; rule: MissedRule; text: string; seen: boolean };
@@ -103,6 +110,7 @@ export type JobsExtState = {
   reminders: { customerId: string; invoiceId: string; day: string; actionId: string; jobId: string }[];
   /** Procedures and their run traces live in their own sub-namespace (platform/runtime/procedures). */
   procedures: unknown;
+  lastDetection?: Record<string, string>;
 };
 
 export const defaultSettings = (): JobsExtSettings => ({
