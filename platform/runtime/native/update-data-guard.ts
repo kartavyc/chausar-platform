@@ -65,3 +65,56 @@ export class DataGuard {
     } finally { await lock.release(); }
   }
 }
+
+const MAX_LEDGER_VERSIONS = 64;
+/**
+ * Which data schema each installed version reads and writes: `<appData>/release/version-schemas.json`.
+ * `UpdateService.apply` records both sides of a swap before the pointer moves, so a later rollback (manual or the
+ * launcher's automatic one) can refuse a version that cannot open the vault the marker says exists. Like the install
+ * pointer it is a local file: it guards against mistakes and crashes, not against a local administrator or malware.
+ */
+export class VersionSchemaLedger {
+  #directory:string;
+  constructor(options:{ appDataDirectory:string }) {
+    check(typeof options.appDataDirectory === 'string' && isAbsolute(options.appDataDirectory), 'UNSAFE_UPDATE_PATH', 'Choose an absolute application data directory.');
+    this.#directory = options.appDataDirectory;
+  }
+  async #release() { return safeDirectory(join(await safeDirectory(this.#directory, true), 'release'), true); }
+  async #read(directory:string):Promise<Map<string, number>> {
+    const value:any = await readJsonFile(join(directory, 'version-schemas.json'), 16 * 1024, 'VERSION_SCHEMA_LEDGER_INVALID');
+    const result = new Map<string, number>();
+    if (value === undefined) return result;
+    check(exactKeys(value, ['versions']) && value.versions && typeof value.versions === 'object' && !Array.isArray(value.versions), 'VERSION_SCHEMA_LEDGER_INVALID', 'The version schema ledger is invalid.');
+    const entries = Object.entries(value.versions);
+    check(entries.length <= MAX_LEDGER_VERSIONS, 'VERSION_SCHEMA_LEDGER_INVALID', 'The version schema ledger is too long.');
+    for (const [version, dataSchemaVersion] of entries) {
+      let valid = false; try { compareVersions(version, version); valid = true; } catch {}
+      check(valid && schema(dataSchemaVersion), 'VERSION_SCHEMA_LEDGER_INVALID', 'The version schema ledger is invalid.');
+      result.set(version, dataSchemaVersion);
+    }
+    return result;
+  }
+  /** The recorded data schema of one installed version, or null when it was never recorded. */
+  async schemaOf(version:string):Promise<number|null> {
+    compareVersions(version, version);
+    return (await this.#read(await this.#release())).get(version) ?? null;
+  }
+  /** Records versions' schemas. The first record wins: a version's schema is fixed by the signed manifest that installed it. */
+  async record(entries:ReadonlyArray<readonly [string, number]>):Promise<void> {
+    const directory = await this.#release(), lock = await acquireProcessLock(join(directory, 'version-schemas.lock'), { busyCode: 'UPDATE_BUSY', changedCode: 'UPDATE_LOCK_CHANGED', unsafeCode: 'UNSAFE_UPDATE_PATH' });
+    try {
+      const ledger = await this.#read(directory);
+      let changed = false;
+      for (const [version, dataSchemaVersion] of entries) {
+        compareVersions(version, version);
+        check(schema(dataSchemaVersion), 'INVALID_DATA_SCHEMA', 'The data schema version must be a positive integer.');
+        if (!ledger.has(version)) { ledger.set(version, dataSchemaVersion); changed = true; }
+      }
+      if (!changed) return;
+      const kept = [...ledger.keys()].sort((a, b) => compareVersions(b, a)).slice(0, MAX_LEDGER_VERSIONS);
+      const versions:Record<string, number> = Object.create(null);
+      for (const version of kept) versions[version] = ledger.get(version)!;
+      await writeJsonAtomic(join(directory, 'version-schemas.json'), { versions });
+    } finally { await lock.release(); }
+  }
+}
