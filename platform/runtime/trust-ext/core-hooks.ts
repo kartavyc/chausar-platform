@@ -1,48 +1,70 @@
 /**
  * The lane's rules at the core trust boundary, registered once at import:
- * dual control on the core Send, Sharing and seat paths, CA end dates at authorization,
+ * dual control on the core Send, Sharing, seat, allowed-source and autonomy paths (in the app only), CA end dates at authorization,
  * seat visibility of markings in every fact read, the canary check before anything leaves, and the numbers server's call record.
  */
 import { check, newId, now, registerCoreHook } from '../contracts.ts';
-import type { TrustPolicy } from '../contracts.ts';
+import type { Context, TrustPolicy } from '../contracts.ts';
+import type { ModuleHost } from '../modules/types.ts';
 import { registerOutboundCheck } from '../gateway.ts';
 import { registerMcpCallHook } from '../mcp.ts';
 import { markKinds, seatOf } from './core-state.ts';
 import type { PendingRecord } from './core-state.ts';
-import { applyingChange, secondNeeded } from './core-dual.ts';
+import { applyingChange, onApplyChange, requestChange, requireApp, secondNeeded } from './core-dual.ts';
 import { seatHasEnded } from './core-seats.ts';
 import { seatSees, sourceMarkKinds } from './core-markings.ts';
 import { blockLeak } from './tools-network.ts';
-import { tools } from './tools-common.ts';
+import { fields, tools } from './tools-common.ts';
 
 const sendRank: Record<TrustPolicy['send'], number> = { nothing: 0, shape: 1, samples: 2 };
+const sameSources = (a: readonly string[], b: readonly string[]) => { const left = new Set(a), right = new Set(b); return left.size === right.size && [...left].every(id => right.has(id)); };
 
-// A core change to Send, Sharing or seats that dual control would hold is refused: it goes through trustx.*,
-// which keeps the waiting change. Sending less, sharing off and removing an assistant need one person.
+// A core change to Send, Sharing, seats, the allowed sources or autonomy that dual control would hold is refused: it goes
+// through trustx.*, which keeps the waiting change. Any change of the allowed sources waits: widening shows more, narrowing
+// purges data. Loosening and seat-adding changes are made by a person in the app, never from outside text or another channel.
+// Sending less, sharing off, autonomy off and removing an assistant need one person.
 registerCoreHook('change', (state, ctx, change) => {
   const member = state.members.find(m => m.id === ctx.memberId);
-  if (!member?.active || !['owner', 'cofounder'].includes(member.role) || applyingChange(ctx)) return;
+  if (!member?.active || !['owner', 'cofounder'].includes(member.role)) return;
   let op: PendingRecord['op'] | undefined;
   if (change.kind === 'policy') {
-    const { send, sharing } = change.patch;
-    const loosens = (send !== undefined && sendRank[send] > sendRank[state.policy.send]) || (sharing === true && state.policy.sharing !== true);
+    const { send, sharing, autonomy, allowedSources } = change.patch;
+    const loosens = (send !== undefined && sendRank[send] > sendRank[state.policy.send]) || (sharing === true && state.policy.sharing !== true)
+      || (autonomy === true && state.policy.autonomy !== true) || (Array.isArray(allowedSources) && !sameSources(allowedSources, state.policy.allowedSources));
     if (!loosens) return;
   } else if (change.kind === 'member-revoke') {
     const target = state.members.find(m => m.id === change.memberId);
     if (target && seatOf(state, target) === 'assistant') return;
     op = { type: 'remove-seat', memberId: change.memberId };
   }
+  if (change.kind !== 'member-revoke') requireApp(ctx);
+  if (applyingChange(ctx)) return;
   check(secondNeeded(state, ctx, op) === null, 'SECOND_PERSON_REQUIRED', 'This change needs the owner and the cofounder. Make it from Trust.');
 });
+
+// The allowed sources and autonomy through Trust, under the same dual control as Send.
+export async function setPolicy(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  const { allowedSources, autonomy } = fields(payload, ['allowedSources', 'autonomy']); const patch: Partial<TrustPolicy> = {}; const parts: string[] = [];
+  if (allowedSources !== undefined) {
+    check(Array.isArray(allowedSources) && allowedSources.length <= 200 && allowedSources.every((s: unknown) => typeof s === 'string' && s.length > 0 && s.length <= 200), 'INVALID_POLICY', 'Source grants must be named.');
+    patch.allowedSources = [...new Set(allowedSources as string[])]; parts.push(patch.allowedSources.includes('*') ? 'allow every source' : `allow ${patch.allowedSources.length} named sources`);
+  }
+  if (autonomy !== undefined) { check(typeof autonomy === 'boolean', 'INVALID_POLICY', 'Privacy switches must be boolean.'); patch.autonomy = autonomy; parts.push(`autonomy ${autonomy ? 'on' : 'off'}`); }
+  check(parts.length > 0, 'INVALID_POLICY', 'Say what to change.');
+  return requestChange(ctx, host, 'send', `Change ${parts.join(', ')}.`, { type: 'policy', patch });
+}
+onApplyChange('policy', async (ctx, host, op) => ({ policy: await host.services.trust.updatePolicy(ctx, op.patch as Partial<TrustPolicy>) }));
 
 // A CA seat past its end date is refused on every request, core or lane.
 registerCoreHook('seatEnded', (state, memberId) => seatHasEnded(state, memberId));
 
-// Data from a source marked with a kind this seat does not see is not visible to it. The owner sees everything.
+// Data from a source marked with a kind this seat does not see is not visible to it. The owner, and any seat that sees
+// every kind, returns before any work on the source; the kinds hidden from the seat are worked out once per call.
 registerCoreHook('sourceHidden', (state, member, sourceId) => {
   if (member.role === 'owner') return false;
-  const sees = seatSees(state, seatOf(state, member));
-  return !markKinds.every(kind => sees[kind]) && sourceMarkKinds(state, sourceId).some(kind => !sees[kind]);
+  const sees = seatSees(state, seatOf(state, member)); const hidden = markKinds.filter(kind => !sees[kind]);
+  if (!hidden.length) return false;
+  return sourceMarkKinds(state, sourceId).some(kind => hidden.includes(kind));
 });
 
 // The planted value, or a GSTIN, mail address or phone number from the books, stops a model call before it leaves.

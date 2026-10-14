@@ -6,13 +6,36 @@ import { MCP_PROTOCOL_VERSION } from '../mcp.ts';
 import { fields, newestFirst, tools } from './tools-common.ts';
 import { coreState } from './core-state.ts';
 import { applyByOne, onApplyChange } from './core-dual.ts';
-import { onPurge } from './lifecycle.ts';
+import { onPurge, onTick } from './lifecycle.ts';
 import { peekLane } from './lane-state.ts';
 
 /** Sessions issued by the auth service last at most one day; an assistant pairs again after that. */
 type Paired = { id: string; name: string; pairedAt: string; sessionId: string };
 
 function paired(state: State): Paired[] { return tools(state).assistants?.paired ?? []; }
+const sessionMs = 86400000;
+/** True once an assistant's one-day session is over: the member is then revoked (lazily, on the view and the lane tick). */
+const expired = (item: Paired, at = Date.now()) => Date.parse(item.pairedAt) + sessionMs <= at;
+/** Active members of assistants whose day is over, or (with a name) every active member paired under that name. */
+function stale(state: State, name?: string): string[] {
+  const active = (id: string) => state.members.some(m => m.id === id && m.active);
+  return paired(state).filter(item => active(item.id) && (name === undefined ? expired(item) : item.name.toLowerCase() === name.toLowerCase())).map(item => item.id);
+}
+/** Revokes them inside a store update as `members.revoke` would: an assistant is not a seat under dual control. */
+function revokeStale(state: State, ids: string[]) {
+  for (const id of ids) {
+    const member = state.members.find(m => m.id === id && m.active); if (!member) continue;
+    member.active = false; member.epoch++; state.sessions = state.sessions.filter(s => s.memberId !== id);
+    audit(state, 'trust.member.revoked', { memberId: id, reason: 'assistant-session-ended' });
+  }
+  return ids.length;
+}
+/** `trustx.assistants`: revokes assistants whose day is over, then shows the list. */
+export async function assistants(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  fields(payload, []);
+  if (stale(host.store.read()).length) await host.store.update(state => revokeStale(state, stale(state)));
+  return assistantsView(host.store.read());
+}
 
 export function assistantsView(state: State) {
   const list = paired(state); const ids = new Map(list.map(item => [item.id, item.name]));
@@ -29,7 +52,7 @@ export function assistantsView(state: State) {
     on: tools(state).assistants?.on === true, server: { version: MCP_PROTOCOL_VERSION, scope: 'this-computer' as const },
     assistants: list.map(item => {
       const member = state.members.find(m => m.id === item.id);
-      return { id: item.id, name: item.name, pairedAt: item.pairedAt, lastCall: calls.find(call => call.client === item.name)?.at ?? null, active: member?.active === true };
+      return { id: item.id, name: item.name, pairedAt: item.pairedAt, lastCall: calls.find(call => call.client === item.name)?.at ?? null, active: member?.active === true && !expired(item) };
     }),
     calls,
   };
@@ -51,7 +74,8 @@ export async function setAssistants(ctx: Context, payload: Record<string, any>, 
 /**
  * Pairing makes a read-only member in the assistant seat and gives it a session that only the numbers
  * server (`/mcp`) accepts: list the calculations, run one, open a receipt. `/api/rpc` refuses it.
- * Sessions last at most one day. An assistant is not a seat under dual control, so the owner pairs alone.
+ * Sessions last at most one day. An assistant is not a seat under dual control, so the owner pairs alone; the member carries
+ * the numbers-only mark (`scope: 'mcp'`), so no session that `/api/rpc` accepts can ever be issued for it.
  */
 export async function pairAssistant(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   const { name } = fields(payload, ['name']);
@@ -63,7 +87,9 @@ export async function pairAssistant(ctx: Context, payload: Record<string, any>, 
 
 onApplyChange('pair-assistant', async (ctx, host, op) => {
   const id = newId('assistant'); const name = op.name as string;
-  await host.services.trust.addMember(ctx, { id, name, role: 'viewer' });
+  // Pairing a name again replaces the assistant paired under it before.
+  for (const previous of stale(host.store.read(), name)) await host.services.trust.revokeMember(ctx, previous);
+  await host.services.trust.addMember(ctx, { id, name, role: 'viewer', scope: 'mcp' });
   try {
     await host.store.update(state => { coreState(state).memberSeats[id] = 'assistant'; });
     const session = await host.services.auth.issueSession(ctx, id, 86400000, { scope: 'mcp' });
@@ -89,4 +115,10 @@ onPurge((state, reason) => {
   let removed = 0;
   for (const call of (peekLane(state)?.tools?.mcpCalls ?? []) as { receiptId: string | null }[]) if (call.receiptId && reason.removedIds.has(call.receiptId)) { call.receiptId = null; removed++; }
   return removed;
+});
+
+// An assistant whose one-day session is over is revoked.
+onTick(async (_ctx, host) => {
+  if (!stale(host.store.read()).length) return [];
+  return [{ part: 'trust-assistants', revoked: await host.store.update(state => revokeStale(state, stale(state))) }];
 });
