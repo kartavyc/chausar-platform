@@ -99,7 +99,7 @@ async function recordEnvelope(host: ModuleHost, ctx: Context, input: { outcome: 
       recipeId: recipe.id, recipeVersion: recipe.version, recipeDigest: outcome?.recipe.digest ?? '', road: input.road, fetchedAt: now(), requestedPeriod: input.requestedPeriod,
       period: outcome?.period ?? null, status: input.failure ? 'failed' : outcome!.status, refusal: input.failure ? { code: input.failure.code, reason: 'The read itself failed.' } : outcome!.refusal,
       abstention: outcome?.abstention ?? null, checks: outcome?.checks ?? [], observed: outcome?.observed ?? { rowCount: 0, total: '0', unit: '' }, sourceTotals: outcome?.sourceTotals ?? null,
-      unmappedFields: outcome?.unmappedFields ?? [], excludedRows: outcome?.excludedRows ?? 0, contentHash: outcome?.contentHash ?? '', sensitivity: recipe.sensitivity, notices: outcome?.notices ?? [...(recipe.notices ?? [])],
+      balances: outcome?.balances ?? null, unmappedFields: outcome?.unmappedFields ?? [], excludedRows: outcome?.excludedRows ?? 0, contentHash: outcome?.contentHash ?? '', sensitivity: recipe.sensitivity, notices: outcome?.notices ?? [...(recipe.notices ?? [])],
       read: input.read ?? null, pending: keep ? { records: outcome!.records, measure: outcome!.recipe.measure, expiresAt: new Date(Date.now() + LIMITS.pendingTtlMs).toISOString() } : null,
       committed: null, createdBy: ctx.memberId };
     if (outcome?.status === 'accepted' && !keep) { envelope.status = 'refused'; envelope.refusal = { code: 'PENDING_LIMIT', reason: 'Too many rows are waiting. Import or discard earlier files first.' }; }
@@ -243,7 +243,8 @@ export const handlers = {
     const outcome = runRegistered(binding!.recipe, { records: result.records, meta }, totals ? { reportTotals: totals } : {});
     return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe: registeredRecipe(binding!.recipe), road: 'interface', requestedPeriod: requested, read: { pages: result.pages, requests: result.requests, bytes: result.bytes } }));
   },
-  async importPreview(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  /** `internal.password` comes only from the in-memory FR-07 password hold, never from an RPC payload. */
+  async importPreview(ctx: Context, payload: Record<string, any>, host: ModuleHost, internal: { password?: string } = {}) {
     shape(payload, ['recipeId', 'connectionId', 'sourceId', 'company', 'branch', 'text', 'bytesBase64', 'pdfBase64', 'sheet', 'reportTotals'], ['recipeId']);
     const selected = registeredRecipe(payload.recipeId), decoder = DECODERS.get(selected.decoder)!;
     let target: { sourceId: string; company: string; branch: string }, item: Connection | null = null;
@@ -259,7 +260,7 @@ export const handlers = {
     else if (decoder.accepts === 'rows' && payload.pdfBase64 !== undefined) {
       check(selected.decoder === 'bank-pdf-text', 'RECIPE_INPUT_MISMATCH', 'Only the bank statement PDF recipe reads PDF files.');
       // Pages with a text layer are read directly; scanned pages go to OCR (experimental) and must clear a confidence floor.
-      const extracted = await extractBankPdfWithOcr(host.services.helper, payload.pdfBase64);
+      const extracted = await extractBankPdfWithOcr(host.services.helper, payload.pdfBase64, internal.password ? { password: internal.password } : {});
       input.rows = pdfTextToRows(extracted.pages).rows;
       if (extracted.ocrPages.length) ocrNotice = extracted.notice;
     } else if (decoder.accepts === 'rows') {
