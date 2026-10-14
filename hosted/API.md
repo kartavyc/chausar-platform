@@ -8,7 +8,7 @@ General rules:
 - Errors: `{ "error": { "code": "UPPER_CASE", "message": "Plain sentence." } }` with an HTTP status. A message never carries data from outside.
 - Money: whole paise as a decimal string (`"1250"`), never a float. An unknown amount is `null` with a `...State` word field, never `"0"`.
 - Times: ISO 8601 UTC strings.
-- Auth: `Authorization: Bearer <sessionToken>` for every `/v1` route except the OTP routes, the billing webhook, the channel webhooks and the link pages. A session belongs to one desktop install (`deviceId`) of one account.
+- Auth: `Authorization: Bearer <sessionToken>` for every `/v1` route except the OTP routes, the billing webhook, the channel webhooks, the link pages and `POST /v1/allowance/responses` (which takes an allowance credential instead, and nothing else). A session belongs to one desktop install (`deviceId`) of one account.
 - Entitlements gate paid features: refusal code `PLAN_REQUIRED` (HTTP 402).
 
 ## Accounts (`hosted/accounts`)
@@ -28,7 +28,7 @@ General rules:
 | `GET /v1/billing/subscription` | – | `{ plan, status: 'none'|'pending'|'active'|'past_due'|'cancelled', currentPeriodEnd, partner }` |
 | `POST /v1/billing/checkout` | `{ plan: 'paid', idempotencyKey }` | `{ checkoutId, checkoutUrl, status: 'pending' }` from the `PaymentPartner`. `PAYMENT_PARTNER_NOT_CONFIGURED` (503) without a partner. |
 | `POST /v1/billing/cancel` | `{}` | `{ status: 'cancelled', currentPeriodEnd }` |
-| `POST /v1/billing/webhooks/:partner` | partner body, signature header | `200 { received: true }`. Bad signature: `WEBHOOK_SIGNATURE_INVALID` (401). Replays are idempotent by partner event id. |
+| `POST /v1/billing/webhooks/:partner` | partner body, signature header | `200 { received: true }`. Bad signature: `WEBHOOK_SIGNATURE_INVALID` (401). Replays are idempotent by partner event id. Razorpay signs only the body, so its event id is derived from the signed body (event name, subscription id, payment id when present, `created_at`): the same body under a new `x-razorpay-event-id` header is the same event. A Razorpay event whose `created_at` is more than three days old is refused `WEBHOOK_STALE` (400); `created_at` is required. |
 
 ## Relay (`hosted/relay`): briefs and simple approvals
 
@@ -36,8 +36,8 @@ Channels: `whatsapp` (Cloud API templates, to the account's verified phone), `te
 
 | Route | Body | Reply |
 |---|---|---|
-| `GET /v1/relay/channels` | – | `{ channels: [{ channel, status: 'off'|'awaiting-start'|'on'|'stopped'|'not-configured', optInAt, address }] }` (`address` is masked) |
-| `PUT /v1/relay/channels/:channel` | `{ enabled, optIn: { given: true, textSha256, recordedAt } | null, address? }` | the channel row. Telegram returns `connectUrl` (`https://t.me/<bot>?start=<letters>`) and status `awaiting-start` until the person presses Start. `textSha256` must be the SHA-256 of `OPT_IN_TEXT[channel]`, else `OPT_IN_TEXT_CHANGED`. |
+| `GET /v1/relay/channels` | – | `{ channels: [{ channel, status: 'off'|'awaiting-start'|'awaiting-confirmation'|'on'|'stopped'|'not-configured', optInAt, address, verified }] }` (`address` is masked). `verified`: mail once its address was confirmed; WhatsApp while on for the account's current OTP-verified phone; Telegram while bound and on. |
+| `PUT /v1/relay/channels/:channel` | `{ enabled, optIn: { given: true, textSha256, recordedAt } | null, address? }` | the channel row. Telegram returns `connectUrl` (`https://t.me/<bot>?start=<letters>`) and status `awaiting-start` until the person presses Start. Mail with an address not yet confirmed returns `awaiting-confirmation` and queues one confirmation mail (see below). A mail address (or WhatsApp number) bound to another account (confirmed there and not turned off, STOP included) is refused `ADDRESS_IN_USE` (409) and no mail is sent; a Telegram chat another account bound after this one turned Telegram off is let go, and the reply is `awaiting-start` with a fresh `connectUrl`. `textSha256` must be the SHA-256 of `OPT_IN_TEXT[channel]`, else `OPT_IN_TEXT_CHANGED`. |
 | `POST /v1/relay/messages` | `{ event, channel, idempotencyKey, offer? }` | `202 { messageId, status: 'queued', month, sent, budget }`. The relay renders the fixed template; the desktop never supplies text. `MONTHLY_BUDGET_REACHED` (429) after `budget` (30) messages in the Indian calendar month. `CHANNEL_OFF` (409) when the channel is not on. |
 | `GET /v1/relay/messages/:messageId` | – | `{ messageId, event, channel, status: 'queued'|'sent'|'delivered'|'read'|'failed', buttons: 'open-only'|'approve-not-now-open', decided: null|'approve'|'not-now', expiresAt }` |
 | `GET /v1/relay/counts?month=YYYY-MM` | – | `{ month, sent, budget, costPaise: string|null, costState: 'known'|'unknown', byChannel: { whatsapp, telegram, mail } }` |
@@ -67,13 +67,62 @@ Button rules, enforced by the relay and again by the desktop:
 - Mail: Open the app only. No new mail offers are made; `GET /b/:token` (one confirm button, no data) and `POST /b/:token` (decides) stay only so tokens already sent keep their thirty minutes.
 - Open the app is a plain link page `GET /l/:token` that hands over to the desktop. It stays usable for **seven days**, unlike Approve and Not now (single use, thirty minutes), because it decides nothing and holds no data: a forwarded or late copy can only open the app's own screen.
 
-Inbound text: `HELP` gets the help reply and opens a person-help ticket; `STOP` stops every message on that channel; `START` turns it back on only for a channel already opted in from the desktop; anything else gets the one fixed reply. A typed "yes" is never an approval.
+Inbound text: `HELP` gets the help reply and opens a person-help ticket (at most three per account, or per unknown sender, in twenty-four hours; further HELPs get the reply and open nothing); `STOP` stops every message on that channel of the sender's own account; `START` turns it back on only for a channel already opted in from the desktop; anything else gets the one fixed reply. A typed "yes" is never an approval.
 
-Webhooks: `GET /v1/webhooks/whatsapp` (Meta verify handshake), `POST /v1/webhooks/whatsapp` (`x-hub-signature-256` HMAC-SHA256 of the raw body with the app secret), `POST /v1/webhooks/telegram` (`x-telegram-bot-api-secret-token`).
+One binding per chat, number and address: a Telegram chat, a WhatsApp number or a confirmed mail address belongs to at most one account while that account's row is not `off` (a stopped row keeps it). A database unique index holds this. A Telegram start link from a second account, pressed in a chat already bound, binds nothing: the link is used up, the chat gets `buttonGone`, and the press is recorded as refusal reason `chat-in-use`. The sender of an inbound message belongs to the one account with a live binding (or, with none, the one account whose binding is turned off); more than one candidate is nobody.
+
+Webhooks: `GET /v1/webhooks/whatsapp` (Meta verify handshake), `POST /v1/webhooks/whatsapp` (`x-hub-signature-256` HMAC-SHA256 of the raw body with the app secret), `POST /v1/webhooks/telegram` (`x-telegram-bot-api-secret-token`), `POST /v1/webhooks/mail/:provider` (inbound mail, below), `GET`/`POST /v1/webhooks/whatsapp-business/:hook` (a business's own status hook, below).
+
+### Mail address confirmation
+
+Before mail turns `on`, the relay sends one fixed mail to the address (`MAIL_TEXT.confirmHeadline`, a `/v/<48 letters>` link, `MAIL_TEXT.confirmNote`; no digit). The channel stays `awaiting-confirmation` until the link page's POST confirms it. The link is single use, expires a day after it is sent, and stops working when the address changes (a new address restarts confirmation and voids every earlier link). Saving again while a confirmation is pending sends nothing new; turning mail off and on with the same confirmed address needs no new confirmation. Confirmation mails do not count against the thirty; at most three are sent per account in twenty-four hours (`MAIL_CONFIRM_LIMITED`, 429). The token is stored only as a keyed hash; no copy of the address is made for it. A link for an address another account confirmed in the meantime is refused (the page says the link no longer works, the confirmation records `ADDRESS_IN_USE`, refusal reason `address-in-use`), and the desktop's next save is refused `ADDRESS_IN_USE`.
+
+### Inbound mail
+
+`POST /v1/webhooks/mail/:provider` takes a provider's inbound webhook through an adapter (`verify(rawBody, headers)`, `parse(rawBody, headers) → { from, text, messageId, authenticated } | null`):
+
+- `postmark`: Postmark inbound JSON (`From`, `FromFull.Email`, `TextBody`, `StrippedTextReply`, `MessageID`, `Headers`). Postmark signs nothing, so the webhook URL carries HTTP basic credentials (`https://<user>:<password>@<api>/v1/webhooks/mail/postmark`), compared in constant time. Automatic replies (`Auto-Submitted` other than `no`) are ignored. `authenticated` is read conservatively from `Headers`: exactly one `Received-SPF` header that says `Pass` for `identity=mailfrom` with an `envelope-from` in exactly the From domain; or, only when `POSTMARK_INBOUND_AUTHSERV_ID` is set, exactly one `Authentication-Results` header with that authserv-id holding `dkim=pass` with `header.d` (or `header.i`) in exactly the From domain, or `spf=pass` with `smtp.mailfrom` there. Comments are ignored; anything else is unauthenticated.
+- `hmac`: any other provider or forwarder: `x-chausar-mail-signature: sha256=<hex>` (HMAC-SHA256 of the raw body) and a body of exactly `{ from, text, messageId, authenticated }`, where `authenticated` (a boolean, required) is the forwarder's statement that SPF or DKIM passed for the From domain. A body without it is ignored.
+
+Unknown or unconfigured provider: `MAIL_PROVIDER_UNKNOWN` (404); bad credentials or signature: `WEBHOOK_SIGNATURE_INVALID` (401). The sender is matched to an account whose mail channel is confirmed for that address, by the keyed hash of the normalized (trimmed, lower-case) address, never by a plaintext lookup. A sender nobody confirmed gets no mail. Anyone can write any From, so only an authenticated sender's command acts: from an unauthenticated sender every mail is free text (the fixed free-text reply, still within the per-sender limit) and changes nothing. For an authenticated sender the first non-empty line decides: `HELP` opens a help ticket (within the per-account limit) and gets the help reply, `STOP` stops mail and gets the stop reply, anything else gets the fixed free-text reply (`START` by mail is free text; mail is turned back on from the desktop). A typed "yes" is never an approval. Replies go through the queue under the subject `MAIL_TEXT.replySubject`, do not count against the thirty, and are limited to five per sender per Indian day. Each provider event counts once; the mail's text is read for the command and never stored.
+
+### A business's own WhatsApp statuses (for the writeback lane)
+
+The writeback lane sends template messages through the business's **own** WhatsApp Business account with `biz_opaque_callback_data: <reference>`. Meta posts their statuses to a webhook of that business's own app, which the business points at the relay:
+
+| Route | Body | Reply |
+|---|---|---|
+| `PUT /v1/relay/business-hook` | `{ appSecret }` | `{ hookUrl: "<API_ORIGIN>/v1/webhooks/whatsapp-business/<48 letters>", verifyToken: "<letters>" }`. The app secret is sealed at rest; the hook and verify tokens are stored only as keyed hashes. Calling it again rotates both (the old URL stops at once). `APP_SECRET_INVALID`, `PLAN_REQUIRED` (402), `API_ORIGIN_NOT_SET` (503). |
+| `GET /v1/webhooks/whatsapp-business/:hook` | Meta verify handshake (`hub.mode`, `hub.verify_token`, `hub.challenge`) | the challenge as plain text, or `WEBHOOK_VERIFY_FAILED` (403) |
+| `POST /v1/webhooks/whatsapp-business/:hook` | Meta callback, `x-hub-signature-256` over the raw body with **that account's** app secret (constant time) | `{ received: true }`, or `WEBHOOK_SIGNATURE_INVALID` (401) for a wrong signature or unknown hook |
+| `GET /v1/relay/business-statuses?reference=…&messageId=…` | – | `{ statuses: [{ messageId, status: 'sent'|'delivered'|'read'|'failed', at, reference }] }` for the caller's account only: statuses carrying `reference`, or for `messageId` when given. `REFERENCE_INVALID` |
+
+From each callback only `statuses[]` is read, and only `{ account, message_id, status, at, reference }` is stored, where `reference` is `biz_opaque_callback_data` matching `[A-Za-z0-9_.:-]{1,128}` (a status without one is ignored). Inbound customer messages and every other field are ignored and never stored. Statuses are kept thirty days. The relay's own message statuses (`GET /v1/relay/messages/:messageId`) are separate and unchanged.
+
+**Telegram has no delivery callbacks**: the Bot API reports nothing after a message is accepted, so there is no Telegram equivalent of these statuses (and a relay Telegram message stays `sent`).
+
+### Documents sent from the phone (`hosted/relay/documents.ts`, experimental)
+
+A document (WhatsApp `document` or `image`; Telegram `document` or `photo`, largest size) from the opted-in owner's number or chat gets the fixed reply `documentReceived` ("Document received.") and is queued for the worker job `relay.document`; the provider media reference is kept only sealed with a server key in the job. The job downloads it (WhatsApp: `GET https://graph.facebook.com/v21.0/<media-id>` for the URL, then that URL with the access token; Telegram: `getFile`, then `https://api.telegram.org/file/bot<token>/<file_path>`), at most 10 MiB, and keeps it only if the bytes are a PDF, JPEG or PNG, or a CSV the provider also called `text/csv` (plain UTF-8). It encrypts the document in memory to every registered, non-revoked desktop key of the account and stores only the sealed bytes, the size, the media type and the received time: no file name, caption or plaintext reaches the disk or the database. Stored nothing, reply still sent: a sender who is not the opted-in owner, a channel that is not `on`, an account without the relay entitlement or without a registered desktop key, more than twenty documents in the Indian calendar day, too large, or another type. A copy is deleted when its desktop acknowledges it, or after seven days.
+
+| Route | Body | Reply |
+|---|---|---|
+| `PUT /v1/relay/device-key` | `{ publicKey }` raw X25519 public key, 32 bytes, base64 | `{ deviceId, registered: true, updatedAt }`, bound to the caller's `deviceId`. `DEVICE_KEY_INVALID` otherwise. |
+| `GET /v1/relay/documents` | – | `{ documents: [{ documentId, channel: 'whatsapp'|'telegram', mediaType: 'application/pdf'|'image/jpeg'|'image/png'|'text/csv', sizeBytes, receivedAt, expiresAt }] }`, only copies sealed to the caller's device |
+| `GET /v1/relay/documents/:documentId` | – | `200 application/octet-stream`, the sealed copy, with `x-chausar-sha256`. `DOCUMENT_NOT_FOUND` (404) for another device or account. |
+| `POST /v1/relay/documents/:documentId/ack` | `{ disposition: 'collected'|'invalid' }` | `{ documentId, disposition }`; the copy is deleted. `DOCUMENT_NOT_FOUND` (404) for another device or account. |
+
+```text
+sealed = "CHSDOC1\0" (8 bytes) | ephemeral X25519 public key (32) | nonce (12) | AES-256-GCM ciphertext | tag (16)
+key    = HKDF-SHA256(ikm = X25519(ephemeral, desktop), salt = ephemeral public | desktop public, info = "chausar-relay-document-v1", 32 bytes)
+AAD    = "chausar-relay-document-v1|<accountId>|<deviceId>|<documentId>|<mediaType>"
+```
+
+The desktop opens and checks each copy, acknowledges it and holds it as untrusted outside data awaiting review (`phone.documents.*`); the forwarded document is data and enters the same import checks as a file brought on the computer.
 
 ## Link pages (`hosted/link`)
 
-`GET /l/:token` (Open the app, seven days, decides nothing), `GET /b/:token`, `POST /b/:token` (mail approvals sent before mail offers stopped; thirty minutes, single use): plain HTML, no data, no scripts except none, strict CSP, `noindex`, `no-referrer`, `no-store`. A changed or expired token shows "This link no longer works." The handover link is `chausar://open/<destination>`.
+`GET /l/:token` (Open the app, seven days, decides nothing), `GET /b/:token`, `POST /b/:token` (mail approvals sent before mail offers stopped; thirty minutes, single use), `GET /v/:token` (one Confirm button, consumes nothing) and `POST /v/:token` (confirms the mail address once; a day long): plain HTML, no data, no scripts except none, strict CSP, `noindex`, `no-referrer`, `no-store`. A changed or expired token shows "This link no longer works." The handover link is `chausar://open/<destination>`.
 
 ## Backup (`hosted/backup`): blind storage
 
@@ -95,6 +144,18 @@ Webhooks: `GET /v1/webhooks/whatsapp` (Meta verify handshake), `POST /v1/webhook
 
 The proxy holds the provider keys. It reserves the most a request can cost before calling the provider, settles the measured cost afterwards (rounded up to whole paise), and keeps one attempt per `requestId` (`REQUEST_EXISTS`). Refusals: `ALLOWANCE_EXHAUSTED` (402), `MODEL_NOT_PRICED` (400), `PROVIDER_NOT_CONFIGURED` (503), `PROVIDER_FAILED` (502), `PROVIDER_OUTCOME_UNKNOWN` (504, the reservation is kept until reconciled). The proxy stores no prompt and no answer.
 
+### Allowance credentials and the Responses endpoint
+
+| Route | Auth | Body | Reply |
+|---|---|---|---|
+| `POST /v1/allowance/credentials` | session | `{}` | `201 { credentialId, credential, endpoint, createdAt }`. `credential` is shown once: an opaque `ca_` token, stored only as a keyed hash. `endpoint` is `<HOSTED_API_ORIGIN>/v1/allowance/responses`. Needs the allowance (`PLAN_REQUIRED`, 402); `ALLOWANCE_ENDPOINT_NOT_SET` (503) when the server has no `HOSTED_API_ORIGIN`. At most three are live per device: issuing a fourth revokes the oldest. |
+| `DELETE /v1/allowance/credentials/:credentialId` | session | – | `{ credentialId, revokedAt }`. Any device of the account may revoke; a second revoke answers with the first time. Another account's id is `NOT_FOUND` (404). |
+| `POST /v1/allowance/responses` | allowance credential | `{ model, input, max_output_tokens, instructions?, tools?: [], tool_choice?: 'none', store?: false, text?: { format: { type: 'json_schema', name, schema, strict?, description? } } }` | `{ id, object: 'response', status: 'completed'\|'incomplete', incomplete_details?, model, output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] }], output_text, usage: { input_tokens, output_tokens } }` with headers `x-request-id`, `x-chausar-cost-paise`, `x-chausar-balance-paise`. |
+
+A credential is bound to the account and device that asked for it and opens **only** `POST /v1/allowance/responses`; every other route refuses it (`UNAUTHENTICATED`), and that route refuses a session token. Revoking the credential, or the device, ends it at once.
+
+The Responses endpoint takes exactly the body the desktop gateway's `managed` route sends (OpenAI Responses form) and goes through the same ledger as `/complete`: worst-case reservation under the month lock (instructions, input and schema by UTF-8 bytes plus framing; `max_output_tokens` at most 8192), settlement of the measured cost, an unclear outcome kept, nothing of the prompt or answer stored. `model` must be priced; the provider follows its priced route. An `openai` model is sent a Responses request (`instructions`, the input as one user message, `max_output_tokens`, `store: false`, and the `json_schema` format as `text.format`). An `anthropic` model is sent a Messages request with the instructions as `system` and the input as the one user message (the Messages API takes no json_schema format, so it is not sent). Either way the reply is the Responses shape above; `status: 'incomplete'` means the provider stopped at the output limit. The request id is server-made (`rsp_…`), or `idk_` + an `Idempotency-Key` header (8 to 124 of `A-Za-z0-9_-`), which then refuses a resend with `REQUEST_EXISTS`. Refusals are the hosted error shape: those of `/complete`, plus `TOOLS_NOT_ALLOWED` (400) for any tool or a `tool_choice` other than `none`.
+
 ## Always-on jobs worker (`hosted/worker`)
 
 **Not end-to-end encrypted.** The server does the work, so it can read what each job uses. Every reply carries `endToEndEncrypted: false` and the label.
@@ -113,8 +174,8 @@ The proxy holds the provider keys. It reserves the most a request can cost befor
 ## Additional refusal codes and decisions (as built)
 
 - Accounts: `INVALID_PHONE`, `DEVICE_NAME_INVALID`, `DEVICE_NOT_FOUND` (404), `OTP_SEND_FAILED` (502). Sessions slide: each use moves expiry to thirty days ahead.
-- Billing: `PLAN_INVALID`, `PRICE_NOT_SET` (503), `SUBSCRIPTION_EXISTS`, `NO_SUBSCRIPTION`, `PAYMENT_PARTNER_CHANGED`, `SUBSCRIPTION_CHANGED` (all 409), `WEBHOOK_INVALID`, `PAYMENT_PARTNER_FAILED` (502). Cancelling ends paid entitlements at once; past due keeps them for a seven-day grace. Only one partner subscription is tracked per account: a new checkout while one is pending cancels the earlier checkout's partner subscription, a paid checkout replaces (and cancels at the partner) a newer pending one, and a second subscription that starts or charges beside the active or past-due one is cancelled at the partner and changes nothing. A failed partner cancel fails the webhook so the partner retries it. Plans carry `priceState` (`set` or `not-set`).
-- Relay: `EVENT_UNKNOWN`, `CHANNEL_UNKNOWN`, `OFFER_INVALID`, `OFFER_NOT_ALLOWED`, `OPT_IN_REQUIRED`, `ADDRESS_REQUIRED`, `ADDRESS_INVALID`, `ACCOUNT_PHONE_MISSING`, `MESSAGE_NOT_FOUND`, `ENVELOPE_NOT_FOUND`, `IDEMPOTENCY_CONFLICT`, `WEBHOOK_VERIFY_FAILED`, `SERVICE_WINDOW_CLOSED`, `RECIPIENT_CHANGED`, `PROVIDER_*`. A message counts against the thirty when queued; a failed send does not give it back. Approve and Not now expire after thirty minutes; the Open the app link expires after seven days because it decides nothing. After STOP only START or a new desktop opt-in turns the channel on. There is no inbound mail webhook: HELP and STOP by reply work on WhatsApp and Telegram.
+- Billing: `PLAN_INVALID`, `PRICE_NOT_SET` (503), `SUBSCRIPTION_EXISTS`, `NO_SUBSCRIPTION`, `PAYMENT_PARTNER_CHANGED`, `SUBSCRIPTION_CHANGED` (all 409), `WEBHOOK_INVALID`, `WEBHOOK_STALE`, `PAYMENT_PARTNER_FAILED` (502). Cancelling ends paid entitlements at once; past due keeps them for a seven-day grace. Only one partner subscription is tracked per account: a new checkout while one is pending cancels the earlier checkout's partner subscription, a paid checkout replaces (and cancels at the partner) a newer pending one, and a second subscription that starts or charges beside the active or past-due one is cancelled at the partner and changes nothing. A failed partner cancel fails the webhook so the partner retries it. Plans carry `priceState` (`set` or `not-set`).
+- Relay: `EVENT_UNKNOWN`, `CHANNEL_UNKNOWN`, `OFFER_INVALID`, `OFFER_NOT_ALLOWED`, `OPT_IN_REQUIRED`, `ADDRESS_REQUIRED`, `ADDRESS_INVALID`, `ACCOUNT_PHONE_MISSING`, `MESSAGE_NOT_FOUND`, `ENVELOPE_NOT_FOUND`, `IDEMPOTENCY_CONFLICT`, `WEBHOOK_VERIFY_FAILED`, `SERVICE_WINDOW_CLOSED`, `RECIPIENT_CHANGED`, `PROVIDER_*`, `DEVICE_KEY_INVALID`, `DOCUMENT_NOT_FOUND` (404). A message counts against the thirty when queued; a failed send does not give it back. Approve and Not now expire after thirty minutes; the Open the app link expires after seven days because it decides nothing. After STOP only START or a new desktop opt-in turns the channel on (by mail, only the desktop opt-in). HELP and STOP by reply work on WhatsApp, Telegram and, through the inbound mail webhook, mail. New: `MAIL_CONFIRM_LIMITED` (429), `MAIL_PROVIDER_UNKNOWN` (404), `APP_SECRET_INVALID`, `REFERENCE_INVALID`, `API_ORIGIN_NOT_SET` (503), `ADDRESS_IN_USE` (409). Refusal reasons recorded for presses and links that changed nothing: `unknown`, `used`, `expired`, `decided`, `not-owner`, `wrong-channel`, `channel-off`, `chat-in-use`, `address-in-use`. The digit rule (`hasDigit`, both catalogue copies) refuses a decimal digit of any script (Unicode `Nd`); `MAIL_FROM` must hold none (`RELAY_CONFIG_INVALID` at start).
 - Backup: listing, download and delete work without the plan, so a lapsed account can take its backups home for thirty days; uploads need the plan.
 - Allowance: `PRICING_NOT_SET` (503), `PRICING_INVALID` (server start). A provider HTTP error releases the reservation (`PROVIDER_FAILED`); a network error, timeout or unreadable success keeps it (`PROVIDER_OUTCOME_UNKNOWN`).
 - Worker: `CONSENT_REQUIRED`, `JOB_TYPE_UNKNOWN` (404), `JOB_NOT_ENABLED` (409, due dates are stored only after consent). Turning the job off deletes its data. A server-side reminder goes through the relay's `notify` (first channel that is on), one per account per Indian day, and counts against the thirty.

@@ -36,7 +36,14 @@ A Node 24 and TypeScript service set on PostgreSQL 16, with the job queue on the
 | `phone.relay.collect` | admin, external | Also run by `tick`. Envelopes reach only the device that made the offer; one this computer cannot open is left alone, never acknowledged away. Opens each sealed envelope and applies it only if the offer is unused and unexpired, the action is still prepared with the same digest and revision, and still eligible. Approve calls `actions.approve` with the exact digest and never executes; Not now leaves it prepared. Each outcome is audited with the channel |
 | `hosted.backup.upload`, `hosted.backup.list`, `hosted.backup.restore`, `hosted.backup.exportKey` | admin / read | The core vault backup, wrapped again with AES-256-GCM under a backup key kept in the vault, uploaded blind; restore writes a file the core `workspace.restore` opens. The key can be exported once for the recovery kit |
 | `hosted.allowance.status` | read, external | Balance and pricing date. `AllowanceRouteClient` is exported for the models-ext route catalogue and keeps the exact request and reply word for word |
+| `hosted.allowanceCredential` | admin, external, desktop only | For models-ext `connectAllowance`: returns exactly `{ endpoint, credential, model?, budgetMinor? }`. `endpoint` is `<hosted origin>/v1/allowance/responses` (a different address from the server is refused); `credential` is an allowance-scoped token returned once and not kept (the gateway's credential store owns it); `model` is the first priced model the status lists; `budgetMinor` is the month's grant in paise as a digit string, only when the grant is set. Records the credential id with an audit line (`allowance-credential.ts`) |
+| `hosted.allowanceRevoke` | admin, external, desktop only | Revokes every recorded credential id; `{ revoked, failed }`, one the server no longer knows counts as revoked |
 | `hosted.worker.status`, `hosted.worker.set`, `hosted.worker.dueDates`, `hosted.worker.deleteData` | read / admin, external | The server's label verbatim; enabling needs explicit consent; due dates are date only |
+| `phone.documents.register`, `phone.documents.collect`, `phone.documents.list`, `phone.documents.preview`, `phone.documents.discard` | admin, external / read / admin | PH-05 (`documents.ts`). Pairing registers a fresh X25519 public key (`register` does it on demand). `collect` (also run by `tick`) downloads each copy sealed to this device, opens and checks it, acknowledges it and holds it re-encrypted under a vault key in `<app data>/phone-documents/<workspace>/` (0600): untrusted outside data awaiting review, never imported, no facts. `list` shows the "Awaiting your review" rows without content. `preview` hands a CSV to the normal import preview (`ImportService.preview`, the code behind `sources.preview`) with `sourceTainted: true` and returns the `sources.import` input for the normal confirm; other types refuse `DOCUMENT_PREVIEW_UNAVAILABLE`. An imported or discarded document's file is deleted |
+| `phone.verify` | read, external | `{ channel: 'mail' \| 'whatsapp' }` → `{ verified }`: mail once its confirmation link was used, WhatsApp while on for the account's verified phone. Refuses `HOSTED_NOT_PAIRED` (`relay-extras.ts`) |
+| `hosted.messageStatuses` | read, external | `{ reference, messageId: string\|null }` → `[{ messageId, status, at, reference }]` from the business's own WhatsApp status callbacks, for writeback's read-back. Telegram has no delivery callbacks |
+| `hosted.businessHook.set` | admin, external, desktop only | `{ appSecret }` → `{ hookUrl, verifyToken }`: registers the business's own Meta app webhook on the relay; the secret is sealed on the server and never kept on the desktop |
+| `hosted.drive.connect`, `hosted.drive.status`, `hosted.drive.disconnect` | admin, external / read / admin | Creates or adopts a Drive folder (token only through the connectors-ext credential broker, `drive.file` scope), records it in the vault, and attaches `GoogleDriveSyncTransport` to the core `SyncService`; status re-attaches after the vault reopens; disconnect detaches and turns sync off (`drive-sync.ts`) |
 
 **Installed app wiring.** `hostOptions` reads `CHAUSAR_HOSTED_ORIGIN` and `CHAUSAR_LINK_ORIGIN` (https, the link origin digit-free) and uses the platform fetch. Demo mode, or an absent or invalid origin, leaves the module unconfigured (`HOSTED_NOT_CONFIGURED`). No edit to `main.cjs` is needed.
 
@@ -56,17 +63,21 @@ A Node 24 and TypeScript service set on PostgreSQL 16, with the job queue on the
 | Fixed message catalogue, no digit in any body, preview before sending | **supported** | Tested end to end on synthetic data, desktop to real hosted router |
 | Pairing, channel opt-in, counts against thirty, cost known or unknown | **supported** (code); service **experimental** until deployed | The hosted service is not deployed |
 | Simple approvals: single use, thirty minutes, owner's number only, sealed, applied once, never executes | **supported** (code, end to end with the real relay on synthetic data); WhatsApp **experimental** | WhatsApp needs Meta verification and approved templates; Telegram needs the bot; mail needs Postmark |
+| Mail address confirmation (`/v/<letters>`, a day, single use, three a day) and `phone.verify` | **supported** (code); service **experimental** until deployed | Postmark sending domain |
+| Inbound mail: HELP ticket, STOP, fixed free-text reply, confirmed senders only (`/v1/webhooks/mail/:provider`, Postmark basic auth or a generic HMAC adapter) | **experimental** | Needs a Postmark inbound address and its webhook credentials (`POSTMARK_INBOUND_USER`/`PASSWORD`) |
+| A business's own WhatsApp statuses for writeback (`hosted.businessHook.set`, `hosted.messageStatuses`) | **experimental** | Needs `HOSTED_API_ORIGIN` and each business pointing its own Meta app at its hook URL; Telegram has no delivery callbacks |
 | Link pages | **supported** (code) | Not deployed |
 | Blind backup upload and restore | **supported** (code, round trip into `workspace.restore`) | Not deployed |
 | Allowance proxy and route client | **experimental** | Needs provider keys, a dated pricing table checked by a person, and the models-ext route wiring |
+| Allowance credentials and the Responses endpoint for the gateway's managed route | **experimental** | Tested end to end through the core gateway on synthetic data; needs `HOSTED_API_ORIGIN`, provider keys and pricing on a deployed server. Anthropic models get no json_schema format (the Messages API takes none) |
 | Always-on worker (due-date reminders) | **experimental** | Not end-to-end encrypted by design; needs deployment |
 | Phone OTP accounts, billing | **experimental** | Need Twilio with DLT registration and a Razorpay account |
 | Google Drive sync transport | **experimental** | Google app verification; no compare-and-swap on Drive |
-| Sending a document from the phone (PH-05) | **experimental**, partial | The relay replies "Document received." and stores nothing; forwarding the file into the app's import is not built |
+| Sending a document from the phone (PH-05) | **experimental** | Sealed to the desktop key on the relay, held for review on the desktop, CSV through the normal import preview and confirm; PDF and photos are held and discarded but have no import preview yet. Needs deployment and the provider media APIs |
 
 ## Tests
 
-`platform/tests/hosted-link-*.test.ts` (106 tests): foundation, accounts, billing, relay (no-digit rule over every rendered body and button, budget under concurrency, replay, expiry, forwarded presses, webhooks, HELP/STOP/START), link page, backup, allowance (exact BigInt costs, concurrency, no prompt stored), worker, the composed app end to end, the desktop module against a fake server, the Drive transport through the core `SyncService`, and the desktop module against the real hosted services. Database tests start a disposable PostgreSQL 16 (`hosted-link-pg.ts`; as root it runs the server as the `postgres` user) and skip with a reason when no server binaries exist.
+`platform/tests/hosted-link-*.test.ts` (all lane tests): foundation, accounts, billing, relay (no-digit rule over every rendered body and button, budget under concurrency, replay, expiry, forwarded presses, webhooks, HELP/STOP/START), link page, backup, allowance (exact BigInt costs, concurrency, no prompt stored; credentials issued, rotated, revoked and scoped; the Responses endpoint for both providers), the allowance as a managed gateway route through the real hosted ledger, worker, the composed app end to end, the desktop module against a fake server, the Drive transport through the core `SyncService`, the desktop module against the real hosted services, and phone documents (sealing, owner only, sizes and types, per-device access, collect, preview as outside data, import only by the normal confirm). Database tests start a disposable PostgreSQL 16 (`hosted-link-pg.ts`; as root it runs the server as the `postgres` user) and skip with a reason when no server binaries exist.
 
 ## Adversarial review
 
@@ -81,12 +92,27 @@ An independent review traced every path a forwarded, replayed or expired button 
 - Provider keys and a checked, dated pricing table (`PROVIDER_NOT_CONFIGURED`, `PRICING_NOT_SET`); the per-message price table (cost shows "unknown").
 - Google OAuth app verification for the Drive transport.
 
+## Cross-lane contracts
+
+| Method | Caller | Shape |
+|---|---|---|
+| `hosted.allowanceCredential` | models-ext `modelsx.connectAllowance` | `{}` → `{ endpoint, credential, model?, budgetMinor? }`; the gateway's `managed` route then speaks the OpenAI Responses format to `endpoint` with the credential. Tested end to end through the core gateway into the hosted ledger |
+| `hosted.messageStatuses` | writeback WhatsApp read-back, through `host.call` | `{ reference, messageId }` → `[{ messageId, status, at, reference }]` |
+| `phone.verify` | reports-tools-trust | `{ channel: 'mail' \| 'whatsapp' }` → `{ verified: boolean }` |
+| `phone.channels.list` | frame-today PH-01..03 | `channels[].channel`, `channels[].desktop.enabled` (kept stable) |
+| `phone.messages.counts` | frame-today | `sent`, `desktopBudget` (numbers, kept stable) |
+| `actions.approve`, `workspace.backup`, `workspace.restore`, `ImportService.preview` / `sources.import` | core | Phone approvals approve only, with the exact digest; documents enter the normal import preview marked tainted |
+| connectors-ext credential store and broker | Drive sync | The same sealed store and `oauth-clients.json`, `google-workspace` with `drive.file` |
+
+## Core edits
+
+- `platform/runtime/sync.ts`: `SyncService.attachTransport(transport | null)` (11 added lines, nothing existing changed). `SyncService` takes its transport only at construction and modules cannot change `EngineOptions.sync`; the seam accepts only a narrowly scoped Google Drive transport, never replaces a host-configured one, and turns sync off on any change.
+- `app/desktop/preload.cjs`: the hosted-link line of `laneRefusals` only.
+
 ## Gaps
 
 - The phone page (PH-04) is not built (after day 10, founder's decision).
-- PH-05 stops at the fixed reply; nothing is downloaded or imported.
-- The allowance route client is not registered in the gateway's route catalogue (models-ext owns routes).
-- The engine host must wire `GoogleDriveSyncTransport` into `EngineOptions.sync` and record the picked folder; no method does it yet.
-- Mail HELP and STOP by reply need an inbound mail webhook; the mail footer says to turn mail off in the app instead. HELP and STOP by reply work on WhatsApp and Telegram.
-- Mail addresses are not verified with a confirmation link before the channel turns on.
+- PH-05: PDFs and photos are held and can be discarded, but preview refuses `DOCUMENT_PREVIEW_UNAVAILABLE` because the engine has no import format for them.
+- Drive sync in the installed app: connect and attach work, but `sync.enable` refuses `SYNC_WRITER_ADMISSION_REQUIRED` because the installed app gives the engine no sync device identity or writer admission (`worker.ts` passes no `sync` options), and configured sync trips existing core gates (`workspace.create`, backup, interchange, activation). Completing it is a core and product decision.
+- STOP by mail trusts the From address, as an unsubscribe link would.
 - Free-plan mail from the person's own mail account is the writeback lane's SMTP adapter, not this relay.

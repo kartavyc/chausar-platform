@@ -26,7 +26,7 @@ export function buildHosted(env: Env, sql: Sql, fetch: Fetch, overrides: HostedO
   check(pepper.length >= 32, 'SERVER_MISCONFIGURED', 'HOSTED_PEPPER must be at least thirty-two characters.', 500);
   const linkOrigin = checkLinkOrigin(env.LINK_ORIGIN ?? '');
   const clock = overrides.clock ?? systemClock, queue = new JobQueue(sql, clock);
-  const billing = billingConfig(env, fetch);
+  const billing = billingConfig(env, fetch, clock);
   const entitlements = billingEntitlements(sql, clock, billing.config);
   const deps: HostedDeps = { sql, clock, queue, fetch, pepper, linkOrigin, authenticate: authenticator(sql, pepper, clock), entitlements };
   const relay = createRelayModule(deps, overrides.relay ?? relayConfig(env));
@@ -35,9 +35,9 @@ export function buildHosted(env: Env, sql: Sql, fetch: Fetch, overrides: HostedO
     createAccountsModule(deps, { otp: overrides.otp ?? accounts.otp, entitlements, limits: accounts.limits }),
     createBillingModule(deps, { partner: overrides.partner ?? billing.partner, config: billing.config }),
     relay,
-    createLinkPages(deps, relay.buttons),
+    createLinkPages(deps, relay.buttons, relay.mailConfirm),
     createBackupModule(deps, { store: overrides.blobStore !== undefined ? overrides.blobStore : backupStore(backupConfig(env)) }),
-    createAllowanceModule(deps, { providers: allowanceProviders(allowance, fetch), pricing: allowance.pricing }),
+    createAllowanceModule(deps, { providers: allowanceProviders(allowance, fetch), pricing: allowance.pricing, apiOrigin: allowance.apiOrigin }),
     createWorkerJobsModule(deps, { async sendDueDateReminder(accountId) {
       // One reminder message per account per Indian day, whatever the number of due dates; it counts against the thirty.
       try { await relay.notify(accountId, 'due-date-near', `due-date-${indianDate(clock())}`); }

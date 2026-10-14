@@ -102,3 +102,25 @@ test('a host other than this computer, another company, and unreadable replies a
     assert.throws(() => parseXml(bad), { code: 'WRITE_REPLY_INVALID' });
   assert.throws(() => parseXml(`<A>${'x'.repeat(4 * 1024 * 1024)}</A>`), { code: 'WRITE_REPLY_INVALID' });
 });
+
+test('look-first searches a bounded window around the voucher date, not only the date itself', async () => {
+  const { tallyAdapters } = await import('../runtime/writeback/systems/tally.ts');
+  const fake = new TallyFake(); const ctx = fakeContext(fake, practiceConnection('tally', { host: '127.0.0.1', port: '9000', company: tallySeed.company }), {});
+  const adapter = tallyAdapters['voucher.create'];
+  const first = await cycle(adapter, ctx, sale('S-401', { date: '2026-10-14' }), 'effect-key-window-1');
+  assert.equal(first.observation.outcome, 'confirmed-applied');
+  await assert.rejects(cycle(adapter, ctx, sale('S-401', { date: '2026-10-20' }), 'effect-key-window-2'), { code: 'WRITE_PRECONDITION_FAILED' });
+  const moved = await cycle(adapter, ctx, sale('S-401', { date: '2026-10-20' }), 'effect-key-window-1');
+  assert.ok(moved.preparation.alreadyApplied, 'the same effect entered under a nearby date is found, not entered twice');
+});
+
+test('numbering restarts: a same-number voucher in another month does not block, and read-back follows this action\'s own voucher', async () => {
+  const fake = new TallyFake(); const ctx = fakeContext(fake, practiceConnection('tally', { host: '127.0.0.1', port: '9000', company: tallySeed.company }), {});
+  const adapter = tallyAdapters['voucher.create'];
+  assert.equal((await cycle(adapter, ctx, sale('S-500', { date: '2026-09-28' }), 'effect-key-month-1')).observation.outcome, 'confirmed-applied');
+  const next = await cycle(adapter, ctx, sale('S-500', { date: '2026-10-02' }), 'effect-key-month-2');
+  assert.equal(next.preparation.alreadyApplied, null, 'prepare does not block a number used in another month');
+  assert.equal(next.receipt?.outcome, 'rejected', 'this company numbers continuously, so Tally itself refuses the import');
+  assert.equal(next.observation.outcome, 'inconclusive', 'the other month\'s voucher is never mistaken for this action\'s');
+  assert.equal((await cycle(adapter, ctx, sale('S-500', { date: '2026-09-28' }), 'effect-key-month-1')).observation.outcome, 'confirmed-applied');
+});

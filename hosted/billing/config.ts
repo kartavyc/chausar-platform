@@ -1,5 +1,6 @@
 import { check } from '../shared/errors.ts';
 import type { Env, Fetch } from '../shared/module.ts';
+import { systemClock, type Clock } from '../shared/clock.ts';
 import { UnconfiguredPaymentPartner, type PaymentPartner } from './partner.ts';
 import { RazorpayPartner } from './razorpay.ts';
 
@@ -26,7 +27,7 @@ const paise = (value: string, name: string) => {
  * BACKUP_QUOTA_BYTES (default 2 GiB), ALLOWANCE_MONTHLY_PAISE (positive whole paise; absent means no grant is set).
  * RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, RAZORPAY_PLAN_ID: all four or none.
  */
-export function billingConfig(env: Env, fetch: Fetch): { config: BillingConfig; partner: PaymentPartner } {
+export function billingConfig(env: Env, fetch: Fetch, clock: Clock = systemClock): { config: BillingConfig; partner: PaymentPartner } {
   const text = (name: string) => env[name]?.trim() || undefined;
   const price = text('BILLING_PAID_PRICE_PAISE');
   const paidPricePaise = price === undefined ? null : paise(price, 'BILLING_PAID_PRICE_PAISE');
@@ -45,5 +46,5 @@ export function billingConfig(env: Env, fetch: Fetch): { config: BillingConfig; 
   if (given === 0) return { config, partner: new UnconfiguredPaymentPartner() };
   check(given === 4, 'SERVER_MISCONFIGURED', 'Set all four Razorpay settings or none.', 500);
   const [keyId, keySecret, webhookSecret, planId] = keys as string[];
-  return { config, partner: new RazorpayPartner(fetch, { keyId, keySecret, webhookSecret, planId }) };
+  return { config, partner: new RazorpayPartner(fetch, { keyId, keySecret, webhookSecret, planId }, clock) };
 }

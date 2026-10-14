@@ -2,11 +2,13 @@ import type { HostedDeps, HostedModule } from '../shared/module.ts';
 import type { HostedResponse, Router } from '../shared/http.ts';
 import { BUTTONS, LINK_PAGE } from '../shared/templates.ts';
 import type { RelayButtons } from '../relay/relay.ts';
+import type { MailConfirmPages } from '../relay/mail-verify.ts';
 import { checkLinkOrigin } from '../relay/relay.ts';
 
 /**
  * The link pages: plain HTML with the wordmark and one line. They hold no data and run no script.
- * GET never consumes anything (mail scanners prefetch links); only POST /b/:token decides, through the relay's single-use path.
+ * GET never consumes anything (mail scanners prefetch links); only POST /b/:token decides, through the relay's single-use path,
+ * and only POST /v/:token confirms a mail address.
  */
 export const LINK_PAGE_HEADERS: Readonly<Record<string, string>> = Object.freeze({
   'content-type': 'text/html; charset=utf-8',
@@ -27,7 +29,7 @@ export function linkPage(line: string, action: string = ''): string {
 const page = (status: number, line: string, action?: string): HostedResponse => ({ status, headers: { ...LINK_PAGE_HEADERS }, body: linkPage(line, action) });
 const gone = () => page(410, LINK_PAGE.gone);
 
-export function createLinkPages(deps: HostedDeps, relayButtons: RelayButtons): HostedModule {
+export function createLinkPages(deps: HostedDeps, relayButtons: RelayButtons, mailConfirm?: MailConfirmPages): HostedModule {
   checkLinkOrigin(deps.linkOrigin);
   return {
     id: 'link',
@@ -47,6 +49,15 @@ export function createLinkPages(deps: HostedDeps, relayButtons: RelayButtons): H
       router.add('POST', '/b/:token', async request => {
         const decision = await relayButtons.decide(request.params.token, 'mail', null);
         return decision ? page(200, LINK_PAGE.done) : gone();
+      }, { maxBody: 4096 });
+      // The mail address confirmation: one button; single use, a day long; a changed or old link no longer works.
+      router.add('GET', '/v/:token', async request => {
+        if (!mailConfirm || !await mailConfirm.peek(request.params.token)) return gone();
+        return page(200, LINK_PAGE.confirmAddress, `<form method="post"><button type="submit">${BUTTONS.confirm}</button></form>`);
+      });
+      router.add('POST', '/v/:token', async request => {
+        const confirmed = mailConfirm ? await mailConfirm.confirm(request.params.token) : false;
+        return confirmed ? page(200, LINK_PAGE.addressConfirmed) : gone();
       }, { maxBody: 4096 });
     },
   };

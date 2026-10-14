@@ -33,7 +33,7 @@ function diff(before: WireObject, after: WireObject) {
 }
 
 export function practiceConnection(system: SystemId, account: Record<string, string>): Connection {
-  return { id: `practice-${system}`, system, label: `Practice ${system}`, environment: 'practice', account, read: true, write: ['*'], createdAt: '2026-01-01T00:00:00.000Z', createdBy: 'practice', revokedAt: null };
+  return { id: `practice-${system}`, system, label: `Practice ${system}`, environment: 'practice', account, read: true, write: ['*'], link: null, createdAt: '2026-01-01T00:00:00.000Z', createdBy: 'practice', revokedAt: null };
 }
 
 export async function runPractice(service: WritebackService, context: Context, input: Record<string, unknown>, factory: FakeFactory) {

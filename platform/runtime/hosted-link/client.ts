@@ -35,13 +35,25 @@ const KNOWN_CODES: Readonly<Record<string, string>> = Object.freeze({
   PROVIDER_FAILED: 'The model provider refused the request.',
   PROVIDER_OUTCOME_UNKNOWN: 'The model provider did not confirm the request. Its cost is held until it is settled.',
   REQUEST_EXISTS: 'That request was already made once.',
+  ALLOWANCE_ENDPOINT_NOT_SET: 'The model allowance is not set up on the server yet.',
   NOT_FOUND: 'The server has no such item.',
+  DOCUMENT_NOT_FOUND: 'The server has no such document.',
+  DEVICE_KEY_INVALID: 'The server refused this computer\'s document key.',
+  MAIL_CONFIRM_LIMITED: 'Three confirmation mails were sent today. Try again tomorrow.',
+  ADDRESS_REQUIRED: 'Mail needs an address.',
+  ADDRESS_INVALID: 'The server refused that mail address.',
+  API_ORIGIN_NOT_SET: 'The hosted service has no public address for hooks yet.',
+  APP_SECRET_INVALID: 'The app secret is not valid.',
+  REFERENCE_INVALID: 'The reference is not valid.',
+  ADDRESS_IN_USE: 'That address is in use on another Chausar account.',
 });
 export const HOSTED_CODES: readonly string[] = Object.freeze(Object.keys(KNOWN_CODES));
 
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 export const BACKUP_ID = /^bk_[0-9a-f]{32}$/;
+export const ALLOWANCE_CREDENTIAL_ID = /^alc_[0-9a-f-]{36}$/;
+export const ALLOWANCE_RESPONSES_PATH = '/v1/allowance/responses';
 const SHA256 = /^[0-9a-f]{64}$/;
 const PAISE = /^(?:0|[1-9]\d{0,17})$/;
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -72,13 +84,20 @@ export function hostedOrigin(value: unknown): string {
 
 export type Entitlements = { plan: 'free' | 'paid'; relay: boolean; backup: boolean; backupQuotaBytes: number; backupKeep: number; allowance: boolean; allowanceMonthlyPaise: string; worker: boolean; monthlyMessages: number };
 export type Me = { accountId: string; phone: string; plan: 'free' | 'paid'; entitlements: Entitlements; devices: { deviceId: string; deviceName: string; createdAt: string; lastSeenAt: string | null; current: boolean }[] };
-export type ChannelRow = { channel: Channel; status: 'off' | 'awaiting-start' | 'on' | 'stopped' | 'not-configured'; optInAt: string | null; address: string | null; connectUrl?: string };
+export const CHANNEL_STATUSES = ['off', 'awaiting-start', 'awaiting-confirmation', 'on', 'stopped', 'not-configured'] as const;
+/** `verified`: the relay confirmed the channel's address (mail: the confirmation link was used; WhatsApp: on for the OTP-verified phone). */
+export type ChannelRow = { channel: Channel; status: typeof CHANNEL_STATUSES[number]; optInAt: string | null; address: string | null; verified?: boolean; connectUrl?: string };
+export type BusinessStatus = { messageId: string; status: 'sent' | 'delivered' | 'read' | 'failed'; at: string; reference: string };
+export const BUSINESS_REFERENCE = /^[A-Za-z0-9_.:-]{1,128}$/;
+export const BUSINESS_MESSAGE_ID = /^[A-Za-z0-9._=:+/-]{1,256}$/;
 export type SealedBlob = { format: 'chausar-relay-sealed-v1'; nonce: string; ciphertext: string };
 export type SealedEnvelope = { envelopeId: string; messageId: string; purpose: 'approval-intent'; decision: 'approve' | 'not-now'; channel: Channel; createdAt: string; expiresAt: string; nonce: string; ciphertext: string };
 export type Counts = { month: string; sent: number; budget: number; costPaise: string | null; costState: 'known' | 'unknown'; byChannel: Record<Channel, number> };
 export type BackupEntry = { backupId: string; sizeBytes: number; sha256: string; createdAt: string };
 export type AllowanceRequest = { requestId: string; route: 'anthropic' | 'openai'; model: string; system?: string; messages: { role: 'user' | 'assistant'; content: string }[]; maxOutputTokens: number };
 export type AllowanceReply = { requestId: string; text: string; usage: { inputTokens: number; outputTokens: number }; costPaise: string; balancePaise: string; route: 'anthropic' | 'openai'; model: string; pricingCheckedOn: string };
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+export type PhoneDocumentEntry = { documentId: string; channel: 'whatsapp' | 'telegram'; mediaType: 'application/pdf' | 'image/jpeg' | 'image/png' | 'text/csv'; sizeBytes: number; receivedAt: string; expiresAt: string };
 export type WorkerJob = { type: string; title: string; enabled: boolean; consentAt: string | null; uses: string };
 
 function entitlements(value: unknown): Entitlements {
@@ -88,8 +107,8 @@ function entitlements(value: unknown): Entitlements {
   return e as Entitlements;
 }
 export function channelRow(value: unknown): ChannelRow {
-  const row = shape(value, ['channel', 'status', 'optInAt', 'address'], ['connectUrl']);
-  valid(CHANNELS.includes(row.channel) && ['off', 'awaiting-start', 'on', 'stopped', 'not-configured'].includes(row.status) && isoOrNull(row.optInAt)
+  const row = shape(value, ['channel', 'status', 'optInAt', 'address'], ['verified', 'connectUrl']);
+  valid(CHANNELS.includes(row.channel) && (CHANNEL_STATUSES as readonly string[]).includes(row.status) && isoOrNull(row.optInAt) && (row.verified === undefined || typeof row.verified === 'boolean')
     && (row.address === null || text(row.address, 320)) && (row.connectUrl === undefined || (typeof row.connectUrl === 'string' && /^https:\/\/t\.me\/[A-Za-z0-9_]{1,64}\?start=[A-Za-z]{1,128}$/.test(row.connectUrl))));
   return row as ChannelRow;
 }
@@ -249,6 +268,26 @@ export class HostedClient {
     valid(r.envelopeId === envelopeId && r.disposition === disposition); return r as any;
   }
 
+  /** Registers (or rotates) the account's own WhatsApp Business status hook. */
+  async setBusinessHook(token: string, appSecret: string): Promise<{ hookUrl: string; verifyToken: string }> {
+    const r = shape(await this.#json('PUT', '/v1/relay/business-hook', { token, json: { appSecret } }), ['hookUrl', 'verifyToken']);
+    valid(typeof r.hookUrl === 'string' && r.hookUrl.length <= 2048 && /^https:\/\/[A-Za-z0-9.-]+(?::[0-9]{1,5})?\/v1\/webhooks\/whatsapp-business\/[A-Za-z]{48}$/.test(r.hookUrl)
+      && typeof r.verifyToken === 'string' && /^[A-Za-z]{16,128}$/.test(r.verifyToken)); return r as any;
+  }
+  /** Delivery statuses of the account's own WhatsApp Business messages carrying this reference (or this message id). */
+  async businessStatuses(token: string, reference: string, messageId: string | null): Promise<BusinessStatus[]> {
+    check(BUSINESS_REFERENCE.test(reference) && (messageId === null || BUSINESS_MESSAGE_ID.test(messageId)), 'REFERENCE_INVALID', 'The reference is not valid.');
+    const query = `reference=${encodeURIComponent(reference)}${messageId === null ? '' : `&messageId=${encodeURIComponent(messageId)}`}`;
+    const r = shape(await this.#json('GET', `/v1/relay/business-statuses?${query}`, { token }), ['statuses']);
+    valid(Array.isArray(r.statuses) && r.statuses.length <= 200);
+    return r.statuses.map((value: unknown) => {
+      const s = shape(value, ['messageId', 'status', 'at', 'reference']);
+      valid(typeof s.messageId === 'string' && BUSINESS_MESSAGE_ID.test(s.messageId) && ['sent', 'delivered', 'read', 'failed'].includes(s.status) && iso(s.at)
+        && typeof s.reference === 'string' && BUSINESS_REFERENCE.test(s.reference) && (s.reference === reference || s.messageId === messageId));
+      return { messageId: s.messageId, status: s.status, at: s.at, reference: s.reference } as BusinessStatus;
+    });
+  }
+
   // Backup
   async putBackup(token: string, backupId: string, bytes: Uint8Array): Promise<BackupEntry> {
     check(BACKUP_ID.test(backupId) && bytes.length <= MAX_BACKUP_BYTES, 'INVALID_REQUEST', 'Use a bounded backup with a valid name.');
@@ -307,6 +346,19 @@ export class HostedClient {
     return { reply: r as AllowanceReply, sent: exchange.sent!, received: exchange.received };
   }
 
+  /** An allowance-scoped credential for the gateway's managed route. The endpoint must be this server's own. */
+  async allowanceCredential(token: string): Promise<{ credentialId: string; credential: string; endpoint: string; createdAt: string }> {
+    const r = shape(await this.#json('POST', '/v1/allowance/credentials', { token, json: {}, expect: [201] }), ['credentialId', 'credential', 'endpoint', 'createdAt']);
+    valid(typeof r.credentialId === 'string' && ALLOWANCE_CREDENTIAL_ID.test(r.credentialId) && typeof r.credential === 'string' && /^[A-Za-z0-9_-]{20,200}$/.test(r.credential)
+      && r.endpoint === `${this.origin}${ALLOWANCE_RESPONSES_PATH}` && iso(r.createdAt));
+    return r as any;
+  }
+  async revokeAllowanceCredential(token: string, credentialId: string): Promise<{ credentialId: string; revokedAt: string }> {
+    check(ALLOWANCE_CREDENTIAL_ID.test(credentialId), 'INVALID_REQUEST', 'Use an allowance credential from this account.');
+    const r = shape(await this.#json('DELETE', `/v1/allowance/credentials/${credentialId}`, { token }), ['credentialId', 'revokedAt']);
+    valid(r.credentialId === credentialId && iso(r.revokedAt)); return r as any;
+  }
+
   // Always-on jobs worker
   async worker(token: string): Promise<{ endToEndEncrypted: false; label: string; jobs: WorkerJob[] }> {
     const r = shape(await this.#json('GET', '/v1/worker', { token }), ['endToEndEncrypted', 'label', 'jobs']);
@@ -326,6 +378,38 @@ export class HostedClient {
   async deleteWorkerData(token: string): Promise<{ deleted: true }> {
     const r = shape(unlabel(await this.#json('DELETE', '/v1/worker/data', { token })), ['deleted']);
     valid(r.deleted === true); return r as any;
+  }
+
+  // Phone documents (hosted/relay/documents.ts): sealed to this install's X25519 key; the server cannot open them.
+  async putDeviceKey(token: string, publicKey: string): Promise<{ deviceId: string; registered: true; updatedAt: string }> {
+    const r = shape(await this.#json('PUT', '/v1/relay/device-key', { token, json: { publicKey } }), ['deviceId', 'registered', 'updatedAt']);
+    valid(ID.test(r.deviceId ?? '') && r.registered === true && iso(r.updatedAt)); return r as any;
+  }
+  async documents(token: string): Promise<PhoneDocumentEntry[]> {
+    const r = shape(await this.#json('GET', '/v1/relay/documents', { token }), ['documents']);
+    valid(Array.isArray(r.documents) && r.documents.length <= 100);
+    return r.documents.map((value: unknown) => {
+      const d = shape(value, ['documentId', 'channel', 'mediaType', 'sizeBytes', 'receivedAt', 'expiresAt']);
+      valid(ID.test(d.documentId ?? '') && ['whatsapp', 'telegram'].includes(d.channel) && ['application/pdf', 'image/jpeg', 'image/png', 'text/csv'].includes(d.mediaType)
+        && count(d.sizeBytes) && d.sizeBytes >= 1 && d.sizeBytes <= MAX_DOCUMENT_BYTES && iso(d.receivedAt) && iso(d.expiresAt));
+      return d as PhoneDocumentEntry;
+    });
+  }
+  async document(token: string, documentId: string): Promise<Buffer> {
+    check(ID.test(documentId), 'INVALID_REQUEST', 'Use a document from this account.');
+    const reply = await this.#send('GET', `/v1/relay/documents/${encodeURIComponent(documentId)}`, { token, headers: { accept: 'application/octet-stream' } });
+    if (!reply.ok) await refusal(reply);
+    const digest = reply.headers.get('x-chausar-sha256') ?? '', length = Number(reply.headers.get('content-length') ?? '0');
+    valid(reply.status === 200 && SHA256.test(digest) && !(length > MAX_DOCUMENT_BYTES + 128));
+    let bytes: Buffer; try { bytes = Buffer.from(await reply.arrayBuffer()); } catch { throw new ChausarError('HOSTED_UNREACHABLE', 'The hosted service could not be reached.'); }
+    valid(bytes.length <= MAX_DOCUMENT_BYTES + 128);
+    check(sha256Hex(bytes) === digest, 'HOSTED_UNREACHABLE', 'The document changed on its way from the hosted service.');
+    return bytes;
+  }
+  async ackDocument(token: string, documentId: string, disposition: 'collected' | 'invalid'): Promise<{ documentId: string; disposition: string }> {
+    check(ID.test(documentId), 'INVALID_REQUEST', 'Use a document from this account.');
+    const r = shape(await this.#json('POST', `/v1/relay/documents/${encodeURIComponent(documentId)}/ack`, { token, json: { disposition } }), ['documentId', 'disposition']);
+    valid(r.documentId === documentId && r.disposition === disposition); return r as any;
   }
 
   // Health
