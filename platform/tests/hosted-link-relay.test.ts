@@ -4,7 +4,7 @@ import { whatsappChannel, telegramChannel, mailChannel, mailBody } from '../../h
 import type { OutboundTemplate } from '../../hosted/relay/channels.ts';
 import { createRelayModule, checkLinkOrigin, relayConfig, parseRelayPrices } from '../../hosted/relay/relay.ts';
 import { letterToken } from '../../hosted/shared/crypto.ts';
-import { BUTTONS, HEADLINES, MAIL_FOOTER, MESSAGE_EVENTS, REPLIES, WHATSAPP_TEMPLATE, hasDigit, messageBody } from '../../hosted/shared/templates.ts';
+import { BUTTONS, HEADLINES, MAIL_FOOTER, MAIL_TEXT, MESSAGE_EVENTS, REPLIES, WHATSAPP_TEMPLATE, confirmationBody, hasDigit, messageBody } from '../../hosted/shared/templates.ts';
 import type { Fetch, HostedDeps } from '../../hosted/shared/module.ts';
 
 const ORIGIN = 'https://link.chausar.app';
@@ -100,8 +100,9 @@ test('no digit in any outbound message: every event, channel, offer and reply, i
     await tg.sendTemplate(fetch, '55501234', message(event, offer));
     await mail.sendTemplate(fetch, 'owner@example.com', message(event, offer));
   }
-  for (const reply of Object.values(REPLIES)) { await wa.sendText(fetch, '919876543210', reply); await tg.sendText(fetch, '55501234', reply); await tg.answerCallback(fetch, 'callbackid', reply); }
-  assert.equal(calls.length, MESSAGE_EVENTS.length * 2 * 3 + Object.keys(REPLIES).length * 3);
+  for (const reply of Object.values(REPLIES)) { await wa.sendText(fetch, '919876543210', reply); await tg.sendText(fetch, '55501234', reply); await tg.answerCallback(fetch, 'callbackid', reply); await mail.sendText(fetch, 'owner@example.com', MAIL_TEXT.replySubject, reply); }
+  await mail.sendText(fetch, 'owner@example.com', MAIL_TEXT.confirmHeadline, confirmationBody(`${ORIGIN}/v/${letterToken()}`));
+  assert.equal(calls.length, MESSAGE_EVENTS.length * 2 * 3 + Object.keys(REPLIES).length * 4 + 1);
   let buttons = 0;
   for (const call of calls) {
     // The recipient (a phone number or chat id) and WhatsApp's positional button index are addressing, not message text.
@@ -111,6 +112,16 @@ test('no digit in any outbound message: every event, channel, offer and reply, i
     assert.equal(hasDigit(JSON.stringify(body)), false, JSON.stringify(body));
   }
   assert.equal(buttons, MESSAGE_EVENTS.length * (1 + 3) * 2, "every WhatsApp and Telegram button was checked");
+});
+
+test('the digit rule covers every script\'s decimal digits, in both copies of the catalogue', async () => {
+  const desktop = await import('../runtime/hosted-link/templates.ts');
+  // ASCII, Arabic-Indic, Extended Arabic-Indic, Devanagari, Bengali, Gurmukhi, Gujarati, Tamil, Telugu, Kannada, Malayalam, Thai, fullwidth, mathematical bold.
+  const digits = ['7', '\u0663', '\u06F3', '\u0969', '\u09E9', '\u0A69', '\u0AE9', '\u0BE9', '\u0C69', '\u0CE9', '\u0D69', '\u0E53', '\uFF13', '\u{1D7D1}'];
+  for (const check of [hasDigit, desktop.hasDigit]) {
+    for (const digit of digits) assert.equal(check(`The week ahead ${digit} is ready.`), true, `U+${digit.codePointAt(0)!.toString(16)}`);
+    for (const text of ['The week ahead is ready.', 'Roman numerals like XIV and the word seven are not digits.', 'ⅻ ½ ² ①']) assert.equal(check(text), false, text);
+  }
 });
 
 test('the link origin must be https, bare and digit-free, or the relay refuses to start', () => {

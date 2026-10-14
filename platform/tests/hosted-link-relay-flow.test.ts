@@ -81,7 +81,13 @@ async function setup(overrides: Partial<RelayOptions> = {}) {
   const run = () => worker.runOnce(50);
   const advance = (ms: number) => { state.time = new Date(state.time.getTime() + ms); };
   const replies = () => calls.filter(c => c.body.type === 'text' || c.url.endsWith('/answerCallbackQuery') || (c.url.endsWith('/sendMessage') && !c.body.reply_markup)).map(c => c.body.text?.body ?? c.body.text);
-  return { sql, relay, router, worker, state, calls, plans, call, enable, send, waPost, waMessage, waText, waPress, tgText, tgPress, run, advance, replies, optIn };
+  /** Sends the pending confirmation mail and presses its link, as the address owner would. */
+  const confirmMail = async () => {
+    await run();
+    const mail = calls.filter(c => typeof c.body.TextBody === 'string' && /\/v\/[A-Za-z]{48}/.test(c.body.TextBody)).at(-1)!;
+    assert.equal(await relay.mailConfirm.confirm(/\/v\/([A-Za-z]{48})/.exec(mail.body.TextBody)![1]), true);
+  };
+  return { sql, relay, router, worker, state, calls, plans, call, enable, send, waPost, waMessage, waText, waPress, tgText, tgPress, run, advance, replies, optIn, confirmMail };
 }
 type Harness = Awaited<ReturnType<typeof setup>>;
 const waTokens = (call: Call) => {
@@ -105,11 +111,11 @@ test('channel settings store the opt-in, mask the address and refuse a changed o
   assert.equal((await h.call('PUT', '/v1/relay/channels/whatsapp', { enabled: true, optIn: h.optIn('whatsapp'), address: 'x@y.in' })).body.error.code, 'INVALID_REQUEST');
   assert.equal((await h.call('PUT', '/v1/relay/channels/sms', { enabled: true, optIn: null })).status, 404);
   const on = await h.enable('whatsapp');
-  assert.deepEqual(on.body, { channel: 'whatsapp', status: 'on', optInAt: '2026-10-14T10:00:00.000Z', address: '+91••••••3210' });
+  assert.deepEqual(on.body, { channel: 'whatsapp', status: 'on', optInAt: '2026-10-14T10:00:00.000Z', address: '+91••••••3210', verified: true });
   assert.equal((await h.enable('mail')).body.error.code, 'ADDRESS_REQUIRED');
   assert.equal((await h.enable('mail', OWNER.id, { address: 'not an address' })).body.error.code, 'ADDRESS_INVALID');
   const mail = await h.enable('mail', OWNER.id, { address: 'owner.person@example.com' });
-  assert.deepEqual(mail.body, { channel: 'mail', status: 'on', optInAt: '2026-10-14T10:00:00.000Z', address: 'o•••@example.com' });
+  assert.deepEqual(mail.body, { channel: 'mail', status: 'awaiting-confirmation', optInAt: '2026-10-14T10:00:00.000Z', address: 'o•••@example.com', verified: false });
   const { rows: [row] } = await h.sql.query(`SELECT * FROM relay_channels WHERE account_id = $1 AND channel = 'mail'`, [OWNER.id]);
   assert.equal(JSON.stringify(row).includes('owner.person'), false, 'the address is stored sealed');
   assert.equal(row.opt_in_text_sha256, createHash('sha256').update(OPT_IN_TEXT.mail).digest('hex'));
@@ -379,7 +385,7 @@ test('webhooks refuse a bad signature or secret, and the Meta handshake echoes o
 
 test('cost is a sum of known prices, or unknown in words when a sent channel has no price', { skip: pgSkip }, async () => {
   const h = await setup();
-  await h.enable('whatsapp'); await h.enable('mail', OWNER.id, { address: 'owner@example.com' });
+  await h.enable('whatsapp'); await h.enable('mail', OWNER.id, { address: 'owner@example.com' }); await h.confirmMail();
   await h.send('whatsapp'); await h.send('whatsapp');
   await h.run();
   assert.deepEqual((await h.call('GET', '/v1/relay/counts?month=2026-10')).body,

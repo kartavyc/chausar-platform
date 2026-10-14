@@ -255,7 +255,7 @@ test('the Razorpay client sends the exact requests and verifies webhook signatur
     new Error('reset'),
     { status: 200, body: JSON.stringify({ ...created, short_url: 'http://rzp.io/i/AbCdEf' }) },
   ]);
-  const razorpay = new RazorpayPartner(fetch, RAZORPAY);
+  const razorpay = new RazorpayPartner(fetch, RAZORPAY, () => new Date('2026-11-14T10:05:00.000Z'));
   const auth = `Basic ${Buffer.from(`${RAZORPAY.keyId}:${RAZORPAY.keySecret}`).toString('base64')}`;
   const headers = { authorization: auth, 'content-type': 'application/json', accept: 'application/json' };
 
@@ -280,11 +280,24 @@ test('the Razorpay client sends the exact requests and verifies webhook signatur
     created_at: 1794650400,
   }));
   const signature = createHmac('sha256', RAZORPAY.webhookSecret).update(recorded).digest('hex');
-  assert.deepEqual(razorpay.verifyWebhook(recorded, { 'x-razorpay-signature': signature, 'x-razorpay-event-id': 'EvtAbc123' }),
-    { eventId: 'EvtAbc123', type: 'charged', checkoutId: 'sub_00000000000001', subscriptionRef: 'sub_00000000000001', currentPeriodEnd: '2026-12-14T10:00:00.000Z' });
+  const verified = razorpay.verifyWebhook(recorded, { 'x-razorpay-signature': signature, 'x-razorpay-event-id': 'EvtAbc123' })!;
+  assert.match(verified.eventId, /^rzp_[0-9a-f]{64}$/, 'the dedupe id comes from the signed body, not the unsigned header');
+  assert.deepEqual(verified, { eventId: verified.eventId, type: 'charged', checkoutId: 'sub_00000000000001', subscriptionRef: 'sub_00000000000001', currentPeriodEnd: '2026-12-14T10:00:00.000Z' });
+  assert.equal(razorpay.verifyWebhook(recorded, { 'x-razorpay-signature': signature, 'x-razorpay-event-id': 'EvtOther999' })!.eventId, verified.eventId, 'a new header is the same event');
+  assert.equal(razorpay.verifyWebhook(recorded, { 'x-razorpay-signature': signature })!.eventId, verified.eventId, 'the header is optional');
+  assert.throws(() => razorpay.verifyWebhook(recorded, { 'x-razorpay-signature': signature, 'x-razorpay-event-id': '../x' }), { code: 'WEBHOOK_INVALID' });
   assert.throws(() => razorpay.verifyWebhook(Buffer.concat([recorded, Buffer.from(' ')]), { 'x-razorpay-signature': signature, 'x-razorpay-event-id': 'EvtAbc123' }), { code: 'WEBHOOK_SIGNATURE_INVALID', status: 401 });
   assert.throws(() => razorpay.verifyWebhook(recorded, { 'x-razorpay-event-id': 'EvtAbc123' }), { code: 'WEBHOOK_SIGNATURE_INVALID' });
-  assert.throws(() => razorpay.verifyWebhook(recorded, { 'x-razorpay-signature': signature }), { code: 'WEBHOOK_INVALID' });
+  const sign = (body: Buffer) => ({ 'x-razorpay-signature': createHmac('sha256', RAZORPAY.webhookSecret).update(body).digest('hex') });
+  const undated = Buffer.from(recorded.toString().replace(',"created_at":1794650400', ''));
+  assert.throws(() => razorpay.verifyWebhook(undated, sign(undated)), { code: 'WEBHOOK_INVALID' }, 'created_at is required');
+  const withPayment = Buffer.from(recorded.toString().replace('"payload":{', '"payload":{"payment":{"entity":{"id":"pay_Synthetic00001","entity":"payment"}},'));
+  assert.notEqual(razorpay.verifyWebhook(withPayment, sign(withPayment))!.eventId, verified.eventId, 'each payment is its own event');
+  const later = Buffer.from(recorded.toString().replace('1794650400}', '1794650460}'));
+  assert.notEqual(razorpay.verifyWebhook(later, sign(later))!.eventId, verified.eventId);
+  const stale = new RazorpayPartner(fetch, RAZORPAY, () => new Date('2026-11-17T10:00:01.000Z'));
+  assert.throws(() => stale.verifyWebhook(recorded, sign(recorded)), { code: 'WEBHOOK_STALE', status: 400 }, 'older than three days');
+  assert.equal(new RazorpayPartner(fetch, RAZORPAY, () => new Date('2026-11-17T09:59:00.000Z')).verifyWebhook(recorded, sign(recorded))?.type, 'charged');
   for (const [name, type] of [['subscription.activated', 'activated'], ['subscription.halted', 'past_due'], ['subscription.cancelled', 'cancelled']] as const) {
     const body = Buffer.from(recorded.toString().replace('subscription.charged', name));
     assert.equal(razorpay.verifyWebhook(body, { 'x-razorpay-signature': createHmac('sha256', RAZORPAY.webhookSecret).update(body).digest('hex'), 'x-razorpay-event-id': 'EvtAbc124' })?.type, type);
@@ -292,6 +305,40 @@ test('the Razorpay client sends the exact requests and verifies webhook signatur
   const other = Buffer.from(recorded.toString().replace('subscription.charged', 'payment.captured'));
   assert.equal(razorpay.verifyWebhook(other, { 'x-razorpay-signature': createHmac('sha256', RAZORPAY.webhookSecret).update(other).digest('hex'), 'x-razorpay-event-id': 'EvtAbc125' }), null, 'a genuine event billing does not use');
   assert.throws(() => new RazorpayPartner(fetch, { ...RAZORPAY, planId: 'x' }), { code: 'SERVER_MISCONFIGURED' });
+});
+
+test('a captured Razorpay body sent again under a new event id header changes nothing; an old one is refused', { skip: pgSkip }, async () => {
+  let at = new Date('2026-10-14T10:00:00.000Z');
+  const created = { id: 'sub_00000000000001', entity: 'subscription', plan_id: RAZORPAY.planId, status: 'created', total_count: 120, short_url: 'https://rzp.io/i/AbCdEf', notes: {} };
+  const { fetch } = recordingFetch([{ status: 200, body: JSON.stringify(created) }]);
+  const t = await setup({ partner: new RazorpayPartner(fetch, RAZORPAY, () => at) });
+  const token = await t.signIn();
+  assert.equal((await t.call('POST', '/v1/billing/checkout', { plan: 'paid', idempotencyKey: 'key-0123456789abcdef' }, token)).status, 200);
+  const signed = (event: string, createdAt: Date, headerId: string) => {
+    const body = Buffer.from(JSON.stringify({ entity: 'event', account_id: 'acc_Synthetic0001', event, contains: ['subscription'],
+      payload: { subscription: { entity: { id: 'sub_00000000000001', entity: 'subscription', plan_id: RAZORPAY.planId, status: 'active', current_end: Math.floor(createdAt.getTime() / 1000) + 30 * 86400 } } },
+      created_at: Math.floor(createdAt.getTime() / 1000) }));
+    return { body, headers: { 'content-type': 'application/json', 'x-razorpay-signature': createHmac('sha256', RAZORPAY.webhookSecret).update(body).digest('hex'), 'x-razorpay-event-id': headerId } };
+  };
+  const status = async () => (await t.call('GET', '/v1/billing/subscription', undefined, token)).body.status;
+  const activated = signed('subscription.activated', at, 'EvtFirst001');
+  assert.equal((await t.send('razorpay', activated.body, activated.headers)).status, 200);
+  assert.equal(await status(), 'active');
+  at = new Date(at.getTime() + 3600000);
+  const cancelled = signed('subscription.cancelled', at, 'EvtSecond02');
+  assert.equal((await t.send('razorpay', cancelled.body, cancelled.headers)).status, 200);
+  assert.equal(await status(), 'cancelled');
+  // The captured activation, replayed under a fresh header id (or none), is the same event and is not applied again.
+  for (const headerId of ['EvtReplay01', 'EvtReplay02']) assert.equal((await t.send('razorpay', activated.body, { ...activated.headers, 'x-razorpay-event-id': headerId })).status, 200);
+  const { 'x-razorpay-event-id': _dropped, ...headerless } = activated.headers;
+  assert.equal((await t.send('razorpay', activated.body, headerless)).status, 200);
+  assert.equal(await status(), 'cancelled');
+  assert.equal((await t.sql.query('SELECT count(*)::int AS n FROM billing_events')).rows[0].n, 2);
+  // Days later the same captured body is refused outright.
+  at = new Date(at.getTime() + 3 * DAY);
+  const late = await t.send('razorpay', activated.body, { ...activated.headers, 'x-razorpay-event-id': 'EvtReplay03' });
+  assert.equal(late.status, 400); assert.equal(code(late), 'WEBHOOK_STALE');
+  assert.equal(await status(), 'cancelled');
 });
 
 test('the billing configuration validates money and picks the partner', async () => {

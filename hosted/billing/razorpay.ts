@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto';
 import { HostedError, check } from '../shared/errors.ts';
+import { systemClock, type Clock } from '../shared/clock.ts';
 import { hmacHex, sameHex } from '../shared/crypto.ts';
 import type { Fetch } from '../shared/module.ts';
 import { isEventId, signatureInvalid, type Checkout, type CheckoutInput, type PartnerEvent, type PartnerEventType, type PaymentPartner, type WebhookHeaders } from './partner.ts';
@@ -7,6 +9,9 @@ export type RazorpaySettings = { keyId: string; keySecret: string; webhookSecret
 const API = 'https://api.razorpay.com/v1';
 /** Monthly cycles a subscription may run before the person subscribes again (Razorpay requires a count). */
 export const RAZORPAY_TOTAL_COUNT = 120;
+/** A signed event older than this (by its own `created_at`) is refused: Razorpay retries for a day, a replay comes later. */
+export const RAZORPAY_EVENT_MAX_AGE_MS = 3 * 24 * 3600000;
+const isPaymentId = (value: unknown): value is string => typeof value === 'string' && /^pay_[A-Za-z0-9]{6,32}$/.test(value);
 const isSubscriptionId = (value: unknown): value is string => typeof value === 'string' && /^sub_[A-Za-z0-9]{6,32}$/.test(value);
 const EVENTS: Readonly<Record<string, PartnerEventType>> = Object.freeze({
   'subscription.activated': 'activated', 'subscription.charged': 'charged',
@@ -21,13 +26,13 @@ const failed = () => new HostedError('PAYMENT_PARTNER_FAILED', 'The payment part
  */
 export class RazorpayPartner implements PaymentPartner {
   readonly id = 'razorpay';
-  readonly #fetch: Fetch; readonly #settings: RazorpaySettings;
-  constructor(fetch: Fetch, settings: RazorpaySettings) {
+  readonly #fetch: Fetch; readonly #settings: RazorpaySettings; readonly #clock: Clock;
+  constructor(fetch: Fetch, settings: RazorpaySettings, clock: Clock = systemClock) {
     check(/^rzp_(live|test)_[A-Za-z0-9]{8,32}$/.test(settings.keyId), 'SERVER_MISCONFIGURED', 'The Razorpay key id is not valid.', 500);
     check(/^[A-Za-z0-9]{16,64}$/.test(settings.keySecret), 'SERVER_MISCONFIGURED', 'The Razorpay key secret is not valid.', 500);
     check(typeof settings.webhookSecret === 'string' && settings.webhookSecret.length >= 16 && settings.webhookSecret.length <= 256, 'SERVER_MISCONFIGURED', 'The Razorpay webhook secret is not valid.', 500);
     check(/^plan_[A-Za-z0-9]{6,32}$/.test(settings.planId), 'SERVER_MISCONFIGURED', 'The Razorpay plan id is not valid.', 500);
-    this.#fetch = fetch; this.#settings = settings;
+    this.#fetch = fetch; this.#settings = settings; this.#clock = clock;
   }
   async #post(path: string, payload: unknown): Promise<any> {
     let status = 0, text = '';
@@ -58,18 +63,27 @@ export class RazorpayPartner implements PaymentPartner {
     const body = await this.#post(`/subscriptions/${subscriptionRef}/cancel`, { cancel_at_cycle_end: 0 });
     if (body.id !== subscriptionRef || body.status !== 'cancelled') throw failed();
   }
-  /** `x-razorpay-signature` is the hex HMAC-SHA256 of the raw body under the webhook secret. */
+  /**
+   * `x-razorpay-signature` is the hex HMAC-SHA256 of the raw body under the webhook secret. The signature covers only the
+   * body, so the event id that dedupes it is derived from the body (event, subscription, payment when present, and
+   * `created_at`), never from the unsigned `x-razorpay-event-id` header, which is only checked for shape when present.
+   * A captured body sent again therefore dedupes to the same id; one older than three days is refused (`WEBHOOK_STALE`).
+   */
   verifyWebhook(rawBody: Buffer, headers: WebhookHeaders): PartnerEvent | null {
     if (!sameHex(hmacHex(this.#settings.webhookSecret, rawBody), headers['x-razorpay-signature'] ?? '')) throw signatureInvalid();
     let value: any;
     try { value = JSON.parse(rawBody.toString('utf8')); } catch { value = undefined; }
-    const eventId = headers['x-razorpay-event-id'];
-    check(value && typeof value === 'object' && typeof value.event === 'string' && isEventId(eventId), 'WEBHOOK_INVALID', 'The webhook body is not valid.');
+    const header = headers['x-razorpay-event-id'], createdAt = value?.created_at;
+    check(value && typeof value === 'object' && typeof value.event === 'string' && value.event.length <= 100 && (header === undefined || isEventId(header))
+      && Number.isSafeInteger(createdAt) && createdAt > 0, 'WEBHOOK_INVALID', 'The webhook body is not valid.');
+    check(createdAt * 1000 > this.#clock().getTime() - RAZORPAY_EVENT_MAX_AGE_MS, 'WEBHOOK_STALE', 'The webhook event is too old.', 400);
     const type = Object.hasOwn(EVENTS, value.event) ? EVENTS[value.event] : undefined;
     if (!type) return null;
-    const entity = value.payload?.subscription?.entity;
+    const entity = value.payload?.subscription?.entity, payment = value.payload?.payment?.entity?.id;
     const end = entity?.current_end;
-    check(isSubscriptionId(entity?.id) && (end === null || end === undefined || (Number.isSafeInteger(end) && end > 0)), 'WEBHOOK_INVALID', 'The webhook body is not valid.');
+    check(isSubscriptionId(entity?.id) && (end === null || end === undefined || (Number.isSafeInteger(end) && end > 0))
+      && (payment === undefined || payment === null || isPaymentId(payment)), 'WEBHOOK_INVALID', 'The webhook body is not valid.');
+    const eventId = `rzp_${createHash('sha256').update(JSON.stringify([value.event, entity.id, payment ?? null, createdAt])).digest('hex')}`;
     return { eventId, type, checkoutId: entity.id, subscriptionRef: entity.id, currentPeriodEnd: typeof end === 'number' ? new Date(end * 1000).toISOString() : null };
   }
 }

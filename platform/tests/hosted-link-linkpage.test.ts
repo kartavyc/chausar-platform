@@ -34,13 +34,17 @@ async function setup() {
     entitlements: async () => ({ ...FREE_ENTITLEMENTS, plan: 'paid', relay: true }) };
   const relay = createRelayModule(deps, { whatsapp: whatsappChannel({ phoneNumberId: '106540352242922', accessToken: 'EAAGtestaccesstokenletterswhatsappcloud' }),
     telegram: null, mail: mailChannel({ serverToken: 'postmark-server-token-test', from: 'messages@chausar.app' }), prices: null });
-  const router = new Router(); relay.routes(router); createLinkPages(deps, relay.buttons).routes(router);
+  const router = new Router(); relay.routes(router); createLinkPages(deps, relay.buttons, relay.mailConfirm).routes(router);
   const worker = new Worker(queue); relay.jobs!(worker);
   const api = async (method: string, url: string, body: unknown) => (await router.handle({ method, url, headers: { authorization: `Bearer sessiontoken_${OWNER}`, 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify(body)) })).body as any;
   const optIn = (channel: 'mail' | 'whatsapp') => ({ given: true, textSha256: createHash('sha256').update(OPT_IN_TEXT[channel]).digest('hex'), recordedAt: state.time.toISOString() });
   await api('PUT', '/v1/relay/channels/mail', { enabled: true, optIn: optIn('mail'), address: 'owner@example.com' });
   await api('PUT', '/v1/relay/channels/whatsapp', { enabled: true, optIn: optIn('whatsapp') });
   const page = (method: string, path: string) => router.handle({ method, url: path, headers: method === 'POST' ? { 'content-type': 'application/x-www-form-urlencoded' } : {}, body: Buffer.alloc(0) });
+  // Mail turns on only once its address is confirmed through the one-time link in the confirmation mail.
+  await worker.runOnce();
+  const confirmToken = /\/v\/([A-Za-z]{48})/.exec(sent.at(-1).body.TextBody)![1];
+  assert.equal((await page('POST', `/v/${confirmToken}`)).status, 200);
   /**
    * Mail no longer takes an offer; this stands in for one queued before that change: an Open-only review message whose row
    * is turned into an offer before dispatch. Returns the tokens read back from the mail body.
