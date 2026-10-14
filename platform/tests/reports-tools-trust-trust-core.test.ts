@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
 import type { Context, Fact } from '../runtime/contracts.ts';
-import { autonomyDecision, markingsForSources } from '../runtime/trust-ext/methods-core.ts';
+import { markingsForSources } from '../runtime/trust-ext/methods-core.ts';
 
 // Synthetic people, phones and GSTINs only.
 const names = ['Asha Traders', 'Bharat Stores', 'Ravi Kumar'];
@@ -52,7 +52,7 @@ test('rules summarise the four rows and count what left today by destination', a
   });
   const rules = await f.rpc('trustx.rules');
   assert.deepEqual(rules.see, { allSources: true, allowed: 3, refused: 0 });
-  assert.deepEqual(rules.send, { level: 'nothing', localOnly: false }); assert.deepEqual(rules.keep, { days: 90 }); assert.deepEqual(rules.do, { preset: 'ask-everything' });
+  assert.deepEqual(rules.send, { level: 'nothing', localOnly: false }); assert.deepEqual(rules.keep, { days: 90 }); assert.deepEqual(rules.do, { preset: null });
   assert.equal(rules.canChange, true); assert.deepEqual(rules.ownerOnly, ['send', 'sharing', 'seats']);
   assert.equal(rules.leftToday.date, at.slice(0, 10));
   assert.deepEqual(rules.leftToday.items, [
@@ -158,45 +158,11 @@ test('keep lists kinds and the files the app writes, including the vault', async
   assert.equal((await f.call('trustx.setKeep', { kind: 'facts', days: null })).body.error.code, 'INVALID_KEEP');
 });
 
-test('do: presets set each kind, always-waits cannot be switched, and the decision respects limits', async t => {
-  const f = await fixture(t); let auto = await f.rpc('trustx.autonomy');
-  assert.equal(auto.preset, 'ask-everything'); assert.ok(auto.kinds.every((k: any) => k.on === false));
-  assert.equal(auto.alwaysWaits[0].words, 'Anything that cannot be undone, and in particular:');
-  assert.ok(['money', 'outside-messages', 'deleting', 'prices', 'stock', 'listings', 'sharing', 'outside-invites', 'webhooks', 'tax-filings'].every(id => auto.alwaysWaits.some((w: any) => w.id === id)));
-  assert.deepEqual(auto.caps, { remindersPerCustomerPerDay: 1, remindersPerDay: 20, activeJobs: 10, monthlyAiCapMinor: null });
-  for (const payload of [{ kind: { kind: 'money', on: true } }, { alwaysWaits: { money: true } }, { preset: 'money' }])
-    assert.equal((await f.call('trustx.setAutonomy', payload)).body.error.code, 'ALWAYS_WAITS');
-  assert.equal(autonomyDecision(f.store.read(), { kind: 'reminder', countToday: 0 }).reason, 'AUTONOMY_OFF');
-
-  auto = await f.rpc('trustx.setAutonomy', { preset: 'routine' });
-  // A preset never starts the engine's scheduled work; the person turns that on separately.
-  assert.equal(auto.preset, 'routine'); assert.equal(f.store.read().policy.autonomy, false);
-  assert.equal(autonomyDecision(f.store.read(), { kind: 'reminder', countToday: 0 }).reason, 'AUTONOMY_OFF');
-  await f.rpc('trust.update', { autonomy: true });
-  assert.equal(auto.kinds.find((k: any) => k.kind === 'reminder').on, true); assert.equal(auto.kinds.find((k: any) => k.kind === 'voucher-draft').on, false);
-  const state = () => f.store.read();
-  assert.deepEqual(autonomyDecision(state(), { kind: 'reminder', countToday: 0 }), { allowed: true, reason: 'WITHIN_LIMITS' });
-  assert.equal(autonomyDecision(state(), { kind: 'reminder', countToday: 20 }).reason, 'DAILY_COUNT');
-  assert.equal(autonomyDecision(state(), { kind: 'reminder', countToday: 1, customerCountToday: 1 }).reason, 'REMINDERS_PER_CUSTOMER');
-  assert.equal(autonomyDecision(state(), { kind: 'voucher-draft', countToday: 0 }).reason, 'KIND_OFF');
-  assert.equal(autonomyDecision(state(), { kind: 'money', countToday: 0 }).reason, 'ALWAYS_WAITS');
-  assert.equal(autonomyDecision(state(), { kind: 'brief', countToday: 0, amountMinor: '100' }).reason, 'NO_AMOUNT_LIMIT');
-
-  auto = await f.rpc('trustx.setAutonomy', { kind: { kind: 'voucher-draft', on: true, maxPerDay: 2, maxAmountMinorPerDay: '50000' } });
-  assert.equal(auto.preset, 'custom');
-  assert.equal(autonomyDecision(state(), { kind: 'voucher-draft', countToday: 1, amountMinor: '50000' }).allowed, true);
-  assert.equal(autonomyDecision(state(), { kind: 'voucher-draft', countToday: 1, amountMinor: '50001' }).reason, 'DAILY_AMOUNT');
-  assert.equal(autonomyDecision(state(), { kind: 'voucher-draft', countToday: 2 }).reason, 'DAILY_COUNT');
-  auto = await f.rpc('trustx.setAutonomy', { caps: { remindersPerDay: 5, monthlyAiCapMinor: '100000' } });
-  assert.equal(auto.caps.remindersPerDay, 5); assert.equal(auto.caps.monthlyAiCapMinor, '100000');
-  assert.equal(autonomyDecision(state(), { kind: 'reminder', countToday: 5 }).reason, 'REMINDERS_PER_DAY');
-  assert.equal((await f.call('trustx.setAutonomy', { caps: { monthlyAiCapMinor: 12.5 } })).body.error.code, 'INVALID_AMOUNT');
-
-  await f.store.update(s => { s.actions.push({ id: 'a1', operation: 'payment-reminder', status: 'verified', approval: {}, payload: {} }, { id: 'a2', operation: 'payment-reminder', status: 'cancelled', payload: {} }); });
-  auto = await f.rpc('trustx.autonomy'); assert.deepEqual(auto.kinds.find((k: any) => k.kind === 'reminder').agreement, { agreed: 1, total: 2 });
-  assert.equal(auto.kinds.find((k: any) => k.kind === 'brief').agreement, null);
-
-  auto = await f.rpc('trustx.setAutonomy', { preset: 'ask-everything' }); assert.equal(f.store.read().policy.autonomy, false);
+test('do: what may run on its own is jobs-ext\'s; this lane keeps no autonomy engine', async t => {
+  const f = await fixture(t);
+  for (const method of ['trustx.autonomy', 'trustx.setAutonomy']) assert.equal((await f.call(method, {})).body.error.code, 'UNKNOWN_METHOD', method);
+  // jobs-ext is not installed here, so the Do row has no preset to show.
+  assert.deepEqual((await f.rpc('trustx.rules')).do, { preset: null });
 });
 
 test('seats: invite with a one-time code, CA end date, removal and the last owner', async t => {
@@ -236,7 +202,7 @@ test('a viewer reads the rules but is refused on every admin method', async t =>
   assert.equal((await f.as(viewer, 'trustx.rules')).canChange, false);
   for (const [method, payload] of [['trustx.setMarking', { kind: 'personal', target: { type: 'source', sourceId: 'synthetic-sales' }, on: true }],
     ['trustx.setSeatMarking', { seat: 'staff', kind: 'personal', sees: true }], ['trustx.setSend', { level: 'samples' }], ['trustx.confirmChange', { id: 'x' }],
-    ['trustx.setKeep', { kind: 'exports', days: 5 }], ['trustx.setAutonomy', { preset: 'routine' }], ['trustx.invite', { seat: 'staff', name: 'X' }], ['trustx.removeSeat', { memberId: 'owner' }]] as const)
+    ['trustx.setKeep', { kind: 'exports', days: 5 }], ['trustx.invite', { seat: 'staff', name: 'X' }], ['trustx.removeSeat', { memberId: 'owner' }]] as const)
     await assert.rejects(f.as(viewer, method, payload), code('FORBIDDEN'), method);
 });
 
