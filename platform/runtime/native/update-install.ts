@@ -6,6 +6,7 @@ import { check } from '../contracts.ts';
 import { compareVersions, type ReleaseManifest } from '../updater.ts';
 import { safeDirectory } from '../vault.ts';
 import { acquireProcessLock } from '../process-lock.ts';
+import { unzipArchive } from './update-zip.ts';
 import { exactKeys, hashRegularFile, isoTimestamp, readJsonFile, syncDirectory, writeJsonAtomic, type AtomicWriteHooks } from './update-files.ts';
 
 export const MAX_TRIAL_LAUNCHES = 2, KEEP_OLD_VERSIONS = 2;
@@ -36,9 +37,10 @@ export function artifactKind(url:string):UnpackInfo {
   check(kind, 'UNSUPPORTED_ARTIFACT', 'Only AppImage, tar and zip release artifacts can be swapped in place.');
   return Object.freeze({ kind, fileName: /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(name) ? name : kind === 'appimage' ? 'Chausar.AppImage' : 'artifact' });
 }
-/** Default unpacker: copies an AppImage, or runs the system `tar -xf` (no shell) for archives. */
+/** Default unpacker: copies an AppImage, reads a zip with the built-in reader, or runs the system `tar -xf` (no shell) for tar archives. */
 export const defaultUnpack:Unpack = async (artifactPath, destination, info) => {
   if (info.kind === 'appimage') { const target = join(destination, info.fileName); await copyFile(artifactPath, target); await chmod(target, 0o755); return; }
+  if (info.kind === 'zip') { await unzipArchive(artifactPath, destination); return; }
   const child = spawn('tar', ['-xf', artifactPath, '-C', destination], { shell: false, windowsHide: true, stdio: 'ignore', timeout: UNPACK_TIMEOUT_MS });
   const status = await new Promise<number|null>(done => { child.once('error', () => done(-1)); child.once('close', code => done(code)); });
   check(status === 0, 'INSTALL_UNPACK_FAILED', 'The release archive could not be unpacked.');
