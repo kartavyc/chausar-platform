@@ -10,6 +10,10 @@ import { boardCounts, buildCatalogue, type WriteRow } from './catalogue.ts';
 import { READS, readsFor } from './reads.ts';
 import { commitOutcome } from './importer.ts';
 import { authorizeUrl, KEY_SIGN_IN, pkce, providerFor } from './oauth.ts';
+import { decide, recordRun, SCHEDULE_LIMITS, stale, validateSchedule } from './schedule.ts';
+import type { ConnectorCredentialStore } from './credentials.ts';
+import type { SchedulerHost } from '../modules/types.ts';
+import { sourceAllowed } from '../trust.ts';
 import { cxState, freshness, LIMITS, peekCx, prune, publicEnvelope, type Connection, type Envelope } from './state.ts';
 import type { RecipeOutcome, Road } from './types.ts';
 import { compileRecipe, runRecipe, type DecoderInput, type SourceRecipe } from './recipe.ts';
@@ -25,6 +29,8 @@ export type ConnectorsHostOptions = {
   oauthClients?: Record<string, { clientId: string; redirectUri: string }>;
   /** Resolves a database password reference held by the host keychain. */
   databaseCredentials?: (ctx: Context, ref: string) => Promise<string>;
+  /** The local sealed credential store; keys typed in Trust, credentials go here, never into workspace state. */
+  credentialStore?: ConnectorCredentialStore;
   tokenExchange?: (ctx: Context, request: { provider: string; code: string; verifier: string; redirectUri: string; scopes: string[]; connectionId: string; sourceId: string; settings: Record<string, string> }) => Promise<{ ok: true }>;
 };
 const REQUEST = 'CONNECTOR_REQUEST_INVALID';
@@ -157,12 +163,14 @@ export const handlers = {
     return host.store.update(state => { authorize(view(host.store, state), ctx, 'admin'); const item = cxState(state).connections.find(c => c.id === payload.connectionId)!; item.status = payload.paused ? 'paused' : 'active'; audit(state, 'connectorsx.paused', { connectionId: item.id, paused: payload.paused }); return structuredClone(item); });
   },
   async disconnect(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
-    shape(payload, ['connectionId'], ['connectionId']); connection(host.store, payload.connectionId);
+    shape(payload, ['connectionId'], ['connectionId']); const gone = connection(host.store, payload.connectionId);
+    options(host).credentialStore?.remove(gone.sourceId);
     return host.store.update(state => {
       authorize(view(host.store, state), ctx, 'admin'); const cx = cxState(state);
       cx.connections = cx.connections.filter(item => item.id !== payload.connectionId);
       for (const envelope of cx.envelopes) if (envelope.connectionId === payload.connectionId) envelope.pending = null;
-      audit(state, 'connectorsx.disconnected', { connectionId: payload.connectionId });
+      const removed = cx.connections.length;
+      audit(state, 'connectorsx.disconnected', { connectionId: payload.connectionId, remaining: removed });
       return { removed: true, factsKept: true, note: 'Facts already imported stay until you delete the source in Books, Sources.' };
     });
   },
@@ -276,7 +284,12 @@ export const handlers = {
     const asOf = payload.asOf ?? now().slice(0, 10); check(typeof asOf === 'string' && ISO.test(asOf), REQUEST, 'Choose a date.');
     const state = host.store.read(), cx = peekCx(state);
     const sources = payload.sourceId !== undefined ? [payload.sourceId] : [...new Set([...cx.connections.map(item => item.sourceId), ...cx.envelopes.map(item => item.sourceId)])];
-    return sources.map(sourceId => { const item = cx.connections.find(c => c.sourceId === sourceId); return { ...freshness(state, sourceId, asOf), connection: item ? { id: item.id, group: item.group, road: item.road, label: item.label, status: item.status } : null }; });
+    return sources.map(sourceId => {
+      const item = cx.connections.find(c => c.sourceId === sourceId), view = freshness(state, sourceId, asOf);
+      return { ...view, connection: item ? { id: item.id, group: item.group, road: item.road, label: item.label, status: item.status } : null,
+        schedule: item?.schedule ? { operation: item.schedule.operation, everyHours: item.schedule.everyHours, freshnessTargetHours: item.schedule.freshnessTargetHours, catchUp: item.schedule.catchUp, lastRunAt: item.schedule.lastRunAt, lastOutcome: item.schedule.lastOutcome } : null,
+        stale: stale(view.lastRead, item?.schedule ?? null, Date.now()) };
+    });
   },
   async gstMatch(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     shape(payload, ['registerSourceId', 'gstr2bSourceId', 'period'], ['registerSourceId', 'gstr2bSourceId']);
@@ -305,6 +318,53 @@ export const handlers = {
     const outcome = runRecipe(recipe, DECODERS.get('api-records')!, { records: read.records, meta: Object.fromEntries(Object.entries(read.meta).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])) });
     return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe, road: 'database', requestedPeriod: payload.mapping?.period ?? null }));
   },
+  async credentialsSet(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    shape(payload, ['connectionId', 'secret'], ['connectionId', 'secret']);
+    check(ctx.channel !== 'phone' && ctx.sourceTainted !== true, 'OPEN_DESKTOP', 'Enter credentials in the desktop app.');
+    const store = options(host).credentialStore; check(store, 'CREDENTIAL_STORE_REQUIRED', 'The local credential store is not available in this launch.');
+    const item = connection(host.store, payload.connectionId);
+    check(typeof payload.secret === 'string' && payload.secret.length >= 4 && payload.secret.length <= 4096 && !/[\u0000-\u001f]/.test(payload.secret), 'CREDENTIAL_INVALID', 'Paste the key exactly as the system shows it.');
+    store!.set(item.sourceId, { kind: 'key', system: item.group, secret: payload.secret, storedAt: now() });
+    await host.store.update(state => {
+      authorize(view(host.store, state), ctx, 'admin'); const current = cxState(state).connections.find(c => c.id === item.id);
+      if (current && current.road === 'database' && current.settings.engine !== 'sqlite') current.settings.passwordRef = current.sourceId;
+      audit(state, 'connectorsx.credential-stored', { connectionId: item.id });
+    });
+    return { stored: true, connectionId: item.id };
+  },
+  async credentialsRemove(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    shape(payload, ['connectionId'], ['connectionId']);
+    const store = options(host).credentialStore; check(store, 'CREDENTIAL_STORE_REQUIRED', 'The local credential store is not available in this launch.');
+    const item = connection(host.store, payload.connectionId);
+    const removed = store!.remove(item.sourceId);
+    await host.store.update(state => { authorize(view(host.store, state), ctx, 'admin'); audit(state, 'connectorsx.credential-removed', { connectionId: item.id }); });
+    return { removed };
+  },
+  credentialsStatus(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    shape(payload, ['connectionId'], ['connectionId']);
+    const item = connection(host.store, payload.connectionId), store = options(host).credentialStore;
+    return store ? { available: true, ...store.has(item.sourceId) } : { available: false, present: false, kind: null, storedAt: null };
+  },
+  async schedule(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    shape(payload, ['connectionId', 'schedule'], ['connectionId', 'schedule']);
+    const item = connection(host.store, payload.connectionId);
+    let next: Connection['schedule'] = null;
+    if (payload.schedule !== null) {
+      check(plain(payload.schedule), REQUEST, 'Describe the schedule.');
+      const chosen = validateSchedule(payload.schedule);
+      check(item.road === 'interface', 'SCHEDULE_NOT_AVAILABLE', 'Only connections read through the system\'s own interface can repeat.');
+      const binding = readsFor(item.group).find(read => read.id === chosen.operation);
+      check(binding && binding.live && binding.parameters.length === 0, 'SCHEDULE_NOT_AVAILABLE', 'This read cannot repeat on its own.');
+      check(registeredRecipe(binding!.recipe).totals.kind !== 'report', 'SCHEDULE_NEEDS_SOURCE_TOTAL', 'A read checked against a total you type cannot repeat on its own.');
+      next = { ...chosen, lastRunAt: null, lastOutcome: null, runs: { day: '', count: 0 } };
+    }
+    return host.store.update(state => {
+      authorize(view(host.store, state), ctx, 'admin'); const current = cxState(state).connections.find(c => c.id === item.id);
+      check(current, 'CONNECTION_NOT_FOUND', 'This connection does not exist.');
+      current.schedule = next; audit(state, 'connectorsx.scheduled', { connectionId: item.id, scheduled: next !== null });
+      return structuredClone(current);
+    });
+  },
   unmapped(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     shape(payload, ['group']);
     const rows = new Map<string, { group: string; recipeId: string; field: string; seen: number; lastSeen: string }>();
@@ -318,3 +378,40 @@ export const handlers = {
     return { count: rows.size, fields: [...rows.values()] };
   },
 };
+
+/**
+ * Scheduled refresh. The engine calls this only while autonomy is on and the host is awake; it
+ * runs for the owner only, honours source trust, pauses, the catch-up rule and the read budgets.
+ */
+export async function tick(ctx: Context, host: ModuleHost, scheduler: SchedulerHost): Promise<unknown[]> {
+  if (host.demo || ctx.role !== 'owner' || !scheduler.awake || (!scheduler.windowOpen && !scheduler.backgroundEnabled)) return [];
+  const state = host.store.read(), results: unknown[] = [], nowMs = Date.now();
+  const due = peekCx(state).connections.filter(item => item.status === 'active' && item.road === 'interface' && item.schedule);
+  let reads = 0;
+  for (const item of due) {
+    const decision = decide(item.schedule!, nowMs);
+    if (decision.action === 'wait') continue;
+    if (!sourceAllowed(state, ctx, item.sourceId)) { results.push({ module: 'connectors-ext', connectionId: item.id, outcome: 'source-not-allowed' }); continue; }
+    if (decision.action === 'run' && reads >= SCHEDULE_LIMITS.readsPerTick) { results.push({ module: 'connectors-ext', connectionId: item.id, outcome: 'deferred-tick-budget' }); continue; }
+    let outcome: string = decision.reason, envelopeId: string | null = null;
+    if (decision.action === 'run') {
+      reads++;
+      try {
+        const today = new Date(nowMs + 19_800_000).toISOString().slice(0, 10);
+        // A scheduled read covers the current month to date, in India's business calendar.
+        const read: any = await handlers.read(ctx, { connectionId: item.id, operation: item.schedule!.operation, period: { from: `${today.slice(0, 7)}-01`, to: today } }, host);
+        envelopeId = read.id; outcome = read.status === 'accepted' ? 'accepted' : `${read.status}:${read.refusal?.code ?? read.abstention?.reason ?? 'unknown'}`;
+        if (read.status === 'accepted' && item.schedule!.autoImport) { await handlers.importCommit(ctx, { envelopeId: read.id }, host); outcome = 'imported'; }
+      } catch (error) { outcome = `failed:${error instanceof ChausarError ? error.code : 'SOURCE_READ_FAILED'}`; }
+    }
+    await host.store.update(next => {
+      const current = cxState(next).connections.find(c => c.id === item.id);
+      if (!current?.schedule) return;
+      if (decision.action === 'run' || decision.action === 'skip-missed') recordRun(current.schedule, nowMs, outcome);
+      else current.schedule.lastOutcome = outcome;
+      audit(next, 'connectorsx.scheduled-run', { connectionId: item.id, outcome: outcome.split(':')[0] });
+    });
+    results.push({ module: 'connectors-ext', connectionId: item.id, outcome, envelopeId });
+  }
+  return results;
+}

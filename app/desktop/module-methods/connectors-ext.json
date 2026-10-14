@@ -16,5 +16,9 @@
   "connectorsx.unmapped",
   "connectorsx.gstMatch",
   "connectorsx.plainDb.tables",
-  "connectorsx.plainDb.read"
+  "connectorsx.plainDb.read",
+  "connectorsx.credentials.set",
+  "connectorsx.credentials.remove",
+  "connectorsx.credentials.status",
+  "connectorsx.schedule"
 ]

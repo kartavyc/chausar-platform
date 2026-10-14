@@ -1,6 +1,7 @@
 import type { State } from '../contracts.ts';
 import { moduleState, peekModuleState } from '../modules/types.ts';
 import type { Abstention, CanonicalRecord, Check, Refusal, Road, SourceTotals } from './types.ts';
+import type { Schedule } from './schedule.ts';
 
 export const MODULE_ID = 'connectors-ext';
 export type Connection = {
@@ -8,6 +9,8 @@ export type Connection = {
   /** Validated, non-secret settings: region, organisation id, store domain, loopback port, file path. Never a credential. */
   settings: Record<string, string>;
   status: 'active' | 'paused'; createdAt: string; createdBy: string;
+  /** Repeating read, run by the module tick while autonomy is on. */
+  schedule?: Schedule | null;
 };
 export type Envelope = {
   id: string; connectionId: string | null; sourceId: string; company: string; branch: string;
