@@ -11,6 +11,7 @@ import { ActionsPage } from './Actions.tsx';
 import { CanDoPage } from './CanDo.tsx';
 import { JobsPage } from './Jobs.tsx';
 import { AfterRestorePage } from './AfterRestore.tsx';
+import { DrivingPage } from './Driving.tsx';
 
 const isSub = (value: string): value is WorkSub => (SUBS as readonly string[]).includes(value);
 
@@ -29,6 +30,7 @@ function WorkPlace(props: PlaceRenderProps) {
     case 'actions': return <ActionsPage p={p} />;
     case 'cando': return <CanDoPage p={p} />;
     case 'after-restore': return <AfterRestorePage p={p} />;
+    case 'driving': return <DrivingPage p={p} />;
   }
 }
 

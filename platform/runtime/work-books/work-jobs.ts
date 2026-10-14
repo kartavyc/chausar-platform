@@ -13,56 +13,60 @@ import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
 import { nowMs, isoAt, parseId, visibleActions } from './work-queue.ts';
 import type { Amount, Env } from './work-queue.ts';
+import { installed } from './work-jobs-sheet.ts';
+import { workJobEditMethods } from './work-jobs-edit.ts';
+import { calendarInfo, createMonthEnd } from './work-jobs-calendar.ts';
+import { workDrivingMethods } from './work-driving.ts';
 
 const DAY = 86_400_000;
 const INTERVAL = { day: DAY, week: 7 * DAY, month: 30 * DAY } as const;
 type Every = keyof typeof INTERVAL;
 type MissedRun = 'skip' | 'run-once-on-wake';
+/** How a ready-made job repeats: on its interval, or on the last day of each month (core calendar). */
+type TemplateSchedule = 'interval' | 'month-end';
 export type JobTemplate = {
-  id: string; title: string; goal: string; doneWhen: string; type: 'owner-brief'; every: Every;
+  id: string; title: string; goal: string; doneWhen: string; type: 'owner-brief'; every: Every; schedule: TemplateSchedule;
   budget: { minor: string }; maxRuns: number; days: number; missedRun: MissedRun; actions: string[]; needsModel: false;
 };
 
 /** The ready-made jobs. Each only reads the owner's books and writes a brief: no effects outside. */
 export const JOB_TEMPLATES: readonly JobTemplate[] = Object.freeze([
   {
-    id: 'daily-brief', title: 'Daily brief', type: 'owner-brief', every: 'day',
+    id: 'daily-brief', title: 'Daily brief', type: 'owner-brief', every: 'day', schedule: 'interval',
     goal: 'Write a short brief of the business every day from the books loaded in Chausar.',
     doneWhen: 'A brief is ready each day, and you accept it.',
     budget: { minor: '5000' }, maxRuns: 30, days: 30, missedRun: 'run-once-on-wake', actions: [], needsModel: false,
   },
   {
-    id: 'weekly-brief', title: 'Weekly brief', type: 'owner-brief', every: 'week',
+    id: 'weekly-brief', title: 'Weekly brief', type: 'owner-brief', every: 'week', schedule: 'interval',
     goal: 'Write a brief of the week for the business from the books loaded in Chausar.',
     doneWhen: 'A brief is ready each week, and you accept it.',
     budget: { minor: '10000' }, maxRuns: 13, days: 91, missedRun: 'run-once-on-wake', actions: [], needsModel: false,
   },
   {
-    id: 'month-end-brief', title: 'Month-end brief', type: 'owner-brief', every: 'month',
+    id: 'month-end-brief', title: 'Month-end brief', type: 'owner-brief', every: 'month', schedule: 'month-end',
     goal: 'Write a month-end brief for the business from the books loaded in Chausar.',
     doneWhen: 'A brief is ready each month, and you accept it.',
     budget: { minor: '20000' }, maxRuns: 12, days: 366, missedRun: 'skip', actions: [], needsModel: false,
   },
 ] satisfies JobTemplate[]);
 
+/** The month-end brief on the calendar works out what customers owe, with its receipt (work-jobs-calendar.ts). */
+const MONTH_END_GOAL = 'Work out what customers owe on the last day of each month, from the books loaded in Chausar.';
 const record = (value: unknown): value is Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 const PAISE = /^[1-9]\d{0,17}$/;
-/**
- * Whether `jobsx.propose` is installed, read from the method registry without calling it:
- * a probe request could start a real proposal. A trusted host may supply `hasMethod`.
- */
-async function sentenceAvailable(host: ModuleHost): Promise<boolean> {
-  const hasMethod = host.options.hasMethod;
-  if (typeof hasMethod === 'function') return hasMethod('jobsx.propose') === true;
-  const { moduleMethods } = await import('../modules/registry.ts');
-  return moduleMethods.has('jobsx.propose');
-}
+/** Whether `jobsx.propose` is installed, read from the method registry without calling it. */
+const sentenceAvailable = (host: ModuleHost) => installed(host, 'jobsx.propose');
+/** The month-end brief's schedule, when that template is chosen: the calendar, or 30 days chosen by the person. */
+const SCHEDULES = ['month-end', 'every-30-days'] as const;
 
 function templatePayload(payload: Record<string, any>) {
-  const allowed = ['templateId', 'budgetMinor', 'maxRuns', 'missedRun'];
+  const allowed = ['templateId', 'budgetMinor', 'maxRuns', 'missedRun', 'schedule'];
   check(Object.keys(payload).every(k => allowed.includes(k)), 'INVALID_JOB_PROPOSAL', 'Use only the declared request fields.');
   const template = JOB_TEMPLATES.find(t => t.id === payload.templateId);
   check(template, 'TEMPLATE_NOT_FOUND', 'Choose one of the ready-made jobs.');
+  check(payload.schedule === undefined || (template.schedule === 'month-end' && (SCHEDULES as readonly unknown[]).includes(payload.schedule)), 'INVALID_JOB_PROPOSAL', 'Only the month-end brief chooses between month-end and every 30 days.');
+  const schedule: typeof SCHEDULES[number] | 'interval' = template.schedule === 'month-end' ? payload.schedule ?? 'month-end' : 'interval';
   const budgetMinor = payload.budgetMinor ?? template.budget.minor;
   check(typeof budgetMinor === 'string' && PAISE.test(budgetMinor) && BigInt(budgetMinor) <= BigInt(template.budget.minor) * 10n,
     'INVALID_BUDGET', 'The budget is whole paise, more than zero and at most ten times the ready-made budget.');
@@ -70,7 +74,7 @@ function templatePayload(payload: Record<string, any>) {
   check(Number.isSafeInteger(maxRuns) && maxRuns >= 1 && maxRuns <= 366, 'STOP_RULE_REQUIRED', 'Allow 1 to 366 runs.');
   const missedRun: MissedRun = payload.missedRun ?? template.missedRun;
   check(missedRun === 'skip' || missedRun === 'run-once-on-wake', 'INVALID_SCHEDULE', 'A missed run is skipped or run once on wake.');
-  return { template, budgetMinor: budgetMinor as string, maxRuns: maxRuns as number, missedRun };
+  return { template, budgetMinor: budgetMinor as string, maxRuns: maxRuns as number, missedRun, schedule };
 }
 
 /** A queue id from a created or proposed job, checked through the queue's own parser. */
@@ -114,7 +118,10 @@ export function jobMeters(e: Env, job: Job): JobMeters {
 export const workJobMethods: Readonly<Record<string, MethodSpec>> = {
   'approvals.jobTemplates': { permission: 'read', async handler(_ctx, payload, host) {
     check(record(payload) && Object.keys(payload).length === 0, 'INVALID_JOB_PROPOSAL', 'Send an empty request.');
-    return { templates: JOB_TEMPLATES.map(t => ({ ...t, budget: { ...t.budget }, actions: [...t.actions] })), fromSentence: { available: await sentenceAvailable(host) } };
+    return {
+      templates: JOB_TEMPLATES.map(t => ({ ...t, budget: { ...t.budget }, actions: [...t.actions] })), fromSentence: { available: await sentenceAvailable(host) },
+      monthEnd: { available: (await calendarInfo(host)) !== null },
+    };
   } },
   /**
    * Creating a job is an approve-level change in core (an accountant or viewer is refused).
@@ -129,9 +136,9 @@ export const workJobMethods: Readonly<Record<string, MethodSpec>> = {
       if (!result.available) throw new ChausarError('PROPOSAL_FROM_SENTENCE_NOT_BUILT', 'Proposing a job from one sentence is not built yet.');
       return { id: queueIdOf(result.value) };
     }
-    const { template, budgetMinor, maxRuns, missedRun } = templatePayload(payload);
+    const { template, budgetMinor, maxRuns, missedRun, schedule } = templatePayload(payload);
     const at = nowMs(host);
-    const created = await host.call('jobs.create', {
+    const created = schedule === 'month-end' ? await createMonthEnd(ctx, host, { goal: MONTH_END_GOAL, budgetMinor, maxRuns, days: template.days, missedRun, at }) : await host.call('jobs.create', {
       type: 'owner-brief', goal: template.goal, budgetMinor, reserveMinor: budgetMinor,
       stopRule: { maxRuns, deadline: isoAt(at + template.days * DAY) }, intervalMs: INTERVAL[template.every],
       catchup: missedRun === 'skip' ? 'skip' : 'latest', requiresApproval: true,
@@ -139,6 +146,8 @@ export const workJobMethods: Readonly<Record<string, MethodSpec>> = {
     const id = queueIdOf(created);
     // The proposal must be in the caller's queue, waiting for its yes; anything else is a broken contract.
     check(host.services.jobs && (host.services.jobs.list(ctx) as Job[]).some(j => `job:${j.id}` === id && j.requiresApproval && !j.approval), 'INVALID_JOB_REPLY', 'The proposed job is not waiting for approval.');
-    return { id };
+    return { id, schedule };
   } },
+  ...workJobEditMethods,
+  ...workDrivingMethods,
 };

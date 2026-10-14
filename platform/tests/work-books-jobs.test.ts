@@ -151,14 +151,15 @@ test('the job sheet carries three meters: model use, clock time and effect expos
 
 test('the real engine lists templates, proposes a job, queues it as job: and approves it', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-work-books-jobs-'));
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file' });
+  // Other lanes' methods are stubbed absent, so this test does not depend on which lanes are merged.
+  const engine = new Engine({ directory, demo: true, storage: 'experimental-file', modules: { 'work-books': { hasMethod: () => false } } });
   t.after(async () => { await engine.close(); await rm(directory, { recursive: true, force: true }); });
   await engine.request('workspace.create', { name: 'Synthetic Jobs Shop', passphrase: 'Synthetic jobs passphrase 2026', demo: false, pack: 'ecommerce', folder: 'main' });
   const templates = await engine.request('approvals.jobTemplates', {});
   assert.deepEqual(templates.templates.map((x: any) => x.id), ['daily-brief', 'weekly-brief', 'month-end-brief']);
   assert.deepEqual(templates.fromSentence, { available: false });
   await assert.rejects(engine.request('approvals.proposeJob', { sentence: 'Tell me every Monday who owes me money.' }), code('PROPOSAL_FROM_SENTENCE_NOT_BUILT'));
-  const { id } = await engine.request('approvals.proposeJob', { templateId: 'month-end-brief', budgetMinor: '15000' });
+  const { id } = await engine.request('approvals.proposeJob', { templateId: 'month-end-brief', budgetMinor: '15000', schedule: 'every-30-days' });
   assert.match(id, /^job:/);
   const list = await engine.request('approvals.list', {});
   const row = list.items.find((i: any) => i.id === id);

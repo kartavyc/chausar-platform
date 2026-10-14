@@ -110,6 +110,66 @@ JobTemplate = { id; title; goal; doneWhen; type: 'owner-brief'; every: 'day' | '
 Mutations on jobs use the core methods directly: `jobs.pause`, `jobs.resume`, `jobs.cancel`,
 `jobs.approve { id, digest }`, `jobs.accept { id }`, `jobs.reject { id, reason }`.
 
+### Work: jobs, round 2 (WK-07, WK-08, WK-11, WK-14, WK-16)
+
+All additive. `approvals.job` adds these fields to its reply:
+
+```
+JobStep, a step for a person (WK-16) = JobStep & {
+  event: 'person-step'; kind: 'person'; stepId: string; what: string;
+  who: { kind: 'you' | 'person'; name: string; memberId: string | null };
+  done: boolean; doneAt: string | null; doneBy: string | null; canDone: boolean }
+  // open person steps lead the time line, done ones come last; core rows carry no `kind`
+measure: { name: string; goal: Amount; goalReceiptId: string | null;
+  points: { at: string; value: Amount; receiptId: string }[] } | null          // WK-08
+schedule: { kind: 'interval'; everyDays: number | null; everyMs: number }
+        | { kind: 'calendar'; rule: 'month-end' | 'calendar'; at: string | null; timeZone: string; paused: boolean }
+missedRun: 'skip' | 'run-once-on-wake'   // replaces the card's value: a calendar keeps its own rule
+manage: { edit: 'jobsx' | 'core' | 'not-built'; delete: 'jobsx' | 'cancel';
+          missedRule: 'jobsx' | 'core' | 'not-built'; personStep: 'jobsx' | 'not-built' }
+```
+
+- Person steps come from `jobsx.get { id }` (`steps[]` of `{ id, kind: 'person', what, who: { memberId, name? }, done,
+  doneAt?, doneBy?, at? }`) when jobs-ext is installed, or from a core plan step whose `kind` or `provider` is `person`
+  with `input { what, memberId?, who? }`; a ledger entry `{ event: 'person-step-done', stepId, by? }` reads as done.
+  Nothing in this lane marks a step done.
+- The measure's points are the calculation receipts the job names (its deliverable, its runs' evidence, its ledger
+  `receiptId`, and `jobsx.get` `measure.receiptIds`), read with `calculator.receipt` as the caller. A receipt that exists
+  but the caller cannot read is a point `{ missing: 'withheld' }`; an id that is not a calculation receipt is ignored.
+  The operation with the most points is the measure (or `jobsx.get` `measure.operation`). The goal is `jobsx.get`
+  `measure.goal` (with `goalReceiptId`) or the plan input's `measure.goalMinor`, else `{ missing: 'absent' }`. `null`
+  when no readable receipt is named. The screen draws the goal as a rule only when it has a receipt; otherwise it
+  writes it beside the chart.
+
+| Method | Permission | Payload | Reply |
+|---|---|---|---|
+| `approvals.personStepDone` | prepare | `{ jobId, stepId }` | `{ jobId, stepId, done }` (`done` is read back afterwards). Calls `jobsx.personStep.done { jobId, stepId }`; refuses `PERSON_STEP_NOT_BUILT` without it, `PERSON_STEP_ALREADY_DONE`, `PERSON_STEP_NOT_YOURS` (a named person's step; an owner or cofounder may mark any). |
+| `approvals.editJob` | approve | `{ id, config: { budgetMinor?, maxRuns?: 1..366, missedRun? } }` | `{ id: 'job:<id>', via: 'jobsx' \| 'core' }`. `jobsx.edit { id, config }` when installed; else, for a typed job only, core `jobs.amend` with the whole objective (and `jobs.calendar.configure` for a calendar's missed rule). A read-only brief refuses `JOB_EDIT_NOT_BUILT`. The change waits for a new approval. Bad fields: `INVALID_JOB_CHANGE`, `INVALID_BUDGET`, `STOP_RULE_REQUIRED`, `INVALID_SCHEDULE`. |
+| `approvals.deleteJob` | approve | `{ id }` | `{ id, state: 'deleted' \| 'cancelled', note: null \| 'cancel-keeps-record' }`. `jobsx.delete { id }` when installed; else core `jobs.cancel`: the job stops and its record is kept. |
+| `approvals.setMissedRule` | approve | `{ id, rule: 'skip' \| 'run-once-on-wake' }` | `{ id: 'job:<id>', missedRun, via }`. `jobsx.edit { id, config: { missedRun } }`; else a typed job's `jobs.amend` (`catchup`) or calendar revision (`missed` `skip` with 6 h grace, or `coalesce`); else `MISSED_RULE_NOT_BUILT`. |
+| `approvals.drivingStatus` | read | `{}` | `{ available: false, rules }`, or `{ available: true, rules, status: DrivingStatus, windows: { id, title, app }[] }` from `session.status` and `session.windows` |
+| `approvals.drivingStart` | approve | `{ windowId }` | the same from `session.start { windowId, mode: 'read-export', typesSecrets: false }`; refuses `SESSION_WINDOW_CHANGED` if the session reports another window |
+| `approvals.drivingContinue` | prepare | `{}` | the same from `session.resume` |
+| `approvals.drivingStop` | prepare | `{}` | the same from `session.stop` |
+
+```
+DrivingStatus = { state: 'idle' | 'driving' | 'sign-in' | 'paused-by-you' | 'stopped-by-key' | 'stopped' | 'step-failed' | 'done';
+  window: { id; title } | null; steps: { at; text; state: 'done' | 'running' | 'failed' }[]; reason: string | null }
+rules = { windows: 1, mode: 'read-export', typesSecrets: false }
+```
+
+A session reply that does not fit refuses `INVALID_SESSION_REPLY`. No lane provides `session.*` yet.
+
+Month-end on the calendar: `approvals.jobTemplates` adds `monthEnd: { available }` and each template a `schedule:
+'interval' | 'month-end'`. `approvals.proposeJob` takes `schedule?: 'month-end' | 'every-30-days'` (the month-end brief
+only; default `month-end`) and replies `{ id, schedule }`. Month-end is made only where the core can schedule it
+(`jobs.types` lists `calculation-set` and `calendar.configured`). It is then a typed `calculation-set` job with one
+request (`{ operation: 'aging' }`: what customers owe, with its receipt), pinned to the sources the caller may read, and
+a `CalendarDefinition` for the last day of each month (`monthly`, `dayOfMonth: 31`, `missingDate: 'last-day'`) at 18:00
+`Asia/Kolkata`, `identityBasis: 'local-month'`, missed `skip` (6 h grace) or `coalesce`. Otherwise it refuses
+`CALENDAR_SCHEDULE_UNAVAILABLE` (also when the core refuses the calendar), `MONTH_END_CALCULATION_UNAVAILABLE` or
+`NO_BOOKS_LOADED`. "Every 30 days, not month-end" is the old interval path and runs only when the person chooses it.
+
 ### Books: `books.*`, `accounts.*`, `records.*`, `history.*`
 
 ```
@@ -224,6 +284,17 @@ Additions after the first build, kept additive to the shapes above:
   into whole paise as text), the most runs and the missed-run rule. Propose creates the job
   waiting for approval and opens its approval sheet. "From one sentence" says not built
   until `jobsx.propose` is installed.
+  Round 2: a step only a person can do leads the time line, with your square or a named
+  person and Done (the job waits; it is never marked done by itself). The measure is drawn
+  against its goal with the shared goal-line chart; each point opens its receipt and a point
+  you cannot read is a gap in words. The card shows when the job runs (an interval, or the
+  last day of each month at 18:00 India time) and its missed-run rule, which an owner can
+  change. Edit (budget, most runs, missed-run rule) makes a change that waits for approval;
+  Delete asks first and, without job extensions, cancels the job and keeps its record.
+- **Chausar is driving** (WK-14, `#/work/driving`): the choice of one window, the banner
+  "Chausar is driving. Ctrl Alt Pause to stop." with Stop, the steps, and the states (sign in
+  yourself, paused after you moved the mouse with Continue and Stop, stopped by your key, a
+  step failed). Not built yet until a lane provides `session.*`.
 - **After a restore** (WK-15): actions that may have gone out, each with Check, and the
   sending-closed sentence.
 
@@ -269,6 +340,9 @@ in English and Hindi.
 | Practice, catalogue rows from write-back, Reverse | experimental: depends on `writeback.*` (writeback lane); shows "not built yet" until it is installed |
 | Job list, card, time line, accept and send back | supported over core `jobs.*`; job proposals from `jobsx.*` experimental |
 | Start a job from a ready-made brief, budget meters | supported over core `jobs.create` (`owner-brief`); a job from one sentence is experimental (`jobsx.propose`) |
+| Month-end brief on the core calendar | supported where the engine has calendar rules; otherwise refused, with every 30 days as the labelled choice |
+| Person steps (WK-16), measure chart (WK-08), Edit, Delete and the missed-run rule | experimental: complete with `jobsx.*`; core fallback for typed jobs, Delete as cancel |
+| Chausar is driving (WK-14) | experimental: "not built yet" until `session.*` exists |
 | Sources, month squares, source sheet, unmapped fields | supported for file imports; freshness from `connectorsx.*` experimental |
 | Meanings, drafts, co-sign, publish, packs, GST mode | supported |
 | Accounts proposals from Tally groups and decisions | supported; proposals from `learningx.*` experimental |
@@ -281,7 +355,7 @@ screen with a fake rpc. No screen was tested against a live external system.
 
 ### Engine methods
 
-There are 24 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs.ts`)
+There are 32 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs*.ts`, `work-driving.ts`)
 and 33 Books methods (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
 Private state lives in `state.extensions['work-books']` under `work` and `books` (`state.ts`).
 `purge` removes snoozes, notes, opt-ins, decisions and memory lines tied to removed
@@ -300,12 +374,20 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
 ### Still missing
 
 - WK-12 (reminder notes on payment rules, caps), WK-13 and BK-18 (a bill photo to an
-  entry), WK-14 (Chausar is driving) and WK-16 (a step for a person) are not built.
-- WK-08 has no measure chart. Clock time is "not counted" until the core job ledger records
-  durations, and effect exposure is "not counted" until a job names its actions (no core
-  job does yet). Job Edit and Delete have no methods.
-- Ready-made jobs repeat on an interval: "month-end" runs every 30 days from when it is
-  approved, not on the last day of each month (calendar schedules need a typed runner).
+  entry) are not built. WK-14 (Chausar is driving) shows "not built yet" until a lane
+  provides `session.*`; WK-16 Done needs `jobsx.personStep.done`.
+- WK-08: clock time is "not counted" until the core job ledger records durations, and
+  effect exposure is "not counted" until a job names its actions (no core job does yet).
+  Core jobs declare no measure goal, so the goal is "absent" until jobs-ext sends one.
+  Without jobs-ext, Edit and the missed-run rule work only for typed jobs; a read-only brief
+  says not built, and Delete cancels it (the record is kept).
+- Month-end on the calendar needs an engine started with a typed job runner and calendar
+  rules (`durableJobs`, `jobCalendar`). Where the engine has none, only "every 30 days, not
+  month-end" is offered, as the person's own choice. On the calendar the month-end job works
+  out what customers owe (`aging`, with its receipt); it does not write a narrative brief.
+- `approvals.get` (the approval sheet's job card) still reads the missed-run rule from the
+  interval catch-up; `approvals.job` reads a calendar's own rule.
+- The Today row "3 runs were missed while this computer slept" (WK-11) belongs to frame-today.
 - Prepare-only items have no "download the file and the checklist" method.
 - BK-02 Read now, Pause and Sign in again; BK-03 Add a source; BK-05 recipes; BK-06
   "Map this field". These belong to connectors-ext and show "not built yet".

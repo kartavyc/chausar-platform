@@ -13,7 +13,7 @@ import { RowList } from '../../parts/RowList';
 import { useAct, useReply } from './kit/reply.ts';
 import { amountText, dayTime } from './kit/format.ts';
 import { Actions, Button, Note, Refusal, pageStyles } from './kit/Page';
-import { accepted, job, jobs, type JobMeters, type JobRow } from './contract.ts';
+import { accepted, jobs, type JobMeters, type JobRow } from './contract.ts';
 import { StartJobSheet } from './StartJob.tsx';
 import type { Language } from '../../app/presentation.ts';
 import type { WorkWords } from './text.ts';
@@ -21,6 +21,10 @@ import { missingWord } from './kit/words.ts';
 import { JobCardView, jobFacts } from './JobCard.tsx';
 import { useSheet } from './Actions.tsx';
 import { Frame, money, say, type WorkProps } from './shared.tsx';
+import { isPersonStep, jobSheet } from './contract-jobs.ts';
+import { jobWords } from './text-jobs.ts';
+import { JobManage, PersonStepRow } from './JobManage.tsx';
+import { MeasureChart } from './parts/MeasureChart.tsx';
 import s from './work.module.css';
 
 /** Proposed jobs first; the engine's order is kept otherwise. */
@@ -45,7 +49,9 @@ export function meterPairs(m: JobMeters, w: WorkWords, language: Language): Pair
 function JobSheet({ p, row, id, origin, onClose, onChanged }: { p: WorkProps; row: JobRow | undefined; id: string; origin: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
   const { w, language, view } = p;
   const [tick, setTick] = useState(0);
-  const { loaded, reload } = useReply(p.host, 'approvals.job', { id }, job, String(tick));
+  const { loaded, reload } = useReply(p.host, 'approvals.job', { id }, jobSheet, String(tick));
+  const jw = jobWords(language);
+  const owns = !p.viewer && (p.member.role === 'owner' || p.member.role === 'cofounder');
   const act = useAct(p.rpc);
   const [reason, setReason] = useState('');
   if (loaded.phase !== 'ready') {
@@ -83,11 +89,22 @@ function JobSheet({ p, row, id, origin, onClose, onChanged }: { p: WorkProps; ro
         </div>
       )}
       <JobCardView card={j} w={w} language={language} onReceipt={p.openReceipt} simple={view === 'simple'} />
+      {j.measure !== undefined && (
+        <div className={s.block}>
+          <h3 className={s.h}>{jw['measure.title']}</h3>
+          {j.measure === null ? <Note>{jw['measure.none']}</Note> : <MeasureChart measure={j.measure} j={jw} language={language} onReceipt={p.openReceipt} />}
+        </div>
+      )}
+      <JobManage card={j} schedule={j.schedule} manage={j.manage} canChange={owns && row !== undefined && !['cancelled', 'stopped', 'accepted'].includes(row.state)}
+        rpc={p.rpc} w={w} j={jw} language={language} onChanged={() => { setTick(n => n + 1); onChanged(); }} />
       <div className={s.block}>
         <h3 className={s.h}>{w.timeline}</h3>
         {j.timeline.length === 0 ? <Note>{w['timeline.empty']}</Note> : (
           <ol className={s.list}>
             {j.timeline.map((st, i) => {
+              if (isPersonStep(st)) {
+                return <PersonStepRow key={`person-${st.stepId}`} step={st} jobId={j.id} j={jw} language={language} rpc={p.rpc} way={j.manage?.personStep} onDone={() => { setTick(n => n + 1); onChanged(); }} />;
+              }
               const cost = money(st.amount, language);
               const meta = [dayTime(st.at, language), cost, st.needsModel === null ? null : st.needsModel ? w['needsModel.yes'] : w['needsModel.no'], st.reason];
               return (

@@ -11,6 +11,7 @@ import type { Job } from '../jobs.ts';
 import type { MethodSpec, EngineModule, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
 import { workJobMethods, jobMeters } from './work-jobs.ts';
+import { jobSheetExtras } from './work-jobs-sheet.ts';
 import { section, peekSection } from './state.ts';
 import {
   initWork, normalizeWork, env, queue, order, rowOf, snoozed, expired, detail, drafts, lessons, visibleActions, visibleJobs, jobNeedsApproval, jobCard,
@@ -284,11 +285,12 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     const e = await env(ctx, host); const job = visibleJobs(e).find(j => j.id === raw); check(job, 'NOT_FOUND', 'Job not found.');
     const strings = (v: unknown) => Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string') : [];
     const d = job.deliverable as Record<string, unknown> | undefined;
+    const timeline = job.ledger.map(l => ({ at: l.at, event: l.event, amount: l.amountMinor ? { minor: l.amountMinor } : null, needsModel: null, reason: l.reason ?? null }));
     return {
       ...jobCard(e.state, job),
-      timeline: job.ledger.map(l => ({ at: l.at, event: l.event, amount: l.amountMinor ? { minor: l.amountMinor } : null, needsModel: null, reason: l.reason ?? null })),
       result: record(d) ? { done: strings(d.done), open: strings(d.open), receiptIds: strings(d.receiptIds) } : null,
       meters: jobMeters(e, job),
+      ...(await jobSheetExtras(e, job, timeline, ctx.role !== 'viewer')), // WK-08 measure, WK-11 schedule, WK-16 person steps (work-jobs-sheet.ts)
     };
   } },
   ...workJobMethods,
