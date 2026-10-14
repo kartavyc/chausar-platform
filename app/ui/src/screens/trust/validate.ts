@@ -132,9 +132,10 @@ function pending(value: unknown, path: string): PendingChange {
   return { id: id(c['id'], `${path}.id`), what: id(c['what'], `${path}.what`), summary: str(c['summary'], `${path}.summary`, 500),
     by: str(c['by'], `${path}.by`, ID), at: instant(c['at'], `${path}.at`), needs: oneOf(c['needs'], `${path}.needs`, ['owner', 'cofounder'] as const) };
 }
-export interface ChangeResult { state: 'applied' | 'waiting-for-second'; change: PendingChange | null }
+/** `declined` answers `trustx.confirmChange { id, decline: true }`: the needed person declined, or the author withdrew it. */
+export interface ChangeResult { state: 'applied' | 'waiting-for-second' | 'declined'; change: PendingChange | null }
 function changeOf(r: Rec): ChangeResult {
-  const state = oneOf(r['state'], 'reply.state', ['applied', 'waiting-for-second'] as const);
+  const state = oneOf(r['state'], 'reply.state', ['applied', 'waiting-for-second', 'declined'] as const);
   const change = r['change'] === undefined || r['change'] === null ? null : pending(r['change'], 'reply.change');
   return { state, change };
 }

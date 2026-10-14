@@ -12,7 +12,7 @@ import { useEngine, useSend } from './kit/engine.ts';
 import { Group, Note } from './kit/Screen';
 import { screenState } from './kit/Screen';
 import { Frame, Outcome, Pending, countText, dayText, powers, type P } from './common';
-import { MARK_KINDS, validateMarkingChange, validateMarkings, validatePolicy, validateRules, validateSources, type Mark, type MarkKind, type Markings, type Source } from './validate.ts';
+import { MARK_KINDS, validateChange, validateMarkingChange, validateMarkings, validatePolicy, validateRules, validateSources, type Mark, type MarkKind, type Markings, type Source } from './validate.ts';
 import { COMMON, KIND_WORDS, RULES, SEAT_WORDS, SEE, fill } from './words.ts';
 import s from './Trust.module.css';
 
@@ -63,15 +63,19 @@ function Counts({ p }: { p: P }) {
 function SourceList({ p, list, allowed, reload }: { p: P; list: Source[]; allowed: string[]; reload: () => void }) {
   const c = words(COMMON, p.language), w = words(SEE, p.language);
   const { admin } = powers(p);
-  const { sent, send } = useSend(p.rpc, validatePolicy);
+  // Source access is under dual control: `trustx.setPolicy`, which may wait for the second person.
+  const { sent, send } = useSend(p.rpc, validateChange);
   const [asking, setAsking] = useState<string | null>(null);
+  const [round, setRound] = useState(0);
   if (list.length === 0) return <p className={s.quiet}>{w.sourcesNone}</p>;
   const all = allowed.includes('*');
   const reads = (id: string) => all || allowed.includes(id);
   const change = async (id: string, yes: boolean) => {
     const next = yes ? [...allowed, id] : (all ? list.map((x) => x.sourceId) : allowed).filter((x) => x !== id);
     setAsking(null);
-    if (await send('trust.update', { allowedSources: next }) !== null && p.live(p.address)) reload();
+    const done = await send('trustx.setPolicy', { allowedSources: next });
+    if (done === null || !p.live(p.address)) return;
+    if (done.state === 'waiting-for-second') setRound((n) => n + 1); else reload();
   };
   return (
     <>
@@ -97,6 +101,7 @@ function SourceList({ p, list, allowed, reload }: { p: P; list: Source[]; allowe
       </ul>
       {!admin && <Note>{c.adminOnly}</Note>}
       <Outcome sent={sent} language={p.language} />
+      <Pending p={p} what={['send']} round={round} onConfirmed={reload} />
     </>
   );
 }
@@ -108,8 +113,8 @@ function markText(m: Mark, kind: string, w: Readonly<Record<keyof typeof SEE.en,
   return fill(w.markSource, { kind, source: t.sourceId });
 }
 
-/** Pending marking changes carry `what` "see" or "markings" (the engine names them when widening a seat's view waits for the second person). */
-const MARKING_CHANGES = ['see', 'markings'] as const;
+/** Widening a marking waits for the second person as a change to `seats` (unmarking, or a seat seeing more). */
+const MARKING_CHANGES = ['seats'] as const;
 
 function MarkingsBody({ p, m, reload }: { p: P; m: Markings; reload: () => void }) {
   const c = words(COMMON, p.language), w = words(SEE, p.language), k = words(KIND_WORDS, p.language), seatW = words(SEAT_WORDS, p.language);

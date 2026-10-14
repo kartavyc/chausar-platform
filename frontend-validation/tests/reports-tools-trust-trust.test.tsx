@@ -266,7 +266,7 @@ describe('TR-01 Rules', () => {
 
 describe('TR-02 See', () => {
   test('sources with No and Yes, where markings are set, auto marks, and seat markings', async () => {
-    const rpc = fakeRpc({ 'trustx.setSeatMarking': FIXTURES['trustx.markings'], 'trust.update': { allowedSources: ['bank-hdfc'] } });
+    const rpc = fakeRpc({ 'trustx.setSeatMarking': FIXTURES['trustx.markings'], 'trustx.setPolicy': { state: 'applied' } });
     const { user, navigate } = draw(at('rules', 'see'), { rpc });
     expect((await screen.findAllByText('sales.csv')).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('radiogroup', { name: 'HDFC statement' }).length).toBe(1);
@@ -281,7 +281,8 @@ describe('TR-02 See', () => {
     const source = screen.getByRole('radiogroup', { name: 'sales.csv' });
     await user.click(within(source).getByRole('radio', { name: 'No' }));
     await user.click(screen.getByRole('button', { name: 'Stop reading' }));
-    await waitFor(() => expect(rpc.of('trust.update')).toEqual([{ method: 'trust.update', payload: { allowedSources: ['bank-hdfc'] } }]));
+    await waitFor(() => expect(rpc.of('trustx.setPolicy')).toEqual([{ method: 'trustx.setPolicy', payload: { allowedSources: ['bank-hdfc'] } }]));
+    expect(rpc.of('trust.update')).toHaveLength(0);
   });
 
   test('without the source list, the counts from the rules', async () => {
@@ -755,7 +756,7 @@ describe('TR-02 See: adding a marking, and a widening that waits', () => {
   });
 
   test('a seat seeing more may wait for the second person, shown with the pending changes', async () => {
-    const change = { id: 'ch-see', what: 'see', summary: 'Seat accountant: personal on', by: 'owner-1', at: AT, needs: 'cofounder' };
+    const change = { id: 'ch-see', what: 'seats', summary: 'Seat accountant: personal on', by: 'owner-1', at: AT, needs: 'cofounder' };
     let pending: unknown[] = [];
     const rpc = fakeRpc({
       'trustx.setSeatMarking': () => { pending = [change]; return { state: 'waiting-for-second', change }; },
@@ -927,5 +928,53 @@ describe('the See, Send and Keep sheets and TR-13 in Simple and Books', () => {
     cleanup();
     draw(at('vault', 'delete'), { view: 'books', rpc: fakeRpc({ 'trustx.deletions': { items: [REPORT] } }) });
     expect(await screen.findByText('Kept for 30 days by the provider.')).toBeTruthy();
+  });
+});
+
+describe('dual control: declining, withdrawing, cooling off and source access', () => {
+  test('the needed person confirms or declines; decline sends decline: true once', async () => {
+    const theirs = { id: 'ch-5', what: 'send', summary: 'Send: samples', by: 'co-1', at: AT, needs: 'owner' };
+    const rpc = fakeRpc({ 'trustx.pendingChanges': { items: [theirs] }, 'trustx.confirmChange': { state: 'declined', change: theirs } });
+    const { user } = draw(at('rules', 'send'), { rpc });
+    expect(await screen.findByRole('button', { name: COMMON.en.confirm })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: COMMON.en.decline }));
+    expect(await screen.findByText(COMMON.en.declined)).toBeTruthy();
+    expect(rpc.of('trustx.confirmChange')).toEqual([{ method: 'trustx.confirmChange', payload: { id: 'ch-5', decline: true } }]);
+  });
+
+  test('the author withdraws their own change; no Confirm on it', async () => {
+    const mine = { id: 'ch-6', what: 'send', summary: 'Send: samples', by: 'co-1', at: AT, needs: 'owner' };
+    const rpc = fakeRpc({ 'trustx.pendingChanges': { items: [mine] }, 'trustx.confirmChange': { state: 'declined', change: mine } });
+    const { user } = draw(at('rules', 'send'), { rpc, role: 'cofounder', memberId: 'co-1', language: 'hi' });
+    await user.click(await screen.findByRole('button', { name: COMMON.hi.withdrawChange }));
+    expect(await screen.findByText(COMMON.hi.withdrawnChange)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: COMMON.hi.confirm })).toBeNull();
+    expect(rpc.of('trustx.confirmChange')).toEqual([{ method: 'trustx.confirmChange', payload: { id: 'ch-6', decline: true } }]);
+  });
+
+  test('removing the only cofounder: the owner confirming early reads the 72-hour sentence', async () => {
+    const remove = { id: 'ch-7', what: 'seats', summary: 'Remove Co from the cofounder seat. The cofounder has 72 hours to answer.', by: 'owner-1', at: AT, needs: 'cofounder' };
+    const rpc = fakeRpc({ 'trustx.pendingChanges': { items: [remove] }, 'trustx.confirmChange': refusal('COOLING_OFF') });
+    const { user } = draw(at('people'), { rpc });
+    await user.click(await screen.findByRole('button', { name: COMMON.en.confirmOwn }));
+    expect(await screen.findByText(COMMON.en.coolingOff)).toBeTruthy();
+    expect(rpc.of('trustx.confirmChange')).toEqual([{ method: 'trustx.confirmChange', payload: { id: 'ch-7' } }]);
+  });
+
+  test('turning a source back on may wait; a change from outside the app reads its sentence', async () => {
+    const change = { id: 'ch-8', what: 'send', summary: 'Change allow 2 named sources.', by: 'owner-1', at: AT, needs: 'cofounder' };
+    let pending: unknown[] = [];
+    const rpc = fakeRpc({ 'trust.get': { allowedSources: ['sales'] }, 'trustx.setPolicy': () => { pending = [change]; return { state: 'waiting-for-second', change }; }, 'trustx.pendingChanges': () => ({ items: pending }) });
+    const { user } = draw(at('rules', 'see'), { rpc });
+    const source = await screen.findByRole('radiogroup', { name: 'HDFC statement' });
+    await user.click(within(source).getByRole('radio', { name: 'Yes' }));
+    expect(await screen.findByText(COMMON.en.waitCofounder)).toBeTruthy();
+    expect(await screen.findByText('Change allow 2 named sources.')).toBeTruthy();
+    expect(rpc.of('trustx.setPolicy')).toEqual([{ method: 'trustx.setPolicy', payload: { allowedSources: ['sales', 'bank-hdfc'] } }]);
+    cleanup();
+    const refused = fakeRpc({ 'trust.get': { allowedSources: ['sales'] }, 'trustx.setPolicy': refusal('APP_CONSENT_REQUIRED') });
+    const second = draw(at('rules', 'see'), { rpc: refused });
+    await second.user.click(within(await screen.findByRole('radiogroup', { name: 'HDFC statement' })).getByRole('radio', { name: 'Yes' }));
+    expect(await screen.findByText(COMMON.en.appOnly)).toBeTruthy();
   });
 });
