@@ -1,426 +1,426 @@
 {
-  "version": 1,
-  "note": "Synthetic cases for the spoken-amount reader. paise is the exact amount in paise, or null when the words do not give one. negated is true when the sentence says not to.",
-  "cases": [
-    {
-      "pack": "hinglish",
-      "text": "do lakh",
-      "paise": "20000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "pachas hazaar",
-      "paise": "5000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "do lakh pachas hazaar",
-      "paise": "25000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "dedh lakh",
-      "paise": "15000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "dhai lakh",
-      "paise": "25000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "sava do lakh",
-      "paise": "22500000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "saadhe teen hazaar",
-      "paise": "350000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "paune do lakh",
-      "paise": "17500000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "ek crore",
-      "paise": "1000000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "teen sau pachas",
-      "paise": "35000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "paanch sau rupaye",
-      "paise": "50000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "das hazaar bhejo",
-      "paise": "1000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "das hazaar mat bhejo",
-      "paise": "1000000",
-      "negated": true
-    },
-    {
-      "pack": "hinglish",
-      "text": "do lakh nahi",
-      "paise": "20000000",
-      "negated": true
-    },
-    {
-      "pack": "hinglish",
-      "text": "pachas hazaar nahi",
-      "paise": "5000000",
-      "negated": true
-    },
-    {
-      "pack": "hinglish",
-      "text": "bees hazaar ka payment nahin",
-      "paise": null,
-      "negated": true
-    },
-    {
-      "pack": "hinglish",
-      "text": "assi hazaar",
-      "paise": "8000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "nabbe hazaar",
-      "paise": "9000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "ek lakh bees hazaar",
-      "paise": "12000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "chaar lakh",
-      "paise": "40000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "saat sau",
-      "paise": "70000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "dhai sau",
-      "paise": "25000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "dedh hazaar",
-      "paise": "150000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "pandrah hazaar",
-      "paise": "1500000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "pachchis lakh",
-      "paise": "250000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "₹50 hazaar",
-      "paise": "5000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "2 lakh",
-      "paise": "20000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "2 lakh nahi",
-      "paise": "20000000",
-      "negated": true
-    },
-    {
-      "pack": "hinglish",
-      "text": "sattar hazaar paanch sau",
-      "paise": "7050000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "gyarah sau",
-      "paise": "110000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "kuch paise",
-      "paise": null,
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "do crore pachas lakh",
-      "paise": "2500000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "दो लाख",
-      "paise": "20000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "पचास हज़ार",
-      "paise": "5000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "पचास हजार",
-      "paise": "5000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "डेढ़ लाख",
-      "paise": "15000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "ढाई लाख",
-      "paise": "25000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "सवा दो लाख",
-      "paise": "22500000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "साढ़े तीन हज़ार",
-      "paise": "350000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "पौने दो लाख",
-      "paise": "17500000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "एक करोड़",
-      "paise": "1000000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "तीन सौ पचास",
-      "paise": "35000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "पांच सौ रुपये",
-      "paise": "50000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "पाँच सौ रुपये",
-      "paise": "50000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "दस हज़ार भेजो",
-      "paise": "1000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "दस हज़ार मत भेजो",
-      "paise": "1000000",
-      "negated": true
-    },
-    {
-      "pack": "hi",
-      "text": "दो लाख नहीं",
-      "paise": "20000000",
-      "negated": true
-    },
-    {
-      "pack": "hi",
-      "text": "पचास हज़ार नहीं",
-      "paise": "5000000",
-      "negated": true
-    },
-    {
-      "pack": "hi",
-      "text": "अस्सी हज़ार",
-      "paise": "8000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "नब्बे हज़ार",
-      "paise": "9000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "एक लाख बीस हज़ार",
-      "paise": "12000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "चार लाख",
-      "paise": "40000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "सात सौ",
-      "paise": "70000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "ढाई सौ",
-      "paise": "25000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "पच्चीस लाख",
-      "paise": "250000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "2 लाख",
-      "paise": "20000000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "सत्तर हज़ार पांच सौ",
-      "paise": "7050000",
-      "negated": false
-    },
-    {
-      "pack": "hi",
-      "text": "कुछ पैसे",
-      "paise": null,
-      "negated": false
-    },
-    {
-      "pack": "en",
-      "text": "two lakh",
-      "paise": "20000000",
-      "negated": false
-    },
-    {
-      "pack": "en",
-      "text": "fifty thousand",
-      "paise": "5000000",
-      "negated": false
-    },
-    {
-      "pack": "en",
-      "text": "5 lakh",
-      "paise": "50000000",
-      "negated": false
-    },
-    {
-      "pack": "en",
-      "text": "one crore",
-      "paise": "1000000000",
-      "negated": false
-    },
-    {
-      "pack": "en",
-      "text": "three hundred",
-      "paise": "30000",
-      "negated": false
-    },
-    {
-      "pack": "en",
-      "text": "ten thousand not",
-      "paise": "1000000",
-      "negated": true
-    },
-    {
-      "pack": "en",
-      "text": "₹2 lakh",
-      "paise": "20000000",
-      "negated": false
-    },
-    {
-      "pack": "en",
-      "text": "some money",
-      "paise": null,
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "₹1,50,000 bhejo",
-      "paise": "15000000",
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "1.5 lakh bhejo",
-      "paise": null,
-      "negated": false
-    },
-    {
-      "pack": "hinglish",
-      "text": "teen sau do hazaar",
-      "paise": null,
-      "negated": false
-    },
-    {
-      "pack": "en",
-      "text": "send 1,5,000",
-      "paise": null,
-      "negated": false
-    }
-  ]
+ "version": 1,
+ "note": "Synthetic cases for the spoken-amount reader. paise is the exact amount in paise, or null when the words do not give one. negated is true when the sentence says not to.",
+ "cases": [
+  {
+   "pack": "hinglish",
+   "text": "do lakh",
+   "paise": "20000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "pachas hazaar",
+   "paise": "5000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "do lakh pachas hazaar",
+   "paise": "25000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "dedh lakh",
+   "paise": "15000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "dhai lakh",
+   "paise": "25000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "sava do lakh",
+   "paise": "22500000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "saadhe teen hazaar",
+   "paise": "350000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "paune do lakh",
+   "paise": "17500000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "ek crore",
+   "paise": "1000000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "teen sau pachas",
+   "paise": "35000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "paanch sau rupaye",
+   "paise": "50000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "das hazaar bhejo",
+   "paise": "1000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "das hazaar mat bhejo",
+   "paise": "1000000",
+   "negated": true
+  },
+  {
+   "pack": "hinglish",
+   "text": "do lakh nahi",
+   "paise": "20000000",
+   "negated": true
+  },
+  {
+   "pack": "hinglish",
+   "text": "pachas hazaar nahi",
+   "paise": "5000000",
+   "negated": true
+  },
+  {
+   "pack": "hinglish",
+   "text": "bees hazaar ka payment nahin",
+   "paise": null,
+   "negated": true
+  },
+  {
+   "pack": "hinglish",
+   "text": "assi hazaar",
+   "paise": "8000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "nabbe hazaar",
+   "paise": "9000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "ek lakh bees hazaar",
+   "paise": "12000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "chaar lakh",
+   "paise": "40000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "saat sau",
+   "paise": "70000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "dhai sau",
+   "paise": "25000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "dedh hazaar",
+   "paise": "150000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "pandrah hazaar",
+   "paise": "1500000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "pachchis lakh",
+   "paise": "250000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "₹50 hazaar",
+   "paise": "5000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "2 lakh",
+   "paise": "20000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "2 lakh nahi",
+   "paise": "20000000",
+   "negated": true
+  },
+  {
+   "pack": "hinglish",
+   "text": "sattar hazaar paanch sau",
+   "paise": "7050000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "gyarah sau",
+   "paise": "110000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "kuch paise",
+   "paise": null,
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "do crore pachas lakh",
+   "paise": "2500000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "दो लाख",
+   "paise": "20000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "पचास हज़ार",
+   "paise": "5000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "पचास हजार",
+   "paise": "5000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "डेढ़ लाख",
+   "paise": "15000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "ढाई लाख",
+   "paise": "25000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "सवा दो लाख",
+   "paise": "22500000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "साढ़े तीन हज़ार",
+   "paise": "350000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "पौने दो लाख",
+   "paise": "17500000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "एक करोड़",
+   "paise": "1000000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "तीन सौ पचास",
+   "paise": "35000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "पांच सौ रुपये",
+   "paise": "50000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "पाँच सौ रुपये",
+   "paise": "50000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "दस हज़ार भेजो",
+   "paise": "1000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "दस हज़ार मत भेजो",
+   "paise": "1000000",
+   "negated": true
+  },
+  {
+   "pack": "hi",
+   "text": "दो लाख नहीं",
+   "paise": "20000000",
+   "negated": true
+  },
+  {
+   "pack": "hi",
+   "text": "पचास हज़ार नहीं",
+   "paise": "5000000",
+   "negated": true
+  },
+  {
+   "pack": "hi",
+   "text": "अस्सी हज़ार",
+   "paise": "8000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "नब्बे हज़ार",
+   "paise": "9000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "एक लाख बीस हज़ार",
+   "paise": "12000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "चार लाख",
+   "paise": "40000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "सात सौ",
+   "paise": "70000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "ढाई सौ",
+   "paise": "25000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "पच्चीस लाख",
+   "paise": "250000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "2 लाख",
+   "paise": "20000000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "सत्तर हज़ार पांच सौ",
+   "paise": "7050000",
+   "negated": false
+  },
+  {
+   "pack": "hi",
+   "text": "कुछ पैसे",
+   "paise": null,
+   "negated": false
+  },
+  {
+   "pack": "en",
+   "text": "two lakh",
+   "paise": "20000000",
+   "negated": false
+  },
+  {
+   "pack": "en",
+   "text": "fifty thousand",
+   "paise": "5000000",
+   "negated": false
+  },
+  {
+   "pack": "en",
+   "text": "5 lakh",
+   "paise": "50000000",
+   "negated": false
+  },
+  {
+   "pack": "en",
+   "text": "one crore",
+   "paise": "1000000000",
+   "negated": false
+  },
+  {
+   "pack": "en",
+   "text": "three hundred",
+   "paise": "30000",
+   "negated": false
+  },
+  {
+   "pack": "en",
+   "text": "ten thousand not",
+   "paise": "1000000",
+   "negated": true
+  },
+  {
+   "pack": "en",
+   "text": "₹2 lakh",
+   "paise": "20000000",
+   "negated": false
+  },
+  {
+   "pack": "en",
+   "text": "some money",
+   "paise": null,
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "₹1,50,000 bhejo",
+   "paise": "15000000",
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "1.5 lakh bhejo",
+   "paise": null,
+   "negated": false
+  },
+  {
+   "pack": "hinglish",
+   "text": "teen sau do hazaar",
+   "paise": null,
+   "negated": false
+  },
+  {
+   "pack": "en",
+   "text": "send 1,5,000",
+   "paise": null,
+   "negated": false
+  }
+ ]
 }

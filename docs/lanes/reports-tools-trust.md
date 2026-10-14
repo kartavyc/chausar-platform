@@ -193,6 +193,15 @@ Notes on the contract as built (additive to the tables above):
 - `trustx.record` items may have `rule: null`; `head.at` is null for an empty record. `record` and `verifyRecord` extend the stored chain.
 - `trustx.installPlugin` also returns `missing: string[]`, the asks not answered Yes.
 - `trustx.deleteSource` and `trustx.pairAssistant` need the owner, not only an admin.
+- `trustx.pairAssistant` refuses `ASSISTANT_SCOPE_NOT_AVAILABLE` after its checks: a member session would also open every read request on `/api/rpc`, so pairing waits for a session that reaches only the numbers server. No token is issued.
+- `reportsx.weekAhead` refuses `WEEK_TOO_OLD` for weeks before last week, compares the last completed week with the one before it, and carries `gaps: string[]`.
+- Figures from a source marked with a kind the caller's seat does not see print as `withheld` on pages, briefs and exports, with a gap saying so.
+- The projection line is always `not-counted`; a passed forecast is named in a gap and opens in Ask.
+- `trustx.models` gives `spendThisMonthMinor: null` to seats other than owner and cofounder, `voice.minutesThisMonth: null`, and `capEnforced: false`.
+- `trustx.checkCanary` also looks for GSTINs, mail addresses and phone numbers from the books in what left, with or without a planted value.
+- `trustx.setAutonomy` never turns the engine's one autonomy switch on (that would run every scheduled job); switching every kind off turns it off.
+- A seat past its end date ends before any request of this lane runs, and that seat's own request is refused.
+- Validation refusals in the trust part use `INVALID_FIELDS`, never `INVALID_REQUEST`, which screens read as "not built yet".
 - `trustx.confirmChange` on an invite also returns `invite` and `guide`; an applied `removeSeat` also returns `removedOn` and `kept`.
 - Exported for other lanes: `autonomyDecision(state, { kind, amountMinor?, countToday, customerCountToday? })` → `{ allowed, reason }` and `markingsForSources(state, sourceIds)`, from `platform/runtime/trust-ext/methods-core.ts`. Dual control can be extended with `requestChange` / `onApplyChange` from `core-dual.ts`.
 
@@ -222,7 +231,7 @@ Screens: place modules in `app/ui/src/screens/reports/`, `tools/` and `trust/`, 
 | TL-04 Plugins, TL-05 Install a plugin (inspection without install, signature, locked-box drawing, Yes/No asks, flagged text), TL-10 Language packs | `tools/plugins` | supported |
 | TL-06 A tool from outside | `tools/plugins` | not built yet until models-ext serves `plugins.wrapped` |
 | TL-07 A request from a connected tool | `ToolRequestSheet` | supported as a component; nothing raises it yet |
-| TL-08 Other assistants: off by default, pairing token shown once, call list | `tools/assistants` | experimental (one-day sessions; call list from calculation events) |
+| TL-08 Other assistants: off by default, server card, call list | `tools/assistants` | experimental: pairing refuses `ASSISTANT_SCOPE_NOT_AVAILABLE` until core issues numbers-only sessions |
 | TL-09 Phone | `tools/phone` | not built yet until hosted-link serves `phone.*`; the relay sentence shows |
 
 ### Trust
@@ -231,12 +240,12 @@ Screens: place modules in `app/ui/src/screens/reports/`, `tools/` and `trust/`, 
 |---|---|---|
 | TR-01 Rules with "what left this computer today" | `trust/rules` | supported |
 | TR-02 See with markings and per-seat visibility | `trust/rules?sheet=see` | supported (markings follow data into this lane's pages; enforcement in other reads is a gap) |
-| TR-03 Send with stand-in tables, local only, financial routes, dual control | `trust/rules?sheet=send` | supported |
+| TR-03 Send with stand-in tables, local only, financial routes, dual control | `trust/rules?sheet=send` | supported on the `trustx.*` path; dual control is experimental because core `trust.update`, `learning.sharing` and `auth.invite` still let a cofounder change these alone |
 | TR-04 Keep with the on-disk inventory | `trust/rules?sheet=keep` | supported (non-fact kinds stored, not yet enforced) |
-| TR-05 Do: presets, kinds with limits, the always-waits list, caps, agreement | `trust/rules?sheet=do` | supported |
-| TR-06 People and seats (cofounder, accountant, CA with end date, staff), invite guide, TR-07 the pen | `trust/people` | supported; staff "sees their own" not enforced |
+| TR-05 Do: presets, kinds with limits, the always-waits list, caps, agreement | `trust/rules?sheet=do` | experimental: the rules are stored and `autonomyDecision` answers them, but no job or action path calls it yet |
+| TR-06 People and seats (cofounder, accountant, CA with end date, staff), invite guide, TR-07 the pen | `trust/people` | supported; CA end dates enforced on this lane's requests only; staff "sees their own" not enforced; seat dual control experimental as for Send |
 | TR-08 Models with terms cards and spend | `trust/models` | supported; terms texts need checking |
-| TR-09 Network ledger and the canary | `trust/network` | supported; canary is after the fact (experimental) |
+| TR-09 Network ledger and the canary (planted value and the books' own GSTINs, mail addresses and phone numbers) | `trust/network` | supported for the ledger; canary experimental: it finds a leak after it left |
 | TR-10 The tamper-evident record | `trust/record` | supported |
 | TR-11 Sharing, the local cleaner, TR-14 hosted promises, TR-15 notice and agreements | `trust/sharing` | supported; intake closed ("Nothing is sent.") |
 | TR-12 Vault: backups, test restore, lock, disk, recovery contact | `trust/vault` | supported; lock settings stored, not enforced; recovery contact experimental |
@@ -259,7 +268,7 @@ Screens: place modules in `app/ui/src/screens/reports/`, `tools/` and `trust/`, 
 
 - **Host precedence**: `reports/weekahead` is still drawn by the retained lesson review (`retainedSurface` in `app/ui/src/screens/retained/RetainedPlace.tsx`, used by `bootstrap.tsx`, owned by frame-today) before any place module. The week ahead module is reached once that precedence is changed. `trust/models` is now drawn by this lane, which supersedes the host's route picker there.
 - **Other lanes' methods** assumed by the screens behind adapters: `smallapps.list/make/create/get/rebuild/view/act` (models-ext), `plugins.wrapped/reapprove` (models-ext), `phone.channels/preview/usage/optIn/verify` (hosted-link). They show "not built yet" until served.
-- **Core hooks that would be needed** (not made): a deletion entry point a module can call (`sources.delete` refuses `VAULT_BUSY` from inside a module request, so `trustx.deleteSource` calls the trust service directly and skips the engine's managed-copy cleanup; older backups and exports are reported `pending`); a gateway hook to block a payload carrying the canary before it leaves; a per-call MCP record (what the disclosure check removed, refused write calls) and MCP-only tokens; enforcement of the idle lock, CA end dates at authorization time and seat visibility of markings in `visibleFacts`.
+- **Core hooks that would be needed** (not made): numbers-only (MCP) sessions, so assistant pairing can be turned on; dual control on the core `trust.update` (send, sharing), `learning.sharing`, `auth.invite`, `members.add` and `members.revoke` paths; a call to `autonomyDecision` from the job runner and the action path; seat visibility of markings in `visibleFacts` (this lane withholds marked figures only on its own pages, briefs and exports); a deletion entry point a module can call (`sources.delete` refuses `VAULT_BUSY` from inside a module request, so `trustx.deleteSource` calls the trust service directly and skips the engine's managed-copy cleanup; older backups and exports are reported `pending`); a gateway hook to block a payload carrying the canary before it leaves; a per-call MCP record (what the disclosure check removed, refused write calls) and MCP-only tokens; enforcement of the idle lock, CA end dates at authorization time and seat visibility of markings in `visibleFacts`.
 - **Needs a person**: a CA must check every row of `platform/runtime/reports-ext/due-dates.v1.json` (shipped `reviewed: false`, several sources linked to home pages) and the 43B(h) note; the model terms in `tools-terms.v1.json` must be checked against each provider; Hindi and Hinglish need a native reader's review.
 - Report pages for GST turnover, bank statements and purchases against GSTR-2B stay "not started" until the connector lanes register those calculations.
 - No period picker on report pages; Simple and Guided look nearly alike on Tools; phone items in the network ledger and phone opt-ins in agreements wait for the hosted-link record shape; voice minutes read 0.
