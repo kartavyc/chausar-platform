@@ -1,1 +1,14 @@
-[]
+[
+  "release.status",
+  "release.checkUpdate",
+  "release.stageUpdate",
+  "release.applyUpdate",
+  "release.rollback",
+  "release.confirmHealthy",
+  "native.keychainStatus",
+  "native.databaseStatus",
+  "service.status",
+  "service.plan",
+  "service.install",
+  "service.uninstall"
+]

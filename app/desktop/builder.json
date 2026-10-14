@@ -1,12 +1,20 @@
 {
   "appId": "in.chausar.desktop", "productName": "Chausar Preview",
+  "artifactName": "Chausar-${version}-${os}-${arch}.${ext}",
   "directories": { "output": "release" }, "asar": true, "forceCodeSigning": true,
-  "files": ["app/**/*", "platform/runtime/**/*", "platform/semantic-qualification/src/**/*", "platform/semantic-qualification/package.json", "platform/helpers/**/*", "scripts/postgres-runtime.mjs", "fixtures/**/*", "package.json", "node_modules/**/*"],
-  "asarUnpack": ["package.json", "node_modules/**/*", "platform/runtime/**/*", "platform/semantic-qualification/src/**/*", "platform/semantic-qualification/package.json", "platform/helpers/**/*", "scripts/postgres-runtime.mjs"],
+  "files": ["app/**/*", "app/ui/host/**/*", "app/ui/public/**/*", "app/ui/assets/fonts/**/*", "platform/runtime/**/*", "platform/semantic-qualification/src/**/*", "platform/semantic-qualification/package.json", "platform/helpers/**/*", "scripts/postgres-runtime.mjs", "scripts/release/launcher/**/*", "fixtures/**/*", "package.json", "node_modules/**/*"],
+  "asarUnpack": ["package.json", "node_modules/**/*", "platform/runtime/**/*", "platform/semantic-qualification/src/**/*", "platform/semantic-qualification/package.json", "platform/helpers/**/*", "scripts/postgres-runtime.mjs", "scripts/release/launcher/**/*"],
   "extraResources": [{ "from": "runtime-binaries", "to": "runtime-binaries", "filter": ["**/*"] }],
-  "win": { "target": ["nsis"], "signAndEditExecutable": true },
-  "mac": { "target": ["dmg"], "hardenedRuntime": true },
-  "linux": { "target": ["AppImage"], "category": "Office" },
-  "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
+  "win": {
+    "target": ["nsis"], "signAndEditExecutable": true,
+    "signtoolOptions": { "sign": "scripts/release/windows-sign.cjs", "signingHashAlgorithms": ["sha256"] }
+  },
+  "mac": {
+    "target": ["dmg", "zip"], "hardenedRuntime": true, "gatekeeperAssess": false, "notarize": true,
+    "entitlements": "app/desktop/entitlements.mac.plist", "entitlementsInherit": "app/desktop/entitlements.mac.plist",
+    "signIgnore": ["/Contents/Resources/runtime-binaries/"]
+  },
+  "linux": { "target": ["AppImage", "tar.gz"], "category": "Office" },
+  "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true },
   "publish": null
 }

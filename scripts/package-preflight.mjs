@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs';
 import { lstat, open, readFile, readdir } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const platforms = new Set(['win32', 'darwin', 'linux']);
@@ -206,6 +207,8 @@ export async function packagePreflight({ root = projectRoot, platform = process.
   });
   if (platform === 'win32' || platform === 'darwin') {
     await check('native installer signing credential', async () => {
+      // Windows may sign through a configured cloud key service instead of a local certificate file.
+      if (platform === 'win32' && environment.CHAUSAR_WIN_SIGNER) { createRequire(import.meta.url)('./release/windows-sign.cjs').signingConfiguration(environment); return; }
       const certificate = requireValue('CSC_LINK');
       requireValue('CSC_KEY_PASSWORD');
       if (!isAbsolute(certificate)) throw new Error('CSC_LINK must point to an explicit absolute local signing certificate file');
