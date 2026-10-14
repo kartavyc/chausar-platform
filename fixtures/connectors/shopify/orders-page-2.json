@@ -1,0 +1,20 @@
+{
+  "data": {
+    "orders": {
+      "pageInfo": { "hasNextPage": false, "endCursor": "eyJsYXN0X2lkIjo1MDAzLCJsYXN0X3ZhbHVlIjoiMjAyNi0wOS0wNCJ9" },
+      "nodes": [
+        {
+          "id": "gid://shopify/Order/5003",
+          "name": "#5003",
+          "processedAt": "2026-09-04T04:00:00Z",
+          "currencyCode": "INR",
+          "cancelledAt": null,
+          "displayFinancialStatus": "PENDING",
+          "subtotalPriceSet": { "shopMoney": { "amount": "350.25", "currencyCode": "INR" } },
+          "totalTaxSet": { "shopMoney": { "amount": "0.00", "currencyCode": "INR" } }
+        }
+      ]
+    }
+  },
+  "extensions": { "cost": { "requestedQueryCost": 12, "actualQueryCost": 4, "throttleStatus": { "maximumAvailable": 2000.0, "currentlyAvailable": 1990, "restoreRate": 100.0 } } }
+}

@@ -1,0 +1,50 @@
+{
+  "entity": "collection",
+  "count": 2,
+  "items": [
+    {
+      "id": "pay_SynthA00000001",
+      "entity": "payment",
+      "amount": 118000,
+      "currency": "INR",
+      "status": "captured",
+      "order_id": "order_SynthA0000001",
+      "invoice_id": null,
+      "international": false,
+      "method": "upi",
+      "amount_refunded": 0,
+      "refund_status": null,
+      "captured": true,
+      "description": "Synthetic order 1001",
+      "email": "buyer1@example.invalid",
+      "contact": "+910000000001",
+      "notes": { "invoice": "INV-1001" },
+      "fee": 2785,
+      "tax": 425,
+      "error_code": null,
+      "created_at": 1788409800
+    },
+    {
+      "id": "pay_SynthA00000002",
+      "entity": "payment",
+      "amount": 50000,
+      "currency": "INR",
+      "status": "failed",
+      "order_id": "order_SynthA0000002",
+      "invoice_id": null,
+      "international": false,
+      "method": "card",
+      "amount_refunded": 0,
+      "refund_status": null,
+      "captured": false,
+      "description": "Synthetic order 1002",
+      "email": "buyer2@example.invalid",
+      "contact": "+910000000002",
+      "notes": [],
+      "fee": null,
+      "tax": null,
+      "error_code": "BAD_REQUEST_ERROR",
+      "created_at": 1788418800
+    }
+  ]
+}
