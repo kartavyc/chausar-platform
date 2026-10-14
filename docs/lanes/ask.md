@@ -42,6 +42,32 @@ Refusals are the lane's own fixed codes (listed on the ask line of `laneRefusals
 
 The place module is `app/ui/src/places/lane-ask.tsx` → `app/ui/src/screens/ask/lane/AskPlace.tsx`. It draws **Ask › Saved, Decisions, Checks and Not yet**. Every view (menu, answer, receipt, rows, sent, why, what if, forecast, plan, GSTR-2B, search, saved, decision, check) opens on a small in-page stack with Back, and every lane page has "Ask from the menu". Addresses with `?sheet=why`, `whatif`, `forecast`, `plan`, `gst2b`, `search`, `answer.<receiptId>`, `decision.<id>`, `check.<id>` or `why.<id>` open that view directly. Shared parts built here for promotion: `parts/RankedBars`, `parts/Bridge` (measured bridge, BigInt-scaled, written out instead of drawn if parts do not add up), `parts/ForecastLine` (past, forecast with band, baseline). Every word is in per-file catalogues in English and Hindi; every figure opens the lane's own receipt view; viewer seats get no change controls; all replies are validated before drawing (`client.ts`, `core-replies.ts`, each analysis screen's validators).
 
+## Audit: AS-01 to AS-19
+
+Each entry's Shows, States, You can, Engine and Rules lines were checked against the screens and the engine, in Simple, Guided and Books and in English and Hindi. This table is the state after the engine gaps it found were closed.
+
+| Screen | State | What is missing |
+|---|---|---|
+| AS-01 The ask page | done | Voice and Ctrl K belong to the host's ask line. The menu shows in Ask › New only when the host hands that address to `askPlaces` (see assumptions); it is one press away from every lane page. |
+| AS-02 What Chausar understood | done | — |
+| AS-03 One question back | done | — |
+| AS-04 An answer | done | The two meanings of "sales" are offered as one question back, not as two answers side by side. |
+| AS-05 The receipt | partial | Recipe "accepted by" and the meaning's reviewer and co-signer (the import and dictionary records do not carry them); the forecast method sits on the forecast page, not the receipt; the rule id and deciding check of the Allowed by line. |
+| AS-06 The rows behind a number | done | — |
+| AS-07 What was sent | done | — |
+| AS-08 Not yet | partial | No "needs data: …" reason; Ask a person (`support.askAPerson`, day 10) is another lane's. |
+| AS-09 Stopped by a rule | done | The rule is named by kind (branch, source, seat, access, marking) in fixed words; the rule's own text needs `trust.explain` (another lane). |
+| AS-10 Why did it change | done | An investigation completes in one step, so there is nothing to resume; reopening re-checks access. |
+| AS-11 What if | done | No branch picker on the form (the engine takes `branch`). |
+| AS-12 Forecast | done | — |
+| AS-13 Best plan under limits | done (experimental) | — |
+| AS-14 Saved | done | Reached from every lane page; the host's retained what-if list draws `#/ask/saved` first. |
+| AS-15 Decisions | done | Typing only (voice is the host's). |
+| AS-16 Checks | done | — |
+| AS-17 Not-yet list | done | — |
+| AS-18 Search results | done | — |
+| AS-19 Purchases against GSTR-2B | partial | A line opens its two source rows as written, not a calculator receipt; group and line amounts are written as text, not figures. |
+
 ## Labels
 
 | Feature | Label |
@@ -64,8 +90,8 @@ The place module is `app/ui/src/places/lane-ask.tsx` → `app/ui/src/screens/ask
 
 ## Tests
 
-- `platform/tests/ask-engine.test.ts` (18): the whole engine on synthetic businesses, including the review regressions (per-member lists and checks, hidden rows never marking stale, corrected rows, strict number guard, GST left-out rows, forecast scope).
-- `frontend-validation/tests/ask-core.test.tsx` (18) and `ask-analysis.test.tsx` (20): every screen against a fake `rpc`, both languages, three views, viewer seat, not built, invalid replies.
+- `platform/tests/ask-engine.test.ts` (24): the whole engine on synthetic businesses, and the regressions from two adversarial reviews: per-member lists and checks; hidden rows never marking stale; corrected rows; the number guard against bypasses (units, scale, sign, invisible characters, joined digits, other numerals, number words) and its structural dates, years and ordinals; GST left-out rows; forecast scope and reuse; checks run by the scheduler as each seat; figures withheld after narrowed access; a single confirm; owner-set tolerance; viewers keep nothing.
+- `frontend-validation/tests/ask-core.test.tsx`, `ask-analysis.test.tsx`, `ask-audit.test.tsx`, `ask-wiring.test.tsx`: every screen against a fake `rpc`, both languages, three views, viewer seat, not built, invalid replies, and each engine field.
 
 ## Cross-lane assumptions
 
@@ -83,7 +109,6 @@ The place module is `app/ui/src/places/lane-ask.tsx` → `app/ui/src/screens/ask
 
 - Ask a person (AS-08, day 10) and `trust.explain` (AS-09) belong to other lanes.
 - "Recorded later" comes from an optional decided-on date kept by the lane; "cancelled" is a decision whose last review was rejected. The journal itself has neither.
-- The inbox's "questions Chausar is waiting on" list is empty: pending conversation clarifications are not read here.
-- Checks rerun on their own only for owners and cofounders (the scheduler runs as them); other seats run theirs with Run all.
-- The number guard is strict: a model sentence naming a month as words with a year ("September 2026") is replaced by the template.
-- Forecast builds one receipt per month on every run (bounded at 240 months), so each run adds receipts to the vault.
+- The number guard is deliberately strict: number words ("one customer", "doubled") and any non-decimal numeral make it fall back to the template explanation. Dates, months with years, financial years, introduced years ("in 2026", "2026 में") and ordinals are recognised by structure.
+- Asking about another member's receipt id says "stopped by a rule", while an id that does not exist says "not found" (the core's translation); ids are random.
+- See the audit table for each screen's remaining partial items.
