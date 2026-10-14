@@ -43,7 +43,7 @@ export const LINK_PAGE = Object.freeze({
   confirmNotNow: 'Leave this for later?',
   done: 'Done. Open Chausar on your computer to see the result.',
 });
-export const MAIL_FOOTER = 'Reply HELP for a person, STOP to end messages. Chausar never asks you to reply yes.';
+export const MAIL_FOOTER = 'To stop these messages, turn mail off in Chausar on your computer. Chausar never asks you to reply yes.';
 /** The opt-in wording the desktop shows; the relay stores its hash with the opt-in. */
 export const OPT_IN_TEXT: Readonly<Record<Channel, string>> = Object.freeze({
   whatsapp: 'Send me Chausar messages on WhatsApp: a headline and a link, about thirty a month. I can reply STOP at any time.',
