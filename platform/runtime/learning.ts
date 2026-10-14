@@ -1,4 +1,4 @@
-import { authorize, audit, check, newId, now } from './contracts.ts';
+import { authorize, audit, check, guardChange, newId, now } from './contracts.ts';
 import type { Context, State, StateStore } from './contracts.ts';
 import { canonical, current, digest, sourceAccess } from './actions.ts';
 import { assertSourceAccess } from './trust.ts';
@@ -97,7 +97,7 @@ export class LearningService {
       return true;
     } catch { return false; } }).map(event => structuredClone(event));
   }
-  async setSharing(context: Context, enabled: boolean) { return this.store.update(state => { current(state, context, 'admin'); check(!context.sourceTainted && context.channel !== 'phone', 'APP_CONSENT_REQUIRED', 'Sharing is controlled inside the app.'); check(typeof enabled === 'boolean', 'INVALID_SHARING', 'Set sharing on or off.'); state.policy.sharing = enabled; audit(state, 'learning.sharing', { enabled, memberId: context.memberId }); return { enabled }; }); }
+  async setSharing(context: Context, enabled: boolean) { return this.store.update(state => { current(state, context, 'admin'); check(!context.sourceTainted && context.channel !== 'phone', 'APP_CONSENT_REQUIRED', 'Sharing is controlled inside the app.'); check(typeof enabled === 'boolean', 'INVALID_SHARING', 'Set sharing on or off.'); guardChange(state, context, { kind: 'policy', patch: { sharing: enabled } }); state.policy.sharing = enabled; audit(state, 'learning.sharing', { enabled, memberId: context.memberId }); return { enabled }; }); }
   async preview(context: Context, eventIds: string[]) {
     check(Array.isArray(eventIds) && eventIds.length > 0 && eventIds.length <= 500 && eventIds.every(id => typeof id === 'string'), 'INVALID_PREVIEW', 'Select 1–500 local decision records.');
     return this.store.update(state => {

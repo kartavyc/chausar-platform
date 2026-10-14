@@ -1,7 +1,8 @@
 /** TR-08 models and cost, TR-09 the network ledger and the canary. */
 import { randomBytes } from 'node:crypto';
-import { check, now } from '../contracts.ts';
-import type { Context, State } from '../contracts.ts';
+import { audit, check, ChausarError, now } from '../contracts.ts';
+import type { Context, State, StateStore } from '../contracts.ts';
+import { peekLane } from './lane-state.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import { canonicalJson, fields, newestFirst, paise, shipped, tools } from './tools-common.ts';
 
@@ -119,6 +120,19 @@ export function canaryHit(state: State): { at: string; callId: string } | null {
   if (needles.length === 0) return null;
   const hit = state.modelReceipts.find(r => r.kind === 'model-preview' && typeof r.payload === 'string' && needles.some(needle => r.payload.includes(needle)));
   return hit ? { at: now(), callId: hit.id } : null;
+}
+/** The planted value or a guarded value from the books inside an outgoing payload: the call is stopped before it leaves. */
+export function payloadLeaks(state: State, payload: string): boolean {
+  const canary = peekLane(state)?.tools?.canary;
+  return [...(canary?.value ? [canary.value as string] : []), ...guarded(state)].some(needle => payload.includes(needle));
+}
+export async function blockLeak(store: StateStore, outgoing: { receiptId: string; payload: string }) {
+  if (!payloadLeaks(store.read(), outgoing.payload)) return;
+  await store.update(state => {
+    const canary = (tools(state).canary ??= { value: null, plantedAt: null, alert: null }); canary.alert ??= { at: now(), callId: outgoing.receiptId };
+    audit(state, 'trustx.canary.blocked', { receiptId: outgoing.receiptId });
+  });
+  throw new ChausarError('CANARY_BLOCKED', 'This request carried a protected value, so nothing was sent.');
 }
 export async function checkCanary(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   fields(payload, []);

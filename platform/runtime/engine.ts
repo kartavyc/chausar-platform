@@ -963,10 +963,20 @@ export class Engine {
     const engine = this;
     return Object.freeze({
       get store() { return engine.store(); },
-      services: this.services, demo: this.#demo, directory: this.options.directory,
+      services: Object.freeze({ ...this.services, sourceDeletion: Object.freeze({ delete: (sourceId: string) => engine.moduleSourceDeletion(ctx, sourceId) }) }),
+      demo: this.#demo, directory: this.options.directory,
       options: this.moduleOptions(moduleId),
       call: (method: string, payload: Record<string, unknown>) => engine.requestAs(ctx, method, payload),
     });
+  }
+  /** `sources.delete` with its managed-copy cleanup for a module request: taken only while the calling request is the one in flight, then fenced the same way. */
+  private async moduleSourceDeletion(ctx: Context, sourceId: string) {
+    check(!this.#closing && !this.#transition && this.#activeRequests <= 1, 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
+    this.#transition = true;
+    try {
+      const result = await this.services.trust.deleteSource(ctx, sourceId); const removed = await this.purgeManagedCopies();
+      return { ...result, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
+    } finally { this.#transition = false; this.notifyIdle(); }
   }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');

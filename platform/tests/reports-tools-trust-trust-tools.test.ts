@@ -148,7 +148,7 @@ test('backupNow writes a checked backup and testRestore passes with the right pa
   assert.deepEqual((await f.rpc('trustx.setRecoveryContact', { name: 'Synthetic friend' })).recoveryContact, { name: 'Synthetic friend', experimental: true });
 });
 
-test('deleteSource reports only what it checked: facts gone are deleted, older backups are pending', async t => {
+test('deleteSource reports only what it checked: facts and managed backups gone are deleted, a page left in a sub-folder is pending', async t => {
   const f = await fixture(t);
   await f.rpc('trustx.backupNow');
   // An exported page left in a sub-folder (for example one still open in a spreadsheet) is found, not missed.
@@ -157,13 +157,14 @@ test('deleteSource reports only what it checked: facts gone are deleted, older b
   const report = await f.rpc('trustx.deleteSource', { sourceId, confirmation: sourceId });
   const row = (place: string) => report.rows.find((item: any) => item.place === place);
   assert.equal(row('Facts').state, 'deleted'); assert.equal(row('Imports').state, 'deleted');
-  assert.equal(row('Backups on this computer').state, 'pending'); assert.equal(row('Backups on this computer').reason, 'Older backups still hold it until they are replaced.');
+  // The engine's deletion removed the managed backup, and the report checked that it is gone.
+  assert.equal(row('Backups on this computer').state, 'deleted'); assert.equal((await readdir(join(f.directory, 'backups'))).filter(name => name.endsWith('.backup')).length, 0);
   assert.equal(row('AI provider').state, 'deleted'); assert.equal(row('Briefs already sent').state, 'not-possible'); assert.equal(row('Old versions in Google Drive').state, 'not-built');
   assert.equal(row('Reports, Tools and Trust records').state, 'deleted'); assert.equal(row('Exports on this computer').state, 'pending');
   assert.equal(f.vault.read().facts.some(fact => fact.sourceId === sourceId), false);
   assert.equal((await f.rpc('trustx.deletions')).items[0].id, report.id);
   const file = await f.rpc('trustx.exportDeletion', { id: report.id });
-  const csv = await readFile(file.path, 'utf8'); assert.equal(file.bytes, Buffer.byteLength(csv)); assert.match(csv, /Older backups still hold it/);
+  const csv = await readFile(file.path, 'utf8'); assert.equal(file.bytes, Buffer.byteLength(csv)); assert.match(csv, /Exported files made before the deletion may hold it/);
 });
 
 test('assistants are off by default, pair once while on, and lose access when revoked', async t => {
@@ -171,13 +172,14 @@ test('assistants are off by default, pair once while on, and lose access when re
   assert.equal((await f.rpc('trustx.assistants')).on, false);
   await f.refused('trustx.pairAssistant', { name: 'Synthetic assistant' }, 'ASSISTANTS_OFF');
   await f.rpc('trustx.setAssistants', { on: true });
-  // A member session would also open every read request on /api/rpc, so pairing refuses until a numbers-only session exists.
-  await f.refused('trustx.pairAssistant', { name: 'Synthetic assistant' }, 'ASSISTANT_SCOPE_NOT_AVAILABLE');
   await f.refused('trustx.pairAssistant', { name: '' }, 'INVALID_ASSISTANT');
+  // Pairing makes a session that only the numbers server accepts (see reports-tools-trust-hooks.test.ts).
+  const paired = await f.rpc('trustx.pairAssistant', { name: 'Synthetic assistant' });
+  assert.equal(typeof paired.token, 'string'); assert.equal(paired.name, 'Synthetic assistant');
   const after = await f.rpc('trustx.assistants');
-  assert.equal(after.on, true); assert.deepEqual(after.assistants, []);
-  assert.equal(f.engine.vault!.read().members.length, 1, 'no member or session was made');
+  assert.equal(after.on, true); assert.deepEqual(after.assistants.map((a: any) => [a.name, a.active]), [['Synthetic assistant', true]]);
   assert.equal((await f.rpc('trustx.setAssistants', { on: false })).on, false);
+  assert.equal(f.engine.vault!.read().members.find(m => m.id === paired.id)!.active, false, 'turning assistants off removes their access');
 });
 
 // A hand-built WASM 1 module: () -> i32 exported as run, returning 42.
