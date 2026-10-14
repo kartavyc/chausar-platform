@@ -51,6 +51,8 @@ export interface AskContext {
   /** Returns to the view underneath, if any. */
   back(): void;
   readonly canGoBack: boolean;
+  /** True on a base page that is not the menu: the page offers a way to the menu. */
+  readonly menuLink: boolean;
   /** Leaves Ask for another place. */
   leave(address: Address): void;
 }
@@ -124,14 +126,14 @@ const KIT = {
   en: {
     ask: 'Ask', back: 'Back', rule: 'A rule in Trust stops this for your seat. The owner can change it in Trust.',
     noDictionary: 'Agree what your words mean in Books before asking for numbers.', openMeanings: 'Open Meanings',
-    retry: 'Try again', readOnly: 'This seat can read, not change.',
+    retry: 'Try again', readOnly: 'This seat can read, not change.', menu: 'Ask from the menu',
   },
   hi: {
     ask: 'पूछें', back: 'वापस', rule: 'Trust का एक नियम आपकी सीट के लिए इसे रोकता है। मालिक इसे Trust में बदल सकते हैं।',
     noDictionary: 'संख्याएँ पूछने से पहले Books में तय करें कि आपके शब्दों का क्या अर्थ है।', openMeanings: 'अर्थ खोलें',
-    retry: 'फिर से कोशिश करें', readOnly: 'यह सीट पढ़ सकती है, बदल नहीं सकती।',
+    retry: 'फिर से कोशिश करें', readOnly: 'यह सीट पढ़ सकती है, बदल नहीं सकती।', menu: 'सूची से पूछें',
   },
-} as const satisfies Catalogue<'ask' | 'back' | 'rule' | 'noDictionary' | 'openMeanings' | 'retry' | 'readOnly'>;
+} as const satisfies Catalogue<'ask' | 'back' | 'rule' | 'noDictionary' | 'openMeanings' | 'retry' | 'readOnly' | 'menu'>;
 
 /**
  * One Ask page: the header, then either the screen's body or the state it is in. `load` is the
@@ -163,7 +165,7 @@ export function AskPage<T>({ title, load, retry, empty, aside, explain, children
   }
   return (
     <section aria-label={title} data-ask-view="">
-      <PageHeader where={w.ask} title={title} aside={<>{aside}{ask.canGoBack && <Button variant="link" onClick={ask.back}>{w.back}</Button>}</>} />
+      <PageHeader where={w.ask} title={title} aside={<>{aside}{ask.menuLink && <Button variant="link" onClick={() => ask.go({ kind: 'menu' })}>{w.menu}</Button>}{ask.canGoBack && <Button variant="link" onClick={ask.back}>{w.back}</Button>}</>} />
       {ask.viewer && <p data-read-only="">{w.readOnly}</p>}
       {body}
     </section>

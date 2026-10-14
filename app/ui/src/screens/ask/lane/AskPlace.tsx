@@ -59,8 +59,15 @@ export function sheetView(sheet: string | undefined): AskView | null {
   return null;
 }
 
+/**
+ * The sub-places this module draws. Ask › New (and the bare place) stay with the host, which
+ * composes the model route picker and the conversation there; the host can draw the menu in
+ * New through `AskPlace` with that address (see docs/lanes/ask.md). From every page drawn here
+ * the menu and all the views it opens are one press away.
+ */
+export const DRAWN_SUBS: readonly AskSub[] = ['saved', 'decisions', 'checks', 'notyet'];
 export function handlesAsk(address: Address): boolean {
-  return address.place === 'ask' && (address.sub === undefined || (ASK_SUBS as readonly string[]).includes(address.sub));
+  return address.place === 'ask' && address.sub !== undefined && (DRAWN_SUBS as readonly string[]).includes(address.sub);
 }
 
 export function AskPlace(props: PlaceRenderProps) {
@@ -82,7 +89,7 @@ export function AskPlace(props: PlaceRenderProps) {
   const top = stack[stack.length - 1]!;
   const context = useMemo<AskContext>(() => ({
     rpc: props.rpc, language: props.language, view: props.view, viewer: props.viewer, member: props.member, address,
-    live, go, back, canGoBack: stack.length > 1, leave,
+    live, go, back, canGoBack: stack.length > 1, menuLink: stack.length === 1 && stack[0]!.kind !== 'menu', leave,
   }), [props.rpc, props.language, props.view, props.viewer, props.member, address, live, go, back, stack.length, leave]);
   useEffect(() => { if (typeof window !== 'undefined') window.scrollTo?.(0, 0); }, [top]);
 
