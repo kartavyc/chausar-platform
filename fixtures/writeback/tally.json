@@ -1,0 +1,21 @@
+{
+  "company": "Demo Traders (synthetic)",
+  "groups": [
+    { "name": "Sundry Debtors", "parent": "Current Assets", "masterId": "101" },
+    { "name": "Sales Accounts", "parent": "Primary", "masterId": "102" },
+    { "name": "Bank Accounts", "parent": "Current Assets", "masterId": "103" },
+    { "name": "Sundry Creditors", "parent": "Current Liabilities", "masterId": "104" },
+    { "name": "Purchase Accounts", "parent": "Primary", "masterId": "105" }
+  ],
+  "ledgers": [
+    { "name": "Kiran Stores (synthetic)", "parent": "Sundry Debtors", "masterId": "201" },
+    { "name": "Sales", "parent": "Sales Accounts", "masterId": "202" },
+    { "name": "Demo Bank (synthetic)", "parent": "Bank Accounts", "masterId": "203" },
+    { "name": "Mehta Supplies (synthetic)", "parent": "Sundry Creditors", "masterId": "204" },
+    { "name": "Purchases", "parent": "Purchase Accounts", "masterId": "205" }
+  ],
+  "vouchers": [
+    { "masterId": "301", "remoteId": "legacy-remote-0001", "voucherType": "Sales", "voucherNumber": "S-001", "date": "2026-10-01", "party": "Kiran Stores (synthetic)", "narration": "Opening sale (synthetic)",
+      "lines": [{ "ledger": "Kiran Stores (synthetic)", "amountMinor": "118000", "side": "debit" }, { "ledger": "Sales", "amountMinor": "118000", "side": "credit" }] }
+  ]
+}
