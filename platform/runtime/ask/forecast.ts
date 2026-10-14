@@ -83,7 +83,7 @@ export async function forecast(ctx: Context, payload: unknown, host: ModuleHost)
     if (['FORECAST_COVERAGE_GAP', 'FORECAST_GAP', 'FORECAST_HISTORY_REQUIRED'].includes(code)) return { state: 'cannot-test', code: 'ASK_FORECAST_GAPS' };
     throw translate(error);
   }
-  await remember(host, ctx, { key, memberId: ctx.memberId, asOf, receipts: history.map(h => ({ month: h.month, receiptId: h.receiptId })), evaluationId: evaluation.id, at: now() });
+  if (ctx.role !== 'viewer') await remember(host, ctx, { key, memberId: ctx.memberId, asOf, receipts: history.map(h => ({ month: h.month, receiptId: h.receiptId })), evaluationId: evaluation.id, at: now() });
   const horizon = evaluation.horizons[0]!, wins = horizon.comparison === 'lower-absolute-error';
   const values = history.map(h => BigInt(h.minor)), next = trendAt(values, BigInt(values.length));
   const spread = evaluation.folds.reduce((top, fold) => { const e = BigInt(fold.candidate.absoluteErrorMinor); return e > top ? e : top; }, 0n);
@@ -104,7 +104,9 @@ type Run = NonNullable<AskState['forecastRuns']>[number];
  *  version of every row of those kinds in those sources, with the imports and precedence rules. */
 function runKey(state: State, ctx: Context, scope: Record<string, unknown> & { sourceIds: string[]; kinds: string[] }) {
   const sources = new Set(scope.sourceIds), kinds = new Set(scope.kinds);
-  const rows = state.facts.filter(f => sources.has(f.sourceId) && kinds.has(f.kind)).map(f => [f.id, f.learnedAt, f.supersededAt, f.deletedAt ?? null, f.validFrom, f.branch ?? null]);
+  // Only rows this seat may see, in its scope: a hidden change never shows through `reused`.
+  const view = { read: () => state, update: async () => { throw new Error('read-only'); } };
+  const rows = state.facts.filter(f => sources.has(f.sourceId) && kinds.has(f.kind) && (scope.branch === null || f.branch === scope.branch) && canSeeFact(view, ctx, f)).map(f => [f.id, f.learnedAt, f.supersededAt, f.deletedAt ?? null, f.validFrom, f.branch ?? null]);
   const imports = state.imports.filter(i => sources.has(i?.sourceId)).map(i => [i.id, i.coverage?.reconciled === true]);
   const rules = state.sourceRules.filter(r => kinds.has(r?.kind)).map(r => [r.kind, r.sourceIds, r.at]);
   return hash({ member: ctx.memberId, epoch: ctx.epoch, scope, sourceDigest: hash({ rows, imports, rules, tombstones: state.tombstones.length }) });

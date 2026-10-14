@@ -87,7 +87,7 @@ export async function run(ctx: Context, payload: unknown, host: ModuleHost): Pro
     if (isRuleCode(code)) return { kind: 'refused', code: 'ASK_STOPPED_BY_RULE', rule: ruleKind(code) };
     throw translate(error);
   }
-  await recordAsked(host, ctx.memberId, operation.id, isPeriodId(request.periodId) && request.period === undefined ? request.periodId : null, corrected);
+  await recordAsked(host, ctx.memberId, ctx.role, operation.id, isPeriodId(request.periodId) && request.period === undefined ? request.periodId : null, corrected);
   return answerOf(host, ctx, receipt);
 }
 

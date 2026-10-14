@@ -104,7 +104,7 @@ export async function understand(ctx: Context, payload: unknown, host: ModuleHos
   const nearby = (ids: string[]) => dictionary.operations.filter(operation => ids.includes(operation.id) || !ids.length && ['received', 'billed', 'aging'].includes(operation.id))
     .slice(0, 4).map(operation => ({ operationId: operation.id, label: operation.label }));
   if (tokens.some(token => ACTION_WORDS.has(token))) {
-    await remember(host, state => bump(state.wantedActions, ctx.memberId, question.trim(), 'text'));
+    if (keeps(ctx)) await remember(host, state => bump(state.wantedActions, ctx.memberId, question.trim(), 'text'));
     return { kind: 'no-match', reason: 'action', word: null, nearby: [] };
   }
   if (found.ids.length === 1) {
@@ -119,10 +119,10 @@ export async function understand(ctx: Context, payload: unknown, host: ModuleHos
   }
   // No calculation. One or two unknown words is a business word Chausar does not know.
   const word = found.unknown.length > 0 && found.unknown.length <= 2 ? found.unknown.join(' ') : null;
-  await remember(host, state => {
+  if (keeps(ctx)) await remember(host, state => {
     if (word) bump(state.wantedWords, ctx.memberId, word, 'word');
   });
-  await host.store.update(state => {
+  if (keeps(ctx)) await host.store.update(state => {
     // The core wanted list is shared with the calculator; each member adds at most a bounded number of rows.
     if (state.unsupported.filter(entry => entry?.by === ctx.memberId).length < WANTED_PER_MEMBER)
       state.unsupported.push({ id: newId('wanted'), at: now(), question: question.trim().slice(0, 500), status: 'not-yet', by: ctx.memberId });
@@ -149,9 +149,12 @@ function bump(list: ({ memberId: string; count: number; lastAt: string } & Recor
 async function remember(host: ModuleHost, change: (state: ReturnType<typeof askState>) => void) {
   await host.store.update(state => change(askState(state)));
 }
+/** A viewer seat reads only: its questions are answered but nothing about them is kept. */
+const keeps = (ctx: Context) => ctx.role !== 'viewer';
 
 /** Records which calculation was asked and, for a correction, what replaced what. Structure only. */
-export async function recordAsked(host: ModuleHost, memberId: string, operationId: string, periodId: PeriodId | null, correctedFrom: { operationId?: string; periodChanged?: boolean; groupChanged?: boolean } | null) {
+export async function recordAsked(host: ModuleHost, memberId: string, role: string, operationId: string, periodId: PeriodId | null, correctedFrom: { operationId?: string; periodChanged?: boolean; groupChanged?: boolean } | null) {
+  if (role === 'viewer') return;
   await remember(host, state => {
     const found = state.asked.find(entry => entry.memberId === memberId && entry.operationId === operationId && entry.periodId === periodId);
     if (found) { found.count += 1; found.lastAt = now(); } else state.asked.push({ memberId, operationId, periodId, count: 1, lastAt: now() });
