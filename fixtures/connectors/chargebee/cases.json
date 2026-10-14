@@ -1,0 +1,20 @@
+[
+  {
+    "name": "invoices.csv accepted",
+    "recipe": "chargebee.invoices",
+    "file": "invoices.csv",
+    "reportTotals": {
+      "rowCount": 5,
+      "total": "3894000"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "3894000",
+      "rows": 5,
+      "unmapped": [
+        "Amount Paid",
+        "Amount Due"
+      ]
+    }
+  }
+]

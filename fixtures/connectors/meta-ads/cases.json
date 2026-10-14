@@ -1,0 +1,41 @@
+[
+  {
+    "name": "campaign-daily.csv accepted against its own summary row",
+    "recipe": "meta-ads.campaign-daily",
+    "file": "campaign-daily.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "501009",
+      "rows": 6,
+      "unmapped": [
+        "Reach"
+      ]
+    }
+  },
+  {
+    "name": "campaign-daily-no-summary.csv refused by the summary-row recipe",
+    "recipe": "meta-ads.campaign-daily",
+    "file": "campaign-daily-no-summary.csv",
+    "expect": {
+      "status": "refused",
+      "code": "SOURCE_CUT_SHORT"
+    }
+  },
+  {
+    "name": "campaign-daily-no-summary.csv accepted against the typed report total",
+    "recipe": "meta-ads.campaign-daily-report",
+    "file": "campaign-daily-no-summary.csv",
+    "reportTotals": {
+      "rowCount": 6,
+      "total": "501009"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "501009",
+      "rows": 6,
+      "unmapped": [
+        "Reach"
+      ]
+    }
+  }
+]

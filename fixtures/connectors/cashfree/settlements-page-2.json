@@ -1,0 +1,27 @@
+{
+  "cursor": null,
+  "limit": 2,
+  "data": [
+    {
+      "cf_settlement_id": "9100003",
+      "settlement_id": "9100003",
+      "entity": "settlement",
+      "payment_from": "2026-09-03T00:00:00+05:30",
+      "payment_till": "2026-09-03T23:59:59+05:30",
+      "payment_amount": 1000.00,
+      "settlement_amount": 976.40,
+      "adjustment": 0.00,
+      "amount_settled": 976.40,
+      "service_charge": 20.00,
+      "service_tax": 3.60,
+      "settlement_charge": 0.00,
+      "settlement_tax": 0.00,
+      "settlement_type": "NORMAL_SETTLEMENT",
+      "settlement_utr": "SYNTHCFUTR0003",
+      "settlement_initiated_on": "2026-09-04T10:00:00+05:30",
+      "settlement_date": "2026-09-04T11:30:00+05:30",
+      "status": "SUCCESS",
+      "remarks": null
+    }
+  ]
+}

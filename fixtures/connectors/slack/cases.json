@@ -1,0 +1,17 @@
+[
+  {
+    "name": "workspace-analytics.csv accepted",
+    "recipe": "slack.workspace-analytics",
+    "file": "workspace-analytics.csv",
+    "reportTotals": {
+      "rowCount": 5,
+      "total": "1846"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "1846",
+      "rows": 5,
+      "unmapped": []
+    }
+  }
+]

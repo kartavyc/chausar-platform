@@ -1,0 +1,48 @@
+{
+  "cursor": "c3ludGhldGljLWN1cnNvci0y",
+  "limit": 2,
+  "data": [
+    {
+      "cf_settlement_id": "9100001",
+      "settlement_id": "9100001",
+      "entity": "settlement",
+      "payment_from": "2026-09-01T00:00:00+05:30",
+      "payment_till": "2026-09-01T23:59:59+05:30",
+      "payment_amount": 15000.00,
+      "settlement_amount": 14646.00,
+      "adjustment": 0.00,
+      "amount_settled": 14646.00,
+      "service_charge": 300.00,
+      "service_tax": 54.00,
+      "settlement_charge": 0.00,
+      "settlement_tax": 0.00,
+      "settlement_type": "NORMAL_SETTLEMENT",
+      "settlement_utr": "SYNTHCFUTR0001",
+      "settlement_initiated_on": "2026-09-02T10:00:00+05:30",
+      "settlement_date": "2026-09-02T11:30:00+05:30",
+      "status": "SUCCESS",
+      "remarks": null
+    },
+    {
+      "cf_settlement_id": "9100002",
+      "settlement_id": "9100002",
+      "entity": "settlement",
+      "payment_from": "2026-09-02T00:00:00+05:30",
+      "payment_till": "2026-09-02T23:59:59+05:30",
+      "payment_amount": 8000.50,
+      "settlement_amount": 7811.69,
+      "adjustment": 0.00,
+      "amount_settled": 7811.69,
+      "service_charge": 160.01,
+      "service_tax": 28.80,
+      "settlement_charge": 0.00,
+      "settlement_tax": 0.00,
+      "settlement_type": "NORMAL_SETTLEMENT",
+      "settlement_utr": "SYNTHCFUTR0002",
+      "settlement_initiated_on": "2026-09-03T10:00:00+05:30",
+      "settlement_date": "2026-09-03T11:30:00+05:30",
+      "status": "SUCCESS",
+      "remarks": null
+    }
+  ]
+}

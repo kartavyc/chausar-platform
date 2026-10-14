@@ -1,0 +1,182 @@
+[
+  {
+    "Version": "1.1",
+    "TranDtls": {
+      "TaxSch": "GST",
+      "SupTyp": "B2B",
+      "RegRev": "N",
+      "IgstOnIntra": "N"
+    },
+    "DocDtls": {
+      "Typ": "INV",
+      "No": "DT/26-27/0001",
+      "Dt": "03/09/2026"
+    },
+    "SellerDtls": {
+      "Gstin": "27AAPFD1234C1ZS",
+      "LglNm": "Demo Traders",
+      "Addr1": "1 Synthetic Lane",
+      "Loc": "Pune",
+      "Pin": 411001,
+      "Stcd": "27"
+    },
+    "BuyerDtls": {
+      "Gstin": "29AAACA1111A1ZO",
+      "LglNm": "Asha Retail Private Limited",
+      "Pos": "29",
+      "Addr1": "2 Sample Road",
+      "Loc": "Sample City",
+      "Pin": 560001,
+      "Stcd": "29"
+    },
+    "ItemList": [
+      {
+        "SlNo": "1",
+        "PrdDesc": "Steel racks",
+        "IsServc": "N",
+        "HsnCd": "9403",
+        "Qty": 1,
+        "Unit": "NOS",
+        "UnitPrice": 6000.00,
+        "TotAmt": 6000.00,
+        "AssAmt": 6000.00,
+        "GstRt": 18,
+        "IgstAmt": 1080.00,
+        "TotItemVal": 7080.00
+      },
+      {
+        "SlNo": "2",
+        "PrdDesc": "Shelf brackets",
+        "IsServc": "N",
+        "HsnCd": "9403",
+        "Qty": 1,
+        "Unit": "NOS",
+        "UnitPrice": 4000.00,
+        "TotAmt": 4000.00,
+        "AssAmt": 4000.00,
+        "GstRt": 18,
+        "IgstAmt": 720.00,
+        "TotItemVal": 4720.00
+      }
+    ],
+    "ValDtls": {
+      "AssVal": 10000.00,
+      "IgstVal": 1800.00,
+      "CgstVal": 0,
+      "SgstVal": 0,
+      "CesVal": 0,
+      "TotInvVal": 11800.00
+    }
+  },
+  {
+    "Version": "1.1",
+    "TranDtls": {
+      "TaxSch": "GST",
+      "SupTyp": "B2B",
+      "RegRev": "N",
+      "IgstOnIntra": "N"
+    },
+    "DocDtls": {
+      "Typ": "INV",
+      "No": "DT/26-27/0003",
+      "Dt": "15/09/2026"
+    },
+    "SellerDtls": {
+      "Gstin": "27AAPFD1234C1ZS",
+      "LglNm": "Demo Traders",
+      "Addr1": "1 Synthetic Lane",
+      "Loc": "Pune",
+      "Pin": 411001,
+      "Stcd": "27"
+    },
+    "BuyerDtls": {
+      "Gstin": "27AAACK2222B1ZA",
+      "LglNm": "Konkan Kirana",
+      "Pos": "27",
+      "Addr1": "2 Sample Road",
+      "Loc": "Sample City",
+      "Pin": 560001,
+      "Stcd": "27"
+    },
+    "ItemList": [
+      {
+        "SlNo": "1",
+        "PrdDesc": "Storage bins",
+        "IsServc": "N",
+        "HsnCd": "9403",
+        "Qty": 1,
+        "Unit": "NOS",
+        "UnitPrice": 2000.00,
+        "TotAmt": 2000.00,
+        "AssAmt": 2000.00,
+        "GstRt": 18,
+        "CgstAmt": 180.00,
+        "SgstAmt": 180.00,
+        "TotItemVal": 2360.00
+      }
+    ],
+    "ValDtls": {
+      "AssVal": 2100.00,
+      "IgstVal": 0,
+      "CgstVal": 180.00,
+      "SgstVal": 180.00,
+      "CesVal": 0,
+      "TotInvVal": 2360.00
+    }
+  },
+  {
+    "Version": "1.1",
+    "TranDtls": {
+      "TaxSch": "GST",
+      "SupTyp": "B2B",
+      "RegRev": "N",
+      "IgstOnIntra": "N"
+    },
+    "DocDtls": {
+      "Typ": "CRN",
+      "No": "CN/26-27/001",
+      "Dt": "25/09/2026"
+    },
+    "SellerDtls": {
+      "Gstin": "27AAPFD1234C1ZS",
+      "LglNm": "Demo Traders",
+      "Addr1": "1 Synthetic Lane",
+      "Loc": "Pune",
+      "Pin": 411001,
+      "Stcd": "27"
+    },
+    "BuyerDtls": {
+      "Gstin": "29AAACA1111A1ZO",
+      "LglNm": "Asha Retail Private Limited",
+      "Pos": "29",
+      "Addr1": "2 Sample Road",
+      "Loc": "Sample City",
+      "Pin": 560001,
+      "Stcd": "29"
+    },
+    "ItemList": [
+      {
+        "SlNo": "1",
+        "PrdDesc": "Return of steel racks",
+        "IsServc": "N",
+        "HsnCd": "9403",
+        "Qty": 1,
+        "Unit": "NOS",
+        "UnitPrice": 1000.00,
+        "TotAmt": 1000.00,
+        "AssAmt": 1000.00,
+        "GstRt": 18,
+        "IgstAmt": 180.00,
+        "TotItemVal": 1180.00
+      }
+    ],
+    "ValDtls": {
+      "AssVal": 1000.00,
+      "IgstVal": 180.00,
+      "CgstVal": 0,
+      "SgstVal": 0,
+      "CesVal": 0,
+      "TotInvVal": 1180.00
+    }
+  }
+]

@@ -1,0 +1,17 @@
+[
+  {
+    "name": "reach.csv accepted",
+    "recipe": "instagram-insights.reach-daily",
+    "file": "reach.csv",
+    "reportTotals": {
+      "rowCount": 5,
+      "total": "19296"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "19296",
+      "rows": 5,
+      "unmapped": []
+    }
+  }
+]

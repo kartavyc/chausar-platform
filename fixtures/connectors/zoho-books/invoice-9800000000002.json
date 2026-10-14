@@ -1,0 +1,23 @@
+{
+  "code": 0,
+  "message": "success",
+  "invoice": {
+    "invoice_id": "9800000000002",
+    "invoice_number": "INV-002",
+    "customer_name": "Ravi & Co",
+    "customer_id": "9800000000100",
+    "status": "paid",
+    "date": "2026-04-08",
+    "due_date": "2026-04-08",
+    "currency_code": "INR",
+    "is_inclusive_tax": false,
+    "line_items": [
+      { "line_item_id": "9800000001002", "description": "Darjeeling tea 500 g", "quantity": 5, "rate": 400.10, "item_total": 2000.50, "tax_id": "9800000009018", "account_id": "9800000008001" }
+    ],
+    "sub_total": 2000.50,
+    "tax_total": 360.00,
+    "total": 2360.50,
+    "balance": 0.00,
+    "last_modified_time": "2026-04-30T10:00:00+0530"
+  }
+}

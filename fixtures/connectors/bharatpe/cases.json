@@ -1,0 +1,17 @@
+[
+  {
+    "name": "transaction-report.csv accepted",
+    "recipe": "bharatpe.transaction-report",
+    "file": "transaction-report.csv",
+    "reportTotals": {
+      "rowCount": 4,
+      "total": "34950"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "34950",
+      "rows": 4,
+      "unmapped": []
+    }
+  }
+]

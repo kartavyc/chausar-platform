@@ -1,0 +1,23 @@
+{
+  "code": 0,
+  "message": "success",
+  "invoice": {
+    "invoice_id": "9800000000004",
+    "invoice_number": "INV-004",
+    "customer_name": "Asha Stores",
+    "customer_id": "9800000000100",
+    "status": "overdue",
+    "date": "2026-04-22",
+    "due_date": "2026-04-22",
+    "currency_code": "INR",
+    "is_inclusive_tax": false,
+    "line_items": [
+      { "line_item_id": "9800000001004", "description": "Green tea 250 g", "quantity": 2, "rate": 250.00, "item_total": 500.00, "tax_id": "9800000009018", "account_id": "9800000008001" }
+    ],
+    "sub_total": 500.00,
+    "tax_total": 90.00,
+    "total": 590.00,
+    "balance": 590.00,
+    "last_modified_time": "2026-04-30T10:00:00+0530"
+  }
+}

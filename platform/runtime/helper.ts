@@ -6,14 +6,14 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { ChausarError, check, hash, newId, now } from './contracts.ts';
 
-export type HelperOperation = 'pdf.extract' | 'forecast' | 'allocation.optimize';
+export type HelperOperation = 'pdf.extract' | 'pdf.ocr' | 'forecast' | 'allocation.optimize';
 export type HelperSpawn = (executable: string, args: string[], options: SpawnOptionsWithoutStdio) => ChildProcessWithoutNullStreams;
 export type HelperOptions = { executable?: string; timeoutMs?: number; maxInputBytes?: number; maxOutputBytes?: number; spawnProcess?: HelperSpawn };
 export type HelperReceipt = { id: string; operation: HelperOperation; inputHash: string; outputHash: string; implementationHash: string; startedAt: string; finishedAt: string; engine: 'python' | 'injected-process'; pythonVersion: string; resourceLimits: boolean; status: 'completed'; sourceTainted: boolean };
 export type HelperResponse = { result: any; receipt: HelperReceipt };
 const FILE = fileURLToPath(new URL('../helpers/analytics.py',import.meta.url));
-const OPERATIONS = new Set(['pdf.extract','forecast','allocation.optimize']);
-const ERROR_CODES = new Set(['INVALID_HELPER_INPUT','FORECAST_HISTORY_REQUIRED','FORECAST_GAP','OPTIMIZATION_LIMIT','INVALID_PDF','PDF_DEPENDENCY_UNAVAILABLE','PDF_PAGE_LIMIT','PDF_TEXT_LIMIT','PDF_EXTRACT_FAILED','DUPLICATE_JSON_KEY','HELPER_INPUT_LIMIT','HELPER_OUTPUT_LIMIT','HELPER_OPERATION_UNSUPPORTED','HELPER_EXECUTION_FAILED']);
+const OPERATIONS = new Set(['pdf.extract','pdf.ocr','forecast','allocation.optimize']);
+const ERROR_CODES = new Set(['INVALID_HELPER_INPUT','FORECAST_HISTORY_REQUIRED','FORECAST_GAP','OPTIMIZATION_LIMIT','INVALID_PDF','PDF_DEPENDENCY_UNAVAILABLE','PDF_PAGE_LIMIT','PDF_TEXT_LIMIT','PDF_EXTRACT_FAILED','OCR_DEPENDENCY_UNAVAILABLE','DUPLICATE_JSON_KEY','HELPER_INPUT_LIMIT','HELPER_OUTPUT_LIMIT','HELPER_OPERATION_UNSUPPORTED','HELPER_EXECUTION_FAILED']);
 function jsonData(value: unknown, depth = 0): void {
   check(depth <= 12,'INVALID_HELPER_INPUT','Helper input nesting is too deep.');
   check(value === null || ['string','number','boolean','object'].includes(typeof value),'INVALID_HELPER_INPUT','Helper inputs are JSON data, never programs.');
@@ -27,7 +27,7 @@ function jsonData(value: unknown, depth = 0): void {
 function validateInput(operation: HelperOperation, input: unknown) {
   check(OPERATIONS.has(operation),'HELPER_OPERATION_UNSUPPORTED','Only registered analytical helpers can run.');
   jsonData(input); check(input && typeof input === 'object' && !Array.isArray(input),'INVALID_HELPER_INPUT','Provide an analytical input object.');
-  const allowed = operation === 'pdf.extract' ? ['pdfBase64','maxPages'] : operation === 'forecast' ? ['months','currency'] : ['budgetMinor','currency','items'];
+  const allowed = operation === 'pdf.extract' ? ['pdfBase64','maxPages'] : operation === 'pdf.ocr' ? ['pdfBase64','maxPages','language'] : operation === 'forecast' ? ['months','currency'] : ['budgetMinor','currency','items'];
   check(Object.keys(input).every(key => allowed.includes(key)),'INVALID_HELPER_INPUT','Arbitrary paths, code and shell options are not analytical inputs.');
 }
 
@@ -65,7 +65,7 @@ export class AnalyticalHelper {
         });
         child.stdin.end(payload);
       });
-      return {result:output.result,receipt:{id:newId('helper'),operation,inputHash:hash(payload),outputHash:hash(output.result),implementationHash,startedAt,finishedAt:now(),engine:this.options.spawnProcess ? 'injected-process' : 'python',pythonVersion:output.runtime.python,resourceLimits:output.runtime.resourceLimits,status:'completed',sourceTainted:operation === 'pdf.extract'}};
+      return {result:output.result,receipt:{id:newId('helper'),operation,inputHash:hash(payload),outputHash:hash(output.result),implementationHash,startedAt,finishedAt:now(),engine:this.options.spawnProcess ? 'injected-process' : 'python',pythonVersion:output.runtime.python,resourceLimits:output.runtime.resourceLimits,status:'completed',sourceTainted:operation === 'pdf.extract' || operation === 'pdf.ocr'}};
     } finally { check(dirname(resolve(directory)) === resolve(tmpdir()) && directory.split(/[\\/]/).at(-1)!.startsWith('chausar-helper-'),'HELPER_PATH_INVALID','The helper directory left its temporary root.'); await rm(directory,{recursive:true,force:true}); }
   }
 }

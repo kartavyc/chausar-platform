@@ -1,0 +1,17 @@
+[
+  {
+    "name": "campaigns.csv accepted",
+    "recipe": "mailchimp.campaigns",
+    "file": "campaigns.csv",
+    "reportTotals": {
+      "rowCount": 5,
+      "total": "17507"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "17507",
+      "rows": 5,
+      "unmapped": []
+    }
+  }
+]

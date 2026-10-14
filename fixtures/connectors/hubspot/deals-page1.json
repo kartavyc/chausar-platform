@@ -1,0 +1,43 @@
+{
+  "total": 4,
+  "results": [
+    {
+      "id": "1001",
+      "properties": {
+        "amount": "120000",
+        "closedate": "2026-04-05T06:30:00.000Z",
+        "createdate": "2026-03-01T05:00:00.000Z",
+        "deal_currency_code": "INR",
+        "dealname": "Asha Stores renewal",
+        "dealstage": "closedwon",
+        "hs_lastmodifieddate": "2026-04-30T05:00:00.000Z",
+        "hs_object_id": "1001"
+      },
+      "createdAt": "2026-03-01T05:00:00.000Z",
+      "updatedAt": "2026-04-30T05:00:00.000Z",
+      "archived": false
+    },
+    {
+      "id": "1002",
+      "properties": {
+        "amount": "15000.75",
+        "closedate": "2026-04-11T18:45:00.000Z",
+        "createdate": "2026-03-01T05:00:00.000Z",
+        "deal_currency_code": "INR",
+        "dealname": "Ravi & Co trial",
+        "dealstage": "contractsent",
+        "hs_lastmodifieddate": "2026-04-30T05:00:00.000Z",
+        "hs_object_id": "1002"
+      },
+      "createdAt": "2026-03-01T05:00:00.000Z",
+      "updatedAt": "2026-04-30T05:00:00.000Z",
+      "archived": false
+    }
+  ],
+  "paging": {
+    "next": {
+      "after": "2",
+      "link": "https://api.hubapi.com/crm/v3/objects/deals/search?after=2"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+[
+  {
+    "name": "sessions-daily.csv accepted",
+    "recipe": "google-analytics.sessions-daily",
+    "file": "sessions-daily.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "8280",
+      "rows": 6,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "sessions-daily-report.csv (no Grand total row) refused by the Grand total recipe",
+    "recipe": "google-analytics.sessions-daily",
+    "file": "sessions-daily-report.csv",
+    "expect": {
+      "status": "refused",
+      "code": "SOURCE_CUT_SHORT"
+    }
+  },
+  {
+    "name": "sessions-daily-report.csv accepted against the typed report total",
+    "recipe": "google-analytics.sessions-daily-report",
+    "file": "sessions-daily-report.csv",
+    "reportTotals": {
+      "rowCount": 6,
+      "total": "8280"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "8280",
+      "rows": 6,
+      "unmapped": []
+    }
+  }
+]

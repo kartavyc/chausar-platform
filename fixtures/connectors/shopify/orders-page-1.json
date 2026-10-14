@@ -1,0 +1,31 @@
+{
+  "data": {
+    "ordersCount": { "count": 3, "precision": "EXACT" },
+    "orders": {
+      "pageInfo": { "hasNextPage": true, "endCursor": "eyJsYXN0X2lkIjo1MDAxLCJsYXN0X3ZhbHVlIjoiMjAyNi0wOS0wMyJ9" },
+      "nodes": [
+        {
+          "id": "gid://shopify/Order/5001",
+          "name": "#5001",
+          "processedAt": "2026-09-03T06:30:00Z",
+          "currencyCode": "INR",
+          "cancelledAt": null,
+          "displayFinancialStatus": "PAID",
+          "subtotalPriceSet": { "shopMoney": { "amount": "1000.00", "currencyCode": "INR" } },
+          "totalTaxSet": { "shopMoney": { "amount": "180.00", "currencyCode": "INR" } }
+        },
+        {
+          "id": "gid://shopify/Order/5002",
+          "name": "#5002",
+          "processedAt": "2026-09-03T09:00:00Z",
+          "currencyCode": "INR",
+          "cancelledAt": null,
+          "displayFinancialStatus": "PARTIALLY_REFUNDED",
+          "subtotalPriceSet": { "shopMoney": { "amount": "2499.50", "currencyCode": "INR" } },
+          "totalTaxSet": { "shopMoney": { "amount": "449.91", "currencyCode": "INR" } }
+        }
+      ]
+    }
+  },
+  "extensions": { "cost": { "requestedQueryCost": 12, "actualQueryCost": 6, "throttleStatus": { "maximumAvailable": 2000.0, "currentlyAvailable": 1994, "restoreRate": 100.0 } } }
+}

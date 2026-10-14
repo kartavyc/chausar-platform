@@ -1,0 +1,17 @@
+[
+  {
+    "name": "expense-tracker.csv accepted",
+    "recipe": "notion.expense-database",
+    "file": "expense-tracker.csv",
+    "reportTotals": {
+      "rowCount": 6,
+      "total": "5402950"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "5402950",
+      "rows": 6,
+      "unmapped": []
+    }
+  }
+]

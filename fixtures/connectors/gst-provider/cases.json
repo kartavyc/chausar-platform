@@ -1,0 +1,43 @@
+[
+  {
+    "name": "einvoice-single.json accepted",
+    "recipe": "gst.einvoice",
+    "file": "einvoice-single.json",
+    "expect": {
+      "status": "accepted",
+      "total": "1000000",
+      "rows": 1,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "einvoice-batch.json accepted",
+    "recipe": "gst.einvoice-batch",
+    "file": "einvoice-batch.json",
+    "reportTotals": {
+      "rowCount": 3,
+      "total": "1100000"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "1100000",
+      "rows": 3,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "ewaybills-sep-2026.json accepted",
+    "recipe": "gst.eway-bills",
+    "file": "ewaybills-sep-2026.json",
+    "reportTotals": {
+      "rowCount": 2,
+      "total": "1200000"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "1200000",
+      "rows": 2,
+      "unmapped": []
+    }
+  }
+]

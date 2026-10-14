@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "id": "5725767000000411003", "Deal_Name": "Lost bid", "Amount": 12000, "Stage": "Closed Lost", "Closing_Date": "2026-04-15", "Currency": "INR" },
+    { "id": "5725767000000411004", "Deal_Name": "No amount yet", "Amount": null, "Stage": "Qualification", "Closing_Date": "2026-05-20", "Currency": "INR" }
+  ],
+  "info": { "per_page": 2, "next_page_token": null, "count": 2, "sort_by": "id", "page": 2, "previous_page_token": "c8582e7f8a1b2c3d4e5f", "sort_order": "desc", "more_records": false }
+}

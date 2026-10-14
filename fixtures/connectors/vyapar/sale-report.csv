@@ -1,0 +1,10 @@
+Demo Kirana Store
+Sale Report
+Duration: 01/09/2026 to 30/09/2026
+Date,Party Name,Phone No.,Invoice No.,Transaction Type,Total Amount,Payment Type,Received Amount,Balance Amount,Description
+02/09/2026,Sharma General Traders,9000000001,101,Sale,"11,800.00",Cash,"11,800.00",0.00,
+05/09/2026,Meera Provisions,9000000002,102,Sale,"4,720.50",Credit,0.00,"4,720.50",
+09/09/2026,Sharma General Traders,9000000001,103,Sale,"2,360.00",UPI,"1,000.00","1,360.00",
+12/09/2026,Meera Provisions,9000000002,CN-1,Credit Note,-590.00,Credit,0.00,-590.00,damaged packets
+20/09/2026,Walk-in Customer,,104,Sale,850.25,Cash,850.25,0.00,
+Total,,,,,"19,140.75",,"13,650.25","5,490.50",

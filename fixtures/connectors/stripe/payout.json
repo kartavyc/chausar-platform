@@ -1,0 +1,21 @@
+{
+  "id": "po_SynthPayout000001",
+  "object": "payout",
+  "amount": 151700,
+  "arrival_date": 1788586200,
+  "automatic": true,
+  "balance_transaction": "txn_SynthPayout0001",
+  "created": 1788546000,
+  "currency": "inr",
+  "description": "STRIPE PAYOUT",
+  "destination": "ba_SynthBank0000001",
+  "failure_code": null,
+  "livemode": false,
+  "metadata": {},
+  "method": "standard",
+  "reconciliation_status": "completed",
+  "source_type": "card",
+  "statement_descriptor": null,
+  "status": "paid",
+  "type": "bank_account"
+}

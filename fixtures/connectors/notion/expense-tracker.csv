@@ -1,0 +1,7 @@
+﻿Name,Amount,Category,Date,Paid by,Status,Receipt,Created time
+Office rent September,"₹45,000.00",Rent,"September 1, 2026",Bank transfer,Paid,,"September 1, 2026 10:02 AM"
+Internet bill,"₹1,179.00",Utilities,"September 3, 2026",Card,Paid,receipt-internet.pdf,"September 3, 2026 6:40 PM"
+Packing tape and boxes,"₹2,340.50",Packaging,"September 5, 2026 4:15 PM (GMT+5:30)",Cash,Reimbursed,,"September 5, 2026 4:20 PM"
+Courier pickup charges,₹860.00,Shipping,"September 8, 2026 → September 9, 2026",UPI,Pending,,"September 8, 2026 11:05 AM"
+Team lunch,"₹3,200.00",Staff welfare,"September 12, 2026",Card,Paid,,"September 12, 2026 2:30 PM"
+Printer cartridge,"₹1,450.00",Office supplies,"September 15, 2026",UPI,Paid,,"September 15, 2026 9:12 AM"

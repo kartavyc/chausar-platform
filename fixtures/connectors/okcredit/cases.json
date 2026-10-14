@@ -1,0 +1,13 @@
+[
+  {
+    "name": "account-statement.csv accepted",
+    "recipe": "okcredit.account-statement",
+    "file": "account-statement.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "45000",
+      "rows": 4,
+      "unmapped": []
+    }
+  }
+]

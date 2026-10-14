@@ -1,0 +1,7 @@
+Employee Number,Employee Name,Department,Payroll Month,Total Earnings,Total Deductions,Net Pay
+EMP001,Synthetic Person A,Operations,Sep 2026,"45,000.00","5,400.00","39,600.00"
+EMP002,Synthetic Person B,Sales,Sep 2026,"38,500.00","4,620.00","33,880.00"
+EMP003,Synthetic Person C,Sales,Sep 2026,"32,000.00","3,840.00","28,160.00"
+EMP004,Synthetic Person D,Accounts,Sep 2026,"52,750.00","7,130.00","45,620.00"
+EMP005,Synthetic Person E,Warehouse,Sep 2026,"21,000.00","2,520.00","18,480.00"
+Total,,,,"189,250.00","23,510.00","165,740.00"

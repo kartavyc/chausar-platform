@@ -1,0 +1,34 @@
+[
+  {
+    "name": "sales-orders.csv accepted",
+    "recipe": "zoho-inventory.sales-orders",
+    "file": "sales-orders.csv",
+    "reportTotals": {
+      "rowCount": 5,
+      "total": "2182700"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "2182700",
+      "rows": 5,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "inventory-summary.csv accepted",
+    "recipe": "zoho-inventory.inventory-summary",
+    "file": "inventory-summary.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "307",
+      "rows": 5,
+      "unmapped": [
+        "Quantity Ordered",
+        "Quantity In",
+        "Quantity Out",
+        "Committed Stock",
+        "Available for Sale"
+      ]
+    }
+  }
+]

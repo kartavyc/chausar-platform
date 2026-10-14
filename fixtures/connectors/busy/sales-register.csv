@@ -1,0 +1,9 @@
+Demo Hardware Mart
+Sales Register
+From 01-09-2026 To 30-09-2026
+Date,Vch/Bill No,Particulars,Vch Type,GSTIN,Taxable Amt,Tax Amt,Bill Amount
+01-09-2026,S/0001,Patel Engineering Works,Sales,24AAGFZ4444D1Z9,"10,000.00","1,800.00","11,800.00"
+04-09-2026,S/0002,Cash Sales,Sales,,"2,500.00",450.00,"2,950.00"
+11-09-2026,S/0003,Rao Builders,Sales,,"40,000.00","7,200.00","47,200.00"
+15-09-2026,SR/0001,Patel Engineering Works,Sales Return,24AAGFZ4444D1Z9,"-1,000.00",-180.00,"-1,180.00"
+,,Total,,,"51,500.00","9,270.00","60,770.00"
