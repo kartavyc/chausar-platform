@@ -1,4 +1,4 @@
-import test, {type TestContext} from 'node:test';
+import test, {mock, type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire, syncBuiltinESMExports} from 'node:module';
 import {mkdtemp, realpath, readFile, writeFile, lstat, open, rm, type FileHandle} from 'node:fs/promises';
@@ -9,6 +9,9 @@ import {Vault} from '../runtime/vault.ts';
 // Only inode metadata is projected. Genuine files, encryption, sizes, timestamps,
 // reads, snapshot fencing and the production bounded reader remain real.
 // This controlled mechanism does not identify either historical failure's cause.
+// Hooks use the top-level mock tracker and are restored here in reverse order. A test's own
+// t.mock would restore them again at test end in creation order, reinstalling the outer stat
+// hook for the next test, which then misreads any reused inode number.
 type Identity = {ino: number | bigint; dev: number | bigint};
 type Role = 'target' | 'distractor';
 const same = (left: Identity, right: Identity) => left.ino === right.ino && left.dev === right.dev;
@@ -57,13 +60,13 @@ for (const mode of ['safe', 'unsafe-collision'] as const) {
     };
     const fs = createRequire(import.meta.url)('node:fs/promises') as typeof import('node:fs/promises');
     const nativeLstat = fs.lstat;
-    const metadataHook = t.mock.method(prototype, 'stat', async function(this: FileHandle, ...args: Parameters<FileHandle['stat']>) {
+    const metadataHook = mock.method(prototype, 'stat', async function(this: FileHandle, ...args: Parameters<FileHandle['stat']>) {
       const value = await Reflect.apply(nativeStat, this, args);
       const exact = typeof value.ino === 'bigint' ? value : await nativeStat.call(this, {bigint: true});
       const role = roleOf(exact);
       return role ? project(value, role) : value;
     });
-    const pathHook = t.mock.method(fs, 'lstat', async function(...args: Parameters<typeof lstat>) {
+    const pathHook = mock.method(fs, 'lstat', async function(...args: Parameters<typeof lstat>) {
       const value = await Reflect.apply(nativeLstat, fs, args);
       const role = String(args[0]) === files.target ? 'target' : String(args[0]) === files.distractor ? 'distractor' : undefined;
       if (!role) return value;
@@ -96,7 +99,7 @@ for (const mode of ['safe', 'unsafe-collision'] as const) {
       const metadataStat = prototype.stat;
       const observed = {target: 0, distractor: 0}, selected = {target: 0, distractor: 0};
       let grew = false, grownBy: Role | undefined, oversizedWholeFileReads = 0;
-      const growthHook = t.mock.method(prototype, 'stat', async function(this: FileHandle, ...args: Parameters<FileHandle['stat']>) {
+      const growthHook = mock.method(prototype, 'stat', async function(this: FileHandle, ...args: Parameters<FileHandle['stat']>) {
         const value = await Reflect.apply(metadataStat, this, args);
         const role = roleOf(await nativeStat.call(this, {bigint: true}));
         if (role) {
@@ -111,7 +114,7 @@ for (const mode of ['safe', 'unsafe-collision'] as const) {
         }
         return value;
       });
-      const readHook = t.mock.method(prototype, 'readFile', async function(this: FileHandle, ...args: Parameters<FileHandle['readFile']>) {
+      const readHook = mock.method(prototype, 'readFile', async function(this: FileHandle, ...args: Parameters<FileHandle['readFile']>) {
         const value = await metadataStat.call(this, {bigint: true});
         if (identifies(value) && value.size > original.target.length) oversizedWholeFileReads++;
         return Reflect.apply(nativeReadFile, this, args);
@@ -137,5 +140,7 @@ for (const mode of ['safe', 'unsafe-collision'] as const) {
           grew, grownBy, growthBytes: 65536, oversizedWholeFileReads, observed, selected, historicalCauseConfirmed: false}));
       } finally {readHook.mock.restore(); growthHook.mock.restore();}
     } finally {pathHook.mock.restore(); metadataHook.mock.restore(); syncBuiltinESMExports();}
+    assert.equal(prototype.stat, nativeStat, 'No stat hook outlives this test.');
+    assert.equal(fs.lstat, nativeLstat, 'No lstat hook outlives this test.');
   });
 }
