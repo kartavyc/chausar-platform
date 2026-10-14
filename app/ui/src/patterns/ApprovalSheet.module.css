@@ -47,3 +47,58 @@
   gap: var(--sp3);
   align-items: center;
 }
+
+/* The line above the target: practice, the tier word, and where this is in a group. */
+.top {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp3);
+  align-items: baseline;
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+
+.practice {
+  font-family: var(--fm);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+
+.tier {
+  font-family: var(--fm);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.group {
+  font-family: var(--fm);
+}
+
+/* The rule that made it wait, in one line. */
+.waits {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--fg);
+}
+
+/* A proposed job's card: its name over its facts, under a hairline. */
+.job {
+  display: grid;
+  gap: var(--sp2);
+  border-top: var(--hair) solid var(--line);
+  padding-top: var(--sp2);
+}
+
+.jobName {
+  margin: 0;
+  font-size: var(--fs-row);
+  font-weight: var(--fw-medium);
+}
+
+.fields .num {
+  text-align: end;
+}

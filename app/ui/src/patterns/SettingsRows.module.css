@@ -1,0 +1,68 @@
+/* Rows between hairlines that open in place. No boxes, no shading. */
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--hair) solid var(--line);
+}
+
+.row {
+  border-bottom: var(--hair) solid var(--line);
+}
+
+.main {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  margin: 0;
+  padding: 0 var(--sp2) 0 0;
+  font: inherit;
+  color: var(--fg);
+  width: 100%;
+  min-height: var(--row);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--sp4);
+  align-items: center;
+  text-align: start;
+  cursor: pointer;
+}
+.main:focus-visible {
+  outline: var(--focus) solid var(--fg);
+  outline-offset: var(--focus-gap);
+}
+
+.open .main {
+  font-weight: var(--fw-medium);
+}
+
+.what {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--sp2);
+}
+
+.title {
+  font-size: var(--fs-row);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--fs-note);
+  color: var(--mute);
+  font-weight: var(--fw-regular);
+}
+
+.current {
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+  font-weight: var(--fw-regular);
+}
+
+.panel {
+  display: grid;
+  gap: var(--sp2);
+  padding: 0 0 var(--sp4) 0;
+}
