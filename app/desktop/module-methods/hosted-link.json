@@ -1,1 +1,20 @@
-[]
+[
+  "hosted.status",
+  "hosted.pair.start",
+  "hosted.pair.finish",
+  "hosted.unpair",
+  "hosted.account.refresh",
+  "phone.channels.list",
+  "phone.channels.set",
+  "phone.templates.preview",
+  "phone.messages.counts",
+  "phone.messages.send",
+  "phone.relay.collect",
+  "hosted.backup.upload",
+  "hosted.backup.list",
+  "hosted.backup.restore",
+  "hosted.backup.exportKey",
+  "hosted.allowance.status",
+  "hosted.worker.status",
+  "hosted.worker.set"
+]
