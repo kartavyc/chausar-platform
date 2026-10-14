@@ -76,7 +76,8 @@ export function visibleDecisions(state: State, ctx: Context): LogView[] {
   current(state, ctx);
   const lane = logOf(state).filter(entry => entryIntact(entry) && (entry.memberId === ctx.memberId || ctx.role === 'owner') && canSee(state, ctx, entry.sourceIds))
     .map(entry => ({ id: entry.id, at: entry.at, origin: 'lane' as const, event: structuredClone(entry.event), sourceIds: [...entry.sourceIds], refs: [...entry.refs] }));
-  return [...coreDecisions(state, ctx), ...lane].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
+  // A stable sort: decisions in the same millisecond keep the order they were recorded in.
+  return [...coreDecisions(state, ctx), ...lane].sort((a, b) => a.at.localeCompare(b.at));
 }
 
 export function logPage(state: State, ctx: Context, payload: Record<string, unknown>) {
