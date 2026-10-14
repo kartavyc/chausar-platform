@@ -61,12 +61,14 @@ test('dual control on the five core paths: owner alone unchanged; with a cofound
   // With a cofounder: neither the owner nor the cofounder changes Send, Sharing or seats alone on a core path.
   const refusals: [string, any][] = [['trust.update', { send: 'samples' }], ['trust.update', { policy: { sharing: false, send: 'samples' } }],
     ['learning.sharing', { enabled: true }], ['auth.invite', { name: 'Synthetic second', role: 'viewer' }],
-    ['members.add', { id: 'staff-1', name: 'Synthetic staff', role: 'accountant' }], ['members.revoke', { id: 'accountant-1' }]];
+    ['members.add', { id: 'staff-1', name: 'Synthetic staff', role: 'accountant' }]];
   await f.rpc('learning.sharing', { enabled: false });
   for (const ctx of [owner, cofounder]) for (const [method, payload] of refusals) await assert.rejects(f.as(ctx, method, payload), code('SECOND_PERSON_REQUIRED'), `${ctx.role} ${method}`);
   const state = f.vault().read();
   assert.equal(state.policy.send, 'shape'); assert.equal(state.policy.sharing, false);
-  assert.equal(state.members.find(m => m.id === 'accountant-1')!.active, true); assert.equal(state.members.some(m => m.id === 'staff-1'), false);
+  assert.equal(state.members.some(m => m.id === 'staff-1'), false);
+  // Taking access away is one admin's to do at once: a compromised seat is cut off without waiting.
+  await f.as(cofounder, 'members.revoke', { id: 'accountant-1' }); assert.equal(f.vault().read().members.find(m => m.id === 'accountant-1')!.active, false);
   assert.equal(state.sessions.filter(s => s.kind === 'member-invite' && s.name === 'Synthetic second').length, 0);
   // Sending less, sharing off and other policy fields need one person.
   assert.equal((await f.as(cofounder, 'trust.update', { send: 'nothing' })).send, 'nothing');
@@ -78,9 +80,8 @@ test('dual control on the five core paths: owner alone unchanged; with a cofound
   assert.equal((await f.as(cofounder, 'trustx.confirmChange', { id: send.change.id })).state, 'applied'); assert.equal(f.vault().read().policy.send, 'samples');
   const seat = await f.as(cofounder, 'trustx.invite', { seat: 'accountant', name: 'Synthetic second' }); assert.equal(seat.state, 'waiting-for-second');
   assert.equal(typeof (await f.rpc('trustx.confirmChange', { id: seat.change.id })).invite.token, 'string');
-  const removal = await f.rpc('trustx.removeSeat', { memberId: 'accountant-1' }); assert.equal(removal.state, 'waiting-for-second');
-  assert.equal((await f.as(cofounder, 'trustx.confirmChange', { id: removal.change.id })).state, 'applied');
-  assert.equal(f.vault().read().members.find(m => m.id === 'accountant-1')!.active, false);
+  // Removing a seat through Trust applies at once too (the accountant was already removed on the core path above).
+  await assert.rejects(f.rpc('trustx.removeSeat', { memberId: 'accountant-1' }), /MEMBER_ALREADY_REMOVED/);
   // A request payload cannot claim the confirmation: there is no flag to set.
   const claimed = await f.call('trust.update', { send: 'shape', confirmed: true }); assert.equal(claimed.status, 400); assert.equal(claimed.body.error.code, 'INVALID_POLICY');
   assert.equal(f.vault().read().policy.send, 'samples');

@@ -15,7 +15,7 @@ export type Caps = { remindersPerCustomerPerDay: number; remindersPerDay: number
 export type Preset = 'ask-everything' | 'routine' | 'all-but-waits' | 'custom';
 export type ChangeWhat = 'send' | 'sharing' | 'seats' | 'markings' | 'policy';
 export type PendingRecord = { id: string; what: ChangeWhat; summary: string; by: string; byRole: Member['role']; at: string; expiresAt: string;
-  needs: 'owner' | 'cofounder'; op: { type: string } & Record<string, unknown> };
+  needs: 'owner' | 'cofounder'; op: { type: string } & Record<string, unknown>; byIssuer?: string };
 export type SeatRecord = { inviteId: string; seat: Seat; name: string; endsOn: string | null; invitedBy: string; at: string };
 export type CoreState = {
   marks: Mark[]; autoOff: string[]; seatSees: Partial<Record<Seat, Sees>>;

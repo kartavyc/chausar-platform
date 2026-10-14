@@ -24,7 +24,8 @@ export const money = (value: string | bigint, currency = 'INR') => {
   return `${currency === 'INR' ? '₹' : currency + ' '}${negative ? '-' : ''}${(absolute / 100n).toLocaleString('en-IN')}.${String(absolute % 100n).padStart(2, '0')}`;
 };
 export type Role = 'owner' | 'cofounder' | 'accountant' | 'viewer';
-export type Context = { memberId: string; role: Role; epoch: number; channel?: 'desktop' | 'phone' | 'mcp'; sourceTainted?: boolean };
+/** `issuedBy`: the member who issued this session for someone else; that person cannot stand in as the second person. */
+export type Context = { memberId: string; role: Role; epoch: number; channel?: 'desktop' | 'phone' | 'mcp'; sourceTainted?: boolean; issuedBy?: string };
 export type TrustPolicy = { send: 'nothing' | 'shape' | 'samples'; autonomy: boolean; allowedSources: string[]; retentionDays: number; sharing: boolean };
 /** `scope: 'mcp'` marks a numbers-only member (a paired assistant): only the numbers server accepts its sessions. */
 export type Member = { id: string; name: string; role: Role; active: boolean; epoch: number; branches: string[]; scope?: 'mcp' };

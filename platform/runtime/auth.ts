@@ -8,7 +8,6 @@ const withinBranches = (issuer: Member, branches: string[]) => issuer.branches.i
 function sessionAuthority(issuer: Member, target: Member) {
   if (issuer.id === target.id) return;
   check(issuer.role === 'owner', 'FORBIDDEN', 'Only a current owner can issue another member session.');
-  check(target.role !== 'owner' && target.role !== 'cofounder', 'SESSION_SCOPE_FORBIDDEN', 'An owner or a cofounder signs in for themselves; no one else can issue their session.');
   check(roleRank[target.role] <= roleRank[issuer.role] && withinBranches(issuer, target.branches), 'SESSION_SCOPE_FORBIDDEN', 'A session cannot grant authority outside its issuing owner scope.');
 }
 function tokenHash(value: unknown): string { check(typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value), 'INVALID_SESSION', 'Supply a valid session token.'); return hash(value); }
@@ -54,7 +53,7 @@ export class AuthService {
     return this.store.update(state => {
       const currentIssuer = authorize(this.store, context, memberId === context.memberId ? 'read' : 'admin'); const member = state.members.find(m => m.id === memberId); check(member?.active, 'ACCESS_REVOKED', 'The selected member has no access.'); sessionAuthority(currentIssuer, member);
       check(member.scope === undefined || options.scope === member.scope, 'SESSION_SCOPE_FORBIDDEN', 'This member works only on the numbers server.');
-      const session = { id: newId('session'), kind: 'member-session', memberId: member.id, role: member.role, epoch: member.epoch, tokenHash: tokenHash(token), createdAt: now(), expiresAt: new Date(Date.now() + ttlMs).toISOString(), ...(options.scope ? { scope: options.scope } : {}) }; state.sessions.push(session);
+      const session = { id: newId('session'), kind: 'member-session', memberId: member.id, role: member.role, epoch: member.epoch, tokenHash: tokenHash(token), createdAt: now(), expiresAt: new Date(Date.now() + ttlMs).toISOString(), ...(options.scope ? { scope: options.scope } : {}), ...(member.id !== currentIssuer.id ? { issuedBy: currentIssuer.id } : {}) }; state.sessions.push(session);
       audit(state, 'auth.session.issued', { sessionId: session.id, memberId }); return { token, sessionId: session.id, expiresAt: session.expiresAt };
     });
   }
@@ -63,7 +62,7 @@ export class AuthService {
     check(session && !session.revoked && Date.parse(session.expiresAt) > Date.now(), 'INVALID_SESSION', 'The session expired or was revoked.');
     check(session.scope === undefined || session.scope === channel, 'SESSION_SCOPE_FORBIDDEN', 'This session works only on the numbers server.');
     const member = state.members.find(m => m.id === session.memberId); check(member?.scope === undefined || session.scope === member.scope, 'SESSION_SCOPE_FORBIDDEN', 'This member works only on the numbers server.');
-    const context: Context = { memberId: session.memberId, role: session.role, epoch: session.epoch, channel }; authorize(this.store, context); return context;
+    const context: Context = { memberId: session.memberId, role: session.role, epoch: session.epoch, channel, ...(typeof session.issuedBy === 'string' ? { issuedBy: session.issuedBy } : {}) }; authorize(this.store, context); return context;
   }
   async revokeSession(context: Context, sessionId: string) {
     authorize(this.store, context); return this.store.update(state => { authorize(this.store, context); const session = state.sessions.find(s => s.id === sessionId && s.kind === 'member-session'); check(session, 'INVALID_SESSION', 'Session was not found.');

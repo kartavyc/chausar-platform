@@ -18,14 +18,16 @@ const apply = (ctx: Context, host: ModuleHost, op: PendingRecord['op']) => apply
 /** Each part registers how its own change type is applied once both people agree. */
 export function onApplyChange(type: string, apply: Applier) { appliers.set(type, apply); }
 
-const publicChange = (p: PendingRecord) => ({ id: p.id, what: p.what, summary: p.summary, by: p.by, at: p.at, needs: p.needs, coolsOffAt: (p as { coolsOffAt?: string }).coolsOffAt ?? null });
+const publicChange = (p: PendingRecord) => ({ id: p.id, what: p.what, summary: p.summary, by: p.by, at: p.at, needs: p.needs, coolsOffAt: null });
 const live = (state: State, at = Date.now()) => peekCore(state).pending.filter(p => Date.parse(p.expiresAt) > at);
 export function pendingView(state: State) { return { items: live(state).map(publicChange).sort((a, b) => b.at.localeCompare(a.at)) }; }
 
-/** Who must agree to a change made by this member, or null when it applies at once. The person a change removes still
- *  counts as the second person; removing the only cofounder has a cooling-off instead (see `coolingOffMs`). */
-export function secondNeeded(state: State, ctx: Context, _op?: PendingRecord['op']): 'owner' | 'cofounder' | null {
+/** Who must agree to a change made by this member, or null when it applies at once. Removing a seat only takes access
+ *  away, so one admin may do it at once: a compromised cofounder must be cut off without waiting. */
+export function secondNeeded(state: State, ctx: Context, op?: PendingRecord['op']): 'owner' | 'cofounder' | null {
   const member = admin(state, ctx);
+  if (op?.type === 'remove-seat') return null;
+  if (op?.type === 'policy') return null;
   const others = (role: string) => state.members.some(m => m.active && m.role === role && m.id !== member.id);
   if (member.role === 'cofounder') return 'owner';
   return others('cofounder') ? 'cofounder' : null;
@@ -36,12 +38,8 @@ export function requireApp(ctx: Context) {
   check(ctx.sourceTainted !== true && (ctx.channel === undefined || ctx.channel === 'desktop'), 'APP_CONSENT_REQUIRED', 'Make this change in the app.');
 }
 
-/** An owner removing the only cofounder waits for that cofounder; if they have not answered after 72 hours, the owner may confirm it. */
-export const coolingOffMs = 72 * 3600000;
-type Pending = PendingRecord & { coolsOffAt?: string };
-const onlyCofounder = (state: State, memberId: unknown) => state.members.some(m => m.id === memberId && m.active && m.role === 'cofounder')
-  && !state.members.some(m => m.active && m.role === 'cofounder' && m.id !== memberId);
-const coolingOffSentence = 'The cofounder has 72 hours to answer; if they have not answered by then, the person who asked can confirm it alone.';
+/** The people behind a request: its member, and whoever issued that member's session for them. */
+const people = (ctx: Context) => new Set([ctx.memberId, ...(ctx.issuedBy ? [ctx.issuedBy] : [])]);
 
 export async function requestChange(ctx: Context, host: ModuleHost, what: ChangeWhat, summary: string, op: PendingRecord['op']) {
   requireApp(ctx); check(appliers.has(op.type), 'CHANGE_UNKNOWN', 'This change cannot be applied.');
@@ -49,9 +47,8 @@ export async function requestChange(ctx: Context, host: ModuleHost, what: Change
   if (!needs) return { state: 'applied' as const, ...await apply(ctx, host, op) };
   return host.store.update(state => {
     const member = admin(state, ctx); check(secondNeeded(state, ctx, op) === needs, 'CHANGE_AUTHORITY_CHANGED', 'The people in this workspace changed. Try again.');
-    const coolsOff = op.type === 'remove-seat' && member.role === 'owner' && onlyCofounder(state, op.memberId);
-    const at = now(); const change: Pending = { id: newId('change'), what, summary: coolsOff ? `${summary} ${coolingOffSentence}` : summary, by: member.id, byRole: member.role, at,
-      expiresAt: new Date(Date.parse(at) + pendingLifetimeMs).toISOString(), needs, op: structuredClone(op), ...(coolsOff ? { coolsOffAt: new Date(Date.parse(at) + coolingOffMs).toISOString() } : {}) };
+    const at = now(); const change: PendingRecord = { id: newId('change'), what, summary, by: member.id, byRole: member.role, at,
+      expiresAt: new Date(Date.parse(at) + pendingLifetimeMs).toISOString(), needs, op: structuredClone(op), ...(ctx.issuedBy ? { byIssuer: ctx.issuedBy } : {}) };
     coreState(state).pending.push(change); audit(state, 'trustx.change.requested', { changeId: change.id, what, needs, memberId: member.id });
     return { state: 'waiting-for-second' as const, change: publicChange(change) };
   });
@@ -62,22 +59,21 @@ export async function confirmChange(ctx: Context, payload: Record<string, any>, 
   requireApp(ctx); check(payload.decline === undefined || typeof payload.decline === 'boolean', 'INVALID_FIELDS', 'Say whether the change is declined.');
   const change = await host.store.update(state => {
     const member = admin(state, ctx); const core = coreState(state);
-    const found = core.pending.find(p => p.id === payload.id) as Pending | undefined; check(found, 'CHANGE_NOT_FOUND', 'This change is not waiting for anyone.');
+    const found = core.pending.find(p => p.id === payload.id); check(found, 'CHANGE_NOT_FOUND', 'This change is not waiting for anyone.');
     check(Date.parse(found.expiresAt) > Date.now(), 'CHANGE_EXPIRED', 'This change waited more than seven days and expired. Make it again.');
     if (payload.decline === true) {
       check(found.by === member.id || member.role === found.needs, 'CHANGE_NEEDS_OTHER', `This change needs the ${found.needs}.`);
       core.pending = core.pending.filter(p => p.id !== found.id);
       audit(state, 'trustx.change.declined', { changeId: found.id, what: found.what, memberId: member.id, by: found.by }); return { declined: found };
     }
-    if (found.by === member.id) {
-      check(found.coolsOffAt, 'SELF_CONFIRM', 'The same person cannot confirm their own change.');
-      check(Date.parse(found.coolsOffAt) <= Date.now(), 'COOLING_OFF', coolingOffSentence);
-      check(onlyCofounder(state, found.op.memberId), 'CHANGE_NEEDS_OTHER', 'The people in this workspace changed. This change needs the cofounder.');
-    } else check(member.role === found.needs, 'CHANGE_NEEDS_OTHER', `This change needs the ${found.needs}.`);
+    // The same person cannot confirm their own change, nor through a session one of them issued for the other.
+    const asked = new Set([found.by, ...(found.byIssuer ? [found.byIssuer] : [])]);
+    check(![...people(ctx)].some(id => asked.has(id)), 'SELF_CONFIRM', 'The same person cannot confirm their own change.');
+    check(member.role === found.needs, 'CHANGE_NEEDS_OTHER', `This change needs the ${found.needs}.`);
     const author = state.members.find(m => m.id === found.by);
     check(author?.active && author.role === found.byRole, 'CHANGE_AUTHOR_REVOKED', 'The person who asked for this change no longer has that seat.');
     core.pending = core.pending.filter(p => p.id !== found.id);
-    audit(state, 'trustx.change.confirmed', { changeId: found.id, what: found.what, memberId: member.id, by: found.by, ...(found.by === member.id ? { afterCoolingOff: true } : {}) }); return found;
+    audit(state, 'trustx.change.confirmed', { changeId: found.id, what: found.what, memberId: member.id, by: found.by }); return found;
   });
   if ('declined' in change) return { state: 'declined' as const, change: publicChange(change.declined) };
   check(appliers.has(change.op.type), 'CHANGE_UNKNOWN', 'This change cannot be applied.');

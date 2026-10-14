@@ -17,32 +17,31 @@ import { blockLeak } from './tools-network.ts';
 import { fields, tools } from './tools-common.ts';
 
 const sendRank: Record<TrustPolicy['send'], number> = { nothing: 0, shape: 1, samples: 2 };
-const sameSources = (a: readonly string[], b: readonly string[]) => { const left = new Set(a), right = new Set(b); return left.size === right.size && [...left].every(id => right.has(id)); };
 
-// A core change to Send, Sharing, seats, the allowed sources or autonomy that dual control would hold is refused: it goes
-// through trustx.*, which keeps the waiting change. Any change of the allowed sources waits: widening shows more, narrowing
-// purges data. Loosening and seat-adding changes are made by a person in the app, never from outside text or another channel.
+// A core change to Send, Sharing or seats that dual control would hold is refused: it goes through trustx.*, which keeps
+// the waiting change. Loosening and seat-adding changes are made by a person in the app, never from outside text or another channel.
 // Sending less, sharing off, autonomy off and removing an assistant need one person.
 registerCoreHook('change', (state, ctx, change) => {
   const member = state.members.find(m => m.id === ctx.memberId);
   if (!member?.active || !['owner', 'cofounder'].includes(member.role)) return;
-  let op: PendingRecord['op'] | undefined;
+  // Taking access away is done by one admin at once: a compromised seat is cut off without waiting.
+  if (change.kind === 'member-revoke') return;
+  let twoPeople = true;
   if (change.kind === 'policy') {
     const { send, sharing, autonomy, allowedSources } = change.patch;
-    const loosens = (send !== undefined && sendRank[send] > sendRank[state.policy.send]) || (sharing === true && state.policy.sharing !== true)
-      || (autonomy === true && state.policy.autonomy !== true) || (Array.isArray(allowedSources) && !sameSources(allowedSources, state.policy.allowedSources));
-    if (!loosens) return;
-  } else if (change.kind === 'member-revoke') {
-    const target = state.members.find(m => m.id === change.memberId);
-    if (target && seatOf(state, target) === 'assistant') return;
-    op = { type: 'remove-seat', memberId: change.memberId };
+    // The design puts Send, Sharing and seats under two people; which sources are read (See) and autonomy are one admin's.
+    twoPeople = (send !== undefined && sendRank[send] > sendRank[state.policy.send]) || (sharing === true && state.policy.sharing !== true);
+    const widens = twoPeople || (autonomy === true && state.policy.autonomy !== true)
+      || (Array.isArray(allowedSources) && !state.policy.allowedSources.includes('*') && (allowedSources.includes('*') || allowedSources.some(id => !state.policy.allowedSources.includes(id))));
+    if (!widens) return;
   }
-  if (change.kind !== 'member-revoke') requireApp(ctx);
-  if (applyingChange(ctx)) return;
-  check(secondNeeded(state, ctx, op) === null, 'SECOND_PERSON_REQUIRED', 'This change needs the owner and the cofounder. Make it from Trust.');
+  // Every widening change is made by a person in the app, never from outside text or another channel.
+  requireApp(ctx);
+  if (!twoPeople || applyingChange(ctx)) return;
+  check(secondNeeded(state, ctx) === null, 'SECOND_PERSON_REQUIRED', 'This change needs the owner and the cofounder. Make it from Trust.');
 });
 
-// The allowed sources and autonomy through Trust, under the same dual control as Send.
+// The allowed sources and autonomy through Trust (one admin, made in the app).
 export async function setPolicy(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   const { allowedSources, autonomy } = fields(payload, ['allowedSources', 'autonomy']); const patch: Partial<TrustPolicy> = {}; const parts: string[] = [];
   if (allowedSources !== undefined) {

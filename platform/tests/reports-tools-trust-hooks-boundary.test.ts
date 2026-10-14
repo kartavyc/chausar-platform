@@ -36,16 +36,23 @@ async function fixture(t: any) {
   return { engine, owner, as, load, ctxOf, vault: () => engine.vault! };
 }
 
-test('an owner cannot issue a session for another owner or a cofounder, so cannot confirm their own Send change', async t => {
+test('a session one person issued for another cannot stand in as the second person', async t => {
   const f = await fixture(t);
-  await f.as(f.owner, 'members.add', { id: 'owner-2', name: 'Synthetic second owner', role: 'owner' });
   await f.as(f.owner, 'members.add', { id: 'acc', name: 'Synthetic accountant', role: 'accountant' });
   await f.as(f.owner, 'members.add', { id: 'cof', name: 'Synthetic cofounder', role: 'cofounder' });
   const waiting = await f.as(f.owner, 'trustx.setSend', { level: 'samples' }); assert.equal(waiting.state, 'waiting-for-second');
-  for (const memberId of ['cof', 'owner-2']) await assert.rejects(f.as(f.owner, 'auth.session', { memberId }), code('SESSION_SCOPE_FORBIDDEN'), memberId);
+  // The owner may issue the cofounder a session, but a change the owner asked for cannot be confirmed with it.
+  const issued = await f.as(f.owner, 'auth.session', { memberId: 'cof' }); const asCofounder = f.engine.contextForSession(issued.token);
+  assert.equal(asCofounder.issuedBy, 'owner');
+  await assert.rejects(f.as(asCofounder, 'trustx.confirmChange', { id: waiting.change.id }), code('SELF_CONFIRM'));
   assert.equal(f.vault().read().policy.send, 'nothing');
-  // Sessions for the owner themself and for a lower seat still work.
-  assert.equal(typeof (await f.as(f.owner, 'auth.session', {})).token, 'string');
+  // Nor can a change asked through that session be confirmed by the owner who issued it.
+  const throughIssued = await f.as(asCofounder, 'trustx.setSend', { level: 'shape' }); assert.equal(throughIssued.state, 'waiting-for-second');
+  await assert.rejects(f.as(f.owner, 'trustx.confirmChange', { id: throughIssued.change.id }), code('SELF_CONFIRM'));
+  // The cofounder's own sign-in confirms.
+  const own = { memberId: 'cof', role: 'cofounder' as const, epoch: 1, channel: 'desktop' as const };
+  assert.equal((await f.as(own, 'trustx.confirmChange', { id: waiting.change.id })).state, 'applied'); assert.equal(f.vault().read().policy.send, 'samples');
+  // Sessions for a lower seat still work.
   const accountant = await f.as(f.owner, 'auth.session', { memberId: 'acc' }); assert.equal(f.engine.contextForSession(accountant.token).memberId, 'acc');
 });
 
@@ -96,34 +103,28 @@ test('widening what a seat sees waits for both people; narrowing applies at once
   assert.equal(after.seats.find((s: any) => s.seat === 'accountant').sees.financial, true); assert.ok(!after.marks.some((m: any) => m.kind === 'confidential'));
 });
 
-test('loosening and seat-adding changes are made in the app; allowed sources and autonomy are under dual control', async t => {
+test('widening changes are made in the app; allowed sources and autonomy are one admin\'s', async t => {
   const f = await fixture(t);
   const tainted: Context = { ...f.owner, sourceTainted: true }; const numbers: Context = { ...f.owner, channel: 'mcp' };
   // Owner alone, but from outside text or another channel: refused.
   for (const ctx of [tainted, numbers]) {
-    for (const [method, payload] of [['trust.update', { send: 'samples' }], ['trust.update', { autonomy: true }], ['trust.update', { allowedSources: ['synthetic-only'] }],
+    for (const [method, payload] of [['trust.update', { send: 'samples' }], ['trust.update', { autonomy: true }],
       ['members.add', { id: 'x', name: 'Synthetic', role: 'viewer' }], ['auth.invite', { name: 'Synthetic', role: 'viewer' }], ['trustx.setSend', { level: 'shape' }]] as const)
       await assert.rejects(f.as(ctx, method, payload), code('APP_CONSENT_REQUIRED'), `${ctx.channel} ${method}`);
   }
   // Narrowing from a tainted request still works.
   assert.equal((await f.as(tainted, 'trust.update', { autonomy: false })).autonomy, false);
-  // In the app the owner alone applies; with a cofounder, allowed sources and autonomy on need both.
+  // In the app one admin changes the allowed sources and autonomy, with or without a cofounder (See is not under two people).
   assert.equal((await f.as(f.owner, 'trust.update', { autonomy: true })).autonomy, true);
   await f.as(f.owner, 'trust.update', { autonomy: false });
   await f.as(f.owner, 'members.add', { id: 'cof', name: 'Synthetic cofounder', role: 'cofounder' });
   const cof = f.ctxOf('cof', 'cofounder');
-  for (const ctx of [f.owner, cof]) for (const patch of [{ autonomy: true }, { allowedSources: ['synthetic-only'] }, { allowedSources: ['*', 'synthetic-only'] }])
-    await assert.rejects(f.as(ctx, 'trust.update', patch), code('SECOND_PERSON_REQUIRED'), `${ctx.role} ${JSON.stringify(patch)}`);
-  assert.deepEqual(f.vault().read().policy.allowedSources, ['*']);
-  // The same list in another order is no change.
-  assert.deepEqual((await f.as(cof, 'trust.update', { allowedSources: ['*'] })).allowedSources, ['*']);
-  // Through Trust it waits, and applies once the other person confirms; confirming from a tainted request is refused.
+  assert.deepEqual((await f.as(cof, 'trust.update', { allowedSources: ['synthetic-only'] })).allowedSources, ['synthetic-only']);
   const host = f.engine.moduleHost(LANE, cof);
-  const waiting = await f.engine.withContext(cof, () => setPolicy(cof, { allowedSources: ['synthetic-only'] }, host)) as any;
-  assert.equal(waiting.state, 'waiting-for-second');
-  await assert.rejects(f.as(tainted, 'trustx.confirmChange', { id: waiting.change.id }), code('APP_CONSENT_REQUIRED'));
-  assert.equal((await f.as(f.owner, 'trustx.confirmChange', { id: waiting.change.id })).state, 'applied');
-  assert.deepEqual(f.vault().read().policy.allowedSources, ['synthetic-only']);
+  const applied = await f.engine.withContext(cof, () => setPolicy(cof, { allowedSources: ['*'] }, host)) as any;
+  assert.equal(applied.state, 'applied'); assert.deepEqual(f.vault().read().policy.allowedSources, ['*']);
+  // From outside text, widening is refused even through Trust.
+  await assert.rejects(f.engine.withContext(tainted, () => setPolicy(tainted, { autonomy: true }, f.engine.moduleHost(LANE, tainted))), code('APP_CONSENT_REQUIRED'));
 });
 
 test('a fact read asks whether a source is hidden once per source, not once per fact', async t => {

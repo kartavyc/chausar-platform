@@ -143,19 +143,9 @@ test('dual control: owner alone applies; with a cofounder each waits for the oth
   await f.store.update(state => { (state.extensions as any)['reports-tools-trust'].trust.core.pending[0].expiresAt = '2020-01-01T00:00:00.000Z'; });
   assert.equal((await f.rpc('trustx.pendingChanges')).items.length, 0);
   await assert.rejects(f.as(partner, 'trustx.confirmChange', { id: late.change.id }), code('CHANGE_EXPIRED'));
-  // The person a change removes still counts as the second person; removing the only cofounder has a 72-hour cooling-off.
-  await assert.rejects(f.as(f.engine.bootstrapContext(), 'members.revoke', { id: partner.memberId }), code('SECOND_PERSON_REQUIRED'));
+  // Removing a seat only takes access away: the owner removes the only cofounder at once, through Trust or the core path.
   const removal = await f.rpc('trustx.removeSeat', { memberId: partner.memberId });
-  assert.equal(removal.state, 'waiting-for-second'); assert.equal(removal.change.needs, 'cofounder'); assert.match(removal.change.summary, /72 hours/);
-  await assert.rejects(f.as(f.engine.bootstrapContext(), 'trustx.confirmChange', { id: removal.change.id }), (e: any) => e.code === 'COOLING_OFF' && /72 hours/.test(e.message));
-  assert.equal(f.store.read().members.find(m => m.id === partner.memberId)!.active, true);
-  // The cofounder may answer: declining drops the change.
-  assert.equal((await f.as(partner, 'trustx.confirmChange', { id: removal.change.id, decline: true })).state, 'declined');
-  assert.equal((await f.rpc('trustx.pendingChanges')).items.length, 0);
-  // Unanswered after 72 hours, the owner confirms it alone.
-  const again = await f.rpc('trustx.removeSeat', { memberId: partner.memberId });
-  await f.store.update(state => { (state.extensions as any)['reports-tools-trust'].trust.core.pending.find((p: any) => p.id === again.change.id).coolsOffAt = '2020-01-01T00:00:00.000Z'; });
-  assert.equal((await f.as(f.engine.bootstrapContext(), 'trustx.confirmChange', { id: again.change.id })).state, 'applied');
+  assert.equal(removal.state, 'applied');
   assert.equal(f.store.read().members.find(m => m.id === partner.memberId)!.active, false);
 });
 

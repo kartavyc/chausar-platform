@@ -123,9 +123,7 @@ test('live comparison through the real gateway: plan, approve exactly, run once,
   // An approval from someone whose access was revoked after approving is refused at run time.
   const cofounder = await engine.request('members.add', { id: 'cofounder-1', name: 'Cofounder', role: 'cofounder', branches: ['*'] });
   const byCofounder = await engine.requestAs({ memberId: cofounder.id, role: cofounder.role, epoch: cofounder.epoch, channel: 'desktop' }, 'bench.approveLive', { planId: plan.id, planDigest: plan.digest });
-  // Removing the only cofounder needs the cofounder too (Trust dual control): ask, then the cofounder confirms.
-  const removal = await engine.request('trustx.removeSeat', { memberId: cofounder.id });
-  await engine.requestAs({ memberId: cofounder.id, role: cofounder.role, epoch: cofounder.epoch, channel: 'desktop' }, 'trustx.confirmChange', { id: removal.change.id });
+  await engine.request('members.revoke', { id: cofounder.id });
   await assert.rejects(engine.request('bench.compare', { live: true, planId: plan.id, approvalId: byCofounder.id, barsDigest: bars.digest }), code('BENCH_APPROVAL_REVOKED'));
   assert.equal(fake.seen.length, 0);
 
