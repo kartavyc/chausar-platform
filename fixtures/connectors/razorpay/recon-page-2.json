@@ -1,0 +1,34 @@
+{
+  "entity": "collection",
+  "count": 1,
+  "items": [
+    {
+      "entity_id": "rfnd_SynthR0000001",
+      "type": "refund",
+      "debit": 20000,
+      "credit": 0,
+      "amount": 20000,
+      "currency": "INR",
+      "fee": 0,
+      "tax": 0,
+      "on_hold": false,
+      "settled": true,
+      "created_at": 1788493500,
+      "settled_at": 1788586200,
+      "settlement_id": "setl_SynthRecon00001",
+      "posted_at": null,
+      "credit_type": "default",
+      "description": "Refund of synthetic order 2001",
+      "notes": "{}",
+      "payment_id": "pay_SynthR00000001",
+      "settlement_utr": "SYNTHUTR0000000001",
+      "order_id": "order_SynthR0000001",
+      "order_receipt": "rcpt-2001",
+      "method": "upi",
+      "card_network": null,
+      "card_issuer": null,
+      "card_type": null,
+      "dispute_id": null
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "object": "list",
+  "url": "/v1/balance_transactions",
+  "has_more": true,
+  "data": [
+    {
+      "id": "txn_SynthCharge0002",
+      "object": "balance_transaction",
+      "amount": 60000,
+      "available_on": 1788493500,
+      "created": 1788418800,
+      "currency": "inr",
+      "description": "Synthetic order 3002",
+      "exchange_rate": null,
+      "fee": 1800,
+      "fee_details": [{ "amount": 1525, "currency": "inr", "description": "Stripe processing fees", "type": "stripe_fee" }, { "amount": 275, "currency": "inr", "description": "GST", "type": "tax" }],
+      "net": 58200,
+      "reporting_category": "charge",
+      "source": "ch_SynthCharge00002",
+      "status": "available",
+      "type": "charge"
+    },
+    {
+      "id": "txn_SynthRefund0001",
+      "object": "balance_transaction",
+      "amount": -5000,
+      "available_on": 1788493500,
+      "created": 1788493500,
+      "currency": "inr",
+      "description": "REFUND FOR CHARGE (Synthetic order 3001)",
+      "exchange_rate": null,
+      "fee": 0,
+      "fee_details": [],
+      "net": -5000,
+      "reporting_category": "refund",
+      "source": "re_SynthRefund00001",
+      "status": "available",
+      "type": "refund"
+    }
+  ]
+}

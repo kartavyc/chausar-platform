@@ -1,0 +1,41 @@
+{
+  "object": "list",
+  "url": "/v1/balance_transactions",
+  "has_more": true,
+  "data": [
+    {
+      "id": "txn_SynthPayout0001",
+      "object": "balance_transaction",
+      "amount": -151700,
+      "available_on": 1788546000,
+      "created": 1788546000,
+      "currency": "inr",
+      "description": "STRIPE PAYOUT",
+      "exchange_rate": null,
+      "fee": 0,
+      "fee_details": [],
+      "net": -151700,
+      "reporting_category": "payout",
+      "source": "po_SynthPayout000001",
+      "status": "available",
+      "type": "payout"
+    },
+    {
+      "id": "txn_SynthCharge0001",
+      "object": "balance_transaction",
+      "amount": 100000,
+      "available_on": 1788493500,
+      "created": 1788409800,
+      "currency": "inr",
+      "description": "Synthetic order 3001",
+      "exchange_rate": null,
+      "fee": 3000,
+      "fee_details": [{ "amount": 2542, "currency": "inr", "description": "Stripe processing fees", "type": "stripe_fee" }, { "amount": 458, "currency": "inr", "description": "GST", "type": "tax" }],
+      "net": 97000,
+      "reporting_category": "charge",
+      "source": "ch_SynthCharge00001",
+      "status": "available",
+      "type": "charge"
+    }
+  ]
+}
