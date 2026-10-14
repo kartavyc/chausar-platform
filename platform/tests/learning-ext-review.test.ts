@@ -103,3 +103,18 @@ test('the installed app opens sharing only through its trusted environment, neve
   assert.deepEqual(options({ CHAUSAR_LEARNING_INTAKE_URL: 'https://intake.example.com' }, true), {});
   assert.deepEqual(options({ CHAUSAR_LEARNING_FOUNDER_SWITCH: '1' }), { founderSwitch: true });
 });
+
+test('retention cleanup ages out account sets, outbox samples, dictionary proposals and decisions', async () => {
+  const { TrustService } = await import('../runtime/trust.ts');
+  const { peekArea } = await import('../runtime/learning-ext/state.ts');
+  const store = await seeded();
+  await import('../runtime/engine.ts'); // registers the engine modules' purge hooks
+  const set = await call(store, 'learningx.accountsPropose', { accounts: [{ id: 'a1', name: 'Cash', parentGroup: 'Cash-in-Hand' }] });
+  await call(store, 'learningx.accountsDecide', { setId: set.id, decisions: [{ accountId: 'a1', choice: 'accepted' }] });
+  await call(store, 'learningx.cleanSample', { content: 'Customer,Amount\nRavi,10\n' });
+  await call(store, 'learningx.dictionaryBuild', { files: [{ content: demoCsv }] });
+  const later = new Date(Date.now() + (store.state.policy.retentionDays + 1) * 86_400_000);
+  await new TrustService(store).cleanup(owner, later);
+  const lane = (name: string) => peekArea<any>(store.state, name);
+  assert.deepEqual([lane('accounts').sets.length, lane('sharing').outbox.length, lane('dictionary').proposals.length, logOf(store.state).length], [0, 0, 0, 0]);
+});

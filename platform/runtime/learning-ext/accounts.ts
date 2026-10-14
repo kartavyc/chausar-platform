@@ -201,11 +201,12 @@ export const accountsMethods: Record<string, MethodSpec> = {
 };
 
 /** Remove proposal sets holding an account from a removed source, or removed by identifier. */
-export function purgeAccounts(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; collect?: Set<string> }): number {
+export function purgeAccounts(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; collect?: Set<string>; cutoff?: number }): number {
   const chart = peekArea<AccountsArea>(state, 'accounts');
   if (!chart) return 0;
   const before = chart.sets.length;
-  const kept = chart.sets.filter(set => !reason.removedIds.has(set.id) && !set.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)));
+  const old = (at: string) => reason.cutoff !== undefined && !(Date.parse(at) >= reason.cutoff);
+  const kept = chart.sets.filter(set => !old(set.at) && !reason.removedIds.has(set.id) && !set.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)));
   for (const set of chart.sets) if (!kept.includes(set)) reason.collect?.add(set.id);
   chart.sets.splice(0, chart.sets.length, ...kept);
   return before - kept.length;

@@ -274,13 +274,14 @@ export const dictionaryMethods: Record<string, MethodSpec> = {
 };
 
 /** Remove proposals and edits whose evidence came from deleted or revoked sources, imports or decisions. */
-export function purgeDictionary(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; collect?: Set<string> }): number {
+export function purgeDictionary(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; collect?: Set<string>; cutoff?: number }): number {
   const dictionary = peek(state);
   if (!dictionary) return 0;
   const gone = (id: string) => reason.sourceIds.includes(id) || reason.removedIds.has(id);
   const before = dictionary.proposals.length + dictionary.edits.length;
-  const proposalGone = (item: Proposal) => gone(item.id) || item.sourceIds.some(gone);
-  const editGone = (item: EditRecord) => gone(item.id) || item.evidence.sourceIds.some(gone) || item.evidence.importIds.some(gone) || item.evidence.decisionIds.some(gone);
+  const old = (at: string) => reason.cutoff !== undefined && !(Date.parse(at) >= reason.cutoff);
+  const proposalGone = (item: Proposal) => old(item.at) || gone(item.id) || item.sourceIds.some(gone);
+  const editGone = (item: EditRecord) => old(item.at) || gone(item.id) || item.evidence.sourceIds.some(gone) || item.evidence.importIds.some(gone) || item.evidence.decisionIds.some(gone);
   for (const item of [...dictionary.proposals.filter(proposalGone), ...dictionary.edits.filter(editGone)]) reason.collect?.add(item.id);
   dictionary.proposals = dictionary.proposals.filter(item => !proposalGone(item));
   dictionary.edits = dictionary.edits.filter(item => !editGone(item));

@@ -314,10 +314,13 @@ export const sharingMethods: Record<string, MethodSpec> = {
 };
 
 /** Previews over removed sources are void; sent batches are structure only and stay listed. */
-export function purgeSharing(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string> }): number {
+export function purgeSharing(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; cutoff?: number }): number {
   const area = peekArea<Sharing>(state, 'sharing');
   if (!area) return 0;
-  const before = area.previews.length;
-  area.previews = area.previews.filter(preview => !preview.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)));
-  return before - area.previews.length;
+  const old = (at: string) => reason.cutoff !== undefined && !(Date.parse(at) >= reason.cutoff);
+  const before = area.previews.length + area.outbox.length;
+  area.previews = area.previews.filter(preview => !old(preview.at) && !preview.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)));
+  // Cleaned samples still hold the business's own rows: they age out with retention.
+  area.outbox = area.outbox.filter(sample => !old(sample.at));
+  return before - area.previews.length - area.outbox.length;
 }
