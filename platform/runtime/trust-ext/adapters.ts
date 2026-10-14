@@ -66,9 +66,10 @@ export async function autonomyPreset(host: ModuleHost): Promise<string | null> {
 }
 
 /**
- * modelsx.meters, assumed fields (models-ext has not published them yet): `voice.minutesThisMonth`
- * (a whole or decimal number of minutes) and `totals.spendThisMonthMinor` (paise string for this month).
- * Each is null until the method answers with it.
+ * modelsx.meters as merged gives per-route budgets and totals, but no voice minutes (models-ext states
+ * that minutes used are not measured) and no month's spend. These two fields, `voice.minutesThisMonth`
+ * and `totals.spendThisMonthMinor`, are read only if models-ext adds them; until then each is null,
+ * minutes show "not counted yet" and the month's spend is summed from this computer's model receipts.
  */
 export async function modelMeters(host: ModuleHost): Promise<{ minutesThisMonth: number | null; spendThisMonthMinor: string | null }> {
   const reply = await ask(host, 'modelsx.meters');
