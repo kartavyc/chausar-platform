@@ -1,1 +1,6 @@
-[]
+[
+  "modelsx.speechBench",
+  "modelsx.speechCatalogue",
+  "modelsx.speechConfirm",
+  "modelsx.speechInterpret"
+]
