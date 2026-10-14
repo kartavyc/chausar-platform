@@ -5,7 +5,9 @@ const root = process.cwd();
 const files = [];
 async function walk(directory) {
   for (const item of await readdir(directory, { withFileTypes: true })) {
-    if (['node_modules', '.git', 'data', 'vaults', 'dist', 'release'].includes(item.name)) continue;
+    // Packaging output lands in the repository-root release/ folder, which is never walked;
+    // source folders named release (scripts/release) are checked like any other.
+    if (['node_modules', '.git', 'data', 'vaults', 'dist'].includes(item.name)) continue;
     const path = join(directory, item.name);
     if (item.isDirectory()) await walk(path);
     // Declaration syntax belongs to TypeScript's checker, not Node execution.

@@ -1,0 +1,20 @@
+# Used by BuildKit for enterprise/server/Dockerfile. Everything is excluded unless listed.
+*
+!package.json
+!package-lock.json
+!platform/runtime/**
+!platform/semantic-qualification/src/**
+!platform/helpers/**
+!app/desktop/ipc-contract.cjs
+!app/desktop/ui-assets.cjs
+!app/desktop/module-methods/**
+!app/ui/host/**
+!app/ui/public/**
+!app/ui/assets/fonts/**
+!enterprise/server/config.ts
+!enterprise/server/oidc.ts
+!enterprise/server/identity.ts
+!enterprise/server/server.ts
+!enterprise/server/main.ts
+!enterprise/server/state-store.ts
+!enterprise/server/ui/**

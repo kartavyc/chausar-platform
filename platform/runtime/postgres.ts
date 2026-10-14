@@ -8,6 +8,10 @@ export type PostgresQueryResult = { rows: any[]; rowCount?: number | null; comma
 export type PostgresClient = { query(sql: string, values?: unknown[]): Promise<PostgresQueryResult>; release(): void };
 export type PostgresPool = { query(sql: string, values?: unknown[]): Promise<PostgresQueryResult>; connect(): Promise<PostgresClient>; end(): Promise<void> };
 export type PostgresOptions = { host: '127.0.0.1' | '::1'; port: number; user: string; database: string; password: string; vaultSlot: string; maxConnections?: number };
+/** Trusted enterprise-server host only: a database on another host, reached over verified TLS.
+ * The certificate is checked against the pinned CA (PEM) and the server name; there is no plaintext or `prefer` fallback. */
+export type PostgresRemoteTls = { ca: string; servername?: string };
+export type PostgresRemoteOptions = Omit<PostgresOptions, 'host'> & { host: string; remoteTls: PostgresRemoteTls };
 export type PostgresAuthority = { creationId: string; vaultId: string; revision: number; envelopeDigest: string };
 /** Trusted constructor capability. The transaction and its locks outlive every awaited callback operation. */
 export type PostgresSnapshotLease = {
@@ -104,10 +108,28 @@ export class PostgresSnapshotAdapter implements EncryptedSnapshotAdapter {
   private static validateOptions(options: PostgresOptions) {
     if (!['127.0.0.1', '::1'].includes(options.host) || !Number.isInteger(options.port) || options.port < 1024 || options.port > 65535 || !options.user || !options.database || !options.password) throw new ChausarError('INVALID_POSTGRES_CONFIG', 'Provide explicit loopback database configuration and credentials.');
   }
-  static async connect(options: PostgresOptions): Promise<PostgresSnapshotAdapter> {
+  private static validateRemoteOptions(options: PostgresRemoteOptions) {
+    const tls = options.remoteTls, pem = /^-----BEGIN CERTIFICATE-----\r?\n[A-Za-z0-9+/=\r\n]+-----END CERTIFICATE-----\s*/;
+    const name = (value: unknown) => typeof value === 'string' && value.length <= 253 && /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/.test(value);
+    if (!tls || typeof tls !== 'object' || typeof tls.ca !== 'string' || tls.ca.length > 256 * 1024 || !pem.test(tls.ca) || (tls.servername !== undefined && !name(tls.servername)))
+      throw new ChausarError('POSTGRES_TLS_REQUIRED', 'A remote database needs verified TLS with a pinned certificate authority.');
+    if (typeof options.host !== 'string' || !(name(options.host) || /^[0-9a-fA-F:.]{2,39}$/.test(options.host)) || !Number.isInteger(options.port) || options.port < 1024 || options.port > 65535 || !options.user || !options.database || !options.password) throw new ChausarError('INVALID_POSTGRES_CONFIG', 'Provide explicit database host, port and credentials.');
+  }
+  static async connect(options: PostgresOptions | PostgresRemoteOptions): Promise<PostgresSnapshotAdapter> {
+    if ('remoteTls' in options) return PostgresSnapshotAdapter.connectRemote(options);
     PostgresSnapshotAdapter.validateOptions(options);
     const moduleName = 'pg'; const pg = await import(moduleName), Pool = pg.Pool ?? pg.default?.Pool;
     const pool = new Pool({ host: options.host, port: options.port, user: options.user, database: options.database, password: options.password, max: options.maxConnections ?? 3, connectionTimeoutMillis: 5000, application_name: 'chausar-vault', ssl: false });
+    try {
+      const adapter = new PostgresSnapshotAdapter(pool, options.vaultSlot, true);
+      await adapter.initialize(); return adapter;
+    } catch (error) { await pool.end(); throw error; }
+  }
+  private static async connectRemote(options: PostgresRemoteOptions): Promise<PostgresSnapshotAdapter> {
+    PostgresSnapshotAdapter.validateRemoteOptions(options);
+    const ssl = { ca: options.remoteTls.ca, rejectUnauthorized: true, minVersion: 'TLSv1.2', ...(options.remoteTls.servername ? { servername: options.remoteTls.servername } : {}) };
+    const moduleName = 'pg'; const pg = await import(moduleName), Pool = pg.Pool ?? pg.default?.Pool;
+    const pool = new Pool({ host: options.host, port: options.port, user: options.user, database: options.database, password: options.password, max: options.maxConnections ?? 3, connectionTimeoutMillis: 5000, application_name: 'chausar-vault', ssl });
     try {
       const adapter = new PostgresSnapshotAdapter(pool, options.vaultSlot, true);
       await adapter.initialize(); return adapter;

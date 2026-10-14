@@ -14,6 +14,8 @@ const flags = { win32: '--win', darwin: '--mac', linux: '--linux' };
 const binaryPaths = { win32: 'electron.exe', darwin: 'Electron.app/Contents/MacOS/Electron', linux: 'electron' };
 const artifactOS = { win32: 'win', darwin: 'mac', linux: 'linux' };
 const artifactExtensions = { win32: ['zip'], darwin: ['dmg', 'zip'], linux: ['AppImage', 'tar.gz'] };
+// electron-builder names AppImages with the AppImage tool's architecture names (x86_64, arm64).
+const artifactArchitecture = (extension, architecture) => extension === 'AppImage' && architecture === 'x64' ? 'x86_64' : architecture;
 
 function inside(root, path) {
   const result = relative(root, path);
@@ -239,16 +241,21 @@ export async function validateDesktopPackagingOutput({ root = projectRoot, plan 
     const priorOutput = await readdir(join(root, plan.output));
     if (priorOutput.length) throw new Error('packaging output directory is not empty; review and move or archive the previous output before another build');
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const expectedArtifacts = plan.mode === 'preview' ? artifactExtensions[plan.platform].map(extension => `Chausar-Preview-${version}-${artifactOS[plan.platform]}-${plan.architecture}.${extension}`) : [];
+  const expectedArtifacts = plan.mode === 'preview' ? artifactExtensions[plan.platform].map(extension => `Chausar-Preview-${version}-${artifactOS[plan.platform]}-${artifactArchitecture(extension, plan.architecture)}.${extension}`) : [];
   return { receiptPath, expectedArtifacts };
 }
+
+export const PREVIEW_LIFETIME_DAYS = 90;
+export function previewExpiry(now = Date.now()) { return new Date(now + PREVIEW_LIFETIME_DAYS * 86_400_000).toISOString(); }
 
 /** Windows preview uses ZIP without NSIS. Final NSIS builds can execute their generated installer while extracting the uninstaller. No release/update publication is performed. */
 export async function packageDesktop({ root = projectRoot, plan = createDesktopPackagePlan(), environment = process.env, checkOnly = false } = {}) {
   const prerequisites = await desktopPackagePrerequisites({ root, plan, environment });
   if (!prerequisites.ok || checkOnly) return { ...prerequisites, packaged: false, checkOnly };
   const { receiptPath, expectedArtifacts } = await validateDesktopPackagingOutput({ root, plan, version: prerequisites.version });
-  const arguments_ = [prerequisites.cliPath, ...plan.builderArguments];
+  // A preview build expires; the app then reports that an update is needed (release.status).
+  const previewExpiresAt = plan.mode === 'preview' ? previewExpiry() : null;
+  const arguments_ = [prerequisites.cliPath, ...plan.builderArguments, ...(previewExpiresAt ? [`-c.extraMetadata.chausarPreviewExpiresAt=${previewExpiresAt}`] : [])];
   const status = await new Promise((accept, reject) => {
     const child = spawn(process.execPath, arguments_, { cwd: root, env: desktopPackagingEnvironment(plan.mode, environment), shell: false, windowsHide: true, stdio: 'inherit' });
     child.once('error', reject);
@@ -263,7 +270,7 @@ export async function packageDesktop({ root = projectRoot, plan = createDesktopP
       artifacts.push({ path: name, size: info.size, sha256: await sha256(path) });
     }
   }
-  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'preview' ? false : 'requires-native-verification', published: false, qualification: plan.qualification, checks: prerequisites.checks, artifacts };
+  const receipt = { schemaVersion: 1, mode: plan.mode, target: plan.target, version: prerequisites.version, packaged: true, unpacked: plan.unpacked, signed: plan.mode === 'preview' ? false : 'requires-native-verification', published: false, previewExpiresAt, qualification: plan.qualification, checks: prerequisites.checks, artifacts };
   await writeFile(receiptPath, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
   return { ...prerequisites, packaged: true, receiptPath };
 }
