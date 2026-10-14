@@ -712,60 +712,74 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
   effect exposure is "not counted" until a job names its actions (no core job does yet).
   Neither core jobs nor jobs-ext declare a measure goal, so the goal is "absent" unless a
   typed job's input names one. For a lane job, clock time and exposure come from jobs-ext.
-  For a core job (with or without jobs-ext), Edit and the missed-run rule work only for typed
-  jobs; a read-only brief says not built, and Delete cancels it (the record is kept).
+  For a core job, Edit and the missed-run rule work only for typed jobs; a read-only brief
+  says not built, and Delete cancels it (the record is kept).
+- jobs-ext is not merged into the base yet. Every `jobsx.*` path (proposals in the queue,
+  questions, person steps, edit, missed-run rule, lane accept) is tested against stubs copied
+  from that lane's own source, and is labelled experimental until it runs against the lane.
 - Month-end on the calendar needs an engine started with a typed job runner and calendar
   rules (`durableJobs`, `jobCalendar`). Where the engine has none, only "every 30 days, not
   month-end" is offered, as the person's own choice. On the calendar the month-end job works
   out what customers owe (`aging`, with its receipt); it does not write a narrative brief.
-- `approvals.get` (the approval sheet's job card) still reads the missed-run rule from the
-  interval catch-up; `approvals.job` reads a calendar's own rule.
-- The Today row "3 runs were missed while this computer slept" (WK-11) belongs to frame-today.
-- WK-12: `approvals.prepareReminder` has no screen entry point of its own (a customer page can call it). "Record
-  the agreement" opens Customers and suppliers, not the exact record: write-back's customer id is the connected
-  system's, not a Chausar record id.
-- Write-back does not ask for a passphrase yet; money and irreversible write-back approvals keep
-  the typed-amount second ask until it declares `reauth` on its views.
+- `approvals.get` (the approval sheet's job card) reads the missed-run rule from the interval
+  catch-up; `approvals.job` reads a calendar's own rule.
+- WK-14 shows "not built yet": no lane provides `session.*`.
+- Today rows (an expired approval as "worth a look", "3 runs were missed while this computer
+  slept") and live refresh through `events.subscribe` belong to frame-today; place modules have
+  no event seam.
+- WK-12: `approvals.prepareReminder` has no screen entry point of its own. "Record the
+  agreement" opens Customers and suppliers, not the exact record: write-back's customer id is
+  the connected system's, not a Chausar record id. Changing the caps belongs to Trust.
+- Write-back does not ask for a passphrase yet; money and irreversible approvals keep the
+  typed-amount second ask until write-back declares `reauth` on its views.
 - Files written by `approvals.exportPrepared` are not removed when the workspace is deleted (the
   engine's purge of `exports/` matches only its own vault copies; widening it is a core edit).
-- The caps line counts reminders prepared on the reminder's own day (write-back's business day);
-  the screen does not know write-back's configured time zone.
+- The caps line counts reminders prepared on the reminder's own day; the screen does not know
+  write-back's configured time zone.
 - Bill photo: the helper's `pdf.ocr` returns text lines with a page confidence, not word
-  boxes, so a region is the line's band across the page, not a box around the word. Only the
-  first page is outlined. Parsing is fixed patterns for Indian bill layouts (Bill No, Date,
-  CGST/SGST/IGST, Grand Total); anything else is left for the person. A PNG must be 8-bit and
-  not interlaced, a JPEG grey or RGB; other pictures refuse `IMAGE_OCR_NOT_AVAILABLE`. A
-  reading is held in memory for 30 minutes and lost on restart. No model reads pictures. The
-  Zoho route sends tax as its own line items (Zoho tax ids are not mapped) and needs the Zoho
-  vendor id typed. `approvals.execute` takes only `action:` ids, so an approved Zoho bill is
-  booked with `books.billBook`. The Tally voucher names ledgers from the bill (`Purchase: …`,
-  `Input CGST …`, the supplier); the accountant maps them.
-- BK-02 Read now, Pause and Sign in again; BK-03 Add a source; BK-05 recipes; BK-06
-  "Map this field". These belong to connectors-ext and show "not built yet".
-- BK-09 "Try it on a copy" links to trials and is not built here.
-- Exchange rates are not applied by the calculator: no core hook reads them, so a
-  foreign-currency row stays "not counted" and the count is on `books.rates`, not on each
-  receipt. `books.gst` still answers `rates: { available: false }`, and Meanings has no link to
-  `#/books/rates` yet (Meanings is edited in parallel).
+  boxes, so a region is the line's band across the page. Only the first page is outlined.
+  Parsing is fixed patterns for Indian bill layouts; anything else is left for the person.
+  A PNG must be 8-bit and not interlaced, a JPEG grey or RGB. A reading is held in memory for
+  30 minutes and lost on restart. No model reads pictures. tesseract was not installed in the
+  build container, so no real OCR run was made. The Zoho route sends tax as its own line items
+  and needs the Zoho vendor id typed; an approved Zoho bill is booked with `books.billBook`.
+- Exchange rates are not applied by the calculator (no core hook reads them), so a
+  foreign-currency row stays "not counted" and the count is on `books.rates`, not on each receipt.
 - BK-20 Delete cannot remove core facts, receipts, answers, actions or conversations for one
   customer: the core has no such method, and `trustx.deleteSource` removes whole sources only.
-- Memory lists only the lane's own lines, not business-profile entries.
-- Prepare-only items have no "download the file and the checklist" method.
-- BK-03: Chausar cannot list the companies open in Tally (`connectorsx` has no list-companies
-  method), so "Which company?" is a typed name. The exporter and one-page guide for Tally on
-  another computer are not built.
-- BK-05: answering a recipe question in place has no method (the person fixes the export or the
-  setting and reads again); a newer recipe version says which versions, not what changed between
-  them; registered recipes have no "who accepted" (they are seeds), and tax registration in the
-  scope is unknown. A connector recipe's unmapped field cannot be mapped here.
-- BK-09: publishing uses the prospective strategy only. (A copy is now reached from a meaning draft,
-  a proposal, a recipe and sources that disagree; see the design audit.)
-- BK-15 has no step line of the belief over time.
-- BK-19 exchange rates and the BK-20 Delete (`deletion.request`) are not built.
-- The lane's "sending closed" gate holds for `approvals.execute`. The core
-  `actions.execute` does not check it; closing that needs a core edit.
-- Phone approvals (WK-03 "Open the app") follow the core rule: the engine refuses approving
-  methods from phone sessions.
+- BK-02: where refused files are kept, the sign-in path before pressing the button and the
+  data's age are not drawn. BK-03: "Which company?" is a typed name (`connectorsx` cannot list
+  Tally companies); the exporter and guide for Tally on another computer are not built.
+- BK-04 (bring a file) is the first-run screen FR-07, owned by frame-today; it needs the host's
+  file picker.
+- BK-05: answering a recipe question in place has no method; a newer version names the
+  versions, not the difference; registered recipes have no "who accepted" (they are seeds).
+- BK-08 has no worked-example drawing and no "date used": a definition carries neither.
+- BK-09: publishing a copy uses the prospective strategy only.
+- BK-12: asking about the record from the ask line needs frame-today's ask line to accept an
+  "about" context; the time line shows invoices and payments, not reminders or notes.
+- BK-17: the ask lane must call `books.memoryPropose` for statements typed on the ask line.
+- Phone approvals (WK-03 "Open the app") follow the core rule: approving methods refuse phone
+  sessions.
+- The lane's "sending closed" gate holds for `approvals.execute` (core and
+  write-back actions). The core `actions.execute` does not check it; see "Core edits" below.
+
+### Core edits
+
+- `app/desktop/preload.cjs`: the lane's refusal codes on the work-books line of `laneRefusals`
+  only (the permitted edit).
+- No other core file was edited. A proposed edit to `platform/runtime/actions.ts`, so that the
+  core `actions.execute` also keeps sending closed while an earlier outside effect is
+  unsettled, changes existing behaviour and is left for the coordinator to apply in the base:
+
+```diff
+--- a/platform/runtime/actions.ts
++++ b/platform/runtime/actions.ts
+@@ async execute(context: Context, id: string): Promise<PreparedAction> {
+       check(action.status === 'approved' && action.attempts.length === 0, 'ACTION_ALREADY_ATTEMPTED', 'Actions execute once. Reconcile uncertain results before considering a new action.');
++      // Sending stays closed while an earlier outside effect is unsettled: check it before anything else leaves.
++      check(action.impact === 'reversible' || !state.actions.some((other: PreparedAction) => other.id !== id && other.impact !== 'reversible' && ['executing', 'unknown'].includes(other.status)), 'SENDING_CLOSED', 'An earlier message, payment or deletion is not settled. Check it before sending another.');
+```
 
 ## Design audit: Books
 
