@@ -39,8 +39,9 @@ function smallPrintLines(p: ReceiptSmallPrint, t: ReturnType<typeof useT>): Line
   const add = (key: string, name: string, value: string) => lines.push({ key, node: <><dt>{name}</dt><dd>{value}</dd></> });
   const parts = (...items: (string | undefined)[]) => items.filter((x): x is string => x !== undefined && x.length > 0).join(' · ');
   if (p.source) add('source', t('RECEIPT.small.source'), parts(p.source.names, p.source.wayIn && t(`RECEIPT.wayIn.${p.source.wayIn}`), p.source.readAt && t('RECEIPT.small.readAt', { when: p.source.readAt })));
-  if (p.recipe) add('recipe', t('RECEIPT.small.recipe'), parts(t(`RECEIPT.recipe.${p.recipe.state}`), t('RECEIPT.small.acceptedBy', { who: p.recipe.acceptedBy }), t(`RECEIPT.grade.${p.recipe.grade}`)));
+  if (p.recipe) add('recipe', t('RECEIPT.small.recipe'), parts(p.recipe.recipeId, t(`RECEIPT.recipe.${p.recipe.state}`), t('RECEIPT.small.acceptedBy', { who: p.recipe.acceptedBy }), t(`RECEIPT.grade.${p.recipe.grade}`)));
   if (p.meaning) add('meaning', t('RECEIPT.small.meaning'), parts(
+    p.meaning.version && t('RECEIPT.small.version', { version: p.meaning.version }),
     t('RECEIPT.small.publishedBy', { who: p.meaning.publishedBy }),
     p.meaning.reviewedBy && t('RECEIPT.small.reviewedBy', { who: p.meaning.reviewedBy }),
     p.meaning.cosignedBy && t('RECEIPT.small.cosignedBy', { who: p.meaning.cosignedBy }),

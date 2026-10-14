@@ -3,7 +3,7 @@
  * cut of attention rows, the in-place expansion with Review, and the open-row state.
  */
 
-import { useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import type { Address, Missing, RowItem, View, StatTile } from '../../app/presentation.ts';
 import { useLanguage, useT } from '../../app/text';
 import { Button } from '../../parts/Button';
@@ -11,6 +11,9 @@ import { RowList } from '../../parts/RowList';
 import { Stat } from '../../parts/Stat';
 import { DayLine } from '../../parts/DayLine';
 import { MissingWords } from '../../parts/Figure';
+import { Square } from '../../parts/Square';
+import type { Mark } from '../../app/presentation.ts';
+import { CLOSING_PARTS, type ClosingPart, type ClosingPartState } from '../../bridge/todayx-contract.ts';
 import s from './Today.module.css';
 import { TODAY_ATTENTION_MAX, TODAY_REVIEW_MAX, type TodayData, type TodayIntents } from './TodayData.ts';
 import { projectWorth, worthAddress, WORTH_MAX } from './worth.ts';
@@ -233,4 +236,28 @@ export function TodayProducerSections({ data, intents }: { data: TodayData; inte
         : <p className={s.missing}><MissingWords missing={data.earlierTodayMissing ?? 'unknown'} /></p>}
     </section>
   </>;
+}
+
+const CLOSING_MARK: Readonly<Record<ClosingPartState, Mark>> = { done: 'cha', 'not-done': 'wait', 'not-loaded-yet': 'off' };
+
+/** TD-01 "Daily closing on": the closing row, in every view, only while daily closing is on.
+ *  Cash counts as done when the owner told today's cash here, whatever the engine holds. */
+export function ClosingRow({ data }: { data: TodayData }) {
+  const t = useT();
+  const id = useId();
+  const closing = data.closing;
+  if (closing === undefined || !closing.on) return null;
+  const state = (part: ClosingPart): ClosingPartState => (part === 'cash' && data.cash?.entered !== undefined ? 'done' : closing.parts[part]);
+  return (
+    <section className={s.section} aria-labelledby={id} data-closing="">
+      <h2 id={id} className={s.label}>{t('TD-01.closing')}</h2>
+      <p className={s.quiet}>
+        {CLOSING_PARTS.map((part) => (
+          <span key={part} data-closing-part={part} data-state={state(part)}>
+            {t(`TD-01.closing.${part}`)} <Square mark={CLOSING_MARK[state(part)]} wordsKey={`TD-01.closing.${state(part)}`} showWords />
+          </span>
+        ))}
+      </p>
+    </section>
+  );
 }

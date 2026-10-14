@@ -82,6 +82,21 @@
   display: inline-flex;
 }
 
+/* Simple: today's cash by voice; the heard amount is shown back large. */
+.cashVoice {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--sp3);
+  justify-items: start;
+}
+
+.cashHeard {
+  margin: 0;
+  font-size: var(--fs-fig-big);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+}
+
 .cashChart {
   justify-self: end;
 }

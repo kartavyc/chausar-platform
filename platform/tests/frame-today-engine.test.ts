@@ -88,7 +88,7 @@ test('status, capabilities, first run, checklist, help and phone replies pass th
   valid(isCapabilitiesReply, capabilities);
   const group = (name: string) => capabilities.groups.find((g: any) => g.group === name);
   assert.equal(group('todayx').state, 'live');
-  assert.equal(group('todayx').methods, '17');
+  assert.equal(group('todayx').methods, '20');
   assert.equal(group('today').state, 'live');
   assert.equal(group('actions').state, 'live');
   assert.equal(group('askx').day, 5);
@@ -112,7 +112,8 @@ test('status, capabilities, first run, checklist, help and phone replies pass th
   assert.ok(isHelpReply(await engine.request('todayx.help', {})));
   const phone = await engine.request('todayx.phoneMessages', {});
   valid(isPhoneMessagesReply, phone);
-  assert.deepEqual(phone.channels.map((c: any) => c.state), ['not-built', 'not-built', 'not-built']);
+  // The hosted-link lane is registered in this build, so its channels are off until switched on.
+  assert.deepEqual(phone.channels.map((c: any) => c.state), ['off', 'off', 'off']);
   assert.equal(phone.sentThisMonth, null);
   assert.equal(phone.monthlyBudget, '30');
 

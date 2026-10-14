@@ -44,8 +44,16 @@ const pages: Handler = (payload) => {
   return { events, nextCursor: filtered ? null : 'c2', total: '6' } satisfies ActivityReply;
 };
 
+/** A checked `ui.context` naming the business zone; the activity page reads it for its times. */
+const CONTEXT_DEMO = {
+  workspace: { id: 'workspace-demo', name: 'Demo shop', demo: true },
+  member: { id: 'member-demo', name: 'Asha Demo', role: 'owner', epoch: 1, branches: ['*'] },
+  contextKey: 'a'.repeat(64), timeZone: 'Asia/Kolkata',
+};
+
 function activity(handler: Handler, { viewer = false, language = 'en' as Language } = {}) {
   const request = vi.fn(async (method: string, payload: Record<string, unknown>) => {
+    if (method === 'ui.context') return CONTEXT_DEMO;
     expect(method).toBe('todayx.activity');
     return handler(payload);
   });

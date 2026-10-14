@@ -15,5 +15,8 @@
   "todayx.setupChecklist",
   "todayx.help",
   "todayx.faultReport",
-  "todayx.phoneMessages"
+  "todayx.phoneMessages",
+  "todayx.receiptDetail",
+  "todayx.closing",
+  "todayx.closing.set"
 ]

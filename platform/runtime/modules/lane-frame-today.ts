@@ -5,6 +5,8 @@ import { addDays, capabilities, faultReport, firstRun, frameOf, help, phoneMessa
 import { activityFilter, activityPage, auditEvents, modelEvents } from '../frame-today/activity.ts';
 import { checkIdentity, identityCard, identityFields } from '../frame-today/identity.ts';
 import { setupChecklist } from '../frame-today/setup-rules.ts';
+import { composeReceiptDetail } from '../frame-today/receipt-detail.ts';
+import { closing } from '../frame-today/closing.ts';
 
 const keys = (payload: Record<string, unknown>, allowed: readonly string[]) =>
   check(Object.keys(payload).every(key => allowed.includes(key)), 'INVALID_TODAYX_REQUEST', 'This request has fields it does not use.');
@@ -83,6 +85,22 @@ export const frameTodayModule: EngineModule = {
     'todayx.help': { permission: 'read', handler: (_ctx, payload) => { keys(payload, []); return help(); } },
     'todayx.faultReport': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return faultReport(ctx, host); } },
     'todayx.phoneMessages': { permission: 'read', handler: (_ctx, payload, host) => { keys(payload, []); return phoneMessages(host); } },
+    'todayx.receiptDetail': { permission: 'read', handler: async (ctx, payload, host) => {
+      keys(payload, ['receiptId']);
+      check(typeof payload.receiptId === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(payload.receiptId), 'INVALID_TODAYX_REQUEST', 'Name one receipt.');
+      // The receipt is read as this caller: a seat that may not read it gets the same refusal.
+      const receipt: any = await host.call('receipts.get', { id: payload.receiptId });
+      const sources: any = await host.call('sources.list', {}).catch(() => []);
+      const models = (() => { try { return host.services.gateway?.receipts(ctx) ?? []; } catch { return []; } })();
+      return composeReceiptDetail(host.store.read(), ctx, receipt, Array.isArray(sources) ? sources : [], models);
+    } },
+    'todayx.closing': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return closing(ctx, host); } },
+    'todayx.closing.set': { permission: 'admin', handler: async (ctx, payload, host) => {
+      keys(payload, ['on']);
+      check(typeof payload.on === 'boolean', 'INVALID_TODAYX_REQUEST', 'Say whether daily closing is on.');
+      await updateFrame(host, ctx, 'admin', (frame, state) => { frame.dailyClosing = payload.on; audit(state, 'closing.daily-set', { memberId: ctx.memberId, on: payload.on }); });
+      return closing(ctx, host);
+    } },
   },
   /**
    * Nothing this module keeps is derived from a source: the identity card is typed by a person,

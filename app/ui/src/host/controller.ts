@@ -480,7 +480,10 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
   }
   return Object.freeze({
     places: Object.freeze({ request: (method: string, payload: Record<string, unknown>) => disposed ? Promise.reject(failure('READ_INVALIDATED')) : (port as unknown as PlaceRpc).request(method, payload) }),
-    conversation, retained, get todayConsumer() { return todayConsumer; }, firstRun, timeZone, snapshot: () => state,
+    conversation, retained, get todayConsumer() { return todayConsumer; }, firstRun,
+    /* The trusted host's zone, else the workspace's own from `ui.context`; never the machine's. */
+    get timeZone() { return timeZone ?? state.context?.timeZone ?? null; },
+    snapshot: () => state,
     subscribe(listener: () => void) { if (disposed) return () => {}; listeners.add(listener); return () => { listeners.delete(listener); }; },
     refresh: () => refresh(),
     unlocked: async () => {

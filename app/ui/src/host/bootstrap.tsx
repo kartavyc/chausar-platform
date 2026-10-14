@@ -43,6 +43,8 @@ import { HelpSheet } from '../app/HelpSheet';
 import { DemoClockControl } from '../app/DemoClockControl';
 import { Receipt } from '../parts/Receipt';
 import { receiptViewFromEvidence } from '../bridge/receipt-view.ts';
+import { receiptWithDetail, useReceiptDetail } from '../parts/receipt-detail.ts';
+import type { PlaceRpc } from '../places/types.ts';
 import detail from '../patterns/ModelConsentSheet.module.css';
 import '../tokens/index.css';
 import '../views/simple.css';
@@ -193,14 +195,18 @@ function receiptView(value: CalculationReceiptEvidence, language: Language, time
   try { return receiptViewFromEvidence(value, { language, timeZone }); } catch { return null; }
 }
 
-function ReceiptPanel({ selection, language, timeZone, origin, onClose }: {
+function ReceiptPanel({ selection, language, timeZone, origin, onClose, rpc }: {
   selection: HostReceiptSelection;
   language: Language;
   timeZone: string | null;
   origin: HTMLElement | null;
   onClose: () => void;
+  /** With it, the receipt's small print is read from `todayx.receiptDetail` for this receipt. */
+  rpc?: PlaceRpc | undefined;
 }) {
-  const view = selection.kind === 'ready' ? receiptView(selection.value, language, timeZone) : null;
+  const t = useT();
+  const smallPrint = useReceiptDetail(rpc, selection.kind === 'ready' ? selection.value.id : null);
+  const view = receiptWithDetail(selection.kind === 'ready' ? receiptView(selection.value, language, timeZone) : null, smallPrint, language, timeZone, t);
   const every = useRef<HTMLDetailsElement>(null);
   /* A figure on the receipt opens this receipt's every field: its exact values. */
   const openEvery = () => { const element = every.current; if (element) { element.open = true; element.querySelector('summary')?.focus(); } };
@@ -808,10 +814,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   const sheet: AppProps['sheet'] = state.receipt !== null ? {
     address: state.receipt.address,
-    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} timeZone={workspaceZone} origin={origin.current} onClose={closeSheet} />,
+    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} timeZone={workspaceZone} origin={origin.current} onClose={closeSheet} rpc={controller.places} />,
   } : localSheet === null ? undefined : localSheet.todayView !== undefined && consumer !== null ? {
     address: localSheet.address,
-    content: <TodayDestination timeZone={workspaceZone} detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
+    content: <TodayDestination timeZone={workspaceZone} receiptDetailRpc={controller.places} detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
       onClose={() => closeToday(localSheet, todayCurrent)}
       onReview={(row, rowOrigin) => launchToday(localSheet.todayView!, 'today-record', rowOrigin, current => consumer.review(localSheet.todayView!, row, current))}
       onNext={localSheet.todayView.page?.nextCursor ? () => launchToday(localSheet.todayView!, 'today-review', localSheet.todayOrigin ?? null, current => consumer.page(localSheet.todayView!, true, current)) : undefined}

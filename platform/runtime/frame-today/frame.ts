@@ -18,8 +18,10 @@ export type FrameState = {
   /** Per member: when that seat last dismissed the jobs-paused banner. */
   jobsPausedDismissedAt: Record<string, string>;
   identity: IdentityCard | null;
+  /** TD-01: the daily closing row. Off until an admin turns it on. */
+  dailyClosing?: boolean;
 };
-export const initFrame = (): FrameState => ({ clock: null, autoLockMinutes: 10, jobsPausedDismissedAt: {}, identity: null });
+export const initFrame = (): FrameState => ({ clock: null, autoLockMinutes: 10, jobsPausedDismissedAt: {}, identity: null, dailyClosing: false });
 export const frameOf = (state: State): FrameState => ({ ...initFrame(), ...peekModuleState<FrameState>(state, MODULE_ID) });
 export async function updateFrame<T>(host: ModuleHost, ctx: Context, permission: 'read' | 'prepare' | 'admin', change: (frame: FrameState, state: State) => T): Promise<T> {
   return host.store.update(state => {

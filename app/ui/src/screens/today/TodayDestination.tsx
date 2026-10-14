@@ -11,6 +11,8 @@ import { Receipt } from '../../parts/Receipt';
 import { receiptViewFromEvidence } from '../../bridge/receipt-view.ts';
 import { useLanguage } from '../../app/text';
 import { useRef } from 'react';
+import type { PlaceRpc } from '../../places/types.ts';
+import { receiptWithDetail, useReceiptDetail } from '../../parts/receipt-detail.ts';
 
 export interface TodayDestinationProps {
   readonly detail: TodayDetail | null;
@@ -24,6 +26,8 @@ export interface TodayDestinationProps {
   readonly back?: SheetProps['back'];
   /** The workspace time zone; the six-part receipt is drawn only when it is known. */
   readonly timeZone?: string | null | undefined;
+  /** The host's rpc: with it the open receipt's small print is read from `todayx.receiptDetail`. */
+  readonly receiptDetailRpc?: PlaceRpc | undefined;
 }
 /** Producer data remain text. Structured evidence is disclosed field by field without HTML. */
 function RecordedValue({ value }: { value: TodayJson }) {
@@ -32,14 +36,16 @@ function RecordedValue({ value }: { value: TodayJson }) {
   if (Array.isArray(value)) return <ol>{value.map((item, index) => <li key={index}><RecordedValue value={item} /></li>)}</ol>;
   return <dl>{Object.entries(value).map(([name, field]) => <div key={name}><dt>{name}</dt><dd><RecordedValue value={field} /></dd></div>)}</dl>;
 }
-export function TodayDestination({ detail, page, origin, onClose, onReview, onNext, onFresh, onReceipt, back, timeZone = null }: TodayDestinationProps) {
+export function TodayDestination({ detail, page, origin, onClose, onReview, onNext, onFresh, onReceipt, back, timeZone = null, receiptDetailRpc }: TodayDestinationProps) {
   const t = useT();
   const language = useLanguage();
   const every = useRef<HTMLDetailsElement>(null);
+  const smallPrint = useReceiptDetail(receiptDetailRpc, detail?.receipt?.id ?? null);
   let view = null;
   if (detail?.receipt !== undefined && timeZone !== null) {
     try { view = receiptViewFromEvidence(detail.receipt, { language, timeZone }); } catch { view = null; }
   }
+  view = receiptWithDetail(view, smallPrint, language, timeZone, t);
   /* A figure on the receipt opens its every field: the exact values below. */
   const openEvery = () => { const element = every.current; if (element) { element.open = true; element.querySelector('summary')?.focus(); } };
   return <Sheet kind={t(detail === null ? 'TODAY_ENGINE.scope' : 'TODAY_ENGINE.detail')} title={detail?.kind === 'activity' ? t('TODAY_ENGINE.activity') : detail?.title ?? t('TODAY_ENGINE.scope')} origin={origin} onClose={onClose} back={back}>

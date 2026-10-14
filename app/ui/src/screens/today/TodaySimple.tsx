@@ -6,7 +6,7 @@
  * The field and Enter appear only when the adapter can save what is typed.
  */
 
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { RowItem } from '../../app/presentation.ts';
 import { useT } from '../../app/text';
 import { PageHeader } from '../../app/PageHeader';
@@ -17,7 +17,8 @@ import { Figure, MissingWords } from '../../parts/Figure';
 import { Columns } from '../../parts/charts/Columns';
 import { State } from '../../patterns/States';
 import { todayIntentsForState } from './permissions.ts';
-import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayConsumerControls, TodayProducerSections, type TodayScreenProps } from './shared';
+import { ClosingRow, RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayConsumerControls, TodayProducerSections, type TodayScreenProps } from './shared';
+import { CashVoice } from './CashVoice';
 import { cashWeek } from './cash.ts';
 import s from './Today.module.css';
 
@@ -33,6 +34,7 @@ export function TodaySimple({ data, intents: offeredIntents, onNavigate }: Today
   const { review, worth, hidden, offered } = attentionRows(data, system, worthSource.rows, worthSource.showAll);
   const inPlace = useInPlaceRows();
   const onSaveClosing = intents.onSaveClosing;
+  const cashField = useRef<HTMLDivElement>(null);
 
   const expansion = (row: RowItem): ReactNode => <RowExpansion row={row} intents={intents} origin={inPlace.originOf(row.id)} />;
 
@@ -69,6 +71,8 @@ export function TodaySimple({ data, intents: offeredIntents, onNavigate }: Today
         />
       )}
 
+      <ClosingRow data={data} />
+
       <WorthSection rows={worth} hidden={hidden} offered={offered} missing={worthSource.missing} showAll={worthSource.showAll} onToggle={worthSource.toggle}
         onOpen={worthSource.onOpen} opens={worthSource.opens} onReceipt={intents.onReceipt} labelId={worthId} />
 
@@ -94,6 +98,11 @@ export function TodaySimple({ data, intents: offeredIntents, onNavigate }: Today
             )}
           </form>
           <Columns chart={week} onReceipt={intents.onReceipt} className={s.cashChart} />
+          {!data.cash.entered && onSaveClosing && intents.cashVoice && (
+            <div ref={cashField} className={s.cashVoice}>
+              <CashVoice voice={intents.cashVoice} onSave={onSaveClosing} onChange={() => cashField.current?.closest('section')?.querySelector('input')?.focus()} />
+            </div>
+          )}
         </section>
       )}
       {data.cashMissing !== undefined && <p className={s.missing}>{t('TODAY_ENGINE.cashMissing')}</p>}
