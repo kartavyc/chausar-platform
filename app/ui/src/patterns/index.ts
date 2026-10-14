@@ -10,3 +10,5 @@ export { TwoSides } from './TwoSides';
 export type { Side } from './TwoSides';
 export { SettingsRows } from './SettingsRows';
 export type { SettingChoice, SettingRow } from './SettingsRows';
+export { FirstRunStep, LanguageWords } from './FirstRunStep';
+export type { FirstRunBlocked, FirstRunLeft, FirstRunStepProps } from './FirstRunStep';

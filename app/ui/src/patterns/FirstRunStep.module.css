@@ -1,0 +1,77 @@
+/* FirstRunStep: no rail. A top bar, then one centred column with the six steps, the task,
+   and the blocked line at the bottom. Every size and colour is a token. */
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp4);
+  min-height: var(--topbar);
+  padding: 0 var(--rail-pad);
+}
+
+.language {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.languageWords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp4);
+}
+
+.languageWord {
+  font: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  min-height: var(--target);
+  color: var(--mute);
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.languageChosen {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-thickness: var(--hair);
+  text-underline-offset: 4px;
+}
+
+.page {
+  justify-self: center;
+  width: var(--col);
+  max-width: 100%;
+  padding: var(--page-top) var(--sp4) var(--sp6);
+  outline-offset: calc(-1 * var(--focus));
+}
+
+.steps {
+  margin-bottom: var(--sp7);
+}
+
+.task {
+  min-height: 0;
+}
+
+.foot {
+  margin-top: var(--sp7);
+  padding-top: var(--sp3);
+  border-top: var(--hair) solid var(--line);
+}
+
+.line {
+  margin: 0 0 var(--sp2);
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
