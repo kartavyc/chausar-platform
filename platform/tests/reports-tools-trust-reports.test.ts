@@ -361,7 +361,9 @@ test('markings follow the data: a seat that does not see a marking gets withheld
   // The engine leaves the marked source out of this seat's calculations: no receipt it can open reads that source.
   for (const id of brief.receiptIds) assert.ok(!(await engine.requestAs(accountant, 'receipts.get', { id })).sourceIds.includes(sourceId));
   assert.equal((await engine.request('reportsx.weekAhead', { onDate: '2026-09-08' })).changed.find((item: any) => item.id === 'net_sales').figure.exact, '112525');
-  await engine.request('trustx.setSeatMarking', { seat: 'accountant', kind: 'financial', sees: true });
+  // Widening what a seat sees needs the owner and the cofounder.
+  const widen = await engine.request('trustx.setSeatMarking', { seat: 'accountant', kind: 'financial', sees: true }); assert.equal(widen.state, 'waiting-for-second');
+  await engine.requestAs(cofounder, 'trustx.confirmChange', { id: widen.change.id });
   const after = await engine.requestAs(accountant, 'reportsx.weekAhead', { onDate: '2026-09-08' });
   assert.equal(after.changed.find((item: any) => item.id === 'net_sales').figure.exact, '112525'); assert.deepEqual(after.gaps, []);
 });

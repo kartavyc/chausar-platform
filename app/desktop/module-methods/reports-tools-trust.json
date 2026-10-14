@@ -46,6 +46,7 @@
   "trustx.setLock",
   "trustx.setMarking",
   "trustx.setModelCap",
+  "trustx.setPolicy",
   "trustx.setRecoveryContact",
   "trustx.setSeatMarking",
   "trustx.setSend",

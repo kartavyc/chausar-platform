@@ -6,7 +6,7 @@ import { canaryHit, checkCanary, modelsView, networkView, plantCanary, setModelC
 import { recordView, syncChain, verifyRecord } from './tools-record.ts';
 import { agreementsView, cleanSample, hostedView, sharingView, withdraw, withdrawSharing } from './tools-sharing.ts';
 import { backupNow, deleteSource, deletions, exportDeletion, setLock, setRecoveryContact, testRestore, vaultView } from './tools-vault.ts';
-import { assistantsView, pairAssistant, revokeAssistant, setAssistants } from './tools-assistants.ts';
+import { assistants, pairAssistant, revokeAssistant, setAssistants } from './tools-assistants.ts';
 import { inspect, installPlugin, pluginsView, purgePluginMeta, removePlugin } from './tools-plugins.ts';
 import { languagePacks } from './tools-language.ts';
 import { flushMcpCalls } from '../mcp.ts';
@@ -35,7 +35,7 @@ export const trustToolsMethods: Record<string, MethodSpec> = {
   'trustx.agreements': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return agreementsView(host); } },
   'trustx.withdraw': { permission: 'admin', handler: withdraw },
   // Calls waiting in the MCP record buffer are written first, so the list is never behind.
-  'trustx.assistants': { permission: 'read', handler: async (_ctx, payload, host) => { fields(payload, []); await flushMcpCalls(host.store); return assistantsView(host.store.read()); } },
+  'trustx.assistants': { permission: 'read', handler: async (ctx, payload, host) => { await flushMcpCalls(host.store); return assistants(ctx, payload, host); } },
   'trustx.setAssistants': { permission: 'admin', handler: setAssistants },
   'trustx.pairAssistant': { permission: 'admin', handler: pairAssistant },
   'trustx.revokeAssistant': { permission: 'admin', handler: revokeAssistant },

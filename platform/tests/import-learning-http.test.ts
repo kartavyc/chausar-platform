@@ -128,7 +128,9 @@ test('current author epoch and ownership govern learning records and refused bra
   assert.equal((await f.rpc('learning.list', {}, viewer.token)).length, 0);
   const before = f.engine.vault!.read().learning.length; const wrongBranch = { ...input, recipe: { ...recipe, scope: { ...recipe.scope, branches: ['west'] } } };
   assert.equal((await f.raw('sources.import', wrongBranch, member.token)).body.error.code, 'FORBIDDEN_BRANCH'); assert.equal(f.engine.vault!.read().learning.length, before);
-  await f.rpc('members.revoke', { id: member.member.id }); assert.equal((await f.decisions()).length, 0);
+  // Removing the only cofounder needs the cofounder too (Trust dual control): ask, then the cofounder confirms.
+  const removal = await f.rpc('trustx.removeSeat', { memberId: member.member.id }); await f.rpc('trustx.confirmChange', { id: removal.change.id }, member.token);
+  assert.equal((await f.decisions()).length, 0);
   assert.equal((await f.raw('learning.preview', { ids: [event.id] })).body.error.code, 'ACCESS_REVOKED');
 });
 
