@@ -1,0 +1,7 @@
+Employee ID,Employee Name,Department,Pay Date,Gross Pay,Total Deductions,Net Pay
+ZP-01,Synthetic Staff 1,Engineering,30/09/2026,85000.00,12400.00,72600.00
+ZP-02,Synthetic Staff 2,Engineering,30/09/2026,72000.00,9850.00,62150.00
+ZP-03,Synthetic Staff 3,Support,30/09/2026,31000.00,3200.00,27800.00
+ZP-04,Synthetic Staff 4,Sales,30/09/2026,44500.50,5100.00,39400.50
+ZP-05,Synthetic Staff 5,Admin,30/09/2026,26000.00,2400.00,23600.00
+Total,,,,258500.50,32950.00,225550.50
