@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import test from 'node:test';
@@ -11,6 +11,8 @@ const checkout = fileURLToPath(new URL('../../../../', import.meta.url));
 const inventoryFile = resolve(checkout, 'app/ui/design-screen-inventory.json');
 const generatorFile = resolve(checkout, 'scripts/generate-design-inventory.mjs');
 const inputRoot = process.env.UI_DESIGN_INPUTS ? resolve(process.env.UI_DESIGN_INPUTS) : resolve(checkout, 'inputs');
+// The design's original markdown sources are not committed; these checks need them.
+const sourcesAbsent = existsSync(resolve(inputRoot, 'screens.md')) ? false : 'design markdown sources are not in this checkout; set UI_DESIGN_INPUTS';
 const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 
 function checkFixture(bytes: Buffer) {
@@ -36,7 +38,7 @@ function checkFixture(bytes: Buffer) {
   }
 }
 
-test('canonical LF inventory passes the unchanged generator raw-byte check', () => {
+test('canonical LF inventory passes the unchanged generator raw-byte check', { skip: sourcesAbsent }, () => {
   const bytes = readFileSync(inventoryFile);
   const text = bytes.toString('utf8');
   assert.equal(text.includes('\r'), false, 'the qualified source is canonical LF');
@@ -47,7 +49,7 @@ test('canonical LF inventory passes the unchanged generator raw-byte check', () 
   assert.match(result.stdout, /matches all four source documents/);
 });
 
-test('CRLF is exactly equivalent after LF normalization, but still fails the unchanged raw-byte check', () => {
+test('CRLF is exactly equivalent after LF normalization, but still fails the unchanged raw-byte check', { skip: sourcesAbsent }, () => {
   const canonical = readFileSync(inventoryFile);
   const crlf = Buffer.from(canonical.toString('utf8').replaceAll('\n', '\r\n'));
   assert.notEqual(sha256(crlf), sha256(canonical), 'raw identities remain distinct');
@@ -59,7 +61,7 @@ test('CRLF is exactly equivalent after LF normalization, but still fails the unc
   assert.match(result.stderr, /Design inventory is stale/);
 });
 
-test('a semantic mutation with canonical LF also fails the unchanged generator', () => {
+test('a semantic mutation with canonical LF also fails the unchanged generator', { skip: sourcesAbsent }, () => {
   const inventory: { authority: string } = JSON.parse(readFileSync(inventoryFile, 'utf8'));
   inventory.authority = 'synthetic-unapproved-authority';
   const mutated = Buffer.from(`${JSON.stringify(inventory, null, 2)}\n`);

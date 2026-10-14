@@ -18,6 +18,7 @@ import type { ConversationReferenceIntent } from '../screens/ask/ConversationAns
 import { RetainedScenario, ScenarioProvenanceBody, type RetainedScenarioShown } from '../screens/ask/RetainedScenario';
 import { LessonReviewSheet } from '../screens/reports/LessonReview';
 import { RetainedPlace, retainedSurface } from '../screens/retained/RetainedPlace';
+import { placeModuleFor } from '../places/registry.ts';
 import type { TodayData } from '../screens/today/TodayData.ts';
 import { TodayDestination } from '../screens/today/TodayDestination.tsx';
 import { projectTodayConsumer } from './today-controller.ts';
@@ -849,6 +850,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
         onContinueScenarios={continueScenarios} onPageScenarios={pageScenarios}
         onProof={openProof} onProvenance={openProvenance} onOpenLesson={(id, rowOrigin, from) => openLesson(id, rowOrigin, from)} legacy={legacyLink} />
+      : placeModuleFor(address) !== null
+      ? placeModuleFor(address)!.render({ address, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
+        rpc: controller.places, live, openReceipt: id => openReceipt(id), navigate: next => onAddress(next) })
       : address.place === 'trust' && address.sub === 'models' || address.place === 'ask' && (address.sub === undefined || address.sub === 'new')
       ? <RoutePicker routes={state.routes} selected={state.selectedRouteId} language={language} viewer={viewer} onSelect={chooseRoute} />
       : <><State state={{ kind: 'not-built' }} />{legacyLink}</>,

@@ -77,6 +77,9 @@ import { DatabaseCalculator, type DatabaseCalculatorOptions } from './analytics.
 import { AnalyticalHelper } from './helper.ts';
 import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
+import { engineModules, moduleMethods } from './modules/registry.ts';
+import type { ModuleHost } from './modules/types.ts';
+import { registerPrivateStatePurgeHook } from './private-state-lifecycle.ts';
 
 export type EngineBackupCustodyOptions = {
   budgets?: WorkspaceBackupV2Budgets; filesystemBudgets?: WorkspaceBackupV2FilesystemBudgets;
@@ -93,8 +96,12 @@ export type EngineTodayHostOptions = {
   /** Advance for every outside-State report, job, lesson or calendar guard change. */
   authorityRevision?: () => string;
 };
+for (const engineModule of engineModules) if (engineModule.purge) registerPrivateStatePurgeHook(engineModule.purge.bind(engineModule));
+
 export type EngineOptions = { directory: string; version?: string; demo?: boolean; storage?: 'experimental-file' | 'postgres'; postgresUrl?: string; connectorCredentials?: CredentialBroker; connectorRuntime?: EngineConnectorOptions; analytics?: DatabaseCalculatorOptions; sync?: SyncOptions & { writerAdmission?: SyncWriterAdmission }; pythonExecutable?: string; updatePublicKey?: string; durableJobs?: EngineJobOptions; gateway?: GatewayOptions; synthesis?: ConversationSynthesisCodec; reports?: Pick<ReportOptions, 'executionReceipt'>; jobCalendar?: { rules: CalendarRules; bounds: CalendarBounds }; bridge?: Pick<BridgeServiceOptions, 'factorAdmission'>; research?: { search?: ResearchSearchPort }; backupCustody?: EngineBackupCustodyOptions;
   today?: EngineTodayHostOptions;
+  /** Trusted per-module host options, keyed by engine module id (platform/runtime/modules). */
+  modules?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
   /** Trusted host custody for direct Vault lifecycles, never an RPC or archive.
    * No native platform provider is installed or qualified by this contract. */
   keychain?: KeychainHook;
@@ -937,6 +944,16 @@ export class Engine {
     if (vault.read().actions.some(action => action.status === 'executing')) await this.services.actions.recoverInterrupted(this.context);
     if (this.services.jobRunner && vault.read().jobs.some(job => job.status === 'running')) await this.services.jobRunner.recoverInterrupted(this.context);
   } catch (error) { await vault.close(); this.vault = null; this.services = {}; throw error; } }
+  /** The narrow host handed to an engine module for one call. */
+  moduleHost(moduleId: string, ctx: Context): ModuleHost {
+    const engine = this;
+    return Object.freeze({
+      get store() { return engine.store(); },
+      services: this.services, demo: this.#demo, directory: this.options.directory,
+      options: Object.freeze({ ...(this.options.modules?.[moduleId] ?? {}) }),
+      call: (method: string, payload: Record<string, unknown>) => engine.requestAs(ctx, method, payload),
+    });
+  }
   async request(method: string, payload: any = {}): Promise<any> {
     check(!this.#closing, 'ENGINE_STOPPING', 'The engine is completing pending work before shutdown.');
     const transitions = new Set(['workspace.create', 'workspace.open', 'workspace.recover', 'workspace.restore', 'workspace.lock', 'workspace.delete', 'sources.delete']);
@@ -1022,6 +1039,13 @@ export class Engine {
     if (method.startsWith('invoiceFollowUp.')) {
       check(ctx.channel !== 'phone', 'OPEN_DESKTOP', 'Review invoice mandates and reminders in the desktop app.');
       check(s.invoiceFollowUp, 'INVOICE_HOST_UNAVAILABLE', 'A trusted synthetic invoice host with explicit policy is required.');
+    }
+    const moduleMethod = moduleMethods.get(method);
+    if (moduleMethod) {
+      authorize(store, ctx, moduleMethod.permission);
+      check(ctx.channel !== 'phone' || moduleMethod.phone === true, 'OPEN_DESKTOP', 'Open the desktop app for this request.');
+      check(!(moduleMethod.external && this.#demo), 'DEMO_EXTERNAL_DISABLED', 'Synthetic demo mode keeps external systems disabled.');
+      return moduleMethod.handler(ctx, payload, this.moduleHost(moduleMethod.module, ctx));
     }
     switch (method) {
       case 'today.prepareTiles': {
@@ -1615,7 +1639,7 @@ export class Engine {
         });
         return { deleted: true, copiesRemoved: removed, externalCopies: 'Copies made outside this app must be removed by their owner.' };
       }
-      default: throw new Error(`Unknown request: ${method}`);
+      default: throw new ChausarError('UNKNOWN_METHOD', `Unknown request: ${method}`);
     }
   }
   private async runJob(id: string) {
@@ -2075,6 +2099,12 @@ export class Engine {
           ? installed.jobs.view(this.context, installed.jobs.find(this.vault.read(), job.id)) : { id: job.id, status: job.status });
       } catch (error) { results.push({ error: { code: (error as any).code ?? 'JOB_SCHEDULER_FAILED' } }); }
     }
+    for (const engineModule of engineModules) if (engineModule.tick && !this.#closing && !this.#transition && this.vault)
+      for (const member of this.vault.read().members.filter(member => member.active && ['owner', 'cofounder'].includes(member.role))) {
+        const ownerContext: Context = { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' };
+        try { results.push(...await this.withContext(ownerContext, () => engineModule.tick!(ownerContext, this.moduleHost(engineModule.id, ownerContext), host))); }
+        catch (error) { results.push({ module: engineModule.id, error: { code: (error as any).code ?? 'MODULE_SCHEDULER_FAILED' } }); }
+      }
     return results;
     } finally { this.#activeRequests--; this.notifyIdle(); }
   }

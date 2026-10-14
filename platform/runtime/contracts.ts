@@ -35,6 +35,8 @@ export type State = {
   conversations: any[]; routes: any[]; sessions: any[]; unsupported: any[]; schedules: any[]; sourceRules: any[];
   /** Private encrypted custody; absence in an older workspace is an empty namespace. */
   scenarioRecords?: ScenarioRecord[]; lessonState?: LessonState;
+  /** Engine-module namespaces (platform/runtime/modules). Absence is an empty namespace. */
+  extensions?: Record<string, unknown>;
 };
 export interface StateStore {
   read(): State;

@@ -10,6 +10,7 @@ import type { ConversationQuestionSettings } from '../app/conversation-surface.t
 import type { Address } from '../app/presentation.ts';
 import { formatAddress, parseAddress, sameAddress } from '../app/routes.ts';
 import { validateCreatedWorkspace, validateModelRoutes, validateUiContext } from './contracts.ts';
+import type { PlaceRpc } from '../places/types.ts';
 import type { CreatedWorkspace, HostRpcPayloads, HostRpcPort, UiContext, UiModelRoute, WorkspaceCreateInput } from './contracts.ts';
 import { createRetainedController } from './retained-controller.ts';
 import type { EffectGuard, RetainedController, RetainedPort } from './retained-controller.ts';
@@ -57,6 +58,8 @@ export interface HostOptions {
   readonly firstRun?: Pick<FirstRunControllerOptions, 'digest' | 'createAttemptId'>;
 }
 export interface HostController {
+  /** Untyped named requests for lane-owned place modules (app/ui/src/places). */
+  readonly places: PlaceRpc;
   readonly conversation: ConversationHost;
   /** Retained scenario reopen and lesson review, joined to every host invalidation. */
   readonly retained: RetainedController;
@@ -471,6 +474,7 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
     return !disposed && creation.kind === 'idle' && state.phase === 'ready' && state.context?.workspace.id === rendered.workspace.id;
   }
   return Object.freeze({
+    places: Object.freeze({ request: (method: string, payload: Record<string, unknown>) => disposed ? Promise.reject(failure('READ_INVALIDATED')) : (port as unknown as PlaceRpc).request(method, payload) }),
     conversation, retained, get todayConsumer() { return todayConsumer; }, firstRun, timeZone, snapshot: () => state,
     subscribe(listener: () => void) { if (disposed) return () => {}; listeners.add(listener); return () => { listeners.delete(listener); }; },
     refresh: () => refresh(), refreshToday, invalidateTrustedProducer: () => invalidateProducer(), bindTodayProducer, requalifyFirstRunAfterReopen, checkAuthority, selectRoute, questionSettings: () => settings, openReceipt, closeReceipt, invalidate, lock,

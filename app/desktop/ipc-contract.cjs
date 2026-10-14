@@ -41,7 +41,24 @@ const METHODS = Object.freeze([
   'plugins.list', 'plugins.install', 'plugins.enable', 'plugins.disable', 'plugins.remove', 'plugins.run', 'plugins.miniapp',
   'mcp.info', 'mcp.handle', 'helpers.run', 'updates.status', 'updates.verify', 'updates.stage',
 ]);
-const allowedMethods = new Set(METHODS);
+// Engine-module methods: one JSON array per lane module (platform/runtime/modules).
+const MODULE_METHODS = Object.freeze((() => {
+  const { readdirSync, readFileSync } = require('node:fs');
+  const { join } = require('node:path');
+  const directory = join(__dirname, 'module-methods');
+  const names = [];
+  for (const file of readdirSync(directory).filter(name => name.endsWith('.json')).sort()) {
+    const list = JSON.parse(readFileSync(join(directory, file), 'utf8'));
+    if (!Array.isArray(list)) throw new Error(`Invalid module method list: ${file}`);
+    for (const name of list) {
+      if (typeof name !== 'string' || !/^[a-z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)+$/.test(name) || name.length > 80) throw new Error(`Invalid module method: ${name}`);
+      if (METHODS.includes(name) || names.includes(name)) throw new Error(`Duplicate desktop method: ${name}`);
+      names.push(name);
+    }
+  }
+  return names;
+})());
+const allowedMethods = new Set([...METHODS, ...MODULE_METHODS]);
 const forbidden = new Set(['__proto__', 'prototype', 'constructor', 'toJSON']);
 function failure(code, message) { return Object.assign(new Error(message), { code }); }
 function isRecord(value) {
@@ -93,4 +110,4 @@ function assertTrustedSender(event, contents, document = TRUSTED_DOCUMENT) {
 function publicError(error) {
   return { code: typeof error?.code === 'string' && /^[A-Z_]{1,64}$/.test(error.code) ? error.code : 'REQUEST_FAILED', message: typeof error?.message === 'string' ? error.message.slice(0, 512) : 'The desktop request failed.' };
 }
-module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, validateRequest, assertTrustedSender, publicError });
+module.exports = Object.freeze({ REQUEST_CHANNEL, STATUS_CHANNEL, TRUSTED_DOCUMENT, MAX_REQUEST_BYTES, METHODS, MODULE_METHODS, validateRequest, assertTrustedSender, publicError });

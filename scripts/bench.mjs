@@ -58,7 +58,7 @@ const startedAt = new Date().toISOString();
 // Bound simultaneous vault/KDF fixtures consistently with local qualification.
 // Each shard retains the ten-minute deadline and single-worker resource bound.
 // Run every test in each selected file; no case filters or skip patterns.
-const command = ['--test', '--test-reporter=tap', '--test-concurrency=1',
+const command = ['--experimental-vm-modules', '--test', '--test-reporter=tap', '--test-concurrency=1',
   ...(selectedFiles ?? [...(shard ? [`--test-shard=${shard.index}/${shard.total}`] : []), discoveryPattern])];
 const fullSuite = shard === null;
 const outcome = await new Promise((fulfill) => {

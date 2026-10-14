@@ -34,6 +34,33 @@ const refusalCodes = new Set([
   'INVALID_JOB_ACCEPTANCE_REFERENCE', 'PREVIEW_CHANGED', 'JOB_EVIDENCE_REVOKED',
   'INVALID_REQUEST', 'REQUEST_TOO_LARGE', 'UNTRUSTED_SENDER', 'REQUEST_FAILED',
 ]);
+// Engine-module refusal codes that may reach the screen. Each lane appends codes only to its own line.
+const laneRefusals = [
+  ['UNKNOWN_METHOD', 'INVALID_REQUEST', 'METHOD_UNAVAILABLE', 'OPEN_DESKTOP', 'DEMO_EXTERNAL_DISABLED'],
+
+  /* frame-today */ [],
+
+  /* ask */ [],
+
+  /* work-books */ [],
+
+  /* reports-tools-trust */ [],
+
+  /* connectors-ext */ [],
+
+  /* writeback */ [],
+
+  /* jobs-ext */ [],
+
+  /* learning-ext */ [],
+
+  /* hosted-link */ [],
+
+  /* release */ [],
+
+  /* models-ext */ [],
+];
+for (const codes of laneRefusals) for (const code of codes) refusalCodes.add(code);
 function fields(value, keys) {
   if (value === null || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return null;
   const names = Reflect.ownKeys(value);
