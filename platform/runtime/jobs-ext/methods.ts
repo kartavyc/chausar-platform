@@ -125,7 +125,7 @@ export const jobsMethods: Record<string, MethodSpec> = {
     const mine = new Set(jobsOf(host).list(ctx).map(job => job.id));
     if (p.id !== undefined) { const { job } = owned(host, ctx, p.id); return ns.timeline.filter(t => t.jobId === job.id).slice(-500).reverse(); }
     check(typeof p.recordId === 'string' && p.recordId.length > 0 && p.recordId.length <= 200, 'INVALID_REQUEST', 'Name a job or a business record.');
-    return ns.timeline.filter(t => mine.has(t.jobId) && (t.recordIds?.includes(p.recordId) || t.caseId?.split('|')[0] === p.recordId)).slice(-500).reverse();
+    return ns.timeline.filter(t => mine.has(t.jobId) && (t.recordIds?.includes(p.recordId) || t.caseId?.split(':')[0] === p.recordId)).slice(-500).reverse();
   } },
   'jobsx.result': { permission: 'read', handler: (ctx, p, host) => { const { job } = owned(host, ctx, p.id); return resultFor(host, job, peekLane(host.store.read())); } },
   'jobsx.accept': { permission: 'approve', handler: async (ctx, p, host) => {

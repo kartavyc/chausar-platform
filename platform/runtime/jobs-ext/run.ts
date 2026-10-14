@@ -26,6 +26,8 @@ export const WORKER = 'jobsx-worker';
 export const LEASE_MS = 300_000;
 export const CONFIDENT = 0.8;
 const AGENT_MAX_UNITS = 2_000;
+/** The most model units one agent call may use; its cost is reserved before the call. */
+const maxUnits = (host: ModuleHost) => Number.isSafeInteger(host.options.agentMaxUnits) && (host.options.agentMaxUnits as number) > 0 && (host.options.agentMaxUnits as number) <= 1_000_000 ? host.options.agentMaxUnits as number : AGENT_MAX_UNITS;
 const NETWORK_RETRY_MS = 300_000;
 
 type LeaseRef = { token: string; workerId: string; fence: number };
@@ -38,10 +40,10 @@ function entry(jobId: string, run: number, at: string, partial: Omit<TimelineEnt
   return { id: newId('jobsx_line'), jobId, run, at, ...partial };
 }
 
-/** The installed full agent, when one exists and may be used now. Never available in demo mode. */
+/** The installed full agent, when one exists and may be used now. Demo mode accepts only a synthetic (fake) agent. */
 export function agentOf(host: ModuleHost): AgentPort | undefined {
   const agent = host.options.agent as AgentPort | undefined;
-  if (host.demo || !agent || typeof agent.decide !== 'function' || typeof agent.routeId !== 'string') return undefined;
+  if ((host.demo && agent?.synthetic !== true) || !agent || typeof agent.decide !== 'function' || typeof agent.routeId !== 'string') return undefined;
   return agent;
 }
 const networkUp = (host: ModuleHost) => typeof host.options.networkAvailable === 'function' ? (host.options.networkAvailable as () => boolean)() === true : true;
@@ -49,7 +51,7 @@ const networkUp = (host: ModuleHost) => typeof host.options.networkAvailable ===
 /** Model text is quoted, never obeyed, and a figure without a receipt is withheld (the number guard). */
 export function guardNote(note: unknown): string {
   if (typeof note !== 'string' || !note.trim()) return '';
-  const sentences = note.replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]?/g)?.slice(0, 3).join(' ').trim().slice(0, 600) ?? '';
+  const sentences = note.replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]?/g)?.slice(0, 3).map(part => part.trim()).join(' ').trim().slice(0, 600) ?? '';
   return /\d/.test(sentences) ? 'The agent’s note held figures without a receipt, so it was withheld.' : sentences;
 }
 
@@ -59,6 +61,9 @@ type StepWork = {
   stop?: { rule: 'budget' | 'untested-route' | 'needs-another-part'; reason: string; leftUndone: string[] };
   waitingNetwork?: boolean; goalMet?: boolean;
 };
+
+/** Each calculation and decision appears once in a trace, whoever reported it. */
+function addStep(trace: TraceStep[], step: TraceStep) { if (step.kind === 'action' || !trace.some(t => t.tool === step.tool)) trace.push(step); }
 
 class Meter {
   readonly host: ModuleHost; readonly ctx: Context; readonly job: Job; readonly lease: LeaseRef;
@@ -83,16 +88,17 @@ async function askAgent(host: ModuleHost, meter: Meter, job: Job, item: WorkCase
   if (!networkUp(host)) return { kind: 'network' as const };
   if (!job.testedRoutes?.includes(agent.routeId)) return { kind: 'untested' as const, routeId: agent.routeId };
   const price = await routePrice(host, agent.routeId);
-  if (costOf(price, AGENT_MAX_UNITS) > meter.remaining()) return { kind: 'budget' as const };
+  const limit = maxUnits(host);
+  if (costOf(price, limit) > meter.remaining()) return { kind: 'budget' as const };
   const started = Date.now(); const controller = new AbortController();
   const answer = await agent.decide(structuredClone(item), options, controller.signal);
-  const units = Number.isSafeInteger(answer?.units) && answer.units >= 0 && answer.units <= AGENT_MAX_UNITS ? answer.units : AGENT_MAX_UNITS;
+  const units = Number.isSafeInteger(answer?.units) && answer.units >= 0 && answer.units <= limit ? answer.units : limit;
   const cost = costOf(price, units); await meter.charge(cost);
   const decision = options.includes(answer?.decision) ? answer.decision : undefined;
   const confidence = typeof answer?.confidence === 'number' && answer.confidence >= 0 && answer.confidence <= 1 ? answer.confidence : 0;
   const steps: TraceStep[] = (Array.isArray(answer?.steps) ? answer.steps : []).slice(0, 50).filter((step: any) => step && ['calculate', 'question', 'action', 'lookup', 'person'].includes(step.kind) && typeof step.tool === 'string' && /^[a-z][a-z0-9_.-]{0,80}$/.test(step.tool))
     .map((step: any) => ({ kind: step.kind, tool: step.tool, outcome: ['ok', 'refused', 'unknown'].includes(step.outcome) ? step.outcome : 'unknown', durationMs: Number.isSafeInteger(step.durationMs) && step.durationMs >= 0 ? step.durationMs : 0, units: Number.isSafeInteger(step.units) && step.units >= 0 ? step.units : 0 }));
-  return { kind: 'answered' as const, decision, confidence, steps, cost, estimate: price.basis === 'estimate', routeId: agent.routeId, latencyMs: Math.max(0, Date.now() - started), note: guardNote(answer?.note), proposeJob: typeof (answer as any)?.proposeJob === 'string' ? (answer as any).proposeJob as string : undefined };
+  return { kind: 'answered' as const, decision, confidence, steps, cost, estimate: price.basis === 'estimate', routeId: agent.routeId, latencyMs: Math.max(0, Date.now() - started), note: guardNote(answer?.note), proposeJob: typeof answer?.proposeJob === 'string' ? answer.proposeJob : undefined };
 }
 
 async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: LaneJob, meter: Meter, run: number): Promise<StepWork> {
@@ -103,11 +109,15 @@ async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: L
   if (unusable) work.open.push(`${unusable} invoice rows have no usable invoice, customer or due-date reference and were left out.`);
   const proc = approvedProcedure(host.store.read(), meta.template, job.ownerId);
   for (let index = 0; index < cases.length; index++) {
-    const item: InvoiceCase = cases[index]; const caseId = `${item.invoiceId}|${item.customerId}`;
+    const item: InvoiceCase = cases[index]; const caseId = `${item.invoiceId}:${item.customerId}`;
     const ns = peekLane(host.store.read()); const prior = meta.cases[caseId];
     const base: CaseOutcome = { caseId, recordIds: [item.factId], handledBy: 'ready-made', status: 'done', actionIds: prior?.actionIds ?? [], receiptIds: [receipt.id], costMinor: '0', durationMs: 0 };
     if (BigInt(item.outstandingMinor) === 0n) {
-      if (prior && prior.status !== 'paid') work.cases.push({ ...base, status: 'paid', decision: 'paid', reason: 'paid' });
+      if (prior && prior.status !== 'paid') {
+        work.cases.push({ ...base, status: 'paid', decision: 'paid', reason: 'paid' });
+        // Sent is not paid: the payment is its own entry, read from the books on its own date.
+        await host.store.update(state => pushTimeline(lane(state), entry(job.id, run, at, { kind: 'paid', text: `Invoice ${item.invoiceId} is paid in your books. The reminder and the payment are two separate entries.`, recordIds: [item.factId], receiptIds: [receipt.id], caseId })));
+      }
       continue;
     }
     const consent = await consentFor(host, ns.consent, item.customerId, 'mail');
@@ -134,7 +144,7 @@ async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: L
           if (agent.kind === 'network') { work.waitingNetwork = true; work.cases.push({ ...base, status: 'waiting-network', reason: 'needs-model', handledBy: 'agent' }); continue; }
           if (agent.kind === 'answered') {
             handledBy = 'agent'; traceRoute = 'agent'; tainted = true; agentCost = agent.cost; latencyMs = agent.latencyMs; note = agent.note; routeId = agent.routeId; estimate = agent.estimate;
-            trace = [...trace, ...agent.steps]; confidence = agent.confidence;
+            for (const step of agent.steps) addStep(trace, step); confidence = agent.confidence;
             decision = agent.decision && agent.confidence >= CONFIDENT ? agent.decision : 'ask-owner';
             if (agent.proposeJob) await proposeFromJob(host, ctx, job, agent.proposeJob);
           } else { decision = 'ask-owner'; traceRoute = 'agent-unavailable'; }
@@ -153,13 +163,14 @@ async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: L
         // Anything an agent touched is marked as read from outside: its send always waits for a person.
         const prepared = await prepareReminder(host, tainted ? { ...ctx, sourceTainted: true } : ctx, { invoiceId: item.invoiceId, customerId: item.customerId, text: reminderText(item.invoiceId), channel: 'mail', idempotencyKey: `jobsx-${job.id}-${item.invoiceId}-${today}`, sourceIds: [item.sourceId] });
         outcome.actionIds = [...new Set([...outcome.actionIds, prepared.actionId])]; outcome.reason = prepared.via;
-        trace.push({ kind: 'question', tool: 'question.decision', outcome: 'ok', durationMs: 0, units: 0 }, { kind: 'action', tool: prepared.via === 'writeback' ? 'action.writeback.payment-reminder' : 'action.local.reminder-draft', outcome: 'ok', durationMs: 0, units: 0 });
+        addStep(trace, { kind: 'question', tool: 'question.decision', outcome: 'ok', durationMs: 0, units: 0 }); trace.push({ kind: 'action', tool: prepared.via === 'writeback' ? 'action.writeback.payment-reminder' : 'action.local.reminder-draft', outcome: 'ok', durationMs: 0, units: 0 });
         lines.push(entry(job.id, run, at, { kind: 'step', stepKind: 'action', needsModel: false, text: prepared.via === 'writeback' ? 'Prepared a reminder. It waits for your yes before it is sent.' : 'Prepared a reminder draft. Nothing is sent from a draft.', recordIds: [item.factId], actionIds: [prepared.actionId], receiptIds: [receipt.id], caseId }));
       }
-    } else if (decision === 'ask-owner') { outcome.status = 'waiting-for-you'; trace.push({ kind: 'question', tool: 'question.decision', outcome: 'ok', durationMs: 0, units: 0 }); }
+    } else if (decision === 'ask-owner') { outcome.status = 'waiting-for-you'; addStep(trace, { kind: 'question', tool: 'question.decision', outcome: 'ok', durationMs: 0, units: 0 }); }
     else if (decision === 'stop') { outcome.status = 'done'; outcome.reason = 'stopped-by-you'; }
     else if (decision === 'call') { outcome.status = 'waiting-for-you'; outcome.reason = 'call-the-customer'; }
-    else { outcome.status = fields.daysOverdue as number <= 0 ? 'not-due' : 'done'; trace.push({ kind: 'question', tool: 'question.decision', outcome: 'ok', durationMs: 0, units: 0 }); }
+    else if (['no-agreement', 'stopped-by-customer'].includes(reason) && handledBy === 'ready-made') { outcome.status = 'blocked'; outcome.reason = reason; addStep(trace, { kind: 'question', tool: 'question.decision', outcome: 'ok', durationMs: 0, units: 0 }); }
+    else { outcome.status = fields.daysOverdue as number <= 0 ? 'not-due' : 'done'; addStep(trace, { kind: 'question', tool: 'question.decision', outcome: 'ok', durationMs: 0, units: 0 }); }
     if (routeId) lines.unshift(entry(job.id, run, at, { kind: 'step', stepKind: 'lookup', needsModel: true, routeId, costMinor: String(agentCost), costEstimate: estimate, durationMs: latencyMs, text: 'The agent looked at a case the rule was not sure of.', recordIds: [item.factId], caseId }));
     await host.store.update(state => {
       const ns = lane(state);
@@ -316,7 +327,7 @@ function recordMissed(ns: JobsExtState, jobId: string, at: string, missed: numbe
 }
 
 function leftUndone(meta: LaneJob): string[] {
-  return Object.values(meta.cases).filter(c => !['done', 'paid', 'not-due'].includes(c.status)).map(c => `Case ${c.caseId.split('|')[0]}`);
+  return Object.values(meta.cases).filter(c => !['done', 'paid', 'not-due'].includes(c.status)).map(c => `Case ${c.caseId.split(':')[0]}`);
 }
 
 async function finishStep(ctx: Context, host: ModuleHost, job: Job, tpl: JobTemplate, lease: LeaseRef, run: number, work: StepWork): Promise<RunReport> {

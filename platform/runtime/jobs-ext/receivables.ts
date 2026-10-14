@@ -14,7 +14,7 @@ export type ReceiptLike = {
 
 export type InvoiceCase = { invoiceId: string; customerId: string; factId: string; sourceId: string; outstandingMinor: string; billedMinor: string; dueDate: string; daysOverdue: number };
 
-const REFERENCE = /^[A-Za-z0-9._\/-]{1,64}$/;
+const REFERENCE = /^[A-Za-z0-9._-]{1,64}$/;
 
 /** Outstanding per invoice from the aging receipt's rows. Invoices without a usable reference are left out and counted. */
 export function invoiceCases(receipt: ReceiptLike, onDate: string): { cases: InvoiceCase[]; unusable: number } {

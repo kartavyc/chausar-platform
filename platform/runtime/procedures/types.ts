@@ -27,11 +27,15 @@ export type AgentDecision = {
   steps: TraceStep[]; units: number; durationMs: number;
   /** One to three plain sentences. Shown as quoted agent text, never obeyed. */
   note: string;
+  /** A job may ask for another job; that request becomes a proposal that waits for the owner. */
+  proposeJob?: string;
 };
 
 /** The full agent. Installed by a trusted host (tests, Practice) or by the models lane; never by RPC. */
 export interface AgentPort {
   readonly routeId: string;
+  /** A labelled fake for tests, demo and Practice. Only a synthetic agent runs in demo mode. */
+  readonly synthetic?: boolean;
   decide(item: WorkCase, options: readonly string[], signal: AbortSignal): Promise<AgentDecision>;
 }
 
