@@ -32,14 +32,14 @@ All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that rea
 
 | Item | Where | Label |
 |---|---|---|
-| Release build configs (NSIS, dmg + zip, AppImage) | `app/desktop/builder.json`, `entitlements.mac.plist` | **experimental** (never packaged here) |
+| Release build configs (NSIS, dmg + zip, AppImage + tar.gz) | `app/desktop/builder.json`, `builder.preview.json`, `entitlements.mac.plist` | **experimental** (Linux preview AppImage and tar.gz built here; Windows and macOS never packaged) |
 | Windows signing through a cloud key service (DigiCert KeyLocker or SSL.com eSigner) | `scripts/release/windows-sign.cjs` | **experimental** (needs the certificate) |
 | macOS signing and notarization | `builder.json`, `release.yml` | **experimental** (needs an Apple account) |
 | Release CI with checksums | `.github/workflows/release.yml`, `ci.yml` job `release-config`, `scripts/release/checksums.ts`, `sign-update-manifest.ts` | **experimental** (never run on GitHub) |
-| Runtime-binary staging with checksum inventory | `scripts/release/stage-runtime.ts`, `runtime-sources.json` | **supported** (synthetic archives; the real pins are not filled in) |
-| Bundled PostgreSQL lifecycle: initdb, start, stop, port, crash recovery, upgrade | `platform/runtime/native/postgres-lifecycle.ts` | **experimental** (fake runner only; no real binaries here) |
+| Runtime-binary staging with checksum inventory | `scripts/release/stage-runtime.ts`, `runtime-sources.json` | **supported** (Linux x64 pinned and staged from the real archives; other targets unpinned) |
+| Bundled PostgreSQL lifecycle: initdb, start, stop, port, crash recovery, upgrade | `platform/runtime/native/postgres-lifecycle.ts`, `desktop-database.ts` (wired into `main.cjs`) | **supported** (Linux x64, real PostgreSQL 17.6 and a 16 → 17 upgrade; other OSes experimental) |
 | Signed update channel, staged rollout, kill switch | `platform/runtime/native/update-channel.ts`, `update-feed-client.ts` | **supported** |
-| Staging, atomic swap, trial launch, automatic and manual rollback | `update-install.ts`, `update-service.ts` | **supported** (zip, tar.gz, AppImage; native installers refuse) |
+| Staging, atomic swap, trial launch, automatic and manual rollback | `update-install.ts`, `update-service.ts`, `update-zip.ts`, `update-launch.ts`, `scripts/release/launcher/chausar-launcher.sh` | **supported** (Linux, run with the real built app through the launcher; native installers refuse) |
 | Expiry on preview builds | `update-expiry.ts` | **supported** |
 | Vault copy before a schema change; older app refuses a newer vault | `update-data-guard.ts`, `release.applyUpdate` | **supported** |
 | Native keychain providers (Windows Credential Manager/DPAPI, macOS Keychain, libsecret) | existing `platform/native/keychain` helper and `PlatformKeychain`; status in `native/keychain-status.ts`; manifest writer `scripts/release/keychain-manifest.ts` | **experimental** (not run against a real OS store) |
@@ -47,8 +47,8 @@ All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that rea
 | Public releases page generator | `scripts/release/releases-page.ts`, `releases.json` | **supported** |
 | Supported and experimental lists generator | `scripts/release/feature-lists.ts`, `supported-evidence.json` | **supported** |
 | Clean public copy with allowlist, scan and licence tags | `scripts/release/public-copy.ts`, `public-allowlist.json` | **supported** (dry run; publishing waits for the licence) |
-| Enterprise server: HTTPS, OIDC, roles, branch scope, browser UI | `enterprise/server/` | **experimental** (tested with a fake identity provider; never deployed) |
-| Enterprise Docker image and compose file | `enterprise/server/Dockerfile`, `compose.yaml` | **experimental** (never built) |
+| Enterprise server: HTTPS, OIDC, roles, branch scope, browser UI, sessions in PostgreSQL, remote PostgreSQL over TLS | `enterprise/server/` | **experimental** (real PostgreSQL over TLS and a fake identity provider; never deployed) |
+| Enterprise Docker image and compose file | `enterprise/server/Dockerfile`, `compose.yaml` | **experimental** (built and smoke-tested here, 17 of 17; never pushed or deployed) |
 
 ## How to use the scripts
 
@@ -70,18 +70,18 @@ All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that rea
 | `MAC_SIGNING_IDENTITY_MISSING` | An Apple Developer ID certificate and notarization credentials. |
 | `RELEASE_KEY_UNCONFIGURED`, `UPDATES_UNAVAILABLE` | The Ed25519 release key pair; the public half is pinned into the app. |
 | `UPDATE_FEED_NOT_CONFIGURED` | A public update feed URL (hosting is a deployment). |
-| `RUNTIME_SOURCE_UNPINNED`, `RUNTIME_SOURCE_UNAVAILABLE` | SHA-256 pins for the PostgreSQL and Python archives; a PostgreSQL build for Windows on Arm. |
+| `RUNTIME_SOURCE_UNPINNED`, `RUNTIME_SOURCE_UNAVAILABLE` | SHA-256 pins for the Windows and macOS PostgreSQL and Python archives (Linux x64 is pinned); a PostgreSQL build for Windows on Arm. |
 | `LICENCE_UNDECIDED` | The licence choice before the public copy is published. |
 
 ## Still missing
 
-- Nothing has run on a real Windows, macOS or Linux machine: no installer, keychain store, service manager, PostgreSQL binary or power-loss test.
-- Desktop wiring: the module reads its trusted options from the engine worker's own environment (`CHAUSAR_UPDATE_PUBLIC_KEY`, `CHAUSAR_UPDATE_FEED_URL`, `CHAUSAR_KEYCHAIN_MANIFEST` → resources path, `CHAUSAR_APP_EXECUTABLE` or the packaged Electron executable) and the package's `chausarReleaseChannel`/`chausarPreviewExpiresAt` (stamped by `scripts/desktop-package.mjs`, 90 days). `app/desktop/main.cjs` (frame-today) still starts PostgreSQL through `scripts/postgres-runtime.mjs`; `native.databaseStatus` reads the same `userData/database` cluster, but switching the start-up to `BundledPostgres` (crash recovery and upgrade at launch) is a merge step in `main.cjs`. Nothing calls `resolveLaunch` before start yet: the in-place swap needs a small launcher stub in front of `versions/<version>/`, which is not built, so the automatic trial rollback is tested but not reachable from an installed app.
-- The enterprise server needs a core change to reach a PostgreSQL on another host with TLS (`postgres.ts` accepts loopback only); sessions are in memory, so one process only; keychain unlock does not work in a container.
-- `scripts/check.mjs` skips folders named `release`, so `scripts/release/*` is syntax-checked only through the tests and typecheck.
-- Zip artifacts on Linux need an unpacker other than GNU tar.
-- The public-copy dry run finds 5 email hits (one npm author's public address in `package-lock.json`) and 3 private-detail markers in `platform/runtime/invoice-follow-up.md` (another lane's file).
-- Electron-builder may drop `runtime-binaries/.gitignore` when packaging, so the packaged copy can differ from its inventory by that one file; nothing checks the installed copy today.
+- Nothing has run on Windows or macOS: no installer, signing, keychain store, service manager or launcher there. On Linux nothing ran with Chromium's sandbox on, under FUSE, or through a power cut (only `kill -9`).
+- `scripts/desktop-package.mjs` refuses to package because `package-lock.json` (core) resolves `@electron/node-gyp` over `git+ssh://`; the Linux artifacts were built with the same electron-builder command run directly.
+- The theseus-rs Linux PostgreSQL build links system libraries it does not ship (OpenSSL, libxml2, zstd, lz4, GSSAPI, zlib; glibc 2.34+). No relocatable PostgreSQL 16 archive is pinned for the upgrade's old runtime. Ending orphaned backends after a crash is Linux-only.
+- The enterprise engine is still one writer per workspace: several HTTPS front ends share sessions in PostgreSQL, but not two engines. The identity map stays on that engine's disk; keychain unlock does not work in a container; private token search still needs a loopback database.
+- Updates cannot be served from GitHub release-download URLs, which always redirect; the feed and artifacts need a host that serves them directly.
+- The public-copy dry run finds 5 email hits (one npm author's public address in `package-lock.json`, left for the founder) and 3 private-detail markers in `platform/runtime/invoice-follow-up.md` (another lane's file).
+- The Windows launcher is documented, not built.
 
 ## Full suite
 
