@@ -3,8 +3,9 @@
  * A month is loaded only when an accepted import holds facts dated in it, refused when the
  * only attempts that month were refused, and otherwise "not loaded yet" — never a zero.
  */
-import { authorize, check, type Context, type Fact, type State } from '../contracts.ts';
+import { authorize, check, type Context, type Fact, type State, type StateStore } from '../contracts.ts';
 import { parseCsv } from '../ingest.ts';
+import { canSeeFact } from '../memory.ts';
 import { sourceAllowed } from '../trust.ts';
 import type { MethodSpec } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
@@ -28,8 +29,19 @@ export function monthsEnding(end: string): string[] {
   return out;
 }
 const validMonth = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
-export function visibleSourceIds(state: State, ctx: Context): string[] {
-  return [...new Set([...state.imports.map(i => i?.sourceId), ...refusals(state).map(r => r.sourceId)].filter((id): id is string => typeof id === 'string' && sourceAllowed(state, ctx, id)))].sort();
+/**
+ * Core's source rule (engine visibleImports, actions sourceAccess): a source is visible only
+ * when the source is allowed and every fact it holds is visible to the caller (branch and
+ * source). A source that holds facts in a branch outside the caller's access is hidden whole,
+ * so its retained content is never parsed for that caller.
+ */
+export function sourceVisible(store: StateStore, ctx: Context, sourceId: string): boolean {
+  const state = store.read();
+  return sourceAllowed(state, ctx, sourceId) && state.facts.every(f => f.sourceId !== sourceId || canSeeFact(store, ctx, f));
+}
+export function visibleSourceIds(store: StateStore, ctx: Context): string[] {
+  const state = store.read();
+  return [...new Set([...state.imports.map(i => i?.sourceId), ...refusals(state).map(r => r.sourceId)].filter((id): id is string => typeof id === 'string'))].filter(id => sourceVisible(store, ctx, id)).sort();
 }
 const liveFacts = (state: State, sourceId: string) => state.facts.filter(f => f.sourceId === sourceId && !f.deletedAt);
 function sourceRow(state: State, sourceId: string, months: string[]): SourceRow {
@@ -59,8 +71,8 @@ function fieldShape(values: string[]): { type: FieldType; filled: number } {
     : filled.every(v => /^[-+]?[\d,]+(\.\d+)?$/.test(v.trim())) ? 'number' : 'text';
   return { type, filled: filled.length };
 }
-export function unmappedFields(state: State, ctx: Context) {
-  const sources = visibleSourceIds(state, ctx); const fields = new Map<string, { sourceIds: Set<string>; type: FieldType; filled: { rows: number; of: number } | null }>();
+export function unmappedFields(store: StateStore, ctx: Context) {
+  const state = store.read(); const sources = visibleSourceIds(store, ctx); const fields = new Map<string, { sourceIds: Set<string>; type: FieldType; filled: { rows: number; of: number } | null }>();
   for (const record of state.imports.filter(i => sources.includes(i.sourceId))) {
     const names: string[] = Array.isArray(record.unmappedFields) ? record.unmappedFields.filter((f: unknown) => typeof f === 'string') : [];
     if (!names.length) continue;
@@ -79,13 +91,13 @@ export function unmappedFields(state: State, ctx: Context) {
 export const sourceMethods: Record<string, MethodSpec> = {
   'books.sources': { permission: 'read', async handler(ctx, payload, host) {
     const request = input(payload, ['endMonth']); check(request.endMonth === undefined || validMonth(request.endMonth), 'INVALID_BOOKS_REQUEST', 'Give the last month as YYYY-MM.');
-    const state = host.store.read(); const ids = visibleSourceIds(state, ctx); const months = monthsEnding(request.endMonth ?? defaultEnd(state, ids));
+    const state = host.store.read(); const ids = visibleSourceIds(host.store, ctx); const months = monthsEnding(request.endMonth ?? defaultEnd(state, ids));
     const freshness = await optionalCall(host, 'connectorsx.freshness', {});
-    return { rows: ids.map(id => sourceRow(state, id, months)), unmappedFields: unmappedFields(state, ctx).length, freshness: { available: freshness.available } };
+    return { rows: ids.map(id => sourceRow(state, id, months)), unmappedFields: unmappedFields(host.store, ctx).length, freshness: { available: freshness.available } };
   } },
   'books.source': { permission: 'read', handler(ctx, payload, host) {
     const { sourceId } = input(payload, ['sourceId'], ['sourceId']); check(plainId(sourceId), 'INVALID_BOOKS_REQUEST', 'Name the source.');
-    const state = host.store.read(); check(visibleSourceIds(state, ctx).includes(sourceId), 'SOURCE_NOT_FOUND', 'This source is not available to you.');
+    const state = host.store.read(); check(visibleSourceIds(host.store, ctx).includes(sourceId), 'SOURCE_NOT_FOUND', 'This source is not available to you.');
     const imports = state.imports.filter(i => i.sourceId === sourceId).sort((a, b) => String(a.at).localeCompare(String(b.at)));
     const kinds = new Map<string, Set<string>>(); for (const f of liveFacts(state, sourceId) as Fact[]) kinds.set(f.kind, (kinds.get(f.kind) ?? new Set()).add(f.entityId));
     return { row: sourceRow(state, sourceId, monthsEnding(defaultEnd(state, [sourceId]))),
@@ -94,5 +106,5 @@ export const sourceMethods: Record<string, MethodSpec> = {
       kinds: [...kinds.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, rows]) => ({ kind, rows: rows.size })),
       unmappedFields: [...new Set(imports.flatMap(i => Array.isArray(i.unmappedFields) ? i.unmappedFields : []))].sort() };
   } },
-  'books.unmapped': { permission: 'read', handler(ctx, payload, host) { input(payload, []); authorize(host.store, ctx); return { fields: unmappedFields(host.store.read(), ctx) }; } },
+  'books.unmapped': { permission: 'read', handler(ctx, payload, host) { input(payload, []); authorize(host.store, ctx); return { fields: unmappedFields(host.store, ctx) }; } },
 };

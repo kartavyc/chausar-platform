@@ -62,7 +62,7 @@ export const historyMethods: Record<string, MethodSpec> = {
     const quick = await calculator(host).calculate(ctx, request);
     const full = await new CalculatorService(scratchStore(host.store.read())).calculate(ctx, { ...request, asOf: quick.asOf });
     const rebuild: Rebuild = { answerId: answer.id, at: now(), matches: BigInt(quick.valueMinor) === BigInt(full.valueMinor) && quick.coverage.countedRows === full.coverage.countedRows,
-      quick: amountOf(quick.valueMinor), full: amountOf(full.valueMinor), quickReceiptId: quick.id, fullReceiptId: full.id };
+      quick: valueOf(quick), full: valueOf(full), quickReceiptId: quick.id, fullReceiptId: full.id };
     await writeBooks(host.store, ctx, 'prepare', books => { books.rebuilds.push(rebuild); });
     return staleRow(host.store.read().answers.find(a => a.id === answer.id) ?? answer, rebuild);
   } },

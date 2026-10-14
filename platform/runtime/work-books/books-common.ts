@@ -16,7 +16,9 @@ export type Draft = { id: string; name: string; author: string; createdAt: strin
   reviews: { kind: 'cosign' | 'ai-opinion'; by: string; role: string; at: string }[];
   checks: { ok: boolean; code: string | null }; digest: string };
 /** Private bookkeeping for a draft, kept apart so `drafts` matches the contract's Draft exactly. */
-export type DraftMeta = { draftId: string; authorId: string; baseHash: string; cosignerIds: string[]; publishedVersion: number | null };
+export type DraftMeta = { draftId: string; authorId: string; baseHash: string; cosignerIds: string[]; publishedVersion: number | null;
+  /** Set while a release of this draft is under way; the draft then cannot be discarded, replaced or co-signed. */
+  publishing?: { by: string; at: string } | null };
 export type MemoryKind = 'preference' | 'claim' | 'conversation' | 'working-context';
 export type MemoryRecord = { id: string; text: string | null; kind: MemoryKind; status: 'told-by-owner' | 'assumed' | 'corrected' | 'proposed';
   source: 'told-by-owner' | 'computed' | 'outside-content'; receiptId: string | null; learnedAt: string; confirmedAt: string | null;
