@@ -86,6 +86,11 @@ Purge: deleting or revoking a source removes the decisions, account sets, saved 
   - The lane module registers the dictionary layers when it loads, so `engine.ts` is unchanged.
 - `platform/tests/acceptance.test.ts` and `platform/tests/mcp-receipt-public-acceptance.test.ts`: their exact MCP tool-name lists now include the three dictionary tools.
 - `app/desktop/preload.cjs`: the lane's own `laneRefusals` line.
+- `platform/runtime/connectors-ext/service.ts` (connectors-ext is closed; a few calls into `learning-ext/connectors-bridge.ts`):
+  - `connectorsx.importPreview` consults the recipe library first (ladder step 1). It ranks the library's similar past setups and the registered connector recipes for the same input against the file's column names, and returns them as a new `library` field: `suggestions` (top three with score, origin and passed-tests flag), `chosen` (the picked recipe's rank and score) and `agrees`. A reconciled import made by a connector recipe is scored by that recipe's headings.
+  - In the same transaction as the envelope, following the top suggestion logs mapping/proposed (`library-match`); picking another recipe logs mapping/corrected (`owner-override`).
+  - `connectorsx.importCommit` logs mapping/accepted (`library-match` when the preview followed the library, otherwise `reconciliation`), and `connectorsx.discard` of a waiting import logs mapping/rejected, each in the transaction that changes the envelope.
+  - Events carry the system family (connector group mapped to `SYSTEMS`, else `other`), the report shape and the canonical output fields only, with the source id and envelope (and import) id as references, so source deletion purges them. Logging is best effort and never changes a connectors-ext result or refusal.
 
 ## Installed app wiring
 
