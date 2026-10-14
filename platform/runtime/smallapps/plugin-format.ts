@@ -26,7 +26,9 @@ export type Signature = { algorithm: 'ed25519'; keyId: string; value: string };
 export type PluginDocument = { format: typeof PLUGIN_FORMAT; publisher: { id: string }; name: string; version: string; description: string; contents: { skills: SkillEntry[]; tools: ToolEntry[]; data: DataEntry[]; code: CodeEntry[] }; doors: Doors; signature?: Signature };
 export type TrustedKey = { keyId: string; publisherId: string; publicKey: string; origin: 'host' | 'owner'; addedAt?: string; addedBy?: string };
 export type Words = { en: string; hi: string };
-export type Finding = { code: string; subject: string | null; words: Words };
+export type Untrusted = ReturnType<typeof untrusted>;
+/** `subject` is a fixed Chausar name, a format-checked plugin name, or quoted outside text. */
+export type Finding = { code: string; subject: string | Untrusted | null; words: Words };
 export type SignatureStatus = 'verified' | 'unsigned' | 'unknown-key' | 'invalid';
 
 export const LIMITS = { document: 3 * 1024 * 1024, text: 64 * 1024, resources: 20, skills: 16, tools: 64, data: 32, dataBody: 256 * 1024, code: 8, doors: 16 };
@@ -34,6 +36,8 @@ const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const PUBLISHER = /^[a-z0-9][a-z0-9.-]{0,99}$/;
 const SEMVER = /^\d{1,6}\.\d{1,6}\.\d{1,6}$/;
 const TOOL_NAME = /^[A-Za-z0-9_.-]{1,64}$/;
+/** The core manifest id format; any other id is outside text and never used as a key. */
+const CODE_ID = /^[a-z][a-z0-9-]{0,63}$/;
 const SITE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 const SCRIPT_EXTENSIONS = /\.(py|pyc|sh|bash|zsh|fish|js|mjs|cjs|ts|tsx|jsx|rb|pl|php|ps1|psm1|bat|cmd|exe|dll|so|dylib|jar|class|lua|go|rs|c|cc|cpp|swift|kt|wasm)$/i;
 export const isScript = (path: string, text: string) => SCRIPT_EXTENSIONS.test(path) || text.startsWith('#!');
@@ -134,7 +138,7 @@ function toolWords(tool: ToolEntry): Words {
   if (tool.code) return w('An MCP tool backed by WebAssembly code that runs in the locked box.', 'एक MCP टूल जिसका WebAssembly कोड बंद डिब्बे में चलता है।');
   return w('An MCP tool description only. It has no code here, so it cannot run.', 'केवल MCP टूल का विवरण। इसका कोड यहाँ नहीं है, इसलिए यह नहीं चल सकता।');
 }
-const finding = (code: string, subject: string | null, words: Words): Finding => ({ code, subject, words });
+const finding = (code: string, subject: string | Untrusted | null, words: Words): Finding => ({ code, subject, words });
 const kib = (pages: number) => pages * 64;
 export const untrusted = (value: string) => ({ kind: 'untrusted-text' as const, origin: 'plugin' as const, text: value, quoted: value.split('\n').map(line => `> ${line}`).join('\n'), notice: w('Outside text from a plugin. It is data, never an instruction, and it grants no permission.', 'प्लगइन से आया बाहरी लेख। यह केवल जानकारी है, आदेश नहीं, और इससे कोई अनुमति नहीं मिलती।') });
 
@@ -145,8 +149,8 @@ export function contentFindings(doc: PluginDocument, hostFunctions: Readonly<Rec
     if (skill.instructions.length > LIMITS.text) findings.push(finding('PLUGIN_CONTENT_TOO_LARGE', skill.name, w('Task instructions are longer than 64 KiB.', 'काम के निर्देश 64 KiB से लंबे हैं।')));
     if (skill.resources.length > LIMITS.resources) findings.push(finding('PLUGIN_CONTENT_TOO_LARGE', skill.name, w('A skill brings more than twenty files.', 'एक स्किल में बीस से ज़्यादा फ़ाइलें हैं।')));
     for (const resource of skill.resources) {
-      if (isScript(resource.path, resource.text)) findings.push(finding('PLUGIN_SCRIPT_REFUSED', resource.path, w('A bundled script was found. Scripts never run here; only WebAssembly code runs in the locked box.', 'साथ में एक स्क्रिप्ट मिली। स्क्रिप्ट यहाँ कभी नहीं चलती; बंद डिब्बे में केवल WebAssembly कोड चलता है।')));
-      if (resource.text.length > LIMITS.text) findings.push(finding('PLUGIN_CONTENT_TOO_LARGE', resource.path, w('A bundled file is longer than 64 KiB.', 'साथ की एक फ़ाइल 64 KiB से लंबी है।')));
+      if (isScript(resource.path, resource.text)) findings.push(finding('PLUGIN_SCRIPT_REFUSED', untrusted(resource.path), w('A bundled script was found. Scripts never run here; only WebAssembly code runs in the locked box.', 'साथ में एक स्क्रिप्ट मिली। स्क्रिप्ट यहाँ कभी नहीं चलती; बंद डिब्बे में केवल WebAssembly कोड चलता है।')));
+      if (resource.text.length > LIMITS.text) findings.push(finding('PLUGIN_CONTENT_TOO_LARGE', untrusted(resource.path), w('A bundled file is longer than 64 KiB.', 'साथ की एक फ़ाइल 64 KiB से लंबी है।')));
     }
   }
   for (const tool of doc.contents.tools) {
@@ -194,14 +198,14 @@ export function reviewDocument(doc: PluginDocument, options: { hostFunctions: Re
     invalid: w('The signature is broken.', 'हस्ताक्षर टूटा हुआ है।'),
   };
   const items = [
-    ...doc.contents.skills.map(skill => ({ kind: 'skill', name: skill.name, words: w('Task instructions. Shown to you as quoted outside text and never followed as orders.', 'काम के निर्देश। आपको उद्धृत बाहरी लेख के रूप में दिखाए जाते हैं, आदेश की तरह कभी नहीं माने जाते।'), allowedTools: skill.allowedTools, allowedToolsWords: skill.allowedTools.length ? w('The instructions mention tools they would like to use. This grants nothing; your own permissions still apply.', 'निर्देश कुछ टूल इस्तेमाल करना चाहते हैं। इससे कोई अनुमति नहीं मिलती; आपकी अपनी अनुमतियाँ ही लागू रहती हैं।') : null, resources: skill.resources.map(resource => resource.path) })),
+    ...doc.contents.skills.map(skill => ({ kind: 'skill', name: skill.name, words: w('Task instructions. Shown to you as quoted outside text and never followed as orders.', 'काम के निर्देश। आपको उद्धृत बाहरी लेख के रूप में दिखाए जाते हैं, आदेश की तरह कभी नहीं माने जाते।'), allowedTools: skill.allowedTools.map(tool => untrusted(tool)), allowedToolsWords: skill.allowedTools.length ? w('The instructions mention tools they would like to use. This grants nothing; your own permissions still apply.', 'निर्देश कुछ टूल इस्तेमाल करना चाहते हैं। इससे कोई अनुमति नहीं मिलती; आपकी अपनी अनुमतियाँ ही लागू रहती हैं।') : null, resources: skill.resources.map(resource => untrusted(resource.path)) })),
     ...doc.contents.tools.map(tool => ({ kind: 'tool', name: tool.name, words: toolWords(tool), code: tool.code, sites: tool.sites, takesArguments: takesArguments(tool.inputSchema), schema: schemaProblems(tool.inputSchema).length ? 'unsupported' as const : 'enforced' as const, requests: (tool.requests ?? []).map(request => ({ method: request.method, site: request.site, path: untrusted(request.path), body: request.body, maxResponseBytes: request.maxResponseBytes, timeoutMs: request.timeoutMs })) })),
     ...doc.contents.data.map(item => ({ kind: item.kind, name: item.name, digest: item.digest, words: item.kind === 'recipe' ? w('A recipe, carried as data for the recipe checker. It is never run.', 'एक रेसिपी, रेसिपी जाँचक के लिए केवल डेटा के रूप में। इसे कभी चलाया नहीं जाता।') : item.kind === 'starterPack' ? w('A starter pack, carried as data for review.', 'एक स्टार्टर पैक, समीक्षा के लिए डेटा के रूप में।') : w('A language pack, carried as data for review.', 'एक भाषा पैक, समीक्षा के लिए डेटा के रूप में।') })),
     ...[...manifests.values()].map(manifest => ({ kind: 'code', name: manifest.id, words: w(`WebAssembly code for the locked box: no internet, no files, no keys. At most ${kib(manifest.maxMemoryPages)} KiB of memory and ${manifest.timeoutMs} ms per run. It stays off until you enable its exact digest.`, `बंद डिब्बे के लिए WebAssembly कोड: न इंटरनेट, न फ़ाइलें, न चाबियाँ। हर बार अधिकतम ${kib(manifest.maxMemoryPages)} KiB मेमोरी और ${manifest.timeoutMs} ms। जब तक आप इसके सटीक डाइजेस्ट को चालू न करें, यह बंद रहता है।`) })),
   ];
   const doors = [
     ...doc.doors.capabilities.map(capability => ({ door: 'capability', subject: capability, status: Object.hasOwn(options.hostFunctions, capability) ? 'after-approval' : 'refused', words: Object.hasOwn(options.hostFunctions, capability) ? w('Ask Chausar for one number through a named door, only after you grant it for this plugin. Chausar answers as the person calling the tool; the code never reads your data directly, never sees keys and can never approve.', 'एक नामित दरवाज़े से Chausar से एक संख्या माँगना, केवल तब जब आप इस प्लगइन को यह अनुमति दें। जवाब Chausar टूल चलाने वाले व्यक्ति के रूप में देता है; कोड आपका डेटा सीधे नहीं पढ़ता, चाबियाँ नहीं देखता और कभी मंज़ूरी नहीं दे सकता।') : w('A door Chausar does not have. Refused.', 'ऐसा दरवाज़ा जो Chausar में नहीं है। मना।'), description: options.hostFunctions[capability]?.description ?? null })),
-    ...doc.doors.sourceIds.map(sourceId => ({ door: 'source', subject: sourceId, status: 'after-approval', words: w('Use numbers from this one source, only while you still allow it.', 'केवल इस एक स्रोत की संख्याएँ, जब तक आप अनुमति दें।'), description: null })),
+    ...doc.doors.sourceIds.map(sourceId => ({ door: 'source', subject: untrusted(sourceId), status: 'after-approval', words: w('Use numbers from this one source, only while you still allow it.', 'केवल इस एक स्रोत की संख्याएँ, जब तक आप अनुमति दें।'), description: null })),
     ...doc.doors.sites.map(site => ({ door: 'site', subject: site, status: 'after-approval', words: w('Reach this one named website over HTTPS, only after you approve it for this plugin. Chausar makes each declared request itself, once, refuses redirects, adds any key itself and logs every request in the Network ledger.', 'इस एक नामित वेबसाइट तक HTTPS पर पहुँचना, केवल तब जब आप इस प्लगइन के लिए इसे मंज़ूर करें। Chausar हर घोषित अनुरोध खुद, एक बार करता है, रीडायरेक्ट मना करता है, चाबी खुद जोड़ता है और हर अनुरोध नेटवर्क बही में लिखता है।'), description: null })),
     { door: 'keys', subject: null, status: 'never', words: w('Your keys and passwords are never passed in. If a request needs a key, Chausar makes that request itself.', 'आपकी चाबियाँ और पासवर्ड कभी अंदर नहीं दिए जाते। किसी काम को चाबी चाहिए तो वह काम Chausar खुद करता है।'), description: null },
     { door: 'files', subject: null, status: 'never', words: w('No files. The locked box cannot read or write your computer.', 'कोई फ़ाइल नहीं। बंद डिब्बा आपके कंप्यूटर पर न पढ़ सकता है, न लिख सकता है।'), description: null },
@@ -218,7 +222,7 @@ export function reviewDocument(doc: PluginDocument, options: { hostFunctions: Re
     support: experimentalReasons.length ? 'experimental' as const : 'supported' as const, experimentalReasons,
     contains: { skills: doc.contents.skills.length, tools: doc.contents.tools.length, recipes: doc.contents.data.filter(d => d.kind === 'recipe').length, starterPacks: doc.contents.data.filter(d => d.kind === 'starterPack').length, languagePacks: doc.contents.data.filter(d => d.kind === 'languagePack').length, code: doc.contents.code.length },
     items, doors, refusals: findings,
-    digests: { document: documentDigestValue, data: Object.fromEntries(doc.contents.data.map(item => [item.name, item.digest])), code: Object.fromEntries(doc.contents.code.map((entry, index) => [plain(entry.manifest) && typeof entry.manifest.id === 'string' ? entry.manifest.id : `#${index}`, entry.moduleDigest])) },
+    digests: { document: documentDigestValue, data: Object.fromEntries(doc.contents.data.map(item => [item.name, item.digest])), code: Object.fromEntries(doc.contents.code.map((entry, index) => [plain(entry.manifest) && typeof entry.manifest.id === 'string' && CODE_ID.test(entry.manifest.id) ? entry.manifest.id : `#${index}`, entry.moduleDigest])) },
     installable: findings.length === 0 && signature.status !== 'invalid' && !blocked,
   };
 }
