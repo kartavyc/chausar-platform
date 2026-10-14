@@ -14,6 +14,8 @@ export function postgresFailure(error: unknown): ChausarError {
   if (code === '3D000') return new ChausarError('DB_DATABASE_UNKNOWN', 'The database does not exist on that server.');
   if (['ECONNREFUSED', 'ENOTFOUND', 'EHOSTUNREACH', 'ETIMEDOUT', 'ECONNRESET', 'EAI_AGAIN'].includes(code)) return new ChausarError('DB_CONNECT_FAILED', 'The database server could not be reached.');
   if (/^08/.test(code)) return new ChausarError('DB_CONNECT_FAILED', 'The database server could not be reached.');
+  // The driver's own time limits (connection and query read) carry no code; the message is matched, never passed on.
+  if (!code && /timeout|timed out/i.test(String((error as any)?.message ?? ''))) return new ChausarError('DB_TIMEOUT', 'The database read took longer than its time limit.');
   return new ChausarError('DB_QUERY_FAILED', 'The database refused the read query.');
 }
 
@@ -47,7 +49,11 @@ export async function withPostgresSnapshot<T>(connection: unknown, options: Plai
     try { return await client.query(sql, params); } catch (error) { throw postgresFailure(error); }
   };
   try {
-    try { await client.connect(); connected = true; } catch (error) { throw postgresFailure(error); }
+    try { await client.connect(); connected = true; } catch (error) {
+      const failure = postgresFailure(error);
+      // A connection that fails without a server code (closed, refused mid-handshake) is a connection failure, not a query failure.
+      throw failure.code === 'DB_QUERY_FAILED' ? new ChausarError('DB_CONNECT_FAILED', 'The database server could not be reached.') : failure;
+    }
     await query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY'); began = true;
     await query('SET TRANSACTION READ ONLY');
     await query(`SET LOCAL statement_timeout = ${Math.trunc(timeoutMs)}`);

@@ -212,7 +212,7 @@ export async function connectMysql(options: MysqlClientOptions): Promise<MysqlCl
       if (p[0] === 0x01 && plugin === 'caching_sha2_password') {
         if (p[1] === 0x03) continue; // fast auth succeeded; the OK packet follows
         if (p[1] === 0x04) {
-          check(tls, 'MYSQL_FULL_AUTH_REQUIRES_TLS', 'The database asks for the password itself, which is sent only over TLS.');
+          check(tls, 'MYSQL_FULL_AUTH_REQUIRES_TLS', 'The database asks for the password itself (it has no cached sign-in for this user, or the password does not match), and a password is sent only over TLS.');
           stream.write(seq++, Buffer.concat([Buffer.from(options.password, 'utf8'), Buffer.from([0])]));
           continue;
         }
@@ -284,11 +284,17 @@ function client(stream: PacketStream, tls: boolean, destroy: () => void): MysqlC
 export async function withMysqlSnapshot<T>(connection: unknown, options: PlainDbOptions, timeoutMs: number, run: (session: SnapshotSession) => Promise<T>): Promise<T> {
   const c = validateNetworkConnection(connection, 'mysql');
   const password = await resolvePassword(options, c.passwordRef);
-  const db = await connectMysql({ host: c.host, port: c.port, user: c.user, password, database: c.database, ssl: c.ssl, timeoutMs, createSocket: options.createMysqlSocket });
+  // The server's own statement limit fires first (and keeps the connection usable); the client's wait limit,
+  // a second later, covers a server that stops answering altogether.
+  const db = await connectMysql({ host: c.host, port: c.port, user: c.user, password, database: c.database, ssl: c.ssl, timeoutMs: timeoutMs + 1000, createSocket: options.createMysqlSocket });
   let began = false;
   try {
     await db.query(`SET SESSION time_zone = '+05:30'`);
-    try { await db.query(`SET SESSION max_execution_time = ${Math.trunc(timeoutMs)}`); } catch (error) { if ((error as ChausarError).code !== 'MYSQL_SERVER_ERROR') throw error; }
+    // MySQL: max_execution_time (milliseconds, SELECT only). MariaDB has no such variable: max_statement_time (seconds).
+    try { await db.query(`SET SESSION max_execution_time = ${Math.trunc(timeoutMs)}`); } catch (error) {
+      if ((error as ChausarError).code !== 'MYSQL_SERVER_ERROR') throw error;
+      try { await db.query(`SET SESSION max_statement_time = ${(Math.trunc(timeoutMs) / 1000).toFixed(3)}`); } catch (inner) { if ((inner as ChausarError).code !== 'MYSQL_SERVER_ERROR') throw inner; }
+    }
     await db.query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
     await db.query('SET SESSION TRANSACTION READ ONLY');
     await db.query('START TRANSACTION READ ONLY, WITH CONSISTENT SNAPSHOT'); began = true;
