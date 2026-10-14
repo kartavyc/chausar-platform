@@ -1,12 +1,25 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { authorize, audit, check, newId, now } from './contracts.ts';
+import { ChausarError, authorize, audit, check, newId, now } from './contracts.ts';
 import type { Context, State, StateStore } from './contracts.ts';
 import { canonical, current, digest, sourceAccess } from './actions.ts';
 import { assertSourceAccess } from './trust.ts';
 
 export type PluginManifest = { id: string; name: string; version: string; runtime: 'wasm'; entrypoint: 'run'; capabilities: string[]; sourceIds: string[]; maxMemoryPages: number; timeoutMs: number };
-export type HostFunction = { description: string; sourceIds?: string[]; value: (context: Context, state: State) => number };
+export type HostFunction = { description: string; sourceIds?: string[]; value: (context: Context, state: State) => number; bound?: boolean };
+/** Bounded bytes a trusted caller may place in the module's linear memory for one run (`alloc(len)` then `run(ptr, len)`). */
+export const RUN_INPUT_LIMIT = 256 * 1024;
+const unbound = (): number => { check(false, 'HOST_VALUE_NOT_BOUND', 'This door is answered only by a trusted caller that checked the owner\u2019s grant for this exact plugin.'); return 0; };
+/**
+ * Doors whose value the core never computes. A trusted caller (the models-ext plugin part) checks the owner's
+ * per-plugin grant, does the work as the calling member through the ordinary engine path, and binds one number
+ * for one run. A direct `plugins.run` without that binding is refused.
+ */
+export const BOUND_HOST_FUNCTIONS: Readonly<Record<string, HostFunction>> = Object.freeze({
+  calculate: { description: 'One number from a published calculation the owner granted, run as the calling member. The receipt stays with Chausar.', value: unbound, bound: true },
+  read_published: { description: 'One shape-only count from the published dictionary or records the caller may see. Never a raw value.', value: unbound, bound: true },
+  prepare_action: { description: 'Whether the owner-granted action may be prepared after this run. Prepare only: never approve, never execute.', value: unbound, bound: true },
+});
 export type Plugin = { id: string; manifest: PluginManifest; moduleBase64: string; moduleDigest: string; digest: string; status: 'disabled' | 'enabled'; installedAt: string; installedBy: string; approval?: { memberId: string; role: Context['role']; epoch: number; digest: string }; runs: { id: string; at: string; result?: number; memoryPages?: number; outcome: 'success' | 'refused'; reason?: string }[] };
 export type MiniappSpec = { title: string; cards: ({ kind: 'metric'; title: string; receiptId: string } | { kind: 'table'; title: string; receiptIds: string[] } | { kind: 'action'; title: string; actionId: string })[] };
 
@@ -57,24 +70,26 @@ export function inspectWasm(bytes: Uint8Array, memoryLimit: number): { imports: 
   return { imports };
 }
 
-function isolatedWasm(moduleBase64: string, manifest: PluginManifest, values: Record<string, number>): Promise<{ result: number; memoryPages: number }> {
+const RUN_FAILURES = ['PLUGIN_TIMEOUT', 'PLUGIN_OUTPUT_LIMIT'];
+function isolatedWasm(moduleBase64: string, manifest: PluginManifest, values: Record<string, number>, input?: string): Promise<{ result: number; memoryPages: number }> {
   const worker = fileURLToPath(new URL('./wasm-worker.mjs', import.meta.url));
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--permission', `--allow-fs-read=${worker}`, '--max-old-space-size=32', worker], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ELECTRON_RUN_AS_NODE: '1', SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' } });
-    let output = ''; let errors = ''; let done = false;
+    let output = ''; let done = false;
     const finish = (error?: Error, value?: { result: number; memoryPages: number }) => { if (done) return; done = true; clearTimeout(timer); if (error) { child.kill(); reject(error); } else resolve(value!); };
     const timer = setTimeout(() => finish(new Error('PLUGIN_TIMEOUT')), manifest.timeoutMs);
     child.on('error', error => finish(error));
     child.stdout.on('data', chunk => { output += chunk.toString(); if (output.length > 4096) finish(new Error('PLUGIN_OUTPUT_LIMIT')); });
-    child.stderr.on('data', chunk => { errors = (errors + chunk.toString()).slice(0, 1000); });
-    child.on('close', code => { if (done) return; try { check(code === 0, 'PLUGIN_FAILED', errors || 'The isolated plugin failed.'); const result = JSON.parse(output); check(Number.isFinite(result.result) && Number.isInteger(result.memoryPages) && result.memoryPages <= manifest.maxMemoryPages, 'INVALID_PLUGIN_RESULT', 'The plugin returned an invalid number or exceeded memory.'); finish(undefined, result); } catch (error) { finish(error as Error); } });
-    child.stdin.on('error', error => finish(error)); child.stdin.end(JSON.stringify({ moduleBase64, values, maxMemoryPages: manifest.maxMemoryPages }));
+    // stderr is drained and dropped: it can carry plugin-chosen text (function names in stack traces).
+    child.stderr.on('data', () => undefined);
+    child.on('close', code => { if (done) return; try { check(code === 0, 'PLUGIN_FAILED', 'The isolated plugin failed.'); const result = JSON.parse(output); check(Number.isFinite(result.result) && Number.isInteger(result.memoryPages) && result.memoryPages <= manifest.maxMemoryPages, 'INVALID_PLUGIN_RESULT', 'The plugin returned an invalid number or exceeded memory.'); finish(undefined, result); } catch (error) { finish(error as Error); } });
+    child.stdin.on('error', error => finish(error)); child.stdin.end(JSON.stringify({ moduleBase64, values, maxMemoryPages: manifest.maxMemoryPages, ...(input === undefined ? {} : { input }) }));
   });
 }
 
 export class PluginService {
   store: StateStore; hostFunctions: Record<string, HostFunction>;
-  constructor(store: StateStore, hostFunctions: Record<string, HostFunction> = {}) { this.store = store; this.hostFunctions = hostFunctions; }
+  constructor(store: StateStore, hostFunctions: Record<string, HostFunction> = {}) { this.store = store; this.hostFunctions = { ...BOUND_HOST_FUNCTIONS, ...hostFunctions }; }
   find(state: State, id: string): Plugin { const plugin = state.plugins.find(p => p.id === id); check(plugin, 'NOT_FOUND', 'Plugin not found.'); return plugin; }
   identity(plugin: Plugin) { return digest({ manifest: plugin.manifest, moduleDigest: plugin.moduleDigest }); }
   list(context: Context): Omit<Plugin, 'moduleBase64'>[] { authorize(this.store, context); return this.store.read().plugins.filter(p => { try { sourceAccess(this.store.read(), context, p.manifest.sourceIds); return true; } catch { return false; } }).map(({ moduleBase64, ...plugin }) => structuredClone(plugin)); }
@@ -98,13 +113,20 @@ export class PluginService {
     current(state, { memberId: plugin.approval.memberId, role: plugin.approval.role, epoch: plugin.approval.epoch }, 'admin');
     check(plugin.digest === this.identity(plugin) && plugin.approval.digest === plugin.digest && plugin.moduleDigest === digest(plugin.moduleBase64), 'PREVIEW_CHANGED', 'The approved plugin changed.');
   }
-  async run(context: Context, id: string): Promise<{ result: number; memoryPages: number; runId: string }> {
+  /** `input` is for trusted in-process callers only; the `plugins.run` engine method passes none. */
+  async run(context: Context, id: string, input: { bound?: Readonly<Record<string, number>>; inputBase64?: string } = {}): Promise<{ result: number; memoryPages: number; runId: string }> {
     const plugin = structuredClone(this.find(this.store.read(), id)); this.authorized(this.store.read(), context, plugin);
+    check(input.inputBase64 === undefined || (typeof input.inputBase64 === 'string' && /^[A-Za-z0-9+/]*={0,2}$/.test(input.inputBase64) && Buffer.from(input.inputBase64, 'base64').length <= RUN_INPUT_LIMIT), 'INVALID_PLUGIN_INPUT', 'Run input is bounded base64 bytes.');
     const values: Record<string, number> = {};
-    for (const capability of plugin.manifest.capabilities) { const host = this.hostFunctions[capability]; check(host, 'UNSUPPORTED_CAPABILITY', 'Host function no longer registered.'); sourceAccess(this.store.read(), context, host.sourceIds ?? []); values[capability] = host.value(context, this.store.read()); check(Number.isFinite(values[capability]), 'INVALID_HOST_VALUE', 'Host functions return a finite, scoped scalar.'); }
+    for (const capability of plugin.manifest.capabilities) { const host = this.hostFunctions[capability]; check(host, 'UNSUPPORTED_CAPABILITY', 'Host function no longer registered.'); sourceAccess(this.store.read(), context, host.sourceIds ?? []); values[capability] = host.bound ? (Object.hasOwn(input.bound ?? {}, capability) ? input.bound![capability] : unbound()) : host.value(context, this.store.read()); check(Number.isFinite(values[capability]), 'INVALID_HOST_VALUE', 'Host functions return a finite, scoped scalar.'); }
     let result: { result: number; memoryPages: number };
-    try { result = await isolatedWasm(plugin.moduleBase64, plugin.manifest, values); }
-    catch (failure) { await this.store.update(state => { const installed = state.plugins.find(p => p.id === id); installed?.runs.push({ id: newId('pluginrun'), at: now(), outcome: 'refused', reason: failure instanceof Error ? failure.message.slice(0, 120) : 'PLUGIN_FAILED' }); audit(state, 'plugin.refused', { pluginId: id }); }); throw failure; }
+    try { result = await isolatedWasm(plugin.moduleBase64, plugin.manifest, values, input.inputBase64); }
+    catch (failure) {
+      // Only a fixed code is kept or forwarded; no message from the child process reaches state or the caller.
+      const reason = failure instanceof ChausarError ? failure.code : failure instanceof Error && RUN_FAILURES.includes(failure.message) ? failure.message : 'PLUGIN_FAILED';
+      await this.store.update(state => { const installed = state.plugins.find(p => p.id === id); installed?.runs.push({ id: newId('pluginrun'), at: now(), outcome: 'refused', reason }); audit(state, 'plugin.refused', { pluginId: id }); });
+      throw failure instanceof ChausarError || reason !== 'PLUGIN_FAILED' ? failure : new ChausarError('PLUGIN_FAILED', 'The isolated plugin failed.');
+    }
     return this.store.update(state => { const installed = this.find(state, id); this.authorized(state, context, installed); check(installed.digest === plugin.digest, 'PREVIEW_CHANGED', 'Plugin changed while executing.'); const runId = newId('pluginrun'); installed.runs.push({ id: runId, at: now(), outcome: 'success', ...result }); audit(state, 'plugin.ran', { pluginId: id, runId }); return { ...result, runId }; });
   }
   /** A miniapp is a constrained document. No generated code, HTML, URLs or event handlers execute. */

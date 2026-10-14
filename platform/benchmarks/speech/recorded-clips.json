@@ -1,0 +1,188 @@
+{
+ "version": 1,
+ "clips": [
+  {
+   "id": "trap-nahi-payment",
+   "mimeType": "audio/wav",
+   "durationMs": 4000,
+   "audioBase64": "UklGRjQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YRAAAAAfJi00O0JJUFdeZWxzeoGI",
+   "trap": "negation",
+   "expected": {
+    "negated": true,
+    "numbers": []
+   }
+  },
+  {
+   "id": "trap-do-lakh",
+   "mimeType": "audio/wav",
+   "durationMs": 4500,
+   "audioBase64": "UklGRjQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YRAAAAA+RUxTWmFob3Z9hIuSmaCn",
+   "trap": "number",
+   "expected": {
+    "negated": false,
+    "numbers": [
+     "200000"
+    ]
+   }
+  },
+  {
+   "id": "devanagari-bill",
+   "mimeType": "audio/wav",
+   "durationMs": 5000,
+   "audioBase64": "UklGRjQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YRAAAABdZGtyeYCHjpWco6qxuL/G",
+   "trap": null,
+   "expected": {
+    "negated": true,
+    "numbers": [
+     "200000"
+    ]
+   }
+  },
+  {
+   "id": "dhai-hazaar",
+   "mimeType": "audio/wav",
+   "durationMs": 5500,
+   "audioBase64": "UklGRjQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YRAAAAB8g4qRmJ+mrbS7wsnQ197l",
+   "trap": null,
+   "expected": {
+    "negated": false,
+    "numbers": [
+     "2500"
+    ]
+   }
+  },
+  {
+   "id": "english-above",
+   "mimeType": "audio/wav",
+   "durationMs": 6000,
+   "audioBase64": "UklGRjQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YRAAAACboqmwt77FzNPa4ejv9v0E",
+   "trap": null,
+   "expected": {
+    "negated": false,
+    "numbers": [
+     "50000"
+    ]
+   }
+  }
+ ],
+ "providers": {
+  "api-upload": {
+   "trap-nahi-payment": {
+    "status": 200,
+    "body": "{\"text\":\"Pichle mahine ka payment nahi aaya.\"}"
+   },
+   "trap-do-lakh": {
+    "status": 200,
+    "body": "{\"text\":\"Do lakh se upar ke invoice dikhao.\"}"
+   },
+   "devanagari-bill": {
+    "status": 200,
+    "body": "{\"text\":\"दो लाख रुपये का बिल नहीं भेजा।\"}"
+   },
+   "dhai-hazaar": {
+    "status": 200,
+    "body": "{\"text\":\"Dhai hazaar se kam ke kharche.\"}"
+   },
+   "english-above": {
+    "status": 200,
+    "body": "{\"text\":\"Show invoices above 50,000 rupees.\"}"
+   }
+  },
+  "sarvam-stt": {
+   "trap-nahi-payment": {
+    "status": 200,
+    "body": "{\"request_id\":\"bench-0\",\"transcript\":\"पिछले महीने का पेमेंट नहीं आया\",\"language_code\":\"hi-IN\"}"
+   },
+   "trap-do-lakh": {
+    "status": 200,
+    "body": "{\"request_id\":\"bench-1\",\"transcript\":\"दो लाख से ऊपर के इनवॉइस दिखाओ\",\"language_code\":\"hi-IN\"}"
+   },
+   "devanagari-bill": {
+    "status": 200,
+    "body": "{\"request_id\":\"bench-2\",\"transcript\":\"दो लाख रुपये का बिल नहीं भेजा\",\"language_code\":\"hi-IN\"}"
+   },
+   "dhai-hazaar": {
+    "status": 200,
+    "body": "{\"request_id\":\"bench-3\",\"transcript\":\"ढाई हज़ार से कम के खर्चे\",\"language_code\":\"hi-IN\"}"
+   },
+   "english-above": {
+    "status": 200,
+    "body": "{\"request_id\":\"bench-4\",\"transcript\":\"show invoices above 50,000 rupees\",\"language_code\":\"hi-IN\"}"
+   }
+  },
+  "bhashini-asr": {
+   "trap-nahi-payment": {
+    "config": {
+     "status": 200,
+     "body": "{\"languages\":[{\"sourceLanguage\":\"hi\",\"targetLanguageList\":[]}],\"pipelineResponseConfig\":[{\"taskType\":\"asr\",\"config\":[{\"serviceId\":\"bench-asr-hi\",\"modelId\":\"bench-model\",\"language\":{\"sourceLanguage\":\"hi\"},\"domain\":[\"general\"]}]}],\"pipelineInferenceAPIEndPoint\":{\"callbackUrl\":\"https://dhruva-api.bhashini.gov.in/services/inference/pipeline\",\"inferenceApiKey\":{\"name\":\"Authorization\",\"value\":\"bench-inference-key\"},\"isMultilingualEnabled\":true,\"isSyncApi\":true}}"
+    },
+    "compute": {
+     "status": 200,
+     "body": "{\"pipelineResponse\":[{\"taskType\":\"asr\",\"config\":{\"serviceId\":\"bench-asr-hi\",\"language\":{\"sourceLanguage\":\"hi\"}},\"output\":[{\"source\":\"पिछले महीने का पेमेंट आया\"}],\"audio\":null}]}"
+    }
+   },
+   "trap-do-lakh": {
+    "config": {
+     "status": 200,
+     "body": "{\"languages\":[{\"sourceLanguage\":\"hi\",\"targetLanguageList\":[]}],\"pipelineResponseConfig\":[{\"taskType\":\"asr\",\"config\":[{\"serviceId\":\"bench-asr-hi\",\"modelId\":\"bench-model\",\"language\":{\"sourceLanguage\":\"hi\"},\"domain\":[\"general\"]}]}],\"pipelineInferenceAPIEndPoint\":{\"callbackUrl\":\"https://dhruva-api.bhashini.gov.in/services/inference/pipeline\",\"inferenceApiKey\":{\"name\":\"Authorization\",\"value\":\"bench-inference-key\"},\"isMultilingualEnabled\":true,\"isSyncApi\":true}}"
+    },
+    "compute": {
+     "status": 200,
+     "body": "{\"pipelineResponse\":[{\"taskType\":\"asr\",\"config\":{\"serviceId\":\"bench-asr-hi\",\"language\":{\"sourceLanguage\":\"hi\"}},\"output\":[{\"source\":\"दो लाख से ऊपर के इनवॉइस दिखाओ\"}],\"audio\":null}]}"
+    }
+   },
+   "devanagari-bill": {
+    "config": {
+     "status": 200,
+     "body": "{\"languages\":[{\"sourceLanguage\":\"hi\",\"targetLanguageList\":[]}],\"pipelineResponseConfig\":[{\"taskType\":\"asr\",\"config\":[{\"serviceId\":\"bench-asr-hi\",\"modelId\":\"bench-model\",\"language\":{\"sourceLanguage\":\"hi\"},\"domain\":[\"general\"]}]}],\"pipelineInferenceAPIEndPoint\":{\"callbackUrl\":\"https://dhruva-api.bhashini.gov.in/services/inference/pipeline\",\"inferenceApiKey\":{\"name\":\"Authorization\",\"value\":\"bench-inference-key\"},\"isMultilingualEnabled\":true,\"isSyncApi\":true}}"
+    },
+    "compute": {
+     "status": 200,
+     "body": "{\"pipelineResponse\":[{\"taskType\":\"asr\",\"config\":{\"serviceId\":\"bench-asr-hi\",\"language\":{\"sourceLanguage\":\"hi\"}},\"output\":[{\"source\":\"दो लाख रुपये का बिल नहीं भेजा\"}],\"audio\":null}]}"
+    }
+   },
+   "dhai-hazaar": {
+    "config": {
+     "status": 200,
+     "body": "{\"languages\":[{\"sourceLanguage\":\"hi\",\"targetLanguageList\":[]}],\"pipelineResponseConfig\":[{\"taskType\":\"asr\",\"config\":[{\"serviceId\":\"bench-asr-hi\",\"modelId\":\"bench-model\",\"language\":{\"sourceLanguage\":\"hi\"},\"domain\":[\"general\"]}]}],\"pipelineInferenceAPIEndPoint\":{\"callbackUrl\":\"https://dhruva-api.bhashini.gov.in/services/inference/pipeline\",\"inferenceApiKey\":{\"name\":\"Authorization\",\"value\":\"bench-inference-key\"},\"isMultilingualEnabled\":true,\"isSyncApi\":true}}"
+    },
+    "compute": {
+     "status": 200,
+     "body": "{\"pipelineResponse\":[{\"taskType\":\"asr\",\"config\":{\"serviceId\":\"bench-asr-hi\",\"language\":{\"sourceLanguage\":\"hi\"}},\"output\":[{\"source\":\"ढाई हज़ार से कम के खर्चे\"}],\"audio\":null}]}"
+    }
+   },
+   "english-above": {
+    "config": {
+     "status": 200,
+     "body": "{\"languages\":[{\"sourceLanguage\":\"hi\",\"targetLanguageList\":[]}],\"pipelineResponseConfig\":[{\"taskType\":\"asr\",\"config\":[{\"serviceId\":\"bench-asr-hi\",\"modelId\":\"bench-model\",\"language\":{\"sourceLanguage\":\"hi\"},\"domain\":[\"general\"]}]}],\"pipelineInferenceAPIEndPoint\":{\"callbackUrl\":\"https://dhruva-api.bhashini.gov.in/services/inference/pipeline\",\"inferenceApiKey\":{\"name\":\"Authorization\",\"value\":\"bench-inference-key\"},\"isMultilingualEnabled\":true,\"isSyncApi\":true}}"
+    },
+    "compute": {
+     "status": 200,
+     "body": "{\"pipelineResponse\":[{\"taskType\":\"asr\",\"config\":{\"serviceId\":\"bench-asr-hi\",\"language\":{\"sourceLanguage\":\"hi\"}},\"output\":[{\"source\":\"शो इनवॉइस अबव 50,000 रुपीस\"}],\"audio\":null}]}"
+    }
+   }
+  },
+  "local-command": {
+   "trap-nahi-payment": {
+    "exitCode": 0,
+    "stdout": "Pichle mahine ka payment nahi aaya.\n"
+   },
+   "trap-do-lakh": {
+    "exitCode": 0,
+    "stdout": "Do lack se upar ke invoice dikhao.\n"
+   },
+   "devanagari-bill": {
+    "exitCode": 0,
+    "stdout": "Do lakh rupaye ka bill nahin bheja.\n"
+   },
+   "dhai-hazaar": {
+    "exitCode": 0,
+    "stdout": "Dhai hazar se kam ke kharche.\n"
+   },
+   "english-above": {
+    "exitCode": 0,
+    "stdout": "Show invoices above 50,000 rupees.\n"
+   }
+  }
+ }
+}
