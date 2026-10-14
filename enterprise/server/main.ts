@@ -1,10 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { check } from '../../platform/runtime/contracts.ts';
-import type { Engine } from '../../platform/runtime/engine.ts';
-import { createServerEngine } from '../../platform/runtime/server.ts';
-import { loadEnterpriseConfig, readSecretFile, type EnterpriseConfig } from './config.ts';
+import { Engine } from '../../platform/runtime/engine.ts';
+import { engineJobOptions } from '../../platform/runtime/engine-jobs.ts';
+import { loadCodexCliHostGateway } from '../../platform/runtime/codex-cli-host.ts';
+import { loadEngineKeychain } from '../../platform/runtime/engine-keychain-host.ts';
+import { loadEnterpriseConfig, readDatabaseCa, readSecretFile, type EnterpriseConfig } from './config.ts';
 import { createEnterpriseServer, type EnterpriseServer } from './server.ts';
+import { PostgresEnterpriseStore, type EnterpriseStoreConnection } from './state-store.ts';
 
 /** The database URL carries a password, so a file path is preferred over the plain variable. */
 async function postgresUrl(environment: NodeJS.ProcessEnv): Promise<string> {
@@ -14,10 +17,20 @@ async function postgresUrl(environment: NodeJS.ProcessEnv): Promise<string> {
   check(typeof url === 'string' && url.length > 0, 'DATABASE_REQUIRED', 'Set CHAUSAR_POSTGRES_URL_FILE or CHAUSAR_POSTGRES_URL for the enterprise server.');
   return url;
 }
-/** Production engine: the same constructor as the owner server, never demo, always PostgreSQL. */
-export async function createEnterpriseEngine(config: EnterpriseConfig, environment: NodeJS.ProcessEnv = process.env): Promise<Engine> {
+/** The database URL and, when configured, the pinned TLS settings. A database on another host must use TLS. */
+export async function enterpriseDatabase(config: EnterpriseConfig, environment: NodeJS.ProcessEnv = process.env): Promise<EnterpriseStoreConnection> {
   const url = await postgresUrl(environment);
-  return createServerEngine({ ...environment, CHAUSAR_VAULT_DIRECTORY: config.workspace.directory, CHAUSAR_POSTGRES_URL: url }, []);
+  check(URL.canParse(url) && ['postgres:', 'postgresql:'].includes(new URL(url).protocol), 'INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL.');
+  const host = new URL(url).hostname.replace(/^\[|\]$/g, ''); const ca = await readDatabaseCa(config);
+  check(ca !== undefined || ['127.0.0.1', '::1'].includes(host), 'POSTGRES_TLS_REQUIRED', 'A database on another host needs database.caFile for verified TLS.');
+  return { url, ...(ca ? { tls: { ca, ...(config.database?.servername ? { servername: config.database.servername } : {}) } } : {}) };
+}
+/** Production engine: the owner server's options (never demo, always PostgreSQL) plus the enterprise storage mode. */
+export async function createEnterpriseEngine(config: EnterpriseConfig, environment: NodeJS.ProcessEnv = process.env, database?: EnterpriseStoreConnection): Promise<Engine> {
+  const { url, tls } = database ?? await enterpriseDatabase(config, environment);
+  return new Engine({ directory: resolve(config.workspace.directory), demo: false, storage: 'postgres', postgresUrl: url, pythonExecutable: environment.CHAUSAR_PYTHON,
+    updatePublicKey: environment.CHAUSAR_UPDATE_PUBLIC_KEY, durableJobs: engineJobOptions(environment), gateway: await loadCodexCliHostGateway(environment, {}),
+    keychain: await loadEngineKeychain(environment, {}, false), storageMode: 'enterprise-server', ...(tls ? { postgresTls: tls } : {}) });
 }
 export async function openWorkspace(engine: Engine, config: EnterpriseConfig) {
   const unlock = config.workspace.unlock;
@@ -30,14 +43,17 @@ export async function initWorkspace(engine: Engine, config: EnterpriseConfig, na
   const passphrase = await readSecretFile(config.workspace.unlock.passphraseFile);
   return engine.requestAs(engine.bootstrapContext(), 'workspace.create', { name, passphrase, folder: config.workspace.folder });
 }
-export async function startEnterprise(environment: NodeJS.ProcessEnv = process.env): Promise<{ engine: Engine; app: EnterpriseServer }> {
+export async function startEnterprise(environment: NodeJS.ProcessEnv = process.env): Promise<{ engine: Engine; app: EnterpriseServer; store: PostgresEnterpriseStore }> {
   const config = await loadEnterpriseConfig(environment.CHAUSAR_ENTERPRISE_CONFIG);
-  const engine = await createEnterpriseEngine(config, environment);
+  const database = await enterpriseDatabase(config, environment);
+  const engine = await createEnterpriseEngine(config, environment, database);
+  let store: PostgresEnterpriseStore | undefined;
   try {
     await openWorkspace(engine, config);
-    const app = await createEnterpriseServer(engine, config);
-    await app.listen(); return { engine, app };
-  } catch (error) { await engine.shutdown(5000).catch(() => {}); throw error; }
+    store = await PostgresEnterpriseStore.connect(database);
+    const app = await createEnterpriseServer(engine, config, { store });
+    await app.listen(); return { engine, app, store };
+  } catch (error) { await engine.shutdown(5000).catch(() => {}); await store?.close().catch(() => {}); throw error; }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -52,11 +68,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       await engine.shutdown(10000); process.exit(0);
     } catch (error) { fail(error); }
   } else {
-    let started: { engine: Engine; app: EnterpriseServer };
+    let started: Awaited<ReturnType<typeof startEnterprise>>;
     try { started = await startEnterprise(); } catch (error) { fail(error); throw error; }
-    const { engine, app } = started;
+    const { engine, app, store } = started;
     console.log('Chausar enterprise server is listening over HTTPS.');
     const scheduler = setInterval(() => { void engine.tick().catch(() => {}); }, 30000); scheduler.unref();
-    for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { clearInterval(scheduler); void app.close(60000).catch(() => {}).finally(() => process.exit(0)); });
+    for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { clearInterval(scheduler); void app.close(60000).catch(() => {}).finally(() => store.close().catch(() => {}).finally(() => process.exit(0))); });
   }
 }

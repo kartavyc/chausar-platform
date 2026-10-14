@@ -25,5 +25,6 @@
     "directory": "/var/lib/chausar/vaults",
     "folder": "main",
     "unlock": { "passphraseFile": "/run/secrets/workspace_passphrase" }
-  }
+  },
+  "database": { "caFile": "/etc/chausar/database-ca.pem" }
 }

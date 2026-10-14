@@ -15,6 +15,8 @@ export type EnterpriseConfig = {
   sessionTtlMinutes: number;
   dataDirectory: string;
   workspace: { directory: string; folder: string; unlock: { passphraseFile: string } | 'keychain' };
+  /** Verified TLS to PostgreSQL: the CA certificate (PEM) that signed the database server's certificate, and optionally the name it carries. */
+  database?: { caFile: string; servername?: string };
 };
 
 const roles: readonly Role[] = ['owner', 'cofounder', 'accountant', 'viewer'];
@@ -38,7 +40,7 @@ export function parseEnterpriseConfig(input: unknown): EnterpriseConfig {
   check(record(input.tls) && typeof input.tls.certFile === 'string' && typeof input.tls.keyFile === 'string', 'TLS_REQUIRED', 'The enterprise server only runs over HTTPS. Configure a certificate and key file.');
   const secretKey = (value: unknown) => record(value) && ['clientSecret', 'passphrase', 'password'].some(key => Object.hasOwn(value, key));
   check(!secretKey(input.oidc) && !(record(input.workspace) && (secretKey(input.workspace) || secretKey(input.workspace.unlock))), 'ENTERPRISE_INLINE_SECRET', 'Secrets must be supplied as file paths, never inside the configuration.');
-  exactKeys(input, ['listen', 'tls', 'publicOrigin', 'oidc', 'roles', 'sessionTtlMinutes', 'dataDirectory', 'workspace'], ['allowedEmailDomains']);
+  exactKeys(input, ['listen', 'tls', 'publicOrigin', 'oidc', 'roles', 'sessionTtlMinutes', 'dataDirectory', 'workspace'], ['allowedEmailDomains', 'database']);
   exactKeys(input.listen, ['host', 'port']);
   check(text(input.listen.host, /^(?:[0-9.]{7,15}|[0-9a-fA-F:]{2,39}|[a-zA-Z0-9.-]{1,253})$/, 253), 'ENTERPRISE_CONFIG_INVALID', 'Use a listen host name or address.');
   check(Number.isSafeInteger(input.listen.port) && input.listen.port >= 1 && input.listen.port <= 65535, 'ENTERPRISE_CONFIG_INVALID', 'Use a listen port between 1 and 65535.');
@@ -68,6 +70,13 @@ export function parseEnterpriseConfig(input: unknown): EnterpriseConfig {
   exactKeys(input.workspace, ['directory', 'folder', 'unlock']);
   check(absolutePath(input.workspace.directory), 'ENTERPRISE_CONFIG_INVALID', 'The workspace directory must be an absolute path.');
   check(text(input.workspace.folder, /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/), 'ENTERPRISE_CONFIG_INVALID', 'Use a short workspace folder name.');
+  let database: EnterpriseConfig['database'];
+  if (input.database !== undefined) {
+    exactKeys(input.database, ['caFile'], ['servername']);
+    check(absolutePath(input.database.caFile), 'ENTERPRISE_CONFIG_INVALID', 'The database CA certificate must be an absolute file path.');
+    check(input.database.servername === undefined || text(input.database.servername, /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/, 253), 'ENTERPRISE_CONFIG_INVALID', 'The database server name must be a host name.');
+    database = { caFile: input.database.caFile, ...(input.database.servername ? { servername: input.database.servername } : {}) };
+  }
   let unlock: EnterpriseConfig['workspace']['unlock'];
   if (input.workspace.unlock === 'keychain') unlock = 'keychain';
   else { exactKeys(input.workspace.unlock, ['passphraseFile']); check(absolutePath(input.workspace.unlock.passphraseFile), 'ENTERPRISE_CONFIG_INVALID', 'The passphrase must be an absolute file path.'); unlock = { passphraseFile: input.workspace.unlock.passphraseFile }; }
@@ -75,7 +84,7 @@ export function parseEnterpriseConfig(input: unknown): EnterpriseConfig {
     listen: { host: input.listen.host, port: input.listen.port }, tls: { certFile: input.tls.certFile, keyFile: input.tls.keyFile }, publicOrigin: input.publicOrigin,
     oidc: { issuer: input.oidc.issuer, clientId: input.oidc.clientId, clientSecretFile: input.oidc.clientSecretFile, redirectPath: input.oidc.redirectPath, scopes: [...input.oidc.scopes] },
     roles: rules, ...(input.allowedEmailDomains ? { allowedEmailDomains: [...input.allowedEmailDomains] } : {}), sessionTtlMinutes: ttl,
-    dataDirectory: input.dataDirectory, workspace: { directory: input.workspace.directory, folder: input.workspace.folder, unlock },
+    dataDirectory: input.dataDirectory, workspace: { directory: input.workspace.directory, folder: input.workspace.folder, unlock }, ...(database ? { database } : {}),
   };
 }
 
@@ -105,5 +114,13 @@ export async function loadEnterpriseConfig(path: string | undefined): Promise<En
   const config = parseEnterpriseConfig(value);
   await readTlsFiles(config); await readSecretFile(config.oidc.clientSecretFile);
   if (config.workspace.unlock !== 'keychain') await readSecretFile(config.workspace.unlock.passphraseFile);
+  if (config.database) await readDatabaseCa(config);
   return config;
+}
+/** The pinned CA for the database connection. Public material, but it must be a regular file holding a PEM certificate. */
+export async function readDatabaseCa(config: EnterpriseConfig): Promise<string | undefined> {
+  if (!config.database) return undefined;
+  const pem = (await readPrivateFile(config.database.caFile, { private: false, limit: 256 * 1024, code: 'POSTGRES_TLS_FILE_INVALID' })).toString('utf8');
+  check(/^-----BEGIN CERTIFICATE-----\r?\n/.test(pem), 'POSTGRES_TLS_FILE_INVALID', 'The database CA file must hold a PEM certificate.');
+  return pem;
 }

@@ -16,4 +16,5 @@
 !enterprise/server/identity.ts
 !enterprise/server/server.ts
 !enterprise/server/main.ts
+!enterprise/server/state-store.ts
 !enterprise/server/ui/**

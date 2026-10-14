@@ -1,33 +1,47 @@
 # EXPERIMENTAL. Not for production without a security and operations review.
-# Run from the repository root:
-#   docker compose -f enterprise/server/compose.yaml up --build
-# Every secret is a file under enterprise/server/secrets/ (never committed). See README.md.
+# Run from the repository root (build the image first; see README.md):
+#   docker compose -f enterprise/server/compose.yaml up -d
+# Every secret is a file under ${CHAUSAR_ENTERPRISE_FILES:-enterprise/server}/secrets/ (never committed).
 #
-# The engine only accepts a PostgreSQL server on loopback, so the Chausar server joins
-# the database container's network namespace and reaches it at 127.0.0.1:5432.
-# PostgreSQL itself listens on loopback only and is never published.
+# PostgreSQL accepts TLS connections only (pg_hba.conf has hostssl lines and no plaintext host lines).
+# The Chausar server reaches it as `postgres:5432` on a private network and verifies its certificate
+# against database-ca.pem (config.json: "database": { "caFile": "/etc/chausar/database-ca.pem" }).
+# PostgreSQL is never published to the host; only the HTTPS port of the Chausar server is.
 
 name: chausar-enterprise
 
 services:
   postgres:
     image: postgres:17
-    command: ["postgres", "-c", "listen_addresses=127.0.0.1"]
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/etc/postgresql/tls/server.pem
+      - -c
+      - ssl_key_file=/etc/postgresql/tls/server.key
+      - -c
+      - ssl_min_protocol_version=TLSv1.2
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
     environment:
       POSTGRES_USER: chausar
       POSTGRES_DB: chausar
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     secrets: [postgres_password]
     volumes:
       - pgdata:/var/lib/postgresql/data
-    # The HTTPS port of the Chausar server is published here because the server shares this namespace.
-    ports:
-      - "8443:8443"
+      # server.key must be owned by uid 999 (the image's postgres user) with mode 0600.
+      - ${CHAUSAR_ENTERPRISE_FILES:-.}/database-tls:/etc/postgresql/tls:ro
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks: [database]
     healthcheck:
       test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "chausar", "-d", "chausar"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
     restart: unless-stopped
 
   server:
@@ -35,7 +49,6 @@ services:
       context: ../..
       dockerfile: enterprise/server/Dockerfile
     image: chausar-enterprise:dev
-    network_mode: "service:postgres"
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,10 +57,14 @@ services:
       CHAUSAR_POSTGRES_URL_FILE: /run/secrets/postgres_url
     secrets: [postgres_url, oidc_client_secret, workspace_passphrase]
     volumes:
-      - ./config.json:/etc/chausar/config.json:ro
-      - ./tls:/etc/chausar/tls:ro
+      - ${CHAUSAR_ENTERPRISE_FILES:-.}/config.json:/etc/chausar/config.json:ro
+      - ${CHAUSAR_ENTERPRISE_FILES:-.}/tls:/etc/chausar/tls:ro
+      - ${CHAUSAR_ENTERPRISE_FILES:-.}/database-tls/ca.pem:/etc/chausar/database-ca.pem:ro
       - chausar-server:/var/lib/chausar/server
       - chausar-vaults:/var/lib/chausar/vaults
+    networks: [database, front]
+    ports:
+      - "8443:8443"
     read_only: true
     tmpfs:
       - /tmp
@@ -58,15 +75,21 @@ services:
     stop_grace_period: 75s
     restart: unless-stopped
 
+networks:
+  # No route out: the database network is internal to the two containers.
+  database:
+    internal: true
+  front: {}
+
 secrets:
   postgres_password:
-    file: ./secrets/postgres_password
+    file: ${CHAUSAR_ENTERPRISE_FILES:-.}/secrets/postgres_password
   postgres_url:
-    file: ./secrets/postgres_url
+    file: ${CHAUSAR_ENTERPRISE_FILES:-.}/secrets/postgres_url
   oidc_client_secret:
-    file: ./secrets/oidc_client_secret
+    file: ${CHAUSAR_ENTERPRISE_FILES:-.}/secrets/oidc_client_secret
   workspace_passphrase:
-    file: ./secrets/workspace_passphrase
+    file: ${CHAUSAR_ENTERPRISE_FILES:-.}/secrets/workspace_passphrase
 
 volumes:
   pgdata:
