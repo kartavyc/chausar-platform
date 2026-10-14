@@ -81,7 +81,7 @@ export function matchPurchaseRegister(input: { register: MatchLine[]; gstr2b: Ma
       const gstin = line.supplierGstin.trim().toUpperCase();
       if (!gstinValid(gstin)) { invalid.push({ side, reason: 'invalid-gstin', receipt: receiptOf(line) }); continue; }
       const fy = financialYear(line.invoiceDate), key = `${gstin}|${exactNumber(line.invoiceNumber)}|${fy}`;
-      bucket.set(key, [...(bucket.get(key) ?? []), { ...line, side, gstin, fy, key }]);
+      const group = bucket.get(key); if (group) group.push({ ...line, side, gstin, fy, key }); else bucket.set(key, [{ ...line, side, gstin, fy, key }]);
     }
     const out = new Map<string, Line>();
     for (const [key, group] of bucket) {
@@ -117,12 +117,15 @@ export function matchPurchaseRegister(input: { register: MatchLine[]; gstr2b: Ma
     if (a.fy !== b.fy && exactNumber(a.invoiceNumber) === exactNumber(b.invoiceNumber) && Math.abs(monthIndex(a.invoiceDate) - monthIndex(b.invoiceDate)) <= 1) return 'financial-year-boundary';
     return null;
   };
-  const candidates = leftBooks.map(a => remaining2b.filter(b => probableRule(a, b) !== null));
+  // Probable rules need the same GSTIN, so pairs are only sought within one supplier's lines.
+  const bySupplier = <T extends Line>(lines: T[]) => { const map = new Map<string, T[]>(); for (const line of lines) { const group = map.get(line.gstin); if (group) group.push(line); else map.set(line.gstin, [line]); } return map; };
+  const twoBBySupplier = bySupplier(remaining2b), booksBySupplier = bySupplier(leftBooks);
+  const candidates = leftBooks.map(a => (twoBBySupplier.get(a.gstin) ?? []).filter(b => probableRule(a, b) !== null));
   const probable: ProbableMatch[] = []; const paired = new Set<Line>();
   leftBooks.forEach((a, i) => {
     if (candidates[i].length !== 1) return;
     const b = candidates[i][0];
-    if (leftBooks.filter(other => probableRule(other, b) !== null).length !== 1) return;
+    if ((booksBySupplier.get(b.gstin) ?? []).filter(other => probableRule(other, b) !== null).length !== 1) return;
     probable.push({ rule: probableRule(a, b)!, supplierGstin: a.gstin, register: oneSided(a), gstr2b: oneSided(b), receipt: { register: receiptOf(a), gstr2b: receiptOf(b) } });
     paired.add(a); paired.add(b);
   });

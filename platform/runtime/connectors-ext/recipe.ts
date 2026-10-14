@@ -151,7 +151,7 @@ export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: Decoder
       const at = body.findIndex(row => labels.has(norm(cell(row, t.labelField))));
       if (at >= 0) { footers = [...body.slice(at), ...footers]; body = body.slice(0, at); }
     }
-    const records = new Map<string, CanonicalRecord>(); let total = 0n; const dates: string[] = [];
+    const records = new Map<string, CanonicalRecord>(); let total = 0n, firstCurrency: string | null = null; const dates: string[] = [];
     let previousBalance: bigint | null = null; const balanceStart = table!.balances?.opening ?? null;
     for (const row of body) {
       if (recipe.exclude && recipe.exclude.values.map(norm).includes(norm(cell(row, recipe.exclude.field)))) { outcome.excludedRows++; continue; }
@@ -205,7 +205,9 @@ export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: Decoder
       if (t.kind === 'running-balance') {
         const balance = money(row, t.balanceField, currency);
         if (balance === null) refuse('BALANCE_MISSING', 'A statement row has no running balance.', row.line);
-        const expected = previousBalance === null ? (balanceStart !== null ? BigInt(parseMoney(balanceStart, 'major', currency) ?? '0') + quantity : null) : previousBalance + quantity;
+        const opening = previousBalance === null && balanceStart !== null ? parseMoney(balanceStart, 'major', currency) : null;
+        if (previousBalance === null && balanceStart !== null && opening === null) refuse('BALANCE_MISSING', 'The statement states an opening balance without a figure.');
+        const expected = previousBalance === null ? (opening !== null ? BigInt(opening) + quantity : null) : previousBalance + quantity;
         if (expected !== null && expected !== BigInt(balance!)) {
           outcome.checks.push({ id: 'running-balance', status: 'failed', expected: String(expected), observed: balance, line: row.line });
           refuse('BALANCE_BROKEN', 'The running balance breaks at this line. An entry before it is missing or changed.', row.line);
@@ -220,7 +222,8 @@ export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: Decoder
         if (target === 'status') continue;
         const spec = recipe.fields[source]; const raw = parsed[source];
         if (!raw) continue;
-        fields[target] = spec.type === 'money' ? (money(row, source, currency || 'INR') ?? '') : raw;
+        if (spec.type === 'money' && !currency) continue; // a count recipe has no currency to read money outputs in
+        fields[target] = spec.type === 'money' ? (money(row, source, currency) ?? '') : raw;
         if (fields[target] === '') delete fields[target];
       }
       if (recipe.status) {
@@ -228,7 +231,8 @@ export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: Decoder
         if (!Object.hasOwn(map, value)) ask('unknown_value', recipe.status.field, [cell(row, recipe.status.field)]);
         if (map[value]) fields.status = map[value];
       }
-      const entityId = `${recipe.group}:${identity.join('|')}`.slice(0, 400);
+      const entityId = `${recipe.group}:${identity.join('|')}`;
+      if (entityId.length > 400) refuse('IDENTITY_TOO_LONG', 'A row\'s identifying values are too long to tell records apart.', row.line);
       const record: CanonicalRecord = { entityId, kind, date: parsed.date, sourceRow: row.line, fields,
         measure: m.type === 'money' ? { type: 'money', amountMinor: String(quantity), currency } : { type: 'count', quantity: String(quantity), unit: m.unit } };
       const key = `${kind}:${entityId}`, prior = records.get(key);
@@ -238,7 +242,8 @@ export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: Decoder
         outcome.notices.push('A repeated row was counted once.');
         continue;
       }
-      if (m.type === 'money' && records.size && [...records.values()][0].measure.type === 'money' && (([...records.values()][0].measure) as any).currency !== currency) refuse('MIXED_CURRENCY', 'One file mixes currencies. Import each currency separately.', row.line);
+      if (m.type === 'money' && firstCurrency !== null && firstCurrency !== currency) refuse('MIXED_CURRENCY', 'One file mixes currencies. Import each currency separately.', row.line);
+      if (firstCurrency === null) firstCurrency = currency;
       records.set(key, record); total += quantity;
       dates.push(parsed.date);
     }

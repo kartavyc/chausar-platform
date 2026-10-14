@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { authorize, audit, check, ChausarError, newId, now, type Context, type StateStore } from '../contracts.ts';
 import { APPROVED_CONNECTOR_GROUPS } from '../connectors.ts';
 import { readWorkbook } from '../workbook.ts';
+import { currentAccess } from '../memory.ts';
 import { runApiRead, type ReadCredentials } from '../adapters/read-kit.ts';
 import type { BoundedHttp } from '../connectors.ts';
 import type { ModuleHost } from '../modules/types.ts';
@@ -59,17 +60,29 @@ function connection(store: StateStore, id: unknown): Connection {
   return found;
 }
 const options = (host: ModuleHost) => host.options as ConnectorsHostOptions;
+/** Methods that reach outside, persist a way in, or move secrets need the person at the desktop, not text-driven or remote callers. */
+function trusted(ctx: Context) {
+  check((ctx.channel === undefined || ctx.channel === 'desktop') && ctx.sourceTainted !== true, 'OPEN_DESKTOP', 'Do this yourself in the desktop app.');
+}
+/** Branch and source trust for one connection, checked before any network access. */
+function scoped(host: ModuleHost, ctx: Context, item: Connection) { currentAccess(host.store, ctx, item.branch, item.sourceId); }
+/** Listings show only connections in the caller's branches and allowed sources. */
+function visible(host: ModuleHost, ctx: Context) {
+  const state = host.store.read(), member = authorize(host.store, ctx);
+  return (item: { branch: string; sourceId: string }) => (member.branches.includes('*') || member.branches.includes(item.branch)) && sourceAllowed(state, ctx, item.sourceId);
+}
 
 function databaseConnection(item: Connection): PlainDbConnection {
   const s = item.settings;
   if (s.engine === 'sqlite') return { engine: 'sqlite', path: s.path ?? '' };
   check(s.engine === 'postgres' || s.engine === 'mysql', REQUEST, 'Choose PostgreSQL, MySQL or SQLite.');
   check(/^\d{1,5}$/.test(s.port ?? ''), REQUEST, 'Give the database port.');
-  return { engine: s.engine, host: s.host ?? '', port: Number(s.port), database: s.database ?? '', user: s.user ?? '', ssl: s.ssl === 'disable' ? 'disable' : 'require', passwordRef: s.passwordRef ?? '' } as PlainDbConnection;
+  return { engine: s.engine, host: s.host ?? '', port: Number(s.port), database: s.database ?? '', user: s.user ?? '', ssl: s.ssl === 'disable' ? 'disable' : 'require', passwordRef: item.sourceId } as PlainDbConnection;
 }
-function databaseOptions(ctx: Context, host: ModuleHost) {
+/** The resolver answers only for this connection's own stored password, never another source's key. */
+function databaseOptions(ctx: Context, host: ModuleHost, item: Connection) {
   const resolve = options(host).databaseCredentials;
-  return resolve ? { credentials: (ref: string) => resolve(ctx, ref) } : {};
+  return resolve ? { credentials: (ref: string) => { check(ref === item.sourceId, 'DB_CREDENTIAL_REQUIRED', 'Enter the database password in Trust, credentials.'); return resolve(ctx, ref); } } : {};
 }
 /** Summaries only: a reply never carries source rows. */
 export function outcomeSummary(envelope: Envelope) { return publicEnvelope(envelope); }
@@ -122,6 +135,7 @@ export const handlers = {
       fields: Object.entries(item.fields).map(([name, spec]) => ({ name, type: spec.type, required: spec.required === true, headings: [...spec.from] })) }));
   },
   async connect(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    trusted(ctx);
     shape(payload, ['group', 'road', 'label', 'company', 'branch', 'settings'], ['group', 'road', 'company']);
     const group = payload.group === 'plain-database' ? { id: 'plain-database', name: 'Plain database (read only)' } : APPROVED_CONNECTOR_GROUPS.find(item => item.id === payload.group);
     check(group, 'SYSTEM_NOT_FOUND', 'Choose one of the listed systems.');
@@ -132,15 +146,15 @@ export const handlers = {
     const branch = payload.branch ?? 'main'; check(text(branch, 100) && /^[A-Za-z0-9_.:-]+$/.test(branch), REQUEST, 'Name the branch.');
     const settings = payload.settings ?? {};
     check(plain(settings) && Object.keys(settings).length <= 20 && Object.values(settings).every(value => text(value, 300)), REQUEST, 'Connection settings are short text values.');
-    check(!Object.keys(settings).some(key => /secret|password|token|key$/i.test(key) && key !== 'passwordRef'), 'CREDENTIAL_NOT_ACCEPTED', 'Credentials are never stored with a connection. Enter them in Trust, credentials.');
+    check(!Object.keys(settings).some(key => /secret|password|token|key$|ref$/i.test(key)), 'CREDENTIAL_NOT_ACCEPTED', 'Credentials are never stored with a connection. Enter them in Trust, credentials.');
     if (payload.road === 'interface') {
       const reads = readsFor(group.id); check(reads.length > 0, 'READ_NOT_AVAILABLE', 'This system cannot be read through its own interface yet. Import an exported file.');
       const allowed = new Set(reads.flatMap(read => read.settings));
       check(Object.keys(settings).every(key => allowed.has(key)), REQUEST, 'A setting is not used by this system.');
       for (const read of reads) if (read.settings.every(key => Object.hasOwn(settings, key)) && read.parameters.length === 0) read.spec.validate(read.config(settings));
     } else if (payload.road === 'database') {
-      check(Object.keys(settings).every(key => ['engine', 'host', 'port', 'database', 'user', 'ssl', 'passwordRef', 'path'].includes(key)), REQUEST, 'A setting is not used by database connections.');
-      databaseConnection({ settings } as Connection);
+      check(Object.keys(settings).every(key => ['engine', 'host', 'port', 'database', 'user', 'ssl', 'path'].includes(key)), REQUEST, 'A setting is not used by database connections.');
+      databaseConnection({ settings, sourceId: 'cx-plain-database-check' } as Connection);
     }
     else check(Object.keys(settings).length === 0, REQUEST, 'File connections take no settings.');
     return host.store.update(state => {
@@ -153,16 +167,18 @@ export const handlers = {
       return structuredClone(item);
     });
   },
-  connections(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
-    shape(payload, ['group']);
-    return peekCx(host.store.read()).connections.filter(item => payload.group === undefined || item.group === payload.group).map(item => structuredClone(item));
+  connections(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    shape(payload, ['group']); const allowed = visible(host, ctx);
+    return peekCx(host.store.read()).connections.filter(item => allowed(item) && (payload.group === undefined || item.group === payload.group)).map(item => structuredClone(item));
   },
   async pause(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    trusted(ctx);
     shape(payload, ['connectionId', 'paused'], ['connectionId', 'paused']); check(typeof payload.paused === 'boolean', REQUEST, 'Say whether to pause.');
     connection(host.store, payload.connectionId);
     return host.store.update(state => { authorize(view(host.store, state), ctx, 'admin'); const item = cxState(state).connections.find(c => c.id === payload.connectionId)!; item.status = payload.paused ? 'paused' : 'active'; audit(state, 'connectorsx.paused', { connectionId: item.id, paused: payload.paused }); return structuredClone(item); });
   },
   async disconnect(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    trusted(ctx);
     shape(payload, ['connectionId'], ['connectionId']); const gone = connection(host.store, payload.connectionId);
     options(host).credentialStore?.remove(gone.sourceId);
     return host.store.update(state => {
@@ -175,6 +191,7 @@ export const handlers = {
     });
   },
   async signIn(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    trusted(ctx);
     shape(payload, ['connectionId', 'operation'], ['connectionId']);
     const item = connection(host.store, payload.connectionId), provider = providerFor(item.group);
     if (!provider) return { method: KEY_SIGN_IN[item.group] ? 'key' : 'none', instruction: KEY_SIGN_IN[item.group] ?? 'This system needs no sign-in.' };
@@ -189,6 +206,7 @@ export const handlers = {
     return { method: 'browser', authorizeUrl: url, scopes: [...scopes], expiresInSeconds: LIMITS.signInTtlMs / 1000, note: provider.note };
   },
   async signInComplete(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    trusted(ctx);
     shape(payload, ['state', 'code'], ['state', 'code']); check(text(payload.state, 200) && text(payload.code, 2000), REQUEST, 'Sign-in returned an unexpected answer.');
     const exchange = options(host).tokenExchange;
     check(exchange, 'TOKEN_EXCHANGE_HOST_REQUIRED', 'The credential broker that finishes sign-in is not installed.');
@@ -203,9 +221,10 @@ export const handlers = {
     return { signedIn: true, connectionId: item.id };
   },
   async read(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    trusted(ctx);
     shape(payload, ['connectionId', 'operation', 'period', 'reportTotals', 'parameters'], ['connectionId', 'operation']);
     const item = connection(host.store, payload.connectionId);
-    check(item.status === 'active', 'CONNECTION_PAUSED', 'This connection is paused.');
+    check(item.status === 'active', 'CONNECTION_PAUSED', 'This connection is paused.'); scoped(host, ctx, item);
     check(item.road === 'interface', 'READ_NOT_AVAILABLE', 'This connection is read from files. Import an exported file.');
     const binding = readsFor(item.group).find(read => read.id === payload.operation); check(binding, 'READ_NOT_AVAILABLE', 'This system has no such read.');
     const requested = period(payload.period), totals = reportTotals(payload.reportTotals), parameters = payload.parameters ?? {};
@@ -273,18 +292,20 @@ export const handlers = {
     shape(payload, ['envelopeId'], ['envelopeId']);
     return host.store.update(state => { authorize(view(host.store, state), ctx, 'prepare'); const envelope = cxState(state).envelopes.find(item => item.id === payload.envelopeId); check(envelope, 'ENVELOPE_NOT_FOUND', 'This read is no longer waiting.'); envelope.pending = null; return outcomeSummary(envelope); });
   },
-  envelopes(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  envelopes(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    const allowed = visible(host, ctx);
     shape(payload, ['sourceId', 'connectionId', 'limit']);
     const limit = payload.limit ?? 50; check(Number.isSafeInteger(limit) && limit >= 1 && limit <= 400, REQUEST, 'Choose how many reads to list.');
-    return peekCx(host.store.read()).envelopes.filter(item => (payload.sourceId === undefined || item.sourceId === payload.sourceId) && (payload.connectionId === undefined || item.connectionId === payload.connectionId))
+    return peekCx(host.store.read()).envelopes.filter(item => allowed(item) && (payload.sourceId === undefined || item.sourceId === payload.sourceId) && (payload.connectionId === undefined || item.connectionId === payload.connectionId))
       .slice(-limit).reverse().map(outcomeSummary);
   },
-  freshness(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  freshness(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    const allowed = visible(host, ctx);
     shape(payload, ['sourceId', 'asOf']);
     const asOf = payload.asOf ?? now().slice(0, 10); check(typeof asOf === 'string' && ISO.test(asOf), REQUEST, 'Choose a date.');
     const state = host.store.read(), cx = peekCx(state);
     const sources = payload.sourceId !== undefined ? [payload.sourceId] : [...new Set([...cx.connections.map(item => item.sourceId), ...cx.envelopes.map(item => item.sourceId)])];
-    return sources.map(sourceId => {
+    return sources.filter(sourceId => { const item = cx.connections.find(c => c.sourceId === sourceId) ?? cx.envelopes.find(e => e.sourceId === sourceId); return !item || allowed(item); }).map(sourceId => {
       const item = cx.connections.find(c => c.sourceId === sourceId), view = freshness(state, sourceId, asOf);
       return { ...view, connection: item ? { id: item.id, group: item.group, road: item.road, label: item.label, status: item.status } : null,
         schedule: item?.schedule ? { operation: item.schedule.operation, everyHours: item.schedule.everyHours, freshnessTargetHours: item.schedule.freshnessTargetHours, catchUp: item.schedule.catchUp, lastRunAt: item.schedule.lastRunAt, lastOutcome: item.schedule.lastOutcome } : null,
@@ -305,34 +326,36 @@ export const handlers = {
     return { gstMode: dictionary.gstMode, period: requested, ...matchPurchaseRegister({ register, gstr2b, gstMode: dictionary.gstMode, ...(requested ? { period: requested } : {}) }) };
   },
   async plainDbTables(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    trusted(ctx);
     shape(payload, ['connectionId'], ['connectionId']);
-    const item = connection(host.store, payload.connectionId); check(item.road === 'database', 'READ_NOT_AVAILABLE', 'This connection is not a database.');
-    return listTables(databaseConnection(item), databaseOptions(ctx, host));
+    const item = connection(host.store, payload.connectionId); check(item.road === 'database', 'READ_NOT_AVAILABLE', 'This connection is not a database.'); scoped(host, ctx, item);
+    return listTables(databaseConnection(item), databaseOptions(ctx, host, item));
   },
   async plainDbRead(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    trusted(ctx);
     shape(payload, ['connectionId', 'mapping'], ['connectionId', 'mapping']);
     const item = connection(host.store, payload.connectionId); check(item.road === 'database', 'READ_NOT_AVAILABLE', 'This connection is not a database.');
-    check(item.status === 'active', 'CONNECTION_PAUSED', 'This connection is paused.');
-    const read = await plainDbRead(databaseConnection(item), payload.mapping, databaseOptions(ctx, host));
+    check(item.status === 'active', 'CONNECTION_PAUSED', 'This connection is paused.'); scoped(host, ctx, item);
+    const read = await plainDbRead(databaseConnection(item), payload.mapping, databaseOptions(ctx, host, item));
     const recipe = compileRecipe(read.recipe, DECODERS);
     const outcome = runRecipe(recipe, DECODERS.get('api-records')!, { records: read.records, meta: Object.fromEntries(Object.entries(read.meta).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])) });
     return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe, road: 'database', requestedPeriod: payload.mapping?.period ?? null }));
   },
   async credentialsSet(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     shape(payload, ['connectionId', 'secret'], ['connectionId', 'secret']);
-    check(ctx.channel !== 'phone' && ctx.sourceTainted !== true, 'OPEN_DESKTOP', 'Enter credentials in the desktop app.');
+    trusted(ctx);
     const store = options(host).credentialStore; check(store, 'CREDENTIAL_STORE_REQUIRED', 'The local credential store is not available in this launch.');
     const item = connection(host.store, payload.connectionId);
     check(typeof payload.secret === 'string' && payload.secret.length >= 4 && payload.secret.length <= 4096 && !/[\u0000-\u001f]/.test(payload.secret), 'CREDENTIAL_INVALID', 'Paste the key exactly as the system shows it.');
     store!.set(item.sourceId, { kind: 'key', system: item.group, secret: payload.secret, storedAt: now() });
     await host.store.update(state => {
       authorize(view(host.store, state), ctx, 'admin'); const current = cxState(state).connections.find(c => c.id === item.id);
-      if (current && current.road === 'database' && current.settings.engine !== 'sqlite') current.settings.passwordRef = current.sourceId;
       audit(state, 'connectorsx.credential-stored', { connectionId: item.id });
     });
     return { stored: true, connectionId: item.id };
   },
   async credentialsRemove(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    trusted(ctx);
     shape(payload, ['connectionId'], ['connectionId']);
     const store = options(host).credentialStore; check(store, 'CREDENTIAL_STORE_REQUIRED', 'The local credential store is not available in this launch.');
     const item = connection(host.store, payload.connectionId);
@@ -346,6 +369,7 @@ export const handlers = {
     return store ? { available: true, ...store.has(item.sourceId) } : { available: false, present: false, kind: null, storedAt: null };
   },
   async schedule(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    trusted(ctx);
     shape(payload, ['connectionId', 'schedule'], ['connectionId', 'schedule']);
     const item = connection(host.store, payload.connectionId);
     let next: Connection['schedule'] = null;
@@ -365,11 +389,11 @@ export const handlers = {
       return structuredClone(current);
     });
   },
-  unmapped(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
-    shape(payload, ['group']);
+  unmapped(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    shape(payload, ['group']); const allowed = visible(host, ctx);
     const rows = new Map<string, { group: string; recipeId: string; field: string; seen: number; lastSeen: string }>();
     for (const envelope of peekCx(host.store.read()).envelopes) {
-      if (payload.group !== undefined && envelope.group !== payload.group) continue;
+      if ((payload.group !== undefined && envelope.group !== payload.group) || !allowed(envelope)) continue;
       for (const field of envelope.unmappedFields) {
         const key = `${envelope.recipeId}\u0000${field}`, row = rows.get(key) ?? { group: envelope.group, recipeId: envelope.recipeId, field, seen: 0, lastSeen: envelope.fetchedAt };
         row.seen++; row.lastSeen = envelope.fetchedAt; rows.set(key, row);

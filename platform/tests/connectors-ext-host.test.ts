@@ -47,10 +47,12 @@ test('credentials are sealed outside workspace state and never returned', async 
   for (const name of files) assert.equal((await readFile(join(dir, 'creds', name))).includes('rzp_SECRET_VALUE'), false, name);
   assert.equal((await stat(join(dir, 'creds', '.key'))).mode & 0o077, 0, 'the key is owner-only');
   assert.equal((store.get('cx-razorpay-1') as any).secret, 'rzp_id:rzp_SECRET_VALUE');
-  const sealed = join(dir, 'creds', 'cx-razorpay-1.cred'), record = JSON.parse(readFileSync(sealed, 'utf8'));
-  writeFileSync(sealed, JSON.stringify({ ...record, sealed: Buffer.from('tampered').toString('base64') }));
+  const sealed = join(dir, 'creds', `${Buffer.from('cx-razorpay-1').toString('base64url')}.cred`), record = JSON.parse(readFileSync(sealed, 'utf8'));
+  writeFileSync(sealed, JSON.stringify({ ...record, sealed: Buffer.from('tampered').toString('base64') }), { mode: 0o600 });
   assert.throws(() => store.get('cx-razorpay-1'), code('CREDENTIAL_STORE_INVALID'));
   assert.throws(() => store.get('../escape'), code('CREDENTIAL_SOURCE_INVALID'));
+  store.set('a:b', { kind: 'key', system: 'x', secret: 'one:1', storedAt: '' }); store.set('a_b', { kind: 'key', system: 'x', secret: 'two:2', storedAt: '' });
+  assert.deepEqual([(store.get('a:b') as any).secret, (store.get('a_b') as any).secret], ['one:1', 'two:2'], 'distinct ids never share a file');
 
   const { engine } = await open(t);
   const options = connectorsExtModule.hostOptions!({ directory: join(dir, 'app'), demo: false, env: {} }) as any;
