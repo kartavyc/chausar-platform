@@ -174,42 +174,66 @@ test('cash by voice shows "not built yet" while modelsx.speechInterpret is absen
   expect(onSaveClosing).not.toHaveBeenCalled();
 });
 
+/** A reading in the models-ext lane's real `modelsx.speechInterpret` shape (speech-understood.ts). */
+const DIGEST = 'c'.repeat(64);
+function reading(text: string, numbers: Array<Record<string, unknown>>, extra: Record<string, unknown> = {}) {
+  return { version: 1, normalised: text, understood: text, language: 'hi-Latn', segments: [{ kind: 'text', text }], negations: [], numbers, ambiguities: [], unclear: [],
+    flipsMeaning: false, requiresConfirmation: true, digest: DIGEST, receiptId: null, ...extra };
+}
+const doLakh = { text: 'do lakh', start: 0, end: 7, value: '200000', integer: '200000', indian: '2,00,000', unit: null, paise: null, display: '2,00,000' };
+
 test('cash by voice: the heard amount is shown back large and nothing is saved until Yes', async () => {
   const engine = createFakeEngine();
-  const interpret = vi.fn((payload: Readonly<Record<string, unknown>>) => ({ amount: { paise: '20000000' }, heard: String(payload['text']), confirm: true }));
-  cleanups.push(registerFakeMethods('modelsx', { speechInterpret: interpret }));
+  const interpret = vi.fn((payload: Readonly<Record<string, unknown>>) => reading(String(payload['text']), [doLakh]));
+  const confirm = vi.fn((payload: Readonly<Record<string, unknown>>) => ({ confirmationId: 'speech_confirmation_demo', digest: payload['digest'], understood: 'do lakh', receiptId: null, confirmedAt: '2026-10-14T06:05:00.000Z' }));
+  cleanups.push(registerFakeMethods('modelsx', { speechInterpret: interpret, speechConfirm: confirm }));
   const onSaveClosing = vi.fn();
   const listen = { start: vi.fn(), stop: vi.fn(async () => 'do lakh') };
   const user = userEvent.setup();
   show(<TodayScreen data={today({ cash: { week: week() } })} intents={{ ...intents(), onSaveClosing, cashVoice: { on: true, rpc: engine, listen } }} view="simple" onNavigate={vi.fn()} />);
   await holdOnce(screen.getByRole('button', { name: 'Hold to say it' }));
   expect(await screen.findByText('₹2,00,000. Is that right?')).toBeTruthy();
-  expect(interpret).toHaveBeenCalledWith({ text: 'do lakh', intent: 'cash-amount', language: 'en' }, expect.anything());
+  expect(interpret).toHaveBeenCalledWith({ text: 'do lakh' }, expect.anything());
   expect(screen.getByText('Heard: do lakh')).toBeTruthy();
   expect(onSaveClosing).not.toHaveBeenCalled();
+  expect(confirm).not.toHaveBeenCalled();
 
   await user.click(screen.getByRole('button', { name: 'Change' }));
   expect(onSaveClosing).not.toHaveBeenCalled();
+  expect(confirm).not.toHaveBeenCalled();
   expect(screen.queryByText('₹2,00,000. Is that right?')).toBeNull();
 
   await holdOnce(screen.getByRole('button', { name: 'Hold to say it' }));
   await screen.findByText('₹2,00,000. Is that right?');
   await user.click(screen.getByRole('button', { name: 'Yes' }));
+  expect(await screen.findByText('Saved as told by owner.')).toBeTruthy();
+  expect(confirm).toHaveBeenCalledExactlyOnceWith({ text: 'do lakh', digest: DIGEST }, expect.anything());
   expect(onSaveClosing).toHaveBeenCalledExactlyOnceWith('200000');
-  expect(screen.getByText('Saved as told by owner.')).toBeTruthy();
 });
 
-test('cash by voice: words with no amount say so, and a bad reply saves nothing', async () => {
+test('cash by voice: unclear, negated or bad readings and a refused confirmation save nothing', async () => {
   const engine = createFakeEngine();
-  let reply: unknown = { amount: null, heard: 'kal dekhenge', confirm: true };
-  cleanups.push(registerFakeMethods('modelsx', { speechInterpret: () => reply }));
+  let reply: unknown = reading('kal dekhenge', []);
+  cleanups.push(registerFakeMethods('modelsx', {
+    speechInterpret: () => reply,
+    speechConfirm: () => { throw Object.assign(Error('UNDERSTOOD_CHANGED'), { code: 'UNDERSTOOD_CHANGED' }); },
+  }));
   const onSaveClosing = vi.fn();
   const listen = { start: vi.fn(), stop: vi.fn(async () => 'kal dekhenge') };
+  const user = userEvent.setup();
   show(<TodayScreen data={today({ cash: { week: week() } })} intents={{ ...intents(), onSaveClosing, cashVoice: { on: true, rpc: engine, listen } }} view="simple" onNavigate={vi.fn()} />);
-  await holdOnce(screen.getByRole('button', { name: 'Hold to say it' }));
+  const hold = () => holdOnce(screen.getByRole('button', { name: 'Hold to say it' }));
+  await hold();
   expect(await screen.findByText('Not sure what was said. Heard: kal dekhenge')).toBeTruthy();
-  reply = { amount: { paise: '1.5' }, heard: 'x', confirm: true };
-  await holdOnce(screen.getByRole('button', { name: 'Hold to say it' }));
+  reply = reading('do lakh nahi', [doLakh], { negations: [{ text: 'nahi', start: 8, end: 12, kind: 'negation', note: 'This flips the meaning.', ambiguous: false }], flipsMeaning: true });
+  await hold();
+  expect(await screen.findByText('Not sure what was said. Heard: do lakh nahi')).toBeTruthy();
+  reply = { amount: { paise: '20000000' }, heard: 'x', confirm: true };
+  await hold();
+  expect(await screen.findByText('The amount could not be read. Type it instead.')).toBeTruthy();
+  reply = reading('do lakh', [doLakh]);
+  await hold();
+  await user.click(await screen.findByRole('button', { name: 'Yes' }));
   expect(await screen.findByText('The amount could not be read. Type it instead.')).toBeTruthy();
   expect(onSaveClosing).not.toHaveBeenCalled();
   expect(rupeesText('123450')).toBe('1234.50');

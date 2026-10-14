@@ -358,18 +358,46 @@ export function isClosingReply(v: unknown): v is ClosingReply {
 }
 
 /**
- * Assumed models-ext contract (absent in this base): `modelsx.speechInterpret`
- * { text, intent: 'cash-amount', language } → { amount: { paise } | null, heard, confirm: true }.
- * Only text crosses: no audio is sent or kept. `confirm: true` means nothing runs or saves
- * until the person says yes.
+ * The models-ext lane's speech reading (platform/runtime/speech-understood.ts, served by
+ * `modelsx.speechInterpret` { text } and `modelsx.speechConfirm` { text, digest }). Only text
+ * crosses: no audio is sent or kept. The reading is deterministic (no model) and always asks for
+ * a person's confirmation. Only the fields a screen uses are typed; every declared key is checked.
  */
-export interface SpeechInterpretReply {
-  readonly amount: { readonly paise: string } | null;
-  readonly heard: string;
-  readonly confirm: true;
+export interface SpeechNumber {
+  readonly text: string;
+  /** Whole rupees or other whole units as digits; null when the number has a fraction. */
+  readonly integer: string | null;
+  readonly unit: 'rupees' | 'paise' | null;
+  /** Whole paise, when the words named rupees or paise. */
+  readonly paise: string | null;
+  readonly display: string;
 }
+export interface SpeechInterpretReply {
+  readonly version: 1;
+  readonly understood: string;
+  readonly numbers: readonly SpeechNumber[];
+  readonly negations: readonly unknown[];
+  readonly ambiguities: readonly unknown[];
+  readonly unclear: readonly unknown[];
+  readonly flipsMeaning: boolean;
+  readonly requiresConfirmation: true;
+  readonly digest: string;
+  readonly receiptId: string | null;
+}
+const SPEECH_KEYS = ['version', 'normalised', 'understood', 'language', 'segments', 'negations', 'numbers', 'ambiguities', 'unclear', 'flipsMeaning', 'requiresConfirmation', 'digest', 'receiptId'];
+const speechText = (v: unknown): v is string => typeof v === 'string' && v.length <= 10000 && !/[\u0000-\u001f]/.test(v);
 export function isSpeechInterpretReply(v: unknown): v is SpeechInterpretReply {
-  if (!isRec(v) || !onlyKeys(v, ['amount', 'heard', 'confirm']) || v['confirm'] !== true || !(isStr(v['heard']) && v['heard'].length <= 2000 && !/[\u0000-\u001f]/.test(v['heard']))) return false;
-  const amount = v['amount'];
-  return amount === null || (isRec(amount) && onlyKeys(amount, ['paise']) && isDigits(amount['paise']) && amount['paise'] !== '0');
+  if (!isRec(v) || !onlyKeys(v, SPEECH_KEYS) || v['version'] !== 1 || v['requiresConfirmation'] !== true || typeof v['flipsMeaning'] !== 'boolean') return false;
+  if (!speechText(v['normalised']) || !speechText(v['understood']) || !isStr(v['language']) || !(isStr(v['digest']) && /^[a-f0-9]{64}$/.test(v['digest']))) return false;
+  if (!(v['receiptId'] === null || isName(v['receiptId']))) return false;
+  for (const list of ['segments', 'negations', 'ambiguities', 'unclear'] as const) if (!Array.isArray(v[list]) || !v[list].every(isRec)) return false;
+  const numbers = v['numbers'];
+  return Array.isArray(numbers) && numbers.every(n => isRec(n) && speechText(n['text']) && isStr(n['display'])
+    && (n['integer'] === null || isDigits(n['integer'])) && (n['paise'] === null || isDigits(n['paise'])) && (n['unit'] === null || n['unit'] === 'rupees' || n['unit'] === 'paise'));
+}
+/** `modelsx.speechConfirm` { text, digest } → the recorded confirmation of the exact reading. */
+export interface SpeechConfirmReply { readonly confirmationId: string; readonly digest: string; readonly understood: string; readonly receiptId: string | null; readonly confirmedAt: string }
+export function isSpeechConfirmReply(v: unknown): v is SpeechConfirmReply {
+  return isRec(v) && onlyKeys(v, ['confirmationId', 'digest', 'understood', 'receiptId', 'confirmedAt']) && isName(v['confirmationId'])
+    && isStr(v['digest']) && /^[a-f0-9]{64}$/.test(v['digest']) && speechText(v['understood']) && (v['receiptId'] === null || isName(v['receiptId'])) && isIsoDate(v['confirmedAt']);
 }
