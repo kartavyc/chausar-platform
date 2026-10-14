@@ -220,7 +220,9 @@ test('Friday review and rhythm settings validate, preview without digits and ref
   // The relay's phone.verify belongs to hosted-link; stub the host so this holds whether or not that lane is merged.
   const verify = reportsMethods['reportsx.verifyChannel']!;
   const hostWith = (call: (method: string) => Promise<unknown>) => ({ ...engine.moduleHost('reports-tools-trust', engine.context), call });
-  await assert.rejects(Promise.resolve(verify.handler(engine.context, { channel: 'mail' }, hostWith(async () => { throw Object.assign(new Error('x'), { code: 'UNKNOWN_METHOD' }); }) as any)), code('RELAY_NOT_AVAILABLE'));
+  for (const absent of ['UNKNOWN_METHOD', 'DEMO_EXTERNAL_DISABLED', 'HOSTED_NOT_CONFIGURED', 'HOSTED_NOT_PAIRED'])
+    await assert.rejects(Promise.resolve(verify.handler(engine.context, { channel: 'mail' }, hostWith(async () => { throw Object.assign(new Error('x'), { code: absent }); }) as any)), code('RELAY_NOT_AVAILABLE'), absent);
+  await assert.rejects(Promise.resolve(verify.handler(engine.context, { channel: 'mail' }, hostWith(async () => { throw Object.assign(new Error('x'), { code: 'FORBIDDEN' }); }) as any)), code('FORBIDDEN'));
   assert.deepEqual(await verify.handler(engine.context, { channel: 'mail' }, hostWith(async method => { assert.equal(method, 'phone.verify'); return { verified: true }; }) as any), { channel: 'mail', verified: true });
 });
 
