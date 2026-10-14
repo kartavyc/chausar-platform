@@ -42,12 +42,23 @@ const LABELS: Record<string, SummaryKey> = Object.fromEntries(([
 ] as const).flatMap(([key, words]) => words.map(word => [word, key])));
 /** The fixed label a cell carries, if any. Only whole-cell matches count; other text stays data. */
 export function labelOf(cell: string): SummaryKey | null {
-  const text = norm(cell ?? '').replace(/[\s:.\-–]+$/u, '');
+  if ((cell ?? '').length > 200) return null;
+  const text = norm(cell ?? '').replace(/[ :.\-–]+$/u, '');
   return Object.hasOwn(LABELS, text) ? LABELS[text] : null;
 }
 const MONEY_TEXT = /^(?:-\s*)?(?:₹|Rs\.?|INR)?\s*[\d,]+\.\d{1,2}(?:\s*\(?(?:Cr|Dr)\.?\)?)?$/i;
 const FIGURE = /^(?:-\s*)?(?:₹|Rs\.?|INR)?\s*[\d,]+(?:\.\d{1,2})?(?:\s*\(?(?:Cr|Dr)\.?\)?)?$/i;
-const IN_CELL = /^(.*?)\s*[:\-]?\s*((?:-\s*)?(?:₹|Rs\.?|INR)?\s*[\d,]+\.\d{1,2}(?:\s*\(?(?:Cr|Dr)\.?\)?)?)$/i;
+/**
+ * A label and its figure in one cell ("Closing Balance : 9350.00"). Whitespace is collapsed and the
+ * cell capped before matching, so the match stays linear in the cell length (no backtracking blow-up).
+ */
+const TRAILING_FIGURE = /((?:- ?)?(?:₹|Rs\.?|INR)? ?[\d,]+\.\d{1,2}(?: ?\(?(?:Cr|Dr)\.?\)?)?)$/i;
+const IN_CELL = { exec(cell: string): [string, string, string] | null {
+  const text = (cell ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim();
+  if (text.length === 0 || text.length > 200) return null;
+  const m = TRAILING_FIGURE.exec(text); if (!m) return null;
+  return [text, text.slice(0, m.index).replace(/[ :\-]+$/, ''), m[1]];
+} };
 /** "1,234.00 Cr" is a credit (positive) balance and "1,234.00 Dr" an overdrawn one. */
 export function normalizeBalance(text: string, sign = ''): string {
   let value = (text ?? '').normalize('NFKC').trim(); let word = sign.trim();
