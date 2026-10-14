@@ -146,7 +146,7 @@ function editView(record: EditRecord, currentHash: string | null) {
 }
 const editFields = (edit: TypedEdit): [string, string][] | undefined => edit.edit === 'add-field' ? [[edit.name, edit.type]] : undefined;
 
-export async function proposeEdits(ctx: Context, host: ModuleHost, options: { edits?: unknown; fromEvidence?: boolean }) {
+export async function proposeEdits(ctx: Context, host: ModuleHost, options: { edits?: unknown; fromEvidence?: boolean; modelReceiptId?: string }) {
   const state = host.store.read(); current(state, ctx, 'prepare');
   const dictionary = currentDictionary(host, ctx);
   check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business meanings before proposing dictionary edits.');
@@ -154,7 +154,7 @@ export async function proposeEdits(ctx: Context, host: ModuleHost, options: { ed
   const refused: { index: number; code: string }[] = [];
   const candidates: { edit: TypedEdit; evidence: EditEvidence; index?: number }[] = options.fromEvidence === false ? [] : evidenceEdits(state, ctx, dictionary);
   (options.edits as unknown[] | undefined ?? []).forEach((value, index) => {
-    try { candidates.push({ edit: assertEdit(value), evidence: { origin: 'model', count: 1, importIds: [], sourceIds: [], decisionIds: [] }, index }); }
+    try { candidates.push({ edit: assertEdit(value), evidence: { origin: 'model', count: 1, importIds: [], sourceIds: [], decisionIds: [], ...(options.modelReceiptId ? { modelReceiptId: options.modelReceiptId } : {}) }, index }); }
     catch (error) { refused.push({ index, code: codeOf(error) }); }
   });
   check((peek(state)?.edits ?? []).filter(item => item.status === 'awaiting-review').length < 200, 'EDITS_PENDING', 'Review the waiting dictionary edits before proposing more.');

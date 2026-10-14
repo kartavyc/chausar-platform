@@ -25,7 +25,9 @@ export type TypedEdit =
   | { edit: 'change-sign'; name: string; sign: 1 | -1 }
   | { edit: 'change-kind'; name: string; kind: string };
 /** Local evidence for an edit. Source headers stay on this machine and are never served or shared. */
-export type EditEvidence = { origin: 'unmapped-field' | 'fact-kind' | 'correction' | 'model'; count: number; importIds: string[]; sourceIds: string[]; decisionIds: string[]; header?: string };
+export type EditEvidence = { origin: 'unmapped-field' | 'fact-kind' | 'correction' | 'model'; count: number; importIds: string[]; sourceIds: string[]; decisionIds: string[]; header?: string;
+  /** For an edit a configured model route proposed through `learningx.editsAskRun`: the gateway's model receipt. */
+  modelReceiptId?: string };
 
 const FIELD_TYPES: FieldType[] = ['string', 'money', 'date', 'integer', 'boolean'];
 const GENERATED = new Set(['revenue', 'net_sales', 'margin', 'aging', 'change', 'scenario']);
