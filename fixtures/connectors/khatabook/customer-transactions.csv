@@ -1,0 +1,10 @@
+Demo Dairy Shop
+Customer Transactions Report
+01 Sep 2026 - 30 Sep 2026
+Date,Customer Name,Details,You Gave (₹),You Got (₹)
+01 Sep 2026 09:10 AM,Ramesh Kulkarni,milk and paneer,450,
+03 Sep 2026 07:45 PM,Sunita Deshpande,monthly milk,"1,200",
+05 Sep 2026 10:00 AM,Ramesh Kulkarni,,,450
+12 Sep 2026 06:30 PM,Sunita Deshpande,part payment,,800
+18 Sep 2026 08:15 AM,Anil Joshi,ghee 1 kg,650.50,
+,Grand Total,,"2,300.50","1,250"

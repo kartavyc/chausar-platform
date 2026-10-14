@@ -1,0 +1,8 @@
+Demo Kirana Store
+Purchase Report
+Duration: 01/09/2026 to 30/09/2026
+Date,Bill No.,Party Name,Party GSTIN,Transaction Type,Payment Type,Total Amount,Paid Amount,Balance Amount,Payment Status
+03/09/2026,P-501,Ganesh Wholesale,29AABCZ2222B1ZQ,Purchase,Bank,"25,960.00","25,960.00",0.00,Paid
+10/09/2026,P-502,Om Distributors,,Purchase,Credit,"8,260.00",0.00,"8,260.00",Unpaid
+14/09/2026,DN-7,Ganesh Wholesale,29AABCZ2222B1ZQ,Debit Note,Credit,"-1,180.00",0.00,"-1,180.00",Unpaid
+Total,,,,,,"33,040.00","25,960.00","7,080.00",

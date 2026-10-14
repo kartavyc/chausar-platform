@@ -1,0 +1,9 @@
+Demo Cafe - Order Summary Report
+From 2026-09-01 To 2026-09-01
+Invoice No.,Date,Order Type,Payment Type,Status,Persons,My Amount,Total Discount,Delivery Charge,Container Charge,Total Tax,Round Off,Grand Total
+1001,2026-09-01 12:10:00,Dine In,Cash,Success,2,400.00,0.00,0.00,0.00,20.00,0.00,420.00
+1002,2026-09-01 13:25:00,Pick Up,UPI,Success,1,250.00,25.00,0.00,10.00,11.75,0.25,247.00
+1003,2026-09-01 14:02:00,Delivery,Online,Success,1,600.00,0.00,40.00,20.00,30.00,0.00,690.00
+1004,2026-09-01 15:30:00,Dine In,Card,Cancelled,3,900.00,0.00,0.00,0.00,45.00,0.00,945.00
+1005,2026-09-01 20:45:00,Dine In,Cash,Complimentary,2,300.00,300.00,0.00,0.00,0.00,0.00,0.00
+Total,,,,,,1550.00,325.00,40.00,30.00,61.75,0.25,1357.00
