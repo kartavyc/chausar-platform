@@ -32,11 +32,13 @@ A Node 24 and TypeScript service set on PostgreSQL 16, with the job queue on the
 | `phone.channels.set` | admin, external | Needs the ticked opt-in; sends the SHA-256 of the desktop's own opt-in wording |
 | `phone.templates.preview` | read | The exact text of every message, button and fixed reply before the first one is sent. No digit anywhere |
 | `phone.messages.counts` | read, external | This month against the budget of thirty, and the cost in paise or "unknown" |
-| `phone.messages.send` | admin, external | One fixed message. With `actionId`, Approve and Not now only for a single prepared, unattempted, `reversible` action on the workspace's own `local` connector; anything else (money, outside messages, deleting, outside systems, groups) gets Open the app only with the reason. A retry after a lost reply reuses the same key and sealed blobs |
-| `phone.relay.collect` | admin, external | Also run by `tick`. Opens each sealed envelope and applies it only if the offer is unused and unexpired, the action is still prepared with the same digest and revision, and still eligible. Approve calls `actions.approve` with the exact digest and never executes; Not now leaves it prepared. Each outcome is audited with the channel |
+| `phone.messages.send` | admin, external | One fixed message. With `actionId`, Approve and Not now only for a single prepared, unattempted, `reversible` action on the workspace's own `local` connector; anything else (money, outside messages, deleting, outside systems, groups) gets Open the app only with the reason. Mail never carries Approve or Not now, because a forwarded mail cannot be told apart from the owner. A retry after a lost reply reuses the same key and sealed blobs |
+| `phone.relay.collect` | admin, external | Also run by `tick`. Envelopes reach only the device that made the offer; one this computer cannot open is left alone, never acknowledged away. Opens each sealed envelope and applies it only if the offer is unused and unexpired, the action is still prepared with the same digest and revision, and still eligible. Approve calls `actions.approve` with the exact digest and never executes; Not now leaves it prepared. Each outcome is audited with the channel |
 | `hosted.backup.upload`, `hosted.backup.list`, `hosted.backup.restore`, `hosted.backup.exportKey` | admin / read | The core vault backup, wrapped again with AES-256-GCM under a backup key kept in the vault, uploaded blind; restore writes a file the core `workspace.restore` opens. The key can be exported once for the recovery kit |
 | `hosted.allowance.status` | read, external | Balance and pricing date. `AllowanceRouteClient` is exported for the models-ext route catalogue and keeps the exact request and reply word for word |
 | `hosted.worker.status`, `hosted.worker.set`, `hosted.worker.dueDates`, `hosted.worker.deleteData` | read / admin, external | The server's label verbatim; enabling needs explicit consent; due dates are date only |
+
+**Installed app wiring.** `hostOptions` reads `CHAUSAR_HOSTED_ORIGIN` and `CHAUSAR_LINK_ORIGIN` (https, the link origin digit-free) and uses the platform fetch. Demo mode, or an absent or invalid origin, leaves the module unconfigured (`HOSTED_NOT_CONFIGURED`). No edit to `main.cjs` is needed.
 
 `GoogleDriveSyncTransport` (`drive-transport.ts`) is a `SyncTransport` for the existing encrypted one-writer sync, with the `drive.file` scope and the picked file ids only. Drive has no compare-and-swap, so it writes and reads back the head and refuses `SYNC_HEAD_MISMATCH`; sync stays single-writer with hand-over. `createDriveSyncFolder` makes the folder and head file.
 
@@ -64,7 +66,11 @@ A Node 24 and TypeScript service set on PostgreSQL 16, with the job queue on the
 
 ## Tests
 
-`platform/tests/hosted-link-*.test.ts` (93 tests): foundation, accounts, billing, relay (no-digit rule over every rendered body and button, budget under concurrency, replay, expiry, forwarded presses, webhooks, HELP/STOP/START), link page, backup, allowance (exact BigInt costs, concurrency, no prompt stored), worker, the composed app end to end, the desktop module against a fake server, the Drive transport through the core `SyncService`, and the desktop module against the real hosted services. Database tests start a disposable PostgreSQL 16 (`hosted-link-pg.ts`; as root it runs the server as the `postgres` user) and skip with a reason when no server binaries exist.
+`platform/tests/hosted-link-*.test.ts` (106 tests): foundation, accounts, billing, relay (no-digit rule over every rendered body and button, budget under concurrency, replay, expiry, forwarded presses, webhooks, HELP/STOP/START), link page, backup, allowance (exact BigInt costs, concurrency, no prompt stored), worker, the composed app end to end, the desktop module against a fake server, the Drive transport through the core `SyncService`, and the desktop module against the real hosted services. Database tests start a disposable PostgreSQL 16 (`hosted-link-pg.ts`; as root it runs the server as the `postgres` user) and skip with a reason when no server binaries exist.
+
+## Adversarial review
+
+An independent review traced every path a forwarded, replayed or expired button could take, the sealing, the budget and allowance races, webhook signatures, SQL, authorization and demo mode. Fixed after it: envelopes are scoped to the offering device and the desktop never acknowledges one it cannot open; large uploads are authenticated and size-checked before the body is read; superseded subscriptions are cancelled at the partner; mail carries no Approve; a press on a stopped channel decides nothing; global and per-address OTP limits; Postmark tracking off; an unset allowance grant is a state word; a 5xx is an unknown outcome on the desktop; an interrupted phone approval resumes; purge scrubs removed actions from the message log. Kept by decision: the Open the app link stays usable for seven days because it decides nothing and holds no data.
 
 ## What still needs a person (typed refusals in the code)
 
@@ -81,5 +87,6 @@ A Node 24 and TypeScript service set on PostgreSQL 16, with the job queue on the
 - PH-05 stops at the fixed reply; nothing is downloaded or imported.
 - The allowance route client is not registered in the gateway's route catalogue (models-ext owns routes).
 - The engine host must wire `GoogleDriveSyncTransport` into `EngineOptions.sync` and record the picked folder; no method does it yet.
-- Mail HELP and STOP by reply need an inbound mail webhook; today they work on WhatsApp and Telegram.
+- Mail HELP and STOP by reply need an inbound mail webhook; the mail footer says to turn mail off in the app instead. HELP and STOP by reply work on WhatsApp and Telegram.
+- Mail addresses are not verified with a confirmation link before the channel turns on.
 - Free-plan mail from the person's own mail account is the writeback lane's SMTP adapter, not this relay.
