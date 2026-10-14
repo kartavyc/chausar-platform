@@ -76,6 +76,17 @@ export class SyncService {
     const enabled = this.#enabled, trusted = new Map(this.#trusted);
     return () => { this.#enabled = enabled; this.#trusted = new Map(trusted); };
   }
+  #attached: SyncTransport | null = null;
+  /**
+   * Trusted host modules only: attach a dedicated, narrowly scoped Google Drive transport when the host configured
+   * none, or detach the one attached here with null. A host-configured transport is never replaced. Any change turns
+   * sync off until it is re-enabled through the Engine's writer-admitted `sync.enable`.
+   */
+  attachTransport(transport: SyncTransport | null): void {
+    check(!this.options.transport || this.options.transport === this.#attached, 'SYNC_TRANSPORT_CONFIGURED', 'This device\'s sync transport was configured by the host and cannot be replaced.');
+    if (transport) check(/google.?drive/i.test(transport.kind) && !!transport.scope && transport.scope.fileIds.length > 0 && transport.scope.broadAccess === false, 'SYNC_SCOPE_DENIED', 'Only a dedicated, narrowly scoped Drive folder can be attached.');
+    this.#attached = transport; this.options = { ...this.options, transport: transport ?? undefined }; this.#enabled = false;
+  }
   enable(context: Context, enabled: boolean) { authorize(this.store, context, 'admin'); check(typeof enabled === 'boolean', 'INVALID_SYNC_SETTING', 'Sync enablement must be boolean.'); this.#enabled = enabled; return this.status(context); }
   identity(context: Context) { authorize(this.store, context, 'admin'); return { deviceId: this.deviceId, signerId: this.signerId, publicKey: this.#publicKey.export({ format: 'pem', type: 'spki' }).toString() }; }
   trustDevice(context: Context, identity: { signerId: string; publicKey: string; memberId: string; epoch: number }) {

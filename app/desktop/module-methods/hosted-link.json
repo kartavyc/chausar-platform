@@ -18,5 +18,8 @@
   "hosted.worker.status",
   "hosted.worker.set",
   "hosted.worker.dueDates",
-  "hosted.worker.deleteData"
+  "hosted.worker.deleteData",
+  "hosted.drive.connect",
+  "hosted.drive.status",
+  "hosted.drive.disconnect"
 ]

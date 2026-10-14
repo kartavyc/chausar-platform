@@ -514,9 +514,11 @@ test('purge drops only offers whose action was removed', () => {
 });
 
 test('the installed app configures the hosted origin from the environment, never in demo', () => {
-  assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: false, env: {} }), {});
+  // The Drive sync broker (drive-sync.ts) rides alongside under `drive`; its own test covers it.
+  const hostOptions = (input: Parameters<NonNullable<typeof hostedLinkModule.hostOptions>>[0]) => { const { drive: _drive, ...hosted } = hostedLinkModule.hostOptions!(input); return hosted; };
+  assert.deepEqual(hostOptions({ directory: '/x', demo: false, env: {} }), {});
   assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: true, env: { CHAUSAR_HOSTED_ORIGIN: ORIGIN } }), {});
-  assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: false, env: { CHAUSAR_HOSTED_ORIGIN: 'http://insecure.example' } }), {});
-  assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: false, env: { CHAUSAR_HOSTED_ORIGIN: ORIGIN, CHAUSAR_LINK_ORIGIN: 'https://link.chausar.app' } }),
+  assert.deepEqual(hostOptions({ directory: '/x', demo: false, env: { CHAUSAR_HOSTED_ORIGIN: 'http://insecure.example' } }), {});
+  assert.deepEqual(hostOptions({ directory: '/x', demo: false, env: { CHAUSAR_HOSTED_ORIGIN: ORIGIN, CHAUSAR_LINK_ORIGIN: 'https://link.chausar.app' } }),
     { origin: ORIGIN, linkOrigin: 'https://link.chausar.app' });
 });

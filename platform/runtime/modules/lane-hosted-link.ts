@@ -1,10 +1,11 @@
 import type { EngineModule } from './types.ts';
 import * as hosted from '../hosted-link/service.ts';
+import * as drive from '../hosted-link/drive-sync.ts';
 
 /** Lane-owned engine methods. Only the owning lane edits this file. */
 export const hostedLinkModule: EngineModule = {
   id: 'hosted-link',
-  hostOptions: hosted.hostOptions,
+  hostOptions: input => ({ ...hosted.hostOptions(input), ...drive.driveHostOptions(input) }),
   methods: {
     'hosted.status': { permission: 'read', handler: hosted.status },
     'hosted.pair.start': { permission: 'admin', external: true, handler: hosted.pairStart },
@@ -26,7 +27,10 @@ export const hostedLinkModule: EngineModule = {
     'hosted.worker.set': { permission: 'admin', external: true, handler: hosted.workerSet },
     'hosted.worker.dueDates': { permission: 'admin', external: true, handler: hosted.workerDueDates },
     'hosted.worker.deleteData': { permission: 'admin', external: true, handler: hosted.workerDeleteData },
+    'hosted.drive.connect': { permission: 'admin', external: true, handler: drive.driveConnect },
+    'hosted.drive.status': { permission: 'read', handler: drive.driveStatus },
+    'hosted.drive.disconnect': { permission: 'admin', handler: drive.driveDisconnect },
   },
   purge: (state, reason) => hosted.purgeOffers(state, reason),
-  tick: (ctx, host) => hosted.tickCollect(ctx, host),
+  tick: (ctx, host) => { try { drive.reattach(host, ctx); } catch { /* the next status call reports it */ } return hosted.tickCollect(ctx, host); },
 };
