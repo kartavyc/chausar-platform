@@ -26,7 +26,7 @@ export function proposeMemoryLine(state: State, ctx: Context, line: { text: stri
 
 export const memoryMethods: Record<string, MethodSpec> = {
   'books.memory': { permission: 'read', handler(ctx, payload, host) {
-    const { outsideOnly } = input(payload, ['outsideOnly']); check(outsideOnly === undefined || typeof outsideOnly === 'boolean', 'INVALID_REQUEST', 'outsideOnly is true or false.');
+    const { outsideOnly } = input(payload, ['outsideOnly']); check(outsideOnly === undefined || typeof outsideOnly === 'boolean', 'INVALID_BOOKS_REQUEST', 'outsideOnly is true or false.');
     return { lines: peekBooks(host.store.read()).memory.filter(l => !l.deletedAt && (!outsideOnly || l.source === 'outside-content')).map(view) };
   } },
   'books.remember': { permission: 'prepare', handler(ctx, payload, host) {

@@ -78,13 +78,13 @@ export function unmappedFields(state: State, ctx: Context) {
 
 export const sourceMethods: Record<string, MethodSpec> = {
   'books.sources': { permission: 'read', async handler(ctx, payload, host) {
-    const request = input(payload, ['endMonth']); check(request.endMonth === undefined || validMonth(request.endMonth), 'INVALID_REQUEST', 'Give the last month as YYYY-MM.');
+    const request = input(payload, ['endMonth']); check(request.endMonth === undefined || validMonth(request.endMonth), 'INVALID_BOOKS_REQUEST', 'Give the last month as YYYY-MM.');
     const state = host.store.read(); const ids = visibleSourceIds(state, ctx); const months = monthsEnding(request.endMonth ?? defaultEnd(state, ids));
     const freshness = await optionalCall(host, 'connectorsx.freshness', {});
     return { rows: ids.map(id => sourceRow(state, id, months)), unmappedFields: unmappedFields(state, ctx).length, freshness: { available: freshness.available } };
   } },
   'books.source': { permission: 'read', handler(ctx, payload, host) {
-    const { sourceId } = input(payload, ['sourceId'], ['sourceId']); check(plainId(sourceId), 'INVALID_REQUEST', 'Name the source.');
+    const { sourceId } = input(payload, ['sourceId'], ['sourceId']); check(plainId(sourceId), 'INVALID_BOOKS_REQUEST', 'Name the source.');
     const state = host.store.read(); check(visibleSourceIds(state, ctx).includes(sourceId), 'SOURCE_NOT_FOUND', 'This source is not available to you.');
     const imports = state.imports.filter(i => i.sourceId === sourceId).sort((a, b) => String(a.at).localeCompare(String(b.at)));
     const kinds = new Map<string, Set<string>>(); for (const f of liveFacts(state, sourceId) as Fact[]) kinds.set(f.kind, (kinds.get(f.kind) ?? new Set()).add(f.entityId));

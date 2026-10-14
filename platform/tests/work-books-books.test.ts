@@ -73,7 +73,7 @@ test('sources: twelve months with loaded, refused and not-loaded-yet; unmapped f
   assert.deepEqual(one.kinds, [{ kind: 'sale', rows: 2 }]);
   assert.deepEqual((await call(owner, 'books.source', { sourceId: 'bad-file' })).refusals.map((r: any) => r.codes), [['RECONCILIATION']]);
   await assert.rejects(call(owner, 'books.source', { sourceId: 'nope' }), { code: 'SOURCE_NOT_FOUND' });
-  await assert.rejects(call(owner, 'books.sources', { endMonth: '2026-13' }), { code: 'INVALID_REQUEST' });
+  await assert.rejects(call(owner, 'books.sources', { endMonth: '2026-13' }), { code: 'INVALID_BOOKS_REQUEST' });
   assert.equal(peekSection(store.read(), 'books'), undefined, 'reads never create the namespace');
 });
 
@@ -264,7 +264,7 @@ test('history: as known on before and after a correction, versions, stale answer
   assert.notEqual(asKnown.then.receiptId, asKnown.now.receiptId); assert.equal(asKnown.then.asOf, known);
   const early = await call(owner, 'history.asKnownOn', { operation: 'billed', period: september, asOf: '2020-01-01T00:00:00.000Z' });
   assert.deepEqual(early.then.value, { missing: 'not-loaded-yet' });
-  await assert.rejects(call(owner, 'history.asKnownOn', { operation: 'billed', period: september, asOf: 'yesterday' }), { code: 'INVALID_REQUEST' });
+  await assert.rejects(call(owner, 'history.asKnownOn', { operation: 'billed', period: september, asOf: 'yesterday' }), { code: 'INVALID_BOOKS_REQUEST' });
 
   const versions = (await call(owner, 'history.versions', { entityId: 'inv-2' })).versions;
   assert.deepEqual(versions.map((v: any) => [v.kind, v.change, v.amount]), [

@@ -103,8 +103,8 @@ export const accountMethods: Record<string, MethodSpec> = {
   'accounts.classes': { permission: 'read', handler(_ctx, payload) { input(payload, []); return { classes: [...CLASSES] }; } },
   'accounts.decide': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['name', 'decision', 'class'], ['name', 'decision']);
-    check(typeof request.name === 'string' && ['yes', 'no', 'change'].includes(request.decision), 'INVALID_REQUEST', 'Name the account and answer yes, no or change.');
-    check(request.decision === 'change' ? CLASSES.includes(request.class) : request.class === undefined, 'INVALID_REQUEST', 'Choose one of the account classes only when changing the class.');
+    check(typeof request.name === 'string' && ['yes', 'no', 'change'].includes(request.decision), 'INVALID_BOOKS_REQUEST', 'Name the account and answer yes, no or change.');
+    check(request.decision === 'change' ? CLASSES.includes(request.class) : request.class === undefined, 'INVALID_BOOKS_REQUEST', 'Choose one of the account classes only when changing the class.');
     const { rows, found } = await accountRows(ctx, host); const current = rows.find(r => r.name === request.name); check(current, 'ACCOUNT_NOT_FOUND', 'This account was not found in your books.');
     check(request.decision !== 'yes' || current.proposed, 'CLASS_REQUIRED', 'There is no proposed class to accept. Choose a class.');
     const who = member(host.store.read(), ctx);

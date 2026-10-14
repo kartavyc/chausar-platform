@@ -74,7 +74,7 @@ export const meaningMethods: Record<string, MethodSpec> = {
       words, drafts: structuredClone(drafts) };
   } },
   'books.meaning': { permission: 'read', handler(ctx, payload, host) {
-    const { name } = input(payload, ['name'], ['name']); check(typeof name === 'string' && NAME.test(name), 'INVALID_REQUEST', 'Name the word.');
+    const { name } = input(payload, ['name'], ['name']); check(typeof name === 'string' && NAME.test(name), 'INVALID_BOOKS_REQUEST', 'Name the word.');
     const dictionary = current(host, ctx); const word = dictionary?.definitions.find(d => d.name === name) ?? null;
     const draft = [...peekBooks(host.store.read()).drafts].reverse().find(d => d.name === name && open(d)) ?? null;
     check(word || draft, 'WORD_NOT_FOUND', 'This word is not in the dictionary.');
@@ -87,8 +87,8 @@ export const meaningMethods: Record<string, MethodSpec> = {
     return { word: structuredClone(word), origin: word ? originOf(word, dictionary!.pack) : 'you', draft: structuredClone(draft), history };
   } },
   'books.draft': { permission: 'prepare', async handler(ctx, payload, host) {
-    const request = input(payload, ['name', 'definition'], ['name']); check(typeof request.name === 'string' && NAME.test(request.name), 'INVALID_REQUEST', 'Name the word in lower case letters, digits and underscores.');
-    check(Object.hasOwn(request, 'definition'), 'INVALID_REQUEST', 'Give the new definition, or null to remove the word.');
+    const request = input(payload, ['name', 'definition'], ['name']); check(typeof request.name === 'string' && NAME.test(request.name), 'INVALID_BOOKS_REQUEST', 'Name the word in lower case letters, digits and underscores.');
+    check(Object.hasOwn(request, 'definition'), 'INVALID_BOOKS_REQUEST', 'Give the new definition, or null to remove the word.');
     const dictionary = current(host, ctx); check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business meanings before changing one.');
     const name: string = request.name; const before = dictionary.definitions.find(d => d.name === name) ?? null;
     const after = request.definition === null ? null : definitionInput(request.definition, name, dictionary.currency);

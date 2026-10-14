@@ -37,7 +37,7 @@ export function collectRecords(host: ModuleHost, ctx: Context): Map<string, Reco
 }
 const nameOf = (entry: RecordEntry) => { const field = `${entry.kind}Name`; return (entry.facts.map(f => f.fields[field]).find(str) as string | undefined) ?? null; };
 function findRecord(host: ModuleHost, ctx: Context, id: unknown): RecordEntry {
-  check(plainId(id), 'INVALID_REQUEST', 'Name the record.'); const entry = collectRecords(host, ctx).get(id); check(entry, 'RECORD_NOT_FOUND', 'This record is not available to you.'); return entry;
+  check(plainId(id), 'INVALID_BOOKS_REQUEST', 'Name the record.'); const entry = collectRecords(host, ctx).get(id); check(entry, 'RECORD_NOT_FOUND', 'This record is not available to you.'); return entry;
 }
 async function owes(host: ModuleHost, ctx: Context, entry: RecordEntry): Promise<{ value: Amount; receiptId: string | null }> {
   if (entry.kind !== 'customer') return { value: { missing: 'not-applicable' }, receiptId: null };
@@ -142,7 +142,7 @@ function conflicts(host: ModuleHost, ctx: Context) {
 export const recordMethods: Record<string, MethodSpec> = {
   'records.search': { permission: 'read', handler(ctx, payload, host) {
     const request = input(payload, ['kind', 'text']);
-    check((request.kind === undefined || ['customer', 'supplier', 'item'].includes(request.kind)) && (request.text === undefined || typeof request.text === 'string' && request.text.length <= 200), 'INVALID_REQUEST', 'Filter by customer, supplier or item and by text.');
+    check((request.kind === undefined || ['customer', 'supplier', 'item'].includes(request.kind)) && (request.text === undefined || typeof request.text === 'string' && request.text.length <= 200), 'INVALID_BOOKS_REQUEST', 'Filter by customer, supplier or item and by text.');
     const needle = (request.text ?? '').trim().toLowerCase();
     return { records: [...collectRecords(host, ctx).values()].filter(r => (!request.kind || r.kind === request.kind) && (!needle || r.id.toLowerCase().includes(needle) || (nameOf(r) ?? '').toLowerCase().includes(needle)))
       .sort((a, b) => a.id.localeCompare(b.id)).map(r => ({ id: r.id, kind: r.kind, name: nameOf(r), sources: [...new Set(r.facts.map(f => f.sourceId))].sort(), facts: r.facts.length })) };
@@ -150,13 +150,13 @@ export const recordMethods: Record<string, MethodSpec> = {
   'records.get': { permission: 'read', handler(ctx, payload, host) { const { id } = input(payload, ['id'], ['id']); return recordView(host, ctx, id); } },
   'records.setOptIn': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['id', 'channel', 'answer', 'source', 'on'], ['id', 'channel', 'answer', 'source', 'on']);
-    check(['mail', 'whatsapp'].includes(request.channel) && ['yes', 'no'].includes(request.answer) && text(request.source, 300) && isoDay(request.on), 'INVALID_REQUEST', 'Give the channel, the answer, where it came from and the date.');
+    check(['mail', 'whatsapp'].includes(request.channel) && ['yes', 'no'].includes(request.answer) && text(request.source, 300) && isoDay(request.on), 'INVALID_BOOKS_REQUEST', 'Give the channel, the answer, where it came from and the date.');
     const entry = findRecord(host, ctx, request.id); const who = member(host.store.read(), ctx);
     await writeBooks(host.store, ctx, 'prepare', books => { books.optIns.push({ recordId: entry.id, channel: request.channel, answer: request.answer, source: request.source, on: request.on, by: who.name, at: now() }); });
     return recordView(host, ctx, entry.id);
   } },
   'records.stop': { permission: 'prepare', async handler(ctx, payload, host) {
-    const request = input(payload, ['id', 'on'], ['id', 'on']); check(isoDay(request.on), 'INVALID_REQUEST', 'Give the date the stop word arrived.');
+    const request = input(payload, ['id', 'on'], ['id', 'on']); check(isoDay(request.on), 'INVALID_BOOKS_REQUEST', 'Give the date the stop word arrived.');
     const entry = findRecord(host, ctx, request.id); const who = member(host.store.read(), ctx);
     await writeBooks(host.store, ctx, 'prepare', books => { books.stops.push({ recordId: entry.id, on: request.on, by: who.name, at: now() }); });
     return recordView(host, ctx, entry.id);
@@ -164,7 +164,7 @@ export const recordMethods: Record<string, MethodSpec> = {
   'records.matches': { permission: 'read', handler(ctx, payload, host) { input(payload, []); return { pairs: matchPairs(host, ctx) }; } },
   'records.decideMatch': { permission: 'approve', async handler(ctx, payload, host) {
     const request = input(payload, ['left', 'right', 'same'], ['left', 'right', 'same']);
-    check(plainId(request.left) && plainId(request.right) && request.left !== request.right && typeof request.same === 'boolean', 'INVALID_REQUEST', 'Name two different customers and whether they are the same.');
+    check(plainId(request.left) && plainId(request.right) && request.left !== request.right && typeof request.same === 'boolean', 'INVALID_BOOKS_REQUEST', 'Name two different customers and whether they are the same.');
     const records = collectRecords(host, ctx);
     for (const id of [request.left, request.right]) check(records.get(id)?.kind === 'customer', 'RECORD_NOT_FOUND', 'Both records must be customers available to you.');
     const pair = evaluate(host, ctx, records, request.left, request.right); const who = member(host.store.read(), ctx);
@@ -189,7 +189,7 @@ export const recordMethods: Record<string, MethodSpec> = {
   'records.conflicts': { permission: 'read', handler(ctx, payload, host) { input(payload, []); return conflicts(host, ctx); } },
   'records.setPrecedence': { permission: 'admin', async handler(ctx, payload, host) {
     const request = input(payload, ['kind', 'sourceIds'], ['kind', 'sourceIds']);
-    check(typeof request.kind === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(request.kind) && Array.isArray(request.sourceIds) && request.sourceIds.length <= 64 && request.sourceIds.every(plainId), 'INVALID_REQUEST', 'Name the kind of fact and the sources in order.');
+    check(typeof request.kind === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(request.kind) && Array.isArray(request.sourceIds) && request.sourceIds.length <= 64 && request.sourceIds.every(plainId), 'INVALID_BOOKS_REQUEST', 'Name the kind of fact and the sources in order.');
     const rule = await (host.services.memory as MemoryService).setSourcePrecedence(ctx, request.kind, request.sourceIds);
     return { kind: rule.kind, sourceIds: [...rule.sourceIds] };
   } },

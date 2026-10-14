@@ -29,7 +29,7 @@ function scratchStore(state: State): StateStore {
 export const historyMethods: Record<string, MethodSpec> = {
   'history.asKnownOn': { permission: 'read', async handler(ctx, payload, host) {
     const request = input(payload, ['operation', 'period', 'asOf'], ['operation', 'period', 'asOf']);
-    check(typeof request.operation === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(request.operation) && isoInstant(request.asOf), 'INVALID_REQUEST', 'Choose a calculation, a period and a known-on time.');
+    check(typeof request.operation === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(request.operation) && isoInstant(request.asOf), 'INVALID_BOOKS_REQUEST', 'Choose a calculation, a period and a known-on time.');
     validatePeriod(request.period);
     const asOf = new Date(request.asOf).toISOString(); check(asOf <= now(), 'INVALID_ASOF', 'The known-on time cannot be in the future.');
     const then = await calculator(host).calculate(ctx, { operation: request.operation, period: request.period, asOf });
@@ -37,7 +37,7 @@ export const historyMethods: Record<string, MethodSpec> = {
     return { then: { value: valueOf(then), receiptId: then.id, asOf: then.asOf }, now: { value: valueOf(current), receiptId: current.id, asOf: current.asOf } };
   } },
   'history.versions': { permission: 'read', handler(ctx, payload, host) {
-    const { entityId } = input(payload, ['entityId'], ['entityId']); check(plainId(entityId), 'INVALID_REQUEST', 'Name the record.');
+    const { entityId } = input(payload, ['entityId'], ['entityId']); check(plainId(entityId), 'INVALID_BOOKS_REQUEST', 'Name the record.');
     const state = host.store.read();
     const facts = state.facts.filter(f => !f.deletedAt && (f.entityId === entityId || f.fields.invoiceId === entityId) && canSeeFact(host.store, ctx, f))
       .sort((a, b) => a.learnedAt.localeCompare(b.learnedAt) || state.facts.indexOf(a) - state.facts.indexOf(b));

@@ -46,9 +46,9 @@ export function peekBooks(state: State): BooksState {
 
 /** Plain-object payload with only the declared keys. */
 export function input(payload: unknown, allowed: string[], required: string[] = []): Record<string, any> {
-  check(!!payload && typeof payload === 'object' && !Array.isArray(payload) && [Object.prototype, null].includes(Object.getPrototypeOf(payload)), 'INVALID_REQUEST', 'Send the request fields as a plain object.');
+  check(!!payload && typeof payload === 'object' && !Array.isArray(payload) && [Object.prototype, null].includes(Object.getPrototypeOf(payload)), 'INVALID_BOOKS_REQUEST', 'Send the request fields as a plain object.');
   const value = payload as Record<string, unknown>;
-  check(Object.keys(value).every(key => allowed.includes(key)) && required.every(key => Object.hasOwn(value, key) && value[key] !== undefined), 'INVALID_REQUEST', 'Send only the declared request fields, with every required field.');
+  check(Object.keys(value).every(key => allowed.includes(key)) && required.every(key => Object.hasOwn(value, key) && value[key] !== undefined), 'INVALID_BOOKS_REQUEST', 'Send only the declared request fields, with every required field.');
   return value;
 }
 export function text(value: unknown, max = 200): value is string { return typeof value === 'string' && value.trim().length > 0 && value.length <= max; }
