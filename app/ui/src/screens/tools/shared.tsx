@@ -6,8 +6,9 @@ import type { ReactNode } from 'react';
 import type { Language } from '../../app/presentation.ts';
 import { date } from '../../format/index.ts';
 import { words, type PlaceRenderProps } from '../../places/types.ts';
-import type { Sent } from '../trust/kit/engine.ts';
-import type { Uses } from './adapters/smallapps.ts';
+import { State } from '../../patterns/States';
+import type { Loaded, Sent } from '../trust/kit/engine.ts';
+import { screenState } from '../trust/kit/Screen';
 import { TOOLS_WORDS, fill, type ToolsWord } from './words.ts';
 import s from './shared.module.css';
 
@@ -33,6 +34,16 @@ export function SentLine<T>({ sent, done, w }: { sent: Sent<T>; done?: string | 
   if (sent.kind === 'refused') return <p className={s.refused} role="status">{refusalSentence(sent.code, w)}</p>;
   if (sent.kind === 'done' && done !== undefined) return <p className={s.status} role="status">{done}</p>;
   return null;
+}
+
+/**
+ * A part of a page that loads on its own. A refusal with a plain sentence of its own (such as
+ * the relay not being set up) reads as that sentence; any other state is the common one.
+ */
+export function Part<T>({ loaded, w, children }: { loaded: Loaded<T>; w: Words; children: (value: T) => ReactNode }) {
+  if (loaded.kind === 'ready') return <>{children(loaded.value)}</>;
+  if (loaded.kind === 'failed' && `refusal.${loaded.code}` in w) return <p className={s.status}>{refusalSentence(loaded.code, w)}</p>;
+  return <State state={screenState(loaded)} />;
 }
 
 /** Lines between hairlines: one item per line, with controls at the right. */
@@ -66,11 +77,12 @@ export function Warn({ children }: { children: ReactNode }) { return <p classNam
 export function Row2({ children }: { children: ReactNode }) { return <div className={s.row2}>{children}</div>; }
 
 /** The permission list, by name, shown before a small app is made and under one that was. */
-export function UsesList({ uses, w }: { uses: Uses; w: Words }) {
+export function UsesList({ calculations, actions, book, w }: { calculations: readonly string[]; actions: readonly string[]; book: boolean; w: Words }) {
   return (
     <div className={s.uses}>
-      <div><h3 className={s.small}>{w.reads}</h3><Names names={uses.calculations} w={w} /></div>
-      <div><h3 className={s.small}>{w.proposes}</h3><Names names={uses.actions} w={w} /></div>
+      <div><h3 className={s.small}>{w.reads}</h3><Names names={calculations} w={w} /></div>
+      <div><h3 className={s.small}>{w.proposes}</h3><Names names={actions} w={w} /></div>
+      {book && <div><h3 className={s.small}>{w.keepsIn}</h3><Names names={[w.bookTitle]} w={w} /></div>}
     </div>
   );
 }
