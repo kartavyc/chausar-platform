@@ -2,6 +2,35 @@
 
 Release `0.1.0-preview.1` implements a runnable local desktop architecture preview and includes the separate recovered enterprise engine. The full supplied plans are retained in `docs/specs/`; their complete production acceptance contract is not certified by this release.
 
+## Full-build integration checkpoint (14 October 2026)
+
+Eleven lanes built the rest of the product in parallel from one shared brief (`docs/build/LANES.md`) and were merged into `claude/clever-goldberg-49qobq`: frame-today, ask, work-books, reports-tools-trust, connectors-ext, writeback, jobs-ext, learning-ext, hosted-link, release and models-ext. Each lane is an engine module behind the registry in `platform/runtime/modules/`, with its own desktop allowlist, refusal codes and React places. Each lane document in `docs/lanes/` gives its methods, screens, evidence and gaps; [supported-features.md](supported-features.md) section 7 summarises them.
+
+Results on merge commit `c56a6ea`, Linux x64, Node 24.13.1:
+
+| Check | Result |
+|---|---|
+| `node scripts/check.mjs` | Passed, 1,122 source files |
+| `npm run typecheck`, `typecheck:ui`, `typecheck:phone` | Clean |
+| `npm test` (engine, `--experimental-vm-modules`) | 5,140 tests: 5,108 passed, 0 failed, 32 skipped |
+| UI node tests (`app/ui/tests`) | 542 tests: 533 passed, 0 failed, 9 skipped |
+| Vitest screen tests (`frontend-validation`) | 37 files, 689 passed, 0 failed |
+| `node scripts/sync-lane-refusals.mjs --check` | Renderer and preload agree (545 lane codes) |
+
+The skipped tests need what this machine does not have: live PostgreSQL and MySQL connection settings, the tesseract OCR reader, and the optional PGlite package for the directory-owner suite. Earlier full runs on intermediate merges also passed apart from tests that assumed a not-yet-merged lane was absent; those were rewritten to stub the registry.
+
+Integration fixes made in the base while merging:
+
+- Module calls can add the outside-text mark and never clear it (`ModuleHost.call(..., { tainted: true })`), and model data transfer approval refuses a tainted context.
+- An approved message, payment or deletion waits (`SENDING_CLOSED`) while an earlier outside effect is executing or unknown.
+- Job consent is written to work-books' customer register when it is installed, so the register that reminders read is the one that was written.
+- frame-today reads hosted-link's real phone methods; models-ext and reports treat an unpaired or demo hosted link as "not available yet".
+- `@electron/node-gyp` is pinned by npm override to its registry release, so the packaging preflight accepts the lockfile (it refused a git URL).
+- The BigInt custody test no longer leaks its `stat` hook into the next test (it failed under load when an inode number was reused).
+- `scripts/sync-lane-refusals.mjs` keeps the renderer's lane refusal codes equal to the preload's.
+
+What this checkpoint does not establish: any live account, provider, device, customer business, deployment or installer run. Everything that needs one refuses with a typed code until it is supplied. Windows and macOS have not been built or run. The open release gates below still apply.
+
 ## Published source checkpoints
 
 The recovered baseline below is historical evidence for the initial preview. Later integration checkpoints have their own source-pinned reports. Published commit `0546c85d3323b96ce8257f2bb1f637d6d2f47190` passed 1611 combined app/semantic tests, root strict TypeScript, portable phone TypeScript, syntax/JSON and the Windows headless worker. Its Windows and Ubuntu GitHub CI jobs also passed. It joins saved investigations to durable jobs; these source checks do not certify the complete release.
