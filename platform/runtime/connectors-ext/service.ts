@@ -12,7 +12,10 @@ import { commitOutcome } from './importer.ts';
 import { authorizeUrl, KEY_SIGN_IN, pkce, providerFor } from './oauth.ts';
 import { cxState, freshness, LIMITS, peekCx, prune, publicEnvelope, type Connection, type Envelope } from './state.ts';
 import type { RecipeOutcome, Road } from './types.ts';
-import type { DecoderInput } from './recipe.ts';
+import { compileRecipe, runRecipe, type DecoderInput, type SourceRecipe } from './recipe.ts';
+import { extractBankPdf, pdfTextToRows } from './bank-pdf.ts';
+import { matchPurchaseRegister, type MatchLine } from './gst-match.ts';
+import { listTables, plainDbRead, type PlainDbConnection } from './plain-db/index.ts';
 
 /** Trusted host options for this module (engine `modules['connectors-ext']`). Never from an RPC payload. */
 export type ConnectorsHostOptions = {
@@ -20,6 +23,8 @@ export type ConnectorsHostOptions = {
   credentialBroker?: (ctx: Context, request: Parameters<ReadCredentials>[0]) => Promise<string>;
   http?: BoundedHttp;
   oauthClients?: Record<string, { clientId: string; redirectUri: string }>;
+  /** Resolves a database password reference held by the host keychain. */
+  databaseCredentials?: (ctx: Context, ref: string) => Promise<string>;
   tokenExchange?: (ctx: Context, request: { provider: string; code: string; verifier: string; redirectUri: string; scopes: string[]; connectionId: string; sourceId: string; settings: Record<string, string> }) => Promise<{ ok: true }>;
 };
 const REQUEST = 'CONNECTOR_REQUEST_INVALID';
@@ -49,12 +54,23 @@ function connection(store: StateStore, id: unknown): Connection {
 }
 const options = (host: ModuleHost) => host.options as ConnectorsHostOptions;
 
+function databaseConnection(item: Connection): PlainDbConnection {
+  const s = item.settings;
+  if (s.engine === 'sqlite') return { engine: 'sqlite', path: s.path ?? '' };
+  check(s.engine === 'postgres' || s.engine === 'mysql', REQUEST, 'Choose PostgreSQL, MySQL or SQLite.');
+  check(/^\d{1,5}$/.test(s.port ?? ''), REQUEST, 'Give the database port.');
+  return { engine: s.engine, host: s.host ?? '', port: Number(s.port), database: s.database ?? '', user: s.user ?? '', ssl: s.ssl === 'disable' ? 'disable' : 'require', passwordRef: s.passwordRef ?? '' } as PlainDbConnection;
+}
+function databaseOptions(ctx: Context, host: ModuleHost) {
+  const resolve = options(host).databaseCredentials;
+  return resolve ? { credentials: (ref: string) => resolve(ctx, ref) } : {};
+}
 /** Summaries only: a reply never carries source rows. */
 export function outcomeSummary(envelope: Envelope) { return publicEnvelope(envelope); }
 
 async function recordEnvelope(host: ModuleHost, ctx: Context, input: { outcome: RecipeOutcome | null; failure?: { code: string }; connection: Connection | null; target: { sourceId: string; company: string; branch: string };
-  recipeId: string; road: Road; requestedPeriod: { from: string; to: string } | null; read?: Envelope['read'] }): Promise<Envelope> {
-  const recipe = registeredRecipe(input.recipeId), outcome = input.outcome;
+  recipe: SourceRecipe; road: Road; requestedPeriod: { from: string; to: string } | null; read?: Envelope['read'] }): Promise<Envelope> {
+  const recipe = input.recipe, outcome = input.outcome;
   return host.store.update(state => {
     authorize(view(host.store, state), ctx, 'prepare');
     const cx = cxState(state); prune(cx, Date.now());
@@ -101,7 +117,9 @@ export const handlers = {
   },
   async connect(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     shape(payload, ['group', 'road', 'label', 'company', 'branch', 'settings'], ['group', 'road', 'company']);
-    const group = APPROVED_CONNECTOR_GROUPS.find(item => item.id === payload.group); check(group, 'SYSTEM_NOT_FOUND', 'Choose one of the listed systems.');
+    const group = payload.group === 'plain-database' ? { id: 'plain-database', name: 'Plain database (read only)' } : APPROVED_CONNECTOR_GROUPS.find(item => item.id === payload.group);
+    check(group, 'SYSTEM_NOT_FOUND', 'Choose one of the listed systems.');
+    check((group.id === 'plain-database') === (payload.road === 'database'), REQUEST, 'A plain database is reached as a database, and only a plain database is.');
     check(['interface', 'file', 'screen', 'database'].includes(payload.road), REQUEST, 'Choose how Chausar reaches this system.');
     check(payload.road !== 'screen', 'SCREEN_EXPORT_NOT_BUILT', 'Driving the program on your screen is not built in this version. Export a file instead.');
     check(text(payload.company), REQUEST, 'Name the company this connection reads.');
@@ -114,7 +132,10 @@ export const handlers = {
       const allowed = new Set(reads.flatMap(read => read.settings));
       check(Object.keys(settings).every(key => allowed.has(key)), REQUEST, 'A setting is not used by this system.');
       for (const read of reads) if (read.settings.every(key => Object.hasOwn(settings, key))) read.spec.validate(read.config(settings));
-    } else if (payload.road === 'database') check(['plain-database', 'microsoft-365', 'notion'].includes(group.id) || Object.keys(settings).length > 0, REQUEST, 'Database connections need their settings.');
+    } else if (payload.road === 'database') {
+      check(Object.keys(settings).every(key => ['engine', 'host', 'port', 'database', 'user', 'ssl', 'passwordRef', 'path'].includes(key)), REQUEST, 'A setting is not used by database connections.');
+      databaseConnection({ settings } as Connection);
+    }
     else check(Object.keys(settings).length === 0, REQUEST, 'File connections take no settings.');
     return host.store.update(state => {
       const member = authorize(view(host.store, state), ctx, 'admin');
@@ -186,16 +207,16 @@ export const handlers = {
     try { result = await runApiRead(binding!.spec, { config: binding!.config(item.settings), sourceId: item.sourceId, period: requested, credentials, http: options(host).http }); }
     catch (error) {
       const code = error instanceof ChausarError ? error.code : 'SOURCE_READ_FAILED';
-      await recordEnvelope(host, ctx, { outcome: null, failure: { code }, connection: item, target: item, recipeId: binding!.recipe, road: 'interface', requestedPeriod: requested });
+      await recordEnvelope(host, ctx, { outcome: null, failure: { code }, connection: item, target: item, recipe: registeredRecipe(binding!.recipe), road: 'interface', requestedPeriod: requested });
       throw error instanceof ChausarError ? error : new ChausarError('SOURCE_READ_FAILED', 'The read failed. Nothing was retried.');
     }
     const declared = result.declared ?? null;
     const meta: Record<string, string> = declared ? { ...(declared.rowCount != null ? { declaredRowCount: String(declared.rowCount) } : {}), ...(declared.amount != null ? { declaredAmount: declared.amount, declaredAmountUnit: declared.amountUnit ?? 'major' } : {}), declaredReference: declared.reference ?? `${binding!.spec.system}-declared` } : {};
     const outcome = runRegistered(binding!.recipe, { records: result.records, meta }, totals ? { reportTotals: totals } : {});
-    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipeId: binding!.recipe, road: 'interface', requestedPeriod: requested, read: { pages: result.pages, requests: result.requests, bytes: result.bytes } }));
+    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe: registeredRecipe(binding!.recipe), road: 'interface', requestedPeriod: requested, read: { pages: result.pages, requests: result.requests, bytes: result.bytes } }));
   },
   async importPreview(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
-    shape(payload, ['recipeId', 'connectionId', 'sourceId', 'company', 'branch', 'text', 'bytesBase64', 'sheet', 'reportTotals'], ['recipeId']);
+    shape(payload, ['recipeId', 'connectionId', 'sourceId', 'company', 'branch', 'text', 'bytesBase64', 'pdfBase64', 'sheet', 'reportTotals'], ['recipeId']);
     const selected = registeredRecipe(payload.recipeId), decoder = DECODERS.get(selected.decoder)!;
     let target: { sourceId: string; company: string; branch: string }, item: Connection | null = null;
     if (payload.connectionId !== undefined) {
@@ -207,14 +228,18 @@ export const handlers = {
     }
     const input: DecoderInput = {};
     if (decoder.accepts === 'text') { check(typeof payload.text === 'string' && payload.text.length <= 20 * 1024 * 1024, REQUEST, 'This recipe reads a text export.'); input.text = payload.text; }
-    else if (decoder.accepts === 'rows') {
+    else if (decoder.accepts === 'rows' && payload.pdfBase64 !== undefined) {
+      check(selected.decoder === 'bank-pdf-text', 'RECIPE_INPUT_MISMATCH', 'Only the bank statement PDF recipe reads PDF files.');
+      const extracted = await extractBankPdf(host.services.helper, payload.pdfBase64);
+      input.rows = pdfTextToRows(extracted.pages).rows;
+    } else if (decoder.accepts === 'rows') {
       check(typeof payload.bytesBase64 === 'string' && payload.bytesBase64.length <= 2_800_000 && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(payload.bytesBase64), REQUEST, 'Choose a bounded workbook.');
       const workbook = readWorkbook(Buffer.from(payload.bytesBase64, 'base64'), payload.sheet === undefined ? {} : { sheet: payload.sheet });
       check(workbook.sheets.length === 1, 'SHEET_REQUIRED', 'Choose the exact worksheet to import.');
       input.rows = workbook.sheets[0].rows;
     } else check(false, 'RECIPE_INPUT_MISMATCH', 'This recipe reads records from a connected system.');
     const outcome = runRegistered(selected.id, input, payload.reportTotals ? { reportTotals: reportTotals(payload.reportTotals) } : {});
-    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target, recipeId: selected.id, road: 'file', requestedPeriod: null }));
+    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target, recipe: selected, road: 'file', requestedPeriod: null }));
   },
   async importCommit(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     shape(payload, ['envelopeId'], ['envelopeId']); check(text(payload.envelopeId, 100), REQUEST, 'Choose a file or read to import.');
@@ -251,6 +276,33 @@ export const handlers = {
     const state = host.store.read(), cx = peekCx(state);
     const sources = payload.sourceId !== undefined ? [payload.sourceId] : [...new Set([...cx.connections.map(item => item.sourceId), ...cx.envelopes.map(item => item.sourceId)])];
     return sources.map(sourceId => { const item = cx.connections.find(c => c.sourceId === sourceId); return { ...freshness(state, sourceId, asOf), connection: item ? { id: item.id, group: item.group, road: item.road, label: item.label, status: item.status } : null }; });
+  },
+  async gstMatch(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    shape(payload, ['registerSourceId', 'gstr2bSourceId', 'period'], ['registerSourceId', 'gstr2bSourceId']);
+    check(text(payload.registerSourceId, 100) && text(payload.gstr2bSourceId, 100) && payload.registerSourceId !== payload.gstr2bSourceId, REQUEST, 'Choose the purchase register and the GSTR-2B source.');
+    const requested = period(payload.period), dictionary = host.services.ontology.current(ctx);
+    check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business meanings before matching.');
+    const selection = host.services.memory.query(ctx, requested ? { period: requested } : {});
+    const lines = (sourceId: string): MatchLine[] => selection.facts.filter((fact: any) => fact.sourceId === sourceId && fact.kind === 'purchase').map((fact: any) => ({
+      entityId: fact.entityId, supplierGstin: String(fact.fields.gstin ?? fact.fields.customerId ?? ''), invoiceNumber: String(fact.fields.invoiceId ?? ''), invoiceDate: fact.validFrom,
+      taxableMinor: String(fact.fields.amountMinor), taxMinor: fact.fields.taxMinor === undefined || fact.fields.taxMinor === null ? null : String(fact.fields.taxMinor), sourceRow: fact.sourceRow }));
+    const register = lines(payload.registerSourceId), gstr2b = lines(payload.gstr2bSourceId);
+    check(dictionary.gstMode !== 'regular' || (register.length > 0 && gstr2b.length > 0), 'GST_MATCH_SOURCES_EMPTY', 'Both the purchase register and GSTR-2B need imported purchases in this period. A source not loaded yet is not matched as empty.');
+    return { gstMode: dictionary.gstMode, period: requested, ...matchPurchaseRegister({ register, gstr2b, gstMode: dictionary.gstMode, ...(requested ? { period: requested } : {}) }) };
+  },
+  async plainDbTables(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    shape(payload, ['connectionId'], ['connectionId']);
+    const item = connection(host.store, payload.connectionId); check(item.road === 'database', 'READ_NOT_AVAILABLE', 'This connection is not a database.');
+    return listTables(databaseConnection(item), databaseOptions(ctx, host));
+  },
+  async plainDbRead(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+    shape(payload, ['connectionId', 'mapping'], ['connectionId', 'mapping']);
+    const item = connection(host.store, payload.connectionId); check(item.road === 'database', 'READ_NOT_AVAILABLE', 'This connection is not a database.');
+    check(item.status === 'active', 'CONNECTION_PAUSED', 'This connection is paused.');
+    const read = await plainDbRead(databaseConnection(item), payload.mapping, databaseOptions(ctx, host));
+    const recipe = compileRecipe(read.recipe, DECODERS);
+    const outcome = runRecipe(recipe, DECODERS.get('api-records')!, { records: read.records, meta: Object.fromEntries(Object.entries(read.meta).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])) });
+    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe, road: 'database', requestedPeriod: payload.mapping?.period ?? null }));
   },
   unmapped(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     shape(payload, ['group']);

@@ -13,5 +13,8 @@
   "connectorsx.discard",
   "connectorsx.envelopes",
   "connectorsx.freshness",
-  "connectorsx.unmapped"
+  "connectorsx.unmapped",
+  "connectorsx.gstMatch",
+  "connectorsx.plainDb.tables",
+  "connectorsx.plainDb.read"
 ]

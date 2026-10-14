@@ -119,7 +119,7 @@ export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: Decoder
   try {
     let table: DecodedTable;
     try { table = decoder.decode(input, recipe); }
-    catch (error) { if (error instanceof Stop) throw error; const code = (error as any)?.code; refuse(typeof code === 'string' ? code : 'MALFORMED_SOURCE', typeof code === 'string' && (error as Error).message ? (error as Error).message : 'The file could not be read with this recipe.'); }
+    catch (error) { if (error instanceof Stop) throw error; const code = (error as any)?.code; const line = (error as any)?.line; refuse(typeof code === 'string' ? code : 'MALFORMED_SOURCE', typeof code === 'string' && (error as Error).message ? (error as Error).message : 'The file could not be read with this recipe.', Number.isSafeInteger(line) && line > 0 ? line : undefined); }
     const columns: Record<string, string | null> = {};
     const headers = new Map(table!.headers.map(h => [norm(h), h]));
     for (const [name, spec] of Object.entries(recipe.fields)) {
