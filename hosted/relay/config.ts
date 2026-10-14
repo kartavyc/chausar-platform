@@ -44,7 +44,8 @@ export function relayConfig(env: Env): RelayOptions {
   const inboundUser = given(env.POSTMARK_INBOUND_USER), inboundPassword = given(env.POSTMARK_INBOUND_PASSWORD), inboundHmac = given(env.MAIL_INBOUND_HMAC_SECRET);
   if (apiOrigin) checkApiOrigin(apiOrigin);
   const mailInbound: Record<string, MailInboundAdapter> = {};
-  if (inboundUser && inboundPassword) mailInbound.postmark = postmarkInbound({ user: inboundUser, password: inboundPassword });
+  const authservId = given(env.POSTMARK_INBOUND_AUTHSERV_ID);
+  if (inboundUser && inboundPassword) mailInbound.postmark = postmarkInbound({ user: inboundUser, password: inboundPassword, ...(authservId ? { authservId } : {}) });
   if (inboundHmac) mailInbound.hmac = hmacMailInbound({ secret: inboundHmac });
   check(!botName || /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(botName), 'RELAY_CONFIG_INVALID', 'The Telegram bot name is not valid.', 500);
   let prices: RelayPrices | null = null;

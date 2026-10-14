@@ -14,16 +14,25 @@ import type { Fetch, HostedDeps } from '../../hosted/shared/module.ts';
 import { BUTTONS, LINK_PAGE, MAIL_FOOTER, MAIL_TEXT, OPT_IN_TEXT, REPLIES, confirmationBody, hasDigit } from '../../hosted/shared/templates.ts';
 import { createRelayModule, relayConfig } from '../../hosted/relay/relay.ts';
 import { mailChannel, whatsappChannel } from '../../hosted/relay/channels.ts';
-import { hmacMailInbound, mailCommand, postmarkInbound, MAIL_REPLIES_PER_SENDER_PER_DAY } from '../../hosted/relay/mail-inbound.ts';
+import { authenticationResultsPass, hmacMailInbound, mailCommand, postmarkAuthenticated, postmarkInbound, spfPasses, MAIL_REPLIES_PER_SENDER_PER_DAY } from '../../hosted/relay/mail-inbound.ts';
+import { HELP_TICKETS_PER_DAY } from '../../hosted/relay/relay.ts';
 import { CONFIRMATIONS_PER_DAY } from '../../hosted/relay/mail-verify.ts';
 import { createLinkPages } from '../../hosted/link/pages.ts';
+import { migrate } from '../../hosted/db/sql.ts';
 import { postgresAvailable, freshDatabase, closeDatabases } from './hosted-link-pg.ts';
+import { copyFile, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 after(closeDatabases);
 const pgSkip = postgresAvailable();
 const OWNER = 'acct_00000000-0000-4000-8000-00000000000a', OTHER = 'acct_00000000-0000-4000-8000-00000000000b';
 const INBOUND = { user: 'postmark-inbound', password: 'synthetic-inbound-password' }, HMAC = 'synthetic-inbound-hmac-secret';
 const basic = (user: string, password: string) => `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`;
+const AUTHSERV = 'mx.inbound.example.invalid';
+/** Received-SPF as a receiving server prepends it; documentation addresses only. */
+const receivedSpf = (envelope: string, result = 'Pass') => ({ Name: 'Received-SPF', Value: `${result} (sender SPF authorized) identity=mailfrom; client-ip=192.0.2.10; helo=mail.example.net; envelope-from=${envelope}; receiver=${AUTHSERV}` });
 
 async function setup() {
   const sql = await freshDatabase();
@@ -42,7 +51,7 @@ async function setup() {
     entitlements: async () => ({ ...FREE_ENTITLEMENTS, plan: 'paid', relay: true }) };
   const relay = createRelayModule(deps, { whatsapp: whatsappChannel({ phoneNumberId: '106540352242922', accessToken: 'EAAGtestaccesstokenletterswhatsappcloud' }),
     telegram: null, mail: mailChannel({ serverToken: 'postmark-server-token-test', from: 'messages@chausar.app' }), prices: null,
-    mailInbound: { postmark: postmarkInbound(INBOUND), hmac: hmacMailInbound({ secret: HMAC }) } });
+    mailInbound: { postmark: postmarkInbound(INBOUND), postmarkresults: postmarkInbound({ ...INBOUND, authservId: AUTHSERV }), hmac: hmacMailInbound({ secret: HMAC }) } });
   const router = new Router(); relay.routes(router); createLinkPages(deps, relay.buttons, relay.mailConfirm).routes(router);
   const worker = new Worker(queue); relay.jobs!(worker);
   const api = async (method: string, url: string, body?: unknown, account = OWNER) => {
@@ -60,10 +69,11 @@ async function setup() {
     return /\/v\/([A-Za-z]{48})/.exec(mail.body.TextBody)![1];
   };
   let n = 0;
-  const postmark = (from: string, text: string, extra: Record<string, unknown> = {}, auth = basic(INBOUND.user, INBOUND.password)) =>
-    router.handle({ method: 'POST', url: '/v1/webhooks/mail/postmark', headers: { 'content-type': 'application/json', authorization: auth },
+  /** A Postmark inbound mail; by default its sender passed SPF for its own domain. */
+  const postmark = (from: string, text: string, extra: Record<string, unknown> = {}, auth = basic(INBOUND.user, INBOUND.password), provider = 'postmark') =>
+    router.handle({ method: 'POST', url: `/v1/webhooks/mail/${provider}`, headers: { 'content-type': 'application/json', authorization: auth },
       body: Buffer.from(JSON.stringify({ From: `Owner Person <${from}>`, FromFull: { Email: from, Name: 'Owner Person' }, To: 'reply@chausar.app', Subject: 'Re: The week ahead is ready.',
-        TextBody: `${text}\n\nOn Wed someone wrote:\n> The week ahead is ready.`, StrippedTextReply: text, MessageID: `inbound-${++n}-${randomUUID()}`, Headers: [], ...extra })) });
+        TextBody: `${text}\n\nOn Wed someone wrote:\n> The week ahead is ready.`, StrippedTextReply: text, MessageID: `inbound-${++n}-${randomUUID()}`, Headers: [receivedSpf(from)], ...extra })) });
   const replies = () => sent.filter(c => c.body.Subject === MAIL_TEXT.replySubject).map(c => [c.body.To, c.body.TextBody]);
   return { sql, state, sent, router, worker, api, setMail, mailStatus, page, confirmation, postmark, replies, relay };
 }
@@ -197,7 +207,7 @@ test('inbound mail is authenticated, deduplicated, never answered for an unconfi
   await h.worker.runOnce(50);
   assert.equal(h.replies().length, MAIL_REPLIES_PER_SENDER_PER_DAY, 'one reply per event, none to an automatic reply, and at most the daily limit per sender');
   // The generic HMAC adapter for other providers.
-  const raw = Buffer.from(JSON.stringify({ from: 'owner.person@example.com', text: 'STOP', messageId: 'generic-one' }));
+  const raw = Buffer.from(JSON.stringify({ from: 'owner.person@example.com', text: 'STOP', messageId: 'generic-one', authenticated: true }));
   assert.equal((await h.router.handle({ method: 'POST', url: '/v1/webhooks/mail/hmac', headers: { 'x-chausar-mail-signature': `sha256=${'0'.repeat(64)}` }, body: raw })).status, 401);
   assert.equal((await h.router.handle({ method: 'POST', url: '/v1/webhooks/mail/hmac', headers: { 'x-chausar-mail-signature': `sha256=${hmacHex(HMAC, raw)}` }, body: raw })).status, 200);
   assert.equal((await h.mailStatus()).status, 'stopped');
@@ -210,4 +220,145 @@ test('inbound mail configuration comes from the environment', () => {
   assert.deepEqual(Object.keys(set.mailInbound!).sort(), ['hmac', 'postmark']); assert.equal(set.apiOrigin, 'https://api.chausar.app');
   assert.throws(() => relayConfig({ POSTMARK_INBOUND_USER: 'short', POSTMARK_INBOUND_PASSWORD: 'x' }), { code: 'RELAY_CONFIG_INVALID' });
   assert.throws(() => relayConfig({ HOSTED_API_ORIGIN: 'http://api.chausar.app' }), { code: 'RELAY_CONFIG_INVALID' });
+  assert.ok(relayConfig({ POSTMARK_INBOUND_USER: INBOUND.user, POSTMARK_INBOUND_PASSWORD: INBOUND.password, POSTMARK_INBOUND_AUTHSERV_ID: AUTHSERV }).mailInbound!.postmark);
+  assert.throws(() => relayConfig({ POSTMARK_INBOUND_USER: INBOUND.user, POSTMARK_INBOUND_PASSWORD: INBOUND.password, POSTMARK_INBOUND_AUTHSERV_ID: 'not an id' }), { code: 'RELAY_CONFIG_INVALID' });
+  // Every relay mail shows its From address, and no message may carry a digit: the relay refuses to start with one.
+  const mail = { POSTMARK_SERVER_TOKEN: 'postmark-server-token-test' };
+  assert.equal(relayConfig({ ...mail, MAIL_FROM: 'messages@chausar.app' }).mail?.channel, 'mail');
+  for (const from of ['messages2@chausar.app', 'messages@chausar1.app', 'messages@mail.chausar.app0'])
+    assert.throws(() => relayConfig({ ...mail, MAIL_FROM: from }), { code: 'RELAY_CONFIG_INVALID' }, from);
+  assert.throws(() => mailChannel({ serverToken: 'postmark-server-token-test', from: 'two2@chausar.app' }), { code: 'RELAY_CONFIG_INVALID' });
+});
+
+test('sender authentication is read conservatively: SPF for the From domain, or DKIM or SPF from the configured receiver', () => {
+  const spf = (envelope: string, result = 'Pass') => receivedSpf(envelope, result).Value;
+  assert.equal(spfPasses(spf('owner.person@example.com'), 'example.com'), true);
+  assert.equal(spfPasses(spf('bounce@example.com'), 'example.com'), true, 'the envelope sender may differ, its domain may not');
+  assert.equal(spfPasses(spf('owner.person@example.com', 'Fail'), 'example.com'), false);
+  assert.equal(spfPasses(spf('owner.person@example.com', 'SoftFail'), 'example.com'), false);
+  assert.equal(spfPasses(spf('someone@attacker.example.net'), 'example.com'), false, 'a pass for another domain says nothing about From');
+  assert.equal(spfPasses(spf('someone@mail.example.com'), 'example.com'), false, 'exact domain only');
+  assert.equal(spfPasses('Pass (envelope-from=owner.person@example.com) identity=mailfrom; envelope-from=x@attacker.example.net', 'example.com'), false, 'comments are not read');
+  assert.equal(spfPasses('Pass identity=helo; envelope-from=owner.person@example.com', 'example.com'), false, 'a HELO pass is not a mail-from pass');
+  assert.equal(spfPasses('None identity=mailfrom; envelope-from=owner.person@example.com', 'example.com'), false);
+  const results = `${AUTHSERV}; dkim=pass (strong key) header.d=example.com header.s=sel header.b=AbCd; spf=fail smtp.mailfrom=x@attacker.example.net`;
+  assert.equal(authenticationResultsPass(results, 'example.com'), true);
+  assert.equal(authenticationResultsPass(`${AUTHSERV}; dkim=pass header.d=attacker.example.net; spf=pass smtp.mailfrom=x@attacker.example.net`, 'example.com'), false);
+  assert.equal(authenticationResultsPass(`${AUTHSERV}; dkim=fail header.d=example.com; spf=pass smtp.mailfrom=bounce@example.com`, 'example.com'), true);
+  assert.equal(authenticationResultsPass(`${AUTHSERV}; dkim=neutral header.d=example.com`, 'example.com'), false);
+  assert.equal(authenticationResultsPass(`${AUTHSERV}; dkim=pass header.i=@example.com`, 'example.com'), true);
+  const from = 'owner.person@example.com', header = (Name: string, Value: string) => ({ Name, Value });
+  assert.equal(postmarkAuthenticated([receivedSpf(from)], from), true);
+  assert.equal(postmarkAuthenticated([], from), false);
+  assert.equal(postmarkAuthenticated([receivedSpf(from), receivedSpf(from)], from), false, 'a second Received-SPF may be the sender\'s own: neither counts');
+  assert.equal(postmarkAuthenticated([header('Authentication-Results', results)], from), false, 'Authentication-Results counts only with a configured receiver');
+  assert.equal(postmarkAuthenticated([header('Authentication-Results', results)], from, AUTHSERV), true);
+  assert.equal(postmarkAuthenticated([header('Authentication-Results', results.replace(AUTHSERV, 'mx.attacker.example.net'))], from, AUTHSERV), false, 'another receiver\'s results are the sender\'s words');
+  assert.equal(postmarkAuthenticated([header('Authentication-Results', results), header('Authentication-Results', results)], from, AUTHSERV), false);
+  assert.equal(postmarkAuthenticated([receivedSpf(from)], 'not an address'), false);
+});
+
+test('a forged sender can neither stop mail nor open tickets: it gets the fixed free-text reply, still limited', { skip: pgSkip }, async () => {
+  const h = await setup();
+  await confirmedOwner(h);
+  const forged = [
+    { Headers: undefined },                                                       // no headers at all
+    { Headers: [] },
+    { Headers: [receivedSpf('owner.person@example.com', 'Fail')] },
+    { Headers: [receivedSpf('someone@attacker.example.net')] },                   // SPF passed, for the attacker's own domain
+    { Headers: [receivedSpf('owner.person@example.com'), receivedSpf('owner.person@example.com')] },
+    { Headers: [{ Name: 'Authentication-Results', Value: `${AUTHSERV}; dkim=pass header.d=example.com` }] }, // no receiver configured on this provider
+  ];
+  for (const [i, extra] of forged.entries()) assert.equal((await h.postmark('owner.person@example.com', i % 2 ? 'HELP' : 'STOP', extra)).status, 200);
+  await h.worker.runOnce(50);
+  assert.equal((await h.mailStatus()).status, 'on', 'nothing stopped');
+  assert.equal((await h.sql.query('SELECT count(*)::int AS n FROM relay_help_requests')).rows[0].n, 0, 'no ticket');
+  assert.deepEqual(h.replies(), Array(MAIL_REPLIES_PER_SENDER_PER_DAY).fill(['owner.person@example.com', REPLIES.freeText]), 'only the free-text reply, at most the daily limit');
+  assert.deepEqual((await h.sql.query(`SELECT DISTINCT kind FROM relay_inbound WHERE channel = 'mail'`)).rows, [{ kind: 'text' }]);
+  // The generic adapter must say whether the sender was authenticated; false is free text, a missing or non-boolean field is ignored.
+  const hmac = (body: Record<string, unknown>) => { const raw = Buffer.from(JSON.stringify(body)); return h.router.handle({ method: 'POST', url: '/v1/webhooks/mail/hmac', headers: { 'x-chausar-mail-signature': `sha256=${hmacHex(HMAC, raw)}` }, body: raw }); };
+  assert.equal((await hmac({ from: 'owner.person@example.com', text: 'STOP', messageId: 'generic-unauthenticated', authenticated: false })).status, 200);
+  assert.equal((await hmac({ from: 'owner.person@example.com', text: 'STOP', messageId: 'generic-missing' })).status, 200);
+  assert.equal((await hmac({ from: 'owner.person@example.com', text: 'STOP', messageId: 'generic-string', authenticated: 'true' })).status, 200);
+  assert.equal((await h.mailStatus()).status, 'on');
+  assert.equal((await h.sql.query(`SELECT count(*)::int AS n FROM relay_inbound WHERE channel = 'mail'`)).rows[0].n, forged.length + 1, 'malformed bodies are not even recorded');
+  // A DKIM pass reported by the configured receiver does act.
+  await h.postmark('owner.person@example.com', 'STOP', { Headers: [{ Name: 'Authentication-Results', Value: `${AUTHSERV}; dkim=pass header.d=example.com header.s=sel` }] }, undefined, 'postmarkresults');
+  assert.equal((await h.mailStatus()).status, 'stopped');
+});
+
+test('help tickets are limited per account per day; further HELPs still get the reply', { skip: pgSkip }, async () => {
+  const h = await setup();
+  await confirmedOwner(h);
+  for (let i = 0; i < HELP_TICKETS_PER_DAY + 2; i++) await h.postmark('owner.person@example.com', 'HELP');
+  assert.equal((await h.sql.query('SELECT count(*)::int AS n FROM relay_help_requests WHERE account_id = $1', [OWNER])).rows[0].n, HELP_TICKETS_PER_DAY);
+  await h.worker.runOnce(50);
+  assert.deepEqual(h.replies(), Array(HELP_TICKETS_PER_DAY + 2).fill(['owner.person@example.com', REPLIES.help]));
+  h.state.time = new Date(h.state.time.getTime() + 24 * 3600000 + 60000);
+  await h.postmark('owner.person@example.com', 'HELP');
+  assert.equal((await h.sql.query('SELECT count(*)::int AS n FROM relay_help_requests WHERE account_id = $1', [OWNER])).rows[0].n, HELP_TICKETS_PER_DAY + 1, 'a day later one more opens');
+  assert.equal((await h.sql.query('SELECT count(*)::int AS n FROM relay_help_requests WHERE sender_hash IS NULL')).rows[0].n, 0);
+});
+
+test('a mail address confirmed on one account cannot be confirmed on a second (ADDRESS_IN_USE)', { skip: pgSkip }, async () => {
+  const h = await setup();
+  // Both accounts ask for the same address; the first confirmation wins and the second link is refused.
+  await h.setMail('shared.box@example.com', OTHER);
+  const otherLink = await h.confirmation();
+  await h.setMail('Shared.Box@example.com');
+  const ownerLink = await h.confirmation();
+  assert.equal((await h.page('POST', `/v/${ownerLink}`)).status, 200);
+  assert.equal((await h.page('GET', `/v/${otherLink}`)).status, 200, 'GET consumes and decides nothing');
+  const refused = await h.page('POST', `/v/${otherLink}`);
+  assert.equal(refused.status, 410); assert.equal(line(refused), LINK_PAGE.gone);
+  assert.equal((await h.mailStatus(OTHER)).status, 'awaiting-confirmation');
+  assert.deepEqual((await h.sql.query(`SELECT status, last_error FROM relay_mail_confirmations WHERE account_id = $1`, [OTHER])).rows, [{ status: 'failed', last_error: 'ADDRESS_IN_USE' }]);
+  assert.deepEqual((await h.sql.query('SELECT account_id, channel, reason FROM relay_refusals')).rows, [{ account_id: OTHER, channel: 'mail', reason: 'address-in-use' }]);
+  // The desktop of the second account sees a typed refusal, and no confirmation mail is sent for it.
+  const before = h.sent.length;
+  const save = await h.setMail('shared.box@example.com', OTHER);
+  assert.equal(save.status, 409); assert.equal(save.body.error.code, 'ADDRESS_IN_USE');
+  await h.worker.runOnce(20); assert.equal(h.sent.length, before);
+  // Inbound STOP from the address stops only the owner's mail.
+  await h.postmark('shared.box@example.com', 'STOP');
+  assert.equal((await h.mailStatus()).status, 'stopped');
+  assert.equal((await h.mailStatus(OTHER)).status, 'awaiting-confirmation');
+  // A stopped address is still the owner's. Turned off, it may be confirmed elsewhere; then the owner cannot turn it back on.
+  assert.equal((await h.setMail('shared.box@example.com', OTHER)).body.error.code, 'ADDRESS_IN_USE');
+  await h.setMail('shared.box@example.com', OWNER, false);
+  assert.equal((await h.setMail('shared.box@example.com', OTHER)).body.status, 'awaiting-confirmation');
+  assert.equal((await h.page('POST', `/v/${await h.confirmation()}`)).status, 200);
+  assert.equal((await h.mailStatus(OTHER)).status, 'on');
+  const back = await h.setMail('shared.box@example.com');
+  assert.equal(back.status, 409); assert.equal(back.body.error.code, 'ADDRESS_IN_USE');
+});
+
+test('existing duplicate live bindings are unbound by the migration, without picking a winner', { skip: pgSkip }, async () => {
+  const sql = await freshDatabase();
+  const real = new URL('../../hosted/db/migrations/', import.meta.url), before = await mkdtemp(join(tmpdir(), 'chausar-migrations-'));
+  try {
+    for (const name of await readdir(real)) if (name < '036_') await copyFile(new URL(name, real), join(before, name));
+    await sql.query('DROP SCHEMA public CASCADE'); await sql.query('CREATE SCHEMA public');
+    await migrate(sql, pathToFileURL(`${before}/`));
+    const THIRD = 'acct_00000000-0000-4000-8000-00000000000c';
+    const row = (account: string, channel: string, status: string, recipient: string | null, confirmed: string | null = null) => sql.query(`INSERT INTO relay_channels
+      (account_id, channel, enabled, status, opt_in_at, recipient_hash, address_sealed, address_mask, confirmed_hash, updated_at) VALUES ($1, $2, $3, $4, now(), $5, $6, $7, $8, now())`,
+      [account, channel, status !== 'off', status, recipient, recipient && 'sealed', recipient && 'masked', confirmed]);
+    await row(OWNER, 'telegram', 'on', 'chat-hash'); await row(OTHER, 'telegram', 'stopped', 'chat-hash'); await row(THIRD, 'telegram', 'off', 'chat-hash');
+    await row(OWNER, 'mail', 'on', 'mail-hash', 'mail-hash'); await row(OTHER, 'mail', 'on', 'mail-hash', 'mail-hash'); await row(THIRD, 'mail', 'on', 'lone-hash', 'lone-hash');
+    const later = (await readdir(real)).filter(name => name > '036_').sort();
+    assert.equal(later[0], '036_relay_one_binding.sql');
+    assert.deepEqual(await migrate(sql), later);
+    const { rows } = await sql.query('SELECT account_id, channel, status, recipient_hash, address_sealed, confirmed_hash FROM relay_channels ORDER BY channel, account_id');
+    assert.deepEqual(rows.map(r => [r.account_id.slice(-1), r.channel, r.status, r.recipient_hash, r.address_sealed, r.confirmed_hash]), [
+      ['a', 'mail', 'awaiting-confirmation', 'mail-hash', 'sealed', null],
+      ['b', 'mail', 'awaiting-confirmation', 'mail-hash', 'sealed', null],
+      ['c', 'mail', 'on', 'lone-hash', 'sealed', 'lone-hash'],
+      ['a', 'telegram', 'awaiting-start', null, null, null],
+      ['b', 'telegram', 'awaiting-start', null, null, null],
+      ['c', 'telegram', 'off', 'chat-hash', 'sealed', null],
+    ]);
+    await assert.rejects(sql.query(`UPDATE relay_channels SET status = 'on', confirmed_hash = recipient_hash WHERE channel = 'mail' AND recipient_hash = 'mail-hash'`), /relay_channels_one_live_binding/,
+      'once unique, a second live binding is refused');
+  } finally { await rm(before, { recursive: true, force: true }); }
 });

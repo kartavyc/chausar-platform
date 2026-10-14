@@ -25,6 +25,8 @@ export type { RelayOptions, RelayPrices } from './config.ts';
 
 export const BUTTON_MS = 30 * 60000, CONNECT_MS = 30 * 60000, OPEN_LINK_MS = 7 * 86400000, SERVICE_WINDOW_MS = 24 * 3600000;
 export const DISPATCH_JOB = 'relay.dispatch';
+/** Help tickets one account (or one sender no account owns) may open in twenty-four hours. Further HELPs get the reply and open nothing. */
+export const HELP_TICKETS_PER_DAY = 3;
 export type Decision = 'approve' | 'not-now';
 type ReplyKey = keyof typeof REPLIES;
 /** The one single-use decision path, shared by chat buttons and the mail link page. */
@@ -164,16 +166,49 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       [newId('rin'), channel, secretHash(deps.pepper, 'relay-inbound', `${channel}:${providerEventId}`), accountId, kind, now().toISOString()]);
     return rowCount === 1;
   }
+  /**
+   * The one account a chat, number or confirmed mail address belongs to. A live binding (any status but 'off'; for mail,
+   * only a confirmed address) wins; with none, a single turned-off binding still names its account. More than one
+   * candidate is never resolved by guessing: the sender then belongs to nobody.
+   */
   async function ownerOf(sql: Sql, channel: Channel, sender: string): Promise<string | null> {
-    const { rows: [row] } = await sql.query('SELECT account_id FROM relay_channels WHERE channel = $1 AND recipient_hash = $2 ORDER BY updated_at DESC LIMIT 1', [channel, recipientHash(channel, sender)]);
-    return row?.account_id ?? null;
+    const { rows } = await sql.query(`SELECT account_id, status <> 'off' AS live FROM relay_channels WHERE channel = $1 AND recipient_hash = $2
+      AND ($1 <> 'mail' OR confirmed_hash = recipient_hash) LIMIT 50`, [channel, recipientHash(channel, sender)]);
+    const live = rows.filter(row => row.live);
+    if (live.length) return live.length === 1 ? live[0].account_id : null;
+    return rows.length === 1 ? rows[0].account_id : null;
   }
+  /** Whether the recipient is bound, live, to an account other than `accountId` (the rule the unique index enforces). */
+  async function boundElsewhere(sql: Sql, channel: Channel, hash: string, accountId: string): Promise<boolean> {
+    const { rows } = await sql.query(`SELECT 1 FROM relay_channels WHERE channel = $1 AND recipient_hash = $2 AND account_id <> $3 AND status <> 'off'
+      AND ($1 <> 'mail' OR confirmed_hash = recipient_hash) LIMIT 1`, [channel, hash, accountId]);
+    return rows.length > 0;
+  }
+  /** HELP, STOP and START act only on the sender's own account's channel; a sender no account owns changes nothing. */
   async function command(sql: Sql, channel: Channel, sender: string, accountId: string | null, kind: 'help' | 'stop' | 'start'): Promise<ReplyKey> {
-    const at = now().toISOString(), hash = recipientHash(channel, sender);
-    if (kind === 'help') { await sql.query('INSERT INTO relay_help_requests (id, account_id, channel, created_at) VALUES ($1, $2, $3, $4)', [newId('rhp'), accountId, channel, at]); return 'help'; }
-    if (kind === 'stop') { await sql.query(`UPDATE relay_channels SET status = 'stopped', stopped_at = $3, updated_at = $3 WHERE channel = $1 AND recipient_hash = $2`, [channel, hash, at]); return 'stop'; }
-    const { rowCount } = await sql.query(`UPDATE relay_channels SET status = 'on', stopped_at = NULL, updated_at = $3
-      WHERE channel = $1 AND recipient_hash = $2 AND status = 'stopped' AND enabled AND opt_in_at IS NOT NULL`, [channel, hash, at]);
+    const at = now(), hash = recipientHash(channel, sender);
+    if (kind === 'help') {
+      // The account (or the unknown sender) is the lock, so concurrent HELPs cannot open more than the limit.
+      const key = accountId ? `account:${accountId}` : `sender:${hash}`;
+      await sql.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`relay-help:${key}`]);
+      const since = new Date(at.getTime() - 24 * 3600000).toISOString();
+      const { rows: [counted] } = accountId
+        ? await sql.query('SELECT count(*)::int AS n FROM relay_help_requests WHERE account_id = $1 AND created_at > $2', [accountId, since])
+        : await sql.query('SELECT count(*)::int AS n FROM relay_help_requests WHERE account_id IS NULL AND sender_hash = $1 AND created_at > $2', [hash, since]);
+      if (counted.n < HELP_TICKETS_PER_DAY) await sql.query('INSERT INTO relay_help_requests (id, account_id, channel, sender_hash, created_at) VALUES ($1, $2, $3, $4, $5)',
+        [newId('rhp'), accountId, channel, hash, at.toISOString()]);
+      return 'help';
+    }
+    if (!accountId) return kind === 'stop' ? 'stop' : 'freeText';
+    if (kind === 'stop') {
+      await sql.query(`UPDATE relay_channels SET status = 'stopped', stopped_at = $4, updated_at = $4 WHERE account_id = $1 AND channel = $2 AND recipient_hash = $3`,
+        [accountId, channel, hash, at.toISOString()]);
+      return 'stop';
+    }
+    // START never revives a binding another account now holds live (the unique index would refuse it anyway).
+    if (await boundElsewhere(sql, channel, hash, accountId)) return 'freeText';
+    const { rowCount } = await sql.query(`UPDATE relay_channels SET status = 'on', stopped_at = NULL, updated_at = $4
+      WHERE account_id = $1 AND channel = $2 AND recipient_hash = $3 AND status = 'stopped' AND enabled AND opt_in_at IS NOT NULL`, [accountId, channel, hash, at.toISOString()]);
     return rowCount ? 'start' : 'freeText';
   }
   const textCommand = (text: string): 'help' | 'stop' | 'start' | 'text' => {
@@ -223,9 +258,12 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
     const { rows: [row] } = await sql.query('UPDATE relay_connect_tokens SET used_at = $2 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2 RETURNING account_id',
       [secretHash(deps.pepper, 'relay-connect', token), at]);
     if (!row) return null;
+    // A chat bound to another account stays where it is: the link is used up and the press is recorded, nothing else.
+    const hash = recipientHash('telegram', chatId);
+    if (await boundElsewhere(sql, 'telegram', hash, row.account_id)) { await refuse(sql, 'chat-in-use', 'telegram', row.account_id); return null; }
     const { rows: [bound] } = await sql.query(`UPDATE relay_channels SET recipient_hash = $3, address_sealed = $4, address_mask = $5, stopped_at = NULL, updated_at = $6,
       status = CASE WHEN enabled AND opt_in_at IS NOT NULL THEN 'on' ELSE status END WHERE account_id = $1 AND channel = $2 RETURNING status`,
-      [row.account_id, 'telegram', recipientHash('telegram', chatId), sealServer(sealKey, chatId, addressAad(row.account_id, 'telegram')), `••${chatId.slice(-2)}`, at]);
+      [row.account_id, 'telegram', hash, sealServer(sealKey, chatId, addressAad(row.account_id, 'telegram')), `••${chatId.slice(-2)}`, at]);
     return { accountId: row.account_id, on: bound?.status === 'on' };
   }
   async function inboundTelegram(update: any) {
@@ -405,6 +443,11 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
             recipient = recipientHash('whatsapp', account.phone.slice(1)); mask = maskPhone(account.phone); sealed = null;
           }
           if (channel === 'mail') check(sealed, 'ADDRESS_REQUIRED', 'Mail needs an address.');
+          // One live binding per chat, number or confirmed address. A mail address another account confirmed is refused
+          // (no confirmation mail is sent for it); a Telegram chat that another account bound since this one turned
+          // Telegram off is let go, and this account gets a fresh connect link.
+          if (recipient && channel !== 'telegram') check(!await boundElsewhere(tx, channel, recipient, accountId), 'ADDRESS_IN_USE', 'This address is in use on another Chausar account.', 409);
+          if (recipient && channel === 'telegram' && await boundElsewhere(tx, channel, recipient, accountId)) { recipient = null; sealed = null; mask = null; stoppedAt = null; }
           status = stoppedAt ? 'stopped' : channel === 'telegram' && !sealed ? 'awaiting-start' : 'on';
           // Mail turns on only for a confirmed address; otherwise one confirmation mail is queued.
           if (channel === 'mail' && status === 'on') status = await mailVerify.require(tx, accountId, recipient, existing?.confirmed_hash ?? null);
@@ -521,7 +564,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
     });
   }
 
-  const kit = { sealKey, linkOrigin, mail: options.mail, recipientHash, addressAad, queueReply, arrived, command };
+  const kit = { sealKey, linkOrigin, mail: options.mail, recipientHash, addressAad, queueReply, arrived, command, ownerOf, boundElsewhere, refuse };
   const mailVerify = createMailVerify(deps, kit), mailInbound = createMailInbound(deps, kit, options.mailInbound ?? {});
   const businessStatuses = createBusinessStatuses(deps, kit, options.apiOrigin);
 

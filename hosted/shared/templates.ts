@@ -62,7 +62,8 @@ export const OPT_IN_TEXT: Readonly<Record<Channel, string>> = Object.freeze({
   telegram: 'Send me Chausar messages on Telegram: a headline and a link, about thirty a month. I can send STOP at any time.',
   mail: 'Send me Chausar messages by mail: a headline and a link, about thirty a month. I can reply STOP at any time.',
 });
-export const hasDigit = (text: string) => /[0-9٠-٩۰-۹०-९]/.test(text);
+/** Any decimal digit in any script (Unicode Nd), not only ASCII. */
+export const hasDigit = (text: string) => /\p{Nd}/u.test(text);
 /** The exact body a person sees for one message. */
 export function messageBody(event: MessageEvent, link: string, channel: Channel): string {
   const lines = [HEADLINES[event], link];

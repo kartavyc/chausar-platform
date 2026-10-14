@@ -1,6 +1,6 @@
 import type { Fetch } from '../shared/module.ts';
 import { HostedError, check } from '../shared/errors.ts';
-import { BUTTONS, HEADLINES, MAIL_FOOTER, WHATSAPP_TEMPLATE, messageBody } from '../shared/templates.ts';
+import { BUTTONS, HEADLINES, MAIL_FOOTER, WHATSAPP_TEMPLATE, hasDigit, messageBody } from '../shared/templates.ts';
 import type { MessageEvent } from '../shared/templates.ts';
 
 /**
@@ -107,8 +107,10 @@ export function mailBody(message: OutboundTemplate): string {
 }
 export const MAIL_ADDRESS = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(\.[A-Za-z0-9-]{1,63})+$/;
 
+/** `from` is a bare address without any digit: every mail the relay sends shows it, and no message may carry a digit. */
 export function mailChannel(config: { serverToken: string; from: string }): MailChannel {
-  check(/^[A-Za-z0-9-]{20,100}$/.test(config.serverToken) && MAIL_ADDRESS.test(config.from) && config.from.length <= 254, 'RELAY_CONFIG_INVALID', 'The mail configuration is not valid.', 500);
+  check(/^[A-Za-z0-9-]{20,100}$/.test(config.serverToken) && MAIL_ADDRESS.test(config.from) && config.from.length <= 254 && !hasDigit(config.from),
+    'RELAY_CONFIG_INVALID', 'The mail configuration is not valid.', 500);
   const send = async (fetch: Fetch, to: string, subject: string, text: string) => {
     recipient(to, MAIL_ADDRESS);
     const reply = await post(fetch, 'https://api.postmarkapp.com/email', { 'x-postmark-server-token': config.serverToken },

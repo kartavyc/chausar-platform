@@ -117,11 +117,13 @@ async function relaySetup(documents: RelayDocumentOptions) {
       body: Buffer.from(JSON.stringify({ update_id: ++update, message: { message_id: update, from: { id: chat, is_bot: false, first_name: 'X' }, chat: { id: chat, type: 'private' }, date: Math.floor(state.time.getTime() / 1000),
         photo: [{ file_id: `${fileId}small`, file_unique_id: 's', width: 90, height: 90, file_size: 10 }, { file_id: fileId, file_unique_id: 'b', width: 800, height: 800, file_size: item.size ?? item.bytes.length }], caption: INJECTION } })) });
   };
+  const tgText = (chat: number, text: string) => router.handle({ method: 'POST', url: '/v1/webhooks/telegram', headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': TG_SECRET },
+    body: Buffer.from(JSON.stringify({ update_id: ++update, message: { message_id: update, from: { id: chat, is_bot: false, first_name: 'X' }, chat: { id: chat, type: 'private' }, date: Math.floor(state.time.getTime() / 1000), text } })) });
   const key = newDocumentKeyPair();
   const register = (pair = key, device = OWNER.device, account = OWNER.id) => call('PUT', '/v1/relay/device-key', { publicKey: Buffer.from(pair.publicKey, 'base64url').toString('base64') }, account, device);
   const count = async () => (await sql.query('SELECT count(*)::int AS n FROM relay_documents')).rows[0].n as number;
   const replies = () => calls.filter(c => c.method === 'POST' && (c.body?.type === 'text' || (c.url.endsWith('/sendMessage') && !c.body?.reply_markup))).map(c => c.body.text?.body ?? c.body.text);
-  return { sql, relay, worker, state, calls, call, enable, waDocument, tgPhoto, key, register, count, replies, run: () => worker.runOnce(50) };
+  return { sql, relay, worker, state, calls, call, enable, waDocument, tgPhoto, tgText, key, register, count, replies, run: () => worker.runOnce(50) };
 }
 
 test('a document from the opted-in owner is stored only sealed to the desktop key; nobody else stores anything', { skip: pgSkip }, async () => {
@@ -195,6 +197,60 @@ test('a document from the opted-in owner is stored only sealed to the desktop ke
   assert.deepEqual((await h.call('GET', '/v1/relay/documents')).body.documents, []);
   await h.relay.sweep!();
   assert.equal(await h.count(), 0);
+});
+
+test('a chat bound to one account cannot be bound to a second by its start link: documents, HELP and STOP stay with the owner', { skip: pgSkip }, async () => {
+  const h = await relaySetup({ telegram: telegramMedia({ botToken: '7012345678:AAHtestBotTokenLettersAndDigitsOnly_x' }) });
+  const startToken = (url: string) => new URL(url).searchParams.get('start')!;
+  const status = async (account: string) => (await h.call('GET', '/v1/relay/channels', undefined, account)).body.channels.find((c: any) => c.channel === 'telegram');
+  const otherKey = newDocumentKeyPair();
+  await h.register(); await h.register(otherKey, OTHER.device, OTHER.id);
+  // The owner connects their own chat.
+  await h.tgText(OWNER.chat, `/start ${startToken((await h.enable('telegram')).body.connectUrl)}`);
+  assert.equal((await status(OWNER.id)).status, 'on');
+  // A second account sends its own start link, and the owner taps it once from the same chat.
+  const otherLink = (await h.enable('telegram', OTHER.id)).body.connectUrl;
+  h.state.time = new Date(h.state.time.getTime() + 60000);
+  await h.tgText(OWNER.chat, `/start ${startToken(otherLink)}`);
+  await h.run();
+  assert.equal(h.replies().at(-1), REPLIES.buttonGone, 'the press gets the fixed reply and binds nothing');
+  assert.equal((await status(OTHER.id)).status, 'awaiting-start', 'the second account stays unbound');
+  assert.deepEqual(await status(OWNER.id), { channel: 'telegram', status: 'on', optInAt: '2026-10-14T10:00:00.000Z', address: '••34', verified: true });
+  assert.deepEqual((await h.sql.query(`SELECT account_id, channel, reason FROM relay_refusals`)).rows, [{ account_id: OTHER.id, channel: 'telegram', reason: 'chat-in-use' }]);
+  await h.tgText(OWNER.chat, `/start ${startToken(otherLink)}`);
+  assert.equal((await status(OTHER.id)).status, 'awaiting-start', 'the link was used up by the refused press');
+
+  // The owner's photo is sealed to the owner's desktop only.
+  await h.tgPhoto(OWNER.chat, 'ownerphoto', { bytes: JPEG, mime: 'image/jpeg' });
+  await h.run();
+  const { rows } = await h.sql.query('SELECT account_id, device_id, document_id, sealed FROM relay_documents');
+  assert.deepEqual(rows.map(r => [r.account_id, r.device_id]), [[OWNER.id, OWNER.device]]);
+  assert.deepEqual(openDocument(h.key, documentAad(OWNER.id, OWNER.device, rows[0].document_id, 'image/jpeg'), Buffer.from(rows[0].sealed)), JPEG);
+  // HELP opens the owner's ticket; STOP stops the owner's channel and touches no other account.
+  await h.tgText(OWNER.chat, 'HELP');
+  await h.tgText(OWNER.chat, 'STOP');
+  assert.deepEqual((await h.sql.query('SELECT account_id FROM relay_help_requests')).rows, [{ account_id: OWNER.id }]);
+  assert.equal((await status(OWNER.id)).status, 'stopped');
+  assert.equal((await status(OTHER.id)).status, 'awaiting-start');
+  // A stopped chat still belongs to its owner: a fresh link from the second account is refused again, START revives the owner's.
+  await h.tgText(OWNER.chat, `/start ${startToken((await h.enable('telegram', OTHER.id)).body.connectUrl)}`);
+  assert.equal((await status(OTHER.id)).status, 'awaiting-start');
+  await h.tgText(OWNER.chat, 'START');
+  assert.equal((await status(OWNER.id)).status, 'on');
+  // The database holds one live binding per chat whatever the code does.
+  const { rows: [owner] } = await h.sql.query(`SELECT recipient_hash FROM relay_channels WHERE account_id = $1 AND channel = 'telegram'`, [OWNER.id]);
+  await assert.rejects(h.sql.query(`UPDATE relay_channels SET recipient_hash = $2, status = 'on' WHERE account_id = $1 AND channel = 'telegram'`, [OTHER.id, owner.recipient_hash]), /relay_channels_one_live_binding/);
+
+  // Once the owner turns Telegram off, the chat may move to the other account; turning it on again then asks to connect anew.
+  await h.call('PUT', '/v1/relay/channels/telegram', { enabled: false, optIn: null });
+  await h.tgText(OWNER.chat, `/start ${startToken((await h.enable('telegram', OTHER.id)).body.connectUrl)}`);
+  assert.equal((await status(OTHER.id)).status, 'on');
+  const again = await h.call('PUT', '/v1/relay/channels/telegram', { enabled: true, optIn: null });
+  assert.equal(again.body.status, 'awaiting-start'); assert.match(again.body.connectUrl, /^https:\/\/t\.me\/ChausarBot\?start=[A-Za-z]{48}$/);
+  assert.equal(again.body.address, null);
+  await h.tgText(OWNER.chat, 'HELP');
+  assert.deepEqual((await h.sql.query('SELECT account_id, count(*)::int AS n FROM relay_help_requests GROUP BY account_id ORDER BY account_id')).rows,
+    [{ account_id: OWNER.id, n: 1 }, { account_id: OTHER.id, n: 1 }], 'the chat now belongs to the other account');
 });
 
 test('sizes, types, the daily limit and Telegram photos are enforced before anything is stored', { skip: pgSkip }, async () => {

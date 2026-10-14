@@ -17,6 +17,11 @@ export type RelayKit = {
   queueReply(sql: Sql, input: { channel: Channel; accountId: string | null; key: keyof typeof REPLIES; to: string; inboundAt: Date }): Promise<void>;
   arrived(sql: Sql, channel: Channel, providerEventId: string, accountId: string | null, kind: string): Promise<boolean>;
   command(sql: Sql, channel: Channel, sender: string, accountId: string | null, kind: 'help' | 'stop' | 'start'): Promise<keyof typeof REPLIES>;
+  /** The one account the sender belongs to, or null (nobody, or more than one candidate). */
+  ownerOf(sql: Sql, channel: Channel, sender: string): Promise<string | null>;
+  /** Whether a recipient hash is bound, live, to an account other than `accountId`. */
+  boundElsewhere(sql: Sql, channel: Channel, hash: string, accountId: string): Promise<boolean>;
+  refuse(sql: Sql, reason: string, channel: Channel, accountId?: string | null, messageId?: string | null): Promise<void>;
 };
 /** The address confirmation link page: GET peeks (mail scanners prefetch links), POST confirms once. */
 export type MailConfirmPages = { peek(token: string): Promise<boolean>; confirm(token: string): Promise<boolean> };
@@ -96,6 +101,13 @@ export function createMailVerify(deps: HostedDeps, kit: RelayKit) {
         const at = now().toISOString();
         const { rows: [found] } = await tx.query(`${usable} FOR UPDATE OF c, r`, [tokenHash(token), at]);
         if (!found) return false;
+        // An address another account confirmed in the meantime stays with that account: the link is used up, the
+        // confirmation records ADDRESS_IN_USE, and the desktop's next save is refused with the same code.
+        if (await kit.boundElsewhere(tx, 'mail', found.recipient_hash, found.account_id)) {
+          await tx.query(`UPDATE relay_mail_confirmations SET status = 'failed', last_error = 'ADDRESS_IN_USE', used_at = $2, token_hash = NULL, updated_at = $2 WHERE id = $1`, [found.id, at]);
+          await kit.refuse(tx, 'address-in-use', 'mail', found.account_id);
+          return false;
+        }
         await tx.query(`UPDATE relay_channels SET status = 'on', confirmed_hash = recipient_hash, updated_at = $2 WHERE account_id = $1 AND channel = 'mail'`, [found.account_id, at]);
         await tx.query(`UPDATE relay_mail_confirmations SET status = 'confirmed', used_at = $2, token_hash = NULL, updated_at = $2 WHERE id = $1`, [found.id, at]);
         return true;

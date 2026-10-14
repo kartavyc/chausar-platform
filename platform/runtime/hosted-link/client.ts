@@ -45,6 +45,7 @@ const KNOWN_CODES: Readonly<Record<string, string>> = Object.freeze({
   API_ORIGIN_NOT_SET: 'The hosted service has no public address for hooks yet.',
   APP_SECRET_INVALID: 'The app secret is not valid.',
   REFERENCE_INVALID: 'The reference is not valid.',
+  ADDRESS_IN_USE: 'That address is in use on another Chausar account.',
 });
 export const HOSTED_CODES: readonly string[] = Object.freeze(Object.keys(KNOWN_CODES));
 

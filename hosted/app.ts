@@ -26,7 +26,7 @@ export function buildHosted(env: Env, sql: Sql, fetch: Fetch, overrides: HostedO
   check(pepper.length >= 32, 'SERVER_MISCONFIGURED', 'HOSTED_PEPPER must be at least thirty-two characters.', 500);
   const linkOrigin = checkLinkOrigin(env.LINK_ORIGIN ?? '');
   const clock = overrides.clock ?? systemClock, queue = new JobQueue(sql, clock);
-  const billing = billingConfig(env, fetch);
+  const billing = billingConfig(env, fetch, clock);
   const entitlements = billingEntitlements(sql, clock, billing.config);
   const deps: HostedDeps = { sql, clock, queue, fetch, pepper, linkOrigin, authenticate: authenticator(sql, pepper, clock), entitlements };
   const relay = createRelayModule(deps, overrides.relay ?? relayConfig(env));

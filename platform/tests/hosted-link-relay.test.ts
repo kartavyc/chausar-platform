@@ -114,6 +114,16 @@ test('no digit in any outbound message: every event, channel, offer and reply, i
   assert.equal(buttons, MESSAGE_EVENTS.length * (1 + 3) * 2, "every WhatsApp and Telegram button was checked");
 });
 
+test('the digit rule covers every script\'s decimal digits, in both copies of the catalogue', async () => {
+  const desktop = await import('../runtime/hosted-link/templates.ts');
+  // ASCII, Arabic-Indic, Extended Arabic-Indic, Devanagari, Bengali, Gurmukhi, Gujarati, Tamil, Telugu, Kannada, Malayalam, Thai, fullwidth, mathematical bold.
+  const digits = ['7', '\u0663', '\u06F3', '\u0969', '\u09E9', '\u0A69', '\u0AE9', '\u0BE9', '\u0C69', '\u0CE9', '\u0D69', '\u0E53', '\uFF13', '\u{1D7D1}'];
+  for (const check of [hasDigit, desktop.hasDigit]) {
+    for (const digit of digits) assert.equal(check(`The week ahead ${digit} is ready.`), true, `U+${digit.codePointAt(0)!.toString(16)}`);
+    for (const text of ['The week ahead is ready.', 'Roman numerals like XIV and the word seven are not digits.', 'ⅻ ½ ² ①']) assert.equal(check(text), false, text);
+  }
+});
+
 test('the link origin must be https, bare and digit-free, or the relay refuses to start', () => {
   assert.equal(checkLinkOrigin('https://link.chausar.app/'), 'https://link.chausar.app');
   for (const bad of ['http://link.chausar.app', 'https://link2.chausar.app', 'https://link.chausar.app:8443', 'https://link.chausar.app/x', 'https://u:p@link.chausar.app', 'not a url', 'https://link.chausar.app?x=y'])
