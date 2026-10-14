@@ -14,6 +14,8 @@ const flags = { win32: '--win', darwin: '--mac', linux: '--linux' };
 const binaryPaths = { win32: 'electron.exe', darwin: 'Electron.app/Contents/MacOS/Electron', linux: 'electron' };
 const artifactOS = { win32: 'win', darwin: 'mac', linux: 'linux' };
 const artifactExtensions = { win32: ['zip'], darwin: ['dmg', 'zip'], linux: ['AppImage', 'tar.gz'] };
+// electron-builder names AppImages with the AppImage tool's architecture names (x86_64, arm64).
+const artifactArchitecture = (extension, architecture) => extension === 'AppImage' && architecture === 'x64' ? 'x86_64' : architecture;
 
 function inside(root, path) {
   const result = relative(root, path);
@@ -239,7 +241,7 @@ export async function validateDesktopPackagingOutput({ root = projectRoot, plan 
     const priorOutput = await readdir(join(root, plan.output));
     if (priorOutput.length) throw new Error('packaging output directory is not empty; review and move or archive the previous output before another build');
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const expectedArtifacts = plan.mode === 'preview' ? artifactExtensions[plan.platform].map(extension => `Chausar-Preview-${version}-${artifactOS[plan.platform]}-${plan.architecture}.${extension}`) : [];
+  const expectedArtifacts = plan.mode === 'preview' ? artifactExtensions[plan.platform].map(extension => `Chausar-Preview-${version}-${artifactOS[plan.platform]}-${artifactArchitecture(extension, plan.architecture)}.${extension}`) : [];
   return { receiptPath, expectedArtifacts };
 }
 

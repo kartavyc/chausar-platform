@@ -14,7 +14,7 @@
     "entitlements": "app/desktop/entitlements.mac.plist", "entitlementsInherit": "app/desktop/entitlements.mac.plist",
     "signIgnore": ["/Contents/Resources/runtime-binaries/"]
   },
-  "linux": { "target": ["AppImage"], "category": "Office" },
+  "linux": { "target": ["AppImage", "tar.gz"], "category": "Office" },
   "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true },
   "publish": null
 }

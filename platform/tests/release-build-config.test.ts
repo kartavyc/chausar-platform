@@ -28,7 +28,8 @@ async function temporary(t: TestContext): Promise<string> {
 test('final builder config has the three installer targets, versioned artifact names and no publishing', () => {
   assert.deepEqual(final.win.target, ['nsis']);
   assert.deepEqual(final.mac.target, ['dmg', 'zip']);
-  assert.deepEqual(final.linux.target, ['AppImage']);
+  // The AppImage is the standalone download; the tar.gz is what the launcher installs in place.
+  assert.deepEqual(final.linux.target, ['AppImage', 'tar.gz']);
   for (const token of ['${version}', '${os}', '${arch}', '${ext}']) assert.ok(final.artifactName.includes(token), token);
   assert.equal(final.publish, null);
   assert.equal(final.forceCodeSigning, true);
