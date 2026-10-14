@@ -1,0 +1,7 @@
+Invoice Number,Invoice Date,Customer Id,Customer Name,Customer Email,Customer Company,Subscription Id,Amount,Tax Total,Amount Paid,Amount Due,Status,Currency
+INV-2026-0101,01-Sep-2026 09:00,cust_SYN001,Synthetic Buyer 1,buyer1@example.invalid,Alpha Synthetic LLP,sub_SYN001,11800.00,1800.00,11800.00,0.00,Paid,INR
+INV-2026-0102,01-Sep-2026 09:00,cust_SYN002,Synthetic Buyer 2,buyer2@example.invalid,Beta Synthetic Pvt Ltd,sub_SYN002,5900.00,900.00,0.00,5900.00,Payment Due,INR
+INV-2026-0103,05-Sep-2026 12:30,cust_SYN003,Synthetic Buyer 3,buyer3@example.invalid,,sub_SYN003,2360.00,360.00,2360.00,0.00,Paid,INR
+INV-2026-0104,10-Sep-2026 15:45,cust_SYN001,Synthetic Buyer 1,buyer1@example.invalid,Alpha Synthetic LLP,sub_SYN004,1180.00,180.00,0.00,1180.00,Not Paid,INR
+INV-2026-0105,12-Sep-2026 10:10,cust_SYN004,Synthetic Buyer 4,buyer4@example.invalid,Gamma Synthetic,sub_SYN005,3540.00,540.00,0.00,0.00,Voided,INR
+INV-2026-0106,20-Sep-2026 18:00,cust_SYN005,Synthetic Buyer 5,buyer5@example.invalid,Delta Synthetic,sub_SYN006,17700.00,2700.00,17700.00,0.00,Paid,INR

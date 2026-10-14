@@ -1,0 +1,7 @@
+Employee ID,Name,Email,Department,Payroll Month,Gross Salary,Deductions,Net Pay
+RX-1001,Synthetic Member 1,member1@example.invalid,Design,2026-09,60000,6100,53900
+RX-1002,Synthetic Member 2,member2@example.invalid,Design,2026-09,48000,4900,43100
+RX-1003,Synthetic Member 3,member3@example.invalid,Ops,2026-09,29500,2650,26850
+RX-1004,Synthetic Member 4,member4@example.invalid,Ops,2026-09,33000,3150,29850
+RX-1005,Synthetic Member 5,member5@example.invalid,Finance,2026-09,57250,6400,50850
+Total,,,,,227750,23200,204550

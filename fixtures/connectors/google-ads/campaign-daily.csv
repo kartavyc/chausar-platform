@@ -1,0 +1,13 @@
+Campaign report
+"September 1, 2026 - September 3, 2026"
+Day,Campaign,Campaign type,Currency code,Cost,Impr.,Clicks,Avg. CPC
+2026-09-01,Search - Kurtas,Search,INR,"1,820.40","5,412",211,8.63
+2026-09-01,PMax - Catalogue,Performance Max,INR,"2,105.00","18,330",164,12.84
+2026-09-02,Search - Kurtas,Search,INR,"1,790.15","5,120",199,9.00
+2026-09-02,PMax - Catalogue,Performance Max,INR,"2,240.75","19,004",171,13.10
+2026-09-03,Search - Kurtas,Search,INR,"1,655.00","4,980",190,8.71
+2026-09-03,PMax - Catalogue,Performance Max,INR,0.00,0,0,0.00
+Total: Account,--,--,INR,"9,611.30","52,846",935,--
+Total: Search,--,--,INR,"5,265.55","15,512",600,--
+Total: Performance Max,--,--,INR,"4,345.75","37,334",335,--
+Total: Campaigns,--,--,INR,"9,611.30","52,846",935,--

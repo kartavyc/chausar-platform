@@ -1,0 +1,6 @@
+Broadcast Name,Template Name,Date,Total Sent,Delivered,Read,Replied,Failed,Status
+Diwali early access,diwali_preview_v2,02/09/2026,1500,1462,1101,88,38,Completed
+COD confirmation batch,cod_confirm,03/09/2026,240,236,201,150,4,Completed
+Restock alert,restock_alert,09/09/2026,1320,1290,940,51,30,Completed
+Abandoned cart,cart_reminder,12/09/2026,410,401,288,22,9,Completed
+Festive lookbook,lookbook_sept,16/09/2026,1610,1570,1203,97,40,Completed

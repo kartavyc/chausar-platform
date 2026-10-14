@@ -1,0 +1,10 @@
+Demo Utensils Pvt Ltd
+Inventory Summary
+As of 30/09/2026
+Item Name,SKU,Quantity Ordered,Quantity In,Quantity Out,Stock On Hand,Committed Stock,Available for Sale
+Steel tiffin 3 tier,TIF-3T,15,40,15,62,5,57
+Water bottle 1L,BOT-1L,36,100,24,180,12,168
+Pressure cooker 5L,PC-5L,4,10,4,21,0,21
+Kadai 28cm,KAD-28,6,12,0,30,6,24
+Tawa 30cm,TAW-30,0,8,2,14,0,14
+Total,,61,170,45,307,23,284

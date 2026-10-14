@@ -1,0 +1,69 @@
+[
+ [
+  "Demo Traders - September ledger extract"
+ ],
+ [],
+ [
+  "id",
+  "kind",
+  "date",
+  "amount",
+  "currency",
+  "customer",
+  "description"
+ ],
+ [
+  "R-001",
+  "invoice",
+  "2026-09-02",
+  "11800.00",
+  "INR",
+  "Asha Stores",
+  "Invoice 1001"
+ ],
+ [
+  "R-002",
+  "payment",
+  "2026-09-05",
+  "11800.00",
+  "INR",
+  "Asha Stores",
+  "Payment for 1001"
+ ],
+ [
+  "R-003",
+  "cost",
+  "2026-09-06",
+  "2400.00",
+  "INR",
+  "",
+  "Packaging"
+ ],
+ [
+  "R-004",
+  "invoice",
+  "2026-09-10",
+  "5450.50",
+  "INR",
+  "Ravi & Co",
+  "Invoice 1002"
+ ],
+ [
+  "R-005",
+  "refund",
+  "2026-09-12",
+  "-500.00",
+  "INR",
+  "Ravi & Co",
+  "Credit note 12"
+ ],
+ [
+  "Total",
+  "",
+  "",
+  "30950.50",
+  "",
+  "",
+  ""
+ ]
+]
