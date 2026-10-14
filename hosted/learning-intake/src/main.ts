@@ -1,7 +1,7 @@
 /**
  * Run the intake service against PostgreSQL. Not deployed: this is for local runs.
  *
- *   DATABASE_URL=postgres://... INTAKE_OPEN=true PORT=8787 node src/main.ts
+ *   DATABASE_URL=postgres://... INTAKE_OPEN=true PORT=8787 INTAKE_TRUSTED_PROXIES=10.0.0.5 node src/main.ts
  */
 import pg from 'pg';
 import { startIntakeServer } from './server.ts';
@@ -13,6 +13,7 @@ const pool = new pg.Pool({ connectionString, max: 10 });
 const service = await startIntakeServer({
   store: new PostgresIntakeStore(pool), open: process.env.INTAKE_OPEN === 'true',
   port: Number(process.env.PORT ?? 8787), host: process.env.HOST ?? '127.0.0.1',
+  trustedProxies: (process.env.INTAKE_TRUSTED_PROXIES ?? '').split(',').map(item => item.trim()).filter(Boolean),
 });
 process.stdout.write(`Learning intake listening on ${service.url}\n`);
 const stop = async () => { await service.close(); await pool.end(); process.exit(0); };

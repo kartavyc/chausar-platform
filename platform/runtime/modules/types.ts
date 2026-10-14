@@ -23,7 +23,8 @@ export interface ModuleHost {
   /** Trusted host options passed to the engine for this module, if any. */
   readonly options: Readonly<Record<string, unknown>>;
   /** Calls another engine method as the same caller, through the full authorization path. */
-  call(method: string, payload: Record<string, unknown>): Promise<unknown>;
+  /** Calls another engine method as the same caller. `{ tainted: true }` marks the call as touched by outside text; it can never clear the mark. */
+  call(method: string, payload: Record<string, unknown>, options?: { tainted?: boolean }): Promise<unknown>;
 }
 
 export interface MethodSpec {

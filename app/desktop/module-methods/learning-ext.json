@@ -30,6 +30,7 @@
   "learningx.intakeStatus",
   "learningx.labelDataset",
   "learningx.log",
+  "learningx.logClear",
   "learningx.modelRoute",
   "learningx.modelRouteSet",
   "learningx.outbox",

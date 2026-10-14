@@ -36,6 +36,8 @@ function keys(payload: Record<string, unknown>, allowed: string[]) { check(Objec
 const notYet = (code: string, reason: string, extra: Partial<NotYet> = {}): NotYet => ({ state: 'not-yet', code, reason, ...extra });
 /** Model replies and approvals are handled inside the app, never from a phone or an agent. */
 const appOnly = (ctx: Context) => check(ctx.channel !== 'phone' && ctx.channel !== 'mcp', 'APP_APPROVAL_REQUIRED', 'Run model requests inside the app.');
+/** Model output is outside text: everything that carries it onward runs with the outside-text mark. */
+const taintedOf = (ctx: Context): Context => ({ ...ctx, sourceTainted: true });
 
 /** Gateway refusals as the lane's "not yet" codes; authorization and request errors stay errors. */
 const GROUPS: [string, string[], string][] = [
@@ -73,6 +75,7 @@ function routeView(state: State) {
 }
 async function routeSet(ctx: Context, payload: Record<string, unknown>, host: ModuleHost) {
   keys(payload, ['routeId']); appOnly(ctx);
+  check(!ctx.sourceTainted, 'APP_APPROVAL_REQUIRED', 'Choose the model route in the app, away from outside text.');
   check(ctx.role === 'owner', 'OWNER_REQUIRED', 'The owner chooses the model route for sorting and dictionary edits.');
   check(payload.routeId === null || typeof payload.routeId === 'string' && PLAIN_ID.test(payload.routeId), 'INVALID_REQUEST', 'Name a configured model route, or null to clear it.');
   return host.store.update(state => {
@@ -194,7 +197,7 @@ const accountsRun = (ctx: Context, payload: Record<string, unknown>, host: Modul
   if (canonical(accounts) !== canonical(ask.aliases)) return notYet('PREVIEW_STALE', 'The proposal set changed after the preview.');
   return value => accountsOutput(value, ask.aliases!);
 }, async (ask, output: ModelProposal[], receiptId) => {
-  const set = await host.store.update(state => proposeWithModel(state, ctx, ask.setId!, output, receiptId));
+  const set = await host.store.update(state => proposeWithModel(state, taintedOf(ctx), ask.setId!, output, receiptId));
   return { resultId: set.id, result: { set, modelProposals: output.length } };
 });
 
@@ -237,7 +240,7 @@ const editsRun = (ctx: Context, payload: Record<string, unknown>, host: ModuleHo
   return value => editsOutput(value, dictionary);
 }, async (_ask, output: TypedEdit[], receiptId) => {
   // The same gate as every other edit: the before-and-after answer key decides what reaches the owner.
-  const proposed = await proposeEdits(ctx, host, { edits: output, fromEvidence: false, modelReceiptId: receiptId });
+  const proposed = await proposeEdits(taintedOf(ctx), host, { edits: output, fromEvidence: false, modelReceiptId: receiptId });
   return { resultId: receiptId, result: proposed };
 });
 

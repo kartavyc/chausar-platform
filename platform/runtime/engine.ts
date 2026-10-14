@@ -965,7 +965,9 @@ export class Engine {
       get store() { return engine.store(); },
       services: this.services, demo: this.#demo, directory: this.options.directory,
       options: this.moduleOptions(moduleId),
-      call: (method: string, payload: Record<string, unknown>) => engine.requestAs(ctx, method, payload),
+      // `tainted` can only add the outside-text mark to the caller's context, never remove it.
+      call: (method: string, payload: Record<string, unknown>, options?: { tainted?: boolean }) =>
+        engine.requestAs(options?.tainted === true ? { ...ctx, sourceTainted: true } : ctx, method, payload),
     });
   }
   async request(method: string, payload: any = {}): Promise<any> {

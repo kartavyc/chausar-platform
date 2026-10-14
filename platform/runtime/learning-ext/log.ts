@@ -98,11 +98,12 @@ export function logSummary(state: State, ctx: Context) {
 }
 
 /** Remove decisions derived from deleted or revoked sources and records. */
-export function purgeLog(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string> }): number {
+export function purgeLog(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; cutoff?: number }): number {
   const log = peekArea<LogEntry[]>(state, 'log');
   if (!log) return 0;
   const before = log.length;
-  const kept = log.filter(entry => !entry.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)) && !entry.refs.some(id => reason.removedIds.has(id)));
+  const old = (at: string) => reason.cutoff !== undefined && !(Date.parse(at) >= reason.cutoff);
+  const kept = log.filter(entry => !old(entry.at) && !entry.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)) && !entry.refs.some(id => reason.removedIds.has(id)));
   log.splice(0, log.length, ...kept);
   return before - kept.length;
 }

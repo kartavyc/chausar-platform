@@ -103,3 +103,27 @@ test('the installed app opens sharing only through its trusted environment, neve
   assert.deepEqual(options({ CHAUSAR_LEARNING_INTAKE_URL: 'https://intake.example.com' }, true), {});
   assert.deepEqual(options({ CHAUSAR_LEARNING_FOUNDER_SWITCH: '1' }), { founderSwitch: true });
 });
+
+test('retention cleanup ages out account sets, outbox samples, dictionary proposals and decisions', async () => {
+  const { TrustService } = await import('../runtime/trust.ts');
+  const { peekArea } = await import('../runtime/learning-ext/state.ts');
+  const store = await seeded();
+  await import('../runtime/engine.ts'); // registers the engine modules' purge hooks
+  const set = await call(store, 'learningx.accountsPropose', { accounts: [{ id: 'a1', name: 'Cash', parentGroup: 'Cash-in-Hand' }] });
+  await call(store, 'learningx.accountsDecide', { setId: set.id, decisions: [{ accountId: 'a1', choice: 'accepted' }] });
+  await call(store, 'learningx.cleanSample', { content: 'Customer,Amount\nRavi,10\n' });
+  await call(store, 'learningx.dictionaryBuild', { files: [{ content: demoCsv }] });
+  const later = new Date(Date.now() + (store.state.policy.retentionDays + 1) * 86_400_000);
+  await new TrustService(store).cleanup(owner, later);
+  const lane = (name: string) => peekArea<any>(store.state, name);
+  assert.deepEqual([lane('accounts').sets.length, lane('sharing').outbox.length, lane('dictionary').proposals.length, logOf(store.state).length], [0, 0, 0, 0]);
+});
+
+test('the owner can clear the local learning log inside the app', async () => {
+  const store = await seeded();
+  await call(store, 'learningx.record', { event: { kind: 'action', choice: 'accepted' } });
+  await assert.rejects(call(store, 'learningx.logClear', {}, accountant), { code: 'FORBIDDEN' });
+  await assert.rejects(call(store, 'learningx.logClear', {}, { ...owner, channel: 'phone' }), { code: 'OWNER_REQUIRED' });
+  assert.deepEqual(await call(store, 'learningx.logClear', { before: '2000-01-01' }), { removed: 0 });
+  assert.deepEqual(await call(store, 'learningx.logClear', {}), { removed: 1 });
+});
