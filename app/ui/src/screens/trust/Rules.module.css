@@ -1,0 +1,8 @@
+.figure { margin: 0; }
+.drawing { display: block; width: 100%; max-width: 360px; height: auto; }
+.computer { fill: none; stroke: var(--fg); stroke-width: var(--hair); }
+.computerText { fill: var(--fg); font-size: var(--fs-label); font-family: var(--f); }
+.out { stroke: var(--fg); stroke-width: var(--hair); }
+.stopped { stroke: var(--dim); stroke-width: var(--hair); stroke-dasharray: 3 3; }
+.dot { fill: var(--fg); }
+.label { fill: var(--fg2); font-size: var(--fs-label); font-family: var(--f); }
