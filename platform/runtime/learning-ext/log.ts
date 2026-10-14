@@ -56,6 +56,8 @@ export function coreDecisions(state: State, ctx: Context): LogView[] {
     if (record?.type !== 'decision') continue;
     try { assertLearningDecisionRecord(record); } catch { continue; }
     if (record.memberId !== ctx.memberId && ctx.role !== 'owner' || !canSee(state, ctx, record.sourceIds)) continue;
+    // Decisions past retention are not shown or shared, as the engine's own reads treat them.
+    if (!(Date.parse(record.at) >= Date.now() - state.policy.retentionDays * 86_400_000)) continue;
     const input = record.input;
     let event: StructuralEvent;
     // The engine keeps its raw input; anything outside the vocabulary is left out, and a bad record never breaks the log.
@@ -76,7 +78,8 @@ export function visibleDecisions(state: State, ctx: Context): LogView[] {
   current(state, ctx);
   const lane = logOf(state).filter(entry => entryIntact(entry) && (entry.memberId === ctx.memberId || ctx.role === 'owner') && canSee(state, ctx, entry.sourceIds))
     .map(entry => ({ id: entry.id, at: entry.at, origin: 'lane' as const, event: structuredClone(entry.event), sourceIds: [...entry.sourceIds], refs: [...entry.refs] }));
-  return [...coreDecisions(state, ctx), ...lane].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
+  // A stable sort: decisions in the same millisecond keep the order they were recorded in.
+  return [...coreDecisions(state, ctx), ...lane].sort((a, b) => a.at.localeCompare(b.at));
 }
 
 export function logPage(state: State, ctx: Context, payload: Record<string, unknown>) {
@@ -98,11 +101,17 @@ export function logSummary(state: State, ctx: Context) {
 }
 
 /** Remove decisions derived from deleted or revoked sources and records. */
-export function purgeLog(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string> }): number {
+export function purgeLog(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; cutoff?: number }): number {
   const log = peekArea<LogEntry[]>(state, 'log');
   if (!log) return 0;
   const before = log.length;
-  const kept = log.filter(entry => !entry.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)) && !entry.refs.some(id => reason.removedIds.has(id)));
+  const old = (at: string) => reason.cutoff !== undefined && !(Date.parse(at) >= reason.cutoff);
+  const kept = log.filter(entry => !old(entry.at) && !entry.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)) && !entry.refs.some(id => reason.removedIds.has(id)));
   log.splice(0, log.length, ...kept);
   return before - kept.length;
+}
+
+/** Who recorded a decision, for the sharing preview's author counts. */
+export function logAuthor(state: State, id: string): string {
+  return logOf(state).find(entry => entry.id === id)?.memberId ?? state.learning.find(record => record?.id === id)?.memberId ?? 'unknown';
 }

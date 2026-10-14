@@ -96,6 +96,18 @@ export function propose(name: string, parentGroup: string | undefined, model?: M
   return { accountClass, confidence, needsQuestion: confidence === 'low', evidence };
 }
 
+/** Structure only: the reserved Tally group a parent group names and the keyword-table words matched, never the outside text itself. */
+export function tableWords(name: string, parentGroup?: string): { group: string | null; words: string[] } {
+  const group = parentGroup === undefined ? undefined : GROUPS.get(tokens(parentGroup).join(' '));
+  const words = new Set<string>();
+  for (const text of [name, ...(parentGroup !== undefined && !group ? [parentGroup] : [])]) {
+    const found = tokens(text), joined = ` ${found.join(' ')} `;
+    for (const phrase of PHRASE_TABLE.keys()) if (joined.includes(` ${phrase} `)) words.add(phrase);
+    for (const word of found) if (WORD_TABLE.has(word)) words.add(word);
+  }
+  return { group: group?.label ?? null, words: [...words].sort() };
+}
+
 /** Word tokens of outside text for the local label dataset: no digits, identifiers or one-letter words. */
 export function datasetWords(text: string, identifierPatterns: RegExp[]): string[] {
   const words: string[] = [];
