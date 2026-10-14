@@ -112,19 +112,14 @@ async function startEngine() {
   if (demo) delete environment.CHAUSAR_KEYCHAIN_MANIFEST;
   else environment.CHAUSAR_KEYCHAIN_MANIFEST = join(binaries, 'keychain', 'manifest.json');
   if (!demo && !environment.CHAUSAR_POSTGRES_URL) {
-    const { startBundledPostgres } = await import(pathToFileURL(join(engineRoot, 'scripts/postgres-runtime.mjs')).href);
-    const privateFolder = join(app.getPath('userData'), 'database'); await mkdir(privateFolder, { recursive: true, mode: 0o700 });
-    const passwordFile = join(privateFolder, 'database-password');
-    try { const stat = await lstat(passwordFile); if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('The database credential file is unsafe.'); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; await writeFile(passwordFile, randomBytes(32).toString('base64url'), { flag: 'wx', mode: 0o600 }); }
-    const password = (await readFile(passwordFile, 'utf8')).trim();
-    if (!/^[A-Za-z0-9_-]{43}$/.test(password)) throw new Error('The local database credential file is invalid.');
-    const selector = createServer();
-    await new Promise((accept, reject) => { selector.once('error', reject); selector.listen(0, '127.0.0.1', accept); });
-    const port = selector.address().port; await new Promise((accept, reject) => selector.close(error => error ? reject(error) : accept()));
-    const suffix = process.platform === 'win32' ? '.exe' : '';
-    database = await startBundledPostgres({ postgresBinary: join(binaries, 'postgres/bin/postgres' + suffix), initdbBinary: join(binaries, 'postgres/bin/initdb' + suffix), pgCtlBinary: join(binaries, 'postgres/bin/pg_ctl' + suffix), dataDirectory: join(privateFolder, 'cluster'), passwordFile, user: 'chausar', port });
-    environment.CHAUSAR_POSTGRES_URL = `postgresql://chausar:${encodeURIComponent(password)}@127.0.0.1:${port}/postgres`;
+    // --- release lane: bundled PostgreSQL (platform/runtime/native/desktop-database.ts) ---
+    // Checks runtime-binaries against its manifest, then BundledPostgres starts the userData/database
+    // cluster (stale-lock recovery). An older cluster is never upgraded here; a newer one refuses.
+    const { startDesktopDatabase } = await import(pathToFileURL(join(engineRoot, 'platform/runtime/native/desktop-database.ts')).href);
+    database = await startDesktopDatabase({ runtimeRoot: binaries, dataRoot: join(app.getPath('userData'), 'database'), receiptDirectory: join(app.getPath('userData'), 'release'), appVersion: metadata.version });
+    if (database.state === 'needs-upgrade') { environment.CHAUSAR_DATABASE_STATE = 'needs-upgrade'; console.error(`Chausar database: code=${database.code}`); dialog.showErrorBox('Chausar database needs an upgrade', database.message); }
+    else environment.CHAUSAR_POSTGRES_URL = database.url;
+    // --- end release lane ---
   }
   if (!demo && !environment.CHAUSAR_PYTHON) environment.CHAUSAR_PYTHON = process.platform === 'win32' ? join(binaries, 'python/python.exe') : join(binaries, 'python/bin/python3');
   if (stopping) return;
@@ -133,6 +128,9 @@ async function startEngine() {
   await engine.start();
   await reportJobLifecycle();
 }
+// --- release lane: a version on trial (started by the launcher) is committed once a workspace has opened ---
+function confirmUpdateTrial() { if (process.env.CHAUSAR_INSTALL_ROOT && engine?.state === 'ready') void engine.request('release.status', {}).catch(() => {}); }
+// --- end release lane ---
 function createBackgroundTray() {
   if (!backgroundRequested) return;
   const icon = nativeImage.createFromPath(join(__dirname, 'icon.png'));
@@ -188,10 +186,12 @@ if (singleInstance) app.whenReady().then(async () => {
     try {
       assertTrustedSender(event, window?.webContents, selectedDocument);
       const request = validateRequest(input);
-      return { ok: true, result: await engine.request(request.method, request.payload) };
+      const result = await engine.request(request.method, request.payload);
+      if (/^workspace\.(open|create|recover|restore)$/.test(request.method)) confirmUpdateTrial(); // release lane
+      return { ok: true, result };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
-  try { startupTask = startEngine().then(() => bootstrapPreviewWorkspace()); await startupTask; if (stopping) return; startupComplete = true; createBackgroundTray(); createWindow(); }
+  try { startupTask = startEngine().then(() => bootstrapPreviewWorkspace()); await startupTask; if (stopping) return; startupComplete = true; confirmUpdateTrial(); createBackgroundTray(); createWindow(); }
   catch (error) { if (!stopping) { console.error(startupDiagnostic(error, 'ready-startup')); dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
 app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else if (engine?.state === 'ready') createWindow(); });

@@ -24,6 +24,7 @@
     "platform/semantic-qualification/package.json",
     "platform/helpers/**/*",
     "scripts/postgres-runtime.mjs",
+    "scripts/release/launcher/**/*",
     "fixtures/**/*",
     "package.json",
     "node_modules/**/*"
@@ -35,7 +36,8 @@
     "platform/semantic-qualification/src/**/*",
     "platform/semantic-qualification/package.json",
     "platform/helpers/**/*",
-    "scripts/postgres-runtime.mjs"
+    "scripts/postgres-runtime.mjs",
+    "scripts/release/launcher/**/*"
   ],
   "extraResources": [],
   "win": {

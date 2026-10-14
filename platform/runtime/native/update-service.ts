@@ -6,10 +6,10 @@ import type { BoundedHttp } from '../connectors.ts';
 import { safeDirectory } from '../vault.ts';
 import { ChannelGuard, channelEntry, selectRelease, validInstallId, type AcceptedChannelState, type ChannelName, type ChannelRelease, type ReleaseArchitecture, type ReleasePlatform } from './update-channel.ts';
 import { buildExpiry, type BuildExpiry, type BuildUsability } from './update-expiry.ts';
-import { InstallLayout, MAX_TRIAL_LAUNCHES, artifactKind, type InstallPointer, type LaunchDecision, type Unpack } from './update-install.ts';
+import { InstallLayout, artifactKind, type InstallPointer, type LaunchDecision, type Unpack } from './update-install.ts';
 import { DataGuard, VersionSchemaLedger, type BackupEvidence, type DataSchemaMarker } from './update-data-guard.ts';
 import { UpdateFeedClient } from './update-feed-client.ts';
-import { readJsonFile } from './update-files.ts';
+import { exactKeys, readJsonFile, writeJsonAtomic } from './update-files.ts';
 
 /** Trusted engine configuration only; never built from renderer or feed input. */
 export type UpdateServiceOptions = {
@@ -38,16 +38,43 @@ export type ApplyResult = Readonly<{ applied:true; version:string; previous:stri
 export type ServiceRollbackResult = Readonly<{ rolledBack:true; from:string; to:string; restartRequired:true }>;
 type Candidate = { text:string; signature:string; manifest:ReleaseManifest; release:ChannelRelease };
 
+/** True when `version` can open the vault the data-schema marker describes (no marker: any version can). */
+async function versionCanOpenVault(data:DataGuard, ledger:VersionSchemaLedger, version:string):Promise<boolean> {
+  const marker = await data.marker();
+  if (!marker) return true;
+  const schema = await ledger.schemaOf(version);
+  // A version whose schema was never recorded is treated as unable to open a migrated vault.
+  return schema !== null && schema >= marker.dataSchemaVersion;
+}
+const DATA_LINK = 'app-data.json';
+/**
+ * The launcher's entry (platform/runtime/native/update-launch.ts), before any app runs and without the release key:
+ * the same rule as `UpdateService.resolveLaunch`. `apply` leaves `<installRoot>/app-data.json` naming the app data
+ * folder, so the automatic rollback can check the data-schema marker. Without that record a trial is never rolled
+ * back automatically (it stays current with `rollbackUnavailable`), because the vault's schema cannot be checked.
+ */
+export async function resolveInstalledLaunch(options:{ installRoot:string; now?:()=>number }):Promise<LaunchDecision|null> {
+  check(isAbsolute(options.installRoot), 'UNSAFE_UPDATE_PATH', 'Choose an absolute install directory.');
+  const layout = new InstallLayout({ installRoot: options.installRoot, now: options.now });
+  const record:any = await readJsonFile(join(options.installRoot, DATA_LINK), 4096, 'INSTALL_DATA_LINK_INVALID');
+  check(record === undefined || (exactKeys(record, ['appDataDirectory']) && typeof record.appDataDirectory === 'string' && isAbsolute(record.appDataDirectory) && !/[\x00-\x1f]/.test(record.appDataDirectory)),
+    'INSTALL_DATA_LINK_INVALID', 'The install record of the app data folder is invalid.');
+  if (record === undefined) return layout.resolveLaunch({ canReturnTo: async () => false });
+  const data = new DataGuard({ appDataDirectory: record.appDataDirectory }), ledger = new VersionSchemaLedger({ appDataDirectory: record.appDataDirectory });
+  return layout.resolveLaunch({ canReturnTo: version => versionCanOpenVault(data, ledger, version) });
+}
+
 export class UpdateService {
   #version:string; #channel:ChannelName; #installId:string; #demo:boolean; #now:()=>number; #schema:number;
   #stageDirectory:string; #updater:ReleaseUpdater; #guard:ChannelGuard; #layout:InstallLayout; #data:DataGuard; #ledger:VersionSchemaLedger; #feed:UpdateFeedClient|null; #expiry:BuildExpiry;
-  #candidate:Candidate|null = null;
+  #candidate:Candidate|null = null; #installRoot:string; #appData:string;
   constructor(options:UpdateServiceOptions) {
     check(isAbsolute(options.installRoot) && isAbsolute(options.appDataDirectory), 'UNSAFE_UPDATE_PATH', 'Choose absolute install and application data directories.');
     check(validInstallId(options.installId), 'INVALID_INSTALL_ID', 'The install identifier must be 8 to 128 URL-safe characters.');
     const schema = options.dataSchemaVersion ?? 1;
     check(Number.isSafeInteger(schema) && schema > 0 && schema <= 1000, 'INVALID_DATA_SCHEMA', 'The data schema version must be a positive integer.');
     this.#version = options.version; this.#channel = options.channel; this.#installId = options.installId; this.#demo = options.demo !== false;
+    this.#installRoot = options.installRoot; this.#appData = options.appDataDirectory;
     this.#now = options.now ?? Date.now; this.#schema = schema; this.#stageDirectory = join(options.installRoot, 'staging');
     this.#updater = new ReleaseUpdater({ publicKey: options.publicKey, version: options.version, stageDirectory: this.#stageDirectory, http: options.http });
     this.#guard = new ChannelGuard({ publicKey: options.publicKey, channel: options.channel, stateDirectory: join(options.appDataDirectory, 'release'), now: this.#now });
@@ -106,18 +133,21 @@ export class UpdateService {
     // The marker is raised by the new app when it migrates, not here, so a rollback can still open the vault.
     // Both sides' schemas are recorded before the pointer moves, so every later rollback can be checked against the marker.
     await this.#ledger.record([[this.#version, this.#schema], [manifest.version, manifest.dataSchemaVersion]]);
+    // The launcher reads this to apply the same data-schema rule before any app runs.
+    await safeDirectory(this.#installRoot, true);
+    await writeJsonAtomic(join(this.#installRoot, DATA_LINK), { appDataDirectory: this.#appData });
     const installed = await this.#layout.install(artifactPath, manifest);
     return Object.freeze({ applied: true, version: installed.version, previous: installed.previous, state: 'trial', restartRequired: true, backupVerified: backup.backup !== null, fromSchema, toSchema: manifest.dataSchemaVersion });
   }
   async rollback(input:{ confirmed:boolean }):Promise<ServiceRollbackResult> {
     check(input?.confirmed === true, 'CONFIRMATION_REQUIRED', 'Rolling back waits for your confirmation.');
-    const pointer = await this.#layout.pointer();
-    check(pointer && pointer.previous, 'ROLLBACK_UNAVAILABLE', 'There is no previous installed version to return to.');
-    const document = await this.#guard.lastDocument();
-    check(!document || !channelEntry(document, process.platform, process.arch, pointer.previous)?.withdrawn, 'ROLLBACK_TARGET_WITHDRAWN', 'The previous version was withdrawn by the publisher; install a newer release instead.');
-    check(await this.#canOpenVault(pointer.previous), 'VAULT_NEWER_THAN_APP', 'The previous version cannot open this vault: a newer version already upgraded its data. Restore the backup made before the update instead.');
-    // These checks read the pointer before the layout takes its install lock; see docs/releases.md for the residual race.
-    const result = await this.#layout.rollback();
+    // Both checks run inside the layout's install lock, against the pointer it is about to move.
+    const result = await this.#layout.rollback({ canReturnTo: async previous => {
+      const document = await this.#guard.lastDocument();
+      check(!document || !channelEntry(document, process.platform, process.arch, previous)?.withdrawn, 'ROLLBACK_TARGET_WITHDRAWN', 'The previous version was withdrawn by the publisher; install a newer release instead.');
+      check(await this.#canOpenVault(previous), 'VAULT_NEWER_THAN_APP', 'The previous version cannot open this vault: a newer version already upgraded its data. Restore the backup made before the update instead.');
+      return true;
+    } });
     return Object.freeze({ rolledBack: true, from: result.from, to: result.to, restartRequired: true });
   }
   /** Called by the newly launched version once it is healthy; commits its trial. */
@@ -128,22 +158,11 @@ export class UpdateService {
    * stays current and reports `rollbackUnavailable` rather than stranding the vault behind VAULT_NEWER_THAN_APP;
    * the backup made before the swap is the way back.
    */
-  async resolveLaunch():Promise<LaunchDecision|null> {
-    const pointer = await this.#layout.pointer();
-    if (pointer && pointer.state === 'trial' && pointer.previous && pointer.attempts + 1 > MAX_TRIAL_LAUNCHES && !(await this.#canOpenVault(pointer.previous))) {
-      const directory = await this.#layout.versionDirectory(pointer.version);
-      return Object.freeze({ version: pointer.version, directory, state: pointer.state, attempts: pointer.attempts, rolledBack: false, rolledBackFrom: null, rollbackUnavailable: true });
-    }
-    return this.#layout.resolveLaunch();
+  resolveLaunch():Promise<LaunchDecision|null> {
+    // Evaluated inside the install lock, so a concurrent swap cannot slip between the check and the move.
+    return this.#layout.resolveLaunch({ canReturnTo: version => this.#canOpenVault(version) });
   }
-  /** True when `version` can open the vault the data-schema marker describes (no marker: any version can). */
-  async #canOpenVault(version:string):Promise<boolean> {
-    const marker = await this.#data.marker();
-    if (!marker) return true;
-    const schema = await this.#ledger.schemaOf(version);
-    // A version whose schema was never recorded is treated as unable to open a migrated vault.
-    return schema !== null && schema >= marker.dataSchemaVersion;
-  }
+  #canOpenVault(version:string):Promise<boolean> { return versionCanOpenVault(this.#data, this.#ledger, version); }
   async #refuseWithdrawn(manifest:ReleaseManifest, code:string):Promise<void> {
     const document = await this.#guard.lastDocument(), entry = document && channelEntry(document, manifest.platform, manifest.architecture, manifest.version);
     if (!entry) return;

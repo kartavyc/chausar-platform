@@ -9,6 +9,7 @@ import { BackgroundService } from '../native/background-service.ts';
 import { keychainStatus } from '../native/keychain-status.ts';
 import { BundledPostgres } from '../native/postgres-lifecycle.ts';
 import { releaseModuleOptions } from '../native/release-options.ts';
+import { confirmInstalledTrial, type TrialConfirmation } from '../native/update-launch.ts';
 
 /**
  * Release lane: update channel, swap and rollback, the background service, keychain status
@@ -72,6 +73,34 @@ async function bundledPostgres(host: ModuleHost): Promise<BundledPostgres> {
   check(typeof o.resourcesPath === 'string' && isAbsolute(o.resourcesPath), 'DATABASE_RUNTIME_UNAVAILABLE', 'The bundled database runtime is only present in the installed app.');
   return new BundledPostgres({ runtimeRoot: join(o.resourcesPath, 'runtime-binaries'), dataRoot: join(dirname(host.directory), 'database'), platform: o.platform, ...(o.postgres ?? {}) } as any);
 }
+/**
+ * Automatic health confirmation. After an update the launcher starts the new version on trial and
+ * rolls it back after two launches that never confirmed. Reaching any release method means a
+ * workspace is open in this engine, which is the health signal: the first desktop call (the desktop
+ * host calls `release.status` once a workspace opens) commits a trial of exactly the running version.
+ * Only installs started through the launcher (`installRoot` set) take part; once per process. The
+ * confirmation then records the running version's data schema in the marker.
+ */
+const trials = new Map<string, Promise<TrialConfirmation>>();
+async function confirmTrial(ctx: Context, host: ModuleHost, version: string): Promise<TrialConfirmation | 'failed' | null> {
+  const o = await options(host);
+  if (!o.installRoot || !isAbsolute(o.installRoot) || (ctx.channel !== undefined && ctx.channel !== 'desktop') || ctx.sourceTainted) return null;
+  const key = `${o.installRoot}\u0000${version}`;
+  let pending = trials.get(key);
+  if (!pending) {
+    pending = confirmInstalledTrial(o.installRoot, version).then(async result => {
+      // The data-schema marker rises only here, after this exact version is confirmed healthy with an open
+      // workspace, so the launcher's automatic rollback stays possible until then (update-service.ts).
+      if (result === 'confirmed' || result === 'already-committed') {
+        const guard = new DataGuard({ appDataDirectory: host.directory }), schema = o.dataSchemaVersion ?? 1, marker = await guard.marker();
+        if (!marker || marker.dataSchemaVersion < schema) await guard.recordSchema(schema, version);
+      }
+      return result;
+    });
+    trials.set(key, pending); pending.catch(() => trials.delete(key));
+  }
+  return pending.catch(() => 'failed' as const);
+}
 /** A vault copy taken immediately before a data-schema change, hashed for the swap's evidence. */
 async function vaultCopy(host: ModuleHost) {
   const backup = await host.call('workspace.backup', {}) as { path?: unknown };
@@ -84,15 +113,15 @@ export const releaseModule: EngineModule = {
   // The installed desktop app wires the module from the engine worker's own trusted environment.
   hostOptions: ({ env }) => releaseModuleOptions(env),
   methods: {
-    'release.status': { permission: 'read', async handler(_ctx, _payload, host) {
-      const o = await options(host), version = await engineVersion(host);
+    'release.status': { permission: 'read', async handler(ctx, _payload, host) {
+      const o = await options(host), version = await engineVersion(host), trial = await confirmTrial(ctx, host, version);
       // An older app never opens data a newer one wrote: the marker check here, and vault.ts refuses a
       // snapshot schema it does not know. `vaultCompatible: false` drives the "update needed" banner.
       const guard = new DataGuard({ appDataDirectory: host.directory });
       const vaultCompatible = await guard.assertAppCanOpen(o.dataSchemaVersion ?? 1).then(() => true, (error: any) => {
         if (error?.code === 'VAULT_NEWER_THAN_APP') return false; throw error; });
-      if (!o.releasePublicKey) return { version, channel: channelOf(o), configured: false, demo: host.demo, dataSchema: await guard.marker(), vaultCompatible };
-      return { configured: true, vaultCompatible, ...await (await updateService(host)).status() };
+      if (!o.releasePublicKey) return { version, channel: channelOf(o), configured: false, demo: host.demo, dataSchema: await guard.marker(), vaultCompatible, trial };
+      return { configured: true, vaultCompatible, trial, ...await (await updateService(host)).status() };
     } },
     'release.checkUpdate': { permission: 'admin', external: true, async handler(ctx, _payload, host) {
       writer(ctx); return (await updateService(host)).check();
