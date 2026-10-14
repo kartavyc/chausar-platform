@@ -1,0 +1,194 @@
+/**
+ * BK-12 Customers, suppliers and items (list and record sheet), BK-20 what we hold,
+ * BK-13 same customer or not, BK-14 sources that disagree.
+ */
+import { useState, type FormEvent } from 'react';
+import { Field } from '../../parts/Field';
+import { Choice } from '../../parts/Choice';
+import { Section, Note, Refusal, Actions, Button } from '../work/kit/Page';
+import { useAct, useReply } from '../work/kit/reply.ts';
+import { day } from '../work/kit/format.ts';
+import { conflictsReply, holdingsReply, matchPair, matchesReply, precedence, recordView, searchReply } from './contract.ts';
+import { BooksPage, BooksSheet, Link, Money, Recorded, Table, approves, fill, idOf, isOwner, sheetOf, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
+
+type Kind = 'all' | 'customer' | 'supplier' | 'item';
+
+export function Customers(props: BooksProps) {
+  const w = useWords(props.language);
+  const [typed, setTyped] = useState('');
+  const [query, setQuery] = useState('');
+  const [kind, setKind] = useState<Kind>('all');
+  const payload = { ...(kind === 'all' ? {} : { kind }), ...(query ? { text: query } : {}) };
+  const { loaded, reload } = useReply(props, 'records.search', payload, searchReply);
+  const value = valueOf(loaded);
+  const open = idOf(props.address.sheet);
+  return (
+    <BooksPage props={props} sub="customers" title={w['title.customers']} count={value ? String(value.records.length) : undefined} loaded={loaded} reload={reload}>
+      <form className={s.form} role="search" onSubmit={(e: FormEvent) => { e.preventDefault(); setQuery(typed.trim()); }}>
+        <Field label={w.search} value={typed} onChange={e => setTyped(e.target.value)} />
+        <Choice<Kind> label={w.kindFilter} options={(['all', 'customer', 'supplier', 'item'] as const).map(k => ({ value: k, label: w[`kind.${k}`] }))} value={kind} onChange={setKind} />
+        <Actions><Button submit>{w.find}</Button></Actions>
+      </form>
+      {value && (value.records.length === 0 ? <Note>{query ? w['empty.search'] : w['empty.customers']}</Note> : (
+        <Table view={props.view} caption={w['title.customers']} columns={[
+          { head: w['col.name'], simple: true }, { head: w['col.kind'], simple: true }, { head: w['col.sources'] }, { head: w['col.facts'], num: true },
+        ]} rows={value.records.map(r => ({ key: r.id, cells: [
+          <Link onPress={() => props.navigate({ place: 'books', sub: 'customers', sheet: sheetOf(r.id) })}>{r.name ?? w.noName}</Link>,
+          w[`kind.${r.kind}`], r.sources.join(', '), String(r.facts),
+        ] }))} />
+      ))}
+      {open !== null && <RecordSheet props={props} id={open} />}
+    </BooksPage>
+  );
+}
+
+const ANSWER = { yes: 'answer.yes', no: 'answer.no', 'not-asked': 'answer.not-asked' } as const;
+
+function RecordSheet({ props, id }: { props: BooksProps; id: string }) {
+  const w = useWords(props.language);
+  const { loaded, reload } = useReply(props, 'records.get', { id }, recordView, id);
+  const value = valueOf(loaded);
+  return (
+    <BooksSheet props={props} sub="customers" kind={w['sheet.record']} title={value ? value.name ?? w.noName : w['sheet.record']}>
+      {loaded.phase === 'refused' && <Refusal code={loaded.code} language={props.language} />}
+      {loaded.phase === 'loading' && !value && <Note>{w.reading}</Note>}
+      {value && (
+        <div className={s.stack}>
+          {value.stoppedOn !== null && <p className={s.amber}>{fill(w.stopped, { when: day(value.stoppedOn, props.language) })}</p>}
+          <Section title={w['rec.details']}>
+            {value.details.length === 0 ? <Note>{w['empty.details']}</Note> : (
+              <Table view={props.view} caption={w['rec.details']} columns={[{ head: w['col.field'], simple: true }, { head: w['col.value'], simple: true }, { head: w['col.source'] }]}
+                rows={value.details.map((d, i) => ({ key: `${d.field}-${i}`, cells: [d.field, d.value, d.sourceId] }))} />
+            )}
+          </Section>
+          <Section title={w['rec.owes']}>
+            <p><Money value={value.owes.value} receiptId={value.owes.receiptId} language={props.language} onReceipt={props.openReceipt} /></p>
+          </Section>
+          <Section title={w['rec.timeline']}>
+            {value.timeline.length === 0 ? <Note>{w['empty.timeline']}</Note> : (
+              <Table view={props.view} caption={w['rec.timeline']} columns={[
+                { head: w['col.when'], simple: true }, { head: w['col.kind'], simple: true }, { head: w['col.amount'], num: true, simple: true }, { head: w['col.source'] }, { head: w['col.ref'] },
+              ]} rows={value.timeline.map((t, i) => ({ key: `${t.at}-${i}`, cells: [day(t.at, props.language), t.kind, <Recorded value={t.amount} language={props.language} />, t.sourceId, t.ref ?? w.none] }))} />
+            )}
+          </Section>
+          <Section title={w['rec.optIn']}>
+            <Table view={props.view} caption={w['rec.optIn']} columns={[{ head: w['col.channel'], simple: true }, { head: w['col.answer'], simple: true }, { head: w['col.source'] }, { head: w['col.when'] }]}
+              rows={value.optIn.map(o => ({ key: o.channel, cells: [w[`channel.${o.channel}`], w[ANSWER[o.answer]], o.source ?? w.none, o.on ? day(o.on, props.language) : w.none] }))} />
+            {!props.viewer && <OptInForm props={props} id={value.id} onDone={reload} />}
+          </Section>
+          <Holdings props={props} id={value.id} />
+        </div>
+      )}
+    </BooksSheet>
+  );
+}
+
+function OptInForm({ props, id, onDone }: { props: BooksProps; id: string; onDone: () => void }) {
+  const w = useWords(props.language);
+  const act = useAct(props.rpc);
+  const [channel, setChannel] = useState<'mail' | 'whatsapp'>('mail');
+  const [answer, setAnswer] = useState<'yes' | 'no'>('yes');
+  const [source, setSource] = useState('');
+  const [on, setOn] = useState('');
+  const ready = source.trim().length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(on);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!ready) return;
+    if ((await act.run('records.setOptIn', { id, channel, answer, source: source.trim(), on }, recordView)).ok) onDone();
+  };
+  return (
+    <form className={s.form} aria-label={w.recordAgreement} onSubmit={e => { void submit(e); }}>
+      <Choice<'mail' | 'whatsapp'> label={w['col.channel']} options={[{ value: 'mail', label: w['channel.mail'] }, { value: 'whatsapp', label: w['channel.whatsapp'] }]} value={channel} onChange={setChannel} />
+      <Choice<'yes' | 'no'> label={w['col.answer']} options={[{ value: 'yes', label: w['answer.yes'] }, { value: 'no', label: w['answer.no'] }]} value={answer} onChange={setAnswer} />
+      <Field label={w.agreementSource} value={source} onChange={e => setSource(e.target.value)} />
+      <Field label={w.agreementOn} type="date" value={on} onChange={e => setOn(e.target.value)} />
+      <Actions><Button submit disabled={!ready || act.busy}>{w.recordAgreement}</Button></Actions>
+      <Refusal code={act.refusal} language={props.language} />
+    </form>
+  );
+}
+
+function Holdings({ props, id }: { props: BooksProps; id: string }) {
+  const w = useWords(props.language);
+  const { loaded } = useReply(props, 'records.holdings', { id }, holdingsReply, id);
+  const value = valueOf(loaded);
+  return (
+    <Section title={w.holdings}>
+      {loaded.phase === 'refused' && (loaded.state.kind === 'not-built' ? <Note>{fill(w.notBuiltNamed, { what: w.holdings })}</Note> : <Refusal code={loaded.code} language={props.language} />)}
+      {value && (value.stores.length === 0 ? <Note>{w['empty.holdings']}</Note> : (
+        <Table view={props.view} caption={w.holdings} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true, simple: true }]}
+          rows={value.stores.map(h => ({ key: h.store, cells: [h.store, String(h.count)] }))} />
+      ))}
+      {value && !props.viewer && <Note>{fill(w.notBuiltNamed, { what: w.deleteRequest })}</Note>}
+    </Section>
+  );
+}
+
+const PAIR_STATE = { open: 'pair.open', joined: 'pair.joined', 'not-same': 'pair.not-same' } as const;
+
+export function Matches(props: BooksProps) {
+  const w = useWords(props.language);
+  const { loaded, reload } = useReply(props, 'records.matches', {}, matchesReply);
+  const value = valueOf(loaded);
+  const act = useAct(props.rpc);
+  const can = approves(props);
+  const decide = async (left: string, right: string, same: boolean) => { if ((await act.run('records.decideMatch', { left, right, same }, matchPair)).ok) reload(); };
+  const undo = async (mergeId: string) => { if ((await act.run('records.undoMatch', { mergeId }, matchPair)).ok) reload(); };
+  return (
+    <BooksPage props={props} sub="matches" title={w['title.matches']} count={value ? String(value.pairs.length) : undefined} loaded={loaded} reload={reload}>
+      {value && (value.pairs.length === 0 ? <Note>{w['empty.matches']}</Note> : (
+        <Table view={props.view} caption={w['title.matches']} columns={[
+          { head: w['col.pair'], simple: true }, { head: w['col.evidence'] }, { head: w['col.reason'], simple: true }, { head: w['col.state'], simple: true },
+        ]} rows={value.pairs.map(p => ({ key: `${p.left}|${p.right}`, cells: [
+          <span>{p.left} · {p.right}<br /><span className={s.note}>{p.relation}</span></span>,
+          p.evidence.length ? <ul className={s.list}>{p.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul> : <span className={s.missing}>{w.noEvidence}</span>,
+          p.reason,
+          <span className={s.inline}>
+            {w[PAIR_STATE[p.state]]}
+            {can && p.state === 'open' && <>
+              <Button onClick={() => { void decide(p.left, p.right, true); }} disabled={act.busy}>{w.same}</Button>
+              <Button onClick={() => { void decide(p.left, p.right, false); }} disabled={act.busy}>{w.notSame}</Button>
+            </>}
+            {can && p.state === 'joined' && p.mergeId !== null && <Button onClick={() => { if (p.mergeId !== null) void undo(p.mergeId); }} disabled={act.busy}>{w.undo}</Button>}
+          </span>,
+        ] }))} />
+      ))}
+      <Refusal code={act.refusal} language={props.language} />
+    </BooksPage>
+  );
+}
+
+export function Conflicts(props: BooksProps) {
+  const w = useWords(props.language);
+  const { loaded, reload } = useReply(props, 'records.conflicts', {}, conflictsReply);
+  const value = valueOf(loaded);
+  const act = useAct(props.rpc);
+  const setWinner = async (kind: string, first: string, all: readonly string[]) => {
+    if ((await act.run('records.setPrecedence', { kind, sourceIds: [first, ...all.filter(x => x !== first)] }, precedence)).ok) reload();
+  };
+  return (
+    <BooksPage props={props} sub="conflicts" title={w['title.conflicts']} count={value ? String(value.conflicts.length) : undefined} loaded={loaded} reload={reload}>
+      {value && value.conflicts.length === 0 && <Note>{w['empty.conflicts']}</Note>}
+      {value && value.conflicts.map(c => (
+        <Section key={`${c.kind}:${c.entityId}`} title={fill(w.conflictTitle, { kind: c.kind, id: c.entityId })}>
+          <div className={s.split}>
+            {c.claims.map(claim => (
+              <div key={claim.sourceId} className={s.figureBox}>
+                <span className={s.figureName}>{claim.sourceId}{c.picked === claim.sourceId && <> · {w.picked}</>}</span>
+                <ul className={s.list}>{Object.entries(claim.fields).map(([k, v]) => <li key={k}>{k}: {v}</li>)}</ul>
+                {isOwner(props) && <Button variant="link" onClick={() => { void setWinner(c.kind, claim.sourceId, c.claims.map(x => x.sourceId)); }} disabled={act.busy}>{fill(w.makeWin, { source: claim.sourceId, kind: c.kind })}</Button>}
+              </div>
+            ))}
+          </div>
+          {c.rule === null ? <p className={s.amber}>{w.notAgreed}</p> : <Note>{fill(w.ruleUsed, { rule: c.rule })}</Note>}
+        </Section>
+      ))}
+      {value && value.rules.length > 0 && (
+        <Section title={w.rules}>
+          <ul className={s.list}>{value.rules.map(r => <li key={r.kind}>{fill(w.ruleLine, { kind: r.kind, order: r.sourceIds.join(' › ') })}</li>)}</ul>
+        </Section>
+      )}
+      <Refusal code={act.refusal} language={props.language} />
+    </BooksPage>
+  );
+}
