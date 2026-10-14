@@ -9,6 +9,8 @@ Assemble one target platform and architecture per package checkout directly unde
 | PostgreSQL server | `postgres/bin/postgres.exe` | `postgres/bin/postgres` |
 | PostgreSQL initialization | `postgres/bin/initdb.exe` | `postgres/bin/initdb` |
 | PostgreSQL control | `postgres/bin/pg_ctl.exe` | `postgres/bin/pg_ctl` |
+| PostgreSQL upgrade (major-version moves) | `postgres/bin/pg_upgrade.exe` | `postgres/bin/pg_upgrade` |
+| Previous PostgreSQL major, kept for one upgrade | `postgres-<major>/bin/…` | `postgres-<major>/bin/…` |
 | Python interpreter | `python/python.exe` | `python/bin/python3` |
 | Direct vault custody helper | `keychain/chausar-keychain.exe` | `keychain/chausar-keychain` |
 
@@ -33,3 +35,7 @@ The native credential names follow the [pinned electron-builder 26 signing docum
 The release pipeline must run the preflight and stop on its nonzero exit status, then run electron-builder with signing enabled. For example, in PowerShell, run `node scripts/package-preflight.mjs`; if `$LASTEXITCODE -ne 0`, stop before packaging. A source build from `scripts/build.mjs` is explicitly an unsigned preview and does not satisfy this gate.
 
 Desktop startup is wired to launch the bundled PostgreSQL binaries on loopback when no explicit PostgreSQL URL is configured, using a private generated password file. The packaged Python path is explicit. The native runtimes are absent in this environment, so this wiring has not been qualified with a native launch. Before claiming an installed production release, verify startup and orderly shutdown on each target, test the Python helper process restrictions, sign the actual release manifest with the publisher's pinned Ed25519 key, and prove backup/rollback across an upgrade. Those qualifications are not asserted by this source tree.
+
+## Staging (release lane)
+
+`node scripts/release/stage-runtime.ts --platform <win32|darwin|linux> --arch <x64|arm64> --out runtime-binaries` downloads the pinned archives listed in `scripts/release/runtime-sources.json`, checks each SHA-256 pin, lays the files out as above, optionally signs native files with `--sign-command`, and writes `manifest.json` in the preflight schema. Every pin is `null` until the release operator fills it in, so staging refuses with `RUNTIME_SOURCE_UNPINNED`. `--inventory-only` re-inventories an assembled directory (for example after the keychain helper is added). Staged runtimes are never committed; `runtime-binaries/.gitignore` keeps them out. The bundled cluster's lifecycle (initdb, start, stop, port, crash recovery and the `pg_upgrade` path) is `platform/runtime/native/postgres-lifecycle.ts`.

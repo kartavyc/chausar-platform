@@ -30,7 +30,8 @@ export function stripMarkup(text: string): string {
 }
 const key = (name: string) => stripMarkup(name).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const labelOf = (cell: string): Label | null => {
-  const match = /^[\s*_`(]*(supported|experimental)[\s*_`)]*\.?$/i.exec(cell);
+  // A label cell may carry a short parenthetical note: `**supported** (synthetic data only)`.
+  const match = /^[\s*_`(]*(supported|experimental)[\s*_`)]*(?:\([^()]*\))?\.?\s*$/i.exec(cell);
   return match ? (match[1].toLowerCase() as Label) : null;
 };
 

@@ -96,10 +96,10 @@ export const releaseModule: EngineModule = {
     } },
     'release.applyUpdate': { permission: 'admin', async handler(ctx, payload, host) {
       writer(ctx); confirmed(payload);
-      const service = await updateService(host), status = await service.status();
-      // Always-waits: the person confirmed; a schema change additionally needs a fresh vault copy.
-      const backup = status.candidate && status.candidate.dataSchemaVersion > (options(host).dataSchemaVersion ?? 1) ? await vaultCopy(host) : null;
-      return service.apply({ confirmed: true, backup });
+      // Always-waits: the person confirmed. A fresh vault copy precedes every swap, so a data-schema
+      // change (which the service requires it for) is covered even after a restart lost the candidate.
+      const service = await updateService(host);
+      return service.apply({ confirmed: true, backup: await vaultCopy(host) });
     } },
     'release.rollback': { permission: 'admin', async handler(ctx, payload, host) {
       writer(ctx); confirmed(payload); return (await updateService(host)).rollback({ confirmed: true });

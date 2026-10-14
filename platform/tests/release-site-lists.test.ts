@@ -131,3 +131,8 @@ test('the claims check flags numbers that have no bench run', () => {
   assert.deepEqual(findings.map((finding) => [finding.kind, finding.number]), [['unbacked-number', '3']]);
   assert.deepEqual(checkClaims('Scores: 1,200 rows checked.', lists, ['1200']), []);
 });
+
+test('a label cell may carry a bracketed note', () => {
+  const parsed = parseLaneDoc('| Item | Label |\n|---|---|\n| Swap and rollback | **supported** (zip and AppImage only) |\n| Signing | experimental (needs the certificate) |\n', 'release', 'docs/lanes/release.md');
+  assert.deepEqual(parsed.items.map((item: any) => [item.name, item.labels]), [['Swap and rollback', ['supported']], ['Signing', ['experimental']]]);
+});
