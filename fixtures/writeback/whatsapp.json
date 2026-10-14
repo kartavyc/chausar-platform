@@ -1,0 +1,13 @@
+{
+  "phoneNumberId": "100000000000101",
+  "wabaId": "200000000000201",
+  "token": "practice-whatsapp-token",
+  "templates": [
+    { "id": "300000000000301", "name": "payment_reminder", "language": "en", "status": "APPROVED", "category": "UTILITY", "parameter_format": "POSITIONAL",
+      "components": [{ "type": "HEADER", "format": "TEXT", "text": "Payment reminder" }, { "type": "BODY", "text": "Hello {{1}}, invoice {{2}} for Rs {{3}} is due. Please pay at your convenience." }, { "type": "FOOTER", "text": "Synthetic practice template" }] },
+    { "id": "300000000000302", "name": "payment_reminder", "language": "hi", "status": "APPROVED", "category": "UTILITY", "parameter_format": "POSITIONAL",
+      "components": [{ "type": "BODY", "text": "नमस्ते {{1}}, बिल {{2}} की राशि ₹{{3}} बकाया है।" }] },
+    { "id": "300000000000303", "name": "festival_offer", "language": "en", "status": "REJECTED", "category": "MARKETING", "parameter_format": "POSITIONAL",
+      "components": [{ "type": "BODY", "text": "Hi {{1}}, enjoy {{2}} off this week." }] }
+  ]
+}

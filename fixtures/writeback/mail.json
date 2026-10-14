@@ -1,0 +1,11 @@
+{
+  "smtp": [
+    { "host": "smtp.shop.example.test", "port": 587, "security": "starttls" },
+    { "host": "smtp.shop.example.test", "port": 465, "security": "implicit-tls" }
+  ],
+  "imap": { "host": "imap.shop.example.test", "port": 993 },
+  "users": [
+    { "username": "accounts@shop.example.test", "password": "practice-mail-pass\"word\\1", "address": "accounts@shop.example.test", "folders": ["INBOX", "Sent", "Drafts"] },
+    { "username": "owner@shop.example.test", "password": "practice-owner-password", "address": "owner@shop.example.test", "folders": ["INBOX", "Sent Items"] }
+  ]
+}
