@@ -21,7 +21,8 @@ Everything here is engine work. There are no screens in this lane. The Trust, To
 | 50-question open bench with hand-worked answers | supported |
 | Speech: browser transcript, local whisper.cpp | supported (whisper binary must be installed and checked by the operator) |
 | Speech provider settings kept in the encrypted workspace, revocation | supported |
-| Speech: API upload, Sarvam, Bhashini, paid live voice | experimental |
+| Speech: API upload, Sarvam, Bhashini | experimental |
+| Paid live voice | experimental; refused (`LIVE_VOICE_CAP_NOT_ENFORCED`) unless the host declares its renderer ends the session at the approved minute cap |
 | "What it understood" reader (Hindi traps) | supported |
 | Speech recorded-clip bench | supported as a harness; fixtures are synthetic |
 | Small apps from one line, over the core and write catalogues | experimental (every made app is new) |
@@ -60,7 +61,14 @@ Everything here is engine work. There are no screens in this lane. The Trust, To
   - **Install.** `smallapps.pluginInstall` stores skills and data as quoted data and installs any WASM, disabled, into the existing locked box. The owner enables it through the core `plugins.enable` with the exact digest.
   - **Grant.** The owner opens doors with `smallapps.pluginGrant`: exact HTTPS sites, and per code `calculate`, `read_published` or `prepare_action`. A grant is tied to the plugin's exact digest.
   - **Run.** Tools take arguments checked against their declared schema (`smallapps.pluginCallTool`, or `smallapps.pluginCallRemote` when the tool declares requests).
-  - **Network requests.** Chausar makes the declared requests itself, once, to approved sites only, attaching keys the plugin never sees. Each request is written to the Network ledger (`smallapps.pluginLedger` and the core audit event `network.request`).
+  - **Network requests.** Every remote call goes prepare → approve exactly this → send once:
+    1. `smallapps.pluginPrepareRemote` shows the exact URL, method, canonical body and its digest, and whether a key will be attached (never the key). It is refused when the send level is `nothing`.
+    2. An owner or cofounder approves that digest in the app with `smallapps.pluginApproveRemote`. The approval is single-use and expires after 5 minutes.
+    3. `smallapps.pluginCallRemote {previewId, approvalId}` sends it once, to approved sites only. The approver is re-checked at that point.
+
+    Keys come from the host broker only for a plugin verified with a still-trusted publisher key. Answers to keyed requests are never returned to the caller, and the plugin sees them redacted. Each request is written to the Network ledger (`smallapps.pluginLedger` and the core audit event `network.request`) with a receipt.
+  - **Plugin results.** A plugin's number is a signal, not a figure. If it equals a calculator figure bound for that run it carries that receipt; otherwise it must be a code from 0 to 255, and anything else is refused (`PLUGIN_RESULT_UNRECEIPTED`).
+  - **Blocking.** Blocking a key or digest also removes grants and disables installed code.
   - **Recipes.** A recipe inside a plugin is handed to the existing recipe checker (`sources.preview`) with evidence, and never executed.
   - **Wrapping.** `smallapps.pluginWrap` turns an Agent Skills `SKILL.md`, or an MCP `tools/list` plus declared requests, into an unsigned plugin file for review.
 
@@ -91,7 +99,9 @@ All are in `platform/runtime/modules/lane-models-ext.ts`, which composes five pa
 | `smallapps.create`, `rebuild`, `remove`, `pressAction`, `records.add`, `records.update` | prepare | |
 | `smallapps.pluginInspect`, `pluginList`, `pluginGet`, `pluginLedger` | read | |
 | `smallapps.pluginWrap`, `pluginCallTool`, `pluginCheckRecipe` | prepare | |
-| `smallapps.pluginCallRemote` | prepare, external | |
+| `smallapps.pluginPrepareRemote`, `pluginCallRemote` | prepare, external, desktop only | `pluginCallRemote {previewId, approvalId}` |
+| `smallapps.pluginApproveRemote` | approve, external, desktop only | exact digest, single use, 5 minutes |
+| `smallapps.pluginRemotePreview` | read | |
 | `smallapps.pluginTrustKey`, `pluginInstall`, `pluginBlock`, `pluginRemove`, `pluginGrant` | admin, desktop app only, untainted | |
 
 Refusal codes that screens can tell apart are on the models-ext line of `laneRefusals` in `app/desktop/preload.cjs`.
@@ -120,7 +130,7 @@ When the host passes no `modules['models-ext']`, the engine builds the options f
 | `CHAUSAR_BENCH_TRANSCRIPTS` | `benchTranscripts` | Absolute folder of real recorded route transcripts |
 | `CHAUSAR_SPEECH_BENCH_FIXTURES` | `speechBench` | Absolute path to recorded speech clips (JSON, at most 16 MB) |
 | `CHAUSAR_PLUGIN_PUBLISHER_KEYS` | `publisherKeys` | JSON `[{publisherId, publicKey}]` of trusted plugin publishers |
-| `CHAUSAR_PLUGIN_CREDENTIALS` | `pluginCredentials` | JSON `[{plugin, site, header, env}]`. Each entry names the `CHAUSAR_*` variable holding the key, which is read only when the request is made; the key itself is never in the options or state. |
+| `CHAUSAR_PLUGIN_CREDENTIALS` | `pluginCredentials` | JSON `[{keyId, plugin, site, header, env}]`, bound to the verified publisher key id. Each entry names the `CHAUSAR_*` variable holding the key, which is read only when the request is made; the key itself is never in the options or state. |
 
 Development-only options (`pluginSigningKey`, `clock`, `pluginTransport`) are never built for the installed app. A malformed setting is left out, so the feature refuses with its own typed code.
 
@@ -135,6 +145,28 @@ These results come from transcripts written by hand, not recorded from real prov
   - subq-snap: right-or-refused rate, because Snap cannot select a branch or customer, so branch-scoped questions come out wrong.
 
 The offline replay pins the gateway clock to each transcript's recording day, and aging answers are fixed at the bench day. No lane test depends on the real date; every lane test file passes with the clock shifted by hundreds of days either way.
+
+## Security review
+
+An adversarial review of the lane found 1 high, 8 medium and 6 low issues. Each was fixed with a regression test.
+
+- **Plugin network door (high).** It sent caller-chosen data immediately, ignoring the send level. It now runs prepare → exact owner approval → send once, as above.
+- **Plugins (medium):**
+  - Blocking did not stop installed plugins.
+  - A key echoed back in a response leaked.
+  - Credentials were bound to a self-declared publisher.
+  - Plugin text reached error messages.
+  - Plugin numbers were shown as if they were figures.
+  - Any accountant could sign a plugin.
+- **Small-app number guard (medium).** It missed Hindi numerals 21–99, ordinals, fractions, multiples and zero words. Labels are now limited to words from the published menu, the catalogue and the period names, with a larger number list as a backstop (`SMALLAPP_WORDS_OFF_MENU`, `UNGROUNDED_NUMBER`). One trade-off: freely worded labels in an outside descriptor are refused.
+- **Live voice (medium).** Approval authorized an unbounded stream. It is now off unless the host enforces the minute cap, and works on the desktop only.
+- **Low:**
+  - Follow-up history leaked earlier customer-scoped versions; they are now withheld, and a count is shown.
+  - Outside text in plugin reviews was unquoted.
+  - A `..` argument could remove a URL path segment.
+  - Prices were accepted as non-strings.
+  - The live-bench approver was not re-checked at run time.
+  - Writeback rows with no impact showed as not always-waits.
 
 ## Core edits
 
@@ -153,6 +185,8 @@ The offline replay pins the gateway clock to each transcript's recording day, an
   - an optional `run(context, id, input)` carrying bound values and an input buffer of at most 256 KiB.
 
   A plain core `plugins.run` can never answer a bound door.
+
+  A failed run now reports a fixed `PLUGIN_FAILED` message. The worker's stderr is dropped, so text chosen by the plugin never reaches an error or a stored run reason.
 - **`platform/runtime/wasm-worker.mjs`** (additive): an optional input buffer is copied into the module's exported memory through its `alloc`, then `run(ptr, len)` is called. The stdin limit is raised to fit it.
 - **`app/desktop/preload.cjs`:** codes added to the models-ext line of `laneRefusals`, the one permitted edit.
 - **`docs/model-routes.md`:** sections for the new routes, pricing and speech providers.
