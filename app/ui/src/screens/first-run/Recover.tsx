@@ -4,6 +4,8 @@
  * emptied before the request is awaited. "Choose your backup file" uses the host's own
  * chooser for a managed backup and the engine's `workspace.restore`; without that chooser
  * it says it is not built here yet. After the vault opens, the host reopens its view.
+ * "Ask recovery contact" is the second way in; the engine refuses it until the hosted relay
+ * exists, and the screen says so.
  */
 
 import { useState } from 'react';
@@ -11,6 +13,7 @@ import { useT } from '../../app/text';
 import { Field } from '../../parts/Field';
 import { failureOf, typedRecoveryCode, validateOpened, type JourneyFailure, type JourneyPort } from './journey-contracts.ts';
 import { Act, Actions, FailureLine, Note, Status, StepHeader } from './JourneyParts';
+import { AskRecoveryContact } from './ThisComputer';
 import s from './Journey.module.css';
 
 export interface RecoverProps {
@@ -82,6 +85,7 @@ export function Recover({ rpc, pickBackup, onReopened, onBack }: RecoverProps) {
         </Actions>
         {pickBackup === undefined && <Note k="FR-13.backup.notBuilt" />}
       </form>
+      <AskRecoveryContact rpc={rpc} folder={FOLDER.test(folder.trim()) ? folder.trim() : 'main'} />
     </section>
   );
 }

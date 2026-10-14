@@ -1,6 +1,7 @@
 /**
  * FR-03 Create the vault and FR-04 Recovery kit, through the host controller's own calls
- * (`createWorkspace`, `acknowledgeRecovery`); nothing here talks to the engine directly.
+ * (`createWorkspace`, `acknowledgeRecovery`). The only engine read here is the disk check
+ * (`todayx.diskCheck`, served before any vault), with the honest line under it.
  *
  * The passphrase is typed twice into fields this screen never stores. On Create it is read
  * once, handed to the host in the creation request, and both fields are emptied before the
@@ -20,6 +21,8 @@ import { Field } from '../../parts/Field';
 import type { CreatedWorkspace, UiContext, WorkspaceCreateInput } from '../../host/contracts.ts';
 import type { WorkspaceCreationState } from '../../host/controller.ts';
 import { groupsOfFour } from './journey-contracts.ts';
+import { DiskCheckLine } from './ThisComputer';
+import type { ComputerPort } from './this-computer.ts';
 import { Act, Actions, Note, Status, StepHeader } from './JourneyParts';
 import { LOCAL } from './text';
 import s from './Journey.module.css';
@@ -42,11 +45,13 @@ export interface VaultProps {
   /** Print the kit (the host's `shell.print('recovery-kit')`); the print-only copy stays drawn until it settles. */
   readonly onPrint?: ((kit: string) => void | Promise<void>) | undefined;
   readonly onBack: () => void;
+  /** For the disk check before the vault exists. Without it the line says the check is not built. */
+  readonly rpc?: ComputerPort | undefined;
 }
 
 const FOLDER = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
-function CreateVault({ state, createWorkspace, onBack }: Pick<VaultProps, 'state' | 'createWorkspace' | 'onBack'>) {
+function CreateVault({ state, createWorkspace, onBack, rpc }: Pick<VaultProps, 'state' | 'createWorkspace' | 'onBack' | 'rpc'>) {
   const t = useT();
   const [name, setName] = useState('');
   const [folder, setFolder] = useState('main');
@@ -85,7 +90,7 @@ function CreateVault({ state, createWorkspace, onBack }: Pick<VaultProps, 'state
         {creation.kind === 'failed' && <p className={s.problem} role="alert">{t('FR-03.failed', { code: creation.code })}</p>}
         {state.phase === 'unavailable' && state.code !== undefined && <p className={s.problem} role="alert">{t('FR-03.busy', { code: state.code })}</p>}
         {busy && <Status k="FR-03.creating" />}
-        <Note k="FR-03.disk" />
+        {rpc !== undefined ? <DiskCheckLine rpc={rpc} /> : <Note k="FR-03.disk" />}
         <Note k="FR-03.honest" />
         <Actions>
           <Act variant="filled" submit label="FR-03.create.btn" disabled={busy || state.phase !== 'locked'} />
@@ -170,5 +175,5 @@ export function Vault(props: VaultProps) {
   if (creation.kind === 'recovery-required') return <RecoveryKit rendered={creation} state={state} acknowledgeRecovery={props.acknowledgeRecovery} onOpened={props.onOpened} onPrint={props.onPrint} />;
   if (creation.kind === 'recovery-held' || (creation.kind === 'idle' && state.phase === 'loading')) return <section data-first-run-screen="vault"><StepHeader step={2} title="FR-03.title" /><Status k="FR-03.reading" /></section>;
   if (creation.kind === 'unknown') return <section data-first-run-screen="vault"><StepHeader step={2} title="FR-03.title" /><Note k="FR-03.unknown" role="alert" /></section>;
-  return <CreateVault state={state} createWorkspace={props.createWorkspace} onBack={props.onBack} />;
+  return <CreateVault state={state} createWorkspace={props.createWorkspace} onBack={props.onBack} rpc={props.rpc} />;
 }

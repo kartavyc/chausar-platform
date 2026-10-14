@@ -11,6 +11,7 @@ import { moduleMethods } from '../modules/registry.ts';
 import { auditEvents } from './activity.ts';
 import type { IdentityCard } from './identity.ts';
 import type { IdeaState } from './idea.ts';
+import type { RecoveryContact } from './recovery.ts';
 
 export const MODULE_ID = 'frame-today';
 export type FrameState = {
@@ -21,8 +22,10 @@ export type FrameState = {
   identity: IdentityCard | null;
   /** FR-11: the founder's idea, as typed. Absent in workspaces written before it existed. */
   idea?: IdeaState | null;
+  /** FR-13/SH-02: the person the owner names to help recover the vault. Kept only in the vault. */
+  recoveryContact: RecoveryContact | null;
 };
-export const initFrame = (): FrameState => ({ clock: null, autoLockMinutes: 10, jobsPausedDismissedAt: {}, identity: null, idea: null });
+export const initFrame = (): FrameState => ({ clock: null, autoLockMinutes: 10, jobsPausedDismissedAt: {}, identity: null, idea: null, recoveryContact: null });
 export const frameOf = (state: State): FrameState => ({ ...initFrame(), ...peekModuleState<FrameState>(state, MODULE_ID) });
 export async function updateFrame<T>(host: ModuleHost, ctx: Context, permission: 'read' | 'prepare' | 'admin', change: (frame: FrameState, state: State) => T): Promise<T> {
   return host.store.update(state => {

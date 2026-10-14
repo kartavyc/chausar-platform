@@ -19,5 +19,12 @@
   "todayx.idea.start",
   "todayx.idea.tell",
   "todayx.idea.correct",
-  "todayx.idea.get"
+  "todayx.idea.get",
+  "todayx.diskCheck",
+  "todayx.device.get",
+  "todayx.device.set",
+  "todayx.workspaces",
+  "todayx.recoveryContact.get",
+  "todayx.recoveryContact.set",
+  "todayx.recoveryContact.request"
 ]

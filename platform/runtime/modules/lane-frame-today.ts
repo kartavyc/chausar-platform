@@ -6,6 +6,8 @@ import { activityFilter, activityPage, auditEvents, modelEvents } from '../frame
 import { checkIdentity, identityCard, identityFields } from '../frame-today/identity.ts';
 import { setupChecklist } from '../frame-today/setup-rules.ts';
 import { ideaCorrect, ideaGet, ideaStart, ideaTell } from '../frame-today/idea.ts';
+import { deviceInput, diskCheck, readDevice, systemProbe, workspaceFolders, writeDevice, type DiskProbe } from '../frame-today/device.ts';
+import { recoveryContactInput, recoveryContactReply, requestRecoveryThroughContact } from '../frame-today/recovery.ts';
 
 const keys = (payload: Record<string, unknown>, allowed: readonly string[]) =>
   check(Object.keys(payload).every(key => allowed.includes(key)), 'INVALID_TODAYX_REQUEST', 'This request has fields it does not use.');
@@ -66,7 +68,7 @@ export const frameTodayModule: EngineModule = {
       const { steps, blocked, leftThisComputer } = await firstRun(ctx, host);
       return { steps, blocked, leftThisComputer };
     } },
-    'todayx.identity.check': { permission: 'read', handler: (_ctx, payload) => {
+    'todayx.identity.check': { permission: 'read', preVault: true, handler: (_ctx, payload) => {
       keys(payload, ['fields']);
       return { fields: checkIdentity(identityFields(payload.fields)) };
     } },
@@ -88,6 +90,26 @@ export const frameTodayModule: EngineModule = {
     'todayx.idea.tell': { permission: 'prepare', handler: ideaTell },
     'todayx.idea.correct': { permission: 'prepare', handler: ideaCorrect },
     'todayx.idea.get': { permission: 'read', handler: ideaGet },
+    // This computer, before any workspace is open. Trusted host options may replace the probe and platform (tests).
+    'todayx.diskCheck': { permission: 'read', preVault: true, handler: (_ctx, payload, host) => {
+      keys(payload, []);
+      const probe = typeof host.options.diskProbe === 'function' ? host.options.diskProbe as DiskProbe : systemProbe;
+      const platform = typeof host.options.platform === 'string' ? host.options.platform : process.platform;
+      return diskCheck({ directory: host.directory, platform, env: process.env, probe, timeoutMs: typeof host.options.probeTimeoutMs === 'number' ? host.options.probeTimeoutMs : undefined });
+    } },
+    'todayx.device.get': { permission: 'read', preVault: true, handler: (_ctx, payload, host) => { keys(payload, []); return readDevice(host.directory); } },
+    'todayx.device.set': { permission: 'read', preVault: true, handler: (_ctx, payload, host) => writeDevice(host.directory, deviceInput(payload)) },
+    'todayx.workspaces': { permission: 'read', preVault: true, handler: async (_ctx, payload, host) => { keys(payload, []); return { folders: await workspaceFolders(host.directory) }; } },
+    'todayx.recoveryContact.get': { permission: 'admin', handler: (_ctx, payload, host) => { keys(payload, []); return recoveryContactReply(frameOf(host.store.read()).recoveryContact); } },
+    'todayx.recoveryContact.set': { permission: 'admin', handler: (ctx, payload, host) => {
+      const contact = recoveryContactInput(payload, now());
+      return updateFrame(host, ctx, 'admin', (frame, state) => {
+        frame.recoveryContact = contact;
+        audit(state, contact === null ? 'recovery-contact.removed' : 'recovery-contact.saved', { memberId: ctx.memberId });
+        return recoveryContactReply(contact);
+      });
+    } },
+    'todayx.recoveryContact.request': { permission: 'admin', preVault: true, handler: (_ctx, payload) => requestRecoveryThroughContact(payload) },
   },
   /**
    * Nothing this module keeps is derived from a source: the identity card and the idea (FR-11) are typed by a person,

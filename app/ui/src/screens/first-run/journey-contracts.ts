@@ -4,8 +4,10 @@
  *
  * Steps and the engine methods they use (all existing in platform/runtime/engine.ts unless
  * marked `todayx`, the frame-today family whose engine module may not exist yet):
- *   FR-01/02  todayx.identity.check, todayx.identity.save (after the vault)
- *   FR-03/04  workspace.create and its recovery kit, through the host controller only
+ *   FR-01/02  todayx.workspaces, todayx.identity.check (both before the vault), todayx.identity.save
+ *             (after it), todayx.device.set (the language and view, once the vault exists)
+ *   FR-03/04  todayx.diskCheck (before the vault); workspace.create and its recovery kit, through
+ *             the host controller only
  *   FR-05     models.list, models.configure (an API key goes through the host's own adapter)
  *   FR-07     sources.preview, sources.import, sources.workbookPreview, sources.workbookImport;
  *             proposed meanings: learningx.dictionaryProposals, learningx.dictionaryBuild (proposals.ts)
@@ -13,8 +15,16 @@
  *   FR-09     ontology.get (the published menu), calculation.run, receipts.get
  *   FR-11     todayx.idea.start, todayx.idea.tell, todayx.idea.correct (todayx.idea.get to read)
  *   FR-12     todayx.setupChecklist
- *   FR-13     workspace.recover, workspace.restore
+ *   FR-13     workspace.recover, workspace.restore, todayx.recoveryContact.request (refused until
+ *             the hosted relay exists)
  *   every step  todayx.firstRun.status
+ *
+ * FR-07 bank statement PDFs go through the connectors-ext `imports.*` family (`imports.readerStatus`,
+ * `imports.installReader`, `imports.preview`, `imports.providePassword`, `imports.commit`). PDF is
+ * offered only when `imports.readerStatus` answers; until then it stays out of the picker. The
+ * PDF's password passes once to `imports.providePassword` and is never held. Sheets have no
+ * password path: an encrypted workbook (`ENCRYPTED_ZIP`, or an OLE file named .xlsx) shows
+ * "password needed" with the not-built words and no field.
  *
  * A reply of `UNKNOWN_METHOD`, `INVALID_REQUEST` or `METHOD_UNAVAILABLE` is "not built yet"
  * for that step. Engine prose (an error message, a preview's question) is never shown: only
@@ -27,7 +37,7 @@ import type { IdeaSection, IdeaUnknown, IdentityCard, IdentityField } from '../.
 
 /* ------------------------------------------------------------------ the port */
 
-export type ImportFormat = 'csv' | 'xlsx';
+export type ImportFormat = 'csv' | 'xlsx' | 'pdf';
 export interface ExpectedTotals { readonly rowCount: number; readonly amountMinor: string }
 
 /** A typed, data-only mapping recipe (platform/runtime/ingest.ts `validateRecipe`). */
@@ -66,6 +76,8 @@ export type WorkbookRequest = {
   readonly recipe?: MappingRecipe;
   readonly expectedTotals?: ExpectedTotals;
 };
+/** A bank statement PDF for the connectors-ext `imports.*` family. */
+export type PdfRequest = { readonly sourceId: string; readonly kind: 'pdf'; readonly bytesBase64: string };
 export type RouteKind = 'codex-cli' | 'claude-cli' | 'openai-responses' | 'openai-compatible' | 'ollama';
 export type RouteConfigInput = { readonly kind: RouteKind; readonly model: string; readonly label?: string; readonly endpoint?: string };
 
@@ -80,7 +92,6 @@ export type JourneyPayloads = {
   'sources.import': SheetRequest;
   'sources.workbookPreview': WorkbookRequest;
   'sources.workbookImport': WorkbookRequest;
-  'imports.providePassword': { readonly sourceId: string; readonly password: string };
   'ontology.get': Record<string, never>;
   'calculation.run': { readonly operation: string };
   'receipts.get': { readonly id: string };
@@ -94,6 +105,16 @@ export type JourneyPayloads = {
   'todayx.idea.get': Record<string, never>;
   'todayx.idea.tell': { readonly text: string; readonly section?: IdeaSection; readonly answers?: IdeaUnknown; readonly guess?: boolean };
   'todayx.idea.correct': { readonly claimId: string; readonly text?: string; readonly guess?: boolean; readonly withdraw?: true };
+  'imports.readerStatus': Record<string, never>;
+  'imports.installReader': Record<string, never>;
+  'imports.preview': PdfRequest;
+  'imports.providePassword': { readonly sourceId: string; readonly password: string };
+  'imports.commit': PdfRequest;
+  'todayx.diskCheck': Record<string, never>;
+  'todayx.device.get': Record<string, never>;
+  'todayx.device.set': { readonly language: 'en' | 'hi'; readonly view: 'simple' | 'guided' | 'books' };
+  'todayx.workspaces': Record<string, never>;
+  'todayx.recoveryContact.request': { readonly folder: string };
 };
 export type JourneyMethod = keyof JourneyPayloads;
 
@@ -216,9 +237,11 @@ export function sourceIdFor(fileName: string): string {
   return `file-${base.length > 0 ? base : 'sheet'}`;
 }
 
-export function formatOf(fileName: string): ImportFormat | null {
+/** `pdf` only when this engine reads PDFs (`imports.readerStatus` answered). */
+export function formatOf(fileName: string, pdf = false): ImportFormat | null {
   if (/\.csv$/i.test(fileName) || /\.txt$/i.test(fileName)) return 'csv';
   if (/\.xlsx$/i.test(fileName)) return 'xlsx';
+  if (pdf && /\.pdf$/i.test(fileName)) return 'pdf';
   return null;
 }
 
@@ -327,4 +350,35 @@ export function groupsOfFour(code: string): readonly string[] {
 /** The code as typed back, without the spaces that grouping adds. */
 export function typedRecoveryCode(typed: string): string {
   return typed.replace(/\s+/g, '');
+}
+
+/* ------------------------------------------------------ bank statement PDFs (imports.*) */
+
+/** Refusals of `imports.preview` that have the design's own words (connectors-ext codes). */
+export const PDF_REFUSALS = ['PASSWORD_REQUIRED', 'WRONG_PASSWORD', 'PICTURE_ONLY', 'CUT_SHORT', 'FILTERED', 'DOES_NOT_ADD_UP', 'READER_NOT_INSTALLED'] as const;
+/** Refused whole, with the reason from the fixed list. */
+export const PDF_WHOLE_REASONS: ReadonlySet<string> = new Set(['PICTURE_ONLY', 'CUT_SHORT', 'FILTERED', 'DOES_NOT_ADD_UP']);
+
+export interface ReaderStatus { readonly state: 'installed' | 'not-installed'; readonly sizeBytes: number | null }
+/** `imports.readerStatus` / `imports.installReader`. */
+export function validateReaderStatus(value: unknown): ReaderStatus {
+  const obj = rec(value, 'reader');
+  const state = obj.state === 'installed' || obj.state === 'not-installed' ? obj.state : invalid('reader.state');
+  const size = obj.sizeBytes === undefined || obj.sizeBytes === null ? null : whole(obj.sizeBytes, 'reader.sizeBytes');
+  return Object.freeze({ state, sizeBytes: size });
+}
+
+/**
+ * The bank-PDF preview, read loosely: only the fields drawn are checked, each may be absent
+ * (drawn as "not known", never as zero). Money is whole paise as a digit string.
+ */
+export interface PdfPreview { readonly lines: number | null; readonly openingMinor: string | null; readonly closingMinor: string | null; readonly check: 'passed' | 'failed' | null }
+export function validatePdfPreview(value: unknown): PdfPreview {
+  const obj = rec(value, 'pdf');
+  const optional = <T>(key: string, read: (item: unknown, path: string) => T): T | null => obj[key] === undefined || obj[key] === null ? null : read(obj[key], `pdf.${key}`);
+  const check = obj.check === undefined || obj.check === null ? null : obj.check === 'passed' || obj.check === 'failed' ? obj.check : invalid('pdf.check');
+  return Object.freeze({
+    lines: optional('lines', whole), openingMinor: optional('openingMinor', (item, path) => digits(item, path, true)),
+    closingMinor: optional('closingMinor', (item, path) => digits(item, path, true)), check,
+  });
 }
