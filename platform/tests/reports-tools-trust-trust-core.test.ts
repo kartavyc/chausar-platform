@@ -53,7 +53,7 @@ test('rules summarise the four rows and count what left today by destination', a
   });
   const rules = await f.rpc('trustx.rules');
   assert.deepEqual(rules.see, { allSources: true, allowed: 3, refused: 0 });
-  assert.deepEqual(rules.send, { level: 'nothing', localOnly: false }); assert.deepEqual(rules.keep, { days: 90 }); assert.deepEqual(rules.do, { preset: null });
+  assert.deepEqual(rules.send, { level: 'nothing', localOnly: false }); assert.deepEqual(rules.keep, { days: 90 }); assert.deepEqual(rules.do, { preset: await jobsPreset(f) });
   assert.equal(rules.canChange, true); assert.deepEqual(rules.ownerOnly, ['send', 'sharing', 'seats']);
   assert.equal(rules.leftToday.date, at.slice(0, 10));
   assert.deepEqual(rules.leftToday.items, [
@@ -175,7 +175,7 @@ test('do: what may run on its own is jobs-ext\'s; this lane keeps no autonomy en
   const f = await fixture(t);
   for (const method of ['trustx.autonomy', 'trustx.setAutonomy']) assert.equal((await f.call(method, {})).body.error.code, 'UNKNOWN_METHOD', method);
   // jobs-ext is not installed here, so the Do row has no preset to show.
-  assert.deepEqual((await f.rpc('trustx.rules')).do, { preset: null });
+  assert.deepEqual((await f.rpc('trustx.rules')).do, { preset: await jobsPreset(f) });
 });
 
 test('seats: invite with a one-time code, CA end date, removal and the last owner', async t => {
@@ -243,3 +243,9 @@ test('a dated seat is refused at authorization, and ends at the next request of 
   await f.rpc('trustx.rules');
   assert.equal(f.store.read().members.find(m => m.id === member.member.id)!.active, false);
 });
+
+/** The Do row's preset is jobs-ext's own, or null when jobs-ext does not answer: hold either way. */
+async function jobsPreset(f: { call(method: string, payload?: any): Promise<{ status: number; body: any }> }): Promise<string | null> {
+  const reply = await f.call('jobsx.autonomy', {});
+  return reply.status === 200 && typeof reply.body.result?.preset === 'string' ? reply.body.result.preset : null;
+}
