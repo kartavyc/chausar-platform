@@ -70,8 +70,8 @@ test('the record chain verifies, then finds a changed activity entry at its seq'
 test('models show terms and spend; the network ledger lists sent and waiting requests; a canary hit stops every send', async t => {
   const f = await fixture(t);
   await f.vault.update(state => {
-    state.routes.push({ id: 'route_synthetic', kind: 'openai-responses', model: 'synthetic-model', endpoint: 'https://api.openai.com/v1/responses', enabled: true, priority: 3, revision: 1 });
-    state.routes.push({ id: 'route_managed', kind: 'managed', model: 'synthetic-managed', endpoint: 'https://managed.example.test/v1', enabled: false, priority: 9, revision: 1 });
+    state.routes.push({ id: 'route_synthetic', kind: 'openai-responses', model: 'synthetic-model', endpoint: 'https://api.openai.com/v1/responses', enabled: true, priority: 3, revision: 1, budgetMinor: '100000', maxCostMinor: '1000' });
+    state.routes.push({ id: 'route_managed', kind: 'managed', model: 'synthetic-managed', endpoint: 'https://managed.example.test/v1', enabled: false, priority: 9, revision: 1, budgetMinor: '0', maxCostMinor: '0' });
     state.modelReceipts.push(receipt({ id: 'model_preview_sent' }));
     state.modelReceipts.push(receipt({ id: 'model_preview_waiting', status: 'preview', approvalRequired: true, dispatchedAt: undefined, completedAt: undefined, payload: 'Question with outside text', costReservedMinor: '0' }));
   });

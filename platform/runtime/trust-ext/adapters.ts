@@ -72,7 +72,8 @@ export async function autonomyPreset(host: ModuleHost): Promise<string | null> {
  * minutes show "not counted yet" and the month's spend is summed from this computer's model receipts.
  */
 export async function modelMeters(host: ModuleHost): Promise<{ minutesThisMonth: number | null; spendThisMonthMinor: string | null }> {
-  const reply = await ask(host, 'modelsx.meters');
+  // An optional enrichment: a fault in another lane's meters never stops the Models screen.
+  const reply = await ask(host, 'modelsx.meters').catch(() => null);
   if (!obj(reply)) return { minutesThisMonth: null, spendThisMonthMinor: null };
   const minutes = reply.voice?.minutesThisMonth, spend = reply.totals?.spendThisMonthMinor;
   return { minutesThisMonth: typeof minutes === 'number' && Number.isFinite(minutes) && minutes >= 0 && minutes <= 1e7 ? minutes : null,
