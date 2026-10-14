@@ -7,7 +7,15 @@
 import { inflateSync, deflateSync } from 'node:zlib';
 import { check } from '../contracts.ts';
 
-const MAX_PIXELS = 25_000_000;
+/**
+ * A bill photo is at most 12 megapixels and 6000 pixels on a side. Checked from the header before
+ * any pixel data is inflated, so a small file that would unpack into a huge picture is refused.
+ */
+const MAX_PIXELS = 12_000_000, MAX_SIDE = 6000;
+/** The inflated PNG rows can never be larger than this, whatever the header says. */
+const MAX_INFLATED = MAX_PIXELS * 4 + MAX_SIDE;
+const sizeOk = (width: number, height: number) => width <= MAX_SIDE && height <= MAX_SIDE && width * height <= MAX_PIXELS;
+const tooLarge = (width: number, height: number) => check(sizeOk(width, height), 'IMAGE_TOO_LARGE', 'This picture is too large to read here. Use at most 12 megapixels and 6000 pixels on a side.');
 /** Page size in points for the image's pixels: the image is treated as a 150 dpi scan. */
 const POINTS_PER_PIXEL = 72 / 150;
 type Raster = { width: number; height: number; colorSpace: string; bits: number; filter: string; parms: string | null; data: Buffer };
@@ -22,7 +30,8 @@ function jpeg(bytes: Buffer): Raster {
     // Baseline, extended and progressive frames carry the size and the number of colour components.
     if ([0xc0, 0xc1, 0xc2].includes(marker)) {
       const height = bytes.readUInt16BE(at + 5), width = bytes.readUInt16BE(at + 7), components = bytes[at + 9];
-      check(width > 0 && height > 0 && width * height <= MAX_PIXELS && [1, 3].includes(components), 'IMAGE_OCR_NOT_AVAILABLE', 'This picture cannot be read by the local reader.');
+      tooLarge(width, height);
+      check(width > 0 && height > 0 && [1, 3].includes(components), 'IMAGE_OCR_NOT_AVAILABLE', 'This picture cannot be read by the local reader.');
       return { width, height, colorSpace: components === 1 ? '/DeviceGray' : '/DeviceRGB', bits: 8, filter: '/DCTDecode', parms: null, data: bytes };
     }
     at += 2 + length;
@@ -43,9 +52,11 @@ function png(bytes: Buffer): Raster {
   check(header && header.length === 13 && chunks.length > 0, 'INVALID_BILL_FILE', 'This PNG picture has no image data.');
   const width = header.readUInt32BE(0), height = header.readUInt32BE(4), depth = header[8], type = header[9], interlace = header[12];
   const channels = ({ 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 } as Record<number, number>)[type] ?? 0;
-  if (!(depth === 8 && channels && interlace === 0 && width > 0 && height > 0 && width * height <= MAX_PIXELS && (type !== 3 || palette))) refuse();
+  tooLarge(width, height);
+  if (!(depth === 8 && channels && interlace === 0 && width > 0 && height > 0 && (type !== 3 || palette))) refuse();
+  const expected = (width * channels + 1) * height; check(expected <= MAX_INFLATED, 'IMAGE_TOO_LARGE', 'This picture is too large to read here.');
   let raw: Buffer;
-  try { raw = inflateSync(Buffer.concat(chunks), { maxOutputLength: (width * channels + 1) * height }); } catch { return refuse(); }
+  try { raw = inflateSync(Buffer.concat(chunks), { maxOutputLength: expected }); } catch { return refuse(); }
   const stride = width * channels; check(raw.length === (stride + 1) * height, 'INVALID_BILL_FILE', 'This PNG picture is cut short.');
   // Undo the per-row filters, then drop any alpha channel; the colour of each pixel is kept.
   const keep = type === 4 ? 1 : type === 6 ? 3 : channels; const out = Buffer.alloc(width * keep * height); let previous = Buffer.alloc(stride);

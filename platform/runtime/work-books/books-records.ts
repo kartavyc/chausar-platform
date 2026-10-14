@@ -9,7 +9,7 @@ import type { CalculatorService } from '../calculator.ts';
 import { canSeeFact, gstinValid, resolveCustomer, selectFacts, type MemoryService } from '../memory.ts';
 import type { OntologyService } from '../ontology.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
-import { amountOf, input, isoDay, member, mentions, peekBooks, plainId, text, writeBooks, type Amount, type MatchDecision } from './books-common.ts';
+import { amountOf, input, isoDay, LIMITS, member, mentions, namesId, peekBooks, plainId, room, text, writeBooks, type Amount, type MatchDecision } from './books-common.ts';
 import { sourceVisible } from './books-sources.ts';
 import { visibleMemoryLine } from './books-memory.ts';
 
@@ -44,7 +44,7 @@ export function collectRecords(host: ModuleHost, ctx: Context): Map<string, Reco
  * Every record id the caller can see: current records plus the raw ids named by facts the
  * caller can see (a customer joined into another keeps its own id in the facts).
  */
-function visibleRecordIds(host: ModuleHost, ctx: Context, records = collectRecords(host, ctx)): Set<string> {
+export function visibleRecordIds(host: ModuleHost, ctx: Context, records = collectRecords(host, ctx)): Set<string> {
   const ids = new Set(records.keys());
   for (const fact of host.store.read().facts) if (!fact.deletedAt && canSeeFact(host.store, ctx, fact)) for (const [, id] of references(fact)) ids.add(id);
   return ids;
@@ -209,14 +209,16 @@ export const recordMethods: Record<string, MethodSpec> = {
   'records.setOptIn': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['id', 'channel', 'answer', 'source', 'on'], ['id', 'channel', 'answer', 'source', 'on']);
     check(['mail', 'whatsapp'].includes(request.channel) && ['yes', 'no'].includes(request.answer) && text(request.source, 300) && isoDay(request.on), 'INVALID_BOOKS_REQUEST', 'Give the channel, the answer, where it came from and the date.');
+    check(!ctx.sourceTainted, 'TAINTED_CONSENT', 'Only a person records what a customer agreed to. Imported text cannot.');
     const entry = findRecord(host, ctx, request.id); const who = member(host.store.read(), ctx);
-    await writeBooks(host.store, ctx, 'prepare', books => { books.optIns.push({ recordId: entry.id, channel: request.channel, answer: request.answer, source: request.source, on: request.on, by: who.name, at: now() }); });
+    await writeBooks(host.store, ctx, 'prepare', books => { room(books.optIns, LIMITS.optIns); books.optIns.push({ recordId: entry.id, channel: request.channel, answer: request.answer, source: request.source, on: request.on, by: who.name, at: now() }); });
     return recordView(host, ctx, entry.id);
   } },
   'records.stop': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['id', 'on'], ['id', 'on']); check(isoDay(request.on), 'INVALID_BOOKS_REQUEST', 'Give the date the stop word arrived.');
+    check(!ctx.sourceTainted, 'TAINTED_CONSENT', 'Only a person records a stop word. Imported text cannot.');
     const entry = findRecord(host, ctx, request.id); const who = member(host.store.read(), ctx);
-    await writeBooks(host.store, ctx, 'prepare', books => { books.stops.push({ recordId: entry.id, on: request.on, by: who.name, at: now() }); });
+    await writeBooks(host.store, ctx, 'prepare', books => { room(books.stops, LIMITS.stops); books.stops.push({ recordId: entry.id, on: request.on, by: who.name, at: now() }); });
     return recordView(host, ctx, entry.id);
   } },
   'records.matches': { permission: 'read', handler(ctx, payload, host) { input(payload, []); return { pairs: matchPairs(host, ctx) }; } },
@@ -227,6 +229,7 @@ export const recordMethods: Record<string, MethodSpec> = {
     for (const id of [request.left, request.right]) check(records.get(id)?.kind === 'customer', 'RECORD_NOT_FOUND', 'Both records must be customers available to you.');
     check(comparable(records, request.left, request.right), 'RECORD_DISPUTED', 'One of these customers appears only in records that sources disagree on. Settle the disagreement first.');
     const pair = evaluate(host, ctx, records, request.left, request.right); const who = member(host.store.read(), ctx);
+    room(peekBooks(host.store.read()).matches, LIMITS.matches);
     let mergeId: string | null = null;
     if (request.same) {
       check(pair.relation !== 'cannot-match-tax-identities', 'MATCH_FORBIDDEN', 'Two different PANs cannot be the same customer.');
@@ -234,7 +237,7 @@ export const recordMethods: Record<string, MethodSpec> = {
     }
     const { badIds: _bad, ...kept } = pair;
     const decision: MatchDecision = { ...kept, state: request.same ? 'joined' : 'not-same', mergeId, undoneMergeId: null, by: who.name, role: who.role, at: now() };
-    await writeBooks(host.store, ctx, 'approve', books => { books.matches.push(decision); });
+    await writeBooks(host.store, ctx, 'approve', books => { room(books.matches, LIMITS.matches); books.matches.push(decision); });
     return { ...pair, state: decision.state, mergeId };
   } },
   'records.undoMatch': { permission: 'approve', async handler(ctx, payload, host) {
@@ -294,7 +297,7 @@ export function holdingsOf(host: ModuleHost, ctx: Context, id: unknown): { store
       { store: 'answers', count: state.answers.filter(a => ownReceiptIds.has(a?.receiptId) && (receiptIds.has(a.receiptId) || about(a.request))).length },
       { store: 'actions', count: (state.actions as PreparedAction[]).filter(a => about(a) && canSeeAction(a)).length },
       { store: 'conversations', count: state.conversations.filter(c => c?.memberId === ctx.memberId && about(c)).length },
-      { store: 'memory', count: books.memory.filter(l => !l.deletedAt && l.text !== null && visibleMemoryLine(host.store, ctx, l) && [...ids].some(i => l.text!.includes(i))).length },
+      { store: 'memory', count: books.memory.filter(l => !l.deletedAt && l.text !== null && visibleMemoryLine(host.store, ctx, l, host) && lineNames(l, ids)).length },
       { store: 'opt-ins', count: books.optIns.filter(o => ids.has(o.recordId)).length + books.stops.filter(s => ids.has(s.recordId)).length },
       { store: 'matches', count: books.matches.filter(m => (ids.has(m.left) || ids.has(m.right)) && visible.has(m.left) && visible.has(m.right)).length },
     ];
@@ -302,5 +305,10 @@ export function holdingsOf(host: ModuleHost, ctx: Context, id: unknown): { store
 }
 /** The record ids a deletion of `id` covers: the record and every id joined with it. */
 export function recordIdsOf(state: State, id: string): Set<string> {
-  return new Set([id, ...state.merges.filter(m => m.type === 'merge' && Array.isArray(m.entityIds) && m.entityIds.includes(id)).flatMap(m => m.entityIds as string[])]);
+  // The same rule as the memory service's resolveCustomer: a join that was undone no longer joins anything.
+  const undone = new Set(state.merges.filter(m => m.type === 'undo').map(m => m.mergeId));
+  return new Set([id, ...state.merges.filter(m => m.type === 'merge' && !undone.has(m.id) && Array.isArray(m.entityIds) && m.entityIds.includes(id))
+    .flatMap(m => (m.entityIds as unknown[]).filter((e): e is string => typeof e === 'string'))]);
 }
+/** A memory line about one of `ids`: the exact id as a whole word, never inside a longer id. */
+export const lineNames = (line: { text: string | null }, ids: Set<string>) => line.text !== null && [...ids].some(i => namesId(line.text!, i));

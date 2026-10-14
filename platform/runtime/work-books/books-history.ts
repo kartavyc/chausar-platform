@@ -7,7 +7,7 @@ import { check, now, type Context, type State, type StateStore } from '../contra
 import { CalculatorService, type CalculationReceipt } from '../calculator.ts';
 import { canSeeFact, validatePeriod } from '../memory.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
-import { amountOf, input, isoInstant, peekBooks, plainId, writeBooks, type Amount, type Rebuild } from './books-common.ts';
+import { amountOf, input, isoInstant, LIMITS, peekBooks, plainId, room, writeBooks, type Amount, type Rebuild } from './books-common.ts';
 
 const calculator = (host: ModuleHost) => host.services.calculator as CalculatorService;
 /** An empty selection is not a zero: nothing was counted as known on that date. */
@@ -108,11 +108,15 @@ export const historyMethods: Record<string, MethodSpec> = {
     check(answer.request && typeof answer.request === 'object' && typeof answer.request.operation === 'string', 'REBUILD_NOT_AVAILABLE', 'This saved answer has no calculation to run again.');
     // A rebuild works the answer out again as known now; the full rebuild uses the same knowledge cut on a detached copy.
     const { asOf: _old, ...request } = structuredClone(answer.request);
+    // Only the latest rebuild of each answer is read, so a new one replaces the earlier; the number of answers kept is bounded.
+    const kept = peekBooks(host.store.read()).rebuilds; if (!kept.some(r => r.answerId === answer.id)) room(kept, LIMITS.rebuilds);
     const quick = await calculator(host).calculate(ctx, request);
     const full = await new CalculatorService(scratchStore(host.store.read())).calculate(ctx, { ...request, asOf: quick.asOf });
     const rebuild: Rebuild = { answerId: answer.id, at: now(), matches: BigInt(quick.valueMinor) === BigInt(full.valueMinor) && quick.coverage.countedRows === full.coverage.countedRows,
       quick: valueOf(quick), full: valueOf(full), quickReceiptId: quick.id, fullReceiptId: full.id };
-    await writeBooks(host.store, ctx, 'prepare', books => { books.rebuilds.push(rebuild); });
+    await writeBooks(host.store, ctx, 'prepare', books => {
+      books.rebuilds = books.rebuilds.filter(r => r.answerId !== answer.id); room(books.rebuilds, LIMITS.rebuilds); books.rebuilds.push(rebuild);
+    });
     return staleRow(host.store.read().answers.find(a => a.id === answer.id) ?? answer, rebuild);
   } },
 };

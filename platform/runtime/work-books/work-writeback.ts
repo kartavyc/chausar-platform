@@ -15,6 +15,8 @@ import type { State } from '../contracts.ts';
 import type { PreparedAction } from '../actions.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
+import { peekBooks } from './books-common.ts';
+import { recordIdsOf } from './books-records.ts';
 import type { Amount, ApprovalDetail, ApprovalRow, ActionView, CatalogueEntry, CatalogueKind, CatalogueRow, Env, Step, StepState } from './work-queue.ts';
 import { finish, flatten, isoAt, isReadOnly, steps, expired } from './work-queue.ts';
 
@@ -316,14 +318,28 @@ export async function reminderOf(e: Env, view: WbView): Promise<Reminder | undef
     const perDay = settings.value.reminderCapPerDay as number, perCustomer = settings.value.reminderCapPerCustomer as number;
     caps = { perCustomer, perDay, day, preparedOnDay, customerOnDay, reached: preparedOnDay >= perDay, customerReached: customerOnDay >= perCustomer };
   }
-  const blocked = customerId && channel && current?.answer === 'stopped' ? { code: 'FOLLOW_UP_STOPPED', reason: 'No reminder: this customer asked to stop.' }
+  // A stop word recorded in Books (records.stop) also stops reminders. Write-back's follow-up names the customer by the
+  // same customerId the facts carry, which is the Books record id; a stop counts when it names that id exactly or a
+  // customer joined with it (joins that were undone do not count). Only a later Books agreement on the same channel lifts it.
+  const booksStop = customerId ? booksStopFor(e.state, customerId, channel) : null;
+  const finalStoppedOn = stoppedOn ?? booksStop?.on ?? null;
+  const blocked = customerId && channel && (current?.answer === 'stopped' || booksStop) ? { code: 'FOLLOW_UP_STOPPED', reason: 'No reminder: this customer asked to stop.' }
     : customerId && channel && current?.answer !== 'yes' ? { code: 'FOLLOW_UP_NO_CONSENT', reason: 'No reminder: this customer has not agreed to reminders.' } : null;
   return {
     customerId, invoiceId: text(detail.invoiceId, 100) ? detail.invoiceId : null, channel, asWritten, invoiceLink: asWritten ? LINK.exec(asWritten)?.[0] ?? null : null,
     outstanding: minor(detail.outstandingMinor),
     notes: e.ctx.role === 'owner' ? PAYMENT_NOTES.map(n => ({ id: n.id, text: { en: n.text.en, hi: n.text.hi }, source: n.source, checkedOn: n.checkedOn, notLegalAdvice: true as const })) : null,
-    agreement, stoppedOn, caps, blocked,
+    agreement, stoppedOn: finalStoppedOn, caps, blocked,
   };
+}
+/** The latest Books stop word for this customer that no later Books agreement on the channel has lifted. */
+function booksStopFor(state: State, customerId: string, channel: 'email' | 'whatsapp' | null): { on: string; at: string } | null {
+  const books = peekBooks(state); const ids = recordIdsOf(state, customerId);
+  const stop = books.stops.filter(s => ids.has(s.recordId)).sort((a, b) => a.at.localeCompare(b.at)).at(-1);
+  if (!stop) return null;
+  const booksChannel = channel === 'email' ? 'mail' : channel;
+  const lifted = booksChannel !== null && books.optIns.some(o => ids.has(o.recordId) && o.channel === booksChannel && o.answer === 'yes' && o.at > stop.at);
+  return lifted ? null : { on: stop.on, at: stop.at };
 }
 
 /** Write-back refusals that mean "blocked at prepare", with their plain reason. */

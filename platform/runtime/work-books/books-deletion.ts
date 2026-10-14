@@ -8,14 +8,17 @@
 import { check, newId, now, type Context } from '../contracts.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
-import { input, member, peekBooks, plainId, text, writeBooks, type BooksState } from './books-common.ts';
-import { holdingsOf, recordIdsOf } from './books-records.ts';
+import { input, member, peekBooks, plainId, seesEverything, text, writeBooks, type BooksState } from './books-common.ts';
+import { holdingsOf, lineNames, recordIdsOf, visibleRecordIds } from './books-records.ts';
 import { visibleMemoryLine } from './books-memory.ts';
 import { peekSection } from './state.ts';
 
 type RowState = 'deleted' | 'pending' | 'not-possible' | 'nothing-held';
 export type DeletionRow = { store: string; count: number; state: RowState; reason: string | null };
 export type DeletionReport = { id: string; recordId: string; at: string; by: string; complete: boolean; rows: DeletionRow[] };
+/** As stored: who made the report, kept so only they and the administrators read it back. */
+type StoredReport = DeletionReport & { memberId?: string };
+const shown = ({ memberId: _m, ...report }: StoredReport): DeletionReport => report;
 
 /** Stores this lane keeps and can delete from. */
 const OURS = new Set(['memory', 'opt-ins', 'matches']);
@@ -35,10 +38,10 @@ function plan(host: ModuleHost, ctx: Context, id: unknown) {
     reason: count > 0 && !OURS.has(store) ? NEEDS_OWNER[store] ?? 'This store has no delete for one customer.' : null,
   }));
 }
-function reportsOf(books: BooksState): DeletionReport[] {
+function reportsOf(books: BooksState): StoredReport[] {
   const holder = books as unknown as Record<string, unknown>;
   if (!Array.isArray(holder.deletions)) holder.deletions = [];
-  return holder.deletions as DeletionReport[];
+  return holder.deletions as StoredReport[];
 }
 
 export const deletionMethods: Record<string, MethodSpec> = {
@@ -58,10 +61,13 @@ export const deletionMethods: Record<string, MethodSpec> = {
     const ids = recordIdsOf(host.store.read(), request.id); const who = member(host.store.read(), ctx); const at = now();
     // The memory store counts only lines the caller can see; only those are deleted.
     const visibleLines = new Set(before.some(s => s.store === 'memory' && s.count > 0)
-      ? peekBooks(host.store.read()).memory.filter(l => !l.deletedAt && l.text !== null && visibleMemoryLine(host.store, ctx, l) && [...ids].some(i => l.text!.includes(i))).map(l => l.id) : []);
+      ? peekBooks(host.store.read()).memory.filter(l => !l.deletedAt && visibleMemoryLine(host.store, ctx, l, host) && lineNames(l, ids)).map(l => l.id) : []);
+    // Same-or-not decisions are counted only when the caller can see both customers (holdingsOf); only those are deleted.
+    const visible = visibleRecordIds(host, ctx);
+    const deletable = (m: { left: string; right: string }) => (ids.has(m.left) || ids.has(m.right)) && visible.has(m.left) && visible.has(m.right);
     await writeBooks(host.store, ctx, 'approve', books => {
       books.optIns = books.optIns.filter(o => !ids.has(o.recordId)); books.stops = books.stops.filter(s => !ids.has(s.recordId));
-      books.matches = books.matches.filter(m => !ids.has(m.left) && !ids.has(m.right));
+      books.matches = books.matches.filter(m => !deletable(m));
       for (const line of books.memory) if (visibleLines.has(line.id)) { line.text = null; line.earlier = []; line.deletedAt = at; }
     });
     const after = new Map(holdingsOf(host, ctx, request.id).map(s => [s.store, s.count]));
@@ -69,13 +75,15 @@ export const deletionMethods: Record<string, MethodSpec> = {
       : s.state === 'needs-owner' ? { store: s.store, count: s.count, state: 'not-possible', reason: s.reason }
       : (after.get(s.store) ?? 0) === 0 ? { store: s.store, count: s.count, state: 'deleted', reason: null }
       : { store: s.store, count: s.count, state: 'pending', reason: 'Some of it was still found after deleting. It was not reported deleted.' });
-    const report: DeletionReport = { id: newId('deletion'), recordId: request.id, at, by: who.name, complete: rows.every(r => r.state === 'deleted' || r.state === 'nothing-held'), rows };
+    const report: StoredReport = { id: newId('deletion'), recordId: request.id, at, by: who.name, complete: rows.every(r => r.state === 'deleted' || r.state === 'nothing-held'), rows, memberId: ctx.memberId };
     await writeBooks(host.store, ctx, 'approve', books => { const reports = reportsOf(books); reports.push(report); if (reports.length > MAX_REPORTS) reports.splice(0, reports.length - MAX_REPORTS); });
-    return report;
+    return shown(report);
   } },
   'records.deletions': { permission: 'read', handler(ctx, payload, host) {
-    input(payload, []); const list = peekSection<Record<string, unknown>>(host.store.read(), 'books')?.deletions;
-    // Reports are proof of what was removed; they name only the record id and the stores.
-    return { reports: (Array.isArray(list) ? list as DeletionReport[] : []).slice().reverse() };
+    input(payload, []); const state = host.store.read(); const list = peekSection<Record<string, unknown>>(state, 'books')?.deletions;
+    // Reports are proof of what was removed; they name the record id, so each is read back only by the
+    // person who made it and by an owner or cofounder who sees every branch.
+    const all = seesEverything(state, ctx);
+    return { reports: (Array.isArray(list) ? list as StoredReport[] : []).filter(r => all || (r.memberId !== undefined && r.memberId === ctx.memberId)).slice().reverse().map(shown) };
   } },
 };

@@ -80,3 +80,24 @@ export function mentions(value: unknown, id: string, depth = 0): boolean {
   if (!value || typeof value !== 'object' || depth > 24) return false;
   return (Array.isArray(value) ? value : Object.values(value)).some(item => mentions(item, id, depth + 1));
 }
+/** An owner or cofounder who sees every branch: the workspace's administrators for reports about everyone. */
+export function seesEverything(state: State, ctx: Context): boolean {
+  const who = state.members.find(m => m.id === ctx.memberId);
+  return !!who && who.active !== false && ['owner', 'cofounder'].includes(who.role) && Array.isArray(who.branches) && who.branches.includes('*');
+}
+/** A member with every branch, whatever the role. */
+export function hasAllBranches(state: State, ctx: Context): boolean {
+  const who = state.members.find(m => m.id === ctx.memberId);
+  return !!who && who.active !== false && Array.isArray(who.branches) && who.branches.includes('*');
+}
+/** True when `value` names `id` as a whole word: `c-1` is not found inside `c-10` or `xc-1`. */
+export function namesId(value: string, id: string): boolean {
+  if (!id) return false;
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![\\p{L}\\p{N}_-])${escaped}(?![\\p{L}\\p{N}_-])`, 'u').test(value);
+}
+/** Upper bounds for the lists this lane keeps; a full list refuses LIST_FULL instead of dropping entries silently. */
+export const LIMITS = Object.freeze({ memoryLive: 2000, memoryAll: 10000, earlier: 50, optIns: 10000, stops: 10000, matches: 10000, rebuilds: 2000, bills: 2000 });
+export function room(list: readonly unknown[], max: number): void {
+  check(list.length < max, 'LIST_FULL', 'This list is full. Remove older entries before adding more.');
+}

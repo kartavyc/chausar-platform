@@ -257,6 +257,8 @@ test('delete what we hold about a customer: typed confirmation, lane stores dele
   assert.equal(report.complete, false); assert.match(report.rows.find((r: any) => r.store === 'facts').reason, /source/);
   const holdings = await call(viewer, 'records.holdings', { id: 'c-1' });
   assert.deepEqual(holdings.stores.filter((s: any) => ['opt-ins', 'memory'].includes(s.store)).map((s: any) => s.count), [0, 0]);
-  assert.equal((await call(viewer, 'records.deletions')).reports[0].id, report.id);
+  assert.equal((await call(owner, 'records.deletions')).reports[0].id, report.id);
+  // Review 2: a report is read back by its maker and by an owner or cofounder with every branch, not by every member.
+  assert.deepEqual((await call(viewer, 'records.deletions')).reports, []);
   assert.equal(store.read().facts.length, 1, 'core facts are not touched by the lane');
 });

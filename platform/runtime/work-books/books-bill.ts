@@ -15,7 +15,7 @@ import { ChausarError, check, newId, now, type Context, type State } from '../co
 import { digest } from '../actions.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
-import { input, member, plainId, text, isoDay, writeBooks, type Amount, type BooksState } from './books-common.ts';
+import { hasAllBranches, input, LIMITS, member, plainId, room, text, isoDay, writeBooks, type Amount, type BooksState } from './books-common.ts';
 import { parseBill, type BillProposal, type OcrPage } from './books-bill-parse.ts';
 import { imageAsPdf } from './books-bill-image.ts';
 import { peekSection } from './state.ts';
@@ -23,7 +23,7 @@ import { peekSection } from './state.ts';
 export const MAX_BILL_BYTES = 4 * 1024 * 1024;
 const MIMES = ['application/pdf', 'image/png', 'image/jpeg'] as const;
 type Mime = typeof MIMES[number];
-const READ_TTL_MS = 30 * 60000, READS_KEPT = 64, MAX_PAGES = 4;
+const READ_TTL_MS = 30 * 60000, READS_KEPT = 64, READS_PER_MEMBER = 8, MAX_PAGES = 4;
 const OCR_CODES = new Set(['OCR_DEPENDENCY_UNAVAILABLE', 'PDF_DEPENDENCY_UNAVAILABLE', 'PYTHON_UNAVAILABLE']);
 const PASS_CODES = new Set(['INVALID_PDF', 'PDF_PAGE_LIMIT', 'PDF_TEXT_LIMIT', 'PDF_EXTRACT_FAILED', 'HELPER_TIMEOUT', 'HELPER_INPUT_LIMIT', 'HELPER_OUTPUT_LIMIT']);
 const MINOR = /^(0|[1-9]\d{0,15})$/;
@@ -32,10 +32,19 @@ const QUANTITY = /^[1-9]\d{0,5}$/;
 /** Readings live only in this process, never in the vault: nothing is stored before confirm. */
 type Reading = { workspaceId: string; memberId: string; expires: number; digest: string; proposal: BillProposal; mime: Mime; sha256: string };
 const readings = new Map<string, Reading>();
+/**
+ * At most eight readings per person and 64 in all. A person over their own limit loses their own
+ * oldest reading, so one person cannot push out everyone else's.
+ */
 function remember(id: string, reading: Reading) {
   const at = Date.now(); for (const [key, value] of readings) if (value.expires <= at) readings.delete(key);
-  readings.set(id, reading); while (readings.size > READS_KEPT) readings.delete(readings.keys().next().value!);
+  const mine = () => [...readings].filter(([, r]) => r.workspaceId === reading.workspaceId && r.memberId === reading.memberId).map(([key]) => key);
+  for (let own = mine(); own.length >= READS_PER_MEMBER; own = mine()) readings.delete(own[0]);
+  if (readings.size >= READS_KEPT) { const own = mine(); readings.delete(own[0] ?? readings.keys().next().value!); }
+  readings.set(id, reading);
 }
+/** For tests: how many readings one person holds. */
+export const readingsHeld = (workspaceId: string, memberId: string) => [...readings.values()].filter(r => r.workspaceId === workspaceId && r.memberId === memberId).length;
 
 export type BillState = 'prepared' | 'approved' | 'executing' | 'verified' | 'unknown' | 'rejected' | 'blocked' | 'cancelled';
 export type StoredBill = {
@@ -130,22 +139,48 @@ function zohoLines(fields: Fields) {
   ];
 }
 const WRITEBACK_STATE: Record<string, BillState> = { prepared: 'prepared', approved: 'approved', executing: 'executing', verified: 'verified', unknown: 'unknown', rejected: 'rejected', cancelled: 'cancelled', blocked: 'blocked' };
+/**
+ * Keeps the stored bill in step with write-back's view: its state, and the digest when write-back
+ * prepared the booking again (a new digest is what the next approval must name).
+ */
 async function settle(host: ModuleHost, ctx: Context, id: string, view: unknown) {
-  const status = (view as { status?: unknown })?.status; const next = typeof status === 'string' ? WRITEBACK_STATE[status] : undefined;
-  if (next) await writeBooks(host.store, ctx, 'prepare', books => { const bill = billsOf(books).find(b => b.id === id); if (bill) bill.state = next; });
+  const v = view as { id?: unknown; status?: unknown; digest?: unknown } | null;
+  const status = v?.status; const next = typeof status === 'string' ? WRITEBACK_STATE[status] : undefined;
+  const fresh = typeof v?.digest === 'string' && v.digest.length > 0 && v.digest.length <= 200 ? v.digest : null;
+  if (!next && !fresh) return;
+  await writeBooks(host.store, ctx, 'prepare', books => {
+    const bill = billsOf(books).find(b => b.id === id); if (!bill) return;
+    if (next) bill.state = next;
+    if (fresh && bill.writeback && (v?.id === undefined || v.id === bill.writeback.id) && fresh !== bill.writeback.digest) { bill.writeback.digest = fresh; bill.digest = fresh; }
+  });
 }
-function findBill(state: State, id: unknown): StoredBill {
-  const bill = typeof id === 'string' ? storedBills(state).find(b => b.id === id) : undefined; check(bill, 'BILL_NOT_FOUND', 'This bill is not in the list.'); return bill;
+/** Keeps a stored bill in step with a write-back view read elsewhere (the queue, the sheet). */
+export async function settleBill(host: ModuleHost, ctx: Context, id: string, view: unknown) { await settle(host, ctx, id, view); }
+/**
+ * Who may see a stored bill: the person who brought it, a member who sees every branch, or (for a
+ * Zoho booking) anyone whose own write-back record shows the booking it waits on.
+ */
+export function billVisible(state: State, ctx: Context, bill: StoredBill, writebackIds?: ReadonlySet<string>): boolean {
+  if (bill.memberId === ctx.memberId || hasAllBranches(state, ctx)) return true;
+  return !!bill.writeback && !!writebackIds && writebackIds.has(bill.writeback.id);
+}
+async function writebackIdsOf(host: ModuleHost): Promise<Set<string>> {
+  const reply = await optionalCall<unknown>(host, 'writeback.ledger', { limit: 1000 });
+  return new Set(reply.available && Array.isArray(reply.value) ? reply.value.map((v: any) => v?.id).filter((id: unknown): id is string => typeof id === 'string') : []);
+}
+function findBill(state: State, id: unknown, ctx?: Context, writebackIds?: ReadonlySet<string>): StoredBill {
+  const bill = typeof id === 'string' ? storedBills(state).find(b => b.id === id) : undefined;
+  check(bill && (!ctx || billVisible(state, ctx, bill, writebackIds)), 'BILL_NOT_FOUND', 'This bill is not in the list.'); return bill;
 }
 
 /** Approval of a `bill:` item from the approvals queue: a Zoho bill is approved through writeback at the exact digest. */
 export async function approveBill(ctx: Context, host: ModuleHost, id: string, expected: string) {
-  const bill = findBill(host.store.read(), id);
+  const bill = findBill(host.store.read(), id, ctx, await writebackIdsOf(host));
   check(bill.route === 'zoho-books' && bill.writeback, 'PREPARE_ONLY', 'This is prepare only. Enter the voucher in Tally yourself or give it to your accountant.');
   await settle(host, ctx, id, await host.call('writeback.approve', { id: bill.writeback.id, digest: expected }));
 }
 export async function dropBill(ctx: Context, host: ModuleHost, id: string) {
-  const bill = findBill(host.store.read(), id);
+  const bill = findBill(host.store.read(), id, ctx, await writebackIdsOf(host));
   if (bill.writeback) await host.call('writeback.drop', { id: bill.writeback.id });
   await writeBooks(host.store, ctx, 'approve', books => { const stored = billsOf(books).find(b => b.id === id); if (stored) stored.state = 'cancelled'; });
 }
@@ -191,27 +226,33 @@ export const billMethods: Record<string, MethodSpec> = {
     const zoho = request.zoho === undefined ? null : input(request.zoho, ['connectionId', 'vendorId'], ['connectionId', 'vendorId']);
     if (zoho) check(plainId(zoho.connectionId) && plainId(zoho.vendorId), 'INVALID_BOOKS_REQUEST', 'Choose the Zoho Books connection and the vendor.');
     const id = newId('bill'); const who = member(state, ctx);
-    let writeback: StoredBill['writeback'] = null; let billState: BillState = 'prepared';
-    if (zoho) {
-      const prepared = await optionalCall<any>(host, 'writeback.prepare', { connectionId: zoho.connectionId, action: 'bill.createFromPhoto', intentId: `bill-${reading.digest.slice(0, 32)}`,
-        payload: { vendorId: zoho.vendorId, billNumber: fields.billNumber, date: fields.date, lines: zohoLines(fields), photoReference: `photo-sha256:${reading.sha256.slice(0, 32)}` } });
-      check(prepared.available, 'WRITEBACK_NOT_BUILT', 'Booking in Zoho Books is not built yet.');
-      const view = prepared.value;
-      if (view?.status === 'already-done') billState = 'verified';
-      else { check(typeof view?.id === 'string' && typeof view.digest === 'string', 'INVALID_WRITEBACK_REPLY', 'The prepared booking could not be read back.'); writeback = { id: view.id, digest: view.digest, connectionId: zoho.connectionId as string }; }
-    }
-    const voucher = zoho ? null : voucherOf(fields);
-    const bill: StoredBill = { id, createdAt: now(), by: who.name, memberId: who.id, ...fields, route: zoho ? 'zoho-books' : 'tally-preview', voucher, writeback, state: billState,
-      digest: writeback?.digest ?? digest({ fields, voucher, photo: reading.sha256 }), photo: { mime: reading.mime, sha256: reading.sha256 }, readDigest: reading.digest };
-    await writeBooks(host.store, ctx, 'prepare', books => { billsOf(books).push(bill); });
+    check(storedBills(state).length < LIMITS.bills, 'LIST_FULL', 'This list is full. Remove older entries before adding more.');
+    // The reading is taken out before anything is awaited, so two confirms of one reading cannot both book it.
+    // It is put back only when this confirm fails, so the person can correct and try again.
     readings.delete(request.readId);
-    return billView(bill);
+    try {
+      let writeback: StoredBill['writeback'] = null; let billState: BillState = 'prepared';
+      if (zoho) {
+        const prepared = await optionalCall<any>(host, 'writeback.prepare', { connectionId: zoho.connectionId, action: 'bill.createFromPhoto', intentId: `bill-${reading.digest.slice(0, 32)}`,
+          payload: { vendorId: zoho.vendorId, billNumber: fields.billNumber, date: fields.date, lines: zohoLines(fields), photoReference: `photo-sha256:${reading.sha256.slice(0, 32)}` } });
+        check(prepared.available, 'WRITEBACK_NOT_BUILT', 'Booking in Zoho Books is not built yet.');
+        const view = prepared.value;
+        if (view?.status === 'already-done') billState = 'verified';
+        else { check(typeof view?.id === 'string' && typeof view.digest === 'string', 'INVALID_WRITEBACK_REPLY', 'The prepared booking could not be read back.'); writeback = { id: view.id, digest: view.digest, connectionId: zoho.connectionId as string }; }
+      }
+      const voucher = zoho ? null : voucherOf(fields);
+      const bill: StoredBill = { id, createdAt: now(), by: who.name, memberId: who.id, ...fields, route: zoho ? 'zoho-books' : 'tally-preview', voucher, writeback, state: billState,
+        digest: writeback?.digest ?? digest({ fields, voucher, photo: reading.sha256 }), photo: { mime: reading.mime, sha256: reading.sha256 }, readDigest: reading.digest };
+      await writeBooks(host.store, ctx, 'prepare', books => { const bills = billsOf(books); room(bills, LIMITS.bills); bills.push(bill); });
+      return billView(bill);
+    } catch (error) { if (reading.expires > Date.now() && !readings.has(request.readId)) readings.set(request.readId, reading); throw error; }
   } },
-  'books.bills': { permission: 'read', handler(ctx, payload, host) {
-    input(payload, []); return { bills: storedBills(host.store.read()).slice().reverse().map(billView) };
+  'books.bills': { permission: 'read', async handler(ctx, payload, host) {
+    input(payload, []); const state = host.store.read(); const wb = await writebackIdsOf(host);
+    return { bills: storedBills(state).filter(b => billVisible(state, ctx, b, wb)).slice().reverse().map(billView) };
   } },
   'books.billBook': { permission: 'prepare', async handler(ctx, payload, host) {
-    const { id } = input(payload, ['id'], ['id']); const bill = findBill(host.store.read(), id);
+    const { id } = input(payload, ['id'], ['id']); const bill = findBill(host.store.read(), id, ctx, await writebackIdsOf(host));
     check(bill.route === 'zoho-books' && bill.writeback, 'PREPARE_ONLY', 'This is prepare only. Enter the voucher in Tally yourself or give it to your accountant.');
     check(['approved', 'unknown'].includes(bill.state), 'INVALID_APPROVAL_STATE', 'Approve the bill first.');
     await settle(host, ctx, bill.id, await host.call(bill.state === 'unknown' ? 'writeback.readBack' : 'writeback.execute', { id: bill.writeback.id }));

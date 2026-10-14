@@ -17,7 +17,7 @@ import type { WbEnv, WbExtra, Reminder } from './work-writeback.ts';
 
 export type Amount = { minor: string } | { missing: 'absent' | 'null' | 'unknown' | 'withheld' | 'not-applicable' | 'not-loaded-yet' | 'not-counted' };
 export type Source = 'action' | 'job' | 'release' | 'lesson' | 'acceptance' | 'writeback' | 'bill' | 'proposal';
-import { storedBills, type StoredBill } from './books-bill.ts';
+import { billVisible, storedBills, type StoredBill } from './books-bill.ts';
 import { loadLaneProposals, proposalDetail, type LaneProposal } from './work-jobs-lane.ts';
 export type Tier = 'tier-2' | 'tier-1' | 'prepare-only';
 export type RowState = PreparedAction['status'];
@@ -385,11 +385,13 @@ export function lessonDetail(e: Env, lesson: Lesson): ApprovalDetail {
  */
 export function billDetail(e: Env, bill: StoredBill): ApprovalDetail {
   const zoho = bill.route === 'zoho-books' && bill.writeback !== null; const name = memberName(e.state, bill.memberId) ?? bill.by;
+  // A Zoho booking's state and digest are write-back's, read live from the caller's write-back record when it is there.
+  const live = liveBill(e, bill);
   const row: ApprovalRow = {
     id: `bill:${bill.id}`, source: 'bill', kind: zoho ? 'record-change' : 'prepare-only', tier: zoho ? 'tier-1' : 'prepare-only',
     title: zoho ? `Book a bill read from a photo: ${bill.supplier}` : `Purchase voucher from a bill photo: ${bill.supplier}`, what: { kind: zoho ? 'bill-zoho' : 'bill-tally', name: bill.supplier }, touches: `${zoho ? 'Zoho Books' : 'Tally'}: ${bill.supplier}`,
     amount: minorAmount(bill.totalMinor), preparedBy: { kind: 'person', name }, createdAt: bill.createdAt,
-    expiresAt: zoho ? isoAt(Date.parse(bill.createdAt) + 7 * DAY) : null, state: bill.state, practice: false,
+    expiresAt: zoho ? isoAt(Date.parse(bill.createdAt) + 7 * DAY) : null, state: live.state, practice: false,
   };
   const fields = [{ name: 'Supplier', before: '', after: bill.supplier }, { name: 'Bill number', before: '', after: bill.billNumber }, { name: 'Date', before: '', after: bill.date },
     ...bill.lines.map((l, i) => ({ name: `Line ${i + 1}`, before: '', after: `${l.description} × ${l.quantity}: ${l.amountMinor} paise` })),
@@ -398,11 +400,26 @@ export function billDetail(e: Env, bill: StoredBill): ApprovalDetail {
     lines: bill.voucher.lines.map(l => ({ ledger: l.ledger, debit: minorAmount(l.debitMinor), credit: minorAmount(l.creditMinor) })) } : undefined;
   const waiting = row.state === 'prepared';
   return finish(e, row, {
-    digest: bill.digest, revision: 1, reason: 'autonomy-off', change: { fields }, ...(voucher ? { voucher } : {}),
+    digest: live.digest, revision: live.revision, reason: 'autonomy-off', change: { fields }, ...(voucher ? { voucher } : {}),
     steps: steps(['done', bill.createdAt], [waiting ? (zoho && !expired(e, row) ? 'waiting-for-you' : zoho ? 'stopped-by-rule' : 'not-reached') : row.state === 'cancelled' ? 'not-reached' : 'done', null],
       ...(['verified', 'unknown', 'rejected'].includes(row.state) ? [[row.state === 'unknown' ? 'unsure' : 'done', null] as [StepState, null]] : [])),
     prepareOnly: !zoho, needsSecondAsk: false,
   }, { change: false, approve: zoho });
+}
+
+/** The bill's state and digest: from the write-back view behind a Zoho booking when the caller's record has it, else as stored. */
+function liveBill(e: Env, bill: StoredBill): { state: RowState; digest: string; revision: number } {
+  const view = bill.route === 'zoho-books' && bill.writeback ? e.wb.views.find(v => v.id === bill.writeback!.id) : undefined;
+  return view ? { state: view.status, digest: view.digest, revision: view.revision } : { state: bill.state, digest: bill.digest, revision: 1 };
+}
+/** Stored bills the caller may see (books-bill.ts `billVisible`), with write-back view access standing in for a Zoho booking. */
+export function visibleBills(e: Env): StoredBill[] {
+  const ids = new Set(e.wb.views.map(v => v.id));
+  return storedBills(e.state).filter(b => billVisible(e.state, e.ctx, b, ids));
+}
+/** Write-back views that back a stored bill: the `bill:` item is the one to act on, so the view is not listed twice. */
+function billBacked(e: Env): Set<string> {
+  return new Set(storedBills(e.state).map(b => b.writeback?.id).filter((id): id is string => typeof id === 'string'));
 }
 
 /** Every item waiting in the queue, before snoozes and expiry are applied. */
@@ -415,8 +432,9 @@ export function queue(e: Env): ApprovalDetail[] {
   }
   for (const draft of drafts(e.state)) if (draft.state === 'draft' || draft.state === 'cosigned') items.push(releaseDetail(e, draft));
   for (const lesson of lessons(e)) if (lesson.status === 'review-ready') items.push(lessonDetail(e, lesson));
-  for (const view of e.wb.views) if (view.status === 'prepared') items.push(wbDetail(e, view));
-  for (const bill of storedBills(e.state)) if (bill.state === 'prepared') items.push(billDetail(e, bill));
+  const backed = billBacked(e);
+  for (const view of e.wb.views) if (view.status === 'prepared' && !backed.has(view.id)) items.push(wbDetail(e, view));
+  for (const bill of visibleBills(e)) if (liveBill(e, bill).state === 'prepared') items.push(billDetail(e, bill));
   for (const proposal of e.proposals ?? []) items.push(proposalDetail(e, proposal));
   return items;
 }
@@ -435,7 +453,7 @@ export function detail(e: Env, id: string): ApprovalDetail {
   if (source === 'writeback') return wbDetail(e, findView(e, raw));
   if (source === 'release') { const draft = drafts(e.state).find(d => d.id === raw); check(draft, 'NOT_FOUND', 'Approval not found.'); return releaseDetail(e, draft); }
   if (source === 'proposal') { const proposal = (e.proposals ?? []).find(p => p.id === raw); check(proposal, 'NOT_FOUND', 'Approval not found.'); return proposalDetail(e, proposal); }
-  if (source === 'bill') { const bill = storedBills(e.state).find(b => b.id === raw); check(bill, 'NOT_FOUND', 'Approval not found.'); return billDetail(e, bill); }
+  if (source === 'bill') { const bill = visibleBills(e).find(b => b.id === raw); check(bill, 'NOT_FOUND', 'Approval not found.'); return billDetail(e, bill); }
   const lesson = lessons(e).find(l => l.candidate.id === raw); check(lesson, 'NOT_FOUND', 'Approval not found.'); return lessonDetail(e, lesson);
 }
 

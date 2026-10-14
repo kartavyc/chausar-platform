@@ -1,7 +1,7 @@
 /**
  * "Download the file and the checklist" for a prepare-only item (WK-02): a tax filing from the
  * write-back catalogue (`gst-portal return.file`) or a core action whose catalogue row is prepare
- * only (the Tally voucher preview). Two files are written into `<app directory>/exports/`: the
+ * only (the Tally voucher preview), or a Tally purchase voucher prepared from a bill photo (`bill:<id>`). Two files are written into `<app directory>/exports/`: the
  * exact prepared payload as JSON, and a plain-text checklist. File names are generated here from
  * the time and the item's digest, never from outside text, and an existing file is never replaced.
  */
@@ -11,7 +11,7 @@ import { check } from '../contracts.ts';
 import type { PreparedAction } from '../actions.ts';
 import { audit } from '../contracts.ts';
 import type { ApprovalDetail, Env } from './work-queue.ts';
-import { parseId, visibleActions } from './work-queue.ts';
+import { parseId, visibleActions, visibleBills } from './work-queue.ts';
 import { systemTitle } from './work-writeback.ts';
 
 const record = (value: unknown): value is Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -57,6 +57,24 @@ function prepared(e: Env, item: ApprovalDetail): { payload: unknown; lines: stri
       };
     }
     return { payload, lines: [`Open ${systemTitle(String(env.system ?? ''))} yourself.`, `Enter exactly what the prepared file holds.`, `Check it against the prepared file before you save it.`] };
+  }
+  if (source === 'bill') {
+    // A Tally purchase voucher prepared from a bill photo: the voucher exactly as prepared, and how to enter it.
+    const bill = visibleBills(e).find(b => b.id === raw);
+    check(bill && bill.route === 'tally-preview' && bill.voucher, 'NOT_FOUND', 'Approval not found.');
+    const voucher = bill.voucher;
+    return {
+      payload: { kind: 'tally-purchase-voucher', note: 'prepare-only', supplier: bill.supplier, billNumber: bill.billNumber, date: bill.date, totalMinor: bill.totalMinor,
+        voucher: { type: voucher.type, number: voucher.number, date: voucher.date, lines: voucher.lines.map(l => ({ ledger: l.ledger, ...(l.debitMinor ? { debitMinor: l.debitMinor } : {}), ...(l.creditMinor ? { creditMinor: l.creditMinor } : {}) })) },
+        photo: { sha256: bill.photo.sha256 } },
+      lines: [
+        `Open Tally with the right company loaded.`,
+        `Enter a ${voucher.type} voucher dated ${voucher.date}${voucher.number ? ` with the supplier's bill number ${voucher.number}` : ''}.`,
+        `Enter each ledger line with the debit or credit exactly as in the prepared file. Amounts are in paise: divide by 100 for rupees.`,
+        `Check that debits and credits balance and that the total is ${bill.totalMinor} paise before you save it.`,
+        `Keep the bill photo with the voucher. Its fingerprint is in the prepared file.`,
+      ],
+    };
   }
   const action = visibleActions(e).find(a => a.id === raw);
   check(action, 'NOT_FOUND', 'Approval not found.');

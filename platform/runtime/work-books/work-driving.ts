@@ -68,7 +68,7 @@ export const workDrivingMethods: Readonly<Record<string, MethodSpec>> = {
     return reply;
   } },
   /** Continue after "You moved the mouse. Paused." or after signing in yourself. */
-  'approvals.drivingContinue': { permission: 'prepare', async handler(_ctx, payload, host) {
+  'approvals.drivingContinue': { permission: 'approve', async handler(_ctx, payload, host) {
     exact(payload, []); return passThrough(host, 'session.resume', {});
   } },
   /** Stop. Ctrl Alt Pause and the tray do the same outside the app. */

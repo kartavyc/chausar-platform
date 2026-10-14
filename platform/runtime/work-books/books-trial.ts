@@ -9,7 +9,7 @@
 import { check, hash, type Context, type State } from '../contracts.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
-import { input, peekBooks, plainId, writeBooks, type Amount } from './books-common.ts';
+import { input, peekBooks, plainId, writeBooks, type Amount, type BooksState } from './books-common.ts';
 import { assertPublishable, metaOf } from './books-meanings.ts';
 import { peekR2, r2 } from './books-recipes.ts';
 import { sourceVisible } from './books-sources.ts';
@@ -168,14 +168,42 @@ export const trialMethods: Record<string, MethodSpec> = {
       const proposal = peekR2(state).proposals.find(p => p.id === record.proposalId);
       check(proposal && proposal.digest === record.digest && proposal.state === 'accepted', 'PROPOSAL_NOT_ACCEPTED', 'A named person must accept the proposal before it is published.');
     }
-    const promoted = await host.call('trials.promote', { trialId: request.trialId, evaluationDigest: request.evaluationDigest, strategy: 'prospective', acknowledgedImpactDigest: request.impactDigest });
-    check(plain(promoted) && str(promoted.publicationId, 200), 'TRIAL_REPLY_INVALID', 'The copy answered in an unexpected shape.');
+    // Claim the draft (or check the proposal) again inside one transaction, so a discard, a redraft or a declined
+    // proposal between the read above and the promotion refuses instead of publishing something closed.
+    const stillOpen = (books: BooksState, latest: State) => {
+      if (record.draftId) {
+        const draft = books.drafts.find(d => d.id === record.draftId); check(draft && (draft.state === 'draft' || draft.state === 'cosigned'), 'DRAFT_CLOSED', 'This draft is already published or discarded.');
+        assertPublishable(latest, draft, metaOf(books, draft.id), record.digest); return draft;
+      }
+      if (!record.precedence) {
+        const proposal = r2(books).proposals.find(p => p.id === record.proposalId);
+        check(proposal && proposal.digest === record.digest && proposal.state === 'accepted', 'DRAFT_CLOSED', 'This proposal changed or was already decided.');
+      }
+      return null;
+    };
+    await writeBooks(host.store, ctx, 'approve', (books, latest) => {
+      const draft = stillOpen(books, latest);
+      if (draft) { const meta = metaOf(books, draft.id); check(!meta.publishing, 'DRAFT_CLOSED', 'This draft is being published.'); meta.publishing = { by: ctx.memberId, at: new Date().toISOString() }; }
+    });
+    const release = async () => { if (record.draftId) await writeBooks(host.store, ctx, 'approve', books => { const meta = books.draftMeta.find(m => m.draftId === record.draftId); if (meta) meta.publishing = null; }).catch(() => undefined); };
+    let promoted: unknown;
+    try {
+      promoted = await host.call('trials.promote', { trialId: request.trialId, evaluationDigest: request.evaluationDigest, strategy: 'prospective', acknowledgedImpactDigest: request.impactDigest });
+      check(plain(promoted) && str(promoted.publicationId, 200), 'TRIAL_REPLY_INVALID', 'The copy answered in an unexpected shape.');
+    } catch (error) { await release(); throw error; }
     const version = host.services.ontology.current(ctx)?.version ?? null;
     await writeBooks(host.store, ctx, 'approve', books => {
-      if (record.draftId) { const draft = books.drafts.find(d => d.id === record.draftId); if (draft) { draft.state = 'published'; const meta = metaOf(books, draft.id); meta.publishedVersion = version; } }
-      else { const proposal = r2(books).proposals.find(p => p.id === record.proposalId); if (proposal) proposal.state = 'published'; }
+      if (record.draftId) {
+        const draft = books.drafts.find(d => d.id === record.draftId); const meta = draft ? metaOf(books, draft.id) : undefined;
+        check(draft && meta && (draft.state === 'draft' || draft.state === 'cosigned') && meta.publishing?.by === ctx.memberId, 'DRAFT_CLOSED', 'This draft changed while it was being published.');
+        draft.state = 'published'; meta.publishedVersion = version; meta.publishing = null;
+      } else if (!record.precedence) {
+        const proposal = r2(books).proposals.find(p => p.id === record.proposalId);
+        check(proposal && proposal.digest === record.digest && proposal.state === 'accepted', 'DRAFT_CLOSED', 'This proposal changed while it was being published.');
+        proposal.state = 'published';
+      }
     });
-    return { trialId: request.trialId, status: 'promoted' as const, publicationId: promoted.publicationId as string, draftId: record.draftId, proposalId: record.proposalId, precedence: record.precedence ?? null };
+    return { trialId: request.trialId, status: 'promoted' as const, publicationId: (promoted as { publicationId: string }).publicationId, draftId: record.draftId, proposalId: record.proposalId, precedence: record.precedence ?? null };
   } },
   'books.trialDiscard': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['trialId'], ['trialId']); check(plainId(request.trialId), REQUEST, 'Name the copy.');
