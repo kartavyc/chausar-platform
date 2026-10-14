@@ -754,6 +754,7 @@ export class ModelGateway {
   }
   async approveOutbound(context: Context, previewId: string) {
     authorize(this.store, context, 'approve'); check(context.channel !== 'phone', 'APP_APPROVAL_REQUIRED', 'Approve model data transfers inside the app.');
+    check(!context.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot authorize a model data transfer.');
     return this.store.update(state => {
       authorize(this.store, context, 'approve'); const preview = state.modelReceipts.find(r => r.id === previewId && r.status === 'preview');
       check(preview, 'PREVIEW_NOT_FOUND', 'An unused model preview is required.');
