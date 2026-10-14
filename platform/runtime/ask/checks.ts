@@ -67,13 +67,21 @@ export function listChecks(ctx: Context, payload: unknown, host: ModuleHost): Ch
 }
 
 /** Works every check of this member out again as known now. */
-export async function runChecks(ctx: Context, host: ModuleHost): Promise<ChecksReply> {
+type Calculate = (request: Record<string, unknown>) => Promise<CalculationReceipt>;
+
+/** Works every check of this member out again as known now, as that member. */
+export async function runChecks(ctx: Context, host: ModuleHost, calculate: Calculate = request => host.call('calculation.run', request) as Promise<CalculationReceipt>): Promise<ChecksReply> {
+  await runFor(ctx, host, calculate, () => true);
+  return listChecks(ctx, {}, host);
+}
+
+async function runFor(ctx: Context, host: ModuleHost, calculate: Calculate, due: (item: CheckItem, current: Fingerprint) => boolean) {
   const before = host.store.read(), own = peekAsk(before), current = fingerprint(before, host);
   const results = new Map<string, CheckItem['results'][number]>();
-  for (const item of own.checks.filter(c => c.memberId === ctx.memberId)) {
+  for (const item of own.checks.filter(c => c.memberId === ctx.memberId && due(c, current))) {
     const at = now(), because = changedParts(item.fingerprint, current), { asOf: _asOf, ...again } = item.request;
     try {
-      const receipt = await host.call('calculation.run', again) as CalculationReceipt;
+      const receipt = await calculate(again);
       const figure = receipt.figures.find(f => f.key === item.figureKey);
       results.set(item.id, figure ? { at, result: figure.minor === item.expectedMinor ? 'same' : 'moved', minor: figure.minor, receiptId: receipt.id, code: null, because }
         : { at, result: 'cannot-run', minor: null, receiptId: receipt.id, code: 'ASK_FIGURE_GONE', because });
@@ -86,7 +94,7 @@ export async function runChecks(ctx: Context, host: ModuleHost): Promise<ChecksR
     const after = fingerprint(state, host);
     for (const item of mine.checks) { const result = results.get(item.id); if (result) { item.results.push(result); item.fingerprint = after; if (item.results.length > 50) item.results.splice(0, item.results.length - 50); } }
   });
-  return listChecks(ctx, {}, host);
+  return results.size;
 }
 
 export function getCheck(ctx: Context, payload: unknown, host: ModuleHost): CheckReply {
@@ -106,11 +114,23 @@ export async function removeCheck(ctx: Context, payload: unknown, host: ModuleHo
   });
 }
 
-/** Scheduler: run the owner's checks when something they depend on changed. */
-export async function tickChecks(ctx: Context, host: ModuleHost): Promise<unknown[]> {
-  const state = host.store.read(), own = peekAsk(state), current = fingerprint(state, host);
-  const changed = [...new Set(own.checks.filter(c => c.memberId === ctx.memberId).flatMap(c => changedParts(c.fingerprint, current)))];
-  if (!changed.length) return [];
-  try { const reply = await runChecks(ctx, host); return [{ module: 'ask', job: 'checks', ran: reply.items.length, moved: reply.items.filter(i => i.last?.result === 'moved').length, because: changed }]; }
-  catch (error) { return [{ module: 'ask', job: 'checks', error: { code: codeOf(error) } }]; }
+/**
+ * Scheduler: run every member's due checks, each as that member with that member's current
+ * authority. The engine calls this once per owner or cofounder; a check's fingerprint moves when
+ * it runs, so a second call in the same tick finds nothing due. A member whose access is gone
+ * (revoked, or a changed epoch) is skipped: nothing runs without current authority.
+ */
+export async function tickChecks(_ctx: Context, host: ModuleHost): Promise<unknown[]> {
+  const state = host.store.read(), own = peekAsk(state), current = fingerprint(state, host), out: unknown[] = [];
+  const due = (item: CheckItem, now: Fingerprint) => changedParts(item.fingerprint, now).length > 0;
+  for (const member of state.members.filter(m => m.active && own.checks.some(c => c.memberId === m.id && due(c, current)))) {
+    const seat: Context = { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' };
+    const because = [...new Set(own.checks.filter(c => c.memberId === member.id).flatMap(c => changedParts(c.fingerprint, current)))];
+    try {
+      const ran = await runFor(seat, host, request => host.services.calculator.calculate(seat, request) as Promise<CalculationReceipt>, due);
+      const after = peekAsk(host.store.read()).checks.filter(c => c.memberId === member.id);
+      out.push({ module: 'ask', job: 'checks', member: member.id, ran, moved: after.filter(c => c.results.at(-1)?.result === 'moved').length, because });
+    } catch (error) { out.push({ module: 'ask', job: 'checks', member: member.id, error: { code: codeOf(error) } }); }
+  }
+  return out;
 }

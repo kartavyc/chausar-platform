@@ -459,3 +459,30 @@ test('review: the inbox lists only this member’s unresolved clarifications tha
   const reply = await inbox(owner, {}, host);
   assert.deepEqual(reply.waiting, [{ id: 'c1', text: 'Which period for c1?', at: '2026-10-10T10:00:00.000Z' }]);
 });
+
+test('review: the scheduler runs an accountant’s checks as the accountant, and skips a revoked seat', async t => {
+  const engine = await workspace(t);
+  await ask(engine, 'sources.import', source('september', SEPT));
+  const accountant = await ask(engine, 'members.add', { id: 'acct-main', name: 'Main accountant', role: 'accountant', branches: ['main'] });
+  const other = await ask(engine, 'members.add', { id: 'acct-gone', name: 'Former accountant', role: 'accountant', branches: ['*'] });
+  as(engine, accountant);
+  const mine = await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
+  const { id } = await ask(engine, 'askx.checks.save', { receiptId: mine.receiptId });
+  as(engine, other);
+  const theirs = await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
+  const gone = await ask(engine, 'askx.checks.save', { receiptId: theirs.receiptId });
+  as(engine, { id: 'owner', role: 'owner', epoch: 1 });
+  await ask(engine, 'members.revoke', { id: other.id });
+  await ask(engine, 'sources.import', source('main-later', [['main-late', 'sale', '2026-09-21', '5.00', 'customer-m', 'inv-m']]));
+  await ask(engine, 'trust.update', { autonomy: true });
+  engine.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
+  const ticked = await engine.tick();
+  assert.deepEqual(ticked.filter((r: any) => r.module === 'ask').map((r: any) => [r.member, r.ran, r.moved]), [[accountant.id, 1, 1]]);
+  assert.equal((await engine.tick()).filter((r: any) => r.module === 'ask').length, 0, 'A second tick finds nothing due.');
+  as(engine, accountant);
+  const result = (await ask(engine, 'askx.checks.get', { checkId: id })).results[0];
+  assert.deepEqual([result.result, result.minor], ['moved', '125525'], 'Worked out within the accountant’s own branch.');
+  as(engine, { id: 'owner', role: 'owner', epoch: 1 });
+  const state = (engine as any).vault.read().extensions.ask;
+  assert.equal(state.checks.find((c: any) => c.id === gone.id).results.length, 0);
+});
