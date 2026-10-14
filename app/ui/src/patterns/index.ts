@@ -5,3 +5,8 @@ export { ApprovalSheet } from './ApprovalSheet';
 export { LensRow, WhoseRow } from './Lens';
 export { FirmTable } from './FirmTable';
 export type { FirmClientRow, FirmFilter } from './FirmTable';
+export type { ApprovalSheetApproval, VoucherLine } from './ApprovalSheet';
+export { TwoSides } from './TwoSides';
+export type { Side } from './TwoSides';
+export { SettingsRows } from './SettingsRows';
+export type { SettingChoice, SettingRow } from './SettingsRows';
