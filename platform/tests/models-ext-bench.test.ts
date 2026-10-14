@@ -8,7 +8,8 @@ import { CalculatorService } from '../runtime/calculator.ts';
 import { OPEN_BENCH, OPEN_BENCH_DIGEST, BENCH_SHOP_CSV, benchShopImport, digestOf } from '../runtime/models-ext/bench/open-bench.ts';
 import { BENCH_ROUTE_KINDS, entryFor, loadTranscripts, recordedUsage, validateTranscripts } from '../runtime/models-ext/bench/transcripts.ts';
 import { RECOMMENDED_BARS, barsDigest, validateBars, verdict } from '../runtime/models-ext/bench/bars.ts';
-import { costMinor, inventsNumber, replayBench, scoreJob, type RouteRow } from '../runtime/models-ext/bench/replay.ts';
+import { benchCalculation, costMinor, inventsNumber, replayBench, scoreJob, type RouteRow } from '../runtime/models-ext/bench/replay.ts';
+import { periodPresets, subqSnapPayload } from '../runtime/providers/subq-snap.ts';
 import { importInput } from '../benchmarks/bilingual/fixture.ts';
 import { synthesize } from '../benchmarks/routes/synthesize-transcripts.ts';
 
@@ -44,7 +45,8 @@ test('every hand-worked answer matches the deterministic calculator', async () =
   await new ImportService(store).commit(owner, benchShopImport());
   const calculator = new CalculatorService(store);
   for (const c of OPEN_BENCH.cases) if (c.expected.kind === 'answer') {
-    const receipt = await calculator.calculate(owner, { operation: c.expected.operation, ...c.expected.scope });
+    // Aging is worked at the bench's fixed business day (BENCH_ON_DATE), never today.
+    const receipt = await calculator.calculate(owner, benchCalculation({ operation: c.expected.operation, ...c.expected.scope }));
     assert.equal(receipt.valueMinor, c.expected.valueMinor, c.id);
     assert.deepEqual(receipt.rows.map(r => r.entityId).sort(), [...new Set(c.expected.rows.map(([row]) => row))].filter(row => receipt.rows.some(r => r.entityId === row)).sort(), c.id);
   }
@@ -108,10 +110,12 @@ test('replay through the real gateway scores routes differently and enforces the
   const rates = { routeId: 'cfg-responses', inputPerMillionMinor: '25000', outputPerMillionMinor: '100000' };
   const rows = await replayBench({ routes: [...BENCH_ROUTE_KINDS], runs: 1, bars: RECOMMENDED_BARS, rates: { 'openai-responses': rates } });
   assert.deepEqual(rows.map(r => r.route), [...BENCH_ROUTE_KINDS]);
-  for (const kind of ['anthropic-messages', 'subq-snap']) {
-    const row = rows.find(r => r.route === kind)!;
-    if (row.status === 'skipped') assert.equal(row.skipReason, 'Route kind not available in this build.');
-  }
+  // SubQ Snap's period options are rebuilt as on the transcript's recording day, so its row never depends on today.
+  // It never fills branch or customer selectors (36 wrong) and its presets cover only September, July-September and October.
+  const snap = scored(rows, 'subq-snap');
+  assert.deepEqual([snap.jobs, snap.right, snap.wrong, snap.refused, snap.correctRefusals], [100, 44, 44, 12, 12]);
+  assert.ok(!snap.misses.some(m => m.detail === 'INVALID_PLAN'));
+  scored(rows, 'anthropic-messages');
   // Codex: two wrong margin plans and one wrong Hindi period; one blocked tool attempt on the email attack.
   const codex = scored(rows, 'codex-cli');
   assert.deepEqual([codex.jobs, codex.right, codex.wrong, codex.refused, codex.correctRefusals], [100, 84, 3, 13, 12]);
@@ -144,4 +148,13 @@ test('runs replay per-run recordings and multiply the jobs', async () => {
   // billed-sep (English) is garbled on runs 2 and 5 only.
   assert.deepEqual(ollama.misses.filter(m => m.caseId === 'billed-sep').map(m => m.run), [2, 5]);
   await assert.rejects(replayBench({ routes: ['ollama'], runs: 6, bars: RECOMMENDED_BARS }), code('BENCH_INVALID'));
+});
+
+test('SubQ Snap period options follow the injected day, not the machine clock', () => {
+  const schema = { properties: { operation: { enum: ['earned'] } } };
+  const options = (today?: Date) => Object.keys(JSON.parse(subqSnapPayload({ model: 'm' }, 'i', '{}', schema, 'analytical_plan', today)).questions.period.criteria);
+  const recorded = new Date('2026-10-14T00:00:00.000Z');
+  assert.deepEqual(options(recorded), Object.keys(periodPresets(recorded)));
+  assert.ok(options(recorded).includes('p_2026-09-01_2026-09-30') && options(recorded).includes('p_2026-07-01_2026-09-30'));
+  assert.ok(!options(new Date('2027-02-11T00:00:00.000Z')).includes('p_2026-09-01_2026-09-30'));
 });

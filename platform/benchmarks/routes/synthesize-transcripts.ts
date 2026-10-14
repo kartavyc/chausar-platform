@@ -9,6 +9,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { OPEN_BENCH, OPEN_BENCH_DIGEST, type BenchLanguage, type BenchPeriod, type OpenBenchCase } from '../../runtime/models-ext/bench/open-bench.ts';
 import { BENCH_ROUTE_KINDS, DEFAULT_TRANSCRIPTS, type BenchRouteKind, type TranscriptFile, type WireEntry } from '../../runtime/models-ext/bench/transcripts.ts';
+import { periodPresets } from '../../runtime/providers/subq-snap.ts';
 
 type Plan = { operation: string; period: BenchPeriod | null; branch: string | null; customerId: string | null; clarification: string | null };
 /** right: the hand-worked plan. plan: a given (possibly wrong) plan. The rest are failure shapes. */
@@ -74,11 +75,14 @@ function tokens(c: OpenBenchCase, language: BenchLanguage, kind: BenchRouteKind)
   return { input, output: kind === 'subq-snap' ? 0 : 38 + (c.id.length % 9) };
 }
 
-const SNAP_PERIODS: Record<string, string> = { '2026-09-01_2026-09-30': 'p_2026-09-01_2026-09-30', '2026-07-01_2026-09-30': 'p_2026-07-01_2026-09-30', '2026-10-01_2026-10-31': 'p_2026-10-01_2026-10-31' };
+/** The synthetic recording day. The replay rebuilds SubQ Snap's date-relative period options as on this day. */
+const RECORDED_AT = '2026-10-14T00:00:00.000Z';
+/** Snap answers with an option name it was offered; a period outside the presets of the recording day is "no_period". */
+const SNAP_OPTIONS = Object.keys(periodPresets(new Date(RECORDED_AT)));
 function snap(plan: Plan, operations: string[], usage: { input: number }): WireEntry {
   const choice = plan.clarification ? 'none_fits' : plan.operation;
   const opProbabilities = Object.fromEntries([...operations, 'none_fits'].map(id => [id, id === choice ? 0.86 : Number((0.14 / operations.length).toFixed(4))]));
-  const period = plan.period ? SNAP_PERIODS[`${plan.period.from}_${plan.period.to}`] ?? 'no_period' : 'no_period';
+  const option = plan.period ? `p_${plan.period.from}_${plan.period.to}` : 'no_period', period = SNAP_OPTIONS.includes(option) ? option : 'no_period';
   return { status: 200, body: { model: 'subq-snap-preview', answers: {
     operation: { type: 'choice', choice, probabilities: opProbabilities, confidence: 0.86 },
     period: { type: 'choice', choice: period, probabilities: { [period]: 0.81 }, confidence: 0.81 },
@@ -128,7 +132,7 @@ export function synthesize(kind: BenchRouteKind): TranscriptFile {
   }));
   return { schema: 'chausar.route-transcripts.v1', recorded: 'synthetic', routeKind: kind, model: `synthetic-${kind}`, benchVersion: OPEN_BENCH.version, benchDigest: OPEN_BENCH_DIGEST,
     note: 'SYNTHETIC: authored responses in the provider wire format, not a recording of any real model. Real recordings need the founder\'s own paid keys and installed CLIs.',
-    recordedAt: '2026-10-14T00:00:00.000Z', cases } as TranscriptFile;
+    recordedAt: RECORDED_AT, cases } as TranscriptFile;
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

@@ -56,6 +56,8 @@ export type GatewayOptions = {
   /** Current admitted tool projection and pure codec are installed only by the host. */
   conversationSynthesis?: (context: Context, toolTurnId: string, view: StateStore) => GatewaySynthesisAuthority;
   synthesisCodec?: ConversationSynthesisCodec;
+  /** Trusted host clock, used only to date SubQ Snap period presets (e.g. a replayed recording's day). */
+  clock?: () => Date;
 };
 
 const PRIORITY: Record<RouteKind, number> = { 'codex-cli': 0, 'claude-cli': 1, 'openai-responses': 2, 'openai-compatible': 3, ollama: 4, managed: 5, 'anthropic-messages': 2, 'subq-snap': 6 };
@@ -162,10 +164,10 @@ function reviewedCalculationRequest(request: Partial<ModelRequest>, scope: Busin
   return { parameters: normalized, origins, disclosure: { ...conversationCalculationParameterDisclosure(normalized), origins } };
 }
 
-function modelPayload(route: any, instructions: string, input: string, schema: unknown, schemaName: string): string {
+function modelPayload(route: any, instructions: string, input: string, schema: unknown, schemaName: string, today?: Date): string {
   if (route.kind.endsWith('-cli')) return `${instructions}\n${input}`;
   if (route.kind === 'anthropic-messages') return anthropicMessagesPayload(route, instructions, input, schema);
-  if (route.kind === 'subq-snap') return subqSnapPayload(route, instructions, input, schema, schemaName);
+  if (route.kind === 'subq-snap') return subqSnapPayload(route, instructions, input, schema, schemaName, today);
   if (route.kind === 'ollama') return JSON.stringify({ model: route.model, messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }], stream: false, format: schema, options: { num_predict: route.maxOutputTokens }, tools: [] });
   if (route.kind === 'openai-compatible') return JSON.stringify({ model: route.model, messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }], tools: [], tool_choice: 'none', max_completion_tokens: route.maxOutputTokens, response_format: { type: 'json_schema', json_schema: { name: schemaName, strict: false, schema } } });
   return JSON.stringify({ model: route.model, instructions, input, tools: [], tool_choice: 'none', store: false, max_output_tokens: route.maxOutputTokens, text: { format: { type: 'json_schema', name: schemaName, strict: false, schema } } });
@@ -728,7 +730,7 @@ export class ModelGateway {
     const schema = unified ? conversationPlannerSchema(plannerContext) : manifest ? businessSelectionSchema(manifest) : planSchema(operations);
     const instructions = unified ? `${CONVERSATION_PLANNER_INSTRUCTIONS} ${DEFINITION_INSTRUCTIONS}` : manifest ? BUSINESS_INSTRUCTIONS : INSTRUCTIONS;
     const schemaName = unified ? 'grounded_conversation_plan' : manifest ? 'business_context_selection' : 'analytical_plan';
-    const payload = modelPayload(route, instructions, JSON.stringify(content), schema, schemaName);
+    const payload = modelPayload(route, instructions, JSON.stringify(content), schema, schemaName, this.options.clock?.());
     check(Buffer.byteLength(payload) <= 262144, 'PAYLOAD_TOO_LARGE', 'The model payload is too large.');
     const digest = hash(payload); check(!isNoResend(state, digest), 'NO_RESEND', 'This deleted or expired payload cannot be sent again.');
     const local = route.kind === 'ollama'; const approvalRequired = unified || !local && (Boolean(context.sourceTainted) || facts.length > 0 || Boolean(request.sourceIds?.length)

@@ -1,7 +1,9 @@
 [
+  "bench.approveLive",
   "bench.cases",
   "bench.compare",
   "bench.passBars",
+  "bench.planLive",
   "bench.result",
   "bench.results",
   "bench.setPassBars",

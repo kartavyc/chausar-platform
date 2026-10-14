@@ -30,7 +30,7 @@ function validEntry(entry: unknown, cli: boolean): entry is WireEntry {
 
 export function validateTranscripts(value: unknown, kind: BenchRouteKind): TranscriptFile {
   check(record(value) && value.schema === 'chausar.route-transcripts.v1' && value.routeKind === kind && ['synthetic', 'live'].includes(value.recorded)
-    && typeof value.model === 'string' && typeof value.note === 'string' && typeof value.recordedAt === 'string' && record(value.cases),
+    && typeof value.model === 'string' && typeof value.note === 'string' && typeof value.recordedAt === 'string' && Number.isFinite(Date.parse(value.recordedAt)) && record(value.cases),
   'BENCH_TRANSCRIPTS_INVALID', 'A recorded transcript file has the wrong form.');
   check(value.benchVersion === OPEN_BENCH.version && value.benchDigest === OPEN_BENCH_DIGEST, 'BENCH_TRANSCRIPTS_STALE', 'A recorded transcript file was made for a different open bench.');
   const ids = OPEN_BENCH.cases.map(c => c.id), cli = CLI_KINDS.includes(kind);

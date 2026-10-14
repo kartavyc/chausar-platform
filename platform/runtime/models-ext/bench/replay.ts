@@ -8,12 +8,12 @@
  */
 import { randomUUID } from 'node:crypto';
 import { ChausarError, check, hash, initialState, money, type Context, type State, type StateStore } from '../../contracts.ts';
-import { ModelGateway, type GatewayOptions, type HttpRequest, type ProcessRequest } from '../../gateway.ts';
-import { CalculatorService, numberGuard, type CalculationReceipt } from '../../calculator.ts';
+import { ModelGateway, type AnalyticalPlan, type GatewayOptions, type HttpRequest, type ProcessRequest } from '../../gateway.ts';
+import { CalculatorService, numberGuard, type CalculationReceipt, type CalculationRequest } from '../../calculator.ts';
 import { OntologyService } from '../../ontology.ts';
 import { ImportService } from '../../ingest.ts';
 import { CODEX_CLI_CONFIG, CODEX_CLI_FLAGS, type CodexCliCapabilityProfile } from '../../providers/codex-cli.ts';
-import { OPEN_BENCH, benchShopImport, type BenchLanguage, type OpenBenchCase } from './open-bench.ts';
+import { BENCH_ON_DATE, OPEN_BENCH, benchShopImport, type BenchLanguage, type OpenBenchCase } from './open-bench.ts';
 import { CLI_KINDS, entryFor, loadTranscripts, modelText, recordedUsage, wireText, type BenchRouteKind, type TranscriptFile, type WireEntry } from './transcripts.ts';
 import { verdict, type PassBars } from './bars.ts';
 
@@ -81,7 +81,13 @@ export function scoreJob(c: OpenBenchCase, observed: { receipt: CalculationRecei
   return { outcome: right ? 'right' : 'wrong', correctRefusal: false };
 }
 
-async function sandbox() {
+/** The calculator request for a model's plan. Aging is worked as at the bench's fixed business day, never today. */
+export function benchCalculation(plan: AnalyticalPlan): CalculationRequest {
+  return { operation: plan.operation, ...(plan.period ? { period: plan.period } : {}), ...(plan.branch ? { branch: plan.branch } : {}),
+    ...(plan.customerId ? { customerId: plan.customerId } : {}), ...(plan.operation === 'aging' ? { onDate: BENCH_ON_DATE } : {}) };
+}
+
+export async function sandbox() {
   const store = new SandboxStore(); store.state.policy.send = 'samples';
   await new OntologyService(store).publishPayload(owner, { pack: 'ecommerce' });
   const imported = await new ImportService(store).commit(owner, benchShopImport());
@@ -117,6 +123,8 @@ async function runRoute(kind: BenchRouteKind, file: TranscriptFile, runs: number
         return { exitCode: entry.exitCode, stdout: wireText(kind, entry) };
       },
       ...(kind === 'codex-cli' ? { codexCli: { capabilities: REPLAY_CODEX, mode: 'synthetic-fixture' as const } } : {}),
+      // Date-relative payloads (SubQ Snap period presets) are rebuilt as on the day the transcript was recorded.
+      clock: () => new Date(file.recordedAt),
     };
     const gateway = new ModelGateway(store, options), calculator = new CalculatorService(store);
     try {
@@ -141,8 +149,7 @@ async function runRoute(kind: BenchRouteKind, file: TranscriptFile, runs: number
         if (result.plan.clarification) refusal = 'clarification';
         else {
           try {
-            receipt = await calculator.calculate(owner, { operation: result.plan.operation, ...(result.plan.period ? { period: result.plan.period } : {}),
-              ...(result.plan.branch ? { branch: result.plan.branch } : {}), ...(result.plan.customerId ? { customerId: result.plan.customerId } : {}) });
+            receipt = await calculator.calculate(owner, benchCalculation(result.plan));
             customerId = result.plan.customerId ?? null;
           } catch (error) { if (!(error instanceof ChausarError)) throw error; refusal = 'calculator-rejected'; code = error.code; }
         }
