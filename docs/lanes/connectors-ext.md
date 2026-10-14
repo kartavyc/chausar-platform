@@ -93,6 +93,32 @@ Built on `adapters/read-kit.ts`: allowlisted HTTPS origins (loopback only for Ta
 - Form 26AS (each deductor's transactions against its own totals) and AIS (reported, processed and accepted never mixed; never summed with 26AS).
 - Shiprocket, Delhivery, Unicommerce, Zoho Inventory, Keka, greytHR, Zoho Payroll, RazorpayX Payroll (no employee names imported), Chargebee, Freshdesk, Meta Ads, Google Ads, Google Analytics, YouTube, Instagram, Mailchimp, Notion, Slack, Microsoft 365 (canonical sheet), WATI/Interakt, PostHog, GitHub.
 
+
+### Export layouts: checked or still unconfirmed
+
+Each recipe's notices carry one line saying which. "Checked" means compared with a published sample export, official schema docs or open-source exporter code; most samples are real export files people published in public repositories. 17 checked, 26 still unconfirmed; `microsoft-365.canonical-sheet` is Chausar's own layout.
+
+| Recipe | Layout |
+|---|---|
+| vyapar.sale-report | checked (headings and DD/MM/YYYY; total row not shown in the sample): github.com/mehulbasu/trevito-dashboard docs/vyapar.md |
+| amazon-seller.settlement-v2 | checked: github.com/guysolan/thetis reports v2.txt |
+| meesho.order-payments | checked: github.com/Divyansh-rl/monthlySummary data_august.csv |
+| zoho-inventory.sales-orders | checked (headings only): github.com/epritesh/order-suggest DATA_SCHEMA.md |
+| freshdesk.tickets | checked: github.com/zyn10/Freshdesk-Ticket-Insights |
+| meta-ads.campaign-daily, meta-ads.campaign-daily-report | checked: github.com/daaronr/eamt_data_analysis |
+| google-ads.campaign-daily | checked: github.com/dwolfe1966/pds Campaign report.csv |
+| google-analytics.sessions-daily-report | checked: github.com/DewSam/H1-B-data-Analytics data-export.csv |
+| youtube-analytics.views-daily | checked: github.com/billmengg/YTAnalytics Date.csv |
+| mailchimp.campaigns | checked: github.com/oscarotero/oscarotero.gal campaigns.csv |
+| notion.expense-database | checked: github.com/cameronmurdock/Rivertree |
+| slack.workspace-analytics | checked: github.com/astropy/community_management |
+| posthog.event-trend | checked: PostHog's open-source csv_exporter.py |
+| github.commits-json | checked: docs.github.com/en/rest/commits/commits#list-commits |
+| income-tax.form26as-tds, income-tax.form26as-income | checked (Part A; later parts not in the sample): github.com/SRathinaGiri/MLDemo FORM 26AS.txt |
+| vyapar.purchase-report, busy.*, marg.*, mybillbook.sales-report, khatabook.customer-transactions, okcredit.account-statement, bharatpe.transaction-report, petpooja.order-summary, flipkart-seller.settled-orders, shiprocket and delhivery remittance, unicommerce.*, zoho-inventory.inventory-summary, keka / greythr / zoho-payroll / razorpayx-payroll registers, chargebee.invoices, google-analytics.sessions-daily (Grand total row), instagram-insights.reach-daily, whatsapp-api.campaign-report, github.commits-csv, income-tax.ais-* | still unconfirmed: no public sample found |
+
+Checking real samples changed several recipes: Google Ads repeats its totals per day (only the overall "Total: Account" row is the check now), Meta Ads puts its summary row first, GA4 downloads have no grand total (a report-total recipe was added), Mailchimp and Notion use long month-name dates (normalised in their decoders), Meesho has a section row and a duplicated fee heading, Petpooja puts Total, Min., Max. and Avg. rows directly under the header, and Mailchimp campaigns are identified by their own Unique Id.
+
 ### Plain database connector — experimental, run against real engines
 
 Identifiers are checked against the database's own catalogue and quoted; values are bound; reads run in one read-only snapshot that ends in ROLLBACK. The `COUNT` and `SUM` from the same snapshot are the source total. Float amount columns and system catalogues (`pg_*`, `information_schema`, `mysql`, `sys`, `sqlite_*`) are refused. MySQL uses a minimal client over `node:net` (no new dependency); full authentication over plain TCP is refused (`MYSQL_FULL_AUTH_REQUIRES_TLS`) and never downgrades.
@@ -157,7 +183,7 @@ Checked and found sound: origin allowlists including next-page and queued reques
 
 ## Known gaps
 
-- Several layouts are best recollection (see the recipe notices): Vyapar returns sign, BUSY and Marg headings, Flipkart and Meesho summary sheets, Mailchimp send dates, Notion long dates, PostHog wide layout, and the AIS JSON shape.
+- 26 export layouts are still unconfirmed (table above); they need a real export from a user or a made-to-order book.
 - Zoho Books net reads are limited to 59 invoices per read by the request budget; a larger period must be read in parts.
 - A `declared` total with a count but no amount still needs the report total; those recipes use `report`, and the read kit enforces the declared count.
 - No screens in this lane; Books, Sources (work-books lane) calls these methods.
