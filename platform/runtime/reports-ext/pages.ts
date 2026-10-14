@@ -69,12 +69,12 @@ export class Calculations {
   }
 }
 
-export async function pageState(calc: Calculations, page: PageSpec, period: Period): Promise<{ state: PageState; reason?: string }> {
-  if (page.connector) { const built = await calc.connector(page.connector, period, 'en'); return { state: built.state, ...(built.reason ? { reason: built.reason.en } : {}) }; }
+export async function pageState(calc: Calculations, page: PageSpec, period: Period, lang: Language = 'en'): Promise<{ state: PageState; reason?: string }> {
+  if (page.connector) { const built = await calc.connector(page.connector, period, lang); return { state: built.state, ...(built.reason ? { reason: built.reason[lang] } : {}) }; }
   const results: OpResult[] = [];
   for (const op of page.needs) results.push(await calc.run(op, period));
   const blocked = results.find(result => result.state === 'not-started');
-  return { state: worst(results.map(result => result.state)), ...(blocked?.reason ? { reason: blocked.reason.en } : {}) };
+  return { state: worst(results.map(result => result.state)), ...(blocked?.reason ? { reason: blocked.reason[lang] } : {}) };
 }
 
 function figureOf(result: OpResult, key: string): EngineFigure {
@@ -163,12 +163,13 @@ export async function buildPage(ctx: Context, host: ModuleHost, packId: string, 
     receiptIds: [...receipts.keys()].filter(id => !withheldReceipts.has(id)), sourceIds, rowIds: [...new Set([...receipts.values()].flatMap(receipt => receipt.rowIds))] };
 }
 
-export async function listPacks(ctx: Context, host: ModuleHost, period: Period) {
+/** The packs with each page's state; titles and reasons are written in the language asked for. */
+export async function listPacks(ctx: Context, host: ModuleHost, period: Period, lang: Language = 'en') {
   const calc = new Calculations(ctx, host); const result = [];
   for (const pack of packs) {
     const pages = [];
-    for (const page of pack.pages) pages.push({ id: page.id, title: page.title.en, ...await pageState(calc, page, period) });
-    result.push({ id: pack.id, title: pack.title.en, gstModes: [...pack.gstModes], pages });
+    for (const page of pack.pages) pages.push({ id: page.id, title: page.title[lang], ...await pageState(calc, page, period, lang) });
+    result.push({ id: pack.id, title: pack.title[lang], gstModes: [...pack.gstModes], pages });
   }
-  return { packs: result, checkedAt: now() };
+  return { packs: result, checkedAt: now(), language: lang };
 }

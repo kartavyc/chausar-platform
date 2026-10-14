@@ -26,16 +26,20 @@ export interface ReportPage {
   footer: { checkCode: string | null; at: string | null }; receiptIds: string[];
 }
 export interface ExportedFile { format: 'csv' | 'xlsx' | 'html'; name: string; path: string; bytes: number; sha256: string; encrypted: false; textCellsProtected: true }
-export interface BriefItem { id: string; text: string; figure: FigureOrMissing | null; chart: { id: string; label: string; figure: FigureOrMissing }[] }
+/** `movement` and `coverage` are null from an engine that does not send them. */
+export interface BriefItem {
+  id: string; text: string; figure: FigureOrMissing | null; chart: { id: string; label: string; figure: FigureOrMissing }[];
+  movement: 'moved' | 'same' | 'not-enough' | null; coverage: 'complete' | 'partial' | null;
+}
 export interface WeekAhead {
   id: string; period: { from: string; to: string }; scheduledFor: string; builtAt: string; late: boolean;
   changed: BriefItem[]; decide: BriefItem[]; due: BriefItem[]; inbox: { id: string; text: string; reviewDate: string }[];
-  missed: { id: string; what: string; at: string }[]; explanation: 'not-written'; receiptIds: string[];
+  missed: { id: string; what: string; at: string }[]; explanation: 'not-written'; receiptIds: string[]; gaps: string[];
 }
 export interface FridayReview {
   id: string; period: { from: string; to: string }; builtAt: string;
   decisions: { id: string; text: string; reviewDate: string; observed: string | null; receiptIds: string[] }[];
-  lessons: { available: boolean; items: { id: string; title: string; evidence: number; change: string }[] };
+  lessons: { available: boolean; items: { id: string; title: string; evidence: number; change: string; changeText: string | null }[] };
 }
 export interface RhythmSettings {
   days: number[]; time: string; dailyClosing: boolean; financialYearStart: string; missedRule: 'run-late' | 'skip';
@@ -49,10 +53,20 @@ export interface DueProfile { kind: string; gstMode: GstMode; state: string }
 export interface DueRow {
   id: string; what: string; dueOn: string; source: DueSource; lastChecked: string; checkOld: boolean;
   appliesTo: { kinds: string[]; gstModes: string[]; states: string[] };
+  /** The same kinds, GST modes and states in words, in the language asked for. */
+  appliesToWords: { kinds: string[]; gstModes: string[]; states: string[] };
 }
 /** `date` is the notification or circular date (null when none is stated); `confirmed` false means the page could not be checked. An older engine sends neither. */
 export interface DueSource { title: string; url: string; date: string | null; confirmed: boolean }
-export interface DueDates { caNote: string; table: { version: string; publishedAt: string }; profile: DueProfile | null; covered: boolean; coveredKinds: string[]; rows: DueRow[] }
+export interface DueDates {
+  caNote: string; tableNote: string; table: { version: string; publishedAt: string }; profile: DueProfile | null;
+  profileWords: { kind: string; gstMode: string; state: string } | null; covered: boolean; coveredKinds: string[];
+  kinds: { id: string; name: string }[]; states: { code: string; name: string }[]; rows: DueRow[];
+}
+/** A saved answer of Ask (`askx.saved`) whose receipt still opens for this seat. */
+export interface SavedReceipt { id: string; receiptId: string; question: string | null; savedAt: string }
+export interface QuestionFile { name: string; bytes: number; at: string }
+export interface OpenedQuestion extends QuestionFile { sha256: string; text: string }
 export interface ExportRecord { id: string; at: string; locked: boolean; encrypted: boolean; folder: string; stores: { name: string; rows: number; checkNumber: string; file: string }[] }
 export interface FileRef { name: string; path: string; bytes: number; sha256: string }
 
@@ -161,6 +175,8 @@ function briefItems(value: unknown, path: string): BriefItem[] {
     const b = rec(v, p);
     return {
       id: id(b['id'], `${p}.id`), text: str(b['text'], `${p}.text`, 2000),
+      movement: b['movement'] === undefined ? null : oneOf(b['movement'], `${p}.movement`, ['moved', 'same', 'not-enough'] as const),
+      coverage: b['coverage'] === undefined ? null : oneOf(b['coverage'], `${p}.coverage`, ['complete', 'partial'] as const),
       figure: b['figure'] === undefined || b['figure'] === null ? null : figure(b['figure'], `${p}.figure`),
       chart: b['chart'] === undefined || b['chart'] === null ? [] : list(b['chart'], `${p}.chart`, (c, q) => {
         const x = rec(c, q);
@@ -186,6 +202,7 @@ export function validateWeekAhead(reply: unknown): WeekAhead {
     }, 100),
     explanation: oneOf(r['explanation'], 'reply.explanation', ['not-written'] as const),
     receiptIds: receiptIds(r['receiptIds'], 'reply.receiptIds'),
+    gaps: r['gaps'] === undefined ? [] : strings(r['gaps'], 'reply.gaps', 50),
   };
 }
 
@@ -202,7 +219,8 @@ export function validateFriday(reply: unknown): FridayReview {
       available: bool(lessons['available'], 'reply.lessons.available'),
       items: list(lessons['items'], 'reply.lessons.items', (v, p) => {
         const x = rec(v, p);
-        return { id: id(x['id'], `${p}.id`), title: str(x['title'], `${p}.title`, 300), evidence: whole(x['evidence'], `${p}.evidence`), change: str(x['change'], `${p}.change`, 2000) };
+        return { id: id(x['id'], `${p}.id`), title: str(x['title'], `${p}.title`, 300), evidence: whole(x['evidence'], `${p}.evidence`), change: str(x['change'], `${p}.change`, 2000),
+          changeText: x['changeText'] === undefined ? null : str(x['changeText'], `${p}.changeText`, 300) };
       }, 50),
     },
   };
@@ -243,8 +261,17 @@ export function validateDueProfile(reply: unknown, path = 'reply'): DueProfile {
 export function validateDue(reply: unknown): DueDates {
   const r = rec(reply);
   const table = rec(r['table'], 'reply.table');
+  const words3 = (value: unknown, path: string) => { const x = rec(value, path); return { kinds: strings(x['kinds'], `${path}.kinds`, 100), gstModes: strings(x['gstModes'], `${path}.gstModes`, 3), states: strings(x['states'], `${path}.states`, 50) }; };
+  const pw = r['profileWords'] === null || r['profileWords'] === undefined ? null : rec(r['profileWords'], 'reply.profileWords');
   return {
-    caNote: str(r['caNote'], 'reply.caNote', 500),
+    caNote: str(r['caNote'], 'reply.caNote', 500), tableNote: str(r['tableNote'], 'reply.tableNote', 500),
+    profileWords: pw === null ? null : { kind: str(pw['kind'], 'reply.profileWords.kind', 100), gstMode: str(pw['gstMode'], 'reply.profileWords.gstMode', 100), state: str(pw['state'], 'reply.profileWords.state', 100) },
+    kinds: list(r['kinds'], 'reply.kinds', (v, p) => { const x = rec(v, p); return { id: id(x['id'], `${p}.id`), name: str(x['name'], `${p}.name`, 100) }; }, 100),
+    states: list(r['states'], 'reply.states', (v, p) => {
+      const x = rec(v, p), code = str(x['code'], `${p}.code`, 2);
+      if (!STATE_CODE.test(code)) throw new ShapeError(`${p}.code`);
+      return { code, name: str(x['name'], `${p}.name`, 100) };
+    }, 50),
     table: { version: str(table['version'], 'reply.table.version', 100), publishedAt: isoDate(str(table['publishedAt'], 'reply.table.publishedAt', 40).slice(0, 10), 'reply.table.publishedAt') },
     profile: r['profile'] === null ? null : validateDueProfile(r['profile'], 'reply.profile'),
     covered: bool(r['covered'], 'reply.covered'), coveredKinds: strings(r['coveredKinds'], 'reply.coveredKinds', 100),
@@ -259,6 +286,7 @@ export function validateDue(reply: unknown): DueDates {
         },
         lastChecked: isoDate(x['lastChecked'], `${p}.lastChecked`), checkOld: bool(x['checkOld'], `${p}.checkOld`),
         appliesTo: { kinds: strings(applies['kinds'], `${p}.appliesTo.kinds`, 100), gstModes: strings(applies['gstModes'], `${p}.appliesTo.gstModes`, 3), states: strings(applies['states'], `${p}.appliesTo.states`, 50) },
+        appliesToWords: words3(x['appliesToWords'], `${p}.appliesToWords`),
       };
     }, 1000),
   };
@@ -286,6 +314,29 @@ export function validateAskPerson(reply: unknown): { file: FileRef; sent: false 
   if (r['sent'] !== false) throw new ShapeError('reply.sent');
   const f = rec(r['file'], 'reply.file');
   return { file: { name: str(f['name'], 'reply.file.name', 300), path: str(f['path'], 'reply.file.path', 2000), bytes: whole(f['bytes'], 'reply.file.bytes'), sha256: sha(f['sha256'], 'reply.file.sha256') }, sent: false };
+}
+
+/** Ask's saved answers (`askx.saved`), kept only where a receipt still opens: a withheld or deleted one is left out. */
+export function validateSaved(reply: unknown): SavedReceipt[] {
+  const items = list(rec(reply)['items'], 'reply.items', (v, p) => {
+    const x = rec(v, p);
+    const receiptId = x['receiptId'] === null || x['receiptId'] === undefined ? null : id(x['receiptId'], `${p}.receiptId`);
+    const open = receiptId !== null && x['headline'] !== null && x['headline'] !== undefined && (x['deletedOn'] === null || x['deletedOn'] === undefined);
+    return { id: id(x['id'], `${p}.id`), receiptId: open ? receiptId : null, question: optStr(x['question'], `${p}.question`, 2000), savedAt: instant(x['savedAt'], `${p}.savedAt`) };
+  }, 500);
+  return items.flatMap((item) => item.receiptId === null ? [] : [{ ...item, receiptId: item.receiptId }]);
+}
+
+const QUESTION_FILE = /^question-[A-Za-z0-9-]{1,80}\.html$/;
+function questionFile(value: unknown, path: string): QuestionFile {
+  const x = rec(value, path), name = str(x['name'], `${path}.name`, 120);
+  if (!QUESTION_FILE.test(name)) throw new ShapeError(`${path}.name`);
+  return { name, bytes: whole(x['bytes'], `${path}.bytes`), at: instant(x['at'], `${path}.at`) };
+}
+export function validateQuestionFiles(reply: unknown): QuestionFile[] { return list(rec(reply)['items'], 'reply.items', questionFile, 500); }
+export function validateOpenedQuestion(reply: unknown): OpenedQuestion {
+  const r = rec(reply);
+  return { ...questionFile(r, 'reply'), sha256: sha(r['sha256'], 'reply.sha256'), text: str(r['text'], 'reply.text', 1_000_000) };
 }
 
 /** A source link is drawn as a link only when it is an https address. */

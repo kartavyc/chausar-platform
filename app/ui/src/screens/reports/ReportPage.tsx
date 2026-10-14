@@ -21,7 +21,7 @@ import { words } from '../../places/types.ts';
 import { count } from '../../format/index.ts';
 import { useEngine, useSend } from '../trust/kit/engine.ts';
 import { Note, screenState } from '../trust/kit/Screen';
-import { day, refusal, when } from './shared';
+import { day, refusal, shown, when } from './shared';
 import { httpsUrl, validateExportedFile, validatePage, type PageSection, type ReportPage as Page } from './validate.ts';
 import { WORDS, fill, type Words } from './words.ts';
 import { PERIOD_KINDS, defaultChoice, indiaToday, periodOf, type Period, type PeriodChoice, type PeriodKind } from './period.ts';
@@ -202,7 +202,7 @@ function Section({ section, w, view, openReceipt }: { section: PageSection; w: W
                   {line.label}
                   {view === 'books' && <span className={[s.quiet, s.code].join(' ')}> {fill(w.lineId, { id: line.id })}</span>}
                 </th>
-                <td className={p.amount}><Figure value={line.figure} onReceipt={openReceipt} /></td>
+                <td className={p.amount}><Figure value={shown(line.figure, view, w)} onReceipt={openReceipt} /></td>
                 <td className={p.side}>{line.side !== null ? w[line.side] : ''}</td>
                 <td className={p.gapCell}>
                   {last && section.gaps.map((gap, k) => <span key={k} className={p.gapBeside}>{fill(w.gap, { gap })}</span>)}

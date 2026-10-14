@@ -23,7 +23,7 @@ const MARK: Readonly<Record<PageState, Mark>> = { 'ready-tested': 'cha', 'ready-
 export function Packs(props: PlaceRenderProps) {
   const { address, language, view, rpc, openReceipt, navigate } = props;
   const w = words(WORDS, language);
-  const { state } = useEngine(rpc, 'reportsx.packs', {}, validatePacks);
+  const { state } = useEngine(rpc, 'reportsx.packs', { language }, validatePacks);
   const origin = useRef<HTMLElement | null>(null);
   const target = pageSheet(address.sheet);
   const close = () => navigate(withoutSheet(address));

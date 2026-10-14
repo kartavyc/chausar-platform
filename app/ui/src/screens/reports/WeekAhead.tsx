@@ -21,7 +21,7 @@ import { count } from '../../format/index.ts';
 import { useEngine } from '../trust/kit/engine.ts';
 import { Group, Note, Screen } from '../trust/kit/Screen';
 import { RhythmSheet } from './Rhythm';
-import { day, when } from './shared';
+import { day, shown, when } from './shared';
 import { validateFriday, validateWeekAhead, type BriefItem, type FridayReview, type WeekAhead as Week } from './validate.ts';
 import { WORDS, fill, type Words } from './words.ts';
 import s from './Reports.module.css';
@@ -54,16 +54,22 @@ export function WeekAhead(props: PlaceRenderProps) {
 
 interface PartProps extends PlaceRenderProps { w: Words; title: string; aside: ReactNode }
 
-function Monday({ rpc, w, title, aside, language, view, openReceipt }: PartProps) {
-  const { state } = useEngine(rpc, 'reportsx.weekAhead', {}, validateWeekAhead);
+function Monday({ rpc, w, title, aside, language, view, openReceipt, navigate }: PartProps) {
+  const { state } = useEngine(rpc, 'reportsx.weekAhead', { language }, validateWeekAhead);
+  const items = { w, view, openReceipt, addSource: () => navigate({ place: 'books', sub: 'sources' }) };
   return (
     <Screen where={w.where} title={title} loaded={state} aside={aside}>
       {(week) => (
         <>
           <Timing week={week} w={w} language={language} />
-          <Items title={w.changed} items={week.changed} w={w} openReceipt={openReceipt} />
-          <Items title={w.decide} items={week.decide} w={w} openReceipt={openReceipt} />
-          <Items title={w.due} items={week.due} w={w} openReceipt={openReceipt} />
+          <Items title={w.changed} items={week.changed} {...items} />
+          <Items title={w.decide} items={week.decide} {...items} />
+          <Items title={w.due} items={week.due} {...items} />
+          {week.gaps.length > 0 && (
+            <Group title={w.briefGaps}>
+              <ul className={s.plain}>{week.gaps.map((gap, i) => <li key={i}>{gap}</li>)}</ul>
+            </Group>
+          )}
           <Group title={w.inbox}>
             {week.inbox.length === 0 ? <Note>{w.inboxEmpty}</Note> : (
               <ul className={s.items}>
@@ -102,20 +108,30 @@ function Timing({ week, w, language }: { week: Week; w: Words; language: Languag
   );
 }
 
-function Items({ title, items, w, openReceipt }: { title: string; items: BriefItem[]; w: Words; openReceipt: (id: string) => void }) {
+interface ItemsProps { title: string; items: BriefItem[]; w: Words; view: PlaceRenderProps['view']; openReceipt: (id: string) => void; addSource: () => void }
+
+function Items({ title, items, w, view, openReceipt, addSource }: ItemsProps) {
   return (
     <Group title={title}>
       {items.length === 0 ? <Note>{w.nothingHere}</Note> : (
         <ul className={s.items}>
           {items.map((item) => {
             const chart: ColumnsChart | null = item.chart.length > 0
-              ? { form: 'columns', sentence: fill(w.chartSentence, { what: item.text }), values: item.chart.map((c) => ({ id: c.id, label: c.label, value: c.figure })) }
+              ? { form: 'columns', sentence: fill(w.chartSentence, { what: item.text }), values: item.chart.map((c) => ({ id: c.id, label: c.label, value: shown(c.figure, view, w) })) }
               : null;
             return (
               <li key={item.id} className={s.item}>
                 <span className={s.itemText}>{item.text}</span>
-                {item.figure !== null && <Figure value={item.figure} onReceipt={openReceipt} />}
-                {chart !== null && <Columns chart={chart} onReceipt={openReceipt} className={s.chart} />}
+                {item.figure !== null && <Figure value={shown(item.figure, view, w)} onReceipt={openReceipt} />}
+                {item.movement === 'same' && <span className={s.quiet}>{w.noChange}</span>}
+                {item.movement === 'not-enough' && (
+                  <span className={s.actions}>
+                    <span className={s.quiet}>{w.notEnough}</span>
+                    <Button variant="link" onClick={addSource}>{w.notEnoughAction}</Button>
+                  </span>
+                )}
+                {item.coverage === 'partial' && <span className={s.quiet}>{w.partlyLoaded}</span>}
+                {chart !== null && item.movement !== 'same' && <Columns chart={chart} onReceipt={openReceipt} className={s.chart} />}
               </li>
             );
           })}
@@ -126,7 +142,7 @@ function Items({ title, items, w, openReceipt }: { title: string; items: BriefIt
 }
 
 function Friday({ rpc, w, title, aside, language, view, openReceipt }: PartProps) {
-  const { state } = useEngine(rpc, 'reportsx.friday', {}, validateFriday);
+  const { state } = useEngine(rpc, 'reportsx.friday', { language }, validateFriday);
   return (
     <Screen where={w.where} title={title} loaded={state} aside={aside}>
       {(review: FridayReview) => (
@@ -159,7 +175,7 @@ function Friday({ rpc, w, title, aside, language, view, openReceipt }: PartProps
                   <li key={l.id} className={s.item}>
                     <span className={s.stack}>
                       <span className={s.itemText}>{l.title}</span>
-                      <span className={s.quiet}>{fill(w.lessonChange, { change: l.change })}</span>
+                      <span className={s.quiet}>{fill(w.lessonChange, { change: l.changeText ?? l.change })}</span>
                     </span>
                     <span className={s.quiet}>{fill(w.lessonEvidence, { count: count(String(l.evidence)) })}</span>
                   </li>
