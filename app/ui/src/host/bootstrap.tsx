@@ -33,7 +33,7 @@ import { AskRecoveryContact, LockFolderChoice } from '../screens/first-run/ThisC
 import { readDeviceChoices, saveDeviceChoices } from '../screens/first-run/this-computer.ts';
 import { LockScreen } from '../app/LockScreen';
 import { LinkDialog } from '../app/LinkDialog';
-import type { ShellPort } from '../bridge/shell.ts';
+import { externalUrl, type ShellPort } from '../bridge/shell.ts';
 import { UnlockControl, type UnlockResult } from './UnlockControl';
 import type { FirstRunStagesDone } from '../screens/first-run/FirstRun';
 import { discoveryRowFor, lessonDecisionAvailability, sameScenarioSelection, scenarioProof } from './retained-contracts.ts';
@@ -378,7 +378,7 @@ const pinKey = (pin: ScenarioSelection) => JSON.stringify([pin.scenarioId, pin.r
 function HostLinkDialog({ url, shell, onClose }: { url: string | null; shell: ShellPort; onClose: () => void }) {
   const [outcome, setOutcome] = useState<'idle' | 'busy' | 'refused'>('idle');
   const asked = useRef<string | null>(url);
-  useLayoutEffect(() => { asked.current = url; setOutcome('idle'); }, [url]);
+  useLayoutEffect(() => { asked.current = url; setOutcome(url !== null && externalUrl(url) === null ? 'refused' : 'idle'); }, [url]);
   return <LinkDialog url={url} busy={outcome === 'busy'} refused={outcome === 'refused'} onCancel={onClose} onOpen={shown => {
     if (outcome !== 'idle' || asked.current !== shown) return;
     setOutcome('busy');
@@ -403,7 +403,11 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
 }) {
   const t = useT();
   const [linkAsked, setLinkAsked] = useState<string | null>(null);
-  const openLink = shell === null ? undefined : (url: string) => { if (typeof url === 'string') setLinkAsked(url); };
+  // The dialog shows exactly the address that would open: the normalized one, or, for an address the rule
+  // refuses, its text with every non-plain character replaced, so nothing in it can disguise itself.
+  const openLink = shell === null ? undefined : (url: string) => {
+    if (typeof url === 'string') setLinkAsked(externalUrl(url) ?? url.slice(0, 2048).replace(/[^\u0021-\u007e]/g, '\ufffd'));
+  };
   const contextKey = JSON.stringify([context.contextKey, state.selectedRouteId]);
   const retained = useSyncExternalStore(controller.retained.subscribe, controller.retained.snapshot, controller.retained.snapshot);
   const consumer = controller.todayConsumer;
@@ -894,8 +898,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         ...(frame.reads.shell.workspace.demo ? { openDemoClock: showDemoClock } : {}),
         dismissJobsPaused: () => { void controller.places.request('todayx.jobsPaused.dismiss', {}).then(frame.setShell, () => {}); },
       }),
-      idleLock: { minutes: frame.reads.shell.autoLockMinutes, onIdle: () => { void controller.lock(); } },
     } : {}),
+    // The idle lock never depends on a read succeeding: without the shell reply it keeps the 10-minute default.
+    idleLock: { minutes: frame.reads.shell?.autoLockMinutes ?? 10, onIdle: () => { void controller.lock(); } },
     ask: { onAsk: () => navigate(ASK), noModel: !conversationEnabled,
       ...(viewer ? { readOnly: { holder: hostMessage(language, 'roleViewer') } } : {}) },
     status: frame.reads.status !== null ? statusLine(frame.reads.status, language) : {
@@ -1092,8 +1097,9 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
       // SH-02: the passphrase passes straight to the engine once; the field is cleared by the control.
       const unlock = (passphrase: string) => controller.places.request('workspace.open', { folder: lockFolder, passphrase }).then(
         () => { setUnlockResult(null); return controller.unlocked(); },
-        (error: unknown) => { setUnlockResult((error as { code?: unknown })?.code === 'UNLOCK_FAILED' ? { kind: 'wrong' } : null);
-          if ((error as { code?: unknown })?.code !== 'UNLOCK_FAILED') setStartNew(true); });
+        // A wrong passphrase says so; any other refusal keeps the lock screen and says it could not unlock.
+        // Nothing here ever leads to creating or recovering a workspace on its own.
+        (error: unknown) => { setUnlockResult((error as { code?: unknown })?.code === 'UNLOCK_FAILED' ? { kind: 'wrong' } : { kind: 'failed' }); });
       return <TextProvider language={language}>
         <LockScreen workspaceName={lockFolder === 'main' ? hostMessage(language, 'thisWorkspace') : lockFolder}
           unlockControl={<>

@@ -186,3 +186,18 @@ The fake engine serves every new method; `FAKE_PRE_VAULT` lists those served whi
 - No pixel comparison against the reference pictures, no screen-reader pass, no axe run; the Hindi text needs a native reader.
 - The final Electron package config (`app/desktop/builder.json`, release lane) must include `app/ui/host`, `app/ui/public` and `app/ui/assets/fonts`, as the preview config already does; `scripts/desktop-launch.mjs` (release lane) does not yet accept `--legacy-renderer`.
 - Round 2: the host still has to wire the device choices at start, the folder choice on the lock screen and `onOpenFolder` (instructions in the round-2 hand-off; `bootstrap.tsx` was not edited). Trust · Vault (reports-tools-trust) has to place `RecoveryContactSettings`. The recovery contact cannot confirm anything until the hosted relay is deployed. The disk check is not tested on real Windows, macOS or Linux disks.
+
+## Adversarial review (round 2)
+
+An independent read-only review covered the IPC surface, CSP and serving, rendering of untrusted engine text, and lock-screen and secret leaks. Findings and what was done:
+
+| Finding | Severity | Fix |
+|---|---|---|
+| The lock failed open: a refused `workspace.lock` (`VAULT_BUSY` while another request runs) turned the screen "unavailable", and Refresh brought the workspace back without the passphrase | high | `lock()` holds the lock locally and asks the engine again (up to 30 times, a second apart); an invalidation never downgrades a held lock; only `unlocked()` after an accepted unlock leaves it. Test: `app/ui/tests/frame-today-lock-security.test.ts` |
+| A wrong passphrase on the desktop was never reported (the renderer dropped every lane refusal) and sent the person into first run | medium | The renderer mirrors every lane's `laneRefusals` line (`laneRefusalCodes`, parity test in `desktop-bridge-error.test.ts`); `UNLOCK_FAILED`, `VAULT_OPEN`, `VAULT_BUSY` are on this lane's line; any other unlock refusal keeps the lock screen with "could not unlock" |
+| The idle lock was off when the `todayx.shell` read failed | medium-low | The idle lock always runs, 10 minutes by default |
+| The link dialog showed one address and opened another (look-alike letters, `\`, direction marks) | low | Non-ASCII and `\` are refused; the dialog shows the normalized address, or a refused address with every non-plain character replaced |
+| Local-network names and other ports were accepted | low | `.local`, `.lan`, `.internal`, `.localdomain`, `.home.arpa`, `.intranet`, `.corp` and any non-default port are refused (in main and the renderer, tested together). Names that resolve to a private address cannot be caught without resolving them; the person's confirmation is the control there |
+| Before-the-vault methods answered any member once a vault was open; viewers read the identity card | low | `todayx.workspaces`, `todayx.diskCheck`, `todayx.device.set` need an admin once a vault is open; `todayx.identity.get` needs a preparing seat. A seat's own banner dismissal and reading the idea stay read-level, as designed |
+
+Checked and sound: trusted-sender checks, the shell channels' rate limit and print options, the protocol handler's exact file map, the loopback server's CSP and legacy flag, the disk probe (fixed arguments, no shell), the device file, receipt detail reading as the caller, `react-intl` given catalogue keys only, and no secret in state, storage, logs or the URL. Not fixed (hunches, fail-closed): a cancelled legacy navigation leaves the window refusing IPC until restart; the fault report reads recent activity without filtering by caller (codes only).

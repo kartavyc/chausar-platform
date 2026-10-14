@@ -18,6 +18,9 @@ function externalUrl(input) {
   if (typeof input !== 'string' || input.length === 0 || input.length > MAX_URL_LENGTH) return null;
   // Whitespace and control characters would be dropped silently by the parser: refuse instead.
   if (/[\u0000- \u007f-\u009f]/.test(input)) return null;
+  // Only plain ASCII as typed (no look-alike letters, no direction marks) and no backslash, so what the
+  // person reads in the dialog is what opens.
+  if (/[^\u0021-\u007e]|\\/.test(input)) return null;
   let url;
   try { url = new URL(input); } catch { return null; }
   if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') return null;
@@ -25,6 +28,9 @@ function externalUrl(input) {
   // A named host with a dot: never this computer, a bare local-network name or an address by number.
   if (!host.includes('.') || host.endsWith('.') || host === 'localhost' || host.endsWith('.localhost')
     || host.startsWith('[') || /^[0-9.]+$/.test(host)) return null;
+  // Never a name on the local network, and only the default port. Names that resolve to a private address
+  // cannot be caught without resolving them; the person's confirmation in the dialog is the control there.
+  if (url.port !== '' || /\.(local|lan|internal|localdomain|home\.arpa|intranet|corp)$/.test(host)) return null;
   const href = url.href;
   return href.length <= MAX_URL_LENGTH ? href : null;
 }

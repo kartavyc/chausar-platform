@@ -46,6 +46,9 @@ export const frameTodayModule: EngineModule = {
     'todayx.shell': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return shell(ctx, host); } },
     'todayx.clock.set': { permission: 'admin', handler: clockSet },
     'todayx.clock.advance': { permission: 'admin', handler: clockAdvance },
+    // A seat's own banner dismissal is its own read-level state. The identity card (PAN, GSTIN) needs a
+    // seat that prepares; this computer's folders, device choices and system tools need an admin once a
+    // vault is open (before a vault only the trusted desktop calls them).
     'todayx.jobsPaused.dismiss': { permission: 'read', handler: async (ctx, payload, host) => {
       keys(payload, []);
       await updateFrame(host, ctx, 'read', frame => { frame.jobsPausedDismissedAt[ctx.memberId] = now(); });
@@ -83,7 +86,7 @@ export const frameTodayModule: EngineModule = {
         return structuredClone(card);
       });
     } },
-    'todayx.identity.get': { permission: 'read', handler: (_ctx, payload, host) => { keys(payload, []); return structuredClone(frameOf(host.store.read()).identity); } },
+    'todayx.identity.get': { permission: 'prepare', handler: (_ctx, payload, host) => { keys(payload, []); return structuredClone(frameOf(host.store.read()).identity); } },
     'todayx.setupChecklist': { permission: 'read', handler: (_ctx, payload, host) => { keys(payload, []); return setupChecklist(frameOf(host.store.read()).identity); } },
     'todayx.help': { permission: 'read', handler: (_ctx, payload) => { keys(payload, []); return help(); } },
     'todayx.faultReport': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return faultReport(ctx, host); } },
@@ -93,15 +96,15 @@ export const frameTodayModule: EngineModule = {
     'todayx.idea.correct': { permission: 'prepare', handler: ideaCorrect },
     'todayx.idea.get': { permission: 'read', handler: ideaGet },
     // This computer, before any workspace is open. Trusted host options may replace the probe and platform (tests).
-    'todayx.diskCheck': { permission: 'read', preVault: true, handler: (_ctx, payload, host) => {
+    'todayx.diskCheck': { permission: 'admin', preVault: true, handler: (_ctx, payload, host) => {
       keys(payload, []);
       const probe = typeof host.options.diskProbe === 'function' ? host.options.diskProbe as DiskProbe : systemProbe;
       const platform = typeof host.options.platform === 'string' ? host.options.platform : process.platform;
       return diskCheck({ directory: host.directory, platform, env: process.env, probe, timeoutMs: typeof host.options.probeTimeoutMs === 'number' ? host.options.probeTimeoutMs : undefined });
     } },
     'todayx.device.get': { permission: 'read', preVault: true, handler: (_ctx, payload, host) => { keys(payload, []); return readDevice(host.directory); } },
-    'todayx.device.set': { permission: 'read', preVault: true, handler: (_ctx, payload, host) => writeDevice(host.directory, deviceInput(payload)) },
-    'todayx.workspaces': { permission: 'read', preVault: true, handler: async (_ctx, payload, host) => { keys(payload, []); return { folders: await workspaceFolders(host.directory) }; } },
+    'todayx.device.set': { permission: 'admin', preVault: true, handler: (_ctx, payload, host) => writeDevice(host.directory, deviceInput(payload)) },
+    'todayx.workspaces': { permission: 'admin', preVault: true, handler: async (_ctx, payload, host) => { keys(payload, []); return { folders: await workspaceFolders(host.directory) }; } },
     'todayx.recoveryContact.get': { permission: 'admin', handler: (_ctx, payload, host) => { keys(payload, []); return recoveryContactReply(frameOf(host.store.read()).recoveryContact); } },
     'todayx.recoveryContact.set': { permission: 'admin', handler: (ctx, payload, host) => {
       const contact = recoveryContactInput(payload, now());

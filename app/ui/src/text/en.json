@@ -1067,5 +1067,6 @@
   "TD-02.voice.heard": "Heard: {words}",
   "TD-02.voice.unsure": "Not sure what was said.",
   "TD-02.voice.failed": "The amount could not be read. Type it instead.",
-  "TD-02.voice.saved": "Saved as told by owner."
+  "TD-02.voice.saved": "Saved as told by owner.",
+  "SH-02.failed": "Chausar could not unlock this workspace right now. Try again in a moment."
 }
