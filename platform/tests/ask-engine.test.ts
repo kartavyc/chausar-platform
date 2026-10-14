@@ -486,3 +486,22 @@ test('review: the scheduler runs an accountant’s checks as the accountant, and
   const state = (engine as any).vault.read().extensions.ask;
   assert.equal(state.checks.find((c: any) => c.id === gone.id).results.length, 0);
 });
+
+test('review: the number guard knows dates, years and ordinals by structure, and none of them can hide an amount', () => {
+  const receipt: any = { figures: [{ key: 'total', label: 'Earned', minor: '125025', display: '₹1,250.25', unit: 'money' }], rows: [1, 2], coverage: { countedRows: 2, excludedRows: 1 } };
+  const unmatched = (text: string) => guardLines(text, receipt).filter(l => l.matched === null).map(l => l.number);
+  const passes = [
+    'Earned ₹1,250.25 in September 2026.', 'Earned ₹1,250.25 between 1 September and 30 September 2026.', 'On 30th September 2026 it was ₹1,250.25.',
+    'Up to Sep 30, 2026: ₹1,250.25.', 'In FY 2026-27 so far, ₹1,250.25.', 'In 2026, ₹1,250.25 from 2 rows.', 'The 2nd largest month was September 2026.',
+    'सितंबर 2026 में अर्जित ₹१,२५०.२५ था।', '2026 में ₹1,250.25.', 'From 2026-09-01 to 2026-09-30, ₹1,250.25 was earned; 1 row left out.', 'The 3rd, 11th and 22nd days.',
+  ];
+  for (const text of passes) assert.deepEqual(unmatched(text), [], text);
+  const caught: [string, string[]][] = [
+    ['Earned ₹2026 in September.', ['2026']], ['Earned rose 2026% in 2026.', ['2026']], ['Collections rose to 2026 in September 2026.', ['2026']],
+    ['A total of 2026 was earned.', ['2026']], ['Earned 2026 rupees in 2026.', ['2026']], ['In 2026 rupees terms it was ₹1,250.25.', ['2026']],
+    ['September 2026 lakh was earned.', ['2026']], ['On 31 September it was ₹1,250.25.', ['31']], ['On 30 Sept it was 5 lakh.', ['5']],
+    ['Sales may 25 fall.', ['25']], ['It was the 5th lakh.', ['5']], ['It was the 3th day.', ['3']], ['2026-02-30 was the day.', ['2026-02-30']],
+    ['In FY 2026-28 it was ₹1,250.25.', ['28']], ['September 5 customers paid.', ['5']], ['Rs2026 in 2026.', ['2026']], ['₹ 30 September', ['30']],
+  ];
+  for (const [text, expected] of caught) assert.deepEqual(unmatched(text), expected, text);
+});

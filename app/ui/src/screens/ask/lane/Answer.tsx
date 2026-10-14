@@ -20,14 +20,14 @@ import { RankedBars } from './parts/RankedBars';
 import s from './core.module.css';
 
 type Key =
-  | 'check' | 'guardTitle' | 'guardReplaced' | 'matchFigure' | 'matchRows' | 'matchExcluded' | 'matchDate' | 'matchNone' | 'guardEmpty'
+  | 'check' | 'guardTitle' | 'guardReplaced' | 'matchFigure' | 'matchRows' | 'matchExcluded' | 'matchDate' | 'matchOrdinal' | 'matchNone' | 'guardEmpty'
   | 'fromTemplate' | 'fromModel' | 'monthsNotLoaded' | 'compared' | 'asOf' | 'bars' | 'save' | 'saveCheck' | 'saved' | 'savedCheck'
   | 'why' | 'decide' | 'receipt' | 'sentNothing' | 'measures' | 'working';
 const WORDS = {
   en: {
     check: 'Checked against the receipt. {rows} rows, {left} left out.', guardTitle: 'Numbers in the written explanation',
     guardReplaced: 'A number in the written explanation was not on the receipt, so the explanation was replaced with the plain one. The figures stay, because they come from the receipt.',
-    matchFigure: 'matches {label}', matchRows: 'matches the rows read', matchExcluded: 'matches the rows left out', matchDate: 'matches the period', matchNone: 'not on the receipt',
+    matchFigure: 'matches {label}', matchRows: 'matches the rows read', matchExcluded: 'matches the rows left out', matchDate: 'a date, not an amount', matchOrdinal: 'an ordinal, not an amount', matchNone: 'not on the receipt',
     guardEmpty: 'The written explanation has no numbers of its own.',
     fromTemplate: 'This explanation is written from a template.', fromModel: 'This explanation was written by the model and checked against the receipt.',
     monthsNotLoaded: 'Not loaded yet: {months}.', compared: 'Compared with {period}', asOf: 'As of {date}', bars: 'The measures of this answer, largest first.',
@@ -38,7 +38,7 @@ const WORDS = {
   hi: {
     check: 'रसीद से जाँचा गया। {rows} पंक्तियाँ, {left} छोड़ी गईं।', guardTitle: 'लिखी व्याख्या में आई संख्याएँ',
     guardReplaced: 'लिखी व्याख्या की एक संख्या रसीद में नहीं थी, इसलिए व्याख्या की जगह सादी व्याख्या रखी गई। आँकड़े वही रहे, क्योंकि वे रसीद से आते हैं।',
-    matchFigure: '{label} से मेल खाती है', matchRows: 'पढ़ी गई पंक्तियों से मेल खाती है', matchExcluded: 'छोड़ी गई पंक्तियों से मेल खाती है', matchDate: 'अवधि से मेल खाती है', matchNone: 'रसीद में नहीं',
+    matchFigure: '{label} से मेल खाती है', matchRows: 'पढ़ी गई पंक्तियों से मेल खाती है', matchExcluded: 'छोड़ी गई पंक्तियों से मेल खाती है', matchDate: 'तारीख़, राशि नहीं', matchOrdinal: 'क्रम संख्या, राशि नहीं', matchNone: 'रसीद में नहीं',
     guardEmpty: 'लिखी व्याख्या में अपनी कोई संख्या नहीं है।',
     fromTemplate: 'यह व्याख्या एक साँचे से लिखी गई है।', fromModel: 'यह व्याख्या मॉडल ने लिखी और रसीद से जाँची गई।',
     monthsNotLoaded: 'अभी लोड नहीं हुआ: {months}।', compared: '{period} से तुलना', asOf: '{date} तक', bars: 'इस जवाब के माप, सबसे बड़ा पहले।',
@@ -71,7 +71,7 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
   const bars: ChartValue[] = figs.map(({ f, figure }) => ({ id: f.key, label: f.label, value: figure }));
   const matched = (m: GuardMatch) => m === null ? w.matchNone : 'figureKey' in m
     ? fill(w.matchFigure, { label: a.figures.find(f => f.key === m.figureKey)?.label ?? m.figureKey })
-    : m.field === 'rows' ? w.matchRows : m.field === 'excluded' ? w.matchExcluded : w.matchDate;
+    : m.field === 'rows' ? w.matchRows : m.field === 'excluded' ? w.matchExcluded : m.field === 'ordinal' ? w.matchOrdinal : w.matchDate;
 
   async function mutate(method: 'askx.save' | 'askx.checks.save', what: 'saved' | 'savedCheck') {
     setAct({ kind: 'busy' });

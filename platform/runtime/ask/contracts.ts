@@ -36,7 +36,8 @@ export type UnderstandReply =
   | { kind: 'no-match'; reason: 'no-calculation' | 'unknown-word' | 'action'; word: string | null; nearby: { operationId: string; label: string }[] }
   | { kind: 'refused'; code: string };
 
-export type GuardLine = { number: string; matched: { figureKey: string } | { field: 'rows' | 'excluded' | 'date' } | null };
+/** `date` covers dates, months with years, financial years and introduced years; `ordinal` is 1st, 2nd… */
+export type GuardLine = { number: string; matched: { figureKey: string } | { field: 'rows' | 'excluded' | 'date' | 'ordinal' } | null };
 export type Gap = 'unreconciled' | 'conflicts' | 'missing-amounts' | 'empty' | 'costs-only';
 export type AnswerReply = {
   kind: 'answer';

@@ -89,7 +89,7 @@ export function understandReply(value: unknown): UnderstandReply {
 }
 
 export interface AnswerFigure { readonly key: string; readonly label: string; readonly minor: string; readonly unit: Unit }
-export type GuardMatch = { readonly figureKey: string } | { readonly field: 'rows' | 'excluded' | 'date' } | null;
+export type GuardMatch = { readonly figureKey: string } | { readonly field: 'rows' | 'excluded' | 'date' | 'ordinal' } | null;
 export interface AnswerReply {
   readonly kind: 'answer';
   readonly answerId: string | null;
@@ -117,7 +117,7 @@ const month = (v: unknown) => { const m = str(v, 7); if (!/^\d{4}-\d{2}$/.test(m
 const guardMatch = (v: unknown): GuardMatch => {
   if (v === null) return null;
   const o = obj(v);
-  return 'figureKey' in o ? { figureKey: str(o.figureKey, 100) } : { field: oneOf(o.field, ['rows', 'excluded', 'date'] as const) };
+  return 'figureKey' in o ? { figureKey: str(o.figureKey, 100) } : { field: oneOf(o.field, ['rows', 'excluded', 'date', 'ordinal'] as const) };
 };
 const count = (v: unknown) => { const n = int(v); if (n < 0) fail(); return n; };
 export function answerReply(value: unknown): AnswerReply {

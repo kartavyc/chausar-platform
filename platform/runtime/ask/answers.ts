@@ -13,18 +13,8 @@ import { canSeeFact, type Period } from '../memory.ts';
 import type { AnswerReply, Gap, GuardLine, ReceiptReply, RunReply, SentReply, SourceRowsReply } from './contracts.ts';
 import { asText, businessToday, codeOf, core, currentDictionary, headlineKey, identifier, input, isRuleCode, minorString, monthsOf, namedPeriod, period, priorPeriod, requireId, seedDictionary, text, translate } from './shared.ts';
 import { isPeriodId, operationOf, recordAsked } from './menu.ts';
-
-// Every run of digits is a number, in any script and even when it touches letters ("Rs9999",
-// "50lakh"). A whole ISO date is one token. Digits are read as ASCII before matching.
-const NUMBER = /\d{4}-\d{2}-\d{2}|[+-]?\d[\d,]*(?:\.\d+)?/g;
-export function asciiDigits(value: string): string {
-  return value.normalize('NFKC').replace(/\p{Nd}/gu, digit => { const code = digit.codePointAt(0)!; for (let zero = code; zero > code - 10; zero--) if (!/\p{Nd}/u.test(String.fromCodePoint(zero - 1))) return String(code - zero); return digit; });
-}
-const tokens = (value: string) => [...asciiDigits(value).matchAll(NUMBER)].map(match => match[0]);
-function normal(value: string) {
-  const v = value.replaceAll(',', '').replace(/^\+/, ''); const negative = v.startsWith('-'); const [whole, decimals] = v.replace(/^-/, '').split('.');
-  return `${negative ? '-' : ''}${BigInt(whole || '0')}${decimals ? '.' + decimals.replace(/0+$/, '') : ''}`.replace(/\.$/, '');
-}
+import { guardLines } from './guard.ts';
+export { asciiDigits, guardLines } from './guard.ts';
 
 export function gapsOf(receipt: CalculationReceipt): Gap[] {
   const out: Gap[] = [];
@@ -36,21 +26,6 @@ export function gapsOf(receipt: CalculationReceipt): Gap[] {
     else if (gap.includes('imported costs only')) out.push('costs-only');
   }
   return [...new Set(out)];
-}
-
-/** Every number in a written explanation, and the receipt line it matched, or none. */
-export function guardLines(explanation: string, receipt: CalculationReceipt): GuardLine[] {
-  const dates = new Set([receipt.period?.from, receipt.period?.to, receipt.comparePeriod?.from, receipt.comparePeriod?.to, receipt.asOf.slice(0, 10), receipt.assumptions?.onDate].filter((d): d is string => typeof d === 'string'));
-  return tokens(explanation).map(token => {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(token)) return { number: token, matched: dates.has(token) ? { field: 'date' } : null };
-    const n = normal(token);
-    // A figure matches only as it is shown: paise are never accepted for rupees.
-    const figure = receipt.figures.find(f => tokens(f.display).some(t => normal(t) === n));
-    if (figure) return { number: token, matched: { figureKey: figure.key } };
-    if (n === String(receipt.rows.length) || n === String(receipt.coverage.countedRows)) return { number: token, matched: { field: 'rows' } };
-    if (n === String(receipt.coverage.excludedRows)) return { number: token, matched: { field: 'excluded' } };
-    return { number: token, matched: null };
-  });
 }
 
 /** Months of the period, up to the knowledge date, with no visible rows of any kind. */
