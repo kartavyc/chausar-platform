@@ -1,0 +1,21 @@
+[
+  {"system": "zoho-books", "action": "invoice.createDraft", "payload": {"customerId": "460000000001001", "date": "2026-10-14", "lines": [{"name": "Packing boxes (synthetic)", "quantity": 3, "rateMinor": "25050"}]}},
+  {"system": "zoho-books", "action": "invoice.paymentReminder", "payload": {"invoiceId": "460000000002001", "to": ["accounts@asha.example"], "subject": "Invoice INV-000101 is due", "body": "Please pay the balance using the invoice link."}},
+  {"system": "zoho-books", "action": "payment.record", "payload": {"customerId": "460000000001001", "invoiceId": "460000000002001", "amountMinor": "60000", "date": "2026-10-14", "mode": "banktransfer", "bankReference": "UTR123"}},
+  {"system": "zoho-books", "action": "contact.create", "payload": {"name": "Chitra Stores (synthetic)", "type": "customer", "email": "hello@chitra.example"}},
+  {"system": "zoho-books", "action": "contact.update", "payload": {"contactId": "460000000001001", "changes": {"notes": "Prefers mail (synthetic)"}}},
+  {"system": "zoho-books", "action": "bill.createFromPhoto", "payload": {"vendorId": "460000000001002", "billNumber": "BP-77", "date": "2026-10-10", "lines": [{"name": "Cartons", "quantity": 10, "rateMinor": "1200"}]}},
+  {"system": "tally", "action": "voucher.create", "payload": {"company": "Demo Traders (synthetic)", "voucherType": "Sales", "voucherNumber": "S-901", "date": "2026-10-14", "party": "Kiran Stores (synthetic)", "narration": "Cartons (synthetic)", "lines": [{"ledger": "Kiran Stores (synthetic)", "amountMinor": "250050", "side": "debit"}, {"ledger": "Sales", "amountMinor": "250050", "side": "credit"}]}},
+  {"system": "tally", "action": "ledger.create", "payload": {"company": "Demo Traders (synthetic)", "name": "Courier Charges", "parent": "Purchase Accounts"}},
+  {"system": "razorpay", "action": "paymentLink.create", "payload": {"amountMinor": "150000", "description": "October order (synthetic)", "customer": {"name": "Asha Traders (synthetic)", "email": "accounts@asha.example", "contact": "919000000001"}}},
+  {"system": "razorpay", "action": "refund.create", "payload": {"paymentId": "pay_SYNTH00000001A", "amountMinor": "50000", "note": "Damaged carton (synthetic)"}},
+  {"system": "shopify", "action": "variant.price", "payload": {"variantId": "4400000000201", "priceMinor": "22950"}},
+  {"system": "shopify", "action": "inventory.set", "payload": {"inventoryItemId": "4600000000301", "locationId": "7700000000401", "available": 25}},
+  {"system": "shopify", "action": "product.status", "payload": {"productId": "8800000000102", "status": "draft"}},
+  {"system": "google-workspace", "action": "sheets.append", "payload": {"spreadsheetId": "1PracticeSheetSyntheticChausarTest000000000", "sheet": "Ledger", "values": ["2026-10-14", "Chitra Stores (synthetic)", "2500.00", "Cash sale"]}},
+  {"system": "google-workspace", "action": "sheets.update", "payload": {"spreadsheetId": "1PracticeSheetSyntheticChausarTest000000000", "range": "Summary!B2:C2", "values": [["120.00", "95.00"]]}},
+  {"system": "google-workspace", "action": "calendar.createEvent", "payload": {"calendarId": "primary", "summary": "Call Asha Traders about September dues (synthetic)", "start": "2026-10-20T05:30:00Z", "end": "2026-10-20T06:00:00Z", "timeZone": "Asia/Kolkata"}},
+  {"system": "google-workspace", "action": "drive.createFile", "payload": {"name": "October sales (synthetic).csv", "mimeType": "text/csv", "contentBase64": "ZGF0ZSxhbW91bnQKMjAyNi0xMC0xNCwyNTAwLjAwCg=="}},
+  {"system": "mail", "action": "smtp.send", "payload": {"to": ["accounts@asha.example"], "subject": "Payment reminder: invoice inv-1", "body": "Hello. Invoice inv-1 has Rs 300.00 due.\nReply STOP to stop these reminders."}},
+  {"system": "whatsapp", "action": "template.send", "payload": {"to": "919000000001", "template": "payment_reminder", "language": "en", "parameters": ["inv-1", "Rs 300.00", "2026-09-10"]}}
+]
