@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "allow": [
+    "app/**",
+    "platform/runtime/**",
+    "platform/tests/**",
+    "platform/native/**",
+    "scripts/**",
+    "fixtures/**",
+    "README.md",
+    "SECURITY.md",
+    "docs/releases.md",
+    "docs/lanes/**",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    ".gitignore"
+  ],
+  "deny": [
+    "enterprise/**",
+    "docs/specs/**",
+    "**/*.pem",
+    "**/*.key",
+    "**/.env*",
+    "**/data/**",
+    "**/vaults/**",
+    "release/**",
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/.claude/**",
+    "**/evidence/**",
+    "**/sealed/**",
+    "**/hidden/**",
+    "scripts/cloud-setup.sh",
+    "scripts/capture-native-source-*.mjs",
+    "scripts/native-source-*.json"
+  ],
+  "licenceMap": [
+    { "glob": "app/**", "licence": "LicenseRef-Chausar-Draft" },
+    { "glob": "platform/**", "licence": "LicenseRef-Chausar-Draft" },
+    { "glob": "scripts/**", "licence": "LicenseRef-Chausar-Draft" },
+    { "glob": "fixtures/**", "licence": "LicenseRef-Chausar-Draft" }
+  ],
+  "allowedEmails": ["noreply@example.com", "git@github.com"],
+  "allowedEmailDomains": ["example.com", "example.org", "example.net", "example.test"],
+  "allowedEmailsFile": null,
+  "fleetMarkers": [
+    { "name": "session-id", "pattern": "\\bsession_0[0-9A-Za-z]{20,}" },
+    { "name": "session-trailer", "pattern": "Claude-Session\\:" },
+    { "name": "worktree-path", "pattern": "[.]claude[/]worktrees[/]" },
+    { "name": "container-home", "pattern": "[/]home[/]user[/]" },
+    { "name": "lane-branch", "pattern": "\\bclaude[/]lane-[a-z0-9-]+" },
+    { "name": "fleet-branch", "pattern": "\\bclaude[/][a-z]+-[a-z]+-[0-9a-z]{6}\\b" },
+    { "name": "private-branch", "pattern": "\\b(?:checkpoint|private|codex)[/][A-Za-z0-9._-]+-20\\d{6}" },
+    { "name": "quest-log", "pattern": "\\bquest[l]og\\b", "flags": "i" }
+  ]
+}
