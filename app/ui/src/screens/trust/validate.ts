@@ -125,19 +125,26 @@ export function validateMarkings(reply: unknown): Markings {
 }
 
 // ---------- Send (TR-03) and dual control ----------
-export interface PendingChange { id: string; what: ChangeWhat; summary: string; by: string; at: string; needs: 'owner' | 'cofounder' }
+/** `what` names the rule the change is to: send, sharing or seats today; a newer engine may add others (such as see), which a screen that does not list them leaves out. */
+export interface PendingChange { id: string; what: string; summary: string; by: string; at: string; needs: 'owner' | 'cofounder' }
 function pending(value: unknown, path: string): PendingChange {
   const c = rec(value, path);
-  return { id: id(c['id'], `${path}.id`), what: oneOf(c['what'], `${path}.what`, CHANGE_WHAT), summary: str(c['summary'], `${path}.summary`, 500),
+  return { id: id(c['id'], `${path}.id`), what: id(c['what'], `${path}.what`), summary: str(c['summary'], `${path}.summary`, 500),
     by: str(c['by'], `${path}.by`, ID), at: instant(c['at'], `${path}.at`), needs: oneOf(c['needs'], `${path}.needs`, ['owner', 'cofounder'] as const) };
 }
-export interface ChangeResult { state: 'applied' | 'waiting-for-second'; change: PendingChange | null }
+/** `declined` answers `trustx.confirmChange { id, decline: true }`: the needed person declined, or the author withdrew it. */
+export interface ChangeResult { state: 'applied' | 'waiting-for-second' | 'declined'; change: PendingChange | null }
 function changeOf(r: Rec): ChangeResult {
-  const state = oneOf(r['state'], 'reply.state', ['applied', 'waiting-for-second'] as const);
+  const state = oneOf(r['state'], 'reply.state', ['applied', 'waiting-for-second', 'declined'] as const);
   const change = r['change'] === undefined || r['change'] === null ? null : pending(r['change'], 'reply.change');
   return { state, change };
 }
 export function validateChange(reply: unknown): ChangeResult { return changeOf(rec(reply)); }
+/** A marking change: the markings as they are now, or a change waiting for the second person. */
+export function validateMarkingChange(reply: unknown): Markings | ChangeResult {
+  const r = rec(reply);
+  return 'state' in r ? changeOf(r) : validateMarkings(r);
+}
 export function validatePending(reply: unknown): PendingChange[] {
   return list(rec(reply)['items'], 'reply.items', pending, 200);
 }
@@ -302,11 +309,12 @@ export function validateCleaned(reply: unknown): Cleaned {
   if (r['uploaded'] !== false) throw new ShapeError('reply.uploaded');
   return { cleaned: str(r['cleaned'], 'reply.cleaned', 400000), hits: list(r['hits'], 'reply.hits', (v, p) => { const h = rec(v, p); return { line: count(h['line'], `${p}.line`), kind: str(h['kind'], `${p}.kind`, 60) }; }, 5000) };
 }
-export interface Hosted { blind: string; notBlind: string; jobs: { id: string; name: string }[]; keeps: string }
+/** `ended` when the engine says the paid plan ended (`plan: "ended"`); the contract today sends only "planned-not-available". */
+export interface Hosted { blind: string; notBlind: string; jobs: { id: string; name: string }[]; keeps: string; ended: boolean }
 export function validateHosted(reply: unknown): Hosted {
   const r = rec(reply);
-  if (r['plan'] !== 'planned-not-available') throw new ShapeError('reply.plan');
-  return { blind: str(r['blind'], 'reply.blind', 1000), notBlind: str(r['notBlind'], 'reply.notBlind', 1000), keeps: str(r['keeps'], 'reply.keeps', 1000),
+  const plan = oneOf(r['plan'], 'reply.plan', ['planned-not-available', 'ended'] as const);
+  return { ended: plan === 'ended', blind: str(r['blind'], 'reply.blind', 1000), notBlind: str(r['notBlind'], 'reply.notBlind', 1000), keeps: str(r['keeps'], 'reply.keeps', 1000),
     jobs: list(r['jobs'], 'reply.jobs', (v, p) => { const j = rec(v, p); if (j['on'] !== false) throw new ShapeError(`${p}.on`); return { id: id(j['id'], `${p}.id`), name: str(j['name'], `${p}.name`, 200) }; }, 50) };
 }
 export interface Agreements { notice: { version: string; en: string; hi: string }; items: { id: string; person: string; purpose: string; at: string; withdrawnAt: string | null }[] }
@@ -320,7 +328,8 @@ export function validateAgreements(reply: unknown): Agreements {
 
 // ---------- Vault (TR-12) and deletion (TR-13) ----------
 export interface Backup { file: string; at: string; bytes: number | null; testRestore: 'passed' | 'failed' | 'not-tested'; testedAt: string | null }
-export interface VaultView { backups: Backup[]; lock: { idleMinutes: number; deviceCheck: boolean }; disk: { freeBytes: number; totalBytes: number } | null; limit: string; recoveryContact: string | null; version: string }
+/** `idleMinutes` and `version` may be null: frame-today's lock setting or the version could not be read. */
+export interface VaultView { backups: Backup[]; lock: { idleMinutes: number | null; deviceCheck: boolean }; disk: { freeBytes: number; totalBytes: number } | null; limit: string; recoveryContact: string | null; version: string | null }
 export function validateBackup(value: unknown, path = 'reply'): Backup {
   const b = rec(value, path);
   return { file: id(b['file'], `${path}.file`), at: instant(b['at'], `${path}.at`), bytes: optCount(b['bytes'], `${path}.bytes`),
@@ -332,9 +341,9 @@ export function validateVault(reply: unknown): VaultView {
   const d = r['disk'] === null || r['disk'] === undefined ? null : rec(r['disk'], 'reply.disk');
   return {
     backups: list(r['backups'], 'reply.backups', (v, p) => validateBackup(v, p), 500),
-    lock: { idleMinutes: count(lock['idleMinutes'], 'reply.lock.idleMinutes'), deviceCheck: bool(lock['deviceCheck'], 'reply.lock.deviceCheck') },
+    lock: { idleMinutes: optCount(lock['idleMinutes'], 'reply.lock.idleMinutes'), deviceCheck: bool(lock['deviceCheck'], 'reply.lock.deviceCheck') },
     disk: d === null ? null : { freeBytes: count(d['freeBytes'], 'reply.disk.freeBytes'), totalBytes: count(d['totalBytes'], 'reply.disk.totalBytes') },
-    limit: str(r['limit'], 'reply.limit', 1000), recoveryContact: optStr(rc['name'], 'reply.recoveryContact.name', 200), version: str(r['version'], 'reply.version', 60),
+    limit: str(r['limit'], 'reply.limit', 1000), recoveryContact: optStr(rc['name'], 'reply.recoveryContact.name', 200), version: optStr(r['version'], 'reply.version', 60),
   };
 }
 export const DELETION_STATES = ['deleted', 'pending', 'not-possible', 'not-built'] as const;
@@ -354,6 +363,20 @@ export function validateFile(reply: unknown): FileRef {
 }
 
 // ---------- Core replies ----------
+/** `models.approve`: the outbound approval for one waiting model call, good for a few minutes. */
+export function validateApproval(reply: unknown): { id: string; expiresAt: string } {
+  const r = rec(reply);
+  if (r['kind'] !== 'outbound-approval') throw new ShapeError('reply.kind');
+  return { id: id(r['id'], 'reply.id'), expiresAt: instant(r['expiresAt'], 'reply.expiresAt') };
+}
+/** release's `service.status`: whether the background service (it starts at login) is installed and running. */
+export interface ServiceStatus { installed: boolean; running: boolean | null }
+export function validateService(reply: unknown): ServiceStatus {
+  const r = rec(reply);
+  str(r['platform'], 'reply.platform', 20); str(r['mechanism'], 'reply.mechanism', 60);
+  const running = r['running'];
+  return { installed: bool(r['installed'], 'reply.installed'), running: running === null ? null : bool(running, 'reply.running') };
+}
 export interface Source { sourceId: string; name: string }
 /** `sources.list`: the sources this person can see, one row per source id. */
 export function validateSources(reply: unknown): Source[] {

@@ -3,14 +3,15 @@
  * stand-ins, the level in use under an ink line; voice; Local only; the routes approved
  * for data marked financial. A change by one admin may wait for the other to confirm.
  */
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { words } from '../../places/types.ts';
 import { Button } from '../../parts/Button';
-import { YesNo } from '../../parts/Choice';
+import { Choice, YesNo } from '../../parts/Choice';
+import { State } from '../../patterns/States';
 import { useEngine, useSend } from './kit/engine.ts';
-import { Group, Note } from './kit/Screen';
+import { Group, Note, screenState } from './kit/Screen';
 import { Frame, Outcome, Pending, Tag, powers, type P } from './common';
-import { validateChange, validateSendLevels, type SendLevelRow, type SendLevels } from './validate.ts';
+import { validateChange, validateModels, validateSendLevels, type Models, type SendLevelRow, type SendLevels } from './validate.ts';
 import { COMMON, SEND, fill } from './words.ts';
 import s from './Trust.module.css';
 
@@ -35,6 +36,10 @@ function SendBody({ p, levels, reload }: { p: P; levels: SendLevels; reload: () 
     if (done.state === 'applied') reload(); else setRound((n) => n + 1);
   };
   const busy = sent.kind === 'sending';
+  // The routes and the speech provider come from Models; without it, routes show by id and voice by the engine's note.
+  const models = useEngine(p.rpc, 'trustx.models', {}, validateModels);
+  const ready = models.state.kind === 'ready' ? models.state.value : null;
+  const routeName = (id: string) => ready?.routes.find((r) => r.id === id)?.label ?? id;
   return (
     <>
       {!admin && <Note>{c.ownerOnly}</Note>}
@@ -47,6 +52,7 @@ function SendBody({ p, levels, reload }: { p: P; levels: SendLevels; reload: () 
       <Note>{w.standIns}</Note>
       <Group title={w.voiceTitle}>
         <p className={s.text}>{w.voiceOff}</p>
+        {ready !== null && <p className={s.text} data-voice="">{ready.voice.provider === null ? w.voiceNone : fill(w.voiceProvider, { provider: ready.voice.provider })}</p>}
         <p className={s.quiet}>{w.voiceNote}</p>
       </Group>
       <Group title={w.localTitle} note={w.localNote}>
@@ -60,15 +66,40 @@ function SendBody({ p, levels, reload }: { p: P; levels: SendLevels; reload: () 
             {levels.financialRoutes.map((route) => (
               <li key={route} className={s.item}>
                 <span className={s.itemHead}>
-                  <span>{route}</span>
-                  {admin && <Button variant="quiet" disabled={busy} onClick={() => void change({ financialRoutes: levels.financialRoutes.filter((x) => x !== route) })}>{fill(w.removeRoute, { route })}</Button>}
+                  <span>{routeName(route)}</span>
+                  {p.view === 'books' && <span className={s.mono}>{route}</span>}
+                  {admin && <Button variant="quiet" disabled={busy} onClick={() => void change({ financialRoutes: levels.financialRoutes.filter((x) => x !== route) })}>{fill(w.removeRoute, { route: routeName(route) })}</Button>}
                 </span>
               </li>
             ))}
           </ul>
         )}
+        {admin && (models.state.kind === 'ready' ? <AddRoute p={p} models={models.state.value} approved={levels.financialRoutes} busy={busy}
+          onAdd={(id) => void change({ financialRoutes: [...levels.financialRoutes, id] })} />
+          : models.state.kind === 'not-built' ? <p className={s.quiet}>{w.routesNotBuilt}</p> : <State state={screenState(models.state)} />)}
       </Group>
     </>
+  );
+}
+
+/** Approve one more route, chosen from the routes in Models; the whole new list is sent. */
+function AddRoute({ p, models, approved, busy, onAdd }: { p: P; models: Models; approved: readonly string[]; busy: boolean; onAdd: (id: string) => void }) {
+  const w = words(SEND, p.language);
+  const [route, setRoute] = useState<string | null>(null);
+  const [problem, setProblem] = useState(false);
+  const left = models.routes.filter((r) => !approved.includes(r.id));
+  if (left.length === 0) return <p className={s.quiet}>{w.allApproved}</p>;
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (route === null || !left.some((r) => r.id === route)) { setProblem(true); return; }
+    setProblem(false); setRoute(null); onAdd(route);
+  };
+  return (
+    <form className={s.stack} onSubmit={submit} aria-label={w.addRoute}>
+      <Choice label={w.addRoute} options={left.map((r) => ({ value: r.id, label: r.label }))} value={route} onChange={setRoute} />
+      {problem && <p className={s.problem}>{w.pickRoute}</p>}
+      <span><Button submit disabled={busy}>{w.addRouteButton}</Button></span>
+    </form>
   );
 }
 

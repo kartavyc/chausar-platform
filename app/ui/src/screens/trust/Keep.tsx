@@ -11,7 +11,7 @@ import { Group, Note } from './kit/Screen';
 import { Frame, Outcome, bytesText, countText, powers, type P } from './common';
 import { wholeNumber } from './paise.ts';
 import { validateKeep, type Keep } from './validate.ts';
-import { COMMON, KEEP, fill } from './words.ts';
+import { COMMON, KEEP, codeWord, fill } from './words.ts';
 import s from './Trust.module.css';
 
 export function KeepView({ p, mode, onChanged }: { p: P; mode: 'page' | 'sheet'; onChanged?: () => void }) {
@@ -34,9 +34,9 @@ function KeepBody({ p, keep, reload }: { p: P; keep: Keep; reload: () => void })
           <ul className={s.list}>
             {keep.kinds.map((k) => (
               <li key={k.kind} className={s.item}>
-                <span className={s.itemHead}><span className={s.name}>{k.kind}</span><span>{k.days === null ? w.until : fill(w.days, { days: countText(k.days) })}</span></span>
+                <span className={s.itemHead}><span className={s.name}>{codeWord(w, 'kind', k.kind)}</span>{p.view === 'books' && <span className={s.mono}>{k.kind}</span>}<span>{k.days === null ? w.until : fill(w.days, { days: countText(k.days) })}</span></span>
                 {k.note.length > 0 && <span className={s.quiet}>{k.note}</span>}
-                {admin && <KeepForm p={p} kind={k.kind} days={k.days} reload={reload} />}
+                {admin && <KeepForm p={p} kind={k.kind} name={codeWord(w, 'kind', k.kind)} days={k.days} reload={reload} />}
               </li>
             ))}
           </ul>
@@ -59,7 +59,7 @@ function KeepBody({ p, keep, reload }: { p: P; keep: Keep; reload: () => void })
   );
 }
 
-function KeepForm({ p, kind, days, reload }: { p: P; kind: string; days: number | null; reload: () => void }) {
+function KeepForm({ p, kind, name, days, reload }: { p: P; kind: string; name: string; days: number | null; reload: () => void }) {
   const c = words(COMMON, p.language), w = words(KEEP, p.language);
   const [typed, setTyped] = useState(days === null ? '' : String(days));
   const [problem, setProblem] = useState<string | undefined>(undefined);
@@ -73,7 +73,7 @@ function KeepForm({ p, kind, days, reload }: { p: P; kind: string; days: number 
   };
   return (
     <form className={s.form} onSubmit={(e) => void submit(e)}>
-      <Field label={fill(w.daysField, { kind })} value={typed} onChange={(e) => setTyped(e.currentTarget.value)} inputMode="numeric" problem={problem} placeholder={w.until} />
+      <Field label={fill(w.daysField, { kind: name })} value={typed} onChange={(e) => setTyped(e.currentTarget.value)} inputMode="numeric" problem={problem} placeholder={w.until} />
       <Button submit disabled={sent.kind === 'sending'}>{c.save}</Button>
       <Outcome sent={sent} language={p.language} />
     </form>

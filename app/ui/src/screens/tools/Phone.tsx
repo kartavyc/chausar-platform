@@ -6,7 +6,8 @@
  * with a code, and the screen says so); the exact text of every message; your agreement with its
  * date; messages this month against 30 and what they cost; what may be approved from the phone;
  * HELP and STOP. Books adds message ids, the engine's own reply texts and the count per channel.
- * Simple: two switches, WhatsApp and mail, and the count. The relay sentence shows whenever the
+ * Simple: two switches, WhatsApp and mail, the count, HELP and STOP, and a link that opens the
+ * exact messages (nothing is hidden for good). The relay sentence shows whenever the
  * hosted part is not set up; test mode shows in demo.
  */
 import { useState, type FormEvent } from 'react';
@@ -168,6 +169,7 @@ function Ready({ st, props, w, reload }: { st: Status; props: PlaceRenderProps; 
   const texts = useEngine(props.rpc, PHONE.preview, {}, preview);
   const optIn = (id: ChannelId) => texts.state.kind === 'ready' ? texts.state.value.channels.find((c) => c.id === id)?.optInText ?? null : null;
   const shown: readonly ChannelId[] = simple ? ['whatsapp', 'mail'] : CHANNEL_IDS;
+  const [showTexts, setShowTexts] = useState(false);
   const channelLines = (
     <Part loaded={list.state} w={w}>
       {(value) => (
@@ -191,6 +193,12 @@ function Ready({ st, props, w, reload }: { st: Status; props: PlaceRenderProps; 
         <>
           {channelLines}
           <Group title={w.month}><p className={s.note}>{fill(w.budgetLine, { budget: count(String(MESSAGE_BUDGET)) })}</p><Month props={props} w={w} books={false} /></Group>
+          <Group title={w.helpStop}>
+            <p className={s.p}>{w.help}</p>
+            <p className={s.p}>{w.stop}</p>
+          </Group>
+          <div><Button variant="link" aria-expanded={showTexts} onClick={() => setShowTexts((o) => !o)}>{showTexts ? w.hideMessages : w.showMessages}</Button></div>
+          {showTexts && <Group title={w.messages} note={w.noDigits}><Part loaded={texts.state} w={w}>{(v) => <Messages value={v} w={w} books={false} />}</Part></Group>}
         </>
       ) : (
         <>

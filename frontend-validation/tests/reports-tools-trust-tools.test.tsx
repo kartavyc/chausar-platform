@@ -329,6 +329,16 @@ test('the follow-up book lists entries; Add sends exactly what was typed; Mark d
   expect(await screen.findByText('1 earlier versions are outside your access and are not shown.')).toBeTruthy();
 });
 
+test('the follow-up book in Hindi', async () => {
+  draw({ place: 'tools', sub: 'smallapps', sheet: 'follow-up-book' }, { language: 'hi' });
+  expect(await screen.findByText('Will pay Friday')).toBeTruthy();
+  expect(screen.getByText(hi.bookNote)).toBeTruthy();
+  const form = screen.getByRole('form', { name: hi.addEntry });
+  expect(within(form).getByLabelText(hi.customer)).toBeTruthy();
+  expect(screen.getByRole('button', { name: hi.markDone })).toBeTruthy();
+  expect(screen.queryByText(en.bookNote)).toBeNull();
+});
+
 test('the follow-up book not built', async () => {
   draw({ place: 'tools', sub: 'smallapps', sheet: 'follow-up-book' }, { handlers: { 'smallapps.list': BASE['smallapps.list']! } });
   expect(await screen.findByText('Not built yet.')).toBeTruthy();
@@ -424,6 +434,22 @@ test('install: community starts all No, flagged text is data, the box shows its 
   expect(await screen.findByText(en.staysOff)).toBeTruthy();
   expect(screen.getAllByText('stock.example.invalid').length).toBeGreaterThan(1);
   expect(d.sent('trustx.installPlugin')).toEqual([{ method: 'trustx.installPlugin', payload: { ...PKG, answers: { q1: true, q2: false }, digest: 'dg-abc' } }]);
+});
+
+test('install in Hindi: the sheet, the asks starting No and the stays-off list', async () => {
+  draw({ place: 'tools', sub: 'plugins', sheet: 'install' }, { language: 'hi', handlers: withHandlers({
+    'trustx.inspectPlugin': () => INSPECTION,
+    'trustx.installPlugin': () => ({ id: 'pl-new', name: 'Stock counter', maker: 'Asha Rao', level: 'community', kind: 'code', status: 'disabled' }),
+  }) });
+  await screen.findByText('Stock counter');
+  await userEvent.upload(screen.getByLabelText(hi.pickFile), file(JSON.stringify(PKG)));
+  expect(await screen.findByText(FLAGGED)).toBeTruthy();
+  expect(screen.getByText(hi.flaggedLabel)).toBeTruthy();
+  expect(screen.getByText(hi.keyChanged)).toBeTruthy();
+  expect(screen.getByText(hi.allNo)).toBeTruthy();
+  expect(screen.queryByText(en.allNo)).toBeNull();
+  await userEvent.click(screen.getByRole('button', { name: hi.installIt }));
+  expect(await screen.findByText(hi.staysOff)).toBeTruthy();
 });
 
 test('install: a refused package shows the reason and no install control', async () => {
@@ -683,25 +709,31 @@ test('an invalid plugins reply becomes the failed state, and a non-admin seat ha
 
 // ---- the three views ----
 
-test('Simple: plugins are names with On or Off and one "Add a plugin" link; no levels, makers, digests, outside tools or packs', async () => {
+test('Simple: plugins keep On or Off, the level and the blocked reason in words; outside tools and packs are one line each that opens the full group', async () => {
   const d = draw({ place: 'tools', sub: 'plugins' }, { view: 'simple' });
   await screen.findByText('Stock counter');
   expect(within(lineOf('Stock counter')).getByText(en.on)).toBeTruthy();
+  expect(within(lineOf('Stock counter')).getByText(en['level.community'])).toBeTruthy();
   expect(within(lineOf('Fast loans')).getByText(en.off)).toBeTruthy();
-  expect(screen.queryByText('By Asha Rao')).toBeNull();
-  expect(screen.queryByText(en['level.community'])).toBeNull();
+  expect(within(lineOf('Fast loans')).getByText(en['level.blocked'])).toBeTruthy();
+  expect(screen.getByText('Sends data to an unknown site.')).toBeTruthy();
+  expect(screen.queryByText('pl-com')).toBeNull();
   expect(screen.queryByRole('button', { name: en.install })).toBeNull();
   expect(screen.queryByRole('button', { name: en.remove })).toBeNull();
-  expect(screen.queryByText(en.outside)).toBeNull();
-  expect(screen.queryByText(en.packs)).toBeNull();
-  expect(screen.queryByText(/blocked list v12/)).toBeNull();
-  await userEvent.click(screen.getByRole('button', { name: en.addPlugin }));
-  expect(d.navigate).toHaveBeenCalledWith({ place: 'tools', sub: 'plugins', sheet: 'install' });
+  expect(screen.getByText(en.outsideShort)).toBeTruthy();
+  expect(screen.getByText(en.packsShort)).toBeTruthy();
   expect(d.sent('smallapps.pluginList')).toEqual([]);
   expect(d.sent('trustx.languagePacks')).toEqual([]);
+  await userEvent.click(screen.getByRole('button', { name: en.showOutside }));
+  expect(await screen.findByText('Calendar tool')).toBeTruthy();
+  expect(screen.getByText(en.outside)).toBeTruthy();
+  await userEvent.click(screen.getByRole('button', { name: en.showPacks }));
+  expect(await screen.findByText('58 of 60 cases')).toBeTruthy();
+  await userEvent.click(screen.getByRole('button', { name: en.addPlugin }));
+  expect(d.navigate).toHaveBeenCalledWith({ place: 'tools', sub: 'plugins', sheet: 'install' });
 });
 
-test('Simple: phone is two switches and the count; no Telegram, numbers, message texts or HELP', async () => {
+test('Simple: phone is two switches, the count, HELP and STOP, and a link to the exact messages', async () => {
   const d = draw({ place: 'tools', sub: 'phone' }, { view: 'simple' });
   expect(await screen.findAllByText(en['channel.whatsapp'])).toBeTruthy();
   await waitFor(() => expect(lineOf(en['channel.mail'])).toBeTruthy());
@@ -709,10 +741,25 @@ test('Simple: phone is two switches and the count; no Telegram, numbers, message
   expect(screen.queryByText(en['channel.telegram'])).toBeNull();
   expect(screen.queryByText(en.yourPhone)).toBeNull();
   expect(screen.queryByLabelText(en['field.mail'])).toBeNull();
+  expect(screen.getByText(en.helpStop)).toBeTruthy();
+  expect(screen.getByText(en.help)).toBeTruthy();
+  expect(screen.getByText(en.stop)).toBeTruthy();
   expect(screen.queryByText(BODY)).toBeNull();
-  expect(screen.queryByText(en.helpStop)).toBeNull();
   expect(screen.getAllByRole('radio', { name: en.on }).length).toBe(2);
+  await userEvent.click(screen.getByRole('button', { name: en.showMessages }));
+  expect((await screen.findAllByText(/Something is ready for your review\./)).length).toBeGreaterThan(0);
+  expect(screen.getByRole('button', { name: en.hideMessages })).toBeTruthy();
   expect(d.sent('hosted.pair.start')).toEqual([]);
+});
+
+test('Simple in Hindi: the folded lines and the messages link', async () => {
+  draw({ place: 'tools', sub: 'plugins' }, { view: 'simple', language: 'hi' });
+  expect(await screen.findByText(hi.outsideShort)).toBeTruthy();
+  expect(screen.getByRole('button', { name: hi.showPacks })).toBeTruthy();
+  cleanup();
+  draw({ place: 'tools', sub: 'phone' }, { view: 'simple', language: 'hi' });
+  expect(await screen.findByRole('button', { name: hi.showMessages })).toBeTruthy();
+  expect(screen.getByText(hi.helpStop)).toBeTruthy();
 });
 
 test('Simple: small apps keep the rows and the line, without ids or why; assistants without the server card or what was removed', async () => {
