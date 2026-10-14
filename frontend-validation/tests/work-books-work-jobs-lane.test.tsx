@@ -59,7 +59,10 @@ test('a job run by job extensions shows its steps with the model mark, its quest
   expect(within(block).getByText('Net sales for the week')).toBeTruthy();
   expect(within(block).getByText('runs without one')).toBeTruthy();
   expect(within(block).getByText('needs an AI model')).toBeTruthy();
-  const q = document.querySelector('[data-job-questions]') as HTMLElement;
+  // WK-08: the question is the top row of the time line ("waiting for you").
+  const timeline = screen.getByText('Time line').parentElement as HTMLElement;
+  const q = within(timeline).getAllByRole('listitem')[0];
+  expect(q.getAttribute('data-job-question')).toBe('jobsx_question_1');
   expect(within(q).getByText('Invoice INV-7 is long overdue. Remind, stop or call?')).toBeTruthy();
   expect(within(q).getByText(/Answers: remind, stop, call/)).toBeTruthy();
   expect(screen.getByText(/3 runs were missed while this computer slept\. Ran once\./)).toBeTruthy();

@@ -127,17 +127,17 @@ test('jobsx.get: person steps, template steps, questions, the measured budget, t
   // The measure: the receipts its time line and its delivered result name, read as the caller.
   assert.deepEqual(sheet.measure, { name: 'Net sales', goal: { missing: 'absent' }, goalReceiptId: null, points: [
     { at: '2026-10-12T04:58:00.000Z', value: { minor: '400000' }, receiptId: 'r-week-1' }, { at: '2026-10-13T05:00:00.000Z', value: { minor: '450000' }, receiptId: 'r-week-2' }] });
-  assert.deepEqual(sheet.result, { done: ['Net sales worked out.'], open: ['Lock the week in your books.'], receiptIds: ['r-week-2'] });
+  assert.deepEqual(sheet.result, { done: ['Net sales worked out.'], open: ['Lock the week in your books.'], recommends: [], receiptIds: ['r-week-2'] });
   // WK-11: the rule `once` reads as run once on wake; a job that delivers every run is offered "run every missed one".
   assert.equal(sheet.missedRun, 'run-once-on-wake');
   assert.deepEqual(sheet.missedRule, { rule: 'run-once-on-wake', choices: ['run-once-on-wake', 'skip', 'run-all'], runAll: 'offered' });
-  assert.deepEqual(sheet.manage, { edit: 'jobsx', delete: 'cancel', missedRule: 'jobsx', personStep: 'jobsx' });
+  assert.deepEqual(sheet.manage, { edit: 'jobsx', delete: 'cancel', missedRule: 'jobsx', personStep: 'jobsx', answer: 'not-built', accept: 'core' });
   assert.deepEqual(sheet.jobsx, {
     title: 'Weekly close', state: 'waiting-for-you', reason: null,
     steps: [{ kind: 'calculate', title: 'Net sales for the week', needsModel: false }, { kind: 'lookup', title: 'Look up a missing detail with the agent, only when the rule is unsure', needsModel: true },
       { kind: 'person', title: 'Review the week and lock it in your books', needsModel: false }],
-    questions: [{ id: 'jobsx_question_1', prompt: 'Invoice INV-7 is long overdue. Remind, stop or call?', options: ['remind', 'stop', 'call'], askedAt: '2026-10-12T05:00:00.000Z' }],
-    missed: { text: '3 runs were missed while this computer slept. Ran once.', at: '2026-10-12T04:00:00.000Z' }, leftUndone: [],
+    questions: [{ id: 'jobsx_question_1', prompt: 'Invoice INV-7 is long overdue. Remind, stop or call?', options: ['remind', 'stop', 'call'], askedAt: '2026-10-12T05:00:00.000Z', suggested: null }],
+    missed: { text: '3 runs were missed while this computer slept. Ran once.', at: '2026-10-12T04:00:00.000Z' }, leftUndone: [], tainted: false, upcoming: ['2026-10-19T05:00:00.000Z'],
   });
   // Daily rounds: "run every missed one" is not offered (jobs-ext refuses it with MISSED_RULE_UNSUITABLE).
   const g = fixture({ 'jobsx.get': p => jobsxGet(p.id, { stepsPerDelivery: 7, missedRule: 'skip' }), 'jobsx.setMissedRule': () => ({}) });
@@ -168,7 +168,7 @@ test('jobsx.edit is sent { id, changes } and proposes a new card that waits for 
   const f = fixture({ 'jobsx.get': p => jobsxGet(p.id), 'jobsx.edit': p => editProposal(p.id, p.changes) });
   const id = await f.laneJob();
   assert.deepEqual(await f.request(owner, 'approvals.editJob', { id, config: { budgetMinor: '3000', missedRun: 'run-all' } }),
-    { id: `job:${id}`, via: 'jobsx', waitsFor: 'proposal', proposal: { id: 'jobsx_proposal_edit_1', digest: 'c'.repeat(64) } });
+    { id: `job:${id}`, via: 'jobsx', waitsFor: 'proposal', proposal: { id: 'jobsx_proposal_edit_1', digest: 'c'.repeat(64) }, approvalId: 'proposal:jobsx_proposal_edit_1' });
   // A budget below the reservation brings the reservation down with it (jobs-ext refuses a reservation above the budget).
   await f.request(owner, 'approvals.editJob', { id, config: { budgetMinor: '10', missedRun: 'skip' } });
   assert.deepEqual(f.calls.filter(c => c.method === 'jobsx.edit').map(c => c.payload), [
@@ -210,7 +210,7 @@ test('a core job keeps the core paths with every jobsx method installed: no jobs
   const f = fixture(handlers);
   const id = await f.brief();
   const sheet = await f.request(owner, 'approvals.job', { id });
-  assert.deepEqual(sheet.manage, { edit: 'not-built', delete: 'cancel', missedRule: 'not-built', personStep: 'not-built' });
+  assert.deepEqual(sheet.manage, { edit: 'not-built', delete: 'cancel', missedRule: 'not-built', personStep: 'not-built', answer: 'not-built', accept: 'core' });
   assert.deepEqual(sheet.missedRule, { rule: 'run-once-on-wake', choices: ['run-once-on-wake', 'skip'], runAll: 'not-built' });
   assert.equal(sheet.jobsx, null);
   await assert.rejects(f.request(owner, 'approvals.editJob', { id, config: { budgetMinor: '6000' } }), code('JOB_EDIT_NOT_BUILT'));

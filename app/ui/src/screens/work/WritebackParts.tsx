@@ -6,7 +6,7 @@
 import type { Language } from '../../app/presentation.ts';
 import { KeyValue, type KeyValueProps, type Pair } from '../../parts/KeyValue';
 import { amountText, day } from './kit/format.ts';
-import { Note, pageStyles } from './kit/Page';
+import { Actions, Button, Note, pageStyles } from './kit/Page';
 import type { Exported, Reminder, WbExtra } from './contract-writeback.ts';
 import { wbKnown, wbSay, type WbKey, type WbWords } from './writeback-text.ts';
 import s from './work.module.css';
@@ -29,13 +29,14 @@ export function WbNotices({ notices, ww }: { notices: WbExtra['notices']; ww: Wb
   return <>{lines.map(line => <Note key={line}>{line}</Note>)}</>;
 }
 
-export function ReminderBlock({ reminder, ww, language, onReceipt }: { reminder: Reminder; ww: WbWords; language: Language; onReceipt: KeyValueProps['onReceipt'] }) {
+export function ReminderBlock({ reminder, ww, language, onReceipt, onRecord }: { reminder: Reminder; ww: WbWords; language: Language; onReceipt: KeyValueProps['onReceipt']; onRecord?: (() => void) | undefined }) {
   const r = reminder;
   return (
     <div className={s.block} data-part="reminder">
       <h3 className={s.h}>{ww['rem.title']}</h3>
       {r.blocked !== null && <Note>{wbSay(ww, 'rem.blocked', { reason: r.blocked.reason })}</Note>}
       {r.blocked !== null && r.blocked.code === 'FOLLOW_UP_NO_CONSENT' && <Note>{ww['rem.record']}</Note>}
+      {r.blocked !== null && r.blocked.code === 'FOLLOW_UP_NO_CONSENT' && onRecord !== undefined && <Actions><Button variant="link" onClick={onRecord}>{ww['rem.recordOpen']}</Button></Actions>}
       {r.stoppedOn !== null && <Note>{wbSay(ww, 'rem.stopped', { date: day(r.stoppedOn, language) })}</Note>}
       {r.asWritten !== null && <pre className={s.asWritten}>{r.asWritten}</pre>}
       <KeyValue pairs={[

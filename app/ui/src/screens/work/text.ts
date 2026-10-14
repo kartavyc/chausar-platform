@@ -133,6 +133,23 @@ const EN = {
   'step.prepared': 'Prepared', 'step.approved': 'Approved', 'step.done': 'Done', 'step.read-back': 'Read back', 'step.recorded': 'Recorded',
   'ss.done': 'done', 'ss.waiting-for-you': 'waiting for you', 'ss.waiting-for-network': 'waiting for the network',
   'ss.unsure': 'not sure', 'ss.stopped-by-rule': 'stopped by a rule', 'ss.not-reached': 'not reached',
+  'what.start-job': 'Start job: {name}', 'what.change-job': 'Change job: {name}', 'what.accept-result': 'Accept result: {name}',
+  'what.publish-meaning': 'Publish meaning: {name}', 'what.review-lesson': 'Review a learned preference',
+  'what.bill-zoho': 'Book a bill read from a photo: {name}', 'what.bill-tally': 'Purchase voucher from a bill photo: {name}',
+  'field.goal': 'Goal', 'field.receipts': 'Receipts', 'field.replaces-job': 'Replaces the job', 'field.missed-run': 'A missed run', 'field.step': 'Step {n}',
+  'field.supplier': 'Supplier', 'field.bill-number': 'Bill number', 'field.date': 'Date', 'field.total': 'Total', 'field.line': 'Line {n}',
+  'fixed.acceptance': 'The job delivered a result. Accepting it closes this run.', 'fixed.notShown': 'not shown here', 'fixed.runAll': 'run every missed one',
+  'restore.note.closed-until-checked': 'Sending stays closed until every action below is checked.',
+  'restore.note.may-have-gone-out': 'Some of these may already have gone out after the backup was made. Chausar will look before doing anything.',
+  'restore.note.hidden-being-checked': 'Some actions you cannot see are still being checked.',
+  'restore.deletions': 'Deletions made after the backup are not checked here yet: putting them back needs the deletion record, which is not built yet.',
+  'jr.waiting-for-you': 'waiting for you', 'jr.waiting-network': 'waiting for the network', 'jr.autonomy-off': 'Chausar acting on its own is off',
+  'jr.budget': 'the budget', 'jr.budget-exhausted': 'the budget ran out', 'jr.catchup-skipped': 'a missed run was skipped', 'jr.rejected': 'you sent the result back',
+  'jr.paused': 'paused', 'jr.stop-rule': 'its stop rule', 'jr.approval-required': 'waiting for your approval', 'jr.blocked': 'blocked',
+  'ev.created': 'Proposed', 'ev.approved': 'Approved', 'ev.reserved': 'Started a run', 'ev.delivered': 'Delivered a result', 'ev.accepted': 'You accepted the result',
+  'ev.rejected': 'You sent the result back', 'ev.resumed': 'Resumed', 'ev.paused': 'Paused', 'ev.cost': 'Cost', 'ev.catchup-skipped': 'A missed run was skipped',
+  'ev.budget-exhausted': 'The budget ran out', 'ev.stop-rule': 'Stopped by its stop rule', 'ev.approval-required': 'Waits for your approval', 'ev.autonomy-disabled': 'Chausar acting on its own was off',
+  'ev.blocked': 'Blocked', 'ev.cancelled': 'Cancelled',
 } as const;
 
 export type WorkKey = keyof typeof EN;
@@ -265,8 +282,27 @@ const HI: Readonly<Record<WorkKey, string>> = {
   'step.prepared': 'तैयार', 'step.approved': 'मंज़ूर', 'step.done': 'किया गया', 'step.read-back': 'वापस पढ़ा', 'step.recorded': 'दर्ज',
   'ss.done': 'पूरा', 'ss.waiting-for-you': 'आपका इंतज़ार', 'ss.waiting-for-network': 'नेटवर्क का इंतज़ार',
   'ss.unsure': 'पक्का नहीं', 'ss.stopped-by-rule': 'नियम से रुका', 'ss.not-reached': 'अभी नहीं पहुँचा',
+  'what.start-job': 'जॉब शुरू करें: {name}', 'what.change-job': 'जॉब बदलें: {name}', 'what.accept-result': 'नतीजा स्वीकार करें: {name}',
+  'what.publish-meaning': 'अर्थ प्रकाशित करें: {name}', 'what.review-lesson': 'सीखी गई पसंद की समीक्षा करें',
+  'what.bill-zoho': 'फ़ोटो से पढ़ा बिल दर्ज करें: {name}', 'what.bill-tally': 'बिल की फ़ोटो से ख़रीद वाउचर: {name}',
+  'field.goal': 'लक्ष्य', 'field.receipts': 'रसीदें', 'field.replaces-job': 'इस जॉब की जगह लेता है', 'field.missed-run': 'छूटा हुआ रन', 'field.step': 'क़दम {n}',
+  'field.supplier': 'सप्लायर', 'field.bill-number': 'बिल नंबर', 'field.date': 'तारीख़', 'field.total': 'कुल', 'field.line': 'पंक्ति {n}',
+  'fixed.acceptance': 'जॉब ने नतीजा दिया। स्वीकार करने से यह रन पूरा होता है।', 'fixed.notShown': 'यहाँ नहीं दिखाया गया', 'fixed.runAll': 'हर छूटा रन चलाएँ',
+  'restore.note.closed-until-checked': 'जब तक नीचे की हर कार्रवाई जाँची न जाए, भेजना बंद रहता है।',
+  'restore.note.may-have-gone-out': 'इनमें से कुछ बैकअप बनने के बाद शायद पहले ही चले गए हों। कुछ भी करने से पहले चौसर देखेगा।',
+  'restore.note.hidden-being-checked': 'कुछ कार्रवाइयाँ जो आप नहीं देख सकते, अभी जाँची जा रही हैं।',
+  'restore.deletions': 'बैकअप के बाद किए गए हटाने यहाँ अभी नहीं जाँचे जाते: उन्हें फिर से लागू करने के लिए हटाने का रिकॉर्ड चाहिए, जो अभी बना नहीं है।',
+  'jr.waiting-for-you': 'आपका इंतज़ार', 'jr.waiting-network': 'नेटवर्क का इंतज़ार', 'jr.autonomy-off': 'चौसर का अपने आप काम करना बंद है',
+  'jr.budget': 'बजट', 'jr.budget-exhausted': 'बजट ख़त्म हो गया', 'jr.catchup-skipped': 'एक छूटा रन छोड़ा गया', 'jr.rejected': 'आपने नतीजा वापस भेजा',
+  'jr.paused': 'रुका', 'jr.stop-rule': 'इसका रुकने का नियम', 'jr.approval-required': 'आपकी मंज़ूरी का इंतज़ार', 'jr.blocked': 'रुका हुआ',
+  'ev.created': 'प्रस्तावित', 'ev.approved': 'मंज़ूर', 'ev.reserved': 'एक रन शुरू हुआ', 'ev.delivered': 'नतीजा दिया', 'ev.accepted': 'आपने नतीजा स्वीकार किया',
+  'ev.rejected': 'आपने नतीजा वापस भेजा', 'ev.resumed': 'फिर शुरू', 'ev.paused': 'रोका गया', 'ev.cost': 'ख़र्च', 'ev.catchup-skipped': 'एक छूटा रन छोड़ा गया',
+  'ev.budget-exhausted': 'बजट ख़त्म हो गया', 'ev.stop-rule': 'रुकने के नियम से रुका', 'ev.approval-required': 'आपकी मंज़ूरी का इंतज़ार', 'ev.autonomy-disabled': 'चौसर का अपने आप काम करना बंद था',
+  'ev.blocked': 'रुका हुआ', 'ev.cancelled': 'रद्द',
 };
 
 export const WORK_TEXT = { en: EN, hi: HI } as const;
 export type WorkWords = Readonly<Record<WorkKey, string>>;
+/** A word for an engine code when this catalogue has one, else the code as text (never dropped). */
+export function known(w: WorkWords, key: string): string | null { return Object.hasOwn(w, key) ? w[key as WorkKey] : null; }
 export function workWords(language: Language): WorkWords { return words<WorkKey>(WORK_TEXT, language); }

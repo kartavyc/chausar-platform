@@ -59,7 +59,8 @@ export type Schedule =
   | { kind: 'interval'; everyDays: number | null; everyMs: number }
   | { kind: 'calendar'; rule: 'month-end' | 'calendar'; at: string | null; timeZone: string; paused: boolean };
 export type Way = 'jobsx' | 'core' | 'not-built';
-export type Manage = { edit: Way; delete: 'jobsx' | 'cancel'; missedRule: Way; personStep: 'jobsx' | 'not-built' };
+/** `answer`: a lane job's questions are answered through jobs-ext; `accept`: whose method accepts or sends back a result. */
+export type Manage = { edit: Way; delete: 'jobsx' | 'cancel'; missedRule: Way; personStep: 'jobsx' | 'not-built'; answer: 'jobsx' | 'not-built'; accept: 'jobsx' | 'core' };
 /** WK-11: the rule and the choices offered. jobs-ext offers "run every missed one" only for a job that delivers every run. */
 export type MissedRule = { rule: MissedRun; choices: MissedRun[]; runAll: 'offered' | 'unsuitable' | 'not-built' };
 export type JobStepRow = { at: string; event: string; amount: Amount | null; needsModel: boolean | null; reason: string | null };
@@ -75,12 +76,17 @@ export type LaneView = {
   missedRule: MissedRun | null; stepsPerDelivery: number | null;
   budget: { spentMinor: string; budgetMinor: string; routes: { routeId: string; basis: string }[]; clockMs: number | null; exposureMinor: string | null } | null;
   personSteps: { id: string; title: string; assignee: string | null; createdAt: string | null }[];
-  questions: { id: string; prompt: string; options: string[]; askedAt: string | null }[];
+  /** `suggested`: the rule's own pick and how sure it is, in whole percent (jobs-ext sends a 0..1 confidence). */
+  questions: { id: string; prompt: string; options: string[]; askedAt: string | null; suggested: { option: string; percent: number } | null }[];
   steps: { kind: string; title: string; needsModel: boolean }[];
   /** Oldest first (jobs-ext sends newest first). */
   timeline: { at: string; text: string; code: string | null; costMinor: string | null; needsModel: boolean | null; receiptIds: string[] }[];
   missed: { text: string; at: string } | null;
   leftUndone: string[];
+  /** A run read outside text (an agent handled a case, or the job follows an imported skill): any send waits for a person (TR-09). */
+  tainted: boolean;
+  /** The next runs jobs-ext lists (`next.upcoming`), oldest first. */
+  upcoming: string[];
 };
 
 export function laneView(raw: unknown): LaneView | null {
@@ -104,7 +110,12 @@ export function laneView(raw: unknown): LaneView | null {
     personSteps: waiting.filter(w => w.kind === 'person-step' && str(w.id, 200) && str(w.title, 2000) && (w.status === undefined || w.status === 'waiting'))
       .map(w => ({ id: w.id, title: w.title, assignee: str(w.assignee, 200) ? w.assignee : null, createdAt: INSTANT(w.createdAt) ? w.createdAt : null })),
     questions: waiting.filter(w => w.kind === 'question' && str(w.id, 200) && str(w.prompt, 2000) && (w.status === undefined || w.status === 'open'))
-      .map(w => ({ id: w.id, prompt: w.prompt, options: strings(w.options, 200), askedAt: INSTANT(w.askedAt) ? w.askedAt : null })),
+      .map(w => {
+        const options = strings(w.options, 200); const s = record(w.suggested) ? w.suggested : null;
+        const suggested = s && str(s.option, 200) && options.includes(s.option) && typeof s.confidence === 'number' && s.confidence >= 0 && s.confidence <= 1
+          ? { option: s.option as string, percent: Math.round(s.confidence * 100) } : null;
+        return { id: w.id, prompt: w.prompt, options, askedAt: INSTANT(w.askedAt) ? w.askedAt : null, suggested };
+      }),
     steps: (Array.isArray(raw.steps) ? raw.steps : []).filter((s: unknown) => record(s) && str(s.kind, 40) && str(s.title, 2000) && typeof s.needsModel === 'boolean')
       .map((s: any) => ({ kind: s.kind, title: s.title, needsModel: s.needsModel })),
     timeline: (Array.isArray(raw.timeline) ? raw.timeline : []).filter((t: unknown) => record(t) && INSTANT(t.at) && str(t.text, 2000))
@@ -113,6 +124,8 @@ export function laneView(raw: unknown): LaneView | null {
       .reverse(),
     missed: record(raw.missed) && str(raw.missed.text, 2000) && INSTANT(raw.missed.at) ? { text: raw.missed.text, at: raw.missed.at } : null,
     leftUndone: strings(raw.leftUndone, 2000),
+    tainted: raw.tainted === true,
+    upcoming: (record(raw.next) && Array.isArray(raw.next.upcoming) ? raw.next.upcoming : []).filter(INSTANT).slice(0, 20),
   };
 }
 
@@ -123,14 +136,14 @@ export async function jobsxView(host: ModuleHost, job: Job): Promise<LaneView | 
 }
 
 /** `jobsx.result`: the delivered result (`LaneResult`), when there is one. `NO_RESULT` and other refusals read as none. */
-export type LaneResult = { done: string[]; open: string[]; receiptIds: string[]; deliveredAt: string | null };
+export type LaneResult = { done: string[]; open: string[]; recommends: string[]; receiptIds: string[]; deliveredAt: string | null };
 export async function jobsxResult(host: ModuleHost, job: Job): Promise<LaneResult | null> {
   if (!(await laneMethod(host, job, 'jobsx.result'))) return null;
   let raw: unknown;
   try { raw = await host.call('jobsx.result', { id: job.id }); } catch { return null; }
   if (!record(raw)) return null;
   const figures = Array.isArray(raw.figures) ? raw.figures.filter(record).map(f => f.receiptId).filter((id): id is string => str(id, 200)) : [];
-  return { done: strings(raw.done, 2000), open: strings(raw.open, 2000), receiptIds: [...new Set([...strings(raw.receiptIds), ...figures])], deliveredAt: INSTANT(raw.deliveredAt) ? raw.deliveredAt : null };
+  return { done: strings(raw.done, 2000), open: strings(raw.open, 2000), recommends: strings(raw.recommendations, 2000), receiptIds: [...new Set([...strings(raw.receiptIds), ...figures])], deliveredAt: INSTANT(raw.deliveredAt) ? raw.deliveredAt : null };
 }
 
 /** WK-08 meters from jobs-ext's measured `budgetView` (model use per route, clock time, money exposure). */
@@ -246,9 +259,9 @@ export function missedRuleOf(job: Job, view: LaneView | null, way: Way): MissedR
 
 /** Which way each change goes. A jobs-ext method only for a lane job; only a typed job (with a core plan) can be amended by the core. */
 export async function jobManage(host: ModuleHost, job: Job): Promise<Manage> {
-  const [edit, rule, remove, done] = await Promise.all(['jobsx.edit', 'jobsx.setMissedRule', 'jobsx.delete', 'jobsx.personStep.done'].map(m => laneMethod(host, job, m)));
+  const [edit, rule, remove, done, answer, accept] = await Promise.all(['jobsx.edit', 'jobsx.setMissedRule', 'jobsx.delete', 'jobsx.personStep.done', 'jobsx.answer', 'jobsx.accept'].map(m => laneMethod(host, job, m)));
   const core: Way = job.plan ? 'core' : 'not-built';
-  return { edit: edit ? 'jobsx' : core, delete: remove ? 'jobsx' : 'cancel', missedRule: rule ? 'jobsx' : core, personStep: done ? 'jobsx' : 'not-built' };
+  return { edit: edit ? 'jobsx' : core, delete: remove ? 'jobsx' : 'cancel', missedRule: rule ? 'jobsx' : core, personStep: done ? 'jobsx' : 'not-built', answer: answer ? 'jobsx' : 'not-built', accept: accept ? 'jobsx' : 'core' };
 }
 
 /**
@@ -275,11 +288,11 @@ export async function jobSheetExtras(e: Env, job: Job, timeline: JobStepRow[], c
     missedRule: missedRuleOf(job, view, manage.missedRule),
     manage,
     ...(meters ? { meters } : {}),
-    ...(result ? { result: { done: result.done, open: result.open, receiptIds: result.receiptIds } } : {}),
+    ...(result ? { result: { done: result.done, open: result.open, recommends: result.recommends, receiptIds: result.receiptIds } } : {}),
     jobsx: view ? {
       title: view.title, state: view.state, reason: view.reason,
       steps: view.steps.map(s => ({ kind: s.kind, title: s.title, needsModel: s.needsModel })),
-      questions: view.questions, missed: view.missed, leftUndone: view.leftUndone,
+      questions: view.questions, missed: view.missed, leftUndone: view.leftUndone, tainted: view.tainted, upcoming: view.upcoming,
     } : null,
   };
 }

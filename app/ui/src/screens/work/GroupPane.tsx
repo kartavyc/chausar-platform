@@ -11,7 +11,8 @@ import { Label } from '../../parts/Label';
 import { useAct, useReply } from './kit/reply.ts';
 import { Note, Refusal, pageStyles } from './kit/Page';
 import { group, groupResults, pace, type GroupResults } from './contract.ts';
-import { say, type WorkProps } from './shared.tsx';
+import { fieldName, fieldValue, rowTitle, say, type WorkProps } from './shared.tsx';
+import { known } from './text.ts';
 import s from './work.module.css';
 
 export interface GroupPaneProps { p: WorkProps; ids: readonly string[]; origin: HTMLElement | null; onClose: () => void; onListChanged: () => void }
@@ -53,17 +54,17 @@ export function GroupPane({ p, ids, origin, onClose, onListChanged }: GroupPaneP
               <label className={s.pick}>
                 <input type="checkbox" checked={!unticked.has(item.id)} disabled={results !== null || p.viewer}
                   onChange={e => { const on = e.currentTarget.checked; setUnticked(prev => { const next = new Set(prev); if (on) next.delete(item.id); else next.add(item.id); return next; }); }} />
-                <span>{item.title}</span>
+                <span>{rowTitle(item, w)}</span>
               </label>
               {item.change.fields !== undefined && (
                 <table className={pageStyles.table}>
                   <tbody>
-                    {item.change.fields.map(f => <tr key={f.name}><th scope="row">{f.name}</th><td><s>{f.before}</s></td><td>{f.after}</td></tr>)}
+                    {item.change.fields.map(f => <tr key={f.name}><th scope="row">{fieldName(f.name, w)}</th><td><s>{fieldValue(f.name, f.before, w, language)}</s></td><td>{fieldValue(f.name, f.after, w, language)}</td></tr>)}
                   </tbody>
                 </table>
               )}
               {item.change.asWritten !== undefined && <pre className={s.asWritten}>{item.change.asWritten}</pre>}
-              {result && <p className={s.meta} role="status">{result.ok ? w['group.ok'] : say(w, 'group.refused', { code: result.code ?? 'REQUEST_FAILED' })}</p>}
+              {result && <p className={s.meta} role="status">{result.ok ? (result.state !== undefined && result.state !== 'approved' ? known(w, `state.${result.state}`) ?? w['group.ok'] : w['group.ok']) : say(w, 'group.refused', { code: result.code ?? 'REQUEST_FAILED' })}</p>}
             </li>
           );
         })}

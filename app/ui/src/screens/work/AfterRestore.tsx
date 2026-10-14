@@ -11,6 +11,7 @@ import { actionView, afterRestore } from './contract.ts';
 import { ActionSheet, useSheet } from './Actions.tsx';
 import { Dots } from './parts/Dots.tsx';
 import { Frame, money, type WorkProps } from './shared.tsx';
+import { known } from './text.ts';
 import s from './work.module.css';
 
 export function AfterRestorePage({ p }: { p: WorkProps }) {
@@ -29,7 +30,8 @@ export function AfterRestorePage({ p }: { p: WorkProps }) {
         <div className={s.split} data-open={sheet.openId !== null ? '' : undefined}>
           <div className={s.pane}>
             <Note>{r.sendingClosed ? w['restore.closed'] : w['restore.open']}</Note>
-            {r.notes.map((line, i) => <p key={i} className={s.meta}>{line}</p>)}
+            {r.notes.map((line, i) => { const k = r.noteKeys?.[i]; return <p key={i} className={s.meta}>{(k !== undefined ? known(w, `restore.note.${k}`) : null) ?? line}</p>; })}
+            {view !== 'simple' && <p className={s.meta}>{w['restore.deletions']}</p>}
             {r.items.length === 0 ? <Note>{w['restore.empty']}</Note> : (
               <ul className={s.list}>
                 {r.items.map(a => {

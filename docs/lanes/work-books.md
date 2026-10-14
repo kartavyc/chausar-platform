@@ -22,11 +22,12 @@ Conventions for every reply:
 
 Ids in the queue are typed: `action:<actionId>`, `job:<jobId>`, `release:<draftId>`,
 `lesson:<lessonId>`, `acceptance:<jobId>`, `writeback:<actionId>` (a write-back action; see
-"Write-back in Work" below).
+"Write-back in Work" below), `bill:<billId>` and `proposal:<proposalId>` (a card proposed by jobs-ext; see
+"Jobs run by jobs-ext in Work" below).
 
 ```
 ApprovalRow = {
-  id: string; source: 'action' | 'job' | 'release' | 'lesson' | 'acceptance' | 'writeback';
+  id: string; source: 'action' | 'job' | 'release' | 'lesson' | 'acceptance' | 'writeback' | 'bill' | 'proposal';
   kind: 'message' | 'record-change' | 'money' | 'prepare-only' | 'job' | 'group';
   tier: 'tier-2' | 'tier-1' | 'prepare-only';   // tier-2 = always-waits list
   title: string;                // plain words built from the prepared request, never model text
@@ -36,6 +37,8 @@ ApprovalRow = {
   createdAt: string; expiresAt: string | null;   // 24 h for a message to an outsider, 7 days inside
   state: 'prepared' | 'approved' | 'executing' | 'verified' | 'unknown' | 'rejected' | 'blocked' | 'cancelled';
   practice: boolean;
+  what?: { kind: 'start-job' | 'change-job' | 'accept-result' | 'publish-meaning' | 'review-lesson' | 'bill-zoho' | 'bill-tally'; name: string | null };
+                                // the rows this lane titles itself, so a screen says the title in its language
 }
 Step = { name: 'prepared' | 'approved' | 'done' | 'read-back' | 'recorded';
          state: 'done' | 'waiting-for-you' | 'waiting-for-network' | 'unsure' | 'stopped-by-rule' | 'not-reached';
@@ -43,7 +46,8 @@ Step = { name: 'prepared' | 'approved' | 'done' | 'read-back' | 'recorded';
 ApprovalDetail = ApprovalRow & {
   digest: string; revision: number;
   reason: string;               // the rule that made it wait: 'always-waits:money' | 'always-waits:message' | 'always-waits:delete' | 'always-waits:irreversible' | 'autonomy-off' | 'job-approval' | 'release-cosign' | 'lesson-review' | 'acceptance'
-  change: { asWritten?: string; fields?: { name: string; before: string; after: string }[] };
+  change: { asWritten?: string; key?: 'acceptance'; fields?: { name: string; before: string; after: string }[] };
+                                // key: asWritten is this lane's own fixed line (said in the reader's language)
   voucher?: { type: string; number: string | null; date: string; lines: { ledger: string; debit: Amount | null; credit: Amount | null }[]; note: 'prepare-only' };
   job?: JobCard;                // for a proposed job (WK-09)
   steps: Step[];                // always five, in order
@@ -54,6 +58,7 @@ ApprovalDetail = ApprovalRow & {
   writeback?: WbExtra;          // write-back items only
   secondAsk?: { by: 'typed-amount' | 'passphrase' };   // present when needsSecondAsk
   reminder?: Reminder;          // WK-12: write-back customer reminders only (approvals.get / approve / change)
+  approvedJobId?: string;       // approvals.approve on a proposal: the queue id `job:<id>` of the job jobs-ext made
 }
 ```
 
@@ -78,13 +83,13 @@ ApprovalDetail = ApprovalRow & {
 | `approvals.catalogueEntry` | read | `{ system, action }` | `CatalogueEntry` |
 | `approvals.wanted` | prepare | `{ system: string; text: string }` | `{ id; at; writeback: 'listed' \| 'counted' \| null }`. When the system names a write-back system (by id or title), it is also asked of `writeback.request` (counted on write-back's wanted list). |
 | `approvals.wantedList` | read | `{}` | `{ items: { id; system; text; at; by }[] }` |
-| `approvals.afterRestore` | read | `{}` | `{ sendingClosed: boolean; items: ActionView[]; notes: string[] }`. Includes write-back actions that are not sure, still running, or named by `writeback.afterRestore` (the send journal outside the vault); those close sending too. |
+| `approvals.afterRestore` | read | `{}` | `{ sendingClosed: boolean; items: ActionView[]; notes: string[]; noteKeys: ('closed-until-checked' \| 'may-have-gone-out' \| 'hidden-being-checked')[] }` (`noteKeys` names each note, in order). Includes write-back actions that are not sure, still running, or named by `writeback.afterRestore` (the send journal outside the vault); those close sending too. |
 | `approvals.exportPrepared` | prepare, desktop only | `{ id }` (a prepare-only item) | `{ files: { name; path; bytes }[] }`: the exact prepared payload as JSON (for `gst-portal return.file`, the return: form, GSTIN, period and the prepared command) and a plain-text checklist, written into `<app directory>/exports/` as `chausar-prepared-<YYYYMMDD-HHMMSSZ>-<digest12>[-n]-prepared.json` / `-checklist.txt`. Names never come from outside text; an existing file is never replaced. Refuses `NOT_PREPARE_ONLY`, `INVALID_APPROVAL_STATE`, `OPEN_DESKTOP` (phone or MCP). |
 | `approvals.prepareReminder` | prepare | `{ connectionId, customerId, invoiceId, language?: 'en' \| 'hi' }` | `{ id: 'writeback:<id>' \| null; blocked: { code; reason } \| null }`. Calls `writeback.followUp.prepare`; a refusal `FOLLOW_UP_NO_CONSENT`, `FOLLOW_UP_STOPPED`, `FOLLOW_UP_DAILY_CAP`, `FOLLOW_UP_NOTHING_DUE` or `FOLLOW_UP_NEEDS_REVIEW` comes back as `blocked` with its plain reason (blocked at prepare). Refuses `WRITEBACK_NOT_BUILT` without write-back. |
 | `approvals.jobs` | read | `{}` | `{ items: JobRow[]; active: number; limit: 10; proposals: { available: boolean } }` |
 | `approvals.job` | read | `{ id }` | `JobCard & { timeline: JobStep[]; result: JobResult \| null; meters?: JobMeters }` (WK-08 budget meters; see below) |
 | `approvals.jobTemplates` | read | `{}` | `{ templates: JobTemplate[]; fromSentence: { available: boolean } }`. Fixed ready-made jobs over the core read-only `owner-brief` type (daily, weekly, month-end brief). `fromSentence` says whether `jobsx.propose` is installed. |
-| `approvals.proposeJob` | approve | `{ templateId, budgetMinor?: string, maxRuns?: 1..366, missedRun?: 'skip' \| 'run-once-on-wake' }` or `{ sentence: string }` | `{ id: 'job:<jobId>' }`, the queue id of a new job waiting for approval. The template path calls core `jobs.create` with `type: 'owner-brief'`, `reserveMinor = budgetMinor`, `stopRule { maxRuns, deadline: now + days }`, the interval of `every` (a month is 30 days), `catchup` `skip` or `latest`, and `requiresApproval: true`. `budgetMinor` is integer paise, more than zero and at most ten times the template budget (`INVALID_BUDGET`). A sentence passes through to `jobsx.propose { sentence }` when it is installed (no probe), or refuses `PROPOSAL_FROM_SENTENCE_NOT_BUILT`; jobs-ext replies a proposal, so the reply adds `proposal: { id, digest }` (see Still missing). Core job creation needs an owner or cofounder: an accountant or viewer is refused `FORBIDDEN`. |
+| `approvals.proposeJob` | approve | `{ templateId, budgetMinor?: string, maxRuns?: 1..366, missedRun?: 'skip' \| 'run-once-on-wake' }` or `{ sentence: string }` | `{ id: 'job:<jobId>' }`, the queue id of a new job waiting for approval. The template path calls core `jobs.create` with `type: 'owner-brief'`, `reserveMinor = budgetMinor`, `stopRule { maxRuns, deadline: now + days }`, the interval of `every` (a month is 30 days), `catchup` `skip` or `latest`, and `requiresApproval: true`. `budgetMinor` is integer paise, more than zero and at most ten times the template budget (`INVALID_BUDGET`). A sentence passes through to `jobsx.propose { sentence }` when it is installed (no probe), or refuses `PROPOSAL_FROM_SENTENCE_NOT_BUILT`; jobs-ext replies a proposal (a card, not a job), so the reply is `{ id: 'proposal:<proposalId>', proposal: { id, digest } }` and that id opens the proposal in the queue (a reply that is not a waiting proposal refuses `INVALID_JOB_REPLY`). Core job creation needs an owner or cofounder: an accountant or viewer is refused `FORBIDDEN`. |
 
 ```
 ActionView = { id; system; action; title; touches: string | null; amount: Amount | null;
@@ -161,8 +166,44 @@ the one queue and the one record as `source: 'writeback'`, id `writeback:<action
   section 43B(h) (deduction only in the year paid when paid late). Each carries its source, the
   date it was checked (2026-10-14) and "not legal advice", and only the owner sees them.
 
-Mutations on jobs use the core methods directly: `jobs.pause`, `jobs.resume`, `jobs.cancel`,
-`jobs.approve { id, digest }`, `jobs.accept { id }`, `jobs.reject { id, reason }`.
+Mutations on jobs go through `approvals.*` (below), which send a lane job to jobs-ext and a core job to the core:
+approve a job's card and accept a result with `approvals.approve` (`job:` / `acceptance:` ids, bound to the digest),
+`approvals.sendBack`, `approvals.pauseJob`, `approvals.resumeJob`. Cancel stays core `jobs.cancel`.
+
+#### Jobs run by jobs-ext in Work
+
+Read in jobs-ext's real shapes (branch `claude/lane-jobs-ext`, `platform/runtime/jobs-ext/{methods,proposals,state}.ts`),
+only for a lane job (core type `jobsx-<template>`) and only when the method registry lists the method
+(`work-jobs-lane.ts`):
+
+- **Proposals in the queue.** `approvals.list` reads `jobsx.proposals` (`Proposal[]`, waiting ones) and lists each as
+  `proposal:<id>`: `kind: 'job'`, `tier: 'tier-2'`, `reason: 'job-approval'`, `amount` the card's budget, `preparedBy`
+  the person who proposed it (Chausar for the detector, the job for a job's own request), `title` `Start job: <card
+  title>` (an edit: `Change job: ...`), and the sheet's `job` card from jobs-ext's `JobCard` (goal, finishedWhen,
+  owner, budget, reserve, stop rule, allowed actions, tested routes, review date, missed rule `skip` / `once`
+  (`run-once-on-wake`) / `all` (named in `change.fields` as `missed run`), next run, untrusted). `change.fields` holds
+  the goal, the job it replaces and the card's steps. Only the card's owner approves (`can` lacks approve; `blocked:
+  { kind: 'owner-approves', code: 'JOB_OWNER_REQUIRED' }`). Approve calls `jobsx.approveProposal { id, digest }` (our
+  digest check first; `PROPOSAL_APPROVAL_NOT_BUILT` without it); the reply is the item `verified` with `approvedJobId`.
+  Drop calls `jobsx.dismissProposal { id }`. Change refuses (`CHANGE_NOT_AVAILABLE`). A malformed proposal is left out;
+  without `jobsx.proposals` none are listed.
+- **Questions.** `approvals.job`'s `jobsx.questions[]` gain `suggested: { option, percent } | null` (the rule's own pick,
+  jobs-ext's 0..1 `confidence` in whole percent; null when the pick is not one of the options). The screen draws them
+  as the top rows of the time line ("waiting for you").
+- **Results.** Accepting `acceptance:<id>` calls `jobsx.accept { id, reference }` (the same exact reference core checks)
+  for a lane job, else `jobs.accept { id, reference }`; dropping it, `jobsx.reject` / `jobs.reject`.
+
+`approvals.job` adds: `acceptance: { id: 'acceptance:<jobId>', digest } | null` (the exact delivered result, for
+`approvals.approve`), `manage.answer: 'jobsx' | 'not-built'`, `manage.accept: 'jobsx' | 'core'`, `result.recommends:
+string[]` (jobs-ext `recommendations`, or the deliverable's), `jobsx.tainted: boolean` (jobs-ext's taint: a run read
+outside text) and `jobsx.upcoming: string[]` (the next runs). `approvals.editJob` through jobs-ext adds `approvalId:
+'proposal:<id>'`.
+
+| Method | Permission | Payload | Reply |
+|---|---|---|---|
+| `approvals.answerQuestion` | approve | `{ jobId, questionId, option }` | `{ jobId, questionId, answer, answeredAt }` from `jobsx.answer { questionId, option }` (the question read back `answered`). The question must be open on this lane job (`NOT_FOUND`) and the option one of its options (`INVALID_ANSWER`, checked before the call). A core job or no `jobsx.answer`: `QUESTION_ANSWER_NOT_BUILT`. |
+| `approvals.sendBack` | approve | `{ id, reason }` (1..500 characters) | `{ id, state: 'rejected', via: 'jobsx' \| 'core' }`. Only an `awaiting-acceptance` job (`INVALID_JOB_STATE`). |
+| `approvals.pauseJob` / `approvals.resumeJob` | approve | `{ id }` | `{ id, via }`: `jobsx.pause` / `jobsx.resume` for a lane job (resume clears its set-aside; jobs-ext refuses `PERSON_STEP_WAITING`), else `jobs.pause` / `jobs.resume`. |
 
 ### Work: jobs, round 2 (WK-07, WK-08, WK-11, WK-14, WK-16)
 
@@ -621,7 +662,8 @@ in English and Hindi.
 | WK-12 reminder sheet: link, agreement per channel, stopped flag, limits, owner payment notes, blocked at prepare | supported over `writeback.followUp.*`; the payment notes are fixed text checked 2026-10-14 |
 | Passphrase second ask | experimental: drawn only when write-back declares `reauth: 'passphrase'`, which it does not yet; otherwise the typed amount |
 | Reverse | supported for core actions whose catalogue row names a reversal action; write-back reversals are shown in words |
-| Job list, card, time line, accept and send back | supported over core `jobs.*`; job proposals from `jobsx.*` experimental |
+| Job list, card, time line, accept and send back | supported over core `jobs.*` (through `approvals.approve` / `approvals.sendBack`); job proposals from `jobsx.*` experimental |
+| jobs-ext proposals in the queue (`proposal:<id>`), answering a job's question, lane accept / send back / pause / resume | experimental: over `jobsx.*`, tested against stubs shaped like jobs-ext's own source (not against the merged lane) |
 | Start a job from a ready-made brief, budget meters | supported over core `jobs.create` (`owner-brief`); a job from one sentence is experimental (`jobsx.propose`) |
 | Month-end brief on the core calendar | supported where the engine has calendar rules; otherwise refused, with every 30 days as the labelled choice |
 | Person steps (WK-16), measure chart (WK-08), Edit, Delete and the missed-run rule | experimental: complete with `jobsx.*`; core fallback for typed jobs, Delete as cancel |
@@ -648,14 +690,8 @@ screen with a fake rpc. No screen was tested against a live external system.
 
 ### Engine methods
 
-There are 32 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs*.ts`, `work-driving.ts`)
-
-There are 26 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs.ts`)
-and 33 Books methods (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
-There are 24 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs.ts`)
-and 45 Books methods (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
-There are 24 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs.ts`)
-and 33 Books methods, plus 18 from round 2 (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
+There are 38 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs*.ts`,
+`work-driving.ts`) and 63 Books methods (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
 Private state lives in `state.extensions['work-books']` under `work` and `books` (`state.ts`).
 `purge` removes snoozes, notes, opt-ins, decisions, memory lines, mapping proposals and their copies tied to removed
 sources and records.
@@ -672,22 +708,12 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
 
 ### Still missing
 
-- WK-12 (reminder notes on payment rules, caps), WK-13 and BK-18 (a bill photo to an
-  entry) are not built. WK-14 (Chausar is driving) shows "not built yet" until a lane
-  provides `session.*`; WK-16 Done needs `jobsx.personStep.done`.
 - WK-08: clock time is "not counted" until the core job ledger records durations, and
   effect exposure is "not counted" until a job names its actions (no core job does yet).
   Neither core jobs nor jobs-ext declare a measure goal, so the goal is "absent" unless a
   typed job's input names one. For a lane job, clock time and exposure come from jobs-ext.
   For a core job (with or without jobs-ext), Edit and the missed-run rule work only for typed
   jobs; a read-only brief says not built, and Delete cancels it (the record is kept).
-- jobs-ext's questions (`jobsx.answer`), proposal approval (`jobsx.approveProposal`) and
-  result acceptance with its reference (`jobsx.accept`) are shown or listed here but not
-  answered or approved from Work: the job sheet still uses core `jobs.approve`/`jobs.accept`.
-- One sentence: `jobsx.propose` replies a proposal, not a job. `approvals.proposeJob` adds
-  `proposal: { id, digest }`, but its `id` is still `job:<proposal id>` (the Start sheet's
-  reply check needs `job:`), so opening it from the Start sheet finds no job until that sheet
-  reads `proposal` (contract.ts and StartJob.tsx).
 - Month-end on the calendar needs an engine started with a typed job runner and calendar
   rules (`durableJobs`, `jobCalendar`). Where the engine has none, only "every 30 days, not
   month-end" is offered, as the person's own choice. On the calendar the month-end job works
@@ -695,20 +721,15 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
 - `approvals.get` (the approval sheet's job card) still reads the missed-run rule from the
   interval catch-up; `approvals.job` reads a calendar's own rule.
 - The Today row "3 runs were missed while this computer slept" (WK-11) belongs to frame-today.
-- Prepare-only items have no "download the file and the checklist" method.
-
-- WK-13 and BK-18 (a bill photo to an entry), WK-14 (Chausar is driving) and WK-16 (a step for
-  a person) are not built. WK-12 has no screen entry point of its own for
-  `approvals.prepareReminder` (a customer page can call it); "record the agreement" is a note
-  that points to the customer's page.
+- WK-12: `approvals.prepareReminder` has no screen entry point of its own (a customer page can call it). "Record
+  the agreement" opens Customers and suppliers, not the exact record: write-back's customer id is the connected
+  system's, not a Chausar record id.
 - Write-back does not ask for a passphrase yet; money and irreversible write-back approvals keep
   the typed-amount second ask until it declares `reauth` on its views.
 - Files written by `approvals.exportPrepared` are not removed when the workspace is deleted (the
   engine's purge of `exports/` matches only its own vault copies; widening it is a core edit).
 - The caps line counts reminders prepared on the reminder's own day (write-back's business day);
   the screen does not know write-back's configured time zone.
-- WK-12 (reminder notes on payment rules, caps), WK-14 (Chausar is driving) and WK-16 (a
-  step for a person) are not built.
 - Bill photo: the helper's `pdf.ocr` returns text lines with a page confidence, not word
   boxes, so a region is the line's band across the page, not a box around the word. Only the
   first page is outlined. Parsing is fixed patterns for Indian bill layouts (Bill No, Date,
@@ -719,11 +740,6 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
   vendor id typed. `approvals.execute` takes only `action:` ids, so an approved Zoho bill is
   booked with `books.billBook`. The Tally voucher names ledgers from the bill (`Purchase: …`,
   `Input CGST …`, the supplier); the accountant maps them.
-- WK-08 has no measure chart. Clock time is "not counted" until the core job ledger records
-  durations, and effect exposure is "not counted" until a job names its actions (no core
-  job does yet). Job Edit and Delete have no methods.
-- Ready-made jobs repeat on an interval: "month-end" runs every 30 days from when it is
-  approved, not on the last day of each month (calendar schedules need a typed runner).
 - BK-02 Read now, Pause and Sign in again; BK-03 Add a source; BK-05 recipes; BK-06
   "Map this field". These belong to connectors-ext and show "not built yet".
 - BK-09 "Try it on a copy" links to trials and is not built here.
@@ -784,3 +800,30 @@ engine is now said from codes.
 | BK-18 A photo of a bill | See WK-13 | Experimental | none | none | All three views; Hindi | done (experimental, as the design marks it; tested with a fake reader) |
 | BK-19 GST mode and exchange rates | The GST mode under Meanings; rates by date | An amount with no rate for its date is "not counted", with the count. | Enter or remove a rate (owner or cofounder) | none | All three views; Hindi | partial: the count of rows not counted is on the rates page, not on each receipt. The calculator does not read rates; that needs a core hook. |
 | BK-20 What we hold about a customer | Every store, with its count | What each store will do; the report per store | Delete (the customer id typed to confirm) | Deleting always waits for a person. | All three views; Hindi | partial: facts, receipts, answers, actions and conversations are "not possible here", because no core method deletes one customer's rows. |
+## Design audit: Work
+
+Each Work screen checked against `docs/specs/CHAUSAR-APP-DESIGN.md` (For / Shows / You can / States / Engine / Rules),
+by reading the screen code (`app/ui/src/screens/work/`), the engine (`platform/runtime/work-books/work*.ts`) and the
+tests (`platform/tests/work-books-{approvals,jobs}*.test.ts`, `frontend-validation/tests/work-books-work*.test.tsx`).
+Views are Simple / Guided / Books; languages English / Hindi. Text that comes from the books or from another lane
+(catalogue titles, jobs-ext step and time-line text, write-back reasons) is data and is shown as it came, in its own
+language; every word this lane writes itself is in both catalogues. "Fixed in this audit" marks what changed now.
+
+| Screen | Shows | States | You can | Rules | Views/languages | Status |
+|---|---|---|---|---|---|---|
+| WK-01 Approvals | "Awaiting your review" with its count; per row what it is, what it touches, tier word, amount, who prepared it; tier 2, tier 1, prepare-only order. Jobs-ext proposals now join the queue as `proposal:<id>` (fixed in this audit). | Time left under 48 h, else the expiry date; prepared by a person / a job / Chausar; expired rows in their own list; snoozed count; loading, not built, locked, read only, failed, stale. | Open a row; tick tier-1 items to group (Guided/Books). | Order and tiers come from the engine; nothing is approved from the list. | Simple: tier and time left only. Guided: + touches, preparer, practice. Books: table with exact amount, created, expires, state. Titles the lane writes ("Start job", "Accept result", "Publish meaning", lesson, bill) now read in Hindi through `what` (fixed in this audit). | partial: live refresh by `events.subscribe` is not wired (place modules have no event seam; the list re-reads after each change). The expired item's "worth a look" row on Today belongs to frame-today. |
+| WK-02 The approval sheet | Tier word, target, why it waits (in words), the exact change, the five steps with the current one in ink, the expiry note, Approve, Not now, Change, Drop. Variants: message as written; before and after; money; prepare only with "Get the file and the checklist"; Tally voucher preview; a proposed job's card (core jobs and jobs-ext proposals, fixed in this audit); practice. | Expired ("This expired on …"); changed ("It changed. Prepared again."); "The owner approves this" (also for a jobs-ext card owned by someone else, fixed in this audit); blocked at prepare with the reason; not sure. | Approve (digest-bound), Not now, Change (the text of a message; a job is edited from its sheet), Drop, Practice (write-back actions), download for prepare-only (desktop). | Built from the prepared request; one exact digest; money asks again (`SECOND_ASK_REQUIRED`). | Same parts in every view; Simple hides the card's routes and review date. The acceptance line and change field names are now said in Hindi (`change.key`, field words; fixed in this audit). | partial: money asks for the typed amount, not a passphrase, PIN or fingerprint (those belong to the trusted host; the passphrase is drawn only when write-back declares it, which it does not yet). Practice exists only for write-back actions (core actions have no practice systems). Tier names stay "tier 1 / tier 2", as the design says until settled. |
+| WK-03 A grouped approval | Title, "can be undone" label (experimental), up to ten rows each with a tick and before / after. | Pace warning after three approvals under 2 s each; one result per item after Approve (its outcome, or the refusal code). | Untick any, then "Approve N". | One approval per item (`approvals.approveGroup` runs the single approval per item); anything tier 2 or prepare-only is refused `GROUP_NOT_ALLOWED`; approving methods are not phone methods. | Grouping is offered in Guided and Books, not Simple. Both languages. | partial: each item shows its outcome word, not its own five-step strip. The phone's "Open the app" line belongs to the phone surface, not drawn here. |
+| WK-04 After Approve | The five steps with the time each was reached; an approved action is done once and read back (`approvals.execute`). | Recorded (with its note); not sure ("Not sure it went out. Checking before trying again.") with Check again, It was sent, It was not sent; a person's answer is recorded as told-by-owner. | Check again; say it was sent or not sent. | Never a second send without looking: `SENDING_CLOSED` while anything is unsure, an execution reservation, write-back looks first. | Simple keeps the steps and the outcome; Guided/Books add the request and the read-back. Both languages. | partial: no live step movement from `events.subscribe` (the sheet re-reads after each step). "Sent and paid are different" holds for write-back reminders; marking paid is the books' bank match, not this screen. |
+| WK-05 Actions | Time line, newest first: what, to whom, amount, the five steps as dots, who approved, channel; "the rule would have" column. | Empty; would have waited / done. | Open one: request, read-back compared field by field, the rule that allowed it (now in words, fixed in this audit); Reverse where the catalogue declares a reversal (a new prepared action with its own approval). | A reversal is a new action; write-back reversals are stated in words only. | Simple: title, date, dots. Guided: + touches, amount, approver, channel. Books: table with exact amount and every column. Both languages. | done |
+| WK-06 What it can do | Table: system, action, kind, waits, status (live, experimental, prepare only, not yet); write-back rows with test and score. A row opens the eleven fields (+ write-back's own reason, grants, undo). | "Not in the list yet. It is on the wanted list."; write-back not installed says so. | Open an entry; add a wanted action. | Write status shown apart from read status (note and its own field). | Simple: action, system, status. Guided: + kind, waits. Books: + source, write score. Words in both languages; catalogue titles and descriptions are core / write-back data (English). | done |
+| WK-07 Jobs | Rows: job, state, next run, cost of budget; proposed first; jobs-ext proposals with "Open its approval" (fixed in this audit); active count against the limit of 10. | Paused; waiting with "resumes at"; set aside; missed; stopped by a rule with its reason; stopped; at the limit. Reasons and core events are now words, not codes (fixed in this audit). | Start a job; Pause / Resume (now through `approvals.pauseJob` / `resumeJob`, jobs-ext for a lane job; fixed in this audit); Edit (a new approval); Delete (asks first). | Edit waits for approval; Delete without jobs-ext cancels and keeps the record. | Simple: state only. Guided: + next run, resumes at, reason. Books: table with exact cost. Both languages. | done |
+| WK-08 A job | Four facts; the measure against its goal (receipts, gaps in words); the time line with each step's cost and model mark; next run and jobs-ext's next runs (fixed in this audit); Pause, Cancel, Edit, Delete; three budget meters (estimate labelled). | Waiting for you: jobs-ext questions as the top rows of the time line with their options and the rule's pick in percent, answered with `approvals.answerQuestion` (fixed in this audit); waiting for the network; stopped by a rule with what was left undone; taint mark for a lane job that read outside text (fixed in this audit). | Answer a question; Pause, Stop (cancel), Edit, Delete; mark a person's step done. | One answer from the offered options (`INVALID_ANSWER` before the call). | Simple hides the three meters (the budget fact stays; fixed in this audit). Guided/Books: all parts. Both languages. | partial: a local model "priced at zero with its minutes" is not drawn apart from measured or estimate; "on a model route it was not tested on" is shown only as jobs-ext's own time-line line; a child task's missing result is not built (no lane runs child tasks); for core jobs clock time and exposure stay "not counted" (the core ledger records neither). |
+| WK-09 A job's card, and proposing | Goal and how you know it is met, owner, budget, stop rule, actions by name, tested routes, review date, missed-run rule, this computer. | "Instructions only, no tools, untrusted" for an imported skill or a job's own request. | Start from a ready-made brief (budget in rupees to paise, runs, missed rule, month-end or every 30 days) or from one sentence: the reply is now `proposal:<id>` and the Start sheet opens its approval sheet (fixed in this audit); Approve to start. | Nothing runs before its exact card is approved; only the card's owner approves a jobs-ext card. | Simple hides routes and review date. Both languages. | partial: a core job has no review date ("none"); jobs-ext cards carry theirs. |
+| WK-10 A job's result | What was done, what is still open, what it recommends (fixed in this audit), every receipt. | The finished-when-accepted note; no Accept when the exact result is not waiting (fixed in this audit). | Accept, now bound to the exact result: `approvals.approve` on `acceptance:<id>` with its digest, which calls jobs-ext's `jobsx.accept` with the reference for a lane job and core `jobs.accept` with the reference otherwise (fixed in this audit); Send back with a sentence (`approvals.sendBack`, fixed in this audit). | A job is finished when accepted; accepting checks the objective and deliverable digests. | All views; both languages. | done |
+| WK-11 Schedules and missed runs | On the card: missed-run rule, last run, next run; the schedule (interval, or last day of each month at 18:00 India time). | Rule choices; "run every missed one" only through jobs-ext and only for a job that delivers each run (else the sentence why). | Change the rule (jobs-ext applies at once; core waits for a new approval). | Default run once on wake for the ready-made daily and weekly briefs. | All views; both languages. | partial: the Today row "3 runs were missed while this computer slept" belongs to frame-today; jobs-ext's missed note shows on the job sheet. |
+| WK-12 Reminders to customers | In the sheet: the reminder as written, the invoice link, what is due; owner only: two payment notes with source, date checked and "not legal advice". | Agreement per channel with source and date; blocked at prepare with the reason and now a link to Customers and suppliers to record it (fixed in this audit); stopped flag with date; cap reached. | Approve, Change (plain mail), Drop. | One reminder per customer per day and 20 a day are write-back's caps; notes are fixed text. | All views; both languages (the reminder text is write-back's, in the language it prepared). | partial: the link opens Customers and suppliers, not the exact record (write-back's customer id is the connected system's); changing the caps is Trust's. |
+| WK-13 A bill photo to an entry | Work's `#/work/bill` draws Books' BK-18 body: the page with the read line outlined, the form with read clearly / check this / could not read. | Unreadable field empty and amber; lines plus tax must equal the total; "Not available with your send setting". | Confirm (a Tally voucher, prepare only, or a Zoho bill through write-back), then it waits in Approvals as `bill:<id>`. | Nothing is stored before Confirm; text on the bill is data. | The body belongs to the Books audit; Work's bill rows now read in Hindi (`what`). | partial: experimental; the reader gives text lines, not word boxes, so the outline is the line's band; no live OCR or Zoho account was used in tests. |
+| WK-14 Chausar is driving | The choice of one window, the banner with Ctrl Alt Pause and Stop, the steps. | Sign in yourself; you moved the mouse, paused, with Continue and Stop; stopped by your key; a step failed; not built. | Choose a window, Start, Continue, Stop. | One window, read and export only, never types a password, one-time code or captcha (the rules are sent with the start and checked in the reply). | All views; both languages. | not possible: no lane provides `session.*`; the screen shows "not built yet" and is tested only with a stub. The always-on-top strip and the tray Stop belong to the desktop shell. |
+| WK-15 After a restore | The actions that may have gone out after the backup, each with Check; sending closed while any is unsure; the engine's notes, now said in Hindi by their keys (fixed in this audit). | Sending closed / open; nothing to check; a note that deletions after the backup are not checked here yet (fixed in this audit). | Check one (read back first). | Sending stays closed until the list is empty (`SENDING_CLOSED` in `approvals.execute`). | Simple hides touches, amount and dots and the deletions note. Both languages. | partial: re-applying deletions (`deletion.reapply`, "2 customer records came back") is not possible here: no method exists in core or trust, and the screen says so. The core `actions.execute` does not check the gate (a core edit). |
+| WK-16 A step for a person | In the job's time line, open person steps first with your square or the person's name, and Done. | Waits; done on / by; not yours; not built. | Done (only through `jobsx.personStep.done`, only the job's pinned owner). | The job waits; nothing marks the step done by itself. | All views; both languages. | partial: for a core job the step is shown from its plan, but Done is not built (no core method). |

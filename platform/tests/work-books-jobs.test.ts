@@ -128,7 +128,7 @@ test('one sentence is refused as not built without jobsx, and passes through whe
     card: { template: 'receivables-week', title: 'Chase unpaid invoices for a week' }, digest: 'd'.repeat(64), status: 'proposed', evidence: [], sourceIds: [] };
   const g = fixture({ propose: payload => (payload.sentence ? proposal : (() => { throw new ChausarError('INVALID_REQUEST', 'Say the job.'); })()) });
   assert.deepEqual((await g.request(owner, 'approvals.jobTemplates')).fromSentence, { available: true });
-  assert.deepEqual(await g.request(owner, 'approvals.proposeJob', { sentence: '  Tell me every Monday who owes me money.  ' }), { id: 'job:jobsx_proposal_1', proposal: { id: 'jobsx_proposal_1', digest: 'd'.repeat(64) } });
+  assert.deepEqual(await g.request(owner, 'approvals.proposeJob', { sentence: '  Tell me every Monday who owes me money.  ' }), { id: 'proposal:jobsx_proposal_1', proposal: { id: 'jobsx_proposal_1', digest: 'd'.repeat(64) } });
   assert.deepEqual(g.calls.filter(c => c.method === 'jobsx.propose').at(-1)!.payload, { sentence: 'Tell me every Monday who owes me money.' });
 });
 

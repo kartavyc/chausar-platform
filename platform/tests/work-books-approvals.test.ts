@@ -492,7 +492,7 @@ test('after restore lists only actions the caller can see, but still says sendin
   const hidden = await f.actions.prepare(owner, { connector: 'books-app', operation: 'remind', payload: { to: 'x', text: 'Due.' }, idempotencyKey: 'private-1', sourceIds: [] });
   await f.request(owner, 'approvals.approve', { id: `action:${hidden.id}`, digest: hidden.digest });
   f.fake.lose = true; await f.request(owner, 'approvals.execute', { id: `action:${hidden.id}` });
-  assert.deepEqual(await f.request(viewer, 'approvals.afterRestore'), { sendingClosed: true, items: [], notes: ['Some actions you cannot see are still being checked.'] });
+  assert.deepEqual(await f.request(viewer, 'approvals.afterRestore'), { sendingClosed: true, items: [], notes: ['Some actions you cannot see are still being checked.'], noteKeys: ['hidden-being-checked'] });
   const mine = await f.request(owner, 'approvals.afterRestore');
   assert.deepEqual(mine.items.map((i: any) => i.id), [`action:${hidden.id}`]); assert.deepEqual(mine.notes, ['Sending stays closed until every action below is checked.']);
 });

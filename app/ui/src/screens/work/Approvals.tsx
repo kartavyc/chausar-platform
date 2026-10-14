@@ -13,7 +13,7 @@ import { Actions, Button, Note, Section, pageStyles } from './kit/Page';
 import { approvalList, idOf, sheetOf, TIERS, type ApprovalRow } from './contract.ts';
 import { ApprovalPane } from './ApprovalPane.tsx';
 import { GroupPane } from './GroupPane.tsx';
-import { Frame, expiryNote, money, say, type WorkProps } from './shared.tsx';
+import { Frame, expiryNote, money, rowTitle, say, type WorkProps } from './shared.tsx';
 import type { WorkWords } from './text.ts';
 import s from './work.module.css';
 
@@ -55,7 +55,7 @@ export function ApprovalsPage({ p }: { p: WorkProps }) {
   };
   const toRow = (r: ApprovalRow, expired = false): RowItem => {
     const amountWords = money(r.amount, language);
-    const row: RowItem = { id: r.id, mark: expired ? 'off' : MARK_OF[r.state], what: r.title, note: note(r, expired) };
+    const row: RowItem = { id: r.id, mark: expired ? 'off' : MARK_OF[r.state], what: rowTitle(r, w), note: note(r, expired) };
     return amountWords === null ? row : { ...row, asWritten: amountWords };
   };
   const groupable = (r: ApprovalRow) => r.tier === 'tier-1' && r.state === 'prepared' && !r.practice;
@@ -78,7 +78,7 @@ export function ApprovalsPage({ p }: { p: WorkProps }) {
                   <tbody>
                     {items.map(r => (
                       <tr key={r.id} aria-current={r.id === openId ? 'true' : undefined}>
-                        <td><button type="button" className={s.open} onClick={e => open(r.id, e.currentTarget)}>{r.title}</button></td>
+                        <td><button type="button" className={s.open} onClick={e => open(r.id, e.currentTarget)}>{rowTitle(r, w)}</button></td>
                         <td>{w[`tier.${r.tier}`]}{r.practice ? ` · ${w.practice}` : ''}</td>
                         <td>{r.touches ?? ''}</td>
                         <td className={pageStyles.num}>{money(r.amount, language) ?? ''}</td>
@@ -105,7 +105,7 @@ export function ApprovalsPage({ p }: { p: WorkProps }) {
                         <label className={s.pick}>
                           <input type="checkbox" checked={picked.includes(r.id)} disabled={!picked.includes(r.id) && picked.length >= 10}
                             onChange={e => { const on = e.currentTarget.checked; setPicked(prev => (on ? [...prev, r.id] : prev.filter(x => x !== r.id))); }} />
-                          <span>{r.title}</span>
+                          <span>{rowTitle(r, w)}</span>
                         </label>
                       </li>
                     ))}

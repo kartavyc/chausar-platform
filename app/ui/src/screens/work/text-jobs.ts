@@ -25,7 +25,7 @@ const EN = {
   'edit.proposed': 'Your change is a new card for this job. It waits for your yes with the proposed jobs; until then the job keeps its current card.',
   'edit.pending': 'An edit of this job waits for your yes with the proposed jobs.',
   'lane.steps': 'Its steps', 'lane.questions': 'The job asks you', 'lane.options': 'Answers: {options}',
-  'lane.questionNote': 'The job waits for your answer. Answer it where job extensions lists its questions.',
+  'lane.questionNote': 'The job waits for your answer.',
   'lane.leftUndone': 'Left undone',
   'proposals.title': 'Proposed jobs waiting for your yes', 'proposals.edit': 'An edit of a job you have',
   'proposals.note': 'Each starts, or replaces the job it edits, only when you approve its exact card.',
@@ -46,6 +46,12 @@ const EN = {
   'driving.signIn': 'Sign in yourself. Chausar continues after.', 'driving.paused': 'You moved the mouse. Paused.',
   'driving.stoppedByKey': 'Stopped by your key.', 'driving.stopped': 'Stopped.', 'driving.failed': 'A step failed.', 'driving.done': 'Done.', 'driving.idle': 'Not driving.',
   'driving.steps': 'Steps', 'step.done': 'done', 'step.running': 'running', 'step.failed': 'failed',
+  'question.waiting': 'Waiting for you: the job asks', 'question.suggested': 'The rule would pick “{option}”, {percent}% sure. You decide.',
+  'question.notBuilt': 'Answering here arrives with job extensions. Not built yet.', 'question.answered': 'Answered “{option}”. The job uses it on its next step.',
+  'question.choose': 'Answer with one of these', 'proposals.open': 'Open its approval', 'edit.openApproval': 'Open its approval',
+  'approved.job': 'Approved. The job runs within its budget and stop rule.', 'approved.openJob': 'Open the job',
+  'sendBack.done': 'Sent back. The job is paused until you resume it.', 'result.recommends': 'What it recommends',
+  'lane.tainted': 'This job read text from outside. Anything it would send waits for you.', 'lane.upcoming': 'Next runs', 'accept.unavailable': 'This result is not waiting for your acceptance any more. Reload the job.',
 } as const;
 export type JobKey = keyof typeof EN;
 
@@ -67,7 +73,7 @@ const HI: Readonly<Record<JobKey, string>> = {
   'edit.proposed': 'आपका बदलाव इस जॉब का नया कार्ड है। यह प्रस्तावित जॉब के साथ आपकी हाँ का इंतज़ार करता है; तब तक जॉब अपना मौजूदा कार्ड रखता है।',
   'edit.pending': 'इस जॉब का एक बदलाव प्रस्तावित जॉब के साथ आपकी हाँ का इंतज़ार करता है।',
   'lane.steps': 'इसके क़दम', 'lane.questions': 'जॉब आपसे पूछता है', 'lane.options': 'जवाब: {options}',
-  'lane.questionNote': 'जॉब आपके जवाब का इंतज़ार करता है। जवाब वहाँ दें जहाँ जॉब एक्सटेंशन अपने सवाल दिखाता है।',
+  'lane.questionNote': 'जॉब आपके जवाब का इंतज़ार करता है।',
   'lane.leftUndone': 'जो बाक़ी रहा',
   'proposals.title': 'आपकी हाँ के इंतज़ार में प्रस्तावित जॉब', 'proposals.edit': 'आपके एक जॉब का बदलाव',
   'proposals.note': 'हर एक तभी शुरू होता है, या जिस जॉब को बदलता है उसकी जगह लेता है, जब आप उसका ठीक वही कार्ड मंज़ूर करें।',
@@ -88,6 +94,12 @@ const HI: Readonly<Record<JobKey, string>> = {
   'driving.signIn': 'ख़ुद साइन इन करें। चौसर उसके बाद जारी रखेगा।', 'driving.paused': 'आपने माउस हिलाया। रुका।',
   'driving.stoppedByKey': 'आपकी कुंजी से रुका।', 'driving.stopped': 'रुका।', 'driving.failed': 'एक क़दम असफल हुआ।', 'driving.done': 'पूरा।', 'driving.idle': 'नहीं चला रहा।',
   'driving.steps': 'क़दम', 'step.done': 'पूरा', 'step.running': 'चल रहा', 'step.failed': 'असफल',
+  'question.waiting': 'आपका इंतज़ार: जॉब पूछता है', 'question.suggested': 'नियम “{option}” चुनता, {percent}% पक्का। फ़ैसला आपका है।',
+  'question.notBuilt': 'यहाँ जवाब देना जॉब एक्सटेंशन के साथ आएगा। अभी बना नहीं है।', 'question.answered': 'जवाब “{option}”। जॉब इसे अपने अगले क़दम में इस्तेमाल करता है।',
+  'question.choose': 'इनमें से किसी एक से जवाब दें', 'proposals.open': 'इसकी मंज़ूरी खोलें', 'edit.openApproval': 'इसकी मंज़ूरी खोलें',
+  'approved.job': 'मंज़ूर। जॉब अपने बजट और रुकने के नियम के भीतर चलता है।', 'approved.openJob': 'जॉब खोलें',
+  'sendBack.done': 'वापस भेजा। जब तक आप फिर शुरू न करें, जॉब रुका रहता है।', 'result.recommends': 'यह क्या सुझाता है',
+  'lane.tainted': 'इस जॉब ने बाहर का लिखा पढ़ा है। यह जो कुछ भेजेगा, वह आपका इंतज़ार करेगा।', 'lane.upcoming': 'अगले रन', 'accept.unavailable': 'यह नतीजा अब आपकी स्वीकृति का इंतज़ार नहीं कर रहा। जॉब फिर से लोड करें।',
 };
 
 export type JobWords = Readonly<Record<JobKey, string>>;

@@ -197,7 +197,7 @@ test('a catalogue entry shows its eleven fields', async () => {
   expect(screen.getByText('More systems arrive with write-back. Not built yet.')).toBeTruthy();
 });
 
-test('Pause on a job calls jobs.pause', async () => {
+test('Pause on a job goes through approvals.pauseJob (the engine picks job extensions or the core)', async () => {
   const card = {
     id: 'job-1', goal: 'Chase overdue invoices', doneWhen: 'All are paid.', owner: 'Owner', budget: { minor: '50000' }, reserve: { minor: '5000' }, spent: { minor: '1200' },
     stopRule: { maxRuns: 10, deadline: '2026-12-01' }, actions: ['reminder.send'], testedRoutes: ['local'], reviewOn: null, missedRun: 'run-once-on-wake',
@@ -206,10 +206,10 @@ test('Pause on a job calls jobs.pause', async () => {
   const { rpc } = show({
     'approvals.jobs': () => ({ items: [{ id: 'job-1', goal: 'Chase overdue invoices', state: 'running', reason: null, nextRunAt: null, resumesAt: null, spent: { minor: '1200' }, budget: { minor: '50000' }, can: ['pause'] }], active: 1, limit: 10, proposals: { available: false } }),
     'approvals.job': () => ({ ...card, timeline: [{ at: '2026-10-01T09:00:00Z', event: 'Read the books', amount: { minor: '200' }, needsModel: false, reason: null }], result: null }),
-    'jobs.pause': () => ({ id: 'job-1', state: 'paused' }),
+    'approvals.pauseJob': () => ({ id: 'job-1', via: 'core' }),
   }, { place: 'work', sub: 'jobs', sheet: 'job-1' });
   await userEvent.click(await screen.findByRole('button', { name: 'Pause' }));
-  await waitFor(() => expect(rpc.request).toHaveBeenCalledWith('jobs.pause', { id: 'job-1' }));
+  await waitFor(() => expect(rpc.request).toHaveBeenCalledWith('approvals.pauseJob', { id: 'job-1' }));
   expect(screen.getByText('instructions only, no tools, untrusted')).toBeTruthy();
   expect(screen.getByText(/runs without one/)).toBeTruthy();
 });
