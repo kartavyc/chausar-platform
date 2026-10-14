@@ -30,7 +30,11 @@ export type RelayButtons = {
   /** Decides once. `sender` is the wa_id or Telegram user id for chat presses; null for the mail page. */
   decide(token: string, channel: Channel, sender: string | null): Promise<Decision | null>;
 };
-export type RelayModule = HostedModule & { readonly buttons: RelayButtons };
+export type RelayModule = HostedModule & {
+  readonly buttons: RelayButtons;
+  /** Server-side sends (the always-on worker): one fixed template, no offer, on the first channel that is on. */
+  notify(accountId: string, event: MessageEvent, idempotencyKey: string): Promise<{ messageId: string; channel: Channel }>;
+};
 
 const SEALED_FORMAT = 'chausar-relay-sealed-v1';
 const RETRYABLE = new Set(['PROVIDER_FAILED', 'PROVIDER_UNREACHABLE']);
@@ -271,6 +275,37 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
     }
     throw new HostedError('CHANNEL_NOT_CONFIGURED', 'Mail replies are not sent.', 503);
   }
+  /** Queues one fixed template under the month lock: idempotency, opt-in and the budget of thirty are decided together. */
+  async function queueTemplate(accountId: string, event: MessageEvent, channel: Channel, key: string, offer: { approve: Sealed; notNow: Sealed } | null) {
+    const entitlements = await deps.entitlements(accountId);
+    check(entitlements.relay, 'PLAN_REQUIRED', 'The relay is part of the paid plan.', 402);
+    check(adapters[channel], 'CHANNEL_NOT_CONFIGURED', 'This channel is not configured.', 503);
+    const digest = sha256(JSON.stringify([event, channel, offer && [offer.approve.nonce, offer.approve.ciphertext, offer.notNow.nonce, offer.notNow.ciphertext]]));
+    const at = now(), month = monthKey(at), budget = entitlements.monthlyMessages;
+    return deps.sql.transaction(async tx => {
+      // The month row is the per-account lock: idempotency and the budget are decided under it.
+      await tx.query('INSERT INTO relay_months (account_id, month) VALUES ($1, $2) ON CONFLICT DO NOTHING', [accountId, month]);
+      const { rows: [counter] } = await tx.query('SELECT sent FROM relay_months WHERE account_id = $1 AND month = $2 FOR UPDATE', [accountId, month]);
+      const { rows: [prior] } = await tx.query('SELECT id, request_digest, status FROM relay_messages WHERE account_id = $1 AND idempotency_key = $2', [accountId, key]);
+      if (prior) {
+        check(prior.request_digest === digest, 'IDEMPOTENCY_CONFLICT', 'This idempotency key was used for a different message.', 409);
+        return ok({ messageId: prior.id, status: prior.status, month, sent: counter.sent, budget }, 202);
+      }
+      const { rows: [state] } = await tx.query('SELECT status FROM relay_channels WHERE account_id = $1 AND channel = $2', [accountId, channel]);
+      check(state?.status === 'on', 'CHANNEL_OFF', 'This channel is not on.', 409);
+      const { rows: [counted] } = await tx.query('UPDATE relay_months SET sent = sent + 1 WHERE account_id = $1 AND month = $2 AND sent < $3 RETURNING sent', [accountId, month, budget]);
+      check(counted, 'MONTHLY_BUDGET_REACHED', 'This month\'s messages are used up.', 429);
+      const id = newId('msg'), expires = new Date(at.getTime() + BUTTON_MS).toISOString();
+      await tx.query(`INSERT INTO relay_messages (id, account_id, kind, event, channel, idempotency_key, request_digest, month, buttons, expires_at, open_expires_at, created_at, updated_at)
+        VALUES ($1, $2, 'template', $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
+        [id, accountId, event, channel, key, digest, month, offer ? 'approve-not-now-open' : 'open-only', expires, new Date(at.getTime() + OPEN_LINK_MS).toISOString(), at.toISOString()]);
+      if (offer) await tx.query('INSERT INTO relay_offers (message_id, approve_nonce, approve_ciphertext, not_now_nonce, not_now_ciphertext, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [id, offer.approve.nonce, offer.approve.ciphertext, offer.notNow.nonce, offer.notNow.ciphertext, expires]);
+      await deps.queue.enqueue({ type: DISPATCH_JOB, accountId, payload: { messageId: id }, dedupeKey: `relay:${id}` }, tx);
+      return ok({ messageId: id, status: 'queued', month, sent: counted.sent, budget }, 202);
+    });
+  }
+
   async function dispatch(job: Job) {
     const messageId = job.payload.messageId;
     if (typeof messageId !== 'string') throw new PermanentJobError('JOB_PAYLOAD_INVALID');
@@ -373,33 +408,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
         const given = fields<{ approve: unknown; notNow: unknown }>(body.offer, ['approve', 'notNow']);
         offer = { approve: sealedBlob(given.approve), notNow: sealedBlob(given.notNow) };
       }
-      const entitlements = await deps.entitlements(accountId);
-      check(entitlements.relay, 'PLAN_REQUIRED', 'The relay is part of the paid plan.', 402);
-      check(adapters[channel], 'CHANNEL_NOT_CONFIGURED', 'This channel is not configured.', 503);
-      const digest = sha256(JSON.stringify([event, channel, offer && [offer.approve.nonce, offer.approve.ciphertext, offer.notNow.nonce, offer.notNow.ciphertext]]));
-      const at = now(), month = monthKey(at), budget = entitlements.monthlyMessages;
-      return deps.sql.transaction(async tx => {
-        // The month row is the per-account lock: idempotency and the budget are decided under it.
-        await tx.query('INSERT INTO relay_months (account_id, month) VALUES ($1, $2) ON CONFLICT DO NOTHING', [accountId, month]);
-        const { rows: [counter] } = await tx.query('SELECT sent FROM relay_months WHERE account_id = $1 AND month = $2 FOR UPDATE', [accountId, month]);
-        const { rows: [prior] } = await tx.query('SELECT id, request_digest, status FROM relay_messages WHERE account_id = $1 AND idempotency_key = $2', [accountId, key]);
-        if (prior) {
-          check(prior.request_digest === digest, 'IDEMPOTENCY_CONFLICT', 'This idempotency key was used for a different message.', 409);
-          return ok({ messageId: prior.id, status: prior.status, month, sent: counter.sent, budget }, 202);
-        }
-        const { rows: [state] } = await tx.query('SELECT status FROM relay_channels WHERE account_id = $1 AND channel = $2', [accountId, channel]);
-        check(state?.status === 'on', 'CHANNEL_OFF', 'This channel is not on.', 409);
-        const { rows: [counted] } = await tx.query('UPDATE relay_months SET sent = sent + 1 WHERE account_id = $1 AND month = $2 AND sent < $3 RETURNING sent', [accountId, month, budget]);
-        check(counted, 'MONTHLY_BUDGET_REACHED', 'This month\'s messages are used up.', 429);
-        const id = newId('msg'), expires = new Date(at.getTime() + BUTTON_MS).toISOString();
-        await tx.query(`INSERT INTO relay_messages (id, account_id, kind, event, channel, idempotency_key, request_digest, month, buttons, expires_at, open_expires_at, created_at, updated_at)
-          VALUES ($1, $2, 'template', $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
-          [id, accountId, event, channel, key, digest, month, offer ? 'approve-not-now-open' : 'open-only', expires, new Date(at.getTime() + OPEN_LINK_MS).toISOString(), at.toISOString()]);
-        if (offer) await tx.query('INSERT INTO relay_offers (message_id, approve_nonce, approve_ciphertext, not_now_nonce, not_now_ciphertext, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
-          [id, offer.approve.nonce, offer.approve.ciphertext, offer.notNow.nonce, offer.notNow.ciphertext, expires]);
-        await deps.queue.enqueue({ type: DISPATCH_JOB, accountId, payload: { messageId: id }, dedupeKey: `relay:${id}` }, tx);
-        return ok({ messageId: id, status: 'queued', month, sent: counted.sent, budget }, 202);
-      });
+      return queueTemplate(accountId, event, channel, key, offer);
     });
 
     router.add('GET', '/v1/relay/messages/:messageId', async request => {
@@ -476,6 +485,13 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
 
   return {
     id: 'relay', buttons, routes,
+    async notify(accountId, event, idempotencyKey) {
+      const { rows } = await deps.sql.query(`SELECT channel FROM relay_channels WHERE account_id = $1 AND status = 'on'`, [accountId]);
+      const channel = CHANNELS.find(name => adapters[name] && rows.some(row => row.channel === name));
+      check(channel, 'CHANNEL_OFF', 'No message channel is on.', 409);
+      const reply = await queueTemplate(accountId, event, channel, idempotencyKey, null);
+      return { messageId: (reply.body as { messageId: string }).messageId, channel };
+    },
     jobs(worker: Worker) { worker.register(DISPATCH_JOB, dispatch); },
     async sweep() {
       const at = now().toISOString();
