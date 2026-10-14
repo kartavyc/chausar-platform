@@ -150,10 +150,10 @@ test('stripe payout: a cursor loop, a missing page and a manual payout are refus
   assert.throws(() => stripeReadSpec.validate({ payoutId: 'po_x/../../v1/charges' }), code('STRIPE_PAYOUT_ID_INVALID'));
 });
 
-// ---------------------------------------------------------------- Cashfree and PayU (refused live by design)
-test('cashfree: live read refused before any request; recorded pages parse and import', async () => {
+// ---------------------------------------------------------------- Cashfree and PayU (live reads: connectors-ext-reads2.test.ts)
+test('cashfree: recorded pages parse and import; a read without a period is refused before any request', async () => {
   const calls: HttpRequest[] = [], b = broker('id:secret');
-  await assert.rejects(runApiRead(cashfreeReadSpec, { config: { environment: 'production' }, sourceId: 's', period: SEPT, credentials: b.credentials, http: recordedHttp({}, calls) }), code('CASHFREE_AUTH_UNSUPPORTED'));
+  await assert.rejects(runApiRead(cashfreeReadSpec, { config: { environment: 'production' }, sourceId: 's', period: null, credentials: b.credentials, http: recordedHttp({}, calls) }), code('READ_PERIOD_REQUIRED'));
   assert.equal(calls.length, 0); assert.equal(b.asked.length, 0);
   const config = cashfreeReadSpec.validate({ environment: 'production', pageSize: 2 });
   const first = cashfreeSettlementsRequest(config, SEPT, null);
@@ -171,12 +171,9 @@ test('cashfree: live read refused before any request; recorded pages parse and i
   assert.throws(() => cashfreeReadSpec.validate({ environment: 'staging' as any }), code('CASHFREE_CONFIG_INVALID'));
 });
 
-test('payu: live read refused before any request; a recorded settlement parses and imports with refunds negative', async () => {
-  const calls: HttpRequest[] = [], b = broker('key:salt');
-  await assert.rejects(runApiRead(payuReadSpec, { config: { environment: 'production', settlementDate: '2026-09-04' }, sourceId: 's', credentials: b.credentials, http: recordedHttp({}, calls) }), code('PAYU_SIGNED_REQUEST_UNSUPPORTED'));
-  assert.equal(calls.length, 0); assert.equal(b.asked.length, 0);
+test('payu: a recorded settlement parses and imports with refunds negative', async () => {
   const config = payuReadSpec.validate({ environment: 'production', settlementDate: '2026-09-04' });
-  const page = payuReadSpec.parse(fx('payu', 'settlement-details.json'), { status: 200, headers: {}, url: 'https://info.payu.in/merchant/postservice.php?form=2' }, config, { method: 'POST', url: 'https://info.payu.in/merchant/postservice.php?form=2' });
+  const page = payuReadSpec.parse(fx('payu', 'settlement-details.json'), { status: 200, headers: {}, url: 'https://info.payu.in/merchant/postservice.php?form=2' }, config, payuReadSpec.first(config, null));
   assert.equal(page.records.length, 3); assert.equal(page.next, null);
   const out = runRegistered('payu.settlement-details', { records: page.records }, { reportTotals: { rowCount: 3, total: '137000' } });
   assert.equal(out.status, 'accepted', JSON.stringify(out.refusal ?? out.abstention));

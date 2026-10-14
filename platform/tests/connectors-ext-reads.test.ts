@@ -249,6 +249,7 @@ test('Zoho Books invoices: existing parser, declared page_context.total, gross i
   assert.equal(gross.status, 'accepted', JSON.stringify(gross.refusal)); assert.equal(gross.excludedRows, 1);
   assert.deepEqual(gross.records.map(r => r.kind), ['invoice_gross', 'invoice_gross', 'invoice_gross']);
   // The list response has no tax-exclusive subtotal: the net recipe refuses rather than use the gross total.
+  // (zohoBooksInvoicesNetSpec reads each invoice's detail for it: connectors-ext-reads2.test.ts.)
   assert.equal(runRegistered('zoho-books.invoices.net', recipeInput(result), { reportTotals: { rowCount: 3, total: '413050' } }).refusal?.code, 'MISSING_AMOUNT');
   await assert.rejects(read(zohoBooksInvoicesSpec, ZB, zbHttp(fx('zoho-books', 'invoices-page1.json').replace('"total": 4', '"total": 5')), { period: april }), refusedWith('SOURCE_TOTAL_CHANGED'));
   await assert.rejects(read(zohoBooksInvoicesSpec, ZB, recordedHttp({ [get(zohoBooksInvoicesUrl(ZB, 1, april))]: { status: 401, body: '{"code":57}' } }), { period: april }), refusedWith('SOURCE_SIGN_IN_EXPIRED'));

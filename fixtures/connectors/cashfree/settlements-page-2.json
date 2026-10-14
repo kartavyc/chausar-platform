@@ -19,7 +19,7 @@
       "settlement_type": "NORMAL_SETTLEMENT",
       "settlement_utr": "SYNTHCFUTR0003",
       "settlement_initiated_on": "2026-09-04T10:00:00+05:30",
-      "settled_on": "2026-09-04T11:30:00+05:30",
+      "settlement_date": "2026-09-04T11:30:00+05:30",
       "status": "SUCCESS",
       "remarks": null
     }

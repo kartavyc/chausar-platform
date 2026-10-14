@@ -74,6 +74,7 @@ function invoices(system: Books, basis: 'net' | 'gross'): SourceRecipe {
       'Draft, void and deleted invoices are left out and counted as excluded.',
       system === 'quickbooks' ? 'QuickBooks states its invoice count; a read that returns a different number is refused. Enter the total from a QuickBooks report.'
         : system === 'xero' ? 'Xero states its invoice count; a read that returns a different number is refused. Enter the total from a Xero report.'
+        : net ? 'Zoho Books gives the subtotal in each invoice\'s detail, read one request per invoice; a period with too many invoices is refused. Zoho states its invoice count; enter the total from a Zoho Books report for the same period.'
         : 'Enter the total from a Zoho Books report for the same period.',
     ],
     sensitivity: 'financial',

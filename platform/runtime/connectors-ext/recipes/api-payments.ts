@@ -122,7 +122,8 @@ const cashfreeSettlements: SourceRecipe = {
   id: 'cashfree.settlements', version: '1', group: 'cashfree', operation: 'settlements', title: 'Cashfree settlements', decoder: 'api-records',
   fields: {
     id: { from: ['cf_settlement_id'], type: 'text', required: true },
-    date: { from: ['settled_on'], type: 'date', required: true, dateFormats: ['ISO-DATETIME'] },
+    // settlement_date per the 2023-08-01 settlement entity; amount_settled is what reached the bank.
+    date: { from: ['settlement_date'], type: 'date', required: true, dateFormats: ['ISO-DATETIME'] },
     amount: { from: ['amount_settled'], type: 'money', required: true },
     payments: { from: ['payment_amount'], type: 'money' },
     charge: { from: ['service_charge'], type: 'money' },
@@ -132,10 +133,13 @@ const cashfreeSettlements: SourceRecipe = {
   },
   measure: { type: 'money', amount: { field: 'amount' }, currency: { constant: 'INR' }, unit: 'major' },
   identity: ['id'], kind: { constant: 'settlement' },
-  status: { field: 'status', values: { SUCCESS: 'settled', PENDING: 'pending', FAILED: 'failed' } },
+  // A failed settlement moved no money; it is counted as excluded.
+  exclude: { field: 'status', values: ['FAILED'] },
+  status: { field: 'status', values: { SUCCESS: 'settled', PENDING: 'pending', PENDING_WITH_CASHFREE: 'pending', PENDING_WITH_BANK: 'pending' } },
   outputs: { bankReference: 'utr', feeMinor: 'charge', taxMinor: 'tax' },
   totals: { kind: 'report' },
-  notices: ['Cashfree cannot be read live yet: its key pair is sent as headers the read kit does not support. Use the settlement export.'],
+  notices: ['Cashfree states no total for a settlement list. Enter the settled amount from Cashfree\'s settlement report for the same period.',
+    'Failed settlements are left out and counted as excluded.'],
   sensitivity: 'financial',
 };
 
@@ -159,7 +163,7 @@ const payuSettlement: SourceRecipe = {
   sign: { field: 'action', negative: ['refund', 'chargeback'], positive: ['capture'] },
   outputs: { orderId: 'txnId', feeMinor: 'fee', taxMinor: 'tax', bankReference: 'utr', paymentMethod: 'mode' },
   totals: { kind: 'report' },
-  notices: ['PayU cannot be read live yet: each request must be signed with the merchant salt. Use the settlement report.'],
+  notices: ['PayU states no total for a settlement day. Enter the net settled amount from PayU\'s settlement report for the same date.'],
   sensitivity: 'financial',
 };
 
