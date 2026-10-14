@@ -29,7 +29,7 @@ const member = { memberId: 'member_fixture', role: 'owner', epoch: 1 };
 const SOURCES = ['source_costs', 'source_orders'];
 const LIMITATION = 'Only published calculator analyses are supported.';
 const REASON = 'Because Fridays are when I plan.';
-const LESSON_SHEET_HASH = '#/reports/weekahead?sheet=lesson';
+const LESSON_SHEET_HASH = '#/reports/lessons?sheet=lesson';
 const title = (id: string) => `Synthetic lesson ${id}: remind me on Fridays`;
 const disposals: (() => void)[] = [];
 const englishMessages: Readonly<Record<string, string>> = en;
@@ -422,7 +422,7 @@ function savedGroundedTurn(modelReceiptId: string, id = GROUNDED_SAVED_ID, answe
   const tools = groundedReferencing(modelReceiptId, answerId);
   return { ...tools, id, receipt: { ...tools.receipt, id } };
 }
-async function openedLessons(fixture: Mounted, hash = '#/reports/weekahead', heading = 'The week ahead') {
+async function openedLessons(fixture: Mounted, hash = '#/reports/lessons', heading = 'Lessons') {
   go(hash); await screen.findByRole('heading', { name: heading });
   await issued(fixture, 'memory.lessons', 1);
   return button(new RegExp(title('lesson_1')), page());
@@ -1471,7 +1471,7 @@ test('five approved rows then a sixth review-ready row: at most five at rest, th
   expect(fixture.calls.find(call => call.method === 'memory.decideLesson')?.payload).toEqual(decisionPayload('lesson_6', 'approve'));
   await waitFor(() => expect(sheetElement()).toBeNull());
   await screen.findByText('approved. Would change reminder timing reminder_fixture. Evidence: 1 item.');
-  expect(window.location.hash).toBe('#/reports/weekahead');
+  expect(window.location.hash).toBe('#/reports/lessons');
   expect(fixture.count('memory.lessons')).toBe(2); expect(fixture.count('memory.decideLesson')).toBe(1);
   // Engine order is kept across the window; nothing else was dispatched and no global receipt was read.
   await fixture.user.click(button('Previous five', page()));
@@ -1481,11 +1481,11 @@ test('five approved rows then a sixth review-ready row: at most five at rest, th
   expect(fixture.count('receipts.get')).toBe(fixture.globalReads);
 });
 
-test('on Work, Approvals a Not now press sends exactly one defer decision for the exact tuple and reason, and the row shows its new standing', async () => {
+test('on Reports, Lessons a Not now press sends exactly one defer decision for the exact tuple and reason, and the row shows its new standing', async () => {
   const fixture = await mounted();
   const before = fixture.calls.length;
-  await openedLessonSheet(fixture, { hash: '#/work/approvals', heading: 'Approvals' });
-  expect(page().getByText('Work')).toBeTruthy();
+  await openedLessonSheet(fixture, { hash: '#/reports/lessons', heading: 'Lessons' });
+  expect(page().getByText('Reports')).toBeTruthy();
   const notNow = button('Not now', sheet());
   expect(notNow.disabled).toBe(false);
   await fixture.user.click(notNow);
@@ -1493,7 +1493,7 @@ test('on Work, Approvals a Not now press sends exactly one defer decision for th
   expect(fixture.calls.find(call => call.method === 'memory.decideLesson')?.payload).toEqual(decisionPayload('lesson_1', 'defer'));
   await waitFor(() => expect(sheetElement()).toBeNull());
   await screen.findByText('not now. Would change reminder timing reminder_fixture. Evidence: 1 item.');
-  expect(window.location.hash).toBe('#/work/approvals');
+  expect(window.location.hash).toBe('#/reports/lessons');
   expect(fixture.retainedOrDomain(before)).toEqual(['memory.lessons', 'memory.lessons', 'memory.decideLesson']);
   expect(fixture.count('receipts.get')).toBe(fixture.globalReads);
   await settle();
@@ -1622,7 +1622,7 @@ test('an actual hash departure while the host holds its inner before-dispatch co
   await settle();
   expect(fixture.count('memory.decideLesson')).toBe(0); expect(window.location.hash).toBe('#/today');
   // Returning requires an explicit fresh read and an explicit current review; the earlier reason is gone.
-  go('#/reports/weekahead');
+  go('#/reports/lessons');
   const row = await screen.findByRole('button', { name: new RegExp(title('lesson_1')) });
   await issued(fixture, 'memory.lessons', reads + 2);
   expect(sheetElement()).toBeNull();
@@ -1690,7 +1690,7 @@ test('a row drawn on the first page cannot open after the window moved to the ne
   act(() => { next.click(); expect(row.isConnected).toBe(true); row.click(); });
   await screen.findByText('Lessons 6 to 6 of 6, in the order they were released.');
   await settle();
-  expect(sheetElement()).toBeNull(); expect(window.location.hash).toBe('#/reports/weekahead');
+  expect(sheetElement()).toBeNull(); expect(window.location.hash).toBe('#/reports/lessons');
   expect(fixture.controller.retained.snapshot().lessons).toMatchObject({ kind: 'ready', page: 1, selectedId: null });
   expect(rowIds()).toEqual(['lesson_6']);
   // The row of the current page opens as before.
@@ -1718,7 +1718,7 @@ test('an old Close is bound to its sheet, list and live address: after an actual
   expect(window.location.hash).toBe('#/today'); expect(sheetElement()).toBeNull();
   expect(fixture.count('memory.lessons')).toBe(reads); expect(fixture.count('memory.decideLesson')).toBe(0);
   // Back on the surface with a fresh read: a genuine switch to C, then the old Close of A and the old adjacent control of A, before React commits.
-  go('#/reports/weekahead');
+  go('#/reports/lessons');
   await screen.findByRole('button', { name: new RegExp(title('lesson_1')) });
   await issued(fixture, 'memory.lessons', reads + 1);
   await fixture.user.click(button(new RegExp(title('lesson_1')), page()));
@@ -1733,7 +1733,7 @@ test('an old Close is bound to its sheet, list and live address: after an actual
   // The fresh Close of the newer sheet still closes it and returns to the surface at rest.
   await fixture.user.click(button(CLOSE, sheet()));
   await waitFor(() => expect(sheetElement()).toBeNull());
-  expect(window.location.hash).toBe('#/reports/weekahead');
+  expect(window.location.hash).toBe('#/reports/lessons');
   expect(fixture.controller.retained.snapshot().lessons).toMatchObject({ kind: 'ready', selectedId: null });
   expect(fixture.count('memory.lessons')).toBe(reads + 1); expect(fixture.count('memory.decideLesson')).toBe(0);
 });
@@ -1741,7 +1741,7 @@ test('an old Close is bound to its sheet, list and live address: after an actual
 /* ---------- Localization ---------- */
 test('Hindi rows and sheet read the status, role and guidance words in Devanagari while source text and pins stay verbatim', async () => {
   const fixture = await mounted('hi');
-  go('#/reports/weekahead');
+  go('#/reports/lessons');
   const row = await screen.findByRole('button', { name: new RegExp(title('lesson_1')) });
   expect(page().getByText('आपकी समीक्षा के लिए तैयार। अनुस्मारक का समय reminder_fixture बदलेगी। साक्ष्य: 1 मद।')).toBeTruthy();
   await fixture.user.click(row);

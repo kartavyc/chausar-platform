@@ -116,3 +116,18 @@ test('the receipt sheet draws the six-part receipt and its every field one press
   await user.click(figure!);
   expect(details.open).toBe(true);
 });
+
+test('a lane place module wins its address and the retained lesson review keeps its own, Reports · Lessons', { timeout: 20000 }, async () => {
+  const { engine } = await mountOnFake();
+  await screen.findByText('Send a payment reminder to Kiran Retail Demo', undefined, { timeout: 5000 });
+  for (const hash of ['#/reports/weekahead', '#/work/approvals']) {
+    const before = engine.calls.length;
+    await act(async () => { window.location.hash = hash; });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 200)); });
+    expect(engine.calls.slice(before)).not.toContain('memory.lessons');
+  }
+  const before = engine.calls.length;
+  await act(async () => { window.location.hash = '#/reports/lessons'; });
+  await waitFor(() => expect(engine.calls.slice(before)).toContain('memory.lessons'), { timeout: 5000 });
+  expect(within(page()).getByRole('heading', { name: 'Lessons' })).toBeTruthy();
+});

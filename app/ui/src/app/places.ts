@@ -52,7 +52,7 @@ const DESKTOP: Record<SevenPlace, ReadonlyArray<SubPlace>> = {
     sub('books', 'history'),
     sub('books', 'memory'),
   ],
-  reports: [sub('reports', 'packs'), sub('reports', 'weekahead'), sub('reports', 'duedates'), sub('reports', 'exports')],
+  reports: [sub('reports', 'packs'), sub('reports', 'weekahead'), sub('reports', 'lessons'), sub('reports', 'duedates'), sub('reports', 'exports')],
   tools: [sub('tools', 'smallapps'), sub('tools', 'plugins'), sub('tools', 'assistants'), sub('tools', 'phone')],
   trust: [
     sub('trust', 'rules'),

@@ -893,17 +893,27 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       ...(!viewer && (context.member.role === 'owner' || context.member.role === 'cofounder') ? { onOpenActivity: () => launchToday(todayCurrent, 'today-record', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.activity(todayCurrent, current)) } : {}),
     } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } },
     sheet, onAddress, onHelp: showHelp,
-    renderPlace: address => retainedSurface(address) !== null
-      ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
-        onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
-        onContinueScenarios={continueScenarios} onPageScenarios={pageScenarios}
-        onProof={openProof} onProvenance={openProvenance} onOpenLesson={(id, rowOrigin, from) => openLesson(id, rowOrigin, from)} legacy={legacyLink} />
-      : placeModuleFor(address) !== null
-      ? placeModuleFor(address)!.render({ address, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
-        rpc: controller.places, live, openReceipt: id => openReceipt(id), navigate: next => onAddress(next) })
-      : address.place === 'trust' && address.sub === 'models' || address.place === 'ask' && (address.sub === undefined || address.sub === 'new')
-      ? <RoutePicker routes={state.routes} selected={state.selectedRouteId} language={language} viewer={viewer} onSelect={chooseRoute} />
-      : <><State state={notBuiltState(address)} />{legacyLink}</>,
+    renderPlace: address => {
+      const retainedNode = retainedSurface(address) !== null
+        ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
+          onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
+          onContinueScenarios={continueScenarios} onPageScenarios={pageScenarios}
+          onProof={openProof} onProvenance={openProvenance} onOpenLesson={(id, rowOrigin, from) => openLesson(id, rowOrigin, from)} legacy={legacyLink} />
+        : null;
+      const module = placeModuleFor(address);
+      // A lane's place module wins its address. The retained lesson review keeps its own address,
+      // Reports, Lessons, so it stays reachable when Week ahead and Approvals belong to lane modules.
+      if (module !== null) {
+        const page = module.render({ address, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
+          rpc: controller.places, live, openReceipt: id => openReceipt(id),
+          navigate: next => { if (!stillAuthorized()) return; if (next === null) { if (active.current !== null) navigate(withoutSheet(active.current)); } else navigate(next); } });
+        return page;
+      }
+      if (retainedNode !== null) return retainedNode;
+      return address.place === 'trust' && address.sub === 'models' || address.place === 'ask' && (address.sub === undefined || address.sub === 'new')
+        ? <RoutePicker routes={state.routes} selected={state.selectedRouteId} language={language} viewer={viewer} onSelect={chooseRoute} />
+        : <><State state={notBuiltState(address)} />{legacyLink}</>;
+    },
   };
   return conversationEnabled && settings !== null
     ? <ConversationWorkspace app={app} conversation={controller.conversation} questionSettings={settings}
