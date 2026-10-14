@@ -19,7 +19,7 @@
 import type { Language } from '../app/presentation.ts';
 import { todayDigest } from './today-engine.ts';
 import type { TodayConfiguration, TodayProducerInput, TodayTilesRequest } from './today-engine.ts';
-import type { IdentityCard, IdentityField } from './todayx-contract.ts';
+import type { DeviceChoices, IdentityCard, IdentityField, RecoveryContact } from './todayx-contract.ts';
 import { IDENTITY_FIELDS } from './todayx-contract.ts';
 import {
   ACTIONS, DEMO_CLOCK, DEMO_OWNER, DEMO_ROUTE, DEMO_SOURCES, DEMO_TIME_ZONE, DEMO_VIEWER, DEMO_WORKSPACE, IMPORT, TILES,
@@ -37,6 +37,8 @@ export type FakeScenario = FakeScenarioName;
 /** The passphrase that opens the fake's locked workspace. Synthetic; never a real secret. */
 export const FAKE_PASSPHRASE = 'synthetic-demo-passphrase';
 export const FAKE_SCENARIOS: readonly FakeScenario[] = ['populated', 'empty', 'first-run', 'locked', 'read-only'];
+/** Served before the vault is open, as the engine serves them to the trusted local desktop. */
+export const FAKE_PRE_VAULT: readonly string[] = ['todayx.identity.check', 'todayx.diskCheck', 'todayx.device.get', 'todayx.device.set', 'todayx.workspaces', 'todayx.recoveryContact.request'];
 
 export interface FakeEngineOptions {
   readonly language?: Language;
@@ -118,6 +120,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const captures = new Map<string, Record<string, unknown>>();
   const todayx: TodayxState = { clock: { mode: 'demo', date, set: false }, jobsPaused: true };
   let identity: IdentityCard | null = null;
+  let device: DeviceChoices = { language: null, view: null, saved: false };
+  let recoveryContact: RecoveryContact | null = null;
   const store = new Map<string, unknown>();
   const calls: string[] = [];
 
@@ -370,6 +374,27 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'todayx.help': () => helpReply(),
     'todayx.faultReport': () => faultReport(date),
     'todayx.phoneMessages': () => phoneMessagesReply(scenario),
+    'todayx.diskCheck': () => ({ disk: 'not-encrypted', platform: 'windows', keyring: 'safe' }),
+    'todayx.device.get': () => device,
+    'todayx.device.set': payload => {
+      const { language, view } = payload;
+      if (Object.keys(payload).length !== 2 || (language !== 'en' && language !== 'hi') || (view !== 'simple' && view !== 'guided' && view !== 'books')) throw fakeRefusal('INVALID_TODAYX_REQUEST', 'Give a language and a view.');
+      device = { language, view, saved: true };
+      return device;
+    },
+    // Folder names only; the locked scenario has two, so the lock screen asks which.
+    'todayx.workspaces': () => ({ folders: scenario === 'locked' ? [{ folder: 'main', main: true }, { folder: 'second-shop', main: false }] : [{ folder: 'main', main: true }] }),
+    'todayx.recoveryContact.get': () => { if (seat.role !== 'owner') throw fakeRefusal('FORBIDDEN', 'Only an owner sees the recovery contact.'); return { contact: recoveryContact, confirmation: 'relay-required' }; },
+    'todayx.recoveryContact.set': payload => {
+      if (seat.role !== 'owner') throw fakeRefusal('FORBIDDEN', 'Only an owner names the recovery contact.');
+      const contact = payload['contact'];
+      if (contact === null) recoveryContact = null;
+      else if (isRecord(contact) && typeof contact['name'] === 'string' && typeof contact['reach'] === 'string' && contact['name'].trim() && contact['reach'].trim() && contact['name'].length <= 100 && contact['reach'].length <= 200) {
+        recoveryContact = { name: contact['name'].trim(), reach: contact['reach'].trim(), savedAt: `${date}T06:00:00.000Z` };
+      } else throw fakeRefusal('RECOVERY_CONTACT_INVALID', 'Give a name and how to reach them.');
+      return { contact: recoveryContact, confirmation: 'relay-required' };
+    },
+    'todayx.recoveryContact.request': () => { throw fakeRefusal('RECOVERY_CONTACT_RELAY_REQUIRED', 'A recovery contact needs the hosted relay, which is not available yet.'); },
   };
 
   async function request(method: string, payload: unknown = {}): Promise<unknown> {
@@ -378,7 +403,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     if (typeof method !== 'string' || !isRecord(payload)) throw fakeRefusal('INVALID_REQUEST', 'A request is a method name and a plain payload.');
     const handler = handlers[method] ?? registry.get(method);
     if (handler === undefined) throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not serve this method yet.');
-    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open') throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
+    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open' && !FAKE_PRE_VAULT.includes(method)) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
     const value = await handler(structuredClone(payload), context());
     return value === undefined ? undefined : structuredClone(value);
   }

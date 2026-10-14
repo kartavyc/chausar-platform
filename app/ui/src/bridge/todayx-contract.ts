@@ -279,11 +279,67 @@ export function isPhoneMessagesReply(v: unknown): v is PhoneMessagesReply {
 }
 
 /** The refusal codes the frame-today engine module uses. */
-export const TODAYX_REFUSALS = ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST'] as const;
+export const TODAYX_REFUSALS = ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST',
+  'RECOVERY_CONTACT_INVALID', 'RECOVERY_CONTACT_RELAY_REQUIRED'] as const;
 export type TodayxRefusal = (typeof TODAYX_REFUSALS)[number];
 
 /** Codes that mean "this method does not exist yet": the screen shows "not built yet". */
 export const NOT_BUILT_CODES: readonly string[] = ['UNKNOWN_METHOD', 'INVALID_REQUEST', 'METHOD_UNAVAILABLE'];
 export function notBuilt(error: unknown): boolean {
   return isRec(error) && typeof error['code'] === 'string' && NOT_BUILT_CODES.includes(error['code']);
+}
+
+/* ------------------------------------------------- this computer, before the vault (round 2) */
+/*
+ * `todayx.diskCheck`, `todayx.device.get`/`.set`, `todayx.workspaces` and
+ * `todayx.recoveryContact.request` (and `todayx.identity.check`) are served before any workspace is
+ * open, to the trusted local desktop only. `todayx.recoveryContact.get`/`.set` need an open vault
+ * and an admin seat.
+ */
+
+export type DiskEncryption = 'encrypted' | 'not-encrypted' | 'unknown';
+export interface DiskCheckReply {
+  readonly disk: DiskEncryption;
+  readonly platform: 'windows' | 'macos' | 'linux' | 'other';
+  /** `none`: Linux with no safe place for a key; the passphrase is asked each time. */
+  readonly keyring: 'safe' | 'none' | 'unknown';
+}
+
+export type DeviceLanguage = 'en' | 'hi';
+export type DeviceView = 'simple' | 'guided' | 'books';
+/** The language and view saved for this computer. `saved: false` means nothing was saved yet. */
+export interface DeviceChoices { readonly language: DeviceLanguage | null; readonly view: DeviceView | null; readonly saved: boolean }
+
+export interface WorkspaceFolder { readonly folder: string; readonly main: boolean }
+/** Folder names only: nothing is decrypted, so no workspace name is known while locked. */
+export interface WorkspaceFoldersReply { readonly folders: readonly WorkspaceFolder[] }
+
+export interface RecoveryContact { readonly name: string; readonly reach: string; readonly savedAt: string }
+export interface RecoveryContactReply { readonly contact: RecoveryContact | null; readonly confirmation: 'relay-required' }
+
+export function isDiskCheckReply(v: unknown): v is DiskCheckReply {
+  return isRec(v) && Object.keys(v).length === 3 && oneOf(['encrypted', 'not-encrypted', 'unknown'] as const)(v['disk'])
+    && oneOf(['windows', 'macos', 'linux', 'other'] as const)(v['platform']) && oneOf(['safe', 'none', 'unknown'] as const)(v['keyring']);
+}
+
+export function isDeviceChoices(v: unknown): v is DeviceChoices {
+  if (!isRec(v) || Object.keys(v).length !== 3 || typeof v['saved'] !== 'boolean') return false;
+  const language = v['language'], view = v['view'];
+  if (v['saved'] === false) return language === null && view === null;
+  return oneOf(['en', 'hi'] as const)(language) && oneOf(['simple', 'guided', 'books'] as const)(view);
+}
+
+const FOLDER_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+export function isWorkspaceFoldersReply(v: unknown): v is WorkspaceFoldersReply {
+  if (!isRec(v) || !Array.isArray(v['folders']) || v['folders'].length > 50) return false;
+  const names = new Set<string>();
+  return v['folders'].every(f => isRec(f) && isStr(f['folder']) && FOLDER_NAME.test(f['folder']) && typeof f['main'] === 'boolean'
+    && f['main'] === (f['folder'] === 'main') && !names.has(f['folder']) && names.add(f['folder']) !== undefined);
+}
+
+const oneLine = (v: unknown, maximum: number): v is string => isStr(v) && v.length > 0 && v.length <= maximum && !/[\u0000-\u001f\u007f]/.test(v);
+export function isRecoveryContactReply(v: unknown): v is RecoveryContactReply {
+  if (!isRec(v) || v['confirmation'] !== 'relay-required') return false;
+  const c = v['contact'];
+  return c === null || (isRec(c) && oneLine(c['name'], 100) && oneLine(c['reach'], 200) && isIsoDate(c['savedAt']));
 }

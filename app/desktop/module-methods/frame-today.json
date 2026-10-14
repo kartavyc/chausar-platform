@@ -15,5 +15,12 @@
   "todayx.setupChecklist",
   "todayx.help",
   "todayx.faultReport",
-  "todayx.phoneMessages"
+  "todayx.phoneMessages",
+  "todayx.diskCheck",
+  "todayx.device.get",
+  "todayx.device.set",
+  "todayx.workspaces",
+  "todayx.recoveryContact.get",
+  "todayx.recoveryContact.set",
+  "todayx.recoveryContact.request"
 ]

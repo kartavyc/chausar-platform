@@ -52,15 +52,15 @@ Every feature below is labelled **supported** (tested end to end in the app on s
 
 | Step | Engine methods | Label |
 |---|---|---|
-| FR-01 Welcome | none (language and view held in memory) | supported |
-| FR-02 Identity card and GST mode | `todayx.identity.check`, `todayx.identity.save` (after the vault) | supported |
-| FR-03 Vault, FR-04 recovery kit | `workspace.create` (via the host controller), recovery acknowledgement | supported |
+| FR-01 Welcome | `todayx.workspaces` (folders first, when the host passes `onOpenFolder`); language and view held in memory, saved with `todayx.device.set` once the vault exists | supported |
+| FR-02 Identity card and GST mode | `todayx.identity.check` (before the vault), `todayx.identity.save` (after it) | supported |
+| FR-03 Vault, FR-04 recovery kit | `todayx.diskCheck`, `workspace.create` (via the host controller), recovery acknowledgement | supported (disk check: experimental on real machines, see round 2) |
 | FR-05 AI model | `models.list`, `models.configure` | supported for listing and the CLI/local rows; API key rows experimental (key passes once to `models.configure`) |
-| FR-07 Bring a file | `sources.preview`/`sources.import`, `sources.workbookPreview`/`sources.workbookImport` | supported for CSV and Excel; PDF and passwords not built |
+| FR-07 Bring a file | `sources.preview`/`sources.import`, `sources.workbookPreview`/`sources.workbookImport`; PDFs through connectors-ext `imports.*` | supported for CSV and Excel; PDF experimental (offered only when `imports.readerStatus` answers); encrypted workbooks: password needed, not built |
 | FR-06/FR-08 Meanings | `ontology.packs`, `ontology.get`, `ontology.publish` (existing slice, embedded) | supported |
 | FR-09 First answer | `ontology.get`, `calculation.run`, `receipts.get` | supported |
 | FR-12 Setup checklist | `todayx.setupChecklist` | supported |
-| FR-13 Open with the recovery kit | `workspace.recover`, `workspace.restore` | experimental (backup picking needs the shell) |
+| FR-13 Open with the recovery kit | `workspace.recover`, `workspace.restore`, `todayx.recoveryContact.request` | experimental (backup picking needs the shell; the recovery contact refuses until the hosted relay exists) |
 | FR-11 An idea | none | not built (shows "not built yet") |
 
 The real engine reads a file only after meanings are published (`DICTIONARY_REQUIRED`), so the journey holds the picked file, goes to Meanings with a line saying so, and reads it right after publication.
@@ -113,13 +113,40 @@ Last run (582 states): 18 findings, 9 distinct, all of one rule: words at rest a
 
 Reply shapes and validators: `app/ui/src/bridge/todayx-contract.ts`. Refusals: `DEMO_CLOCK_REAL_WORKSPACE`, `DEMO_CLOCK_ALREADY_SET`, `DEMO_CLOCK_NOT_SET`, `IDENTITY_INVALID`, `FAULT_REPORT_UNAVAILABLE`, `INVALID_TODAYX_REQUEST`.
 
+## Round 2: this computer, before the vault
+
+The engine's `preVault` seam (`MethodSpec.preVault`) lets the trusted local desktop call a module method before any workspace is open; no member is authorized then and `host.store` throws. Any other caller (phone, MCP, a tainted context) is refused with `OPEN_DESKTOP`. Once a vault is open the same methods are authorized normally.
+
+| Method | Permission | preVault | What it does | Label |
+|---|---|---|---|---|
+| `todayx.identity.check` | read | yes | FR-02 format checks now answer before the vault exists | supported |
+| `todayx.diskCheck` | read | yes | `{ disk: 'encrypted' \| 'not-encrypted' \| 'unknown', platform, keyring: 'safe' \| 'none' \| 'unknown' }` for the data directory's disk. Read-only tools behind an injectable probe, no shell, a fixed argument list, a 4 s timeout and a small fixed environment: Windows `Get-BitLockerVolume` (untranslated enum) then `manage-bde -status X:` (English only), macOS `fdesetup status`, Linux `lsblk -J -s -o TYPE,MOUNTPOINT` (the longest mount holding the directory, encrypted when it is or sits on a `crypt` device). Any failure, timeout, non-zero exit or wording not recognised is `unknown`. Keyring: Windows and macOS `safe`; Linux `none` with no session bus, else `unknown` | supported for the mapping (fake probe); experimental on real machines (BitLocker usually needs elevation, so Windows mostly reads `unknown`) |
+| `todayx.device.get` / `.set` | read | yes | The language (`en`/`hi`) and view (`simple`/`guided`/`books`) for this computer, in `frame-today-device.json` under the engine directory: `{ format, language, view }`, strictly validated, written to a private temporary file, flushed, then renamed. A missing, oversized, linked or malformed file reads as `{ saved: false }`. Never workspace data | supported |
+| `todayx.workspaces` | read | yes | `{ folders: [{ folder, main }] }`: the workspace folders under the engine directory, main first, at most 50. A folder counts when it is a plain directory (not a link) with a valid name, not `backups`/`exports`/`updates`, holding only what a workspace keeps (`authority.encrypted.json`, `writer.lock`, `private-artifacts`, temporary dot files; with PostgreSQL storage the folder may be empty). Names only: nothing is opened or decrypted | supported |
+| `todayx.recoveryContact.get` / `.set` | admin | no | The recovery contact `{ name ≤ 100, reach ≤ 200, savedAt }` (one line each), or `{ contact: null }` to remove. Personal data about someone else: kept only in the frame module's namespace of the encrypted workspace; never in an error, audit detail, fault report or the device file (tested). Reply carries `confirmation: 'relay-required'` | supported |
+| `todayx.recoveryContact.request` | admin | yes | Always refuses `RECOVERY_CONTACT_RELAY_REQUIRED` | supported (as a refusal) |
+
+New refusals (`TODAYX_REFUSALS` and the frame-today `laneRefusals` line): `RECOVERY_CONTACT_INVALID`, `RECOVERY_CONTACT_RELAY_REQUIRED`.
+
+**Boundary: the recovery contact needs the hosted relay.** A contact confirms a recovery through the hosted relay (hosted-link lane), which is written but not deployed. Until a relay method exists, `todayx.recoveryContact.request` refuses with `RECOVERY_CONTACT_RELAY_REQUIRED` and nothing is sent; FR-13 and the lock screen say "Your recovery contact cannot confirm yet. That needs the Chausar relay, which is not running yet. Use your recovery kit." When hosted-link ships a confirmation method, this handler calls it as the same caller and the refusal goes away.
+
+**Screens.**
+- FR-01: with `onOpenFolder`, the folders come first as "Open <folder>" (the host draws its lock screen for that folder). The language and view stay in memory before the vault (FR-01 rule) and are written with `todayx.device.set` once the vault exists, and again on change while it is open.
+- FR-03: the disk result line (BitLocker, FileVault or disk encryption named by platform; "could not be checked" when unknown), the keyring line on Linux with no safe keyring, and the honest line under it.
+- FR-13: "Ask recovery contact" with the refusal words (`AskRecoveryContact`).
+- `screens/first-run/ThisComputer.tsx` exports `LockFolderChoice` (lock screen), `AskRecoveryContact` (lock screen, FR-13) and `RecoveryContactSettings` (for Trust · Vault; words in the shared catalogue under `SH-02.*`, so it draws under any place's text provider). Helpers in `this-computer.ts` (`readDeviceChoices`, `saveDeviceChoices`, `readWorkspaceFolders`, ...).
+- FR-07 PDFs (`PdfStatement.tsx`): offered only when `imports.readerStatus` answers (connectors-ext). The reader not installed (size, Install, failure code), password needed with one uncontrolled field read once and emptied at once, its value passed straight to `imports.providePassword` and never put in state or storage, wrong password without a count, the lines read, opening and closing balance and the check, refused whole (picture only, cut short, filtered, does not add up), then `imports.commit`. **Experimental**: built against the agreed contract and a typed fixture (`bridge/fixtures/imports.ts`, registered with `registerFakeMethods('imports', importsFixture())`), not against connectors-ext's real methods. Their refusal codes (`PASSWORD_REQUIRED`, `WRONG_PASSWORD`, `PICTURE_ONLY`, `CUT_SHORT`, `FILTERED`, `DOES_NOT_ADD_UP`, `READER_NOT_INSTALLED`) must be on connectors-ext's `laneRefusals` line to reach the screen over the desktop bridge.
+- FR-07 sheets: the engine has no password path for workbooks (`readWorkbook` refuses encrypted Office files and `ENCRYPTED_ZIP`). An encrypted workbook (recognised by its OLE header before anything is sent, or `ENCRYPTED_ZIP`) shows "This file needs its password" with the not-built words and "Save a copy of the file without its password, then bring that copy." No field is drawn. The old call to the non-existent `imports.providePassword` on a `PASSWORD_REQUIRED` sheet refusal is gone.
+
+The fake engine serves every new method; `FAKE_PRE_VAULT` lists those served while locked (the locked scenario has two folders).
+
 ## What is still missing
 
 - **Not served from real state** (the engine has no record behind them yet): banners driving, no connection, sending closed and update needed; worth-a-look rows approval expired, update ready, moved, due soon and brief late; activity types lesson decided, backup done, update checked, lock and unlock. The screens draw them as soon as the engine sends them.
-- **Engine methods the design names that do not exist:** `vault.diskCheck`, PIN quick unlock, `shell.print`, `shell.openExternal`, `shell.setLanguage`/`setView` (kept in host memory), `models.setLadder`, `models.localList`, a workspace list while locked, `imports.providePassword`, the PDF reader, `dictionary.proposals`, the FR-11 idea conversation, the recovery contact, device unlock.
-- `todayx.identity.check` needs an open vault (the engine authorizes before any module method), so FR-02 checks formats only after the vault exists; before it, typed values are kept and checked at save.
+- **Engine methods the design names that do not exist:** PIN quick unlock, `shell.print`, `shell.openExternal`, `models.setLadder`, `models.localList`, `dictionary.proposals`, the FR-11 idea conversation, device unlock. (`vault.diskCheck`, `shell.setLanguage`/`setView`, a workspace list while locked and the recovery contact are now `todayx.*`, see round 2; `imports.providePassword` and the PDF reader belong to connectors-ext.)
 - The receipt's small print beyond the source names and id (question, recipe, meaning, rate, forecast, number guard, allowed by, route) is not in the engine's receipt yet.
 - Activity times are drawn in Asia/Kolkata; neither the reply nor `ui.context` carries the workspace time zone.
 - Not built: the daily closing row on Today, cash by voice, grouped approval stepping (WK-03 lives with work-books), PH-04 and PH-05.
 - No pixel comparison against the reference pictures, no screen-reader pass, no axe run; the Hindi text needs a native reader.
 - The final Electron package config (`app/desktop/builder.json`, release lane) must include `app/ui/host`, `app/ui/public` and `app/ui/assets/fonts`, as the preview config already does; `scripts/desktop-launch.mjs` (release lane) does not yet accept `--legacy-renderer`.
+- Round 2: the host still has to wire the device choices at start, the folder choice on the lock screen and `onOpenFolder` (instructions in the round-2 hand-off; `bootstrap.tsx` was not edited). Trust · Vault (reports-tools-trust) has to place `RecoveryContactSettings`. The recovery contact cannot confirm anything until the hosted relay is deployed. The disk check is not tested on real Windows, macOS or Linux disks.
