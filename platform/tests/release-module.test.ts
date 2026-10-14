@@ -27,6 +27,7 @@ test('release.status reports an unconfigured update channel without failing', as
   assert.equal(status.configured, false);
   assert.equal(status.version, '0.1.0-preview.1');
   assert.equal(status.dataSchema, null);
+  assert.equal(status.vaultCompatible, true);
   await assert.rejects(engine.request('release.applyUpdate', { confirmed: true }), code('UPDATES_UNAVAILABLE'));
 });
 
@@ -100,4 +101,13 @@ test('the bundled database status reports a missing runtime as a state, not a cr
   const status = await engine.request('native.databaseStatus');
   assert.ok(['absent', 'unavailable'].includes(status.state), status.state);
   assert.equal(status.port, null);
+});
+
+test('an older app reports a vault written by a newer one as incompatible', async t => {
+  const { engine, directory } = await fixture(t);
+  const { DataGuard } = await import('../runtime/native/update-data-guard.ts');
+  await new DataGuard({ appDataDirectory: join(directory, 'data') }).recordSchema(2, '0.2.0');
+  const status = await engine.request('release.status');
+  assert.equal(status.vaultCompatible, false);
+  assert.equal(status.dataSchema.dataSchemaVersion, 2);
 });

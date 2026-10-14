@@ -90,11 +90,13 @@ export const releaseModule: EngineModule = {
   methods: {
     'release.status': { permission: 'read', async handler(_ctx, _payload, host) {
       const o = await options(host), version = await engineVersion(host);
-      if (!o.releasePublicKey) {
-        const data = await new DataGuard({ appDataDirectory: host.directory }).marker();
-        return { version, channel: channelOf(o), configured: false, demo: host.demo, dataSchema: data };
-      }
-      return { configured: true, ...await (await updateService(host)).status() };
+      // An older app never opens data a newer one wrote: the marker check here, and vault.ts refuses a
+      // snapshot schema it does not know. `vaultCompatible: false` drives the "update needed" banner.
+      const guard = new DataGuard({ appDataDirectory: host.directory });
+      const vaultCompatible = await guard.assertAppCanOpen(o.dataSchemaVersion ?? 1).then(() => true, (error: any) => {
+        if (error?.code === 'VAULT_NEWER_THAN_APP') return false; throw error; });
+      if (!o.releasePublicKey) return { version, channel: channelOf(o), configured: false, demo: host.demo, dataSchema: await guard.marker(), vaultCompatible };
+      return { configured: true, vaultCompatible, ...await (await updateService(host)).status() };
     } },
     'release.checkUpdate': { permission: 'admin', external: true, async handler(ctx, _payload, host) {
       writer(ctx); return (await updateService(host)).check();

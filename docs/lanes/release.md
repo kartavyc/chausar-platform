@@ -15,7 +15,7 @@ Installers, the bundled database, the updater, native pieces and the enterprise 
 
 | Method | Permission | What it does |
 |---|---|---|
-| `release.status` | read | Version, channel, build expiry (`build.usable`, `build.updateNeeded`), last accepted feed, install pointer, data-schema marker, staged candidate. `configured: false` when no release key is set. |
+| `release.status` | read | Version, channel, build expiry (`build.usable`, `build.updateNeeded`), last accepted feed, install pointer, data-schema marker, `vaultCompatible` (false when a newer app wrote the data), staged candidate. `configured: false` when no release key is set. |
 | `release.checkUpdate` | admin, external | Fetches and verifies the signed channel and manifest. Returns `none`, `update` (with rollout, size, install mode, whether a vault copy is needed) or `rollback-advised`. |
 | `release.stageUpdate` | admin, external | `confirmed: true` required. Downloads and verifies the artifact; never installs or runs it. |
 | `release.applyUpdate` | admin | `confirmed: true` required. Makes a vault copy (`workspace.backup`), checks the data guard, swaps atomically, leaves the new version on trial. |
@@ -76,7 +76,7 @@ All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that rea
 ## Still missing
 
 - Nothing has run on a real Windows, macOS or Linux machine: no installer, keychain store, service manager, PostgreSQL binary or power-loss test.
-- `app/desktop/main.cjs` (frame-today) still starts PostgreSQL through `scripts/postgres-runtime.mjs`, reads only `--background`, and does not pass `modules.release` options or call `resolveLaunch` before start. Wiring `BundledPostgres`, `--data-dir` and the release options there is a merge step for the coordinator.
+- Desktop wiring: the module reads its trusted options from the engine worker's own environment (`CHAUSAR_UPDATE_PUBLIC_KEY`, `CHAUSAR_UPDATE_FEED_URL`, `CHAUSAR_KEYCHAIN_MANIFEST` → resources path, `CHAUSAR_APP_EXECUTABLE` or the packaged Electron executable) and the package's `chausarReleaseChannel`/`chausarPreviewExpiresAt` (stamped by `scripts/desktop-package.mjs`, 90 days). `app/desktop/main.cjs` (frame-today) still starts PostgreSQL through `scripts/postgres-runtime.mjs`; `native.databaseStatus` reads the same `userData/database` cluster, but switching the start-up to `BundledPostgres` (crash recovery and upgrade at launch) is a merge step in `main.cjs`. Nothing calls `resolveLaunch` before start yet: the in-place swap needs a small launcher stub in front of `versions/<version>/`, which is not built, so the automatic trial rollback is tested but not reachable from an installed app.
 - The enterprise server needs a core change to reach a PostgreSQL on another host with TLS (`postgres.ts` accepts loopback only); sessions are in memory, so one process only; keychain unlock does not work in a container.
 - `scripts/check.mjs` skips folders named `release`, so `scripts/release/*` is syntax-checked only through the tests and typecheck.
 - Zip artifacts on Linux need an unpacker other than GNU tar.
