@@ -8,7 +8,9 @@ import { Choice } from '../../parts/Choice';
 import { Section, Note, Refusal, Actions, Button } from '../work/kit/Page';
 import { useAct, useReply } from '../work/kit/reply.ts';
 import { day } from '../work/kit/format.ts';
-import { conflictsReply, holdingsReply, matchPair, matchesReply, precedence, recordView, searchReply } from './contract.ts';
+import { conflictsReply, deletionPlanReply, deletionReport, holdingsReply, matchPair, matchesReply, precedence, recordView, searchReply } from './contract.ts';
+import { useMoreWords } from './words-more.ts';
+import type { DeletionReport } from './contract.ts';
 import { BooksPage, BooksSheet, Link, Money, Recorded, Table, approves, fill, idOf, isOwner, sheetOf, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
 
 type Kind = 'all' | 'customer' | 'supplier' | 'item';
@@ -119,8 +121,59 @@ function Holdings({ props, id }: { props: BooksProps; id: string }) {
         <Table view={props.view} caption={w.holdings} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true, simple: true }]}
           rows={value.stores.map(h => ({ key: h.store, cells: [h.store, String(h.count)] }))} />
       ))}
-      {value && !props.viewer && <Note>{fill(w.notBuiltNamed, { what: w.deleteRequest })}</Note>}
+      {value && approves(props) && <DeleteFlow props={props} id={id} />}
     </Section>
+  );
+}
+
+/**
+ * BK-20 Delete: what each store will do, the customer id typed to confirm (deleting always
+ * waits for a person), then the report per store. Stores the lane cannot empty say who can.
+ */
+function DeleteFlow({ props, id }: { props: BooksProps; id: string }) {
+  const w = useWords(props.language); const m = useMoreWords(props.language);
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [report, setReport] = useState<DeletionReport | null>(null);
+  const act = useAct(props.rpc);
+  if (!open) return <Actions><Button danger onClick={() => setOpen(true)}>{m['del.start']}</Button></Actions>;
+  if (report) return (
+    <div className={s.stack} data-deletion-report={report.id}>
+      <h3>{m['del.report']}</h3>
+      <p className={report.complete ? s.note : s.amber}>{report.complete ? m['del.complete'] : m['del.partial']}</p>
+      <Table view={props.view} caption={m['del.report']} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true }, { head: m['del.col.state'], simple: true }, { head: m['del.col.reason'] }]}
+        rows={report.rows.map(r => ({ key: r.store, cells: [r.store, String(r.count), <span data-state={r.state}>{m[r.state === 'nothing-held' ? 'del.nothing-held.done' : `del.${r.state}` as const]}</span>, r.reason ?? ''] }))} />
+    </div>
+  );
+  return <DeletePlan props={props} id={id} typed={typed} setTyped={setTyped} busy={act.busy} refusal={act.refusal} onCancel={() => setOpen(false)}
+    onDelete={async () => { const outcome = await act.run('records.delete', { id, confirmation: typed }, deletionReport); if (outcome.ok) setReport(outcome.value); }} />;
+}
+
+function DeletePlan({ props, id, typed, setTyped, busy, refusal, onCancel, onDelete }: {
+  props: BooksProps; id: string; typed: string; setTyped: (v: string) => void; busy: boolean; refusal: string | null; onCancel: () => void; onDelete: () => Promise<void>;
+}) {
+  const w = useWords(props.language); const m = useMoreWords(props.language);
+  const { loaded, reload } = useReply(props, 'records.deletionPlan', { id }, deletionPlanReply, id);
+  const plan = valueOf(loaded);
+  if (loaded.phase === 'refused') return loaded.state.kind === 'not-built' ? <Note>{fill(w.notBuiltNamed, { what: w.deleteRequest })}</Note>
+    : <span className={s.inline}><Refusal code={loaded.code} language={props.language} /><Button variant="link" onClick={reload}>{w.retry}</Button></span>;
+  if (!plan) return <Note>{w.reading}</Note>;
+  return (
+    <div className={s.stack} data-deletion-plan>
+      <h3>{m['del.plan']}</h3>
+      <Table view={props.view} caption={m['del.plan']} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true }, { head: m['del.col.state'], simple: true }, { head: m['del.col.reason'] }]}
+        rows={plan.stores.map(r => ({ key: r.store, cells: [r.store, String(r.count), <span data-state={r.state}>{m[`del.${r.state}`]}</span>, r.reason ?? ''] }))} />
+      {!plan.canDelete && plan.stores.some(r => r.state === 'needs-owner') && <p className={s.amber}>{m['del.notAvailable']}</p>}
+      {plan.stores.some(r => r.state === 'needs-owner') && plan.sourceDeletion.available && <Note>{m['del.sourceDeletion']}</Note>}
+      {plan.canDelete && (
+        <form className={s.form} aria-label={m['del.start']} onSubmit={(e: FormEvent) => { e.preventDefault(); if (typed === id) void onDelete(); }}>
+          <Note>{m['del.waits']}</Note>
+          <Field label={fill(m['del.type'], { id })} value={typed} onChange={e => setTyped(e.target.value)} autoComplete="off" />
+          <Actions><Button danger submit disabled={typed !== id || busy}>{m['del.confirm']}</Button><Button variant="link" onClick={onCancel}>{m['del.cancel']}</Button></Actions>
+        </form>
+      )}
+      <Refusal code={refusal} language={props.language} />
+    </div>
   );
 }
 

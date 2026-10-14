@@ -12,6 +12,8 @@ import { CanDoPage } from './CanDo.tsx';
 import { JobsPage } from './Jobs.tsx';
 import { AfterRestorePage } from './AfterRestore.tsx';
 import { DrivingPage } from './Driving.tsx';
+import { BillPhotoBody } from '../books/BillPhoto.tsx';
+import { kitWords } from './kit/words.ts';
 
 const isSub = (value: string): value is WorkSub => (SUBS as readonly string[]).includes(value);
 
@@ -31,6 +33,8 @@ function WorkPlace(props: PlaceRenderProps) {
     case 'cando': return <CanDoPage p={p} />;
     case 'after-restore': return <AfterRestorePage p={p} />;
     case 'driving': return <DrivingPage p={p} />;
+    // WK-13: the same reading and form as BK-18, reached from Work.
+    case 'bill': return <Page place="work" sub="bill" subs={SUBS} title={kitWords(props.language)['sub.bill']} language={props.language} navigate={props.navigate}><BillPhotoBody props={props} /></Page>;
   }
 }
 

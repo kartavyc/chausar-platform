@@ -24,7 +24,7 @@ export const JOB_CAN = ['pause', 'resume', 'cancel', 'accept', 'reject', 'approv
 
 const rowShape = {
   id,
-  source: oneOf(['action', 'job', 'release', 'lesson', 'acceptance', 'writeback'] as const),
+  source: oneOf(['action', 'job', 'release', 'lesson', 'acceptance', 'writeback', 'bill'] as const),
   kind: oneOf(['message', 'record-change', 'money', 'prepare-only', 'job', 'group'] as const),
   tier: oneOf(TIERS),
   title: short,

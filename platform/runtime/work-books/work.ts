@@ -12,6 +12,7 @@ import type { MethodSpec, EngineModule, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
 import { workJobMethods, jobMeters } from './work-jobs.ts';
 import { jobSheetExtras } from './work-jobs-sheet.ts';
+import { approveBill, dropBill } from './books-bill.ts';
 import { section, peekSection } from './state.ts';
 import {
   initWork, normalizeWork, env, queue, order, rowOf, snoozed, expired, detail, drafts, lessons, visibleActions, visibleJobs, jobNeedsApproval, jobCard,
@@ -84,6 +85,7 @@ async function approveOne(ctx: Context, host: ModuleHost, payload: { id: string;
     await host.call('jobs.accept', { id: raw, reference: acceptanceReference(e, job) });
   }
   else if (source === 'release') await host.call('books.publish', { draftId: raw, digest: payload.digest });
+  else if (source === 'bill') await approveBill(ctx, host, raw, payload.digest);
   else await host.call('memory.decideLesson', lessonDecision(e, raw, 'approve'));
   await recordPace(host, ctx, payload.id, source === 'action' || source === 'writeback' ? raw : null);
   try { return await fullDetail(await env(ctx, host), payload.id); }
@@ -197,6 +199,7 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     else if (source === 'job') await host.call('jobs.cancel', { id: raw });
     else if (source === 'acceptance') await host.call('jobs.reject', { id: raw, reason: SENT_BACK }); // sends the result back; the job stays, paused
     else if (source === 'release') await host.call('books.discard', { draftId: raw });
+    else if (source === 'bill') await dropBill(ctx, host, raw);
     else await host.call('memory.decideLesson', lessonDecision(e, raw, 'reject'));
     await update(host, work => { for (const s of Object.values(work.snoozes)) delete s[id]; });
     return { id, state: source === 'acceptance' ? 'rejected' as const : 'cancelled' as const };

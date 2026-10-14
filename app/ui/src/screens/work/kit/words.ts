@@ -10,7 +10,7 @@ import type { MissingWord } from './validate.ts';
 const KIT = {
   en: {
     work: 'Work', books: 'Books',
-    'sub.approvals': 'Approvals', 'sub.jobs': 'Jobs', 'sub.actions': 'Actions', 'sub.cando': 'What it can do', 'sub.after-restore': 'After a restore', 'sub.driving': 'Chausar is driving',
+    'sub.approvals': 'Approvals', 'sub.jobs': 'Jobs', 'sub.actions': 'Actions', 'sub.cando': 'What it can do', 'sub.after-restore': 'After a restore', 'sub.driving': 'Chausar is driving', 'sub.bill': 'A bill photo to an entry',
     'sub.sources': 'Sources', 'sub.unmapped': 'Fields no recipe covers', 'sub.meanings': 'Meanings', 'sub.packs': 'Starter packs', 'sub.accounts': 'Accounts',
     'sub.customers': 'Customers and suppliers', 'sub.matches': 'Same customer or not', 'sub.conflicts': 'Sources that disagree',
     'sub.history': 'History', 'sub.stale': 'Stale answers', 'sub.memory': 'Memory',
@@ -22,7 +22,7 @@ const KIT = {
   },
   hi: {
     work: 'काम', books: 'बही',
-    'sub.approvals': 'मंज़ूरियाँ', 'sub.jobs': 'जॉब', 'sub.actions': 'कार्रवाइयाँ', 'sub.cando': 'यह क्या कर सकता है', 'sub.after-restore': 'बैकअप लौटाने के बाद', 'sub.driving': 'चौसर चला रहा है',
+    'sub.approvals': 'मंज़ूरियाँ', 'sub.jobs': 'जॉब', 'sub.actions': 'कार्रवाइयाँ', 'sub.cando': 'यह क्या कर सकता है', 'sub.after-restore': 'बैकअप लौटाने के बाद', 'sub.driving': 'चौसर चला रहा है', 'sub.bill': 'बिल की फ़ोटो से एंट्री',
     'sub.sources': 'स्रोत', 'sub.unmapped': 'वे फ़ील्ड जिन्हें कोई रेसिपी नहीं ढकती', 'sub.meanings': 'अर्थ', 'sub.packs': 'स्टार्टर पैक', 'sub.accounts': 'खाते',
     'sub.customers': 'ग्राहक और सप्लायर', 'sub.matches': 'एक ही ग्राहक या नहीं', 'sub.conflicts': 'स्रोत जो असहमत हैं',
     'sub.history': 'इतिहास', 'sub.stale': 'पुराने जवाब', 'sub.memory': 'याद',
