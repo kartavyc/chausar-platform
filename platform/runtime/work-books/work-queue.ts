@@ -5,6 +5,7 @@
  */
 import { check } from '../contracts.ts';
 import type { Context, State } from '../contracts.ts';
+import { digest } from '../actions.ts';
 import type { PreparedAction, Operation } from '../actions.ts';
 import type { Job } from '../jobs.ts';
 import type { ModuleHost } from '../modules/types.ts';
@@ -60,8 +61,18 @@ export type WorkState = {
   channels: Record<string, 'desktop' | 'phone' | 'mcp'>;     // actionId -> channel it was approved through
   revisedAt: Record<string, string>;                         // actionId -> last "prepared again"
   wanted: { id: string; system: string; text: string; at: string; by: string }[];
+  executing: Record<string, { at: number; token: string }>;  // actionId -> execution reservation held while ActionService.execute runs
 };
-export const initWork = (): WorkState => ({ snoozes: {}, opened: {}, pace: [], attestations: {}, channels: {}, revisedAt: {}, wanted: [] });
+export const initWork = (): WorkState => ({ snoozes: {}, opened: {}, pace: [], attestations: {}, channels: {}, revisedAt: {}, wanted: [], executing: {} });
+/** The pace and opened-sheet logs are bounded so they cannot grow without limit. */
+export const LOG_KEEP = 200;
+export function boundLogs(work: WorkState): number {
+  let removed = 0;
+  if (work.pace.length > LOG_KEEP) { removed += work.pace.length - LOG_KEEP; work.pace = work.pace.slice(-LOG_KEEP); }
+  const opened = Object.entries(work.opened);
+  if (opened.length > LOG_KEEP) for (const [k] of opened.sort((a, b) => a[1] - b[1]).slice(0, opened.length - LOG_KEEP)) { delete work.opened[k]; removed += 1; }
+  return removed;
+}
 export function normalizeWork(value: WorkState): WorkState { const base = initWork(); for (const key of Object.keys(base) as (keyof WorkState)[]) if (!Object.hasOwn(value, key)) (value as any)[key] = base[key]; return value; }
 export const readWork = (state: State): WorkState => normalizeWork(structuredClone(peekSection<WorkState>(state, 'work') ?? initWork()));
 
@@ -177,26 +188,38 @@ function expiresAt(e: Env, action: PreparedAction): string {
 export const expired = (e: Env, row: ApprovalRow) => row.state === 'prepared' && row.expiresAt !== null && Date.parse(row.expiresAt) <= e.now;
 
 const ACTION_KIND: Record<Operation['impact'], ApprovalRow['kind']> = { message: 'message', money: 'money', destructive: 'record-change', reversible: 'record-change' };
+type Entry = (CatalogueEntry & { reversal: string | null }) | undefined;
+/** The catalogue row (core or writeback) says this operation always waits. */
+const catalogueWaits = (entry: Entry) => entry !== undefined && (['cannot-undo', 'money', 'seen-outside'].includes(entry.kind) || entry.tier === 'tier-2');
+/** The stronger of the core impact and the catalogue row: tier-2 when either says the action always waits. */
+export function actionTier(e: Env, action: PreparedAction): 'tier-1' | 'tier-2' {
+  return action.impact === 'reversible' && !catalogueWaits(e.catalogue.entries.get(key(action.connector, action.operation))) ? 'tier-1' : 'tier-2';
+}
+function actionKind(action: PreparedAction, entry: Entry): ApprovalRow['kind'] {
+  if (action.impact !== 'reversible') return ACTION_KIND[action.impact];
+  return entry?.kind === 'money' ? 'money' : entry?.kind === 'seen-outside' ? 'message' : 'record-change';
+}
 const TARGET_FIELDS = ['to', 'recipient', 'customerName', 'customerId', 'supplierId', 'invoiceId', 'recordId', 'target'];
-function actionRow(e: Env, action: PreparedAction): ApprovalRow & { entry: (CatalogueEntry & { reversal: string | null }) | undefined } {
+function actionRow(e: Env, action: PreparedAction): ApprovalRow & { entry: Entry } {
   const entry = e.catalogue.entries.get(key(action.connector, action.operation));
-  const prepareOnly = entry?.status === 'prepare-only';
+  const prepareOnly = entry?.status === 'prepare-only'; const kind = actionKind(action, entry);
+  const amount = minorAmount(action.payload.amountMinor);
   const target = TARGET_FIELDS.map(f => action.payload[f]).find(v => text(v));
   const system = entry?.systemTitle ?? action.connector;
   const name = memberName(e.state, action.createdBy);
   return {
-    id: `action:${action.id}`, source: 'action', kind: prepareOnly ? 'prepare-only' : ACTION_KIND[action.impact],
-    tier: prepareOnly ? 'prepare-only' : action.impact === 'reversible' ? 'tier-1' : 'tier-2',
+    id: `action:${action.id}`, source: 'action', kind: prepareOnly ? 'prepare-only' : kind,
+    tier: prepareOnly ? 'prepare-only' : actionTier(e, action),
     title: entry?.title ?? `${action.connector} ${action.operation}`, touches: target ? `${system}: ${target}` : system,
-    amount: minorAmount(action.payload.amountMinor), preparedBy: name ? { kind: 'person', name } : { kind: 'chausar', name: 'Chausar' },
+    amount: amount ?? (kind === 'money' ? { missing: 'unknown' } : null), preparedBy: name ? { kind: 'person', name } : { kind: 'chausar', name: 'Chausar' },
     createdAt: action.createdAt, expiresAt: expiresAt(e, action), state: action.status, practice: false, entry,
   };
 }
-function actionRule(action: PreparedAction, entry: CatalogueEntry | undefined): string {
-  if (action.impact === 'money') return 'always-waits:money';
-  if (action.impact === 'message') return 'always-waits:message';
+function actionRule(action: PreparedAction, entry: Entry): string {
+  if (action.impact === 'money' || (action.impact === 'reversible' && entry?.kind === 'money')) return 'always-waits:money';
+  if (action.impact === 'message' || (action.impact === 'reversible' && entry?.kind === 'seen-outside')) return 'always-waits:message';
   if (action.impact === 'destructive') return entry?.kind === 'cannot-undo' && !/delete|remove/i.test(action.operation) ? 'always-waits:irreversible' : 'always-waits:delete';
-  return entry?.kind === 'cannot-undo' ? 'always-waits:irreversible' : 'autonomy-off';
+  return catalogueWaits(entry) ? 'always-waits:irreversible' : 'autonomy-off';
 }
 export function actionSteps(action: PreparedAction, isExpired: boolean): Step[] {
   const attempt = action.attempts[0]; const approved: [StepState, string | null] = action.approval ? ['done', action.approval.at] : ['not-reached', null];
@@ -250,7 +273,7 @@ export function actionDetail(e: Env, action: PreparedAction): ApprovalDetail {
   const blocked: ApprovalDetail['blocked'] | undefined = action.status === 'unknown' ? { kind: 'unsure', code: 'OUTCOME_UNKNOWN' } : action.status === 'blocked' ? { kind: 'prepare-blocked', code: text(action.blockedReason, 80) && /^[A-Z][A-Z0-9_]*$/.test(action.blockedReason) ? action.blockedReason : 'PREPARE_BLOCKED' } : action.revision > 1 && action.status === 'prepared' ? { kind: 'changed', code: 'PREPARED_AGAIN' } : undefined;
   return finish(e, row, {
     digest: action.digest, revision: action.revision, reason: actionRule(action, entry), change: changeOf(action), ...(voucher && prepareOnly ? { voucher } : {}),
-    steps: actionSteps(action, expired(e, row)), prepareOnly, needsSecondAsk: action.impact === 'money', ...(blocked ? { blocked } : {}),
+    steps: actionSteps(action, expired(e, row)), prepareOnly, needsSecondAsk: row.kind === 'money', ...(blocked ? { blocked } : {}),
   }, { change: true, approve: true });
 }
 
@@ -264,9 +287,28 @@ export function jobCard(state: State, job: Job): JobCard {
     runs: job.runs, lastRunAt: last?.at ?? null, nextRunAt: terminal ? null : job.nextRunAt, untrustedInstructions: false, digest: job.digest, revision: job.revision,
   };
 }
+/**
+ * The exact reference core `jobs.accept` checks: the job's objective digest and revision plus the
+ * digest of the stored deliverable. The deliverable is read from workspace state (the caller's job
+ * view may withhold it); only its digest leaves this function.
+ */
+export function acceptanceReference(e: Env, job: Job): { kind: 'job-acceptance'; id: string; revision: number; digest: string; deliverableDigest: string } {
+  const stored = (e.state.jobs as Job[]).find(j => j.id === job.id)?.deliverable;
+  return { kind: 'job-acceptance', id: job.id, revision: job.revision, digest: job.digest, deliverableDigest: digest(stored === undefined ? null : stored) };
+}
+/** The acceptance item's digest binds the objective, its revision and the deliverable together. */
+export const acceptanceDigest = (ref: ReturnType<typeof acceptanceReference>) => digest({ job: ref.digest, revision: ref.revision, deliverable: ref.deliverableDigest });
+function acceptanceChange(job: Job): ApprovalDetail['change'] {
+  const d = job.deliverable; const receipts = record(d) && Array.isArray(d.receiptIds) ? d.receiptIds.filter(r => typeof r === 'string').length : null;
+  return {
+    asWritten: 'The job delivered a result. Accepting it closes this run.',
+    fields: [{ name: 'goal', before: '', after: job.goal }, { name: 'receipts', before: '', after: receipts === null ? 'not shown here' : String(receipts) }],
+  };
+}
 export function jobDetail(e: Env, job: Job, acceptance: boolean): ApprovalDetail {
   const waiting = acceptance ? job.status === 'awaiting-acceptance' : jobNeedsApproval(job);
-  const state: RowState = waiting ? 'prepared' : job.status === 'cancelled' ? 'cancelled' : acceptance && job.status === 'accepted' ? 'verified' : ['stopped', 'revoked'].includes(job.status) ? 'blocked' : 'approved';
+  const sentBack = acceptance && job.status === 'paused' && job.ledger.at(-1)?.event === 'rejected';
+  const state: RowState = waiting ? 'prepared' : job.status === 'cancelled' ? 'cancelled' : acceptance && job.status === 'accepted' ? 'verified' : sentBack ? 'rejected' : ['stopped', 'revoked'].includes(job.status) ? 'blocked' : 'approved';
   const owner = memberName(e.state, job.ownerId) ?? job.ownerId;
   const row: ApprovalRow = {
     id: `${acceptance ? 'acceptance' : 'job'}:${job.id}`, source: acceptance ? 'acceptance' : 'job', kind: 'job', tier: 'tier-2',
@@ -280,7 +322,8 @@ export function jobDetail(e: Env, job: Job, acceptance: boolean): ApprovalDetail
     : steps(['done', job.createdAt], [state === 'prepared' ? 'waiting-for-you' : state === 'approved' ? 'done' : 'not-reached', state === 'approved' ? at('approved') : null]);
   const stale = !acceptance && waiting && job.approval !== undefined && job.approval.digest !== job.digest;
   return finish(e, row, {
-    digest: job.digest, revision: job.revision, reason: acceptance ? 'acceptance' : 'job-approval', change: { fields: [{ name: 'goal', before: '', after: job.goal }] },
+    digest: acceptance ? acceptanceDigest(acceptanceReference(e, job)) : job.digest, revision: job.revision, reason: acceptance ? 'acceptance' : 'job-approval',
+    change: acceptance ? acceptanceChange(job) : { fields: [{ name: 'goal', before: '', after: job.goal }] },
     job: jobCard(e.state, job), steps: jobSteps, prepareOnly: false, needsSecondAsk: false, ...(stale ? { blocked: { kind: 'changed' as const, code: 'PREVIEW_CHANGED' } } : {}),
   }, { change: !acceptance, approve: true });
 }
@@ -355,7 +398,7 @@ export function actionView(e: Env, action: PreparedAction): ActionView {
     id: row.id, system: action.connector, action: action.operation, title: row.title, touches: row.touches, amount: row.amount, state: action.status,
     steps: actionSteps(action, expired(e, row)), approvedBy: action.approval ? memberName(e.state, action.approval.memberId) ?? action.approval.memberId : null,
     channel: e.work.channels[action.id] ?? null, request, readBack, rule: actionRule(action, entry), attestation: e.work.attestations[action.id] ?? null,
-    wouldHaveDone: action.impact === 'reversible' && entry?.kind !== 'cannot-undo' && e.state.policy.autonomy ? 'done' : 'waited',
+    wouldHaveDone: actionTier(e, action) === 'tier-1' && e.state.policy.autonomy ? 'done' : 'waited',
     createdAt: action.createdAt, settledAt: ['verified', 'rejected', 'unknown'].includes(action.status) ? action.attempts[0]?.finishedAt ?? null : null,
     can: e.ctx.role === 'viewer' ? [] : [
       ...(action.status === 'approved' ? ['execute' as const] : []), ...(unknown ? ['reconcile' as const] : []), ...(unknown && approver ? ['resolve' as const] : []),
