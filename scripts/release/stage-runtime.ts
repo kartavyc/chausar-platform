@@ -26,8 +26,8 @@ import { check } from '../../platform/runtime/contracts.ts';
 export type RuntimePlatform = 'win32' | 'darwin' | 'linux';
 export type RuntimeArchitecture = 'x64' | 'arm64';
 export type RuntimeComponent = 'postgres' | 'python';
-export type RuntimeLayout = { archive: 'zip' | 'tar.gz' | 'tar.xz'; strip: string | null; into: RuntimeComponent; include?: string[]; materialiseSymlinks: boolean };
-export type RuntimeSource = { component: RuntimeComponent; version: string; vendor: string; url: string | null; sha256: string | null; license: string; licenseFile: string; official: boolean; layout: RuntimeLayout; note?: string };
+export type RuntimeLayout = { archive: 'zip' | 'tar.gz' | 'tar.xz'; strip: string | null; into: RuntimeComponent; include?: string[]; /** Archive paths left out, such as a symlinked duplicate of a large file. */ exclude?: string[]; materialiseSymlinks: boolean };
+export type RuntimeSource = { component: RuntimeComponent; version: string; vendor: string; url: string | null; sha256: string | null; license: string; licenseFile: string; official: boolean; layout: RuntimeLayout; note?: string; /** Where the pin was verified (the vendor's own checksum file); required with a pin. */ checksumSource?: string };
 export type RuntimeSources = { schemaVersion: 1; note?: string; targets: Record<string, RuntimeSource[]> };
 export type ManifestComponent = { version: string; source: string; license: string; licenseFile: string };
 export type ManifestFile = { path: string; sha256: string; size: number };
@@ -84,10 +84,12 @@ export function validateRuntimeSources(value: unknown): RuntimeSources {
       check(entry.url === null || (typeof entry.url === 'string' && httpsUrl(entry.url)), 'RUNTIME_SOURCES_INVALID', 'Every runtime source must be a public HTTPS URL or null.');
       check(entry.sha256 === null || (typeof entry.sha256 === 'string' && /^[a-f0-9]{64}$/.test(entry.sha256)), 'RUNTIME_SOURCES_INVALID', 'Every runtime pin must be a lowercase SHA-256 or null.');
       check(entry.note === undefined || typeof entry.note === 'string', 'RUNTIME_SOURCES_INVALID', invalid);
+      check(entry.sha256 === null ? entry.checksumSource === undefined : typeof entry.checksumSource === 'string' && entry.checksumSource.trim() !== '', 'RUNTIME_SOURCES_INVALID', 'Every runtime pin must say where it was verified, and only a pin may.');
       const layout = entry.layout;
       check(isObject(layout) && ['zip', 'tar.gz', 'tar.xz'].includes(layout.archive as string) && layout.into === entry.component && typeof layout.materialiseSymlinks === 'boolean', 'RUNTIME_SOURCES_INVALID', invalid);
       check(layout.strip === null || safeRelative(layout.strip), 'RUNTIME_SOURCES_INVALID', invalid);
       check(layout.include === undefined || (Array.isArray(layout.include) && layout.include.length > 0 && layout.include.every(safeRelative)), 'RUNTIME_SOURCES_INVALID', invalid);
+      check(layout.exclude === undefined || (Array.isArray(layout.exclude) && layout.exclude.length > 0 && layout.exclude.every(safeRelative)), 'RUNTIME_SOURCES_INVALID', invalid);
       check(safeRelative(entry.licenseFile) && entry.licenseFile.startsWith(`${entry.component}/`), 'RUNTIME_SOURCES_INVALID', 'Each license file must sit inside its component folder.');
     }
   }
@@ -173,6 +175,7 @@ export async function extractArchive(archive: string, destination: string, kind:
 }
 
 const included = (path: string, include: string[] | undefined, directory: boolean) => !include || include.some(item => path === item || path.startsWith(`${item}/`) || (directory && item.startsWith(`${path}/`)));
+const excluded = (path: string, exclude: string[] | undefined) => Boolean(exclude?.some(item => path === item || path.startsWith(`${item}/`)));
 const inside = (root: string, path: string) => { const rel = relative(root, path); return rel !== '' && !rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel); };
 
 /** Copies the stripped archive tree into `<target>`; symlinks refuse unless the layout materialises them as regular files. */
@@ -189,7 +192,7 @@ export async function arrangeComponent(extracted: string, layout: RuntimeLayout,
       const source = join(directory, item.name);
       const destination = join(target, ...path.split('/'));
       const info = await lstat(source);
-      if (!included(path, layout.include, info.isDirectory())) continue;
+      if (!included(path, layout.include, info.isDirectory()) || excluded(path, layout.exclude)) continue;
       check(++count <= MAX_FILES, 'RUNTIME_LAYOUT_INVALID', 'The runtime exceeds the bundled file limit.');
       if (info.isSymbolicLink()) {
         check(layout.materialiseSymlinks, 'RUNTIME_SYMLINK_REFUSED', 'The runtime archive contains a symbolic link.');
