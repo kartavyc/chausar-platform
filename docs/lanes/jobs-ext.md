@@ -19,7 +19,10 @@ Branch `claude/lane-jobs-ext`. Spec: plan days 7–8, architecture piece 11, the
 - **Steer a job.** A job can be paused, resumed or deleted at any time. An edit is a new card; approving it replaces the job.
 - **Answer the job's questions** and **mark steps for a person done** (WK-16). The job waits for these and never marks them done itself.
 - **Accept or send back the result** (WK-10). A job is finished only when its owner accepts the exact delivered result.
-- **Set the missed-run rule** (WK-11): skip, run once on wake (the default), or run every missed one. At most 7 missed runs are caught up, and the note says how many older ones were skipped. After a sleep, the note reads, for example, "3 runs were missed while this computer slept. Ran once."
+- **Set the missed-run rule** (WK-11): skip, run once on wake (the default), or run every missed one.
+  - "Run every missed one" catches up at most 7 runs, and the note says how many older ones were skipped. Each caught-up run follows straight after you accept the one before.
+  - That rule is offered only for jobs that deliver every run. A job of daily rounds, such as the receivables week, refuses it with `MISSED_RULE_UNSUITABLE`, because a week of chasing must not be squeezed into one day.
+  - After a sleep, the note reads, for example, "3 runs were missed while this computer slept. Ran once."
 - **Background mode** (SH-07). It is off until you turn it on. With it off, a closed window means jobs do not run, and the next start lists what was missed.
 - **Autonomy** (TR-05):
   - Each kind of action has its own switch and a daily limit, and there are three presets.
@@ -78,16 +81,24 @@ Every ready-made job can be exported in the Agent Skills folder format (`jobsx.t
   - The full agent is an `AgentPort` installed by a trusted host (`EngineOptions.modules['jobs-ext'].agent`), never by RPC. Demo mode accepts only a synthetic agent.
   - Agent text is quoted and never obeyed. A note with figures is withheld by the number guard.
   - Anything an agent touched is prepared as read-from-outside, so the autonomy switch never runs it.
-  - When an agent asks for another job, that request becomes a proposal and waits for the owner.
+  - When an agent asks for another job, that request becomes a proposal and waits for the owner. Its words are number-guarded, quoted on a card marked untrusted, and never adopted as the job's instructions.
+  - An agent call is cut off well inside the step's lease (240 seconds by default). A call that runs out is charged its full reservation, because its use is unknown.
 - **Procedures** (`platform/runtime/procedures/`, after AgentRun):
   - Every case run records a structure-only trace: route, tools, cost, latency, outcome, and a note of one to three sentences. The structure also goes to the learning log.
   - After 3 or more agent runs, `procedures.propose` derives typed steps: calculator calls, one typed question with a learned rule (options, confidence and support), catalogue actions per decision, and lookups.
   - The owner approves the exact digest.
+  - The ready-made rule's hard guards come first: not due, no agreement, stopped by the customer, reminded today, and reminded three or more times (which asks you). Only the cases left are routed through a learned procedure.
   - A case is routed through the procedure only if it matches the shape, is untainted, and its bucket's confidence and support are high enough. Other cases fall back to the agent, or to you.
+  - Consent and the caps are checked again after routing; a procedure, an agent or an answer can never override them.
   - `procedures.runs` shows the share of routed cases and the cost of routed and fallback cases.
 - **Autonomy** (`jobs-ext/autonomy.ts`):
   - A kind can be switched on only if it is reversible and its name contains no always-waits word. The tick auto-approves and executes only prepared, untainted actions of kinds that are switched on, within the daily limit, and only while the master switch is on.
-- **Purge.** When a source is deleted, everything the lane derived from it is removed: lane jobs, cases, time lines, results, questions, proposals, reminders and procedure runs.
+- **Access.** Every read and change checks that the caller is the job's pinned owner and can still read all of the job's sources, the same rule `JobService.list` uses. Procedure runs follow the same rule.
+- **Approval is one transaction.** Claiming the proposal, checking the limit, creating the mandate and stopping a replaced job commit together. Two approvals of one card create one job, and approving an edit withdraws the other pending edits of that job.
+- **Purge.** When a source is deleted, everything the lane derived from it is removed:
+  - lane jobs, cases, time lines, results, questions, steps for a person, proposals and reminders;
+  - procedure runs, and any procedure derived from a removed run;
+  - a customer's recorded agreement, once no live record names that customer.
 
 ## Engine methods (45)
 
@@ -155,4 +166,6 @@ A missing method is treated as "not built", and the lane falls back to:
 - **Always-on jobs and the home box.** These are paid or experimental, and are only described.
 - **The OS wake timer and the background service install.** These belong to the release lane.
 - **A model or managed allowance route as the live agent.** Wiring one in as an `AgentPort` belongs to models-ext; until then only synthetic agents are tested.
+- **Retention cleanup of procedure runs.** The module purge hook receives no expired-record list, so procedure runs older than the retention period are not yet removed by retention cleanup. They are still removed with their source or job.
+- **The engine's active-job ceiling.** Lane jobs are created through `JobService` inside the lane's own transaction. They count against the lane's limit (10 by default, changeable in Trust), not the separate `durableJobs.maxActiveJobs` host ceiling.
 - **Core noise.** The core scheduler loop also tries to run `jobsx-*` jobs and records a harmless "no installed runner" entry in `tick()` results, which nobody reads. The coordinator may filter non-`owner-brief` plan-less jobs there. I left `engine.ts` unchanged.
