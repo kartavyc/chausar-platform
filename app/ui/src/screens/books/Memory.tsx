@@ -6,7 +6,7 @@ import { Note, Refusal, Actions, Button, Section } from '../work/kit/Page';
 import { useAct, useReply } from '../work/kit/reply.ts';
 import { day } from '../work/kit/format.ts';
 import { forgetReply, memoryLine, memoryReply, type MemoryLine } from './contract.ts';
-import { BooksPage, ConfirmButton, Link, Table, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
+import { BooksPage, ConfirmButton, Link, Table, approves, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
 
 type Kind = MemoryLine['kind'];
 const KINDS: readonly Kind[] = ['preference', 'claim', 'conversation', 'working-context'];
@@ -45,7 +45,7 @@ export function Memory(props: BooksProps) {
   const source = (m: MemoryLine) => m.source === 'computed' && m.receiptId !== null
     ? <Link onPress={() => { if (m.receiptId !== null) props.openReceipt(m.receiptId); }}>{w['source.computed']}</Link>
     : w[`source.${m.source}`];
-  const controls = (m: MemoryLine) => props.viewer ? null : (
+  const controls = (m: MemoryLine) => !approves(props) ? null : (
     <span className={s.inline}>
       {m.status === 'proposed' && <Button onClick={() => { void run('books.memoryConfirm', { id: m.id }); }} disabled={act.busy}>{w.confirm}</Button>}
       <Button variant="link" onClick={() => { setEditing(m.id); setDraft(m.text); }} disabled={act.busy}>{w.edit}</Button>
@@ -58,15 +58,15 @@ export function Memory(props: BooksProps) {
       {value && (value.lines.length === 0 ? <Note>{outside ? w['empty.outside'] : w['empty.memory']}</Note> : (
         <Table view={props.view} caption={w['title.memory']} columns={[
           { head: w['col.line'], simple: true }, { head: w['col.kind'] }, { head: w['col.status'], simple: true }, { head: w['col.source'] },
-          { head: w['col.learned'] }, { head: w['col.confirmed'] }, ...(props.viewer ? [] : [{ head: w['col.do'], simple: true }]),
+          { head: w['col.learned'] }, { head: w['col.confirmed'] }, ...(approves(props) ? [{ head: w['col.do'], simple: true }] : []),
         ]} rows={value.lines.map(m => ({ key: m.id, cells: [
           lineCell(m), w[`mkind.${m.kind}`], w[`status.${m.status}`], source(m), day(m.learnedAt, props.language),
           m.confirmedAt === null ? <span className={s.missing}>{w.notConfirmed}</span> : day(m.confirmedAt, props.language),
-          ...(props.viewer ? [] : [controls(m)]),
+          ...(approves(props) ? [controls(m)] : []),
         ] }))} />
       ))}
       <Refusal code={act.refusal} language={props.language} />
-      {!props.viewer && <AddLine props={props} onDone={reload} />}
+      {approves(props) && <AddLine props={props} onDone={reload} />}
     </BooksPage>
   );
 }

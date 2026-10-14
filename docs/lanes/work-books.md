@@ -119,17 +119,17 @@ SourceRow = { sourceId; system: string; way: 'files' | 'signed-in' | 'this-compu
 | `books.unmapped` | read | `{}` | `{ fields: { field; sourceIds: string[]; type: 'text' \| 'number' \| 'date' \| 'empty' \| 'unknown'; filled: { rows: number; of: number } \| null }[] }` |
 | `books.meanings` | read | `{}` | `{ dictionary: { version; hash; pack; publishedAt; publishedBy; gstMode } \| null; words: { name; label; meaning; origin: 'core' \| 'pack' \| 'you'; state: 'published' \| 'draft' \| 'clash' }[]; drafts: Draft[] }` |
 | `books.meaning` | read | `{ name }` | `{ word: Definition \| null; origin; draft: Draft \| null; history: { version; publishedAt; publishedBy; meaning: string }[] }` |
-| `books.draft` | prepare | `{ name, definition: { label, meaning, kind, field, nulls, sign? } \| null }` (`null` removes the word) | `Draft` |
-| `books.discard` | prepare | `{ draftId }` | `{ draftId, state: 'discarded' }` |
+| `books.draft` | prepare | `{ name, definition: { label, meaning, kind, field, nulls, sign? } \| null, replaces?: draftId }` (`null` removes the word; `replaces`, or the caller's own open draft, is discarded in the same transaction) | `Draft` |
+| `books.discard` | prepare | `{ draftId }` | `{ draftId, state: 'discarded' }`. Owners and cofounders discard any open draft; anyone else only their own uncosigned draft (`FORBIDDEN`). |
 | `books.cosign` | prepare | `{ draftId, digest }` | `Draft` (a different person than the author; recorded by name and role) |
 | `books.publish` | approve | `{ draftId, digest }` | `{ version; hash; staleAnswers: number }` (one release, everywhere at once) |
 | `books.packs` | read | `{}` | `{ packs: { pack; label; state: 'in-use' \| 'available'; meanings: number }[] }` |
 | `books.gst` | read | `{}` | `{ gstMode: string \| null; rates: { available: false } }` |
 | `books.memory` | read | `{ outsideOnly?: boolean }` | `{ lines: MemoryLine[] }` |
-| `books.remember` | prepare | `{ text, kind }` | `MemoryLine` (told by owner) |
-| `books.memoryEdit` | prepare | `{ id, text }` | `MemoryLine` (earlier version kept) |
-| `books.forget` | prepare | `{ id }` | `{ id, deleted: true }` |
-| `books.memoryConfirm` | prepare | `{ id }` | `MemoryLine` |
+| `books.remember` | admin | `{ text, kind }` | `MemoryLine` (told by owner) |
+| `books.memoryEdit` | admin | `{ id, text }` | `MemoryLine` (earlier version kept) |
+| `books.forget` | admin | `{ id }` | `{ id, deleted: true }` |
+| `books.memoryConfirm` | admin | `{ id }` | `MemoryLine` |
 | `accounts.list` | read | `{}` | `{ accounts: { name; group: string \| null; side: 'debit' \| 'credit' \| null; proposed: AccountClass \| null; reason: string[]; decided: { class: AccountClass; by: string; role: string; at: string } \| null; state: 'proposed' \| 'unsure' \| 'decided' }[]; proposals: { available: boolean } }` |
 | `accounts.classes` | read | `{}` | `{ classes: AccountClass[] }` |
 | `accounts.decide` | prepare | `{ name, decision: 'yes' \| 'no' \| 'change', class? }` | the account row |
