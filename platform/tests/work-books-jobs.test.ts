@@ -40,7 +40,7 @@ function fixture(options: { propose?: (payload: any) => unknown } = {}) {
   const actions = new ActionService(store, [connector]); const jobs = new JobService(store);
   const calls: { method: string; payload: any }[] = [];
   const host = (ctx: Context): ModuleHost => ({
-    store, services: { actions, jobs }, demo: true, directory: '/tmp/x', options: {},
+    store, services: { actions, jobs }, demo: true, directory: '/tmp/x', options: { hasMethod: (name: string) => name === 'jobsx.propose' && !!options.propose },
     async call(method, payload) {
       calls.push({ method, payload });
       if (method === 'jobs.create') return jobs.create(ctx, payload as any);

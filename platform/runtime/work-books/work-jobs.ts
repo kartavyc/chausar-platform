@@ -47,12 +47,15 @@ export const JOB_TEMPLATES: readonly JobTemplate[] = Object.freeze([
 
 const record = (value: unknown): value is Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 const PAISE = /^[1-9]\d{0,17}$/;
-const ABSENT = new Set(['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE']);
-
-/** Whether `jobsx.propose` is installed. Probed with an empty request; any answer other than "absent" means it is there. */
+/**
+ * Whether `jobsx.propose` is installed, read from the method registry without calling it:
+ * a probe request could start a real proposal. A trusted host may supply `hasMethod`.
+ */
 async function sentenceAvailable(host: ModuleHost): Promise<boolean> {
-  try { await host.call('jobsx.propose', {}); return true; }
-  catch (error) { return !ABSENT.has((error as { code?: unknown })?.code as string); }
+  const hasMethod = host.options.hasMethod;
+  if (typeof hasMethod === 'function') return hasMethod('jobsx.propose') === true;
+  const { moduleMethods } = await import('../modules/registry.ts');
+  return moduleMethods.has('jobsx.propose');
 }
 
 function templatePayload(payload: Record<string, any>) {
