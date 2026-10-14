@@ -1,0 +1,74 @@
+# EXPERIMENTAL. Not for production without a security and operations review.
+# Run from the repository root:
+#   docker compose -f enterprise/server/compose.yaml up --build
+# Every secret is a file under enterprise/server/secrets/ (never committed). See README.md.
+#
+# The engine only accepts a PostgreSQL server on loopback, so the Chausar server joins
+# the database container's network namespace and reaches it at 127.0.0.1:5432.
+# PostgreSQL itself listens on loopback only and is never published.
+
+name: chausar-enterprise
+
+services:
+  postgres:
+    image: postgres:17
+    command: ["postgres", "-c", "listen_addresses=127.0.0.1"]
+    environment:
+      POSTGRES_USER: chausar
+      POSTGRES_DB: chausar
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # The HTTPS port of the Chausar server is published here because the server shares this namespace.
+    ports:
+      - "8443:8443"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "chausar", "-d", "chausar"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  server:
+    build:
+      context: ../..
+      dockerfile: enterprise/server/Dockerfile
+    image: chausar-enterprise:dev
+    network_mode: "service:postgres"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      CHAUSAR_ENTERPRISE_CONFIG: /etc/chausar/config.json
+      CHAUSAR_POSTGRES_URL_FILE: /run/secrets/postgres_url
+    secrets: [postgres_url, oidc_client_secret, workspace_passphrase]
+    volumes:
+      - ./config.json:/etc/chausar/config.json:ro
+      - ./tls:/etc/chausar/tls:ro
+      - chausar-server:/var/lib/chausar/server
+      - chausar-vaults:/var/lib/chausar/vaults
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    stop_signal: SIGTERM
+    stop_grace_period: 75s
+    restart: unless-stopped
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  postgres_url:
+    file: ./secrets/postgres_url
+  oidc_client_secret:
+    file: ./secrets/oidc_client_secret
+  workspace_passphrase:
+    file: ./secrets/workspace_passphrase
+
+volumes:
+  pgdata:
+  chausar-server:
+  chausar-vaults:

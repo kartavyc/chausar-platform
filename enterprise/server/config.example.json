@@ -1,0 +1,29 @@
+{
+  "listen": { "host": "0.0.0.0", "port": 8443 },
+  "tls": {
+    "certFile": "/etc/chausar/tls/fullchain.pem",
+    "keyFile": "/etc/chausar/tls/privkey.pem"
+  },
+  "publicOrigin": "https://chausar.example.com:8443",
+  "oidc": {
+    "issuer": "https://login.example.com/realms/example",
+    "clientId": "chausar",
+    "clientSecretFile": "/run/secrets/oidc_client_secret",
+    "redirectPath": "/auth/callback",
+    "scopes": ["openid", "email", "profile"]
+  },
+  "roles": [
+    { "claim": "groups", "equals": "chausar-owners", "role": "owner", "branches": ["*"] },
+    { "claim": "groups", "equals": "chausar-cofounders", "role": "cofounder", "branches": ["*"] },
+    { "claim": "groups", "equals": "chausar-accounts-north", "role": "accountant", "branches": ["north"] },
+    { "claim": "groups", "equals": "chausar-readers", "role": "viewer", "branches": ["*"] }
+  ],
+  "allowedEmailDomains": ["example.com"],
+  "sessionTtlMinutes": 480,
+  "dataDirectory": "/var/lib/chausar/server",
+  "workspace": {
+    "directory": "/var/lib/chausar/vaults",
+    "folder": "main",
+    "unlock": { "passphraseFile": "/run/secrets/workspace_passphrase" }
+  }
+}
