@@ -1,0 +1,7 @@
+{
+  "data": [
+    { "id": "5725767000000411001", "Deal_Name": "Asha Stores annual supply", "Amount": 250000, "Stage": "Closed Won", "Closing_Date": "2026-04-10", "Currency": "INR" },
+    { "id": "5725767000000411002", "Deal_Name": "Ravi & Co pilot", "Amount": 45000.5, "Stage": "Negotiation/Review", "Closing_Date": "2026-04-28", "Currency": "INR" }
+  ],
+  "info": { "per_page": 2, "next_page_token": "c8582e7f8a1b2c3d4e5f", "count": 2, "sort_by": "id", "page": 1, "previous_page_token": null, "page_token_expiry": "2026-10-15T10:00:00+05:30", "sort_order": "desc", "more_records": true }
+}

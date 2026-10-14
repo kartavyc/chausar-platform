@@ -1,0 +1,43 @@
+{
+  "code": 0,
+  "message": "success",
+  "invoices": [
+    {
+      "invoice_id": "9800000000001",
+      "customer_name": "Asha Stores",
+      "customer_id": "9800000000100",
+      "status": "sent",
+      "invoice_number": "INV-001",
+      "date": "2026-04-03",
+      "due_date": "2026-04-03",
+      "currency_code": "INR",
+      "total": 1180.00,
+      "balance": 1180.00,
+      "is_inclusive_tax": false,
+      "last_modified_time": "2026-04-30T10:00:00+0530"
+    },
+    {
+      "invoice_id": "9800000000002",
+      "customer_name": "Ravi & Co",
+      "customer_id": "9800000000100",
+      "status": "paid",
+      "invoice_number": "INV-002",
+      "date": "2026-04-08",
+      "due_date": "2026-04-08",
+      "currency_code": "INR",
+      "total": 2360.50,
+      "balance": 0.00,
+      "is_inclusive_tax": false,
+      "last_modified_time": "2026-04-30T10:00:00+0530"
+    }
+  ],
+  "page_context": {
+    "page": 1,
+    "per_page": 200,
+    "has_more_page": true,
+    "report_name": "Invoices",
+    "sort_column": "created_time",
+    "sort_order": "D",
+    "total": 4
+  }
+}

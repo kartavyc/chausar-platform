@@ -1,0 +1,9 @@
+{
+  "kind": "calendar#events",
+  "timeZone": "Asia/Kolkata",
+  "nextPageToken": "CiAKGjBpNDd2Nmp2Zml2cXRwYjBpOXA",
+  "items": [
+    { "kind": "calendar#event", "id": "evt001", "status": "confirmed", "summary": "Stock count", "start": { "date": "2026-04-02" }, "end": { "date": "2026-04-03" } },
+    { "kind": "calendar#event", "id": "evt002", "status": "confirmed", "summary": "Supplier visit", "start": { "dateTime": "2026-04-03T10:30:00+05:30", "timeZone": "Asia/Kolkata" }, "end": { "dateTime": "2026-04-03T11:30:00+05:30" } }
+  ]
+}
