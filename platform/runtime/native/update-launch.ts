@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { copyFile, chmod, lstat, readdir, readFile } from 'node:fs/promises';
+import { chmod, lstat, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { check, ChausarError } from '../contracts.ts';
@@ -18,7 +18,7 @@ import { resolveInstalledLaunch } from './update-service.ts';
  * engine commits the trial once a workspace opens (`confirmInstalledTrial`, from the release module).
  *
  *   resolve --install-root <dir> [--executable-name chausar]
- *   adopt   --install-root <dir> --archive <Chausar-x.y.z-linux-x64.tar.gz> --version <x.y.z> [--launcher <chausar-launcher.sh>]
+ *   adopt   --install-root <dir> --archive <Chausar-x.y.z-linux-x64.tar.gz> --version <x.y.z> [--launcher <chausar-launcher.sh>] [--executable-name chausar]
  */
 export type LaunchTarget = Readonly<{ decision:LaunchDecision; executable:string }>;
 export type TrialConfirmation = 'confirmed' | 'already-committed' | 'not-installed' | 'other-version';
@@ -70,7 +70,7 @@ export async function confirmInstalledTrial(installRoot:string, runningVersion:s
  * First install from an archive the person downloaded and checked: unpacks it as `versions/<version>`,
  * commits it and places the launcher stub in the install root. Later versions arrive through the updater.
  */
-export async function adoptArchive(options:{ installRoot:string; archive:string; version:string; launcher?:string }):Promise<Readonly<{ version:string; directory:string; launcher:string|null }>> {
+export async function adoptArchive(options:{ installRoot:string; archive:string; version:string; launcher?:string; executableName?:string }):Promise<Readonly<{ version:string; directory:string; launcher:string|null }>> {
   check(isAbsolute(options.installRoot) && isAbsolute(options.archive), 'UNSAFE_UPDATE_PATH', 'Use absolute install and archive paths.');
   const bytes = await readFile(options.archive), info = artifactKind(pathToFileURL(options.archive).href);
   check(info.kind !== 'appimage', 'LAUNCH_ARCHIVE_REQUIRED', 'The launcher needs an unpacked app; install the tar.gz or zip release.');
@@ -81,8 +81,14 @@ export async function adoptArchive(options:{ installRoot:string; archive:string;
   await layout.confirmHealthy(options.version);
   let launcher:string|null = null;
   if (options.launcher) {
+    // The stub's default executable name is set to this build's (for example `chausar-preview`).
+    const name = options.executableName ?? 'chausar', line = 'name=${CHAUSAR_EXECUTABLE_NAME:-chausar}';
+    check(EXECUTABLE.test(name), 'LAUNCH_EXECUTABLE_INVALID', 'Name the app executable plainly.');
+    await findAppExecutable(installed.directory, name);
+    const text = await readFile(options.launcher, 'utf8');
+    check(text.startsWith('#!/bin/sh\n') && text.split('\n').filter(item => item === line).length === 1, 'LAUNCH_STUB_INVALID', 'The launcher stub is not the expected script.');
     launcher = join(options.installRoot, 'chausar-launcher');
-    await copyFile(options.launcher, launcher); await chmod(launcher, 0o755);
+    await writeFile(launcher, text.replace(line, `name=\${CHAUSAR_EXECUTABLE_NAME:-${name}}`), { mode: 0o755, flag: 'wx' }); await chmod(launcher, 0o755);
   }
   return Object.freeze({ version: installed.version, directory: installed.directory, launcher });
 }
@@ -110,10 +116,10 @@ export async function main(argv:string[]):Promise<number> {
       return 0;
     }
     if (command === 'adopt') {
-      const values = argumentsOf(rest, ['--install-root', '--archive', '--version', '--launcher']);
+      const values = argumentsOf(rest, ['--install-root', '--archive', '--version', '--launcher', '--executable-name']);
       const root = values.get('--install-root'), archive = values.get('--archive'), version = values.get('--version'), launcher = values.get('--launcher');
       check(root && archive && version && isAbsolute(root) && isAbsolute(archive) && (launcher === undefined || isAbsolute(launcher)), 'LAUNCH_USAGE', 'Pass absolute install root and archive paths and the version.');
-      const adopted = await adoptArchive({ installRoot: resolve(root), archive: resolve(archive), version, launcher });
+      const adopted = await adoptArchive({ installRoot: resolve(root), archive: resolve(archive), version, launcher, executableName: values.get('--executable-name') });
       process.stdout.write(`version=${adopted.version}\ndirectory=${adopted.directory}\nlauncher=${adopted.launcher ?? ''}\n`);
       return 0;
     }
