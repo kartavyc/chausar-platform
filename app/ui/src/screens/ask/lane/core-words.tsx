@@ -10,7 +10,7 @@ import { State } from '../../../patterns/States';
 import { Button } from '../../../parts/Button';
 import { fill, periodText, refusalState, useAsk } from './kit';
 import type { Period } from './client.ts';
-import type { Completeness, Gap } from './core-replies.ts';
+import type { Completeness, Gap, RuleKind } from './core-replies.ts';
 import s from './core.module.css';
 
 type CodeKey = 'ASK_CANNOT_REBUILD' | 'ASK_INVALID' | 'ASK_NOT_FOUND' | 'ASK_REFUSED' | 'ASK_CHANGED' | 'ASK_STALE' | 'ASK_NO_CALCULATION' | 'REQUEST_FAILED' | 'INVALID_REPLY';
@@ -67,6 +67,25 @@ const SHARED = {
 } as const satisfies Catalogue<'line' | 'lineNoPeriod' | 'everyone' | 'branch' | 'rule' | 'ruleWho' | 'openTrust' | 'noDictionary' | 'openMeanings' | 'retry' | Gap | Completeness | 'none'>;
 export const useShared = () => words(SHARED, useAsk().language);
 
+/** One fixed sentence per kind of rule (AS-09). The rule's own text is never shown. */
+const RULES = {
+  en: {
+    branch: 'Rows from a branch your seat does not cover are hidden from it.',
+    source: 'Rows from a source your seat may not read are hidden from it.',
+    seat: 'Your seat is not allowed to ask for this calculation.',
+    access: 'Your seat may not open the rows this answer needs.',
+    marking: 'Rows marked private are hidden from your seat.',
+  },
+  hi: {
+    branch: 'जिस शाखा को आपकी सीट नहीं देखती, उसकी पंक्तियाँ उससे छिपी हैं।',
+    source: 'जिस स्रोत को आपकी सीट नहीं पढ़ सकती, उसकी पंक्तियाँ उससे छिपी हैं।',
+    seat: 'आपकी सीट को यह गणना पूछने की अनुमति नहीं है।',
+    access: 'आपकी सीट वे पंक्तियाँ नहीं खोल सकती जो इस जवाब के लिए चाहिए।',
+    marking: 'निजी चिह्नित पंक्तियाँ आपकी सीट से छिपी हैं।',
+  },
+} as const satisfies Catalogue<RuleKind>;
+export const useRuleWords = () => words(RULES, useAsk().language);
+
 /** "Invoiced by customer · Aug 2026 · all branches": the calculation, the period and who is counted. */
 export function understoodText(calc: string, period: Period | null, branch: string | null, language: Language): string {
   const w = words(SHARED, language), who = branch === null ? w.everyone : fill(w.branch, { branch });
@@ -79,12 +98,12 @@ export function monthText(month: string, language: Language): string {
 }
 
 /** A refusal drawn inside a page that is otherwise shown. */
-export function Refusal({ code, retry }: { code: string; retry?: (() => void) | undefined }) {
-  const ask = useAsk(), w = useShared(), explain = useExplain();
+export function Refusal({ code, rule, retry }: { code: string; rule?: RuleKind | undefined; retry?: (() => void) | undefined }) {
+  const ask = useAsk(), w = useShared(), explain = useExplain(), rules = useRuleWords();
   if (code === 'ASK_STOPPED_BY_RULE') {
     return (
-      <div className={s.block} data-refusal={code}>
-        <State state={{ kind: 'stopped-by-rule', rule: w.rule, who: w.ruleWho }} />
+      <div className={s.block} data-refusal={code} data-rule={rule ?? ''}>
+        <State state={{ kind: 'stopped-by-rule', rule: rule === undefined ? w.rule : rules[rule], who: w.ruleWho }} />
         <Button variant="link" onClick={() => ask.leave({ place: 'trust' })}>{w.openTrust}</Button>
       </div>
     );

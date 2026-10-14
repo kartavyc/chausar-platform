@@ -56,6 +56,7 @@ export function sheetView(sheet: string | undefined): AskView | null {
   if (head === 'decision') return { kind: 'decision', decisionId: value };
   if (head === 'check') return { kind: 'check', checkId: value };
   if (head === 'why') return { kind: 'why', whyId: value };
+  if (head === 'whatif') return { kind: 'whatif', receiptId: value };
   return null;
 }
 

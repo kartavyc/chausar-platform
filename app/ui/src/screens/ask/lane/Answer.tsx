@@ -14,7 +14,7 @@ import { Label } from '../../../parts/Label';
 import { State } from '../../../patterns/States';
 import { AskPage, countWords, dayText, figureOf, fill, missingFigure, periodText, useAsk, useRead, useWords, type AskView } from './kit';
 import { call } from './client.ts';
-import { answerReply, runReply, savedId, type AnswerReply, type GuardMatch } from './core-replies.ts';
+import { answerReply, runReply, savedId, type AnswerReply, type GuardMatch, type RuleKind } from './core-replies.ts';
 import { Refusal, monthText, understoodText, useExplain, useShared } from './core-words';
 import { RankedBars } from './parts/RankedBars';
 import s from './core.module.css';
@@ -22,7 +22,8 @@ import s from './core.module.css';
 type Key =
   | 'check' | 'guardTitle' | 'guardReplaced' | 'matchFigure' | 'matchRows' | 'matchExcluded' | 'matchDate' | 'matchOrdinal' | 'matchNone' | 'guardEmpty'
   | 'fromTemplate' | 'fromModel' | 'monthsNotLoaded' | 'compared' | 'asOf' | 'bars' | 'save' | 'saveCheck' | 'saved' | 'savedCheck'
-  | 'why' | 'decide' | 'receipt' | 'sentNothing' | 'measures' | 'working' | 'monthsNotLoadedMany' | 'rebuild' | 'measuresNote' | 'measureKey';
+  | 'why' | 'decide' | 'receipt' | 'sentNothing' | 'measures' | 'working' | 'monthsNotLoadedMany' | 'rebuild' | 'measuresNote' | 'measureKey'
+  | 'no-model' | 'guard-replaced';
 const WORDS = {
   en: {
     check: 'Checked against the receipt. {rows} rows, {left} left out.', guardTitle: 'Numbers in the written explanation',
@@ -36,6 +37,8 @@ const WORDS = {
     measures: 'Every measure', working: 'Working it out again from the books.',
     monthsNotLoadedMany: '{count} months not loaded yet: {months}.', rebuild: 'Rebuild', measureKey: '{label} ({key})',
     measuresNote: 'These are different measures of the same question. Each one is a figure on the receipt.',
+    'no-model': 'Written from a template: no AI model was asked.',
+    'guard-replaced': 'The written explanation had a number not on the receipt, so the template is shown. The figures come from the receipt.',
   },
   hi: {
     check: 'रसीद से जाँचा गया। {rows} पंक्तियाँ, {left} छोड़ी गईं।', guardTitle: 'लिखी व्याख्या में आई संख्याएँ',
@@ -49,10 +52,12 @@ const WORDS = {
     measures: 'हर माप', working: 'बही से फिर से हिसाब निकाला जा रहा है।',
     monthsNotLoadedMany: '{count} महीने अभी लोड नहीं हुए: {months}।', rebuild: 'फिर से बनाएँ', measureKey: '{label} ({key})',
     measuresNote: 'ये एक ही सवाल के अलग-अलग माप हैं। हर एक रसीद का एक आँकड़ा है।',
+    'no-model': 'एक साँचे से लिखा गया: किसी AI मॉडल से नहीं पूछा गया।',
+    'guard-replaced': 'लिखी व्याख्या में एक संख्या रसीद में नहीं थी, इसलिए साँचा दिखाया गया है। आँकड़े रसीद से आते हैं।',
   },
 } as const satisfies Catalogue<Key>;
 
-type Act = { readonly kind: 'idle' } | { readonly kind: 'busy' } | { readonly kind: 'done'; readonly what: 'saved' | 'savedCheck' } | { readonly kind: 'refused'; readonly code: string } | { readonly kind: 'not-built' };
+type Act = { readonly kind: 'idle' } | { readonly kind: 'busy' } | { readonly kind: 'done'; readonly what: 'saved' | 'savedCheck' } | { readonly kind: 'refused'; readonly code: string; readonly rule?: RuleKind } | { readonly kind: 'not-built' };
 
 export function AnswerScreen({ view }: { view: Extract<AskView, { kind: 'answer' }> }) {
   const ask = useAsk(), w = useWords(WORDS), explain = useExplain();
@@ -91,6 +96,7 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
     }, runReply);
     if (!ask.live()) return;
     if (reply.kind === 'ok' && reply.value.kind === 'answer') { setAct({ kind: 'idle' }); return ask.go({ kind: 'answer', receiptId: reply.value.receiptId }); }
+    if (reply.kind === 'ok' && reply.value.kind === 'refused' && reply.value.rule !== undefined) return setAct({ kind: 'refused', code: reply.value.code, rule: reply.value.rule });
     setAct(reply.kind === 'not-built' ? { kind: 'not-built' } : { kind: 'refused', code: reply.kind === 'refused' ? reply.code : reply.value.kind === 'refused' ? reply.value.code : 'ASK_REFUSED' });
   }
 
@@ -134,13 +140,15 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
               : <KeyValue onReceipt={toReceipt} pairs={a.guard.lines.map(l => ({ name: l.number, value: matched(l.matched), mono: false }))} />}
           </section>
         )}
-        {(a.guard.status === 'replaced' || a.explanation.replaced) && <p className={s.note} data-guard-replaced="">{w.guardReplaced}</p>}
+        {a.explanation.reason !== null
+          ? <p className={s.note} data-explanation-reason={a.explanation.reason}>{w[a.explanation.reason]}</p>
+          : (a.guard.status === 'replaced' || a.explanation.replaced) && <p className={s.note} data-guard-replaced="">{w.guardReplaced}</p>}
       </div>
 
       {ask.view !== 'simple' && a.explanation.text.length > 0 && (
         <div className={s.block}>
           <p className={s.text}>{a.explanation.text}</p>
-          <p className={s.small}>{a.explanation.source === 'template' ? w.fromTemplate : w.fromModel}</p>
+          {a.explanation.reason === null && <p className={s.small}>{a.explanation.source === 'template' ? w.fromTemplate : w.fromModel}</p>}
         </div>
       )}
 
@@ -168,7 +176,7 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
       </div>
       {act.kind === 'done' && <p className={s.note} role="status">{w[act.what]}</p>}
       {act.kind === 'not-built' && <State state={{ kind: 'not-built' }} />}
-      {act.kind === 'refused' && <Refusal code={act.code} />}
+      {act.kind === 'refused' && <Refusal code={act.code} rule={act.rule} />}
     </div>
   );
 }

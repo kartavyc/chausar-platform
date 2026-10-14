@@ -11,9 +11,9 @@ import { Field } from '../../../parts/Field';
 import { Figure } from '../../../parts/Figure';
 import { KeyValue } from '../../../parts/KeyValue';
 import { Label } from '../../../parts/Label';
-import { id, minor, obj, oneOf, optStr, period, type Period } from './client.ts';
-import { AskPage, bpsFigure, fill, moneyFigure, periodText, useAsk, useWords, type AskView } from './kit';
-import { catalogue, hundredths, Part, PERIOD_IDS, PERIOD_WORDS, Problem, useSend, type PeriodId } from './analysis';
+import { call, id, minor, obj, oneOf, optStr, period, type Period } from './client.ts';
+import { AskPage, bpsFigure, fill, moneyFigure, periodText, useAsk, useRead, useWords, type AskView } from './kit';
+import { catalogue, hundredths, Part, PERIOD_IDS, PERIOD_WORDS, Problem, useRefusal, useSend, type PeriodId } from './analysis';
 import s from './analysis.module.css';
 
 interface Ref { readonly minor: string; readonly receiptId: string }
@@ -34,6 +34,7 @@ const WORDS = catalogue({
     assumption: 'The assumption changed: prices', before: 'Before', after: 'After', books: 'Your books', withChange: 'With the change',
     change: 'Difference', periodLine: 'For {period}. Nothing in your books is changed.', branch: 'Branch', save: 'Save', saved: 'Saved.', again: 'Try another change',
     readOnly: 'A what if needs a seat that can work things out.', question: 'What if prices changed by {percent} in {period}?',
+    savedNote: 'Saved. These are the figures as they were worked out then.',
   },
   hi: {
     title: 'अगर ऐसा हो', period: 'अवधि', price: 'कीमतों में बदलाव, प्रतिशत में', priceHint: 'जैसे 5% बढ़ाने के लिए 5, या घटाने के लिए -2.5।',
@@ -41,10 +42,26 @@ const WORDS = catalogue({
     assumption: 'बदली गई मान्यता: कीमतें', before: 'पहले', after: 'बाद में', books: 'आपके खाते', withChange: 'बदलाव के साथ',
     change: 'अंतर', periodLine: '{period} के लिए। आपके खातों में कुछ नहीं बदला जाता।', branch: 'शाखा', save: 'सहेजें', saved: 'सहेजा गया।', again: 'कोई और बदलाव आज़माएँ',
     readOnly: 'अगर ऐसा हो देखने के लिए ऐसी सीट चाहिए जो गणना चला सके।', question: 'अगर {period} में कीमतें {percent} बदलें तो?',
+    savedNote: 'सहेजा गया। ये आँकड़े वैसे ही हैं जैसे तब निकाले गए थे।',
   },
 });
 
-export function WhatIfScreen(_props: { view: Extract<AskView, { kind: 'whatif' }> }) {
+export function WhatIfScreen({ view }: { view: Extract<AskView, { kind: 'whatif' }> }) {
+  return view.receiptId === undefined ? <WhatIfAsk /> : <WhatIfSaved receiptId={view.receiptId} />;
+}
+
+/** A saved what-if read back from its with-change receipt. Nothing is worked out again. */
+function WhatIfSaved({ receiptId }: { receiptId: string }) {
+  const ask = useAsk(), w = useWords(WORDS), explain = useRefusal();
+  const [load, retry] = useRead(`whatif|${receiptId}`, () => call(ask.rpc, 'askx.whatIf.get', { receiptId }, whatIfReply));
+  return (
+    <AskPage title={w.title} aside={<Label kind="what-if" />} load={load} retry={retry} explain={explain}>
+      {(value: WhatIfValue) => <WhatIfResult value={value} saved />}
+    </AskPage>
+  );
+}
+
+function WhatIfAsk() {
   const ask = useAsk(), w = useWords(WORDS), periods = useWords(PERIOD_WORDS);
   const [periodId, setPeriodId] = useState<PeriodId>('last-month');
   const [price, setPrice] = useState('');
@@ -73,7 +90,7 @@ export function WhatIfScreen(_props: { view: Extract<AskView, { kind: 'whatif' }
   );
 }
 
-function WhatIfResult({ value, onAgain }: { value: WhatIfValue; onAgain: () => void }) {
+function WhatIfResult({ value, onAgain, saved = false }: { value: WhatIfValue; onAgain?: () => void; saved?: boolean }) {
   const ask = useAsk(), w = useWords(WORDS);
   const open = (receiptId: string) => ask.go({ kind: 'receipt', receiptId });
   const save = useSend();
@@ -95,9 +112,10 @@ function WhatIfResult({ value, onAgain }: { value: WhatIfValue; onAgain: () => v
       </div>
       <KeyValue onReceipt={open} pairs={[{ name: w.change, figure: moneyFigure(value.change.minor, value.change.receiptId, ['what-if']) }]} />
       <div className={[s.actions, s.part].join(' ')}>
-        <Button onClick={onAgain}>{w.again}</Button>
-        {!ask.viewer && <Button disabled={save.busy || done} onClick={() => void save.send('askx.saveRef', { kind: 'what-if', refId: value.withChange.receiptId, question: fill(w.question, { percent: after, period }) }, v => id(obj(v).id), () => setDone(true))}>{w.save}</Button>}
+        {onAgain !== undefined ? <Button onClick={onAgain}>{w.again}</Button> : !ask.viewer && <Button onClick={() => ask.go({ kind: 'whatif' })}>{w.again}</Button>}
+        {!ask.viewer && !saved && <Button disabled={save.busy || done} onClick={() => void save.send('askx.saveRef', { kind: 'what-if', refId: value.withChange.receiptId, question: fill(w.question, { percent: after, period }) }, v => id(obj(v).id), () => setDone(true))}>{w.save}</Button>}
         {done && <span role="status" className={s.note}>{w.saved}</span>}
+        {saved && <span className={s.note} data-whatif-saved="">{w.savedNote}</span>}
       </div>
       <Problem code={save.problem} />
     </>

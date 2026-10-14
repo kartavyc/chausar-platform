@@ -15,13 +15,13 @@ import s from './core.module.css';
 const WORDS = {
   en: {
     title: 'What was sent to the AI model', menu: 'Nothing was sent. This answer was chosen from the menu, so no AI model was used.',
-    none: 'Nothing was sent to an AI model for this answer.', removed: 'The text was removed after the time you set. Its fingerprint is kept.',
+    none: 'Nothing was sent to an AI model for this answer.', removed: 'The text was removed after {days} days. Its fingerprint is kept.',
     noText: 'The text was not kept. Its fingerprint is kept.', standIns: 'Names, phone numbers and GSTINs were replaced with stand-ins before sending.',
     route: 'Route', level: 'Send level', size: 'Size', bytes: '{count} bytes', cost: 'Cost', at: 'Sent on', digest: 'Fingerprint', boundary: 'Boundary',
   },
   hi: {
     title: 'AI मॉडल को क्या भेजा गया', menu: 'कुछ नहीं भेजा गया। यह जवाब मेन्यू से चुना गया, इसलिए कोई AI मॉडल नहीं लगा।',
-    none: 'इस जवाब के लिए किसी AI मॉडल को कुछ नहीं भेजा गया।', removed: 'आपके तय समय के बाद पाठ हटा दिया गया। उसकी पहचान रखी गई है।',
+    none: 'इस जवाब के लिए किसी AI मॉडल को कुछ नहीं भेजा गया।', removed: '{days} दिन बाद पाठ हटा दिया गया। उसकी पहचान रखी गई है।',
     noText: 'पाठ रखा नहीं गया। उसकी पहचान रखी गई है।', standIns: 'भेजने से पहले नाम, फ़ोन नंबर और GSTIN की जगह बदले हुए नाम रखे गए।',
     route: 'रास्ता', level: 'भेजने का स्तर', size: 'आकार', bytes: '{count} बाइट', cost: 'ख़र्च', at: 'भेजा गया', digest: 'पहचान', boundary: 'सीमा',
   },
@@ -46,7 +46,7 @@ export function SentScreen({ view }: { view: Extract<AskView, { kind: 'sent' }> 
         return (
           <div className={s.page} data-sent="sent">
             {r.removed || r.text === null
-              ? <p className={s.note} data-sent-removed="">{r.removed ? w.removed : w.noText}</p>
+              ? <p className={s.note} data-sent-removed="">{r.removed ? fill(w.removed, { days: countWords(String(r.retentionDays)) }) : w.noText}</p>
               : <><pre className={s.pre} data-sent-text="">{r.text}</pre>{ask.view !== 'books' && <p className={s.small}>{w.standIns}</p>}</>}
             <KeyValue onReceipt={() => undefined} pairs={pairs} />
           </div>

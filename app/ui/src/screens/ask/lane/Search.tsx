@@ -9,11 +9,19 @@ import { Field } from '../../../parts/Field';
 import { call, fail, id, int, list, obj, oneOf, str } from './client.ts';
 import { AskPage, useAsk, useRead, useWords, type AskView } from './kit';
 import { catalogue, Part, useRefusal } from './analysis';
+import { SAVED_KINDS, type SavedKind } from './core-replies.ts';
 import s from './analysis.module.css';
 
 const KINDS = ['saved', 'decision', 'investigation', 'check', 'why'] as const;
 type Kind = (typeof KINDS)[number];
-export interface SearchValue { readonly query: string; readonly groups: readonly { kind: Kind; hits: readonly { id: string; text: string; marks: readonly [number, number][] }[] }[] }
+/** For a saved hit: what it opens. */
+export interface SavedRef { readonly savedKind: SavedKind; readonly receiptId: string | null; readonly refId: string | null }
+export interface SearchHit { readonly id: string; readonly text: string; readonly marks: readonly [number, number][]; readonly ref?: SavedRef }
+export interface SearchValue { readonly query: string; readonly groups: readonly { kind: Kind; hits: readonly SearchHit[] }[] }
+const savedRef = (value: unknown): SavedRef => {
+  const r = obj(value);
+  return { savedKind: oneOf(r.savedKind, SAVED_KINDS), receiptId: r.receiptId === null ? null : id(r.receiptId), refId: r.refId === null ? null : id(r.refId) };
+};
 export function searchReply(value: unknown): SearchValue {
   const v = obj(value);
   return {
@@ -22,7 +30,7 @@ export function searchReply(value: unknown): SearchValue {
       const x = obj(g);
       return {
         kind: oneOf(x.kind, KINDS),
-        hits: list(x.hits, h => {
+        hits: list(x.hits, (h): SearchHit => {
           const y = obj(h), text = str(y.text, 2000);
           let end = 0;
           const marks = list(y.marks, m => {
@@ -32,7 +40,7 @@ export function searchReply(value: unknown): SearchValue {
             end = b;
             return [a, b] as [number, number];
           }, 100);
-          return { id: id(y.id), text, marks };
+          return y.ref === undefined ? { id: id(y.id), text, marks } : { id: id(y.id), text, marks, ref: savedRef(y.ref) };
         }, 500),
       };
     }, 10),
@@ -92,7 +100,13 @@ function Results({ query }: { query: string }) {
   if (load.kind !== 'ok') return <p className={s.problem} role="alert">{explain(load.kind === 'refused' ? load.code : 'NOT_BUILT')}</p>;
   const groups = load.value.groups.filter(g => g.hits.length > 0);
   if (groups.length === 0) return <p>{w.none}</p>;
-  const open = (kind: Kind, hitId: string) => {
+  const open = (kind: Kind, hitId: string, ref: SavedRef | undefined) => {
+    if (kind === 'saved' && ref !== undefined) {
+      if (ref.savedKind === 'answer' && ref.receiptId !== null) return ask.go({ kind: 'answer', receiptId: ref.receiptId });
+      if (ref.savedKind === 'what-if' && ref.refId !== null) return ask.go({ kind: 'whatif', receiptId: ref.refId });
+      if (ref.savedKind === 'why' && ref.refId !== null) return ask.go({ kind: 'why', whyId: ref.refId });
+      return ask.go({ kind: 'saved' });
+    }
     if (kind === 'decision') ask.go({ kind: 'decision', decisionId: hitId });
     else if (kind === 'check') ask.go({ kind: 'check', checkId: hitId });
     else if (kind === 'why' || kind === 'investigation') ask.go({ kind: 'why', whyId: hitId });
@@ -105,7 +119,7 @@ function Results({ query }: { query: string }) {
           <ul className={s.list}>
             {g.hits.map(h => (
               <li key={h.id} className={s.item}>
-                <Button variant="link" className={s.grow} onClick={() => open(g.kind, h.id)}><Marked text={h.text} marks={h.marks} /></Button>
+                <Button variant="link" className={s.grow} onClick={() => open(g.kind, h.id, h.ref)}><Marked text={h.text} marks={h.marks} /></Button>
               </li>
             ))}
           </ul>

@@ -285,7 +285,7 @@ test('a decision opened from why carries its receipts into the draft', async () 
 
 test('a decision shows what was known then and records a review', async () => {
   const user = userEvent.setup();
-  const decision = { id: 'dec-1', text: 'Raise prices by 3%', createdAt: '2026-09-02T00:00:00.000Z', reviewDate: '2026-10-02', status: 'open', recordedLater: true, revision: null, known: [{ receiptId: 'r-aug', label: 'Collections', minor: '100000', asOf: '2026-09-01' }, { receiptId: 'r-x', label: 'Stock', minor: null, asOf: '2026-09-01' }], reviews: [], journal: true };
+  const decision = { id: 'dec-1', text: 'Raise prices by 3%', createdAt: '2026-09-02T00:00:00.000Z', reviewDate: '2026-10-02', status: 'open', recordedLater: true, replaced: false, cancelled: false, revision: null, known: [{ receiptId: 'r-aug', label: 'Collections', minor: '100000', asOf: '2026-09-01' }, { receiptId: 'r-x', label: 'Stock', minor: null, asOf: '2026-09-01' }], reviews: [], journal: true };
   const rpc = mount(sheet('decision.dec-1', 'decisions'), { 'askx.decisions.get': () => decision, 'askx.decisions.review': p => ({ ...decision, status: 'closed', reviews: [{ at: '2026-10-14T00:00:00.000Z', outcome: p.outcome, notes: p.notes ?? null, nextReviewDate: null }] }) });
   expect(await screen.findByText('Raise prices by 3%')).toBeTruthy();
   expect(screen.getByText('recorded later')).toBeTruthy();

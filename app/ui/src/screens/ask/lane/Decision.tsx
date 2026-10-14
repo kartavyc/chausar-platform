@@ -19,7 +19,7 @@ import s from './analysis.module.css';
 const OUTCOMES = ['accepted', 'rejected', 'continue', 'completed'] as const;
 type Outcome = (typeof OUTCOMES)[number];
 export interface DecisionValue {
-  readonly id: string; readonly text: string; readonly createdAt: string; readonly reviewDate: string; readonly status: 'open' | 'closed'; readonly recordedLater: boolean; readonly revision: number | null;
+  readonly id: string; readonly text: string; readonly createdAt: string; readonly reviewDate: string; readonly status: 'open' | 'closed'; readonly recordedLater: boolean; readonly replaced: boolean; readonly cancelled: boolean; readonly revision: number | null;
   readonly known: readonly { receiptId: string; label: string; minor: string | null; asOf: string }[];
   readonly reviews: readonly { at: string; outcome: Outcome; notes: string | null; nextReviewDate: string | null }[];
 }
@@ -28,7 +28,7 @@ export function decisionReply(value: unknown): DecisionValue {
   bool(v.journal);
   return {
     id: id(v.id), text: str(v.text, 2000), createdAt: date(v.createdAt), reviewDate: date(v.reviewDate), status: oneOf(v.status, ['open', 'closed'] as const),
-    recordedLater: bool(v.recordedLater), revision: v.revision === null ? null : int(v.revision),
+    recordedLater: bool(v.recordedLater), replaced: bool(v.replaced), cancelled: bool(v.cancelled), revision: v.revision === null ? null : int(v.revision),
     known: list(v.known, k => { const x = obj(k); return { receiptId: id(x.receiptId), label: str(x.label, 300), minor: optMinor(x.minor), asOf: date(x.asOf) }; }, 50),
     reviews: list(v.reviews, r => { const x = obj(r); return { at: date(x.at), outcome: oneOf(x.outcome, OUTCOMES), notes: optStr(x.notes, 2000), nextReviewDate: x.nextReviewDate === null || x.nextReviewDate === undefined ? null : date(x.nextReviewDate) }; }, 500),
   };
@@ -40,6 +40,7 @@ const WORDS = catalogue({
     known: 'What was known then', knownNone: 'No receipt was attached.', asOf: 'as known on {date}', after: 'What happened after', afterNone: 'No review yet.',
     accepted: 'Accepted', rejected: 'Rejected', continue: 'Carry on', completed: 'Completed',
     reviewLine: '{outcome}.', reviewNotes: '{outcome}: {notes}', reviewNext: '{outcome}. Next review on {date}.', reviewNotesNext: '{outcome}: {notes} Next review on {date}.',
+    replaced: 'replaced', cancelled: 'cancelled', replacedNote: 'A later decision replaced this one.', cancelledNote: 'This decision was cancelled.',
     review: 'Review it', outcome: 'How did it go', notes: 'Notes', next: 'Next review date', record: 'Record the review', needNext: 'Pick the next review date to carry on.',
   },
   hi: {
@@ -47,6 +48,7 @@ const WORDS = catalogue({
     known: 'तब क्या पता था', knownNone: 'कोई रसीद नहीं जुड़ी थी।', asOf: '{date} को जैसा पता था', after: 'उसके बाद क्या हुआ', afterNone: 'अभी कोई समीक्षा नहीं।',
     accepted: 'स्वीकार', rejected: 'अस्वीकार', continue: 'जारी रखें', completed: 'पूरा हुआ',
     reviewLine: '{outcome}।', reviewNotes: '{outcome}: {notes}', reviewNext: '{outcome}। अगली समीक्षा {date} को।', reviewNotesNext: '{outcome}: {notes} अगली समीक्षा {date} को।',
+    replaced: 'बदल दिया गया', cancelled: 'रद्द', replacedNote: 'बाद के एक निर्णय ने इसकी जगह ली।', cancelledNote: 'यह निर्णय रद्द किया गया।',
     review: 'समीक्षा करें', outcome: 'कैसा रहा', notes: 'टिप्पणी', next: 'अगली समीक्षा की तारीख़', record: 'समीक्षा दर्ज करें', needNext: 'जारी रखने के लिए अगली समीक्षा की तारीख़ चुनें।',
   },
 });
@@ -82,10 +84,16 @@ function Body({ d, onReviewed }: { d: DecisionValue; onReviewed: (d: DecisionVal
   const ready = outcome !== null && (outcome !== 'continue' || nextOk);
   return (
     <>
-      <Part title={w.decided} aside={d.recordedLater ? <Label kind="recorded-later" /> : undefined}>
+      <Part title={w.decided} aside={d.recordedLater || d.replaced || d.cancelled ? <>
+        {d.recordedLater && <Label kind="recorded-later" />}
+        {d.replaced && <span className={s.flag} data-decision-flag="replaced">{w.replaced}</span>}
+        {d.cancelled && <span className={s.flag} data-decision-flag="cancelled">{w.cancelled}</span>}
+      </> : undefined}>
         <p className={s.lead} data-decision-text="">{d.text}</p>
         <p className={s.note}>{fill(w.madeOn, { date: dayText(d.createdAt, lang), date2: dayText(d.reviewDate, lang) })}</p>
         {d.status === 'closed' && <p className={s.note}>{w.closed}</p>}
+        {d.replaced && <p className={s.note}>{w.replacedNote}</p>}
+        {d.cancelled && <p className={s.note}>{w.cancelledNote}</p>}
       </Part>
       <Part title={w.known}>
         {knownRows.length === 0 ? <p className={s.note}>{w.knownNone}</p> : <RowList rows={knownRows} onReceipt={open} />}

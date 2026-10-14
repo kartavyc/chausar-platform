@@ -120,3 +120,12 @@
   padding: var(--sp1) 0;
   min-width: 0;
 }
+/* A fixed word set beside a title, in the same face as a Label (replaced, cancelled). */
+.flag {
+  font-family: var(--fm);
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--mute);
+  white-space: nowrap;
+}

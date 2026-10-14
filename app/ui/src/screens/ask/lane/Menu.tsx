@@ -20,7 +20,7 @@ import { AskPage, fill, periodText, useAsk, useRead, useWords, type AskView } fr
 import { call, type Period } from './client.ts';
 import {
   menuReply, runReply, suggestReply, understandReply,
-  type MenuItem, type MenuReply, type PeriodChoice, type PeriodId, type Topic, type UnderstandReply,
+  type MenuItem, type MenuReply, type RuleKind, type PeriodChoice, type PeriodId, type Topic, type UnderstandReply,
 } from './core-replies.ts';
 import { Refusal, understoodText, useExplain } from './core-words';
 import s from './core.module.css';
@@ -80,7 +80,7 @@ type Flow =
   | { readonly kind: 'idle' }
   | { readonly kind: 'busy' }
   | { readonly kind: 'not-built' }
-  | { readonly kind: 'refused'; readonly code: string }
+  | { readonly kind: 'refused'; readonly code: string; readonly rule?: RuleKind }
   | { readonly kind: 'not-applicable'; readonly reason: 'composition' | 'unregistered' }
   | { readonly kind: 'needs'; readonly item: MenuItem }
   | { readonly kind: 'proposal'; readonly reply: Proposed; readonly changing: boolean; readonly op: string; readonly periodId: PeriodId | null; readonly branch: string | null }
@@ -107,7 +107,7 @@ export function MenuScreen(_props: { view: Extract<AskView, { kind: 'menu' }> })
     if (reply.kind === 'not-built') return setFlow({ kind: 'not-built' });
     if (reply.kind === 'refused') return setFlow({ kind: 'refused', code: reply.code });
     const value = reply.value;
-    if (value.kind === 'refused') return setFlow({ kind: 'refused', code: value.code });
+    if (value.kind === 'refused') return setFlow(value.rule === undefined ? { kind: 'refused', code: value.code } : { kind: 'refused', code: value.code, rule: value.rule });
     if (value.kind === 'not-applicable') return setFlow({ kind: 'not-applicable', reason: value.reason });
     setFlow({ kind: 'idle' });
     ask.go({ kind: 'answer', receiptId: value.receiptId });
@@ -239,7 +239,7 @@ function FlowPanel({ flow, setFlow, run, periodId, when, periods, byId }: {
     case 'idle': return null;
     case 'busy': return <State state={{ kind: 'loading', reading: w.working }} />;
     case 'not-built': return <State state={{ kind: 'not-built' }} />;
-    case 'refused': return <Refusal code={flow.code} />;
+    case 'refused': return <Refusal code={flow.code} rule={flow.rule} />;
     case 'not-applicable': return <p className={s.note} data-not-applicable="">{w.notApplicable} {w[flow.reason]}</p>;
     case 'needs': {
       const item = flow.item, needsCompare = item.needs.includes('comparePeriod'), needsDate = item.needs.includes('onDate');

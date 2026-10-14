@@ -25,7 +25,8 @@ export type AskView =
   | { readonly kind: 'rows'; readonly receiptId: string; readonly tab: 'counted' | 'left-out' }
   | { readonly kind: 'sent'; readonly receiptId: string }
   | { readonly kind: 'why'; readonly operationId?: string; readonly whyId?: string }
-  | { readonly kind: 'whatif' }
+  /** With `receiptId` (the with-change receipt of a saved what-if) it is read back, not asked again. */
+  | { readonly kind: 'whatif'; readonly receiptId?: string }
   | { readonly kind: 'forecast'; readonly operationId?: string }
   | { readonly kind: 'plan' }
   | { readonly kind: 'gst2b' }

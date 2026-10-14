@@ -53,7 +53,7 @@ const answer = (over: Record<string, unknown> = {}) => ({
   asOf: '2026-09-12', headline: '',
   figures: [{ key: 'billed', label: 'Billed', minor: '1234500', unit: 'money' }, { key: 'received', label: 'Received', minor: '900000', unit: 'money' }],
   rows: { read: 214, counted: 211, excluded: 3 }, completeness: 'reconciled-imports', gaps: [], monthsNotLoaded: [], labels: [],
-  explanation: { source: 'template', text: 'Invoiced in September.', replaced: false },
+  explanation: { source: 'template', text: 'Invoiced in September.', replaced: false, reason: 'no-model' },
   guard: { status: 'passed', lines: [] }, sent: 'nothing', ...over,
 });
 
@@ -115,6 +115,7 @@ const receipt = {
   versions: { app: '1.0.0', dictionary: 3, dictionaryHash: 'dh', definitionHash: 'defh', recipes: ['h1'], calculator: 'calc-2' },
   allowedBy: { memberId: 'owner-1', role: 'owner', device: 'mcp', at: '2026-10-14T09:00:00.000Z' },
   labels: [], notCounted: 0, fx: [{ from: 'USD', to: 'INR', rate: '8350/100', on: '2026-09-30' }], sent: { kind: 'nothing' },
+  meaning: null, demo: false,
 };
 
 test('the receipt small print carries the way in, the recipe state, the rate and the decision that allowed it, in Simple too', async () => {
@@ -133,7 +134,7 @@ test('the receipt small print carries the way in, the recipe state, the rate and
 
 /* AS-06. */
 test('rows wholly hidden from this seat say so, not that nothing was counted, in English and Hindi', async () => {
-  const hidden = () => ({ tab: 'counted', total: 0, offset: 0, rows: [], hidden: true });
+  const hidden = () => ({ tab: 'counted', total: 0, offset: 0, rows: [], hidden: true, hiddenCount: null, rule: null });
   mount(sheet('answer.r-1'), { 'askx.answer': () => answer(), 'askx.receipt': () => receipt, 'askx.sourceRows': hidden });
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'See the receipt' }));

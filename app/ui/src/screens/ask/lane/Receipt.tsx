@@ -4,15 +4,18 @@
  * sources with their way in and recipe, and the small print with its five versions and the
  * "Allowed by" line. It opens the rows (both tabs), what was sent and the meaning.
  */
+import { useEffect, useState } from 'react';
 import type { Catalogue } from '../../../places/types.ts';
+import type { FigureLabel } from '../../../app/presentation.ts';
 import { KeyValue, type Pair } from '../../../parts/KeyValue';
 import { Button } from '../../../parts/Button';
 import { Label } from '../../../parts/Label';
 import { MissingWords } from '../../../parts/Figure';
 import { AskPage, countWords, dayText, figureOf, fill, periodText, useAsk, useRead, useWords, type AskView } from './kit';
 import { call } from './client.ts';
-import { receiptReply, type ReceiptReply } from './core-replies.ts';
-import { understoodText, useExplain, useShared } from './core-words';
+import { receiptExport, receiptReply, type ReceiptReply } from './core-replies.ts';
+import { Refusal, understoodText, useExplain, useShared } from './core-words';
+import { State } from '../../../patterns/States';
 import s from './core.module.css';
 
 type Key =
@@ -20,7 +23,8 @@ type Key =
   | 'excluded' | 'coverage' | 'notCounted' | 'fx' | 'sources' | 'file' | 'interface' | 'entered' | 'tested' | 'not-yet-tested' | 'noRecipe' | 'sourceRows'
   | 'smallPrint' | 'app' | 'dictionary' | 'definition' | 'recipes' | 'calculator' | 'allowedBy' | 'desktop' | 'phone' | 'mcp' | 'asOf' | 'createdAt'
   | 'rowsCounted' | 'rowsLeftOut' | 'sent' | 'sentNothing' | 'sentGone' | 'meaning' | 'seedNote' | 'period' | 'compared' | 'none'
-  | 'wayIn' | 'wayInValue' | 'recipeValue' | 'rate' | 'rateValue' | 'allowed' | 'allowedValue' | 'tool';
+  | 'wayIn' | 'wayInValue' | 'recipeValue' | 'rate' | 'rateValue' | 'allowed' | 'allowedValue' | 'tool'
+  | 'meaningVersion' | 'meaningUnknown' | 'demo' | 'export' | 'exporting' | 'exportReady' | 'download' | 'exportNote';
 const WORDS = {
   en: {
     title: 'The receipt', question: 'Your question: {question}', fromMenu: 'Your question: chosen from the menu', calc: 'Calculation chosen: {calc}',
@@ -35,6 +39,10 @@ const WORDS = {
     sentGone: 'What was sent is no longer kept.', meaning: 'Open the meaning', seedNote: 'From the starting menu.', period: 'Period', compared: 'Compared with', none: 'none',
     wayIn: 'Way in: {source}', wayInValue: '{way} · {format}', recipeValue: '{state} · {id}', rate: 'Rate: {from} to {to}', rateValue: '{rate} · {date}',
     allowed: 'Allowed by', allowedValue: '{role} {member} · {device} · {at}', tool: 'This was asked through a tool connection. Only the text handed to the tool is visible.',
+    meaningVersion: 'Meaning version {version}, published by {by} on {date}', meaningUnknown: 'Which published meaning this used is not known.',
+    demo: 'This is a demo workspace: every date and figure on this receipt is made up.',
+    export: 'Export the rows', exporting: 'Preparing the file…', exportReady: 'The rows are ready as a file.', download: 'Save {name}',
+    exportNote: 'Exporting changes nothing in your books.',
   },
   hi: {
     title: 'रसीद', question: 'आपका सवाल: {question}', fromMenu: 'आपका सवाल: मेन्यू से चुना गया', calc: 'चुनी गई गणना: {calc}',
@@ -49,6 +57,10 @@ const WORDS = {
     sentGone: 'जो भेजा गया वह अब रखा नहीं है।', meaning: 'अर्थ खोलें', seedNote: 'शुरुआती मेन्यू से।', period: 'अवधि', compared: 'इससे तुलना', none: 'कोई नहीं',
     wayIn: 'आने का रास्ता: {source}', wayInValue: '{way} · {format}', recipeValue: '{state} · {id}', rate: 'दर: {from} से {to}', rateValue: '{rate} · {date}',
     allowed: 'अनुमति', allowedValue: '{role} {member} · {device} · {at}', tool: 'यह एक टूल कनेक्शन से पूछा गया। सिर्फ़ टूल को दिया गया पाठ दिखता है।',
+    meaningVersion: 'अर्थ संस्करण {version}, {by} ने {date} को प्रकाशित किया', meaningUnknown: 'यह किस प्रकाशित अर्थ से बना, यह पता नहीं।',
+    demo: 'यह डेमो कार्यक्षेत्र है: इस रसीद की हर तारीख़ और हर आँकड़ा बनावटी है।',
+    export: 'पंक्तियाँ निर्यात करें', exporting: 'फ़ाइल तैयार हो रही है…', exportReady: 'पंक्तियाँ फ़ाइल के रूप में तैयार हैं।', download: '{name} सहेजें',
+    exportNote: 'निर्यात करने से आपकी बही में कुछ नहीं बदलता।',
   },
 } as const satisfies Catalogue<Key>;
 
@@ -66,7 +78,8 @@ function ReceiptBody({ receipt: r }: { receipt: ReceiptReply }) {
   const ask = useAsk(), w = useWords(WORDS), shared = useShared(), lang = ask.language, books = ask.view === 'books';
   const toReceipt = (receiptId: string) => { if (receiptId !== r.receiptId) ask.go({ kind: 'receipt', receiptId }); };
   const n = (value: number) => countWords(String(value));
-  const figures: Pair[] = r.figures.map(f => ({ name: f.label, figure: figureOf(f.unit, f.minor, r.receiptId, r.labels) }));
+  const figLabels: readonly FigureLabel[] = r.demo ? [...r.labels, 'demo-clock'] : r.labels;
+  const figures: Pair[] = r.figures.map(f => ({ name: f.label, figure: figureOf(f.unit, f.minor, r.receiptId, figLabels) }));
   const when: Pair[] = [
     ...(r.period === null ? [] : [{ name: w.period, value: periodText(r.period, lang) }]),
     ...(r.comparePeriod === null ? [] : [{ name: w.compared, value: periodText(r.comparePeriod, lang) }]),
@@ -88,13 +101,22 @@ function ReceiptBody({ receipt: r }: { receipt: ReceiptReply }) {
         ...r.fx.map((x): Pair => ({ name: fill(w.rate, { from: x.from, to: x.to }), value: x.on === null ? x.rate : fill(w.rateValue, { rate: x.rate, date: dayText(x.on, lang) }), mono: true })),
         { name: w.allowed, value: fill(w.allowedValue, { role: r.allowedBy.role, member: r.allowedBy.memberId, device, at: books ? r.allowedBy.at : dayText(r.allowedBy.at, lang) }) },
       ]} />
+      <p className={s.small} data-meaning-version="">
+        {r.meaning === null ? w.meaningUnknown : fill(w.meaningVersion, { version: n(r.meaning.version), by: r.meaning.publishedBy, date: dayText(r.meaning.publishedAt, lang) })}
+      </p>
     </div>
   );
 
   return (
     <div className={s.page} data-receipt={r.receiptId}>
       <div className={s.block}>
-        {r.labels.length > 0 && <p className={s.labels}>{r.labels.map(l => <Label key={l} kind={l} />)}{r.labels.includes('seed') && <span className={s.small}>{w.seedNote}</span>}</p>}
+        {(r.labels.length > 0 || r.demo) && (
+          <p className={s.labels}>
+            {r.labels.map(l => <Label key={l} kind={l} />)}{r.demo && <span data-demo=""><Label kind="demo-clock" /></span>}
+            {r.labels.includes('seed') && <span className={s.small}>{w.seedNote}</span>}
+          </p>
+        )}
+        {r.demo && <p className={s.small}>{w.demo}</p>}
         <ol className={s.chain} aria-label={w.title} data-chain="">
           <li>{r.chain.question === null ? w.fromMenu : fill(w.question, { question: r.chain.question })}</li>
           <li>{fill(w.calc, { calc: r.chain.calculation })}</li>
@@ -161,6 +183,7 @@ function ReceiptBody({ receipt: r }: { receipt: ReceiptReply }) {
         <Button variant="link" onClick={() => ask.go({ kind: 'rows', receiptId: r.receiptId, tab: 'left-out' })}>{w.rowsLeftOut}</Button>
         {r.sent.kind === 'model' && <Button variant="link" onClick={() => ask.go({ kind: 'sent', receiptId: r.receiptId })}>{w.sent}</Button>}
       </div>
+      <ExportRows receiptId={r.receiptId} />
       {r.sent.kind === 'nothing' && <p className={s.small}>{w.sentNothing}</p>}
       <p className={s.small} data-allowed-by="">{fill(w.allowedBy, { role: r.allowedBy.role, member: r.allowedBy.memberId, device, at: dayText(r.allowedBy.at, lang) })}</p>
       {r.sent.kind === 'model' && !r.sent.available && <p className={s.small}>{w.sentGone}</p>}
@@ -177,6 +200,37 @@ function ReceiptBody({ receipt: r }: { receipt: ReceiptReply }) {
           {smallPrint}
         </details>
       )}
+    </div>
+  );
+}
+
+type Exported = { readonly kind: 'idle' | 'busy' | 'not-built' } | { readonly kind: 'ready'; readonly name: string; readonly url: string } | { readonly kind: 'refused'; readonly code: string };
+
+/**
+ * The receipt's rows as one CSV file. Exporting changes nothing, so every seat may do it,
+ * a viewer too. The file is the engine's text; the page only offers it to be saved.
+ */
+function ExportRows({ receiptId }: { receiptId: string }) {
+  const ask = useAsk(), w = useWords(WORDS);
+  const [state, setState] = useState<Exported>({ kind: 'idle' });
+  const url = state.kind === 'ready' ? state.url : null;
+  useEffect(() => () => { if (url !== null) URL.revokeObjectURL(url); }, [url]);
+  async function run() {
+    setState({ kind: 'busy' });
+    const reply = await call(ask.rpc, 'askx.receipt.export', { receiptId }, receiptExport);
+    if (!ask.live()) return;
+    if (reply.kind === 'ok') setState({ kind: 'ready', name: reply.value.fileName, url: URL.createObjectURL(new Blob([reply.value.csv], { type: 'text/csv;charset=utf-8' })) });
+    else setState(reply.kind === 'not-built' ? { kind: 'not-built' } : { kind: 'refused', code: reply.code });
+  }
+  return (
+    <div className={s.block} data-receipt-export="">
+      <div className={s.actions}>
+        <Button disabled={state.kind === 'busy'} onClick={() => void run()}>{state.kind === 'busy' ? w.exporting : w.export}</Button>
+        {state.kind === 'ready' && <span role="status" className={s.note}>{w.exportReady} <a href={state.url} download={state.name} data-receipt-download="">{fill(w.download, { name: state.name })}</a></span>}
+      </div>
+      <p className={s.small}>{w.exportNote}</p>
+      {state.kind === 'not-built' && <State state={{ kind: 'not-built' }} />}
+      {state.kind === 'refused' && <Refusal code={state.code} />}
     </div>
   );
 }

@@ -29,7 +29,7 @@ const answer = (receiptId = 'r-1', labels: string[] = []) => ({
   asOf: '2026-10-14', headline: '14 customers',
   figures: [{ key: 'total', label: 'Total invoiced', minor: '1234500', unit: 'money' }, { key: 'top', label: 'Largest customer', minor: '400000', unit: 'money' }],
   rows: { read: 214, counted: 211, excluded: 3 }, completeness: 'partial', gaps: ['unreconciled'], monthsNotLoaded: ['2026-07'], labels,
-  explanation: { source: 'template', text: 'Invoiced in September.', replaced: false },
+  explanation: { source: 'template', text: 'Invoiced in September.', replaced: false, reason: 'no-model' },
   guard: { status: 'passed', lines: [{ number: '214', matched: { field: 'rows' } }] }, sent: 'nothing',
 });
 const receipt = {
@@ -42,9 +42,10 @@ const receipt = {
   versions: { app: '1.0.0', dictionary: 3, dictionaryHash: 'dh', definitionHash: 'defh', recipes: ['h1'], calculator: 'calc-2' },
   allowedBy: { memberId: 'owner-1', role: 'owner', device: 'desktop', at: '2026-10-14T09:00:00.000Z' },
   labels: ['seed'], notCounted: 0, fx: [], sent: { kind: 'model', available: true },
+  meaning: { version: 3, publishedBy: 'owner-1', publishedAt: '2026-10-01T10:00:00.000Z' }, demo: false,
 };
 const rows = (tab: string) => ({
-  tab, total: 1, offset: 0, hidden: tab === 'left-out',
+  tab, total: 1, offset: 0, hidden: tab === 'left-out', hiddenCount: null, rule: tab === 'left-out' ? 'branch' : null,
   rows: [{ rowId: `row-${tab}`, sourceId: 'src-tally', sourceRow: 12, cells: [{ name: 'Party', value: tab === 'counted' ? '<b>Acme</b>' : 'Cancelled Co' }], amountMinor: '5000', reason: tab === 'counted' ? null : 'cancelled' }],
 });
 
@@ -67,7 +68,7 @@ const base: Record<string, Handler> = {
   'askx.run': p => answer(p.operationId === 'collections.received' ? 'r-2' : 'r-1'),
   'askx.answer': p => answer(String(p.receiptId)),
   'askx.receipt': () => receipt, 'askx.sourceRows': p => rows(String(p.tab)),
-  'askx.sent': () => ({ kind: 'sent', routeId: 'local-model', sendLevel: 'shape only', bytes: 1200, costMinor: null, text: 'Totals for CUSTOMER_1', digest: 'sha-abc', removed: false, at: '2026-10-14', boundary: 'b1' }),
+  'askx.sent': () => ({ kind: 'sent', routeId: 'local-model', sendLevel: 'shape only', bytes: 1200, costMinor: null, text: 'Totals for CUSTOMER_1', digest: 'sha-abc', removed: false, at: '2026-10-14', boundary: 'b1', retentionDays: 30 }),
   'askx.save': () => ({ id: 'saved-1' }), 'askx.checks.save': () => ({ id: 'check-1' }),
 };
 
@@ -215,12 +216,12 @@ test('answer → receipt → rows in both tabs → what was sent', async () => {
 });
 
 test('removed text keeps only its fingerprint', async () => {
-  show({ ...base, 'askx.sent': () => ({ kind: 'sent', routeId: 'r', sendLevel: 'samples', bytes: 10, costMinor: '150', text: null, digest: 'sha-gone', removed: true, at: '2026-09-01', boundary: 'b' }) },
+  show({ ...base, 'askx.sent': () => ({ kind: 'sent', routeId: 'r', sendLevel: 'samples', bytes: 10, costMinor: '150', text: null, digest: 'sha-gone', removed: true, at: '2026-09-01', boundary: 'b', retentionDays: 30 }) },
     { address: { place: 'ask', sub: 'new', sheet: 'answer.r-1' } });
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'See the receipt' }));
   await user.click(await screen.findByRole('button', { name: 'What was sent to the AI model' }));
-  expect(await screen.findByText('The text was removed after the time you set. Its fingerprint is kept.')).toBeTruthy();
+  expect(await screen.findByText('The text was removed after 30 days. Its fingerprint is kept.')).toBeTruthy();
   expect(screen.getByText('sha-gone')).toBeTruthy();
 });
 

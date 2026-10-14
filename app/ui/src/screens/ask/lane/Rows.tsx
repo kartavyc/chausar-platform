@@ -10,7 +10,7 @@ import { Button } from '../../../parts/Button';
 import { Figure, MissingWords } from '../../../parts/Figure';
 import { AskPage, countWords, fill, moneyFigure, useAsk, useRead, useWords, type AskView } from './kit';
 import { call } from './client.ts';
-import { sourceRowsReply, type SourceRowsReply } from './core-replies.ts';
+import { sourceRowsReply, type RuleKind, type SourceRowsReply } from './core-replies.ts';
 import { useExplain } from './core-words';
 import s from './core.module.css';
 
@@ -23,6 +23,8 @@ const WORDS = {
     hidden: 'Some rows of this receipt are hidden from your seat by a rule in Trust. Nothing about them is shown here.',
     emptyCounted: 'No rows were counted for this receipt.', emptyLeftOut: 'No rows were left out of this receipt.',
     allHidden: 'None of these rows can be shown to your seat, so how many there are is not shown either.',
+    hiddenCount: '{count} rows are hidden from this seat because of {rule}.',
+    'rule-branch': 'a branch rule', 'rule-source': 'a source rule', 'rule-seat': 'a seat rule', 'rule-access': 'an access rule', 'rule-marking': 'a marking rule', 'rule-unknown': 'a rule in Trust',
   },
   hi: {
     title: 'संख्या के पीछे की पंक्तियाँ', tabs: 'पंक्तियाँ', counted: 'गिनी गईं', 'left-out': 'छोड़ी गईं', file: 'फ़ाइल', row: 'पंक्ति', cells: 'जैसा लिखा है', amount: 'रकम',
@@ -30,8 +32,11 @@ const WORDS = {
     hidden: 'इस रसीद की कुछ पंक्तियाँ Trust के एक नियम से आपकी सीट से छिपी हैं। उनके बारे में यहाँ कुछ नहीं दिखाया गया।',
     emptyCounted: 'इस रसीद में कोई पंक्ति नहीं गिनी गई।', emptyLeftOut: 'इस रसीद से कोई पंक्ति नहीं छोड़ी गई।',
     allHidden: 'इनमें से कोई पंक्ति आपकी सीट को नहीं दिखाई जा सकती, इसलिए उनकी गिनती भी नहीं दिखाई गई।',
+    hiddenCount: '{rule} के कारण {count} पंक्तियाँ इस सीट से छिपी हैं।',
+    'rule-branch': 'शाखा के नियम', 'rule-source': 'स्रोत के नियम', 'rule-seat': 'सीट के नियम', 'rule-access': 'पहुँच के नियम', 'rule-marking': 'चिह्न के नियम', 'rule-unknown': 'Trust के एक नियम',
   },
-} as const satisfies Catalogue<'title' | 'tabs' | Tab | 'file' | 'row' | 'cells' | 'amount' | 'reason' | 'rowId' | 'showing' | 'earlier' | 'later' | 'hidden' | 'emptyCounted' | 'emptyLeftOut' | 'allHidden'>;
+} as const satisfies Catalogue<'title' | 'tabs' | Tab | 'file' | 'row' | 'cells' | 'amount' | 'reason' | 'rowId' | 'showing' | 'earlier' | 'later' | 'hidden' | 'emptyCounted' | 'emptyLeftOut' | 'allHidden'
+  | 'hiddenCount' | `rule-${RuleKind | 'unknown'}`>;
 
 export function RowsScreen({ view }: { view: Extract<AskView, { kind: 'rows' }> }) {
   const ask = useAsk(), w = useWords(WORDS), explain = useExplain();
@@ -46,7 +51,9 @@ export function RowsScreen({ view }: { view: Extract<AskView, { kind: 'rows' }> 
       aside={<Choice<Tab> label={w.tabs} labelHidden options={[{ value: 'counted', label: w.counted }, { value: 'left-out', label: w['left-out'] }]} value={tab} onChange={t => { setTab(t); setOffset(0); }} />}>
       {(r: SourceRowsReply) => (
         <div className={s.page} data-rows={r.tab}>
-          {r.hidden && <p className={s.note} data-hidden="">{w.hidden}</p>}
+          {r.hidden && (r.hiddenCount === null
+            ? <p className={s.note} data-hidden="">{w.hidden}</p>
+            : <p className={s.note} data-hidden="" data-hidden-rule={r.rule ?? ''}>{fill(w.hiddenCount, { count: countWords(String(r.hiddenCount)), rule: w[`rule-${r.rule ?? 'unknown'}`] })}</p>)}
           {r.rows.length === 0 ? <p className={s.note} data-rows-empty="">{r.hidden ? w.allHidden : r.tab === 'counted' ? w.emptyCounted : w.emptyLeftOut}</p> : (
             <>
               <div className={s.tableWrap}>

@@ -19,6 +19,10 @@ export type Gap = (typeof GAPS)[number];
 const COMPLETENESS = ['reconciled-imports', 'unreconciled-facts', 'empty', 'partial'] as const;
 export type Completeness = (typeof COMPLETENESS)[number];
 export type Unit = 'money' | 'basis-points';
+/** Which kind of rule stopped an answer or hides rows (AS-09). A fixed word, never the rule's own text. */
+export const RULE_KINDS = ['branch', 'source', 'seat', 'access', 'marking'] as const;
+export type RuleKind = (typeof RULE_KINDS)[number];
+const optRule = (v: unknown): RuleKind | null => v === null ? null : oneOf(v, RULE_KINDS);
 
 export interface PeriodChoice { readonly id: PeriodId; readonly period: Period }
 const periodChoice = (v: unknown): PeriodChoice => { const o = obj(v); return { id: oneOf(o.id, PERIOD_IDS), period: period(o.period) }; };
@@ -107,7 +111,8 @@ export interface AnswerReply {
   readonly gaps: readonly Gap[];
   readonly monthsNotLoaded: readonly string[];
   readonly labels: readonly AnswerLabel[];
-  readonly explanation: { readonly source: 'template' | 'model'; readonly text: string; readonly replaced: boolean };
+  /** Why a template was used: no model was asked, or the guard replaced a model's text. */
+  readonly explanation: { readonly source: 'template' | 'model'; readonly text: string; readonly replaced: boolean; readonly reason: 'no-model' | 'guard-replaced' | null };
   readonly guard: { readonly status: 'passed' | 'replaced'; readonly lines: readonly { readonly number: string; readonly matched: GuardMatch }[] };
 }
 const figures = (v: unknown) => list(v, f => { const o = obj(f); return { key: str(o.key, 100), label: label(o.label), minor: minor(o.minor), unit: oneOf(o.unit, ['money', 'basis-points'] as const) }; }, 100);
@@ -130,15 +135,16 @@ export function answerReply(value: unknown): AnswerReply {
     period: optPeriod(v.period), comparePeriod: optPeriod(v.comparePeriod), branch: optStr(v.branch, 200), asOf: date(v.asOf), headline: str(v.headline, 400),
     figures: figures(v.figures), rows: { read: count(r.read), counted: count(r.counted), excluded: count(r.excluded) },
     completeness: oneOf(v.completeness, COMPLETENESS), gaps: gaps(v.gaps), monthsNotLoaded: list(v.monthsNotLoaded, month, 240), labels: labels(v.labels),
-    explanation: { source: oneOf(e.source, ['template', 'model'] as const), text: str(e.text, 8000), replaced: bool(e.replaced) },
+    explanation: { source: oneOf(e.source, ['template', 'model'] as const), text: str(e.text, 8000), replaced: bool(e.replaced), reason: e.reason === null ? null : oneOf(e.reason, ['no-model', 'guard-replaced'] as const) },
     guard: { status: oneOf(g.status, ['passed', 'replaced'] as const), lines: list(g.lines, l => { const o = obj(l); return { number: str(o.number, 100), matched: guardMatch(o.matched) }; }, 200) },
   };
 }
 
-export type RunReply = AnswerReply | { readonly kind: 'refused'; readonly code: string } | { readonly kind: 'not-applicable'; readonly reason: 'composition' | 'unregistered' };
+export type RunRefused = { readonly kind: 'refused'; readonly code: string; readonly rule?: RuleKind };
+export type RunReply = AnswerReply | RunRefused | { readonly kind: 'not-applicable'; readonly reason: 'composition' | 'unregistered' };
 export function runReply(value: unknown): RunReply {
   const v = obj(value);
-  if (v.kind === 'refused') return { kind: 'refused', code: code(v.code) };
+  if (v.kind === 'refused') return v.rule === undefined ? { kind: 'refused', code: code(v.code) } : { kind: 'refused', code: code(v.code), rule: oneOf(v.rule, RULE_KINDS) };
   if (v.kind === 'not-applicable') return { kind: 'not-applicable', reason: oneOf(v.reason, ['composition', 'unregistered'] as const) };
   return answerReply(v);
 }
@@ -158,9 +164,13 @@ export interface ReceiptReply {
   readonly notCounted: number;
   readonly fx: readonly { from: string; to: string; rate: string; on: string | null }[];
   readonly sent: { readonly kind: 'nothing' } | { readonly kind: 'model'; readonly available: boolean };
+  /** The published meaning this receipt used, when it is known. */
+  readonly meaning: { readonly version: number; readonly publishedBy: string; readonly publishedAt: string } | null;
+  /** True in a demo workspace: every date and figure is synthetic. */
+  readonly demo: boolean;
 }
 export function receiptReply(value: unknown): ReceiptReply {
-  const v = obj(value), c = obj(v.chain), ver = obj(v.versions), a = obj(v.allowedBy), s = obj(v.sent);
+  const v = obj(value), c = obj(v.chain), ver = obj(v.versions), a = obj(v.allowedBy), s = obj(v.sent), mn = v.meaning === null ? null : obj(v.meaning);
   return {
     receiptId: id(v.receiptId), operationId: id(v.operationId), label: label(v.label),
     chain: { question: optStr(c.question, 2000), calculation: label(c.calculation), rowsRead: count(c.rowsRead), totalChecked: bool(c.totalChecked) },
@@ -177,15 +187,23 @@ export function receiptReply(value: unknown): ReceiptReply {
     labels: labels(v.labels), notCounted: count(v.notCounted),
     fx: list(v.fx, x => { const o = obj(x); return { from: str(o.from, 10), to: str(o.to, 10), rate: str(o.rate, 60), on: o.on === null ? null : date(o.on) }; }, 50),
     sent: s.kind === 'nothing' ? { kind: 'nothing' } : s.kind === 'model' ? { kind: 'model', available: bool(s.available) } : fail(),
+    meaning: mn === null ? null : { version: int(mn.version), publishedBy: str(mn.publishedBy, 200), publishedAt: date(mn.publishedAt) },
+    demo: bool(v.demo),
   };
 }
 
 export interface SourceRow { readonly rowId: string; readonly sourceId: string; readonly sourceRow: number | null; readonly cells: readonly { name: string; value: string }[]; readonly amountMinor: string | null; readonly reason: string | null }
-export interface SourceRowsReply { readonly tab: 'counted' | 'left-out'; readonly total: number; readonly offset: number; readonly rows: readonly SourceRow[]; readonly hidden: boolean }
+export interface SourceRowsReply { readonly tab: 'counted' | 'left-out'; readonly total: number; readonly offset: number; readonly rows: readonly SourceRow[]; readonly hidden: boolean;
+  /** How many rows are hidden, given only when three or more, never which. */
+  readonly hiddenCount: number | null;
+  /** The kind of rule that hides them, when known. */
+  readonly rule: RuleKind | null;
+}
 export function sourceRowsReply(value: unknown): SourceRowsReply {
   const v = obj(value);
   return {
     tab: oneOf(v.tab, ['counted', 'left-out'] as const), total: count(v.total), offset: count(v.offset), hidden: bool(v.hidden),
+    hiddenCount: v.hiddenCount === null ? null : count(v.hiddenCount), rule: optRule(v.rule),
     rows: list(v.rows, r => {
       const o = obj(r);
       return { rowId: id(o.rowId), sourceId: id(o.sourceId), sourceRow: o.sourceRow === null ? null : count(o.sourceRow), cells: list(o.cells, c => { const x = obj(c); return { name: str(x.name, 200), value: str(x.value, 4000) }; }, 200), amountMinor: optMinor(o.amountMinor), reason: optStr(o.reason, 200) };
@@ -195,12 +213,12 @@ export function sourceRowsReply(value: unknown): SourceRowsReply {
 
 export type SentReply =
   | { readonly kind: 'nothing'; readonly why: 'menu' | 'no-model-record' }
-  | { readonly kind: 'sent'; readonly routeId: string; readonly sendLevel: string; readonly bytes: number; readonly costMinor: string | null; readonly text: string | null; readonly digest: string; readonly removed: boolean; readonly at: string; readonly boundary: string };
+  | { readonly kind: 'sent'; readonly routeId: string; readonly sendLevel: string; readonly bytes: number; readonly costMinor: string | null; readonly text: string | null; readonly digest: string; readonly removed: boolean; readonly at: string; readonly boundary: string; readonly retentionDays: number };
 export function sentReply(value: unknown): SentReply {
   const v = obj(value);
   if (v.kind === 'nothing') return { kind: 'nothing', why: oneOf(v.why, ['menu', 'no-model-record'] as const) };
   if (v.kind !== 'sent') fail();
-  return { kind: 'sent', routeId: str(v.routeId, 200), sendLevel: str(v.sendLevel, 100), bytes: count(v.bytes), costMinor: optMinor(v.costMinor), text: optStr(v.text, 200000), digest: str(v.digest, 200), removed: bool(v.removed), at: date(v.at), boundary: str(v.boundary, 200) };
+  return { kind: 'sent', routeId: str(v.routeId, 200), sendLevel: str(v.sendLevel, 100), bytes: count(v.bytes), costMinor: optMinor(v.costMinor), text: optStr(v.text, 200000), digest: str(v.digest, 200), removed: bool(v.removed), at: date(v.at), boundary: str(v.boundary, 200), retentionDays: count(v.retentionDays) };
 }
 
 export const SAVED_KINDS = ['answer', 'why', 'what-if', 'forecast'] as const;
@@ -234,6 +252,13 @@ export function wantedReply(value: unknown): WantedReply {
   const v = obj(value);
   const entry = (x: unknown) => { const o = obj(x); return { text: str(o.text, 2000), count: count(o.count), lastAt: date(o.lastAt) }; };
   return { calculations: list(v.calculations, entry, 1000), actions: list(v.actions, entry, 1000), words: list(v.words, x => { const o = obj(x); return { word: str(o.word, 200), count: count(o.count), lastAt: date(o.lastAt) }; }, 1000) };
+}
+
+/** A receipt's rows, counted and left out, as one CSV file to save. */
+export function receiptExport(value: unknown): { readonly fileName: string; readonly csv: string } {
+  const v = obj(value), name = str(v.fileName, 240);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,235}\.csv$/.test(name)) fail();
+  return { fileName: name, csv: str(v.csv, 20_000_000) };
 }
 
 export const savedId = (value: unknown) => ({ id: id(obj(value).id) });

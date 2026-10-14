@@ -59,10 +59,10 @@ export function SavedScreen(_props: { view: Extract<AskView, { kind: 'saved' }> 
   const open = (item: SavedEntry) => {
     if (item.kind === 'answer' && item.receiptId !== null) return ask.go({ kind: 'answer', receiptId: item.receiptId });
     if (item.kind === 'why' && item.refId !== null) return ask.go({ kind: 'why', whyId: item.refId });
-    if (item.kind === 'what-if') return ask.go({ kind: 'whatif' });
+    if (item.kind === 'what-if' && item.refId !== null) return ask.go({ kind: 'whatif', receiptId: item.refId });
     if (item.kind === 'forecast') return ask.go(item.operationId === null ? { kind: 'forecast' } : { kind: 'forecast', operationId: item.operationId });
   };
-  const opens = (item: SavedEntry) => item.deletedOn === null && (item.kind !== 'answer' || item.receiptId !== null) && (item.kind !== 'why' || item.refId !== null);
+  const opens = (item: SavedEntry) => item.deletedOn === null && (item.kind !== 'answer' || item.receiptId !== null) && (item.kind !== 'why' || item.refId !== null) && (item.kind !== 'what-if' || item.refId !== null);
 
   return (
     <AskPage title={w.title} load={load} retry={retry} explain={explain}

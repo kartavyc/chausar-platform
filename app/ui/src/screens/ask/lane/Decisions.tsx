@@ -43,6 +43,7 @@ export function journalReply(value: unknown): Journal {
 const WORDS = catalogue({
   en: {
     title: 'Decisions', inbox: 'Inbox', inboxEmpty: 'Nothing awaits your review.', drafts: 'Drafts to confirm', due: 'Due for review', waiting: 'Chausar is waiting on',
+    waitingNote: 'These questions wait for your answer. Answer them from Ask › New.',
     reviewOn: 'Review on {date}', dueOn: 'Review was due on {date}', askedOn: 'Asked on {date}', forwarded: 'Forwarded from the phone.',
     confirm: 'Confirm', discard: 'Discard', write: 'Write a decision', sentence: 'The decision, in one sentence', reviewDate: 'Review date',
     attached: '{count} receipts are attached, as known today.', draft: 'Make the draft', needBoth: 'Write the sentence and pick a review date.',
@@ -51,6 +52,7 @@ const WORDS = catalogue({
   },
   hi: {
     title: 'निर्णय', inbox: 'इनबॉक्स', inboxEmpty: 'आपकी समीक्षा के लिए कुछ नहीं है।', drafts: 'पुष्टि के लिए मसौदे', due: 'समीक्षा का समय', waiting: 'Chausar इनकी प्रतीक्षा में है',
+    waitingNote: 'ये सवाल आपके जवाब की प्रतीक्षा में हैं। इनका जवाब पूछें › नया से दें।',
     reviewOn: '{date} को समीक्षा', dueOn: 'समीक्षा {date} को होनी थी', askedOn: '{date} को पूछा', forwarded: 'फ़ोन से भेजा गया।',
     confirm: 'पुष्टि करें', discard: 'हटाएँ', write: 'निर्णय लिखें', sentence: 'निर्णय, एक वाक्य में', reviewDate: 'समीक्षा की तारीख़',
     attached: '{count} रसीदें जुड़ी हैं, जैसी आज हैं।', draft: 'मसौदा बनाएँ', needBoth: 'वाक्य लिखें और समीक्षा की तारीख़ चुनें।',
@@ -120,7 +122,14 @@ function Body({ both, receiptIds, reload }: { both: Both; receiptIds: readonly s
           </div>
         )}
         {dueRows.length > 0 && <div data-decisions="due"><h3 className={s.tileLabel}>{w.due}</h3><RowList rows={dueRows} onOpen={open} onReceipt={rid => ask.go({ kind: 'receipt', receiptId: rid })} /></div>}
-        {waitRows.length > 0 && <div data-decisions="waiting"><h3 className={s.tileLabel}>{w.waiting}</h3><RowList rows={waitRows} onReceipt={rid => ask.go({ kind: 'receipt', receiptId: rid })} /></div>}
+        {waitRows.length > 0 && (
+          <div data-decisions="waiting">
+            <h3 className={s.tileLabel}>{w.waiting}</h3>
+            {/* No method answers a clarification from here, so these rows do not open. */}
+            <RowList rows={waitRows} onReceipt={rid => ask.go({ kind: 'receipt', receiptId: rid })} />
+            <p className={s.note} data-waiting-note="">{w.waitingNote}</p>
+          </div>
+        )}
       </Part>
       {!ask.viewer && (
         <Part title={w.write}>
