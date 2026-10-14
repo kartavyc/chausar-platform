@@ -4,6 +4,7 @@ import { check, now } from '../contracts.ts';
 import type { Context, State } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import { canonicalJson, fields, newestFirst, paise, shipped, tools } from './tools-common.ts';
+import { hostedLeft, modelMeters, writebackLedger } from './adapters.ts';
 
 type Terms = { keeps: string; keepsFor: string; trains: string; country: string; termsUrl: string; readOn: string; hosts?: string[] };
 const TERMS = shipped<{ version: number; readOn: string; kinds: Record<string, Terms> }>('tools-terms.v1.json');
@@ -35,11 +36,14 @@ function healthOf(route: any, receipts: any[]): string {
   return route.credentialConfigured ? 'ready' : 'needs-key';
 }
 
-export function modelsView(ctx: Context, host: ModuleHost) {
+export async function modelsView(ctx: Context, host: ModuleHost) {
+  const meters = await modelMeters(host);
   const state = host.store.read(); const gateway = host.services.gateway;
   const routes: any[] = gateway.listRoutes(ctx); const receipts: any[] = gateway.receipts(ctx).filter((r: any) => r.kind === 'model-preview');
   const month = now().slice(0, 7);
-  const spent = receipts.filter(r => SENT.has(r.status) && String(r.dispatchedAt ?? r.at).startsWith(month)).reduce((sum, r) => sum + paise(cost(r)), 0n);
+  // models-ext meters the month's spend in rupees from measured costs; when it answers, its figure is used
+  // instead of this lane's sum of reserved and estimated costs from the receipts.
+  const spent = meters.spendThisMonthMinor ?? receipts.filter(r => SENT.has(r.status) && String(r.dispatchedAt ?? r.at).startsWith(month)).reduce((sum, r) => sum + paise(cost(r)), 0n).toString();
   let voice: string | null = null;
   try { const providers: any[] = host.services.speech?.providers(ctx) ?? []; voice = providers.find(p => p.enabled)?.kind ?? null; } catch { voice = null; }
   return {
@@ -48,9 +52,10 @@ export function modelsView(ctx: Context, host: ModuleHost) {
       return { id: route.id, kind: route.kind, label: route.label ?? `${route.kind} ${route.model}`, health: healthOf(route, receipts), order: index + 1,
         terms: termsFor(route), lastAnswerCostMinor: last ? cost(last) : null };
     }),
-    // Spend counts every member's requests only for owner and cofounder, who see them all; voice minutes are not counted yet.
-    spendThisMonthMinor: ['owner', 'cofounder'].includes(ctx.role) ? spent.toString() : null, monthlyCapMinor: tools(state).modelCap ?? null, capEnforced: false as const,
-    voice: { provider: voice, minutesThisMonth: null },
+    // Spend counts every member's requests only for owner and cofounder, who see them all. Voice minutes come
+    // from models-ext's meters and stay null ("not counted yet") until that method gives them.
+    spendThisMonthMinor: ['owner', 'cofounder'].includes(ctx.role) ? spent : null, monthlyCapMinor: tools(state).modelCap ?? null, capEnforced: false as const,
+    voice: { provider: voice, minutesThisMonth: meters.minutesThisMonth },
   };
 }
 
@@ -61,12 +66,23 @@ export async function setModelCap(ctx: Context, payload: Record<string, any>, ho
   return modelsView(ctx, host);
 }
 
+const SYSTEM: Record<string, string> = { tally: 'Tally', 'zoho-books': 'Zoho Books', razorpay: 'Razorpay', shopify: 'Shopify', 'google-workspace': 'Google Workspace',
+  whatsapp: 'WhatsApp Business', mail: 'Your mail server', 'gst-portal': 'GST portal' };
+const CHANNEL: Record<string, string> = { whatsapp: 'WhatsApp', telegram: 'Telegram', mail: 'Mail' };
+/** writeback's words for a change, as the network ledger reads them. Not sure is waiting: it is checked before anything is sent again. */
+const WRITE_OUTCOME: Record<string, ['allowed' | 'stopped' | 'waiting', string]> = {
+  'waiting-for-you': ['waiting', 'Waiting for your yes.'], approved: ['waiting', 'Approved, not sent yet.'], doing: ['allowed', 'Being done now.'], done: ['allowed', 'Done and read back.'],
+  'not-sure': ['waiting', 'Not sure it arrived; it is checked before anything is sent again.'], 'not-done': ['allowed', 'Sent; the system did not do it.'],
+  dropped: ['stopped', 'Dropped before sending.'], 'prepare-only': ['stopped', 'Prepared only; Chausar never sends this.'],
+};
+
 type Item = { id: string; at: string; kind: string; destination: string; why: string; bytes: number | null; outcome: 'allowed' | 'stopped' | 'waiting'; pluginId?: string; waitingContent?: string };
-export function networkView(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+export async function networkView(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   const { kind, pluginId, limit = 200 } = fields(payload, ['kind', 'pluginId', 'limit']);
   check(kind === undefined || ['model', 'connector', 'action', 'sharing', 'phone', 'sync', 'plugin'].includes(kind), 'INVALID_FIELDS', 'Choose a known kind of call.');
   check(pluginId === undefined || (typeof pluginId === 'string' && pluginId.length <= 200), 'INVALID_FIELDS', 'Choose a plugin.');
   check(Number.isSafeInteger(limit) && limit >= 1 && limit <= 1000, 'INVALID_FIELDS', 'Ask for 1 to 1000 calls.');
+  const ledger = await writebackLedger(host);
   const state = host.store.read(); const items: Item[] = [];
   for (const r of host.services.gateway.receipts(ctx) as any[]) {
     if (r.kind !== 'model-preview') continue;
@@ -77,12 +93,21 @@ export function networkView(ctx: Context, payload: Record<string, any>, host: Mo
   }
   for (const item of state.imports) if (typeof item?.type === 'string' && item.type.startsWith('connector-'))
     items.push({ id: String(item.id), at: String(item.createdAt ?? item.at ?? item.capturedAt ?? ''), kind: 'connector', destination: String(item.profileId ?? item.connector ?? 'A connected system'), why: 'To read your records', bytes: null, outcome: 'allowed' });
-  for (const action of state.actions) if (action.connector !== 'local' && ['executing', 'verified', 'unknown', 'rejected'].includes(action.status) && action.attempts?.length)
+  // writeback's changes come from its own ledger below.
+  for (const action of state.actions) if (action.connector !== 'local' && !String(action.connector).startsWith('wb-') && ['executing', 'verified', 'unknown', 'rejected'].includes(action.status) && action.attempts?.length)
     items.push({ id: action.id, at: String(action.attempts[0].startedAt ?? action.createdAt), kind: 'action', destination: String(action.connector), why: `To do an approved ${String(action.operation)}`, bytes: Buffer.byteLength(canonicalJson(action.payload)), outcome: 'allowed' });
   for (const record of state.learning) if (record.type === 'export')
     items.push({ id: record.id, at: record.at, kind: 'sharing', destination: String(record.receiver), why: 'To share the shape of your work, without names or amounts', bytes: Buffer.byteLength(canonicalJson(record.payload)), outcome: record.outcome === 'sent' || record.outcome === 'unknown' ? 'allowed' : 'stopped' });
   for (const event of state.activity) if (event.event === 'sync.push.completed')
     items.push({ id: event.id, at: event.at, kind: 'sync', destination: 'Your sync store', why: 'To copy the locked workspace to your other device', bytes: null, outcome: 'allowed' });
+  for (const row of ledger) {
+    const [outcome, word] = WRITE_OUTCOME[row.word] ?? ['waiting', 'In a state this screen does not know yet.'];
+    items.push({ id: row.id, at: row.at, kind: 'action', destination: row.practice ? `Practice copy of ${SYSTEM[row.system] ?? 'a system'}, on this computer` : SYSTEM[row.system] ?? 'A connected system',
+      why: `${row.title}. ${word}`, bytes: null, outcome });
+  }
+  for (const left of hostedLeft(state)) items.push(left.kind === 'phone'
+    ? { id: left.id, at: left.at, kind: 'phone', destination: `${CHANNEL[left.channel ?? ''] ?? 'A phone channel'}, through the Chausar relay`, why: 'To send you a message with a headline and a link only', bytes: null, outcome: 'allowed' }
+    : { id: left.id, at: left.at, kind: 'sync', destination: 'Chausar hosted backup', why: 'To keep a backup locked on this computer before upload; the server cannot open it', bytes: null, outcome: 'allowed' });
   for (const plugin of state.plugins) for (const run of plugin.runs ?? [])
     items.push({ id: run.id, at: run.at, kind: 'plugin', destination: 'this computer', why: `${String(plugin.manifest?.name ?? 'A plugin')} ran in its locked box`, bytes: null, outcome: run.outcome === 'success' ? 'allowed' : 'stopped', pluginId: plugin.id });
   const filtered = items.filter(item => (!kind || item.kind === kind) && (!pluginId || item.pluginId === pluginId));

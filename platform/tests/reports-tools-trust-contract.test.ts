@@ -62,15 +62,14 @@ test('every reportsx and trustx reply passes the validator of the screen that dr
   await pass('reportsx.askPerson', { question: 'Why did sales fall?', reason: 'Not yet', receiptId }, reports.validateAskPerson);
 
   // Trust
-  await pass('trustx.rules', {}, trust.validateRules);
+  // The Do row's preset now comes from jobs-ext (absent here, so null); the screen reads it from jobsx.* directly.
+  await pass('trustx.rules', {}, reply => { assert.deepEqual((reply as any).do, { preset: null }); return trust.validateRules({ ...(reply as any), do: { preset: 'custom' } }); });
   await pass('trustx.markings', {}, trust.validateMarkings);
   await pass('trustx.setMarking', { kind: 'confidential', target: { type: 'source', sourceId: 'synthetic-contract-source' }, on: true }, trust.validateMarkings);
   await pass('trustx.sendLevels', {}, trust.validateSendLevels);
   await pass('trustx.setSend', { level: 'shape' }, trust.validateChange);
   await pass('trustx.pendingChanges', {}, trust.validatePending);
   await pass('trustx.keep', {}, trust.validateKeep);
-  await pass('trustx.autonomy', {}, trust.validateAutonomy);
-  await pass('trustx.setAutonomy', { preset: 'routine' }, trust.validateAutonomy);
   await pass('trustx.seats', {}, trust.validateSeats);
   await pass('trustx.invite', { seat: 'accountant', name: 'Synthetic Accountant' }, trust.validateInvite);
   await pass('trustx.models', {}, trust.validateModels);

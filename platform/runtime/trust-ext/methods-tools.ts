@@ -31,7 +31,7 @@ export const trustToolsMethods: Record<string, MethodSpec> = {
   'trustx.deletions': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return deletions(host.store.read()); } },
   'trustx.exportDeletion': { permission: 'admin', handler: exportDeletion },
   'trustx.hosted': { permission: 'read', handler: (_ctx, payload) => { fields(payload, []); return hostedView(); } },
-  'trustx.agreements': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return agreementsView(host.store.read()); } },
+  'trustx.agreements': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return agreementsView(host); } },
   'trustx.withdraw': { permission: 'admin', handler: withdraw },
   'trustx.assistants': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return assistantsView(host.store.read()); } },
   'trustx.setAssistants': { permission: 'admin', handler: setAssistants },

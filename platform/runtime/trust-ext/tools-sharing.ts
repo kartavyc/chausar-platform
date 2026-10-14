@@ -3,6 +3,8 @@ import { check, ChausarError, now } from '../contracts.ts';
 import type { Context, State } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import { canonicalJson, fields, memberName, newestFirst, tools } from './tools-common.ts';
+import { followUpConsents, phoneChannels } from './adapters.ts';
+import type { FollowUpConsent } from './adapters.ts';
 
 const PATTERNS: [string, RegExp][] = [
   ['gstin', /\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b/g],
@@ -59,27 +61,53 @@ const NOTICE = {
   hi: 'चौसर आपके व्यापार के रिकॉर्ड इसी कंप्यूटर पर रखता है, आपके पासफ़्रेज़ से बंद करके। आपके बनाए नियम के बिना कुछ भी इस कंप्यूटर से बाहर नहीं जाता, और बाहर जाने वाली हर कॉल नेटवर्क में दिखती है। अगर आप साझा करना चालू करते हैं, तो सिर्फ़ आपके काम का ढाँचा साझा होता है: कभी नाम, रकम या फ़ाइलें नहीं। आप कोई भी सहमति कभी भी वापस ले सकते हैं; जो पहले साझा हो चुका है, वह वापस नहीं बुलाया जा सकता। अपने ग्राहकों के डेटा की ज़िम्मेदारी आपकी है; यह ऐप उसे देखने, मिटाने और उसकी रिपोर्ट पाने में मदद करता है।',
 };
 
-type Agreement = { id: string; person: string; purpose: string; at: string; withdrawnAt: string | null; kind: 'learning' | 'invoice' };
-function agreementItems(state: State): Agreement[] {
-  const withdrawn: Record<string, string> = tools(state).withdrawals ?? {};
+type Agreement = { id: string; person: string; purpose: string; at: string; withdrawnAt: string | null; kind: 'learning' | 'invoice' | 'phone' | 'follow-up';
+  channel?: string; consent?: FollowUpConsent };
+const PHONE: Record<string, string> = { whatsapp: 'Receive Chausar messages on WhatsApp', telegram: 'Receive Chausar messages on Telegram', mail: 'Receive Chausar messages by mail' };
+const REMINDER: Record<string, string> = { email: 'Receive payment reminders by mail', whatsapp: 'Receive payment reminders on WhatsApp' };
+async function agreementItems(host: ModuleHost): Promise<Agreement[]> {
+  const channels = await phoneChannels(host), consents = await followUpConsents(host);
+  const state = host.store.read(); const withdrawn: Record<string, string> = tools(state).withdrawals ?? {};
   const items: Agreement[] = [];
   for (const record of state.learning) if (record.type === 'consent')
     items.push({ id: record.id, person: memberName(state, record.memberId), purpose: 'Share the shape of some work, without names or amounts', at: record.at, withdrawnAt: withdrawn[record.id] ?? null, kind: 'learning' });
   for (const answer of state.answers) if (answer?.kind === 'invoice-opt-in-v1' && answer.status === 'yes')
     items.push({ id: answer.id, person: `Customer ${String(answer.customerId)}`, purpose: 'Receive payment reminders', at: answer.at, withdrawnAt: null, kind: 'invoice' });
+  // The owner's own opt-in per phone channel; hosted-link records turning a channel off in the activity log.
+  for (const c of channels) if (c.optInAt !== null) {
+    const off = c.enabled ? undefined : state.activity.filter(e => e.event === 'hosted.channel.set' && e.details?.channel === c.channel && e.details?.enabled === false && e.at >= c.optInAt!).at(-1);
+    items.push({ id: `phone-${c.channel}`, person: 'The owner', purpose: PHONE[c.channel], at: c.optInAt, withdrawnAt: c.enabled ? null : off?.at ?? c.optInAt, kind: 'phone', channel: c.channel });
+  }
+  // Each yes a customer gave to reminders, withdrawn by the next answer for that customer and channel when it is not yes.
+  consents.forEach((consent, index) => {
+    if (consent.answer !== 'yes') return;
+    const next = consents.slice(index + 1).find(c => c.customerId === consent.customerId && c.channel === consent.channel);
+    items.push({ id: consent.id, person: `Customer ${consent.customerId}`, purpose: REMINDER[consent.channel], at: consent.at,
+      withdrawnAt: next && next.answer !== 'yes' ? next.at : null, kind: 'follow-up', consent });
+  });
   return newestFirst(items);
 }
-export function agreementsView(state: State) { return { notice: NOTICE, items: agreementItems(state).map(({ kind: _, ...item }) => item) }; }
+export async function agreementsView(host: ModuleHost) {
+  return { notice: NOTICE, items: (await agreementItems(host)).map(({ id, person, purpose, at, withdrawnAt }) => ({ id, person, purpose, at, withdrawnAt })) };
+}
 
+const indianDay = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
 export async function withdraw(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   const { id } = fields(payload, ['id']);
   check(typeof id === 'string' && id.length > 0 && id.length <= 200, 'INVALID_FIELDS', 'Choose an agreement.');
-  const item = agreementItems(host.store.read()).find(agreement => agreement.id === id);
+  const item = (await agreementItems(host)).find(agreement => agreement.id === id);
   check(item, 'NOT_FOUND', 'That agreement was not found.');
-  if (item.kind !== 'learning') throw new ChausarError('WITHDRAW_NOT_AVAILABLE', 'A customer withdraws reminder consent themselves by replying STOP; record that in the reminder screen.');
+  if (item.kind === 'invoice') throw new ChausarError('WITHDRAW_NOT_AVAILABLE', 'A customer withdraws reminder consent themselves by replying STOP; record that in the reminder screen.');
   if (!item.withdrawnAt) {
-    await host.call('learning.sharing', { enabled: false });
-    await host.store.update(state => { (tools(state).withdrawals ??= {})[id] = now(); });
+    // A withdrawal goes through the lane that owns the agreement; its refusal reaches the caller as it is.
+    if (item.kind === 'phone') await host.call('phone.channels.set', { channel: item.channel!, enabled: false, optIn: false });
+    else if (item.kind === 'follow-up') {
+      const c = item.consent!;
+      await host.call('writeback.followUp.consent', { requestId: `trustx-withdraw-${c.id}`, customerId: c.customerId, channel: c.channel, destination: c.destination, answer: 'stopped', observedOn: indianDay() });
+    } else {
+      await host.call('learning.sharing', { enabled: false });
+      await host.store.update(state => { (tools(state).withdrawals ??= {})[id] = now(); });
+    }
   }
-  return agreementsView(host.store.read());
+  return agreementsView(host);
 }
