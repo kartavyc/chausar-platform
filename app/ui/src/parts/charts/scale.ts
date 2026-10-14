@@ -140,3 +140,104 @@ export const BAR_MAX = 24;
 export const BAR_RADIUS = 4;
 /** Half of the invisible 24 pixel target around a mark, however small the mark is. */
 export const HIT_RADIUS = 12;
+
+/* Additions for the remaining chart forms (frame-today). Each is geometry or mark order
+   only: it places values the engine already worked out and never returns a figure. */
+
+export interface PlotPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** Unbroken runs of placed points. A missing point (null) breaks the line, so a line
+ *  never bridges a gap. A run of one point stays a run, so it can be drawn as a point. */
+export function runsOf(points: ReadonlyArray<PlotPoint | null>): PlotPoint[][] {
+  const runs: PlotPoint[][] = [];
+  let run: PlotPoint[] = [];
+  for (const point of points) {
+    if (point === null) {
+      if (run.length > 0) runs.push(run);
+      run = [];
+      continue;
+    }
+    run.push(point);
+  }
+  if (run.length > 0) runs.push(run);
+  return runs;
+}
+
+/** An SVG path through a run of points. Coordinates are written to a tenth of a pixel. */
+export function pathOf(points: ReadonlyArray<PlotPoint>): string {
+  return points.map((p, j) => `${j === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+}
+
+/** The ordered pixel ends of a bar between two exact levels on one scale. A bar from a
+ *  level to the same level has no size; its ends are equal. `rising` says whether the
+ *  second level lies at the larger pixel coordinate, so a bar can grow from its start. */
+export function pixelSpan(scale: (v: bigint) => number, from: bigint, to: bigint): { lo: number; hi: number; size: number; rising: boolean } {
+  const a = scale(from);
+  const b = scale(to);
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  return { lo, hi, size: hi - lo, rising: b >= a };
+}
+
+/** The edges of `n` equal slots across [r0, r1]: n + 1 coordinates. A step of a step
+ *  line holds from its own edge to the next one. */
+export function slotEdges(n: number, r0: number, r1: number): ReadonlyArray<number> {
+  if (!Number.isInteger(n) || n < 0) throw new RangeError('SCALE_BAD_SLOTS');
+  const x = linear(0, Math.max(n, 1), r0, r1);
+  return Array.from({ length: n + 1 }, (_, i) => x(i));
+}
+
+export interface StepRun {
+  /** The index of the run's first step. */
+  readonly first: number;
+  /** The corner points of one path. */
+  readonly points: PlotPoint[];
+}
+
+/** Step-after runs: step i holds its level from edge i to edge i + 1 and the line rises or
+ *  falls at the next edge. A missing step (null) breaks the line. */
+export function stepRuns(levels: ReadonlyArray<number | null>, edges: ReadonlyArray<number>): StepRun[] {
+  const runs: StepRun[] = [];
+  let current: StepRun | null = null;
+  for (let i = 0; i < levels.length; i += 1) {
+    const level = levels[i] ?? null;
+    const left = edges[i];
+    const right = edges[i + 1];
+    if (level === null || left === undefined || right === undefined) {
+      if (current !== null) runs.push(current);
+      current = null;
+      continue;
+    }
+    if (current === null) current = { first: i, points: [{ x: left, y: level }] };
+    else current.points.push({ x: left, y: level });
+    current.points.push({ x: right, y: level });
+  }
+  if (current !== null) runs.push(current);
+  return runs;
+}
+
+/** Keys that move focus from mark to mark inside a chart, and where they land. Right and
+ *  Down go to the next mark, Left and Up to the one before, Home and End to the ends. The
+ *  ends hold: focus does not wrap. Any other key gives null. */
+export function nextMarkIndex(index: number, marks: number, key: string): number | null {
+  if (marks <= 0) return null;
+  const last = marks - 1;
+  const here = Math.min(Math.max(index, 0), last);
+  switch (key) {
+    case 'ArrowRight':
+    case 'ArrowDown':
+      return Math.min(here + 1, last);
+    case 'ArrowLeft':
+    case 'ArrowUp':
+      return Math.max(here - 1, 0);
+    case 'Home':
+      return 0;
+    case 'End':
+      return last;
+    default:
+      return null;
+  }
+}

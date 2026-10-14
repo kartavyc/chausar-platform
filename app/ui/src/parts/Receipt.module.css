@@ -1,0 +1,112 @@
+/* A till receipt: figures in the number face, a rule above the total, small print under a
+   dashed line. No boxes, no shading. */
+.receipt {
+  display: grid;
+  gap: var(--sp4);
+  font-size: var(--fs-note2);
+  color: var(--fg);
+}
+
+/* Part 1: four marks on one line, joined by a hairline. */
+.marks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp2);
+  position: relative;
+}
+.marks::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: calc(var(--square) / 2);
+  border-top: var(--hair) solid var(--line2);
+}
+.mark {
+  position: relative;
+  display: grid;
+  gap: var(--sp1);
+  align-content: start;
+  justify-items: start;
+}
+.markWords {
+  font-size: var(--fs-note);
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.lines {
+  margin: 0;
+  display: grid;
+  gap: var(--sp1);
+}
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--sp4);
+  align-items: baseline;
+}
+.line dt {
+  color: var(--mute);
+}
+.line dd {
+  margin: 0;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+.indent dt {
+  padding-inline-start: var(--sp4);
+}
+
+/* Part 4: a rule above the total. */
+.totals {
+  border-top: var(--hair) solid var(--fg);
+  padding-top: var(--sp2);
+  display: grid;
+  gap: var(--sp1);
+}
+.totalList {
+  margin: 0;
+  display: grid;
+  gap: var(--sp1);
+}
+.total {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--sp4);
+  align-items: baseline;
+  font-weight: var(--fw-medium);
+}
+.total dd {
+  margin: 0;
+  text-align: end;
+}
+
+/* Part 5: small print under a dashed line. */
+.small {
+  margin: 0;
+  border-top: var(--hair) dashed var(--line2);
+  padding-top: var(--sp2);
+  display: grid;
+  gap: var(--sp1);
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+.smallLine {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr);
+  column-gap: var(--sp3);
+}
+.smallLine dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp4);
+}

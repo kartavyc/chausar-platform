@@ -69,6 +69,11 @@ export interface HostController {
   snapshot(): HostState;
   subscribe(listener: () => void): () => void;
   refresh(): Promise<void>;
+  /**
+   * After the trusted host's own unlock request was accepted by the engine: leave the local
+   * lock and read the workspace afresh. A lock is otherwise never left by a refresh.
+   */
+  unlocked(): Promise<void>;
   /** Independent metadata bootstrap for the explicitly injected Today capability. */
   refreshToday(): Promise<void>;
   /** Issued trusted producer changes invalidate Today/Saved even after a lost reply. */
@@ -477,7 +482,13 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
     places: Object.freeze({ request: (method: string, payload: Record<string, unknown>) => disposed ? Promise.reject(failure('READ_INVALIDATED')) : (port as unknown as PlaceRpc).request(method, payload) }),
     conversation, retained, get todayConsumer() { return todayConsumer; }, firstRun, timeZone, snapshot: () => state,
     subscribe(listener: () => void) { if (disposed) return () => {}; listeners.add(listener); return () => { listeners.delete(listener); }; },
-    refresh: () => refresh(), refreshToday, invalidateTrustedProducer: () => invalidateProducer(), bindTodayProducer, requalifyFirstRunAfterReopen, checkAuthority, selectRoute, questionSettings: () => settings, openReceipt, closeReceipt, invalidate, lock,
+    refresh: () => refresh(),
+    unlocked: async () => {
+      if (disposed || state.phase !== 'locked' || creation.kind !== 'idle') return;
+      publish(emptyState('loading'));
+      await refresh();
+    },
+    refreshToday, invalidateTrustedProducer: () => invalidateProducer(), bindTodayProducer, requalifyFirstRunAfterReopen, checkAuthority, selectRoute, questionSettings: () => settings, openReceipt, closeReceipt, invalidate, lock,
     setFirstRunSurface(live: (() => boolean) | null) { firstRunSurface = live; if (live === null) firstRun.cancel(); },
     completeFirstRun, createWorkspace, acknowledgeRecovery,
     dispose() {

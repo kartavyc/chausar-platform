@@ -651,7 +651,7 @@ test('Saved discovery and returning to legacy coexist with independent Today and
   act(() => { window.location.hash = '#/today/today'; });
   await screen.findByRole('button', { name: /Producer review action_fixture/ });
   expect(fixture.count('today.get')).toBe(2); expect(fixture.count('today.prepareTiles')).toBe(0);
-  await fixture.user.click(screen.getAllByRole('button', { name: 'Open the previous interface' })[0]!);
+  await fixture.user.click(screen.getAllByRole('button', { name: 'Previous interface' })[0]!);
   expect(fixture.legacy).toHaveBeenCalledTimes(1); expect(fixture.count('today.prepareTiles')).toBe(0);
 });
 

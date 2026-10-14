@@ -43,7 +43,7 @@ function ordinary(value: unknown): unknown {
 
 // Only the controller and mount/DOM boundary are replaced in the shell import.
 // Its desktop adapter is the actual export from the evaluated canonical artifact.
-async function shellFixture(protocol: 'chausar:' | 'https:', token: string | null = 'synthetic-token') {
+async function shellFixture(protocol: 'chausar:' | 'https:', token: string | null = 'synthetic-token', legacy = true) {
   const actual = await loadActualBundle();
   const context = actual.context;
   const calls: { method: string; payload: unknown }[] = [];
@@ -55,7 +55,7 @@ async function shellFixture(protocol: 'chausar:' | 'https:', token: string | nul
   const invalidations: string[] = [];
   const container = Object.freeze({ syntheticDomBoundary: true });
   let capturedPort: RequestPort | undefined;
-  let legacyReturn: (() => void) | undefined;
+  let legacyReturn: (() => void) | undefined; let mountOptions: string[] = [];
   let envelope: unknown = { version: 1, ok: true, result: { workspace: 'synthetic', value: 7 } };
   let fetchReply = { ok: true, value: { result: { browser: 'synthetic', value: 9 } } as unknown };
   let legacyCalls = 0, checks = 0, disposals = 0, unsubscribes = 0, clearedTimers = 0;
@@ -71,6 +71,8 @@ async function shellFixture(protocol: 'chausar:' | 'https:', token: string | nul
     history: { replaceState(...args: unknown[]) { historyCalls.push(args); } },
     document: {
       visibilityState: 'visible',
+      // The trusted host serves the document that marks the legacy renderer available only behind its flag.
+      documentElement: { dataset: legacy ? { legacy: 'available' } : {} },
       getElementById(id: string) { assert.equal(id, 'host'); return container; },
       addEventListener(name: string, callback: () => void) { documentEvents.set(name, callback); },
       removeEventListener(name: string, callback: () => void) { assert.equal(documentEvents.get(name), callback); documentEvents.delete(name); },
@@ -93,20 +95,21 @@ async function shellFixture(protocol: 'chausar:' | 'https:', token: string | nul
       capturedPort = port; assert.deepEqual(ordinary(options), { todayProducer: {} });
       return { async checkAuthority() { checks++; }, invalidate(code: string) { invalidations.push(code); } };
     });
-    this.setExport('mountHost', (element: unknown, _controller: unknown, options: { onLegacyReturn(): void }) => {
-      assert.equal(element, container); legacyReturn = options.onLegacyReturn;
+    this.setExport('mountHost', (element: unknown, _controller: unknown, options: { onLegacyReturn?(): void }) => {
+      assert.equal(element, container); legacyReturn = options.onLegacyReturn; mountOptions = Object.keys(options);
       return { dispose() { disposals++; } };
     });
   }, { context, identifier: 'synthetic-controller-and-dom-boundary' });
   const shell = new SourceTextModule(shellSource, { context, identifier: shellUrl.href });
   await shell.link(specifier => { assert.equal(specifier, '/ui/host.js'); return hostBoundary; });
   await shell.evaluate({ timeout: 5_000 });
-  assert.ok(capturedPort); assert.ok(legacyReturn);
+  assert.ok(capturedPort); assert.equal(legacyReturn !== undefined, legacy);
   return {
     port: capturedPort, calls, fetchCalls, assignments, historyCalls, invalidations,
     setEnvelope(value: unknown) { envelope = value; },
     setFetchReply(ok: boolean, value: unknown) { fetchReply = { ok, value }; },
-    legacyReturn,
+    legacyReturn: legacyReturn ?? (() => { throw new Error('No legacy return was offered.'); }),
+    mountOptions,
     focus() { const listener = windowEvents.get('focus'); assert.ok(listener); listener(); },
     engineStatus(state: string) { assert.ok(statusListener); statusListener({ state }); },
     pagehide() { const listener = windowEvents.get('pagehide'); assert.ok(listener); listener(); },
@@ -188,4 +191,12 @@ test('actual browser shell without a token refuses locally before any fetch or d
     assert.deepEqual(h.fetchCalls, []); assert.deepEqual(h.calls, []); assert.equal(h.counts().legacyCalls, 0);
     h.legacyReturn(); assert.deepEqual(h.assignments, ['/index.html']);
   } finally { h.pagehide(); }
+});
+
+test('actual shell offers no legacy return when the host document does not mark it available', async () => {
+  for (const protocol of ['chausar:', 'https:'] as const) {
+    const h = await shellFixture(protocol, 'synthetic-token', false);
+    try { assert.deepEqual(h.mountOptions, ['firstRun']); assert.throws(() => h.legacyReturn()); assert.deepEqual(h.assignments, []); }
+    finally { h.pagehide(); }
+  }
 });

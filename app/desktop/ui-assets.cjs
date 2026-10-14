@@ -1,6 +1,9 @@
 'use strict';
 const { lstat, readFile } = require('node:fs/promises');
 const { join } = require('node:path');
+// The new UI is the default renderer. The legacy renderer stays reachable only behind an
+// explicit flag; its availability is told to the shell by which host document is served.
+const legacyDocument = Object.freeze(['app/ui/host/index-legacy.html', 'text/html; charset=utf-8', 16000]);
 const definitions = Object.freeze({
   '/ui/index.html': ['app/ui/host/index.html', 'text/html; charset=utf-8', 16000],
   '/ui/shell.js': ['app/ui/host/shell.js', 'text/javascript; charset=utf-8', 32000],
@@ -13,8 +16,9 @@ const definitions = Object.freeze({
     [`/assets/fonts/${name}.woff2`, `/ui/${name}.woff2`].map(pathname =>
       [pathname, [`app/ui/assets/fonts/${name}.woff2`, 'font/woff2', 600000]]))),
 });
-async function readUiAsset(root, pathname, enabled) {
-  const definition = enabled === true ? definitions[pathname] : undefined;
+async function readUiAsset(root, pathname, enabled, legacyAvailable = false) {
+  const definition = enabled !== true ? undefined
+    : pathname === '/ui/index.html' && legacyAvailable === true ? legacyDocument : definitions[pathname];
   if (!definition) return null;
   const [relative, mime, limit] = definition, path = join(root, relative);
   try {

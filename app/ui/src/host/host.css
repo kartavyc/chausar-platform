@@ -1,1 +1,3 @@
 [data-host-workspace] > div { height: 100%; }
+/* The workspace start screens use the page title size, never the browser's default heading. */
+[data-first-run-create] h1, [data-first-run-recovery] h1 { font-size: var(--fs-title); font-weight: 500; line-height: 1.15; margin: 0 0 var(--sp4); }

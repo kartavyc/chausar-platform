@@ -5,11 +5,11 @@
  */
 
 import type { KeyboardEvent, ReactNode } from 'react';
-import type { ChartValue } from '../../app/presentation.ts';
+import type { ChartMissingReason, ChartValue } from '../../app/presentation.ts';
 import { isFigure, missingOf } from '../../app/presentation.ts';
 import { useT } from '../../app/text';
 import { Figure, MISSING_WORDS } from '../Figure';
-import { HIT_RADIUS } from './scale.ts';
+import { HIT_RADIUS, nextMarkIndex } from './scale.ts';
 import s from './charts.module.css';
 
 export interface MarkProps {
@@ -36,7 +36,7 @@ export function Mark({ label, display, spoken, receiptId, onReceipt, children }:
     }
   };
   return (
-    <g className={s.mark} role="button" tabIndex={0} aria-label={name} onClick={open} onKeyDown={onKey}>
+    <g className={s.mark} role="button" tabIndex={0} aria-label={name} onClick={open} onKeyDown={onKey} data-mark="">
       <title>{t('CHART.hover', { label, amount: display })}</title>
       {children}
     </g>
@@ -78,4 +78,38 @@ export function ValueList({ values, onReceipt }: { values: ReadonlyArray<ChartVa
       ))}
     </ul>
   );
+}
+
+/** Arrow keys move from mark to mark inside a chart (main design, Charts: every value).
+ *  Put on the element that holds the marks; each mark carries `data-mark`. Right and Down
+ *  go on, Left and Up go back, Home and End go to the ends. Focus does not wrap. */
+export function moveAmongMarks(e: KeyboardEvent<Element>) {
+  const root = e.currentTarget;
+  const marks = Array.from(root.querySelectorAll<HTMLElement | SVGElement>('[data-mark]'));
+  const from = e.target instanceof Element ? e.target.closest('[data-mark]') : null;
+  const index = from === null ? -1 : marks.findIndex((m) => m === from);
+  if (index < 0) return;
+  const next = nextMarkIndex(index, marks.length, e.key);
+  if (next === null) return;
+  e.preventDefault();
+  marks[next]?.focus();
+}
+
+/** Why a chart has nothing to draw, in words, in the chart's place. A chart with values
+ *  that are all missing still writes each one's words under the reason. */
+export function NoChart({ reason, sentence, values, className }: { reason: ChartMissingReason; sentence: string; values?: ReadonlyArray<ChartValue> | undefined; className?: string | undefined }) {
+  const t = useT();
+  return (
+    <div className={className} role={sentence.length > 0 ? 'group' : undefined} aria-label={sentence.length > 0 ? sentence : undefined}>
+      <p className={s.unavailable}>{t(`CHART.unavailable.${reason}`)}</p>
+      {values !== undefined && <MissingList values={values} />}
+    </div>
+  );
+}
+
+/** The reason a chart of these values cannot be drawn, or null when it can: no values at
+ *  all, or no value that is known. */
+export function emptyReason(values: ReadonlyArray<ChartValue>): ChartMissingReason | null {
+  if (values.length === 0) return 'CHART_HAS_NO_POINTS';
+  return values.some((v) => isFigure(v.value)) ? null : 'CHART_HAS_NO_KNOWN_POINTS';
 }

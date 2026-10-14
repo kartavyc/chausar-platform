@@ -1,0 +1,58 @@
+/* Drawn explanations: the same squares, hairlines and thin arrows as the rest of the app. */
+.drawing {
+  margin: 0;
+  display: grid;
+  gap: var(--sp2);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.link {
+  fill: none;
+  stroke: var(--fg2);
+  stroke-width: var(--hair);
+}
+.dashed {
+  stroke-dasharray: 4 3;
+}
+.head {
+  fill: none;
+  stroke: var(--fg2);
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.square {
+  stroke-width: var(--square-stroke);
+}
+.cha { fill: var(--cha); stroke: var(--cha); }
+.you { fill: var(--you); stroke: var(--you); }
+.wait { fill: var(--bg); stroke: var(--you); }
+.busy { fill: var(--bg); stroke: var(--cha); }
+.unsure { fill: var(--amber); stroke: var(--amber); }
+.guess { fill: var(--bg); stroke: var(--amber); }
+.off { fill: var(--bg); stroke: var(--dim); }
+
+.label {
+  fill: var(--fg);
+  font-family: var(--f);
+  font-size: 12px;
+}
+
+.caption {
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+
+.refused {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}

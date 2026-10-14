@@ -2,7 +2,8 @@
  * States: the fixed states of part 10 of the main file, with their words.
  * Loading shows what was known last time, with its time, and no spinner. Failed shows
  * what happened, what it means and what to do, with a short code and never the raw error.
- * Not built yet names the day when one was supplied. Read only hides mutation controls
+ * Not built yet (SH-13) names the day when one was supplied, and which part is missing
+ * when the adapter named it from a `todayx.capabilities` group (notBuiltFromCapabilities). Read only hides mutation controls
  * elsewhere; here it says who holds the pen when that is known.
  *
  * `boundary-state` is the neutral form: the checked view state exactly as it came, for
@@ -153,7 +154,8 @@ export function State({ state, action, emptyKey = 'ST.empty.review', className }
       return (
         <div className={cls}>
           <p className={s.p}>{known?.expectedDay !== undefined ? t('ST.notBuilt.day', { day: known.expectedDay }) : t('ST.notBuilt')}</p>
-          {known !== undefined && <p className={[s.code, 'fig'].join(' ')}>{t('ST.boundary.reason', { code: known.reasonCode })}</p>}
+          {state.part !== undefined && <p className={s.p}>{t('SH-13.part', { part: state.part })}</p>}
+          {known !== undefined && state.part === undefined && <p className={[s.code, 'fig'].join(' ')}>{t('ST.boundary.reason', { code: known.reasonCode })}</p>}
           {known?.state === 'partial' && (
             <p className={s.note}>
               <Label kind="experimental" /> {t('ST.partial.label')}

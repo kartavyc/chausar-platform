@@ -29,3 +29,20 @@ export type { Review, ReviewPin, ReviewRow, RowStatus, SettingsReview } from './
 export { PREVIEW_WORDS, PREVIEW_WORDS_BY_VIEW, previewOf } from './rows';
 export type { MeaningPreview } from './rows';
 export { FirstRunText, firstRunMessages, localCatalogueGaps, localKeyCollisions } from './text';
+export { FirstRunTask } from './FirstRun';
+
+/* The whole first run as a journey (FR-01 to FR-09, FR-12, FR-13). */
+export { FirstRunJourney } from './FirstRunJourney';
+export type { FirstRunJourneyProps, JourneyHost } from './FirstRunJourney';
+export type { JourneyVaultState } from './Vault';
+export type { PickedFile } from './BringFile';
+export type { SaveRouteKey } from './Model';
+export {
+  blockedOf, createJourneyStore, elapsedSeconds, identityHasContent, initialJourney, isDone, journeySteps, leftOf, reduceJourney, resumeScreen, stepOf, vaultOpen,
+} from './journey.ts';
+export type { HeldIdentity, JourneyEvent, JourneyPath, JourneyScreen, JourneyState, JourneyStore, StatusKnowledge } from './journey.ts';
+export {
+  failureOf, fileProblems, firstRows, formatOf, groupsOfFour, pickedRecipe, problemsByCode, rupeesToPaise, sourceIdFor, splitCsvLine, typedRecoveryCode, unknownLayout,
+  validateCalculationId, validateImport, validateOpened, validatePreview,
+} from './journey-contracts.ts';
+export type { JourneyFailure, JourneyMethod, JourneyPayloads, JourneyPort, MappingRecipe, RouteConfigInput, SheetPreview } from './journey-contracts.ts';

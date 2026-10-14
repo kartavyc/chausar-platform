@@ -1,0 +1,125 @@
+/* Shared by the shell's own sheet bodies and dialogs: Help, the demo clock control, the
+   fault report and the link dialog. Sizes and colours are tokens only. */
+
+.stack {
+  display: grid;
+  gap: var(--sp4);
+  min-width: 0;
+}
+
+.p {
+  margin: 0;
+  font-size: var(--fs-read);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp3);
+}
+
+.section {
+  display: grid;
+  gap: var(--sp2);
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  color: var(--mute);
+}
+
+.list {
+  display: grid;
+  gap: var(--sp1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(8em, 2fr) minmax(0, 3fr);
+  gap: var(--sp3);
+  align-items: baseline;
+  padding: var(--sp1) 0;
+  border-bottom: var(--hair) solid var(--line);
+  font-size: var(--fs-note2);
+}
+.pair dt,
+.pair dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pair dd {
+  color: var(--fg2);
+}
+
+.keys {
+  display: grid;
+  gap: 0;
+}
+
+/* The full address of a link, or a report, as text. It wraps; it never runs off. */
+.code {
+  margin: 0;
+  padding: var(--sp3);
+  border: var(--hair) solid var(--line2);
+  border-radius: var(--radius);
+  font-family: var(--fm);
+  font-size: var(--fs-note2);
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The link dialog. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--sp4);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  z-index: 10;
+}
+
+.dialog {
+  display: grid;
+  gap: var(--sp4);
+  width: min(100%, var(--sheet));
+  padding: var(--sp5);
+  background: var(--bg);
+  border: var(--hair) solid var(--line2);
+  border-radius: var(--button-r);
+  outline: none;
+}
+.dialog:focus-visible {
+  outline: var(--focus) solid var(--fg);
+  outline-offset: var(--focus-gap);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-medium);
+}
+
+@media (max-width: 1023px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
