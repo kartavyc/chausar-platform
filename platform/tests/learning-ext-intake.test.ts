@@ -1,13 +1,15 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { request as httpRequest } from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import * as desktopVocabulary from '../runtime/learning-ext/vocabulary.ts';
 import { batchBytes, structuralEvent } from '../runtime/learning-ext/structure.ts';
 import type { StructuralBatch as DesktopBatch } from '../runtime/learning-ext/vocabulary.ts';
 import * as intakeVocabulary from '../../hosted/learning-intake/src/vocabulary.ts';
 import { startIntakeServer, type IntakeOptions } from '../../hosted/learning-intake/src/server.ts';
 import { MemoryIntakeStore, PostgresIntakeStore, type IntakeStore, type PoolLike, type Queryable } from '../../hosted/learning-intake/src/store.ts';
+const batchKey = () => `sharebatch_${randomUUID()}`;
+const BATCH_ONE = batchKey();
 import { scanEvents } from '../../hosted/learning-intake/src/validate.ts';
 
 type Reply = { status: number; text: string; json: any };
@@ -46,7 +48,7 @@ async function service(t: TestContext, options: Partial<IntakeOptions> = {}) {
   t.after(() => running.close());
   const bearer = token();
   const post = (body: string, extra: Record<string, string> = {}, who = bearer) => call(running.url, 'POST', '/v1/batches', {
-    'content-type': 'application/json', authorization: `Bearer ${who}`, 'idempotency-key': `key-${randomBytes(6).toString('hex')}`, 'x-deletion-token': token(), ...extra,
+    'content-type': 'application/json', authorization: `Bearer ${who}`, 'idempotency-key': batchKey(), 'x-deletion-token': token(), ...extra,
   }, body);
   return { url: running.url, store, bearer, post };
 }
@@ -71,7 +73,7 @@ for (const kind of ['memory', 'postgres'] as const) {
     const batch = desktopBatch();
     const body = wrap(batchBytes(batch), 'Asha Rao');
     const deletion = token();
-    const headers = { 'idempotency-key': 'desktop:batch-one', 'x-deletion-token': deletion };
+    const headers = { 'idempotency-key': BATCH_ONE, 'x-deletion-token': deletion };
     const first = await post(body, headers);
     assert.equal(first.status, 201, first.text);
     assert.match(first.json.reference, /^lb_[A-Za-z0-9_-]{22}$/);
@@ -80,7 +82,7 @@ for (const kind of ['memory', 'postgres'] as const) {
     assert.deepEqual(stored?.events, batch.events);
     assert.deepEqual(stored?.boxes, ['setup-shapes', 'corrections']);
 
-    const replay = await post(body, { 'idempotency-key': 'desktop:batch-one', 'x-deletion-token': token() });
+    const replay = await post(body, { 'idempotency-key': BATCH_ONE, 'x-deletion-token': token() });
     assert.equal(replay.status, 200);
     assert.deepEqual(replay.json, { reference: first.json.reference, accepted: 3, credits: 3, replayed: true });
     const conflict = await post(wrap(batchBytes(desktopBatch(['corrections'])), 'Asha Rao'), headers);
@@ -320,4 +322,10 @@ test('behind a trusted proxy the rate limit counts the real client; an untrusted
   assert.equal(clientAddress('10.0.0.5', 'not an address', ['10.0.0.5']), '10.0.0.5', 'a malformed header is ignored');
   assert.equal(clientAddress('10.0.0.5', undefined, ['10.0.0.5']), '10.0.0.5');
   assert.equal(clientAddress(undefined, '198.51.100.1', ['10.0.0.5']), undefined);
+});
+
+test('smuggling: the intake takes only a desktop batch key and an ASCII public name', async () => {
+  const { validatePublicName } = await import('../../hosted/learning-intake/src/validate.ts');
+  assert.throws(() => validatePublicName('रवि कुमार')); assert.throws(() => validatePublicName('Ravi 54000')); assert.throws(() => validatePublicName('á̂̃̄'));
+  assert.equal(validatePublicName('Asha Rao'), 'Asha Rao');
 });

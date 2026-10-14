@@ -6,7 +6,7 @@
  * The same layers are engine methods (`dictionary.mcp.*`) and MCP read tools on the existing server.
  */
 import { authorize, check, type Context, type Fact, type StateStore } from '../contracts.ts';
-import { OntologyService, type Dictionary } from '../ontology.ts';
+import { starterPacks, OntologyService, type Dictionary } from '../ontology.ts';
 import type { RegisteredReadTool } from '../mcp.ts';
 import { visibleFacts } from '../trust.ts';
 import { VALUE_PATTERNS } from './structure.ts';
@@ -14,6 +14,7 @@ import { VALUE_PATTERNS } from './structure.ts';
 export const READ_ONLY_STATEMENT = 'This server is read-only. It exposes no writes, no approvals and no arbitrary expressions; numbers come only from the registered calculations, each with its receipt.';
 const SAMPLE_LIMIT = 5;
 const MASKED = VALUE_PATTERNS.filter(item => ['GSTIN', 'PAN', 'IFSC', 'UPI', 'MAIL', 'PHONE'].includes(item.code));
+const PACK_FIELDS = new Set(starterPacks.flatMap(pack => Object.keys(pack.fields)));
 const CORE_FIELDS: Record<string, string> = { entityId: 'string', kind: 'string', validFrom: 'date', branch: 'string' };
 
 type Absent = { state: 'absent'; reason: string };
@@ -22,7 +23,8 @@ const published = (store: StateStore, ctx: Context): Dictionary | null => new On
 
 /** Letters become A or a, digits 9; other characters stay. Long masks are cut, never the value itself. */
 export function maskOf(value: string): string {
-  const mask = value.replace(/\p{Lu}/gu, 'A').replace(/\p{Ll}|\p{Lo}|\p{Lt}|\p{Lm}/gu, 'a').replace(/\p{Nd}/gu, '9');
+  // NFKC first, so fullwidth, circled and superscript figures become plain digits before they are masked; any other number is masked too.
+  const mask = value.normalize('NFKC').replace(/\p{Lu}/gu, 'A').replace(/\p{Ll}|\p{Lo}|\p{Lt}|\p{Lm}/gu, 'a').replace(/\p{N}/gu, '9');
   return mask.length > 32 ? `${mask.slice(0, 32)}…` : mask;
 }
 export function lengthBucket(length: number): string {
@@ -30,7 +32,10 @@ export function lengthBucket(length: number): string {
 }
 /** The kind of identifying value a text looks like, if any (GSTIN, PAN, phone, mail and similar). */
 export function sensitiveKind(value: string): string | undefined {
-  return MASKED.find(item => item.pattern.test(value))?.code;
+  const text = value.normalize('NFKC');
+  // Identifiers written with spaces or dashes (account numbers, Aadhaar-like, phones) and spelled-out mail addresses are masked too.
+  return MASKED.find(item => item.pattern.test(text) || item.pattern.test(text.replace(/[\s-]+/g, '')))?.code
+    ?? (/\p{N}[\p{N}\s-]{2,}\p{N}/u.test(text) ? 'NUMBER' : /\[at\]|\(at\)|\sat\s.*\sdot\s/i.test(text) ? 'MAIL' : undefined);
 }
 
 export function schemaLayer(store: StateStore, ctx: Context) {
@@ -40,7 +45,9 @@ export function schemaLayer(store: StateStore, ctx: Context) {
   return {
     state: 'published' as const, layer: 'schema' as const, version: dictionary.version, hash: dictionary.hash, pack: dictionary.pack, label: dictionary.label,
     currency: dictionary.currency, gstMode: dictionary.gstMode,
-    fields: Object.entries(dictionary.fields).map(([name, type]) => ({ name, type })).sort((a, b) => a.name.localeCompare(b.name)),
+    // A field the owner added came from a column title, which can carry data: at send level 'nothing' its name is withheld.
+    fields: Object.entries(dictionary.fields).map(([name, type]) => store.read().policy.send === 'nothing' && !PACK_FIELDS.has(name) ? { name: { state: 'withheld' }, type } : { name, type })
+      .sort((a, b) => String(a.name).localeCompare(String(b.name))),
     definitions: dictionary.definitions.map(d => ({ name: d.name, label: d.label, meaning: d.meaning, kind: d.kind, field: d.field, currency: d.currency, nulls: d.nulls, sign: d.sign ?? 1 })),
     checks: structuredClone(dictionary.checks),
   };

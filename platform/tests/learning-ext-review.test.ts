@@ -127,3 +127,40 @@ test('the owner can clear the local learning log inside the app', async () => {
   assert.deepEqual(await call(store, 'learningx.logClear', { before: '2000-01-01' }), { removed: 0 });
   assert.deepEqual(await call(store, 'learningx.logClear', {}), { removed: 1 });
 });
+
+test('smuggling: the batch is in canonical order, so the sequence of decisions carries nothing', async () => {
+  const store = await seeded(); store.state.policy.sharing = true;
+  for (const reason of ['stop-rule', 'budget-reached', 'routed', 'fallback', 'routed'] as const) await call(store, 'learningx.record', { event: { kind: 'action', choice: 'accepted', reason } });
+  const preview = await call(store, 'learningx.preview', {});
+  const lines = preview.bytes.split('\n').slice(1, -1).map((line: string) => line.replace(/,$/, ''));
+  assert.deepEqual(lines, [...lines].sort()); assert.ok(preview.authors.some((author: any) => author.memberId === 'owner'));
+});
+
+test('smuggling: the public name is fixed at consent', async () => {
+  const { sharingMethods } = await import('../runtime/learning-ext/sharing.ts');
+  const store = await seeded(); store.state.policy.sharing = true; store.state.workspace.demo = false;
+  const bodies: string[] = [];
+  const h = { ...host(store), demo: false, options: { intake: { url: 'https://intake.example.com', transport: async (request: any) => { bodies.push(request.body); return { status: 201, body: '{"reference":"lb_x","credits":1}' }; } } } };
+  const run = (method: string, payload: any) => sharingMethods[method].handler(owner, payload, h) as Promise<any>;
+  await call(store, 'learningx.record', { event: { kind: 'action', choice: 'accepted' } });
+  await run('learningx.creditName', { publicName: 'Asha' });
+  const preview = await run('learningx.preview', {}), consent = await run('learningx.consent', { previewId: preview.id, digest: preview.digest });
+  await run('learningx.creditName', { publicName: 'Ravi Kumar owes fifty' });
+  await run('learningx.submit', { consentId: consent.id });
+  assert.deepEqual(JSON.parse(bodies[0]).contributor, { publicName: 'Asha' });
+});
+
+test('smuggling: identifiers in loose formats are masked, and column titles with data never become field names', async () => {
+  const { sensitiveKind, maskOf, schemaLayer } = await import('../runtime/learning-ext/dictionary-layers.ts');
+  const { safeFieldName } = await import('../runtime/learning-ext/dictionary-builder.ts');
+  for (const value of ['1234 5678 9012', 'A/c 50100234567891', '9876 543 210', '098765 43210', '27 AAPFU 0939 F1ZV', 'ravi[at]gmail.com', '９８７６５４３２１０']) assert.ok(sensitiveKind(value), value);
+  assert.equal(sensitiveKind('Web shop'), undefined); assert.equal(maskOf('①②³'), '999');
+  for (const header of ['Ravi Kumar 9876543210', 'Sharma Traders GSTIN 27AAPFU0939F1ZV', 'Balance 54000']) assert.equal(safeFieldName(header), null, header);
+  assert.equal(safeFieldName('Sales Channel'), 'salesChannel');
+  const store = await seeded(); const draft = structuredClone(new OntologyService(store).current(owner)!) as any;
+  const custom = { pack: draft.pack, label: draft.label, currency: draft.currency, gstMode: draft.gstMode, fields: { ...draft.fields, ravisLedger: 'string' }, definitions: draft.definitions };
+  await new OntologyService(store).publish(owner, custom);
+  const names = (schemaLayer(store, owner) as any).fields.map((field: any) => field.name);
+  assert.ok(names.some((name: any) => name?.state === 'withheld')); assert.equal(names.includes('ravisLedger'), false);
+  store.state.policy.send = 'shape'; assert.ok((schemaLayer(store, owner) as any).fields.some((field: any) => field.name === 'ravisLedger'));
+});

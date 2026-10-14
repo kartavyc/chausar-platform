@@ -44,7 +44,8 @@ const STATUS: Record<string, number> = {
   TOO_LARGE: 413, VALUE_FOUND: 422, BOX_NOT_OPEN: 422, RATE_LIMITED: 429, INTERNAL_ERROR: 500, INTAKE_CLOSED: 503,
 };
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
-const IDEMPOTENCY_KEY = /^[A-Za-z0-9_.:-]{1,200}$/;
+/** Exactly the desktop's batch identifier, so the key can carry nothing else. */
+const IDEMPOTENCY_KEY = /^sharebatch_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const REFERENCE = /^[A-Za-z0-9_-]{1,64}$/;
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 const header = (req: IncomingMessage, name: string) => { const value = req.headers[name]; return typeof value === 'string' ? value : undefined; };

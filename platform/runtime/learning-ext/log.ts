@@ -56,6 +56,8 @@ export function coreDecisions(state: State, ctx: Context): LogView[] {
     if (record?.type !== 'decision') continue;
     try { assertLearningDecisionRecord(record); } catch { continue; }
     if (record.memberId !== ctx.memberId && ctx.role !== 'owner' || !canSee(state, ctx, record.sourceIds)) continue;
+    // Decisions past retention are not shown or shared, as the engine's own reads treat them.
+    if (!(Date.parse(record.at) >= Date.now() - state.policy.retentionDays * 86_400_000)) continue;
     const input = record.input;
     let event: StructuralEvent;
     // The engine keeps its raw input; anything outside the vocabulary is left out, and a bad record never breaks the log.
@@ -107,4 +109,9 @@ export function purgeLog(state: State, reason: { sourceIds: readonly string[]; r
   const kept = log.filter(entry => !old(entry.at) && !entry.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)) && !entry.refs.some(id => reason.removedIds.has(id)));
   log.splice(0, log.length, ...kept);
   return before - kept.length;
+}
+
+/** Who recorded a decision, for the sharing preview's author counts. */
+export function logAuthor(state: State, id: string): string {
+  return logOf(state).find(entry => entry.id === id)?.memberId ?? state.learning.find(record => record?.id === id)?.memberId ?? 'unknown';
 }
