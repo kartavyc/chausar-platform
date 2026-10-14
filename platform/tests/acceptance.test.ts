@@ -233,7 +233,7 @@ test('verified numbers MCP exposes receipt-backed reads and refuses write tools'
   assert.equal(initialized.result.serverInfo.name, 'chausar-verified-numbers');
   assert.equal(await rpc({ method: 'notifications/initialized' }), null);
   const tools = await rpc({ id: 3, method: 'tools/list' });
-  assert.deepEqual(tools.result.tools.map((tool: any) => tool.name), ['calculate', 'open_receipt', 'list_counted_rows']);
+  assert.deepEqual(tools.result.tools.map((tool: any) => tool.name), ['calculate', 'open_receipt', 'list_counted_rows', 'dictionary_schema', 'dictionary_samples', 'dictionary_operations']);
   assert.equal(tools.result.tools[0].annotations.readOnlyHint, true);
   const result = await rpc({ id: 4, method: 'tools/call', params: { name: 'calculate', arguments: { operation: 'net_sales', period } } });
   assert.equal(result.result.isError, false);
