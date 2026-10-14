@@ -76,7 +76,9 @@ ApprovalDetail = ApprovalRow & {
 | `approvals.wantedList` | read | `{}` | `{ items: { id; system; text; at; by }[] }` |
 | `approvals.afterRestore` | read | `{}` | `{ sendingClosed: boolean; items: ActionView[]; notes: string[] }` |
 | `approvals.jobs` | read | `{}` | `{ items: JobRow[]; active: number; limit: 10; proposals: { available: boolean } }` |
-| `approvals.job` | read | `{ id }` | `JobCard & { timeline: JobStep[]; result: JobResult \| null }` |
+| `approvals.job` | read | `{ id }` | `JobCard & { timeline: JobStep[]; result: JobResult \| null; meters?: JobMeters }` (WK-08 budget meters; see below) |
+| `approvals.jobTemplates` | read | `{}` | `{ templates: JobTemplate[]; fromSentence: { available: boolean } }`. Fixed ready-made jobs over the core read-only `owner-brief` type (daily, weekly, month-end brief). `fromSentence` says whether `jobsx.propose` is installed. |
+| `approvals.proposeJob` | approve | `{ templateId, budgetMinor?: string, maxRuns?: 1..366, missedRun?: 'skip' \| 'run-once-on-wake' }` or `{ sentence: string }` | `{ id: 'job:<jobId>' }`, the queue id of a new job waiting for approval. The template path calls core `jobs.create` with `type: 'owner-brief'`, `reserveMinor = budgetMinor`, `stopRule { maxRuns, deadline: now + days }`, the interval of `every` (a month is 30 days), `catchup` `skip` or `latest`, and `requiresApproval: true`. `budgetMinor` is integer paise, more than zero and at most ten times the template budget (`INVALID_BUDGET`). A sentence passes through to `jobsx.propose`, or refuses `PROPOSAL_FROM_SENTENCE_NOT_BUILT`. Core job creation needs an owner or cofounder: an accountant or viewer is refused `FORBIDDEN`. |
 
 ```
 ActionView = { id; system; action; title; touches: string | null; amount: Amount | null;
@@ -98,6 +100,11 @@ JobCard = { id; goal; doneWhen: string; owner: string; budget: Amount; reserve: 
   untrustedInstructions: boolean; digest: string; revision: number }
 JobStep = { at; event: string; amount: Amount | null; needsModel: boolean | null; reason: string | null }
 JobResult = { done: string[]; open: string[]; receiptIds: string[] }
+JobMeters = { model: { spent: Amount; budget: Amount; route: string | null; estimate: boolean };   // route null: no model
+  clock: { minutes: number } | { missing: 'not-counted' };   // counted only when the ledger records durations
+  exposure: Amount }   // sum of amountMinor of prepared or approved actions the job names (ledger or deliverable actionIds); else { missing: 'not-counted' }
+JobTemplate = { id; title; goal; doneWhen; type: 'owner-brief'; every: 'day' | 'week' | 'month'; budget: Amount;
+  maxRuns: number; days: number; missedRun: 'skip' | 'run-once-on-wake'; actions: string[]; needsModel: false }
 ```
 
 Mutations on jobs use the core methods directly: `jobs.pause`, `jobs.resume`, `jobs.cancel`,
@@ -210,7 +217,13 @@ Additions after the first build, kept additive to the shapes above:
   and the limit of ten. The job card shows the goal, owner, budget, stop rule, actions,
   tested routes and the missed-run rule, followed by the time line and the result.
   Pause, Resume, Cancel, Approve, Accept and Send back go through the core `jobs.*`
-  methods. Accepting is bound to the exact deliverable.
+  methods. Accepting is bound to the exact deliverable. The job sheet shows the budget as
+  three meters: model use with its route (or "no model"), clock time and effect exposure;
+  what is not counted says so in words. An owner or cofounder can Start a job from a
+  ready-made brief (daily, weekly, month-end): its card, then the budget in rupees (turned
+  into whole paise as text), the most runs and the missed-run rule. Propose creates the job
+  waiting for approval and opens its approval sheet. "From one sentence" says not built
+  until `jobsx.propose` is installed.
 - **After a restore** (WK-15): actions that may have gone out, each with Check, and the
   sending-closed sentence.
 
@@ -255,6 +268,7 @@ in English and Hindi.
 | Money second ask | experimental: the screen asks the person to type the amount; the passphrase, PIN or fingerprint ask belongs to the trusted host |
 | Practice, catalogue rows from write-back, Reverse | experimental: depends on `writeback.*` (writeback lane); shows "not built yet" until it is installed |
 | Job list, card, time line, accept and send back | supported over core `jobs.*`; job proposals from `jobsx.*` experimental |
+| Start a job from a ready-made brief, budget meters | supported over core `jobs.create` (`owner-brief`); a job from one sentence is experimental (`jobsx.propose`) |
 | Sources, month squares, source sheet, unmapped fields | supported for file imports; freshness from `connectorsx.*` experimental |
 | Meanings, drafts, co-sign, publish, packs, GST mode | supported |
 | Accounts proposals from Tally groups and decisions | supported; proposals from `learningx.*` experimental |
@@ -267,7 +281,7 @@ screen with a fake rpc. No screen was tested against a live external system.
 
 ### Engine methods
 
-There are 22 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`)
+There are 24 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs.ts`)
 and 33 Books methods (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
 Private state lives in `state.extensions['work-books']` under `work` and `books` (`state.ts`).
 `purge` removes snoozes, notes, opt-ins, decisions and memory lines tied to removed
@@ -284,8 +298,11 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
 
 - WK-12 (reminder notes on payment rules, caps), WK-13 and BK-18 (a bill photo to an
   entry), WK-14 (Chausar is driving) and WK-16 (a step for a person) are not built.
-- WK-08 has no measure chart and no three budget meters: no method serves them yet.
-  Job Edit and Delete have no methods.
+- WK-08 has no measure chart. Clock time is "not counted" until the core job ledger records
+  durations, and effect exposure is "not counted" until a job names its actions (no core
+  job does yet). Job Edit and Delete have no methods.
+- Ready-made jobs repeat on an interval: "month-end" runs every 30 days from when it is
+  approved, not on the last day of each month (calendar schedules need a typed runner).
 - Prepare-only items have no "download the file and the checklist" method.
 - BK-02 Read now, Pause and Sign in again; BK-03 Add a source; BK-05 recipes; BK-06
   "Map this field". These belong to connectors-ext and show "not built yet".

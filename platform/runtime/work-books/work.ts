@@ -10,6 +10,7 @@ import type { PreparedAction } from '../actions.ts';
 import type { Job } from '../jobs.ts';
 import type { MethodSpec, EngineModule, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
+import { workJobMethods, jobMeters } from './work-jobs.ts';
 import { section, peekSection } from './state.ts';
 import {
   initWork, normalizeWork, env, queue, order, rowOf, snoozed, expired, detail, drafts, lessons, visibleActions, visibleJobs, jobNeedsApproval, jobCard,
@@ -287,8 +288,10 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
       ...jobCard(e.state, job),
       timeline: job.ledger.map(l => ({ at: l.at, event: l.event, amount: l.amountMinor ? { minor: l.amountMinor } : null, needsModel: null, reason: l.reason ?? null })),
       result: record(d) ? { done: strings(d.done), open: strings(d.open), receiptIds: strings(d.receiptIds) } : null,
+      meters: jobMeters(e, job),
     };
   } },
+  ...workJobMethods,
 };
 
 /** Removes private notes tied to removed actions or jobs (and to ones that no longer exist). */
