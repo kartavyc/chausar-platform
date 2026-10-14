@@ -48,8 +48,9 @@ export function modelsView(ctx: Context, host: ModuleHost) {
       return { id: route.id, kind: route.kind, label: route.label ?? `${route.kind} ${route.model}`, health: healthOf(route, receipts), order: index + 1,
         terms: termsFor(route), lastAnswerCostMinor: last ? cost(last) : null };
     }),
-    spendThisMonthMinor: spent.toString(), monthlyCapMinor: tools(state).modelCap ?? null,
-    voice: { provider: voice, minutesThisMonth: 0 },
+    // Spend counts every member's requests only for owner and cofounder, who see them all; voice minutes are not counted yet.
+    spendThisMonthMinor: ['owner', 'cofounder'].includes(ctx.role) ? spent.toString() : null, monthlyCapMinor: tools(state).modelCap ?? null, capEnforced: false as const,
+    voice: { provider: voice, minutesThisMonth: null },
   };
 }
 
@@ -63,9 +64,9 @@ export async function setModelCap(ctx: Context, payload: Record<string, any>, ho
 type Item = { id: string; at: string; kind: string; destination: string; why: string; bytes: number | null; outcome: 'allowed' | 'stopped' | 'waiting'; pluginId?: string; waitingContent?: string };
 export function networkView(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   const { kind, pluginId, limit = 200 } = fields(payload, ['kind', 'pluginId', 'limit']);
-  check(kind === undefined || ['model', 'connector', 'action', 'sharing', 'phone', 'sync', 'plugin'].includes(kind), 'INVALID_REQUEST', 'Choose a known kind of call.');
-  check(pluginId === undefined || (typeof pluginId === 'string' && pluginId.length <= 200), 'INVALID_REQUEST', 'Choose a plugin.');
-  check(Number.isSafeInteger(limit) && limit >= 1 && limit <= 1000, 'INVALID_REQUEST', 'Ask for 1 to 1000 calls.');
+  check(kind === undefined || ['model', 'connector', 'action', 'sharing', 'phone', 'sync', 'plugin'].includes(kind), 'INVALID_FIELDS', 'Choose a known kind of call.');
+  check(pluginId === undefined || (typeof pluginId === 'string' && pluginId.length <= 200), 'INVALID_FIELDS', 'Choose a plugin.');
+  check(Number.isSafeInteger(limit) && limit >= 1 && limit <= 1000, 'INVALID_FIELDS', 'Ask for 1 to 1000 calls.');
   const state = host.store.read(); const items: Item[] = [];
   for (const r of host.services.gateway.receipts(ctx) as any[]) {
     if (r.kind !== 'model-preview') continue;
@@ -96,18 +97,34 @@ export async function plantCanary(_ctx: Context, payload: Record<string, any>, h
   return { planted: true as const, at };
 }
 
-/** Scan every model request payload for the planted value; a hit stops every send. */
+const SENSITIVE = [/\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b/g, /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){1,8}/g, /(?<!\d)[6-9]\d{9}(?!\d)/g];
+/** Values in the books that must never leave as written: GSTINs, mail addresses and mobile numbers are
+ *  swapped for stand-ins before any call. Bounded so the scan stays cheap. */
+function guarded(state: State): string[] {
+  const found = new Set<string>();
+  for (const fact of state.facts) {
+    if (fact.deletedAt) continue;
+    for (const value of Object.values(fact.fields ?? {})) {
+      if (typeof value !== 'string' || value.length > 500) continue;
+      for (const pattern of SENSITIVE) for (const match of value.match(pattern) ?? []) { found.add(match); if (found.size >= 500) return [...found]; }
+    }
+  }
+  return [...found];
+}
+/** Scan every model request payload for the planted value and for any guarded value from the books; a hit stops every send. */
 export function canaryHit(state: State): { at: string; callId: string } | null {
-  const canary = tools(state).canary; if (!canary?.value) return null;
-  if (canary.alert) return canary.alert;
-  const hit = state.modelReceipts.find(r => r.kind === 'model-preview' && JSON.stringify(r).includes(canary.value));
+  const canary = tools(state).canary;
+  if (canary?.alert) return canary.alert;
+  const needles = [...(canary?.value ? [canary.value] : []), ...guarded(state)];
+  if (needles.length === 0) return null;
+  const hit = state.modelReceipts.find(r => r.kind === 'model-preview' && typeof r.payload === 'string' && needles.some(needle => r.payload.includes(needle)));
   return hit ? { at: now(), callId: hit.id } : null;
 }
 export async function checkCanary(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   fields(payload, []);
   const alert = canaryHit(host.store.read());
   if (!alert) return { alert: null };
-  await host.store.update(state => { const canary = tools(state).canary; if (canary && !canary.alert) canary.alert = alert; });
+  await host.store.update(state => { const canary = (tools(state).canary ??= { value: null, plantedAt: null, alert: null }); if (!canary.alert) canary.alert = alert; });
   if (host.store.read().policy.send !== 'nothing') await host.call('trust.update', { send: 'nothing' });
   return { alert };
 }

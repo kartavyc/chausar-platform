@@ -141,6 +141,9 @@ test('dual control: owner alone applies; with a cofounder each waits for the oth
   await f.store.update(state => { (state.extensions as any)['reports-tools-trust'].trust.core.pending[0].expiresAt = '2020-01-01T00:00:00.000Z'; });
   assert.equal((await f.rpc('trustx.pendingChanges')).items.length, 0);
   await assert.rejects(f.as(partner, 'trustx.confirmChange', { id: late.change.id }), code('CHANGE_EXPIRED'));
+  // The person a change removes is never the second person: the owner removes the only cofounder at once.
+  const removal = await f.rpc('trustx.removeSeat', { memberId: partner.memberId });
+  assert.equal(removal.state, 'applied'); assert.equal(f.store.read().members.find(m => m.id === partner.memberId)!.active, false);
 });
 
 test('keep lists kinds and the files the app writes, including the vault', async t => {
@@ -166,7 +169,10 @@ test('do: presets set each kind, always-waits cannot be switched, and the decisi
   assert.equal(autonomyDecision(f.store.read(), { kind: 'reminder', countToday: 0 }).reason, 'AUTONOMY_OFF');
 
   auto = await f.rpc('trustx.setAutonomy', { preset: 'routine' });
-  assert.equal(auto.preset, 'routine'); assert.equal(f.store.read().policy.autonomy, true);
+  // A preset never starts the engine's scheduled work; the person turns that on separately.
+  assert.equal(auto.preset, 'routine'); assert.equal(f.store.read().policy.autonomy, false);
+  assert.equal(autonomyDecision(f.store.read(), { kind: 'reminder', countToday: 0 }).reason, 'AUTONOMY_OFF');
+  await f.rpc('trust.update', { autonomy: true });
   assert.equal(auto.kinds.find((k: any) => k.kind === 'reminder').on, true); assert.equal(auto.kinds.find((k: any) => k.kind === 'voucher-draft').on, false);
   const state = () => f.store.read();
   assert.deepEqual(autonomyDecision(state(), { kind: 'reminder', countToday: 0 }), { allowed: true, reason: 'WITHIN_LIMITS' });
@@ -239,9 +245,20 @@ test('the scheduled tick ends dated seats', async t => {
   const ca = await f.rpc('trustx.invite', { seat: 'ca', name: 'Synthetic CA', endsOn: new Date().toISOString().slice(0, 10) });
   const member = await f.rpc('auth.accept', { token: ca.invite.token });
   await f.store.update(state => { (state.extensions as any)['reports-tools-trust'].trust.core.seats[ca.invite.id].endsOn = '2020-01-01'; });
-  await f.rpc('trustx.setAutonomy', { preset: 'routine' });
+  await f.rpc('trust.update', { autonomy: true });
   f.engine.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
   const results = await f.engine.tick();
   assert.ok(results.some((r: any) => r.module === 'trustx.core' && r.endedSeats === 1), JSON.stringify(results));
+  assert.equal(f.store.read().members.find(m => m.id === member.member.id)!.active, false);
+});
+
+test('a dated seat ends before any request of this lane, with the scheduler off', async t => {
+  const f = await fixture(t);
+  const ca = await f.rpc('trustx.invite', { seat: 'ca', name: 'Synthetic CA', endsOn: new Date().toISOString().slice(0, 10) });
+  const member = await f.rpc('auth.accept', { token: ca.invite.token }); const seat: Context = { ...member.context, channel: 'desktop' };
+  assert.equal((await f.as(seat, 'trustx.rules')).canChange, false);
+  await f.store.update(state => { (state.extensions as any)['reports-tools-trust'].trust.core.seats[ca.invite.id].endsOn = '2020-01-01'; });
+  assert.equal(f.store.read().policy.autonomy, false);
+  await assert.rejects(f.as({ ...seat }, 'reportsx.packs'), code('ACCESS_REVOKED'));
   assert.equal(f.store.read().members.find(m => m.id === member.member.id)!.active, false);
 });

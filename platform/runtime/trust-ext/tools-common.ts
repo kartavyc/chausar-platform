@@ -12,7 +12,7 @@ export function tools(state: State): Tools { return laneState(state).tools; }
 /** Requests are closed objects; `language` is accepted everywhere. */
 export function fields(payload: Record<string, any>, allowed: string[]): Record<string, any> {
   check(payload && typeof payload === 'object' && !Array.isArray(payload) && Object.keys(payload).every(key => key === 'language' || allowed.includes(key)),
-    'INVALID_REQUEST', 'This request has a field it does not take.');
+    'INVALID_FIELDS', 'This request has a field it does not take.');
   return payload;
 }
 export const sha256 = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');

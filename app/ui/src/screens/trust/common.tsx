@@ -13,8 +13,8 @@ import { Sheet } from '../../parts/Sheet';
 import { State } from '../../patterns/States';
 import { NOT_BUILT_CODES, useEngine, useSend, type Loaded, type Sent } from './kit/engine.ts';
 import { Group, Screen, screenState } from './kit/Screen';
-import { validateChange, validatePending, type ChangeResult, type ChangeWhat } from './validate.ts';
-import { COMMON, fill } from './words.ts';
+import { validateInvite, validatePending, type ChangeResult, type ChangeWhat, type InviteResult } from './validate.ts';
+import { COMMON, PEOPLE, fill } from './words.ts';
 import s from './Trust.module.css';
 
 export type P = PlaceRenderProps;
@@ -89,16 +89,19 @@ export function Outcome({ sent, language }: { sent: Sent<unknown>; language: Lan
 export function Pending({ p, what, round, onConfirmed }: { p: P; what: readonly ChangeWhat[]; round: number; onConfirmed?: () => void }) {
   const c = words(COMMON, p.language);
   const { state, reload } = useEngine(p.rpc, 'trustx.pendingChanges', {}, validatePending, String(round));
-  const { sent, send } = useSend(p.rpc, validateChange);
+  // A confirmed invite carries its one-time code: validate it as an invite so the code is shown once.
+  const { sent, send } = useSend(p.rpc, validateInvite);
+  const [shown, setShown] = useState<InviteResult | null>(null);
   const { admin } = powers(p);
-  if (state.kind === 'loading' || state.kind === 'not-built') return null;
+  if (state.kind === 'loading' || state.kind === 'not-built') return shown === null ? null : <Group title={c.pendingTitle}><InviteShown p={p} shown={shown} /></Group>;
   if (state.kind !== 'ready') return <Group title={c.pendingTitle}><State state={screenState(state)} /></Group>;
   const items = state.value.filter((x) => what.includes(x.what));
-  if (items.length === 0) return null;
+  if (items.length === 0 && shown === null) return null;
   const confirm = async (id: string) => {
     const done = await send('trustx.confirmChange', { id });
-    if (done !== null && p.live(p.address)) { reload(); onConfirmed?.(); }
+    if (done !== null && p.live(p.address)) { if (done.invite !== null || done.guide !== null) setShown(done); reload(); onConfirmed?.(); }
   };
+  if (items.length === 0 && shown !== null) return <Group title={c.pendingTitle}><InviteShown p={p} shown={shown} /></Group>;
   return (
     <Group title={c.pendingTitle}>
       <ul className={s.list}>
@@ -115,7 +118,40 @@ export function Pending({ p, what, round, onConfirmed }: { p: P; what: readonly 
         })}
       </ul>
       <Outcome sent={sent} language={p.language} />
+      {shown !== null && <InviteShown p={p} shown={shown} />}
     </Group>
+  );
+}
+
+/** The one-time invite code and, for an accountant, the guide: shown as text, never as markup. */
+export function InviteShown({ p, shown }: { p: P; shown: InviteResult }) {
+  const w = words(PEOPLE, p.language);
+  const saveGuide = (html: string) => {
+    if (typeof URL.createObjectURL !== 'function') return;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    link.download = 'chausar-accountant-guide.html';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+  return (
+    <>
+      {shown.invite !== null && (
+        <div className={s.stack} data-invite-code="">
+          <span className={s.label}>{w.code}</span>
+          <span className={s.code}>{shown.invite.token}</span>
+          <p className={s.status}>{w.codeOnce} {fill(w.expires, { date: dayText(shown.invite.expiresAt, p.language) })}</p>
+        </div>
+      )}
+      {shown.guide !== null && (
+        <div className={s.stack}>
+          <span className={s.label}>{w.guideTitle}</span>
+          <p className={s.quiet}>{w.guideNote}</p>
+          <pre className={s.pre} data-guide="">{shown.guide.html}</pre>
+          <span><Button variant="quiet" onClick={() => shown.guide !== null && saveGuide(shown.guide.html)}>{w.guideSave}</Button></span>
+        </div>
+      )}
+    </>
   );
 }
 

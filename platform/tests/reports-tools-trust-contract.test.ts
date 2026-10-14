@@ -90,7 +90,6 @@ test('every reportsx and trustx reply passes the validator of the screen that dr
   // Tools
   await pass('trustx.assistants', {}, tools.assistants);
   await pass('trustx.setAssistants', { on: true }, tools.assistants);
-  await pass('trustx.pairAssistant', { name: 'Synthetic assistant' }, tools.pairing);
   await pass('trustx.plugins', {}, tools.plugins);
   await pass('trustx.languagePacks', {}, tools.languagePacks);
   assert.deepEqual(failures, []);

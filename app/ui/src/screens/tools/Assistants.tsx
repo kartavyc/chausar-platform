@@ -89,7 +89,7 @@ function Body({ value, props, w, reload }: { value: Assistants; props: PlaceRend
           </Lines>
         )}
       </Group>
-      {admin && <Pair props={props} w={w} onPaired={reload} />}
+      {props.member.role === 'owner' && !props.viewer && <Pair props={props} w={w} onPaired={reload} />}
       <Group title={w.calls}>
         {value.calls.length === 0 ? <Note>{w.noCalls}</Note> : (
           <Lines label={w.calls}>

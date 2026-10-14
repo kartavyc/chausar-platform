@@ -21,19 +21,30 @@ const NOISE = nfcSet(['rupaye', 'rupees', 'rupee', 'rs', 'ka', 'ke', 'ki', 'bhej
 
 export type Reading = { paise: string | null; negated: boolean };
 
-/** Reads one spoken amount. An unknown word makes the amount unknown rather than guessed. */
+/** Whole rupees written with Indian (1,50,000) or western (150,000) grouping, or none. */
+const GROUPED = /^(?:\d+|\d{1,2}(?:,\d{2})*,\d{3}|\d{1,3}(?:,\d{3})+)$/;
+
+/** Reads one spoken amount. An unknown word, a decimal point, badly grouped digits, hundreds
+ *  before a thousand or more, or scales out of order make the amount unknown rather than guessed. */
 export function readSpoken(text: string): Reading {
-  const tokens = text.normalize('NFC').toLowerCase().replace(/[₹,.?!।]/g, ' ').split(/\s+/).filter(Boolean);
+  const tokens = text.normalize('NFC').toLowerCase().replace(/[₹?!।]/g, ' ').replace(/[,.](?!\d)|(?<!\d)[,.]/g, ' ').split(/\s+/).filter(Boolean);
   const negated = tokens.some(token => NEGATION.has(token));
-  let total = 0n, current = 0n, modifier = 0n, seen = false, unknown = false;
+  let total = 0n, current = 0n, modifier = 0n, seen = false, unknown = false, hundreds = false, lastScale = 0n;
   for (const token of tokens) {
     if (NEGATION.has(token) || NOISE.has(token)) continue;
-    if (/^\d+$/.test(token)) { current += BigInt(token) * 4n + modifier; modifier = 0n; seen = true; }
+    if (/^[\d,.]+$/.test(token)) {
+      if (!GROUPED.test(token)) { unknown = true; continue; }
+      current += BigInt(token.replaceAll(',', '')) * 4n + modifier; modifier = 0n; seen = true;
+    }
     else if (Object.hasOwn(SMALL, token)) { current += SMALL[token] * 4n + modifier; modifier = 0n; seen = true; }
     else if (Object.hasOwn(FRACTION, token)) { current += FRACTION[token]; seen = true; }
     else if (Object.hasOwn(MODIFIER, token)) modifier = MODIFIER[token];
-    else if (HUNDRED.has(token)) { current = (current || 4n) * 100n; seen = true; }
-    else if (Object.hasOwn(SCALE, token)) { total += (current || 4n) * SCALE[token]; current = 0n; seen = true; }
+    else if (HUNDRED.has(token)) { current = (current || 4n) * 100n; seen = true; hundreds = true; }
+    else if (Object.hasOwn(SCALE, token)) {
+      const scale = SCALE[token];
+      if (hundreds || (lastScale !== 0n && scale >= lastScale)) unknown = true;
+      total += (current || 4n) * scale; current = 0n; seen = true; hundreds = false; lastScale = scale;
+    }
     else unknown = true;
   }
   const quarters = total + current;

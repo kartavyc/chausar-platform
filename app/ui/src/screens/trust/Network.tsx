@@ -78,7 +78,7 @@ function Canary({ p, net, reload }: { p: P; net: Network; reload: () => void }) 
   const plant = async () => { if (await send('trustx.plantCanary', {}) !== null && p.live(p.address)) reload(); };
   const a = net.canary.alert;
   return (
-    <Group title={w.canaryTitle}>
+    <Group title={w.canaryTitle} note={w.canaryNote}>
       {a !== null && <p className={s.problem} role="alert">{fill(w.alert, { call: a.callId, date: dayText(a.at, p.language) })}</p>}
       <p className={s.text}>{net.canary.planted ? w.planted : w.notPlanted}</p>
       {admin && <span><Button variant="quiet" onClick={() => void plant()} disabled={sent.kind === 'sending'}>{w.plant}</Button></span>}

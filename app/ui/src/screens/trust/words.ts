@@ -197,7 +197,7 @@ export const MODELS = cat({
   'health.timed-out': 'timed out', 'health.error': 'error',
   keeps: 'What it keeps', keepsFor: 'For how long', trains: 'Trains on it', yes: 'Yes', no: 'No', country: 'Country', terms: 'Terms', readOn: 'Read on {date}',
   termsLink: 'Read the terms', noTerms: 'Terms not recorded for this route.',
-  lastCost: 'Last answer', noLastCost: 'No answer yet', spend: 'Spent this month', cap: 'Monthly limit', noCap: 'No limit set',
+  lastCost: 'Last answer', noLastCost: 'No answer yet', spend: 'Spent this month', cap: 'Monthly limit', noCap: 'No limit set', notShown: 'shown to the owner and cofounder', notCounted: 'not counted yet', capNote: 'The limit is recorded. Requests are not yet stopped when it is reached.',
   capField: 'Monthly limit, in rupees', capHint: 'Leave it empty for no limit.', setCap: 'Set the limit', badCap: 'Type rupees with at most two decimals, like 1,234.50.',
   costTitle: 'Cost', voiceTitle: 'Voice', voiceNone: 'No speech provider', voiceProvider: 'Speech provider', minutes: 'Minutes this month',
 }, {
@@ -206,7 +206,7 @@ export const MODELS = cat({
   'health.timed-out': 'समय ख़त्म', 'health.error': 'गड़बड़ी',
   keeps: 'क्या रखता है', keepsFor: 'कब तक', trains: 'इस पर सीखता है', yes: 'हाँ', no: 'नहीं', country: 'देश', terms: 'शर्तें', readOn: '{date} को पढ़ी गईं',
   termsLink: 'शर्तें पढ़ें', noTerms: 'इस रास्ते की शर्तें दर्ज नहीं हैं।',
-  lastCost: 'पिछला जवाब', noLastCost: 'अभी कोई जवाब नहीं', spend: 'इस महीने ख़र्च', cap: 'मासिक सीमा', noCap: 'कोई सीमा तय नहीं',
+  lastCost: 'पिछला जवाब', noLastCost: 'अभी कोई जवाब नहीं', spend: 'इस महीने ख़र्च', cap: 'मासिक सीमा', noCap: 'कोई सीमा तय नहीं', notShown: 'मालिक और सह-संस्थापक को दिखता है', notCounted: 'अभी गिना नहीं गया', capNote: 'सीमा दर्ज है। सीमा पूरी होने पर अनुरोध अभी रोके नहीं जाते।',
   capField: 'मासिक सीमा, रुपयों में', capHint: 'कोई सीमा न रखनी हो तो खाली छोड़ें।', setCap: 'सीमा तय करें', badCap: 'ज़्यादा से ज़्यादा दो दशमलव के साथ रुपये लिखें, जैसे 1,234.50।',
   costTitle: 'लागत', voiceTitle: 'आवाज़', voiceNone: 'कोई आवाज़ सेवा नहीं', voiceProvider: 'आवाज़ सेवा', minutes: 'इस महीने के मिनट',
 });
@@ -218,7 +218,7 @@ export const NETWORK = cat({
   none: 'Nothing has left this computer.', callsTitle: 'Every call that left this computer',
   waitingTitle: 'What would have gone', waitingNote: 'This is the exact content, shown as text. Nothing was sent.', noContent: 'The content was not kept.',
   canaryTitle: 'The canary', planted: 'A test value is planted.', notPlanted: 'No test value is planted.', plant: 'Plant a test value',
-  alert: 'A planted test value was seen leaving. Every send is stopped. Call {call} carried it, on {date}.',
+  alert: 'A test value, or a GSTIN, mail address or phone number from your books, was seen leaving. Every send is stopped. Call {call} carried it, on {date}.', canaryNote: 'Chausar checks what already left for a planted test value and for GSTINs, mail addresses and phone numbers from your books. It finds a leak after it happened; it cannot yet stop one before it leaves.',
 }, {
   filterKind: 'तरह', filterPlugin: 'प्लगइन', all: 'सब',
   'kind.model': 'मॉडल', 'kind.connector': 'कनेक्टर', 'kind.action': 'काम', 'kind.sharing': 'साझा करना', 'kind.phone': 'फ़ोन', 'kind.sync': 'सिंक', 'kind.plugin': 'प्लगइन',
@@ -226,7 +226,7 @@ export const NETWORK = cat({
   none: 'इस कंप्यूटर से कुछ बाहर नहीं गया।', callsTitle: 'इस कंप्यूटर से बाहर गई हर कॉल',
   waitingTitle: 'जो बाहर जाता', waitingNote: 'यह ठीक वही सामग्री है, सादे पाठ के रूप में। कुछ भी भेजा नहीं गया।', noContent: 'सामग्री रखी नहीं गई।',
   canaryTitle: 'जाँच का निशान', planted: 'एक जाँच मान रखा गया है।', notPlanted: 'कोई जाँच मान नहीं रखा गया है।', plant: 'एक जाँच मान रखें',
-  alert: 'रखा गया जाँच मान बाहर जाता दिखा। हर भेजना रोक दिया गया है। इसे कॉल {call} ले गई, {date} को।',
+  alert: 'एक जाँच मान, या आपकी बही का कोई GSTIN, मेल पता या फ़ोन नंबर बाहर जाता दिखा। हर भेजना रोक दिया गया है। इसे कॉल {call} ले गई, {date} को।', canaryNote: 'Chausar बाहर जा चुके अनुरोधों में रखा गया जाँच मान और आपकी बही के GSTIN, मेल पते और फ़ोन नंबर खोजता है। यह रिसाव होने के बाद पता चलता है; बाहर जाने से पहले अभी रोका नहीं जा सकता।',
 });
 
 export const RECORD = cat({

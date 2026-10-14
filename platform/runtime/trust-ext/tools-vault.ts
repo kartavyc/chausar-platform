@@ -21,6 +21,18 @@ async function files(directory: string, match: (name: string) => boolean) {
   }
   return result.sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
+/** Every file under a folder, walked without following links, a few levels deep. */
+async function allFiles(directory: string, skip: (path: string) => boolean, depth = 4): Promise<{ path: string; mtimeMs: number }[]> {
+  let entries;
+  try { entries = await readdir(directory, { withFileTypes: true }); } catch (error) { if ((error as any).code === 'ENOENT') return []; throw error; }
+  const found: { path: string; mtimeMs: number }[] = [];
+  for (const entry of entries) {
+    const path = join(directory, entry.name); if (skip(path)) continue;
+    if (entry.isFile()) found.push({ path, mtimeMs: (await stat(path)).mtimeMs });
+    else if (entry.isDirectory() && depth > 0) found.push(...await allFiles(path, skip, depth - 1));
+  }
+  return found;
+}
 const backupsDir = (host: ModuleHost) => join(host.directory, 'backups');
 function backupRow(state: State, file: { name: string; at: string; bytes: number }): Backup {
   const tested = tools(state).backups?.[file.name];
@@ -117,7 +129,9 @@ export async function deleteSource(ctx: Context, payload: Record<string, any>, h
   const older = (await files(backupsDir(host), name => name.endsWith('.backup'))).filter(file => file.mtimeMs <= startedAt);
   rows.push(older.length ? { place: 'Backups on this computer', state: 'pending', reason: 'Older backups still hold it until they are replaced.' }
     : { place: 'Backups on this computer', state: 'deleted', reason: 'Checked: no backup made before the deletion is on this computer.' });
-  const exports = (await files(join(host.directory, 'exports'), name => /\.(json|vault|csv|xlsx|pdf)$/.test(name))).filter(file => file.mtimeMs <= startedAt);
+  // Page exports, question files and "Export everything" folders sit in sub-folders; a file the purge could not remove is still found here.
+  const exportsRoot = join(host.directory, 'exports'), deletionReports = join(exportsRoot, 'deletions');
+  const exports = (await allFiles(exportsRoot, path => path === deletionReports)).filter(file => file.mtimeMs <= startedAt);
   rows.push(exports.length ? { place: 'Exports on this computer', state: 'pending', reason: 'Exported files made before the deletion may hold it. Delete them yourself.' }
     : { place: 'Exports on this computer', state: 'deleted', reason: 'Checked: no export made before the deletion is on this computer.' });
   rows.push(sent ? { place: 'AI provider', state: 'not-possible', reason: 'The provider keeps requests for its stated period.' }

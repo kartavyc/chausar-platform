@@ -44,8 +44,8 @@ function head(links: Link[]) { const last = links.at(-1); return { hash: last?.h
 
 export async function recordView(_ctx: unknown, payload: Record<string, any>, host: ModuleHost) {
   const { memberId, day } = fields(payload, ['memberId', 'day']);
-  check(memberId === undefined || (typeof memberId === 'string' && memberId.length <= 200), 'INVALID_REQUEST', 'Choose a person.');
-  check(day === undefined || (typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day)), 'INVALID_REQUEST', 'Give the day as YYYY-MM-DD.');
+  check(memberId === undefined || (typeof memberId === 'string' && memberId.length <= 200), 'INVALID_FIELDS', 'Choose a person.');
+  check(day === undefined || (typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day)), 'INVALID_FIELDS', 'Give the day as YYYY-MM-DD.');
   await syncChain(host);
   const state = host.store.read(); const links: Link[] = tools(state).record?.links ?? []; const byId = new Map(state.activity.map(entry => [entry.id, entry]));
   const items = [...links].reverse().flatMap(link => {
