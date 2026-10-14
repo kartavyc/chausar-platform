@@ -18,19 +18,21 @@ const publicChange = (p: PendingRecord) => ({ id: p.id, what: p.what, summary: p
 const live = (state: State, at = Date.now()) => peekCore(state).pending.filter(p => Date.parse(p.expiresAt) > at);
 export function pendingView(state: State) { return { items: live(state).map(publicChange).sort((a, b) => b.at.localeCompare(a.at)) }; }
 
-/** Who must agree to a change made by this member, or null when it applies at once. */
-function secondNeeded(state: State, ctx: Context): 'owner' | 'cofounder' | null {
-  const member = admin(state, ctx); const others = (role: string) => state.members.some(m => m.active && m.role === role && m.id !== member.id);
+/** Who must agree to a change made by this member, or null when it applies at once. The person a
+ *  change removes never counts as the second person, so a cofounder cannot block their own removal. */
+function secondNeeded(state: State, ctx: Context, op?: PendingRecord['op']): 'owner' | 'cofounder' | null {
+  const member = admin(state, ctx); const target = op?.type === 'remove-seat' ? op.memberId : undefined;
+  const others = (role: string) => state.members.some(m => m.active && m.role === role && m.id !== member.id && m.id !== target);
   if (member.role === 'cofounder') return 'owner';
   return others('cofounder') ? 'cofounder' : null;
 }
 
 export async function requestChange(ctx: Context, host: ModuleHost, what: ChangeWhat, summary: string, op: PendingRecord['op']) {
   check(appliers.has(op.type), 'CHANGE_UNKNOWN', 'This change cannot be applied.');
-  const needs = secondNeeded(host.store.read(), ctx);
+  const needs = secondNeeded(host.store.read(), ctx, op);
   if (!needs) return { state: 'applied' as const, ...await appliers.get(op.type)!(ctx, host, op) };
   return host.store.update(state => {
-    const member = admin(state, ctx); check(secondNeeded(state, ctx) === needs, 'CHANGE_AUTHORITY_CHANGED', 'The people in this workspace changed. Try again.');
+    const member = admin(state, ctx); check(secondNeeded(state, ctx, op) === needs, 'CHANGE_AUTHORITY_CHANGED', 'The people in this workspace changed. Try again.');
     const at = now(); const change: PendingRecord = { id: newId('change'), what, summary, by: member.id, byRole: member.role, at,
       expiresAt: new Date(Date.parse(at) + pendingLifetimeMs).toISOString(), needs, op: structuredClone(op) };
     coreState(state).pending.push(change); audit(state, 'trustx.change.requested', { changeId: change.id, what, needs, memberId: member.id });

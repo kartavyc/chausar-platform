@@ -304,6 +304,18 @@ describe('TR-03 Send and dual control', () => {
     await waitFor(() => expect(rpc.of('trustx.confirmChange')).toEqual([{ method: 'trustx.confirmChange', payload: { id: 'ch-2' } }]));
   });
 
+  test('a confirmed invite shows its one-time code to the person who confirmed it', async () => {
+    const theirs = { id: 'ch-9', what: 'seats', summary: 'Invite Synthetic accountant', by: 'owner-1', at: AT, needs: 'cofounder' };
+    let confirmed = false;
+    const rpc = fakeRpc({ 'trustx.pendingChanges': () => ({ items: confirmed ? [] : [theirs] }),
+      'trustx.confirmChange': () => { confirmed = true; return { state: 'applied', invite: { id: 'invite-9', token: 'synthetic-one-time-code', expiresAt: AT }, guide: { html: '<p>guide</p>' } }; } });
+    const { user } = draw(at('people'), { rpc, role: 'cofounder', memberId: 'co-1' });
+    await user.click(await screen.findByRole('button', { name: COMMON.en.confirm }));
+    expect(await screen.findByText('synthetic-one-time-code')).toBeTruthy();
+    expect(screen.getByText('<p>guide</p>')).toBeTruthy();
+    expect(rpc.of('trustx.confirmChange')).toHaveLength(1);
+  });
+
   test('waiting for the cofounder', async () => {
     const change = { id: 'ch-3', what: 'send', summary: 'Local only', by: 'owner-1', at: AT, needs: 'cofounder' };
     const rpc = fakeRpc({ 'trustx.setSend': { state: 'waiting-for-second', change } });

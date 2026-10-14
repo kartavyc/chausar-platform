@@ -6,8 +6,8 @@ import { canonicalJson, fields, memberName, newestFirst, tools } from './tools-c
 
 const PATTERNS: [string, RegExp][] = [
   ['gstin', /\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b/g],
-  ['email', /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g],
-  ['upi', /\b[A-Za-z0-9._-]{2,}@[A-Za-z]{2,}\b(?!\.)/g],
+  ['email', /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){1,8}/g],
+  ['upi', /\b[A-Za-z0-9._-]{2,64}@[A-Za-z]{2,32}\b(?!\.)/g],
   ['ifsc', /\b[A-Z]{4}0[A-Z0-9]{6}\b/g],
   ['pan', /\b[A-Z]{5}\d{4}[A-Z]\b/g],
   ['phone', /(?<![\d+])(?:\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}(?!\d)/g],
@@ -18,6 +18,7 @@ const STAND_IN: Record<string, string> = { gstin: '[GSTIN]', email: '[EMAIL]', u
 export function cleanSample(_ctx: Context, payload: Record<string, any>) {
   const { text } = fields(payload, ['text']);
   check(typeof text === 'string' && text.length <= 100_000, 'INVALID_SAMPLE', 'Paste up to 100,000 characters of text.');
+  check(text.split('\n').every(line => line.length <= 2000), 'INVALID_SAMPLE', 'Keep each line under 2,000 characters.');
   const hits: { line: number; kind: string }[] = [];
   const cleaned = text.split('\n').map((line, index) => PATTERNS.reduce((current, [kind, pattern]) => current.replace(pattern, () => { hits.push({ line: index + 1, kind }); return STAND_IN[kind]; }), line)).join('\n');
   return { cleaned, hits, uploaded: false as const };
@@ -72,7 +73,7 @@ export function agreementsView(state: State) { return { notice: NOTICE, items: a
 
 export async function withdraw(_ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   const { id } = fields(payload, ['id']);
-  check(typeof id === 'string' && id.length > 0 && id.length <= 200, 'INVALID_REQUEST', 'Choose an agreement.');
+  check(typeof id === 'string' && id.length > 0 && id.length <= 200, 'INVALID_FIELDS', 'Choose an agreement.');
   const item = agreementItems(host.store.read()).find(agreement => agreement.id === id);
   check(item, 'NOT_FOUND', 'That agreement was not found.');
   if (item.kind !== 'learning') throw new ChausarError('WITHDRAW_NOT_AVAILABLE', 'A customer withdraws reminder consent themselves by replying STOP; record that in the reminder screen.');

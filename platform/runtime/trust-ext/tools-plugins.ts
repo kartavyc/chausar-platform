@@ -84,7 +84,7 @@ export async function installPlugin(ctx: Context, payload: Record<string, any>, 
   check(typeof payload.digest === 'string' && payload.digest === inspection.digest, 'PREVIEW_CHANGED', 'The plugin changed after you inspected it.');
   check(inspection.signature !== 'invalid', 'SIGNATURE_INVALID', 'The signature does not match the plugin.');
   const answers = payload.answers;
-  check(answers && typeof answers === 'object' && !Array.isArray(answers) && Object.values(answers).every(value => typeof value === 'boolean'), 'INVALID_REQUEST', 'Answer each ask with yes or no.');
+  check(answers && typeof answers === 'object' && !Array.isArray(answers) && Object.values(answers).every(value => typeof value === 'boolean'), 'INVALID_FIELDS', 'Answer each ask with yes or no.');
   const installed = await host.services.plugins.install(ctx, { manifest: payload.manifest, moduleBase64: payload.moduleBase64 });
   await host.store.update(state => {
     const t = tools(state);
@@ -99,7 +99,7 @@ export async function installPlugin(ctx: Context, payload: Record<string, any>, 
 
 export async function removePlugin(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   const { id } = fields(payload, ['id']);
-  check(typeof id === 'string' && id.length <= 200, 'INVALID_REQUEST', 'Choose a plugin.');
+  check(typeof id === 'string' && id.length <= 200, 'INVALID_FIELDS', 'Choose a plugin.');
   const plugin = host.store.read().plugins.find(item => item.id === id);
   await host.services.plugins.remove(ctx, id);
   // Its permissions and module go at once; the results of its runs are kept under its name.

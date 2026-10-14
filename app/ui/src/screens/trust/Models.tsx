@@ -45,15 +45,16 @@ function ModelsBody({ p, m, reload }: { p: P; m: Models; reload: () => void }) {
       )}
       <Group title={w.costTitle}>
         <KeyValue onReceipt={p.openReceipt} pairs={[
-          { name: w.spend, value: rupees(m.spendThisMonthMinor), mono: true, after: cost },
+          { name: w.spend, value: m.spendThisMonthMinor === null ? w.notShown : rupees(m.spendThisMonthMinor), mono: m.spendThisMonthMinor !== null, after: m.spendThisMonthMinor === null ? undefined : cost },
           { name: w.cap, value: m.monthlyCapMinor === null ? w.noCap : rupees(m.monthlyCapMinor), mono: m.monthlyCapMinor !== null, after: m.monthlyCapMinor === null ? undefined : cost },
         ]} />
+        <Note>{w.capNote}</Note>
         {admin ? <CapForm p={p} cap={m.monthlyCapMinor} reload={reload} /> : <Note>{c.adminOnly}</Note>}
       </Group>
       <Group title={w.voiceTitle}>
         <KeyValue onReceipt={p.openReceipt} pairs={[
           { name: w.voiceProvider, value: m.voice.provider ?? w.voiceNone },
-          { name: w.minutes, value: countText(m.voice.minutesThisMonth), mono: true },
+          { name: w.minutes, value: m.voice.minutesThisMonth === null ? w.notCounted : countText(m.voice.minutesThisMonth), mono: m.voice.minutesThisMonth !== null },
         ]} />
       </Group>
     </>

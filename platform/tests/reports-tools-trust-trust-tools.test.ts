@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
@@ -100,8 +100,23 @@ test('models show terms and spend; the network ledger lists sent and waiting req
   assert.equal((await f.rpc('trustx.network')).canary.alert.callId, 'model_preview_leak');
 });
 
+test('a real GSTIN from the books in a request that left raises the alert with nothing planted', async t => {
+  const f = await fixture(t);
+  await f.vault.update(state => {
+    state.facts.push({ id: 'fact_guarded', entityId: 'customer-g', sourceId: 'synthetic-guarded', sourceRow: 1, kind: 'customer', validFrom: '2026-09-01', validTo: null,
+      learnedAt: new Date().toISOString(), supersededAt: null, fields: { gstin: '27AAPFU0939F1ZV' } });
+    state.modelReceipts.push(receipt({ id: 'model_preview_clean', payload: 'headings only' }));
+  });
+  assert.equal((await f.rpc('trustx.checkCanary')).alert, null);
+  await f.vault.update(state => { state.modelReceipts.push(receipt({ id: 'model_preview_gstin', payload: 'customer 27AAPFU0939F1ZV owes' })); });
+  assert.equal((await f.rpc('trustx.checkCanary')).alert.callId, 'model_preview_gstin');
+  assert.equal((await f.rpc('trust.get')).send, 'nothing');
+});
+
 test('the local cleaner finds and replaces every pattern kind without uploading', async t => {
   const f = await fixture(t);
+  await f.refused('trustx.cleanSample', { text: 'a.'.repeat(1001) }, 'INVALID_SAMPLE');
+  const started = Date.now(); await f.rpc('trustx.cleanSample', { text: Array(40).fill('a.'.repeat(999)).join('\n') }); assert.ok(Date.now() - started < 3000);
   const text = ['GSTIN 27AAPFU0939F1ZV', 'PAN ABCDE1234F', 'call +91 98765 43210', 'mail a.b@example.com', 'IFSC HDFC0001234', 'pay shop@okhdfc', 'nothing here'].join('\n');
   const result = await f.rpc('trustx.cleanSample', { text });
   assert.equal(result.uploaded, false);
@@ -136,13 +151,15 @@ test('backupNow writes a checked backup and testRestore passes with the right pa
 test('deleteSource reports only what it checked: facts gone are deleted, older backups are pending', async t => {
   const f = await fixture(t);
   await f.rpc('trustx.backupNow');
+  // An exported page left in a sub-folder (for example one still open in a spreadsheet) is found, not missed.
+  await mkdir(join(f.directory, 'exports', 'reports'), { recursive: true }); await writeFile(join(f.directory, 'exports', 'reports', 'synthetic-page.xlsx'), 'kept');
   await f.refused('trustx.deleteSource', { sourceId, confirmation: 'wrong' }, 'CONFIRMATION_REQUIRED');
   const report = await f.rpc('trustx.deleteSource', { sourceId, confirmation: sourceId });
   const row = (place: string) => report.rows.find((item: any) => item.place === place);
   assert.equal(row('Facts').state, 'deleted'); assert.equal(row('Imports').state, 'deleted');
   assert.equal(row('Backups on this computer').state, 'pending'); assert.equal(row('Backups on this computer').reason, 'Older backups still hold it until they are replaced.');
   assert.equal(row('AI provider').state, 'deleted'); assert.equal(row('Briefs already sent').state, 'not-possible'); assert.equal(row('Old versions in Google Drive').state, 'not-built');
-  assert.equal(row('Reports, Tools and Trust records').state, 'deleted');
+  assert.equal(row('Reports, Tools and Trust records').state, 'deleted'); assert.equal(row('Exports on this computer').state, 'pending');
   assert.equal(f.vault.read().facts.some(fact => fact.sourceId === sourceId), false);
   assert.equal((await f.rpc('trustx.deletions')).items[0].id, report.id);
   const file = await f.rpc('trustx.exportDeletion', { id: report.id });
@@ -154,20 +171,13 @@ test('assistants are off by default, pair once while on, and lose access when re
   assert.equal((await f.rpc('trustx.assistants')).on, false);
   await f.refused('trustx.pairAssistant', { name: 'Synthetic assistant' }, 'ASSISTANTS_OFF');
   await f.rpc('trustx.setAssistants', { on: true });
-  const paired = await f.rpc('trustx.pairAssistant', { name: 'Synthetic assistant' });
-  assert.match(paired.token, /^[A-Za-z0-9_-]{43}$/); assert.ok(Date.parse(paired.expiresAt) - Date.now() <= 86_400_000);
-  const listed = await f.rpc('trustx.assistants');
-  assert.equal(listed.assistants[0].name, 'Synthetic assistant'); assert.equal(listed.assistants[0].active, true); assert.equal(JSON.stringify(listed).includes(paired.token), false);
-  assert.equal((await f.mcp({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'synthetic' } } }, paired.token)).status, 200);
-  await f.mcp({ jsonrpc: '2.0', method: 'notifications/initialized' }, paired.token);
-  const answer = await f.mcp({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'calculate', arguments: { operation: 'billed', period: { from: '2026-09-01', to: '2026-09-30' } } } }, paired.token);
-  assert.equal(answer.body.result.structuredContent.value, '12345');
-  const calls = (await f.rpc('trustx.assistants')).calls;
-  assert.equal(calls.length, 1); assert.equal(calls[0].client, 'Synthetic assistant'); assert.equal(calls[0].calculation, 'billed'); assert.equal(calls[0].refused, false);
-  await f.refused('trustx.setModelCap', { monthlyCapMinor: null }, 'FORBIDDEN', paired.token);
-  const revoked = await f.rpc('trustx.revokeAssistant', { id: paired.id });
-  assert.equal(revoked.assistants[0].active, false);
-  assert.equal((await f.call('trustx.assistants', {}, paired.token)).status, 401);
+  // A member session would also open every read request on /api/rpc, so pairing refuses until a numbers-only session exists.
+  await f.refused('trustx.pairAssistant', { name: 'Synthetic assistant' }, 'ASSISTANT_SCOPE_NOT_AVAILABLE');
+  await f.refused('trustx.pairAssistant', { name: '' }, 'INVALID_ASSISTANT');
+  const after = await f.rpc('trustx.assistants');
+  assert.equal(after.on, true); assert.deepEqual(after.assistants, []);
+  assert.equal(f.engine.vault!.read().members.length, 1, 'no member or session was made');
+  assert.equal((await f.rpc('trustx.setAssistants', { on: false })).on, false);
 });
 
 // A hand-built WASM 1 module: () -> i32 exported as run, returning 42.
@@ -222,5 +232,5 @@ test('language packs report counts; Hindi and Hinglish are not yet reviewed; a v
   for (const [method, payload] of [['trustx.setModelCap', { monthlyCapMinor: null }], ['trustx.plantCanary', {}], ['trustx.backupNow', {}], ['trustx.deleteSource', { sourceId, confirmation: sourceId }],
     ['trustx.setAssistants', { on: true }], ['trustx.installPlugin', {}], ['trustx.withdrawSharing', {}]] as const)
     await f.refused(method, payload, 'FORBIDDEN', session.token);
-  await f.refused('trustx.network', { unexpected: true }, 'INVALID_REQUEST');
+  await f.refused('trustx.network', { unexpected: true }, 'INVALID_FIELDS');
 });

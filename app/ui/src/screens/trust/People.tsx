@@ -14,7 +14,7 @@ import { Sheet } from '../../parts/Sheet';
 import { Square } from '../../parts/Square';
 import { useEngine, useSend } from './kit/engine.ts';
 import { Note, Screen } from './kit/Screen';
-import { AskTwice, Loads, Outcome, Pending, Tag, dayText, powers, useClose, type P } from './common';
+import { AskTwice, InviteShown, Loads, Outcome, Pending, Tag, dayText, powers, useClose, type P } from './common';
 import { validateChange, validateInvite, validateSeats, validateSync, type InviteResult, type SeatRow } from './validate.ts';
 import { COMMON, PEOPLE, SEAT_WORDS, fill } from './words.ts';
 import s from './Trust.module.css';
@@ -115,14 +115,6 @@ function InviteSheet({ p, onDone }: { p: P; onDone: (waiting: boolean) => void }
     setShown(done); setName(''); setEndsOn('');
     onDone(done.state === 'waiting-for-second');
   };
-  const saveGuide = (html: string) => {
-    if (typeof URL.createObjectURL !== 'function') return;
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
-    link.download = 'chausar-accountant-guide.html';
-    link.click();
-    URL.revokeObjectURL(link.href);
-  };
   return (
     <Sheet kind={c.sheetDetail} title={w.inviteTitle} onClose={close} origin={null}>
       {!admin ? <p className={s.quiet}>{c.adminOnly}</p> : (
@@ -134,21 +126,7 @@ function InviteSheet({ p, onDone }: { p: P; onDone: (waiting: boolean) => void }
             <span><Button submit disabled={sent.kind === 'sending'}>{w.sendInvite}</Button></span>
           </form>
           <Outcome sent={sent} language={p.language} />
-          {shown?.invite && (
-            <div className={s.stack} data-invite-code="">
-              <span className={s.label}>{w.code}</span>
-              <span className={s.code}>{shown.invite.token}</span>
-              <p className={s.status}>{w.codeOnce} {fill(w.expires, { date: dayText(shown.invite.expiresAt, p.language) })}</p>
-            </div>
-          )}
-          {shown?.guide && (
-            <div className={s.stack}>
-              <span className={s.label}>{w.guideTitle}</span>
-              <p className={s.quiet}>{w.guideNote}</p>
-              <pre className={s.pre} data-guide="">{shown.guide.html}</pre>
-              <span><Button variant="quiet" onClick={() => shown.guide && saveGuide(shown.guide.html)}>{w.guideSave}</Button></span>
-            </div>
-          )}
+          {shown !== null && <InviteShown p={p} shown={shown} />}
         </div>
       )}
     </Sheet>

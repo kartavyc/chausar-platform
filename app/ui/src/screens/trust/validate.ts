@@ -229,7 +229,7 @@ export function validateSync(reply: unknown): SyncStatus {
 // ---------- Models (TR-08) ----------
 export interface Terms { keeps: string; keepsFor: string; trains: boolean; country: string; termsUrl: string; readOn: string }
 export interface Route { id: string; kind: string; label: string; health: string; order: number; terms: Terms | null; lastAnswerCostMinor: string | null }
-export interface Models { routes: Route[]; spendThisMonthMinor: string; monthlyCapMinor: string | null; voice: { provider: string | null; minutesThisMonth: number } }
+export interface Models { routes: Route[]; spendThisMonthMinor: string | null; monthlyCapMinor: string | null; voice: { provider: string | null; minutesThisMonth: number | null } }
 function url(value: unknown, path: string): string {
   const s = str(value, path, 2000);
   if (!/^https:\/\/[^\s]+$/.test(s)) throw new ShapeError(path);
@@ -245,9 +245,9 @@ export function validateModels(reply: unknown): Models {
         country: str(t['country'], `${p}.terms.country`, 100), termsUrl: url(t['termsUrl'], `${p}.terms.termsUrl`), readOn: day(t['readOn'], `${p}.terms.readOn`) },
       lastAnswerCostMinor: optPaise(x['lastAnswerCostMinor'], `${p}.lastAnswerCostMinor`) };
   }, 50);
-  return { routes: [...routes].sort((a, b) => a.order - b.order), spendThisMonthMinor: paise(r['spendThisMonthMinor'], 'reply.spendThisMonthMinor'),
+  return { routes: [...routes].sort((a, b) => a.order - b.order), spendThisMonthMinor: optPaise(r['spendThisMonthMinor'], 'reply.spendThisMonthMinor'),
     monthlyCapMinor: optPaise(r['monthlyCapMinor'], 'reply.monthlyCapMinor'),
-    voice: { provider: optStr(voice['provider'], 'reply.voice.provider', 200), minutesThisMonth: count(voice['minutesThisMonth'], 'reply.voice.minutesThisMonth') } };
+    voice: { provider: optStr(voice['provider'], 'reply.voice.provider', 200), minutesThisMonth: voice['minutesThisMonth'] === null || voice['minutesThisMonth'] === undefined ? null : count(voice['minutesThisMonth'], 'reply.voice.minutesThisMonth') } };
 }
 
 // ---------- Network (TR-09) ----------

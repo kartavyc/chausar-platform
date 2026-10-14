@@ -6,7 +6,6 @@ import { MCP_PROTOCOL_VERSION } from '../mcp.ts';
 import { fields, newestFirst, tools } from './tools-common.ts';
 
 /** Sessions issued by the auth service last at most one day; an assistant pairs again after that. */
-const SESSION_MS = 86_400_000;
 type Paired = { id: string; name: string; pairedAt: string; sessionId: string };
 
 function paired(state: State): Paired[] { return tools(state).assistants?.paired ?? []; }
@@ -37,22 +36,24 @@ async function revokeAll(ctx: Context, host: ModuleHost) {
 
 export async function setAssistants(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   const { on } = fields(payload, ['on']);
-  check(typeof on === 'boolean', 'INVALID_REQUEST', 'Turn other assistants on or off.');
+  check(typeof on === 'boolean', 'INVALID_ASSISTANT', 'Turn other assistants on or off.');
   if (!on) await revokeAll(ctx, host);
   await host.store.update(state => { (tools(state).assistants ??= { paired: [] }).on = on; });
   return assistantsView(host.store.read());
 }
 
-/** A paired assistant is a viewer member; its token is returned once and only its hash is kept. */
+/**
+ * Pairing refuses until the engine can issue a session that works only on the numbers
+ * server. A member session would also open every read request on /api/rpc, which is far
+ * more than "list the calculations, run one, open a receipt". The checks run first so the
+ * screen can say exactly what is missing.
+ */
 export async function pairAssistant(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   const { name } = fields(payload, ['name']);
   check(tools(host.store.read()).assistants?.on === true, 'ASSISTANTS_OFF', 'Turn on other assistants before pairing one.');
-  check(typeof name === 'string' && name.trim().length > 0 && name.length <= 60, 'INVALID_REQUEST', 'Give the assistant a name of up to 60 characters.');
+  check(typeof name === 'string' && name.trim().length > 0 && name.length <= 60, 'INVALID_ASSISTANT', 'Give the assistant a name of up to 60 characters.');
   check(ctx.role === 'owner', 'OWNER_REQUIRED', 'Only the owner can pair an assistant.');
-  const member = await host.services.trust.addMember(ctx, { name: name.trim(), role: 'viewer' });
-  const session = await host.services.auth.issueSession(ctx, member.id, SESSION_MS);
-  await host.store.update(state => { (tools(state).assistants ??= { on: true, paired: [] }).paired.push({ id: member.id, name: member.name, pairedAt: now(), sessionId: session.sessionId }); });
-  return { id: member.id as string, name: member.name as string, token: session.token as string, expiresAt: session.expiresAt as string };
+  check(false, 'ASSISTANT_SCOPE_NOT_AVAILABLE', 'Pairing waits for a session that reaches only the numbers server.');
 }
 
 export async function revokeAssistant(ctx: Context, payload: Record<string, any>, host: ModuleHost) {

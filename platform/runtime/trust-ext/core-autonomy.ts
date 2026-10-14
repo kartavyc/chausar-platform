@@ -109,6 +109,8 @@ export async function setAutonomy(ctx: Context, payload: Record<string, any>, ho
     audit(state, 'trustx.autonomy.changed', { memberId: ctx.memberId, preset: auto.preset, kind: k?.kind ?? null, caps: c ? Object.keys(c) : [] });
     return kindRules(state).some(r => r.on);
   });
-  if (host.store.read().policy.autonomy !== anyOn) await host.services.trust.updatePolicy(ctx, { autonomy: anyOn });
+  // Switching every kind off also stops the engine's scheduled work. Switching a kind on never starts it:
+  // the engine's one autonomy switch would run every scheduled job, not only that kind.
+  if (!anyOn && host.store.read().policy.autonomy) await host.services.trust.updatePolicy(ctx, { autonomy: false });
   return autonomyView(host.store.read());
 }
