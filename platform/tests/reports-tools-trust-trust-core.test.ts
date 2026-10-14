@@ -7,6 +7,7 @@ import { Engine } from '../runtime/engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
 import type { Context, Fact } from '../runtime/contracts.ts';
 import { markingsForSources } from '../runtime/trust-ext/methods-core.ts';
+import { today } from '../runtime/trust-ext/core-state.ts'; // the lane's India date
 
 // Synthetic people, phones and GSTINs only.
 const names = ['Asha Traders', 'Bharat Stores', 'Ravi Kumar'];
@@ -142,9 +143,20 @@ test('dual control: owner alone applies; with a cofounder each waits for the oth
   await f.store.update(state => { (state.extensions as any)['reports-tools-trust'].trust.core.pending[0].expiresAt = '2020-01-01T00:00:00.000Z'; });
   assert.equal((await f.rpc('trustx.pendingChanges')).items.length, 0);
   await assert.rejects(f.as(partner, 'trustx.confirmChange', { id: late.change.id }), code('CHANGE_EXPIRED'));
-  // The person a change removes is never the second person: the owner removes the only cofounder at once.
+  // The person a change removes still counts as the second person; removing the only cofounder has a 72-hour cooling-off.
+  await assert.rejects(f.as(f.engine.bootstrapContext(), 'members.revoke', { id: partner.memberId }), code('SECOND_PERSON_REQUIRED'));
   const removal = await f.rpc('trustx.removeSeat', { memberId: partner.memberId });
-  assert.equal(removal.state, 'applied'); assert.equal(f.store.read().members.find(m => m.id === partner.memberId)!.active, false);
+  assert.equal(removal.state, 'waiting-for-second'); assert.equal(removal.change.needs, 'cofounder'); assert.match(removal.change.summary, /72 hours/);
+  await assert.rejects(f.as(f.engine.bootstrapContext(), 'trustx.confirmChange', { id: removal.change.id }), (e: any) => e.code === 'COOLING_OFF' && /72 hours/.test(e.message));
+  assert.equal(f.store.read().members.find(m => m.id === partner.memberId)!.active, true);
+  // The cofounder may answer: declining drops the change.
+  assert.equal((await f.as(partner, 'trustx.confirmChange', { id: removal.change.id, decline: true })).state, 'declined');
+  assert.equal((await f.rpc('trustx.pendingChanges')).items.length, 0);
+  // Unanswered after 72 hours, the owner confirms it alone.
+  const again = await f.rpc('trustx.removeSeat', { memberId: partner.memberId });
+  await f.store.update(state => { (state.extensions as any)['reports-tools-trust'].trust.core.pending.find((p: any) => p.id === again.change.id).coolsOffAt = '2020-01-01T00:00:00.000Z'; });
+  assert.equal((await f.as(f.engine.bootstrapContext(), 'trustx.confirmChange', { id: again.change.id })).state, 'applied');
+  assert.equal(f.store.read().members.find(m => m.id === partner.memberId)!.active, false);
 });
 
 test('keep lists kinds and the files the app writes, including the vault', async t => {
@@ -179,7 +191,7 @@ test('seats: invite with a one-time code, CA end date, removal and the last owne
   assert.ok(seats.templates.find((s: any) => s.seat === 'staff').limits.some((l: string) => /not yet enforced/.test(l)));
 
   assert.equal((await f.call('trustx.invite', { seat: 'ca', name: 'Synthetic CA' })).body.error.code, 'INVALID_END_DATE');
-  const day = new Date().toISOString().slice(0, 10);
+  const day = today();
   const ca = await f.rpc('trustx.invite', { seat: 'ca', name: 'Synthetic CA', endsOn: day }); assert.equal(ca.guide, undefined);
   const caMember = await f.rpc('auth.accept', { token: ca.invite.token }); const caCtx: Context = { ...caMember.context, channel: 'desktop' };
   assert.equal(caMember.member.role, 'viewer');
@@ -209,7 +221,7 @@ test('a viewer reads the rules but is refused on every admin method', async t =>
 
 test('the scheduled tick ends dated seats', async t => {
   const f = await fixture(t);
-  const ca = await f.rpc('trustx.invite', { seat: 'ca', name: 'Synthetic CA', endsOn: new Date().toISOString().slice(0, 10) });
+  const ca = await f.rpc('trustx.invite', { seat: 'ca', name: 'Synthetic CA', endsOn: today() });
   const member = await f.rpc('auth.accept', { token: ca.invite.token });
   await f.store.update(state => { (state.extensions as any)['reports-tools-trust'].trust.core.seats[ca.invite.id].endsOn = '2020-01-01'; });
   await f.rpc('trust.update', { autonomy: true });
@@ -221,7 +233,7 @@ test('the scheduled tick ends dated seats', async t => {
 
 test('a dated seat is refused at authorization, and ends at the next request of this lane, with the scheduler off', async t => {
   const f = await fixture(t);
-  const ca = await f.rpc('trustx.invite', { seat: 'ca', name: 'Synthetic CA', endsOn: new Date().toISOString().slice(0, 10) });
+  const ca = await f.rpc('trustx.invite', { seat: 'ca', name: 'Synthetic CA', endsOn: today() });
   const member = await f.rpc('auth.accept', { token: ca.invite.token }); const seat: Context = { ...member.context, channel: 'desktop' };
   assert.equal((await f.as(seat, 'trustx.rules')).canChange, false);
   await f.store.update(state => { (state.extensions as any)['reports-tools-trust'].trust.core.seats[ca.invite.id].endsOn = '2020-01-01'; });

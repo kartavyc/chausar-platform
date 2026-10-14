@@ -966,7 +966,7 @@ export class Engine {
     const engine = this;
     return Object.freeze({
       get store() { return engine.store(); },
-      services: Object.freeze({ ...this.services, sourceDeletion: Object.freeze({ delete: (sourceId: string) => engine.moduleSourceDeletion(ctx, sourceId) }) }),
+      services: Object.freeze({ ...this.services, sourceDeletion: Object.freeze({ delete: (sourceId: string, confirmation: string) => engine.moduleSourceDeletion(ctx, sourceId, confirmation) }) }),
       demo: this.#demo, directory: this.options.directory,
       options: this.moduleOptions(moduleId),
       // `tainted` can only add the outside-text mark to the caller's context, never remove it.
@@ -974,9 +974,14 @@ export class Engine {
         engine.requestAs(options?.tainted === true ? { ...ctx, sourceTainted: true } : ctx, method, payload),
     });
   }
-  /** `sources.delete` with its managed-copy cleanup for a module request: taken only while the calling request is the one in flight, then fenced the same way. */
-  private async moduleSourceDeletion(ctx: Context, sourceId: string) {
-    check(!this.#closing && !this.#transition && this.#activeRequests <= 1, 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
+  /** `sources.delete` with its managed-copy cleanup for a module request: taken only by the owner, with the source id typed again as
+   *  confirmation, while the calling request is the one and only request in flight, then fenced the same way. */
+  private async moduleSourceDeletion(ctx: Context, sourceId: string, confirmation: string) {
+    check(authorize(this.store(), ctx, 'admin').role === 'owner', 'OWNER_REQUIRED', 'Only the owner can delete a source.');
+    check(typeof sourceId === 'string' && sourceId.length > 0 && confirmation === sourceId, 'CONFIRMATION_REQUIRED', 'Type the source name to confirm the deletion.');
+    check(!this.#closing && !this.#transition && this.#activeRequests === 1, 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
+    const current = this.context;
+    check(current.memberId === ctx.memberId && current.epoch === ctx.epoch && current.role === ctx.role, 'VAULT_BUSY', 'A workspace operation is in progress. Wait for it to finish.');
     this.#transition = true;
     try {
       const result = await this.services.trust.deleteSource(ctx, sourceId); const removed = await this.purgeManagedCopies();

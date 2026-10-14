@@ -231,7 +231,9 @@ test('a remote tool is prepared, approved exactly once in the app, sent once to 
   await assert.rejects(call(late.previewId, lateOk.approvalId), code('PLUGIN_REMOTE_APPROVAL_EXPIRED'));
   const cofounder = await engine.request('members.add', { name: 'Cofounder', role: 'cofounder', branches: ['*'] });
   const stale = await prepare('submit', { text: note }); const staleOk = await approve(stale, { memberId: cofounder.id, role: cofounder.role, epoch: cofounder.epoch, channel: 'desktop' });
-  await engine.request('members.revoke', { id: cofounder.id });
+  // Removing the only cofounder needs the cofounder too (Trust dual control): ask, then the cofounder confirms.
+  const removal = await engine.request('trustx.removeSeat', { memberId: cofounder.id });
+  await engine.requestAs({ memberId: cofounder.id, role: cofounder.role, epoch: cofounder.epoch, channel: 'desktop' }, 'trustx.confirmChange', { id: removal.change.id });
   await assert.rejects(call(stale.previewId, staleOk.approvalId), code('PLUGIN_REMOTE_APPROVAL_STALE'));
   const withheld = await prepare('submit', { text: note }); const withheldOk = await approve(withheld);
   await engine.request('trust.update', { policy: { ...policy, send: 'nothing' } });

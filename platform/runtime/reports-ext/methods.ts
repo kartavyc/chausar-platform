@@ -12,6 +12,9 @@ import { xlsxBook } from './xlsx.ts';
 import { friday, mergeRhythm, rhythmSettings, rhythmView, tickBrief, weekAhead } from './briefs.ts';
 import { dueDates, dueRequest, validProfile } from './due-dates.ts';
 
+/** hosted-link's relay is absent, off in demo, not set up or not paired: each means delivery is not available here. */
+const RELAY_ABSENT = new Set(['UNKNOWN_METHOD', 'DEMO_EXTERNAL_DISABLED', 'HOSTED_NOT_CONFIGURED', 'HOSTED_NOT_PAIRED']);
+
 const today = (host: ModuleHost) => indiaDate(clock(host));
 /** The default report period: the financial year to date, from the rhythm's financial-year start. */
 function defaultPeriod(host: ModuleHost): Period {
@@ -76,7 +79,7 @@ export const reportsMethods: Record<string, MethodSpec> = {
     check(input.channel === 'mail' ? rhythm.mail.address : rhythm.whatsapp.phone, 'CHANNEL_ADDRESS_REQUIRED', 'Add the address before verifying it.');
     let reply: unknown;
     try { reply = await host.call('phone.verify', { channel: input.channel }); }
-    catch (error) { check((error as { code?: string }).code !== 'UNKNOWN_METHOD', 'RELAY_NOT_AVAILABLE', 'Delivery by mail and WhatsApp is not available yet.'); throw error; }
+    catch (error) { check(!RELAY_ABSENT.has(String((error as { code?: string }).code)), 'RELAY_NOT_AVAILABLE', 'Delivery by mail and WhatsApp is not available yet.'); throw error; }
     const verified = (reply as { verified?: unknown })?.verified === true;
     await host.store.update(state => { (reportsState(state).verified ??= {})[input.channel] = verified; });
     return { channel: input.channel, verified };
@@ -88,9 +91,11 @@ export const reportsMethods: Record<string, MethodSpec> = {
   'reportsx.setDueProfile': { permission: 'admin', async handler(_ctx, payload, host) {
     const profile = validProfile(payload); await host.store.update(state => { reportsState(state).dueProfile = { ...profile }; }); return profile;
   } },
-  'reportsx.exports': { permission: 'read', handler(_ctx, payload, host) {
+  'reportsx.exports': { permission: 'read', handler(ctx, payload, host) {
     closed(payload, [], 'INVALID_EXPORT_REQUEST');
-    const items = [...(peekReports(host.store.read()).exports ?? [])].reverse().map(publicRecord);
+    // Row counts cover every source and branch, hidden ones included, so only an unrestricted owner sees what each export holds.
+    const member = authorize(host.store, ctx); const owner = member.role === 'owner' && member.branches.includes('*');
+    const items = [...(peekReports(host.store.read()).exports ?? [])].reverse().map(item => owner ? publicRecord(item) : { ...publicRecord(item), stores: [] });
     return { warning: 'Exported files are not encrypted.', items };
   } },
   'reportsx.exportAll': { permission: 'admin', async handler(ctx, payload, host) {

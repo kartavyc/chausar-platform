@@ -1,5 +1,6 @@
 import type { MethodSpec } from '../modules/types.ts';
 import { onPurge, onTick } from './lifecycle.ts';
+import { setPolicy } from './core-hooks.ts';
 import { peekLane } from './lane-state.ts';
 import type { CoreState } from './core-state.ts';
 import { rulesView } from './core-rules.ts';
@@ -23,6 +24,8 @@ export const trustCoreMethods: Record<string, MethodSpec> = {
   'trustx.setSend': { permission: 'admin', handler: setSend },
   'trustx.pendingChanges': { permission: 'read', handler: (_ctx, _p, host) => pendingView(host.store.read()) },
   'trustx.confirmChange': { permission: 'admin', handler: confirmChange },
+  /** Source access and autonomy: the same two-person rule as Send when there is a cofounder. */
+  'trustx.setPolicy': { permission: 'admin', handler: setPolicy },
   'trustx.keep': { permission: 'read', handler: (_ctx, _p, host) => keepView(host) },
   'trustx.setKeep': { permission: 'admin', handler: setKeep },
   'trustx.seats': { permission: 'read', handler: (ctx, _p, host) => seats(ctx, host) },

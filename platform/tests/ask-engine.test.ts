@@ -564,6 +564,9 @@ test('review 2: the guard checks unit, scale and sign, joins what a person sees 
 test('review 2: narrowed access withholds kept figures; one confirm records once; tolerance is the owner’s; viewers keep nothing', async t => {
   const engine = await workspace(t);
   await ask(engine, 'sources.import', source('september', SEPT));
+  // Seats are added before the cofounder: once a cofounder is in, seat changes need both (Trust dual control).
+  const accountant = await ask(engine, 'members.add', { id: 'acct3', name: 'Accountant', role: 'accountant', branches: ['*'] });
+  const viewer = await ask(engine, 'members.add', { id: 'view3', name: 'Viewer', role: 'viewer', branches: ['*'] });
   const co = await ask(engine, 'members.add', { id: 'co2', name: 'Cofounder', role: 'cofounder', branches: ['*'] });
   as(engine, co);
   const answer = await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
@@ -581,8 +584,6 @@ test('review 2: narrowed access withholds kept figures; one confirm records once
   const both = await Promise.allSettled([ask(engine, 'askx.decisions.confirm', { draftId: draft.id }), ask(engine, 'askx.decisions.confirm', { draftId: draft.id })]);
   assert.deepEqual(both.map(r => r.status).sort(), ['fulfilled', 'rejected']);
   assert.equal((await ask(engine, 'askx.decisions.list')).items.filter((d: any) => d.text === 'Hold prices for a month.').length, 1);
-  const accountant = await ask(engine, 'members.add', { id: 'acct3', name: 'Accountant', role: 'accountant', branches: ['*'] });
-  const viewer = await ask(engine, 'members.add', { id: 'view3', name: 'Viewer', role: 'viewer', branches: ['*'] });
   as(engine, accountant);
   await assert.rejects(ask(engine, 'askx.gst2b.tolerance', { toleranceMinor: '10000000' }), code('FORBIDDEN'));
   as(engine, viewer);

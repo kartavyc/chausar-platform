@@ -10,6 +10,7 @@ import type { Context } from '../runtime/contracts.ts';
 import { csvFile } from '../runtime/reports-ext/export-files.ts';
 import { xlsxBook, crc32 } from '../runtime/reports-ext/xlsx.ts';
 import { pendingExportPaths, reportsMethods } from '../runtime/reports-ext/methods.ts';
+import { validateExports } from '../../app/ui/src/screens/reports/validate.ts';
 
 // Synthetic records only: one month of an invented business, with a formula-shaped description.
 const csv = `id,kind,date,amount,currency,customerId,invoiceId,dueDate,status,description
@@ -219,7 +220,9 @@ test('Friday review and rhythm settings validate, preview without digits and ref
   // The relay's phone.verify belongs to hosted-link; stub the host so this holds whether or not that lane is merged.
   const verify = reportsMethods['reportsx.verifyChannel']!;
   const hostWith = (call: (method: string) => Promise<unknown>) => ({ ...engine.moduleHost('reports-tools-trust', engine.context), call });
-  await assert.rejects(Promise.resolve(verify.handler(engine.context, { channel: 'mail' }, hostWith(async () => { throw Object.assign(new Error('x'), { code: 'UNKNOWN_METHOD' }); }) as any)), code('RELAY_NOT_AVAILABLE'));
+  for (const absent of ['UNKNOWN_METHOD', 'DEMO_EXTERNAL_DISABLED', 'HOSTED_NOT_CONFIGURED', 'HOSTED_NOT_PAIRED'])
+    await assert.rejects(Promise.resolve(verify.handler(engine.context, { channel: 'mail' }, hostWith(async () => { throw Object.assign(new Error('x'), { code: absent }); }) as any)), code('RELAY_NOT_AVAILABLE'), absent);
+  await assert.rejects(Promise.resolve(verify.handler(engine.context, { channel: 'mail' }, hostWith(async () => { throw Object.assign(new Error('x'), { code: 'FORBIDDEN' }); }) as any)), code('FORBIDDEN'));
   assert.deepEqual(await verify.handler(engine.context, { channel: 'mail' }, hostWith(async method => { assert.equal(method, 'phone.verify'); return { verified: true }; }) as any), { channel: 'mail', verified: true });
 });
 
@@ -273,6 +276,11 @@ test('export everything writes open files with row counts and check numbers; del
   assert.equal(locked.locked, true); assert.equal(locked.encrypted, true); await access(join(locked.folder, locked.stores[0].file));
   const list = await engine.request('reportsx.exports', {});
   assert.equal(list.warning, 'Exported files are not encrypted.'); assert.deepEqual(list.items.map((i: any) => i.id), [locked.id, record.id]);
+  assert.equal(list.items[1].stores.find((s: any) => s.name === 'facts').rows, 6);
+  // Row counts cover hidden sources too: other seats get the list without them, still valid for the screen.
+  await engine.request('members.add', { id: 'viewer-exports', name: 'Synthetic viewer', role: 'viewer' });
+  const seen = validateExports(await engine.requestAs({ memberId: 'viewer-exports', role: 'viewer', epoch: 1, channel: 'desktop' }, 'reportsx.exports', {}));
+  assert.deepEqual(seen.items.map(i => i.id), [locked.id, record.id]); assert.ok(seen.items.every(i => i.stores.length === 0));
   const question = await engine.request('reportsx.askPerson', { question: 'Is <this> right?', reason: 'Chausar cannot classify this cost yet.',
     receiptId: (await engine.request('calculation.run', { operation: 'billed', period: september })).id });
   assert.equal(question.sent, false); assert.equal(dirname(question.file.path), join(directory, 'exports', 'questions'));
@@ -353,7 +361,9 @@ test('markings follow the data: a seat that does not see a marking gets withheld
   // The engine leaves the marked source out of this seat's calculations: no receipt it can open reads that source.
   for (const id of brief.receiptIds) assert.ok(!(await engine.requestAs(accountant, 'receipts.get', { id })).sourceIds.includes(sourceId));
   assert.equal((await engine.request('reportsx.weekAhead', { onDate: '2026-09-08' })).changed.find((item: any) => item.id === 'net_sales').figure.exact, '112525');
-  await engine.request('trustx.setSeatMarking', { seat: 'accountant', kind: 'financial', sees: true });
+  // Widening what a seat sees needs the owner and the cofounder.
+  const widen = await engine.request('trustx.setSeatMarking', { seat: 'accountant', kind: 'financial', sees: true }); assert.equal(widen.state, 'waiting-for-second');
+  await engine.requestAs(cofounder, 'trustx.confirmChange', { id: widen.change.id });
   const after = await engine.requestAs(accountant, 'reportsx.weekAhead', { onDate: '2026-09-08' });
   assert.equal(after.changed.find((item: any) => item.id === 'net_sales').figure.exact, '112525'); assert.deepEqual(after.gaps, []);
 });

@@ -26,7 +26,8 @@ export const money = (value: string | bigint, currency = 'INR') => {
 export type Role = 'owner' | 'cofounder' | 'accountant' | 'viewer';
 export type Context = { memberId: string; role: Role; epoch: number; channel?: 'desktop' | 'phone' | 'mcp'; sourceTainted?: boolean };
 export type TrustPolicy = { send: 'nothing' | 'shape' | 'samples'; autonomy: boolean; allowedSources: string[]; retentionDays: number; sharing: boolean };
-export type Member = { id: string; name: string; role: Role; active: boolean; epoch: number; branches: string[] };
+/** `scope: 'mcp'` marks a numbers-only member (a paired assistant): only the numbers server accepts its sessions. */
+export type Member = { id: string; name: string; role: Role; active: boolean; epoch: number; branches: string[]; scope?: 'mcp' };
 export type Fact = { id: string; entityId: string; sourceId: string; sourceRow: number; kind: string; validFrom: string; validTo: string | null; learnedAt: string; supersededAt: string | null; fields: Record<string, unknown>; deletedAt?: string; branch?: string };
 export type State = {
   schemaVersion: number; revision: number; workspace: { id: string; name: string; currency: string; demo: boolean; createdAt: string };

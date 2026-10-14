@@ -19,6 +19,20 @@ export type McpCallRecord = { memberId: string; method: 'tools/call' | 'other'; 
 const callHooks = new Set<(store: StateStore, record: McpCallRecord) => void | Promise<void>>();
 /** Engine modules register at load to keep each tool call and refused request; a hook failure never changes the reply. */
 export function registerMcpCallHook(hook: (store: StateStore, record: McpCallRecord) => void | Promise<void>): void { callHooks.add(hook); }
+/** Call records wait here and reach the hooks in one store update: every 20 records, a second after the first, or on `flushMcpCalls`. */
+const MCP_FLUSH_RECORDS = 20, MCP_FLUSH_MS = 1000;
+const pendingCalls = new Map<StateStore, { records: McpCallRecord[]; timer: NodeJS.Timeout | undefined }>();
+/** Writes the waiting call records of one store (or of every store) through the hooks, in one store update each. */
+export async function flushMcpCalls(store?: StateStore): Promise<void> {
+  for (const [target, waiting] of [...pendingCalls]) {
+    if (store && target !== store) continue;
+    pendingCalls.delete(target); clearTimeout(waiting.timer);
+    const changes: ((state: State) => unknown)[] = [];
+    const batch: StateStore = { read: () => target.read(), update: async <T>(change: (state: State) => T | Promise<T>) => { changes.push(change); return undefined as T; } };
+    for (const record of waiting.records) for (const hook of callHooks) try { await hook(batch, structuredClone(record)); } catch { /* a record never changes the reply */ }
+    if (changes.length) try { await target.update(async state => { for (const change of changes) await change(state); }); } catch { /* a record never changes the reply */ }
+  }
+}
 type Session = { identity: string; phase: 'initializing' | 'ready'; protocol: string };
 const receiptSchema = { type: 'object', additionalProperties: false, required: ['receiptId'], properties: {
   receiptId: { type: 'string', minLength: 1, maxLength: 200 },
@@ -103,7 +117,10 @@ export class MCPService {
   async #record(context: Context, request: JSONRPCRequest, outcome: McpCallRecord['outcome'], code: string | null, receiptId: unknown = null) {
     const name = request?.params?.name; const tool = typeof name === 'string' && (this.calculations.has(name) || this.readTools.has(name) || receiptTools.some(t => t.name === name)) ? name : null;
     const record: McpCallRecord = { memberId: context.memberId, method: request?.method === 'tools/call' ? 'tools/call' : 'other', tool, receiptId: typeof receiptId === 'string' && receiptId.length <= 200 ? receiptId : null, outcome, code };
-    for (const hook of callHooks) try { await hook(this.store, structuredClone(record)); } catch { /* a record never changes the reply */ }
+    const waiting = pendingCalls.get(this.store) ?? { records: [] as McpCallRecord[], timer: undefined as NodeJS.Timeout | undefined };
+    pendingCalls.set(this.store, waiting); waiting.records.push(record);
+    if (waiting.records.length >= MCP_FLUSH_RECORDS) await flushMcpCalls(this.store);
+    else waiting.timer ??= setTimeout(() => { void flushMcpCalls(this.store); }, MCP_FLUSH_MS).unref();
   }
   async handle(context: Context, request: JSONRPCRequest, sessionId = 'local'): Promise<JSONRPCResponse | null> {
     const id = request?.id ?? null;

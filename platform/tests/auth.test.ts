@@ -18,7 +18,7 @@ test('viewer cannot issue invitations and cannot inspect other member sessions',
   await assert.rejects(auth.invite(ctx, { name: 'Privileged', role: 'owner' }), code('FORBIDDEN')); const ownerSession = await auth.issueSession(owner); assert.equal(auth.sessions(ctx).some(s => s.id === ownerSession.sessionId), false);
 });
 test('member revocation invalidates an already-issued token immediately', async () => {
-  const store = new MemoryStore(); const auth = new AuthService(store); const trust = new TrustService(store); const member = await trust.addMember(owner, { name: 'Partner', role: 'cofounder' }); const session = await auth.issueSession(owner, member.id);
+  const store = new MemoryStore(); const auth = new AuthService(store); const trust = new TrustService(store); const member = await trust.addMember(owner, { name: 'Partner', role: 'accountant' }); const session = await auth.issueSession(owner, member.id);
   assert.equal(auth.authenticate(session.token).memberId, member.id); await trust.revokeMember(owner, member.id); assert.throws(() => auth.authenticate(session.token), code('INVALID_SESSION'));
 });
 test('invitation issuer epoch change prevents redemption', async () => {
