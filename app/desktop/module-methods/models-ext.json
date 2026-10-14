@@ -1,1 +1,15 @@
-[]
+[
+  "smallapps.create",
+  "smallapps.get",
+  "smallapps.list",
+  "smallapps.open",
+  "smallapps.pressAction",
+  "smallapps.propose",
+  "smallapps.rebuild",
+  "smallapps.records.add",
+  "smallapps.records.history",
+  "smallapps.records.list",
+  "smallapps.records.update",
+  "smallapps.remove",
+  "smallapps.validate"
+]
