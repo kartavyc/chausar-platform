@@ -1,0 +1,30 @@
+{
+  "repository": "kartavyc/chausar-platform",
+  "visibility": "private",
+  "frozen": {
+    "sha": "5edf751b5fc58181e0a0c1e4c025dcc8ad5bcbfd",
+    "tree": "2d0d8d438111e9f404b2238d4ab2360e220f8a50",
+    "parent": "2bc59dc1f527ec67dafa8fa350fd9832f3f705ba",
+    "url": "https://github.com/kartavyc/chausar-platform/commit/5edf751b5fc58181e0a0c1e4c025dcc8ad5bcbfd"
+  },
+  "checkpoint": {
+    "sha": "8d9dfb7078c00b05f6ddf3454fb3662e2a123114",
+    "tree": "2d0d8d438111e9f404b2238d4ab2360e220f8a50",
+    "parent": "5edf751b5fc58181e0a0c1e4c025dcc8ad5bcbfd",
+    "ref": "refs/heads/private/today-engine-5edf751b-20261004-55644bf6d0b3",
+    "url": "https://github.com/kartavyc/chausar-platform/commit/8d9dfb7078c00b05f6ddf3454fb3662e2a123114",
+    "message": "Preserve exact frozen Today source as private review checkpoint [skip ci]\n\nMetadata-only child of 5edf751b5fc58181e0a0c1e4c025dcc8ad5bcbfd. Its tree is identical; the child message prevents automatic push CI. No native acceptance, main update, or product defaults."
+  },
+  "metadataOnlyChildRequired": true,
+  "identicalTree": true,
+  "nonForce": true,
+  "priorRefCount": 55,
+  "allPriorRefsUnchanged": true,
+  "main": "87c400870563b92803841d3a198cee801f7740df",
+  "workflowRunsObserved": 0,
+  "workflowQueryIncludesAllEvents": true,
+  "verifiedAt": "2026-10-04 03:29:24 UTC",
+  "nativeAcceptance": false,
+  "fullWorkspacePortable": false,
+  "defaultsConfigured": false
+}
