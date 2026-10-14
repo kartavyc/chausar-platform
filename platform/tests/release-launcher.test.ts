@@ -65,7 +65,9 @@ async function world(t:any) {
     `const engine = new Engine({ directory, version: process.argv[2], demo: true, storage: 'experimental-file' });`,
     `await engine.request('workspace.create', { name: 'Synthetic launcher shop', passphrase: 'synthetic-launcher-passphrase', demo: true });`,
     `const status = await engine.request('release.status');`,
-    `process.stdout.write(JSON.stringify({ trial: status.trial }) + '\\n');`, ''].join('\n'));
+    `const { DataGuard } = await import(${JSON.stringify(join(repo, 'platform', 'runtime', 'native', 'update-data-guard.ts'))});`,
+    `const marker = await new DataGuard({ appDataDirectory: directory }).marker();`,
+    `process.stdout.write(JSON.stringify({ trial: status.trial, marker: marker && [marker.dataSchemaVersion, marker.writtenBy] }) + '\\n');`, ''].join('\n'));
   const feedFiles:Record<string, string|Uint8Array> = {};
   let issued = Date.now() - 10 * HOUR;
   const publish = (releases:ChannelRelease[]) => {
@@ -136,7 +138,8 @@ test('launcher: adopt, update, two unconfirmed launches, automatic rollback, con
   await again.stage(); await again.apply({ confirmed: true });
   assert.deepEqual([(await w.pointer()).version, (await w.pointer()).state], ['1.2.0', 'trial']);
   run = w.launch({ FAKE_OPENS_WORKSPACE: '1' }); assert.equal(run.status, 0, run.stderr);
-  assert.deepEqual(JSON.parse(run.stdout.trim().split('\n').at(-1)!), { trial: 'confirmed' });
+  // The marker rises only with this confirmation, recording the confirmed version.
+  assert.deepEqual(JSON.parse(run.stdout.trim().split('\n').at(-1)!), { trial: 'confirmed', marker: [1, '1.2.0'] });
   assert.deepEqual([(await w.pointer()).version, (await w.pointer()).previous, (await w.pointer()).state], ['1.2.0', '1.0.0', 'committed']);
   for (let index = 0; index < 3; index++) { run = w.launch(); assert.equal(run.status, 0); }
   assert.deepEqual((await w.launches()).slice(-4), ['1.2.0', '1.2.0', '1.2.0', '1.2.0']);

@@ -78,7 +78,8 @@ async function bundledPostgres(host: ModuleHost): Promise<BundledPostgres> {
  * rolls it back after two launches that never confirmed. Reaching any release method means a
  * workspace is open in this engine, which is the health signal: the first desktop call (the desktop
  * host calls `release.status` once a workspace opens) commits a trial of exactly the running version.
- * Only installs started through the launcher (`installRoot` set) take part; once per process.
+ * Only installs started through the launcher (`installRoot` set) take part; once per process. The
+ * confirmation then records the running version's data schema in the marker.
  */
 const trials = new Map<string, Promise<TrialConfirmation>>();
 async function confirmTrial(ctx: Context, host: ModuleHost, version: string): Promise<TrialConfirmation | 'failed' | null> {
@@ -86,7 +87,18 @@ async function confirmTrial(ctx: Context, host: ModuleHost, version: string): Pr
   if (!o.installRoot || !isAbsolute(o.installRoot) || (ctx.channel !== undefined && ctx.channel !== 'desktop') || ctx.sourceTainted) return null;
   const key = `${o.installRoot}\u0000${version}`;
   let pending = trials.get(key);
-  if (!pending) { pending = confirmInstalledTrial(o.installRoot, version); trials.set(key, pending); pending.catch(() => trials.delete(key)); }
+  if (!pending) {
+    pending = confirmInstalledTrial(o.installRoot, version).then(async result => {
+      // The data-schema marker rises only here, after this exact version is confirmed healthy with an open
+      // workspace, so the launcher's automatic rollback stays possible until then (update-service.ts).
+      if (result === 'confirmed' || result === 'already-committed') {
+        const guard = new DataGuard({ appDataDirectory: host.directory }), schema = o.dataSchemaVersion ?? 1, marker = await guard.marker();
+        if (!marker || marker.dataSchemaVersion < schema) await guard.recordSchema(schema, version);
+      }
+      return result;
+    });
+    trials.set(key, pending); pending.catch(() => trials.delete(key));
+  }
   return pending.catch(() => 'failed' as const);
 }
 /** A vault copy taken immediately before a data-schema change, hashed for the swap's evidence. */

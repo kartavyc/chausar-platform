@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { check, ChausarError } from '../contracts.ts';
 import type { ReleaseManifest } from '../updater.ts';
 import { InstallLayout, artifactKind, type InstallPointer, type LaunchDecision } from './update-install.ts';
+import { resolveInstalledLaunch } from './update-service.ts';
 
 /**
  * The resolver behind the launcher stub (scripts/release/launcher/chausar-launcher.sh).
@@ -12,7 +13,7 @@ import { InstallLayout, artifactKind, type InstallPointer, type LaunchDecision }
  * The person starts `<installRoot>/chausar-launcher`. The stub runs this file with an installed
  * Chausar executable in Node mode (ELECTRON_RUN_AS_NODE=1), preferring the last committed version
  * while a new one is on trial, so a broken new build cannot break its own rollback. `resolve` calls
- * `InstallLayout.resolveLaunch()` (one counted trial launch; after MAX_TRIAL_LAUNCHES unconfirmed
+ * `resolveInstalledLaunch()` from update-service.ts (one counted trial launch; after MAX_TRIAL_LAUNCHES unconfirmed
  * launches the pointer returns to the previous version) and prints the executable to start. The
  * engine commits the trial once a workspace opens (`confirmInstalledTrial`, from the release module).
  *
@@ -46,7 +47,8 @@ export async function findAppExecutable(versionDirectory:string, name = 'chausar
 export async function resolveLaunchTarget(installRoot:string, name = 'chausar'):Promise<LaunchTarget> {
   // Resolving never creates an install root that is not there.
   try { await lstat(join(installRoot, 'current.json')); } catch (error:any) { check(error.code !== 'ENOENT' && error.code !== 'ENOTDIR', 'LAUNCH_NOT_INSTALLED', 'No Chausar version is installed here yet.'); throw error; }
-  const decision = await new InstallLayout({ installRoot }).resolveLaunch();
+  // The service's rule: never roll back automatically past a raised data-schema marker.
+  const decision = await resolveInstalledLaunch({ installRoot });
   check(decision, 'LAUNCH_NOT_INSTALLED', 'No Chausar version is installed here yet.');
   // A trial past its launches with nothing to return to still starts: it is the only version there is.
   return Object.freeze({ decision, executable: await findAppExecutable(decision.directory, name) });
