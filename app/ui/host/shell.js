@@ -1,9 +1,11 @@
-import { createHostController, createDesktopRequestPort, mountHost } from '/ui/host.js';
+import { createHostController, createDesktopRequestPort, createShellPort, mountHost } from '/ui/host.js';
 const container = document.getElementById('host');
 let token = new URLSearchParams(location.hash.slice(1)).get('token');
 history.replaceState(null, '', location.pathname);
 const desktop = location.protocol === 'chausar:' ? window.chausar : null;
 const desktopRequests = desktop ? createDesktopRequestPort(desktop) : null;
+// shell.print and shell.openExternal: the preload's two functions, or the browser's print dialog and a new tab.
+const shell = createShellPort(desktop ?? null);
 function denied(code) { return Object.assign(new Error('The workspace session is unavailable.'), { code }); }
 const port = { async request(method, payload) {
   if (desktopRequests) return desktopRequests.request(method, payload);
@@ -18,7 +20,7 @@ const controller = createHostController(port, { todayProducer: {} });
 // The new UI is the default. A return to the legacy renderer is offered only when the trusted
 // host served the document that says it is available (an explicit --legacy-renderer launch).
 const legacyAvailable = document.documentElement?.dataset?.legacy === 'available';
-const mounted = mountHost(container, controller, legacyAvailable ? { firstRun: 'journey', onLegacyReturn: () => location.assign(desktop ? '/index.html' : `/index.html${token ? '#token=' + encodeURIComponent(token) : ''}`) } : { firstRun: 'journey' });
+const mounted = mountHost(container, controller, legacyAvailable ? { firstRun: 'journey', shell, onLegacyReturn: () => location.assign(desktop ? '/index.html' : `/index.html${token ? '#token=' + encodeURIComponent(token) : ''}`) } : { firstRun: 'journey', shell });
 const check = () => { void controller.checkAuthority().catch(() => controller.invalidate('ACCESS_DENIED')); };
 const focus = () => { if (document.visibilityState === 'visible') check(); };
 window.addEventListener('focus', check); document.addEventListener('visibilitychange', focus);
