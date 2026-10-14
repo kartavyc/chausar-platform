@@ -183,3 +183,83 @@ PluginInspection = { maker, level, version, licence, signature: "valid"|"invalid
   flagged: { field, text }[], refused: string | null }
 LanguagePack = { id, name, cases: { passed, total }, supported: boolean, reviewed: boolean }
 ```
+
+Notes on the contract as built (additive to the tables above):
+
+- A known `EngineFigure` may also carry `measure: { operation, key }` naming the calculation and figure. `labels` holds only the seven canonical figure labels.
+- `reportsx.due` rows run soonest first, and `table` carries `reviewed: false`.
+- `reportsx.weekAhead` keeps one brief per period **per member** (receipts open only for the member who made them). A future week refuses `WEEK_NOT_STARTED`. The scheduled brief is built by the tick only after an owner has saved a rhythm.
+- Report page times and "today" are India Standard Time; the default period is the financial year to date.
+- `trustx.record` items may have `rule: null`; `head.at` is null for an empty record. `record` and `verifyRecord` extend the stored chain.
+- `trustx.installPlugin` also returns `missing: string[]`, the asks not answered Yes.
+- `trustx.deleteSource` and `trustx.pairAssistant` need the owner, not only an admin.
+- `trustx.confirmChange` on an invite also returns `invite` and `guide`; an applied `removeSeat` also returns `removedOn` and `kept`.
+- Exported for other lanes: `autonomyDecision(state, { kind, amountMinor?, countToday, customerCountToday? })` → `{ allowed, reason }` and `markingsForSources(state, sourceIds)`, from `platform/runtime/trust-ext/methods-core.ts`. Dual control can be extended with `requestChange` / `onApplyChange` from `core-dual.ts`.
+
+## 2. What was built
+
+Engine: 58 module methods in `platform/runtime/modules/lane-reports-tools-trust.ts`, listed in `app/desktop/module-methods/reports-tools-trust.json`. Code in `platform/runtime/reports-ext/` (packs, pages, exports, XLSX writer, briefs, due dates) and `platform/runtime/trust-ext/` (`core-*` for rules, markings, send, dual control, keep, do, seats; `tools-*` for models, network and canary, the record, sharing and the cleaner, vault and deletion, assistants, plugins, language packs; `lifecycle.ts` for purge and tick; `lane-state.ts` for the private namespace).
+
+Screens: place modules in `app/ui/src/screens/reports/`, `tools/` and `trust/`, joined in `app/ui/src/places/lane-reports-tools-trust.tsx`, with a shared kit in `app/ui/src/screens/trust/kit/` (engine read hook, reply checks, figure conversion, page frame). Every screen has English and Hindi words, draws in Simple, Guided and Books, and handles loading, not built, locked, failed, read only and invalid replies.
+
+### Reports
+
+| Screen | Address | Label |
+|---|---|---|
+| RP-01 Packs: lender (CMA-style key financials, 12 months of sales, ageing, collections, GST turnover, bank summary, ready for a loan, projections), CA, investor; page states and GST modes | `reports/packs` | supported |
+| RP-02 A report page: every figure opens its receipt, gaps beside totals, projection apart, loan disclaimer, 43B(h) and TReDS notes with sources, markings, record check code; English or Hindi; print; CSV, XLSX and HTML export with formula-safe text cells | `reports/packs?sheet=<pack>.<page>` | supported |
+| RP-03 The week ahead and RP-04 the Friday review | `reports/weekahead` | supported (engine); see gap on the host's retained surface |
+| RP-05 Rhythm and delivery | `reports/weekahead?sheet=rhythm` | supported for settings; delivery experimental (needs the hosted relay) |
+| RP-06 Due dates from a shipped, sourced table | `reports/duedates` | experimental until a CA checks the table |
+| RP-07 Export everything, plain or locked | `reports/exports` | supported |
+| RP-08 Ask a person: a question file, nothing sent | `reports/exports?sheet=ask-a-person` | supported |
+
+### Tools
+
+| Screen | Address | Label |
+|---|---|---|
+| TL-01..TL-03 Small apps, a small app, the follow-up book | `tools/smallapps` | not built yet until models-ext serves `smallapps.*`; screens built against an adapter |
+| TL-04 Plugins, TL-05 Install a plugin (inspection without install, signature, locked-box drawing, Yes/No asks, flagged text), TL-10 Language packs | `tools/plugins` | supported |
+| TL-06 A tool from outside | `tools/plugins` | not built yet until models-ext serves `plugins.wrapped` |
+| TL-07 A request from a connected tool | `ToolRequestSheet` | supported as a component; nothing raises it yet |
+| TL-08 Other assistants: off by default, pairing token shown once, call list | `tools/assistants` | experimental (one-day sessions; call list from calculation events) |
+| TL-09 Phone | `tools/phone` | not built yet until hosted-link serves `phone.*`; the relay sentence shows |
+
+### Trust
+
+| Screen | Address | Label |
+|---|---|---|
+| TR-01 Rules with "what left this computer today" | `trust/rules` | supported |
+| TR-02 See with markings and per-seat visibility | `trust/rules?sheet=see` | supported (markings follow data into this lane's pages; enforcement in other reads is a gap) |
+| TR-03 Send with stand-in tables, local only, financial routes, dual control | `trust/rules?sheet=send` | supported |
+| TR-04 Keep with the on-disk inventory | `trust/rules?sheet=keep` | supported (non-fact kinds stored, not yet enforced) |
+| TR-05 Do: presets, kinds with limits, the always-waits list, caps, agreement | `trust/rules?sheet=do` | supported |
+| TR-06 People and seats (cofounder, accountant, CA with end date, staff), invite guide, TR-07 the pen | `trust/people` | supported; staff "sees their own" not enforced |
+| TR-08 Models with terms cards and spend | `trust/models` | supported; terms texts need checking |
+| TR-09 Network ledger and the canary | `trust/network` | supported; canary is after the fact (experimental) |
+| TR-10 The tamper-evident record | `trust/record` | supported |
+| TR-11 Sharing, the local cleaner, TR-14 hosted promises, TR-15 notice and agreements | `trust/sharing` | supported; intake closed ("Nothing is sent.") |
+| TR-12 Vault: backups, test restore, lock, disk, recovery contact | `trust/vault` | supported; lock settings stored, not enforced; recovery contact experimental |
+| TR-13 Delete and the deletion report | `trust/vault?sheet=delete` | supported (see gap on managed copies) |
+
+## 3. How a person uses it
+
+- **Reports · Packs**: open a pack, open a page, read it as it will print, press any figure to see its receipt, choose Hindi, then Print or export.
+- **Reports · The week ahead**: read Monday's three sections or switch to Friday; set the days, time and delivery in Rhythm.
+- **Reports · Due dates**: set the kind of business, GST mode and state once; the dates follow from the table. "Not yet checked by a CA."
+- **Reports · Exports**: Export everything (owner), with the warning that plain files are not encrypted, or a locked archive.
+- **Tools · Plugins**: choose a plugin file, read who made it and what it asks for, answer each ask, install. Remove takes its permissions away at once.
+- **Tools · Other assistants**: switch on, pair an assistant, copy the code once.
+- **Trust · Rules**: the four rows; Send and Sharing changes need the owner, and both owner and cofounder when there is a cofounder.
+- **Trust · People**: invite a cofounder, accountant, CA until a date, or staff; remove a person.
+- **Trust · Network / Record**: see every call that left, plant a test value; verify the record.
+- **Trust · Vault**: back up now, test a restore with the passphrase, delete a source everywhere and keep the report.
+
+## 4. What is still missing
+
+- **Host precedence**: `reports/weekahead` is still drawn by the retained lesson review (`retainedSurface` in `app/ui/src/screens/retained/RetainedPlace.tsx`, used by `bootstrap.tsx`, owned by frame-today) before any place module. The week ahead module is reached once that precedence is changed. `trust/models` is now drawn by this lane, which supersedes the host's route picker there.
+- **Other lanes' methods** assumed by the screens behind adapters: `smallapps.list/make/create/get/rebuild/view/act` (models-ext), `plugins.wrapped/reapprove` (models-ext), `phone.channels/preview/usage/optIn/verify` (hosted-link). They show "not built yet" until served.
+- **Core hooks that would be needed** (not made): a deletion entry point a module can call (`sources.delete` refuses `VAULT_BUSY` from inside a module request, so `trustx.deleteSource` calls the trust service directly and skips the engine's managed-copy cleanup; older backups and exports are reported `pending`); a gateway hook to block a payload carrying the canary before it leaves; a per-call MCP record (what the disclosure check removed, refused write calls) and MCP-only tokens; enforcement of the idle lock, CA end dates at authorization time and seat visibility of markings in `visibleFacts`.
+- **Needs a person**: a CA must check every row of `platform/runtime/reports-ext/due-dates.v1.json` (shipped `reviewed: false`, several sources linked to home pages) and the 43B(h) note; the model terms in `tools-terms.v1.json` must be checked against each provider; Hindi and Hinglish need a native reader's review.
+- Report pages for GST turnover, bank statements and purchases against GSTR-2B stay "not started" until the connector lanes register those calculations.
+- No period picker on report pages; Simple and Guided look nearly alike on Tools; phone items in the network ledger and phone opt-ins in agreements wait for the hosted-link record shape; voice minutes read 0.
