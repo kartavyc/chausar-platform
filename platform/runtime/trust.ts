@@ -24,8 +24,10 @@ export function visibleFacts(store: StateStore, context: Context, sourceIds?: st
   const state = store.read();
   if (sourceIds) assertSourceAccess(state, context, sourceIds);
   const cutoff = Date.now() - state.policy.retentionDays * 86400000;
+  // One answer per source for this read: the state does not change while it is filtered.
+  const allowed = new Map<string, boolean>(); const sourceOk = (id: string) => { let ok = allowed.get(id); if (ok === undefined) allowed.set(id, ok = sourceAllowed(state, context, id)); return ok; };
   return state.facts.filter(f => !f.deletedAt && !f.supersededAt &&
-    Date.parse(f.learnedAt) >= cutoff && sourceAllowed(state, context, f.sourceId) &&
+    Date.parse(f.learnedAt) >= cutoff && sourceOk(f.sourceId) &&
     (!sourceIds || sourceIds.includes(f.sourceId)) &&
     (member.branches.includes('*') || (Boolean(f.branch) && member.branches.includes(f.branch!))));
 }
@@ -95,11 +97,12 @@ export class TrustService {
     });
   }
   members(context: Context): Member[] { authorize(this.store, context, 'admin'); return structuredClone(this.store.read().members); }
-  async addMember(context: Context, input: { id?: string; name: string; role: Member['role']; branches?: string[] }): Promise<Member> {
+  async addMember(context: Context, input: { id?: string; name: string; role: Member['role']; branches?: string[]; scope?: 'mcp' }): Promise<Member> {
     const issuer = authorize(this.store, context, 'admin');
     check(['owner', 'cofounder', 'accountant', 'viewer'].includes(input.role), 'INVALID_ROLE', 'Unknown member role.');
     check(typeof input.name === 'string' && input.name.trim().length > 0 && input.name.length <= 200, 'INVALID_MEMBER', 'A member needs a name.');
     check(!input.branches || (Array.isArray(input.branches) && input.branches.length > 0 && input.branches.every(s => typeof s === 'string' && s.length > 0)), 'INVALID_MEMBER', 'Branch grants must be names.');
+    check(input.scope === undefined || input.scope === 'mcp', 'INVALID_MEMBER', 'Unknown member scope.');
     const branches = input.branches || ['*'];
     check(input.role !== 'owner' || issuer.role === 'owner', 'MEMBER_ROLE_FORBIDDEN', 'Only an owner can grant another owner role.');
     check(issuer.branches.includes('*') || branches.every(branch => issuer.branches.includes(branch)), 'MEMBER_SCOPE_FORBIDDEN', 'New member branch grants must stay within the issuing administrator scope.');
@@ -109,7 +112,7 @@ export class TrustService {
       guardChange(state, context, { kind: 'member-add', role: input.role });
       const id = input.id || newId('member');
       check(!state.members.some(m => m.id === id), 'MEMBER_EXISTS', 'This member already exists.');
-      const member = { id, name: input.name.trim(), role: input.role, branches: [...branches], active: true, epoch: 1 };
+      const member: Member = { id, name: input.name.trim(), role: input.role, branches: [...branches], active: true, epoch: 1, ...(input.scope ? { scope: input.scope } : {}) };
       state.members.push(member); audit(state, 'trust.member.created', { id, role: input.role }); return structuredClone(member);
     });
   }

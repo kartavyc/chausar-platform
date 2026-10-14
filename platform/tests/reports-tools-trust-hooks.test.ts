@@ -109,8 +109,10 @@ test('seat visibility of markings: an accountant that does not see financial get
   assert.deepEqual(sources(owner), ['synthetic-hooks-ledger', 'synthetic-hooks-shop']); assert.equal(await billed(owner), '15000');
   await f.rpc('members.add', { id: 'cofounder-1', name: 'Synthetic cofounder', role: 'cofounder' });
   assert.equal(await billed(f.ctxOf('cofounder-1', 'cofounder')), '15000');
-  // Seeing it again restores it.
-  await f.rpc('trustx.setSeatMarking', { seat: 'accountant', kind: 'financial', sees: true });
+  // Seeing it again widens the seat, which needs both people: it waits for the cofounder, then restores it.
+  const widen = await f.rpc('trustx.setSeatMarking', { seat: 'accountant', kind: 'financial', sees: true });
+  assert.equal(widen.state, 'waiting-for-second'); assert.equal(await billed(accountant), '10000');
+  await f.as(f.ctxOf('cofounder-1', 'cofounder'), 'trustx.confirmChange', { id: widen.change.id });
   assert.equal(await billed(accountant), '15000');
 });
 

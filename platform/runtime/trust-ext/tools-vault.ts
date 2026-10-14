@@ -121,7 +121,7 @@ export async function deleteSource(ctx: Context, payload: Record<string, any>, h
   const sent = before.modelReceipts.filter(r => SENT.has(r.status) && references(r, sourceId, factIds)).length;
   const startedAt = Date.now(); const at = now();
   // The engine's own deletion, with its managed-copy cleanup (older managed backups and exports), callable from this request.
-  await host.services.sourceDeletion.delete(sourceId);
+  await host.services.sourceDeletion.delete(sourceId, confirmation);
   const after = host.store.read(); const rows: Row[] = [];
   for (const [place, key] of PLACES) {
     const left = (after[key] as unknown[]).filter(item => references(item, sourceId, factIds)).length;
