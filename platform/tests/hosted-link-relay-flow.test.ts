@@ -17,8 +17,8 @@ import { postgresAvailable, freshDatabase, closeDatabases } from './hosted-link-
 after(closeDatabases);
 const pgSkip = postgresAvailable();
 const APP_SECRET = 'meta-app-secret-for-tests', TG_SECRET = 'telegram-webhook-secret', VERIFY = 'verify-token-for-tests';
-const OWNER = { id: 'acc_owner', phone: '+919876543210', wa: '919876543210', chat: 55501234 };
-const OTHER = { id: 'acc_other', phone: '+919811122233', wa: '919811122233', chat: 55509999 };
+const OWNER = { id: 'acct_00000000-0000-4000-8000-00000000000a', phone: '+919876543210', wa: '919876543210', chat: 55501234 };
+const OTHER = { id: 'acct_00000000-0000-4000-8000-00000000000b', phone: '+919811122233', wa: '919811122233', chat: 55509999 };
 const PAID: Entitlements = { ...FREE_ENTITLEMENTS, plan: 'paid', relay: true };
 const blob = (fill: number) => ({ format: 'chausar-relay-sealed-v1', nonce: Buffer.alloc(12, fill).toString('base64'), ciphertext: Buffer.alloc(48, fill + 1).toString('base64') });
 const OFFER = { approve: blob(1), notNow: blob(7) };

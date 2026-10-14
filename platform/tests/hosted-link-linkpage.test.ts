@@ -14,7 +14,7 @@ import { postgresAvailable, freshDatabase, closeDatabases } from './hosted-link-
 
 after(closeDatabases);
 const pgSkip = postgresAvailable();
-const OWNER = 'acc_owner';
+const OWNER = 'acct_00000000-0000-4000-8000-00000000000a';
 const CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 const blob = (fill: number) => ({ format: 'chausar-relay-sealed-v1', nonce: Buffer.alloc(12, fill).toString('base64'), ciphertext: Buffer.alloc(32, fill + 1).toString('base64') });
 
