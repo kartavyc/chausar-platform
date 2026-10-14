@@ -8,7 +8,7 @@ General rules:
 - Errors: `{ "error": { "code": "UPPER_CASE", "message": "Plain sentence." } }` with an HTTP status. A message never carries data from outside.
 - Money: whole paise as a decimal string (`"1250"`), never a float. An unknown amount is `null` with a `...State` word field, never `"0"`.
 - Times: ISO 8601 UTC strings.
-- Auth: `Authorization: Bearer <sessionToken>` for every `/v1` route except the OTP routes, the billing webhook, the channel webhooks and the link pages. A session belongs to one desktop install (`deviceId`) of one account.
+- Auth: `Authorization: Bearer <sessionToken>` for every `/v1` route except the OTP routes, the billing webhook, the channel webhooks, the link pages and `POST /v1/allowance/responses` (which takes an allowance credential instead, and nothing else). A session belongs to one desktop install (`deviceId`) of one account.
 - Entitlements gate paid features: refusal code `PLAN_REQUIRED` (HTTP 402).
 
 ## Accounts (`hosted/accounts`)
@@ -113,6 +113,18 @@ The desktop opens and checks each copy, acknowledges it and holds it as untruste
 | `POST /v1/allowance/complete` | `{ requestId, route: 'anthropic'|'openai', model, system?, messages: [{ role: 'user'|'assistant', content }], maxOutputTokens }` | `{ requestId, text, usage: { inputTokens, outputTokens }, costPaise, balancePaise, route, model, pricingCheckedOn }` |
 
 The proxy holds the provider keys. It reserves the most a request can cost before calling the provider, settles the measured cost afterwards (rounded up to whole paise), and keeps one attempt per `requestId` (`REQUEST_EXISTS`). Refusals: `ALLOWANCE_EXHAUSTED` (402), `MODEL_NOT_PRICED` (400), `PROVIDER_NOT_CONFIGURED` (503), `PROVIDER_FAILED` (502), `PROVIDER_OUTCOME_UNKNOWN` (504, the reservation is kept until reconciled). The proxy stores no prompt and no answer.
+
+### Allowance credentials and the Responses endpoint
+
+| Route | Auth | Body | Reply |
+|---|---|---|---|
+| `POST /v1/allowance/credentials` | session | `{}` | `201 { credentialId, credential, endpoint, createdAt }`. `credential` is shown once: an opaque `ca_` token, stored only as a keyed hash. `endpoint` is `<HOSTED_API_ORIGIN>/v1/allowance/responses`. Needs the allowance (`PLAN_REQUIRED`, 402); `ALLOWANCE_ENDPOINT_NOT_SET` (503) when the server has no `HOSTED_API_ORIGIN`. At most three are live per device: issuing a fourth revokes the oldest. |
+| `DELETE /v1/allowance/credentials/:credentialId` | session | – | `{ credentialId, revokedAt }`. Any device of the account may revoke; a second revoke answers with the first time. Another account's id is `NOT_FOUND` (404). |
+| `POST /v1/allowance/responses` | allowance credential | `{ model, input, max_output_tokens, instructions?, tools?: [], tool_choice?: 'none', store?: false, text?: { format: { type: 'json_schema', name, schema, strict?, description? } } }` | `{ id, object: 'response', status: 'completed'\|'incomplete', incomplete_details?, model, output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] }], output_text, usage: { input_tokens, output_tokens } }` with headers `x-request-id`, `x-chausar-cost-paise`, `x-chausar-balance-paise`. |
+
+A credential is bound to the account and device that asked for it and opens **only** `POST /v1/allowance/responses`; every other route refuses it (`UNAUTHENTICATED`), and that route refuses a session token. Revoking the credential, or the device, ends it at once.
+
+The Responses endpoint takes exactly the body the desktop gateway's `managed` route sends (OpenAI Responses form) and goes through the same ledger as `/complete`: worst-case reservation under the month lock (instructions, input and schema by UTF-8 bytes plus framing; `max_output_tokens` at most 8192), settlement of the measured cost, an unclear outcome kept, nothing of the prompt or answer stored. `model` must be priced; the provider follows its priced route. An `openai` model is sent a Responses request (`instructions`, the input as one user message, `max_output_tokens`, `store: false`, and the `json_schema` format as `text.format`). An `anthropic` model is sent a Messages request with the instructions as `system` and the input as the one user message (the Messages API takes no json_schema format, so it is not sent). Either way the reply is the Responses shape above; `status: 'incomplete'` means the provider stopped at the output limit. The request id is server-made (`rsp_…`), or `idk_` + an `Idempotency-Key` header (8 to 124 of `A-Za-z0-9_-`), which then refuses a resend with `REQUEST_EXISTS`. Refusals are the hosted error shape: those of `/complete`, plus `TOOLS_NOT_ALLOWED` (400) for any tool or a `tool_choice` other than `none`.
 
 ## Always-on jobs worker (`hosted/worker`)
 

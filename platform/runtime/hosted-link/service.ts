@@ -81,18 +81,18 @@ export function hostOptions(input: { readonly demo: boolean; readonly env: Reado
   return { origin, ...(link ? { linkOrigin: link } : {}) };
 }
 const at = (c: Configured) => { const time = c.clock(); check(time instanceof Date && Number.isFinite(time.getTime()), 'HOSTED_CLOCK_INVALID', 'The host clock is unavailable.'); return time; };
-function connected(host: ModuleHost) {
+export function connected(host: ModuleHost) {
   const c = configuration(host); check(c.client, 'HOSTED_NOT_CONFIGURED', 'The hosted connection is not set up in this app.');
   const s = view(host); check(s.pairing && s.relayKey, 'HOSTED_NOT_PAIRED', 'Pair this computer with Chausar first.');
   return { c, client: c.client, pairing: s.pairing, relayKey: s.relayKey, s };
 }
 /** Exact payload keys; anything else is refused before work starts. */
-function input(payload: Record<string, any>, required: readonly string[], optional: readonly string[] = []) {
+export function input(payload: Record<string, any>, required: readonly string[], optional: readonly string[] = []) {
   check(payload && typeof payload === 'object' && !Array.isArray(payload) && Object.keys(payload).every(k => required.includes(k) || optional.includes(k)) && required.every(k => Object.hasOwn(payload, k)),
     'INVALID_REQUEST', 'The request has missing or unexpected fields.');
   return payload;
 }
-const desktopOnly = (ctx: Context) => check(ctx.channel === undefined || ctx.channel === 'desktop', 'OPEN_DESKTOP', 'Open the desktop app for this request.');
+export const desktopOnly = (ctx: Context) => check(ctx.channel === undefined || ctx.channel === 'desktop', 'OPEN_DESKTOP', 'Open the desktop app for this request.');
 const indianMonth = (time: Date) => new Date(time.getTime() + 330 * 60000).toISOString().slice(0, 7);
 const optInHash = (channel: Channel) => createHash('sha256').update(OPT_IN_TEXT[channel], 'utf8').digest('hex');
 

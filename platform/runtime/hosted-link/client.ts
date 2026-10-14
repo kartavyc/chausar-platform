@@ -35,6 +35,7 @@ const KNOWN_CODES: Readonly<Record<string, string>> = Object.freeze({
   PROVIDER_FAILED: 'The model provider refused the request.',
   PROVIDER_OUTCOME_UNKNOWN: 'The model provider did not confirm the request. Its cost is held until it is settled.',
   REQUEST_EXISTS: 'That request was already made once.',
+  ALLOWANCE_ENDPOINT_NOT_SET: 'The model allowance is not set up on the server yet.',
   NOT_FOUND: 'The server has no such item.',
   DOCUMENT_NOT_FOUND: 'The server has no such document.',
   DEVICE_KEY_INVALID: 'The server refused this computer\'s document key.',
@@ -44,6 +45,8 @@ export const HOSTED_CODES: readonly string[] = Object.freeze(Object.keys(KNOWN_C
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 export const BACKUP_ID = /^bk_[0-9a-f]{32}$/;
+export const ALLOWANCE_CREDENTIAL_ID = /^alc_[0-9a-f-]{36}$/;
+export const ALLOWANCE_RESPONSES_PATH = '/v1/allowance/responses';
 const SHA256 = /^[0-9a-f]{64}$/;
 const PAISE = /^(?:0|[1-9]\d{0,17})$/;
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -309,6 +312,19 @@ export class HostedClient {
       && typeof r.costPaise === 'string' && PAISE.test(r.costPaise) && typeof r.balancePaise === 'string' && /^-?(?:0|[1-9]\d{0,17})$/.test(r.balancePaise)
       && r.route === request.route && r.model === request.model && text(r.pricingCheckedOn, 40));
     return { reply: r as AllowanceReply, sent: exchange.sent!, received: exchange.received };
+  }
+
+  /** An allowance-scoped credential for the gateway's managed route. The endpoint must be this server's own. */
+  async allowanceCredential(token: string): Promise<{ credentialId: string; credential: string; endpoint: string; createdAt: string }> {
+    const r = shape(await this.#json('POST', '/v1/allowance/credentials', { token, json: {}, expect: [201] }), ['credentialId', 'credential', 'endpoint', 'createdAt']);
+    valid(typeof r.credentialId === 'string' && ALLOWANCE_CREDENTIAL_ID.test(r.credentialId) && typeof r.credential === 'string' && /^[A-Za-z0-9_-]{20,200}$/.test(r.credential)
+      && r.endpoint === `${this.origin}${ALLOWANCE_RESPONSES_PATH}` && iso(r.createdAt));
+    return r as any;
+  }
+  async revokeAllowanceCredential(token: string, credentialId: string): Promise<{ credentialId: string; revokedAt: string }> {
+    check(ALLOWANCE_CREDENTIAL_ID.test(credentialId), 'INVALID_REQUEST', 'Use an allowance credential from this account.');
+    const r = shape(await this.#json('DELETE', `/v1/allowance/credentials/${credentialId}`, { token }), ['credentialId', 'revokedAt']);
+    valid(r.credentialId === credentialId && iso(r.revokedAt)); return r as any;
   }
 
   // Always-on jobs worker

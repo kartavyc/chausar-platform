@@ -2,6 +2,7 @@ import type { EngineModule } from './types.ts';
 import * as hosted from '../hosted-link/service.ts';
 import * as drive from '../hosted-link/drive-sync.ts';
 import * as documents from '../hosted-link/documents.ts';
+import { allowanceCredential, allowanceRevoke } from '../hosted-link/allowance-credential.ts';
 
 /** Lane-owned engine methods. Only the owning lane edits this file. */
 export const hostedLinkModule: EngineModule = {
@@ -24,6 +25,8 @@ export const hostedLinkModule: EngineModule = {
     'hosted.backup.restore': { permission: 'admin', external: true, handler: hosted.backupRestore },
     'hosted.backup.exportKey': { permission: 'admin', handler: hosted.backupExportKey },
     'hosted.allowance.status': { permission: 'read', external: true, handler: hosted.allowanceStatus },
+    'hosted.allowanceCredential': { permission: 'admin', external: true, handler: allowanceCredential },
+    'hosted.allowanceRevoke': { permission: 'admin', external: true, handler: allowanceRevoke },
     'hosted.worker.status': { permission: 'read', external: true, handler: hosted.workerStatus },
     'hosted.worker.set': { permission: 'admin', external: true, handler: hosted.workerSet },
     'hosted.worker.dueDates': { permission: 'admin', external: true, handler: hosted.workerDueDates },

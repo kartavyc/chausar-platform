@@ -12,16 +12,20 @@
  * - No answer, a timeout or an unreadable success: the provider may have done the work and billed it, so the row
  *   becomes `unknown` and the whole reservation stays counted (`PROVIDER_OUTCOME_UNKNOWN`) until a person reconciles it.
  * The proxy stores no prompt and no answer: only counts, paise and the model name.
+ * The same ledger (ledger.ts) meters `POST /v1/allowance/responses` (responses.ts), the OpenAI-Responses-shaped
+ * endpoint the desktop gateway's managed route calls with an allowance-scoped credential (credentials.ts).
  */
 import type { HostedDeps, HostedModule } from '../shared/module.ts';
 import type { HostedRequest, Router } from '../shared/http.ts';
-import type { Sql } from '../db/sql.ts';
 import { headersOnly, json, fields, ok } from '../shared/http.ts';
-import { HostedError, check } from '../shared/errors.ts';
+import { check } from '../shared/errors.ts';
 import { monthKey } from '../shared/clock.ts';
-import { costPaise, MODEL_NAME, ROUTES, type ModelRoute, type PricingTable } from './pricing.ts';
-import { ProviderFailed, type ChatMessage, type ModelProvider } from './providers.ts';
+import { MODEL_NAME, ROUTES, type ModelRoute, type PricingTable } from './pricing.ts';
+import type { ChatMessage, ModelProvider } from './providers.ts';
 import { allowanceGrant } from '../shared/auth.ts';
+import { metered, totals } from './ledger.ts';
+import { credentialAuthenticator, credentialHandlers, RESPONSES_PATH } from './credentials.ts';
+import { responsesHandler, RESPONSES_MAX_BODY } from './responses.ts';
 
 export const MAX_MESSAGES = 50;
 export const MAX_CONTENT_CHARS = 100_000;
@@ -29,7 +33,7 @@ export const MAX_OUTPUT_TOKENS = 8192;
 /** Framing tokens a provider adds around the text: per message and per request. Generous on purpose. */
 export const FRAMING_TOKENS_PER_MESSAGE = 16;
 export const FRAMING_TOKENS_PER_REQUEST = 64;
-export const PROVIDER_TIMEOUT_MS = 120_000;
+export { PROVIDER_TIMEOUT_MS } from './ledger.ts';
 
 export type CompletionRequest = { requestId: string; route: ModelRoute; model: string; system?: string; messages: ChatMessage[]; maxOutputTokens: number };
 
@@ -58,16 +62,10 @@ export function inputTokenBound(system: string | undefined, messages: readonly C
   return Buffer.byteLength(system ?? '', 'utf8') + messages.reduce((sum, m) => sum + Buffer.byteLength(m.content, 'utf8') + FRAMING_TOKENS_PER_MESSAGE, 0) + FRAMING_TOKENS_PER_REQUEST;
 }
 
-async function totals(sql: Sql, accountId: string, month: string): Promise<{ spent: bigint; reserved: bigint }> {
-  const { rows: [row] } = await sql.query<{ spent: string; reserved: string }>(
-    `SELECT COALESCE(SUM(cost_paise) FILTER (WHERE state = 'settled'), 0)::text AS spent,
-            COALESCE(SUM(reserved_paise) FILTER (WHERE state IN ('reserved', 'unknown')), 0)::text AS reserved
-     FROM allowance_requests WHERE account_id = $1 AND month = $2`, [accountId, month]);
-  return { spent: BigInt(row.spent), reserved: BigInt(row.reserved) };
-}
-
-export function createAllowanceModule(deps: HostedDeps, options: { providers: { anthropic?: ModelProvider; openai?: ModelProvider }; pricing: PricingTable | null }): HostedModule {
+export function createAllowanceModule(deps: HostedDeps, options: { providers: { anthropic?: ModelProvider; openai?: ModelProvider }; pricing: PricingTable | null; apiOrigin?: string | null }): HostedModule {
   const { sql, clock } = deps, { providers, pricing } = options;
+  const credentials = credentialHandlers(deps, options.apiOrigin ?? null), byCredential = credentialAuthenticator(deps);
+  const responses = responsesHandler(deps, { providers, pricing, authenticate: byCredential });
 
   async function summary(request: HostedRequest) {
     const { accountId } = await deps.authenticate(request);
@@ -93,44 +91,23 @@ export function createAllowanceModule(deps: HostedDeps, options: { providers: { 
     check(price, 'MODEL_NOT_PRICED', 'This model has no price on this server.', 400);
     const provider = providers[input.route];
     check(provider, 'PROVIDER_NOT_CONFIGURED', 'This model route is not set up on this server.', 503);
-    const worst = costPaise(price, pricing.fxPaisePerUsd, inputTokenBound(input.system, input.messages), input.maxOutputTokens);
-    const grant = BigInt(plan.allowanceMonthlyPaise), now = clock(), month = monthKey(now);
-    await sql.transaction(async tx => {
-      // The month row is the lock every reservation for this account and month waits on.
-      await tx.query(`INSERT INTO allowance_months (account_id, month, grant_paise, updated_at) VALUES ($1, $2, $3, $4)
-                      ON CONFLICT (account_id, month) DO UPDATE SET grant_paise = EXCLUDED.grant_paise, updated_at = EXCLUDED.updated_at`, [accountId, month, grant.toString(), now.toISOString()]);
-      const { rows: [seen] } = await tx.query('SELECT 1 FROM allowance_requests WHERE account_id = $1 AND request_id = $2', [accountId, input.requestId]);
-      check(!seen, 'REQUEST_EXISTS', 'This request was already made once.', 409);
-      const { spent, reserved } = await totals(tx, accountId, month);
-      check(grant - spent - reserved - worst >= 0n, 'ALLOWANCE_EXHAUSTED', 'The model allowance for this month is used up.', 402);
-      await tx.query(`INSERT INTO allowance_requests (account_id, request_id, month, route, model, state, reserved_paise, pricing_checked_on, created_at)
-                      VALUES ($1, $2, $3, $4, $5, 'reserved', $6, $7, $8)`, [accountId, input.requestId, month, input.route, input.model, worst.toString(), pricing.checkedOn, now.toISOString()]);
-    });
-    const close = (state: 'failed' | 'unknown') => sql.query(`UPDATE allowance_requests SET state = $3, settled_at = $4 WHERE account_id = $1 AND request_id = $2 AND state = 'reserved'`,
-      [accountId, input.requestId, state, clock().toISOString()]);
-    let result: { text: string; inputTokens: number; outputTokens: number };
-    try {
-      result = await provider.complete({ model: input.model, ...(input.system !== undefined ? { system: input.system } : {}), messages: input.messages, maxOutputTokens: input.maxOutputTokens, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) });
-      if (typeof result?.text !== 'string' || !Number.isSafeInteger(result.inputTokens) || !Number.isSafeInteger(result.outputTokens) || result.inputTokens < 0 || result.outputTokens < 0) throw new Error('PROVIDER_REPLY_INVALID');
-    } catch (error) {
-      if (error instanceof ProviderFailed) { await close('failed'); throw new HostedError('PROVIDER_FAILED', 'The model provider refused the request. Nothing was charged.', 502); }
-      await close('unknown');
-      throw new HostedError('PROVIDER_OUTCOME_UNKNOWN', 'The model provider did not answer clearly. The reserved amount stays held until it is checked.', 504);
-    }
-    const cost = costPaise(price, pricing.fxPaisePerUsd, result.inputTokens, result.outputTokens);
-    // The measured cost is recorded as it is, even in the unexpected case that it exceeds the reservation.
-    await sql.query(`UPDATE allowance_requests SET state = 'settled', cost_paise = $3, input_tokens = $4, output_tokens = $5, settled_at = $6
-                     WHERE account_id = $1 AND request_id = $2 AND state = 'reserved'`,
-      [accountId, input.requestId, cost.toString(), result.inputTokens, result.outputTokens, clock().toISOString()]);
-    const after = await totals(sql, accountId, month);
+    const { result, cost, balance } = await metered(deps, { accountId, requestId: input.requestId, route: input.route, model: input.model, price, pricing,
+      grant: BigInt(plan.allowanceMonthlyPaise), inputTokenBound: inputTokenBound(input.system, input.messages), maxOutputTokens: input.maxOutputTokens },
+    signal => provider.complete({ model: input.model, ...(input.system !== undefined ? { system: input.system } : {}), messages: input.messages, maxOutputTokens: input.maxOutputTokens, signal }));
     return ok({
       requestId: input.requestId, text: result.text, usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens },
-      costPaise: cost.toString(), balancePaise: (grant - after.spent - after.reserved).toString(), route: input.route, model: input.model, pricingCheckedOn: pricing.checkedOn,
+      costPaise: cost.toString(), balancePaise: balance.toString(), route: input.route, model: input.model, pricingCheckedOn: pricing.checkedOn,
     });
   }
 
   return {
     id: 'allowance',
-    routes(router: Router) { router.add('GET', '/v1/allowance', summary).add('POST', '/v1/allowance/complete', complete, { authenticateFirst: headersOnly(deps.authenticate) }); },
+    routes(router: Router) {
+      router.add('GET', '/v1/allowance', summary).add('POST', '/v1/allowance/complete', complete, { authenticateFirst: headersOnly(deps.authenticate) })
+        .add('POST', '/v1/allowance/credentials', credentials.issue, { authenticateFirst: headersOnly(deps.authenticate) })
+        .add('DELETE', '/v1/allowance/credentials/:credentialId', credentials.revoke)
+        // Only an allowance credential opens this route; a session token is refused before the body is read.
+        .add('POST', RESPONSES_PATH, responses, { authenticateFirst: headersOnly(byCredential), maxBody: RESPONSES_MAX_BODY });
+    },
   };
 }

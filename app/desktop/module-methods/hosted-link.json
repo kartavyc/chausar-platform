@@ -15,6 +15,8 @@
   "hosted.backup.restore",
   "hosted.backup.exportKey",
   "hosted.allowance.status",
+  "hosted.allowanceCredential",
+  "hosted.allowanceRevoke",
   "hosted.worker.status",
   "hosted.worker.set",
   "hosted.worker.dueDates",

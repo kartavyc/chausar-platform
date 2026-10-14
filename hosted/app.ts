@@ -37,7 +37,7 @@ export function buildHosted(env: Env, sql: Sql, fetch: Fetch, overrides: HostedO
     relay,
     createLinkPages(deps, relay.buttons),
     createBackupModule(deps, { store: overrides.blobStore !== undefined ? overrides.blobStore : backupStore(backupConfig(env)) }),
-    createAllowanceModule(deps, { providers: allowanceProviders(allowance, fetch), pricing: allowance.pricing }),
+    createAllowanceModule(deps, { providers: allowanceProviders(allowance, fetch), pricing: allowance.pricing, apiOrigin: allowance.apiOrigin }),
     createWorkerJobsModule(deps, { async sendDueDateReminder(accountId) {
       // One reminder message per account per Indian day, whatever the number of due dates; it counts against the thirty.
       try { await relay.notify(accountId, 'due-date-near', `due-date-${indianDate(clock())}`); }
