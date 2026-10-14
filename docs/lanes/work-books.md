@@ -166,3 +166,134 @@ MemoryLine = { id; text; kind: 'preference' | 'claim' | 'conversation' | 'workin
   learnedAt; confirmedAt: string | null; earlier: { text; at }[] }
 AccountClass = 'asset' | 'liability' | 'equity' | 'income' | 'expense' | 'receivable' | 'payable' | 'bank' | 'cash' | 'tax'
 ```
+
+Additions after the first build, kept additive to the shapes above:
+
+- `books.draft` takes an optional `replaces: draftId`. It discards that open draft and writes
+  the new one in one transaction. `approvals.change` on a `release:` item uses it.
+- `approvals.drop` on an `acceptance:` item sends the result back (`jobs.reject`) rather than
+  cancelling the job; its reply state is `rejected`.
+- Bad payloads refuse `INVALID_APPROVAL` (Work) and `INVALID_BOOKS_REQUEST` (Books). Neither
+  family uses `INVALID_REQUEST`, which screens read as "not built yet".
+
+## Lane report
+
+### What a person can do
+
+**Work** (`#/work/...`)
+
+- **Approvals** (WK-01): one queue over prepared actions, jobs waiting for approval, job
+  results waiting for acceptance, meaning releases and lessons waiting for review. Tier 2
+  (the always-waits list: money, messages to outsiders, deleting, irreversible) first, then
+  tier 1, then prepare-only. Each row shows the tier word, what it touches, who prepared
+  it, the amount from the prepared request and the time left. Expired items move to their
+  own list and can no longer be approved.
+- **The approval sheet** (WK-02): built from the prepared request only. Message text as it
+  will be sent, before and after for a record change, the Tally voucher preview (prepare
+  only), a proposed job's card and the Practice variant. Approve is bound to the exact digest;
+  a changed request says "It changed. Prepared again." Money asks a second time. Not now,
+  Change and Drop.
+- **Grouped approval** (WK-03): two to ten tier-1 items, each with its own tick and its own
+  approval and result. The pace warning appears after three approvals under two seconds.
+  Anything on the always-waits list cannot be grouped.
+- **After Approve** (WK-04): do once, read back, and show the five steps with their times.
+  An unknown outcome offers Check again, It was sent and It was not sent. A person's answer
+  is recorded as told by the owner and never marks the action verified. While any
+  always-waits action is unknown, sending stays closed.
+- **Actions** (WK-05): the time line of every action, with its request, the read-back
+  compared field by field, the rule and who approved. Reverse prepares a new action only
+  where the write catalogue declares a reversal.
+- **What it can do** (WK-06): the catalogue, one row per action per system, with the eleven
+  fields. Write-back rows join when the writeback lane is installed. "Not in the list yet"
+  adds the request to the wanted list.
+- **Jobs** (WK-07..WK-11): proposed jobs first, with state, next run, cost against budget
+  and the limit of ten. The job card shows the goal, owner, budget, stop rule, actions,
+  tested routes and the missed-run rule, followed by the time line and the result.
+  Pause, Resume, Cancel, Approve, Accept and Send back go through the core `jobs.*`
+  methods. Accepting is bound to the exact deliverable.
+- **After a restore** (WK-15): actions that may have gone out, each with Check, and the
+  sending-closed sentence.
+
+**Books** (`#/books/...`)
+
+- **Sources** (BK-01/02/06): one line per source, showing the way in, the last read and
+  twelve month squares (loaded, not loaded yet, refused), plus the number of fields no
+  recipe covers. The source sheet adds the reads, the refusals with their codes, the rows
+  per kind and the unmapped fields with their type and fill rate. Remove calls the core
+  `sources.delete` after asking again.
+- **Meanings** (BK-07/08/10/19): the words, with where each came from and its state. A
+  draft shows the old rule beside the new one, the change in words, the calculations and
+  saved answers it affects, the checks and the reviews. Co-sign must come from a different
+  person. Publish is one atomic release, bound to the reviewed dictionary hash.
+  The page also shows starter packs and the GST mode.
+- **Accounts** (BK-11): the chart of accounts from Tally ledger masters. A class is proposed
+  from the parent group. With no group, Chausar says it is unsure and does not guess.
+  Yes, No and Change are logged with the person and their role.
+- **Customers and suppliers** (BK-12/13/14/20): search, then the record page. It shows each
+  detail with its source, what the record owes (with a receipt), the time line, the
+  agreement to reminders per channel, the stopped flag and what we hold.
+  "Same customer or not" shows the evidence and joins with Undo; a hint never joins on
+  its own. "Sources that disagree" shows both claims and lets the owner set precedence.
+- **History** (BK-15/16): a figure as known on a date beside it as known now, each with its
+  receipt. Versions show a correction differently from a new event. Stale answers have a
+  quick and a full rebuild compared to the paisa.
+- **Memory** (BK-17): what Chausar was told, with its kind, status, source and dates, and
+  its earlier versions. There is a filter for outside content, which is remembered and
+  never obeyed. Only the owner or a cofounder can add, edit, confirm or delete a line.
+
+Every page has the common states: loading (the last value stays shown), empty, not built
+yet, locked, read only (a viewer sees no control that changes anything), failed with its
+code and Try again, stale and partial. Every page works in Simple, Guided and Books views,
+in English and Hindi.
+
+### Supported and experimental
+
+| Feature | Label |
+|---|---|
+| Approvals queue, approval sheet, Not now / Change / Drop, after Approve, Actions record, After a restore (core `local` connector) | supported |
+| Grouped approval and pace warning | supported (design marks WK-03 experimental) |
+| Money second ask | experimental: the screen asks the person to type the amount; the passphrase, PIN or fingerprint ask belongs to the trusted host |
+| Practice, catalogue rows from write-back, Reverse | experimental: depends on `writeback.*` (writeback lane); shows "not built yet" until it is installed |
+| Job list, card, time line, accept and send back | supported over core `jobs.*`; job proposals from `jobsx.*` experimental |
+| Sources, month squares, source sheet, unmapped fields | supported for file imports; freshness from `connectorsx.*` experimental |
+| Meanings, drafts, co-sign, publish, packs, GST mode | supported |
+| Accounts proposals from Tally groups and decisions | supported; proposals from `learningx.*` experimental |
+| Customers and suppliers, opt-in and stop, holdings, same-or-not, conflicts and precedence | supported |
+| History as known on a date, versions, stale answers and rebuild | supported |
+| Memory lines | supported |
+
+"Supported" means tested end to end on synthetic data through the engine module and the
+screen with a fake rpc. No screen was tested against a live external system.
+
+### Engine methods
+
+There are 22 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`)
+and 33 Books methods (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
+Private state lives in `state.extensions['work-books']` under `work` and `books` (`state.ts`).
+`purge` removes snoozes, notes, opt-ins, decisions and memory lines tied to removed
+sources and records.
+
+### Screens
+
+`app/ui/src/places/lane-work-books.tsx` registers `workPlace` (`screens/work/`) and
+`booksPlace` (`screens/books/`). The shared kit is in `screens/work/kit/`: checked replies,
+refusal-to-state mapping, the page frame and bilingual words. Every reply is checked by
+`screens/work/contract.ts` and `screens/books/contract.ts` before it is drawn.
+
+### Still missing
+
+- WK-12 (reminder notes on payment rules, caps), WK-13 and BK-18 (a bill photo to an
+  entry), WK-14 (Chausar is driving) and WK-16 (a step for a person) are not built.
+- WK-08 has no measure chart and no three budget meters: no method serves them yet.
+  Job Edit and Delete have no methods.
+- Prepare-only items have no "download the file and the checklist" method.
+- BK-02 Read now, Pause and Sign in again; BK-03 Add a source; BK-05 recipes; BK-06
+  "Map this field". These belong to connectors-ext and show "not built yet".
+- BK-09 "Try it on a copy" links to trials and is not built here.
+- BK-15 has no step line of the belief over time.
+- BK-19 exchange rates and the BK-20 Delete (`deletion.request`) are not built.
+- Memory lists only the lane's own lines, not business-profile entries.
+- The lane's "sending closed" gate holds for `approvals.execute`. The core
+  `actions.execute` does not check it; closing that needs a core edit.
+- Phone approvals (WK-03 "Open the app") follow the core rule: the engine refuses approving
+  methods from phone sessions.
