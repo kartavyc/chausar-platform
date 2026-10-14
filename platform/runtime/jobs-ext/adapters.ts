@@ -88,7 +88,9 @@ export async function consentFor(host: Pick<ModuleHost, 'call'>, local: { custom
  */
 export async function prepareReminder(host: Pick<ModuleHost, 'call' | 'services'>, context: import('../contracts.ts').Context, request: { invoiceId: string; customerId: string; text: string; channel: 'mail' | 'whatsapp'; idempotencyKey: string; sourceIds: string[] }): Promise<{ actionId: string; via: 'writeback' | 'local-draft' }> {
   const remote = await optionalCall<any>(host, 'writeback.prepare', { system: request.channel === 'mail' ? 'smtp' : 'whatsapp', action: 'payment-reminder',
-    payload: { invoiceId: request.invoiceId, customerId: request.customerId, text: request.text }, idempotencyKey: request.idempotencyKey, sourceIds: request.sourceIds });
+    payload: { invoiceId: request.invoiceId, customerId: request.customerId, text: request.text }, idempotencyKey: request.idempotencyKey, sourceIds: request.sourceIds,
+    // host.call runs as the module's caller; an agent-touched reminder carries its outside-text mark explicitly.
+    ...(context.sourceTainted ? { sourceTainted: true } : {}) });
   if (remote.available) {
     const id = remote.value?.actionId ?? remote.value?.id;
     check(typeof id === 'string' && id.length > 0, 'WRITEBACK_REPLY_INVALID', 'The writeback lane returned no prepared action.');

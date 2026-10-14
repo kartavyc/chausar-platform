@@ -34,7 +34,7 @@ export type LaneQuestion = {
   status: 'open' | 'answered' | 'withdrawn'; applied?: boolean; answer?: string; answeredBy?: string; answeredAt?: string; sourceIds: string[];
 };
 
-export type PersonStep = { id: string; jobId: string; title: string; assignee: string; status: 'waiting' | 'done'; createdAt: string; doneAt?: string; doneBy?: string };
+export type PersonStep = { id: string; jobId: string; recordIds?: string[]; title: string; assignee: string; status: 'waiting' | 'done'; createdAt: string; doneAt?: string; doneBy?: string };
 
 export type CaseOutcome = {
   caseId: string; recordIds: string[]; handledBy: 'procedure' | 'agent' | 'ready-made' | 'person';
@@ -129,6 +129,10 @@ export function lane(state: State): JobsExtState { return moduleState(state, LAN
 export function peekLane(state: State): JobsExtState { return structuredClone(peekModuleState<JobsExtState>(state, LANE) ?? initLane()); }
 
 export const TIMELINE_LIMIT = 5000;
+/** Keeps a lane list bounded: the oldest settled entries go first. */
+export function bound<T>(list: T[], max = 2000, settled: (item: T) => boolean = () => true) {
+  while (list.length > max) { const index = list.findIndex(settled); list.splice(index < 0 ? 0 : index, 1); }
+}
 export function pushTimeline(ns: JobsExtState, entry: TimelineEntry) {
   ns.timeline.push(entry);
   if (ns.timeline.length > TIMELINE_LIMIT) ns.timeline.splice(0, ns.timeline.length - TIMELINE_LIMIT);

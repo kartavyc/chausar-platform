@@ -93,7 +93,8 @@ export async function autoRun(ctx: Context, host: ModuleHost): Promise<AutoResul
   for (const action of state.actions as PreparedAction[]) {
     const kind = kindOf(action); const row = table.get(kind); const entry = switches[kind];
     if (action.status !== 'prepared' || action.attempts.length !== 0 || action.impact !== 'reversible' || !row?.switchable || !entry?.on) continue;
-    if (tainted.has(action.id) || !visible.has(action.id)) continue;
+    // A revised action may have been changed by any context; revisions never run on their own.
+    if (tainted.has(action.id) || !visible.has(action.id) || action.revision !== 1) continue;
     const count = used.get(kind) ?? usedToday(host.store.read(), kind, day);
     if (count >= entry.dailyCount) continue;
     if (host.store.read().policy.autonomy !== true) break;

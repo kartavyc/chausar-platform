@@ -7,7 +7,8 @@
 import { audit, check, newId } from '../contracts.ts';
 import type { Context, State } from '../contracts.ts';
 import { digest } from '../actions.ts';
-import type { Job, JobService } from '../jobs.ts';
+import { JobService } from '../jobs.ts';
+import type { Job } from '../jobs.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import { visibleFacts } from '../trust.ts';
 import { lane, peekLane, pushTimeline, inApp, paise, dayOf, isLaneJob, ownsJob, LANE_JOB_PREFIX } from './state.ts';
@@ -65,6 +66,7 @@ export function buildCard(host: ModuleHost, ctx: Context, tpl: JobTemplate, goal
     reviewDate: dayOf(new Date(at + tpl.durationDays * DAY_MS).toISOString()), computer: 'this-computer',
     background: (o.background ?? false) === true, steps: tpl.steps.map(s => ({ ...s })), sourceIds,
   };
+  check(card.missedRule !== 'all' || tpl.stepsPerDelivery === 1, 'MISSED_RULE_UNSUITABLE', 'Daily rounds cannot all be caught up on one day. Choose skip or run once.');
   if (flags.untrusted) card.untrustedInstructions = true;
   return card;
 }
@@ -81,6 +83,11 @@ export async function proposeCard(host: ModuleHost, ctx: Context, input: { templ
     goal = `Follow the imported skill${name ? ` “${name}”` : ''} as instructions only, with no tools.`;
   } else if (input.template !== undefined) { tpl = template(input.template); goal = tpl.goal || String(input.sentence ?? '').trim(); }
   else { check(typeof input.sentence === 'string', 'INVALID_GOAL', 'Choose a ready-made job or describe one in a sentence.'); const match = matchSentence(input.sentence); tpl = match.template; goal = tpl.goal || input.sentence.trim(); }
+  if (origin === 'job') {
+    // A job's own request is model text: quoted on an untrusted card, never adopted as an instruction.
+    untrusted = true;
+    if (!tpl.goal) goal = `A job asked for this (its words, quoted and unchecked): “${String(input.sentence ?? '').trim().slice(0, 400)}”`;
+  }
   check(goal.length >= 5 && goal.length <= 2000, 'INVALID_GOAL', 'A job needs a concrete goal.');
   const card = buildCard(host, ctx, tpl, goal, overrides(input.overrides), { untrusted });
   const evidence = (input.evidence ?? []).slice(0, 10);
@@ -120,30 +127,37 @@ export async function approveProposal(host: ModuleHost, ctx: Context, id: unknow
   check(expectedDigest === proposal.digest && digest(proposal.card) === proposal.digest, 'PREVIEW_CHANGED', 'The card changed. Review it again.');
   const tpl = template(proposal.template); const ready = await availability(host, ctx, tpl);
   check(ready.available, ready.code ?? 'TEMPLATE_NOT_BUILT', ready.reason ?? 'This job cannot run here yet.');
-  const state = host.store.read(); const settings = peekLane(state).settings;
-  if (proposal.replacesJobId) {
-    const old = jobs.find(state, proposal.replacesJobId); check(ownsJob(ctx, old), 'JOB_OWNER_REQUIRED', 'Only the job’s owner edits it.');
-    check(!old.lease && old.status !== 'awaiting-acceptance', 'JOB_RESULT_WAITING', 'Accept or send back the job’s result, and let a running step finish, before you change it.');
-  }
-  check(activeJobs(state) - (proposal.replacesJobId ? 1 : 0) < settings.activeJobCap, 'ACTIVE_JOB_LIMIT', 'The limit of active jobs is reached. Pause or delete one first.');
   const card = proposal.card;
-  const created = await jobs.create(ctx, { type: `${LANE_JOB_PREFIX}${card.template}`, goal: card.goal, budgetMinor: card.budgetMinor, reserveMinor: card.reserveMinor,
-    stopRule: card.stopRule, nextRunAt: card.nextRunAt, intervalMs: card.intervalMs, catchup: coreCatchup(card.missedRule), graceMs: Math.min(card.intervalMs, 600_000),
-    requiresApproval: false, sourceIds: card.sourceIds });
-  if (proposal.replacesJobId) await jobs.remove(ctx, proposal.replacesJobId);
-  return host.store.update(state => {
+  // One transaction: the claim, the limit, the new mandate and the replaced job's stop commit together or not at all.
+  return host.store.update(async state => {
     const ns = lane(state); const p = ns.proposals.find(item => item.id === proposal.id)!;
     check(p.status === 'proposed' && p.digest === proposal.digest, 'PREVIEW_CHANGED', 'The card changed. Review it again.');
+    const tx = new JobService({ read: () => structuredClone(state), update: async change => await change(state) },
+      { clock: jobs.clock, deliverableGuard: jobs.deliverableGuard, calendarRules: jobs.calendarRules, calendarBounds: jobs.calendarBounds });
+    if (p.replacesJobId) {
+      const old = tx.find(state, p.replacesJobId); check(ownsJob(ctx, old), 'JOB_OWNER_REQUIRED', 'Only the job’s owner edits it.');
+      check(!TERMINAL.includes(old.status) && !ns.jobs[old.id]?.deletedAt, 'INVALID_PROPOSAL_STATE', 'This job was already replaced or stopped.');
+      check(!old.lease && old.status !== 'awaiting-acceptance', 'JOB_RESULT_WAITING', 'Accept or send back the job’s result, and let a running step finish, before you change it.');
+    }
+    check(activeJobs(state) - (p.replacesJobId ? 1 : 0) < ns.settings.activeJobCap, 'ACTIVE_JOB_LIMIT', 'The limit of active jobs is reached. Pause or delete one first.');
+    const created = await tx.create(ctx, { type: `${LANE_JOB_PREFIX}${card.template}`, goal: card.goal, budgetMinor: card.budgetMinor, reserveMinor: card.reserveMinor,
+      stopRule: card.stopRule, nextRunAt: card.nextRunAt, intervalMs: card.intervalMs, catchup: coreCatchup(card.missedRule), graceMs: Math.min(card.intervalMs, 600_000),
+      requiresApproval: false, sourceIds: card.sourceIds });
+    if (p.replacesJobId) await tx.remove(ctx, p.replacesJobId);
     p.status = 'approved'; p.decidedAt = new Date(jobs.clock()).toISOString(); p.jobId = created.id;
     const meta: LaneJob = { jobId: created.id, template: card.template, createdAt: p.decidedAt, proposalId: p.id, missedRule: card.missedRule, stepsPerDelivery: card.stepsPerDelivery, stepsDone: 0, backlog: 0,
       failureLimit: card.extraStopRules.failures, consecutiveFailures: 0, testedRoutes: card.testedRoutes, sourceIds: card.sourceIds, cases: {}, background: card.background, approvedDigest: p.digest,
       ...(p.replacesJobId ? { replaces: p.replacesJobId } : {}) };
     ns.jobs[created.id] = meta;
-    const raw = jobsOf(host).find(state, created.id); raw.testedRoutes = [...card.testedRoutes]; raw.allowedActions = [...card.allowedActions]; raw.digest = jobsOf(host).identity(raw);
-    if (p.replacesJobId && ns.jobs[p.replacesJobId]) { ns.jobs[p.replacesJobId].replacedBy = created.id; ns.jobs[p.replacesJobId].deletedAt = p.decidedAt; }
+    const raw = tx.find(state, created.id); raw.testedRoutes = [...card.testedRoutes]; raw.allowedActions = [...card.allowedActions]; raw.digest = tx.identity(raw);
+    if (p.replacesJobId) {
+      if (ns.jobs[p.replacesJobId]) { ns.jobs[p.replacesJobId].replacedBy = created.id; ns.jobs[p.replacesJobId].deletedAt = p.decidedAt; }
+      // Other pending edits of the same job are withdrawn: only one replacement exists.
+      for (const other of ns.proposals) if (other.id !== p.id && other.status === 'proposed' && other.replacesJobId === p.replacesJobId) { other.status = 'dismissed'; other.decidedAt = p.decidedAt; }
+    }
     pushTimeline(ns, { id: newId('jobsx_line'), at: p.decidedAt, jobId: created.id, run: 0, kind: 'note', text: p.replacesJobId ? 'You approved the changed card. It replaces the earlier job.' : 'You approved this job’s card. It runs within its budget and stop rule.' });
     audit(state, 'jobsx.approved', { proposalId: p.id, jobId: created.id });
-    return { proposal: structuredClone(p), job: jobsOf(host).view(ctx, raw, state) };
+    return { proposal: structuredClone(p), job: tx.view(ctx, raw, state) };
   });
 }
 

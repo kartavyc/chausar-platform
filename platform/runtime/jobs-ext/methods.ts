@@ -1,9 +1,9 @@
 import { audit, check, newId } from '../contracts.ts';
 import type { Context, State } from '../contracts.ts';
-import { digest } from '../actions.ts';
+import { digest, sourceAccess } from '../actions.ts';
 import type { Job, JobService } from '../jobs.ts';
 import type { MethodSpec, ModuleHost, SchedulerHost } from '../modules/types.ts';
-import { lane, peekLane, pushTimeline, inApp, isLaneJob, ownsJob, rupees, paise } from './state.ts';
+import { lane, peekLane, pushTimeline, bound, inApp, isLaneJob, ownsJob, rupees, paise } from './state.ts';
 import type { JobsExtState, LaneJob, TimelineEntry } from './state.ts';
 import { TEMPLATES, template, skillFile } from './templates.ts';
 import { validRule, coreCatchup, upcoming, ledgerMissed } from './catch-up.ts';
@@ -16,10 +16,13 @@ const jobsOf = (host: ModuleHost) => host.services.jobs as JobService;
 const nowIso = (host: ModuleHost) => new Date(jobsOf(host).clock()).toISOString();
 const id = (value: unknown, what = 'job') => { check(typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value), 'INVALID_REQUEST', `Name one ${what}.`); return value; };
 
+function readable(host: ModuleHost, ctx: Context, job: Job): boolean { try { sourceAccess(host.store.read(), ctx, job.sourceIds); return true; } catch { return false; } }
+
 /** A lane job the caller owns, with its lane record. */
 function owned(host: ModuleHost, ctx: Context, jobId: unknown): { job: Job; meta: LaneJob } {
   const state = host.store.read(); const job = jobsOf(host).find(state, id(jobId));
-  check(ownsJob(ctx, job), 'NOT_FOUND', 'Job not found.');
+  // The same release rule as JobService.list: the pinned owner, who can still read every source.
+  check(ownsJob(ctx, job) && readable(host, ctx, job), 'NOT_FOUND', 'Job not found.');
   const meta = peekLane(state).jobs[job.id]; check(isLaneJob(job) && meta, 'NOT_LANE_JOB', 'This job is not run by the jobs lane.');
   return { job, meta };
 }
@@ -100,12 +103,12 @@ export const jobsMethods: Record<string, MethodSpec> = {
     check(proposal, 'NOT_FOUND', 'The card for this job was removed.'); return { card: proposal.card, digest: proposal.digest, missedRule: meta.missedRule, background: meta.background };
   } },
   'jobsx.approveProposal': { permission: 'approve', handler: (ctx, p, host) => approveProposal(host, ctx, p.id, p.digest) },
-  'jobsx.dismissProposal': { permission: 'prepare', handler: (ctx, p, host) => dismissProposal(host, ctx, p.id) },
+  'jobsx.dismissProposal': { permission: 'prepare', handler: (ctx, p, host) => { inApp(ctx); return dismissProposal(host, ctx, p.id); } },
   'jobsx.edit': { permission: 'approve', handler: (ctx, p, host) => { inApp(ctx); return proposeEdit(host, ctx, p.id, p.changes); } },
   'jobsx.list': { permission: 'read', handler: (ctx, _p, host) => {
     const state = host.store.read(); const ns = peekLane(state); const settings = ns.settings;
     const proposals = ns.proposals.filter(p => p.status === 'proposed' && p.card.ownerId === ctx.memberId).reverse().map(p => ({ proposalId: p.id, title: p.card.title, origin: p.origin, fromJobId: p.fromJobId ?? null, replacesJobId: p.replacesJobId ?? null, state: 'proposed', evidence: p.evidence, digest: p.digest }));
-    const jobs = jobsOf(host).list(ctx).filter(job => !ns.jobs[job.id]?.deletedAt && job.status !== 'stopped' || ns.jobs[job.id]?.stoppedBy).map(job => view(host, ctx, job, ns));
+    const jobs = jobsOf(host).list(ctx).filter(job => !ns.jobs[job.id]?.deletedAt && (job.status !== 'stopped' || !!ns.jobs[job.id]?.stoppedBy)).map(job => view(host, ctx, job, ns));
     const active = activeJobs(state);
     return { proposals, jobs, activeJobs: active, activeJobCap: settings.activeJobCap, atLimit: active >= settings.activeJobCap };
   } },
@@ -130,8 +133,15 @@ export const jobsMethods: Record<string, MethodSpec> = {
   'jobsx.result': { permission: 'read', handler: (ctx, p, host) => { const { job } = owned(host, ctx, p.id); return resultFor(host, job, peekLane(host.store.read())); } },
   'jobsx.accept': { permission: 'approve', handler: async (ctx, p, host) => {
     const { job } = owned(host, ctx, p.id); inApp(ctx, 'APP_ACCEPTANCE_REQUIRED');
+    check(p.reference && typeof p.reference === 'object', 'INVALID_JOB_ACCEPTANCE_REFERENCE', 'Accept the exact result you reviewed: send its reference.');
     const accepted = await jobsOf(host).accept(ctx, job.id, p.repeat === true, p.reference);
-    await host.store.update(state => { pushTimeline(lane(state), { id: newId('jobsx_line'), at: nowIso(host), jobId: job.id, run: 0, kind: 'accepted', text: 'You accepted the result. The job is finished for this round.' }); logResultDecision(state, ctx, job, 'accepted'); });
+    await host.store.update(state => {
+      const ns = lane(state); const meta = ns.jobs[job.id];
+      pushTimeline(ns, { id: newId('jobsx_line'), at: nowIso(host), jobId: job.id, run: 0, kind: 'accepted', text: 'You accepted the result. The job is finished for this round.' }); logResultDecision(state, ctx, job, 'accepted');
+      // "Run every missed one": the next caught-up run follows straight after acceptance.
+      const raw = jobsOf(host).find(state, job.id);
+      if (meta && meta.backlog > 0 && raw.status === 'scheduled') { meta.backlog -= 1; raw.nextRunAt = nowIso(host); }
+    });
     return accepted;
   } },
   'jobsx.reject': { permission: 'approve', handler: async (ctx, p, host) => {
@@ -142,7 +152,7 @@ export const jobsMethods: Record<string, MethodSpec> = {
     return rejected;
   } },
   'jobsx.run': { permission: 'prepare', handler: (ctx, p, host) => ownedRun(host, ctx, p) },
-  'jobsx.pause': { permission: 'approve', handler: (ctx, p, host) => { const { job } = owned(host, ctx, p.id); return jobsOf(host).pause(ctx, job.id); } },
+  'jobsx.pause': { permission: 'approve', handler: (ctx, p, host) => { const { job } = owned(host, ctx, p.id); inApp(ctx); return jobsOf(host).pause(ctx, job.id); } },
   'jobsx.resume': { permission: 'approve', handler: async (ctx, p, host) => {
     const { job, meta } = owned(host, ctx, p.id); inApp(ctx);
     check(!meta.waitingFor, 'PERSON_STEP_WAITING', 'A step for a person is still waiting. Mark it done first.');
@@ -157,7 +167,7 @@ export const jobsMethods: Record<string, MethodSpec> = {
   } },
   'jobsx.answer': { permission: 'approve', handler: (ctx, p, host) => { inApp(ctx); return host.store.update(state => {
     const ns = lane(state); const q = ns.questions.find(x => x.id === id(p.questionId, 'question'));
-    check(q, 'NOT_FOUND', 'Question not found.'); const job = jobsOf(host).find(state, q.jobId); check(ownsJob(ctx, job), 'NOT_FOUND', 'Question not found.');
+    check(q, 'NOT_FOUND', 'Question not found.'); const job = jobsOf(host).find(state, q.jobId); check(ownsJob(ctx, job) && readable(host, ctx, job), 'NOT_FOUND', 'Question not found.');
     check(q.status === 'open', 'INVALID_QUESTION_STATE', 'This question was already answered.'); check(q.options.includes(p.option), 'INVALID_ANSWER', 'Choose one of the offered answers.');
     q.status = 'answered'; q.answer = p.option; q.answeredBy = ctx.memberId; q.answeredAt = nowIso(host);
     pushTimeline(ns, { id: newId('jobsx_line'), at: q.answeredAt, jobId: q.jobId, run: 0, kind: 'answer', text: 'You answered the job’s question. It uses your answer on its next step.', caseId: q.caseId });
@@ -167,7 +177,7 @@ export const jobsMethods: Record<string, MethodSpec> = {
     inApp(ctx); let resume: string | undefined;
     const step = await host.store.update(state => {
       const ns = lane(state); const s = ns.personSteps.find(x => x.id === id(p.id, 'step'));
-      check(s, 'NOT_FOUND', 'Step not found.'); const job = jobsOf(host).find(state, s.jobId); check(ownsJob(ctx, job), 'NOT_FOUND', 'Step not found.');
+      check(s, 'NOT_FOUND', 'Step not found.'); const job = jobsOf(host).find(state, s.jobId); check(ownsJob(ctx, job) && readable(host, ctx, job), 'NOT_FOUND', 'Step not found.');
       check(s.status === 'waiting', 'INVALID_STEP_STATE', 'This step is already done.');
       s.status = 'done'; s.doneAt = nowIso(host); s.doneBy = ctx.memberId;
       const meta = ns.jobs[s.jobId]; if (meta?.waitingFor === s.id) { delete meta.waitingFor; resume = s.jobId; }
@@ -182,7 +192,7 @@ export const jobsMethods: Record<string, MethodSpec> = {
     check(p.channel === 'mail' || p.channel === 'whatsapp', 'INVALID_REQUEST', 'Choose mail or WhatsApp.');
     check(typeof p.agreed === 'boolean' && typeof p.source === 'string' && p.source.trim().length > 0 && p.source.length <= 200, 'INVALID_REQUEST', 'Say whether the customer agreed, and where that came from.');
     const at = nowIso(host); const row = { customerId: p.customerId, channel: p.channel, agreed: p.agreed, source: p.source.trim(), at, ...(p.stopped === true ? { stoppedAt: at } : {}), sourceIds: [] as string[] };
-    lane(state).consent.push(row); audit(state, 'jobsx.consent.recorded', { channel: p.channel, agreed: p.agreed, stopped: p.stopped === true });
+    const ns = lane(state); ns.consent.push(row); bound(ns.consent, 5000); audit(state, 'jobsx.consent.recorded', { channel: p.channel, agreed: p.agreed, stopped: p.stopped === true });
     return row;
   }); } },
   'jobsx.missed': { permission: 'read', handler: (ctx, _p, host) => {
@@ -205,6 +215,7 @@ export const jobsMethods: Record<string, MethodSpec> = {
     const jobs = jobsOf(host); const job = jobs.find(state, id(p.id)); check(ownsJob(ctx, job) && isLaneJob(job), 'NOT_FOUND', 'Job not found.'); jobs.owner(state, ctx, job);
     check(!job.lease, 'JOB_BUSY', 'Wait for the running step to finish.');
     const meta = lane(state).jobs[job.id]; check(meta && !meta.deletedAt, 'NOT_FOUND', 'Job not found.');
+    check(rule !== 'all' || meta.stepsPerDelivery === 1, 'MISSED_RULE_UNSUITABLE', 'Daily rounds cannot all be caught up on one day. Choose skip or run once.');
     meta.missedRule = rule; meta.backlog = 0; job.catchup = coreCatchup(rule); job.digest = jobs.identity(job);
     job.ledger.push({ at: nowIso(host), event: 'jobsx-missed-rule', reason: rule }); audit(state, 'jobsx.missed-rule.changed', { jobId: job.id, rule });
     return { id: job.id, missedRule: rule };
@@ -265,18 +276,25 @@ export function jobsPurge(state: State, reason: { sourceIds: readonly string[]; 
   const liveJobs = new Set(state.jobs.map((j: any) => j.id));
   const goneJobs = new Set(Object.values(ns.jobs).filter(m => !liveJobs.has(m.jobId) || hit(m.sourceIds)).map(m => m.jobId));
   for (const jobId of goneJobs) { delete ns.jobs[jobId]; removed++; }
-  for (const meta of Object.values(ns.jobs)) for (const [key, item] of Object.entries(meta.cases)) if (hit(item.recordIds) || hit(item.receiptIds)) { delete meta.cases[key]; removed++; }
+  const goneCases = new Set<string>();
+  for (const meta of Object.values(ns.jobs)) for (const [key, item] of Object.entries(meta.cases)) if (hit(item.recordIds) || hit(item.receiptIds)) { delete meta.cases[key]; goneCases.add(`${meta.jobId}/${key}`); removed++; }
+  // Lines that name a removed case go too, and the left-undone list is rebuilt from what remains.
+  for (const meta of Object.values(ns.jobs)) if (meta.stoppedBy && [...goneCases].some(c => c.startsWith(`${meta.jobId}/`))) meta.stoppedBy.leftUndone = [];
+  const caseHit = (jobId: string, caseId?: string) => !!caseId && goneCases.has(`${jobId}/${caseId}`);
   const keep = <T>(list: T[], drop: (item: T) => boolean): T[] => list.filter(item => { const d = drop(item); if (d) removed++; return !d; });
   ns.proposals = keep(ns.proposals, p => hit(p.sourceIds) || (!!p.jobId && goneJobs.has(p.jobId)));
-  ns.timeline = keep(ns.timeline, (t: TimelineEntry) => goneJobs.has(t.jobId) || hit(t.recordIds) || hit(t.receiptIds));
+  ns.timeline = keep(ns.timeline, (t: TimelineEntry) => goneJobs.has(t.jobId) || hit(t.recordIds) || hit(t.receiptIds) || caseHit(t.jobId, t.caseId));
   ns.results = keep(ns.results, r => goneJobs.has(r.jobId) || hit(r.sourceIds) || hit(r.receiptIds));
-  ns.questions = keep(ns.questions, q => goneJobs.has(q.jobId) || hit(q.sourceIds));
-  ns.personSteps = keep(ns.personSteps, s => goneJobs.has(s.jobId));
+  ns.questions = keep(ns.questions, q => goneJobs.has(q.jobId) || hit(q.sourceIds) || caseHit(q.jobId, q.caseId));
+  ns.personSteps = keep(ns.personSteps, s => goneJobs.has(s.jobId) || hit(s.recordIds));
   ns.missed = keep(ns.missed, m => goneJobs.has(m.jobId));
-  ns.consent = keep(ns.consent, c => hit(c.sourceIds));
+  // A customer's agreement is kept only while a live record still names that customer.
+  const customers = new Set(state.facts.filter((f: any) => !f.deletedAt && !sources.has(f.sourceId) && !reason.removedIds.has(f.id)).map((f: any) => f.fields?.customerId).filter(Boolean));
+  const scoped = sources.size > 0 || reason.removedIds.size > 0;
+  ns.consent = keep(ns.consent, c => hit(c.sourceIds) || (scoped && !customers.has(c.customerId)));
   const liveActions = new Set(state.actions.map((a: any) => a.id));
   ns.reminders = keep(ns.reminders, r => goneJobs.has(r.jobId) || !liveActions.has(r.actionId));
-  return removed + purgeProcedures(state, reason.sourceIds);
+  return removed + purgeProcedures(state, reason.sourceIds, { jobIds: goneJobs, caseIds: goneCases });
 }
 
 export { paise };

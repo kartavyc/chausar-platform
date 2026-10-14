@@ -49,7 +49,8 @@ export function readyMadeDecision(fields: CaseFields): { decision: string; confi
   if (fields.consent === 'stopped') return { decision: 'wait', confidence: 1, reason: 'stopped-by-customer' };
   if (fields.consent !== 'yes') return { decision: 'wait', confidence: 1, reason: 'no-agreement' };
   if (fields.remindedToday === true) return { decision: 'wait', confidence: 1, reason: 'reminded-today' };
-  if ((fields.daysOverdue as number) > 60 || (fields.remindersSoFar as number) >= 3) return { decision: 'ask-owner', confidence: 0.5, reason: 'long-overdue' };
+  if ((fields.remindersSoFar as number) >= 3) return { decision: 'ask-owner', confidence: 1, reason: 'reminded-often' };
+  if ((fields.daysOverdue as number) > 60) return { decision: 'ask-owner', confidence: 0.5, reason: 'long-overdue' };
   return { decision: 'remind', confidence: 1, reason: 'overdue' };
 }
 

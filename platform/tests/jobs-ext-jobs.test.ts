@@ -118,11 +118,13 @@ test('ready-made jobs: types, availability, proposals from a sentence, an exact 
   const list = await ui('jobsx.list');
   assert.equal(list.jobs[0].id, job.id); assert.equal(list.proposals.some((p: any) => p.proposalId === stock.id), true, 'proposed jobs are listed first, as approvals');
   // An edit is a new card; approving it replaces the job.
-  const edit = await ui('jobsx.edit', { id: job.id, changes: { budgetMinor: '9000', missedRule: 'all' } });
+  await assert.rejects(ui('jobsx.edit', { id: job.id, changes: { missedRule: 'all' } }), { code: 'MISSED_RULE_UNSUITABLE' }, 'daily rounds are never all caught up on one day');
+  const edit = await ui('jobsx.edit', { id: job.id, changes: { budgetMinor: '9000', missedRule: 'skip' } });
   assert.equal(edit.replacesJobId, job.id); assert.equal(edit.card.budgetMinor, '9000');
   const replaced = await ui('jobsx.approveProposal', { id: edit.id, digest: edit.digest });
   assert.equal((await ui('jobs.list')).find((j: any) => j.id === job.id).status, 'stopped');
-  assert.equal((await ui('jobsx.get', { id: replaced.job.id })).missedRule, 'all');
+  assert.equal((await ui('jobsx.get', { id: replaced.job.id })).missedRule, 'skip');
+  await assert.rejects(ui('jobsx.approveProposal', { id: edit.id, digest: edit.digest }), { code: 'INVALID_PROPOSAL_STATE' });
   await assert.rejects(ui('jobsx.get', { id: job.id }).then((v: any) => { if (v.deleted) throw Object.assign(new Error('deleted'), { code: 'DELETED' }); }), { code: 'DELETED' });
   await ui('jobsx.setCaps', { activeJobCap: 1 });
   const second = await ui('jobsx.propose', { template: 'cash-position' });
@@ -254,7 +256,7 @@ test('the agent fallback, untested routes, waiting for the network, procedures f
   await ui('jobsx.delete', { id: poor.id });
   // No network: the steps without a model finish, the model step waits.
   online = false;
-  const { job } = await startReceivables(ui);
+  const { job } = await startReceivables(ui, { sourceIds: ['synthetic-late', 'synthetic-receivables'] });
   await engine.tick();
   let view = await ui('jobsx.get', { id: job.id });
   assert.equal(view.state, 'waiting-network'); assert.ok(view.resumesAt);
@@ -286,9 +288,15 @@ test('the agent fallback, untested routes, waiting for the network, procedures f
   assert.equal(procedure.steps[1].rule.buckets[0].option, 'remind');
   await assert.rejects(engine.requestAs({ ...owner, sourceTainted: true }, 'procedures.approve', { id: procedure.id, digest: procedure.digest }), { code: 'APP_APPROVAL_REQUIRED' });
   await ui('procedures.approve', { id: procedure.id, digest: procedure.digest });
-  // The next case of the same shape is routed through the procedure; the agent is not called.
+  // A new long-overdue invoice of the same shape is routed through the procedure; the agent is not called.
+  // INV-B, reminded three times already, goes to you: the ready-made guards come before any procedure.
+  await ui('sources.import', csv([{ id: 'inv-e', kind: 'invoice', date: date(start - 90 * DAY), amount: '300.00', customer: 'cust-e', invoice: 'INV-E', due: date(start - 76 * DAY) }], 'synthetic-late'));
+  await ui('jobsx.consent.record', { customerId: 'cust-e', channel: 'mail', agreed: true, source: 'Synthetic signed form' });
   const before = agent.calls.length; clock.now += DAY; await engine.tick();
   assert.equal(agent.calls.length, before, 'a matched case does not need the agent');
+  const now = await ui('jobsx.get', { id: job.id });
+  assert.ok(now.waitingForYou.some((w: any) => w.kind === 'question' && w.caseId.startsWith('INV-B')), 'reminded often: asks you');
+  assert.ok((await ui('actions.list')).some((a: any) => a.payload.invoiceId === 'INV-E'), 'the routed case prepared its reminder');
   const stats = await ui('procedures.runs', { template: 'receivables-week' });
   assert.ok(stats.stats.routedShare.routed >= 1); assert.ok(stats.runs.some((r: any) => r.route === 'procedure'));
   assert.equal(stats.stats.routedCostMinor, '0', 'routed cases cost nothing here: no model call');
@@ -308,6 +316,32 @@ test('a job that fails three times in a row is set aside until you look at it', 
   assert.equal((await ui('jobsx.stopRules', { id: job.id })).rules.find((r: any) => r.rule === 'failures').met, true);
   const resumed = await ui('jobsx.resume', { id: job.id });
   assert.equal(resumed.status, 'scheduled');
+});
+
+test('review fixes: revoked sources hide a job, a person step cannot be skipped, approvals race once, acceptance needs the reference', async t => {
+  const { ui, engine } = await fixture(t);
+  await ui('trust.update', { autonomy: true });
+  // Two approvals of one card at once: exactly one job is created.
+  const card = await ui('jobsx.propose', { template: 'cash-position' });
+  const results = await Promise.allSettled([ui('jobsx.approveProposal', { id: card.id, digest: card.digest }), ui('jobsx.approveProposal', { id: card.id, digest: card.digest })]);
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
+  assert.equal((await ui('jobs.list')).length, 1, 'no orphan mandate');
+  const jobId = (results.find(r => r.status === 'fulfilled') as any).value.job.id;
+  await engine.tick();
+  const result = await ui('jobsx.result', { id: jobId });
+  await assert.rejects(ui('jobsx.accept', { id: jobId }), { code: 'INVALID_JOB_ACCEPTANCE_REFERENCE' });
+  // The weekly close: resuming through the core route does not skip the person's step.
+  const week = await ui('jobsx.propose', { template: 'weekly-close' });
+  const { job: close } = await ui('jobsx.approveProposal', { id: week.id, digest: week.digest });
+  await engine.tick();
+  await ui('jobs.resume', { id: close.id }); await engine.tick();
+  assert.notEqual((await ui('jobs.list')).find((j: any) => j.id === close.id).status, 'awaiting-acceptance');
+  assert.equal((await ui('jobsx.get', { id: close.id })).state, 'waiting-for-you');
+  // Losing a source hides the job and its result, as JobService.list does.
+  await ui('trust.update', { allowedSources: ['some-other-source'] });
+  await assert.rejects(ui('jobsx.result', { id: jobId }), { code: 'NOT_FOUND' });
+  await assert.rejects(ui('jobsx.get', { id: close.id }), { code: 'NOT_FOUND' });
+  assert.ok(result.reference);
 });
 
 test('purge after source deletion removes what the lane derived', async t => {

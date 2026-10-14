@@ -1,6 +1,6 @@
 import { audit, check, newId, now } from '../contracts.ts';
 import type { Context, State } from '../contracts.ts';
-import { digest } from '../actions.ts';
+import { digest, sourceAccess } from '../actions.ts';
 import type { MethodSpec } from '../modules/types.ts';
 import { inApp } from '../jobs-ext/state.ts';
 import { template as readyMade } from '../jobs-ext/templates.ts';
@@ -15,6 +15,9 @@ const templateId = (value: unknown) => readyMade(value).id;
 /** What a screen may see of a run: the feature values stay in the namespace. */
 const runView = ({ features: _features, ...run }: ProcedureRun) => run;
 const newestFirst = <T extends { at?: string; createdAt?: string }>(a: T, b: T) => (b.at ?? b.createdAt ?? '').localeCompare(a.at ?? a.createdAt ?? '');
+
+/** Runs carry case references: a caller sees them only while it can still read their sources. */
+function readable(state: State, ctx: Context, sourceIds: string[]): boolean { try { sourceAccess(state, ctx, sourceIds); return true; } catch { return false; } }
 
 function owned(state: State, ctx: Context, id: unknown): Procedure {
   const item = procedureState(state).procedures.find(entry => entry.id === validId(id));
@@ -34,7 +37,7 @@ export const procedureMethods: Record<string, MethodSpec> = {
     const item = procedures.find(entry => entry.id === id);
     check(item, 'NOT_FOUND', 'Procedure not found.'); check(item.ownerId === ctx.memberId, 'FORBIDDEN', 'Only the procedure’s owner can see it.');
     return { procedure: item, stats: procedureStats(state, id),
-      runs: runs.filter(run => run.procedureId === id || item.derivedFrom.includes(run.id)).sort(newestFirst).slice(0, 50).map(runView) };
+      runs: runs.filter(run => (run.procedureId === id || item.derivedFrom.includes(run.id)) && readable(state, ctx, run.sourceIds)).sort(newestFirst).slice(0, 50).map(runView) };
   } },
   'procedures.propose': { permission: 'prepare', handler(ctx, payload, host) {
     const template = templateId(payload.template);
@@ -77,7 +80,7 @@ export const procedureMethods: Record<string, MethodSpec> = {
     });
   } },
   'procedures.retire': { permission: 'approve', handler(ctx, payload, host) {
-    return host.store.update(state => {
+    inApp(ctx); return host.store.update(state => {
       const item = owned(state, ctx, payload.id);
       check(item.status === 'approved', 'PROCEDURE_NOT_APPROVED', 'Only an approved procedure can be retired.');
       Object.assign(item, { status: 'retired', reason: 'retired', decidedAt: now() });
@@ -95,7 +98,7 @@ export const procedureMethods: Record<string, MethodSpec> = {
   } },
   'procedures.runs': { permission: 'read', handler(ctx, payload, host) {
     const template = payload.template === undefined ? undefined : templateId(payload.template), jobId = payload.jobId === undefined ? undefined : validId(payload.jobId);
-    const runs = peekProcedures(host.store.read()).runs.filter(run => run.ownerId === ctx.memberId && (!template || run.template === template) && (!jobId || run.jobId === jobId));
+    const state = host.store.read(); const runs = peekProcedures(state).runs.filter(run => run.ownerId === ctx.memberId && readable(state, ctx, run.sourceIds) && (!template || run.template === template) && (!jobId || run.jobId === jobId));
     const { routedShare, routedCostMinor, fallbackCostMinor, agentCostMinor } = summarize(runs);
     return { runs: runs.sort(newestFirst).slice(0, 200).map(runView), stats: { routedShare, routedCostMinor, fallbackCostMinor, agentCostMinor } };
   } },
