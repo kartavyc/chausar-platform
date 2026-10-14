@@ -1,0 +1,6 @@
+.make { display: flex; gap: var(--sp3); align-items: flex-end; flex-wrap: wrap; }
+.make > :first-child { flex: 1 1 16em; min-width: 0; }
+.draft { display: flex; flex-direction: column; gap: var(--sp2); padding: var(--sp3) 0; border-top: var(--hair) solid var(--line); }
+.draftTitle { margin: 0; font-size: var(--fs-read); font-weight: 500; color: var(--fg); overflow-wrap: anywhere; }
+.small { margin: 0; font-size: var(--fs-note2); font-weight: 400; color: var(--mute); }
+.buttons { display: flex; gap: var(--sp2); flex-wrap: wrap; }

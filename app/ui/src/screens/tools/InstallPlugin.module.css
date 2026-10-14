@@ -1,0 +1,10 @@
+.body { display: flex; flex-direction: column; gap: var(--sp4); }
+.section { display: flex; flex-direction: column; gap: var(--sp2); }
+.file { display: flex; flex-direction: column; gap: var(--sp1); font-size: var(--fs-note); color: var(--fg); }
+.file input { min-height: var(--target); font: inherit; }
+.flagLabel { font-size: var(--fs-label); text-transform: uppercase; letter-spacing: 0.04em; color: var(--amber-t); }
+.p { margin: 0; font-size: var(--fs-read); color: var(--fg); }
+.note { margin: 0; font-size: var(--fs-note2); color: var(--mute); }
+.small { margin: 0; font-size: var(--fs-note2); font-weight: 400; color: var(--mute); }
+.refused { margin: 0; font-size: var(--fs-note2); color: var(--red); }
+.list { margin: 0; padding-left: var(--sp4); font-size: var(--fs-note); color: var(--fg2); }
