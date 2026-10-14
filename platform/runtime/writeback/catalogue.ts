@@ -104,7 +104,7 @@ const rows: CatalogueEntry[] = [
   { system: 'google-workspace', action: 'sheets.append', title: 'Add a row to a Google Sheet', kind: 'inside-undoable', tier: 1, alwaysWaits: false, waitsBecause: waits.inside, plannedStatus: 'live',
     idempotency: 'The first column holds the effect reference; Chausar reads the key column first and appends only when the reference is absent.', businessReference: 'Effect reference in the first column.',
     readBack: 'Reads the sheet\'s key column and the row holding the reference, and compares every cell.', retryWindowHours: 24 * 30, approvalLifetimeHours: INSIDE_HOURS, ...reviewed, reversal: 'Clear the row.',
-    recipe: { requiredFields: ['spreadsheetId', 'sheet', 'values'], preconditions: ['The sheet exists and its first column is the key column.'], reference: 'first column', readBackQuery: 'GET /values/{sheet}!A:A then the row.' } },
+    recipe: { requiredFields: ['spreadsheetId', 'sheet', 'values'], preconditions: ['The sheet exists and its first column is the key column.'], reference: 'first column', readBackQuery: "GET /values/'{sheet}'!A:A then the row." } },
   { system: 'google-workspace', action: 'sheets.update', title: 'Change cells in a Google Sheet', kind: 'inside-undoable', tier: 1, alwaysWaits: false, waitsBecause: waits.inside, plannedStatus: 'experimental',
     idempotency: 'Writes absolute values to an exact range; refuses when the range changed since the preview.', businessReference: 'Spreadsheet id and A1 range.',
     readBack: 'Reads the range and compares every cell.', retryWindowHours: 24 * 30, approvalLifetimeHours: INSIDE_HOURS, ...reviewed, reversal: 'Write the before values back.',
@@ -116,7 +116,7 @@ const rows: CatalogueEntry[] = [
   { system: 'google-workspace', action: 'drive.createFile', title: 'Save a file to your Google Drive', kind: 'inside-undoable', tier: 1, alwaysWaits: false, waitsBecause: waits.inside, plannedStatus: 'experimental',
     idempotency: 'The file carries the effect reference as a private app property; Chausar searches for it first and creates only when absent.', businessReference: 'appProperties.chausarEffect.',
     readBack: 'Searches files by the app property and compares name, type and size.', retryWindowHours: 24 * 30, approvalLifetimeHours: INSIDE_HOURS, ...reviewed, reversal: 'Move the file to the bin.',
-    recipe: { requiredFields: ['name', 'mimeType', 'content'], preconditions: ['The file is not shared.'], reference: 'appProperties.chausarEffect', readBackQuery: 'GET /files?q=appProperties has …' } },
+    recipe: { requiredFields: ['name', 'mimeType', 'contentBase64'], preconditions: ['The file is not shared.'], reference: 'appProperties.chausarEffect', readBackQuery: 'GET /files?q=appProperties has …' } },
   // WhatsApp Business Cloud API.
   { system: 'whatsapp', action: 'template.send', title: 'Send an approved WhatsApp template message', kind: 'seen-outside', tier: 2, alwaysWaits: true, waitsBecause: waits.message, plannedStatus: 'experimental',
     idempotency: 'Sent at most once per effect key; the send journal outside the vault blocks a second send even after a restore. WhatsApp itself offers no idempotency key.', businessReference: 'biz_opaque_callback_data set to the effect reference.',
