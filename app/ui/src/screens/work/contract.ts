@@ -84,7 +84,7 @@ export const approvalList = object({
 export type ApprovalList = ReturnType<typeof approvalList>;
 
 export const snoozed = object({ id, snoozedUntil: instant });
-export const dropped = object({ id, state: literal('cancelled') });
+export const dropped = object({ id, state: oneOf(['cancelled', 'rejected']) });
 export const group = object({ title: short, undoable: literal(true), items: list(approvalDetail, 10) });
 export type Group = ReturnType<typeof group>;
 export const groupResults = object({ results: list(object({ id, ok: bool }, { code: short, state: short }), 10) });
