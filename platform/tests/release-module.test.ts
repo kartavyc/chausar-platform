@@ -111,3 +111,15 @@ test('an older app reports a vault written by a newer one as incompatible', asyn
   assert.equal(status.vaultCompatible, false);
   assert.equal(status.dataSchema.dataSchemaVersion, 2);
 });
+
+test('without host-supplied options the module wires itself from the engine environment', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'chausar-release-host-'));
+  const saved = process.env.CHAUSAR_UPDATE_PUBLIC_KEY;
+  t.after(async () => { if (saved === undefined) delete process.env.CHAUSAR_UPDATE_PUBLIC_KEY; else process.env.CHAUSAR_UPDATE_PUBLIC_KEY = saved; await rm(directory, { recursive: true, force: true }); });
+  process.env.CHAUSAR_UPDATE_PUBLIC_KEY = publicKey;
+  const engine = new Engine({ directory: join(directory, 'data'), demo: true, storage: 'experimental-file' });
+  await engine.request('workspace.create', { name: 'Synthetic host options', passphrase: 'synthetic-release-passphrase', demo: true });
+  const status = await engine.request('release.status');
+  assert.equal(status.configured, true);
+  assert.equal(status.channel, 'stable');
+});

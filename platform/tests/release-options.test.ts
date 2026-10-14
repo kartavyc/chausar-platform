@@ -24,6 +24,7 @@ test('the unsigned preview package maps to the preview channel with its stamped 
 });
 
 test('unknown channels and relative paths refuse', async t => {
-  await assert.rejects(releaseModuleOptions({}, await packageFile(t, { chausarReleaseChannel: 'nightly' })), (error: any) => error.code === 'RELEASE_OPTIONS_INVALID');
-  await assert.rejects(releaseModuleOptions({ CHAUSAR_APP_EXECUTABLE: 'chausar' }), (error: any) => error.code === 'RELEASE_OPTIONS_INVALID');
+  const nightly = await packageFile(t, { chausarReleaseChannel: 'nightly' });
+  assert.throws(() => releaseModuleOptions({}, nightly), (error: any) => error.code === 'RELEASE_OPTIONS_INVALID');
+  assert.throws(() => releaseModuleOptions({ CHAUSAR_APP_EXECUTABLE: 'chausar' }), (error: any) => error.code === 'RELEASE_OPTIONS_INVALID');
 });

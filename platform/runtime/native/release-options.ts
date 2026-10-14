@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check } from '../contracts.ts';
@@ -16,8 +16,8 @@ const absolute = (value: string | undefined, name: string) => {
   return value;
 };
 
-export async function releaseModuleOptions(environment: NodeJS.ProcessEnv, packageJson = packagePath): Promise<ReleaseModuleOptions> {
-  const metadata = JSON.parse(await readFile(packageJson, 'utf8'));
+export function releaseModuleOptions(environment: Readonly<Record<string, string | undefined>>, packageJson = packagePath): ReleaseModuleOptions {
+  const metadata = JSON.parse(readFileSync(packageJson, 'utf8'));
   // The unsigned preview package names its channel `unsigned-preview`; for updates it is the preview channel.
   const named = metadata.chausarReleaseChannel;
   check(named === undefined || ['stable', 'preview', 'unsigned-preview'].includes(named), 'RELEASE_OPTIONS_INVALID', 'The build names an unknown release channel.');

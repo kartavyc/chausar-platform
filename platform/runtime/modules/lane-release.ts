@@ -22,13 +22,7 @@ type ReleaseOptions = {
   environment?: NodeJS.ProcessEnv; http?: any; unpack?: any; serviceRunner?: any; homeDirectory?: string; uid?: number;
   postgres?: Record<string, unknown>;
 };
-// The desktop worker passes no module options today, so its own trusted environment and package
-// description supply the defaults; explicit host options (tests, the enterprise server) win.
-let environmentDefaults: Promise<ReleaseOptions> | undefined;
-async function options(host: ModuleHost): Promise<ReleaseOptions> {
-  environmentDefaults ??= releaseModuleOptions(process.env);
-  return { ...await environmentDefaults, ...host.options as ReleaseOptions };
-}
+const options = async (host: ModuleHost) => host.options as ReleaseOptions;
 const updates = new Map<string, UpdateService>();
 const channelOf = (o: ReleaseOptions) => o.channel ?? (o.previewExpiresAt ? 'preview' : 'stable');
 
@@ -87,6 +81,8 @@ async function vaultCopy(host: ModuleHost) {
 
 export const releaseModule: EngineModule = {
   id: 'release',
+  // The installed desktop app wires the module from the engine worker's own trusted environment.
+  hostOptions: ({ env }) => releaseModuleOptions(env),
   methods: {
     'release.status': { permission: 'read', async handler(_ctx, _payload, host) {
       const o = await options(host), version = await engineVersion(host);
