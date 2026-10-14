@@ -99,3 +99,20 @@ test('the product entry locks an existing workspace behind the lock screen and u
   await waitFor(() => expect(screen.queryByText('Your workspace is locked')).toBeNull(), { timeout: 5000 });
   expect(engine.calls.filter(method => method === 'workspace.open')).toHaveLength(2);
 });
+
+test('the receipt sheet draws the six-part receipt and its every field one press away', { timeout: 20000 }, async () => {
+  const { user } = await mountOnFake();
+  await screen.findByText('Send a payment reminder to Kiran Retail Demo', undefined, { timeout: 5000 });
+  await user.click(within(page()).getByRole('button', { name: 'Prepare figures' }));
+  const billed = await within(page()).findByText('₹25,36,850', undefined, { timeout: 5000 });
+  await user.click(billed.closest('button')!);
+  await waitFor(() => expect(document.querySelector('[data-region="sheet"] details')).not.toBeNull(), { timeout: 5000 });
+  const sheet = document.querySelector('[data-region="sheet"]') as HTMLElement;
+  const details = sheet.querySelector('details') as HTMLDetailsElement;
+  expect(details.open).toBe(false);
+  expect(within(sheet).getByText('Every field')).toBeTruthy();
+  const figure = [...sheet.querySelectorAll('button')].find(button => (button.textContent ?? '').includes('₹25,36,850'));
+  expect(figure).toBeTruthy();
+  await user.click(figure!);
+  expect(details.open).toBe(true);
+});

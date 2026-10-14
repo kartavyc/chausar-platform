@@ -41,6 +41,8 @@ import { shellBanners, demoClockState, notBuiltFromCapabilities } from '../app/s
 import { statusLine, statusSentences } from '../app/status-line.ts';
 import { HelpSheet } from '../app/HelpSheet';
 import { DemoClockControl } from '../app/DemoClockControl';
+import { Receipt } from '../parts/Receipt';
+import { receiptViewFromEvidence } from '../bridge/receipt-view.ts';
 import detail from '../patterns/ModelConsentSheet.module.css';
 import '../tokens/index.css';
 import '../views/simple.css';
@@ -185,14 +187,28 @@ function ReceiptBody({ value, language }: { value: CalculationReceiptEvidence; l
   </>;
 }
 
-function ReceiptPanel({ selection, language, origin, onClose }: {
+/** The six-part receipt, drawn only when the workspace time zone is known and the view could be made. */
+function receiptView(value: CalculationReceiptEvidence, language: Language, timeZone: string | null) {
+  if (timeZone === null) return null;
+  try { return receiptViewFromEvidence(value, { language, timeZone }); } catch { return null; }
+}
+
+function ReceiptPanel({ selection, language, timeZone, origin, onClose }: {
   selection: HostReceiptSelection;
   language: Language;
+  timeZone: string | null;
   origin: HTMLElement | null;
   onClose: () => void;
 }) {
+  const view = selection.kind === 'ready' ? receiptView(selection.value, language, timeZone) : null;
+  const every = useRef<HTMLDetailsElement>(null);
+  /* A figure on the receipt opens this receipt's every field: its exact values. */
+  const openEvery = () => { const element = every.current; if (element) { element.open = true; element.querySelector('summary')?.focus(); } };
   return <Sheet kind={hostMessage(language, 'receipt')} title={selection.id} origin={origin} onClose={onClose}>
-    {selection.kind === 'ready' ? <ReceiptBody value={selection.value} language={language} /> :
+    {selection.kind === 'ready' && view !== null ? <>
+      <Receipt receipt={view} onReceipt={openEvery} />
+      <details ref={every}><summary>{hostMessage(language, 'receiptEvery')}</summary><ReceiptBody value={selection.value} language={language} /></details>
+    </> : selection.kind === 'ready' ? <ReceiptBody value={selection.value} language={language} /> :
       <p role="status">{hostMessage(language, selection.kind === 'loading' ? 'receiptLoading' : 'receiptFailed')}</p>}
     {selection.kind === 'failed' && <p>{hostMessage(language, 'code', { code: selection.code })}</p>}
   </Sheet>;
@@ -760,6 +776,8 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     state: { kind: 'not-yet' }, date: '', review: { count: { exact: null, display: words.unknown }, rows: [] },
     thisMonthMissing: 'unknown', earlierTodayMissing: 'unknown',
   };
+  /** The workspace time zone, from the host or the trusted Today configuration; never the machine's. */
+  const workspaceZone = controller.timeZone ?? consumer?.input?.display?.timeZone ?? null;
   const data: TodayData = frame.reads.worth !== null ? { ...baseData, worth: frame.reads.worth } : baseData;
   const showDemoClock = () => {
     if (!stillAuthorized() || active.current === null) return;
@@ -790,10 +808,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   const sheet: AppProps['sheet'] = state.receipt !== null ? {
     address: state.receipt.address,
-    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} origin={origin.current} onClose={closeSheet} />,
+    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} timeZone={workspaceZone} origin={origin.current} onClose={closeSheet} />,
   } : localSheet === null ? undefined : localSheet.todayView !== undefined && consumer !== null ? {
     address: localSheet.address,
-    content: <TodayDestination detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
+    content: <TodayDestination timeZone={workspaceZone} detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
       onClose={() => closeToday(localSheet, todayCurrent)}
       onReview={(row, rowOrigin) => launchToday(localSheet.todayView!, 'today-record', rowOrigin, current => consumer.review(localSheet.todayView!, row, current))}
       onNext={localSheet.todayView.page?.nextCursor ? () => launchToday(localSheet.todayView!, 'today-review', localSheet.todayOrigin ?? null, current => consumer.page(localSheet.todayView!, true, current)) : undefined}

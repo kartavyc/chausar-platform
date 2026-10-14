@@ -13061,7 +13061,8 @@ var kn = {
 	"FRSTEP.left.nothing": "Nothing has left this computer.",
 	"FRSTEP.left.something": "Something has left this computer today. Trust shows what and where.",
 	"FRSTEP.left.unknown": "It is not known whether anything has left this computer.",
-	"SH-02.recovery.btn": "Use your recovery kit"
+	"SH-02.recovery.btn": "Use your recovery kit",
+	"TODAY_ENGINE.every": "Every field"
 }, An = {
 	"SH-01.wordmark": "chausar",
 	"SH-01.rail.label": "जगहें",
@@ -14084,7 +14085,8 @@ var kn = {
 	"FRSTEP.left.nothing": "इस कंप्यूटर से कुछ भी बाहर नहीं गया है।",
 	"FRSTEP.left.something": "आज इस कंप्यूटर से कुछ बाहर गया है। भरोसा में दिखता है कि क्या और कहाँ।",
 	"FRSTEP.left.unknown": "पता नहीं कि इस कंप्यूटर से कुछ बाहर गया है या नहीं।",
-	"SH-02.recovery.btn": "रिकवरी किट से खोलें"
+	"SH-02.recovery.btn": "रिकवरी किट से खोलें",
+	"TODAY_ENGINE.every": "हर हिस्सा"
 }, jn = {
 	en: kn,
 	hi: An
@@ -31500,25 +31502,297 @@ var jC = [{
 function IC(e, t = FC) {
 	return t.find((t) => t.handles(e)) ?? null;
 }
+var LC = {
+	receipt: "_receipt_1w35y_3",
+	marks: "_marks_1w35y_11",
+	mark: "_mark_1w35y_11",
+	markWords: "_markWords_1w35y_34",
+	lines: "_lines_1w35y_40",
+	line: "_line_1w35y_40",
+	indent: "_indent_1w35y_59",
+	totals: "_totals_1w35y_64",
+	totalList: "_totalList_1w35y_70",
+	total: "_total_1w35y_64",
+	small: "_small_1w35y_89",
+	smallLine: "_smallLine_1w35y_98",
+	links: "_links_1w35y_108"
+};
+//#endregion
+//#region app/ui/src/parts/Receipt.tsx
+function RC(e, t) {
+	let n = [], r = (e, t, r) => n.push({
+		key: e,
+		node: /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: t }), /* @__PURE__ */ (0, M.jsx)("dd", { children: r })] })
+	}), i = (...e) => e.filter((e) => e !== void 0 && e.length > 0).join(" · ");
+	return e.source && r("source", t("RECEIPT.small.source"), i(e.source.names, e.source.wayIn && t(`RECEIPT.wayIn.${e.source.wayIn}`), e.source.readAt && t("RECEIPT.small.readAt", { when: e.source.readAt }))), e.recipe && r("recipe", t("RECEIPT.small.recipe"), i(t(`RECEIPT.recipe.${e.recipe.state}`), t("RECEIPT.small.acceptedBy", { who: e.recipe.acceptedBy }), t(`RECEIPT.grade.${e.recipe.grade}`))), e.meaning && r("meaning", t("RECEIPT.small.meaning"), i(t("RECEIPT.small.publishedBy", { who: e.meaning.publishedBy }), e.meaning.reviewedBy && t("RECEIPT.small.reviewedBy", { who: e.meaning.reviewedBy }), e.meaning.cosignedBy && t("RECEIPT.small.cosignedBy", { who: e.meaning.cosignedBy }))), e.rate && r("rate", t("RECEIPT.small.rate"), i(e.rate.value, e.rate.date, e.rate.source)), e.forecast && r("forecast", t("RECEIPT.small.forecast"), i(e.forecast.method, t("RECEIPT.small.trainedOn", { months: e.forecast.trainedOn }), t("RECEIPT.small.heldOut", { months: e.forecast.heldOut }))), e.numberGuard && r("guard", t("RECEIPT.small.guard"), t(e.numberGuard.passed ? "RECEIPT.guard.passed" : "RECEIPT.guard.failed", {
+		matched: e.numberGuard.matched.display,
+		of: e.numberGuard.of.display
+	})), e.allowedBy && r("allowed", t("RECEIPT.small.allowedBy"), i(e.allowedBy.text, e.allowedBy.ruleId, e.allowedBy.person, e.allowedBy.device, e.allowedBy.at)), e.route && r("route", t("RECEIPT.small.route"), i(e.route.kind, t(`RECEIPT.send.${e.route.sendLevel}`), e.route.cost && t("RECEIPT.small.cost", { cost: e.route.cost }))), n;
+}
+function zC({ receipt: e, onReceipt: t, onOpenRows: n, onExport: r, className: i }) {
+	let a = N(), o = 0, s = (...e) => ({
+		className: [...e, "m-appear"].filter(Boolean).join(" "),
+		style: { "--i": String(o++) }
+	}), c = [
+		{
+			key: "question",
+			done: e.workedOut.question !== void 0,
+			words: e.workedOut.question === void 0 ? a("RECEIPT.mark.noQuestion") : a("RECEIPT.mark.question", { question: e.workedOut.question })
+		},
+		{
+			key: "calculation",
+			done: !0,
+			words: a("RECEIPT.mark.calculation", { name: e.workedOut.calculation })
+		},
+		{
+			key: "rows",
+			done: !0,
+			words: a("RECEIPT.mark.rows", {
+				rows: e.workedOut.rowsRead.display,
+				form: rh(e.workedOut.rowsRead.exact)
+			})
+		},
+		{
+			key: "total",
+			done: e.workedOut.totalChecked,
+			words: a(e.workedOut.totalChecked ? "RECEIPT.mark.checked" : "RECEIPT.mark.notChecked")
+		}
+	], l = RC(e.smallPrint, a);
+	return /* @__PURE__ */ (0, M.jsxs)("article", {
+		className: [LC.receipt, i].filter(Boolean).join(" "),
+		"aria-label": a("RECEIPT.title", { id: e.receiptId }),
+		"data-receipt-id": e.receiptId,
+		children: [
+			/* @__PURE__ */ (0, M.jsx)("ol", {
+				"aria-label": a("RECEIPT.workedOut"),
+				...s(LC.marks),
+				children: c.map((e) => /* @__PURE__ */ (0, M.jsxs)("li", {
+					className: LC.mark,
+					"data-mark": e.key,
+					children: [/* @__PURE__ */ (0, M.jsx)(xr, {
+						mark: e.done ? "cha" : "off",
+						wordsKey: e.done ? "RECEIPT.markDone" : "RECEIPT.markOpen"
+					}), /* @__PURE__ */ (0, M.jsx)("span", {
+						className: LC.markWords,
+						children: e.words
+					})]
+				}, e.key))
+			}),
+			/* @__PURE__ */ (0, M.jsxs)("dl", {
+				className: LC.lines,
+				children: [
+					/* @__PURE__ */ (0, M.jsxs)("div", {
+						...s(LC.line),
+						children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: a("RECEIPT.calculation") }), /* @__PURE__ */ (0, M.jsx)("dd", {
+							className: "fig",
+							children: e.calculation
+						})]
+					}),
+					/* @__PURE__ */ (0, M.jsxs)("div", {
+						...s(LC.line),
+						children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: a("RECEIPT.period") }), /* @__PURE__ */ (0, M.jsx)("dd", {
+							className: "fig",
+							children: e.period ? a("RECEIPT.periodRange", {
+								from: e.period.from,
+								to: e.period.to
+							}) : /* @__PURE__ */ (0, M.jsx)(Ih, { missing: "not-applicable" })
+						})]
+					}),
+					/* @__PURE__ */ (0, M.jsxs)("div", {
+						...s(LC.line),
+						children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: a("RECEIPT.asKnownOn") }), /* @__PURE__ */ (0, M.jsx)("dd", {
+							className: "fig",
+							children: e.asKnownOn
+						})]
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, M.jsxs)("dl", {
+				className: LC.lines,
+				children: [/* @__PURE__ */ (0, M.jsxs)("div", {
+					...s(LC.line),
+					children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: a("RECEIPT.rowsCounted") }), /* @__PURE__ */ (0, M.jsx)("dd", {
+						className: "fig",
+						children: e.rowsCounted.display
+					})]
+				}), e.leftOut.length === 0 ? /* @__PURE__ */ (0, M.jsxs)("div", {
+					...s(LC.line),
+					children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: a("RECEIPT.leftOut") }), /* @__PURE__ */ (0, M.jsx)("dd", {
+						className: "fig",
+						children: a("RECEIPT.leftOutNone")
+					})]
+				}) : e.leftOut.map((e, t) => /* @__PURE__ */ (0, M.jsxs)("div", {
+					...s(LC.line, LC.indent),
+					"data-left-out": "",
+					children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: a("RECEIPT.leftOutReason", { reason: e.reason }) }), /* @__PURE__ */ (0, M.jsx)("dd", {
+						className: "fig",
+						children: e.rows.display
+					})]
+				}, `${e.reason}-${t}`))]
+			}),
+			/* @__PURE__ */ (0, M.jsxs)("div", {
+				...s(LC.totals),
+				children: [e.statement !== void 0 && /* @__PURE__ */ (0, M.jsx)(jh, { kind: e.statement }), e.totals.length === 0 ? /* @__PURE__ */ (0, M.jsxs)("p", {
+					className: LC.total,
+					children: [/* @__PURE__ */ (0, M.jsx)("span", { children: a("RECEIPT.total") }), /* @__PURE__ */ (0, M.jsx)(Ih, { missing: "unknown" })]
+				}) : /* @__PURE__ */ (0, M.jsx)("dl", {
+					className: LC.totalList,
+					children: e.totals.map((e) => /* @__PURE__ */ (0, M.jsxs)("div", {
+						className: LC.total,
+						children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: e.label }), /* @__PURE__ */ (0, M.jsx)("dd", { children: /* @__PURE__ */ (0, M.jsx)(Lh, {
+							value: e.figure,
+							onReceipt: t
+						}) })]
+					}, e.key))
+				})]
+			}),
+			/* @__PURE__ */ (0, M.jsxs)("dl", {
+				className: LC.small,
+				"aria-label": a("RECEIPT.smallPrint"),
+				children: [l.map((e) => /* @__PURE__ */ (0, M.jsx)("div", {
+					"data-small": e.key,
+					...s(LC.smallLine),
+					children: e.node
+				}, e.key)), /* @__PURE__ */ (0, M.jsxs)("div", {
+					"data-small": "id",
+					...s(LC.smallLine),
+					children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: a("RECEIPT.small.id") }), /* @__PURE__ */ (0, M.jsx)("dd", {
+						className: "fig",
+						children: e.receiptId
+					})]
+				})]
+			}),
+			(n || r) && /* @__PURE__ */ (0, M.jsxs)("div", {
+				...s(LC.links),
+				children: [n && /* @__PURE__ */ (0, M.jsx)(F, {
+					variant: "link",
+					onClick: () => n(e.receiptId),
+					children: a("RECEIPT.openRows")
+				}), r && /* @__PURE__ */ (0, M.jsx)(F, {
+					variant: "link",
+					onClick: () => r(e.receiptId),
+					children: a("RECEIPT.export")
+				})]
+			})
+		]
+	});
+}
+//#endregion
+//#region app/ui/src/bridge/receipt-view.ts
+function BC(e) {
+	return {
+		exact: e,
+		display: eh(e)
+	};
+}
+function VC(e, t) {
+	return e.length <= 10 ? Gm(e, "short", t.language) : `${Gm(e.slice(0, 10), "short", t.language)}, ${Km(e, t.timeZone)}`;
+}
+function HC(e, t) {
+	return {
+		from: Gm(e.from, "short", t.language),
+		to: Gm(e.to, "short", t.language)
+	};
+}
+function UC(e, t, n) {
+	if (!n) return {
+		key: e.key,
+		label: e.label,
+		figure: {
+			kind: "missing",
+			missing: "unknown"
+		}
+	};
+	let r = t.stale ? ["stale"] : [];
+	if (e.unit === "basis-points") {
+		let n = {
+			kind: "percent",
+			exact: e.minor,
+			display: th(e.minor),
+			receiptId: t.id,
+			labels: r
+		};
+		return {
+			key: e.key,
+			label: e.label,
+			figure: n
+		};
+	}
+	let i = e.currency ?? t.currency, a = i === "INR" ? {
+		kind: "money",
+		exact: e.minor,
+		display: Xm(e.minor),
+		receiptId: t.id,
+		labels: r
+	} : {
+		kind: "money",
+		exact: e.minor,
+		display: e.display,
+		receiptId: t.id,
+		labels: r,
+		asWritten: i
+	};
+	return {
+		key: e.key,
+		label: e.label,
+		figure: a
+	};
+}
+function WC(e) {
+	let t = /* @__PURE__ */ new Map();
+	for (let n of e.exclusions) t.set(n.reason, (t.get(n.reason) ?? 0n) + 1n);
+	return [...t].map(([e, t]) => ({
+		reason: e,
+		rows: BC(t.toString())
+	}));
+}
+function GC(e, t) {
+	let n = e.coverage, r = n.completeness !== "empty" && (n.completeness !== "partial" || n.countedRows !== 0), i = BigInt(n.countedRows), a = BigInt(e.exclusions.length), o = BC((i + (BigInt(n.excludedRows) > a ? BigInt(n.excludedRows) : a)).toString());
+	return {
+		receiptId: e.id,
+		workedOut: {
+			...t.question !== void 0 && t.question.trim().length > 0 ? { question: t.question.trim() } : {},
+			calculation: e.operation,
+			rowsRead: o,
+			totalChecked: r && !e.stale && n.unresolvedConflicts === 0
+		},
+		calculation: e.operation,
+		...e.period === null ? {} : { period: HC(e.period, t) },
+		asKnownOn: VC(e.asOf, t),
+		rowsCounted: BC(i.toString()),
+		leftOut: WC(e),
+		totals: e.figures.map((t) => UC(t, e, r)),
+		...e.stale ? { statement: "stale" } : {},
+		smallPrint: { ...e.sourceIds.length > 0 ? { source: { names: e.sourceIds.join(", ") } } : {} }
+	};
+}
 //#endregion
 //#region app/ui/src/screens/today/TodayDestination.tsx
-function LC({ value: e }) {
-	return e === null ? /* @__PURE__ */ (0, M.jsx)(Ih, { missing: "unknown" }) : typeof e == "object" ? Array.isArray(e) ? /* @__PURE__ */ (0, M.jsx)("ol", { children: e.map((e, t) => /* @__PURE__ */ (0, M.jsx)("li", { children: /* @__PURE__ */ (0, M.jsx)(LC, { value: e }) }, t)) }) : /* @__PURE__ */ (0, M.jsx)("dl", { children: Object.entries(e).map(([e, t]) => /* @__PURE__ */ (0, M.jsxs)("div", { children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: e }), /* @__PURE__ */ (0, M.jsx)("dd", { children: /* @__PURE__ */ (0, M.jsx)(LC, { value: t }) })] }, e)) }) : /* @__PURE__ */ (0, M.jsx)("span", {
+function KC({ value: e }) {
+	return e === null ? /* @__PURE__ */ (0, M.jsx)(Ih, { missing: "unknown" }) : typeof e == "object" ? Array.isArray(e) ? /* @__PURE__ */ (0, M.jsx)("ol", { children: e.map((e, t) => /* @__PURE__ */ (0, M.jsx)("li", { children: /* @__PURE__ */ (0, M.jsx)(KC, { value: e }) }, t)) }) : /* @__PURE__ */ (0, M.jsx)("dl", { children: Object.entries(e).map(([e, t]) => /* @__PURE__ */ (0, M.jsxs)("div", { children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: e }), /* @__PURE__ */ (0, M.jsx)("dd", { children: /* @__PURE__ */ (0, M.jsx)(KC, { value: t }) })] }, e)) }) : /* @__PURE__ */ (0, M.jsx)("span", {
 		className: typeof e == "string" && /^-?\d/.test(e) ? "fig" : void 0,
 		children: String(e)
 	});
 }
-function RC({ detail: e, page: t, origin: n, onClose: r, onReview: i, onNext: a, onFresh: o, onReceipt: s, back: c }) {
-	let l = N();
+function qC({ detail: e, page: t, origin: n, onClose: r, onReview: i, onNext: a, onFresh: o, onReceipt: s, back: c, timeZone: l = null }) {
+	let u = N(), d = Pn(), f = (0, _.useRef)(null), p = null;
+	if (e?.receipt !== void 0 && l !== null) try {
+		p = GC(e.receipt, {
+			language: d,
+			timeZone: l
+		});
+	} catch {
+		p = null;
+	}
 	return /* @__PURE__ */ (0, M.jsx)(bh, {
-		kind: l(e === null ? "TODAY_ENGINE.scope" : "TODAY_ENGINE.detail"),
-		title: e?.kind === "activity" ? l("TODAY_ENGINE.activity") : e?.title ?? l("TODAY_ENGINE.scope"),
+		kind: u(e === null ? "TODAY_ENGINE.scope" : "TODAY_ENGINE.detail"),
+		title: e?.kind === "activity" ? u("TODAY_ENGINE.activity") : e?.title ?? u("TODAY_ENGINE.scope"),
 		origin: n,
 		onClose: r,
 		back: c,
 		children: e === null && t !== null ? /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [
-			/* @__PURE__ */ (0, M.jsx)("p", { children: l(`TODAY_ENGINE.scope.${t.completeness}`) }),
-			/* @__PURE__ */ (0, M.jsx)("p", { children: l("TODAY_ENGINE.known", { count: String(t.knownCount) }) }),
+			/* @__PURE__ */ (0, M.jsx)("p", { children: u(`TODAY_ENGINE.scope.${t.completeness}`) }),
+			/* @__PURE__ */ (0, M.jsx)("p", { children: u("TODAY_ENGINE.known", { count: String(t.knownCount) }) }),
 			/* @__PURE__ */ (0, M.jsx)("ol", { children: t.rows.map((e) => /* @__PURE__ */ (0, M.jsxs)("li", { children: [
 				/* @__PURE__ */ (0, M.jsx)(xr, { mark: "you" }),
 				" ",
@@ -31531,49 +31805,63 @@ function RC({ detail: e, page: t, origin: n, onClose: r, onReview: i, onNext: a,
 			a && /* @__PURE__ */ (0, M.jsx)(F, {
 				variant: "quiet",
 				onClick: a,
-				children: l("TODAY_ENGINE.next")
+				children: u("TODAY_ENGINE.next")
 			}),
 			/* @__PURE__ */ (0, M.jsx)(F, {
 				variant: "link",
 				onClick: o,
-				children: l("TODAY_ENGINE.readAgain")
+				children: u("TODAY_ENGINE.readAgain")
 			})
-		] }) : e === null ? /* @__PURE__ */ (0, M.jsx)("p", { children: l("TODAY_ENGINE.unavailable") }) : /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [
-			e.kind === "activity" && /* @__PURE__ */ (0, M.jsx)("p", { children: l("TODAY_ENGINE.activityPartial") }),
-			/* @__PURE__ */ (0, M.jsx)("p", { children: l("TODAY_ENGINE.sourceWords") }),
-			e.receiptIds.map((e) => /* @__PURE__ */ (0, M.jsxs)("p", { children: [
-				/* @__PURE__ */ (0, M.jsx)(F, {
-					variant: "link",
-					"aria-label": l("TODAY_ENGINE.proof", { id: e }),
-					onClick: (t) => s(e, t.currentTarget),
-					children: l("TODAY_ENGINE.proofShort")
-				}),
-				" ",
-				/* @__PURE__ */ (0, M.jsx)("span", { children: e })
-			] }, e)),
-			/* @__PURE__ */ (0, M.jsx)(LC, { value: e.record })
+		] }) : e === null ? /* @__PURE__ */ (0, M.jsx)("p", { children: u("TODAY_ENGINE.unavailable") }) : /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [
+			e.kind === "activity" && /* @__PURE__ */ (0, M.jsx)("p", { children: u("TODAY_ENGINE.activityPartial") }),
+			p !== null && /* @__PURE__ */ (0, M.jsx)(zC, {
+				receipt: p,
+				onReceipt: () => {
+					let e = f.current;
+					e && (e.open = !0, e.querySelector("summary")?.focus());
+				}
+			}),
+			/* @__PURE__ */ (0, M.jsxs)("details", {
+				ref: f,
+				open: p === null,
+				children: [
+					/* @__PURE__ */ (0, M.jsx)("summary", { children: u("TODAY_ENGINE.every") }),
+					/* @__PURE__ */ (0, M.jsx)("p", { children: u("TODAY_ENGINE.sourceWords") }),
+					e.receiptIds.map((e) => /* @__PURE__ */ (0, M.jsxs)("p", { children: [
+						/* @__PURE__ */ (0, M.jsx)(F, {
+							variant: "link",
+							"aria-label": u("TODAY_ENGINE.proof", { id: e }),
+							onClick: (t) => s(e, t.currentTarget),
+							children: u("TODAY_ENGINE.proofShort")
+						}),
+						" ",
+						/* @__PURE__ */ (0, M.jsx)("span", { children: e })
+					] }, e)),
+					/* @__PURE__ */ (0, M.jsx)(KC, { value: e.record })
+				]
+			})
 		] })
 	});
 }
 //#endregion
 //#region app/ui/src/format/today-events.ts
-function zC(e, t, n = {}) {
+function JC(e, t, n = {}) {
 	let r = e === "hi" ? An : kn;
 	return (r[`TODAY_ENGINE.${t}`] ?? r["TODAY_ENGINE.unavailable"] ?? "").replace(/\{([^}]+)\}/g, (e, t) => n[t] ?? e);
 }
-function BC(e, t, n) {
-	let r, i, a = e.actor.kind === "member" ? zC(n, "actor", { id: e.actor.memberId }) : zC(n, "actorMissing");
+function YC(e, t, n) {
+	let r, i, a = e.actor.kind === "member" ? JC(n, "actor", { id: e.actor.memberId }) : JC(n, "actorMissing");
 	switch (e.kind) {
 		case "source.imported":
-			r = zC(n, "event.source.imported"), i = `${zC(n, "experimental")} · ${a}`;
+			r = JC(n, "event.source.imported"), i = `${JC(n, "experimental")} · ${a}`;
 			break;
 		case "source.import-refused":
-			r = zC(n, "event.source.import-refused"), i = `${zC(n, "experimental")} · ${a}`;
+			r = JC(n, "event.source.import-refused"), i = `${JC(n, "experimental")} · ${a}`;
 			break;
 		case "calculation.completed":
-			r = zC(n, "event.calculation.completed"), i = [
+			r = JC(n, "event.calculation.completed"), i = [
 				e.args.operation,
-				...e.args.stale ? [zC(n, "stale")] : [],
+				...e.args.stale ? [JC(n, "stale")] : [],
 				a
 			].join(" · ");
 			break;
@@ -31585,15 +31873,15 @@ function BC(e, t, n) {
 		case "action.reconciled":
 		case "action.cancelled":
 		case "action.interrupted":
-			r = zC(n, `event.${e.kind}`), i = `${e.args.operation} · ${a}`;
+			r = JC(n, `event.${e.kind}`), i = `${e.args.operation} · ${a}`;
 			break;
 		case "decision.created":
 		case "decision.revised":
 		case "decision.reviewed":
-			r = zC(n, `event.${e.kind}`), i = a;
+			r = JC(n, `event.${e.kind}`), i = a;
 			break;
 		case "job.delivered":
-			r = zC(n, "event.job.delivered"), i = `${zC(n, "spentMinor", { value: e.args.spentMinor })} · ${a}`;
+			r = JC(n, "event.job.delivered"), i = `${JC(n, "spentMinor", { value: e.args.spentMinor })} · ${a}`;
 			break;
 		default: return e;
 	}
@@ -31607,30 +31895,30 @@ function BC(e, t, n) {
 }
 //#endregion
 //#region app/ui/src/bridge/today-engine.ts
-var VC = () => {
+var XC = () => {
 	throw new um("today");
 };
-function HC(e) {
+function ZC(e) {
 	return typeof e == "object" && !!e && !Array.isArray(e);
 }
-function UC(e, t = !1) {
+function QC(e, t = !1) {
 	let n = /* @__PURE__ */ new WeakSet(), r = 0, i = 0, a = (e, o, s) => {
-		if (++r > 5e5 || o > 40) return VC();
+		if (++r > 5e5 || o > 40) return XC();
 		if (e === null || typeof e == "boolean") return e;
-		if (typeof e == "number") return Number.isFinite(e) ? e : VC();
-		if (typeof e == "string") return i += e.length, (t && /^modelReceipts\.\d+\.payload$/.test(s) ? e.length <= 262144 && new TextEncoder().encode(e).byteLength <= 262144 : e.length <= 5e4) && i <= 4e6 ? e : VC();
-		if (typeof e != "object" || n.has(e) || Object.getOwnPropertySymbols(e).length) return VC();
+		if (typeof e == "number") return Number.isFinite(e) ? e : XC();
+		if (typeof e == "string") return i += e.length, (t && /^modelReceipts\.\d+\.payload$/.test(s) ? e.length <= 262144 && new TextEncoder().encode(e).byteLength <= 262144 : e.length <= 5e4) && i <= 4e6 ? e : XC();
+		if (typeof e != "object" || n.has(e) || Object.getOwnPropertySymbols(e).length) return XC();
 		let c = Array.isArray(e), l = Object.getPrototypeOf(e);
-		if (c ? l !== Array.prototype : l !== Object.prototype && l !== null) return VC();
+		if (c ? l !== Array.prototype : l !== Object.prototype && l !== null) return XC();
 		n.add(e);
 		let u = Object.getOwnPropertyDescriptors(e), d;
 		if (c) {
 			let e = u.length?.value;
-			if (typeof e != "number" || !Number.isSafeInteger(e) || e < 0 || e > 2e4 || Object.keys(u).length !== e + 1) return VC();
+			if (typeof e != "number" || !Number.isSafeInteger(e) || e < 0 || e > 2e4 || Object.keys(u).length !== e + 1) return XC();
 			let t = [];
 			for (let n = 0; n < e; n++) {
 				let e = u[String(n)];
-				if (!e?.enumerable || !Object.hasOwn(e, "value")) return VC();
+				if (!e?.enumerable || !Object.hasOwn(e, "value")) return XC();
 				let r = e.value;
 				t.push(a(r, o + 1, `${s}.${n}`));
 			}
@@ -31638,7 +31926,7 @@ function UC(e, t = !1) {
 		} else {
 			let e = {};
 			for (let [t, n] of Object.entries(u)) {
-				if (!n.enumerable || !Object.hasOwn(n, "value")) return VC();
+				if (!n.enumerable || !Object.hasOwn(n, "value")) return XC();
 				let r = n.value;
 				Object.defineProperty(e, t, {
 					value: a(r, o + 1, s ? `${s}.${t}` : t),
@@ -31653,20 +31941,20 @@ function UC(e, t = !1) {
 	};
 	return a(e, 0, "");
 }
-function WC(e) {
+function $C(e) {
 	if (typeof e == "object" && e) {
-		for (let t of Object.values(e)) WC(t);
+		for (let t of Object.values(e)) $C(t);
 		Object.freeze(e);
 	}
 	return e;
 }
-function GC(e, t) {
-	let n = UC(e);
-	return t(n) ? WC(n) : VC();
+function ew(e, t) {
+	let n = QC(e);
+	return t(n) ? $C(n) : XC();
 }
 function q(e, t) {
 	return (n) => {
-		if (!HC(n)) return !1;
+		if (!ZC(n)) return !1;
 		let r = [...Object.keys(e), ...Object.keys(t ?? {})];
 		if (Object.keys(n).some((e) => !r.includes(e))) return !1;
 		for (let [t, r] of Object.entries(e)) if (!Object.hasOwn(n, t) || !r(n[t])) return !1;
@@ -31674,315 +31962,315 @@ function q(e, t) {
 		return !0;
 	};
 }
-function KC(e, t = 2e4) {
+function tw(e, t = 2e4) {
 	return (n) => Array.isArray(n) && n.length <= t && n.every(e);
 }
 function J(e) {
 	return (t) => t === e;
 }
-function qC(...e) {
+function nw(...e) {
 	return (t) => e.some((e) => e === t);
 }
-function JC(...e) {
+function rw(...e) {
 	return (t) => e.some((e) => e(t));
 }
-var Y = (e) => typeof e == "string" && e.trim().length > 0 && e.length <= 5e3 && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(e), X = (e) => Y(e) && /^[A-Za-z0-9_.:-]{1,200}$/.test(e), YC = (e) => typeof e == "string" && /^[a-f0-9]{64}$/.test(e), XC = (e) => typeof e == "number" && Number.isSafeInteger(e) && e >= 0, ZC = (e) => XC(e) && e > 0, QC = (e) => typeof e == "boolean", $C = (e) => typeof e == "string" && /^-?(0|[1-9]\d*)$/.test(e) && e.length <= 1e3, ew = (e) => $C(e) && !e.startsWith("-"), tw = (e) => typeof e == "string" && e.trim().length > 0 && e.length <= 5e4, nw = (e) => typeof e == "string" && /^\d{4}-\d{2}-\d{2}$/.test(e) && Number.isFinite(Date.parse(`${e}T00:00:00Z`)) && (/* @__PURE__ */ new Date(`${e}T00:00:00Z`)).toISOString().slice(0, 10) === e, rw = (e) => typeof e == "string" && nw(e.slice(0, 10)) && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(e) && Number.isFinite(Date.parse(e)), iw = (e) => rw(e) && new Date(e).toISOString() === e, aw = (e) => {
+var Y = (e) => typeof e == "string" && e.trim().length > 0 && e.length <= 5e3 && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(e), X = (e) => Y(e) && /^[A-Za-z0-9_.:-]{1,200}$/.test(e), iw = (e) => typeof e == "string" && /^[a-f0-9]{64}$/.test(e), aw = (e) => typeof e == "number" && Number.isSafeInteger(e) && e >= 0, ow = (e) => aw(e) && e > 0, sw = (e) => typeof e == "boolean", cw = (e) => typeof e == "string" && /^-?(0|[1-9]\d*)$/.test(e) && e.length <= 1e3, lw = (e) => cw(e) && !e.startsWith("-"), uw = (e) => typeof e == "string" && e.trim().length > 0 && e.length <= 5e4, dw = (e) => typeof e == "string" && /^\d{4}-\d{2}-\d{2}$/.test(e) && Number.isFinite(Date.parse(`${e}T00:00:00Z`)) && (/* @__PURE__ */ new Date(`${e}T00:00:00Z`)).toISOString().slice(0, 10) === e, fw = (e) => typeof e == "string" && dw(e.slice(0, 10)) && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(e) && Number.isFinite(Date.parse(e)), pw = (e) => fw(e) && new Date(e).toISOString() === e, mw = (e) => {
 	if (!Y(e) || e.length > 100 || !/^[A-Za-z][A-Za-z0-9_+.-]*(?:\/[A-Za-z0-9_+.-]+)*$/.test(e)) return !1;
 	try {
 		return new Intl.DateTimeFormat("en", { timeZone: e }), !0;
 	} catch {
 		return !1;
 	}
-}, ow = (e) => JC(e, J(null)), sw = q({
-	from: nw,
-	to: nw
-}), cw = (e) => e.from <= e.to, lw = (e) => sw(e) && cw(e), uw = q({
-	date: nw,
-	timeZone: aw
-}), dw = q({
-	id: tw,
-	dictionaryHash: YC,
-	version: ZC
-}), fw = q({
+}, hw = (e) => rw(e, J(null)), gw = q({
+	from: dw,
+	to: dw
+}), _w = (e) => e.from <= e.to, vw = (e) => gw(e) && _w(e), yw = q({
+	date: dw,
+	timeZone: mw
+}), bw = q({
+	id: uw,
+	dictionaryHash: iw,
+	version: ow
+}), xw = q({
 	id: X,
-	digest: YC
-}), pw = q({
-	sourceIds: KC(X, 64),
-	branch: ow(Y)
-}), mw = q({
+	digest: iw
+}), Sw = q({
+	sourceIds: tw(X, 64),
+	branch: hw(Y)
+}), Cw = q({
 	id: X,
 	label: Y,
-	period: lw
-}), hw = q({
+	period: vw
+}), ww = q({
 	operation: X,
 	figureKey: X,
-	period: lw
-}), gw = q({
-	dictionaryHash: YC,
-	asOf: iw,
-	scope: pw,
-	tiles: KC(q({
+	period: vw
+}), Tw = q({
+	dictionaryHash: iw,
+	asOf: pw,
+	scope: Sw,
+	tiles: tw(q({
 		id: X,
 		label: Y,
 		operation: X,
 		figureKey: X,
-		period: lw,
-		buckets: KC(mw, 120)
-	}, { comparison: hw }), 3)
-}), _w = (e) => !gw(e) || e.tiles.length !== 3 || new Set(e.scope.sourceIds).size !== e.scope.sourceIds.length || new Set(e.tiles.map((e) => e.id)).size !== 3 ? !1 : e.tiles.every((e) => new Set(e.buckets.map((e) => e.id)).size === e.buckets.length && e.buckets.every((t, n) => t.period.from >= e.period.from && t.period.to <= e.period.to && (n === 0 || e.buckets[n - 1].period.to < t.period.from))), vw = q({
-	dictionaryHash: YC,
-	ontologyVersion: ZC,
-	definitionHash: YC,
-	definitions: KC(q({
+		period: vw,
+		buckets: tw(Cw, 120)
+	}, { comparison: ww }), 3)
+}), Ew = (e) => !Tw(e) || e.tiles.length !== 3 || new Set(e.scope.sourceIds).size !== e.scope.sourceIds.length || new Set(e.tiles.map((e) => e.id)).size !== 3 ? !1 : e.tiles.every((e) => new Set(e.buckets.map((e) => e.id)).size === e.buckets.length && e.buckets.every((t, n) => t.period.from >= e.period.from && t.period.to <= e.period.to && (n === 0 || e.buckets[n - 1].period.to < t.period.from))), Dw = q({
+	dictionaryHash: iw,
+	ontologyVersion: ow,
+	definitionHash: iw,
+	definitions: tw(q({
 		name: Y,
 		label: Y,
 		meaning: Y,
 		kind: Y,
 		field: Y,
 		currency: Y,
-		nulls: qC("exclude", "reject")
-	}, { sign: qC(1, -1) }), 1e3),
+		nulls: nw("exclude", "reject")
+	}, { sign: nw(1, -1) }), 1e3),
 	operationId: X,
-	operationType: qC("sum", "margin", "aging", "change", "scenario")
-}), yw = q({
+	operationType: nw("sum", "margin", "aging", "change", "scenario")
+}), Ow = q({
 	code: Y,
 	message: Y
 }, {
 	definitionName: Y,
-	period: lw
-}), bw = q({
-	selectedRows: XC,
-	countedRows: XC,
-	excludedRows: XC,
-	unresolvedConflicts: XC,
-	importIds: KC(X),
-	completeness: qC("reconciled-imports", "unreconciled-facts", "empty", "partial"),
-	gaps: KC(Y)
-}), xw = q({
+	period: vw
+}), kw = q({
+	selectedRows: aw,
+	countedRows: aw,
+	excludedRows: aw,
+	unresolvedConflicts: aw,
+	importIds: tw(X),
+	completeness: nw("reconciled-imports", "unreconciled-facts", "empty", "partial"),
+	gaps: tw(Y)
+}), Aw = q({
 	key: X,
 	label: Y,
-	minor: $C,
+	minor: cw,
 	display: Y,
-	unit: qC("money", "basis-points")
-}, { currency: Y }), Sw = q({
-	status: qC("available", "partial", "unavailable"),
-	figure: ow(xw),
-	receiptId: ow(X),
-	definition: ow(vw),
-	coverage: ow(bw),
-	gaps: KC(yw, 1e3)
-}), Cw = (e) => Sw(e) && (e.status === "unavailable" ? e.figure === null : e.figure !== null) && (e.receiptId === null ? e.definition === null && e.coverage === null : e.definition !== null && e.coverage !== null) && (e.figure === null || e.receiptId !== null), ww = q({
+	unit: nw("money", "basis-points")
+}, { currency: Y }), jw = q({
+	status: nw("available", "partial", "unavailable"),
+	figure: hw(Aw),
+	receiptId: hw(X),
+	definition: hw(Dw),
+	coverage: hw(kw),
+	gaps: tw(Ow, 1e3)
+}), Mw = (e) => jw(e) && (e.status === "unavailable" ? e.figure === null : e.figure !== null) && (e.receiptId === null ? e.definition === null && e.coverage === null : e.definition !== null && e.coverage !== null) && (e.figure === null || e.receiptId !== null), Nw = q({
 	id: X,
 	label: Y,
 	operation: X,
 	figureKey: X,
-	period: lw,
-	value: Cw,
-	points: KC(q({
+	period: vw,
+	value: Mw,
+	points: tw(q({
 		id: X,
 		label: Y,
-		period: lw,
-		value: Cw
+		period: vw,
+		value: Mw
 	}), 120)
 }, { comparison: q({
 	operation: X,
 	figureKey: X,
-	period: lw,
-	value: Cw
-}) }), Tw = q({
-	reference: fw,
-	display: uw,
+	period: vw,
+	value: Mw
+}) }), Pw = q({
+	reference: xw,
+	display: yw,
 	configuration: q({
 		id: X,
-		digest: YC,
-		starterPack: dw,
+		digest: iw,
+		starterPack: bw,
 		origin: J("custom")
 	}),
 	result: q({
 		version: J(1),
-		asOf: iw,
+		asOf: pw,
 		dictionary: q({
-			hash: YC,
-			version: ZC
+			hash: iw,
+			version: ow
 		}),
-		scope: pw,
+		scope: Sw,
 		atomic: J(!1),
-		verification: qC("configured", "not-configured"),
-		tiles: KC(ww, 3)
+		verification: nw("configured", "not-configured"),
+		tiles: tw(Nw, 3)
 	})
-}), Ew = (e) => q({
+}), Fw = (e) => q({
 	kind: J(e),
 	id: X,
-	revision: ZC,
-	digest: YC
-}), Dw = q({
+	revision: ow,
+	digest: iw
+}), Iw = q({
 	kind: J("job-acceptance"),
 	id: X,
-	revision: ZC,
-	digest: YC,
-	deliverableDigest: YC
-}), Ow = q({
+	revision: ow,
+	digest: iw,
+	deliverableDigest: iw
+}), Lw = q({
 	kind: J("lesson-decision"),
 	id: X,
-	revision: ZC,
-	digest: YC,
+	revision: ow,
+	digest: iw,
 	reviewId: X,
-	reviewDigest: YC,
-	evaluationDigest: YC
-}), kw = JC(Ew("action-approval"), Ew("job-approval"), Dw, Ow), Aw = q({
+	reviewDigest: iw,
+	evaluationDigest: iw
+}), Rw = rw(Fw("action-approval"), Fw("job-approval"), Iw, Lw), zw = q({
 	id: X,
-	revision: ZC,
-	digest: YC
-}), jw = JC(q({
-	method: qC("actions.approve", "jobs.approve"),
+	revision: ow,
+	digest: iw
+}), Bw = rw(q({
+	method: nw("actions.approve", "jobs.approve"),
 	payload: q({
 		id: X,
-		digest: YC
+		digest: iw
 	})
 }), q({
 	method: J("jobs.accept"),
 	payload: q({
 		id: X,
-		reference: Dw
+		reference: Iw
 	})
 }), q({
 	method: J("memory.decideLesson"),
 	payload: q({
-		candidate: Aw,
+		candidate: zw,
 		reviewId: X,
-		reviewDigest: YC
+		reviewDigest: iw
 	}),
 	requiredHumanFields: (e) => Array.isArray(e) && e.length === 2 && e[0] === "decision" && e[1] === "reason"
-})), Mw = JC(q({
-	producer: qC("actions", "jobs", "lessons"),
+})), Vw = rw(q({
+	producer: nw("actions", "jobs", "lessons"),
 	id: X,
-	revision: ZC,
-	digest: YC
+	revision: ow,
+	digest: iw
 }), q({
 	producer: J("job-action-preview"),
 	id: X,
-	revision: ZC,
-	digest: YC,
+	revision: ow,
+	digest: iw,
 	stepId: X,
 	operationKey: Y,
 	actionId: X,
-	actionDigest: YC,
-	deliverableDigest: YC
-})), Nw = q({
-	kind: qC("action-approval", "job-approval", "job-acceptance", "lesson-decision"),
+	actionDigest: iw,
+	deliverableDigest: iw
+})), Hw = q({
+	kind: nw("action-approval", "job-approval", "job-acceptance", "lesson-decision"),
 	title: Y,
-	since: rw,
-	reference: kw,
-	request: jw,
-	canApprove: QC,
-	provenance: KC(Mw, 1e3)
-}), Pw = (e) => {
-	if (!Nw(e) || e.kind !== e.reference.kind) return !1;
+	since: fw,
+	reference: Rw,
+	request: Bw,
+	canApprove: sw,
+	provenance: tw(Vw, 1e3)
+}), Uw = (e) => {
+	if (!Hw(e) || e.kind !== e.reference.kind) return !1;
 	let t = e.reference, n = e.request;
-	return t.kind === "job-acceptance" ? n.method === "jobs.accept" && n.payload.id === t.id && bT(n.payload.reference, t) : t.kind === "lesson-decision" ? n.method === "memory.decideLesson" && bT(n.payload.candidate, {
+	return t.kind === "job-acceptance" ? n.method === "jobs.accept" && n.payload.id === t.id && kT(n.payload.reference, t) : t.kind === "lesson-decision" ? n.method === "memory.decideLesson" && kT(n.payload.candidate, {
 		id: t.id,
 		revision: t.revision,
 		digest: t.digest
 	}) && n.payload.reviewId === t.reviewId && n.payload.reviewDigest === t.reviewDigest : n.method === (t.kind === "action-approval" ? "actions.approve" : "jobs.approve") && "digest" in n.payload && n.payload.id === t.id && n.payload.digest === t.digest;
-}, Fw = q({ status: qC("complete", "incomplete", "unavailable") }, { reason: qC("PRODUCER_AUTHORITY_UNAVAILABLE", "PRODUCER_READ_UNAVAILABLE", "REVIEW_EVIDENCE_UNAVAILABLE", "UNSUPPORTED_MUTATION_CONTRACT") }), Iw = q({
+}, Ww = q({ status: nw("complete", "incomplete", "unavailable") }, { reason: nw("PRODUCER_AUTHORITY_UNAVAILABLE", "PRODUCER_READ_UNAVAILABLE", "REVIEW_EVIDENCE_UNAVAILABLE", "UNSUPPORTED_MUTATION_CONTRACT") }), Gw = q({
 	scope: J("prepared-actions-job-mandates-deliverables-lessons-v1"),
-	completeness: qC("complete", "incomplete", "unavailable"),
-	count: ow(XC),
-	knownCount: XC,
-	rows: KC(Pw, 100),
-	nextCursor: ow((e) => typeof e == "string" && /^[A-Za-z0-9_-]{1,512}$/.test(e)),
+	completeness: nw("complete", "incomplete", "unavailable"),
+	count: hw(aw),
+	knownCount: aw,
+	rows: tw(Uw, 100),
+	nextCursor: hw((e) => typeof e == "string" && /^[A-Za-z0-9_-]{1,512}$/.test(e)),
 	producers: q({
-		actions: Fw,
-		jobs: Fw,
-		lessons: Fw
+		actions: Ww,
+		jobs: Ww,
+		lessons: Ww
 	})
-}), Lw = (e) => {
-	if (!Iw(e) || e.knownCount < e.rows.length || (e.completeness === "complete" ? e.count !== e.knownCount : e.count !== null) || e.rows.some((t, n) => e.rows.slice(0, n).some((e) => bT(e.reference, t.reference))) || e.rows.length === 0 && (e.knownCount !== 0 || e.nextCursor !== null)) return !1;
+}), Kw = (e) => {
+	if (!Gw(e) || e.knownCount < e.rows.length || (e.completeness === "complete" ? e.count !== e.knownCount : e.count !== null) || e.rows.some((t, n) => e.rows.slice(0, n).some((e) => kT(e.reference, t.reference))) || e.rows.length === 0 && (e.knownCount !== 0 || e.nextCursor !== null)) return !1;
 	let t = Object.values(e.producers).map((e) => e.status);
 	return e.completeness === (t.every((e) => e === "complete") ? "complete" : t.every((e) => e === "unavailable") ? "unavailable" : "incomplete");
-}, Rw = q({
+}, qw = q({
 	kind: J("alert-episode"),
 	alertId: X,
 	episodeId: X
-}), zw = q({
+}), Jw = q({
 	kind: J("decision"),
 	decisionId: X
-}), Bw = q({
+}), Yw = q({
 	kind: J("compliance-entry"),
-	calendarId: tw,
-	entryId: tw
-}), Vw = q({
+	calendarId: uw,
+	entryId: uw
+}), Xw = q({
 	kind: J("reviewed-compliance-calendar"),
-	calendarId: tw,
-	version: tw
-}), Hw = q({
+	calendarId: uw,
+	version: uw
+}), Zw = q({
 	id: X,
-	status: qC("open", "cleared", "retracted"),
-	severity: qC("warning", "critical"),
-	openedAt: rw,
-	reopenCount: XC,
-	uncertain: QC,
-	observationIds: KC(X)
+	status: nw("open", "cleared", "retracted"),
+	severity: nw("warning", "critical"),
+	openedAt: fw,
+	reopenCount: aw,
+	uncertain: sw,
+	observationIds: tw(X)
 }, {
-	clearedAt: rw,
-	reopenedAt: rw
-}), Uw = q({
+	clearedAt: fw,
+	reopenedAt: fw
+}), Qw = q({
 	id: X,
 	anchorId: X,
-	observedAt: rw,
-	recordedAt: rw,
-	state: qC("breach", "clear", "band", "unknown"),
-	issues: KC(Y),
-	receiptId: ow(X)
+	observedAt: fw,
+	recordedAt: fw,
+	state: nw("breach", "clear", "band", "unknown"),
+	issues: tw(Y),
+	receiptId: hw(X)
 }, {
 	amends: X,
 	amendmentReason: Y
-}), Ww = q({
+}), $w = q({
 	id: X,
 	kind: J("local-alert-notice-v1"),
-	transition: qC("opened", "cleared", "escalated", "deescalated", "reopened", "uncertain", "evidence-restored", "amended"),
+	transition: nw("opened", "cleared", "escalated", "deescalated", "reopened", "uncertain", "evidence-restored", "amended"),
 	alertId: X,
 	episodeId: X,
-	at: rw,
+	at: fw,
 	observationId: X,
-	before: ow(Hw),
-	after: Hw,
+	before: hw(Zw),
+	after: Zw,
 	delivery: J("local-only")
-}), Gw = q({
-	reference: Rw,
+}), eT = q({
+	reference: qw,
 	conditionId: Y,
 	label: Y,
-	revision: ZC,
-	definitionDigest: YC,
-	branch: ow(Y),
-	sourceIds: KC(Y),
-	receiptIds: KC(X),
-	episode: Hw,
-	lastObservation: ow(Uw),
-	amendments: KC(Uw),
-	notices: KC(Ww),
+	revision: ow,
+	definitionDigest: iw,
+	branch: hw(Y),
+	sourceIds: tw(Y),
+	receiptIds: tw(X),
+	episode: Zw,
+	lastObservation: hw(Qw),
+	amendments: tw(Qw),
+	notices: tw($w),
 	evidence: q({
-		state: qC("current", "uncertain"),
-		issues: KC(Y)
+		state: nw("current", "uncertain"),
+		issues: tw(Y)
 	})
-}), Kw = (e) => Gw(e) && e.reference.episodeId === e.episode.id && e.notices.every((t) => t.alertId === e.reference.alertId && t.episodeId === e.reference.episodeId && t.after.id === t.episodeId && (t.before === null || t.before.id === t.episodeId)), qw = q({
-	reference: zw,
+}), tT = (e) => eT(e) && e.reference.episodeId === e.episode.id && e.notices.every((t) => t.alertId === e.reference.alertId && t.episodeId === e.reference.episodeId && t.after.id === t.episodeId && (t.before === null || t.before.id === t.episodeId)), nT = q({
+	reference: Jw,
 	text: Y,
-	reviewDate: nw,
-	due: qC("today", "overdue"),
+	reviewDate: dw,
+	due: nw("today", "overdue"),
 	status: J("open"),
-	branch: ow(Y),
-	revision: ow(ZC),
-	receiptIds: KC(X)
-}), Jw = q({
-	state: qC("applicable", "not-applicable", "unknown"),
-	basis: tw
-}), Yw = q({
-	entryId: tw,
-	title: tw,
-	dueDate: nw,
+	branch: hw(Y),
+	revision: hw(ow),
+	receiptIds: tw(X)
+}), rT = q({
+	state: nw("applicable", "not-applicable", "unknown"),
+	basis: uw
+}), iT = q({
+	entryId: uw,
+	title: uw,
+	dueDate: dw,
 	sourceUrl: (e) => {
-		if (!tw(e)) return !1;
+		if (!uw(e)) return !1;
 		try {
 			let t = new URL(e);
 			return t.protocol === "https:" && !!t.hostname;
@@ -31990,179 +32278,179 @@ var Y = (e) => typeof e == "string" && e.trim().length > 0 && e.length <= 5e3 &&
 			return !1;
 		}
 	},
-	publishedAt: rw,
-	lastCheckedAt: rw,
-	reviewedAt: rw,
-	reviewedBy: tw,
-	applicability: Jw,
-	reference: Bw
-}), Xw = (e) => Yw(e) && e.entryId === e.reference.entryId, Zw = q({
-	from: nw,
-	through: nw,
+	publishedAt: fw,
+	lastCheckedAt: fw,
+	reviewedAt: fw,
+	reviewedBy: uw,
+	applicability: rT,
+	reference: Yw
+}), aT = (e) => iT(e) && e.entryId === e.reference.entryId, oT = q({
+	from: dw,
+	through: dw,
 	days: J(7),
-	timeZone: aw
-}), Qw = (e) => Zw(e) && Date.parse(`${e.through}T00:00:00Z`) - Date.parse(`${e.from}T00:00:00Z`) === 5184e5, $w = q({
-	from: nw,
-	through: nw,
-	timeZone: aw
-}), eT = q({
-	window: Qw,
+	timeZone: mw
+}), sT = (e) => oT(e) && Date.parse(`${e.through}T00:00:00Z`) - Date.parse(`${e.from}T00:00:00Z`) === 5184e5, cT = q({
+	from: dw,
+	through: dw,
+	timeZone: mw
+}), lT = q({
+	window: sT,
 	state: J("reviewed"),
-	reference: Vw,
-	sourceIds: KC(tw),
-	reviewedAt: rw,
-	reviewedBy: tw,
-	lastCheckedAt: rw,
-	applicability: Jw,
-	coverage: $w,
-	rows: KC(Xw)
-}), tT = (e) => eT(e) && e.sourceIds.length > 0 && new Set(e.sourceIds).size === e.sourceIds.length && e.coverage.from <= e.window.from && e.coverage.through >= e.window.through && e.coverage.timeZone === e.window.timeZone && new Set(e.rows.map((e) => e.entryId)).size === e.rows.length && e.rows.every((t) => t.reference.calendarId === e.reference.calendarId && t.dueDate >= e.window.from && t.dueDate <= e.window.through), nT = (e) => Array.isArray(e) && e.length === 0, rT = JC(q({
-	window: Qw,
+	reference: Xw,
+	sourceIds: tw(uw),
+	reviewedAt: fw,
+	reviewedBy: uw,
+	lastCheckedAt: fw,
+	applicability: rT,
+	coverage: cT,
+	rows: tw(aT)
+}), uT = (e) => lT(e) && e.sourceIds.length > 0 && new Set(e.sourceIds).size === e.sourceIds.length && e.coverage.from <= e.window.from && e.coverage.through >= e.window.through && e.coverage.timeZone === e.window.timeZone && new Set(e.rows.map((e) => e.entryId)).size === e.rows.length && e.rows.every((t) => t.reference.calendarId === e.reference.calendarId && t.dueDate >= e.window.from && t.dueDate <= e.window.through), dT = (e) => Array.isArray(e) && e.length === 0, fT = rw(q({
+	window: sT,
 	state: J("unavailable"),
-	reason: qC("no-reviewed-calendar", "current-authority-unavailable"),
-	rows: nT
+	reason: nw("no-reviewed-calendar", "current-authority-unavailable"),
+	rows: dT
 }), q({
-	window: Qw,
+	window: sT,
 	state: J("unsupported"),
-	reason: qC("calendar-source-contract-required", "calendar-provenance-incomplete", "calendar-window-not-covered"),
-	rows: nT
-}), tT), iT = q({
+	reason: nw("calendar-source-contract-required", "calendar-provenance-incomplete", "calendar-window-not-covered"),
+	rows: dT
+}), uT), pT = q({
 	kind: J("today-attention-v1"),
 	request: q({
-		displayedDate: nw,
-		timeZone: aw
+		displayedDate: dw,
+		timeZone: mw
 	}, { branch: Y }),
 	authority: q({
 		workspaceId: X,
 		memberId: X,
-		epoch: ZC,
-		stateRevision: XC
+		epoch: ow,
+		stateRevision: aw
 	}),
-	alertEpisodes: KC(Kw),
-	dueDecisions: KC(qw),
-	calendar: rT,
+	alertEpisodes: tw(tT),
+	dueDecisions: tw(nT),
+	calendar: fT,
 	counts: q({
-		alertEpisodes: XC,
-		dueDecisions: XC,
-		calendarEntries: XC
+		alertEpisodes: aw,
+		dueDecisions: aw,
+		calendarEntries: aw
 	}),
-	alertsCheckedAt: rw,
+	alertsCheckedAt: fw,
 	evaluated: J(!1),
-	pin: YC
-}), aT = JC(q({
+	pin: iw
+}), mT = rw(q({
 	id: Y,
 	kind: J("alert-episode"),
-	value: Kw
+	value: tT
 }), q({
 	id: Y,
 	kind: J("due-decision"),
-	value: qw
+	value: nT
 }), q({
 	id: Y,
 	kind: J("compliance-entry"),
-	value: Xw
-})), oT = JC(q({
+	value: aT
+})), hT = rw(q({
 	state: J("unavailable"),
 	reason: J("selection-policy-required"),
-	rows: nT
+	rows: dT
 }), q({
 	state: J("configured"),
 	policyId: Y,
 	policyRevision: Y,
-	eligibleCount: XC,
-	rows: KC(aT, 5)
-})), sT = JC(q({
+	eligibleCount: aw,
+	rows: tw(mT, 5)
+})), gT = rw(q({
 	kind: J("member"),
 	memberId: X
-}), q({ kind: J("not-recorded") })), cT = q({
+}), q({ kind: J("not-recorded") })), _T = q({
 	kind: J("import"),
 	importId: X,
 	sourceId: X
-}), lT = q({
+}), vT = q({
 	kind: J("import-refusal"),
 	learningEventId: X
-}), uT = q({
+}), yT = q({
 	kind: J("receipt"),
 	receiptId: X
-}), dT = q({
+}), bT = q({
 	kind: J("action"),
 	actionId: X
-}), fT = q({
+}), xT = q({
 	kind: J("job-delivery"),
 	jobId: X
-}), pT = {
+}), ST = {
 	id: X,
-	at: iw,
-	actor: sT
-}, mT = JC(q({
-	...pT,
+	at: pw,
+	actor: gT
+}, CT = rw(q({
+	...ST,
 	kind: J("source.imported"),
 	args: q({
 		sourceId: X,
-		format: qC("csv", "tally-xml", "zoho-json", "gst-json", "bank-csv", "shopify-json", "xlsx"),
-		rowCount: XC,
+		format: nw("csv", "tally-xml", "zoho-json", "gst-json", "bank-csv", "shopify-json", "xlsx"),
+		rowCount: aw,
 		qualification: J("experimental")
 	}),
-	reference: cT
+	reference: _T
 }), q({
-	...pT,
+	...ST,
 	kind: J("source.import-refused"),
 	args: q({
 		sourceId: X,
-		reasonCode: qC("manual_confirmation", "ambiguous_field", "type_match", "date_format", "currency_mismatch", "duplicate_record", "exact_reference", "reconciliation", "unsupported_shape", "verified_readback"),
+		reasonCode: nw("manual_confirmation", "ambiguous_field", "type_match", "date_format", "currency_mismatch", "duplicate_record", "exact_reference", "reconciliation", "unsupported_shape", "verified_readback"),
 		qualification: J("experimental")
 	}),
-	reference: lT
+	reference: vT
 }), q({
-	...pT,
+	...ST,
 	kind: J("calculation.completed"),
 	args: q({
 		operation: X,
-		stale: QC
+		stale: sw
 	}),
-	reference: uT
+	reference: yT
 }), q({
-	...pT,
-	kind: qC("action.prepared", "action.revised", "action.approved", "action.attempt", "action.settled", "action.reconciled", "action.cancelled", "action.interrupted"),
+	...ST,
+	kind: nw("action.prepared", "action.revised", "action.approved", "action.attempt", "action.settled", "action.reconciled", "action.cancelled", "action.interrupted"),
 	args: q({
 		connector: X,
 		operation: X
 	}, {
-		outcome: qC("prepared", "approved", "executing", "verified", "unknown", "rejected", "blocked", "cancelled"),
-		businessSuccess: ow(QC)
+		outcome: nw("prepared", "approved", "executing", "verified", "unknown", "rejected", "blocked", "cancelled"),
+		businessSuccess: hw(sw)
 	}),
-	reference: dT
+	reference: bT
 }), q({
-	...pT,
-	kind: qC("decision.created", "decision.revised"),
-	args: q({}, { revision: ZC }),
-	reference: zw
+	...ST,
+	kind: nw("decision.created", "decision.revised"),
+	args: q({}, { revision: ow }),
+	reference: Jw
 }), q({
-	...pT,
+	...ST,
 	kind: J("decision.reviewed"),
-	args: q({ outcome: qC("accepted", "rejected", "continue", "completed") }, { revision: ZC }),
-	reference: zw
+	args: q({ outcome: nw("accepted", "rejected", "continue", "completed") }, { revision: ow }),
+	reference: Jw
 }), q({
-	...pT,
+	...ST,
 	kind: J("job.delivered"),
-	args: q({ spentMinor: ew }),
-	reference: fT
-})), hT = q({
-	date: nw,
-	timeZone: aw,
-	calendarRevision: ow(Y),
-	events: KC(mT, 6),
-	total: XC,
+	args: q({ spentMinor: lw }),
+	reference: xT
+})), wT = q({
+	date: dw,
+	timeZone: mw,
+	calendarRevision: hw(Y),
+	events: tw(CT, 6),
+	total: aw,
 	state: q({
-		kind: qC("complete", "partial", "unavailable"),
-		reasonCodes: KC(qC("CALENDAR_RULES_UNAVAILABLE", "AUTHORITY_RESOLVER_UNAVAILABLE", "UNSUPPORTED_EVENT_KIND", "EVENT_EVIDENCE_UNRESOLVED", "ACTOR_NOT_RECORDED", "PROJECTION_CAPABILITY_PARTIAL"), 6)
+		kind: nw("complete", "partial", "unavailable"),
+		reasonCodes: tw(nw("CALENDAR_RULES_UNAVAILABLE", "AUTHORITY_RESOLVER_UNAVAILABLE", "UNSUPPORTED_EVENT_KIND", "EVENT_EVIDENCE_UNRESOLVED", "ACTOR_NOT_RECORDED", "PROJECTION_CAPABILITY_PARTIAL"), 6)
 	})
-}), gT = q({
+}), TT = q({
 	kind: J("today-engine-v1"),
-	display: uw,
+	display: yw,
 	atomic: J(!1),
 	noAction: J(!0),
-	starterPack: ow(dw),
+	starterPack: hw(bw),
 	defaults: q({
 		state: J("unconfigured"),
 		reason: J("pack-defaults-not-configured")
@@ -32173,62 +32461,62 @@ var Y = (e) => typeof e == "string" && e.trim().length > 0 && e.length <= 5e3 &&
 		reasonCode: J("TODAY_ENGINE_CONTRACT_PARTIAL")
 	}),
 	productReviewCount: J(null),
-	tiles: JC(q({
+	tiles: rw(q({
 		state: J("prepared"),
-		value: Tw
+		value: Pw
 	}), q({
 		state: J("unavailable"),
-		reason: qC("capture-required", "tiles-service-unavailable")
+		reason: nw("capture-required", "tiles-service-unavailable")
 	})),
-	attention: JC(q({
+	attention: rw(q({
 		state: J("available"),
-		value: iT,
-		selection: oT
+		value: pT,
+		selection: hT
 	}), q({
 		state: J("unavailable"),
-		reason: qC("attention-service-unavailable", "attention-guards-required")
+		reason: nw("attention-service-unavailable", "attention-guards-required")
 	})),
-	review: JC(q({
+	review: rw(q({
 		state: J("available"),
-		value: Lw
+		value: Kw
 	}), q({
 		state: J("unavailable"),
 		reason: J("review-service-unavailable")
 	})),
-	dayEvents: JC(q({
+	dayEvents: rw(q({
 		state: J("available"),
-		value: hT
+		value: wT
 	}), q({
 		state: J("unavailable"),
 		reason: J("events-service-unavailable")
 	}))
-}), _T = q({
+}), ET = q({
 	configurationId: X,
-	configurationDigest: YC,
-	starterPack: dw,
-	request: _w
-}), vT = q({
+	configurationDigest: iw,
+	starterPack: bw,
+	request: Ew
+}), DT = q({
 	tileId: X,
-	form: qC("columns", "line", "ordered-bar"),
+	form: nw("columns", "line", "ordered-bar"),
 	sentence: Y
 }, {
 	from: Y,
 	to: Y
 });
-function yT(e) {
-	let t = GC(e, q({}, {
-		display: uw,
-		configuration: _T,
-		charts: KC(vT, 3)
+function OT(e) {
+	let t = ew(e, q({}, {
+		display: yw,
+		configuration: ET,
+		charts: tw(DT, 3)
 	}));
-	return t.configuration && t.configuration.request.dictionaryHash !== t.configuration.starterPack.dictionaryHash || t.charts && (new Set(t.charts.map((e) => e.tileId)).size !== t.charts.length || t.configuration && t.charts.some((e) => !t.configuration.request.tiles.some((t) => t.id === e.tileId))) ? VC() : t;
+	return t.configuration && t.configuration.request.dictionaryHash !== t.configuration.starterPack.dictionaryHash || t.charts && (new Set(t.charts.map((e) => e.tileId)).size !== t.charts.length || t.configuration && t.charts.some((e) => !t.configuration.request.tiles.some((t) => t.id === e.tileId))) ? XC() : t;
 }
-function bT(e, t) {
+function kT(e, t) {
 	let n = (e) => typeof e != "object" || !e ? JSON.stringify(e) : Array.isArray(e) ? `[${e.map(n).join(",")}]` : `{${Object.keys(e).sort().map((t) => `${JSON.stringify(t)}:${n(e[t])}`).join(",")}}`;
-	return n(UC(e)) === n(UC(t));
+	return n(QC(e)) === n(QC(t));
 }
-async function xT(e, t = !1) {
-	let n = UC(e), r = (e) => {
+async function AT(e, t = !1) {
+	let n = QC(e), r = (e) => {
 		if (typeof e != "object" || !e) return e;
 		if (Array.isArray(e)) return e.map(r);
 		let t = {};
@@ -32240,68 +32528,68 @@ async function xT(e, t = !1) {
 	}, i = new TextEncoder().encode(JSON.stringify(t ? r(n) : n)), a = await crypto.subtle.digest("SHA-256", i);
 	return [...new Uint8Array(a)].map((e) => e.toString(16).padStart(2, "0")).join("");
 }
-function ST(e, t) {
-	let n = GC(e, Tw);
-	if (!bT(n.display, {
+function jT(e, t) {
+	let n = ew(e, Pw);
+	if (!kT(n.display, {
 		date: t.date,
 		timeZone: t.timeZone
-	}) || n.configuration.id !== t.configurationId || n.configuration.digest !== t.configurationDigest || !bT(n.configuration.starterPack, t.starterPack) || n.result.dictionary.hash !== t.starterPack.dictionaryHash || n.result.dictionary.version !== t.starterPack.version || n.result.asOf !== t.request.asOf || !bT(n.result.scope, t.request.scope) || n.result.tiles.length !== 3) return VC();
+	}) || n.configuration.id !== t.configurationId || n.configuration.digest !== t.configurationDigest || !kT(n.configuration.starterPack, t.starterPack) || n.result.dictionary.hash !== t.starterPack.dictionaryHash || n.result.dictionary.version !== t.starterPack.version || n.result.asOf !== t.request.asOf || !kT(n.result.scope, t.request.scope) || n.result.tiles.length !== 3) return XC();
 	for (let e = 0; e < 3; e++) {
 		let r = n.result.tiles[e], i = t.request.tiles[e];
-		if (r.id !== i.id || r.label !== i.label || r.operation !== i.operation || r.figureKey !== i.figureKey || !bT(r.period, i.period) || r.points.length !== i.buckets.length || r.comparison === void 0 != (i.comparison === void 0)) return VC();
+		if (r.id !== i.id || r.label !== i.label || r.operation !== i.operation || r.figureKey !== i.figureKey || !kT(r.period, i.period) || r.points.length !== i.buckets.length || r.comparison === void 0 != (i.comparison === void 0)) return XC();
 		let a = (e, n, r) => (e.figure === null || e.figure.key === r) && (e.definition === null || e.definition.dictionaryHash === t.starterPack.dictionaryHash && e.definition.ontologyVersion === t.starterPack.version && e.definition.operationId === n);
-		if (!a(r.value, i.operation, i.figureKey)) return VC();
+		if (!a(r.value, i.operation, i.figureKey)) return XC();
 		for (let e = 0; e < r.points.length; e++) {
 			let t = r.points[e], n = i.buckets[e];
-			if (t.id !== n.id || t.label !== n.label || !bT(t.period, n.period) || !a(t.value, i.operation, i.figureKey)) return VC();
+			if (t.id !== n.id || t.label !== n.label || !kT(t.period, n.period) || !a(t.value, i.operation, i.figureKey)) return XC();
 		}
-		if (r.comparison && i.comparison && (r.comparison.operation !== i.comparison.operation || r.comparison.figureKey !== i.comparison.figureKey || !bT(r.comparison.period, i.comparison.period) || !a(r.comparison.value, i.comparison.operation, i.comparison.figureKey))) return VC();
+		if (r.comparison && i.comparison && (r.comparison.operation !== i.comparison.operation || r.comparison.figureKey !== i.comparison.figureKey || !kT(r.comparison.period, i.comparison.period) || !a(r.comparison.value, i.comparison.operation, i.comparison.figureKey))) return XC();
 	}
 	return n;
 }
-function CT(e, t, n, r) {
-	let i = GC(e, gT);
-	if (!bT(i.display, {
+function MT(e, t, n, r) {
+	let i = ew(e, TT);
+	if (!kT(i.display, {
 		date: t.date,
 		timeZone: t.timeZone
-	})) return VC();
+	})) return XC();
 	if (i.tiles.state === "prepared") {
-		if (!t.tileCapture || !r || !bT(i.tiles.value.reference, t.tileCapture) || !bT(i.starterPack, i.tiles.value.configuration.starterPack)) return VC();
-		ST(i.tiles.value, {
+		if (!t.tileCapture || !r || !kT(i.tiles.value.reference, t.tileCapture) || !kT(i.starterPack, i.tiles.value.configuration.starterPack)) return XC();
+		jT(i.tiles.value, {
 			...t,
 			...r
 		});
 	}
 	let a = i.review.state === "available" ? i.review.value.rows.length : 0;
-	if (a > 4) return VC();
+	if (a > 4) return XC();
 	if (i.attention.state === "available") {
 		let e = i.attention.value, r = i.attention.selection;
-		if (e.request.displayedDate !== t.date || e.request.timeZone !== t.timeZone || e.authority.workspaceId !== n.workspace.id || e.authority.memberId !== n.member.id || e.authority.epoch !== n.member.epoch || e.counts.alertEpisodes !== e.alertEpisodes.length || e.counts.dueDecisions !== e.dueDecisions.length || e.counts.calendarEntries !== e.calendar.rows.length || r.rows.length + a > 5 || e.calendar.window.from !== t.date || e.calendar.window.timeZone !== t.timeZone || new Set(r.rows.map((e) => e.id)).size !== r.rows.length || r.rows.some((e, t) => r.rows.slice(0, t).some((t) => bT(t.value.reference, e.value.reference))) || r.state === "configured" && (r.eligibleCount > e.alertEpisodes.length + e.dueDecisions.length + e.calendar.rows.length || r.rows.length !== Math.min(r.eligibleCount, Math.max(0, 5 - a)))) return VC();
-		for (let t of r.rows) if (!(t.kind === "alert-episode" ? e.alertEpisodes : t.kind === "due-decision" ? e.dueDecisions : e.calendar.rows).some((e) => bT(e, t.value))) return VC();
+		if (e.request.displayedDate !== t.date || e.request.timeZone !== t.timeZone || e.authority.workspaceId !== n.workspace.id || e.authority.memberId !== n.member.id || e.authority.epoch !== n.member.epoch || e.counts.alertEpisodes !== e.alertEpisodes.length || e.counts.dueDecisions !== e.dueDecisions.length || e.counts.calendarEntries !== e.calendar.rows.length || r.rows.length + a > 5 || e.calendar.window.from !== t.date || e.calendar.window.timeZone !== t.timeZone || new Set(r.rows.map((e) => e.id)).size !== r.rows.length || r.rows.some((e, t) => r.rows.slice(0, t).some((t) => kT(t.value.reference, e.value.reference))) || r.state === "configured" && (r.eligibleCount > e.alertEpisodes.length + e.dueDecisions.length + e.calendar.rows.length || r.rows.length !== Math.min(r.eligibleCount, Math.max(0, 5 - a)))) return XC();
+		for (let t of r.rows) if (!(t.kind === "alert-episode" ? e.alertEpisodes : t.kind === "due-decision" ? e.dueDecisions : e.calendar.rows).some((e) => kT(e, t.value))) return XC();
 	}
 	if (i.dayEvents.state === "available") {
 		let e = i.dayEvents.value;
-		if (e.date !== t.date || e.timeZone !== t.timeZone || e.events.length !== Math.min(e.total, 6) || new Set(e.events.map((e) => e.id)).size !== e.events.length || e.state.kind === "complete" != (e.state.reasonCodes.length === 0) || e.events.some((e) => e.kind === "source.imported" && e.args.sourceId !== e.reference.sourceId)) return VC();
+		if (e.date !== t.date || e.timeZone !== t.timeZone || e.events.length !== Math.min(e.total, 6) || new Set(e.events.map((e) => e.id)).size !== e.events.length || e.state.kind === "complete" != (e.state.reasonCodes.length === 0) || e.events.some((e) => e.kind === "source.imported" && e.args.sourceId !== e.reference.sourceId)) return XC();
 	}
 	return i;
 }
-function wT(e, t) {
-	let n = GC(e, Lw);
-	return !Number.isSafeInteger(t) || t < 1 || t > 100 || n.rows.length > t ? VC() : n;
+function NT(e, t) {
+	let n = ew(e, Kw);
+	return !Number.isSafeInteger(t) || t < 1 || t > 100 || n.rows.length > t ? XC() : n;
 }
-function TT(e, t) {
-	let n = GC(e, Pw);
-	return bT(n.reference, t) ? n : VC();
+function PT(e, t) {
+	let n = ew(e, Uw);
+	return kT(n.reference, t) ? n : XC();
 }
-function ET(e, t) {
-	let n = GC(e, JC(cT, lT, uT, dT, zw, fT));
-	return bT(n, t) ? n : VC();
+function FT(e, t) {
+	let n = ew(e, rw(_T, vT, yT, bT, Jw, xT));
+	return kT(n, t) ? n : XC();
 }
-function DT(e, t) {
-	let n = GC(e, JC(Kw, qw, Xw, tT));
-	return bT(n.reference, t) ? n : VC();
+function IT(e, t) {
+	let n = ew(e, rw(tT, nT, aT, uT));
+	return kT(n.reference, t) ? n : XC();
 }
-function OT(e) {
+function LT(e) {
 	return !e.figure || !e.receiptId ? Object.freeze({
 		kind: "missing",
 		missing: "unknown"
@@ -32313,12 +32601,12 @@ function OT(e) {
 		labels: Object.freeze([])
 	});
 }
-function kT(e, t) {
+function RT(e, t) {
 	if (!t || t.tileId !== e.id || e.points.length === 0) return;
 	let n = Object.freeze(e.points.map((e) => Object.freeze({
 		id: e.id,
 		label: e.label,
-		value: OT(e.value)
+		value: LT(e.value)
 	})));
 	return t.form === "line" ? t.from && t.to ? Object.freeze({
 		form: "line",
@@ -32334,138 +32622,138 @@ function kT(e, t) {
 }
 //#endregion
 //#region app/ui/src/bridge/today-navigation.ts
-var AT = () => {
+var zT = () => {
 	throw new um("today.destination");
-}, jT = (e) => typeof e == "boolean", MT = (e) => XC(e) && e > 0, NT = (e) => Y(e) && Number.isFinite(Date.parse(e)), PT = (e) => typeof e == "string" && /^(0|[1-9]\d*)$/.test(e) && e.length <= 1e3, FT = (e) => e === null || typeof e == "boolean" || typeof e == "string" || typeof e == "number" && Number.isFinite(e) || Array.isArray(e) && e.every(FT) || HC(e) && Object.values(e).every(FT), IT = (e) => HC(e) && Object.values(e).every(FT), LT = qC("owner", "cofounder", "accountant", "viewer"), RT = q({}, {
+}, BT = (e) => typeof e == "boolean", VT = (e) => aw(e) && e > 0, HT = (e) => Y(e) && Number.isFinite(Date.parse(e)), UT = (e) => typeof e == "string" && /^(0|[1-9]\d*)$/.test(e) && e.length <= 1e3, WT = (e) => e === null || typeof e == "boolean" || typeof e == "string" || typeof e == "number" && Number.isFinite(e) || Array.isArray(e) && e.every(WT) || ZC(e) && Object.values(e).every(WT), GT = (e) => ZC(e) && Object.values(e).every(WT), KT = nw("owner", "cofounder", "accountant", "viewer"), qT = q({}, {
 	externalId: Y,
-	data: FT,
-	businessSuccess: jT
-}), zT = q({
-	verified: jT,
-	businessSuccess: jT
+	data: WT,
+	businessSuccess: BT
+}), JT = q({
+	verified: BT,
+	businessSuccess: BT
 }, {
-	data: FT,
+	data: WT,
 	externalId: Y,
-	absent: jT
-}), BT = q({
+	absent: BT
+}), YT = q({
 	id: X,
-	startedAt: NT,
-	outcome: qC("executing", "verified", "unknown", "rejected")
+	startedAt: HT,
+	outcome: nw("executing", "verified", "unknown", "rejected")
 }, {
-	finishedAt: NT,
+	finishedAt: HT,
 	error: Y,
-	result: RT,
-	readback: zT
-}), VT = q({
+	result: qT,
+	readback: JT
+}), XT = q({
 	id: X,
 	connector: X,
 	operation: X,
-	payload: IT,
-	sourceIds: KC(X, 64),
+	payload: GT,
+	sourceIds: tw(X, 64),
 	idempotencyKey: Y,
-	digest: YC,
-	revision: MT,
+	digest: iw,
+	revision: VT,
 	createdBy: X,
-	createdEpoch: MT,
-	createdAt: NT,
-	impact: qC("reversible", "message", "money", "destructive"),
-	status: qC("prepared", "approved", "executing", "verified", "unknown", "rejected", "blocked", "cancelled"),
-	attempts: KC(BT)
+	createdEpoch: VT,
+	createdAt: HT,
+	impact: nw("reversible", "message", "money", "destructive"),
+	status: nw("prepared", "approved", "executing", "verified", "unknown", "rejected", "blocked", "cancelled"),
+	attempts: tw(YT)
 }, {
 	approval: q({
 		memberId: X,
-		role: LT,
-		epoch: MT,
-		digest: YC,
-		revision: MT,
-		workspaceRevision: XC,
-		at: NT
+		role: KT,
+		epoch: VT,
+		digest: iw,
+		revision: VT,
+		workspaceRevision: aw,
+		at: HT
 	}),
-	result: RT,
-	readback: zT,
-	businessSuccess: jT,
+	result: qT,
+	readback: JT,
+	businessSuccess: BT,
 	blockedReason: Y
-}), HT = q({
+}), ZT = q({
 	id: X,
 	goal: Y,
 	ownerId: X,
-	ownerEpoch: MT,
-	ownerRole: LT,
-	budgetMinor: PT,
-	reserveMinor: PT,
-	spentMinor: PT,
-	reservedMinor: PT,
+	ownerEpoch: VT,
+	ownerRole: KT,
+	budgetMinor: UT,
+	reserveMinor: UT,
+	spentMinor: UT,
+	reservedMinor: UT,
 	stopRule: q({
-		maxRuns: MT,
-		deadline: NT
+		maxRuns: VT,
+		deadline: HT
 	}),
-	nextRunAt: NT,
-	intervalMs: XC,
-	catchup: qC("skip", "latest"),
-	graceMs: XC,
-	requiresApproval: jT,
-	sourceIds: KC(X, 64),
-	revision: MT,
-	digest: YC,
-	runs: XC,
-	fence: XC,
-	status: qC("scheduled", "running", "paused", "revoked", "approval-blocked", "budget-blocked", "runner-blocked", "network-wait", "outcome-unknown", "cancelled", "stopped", "awaiting-acceptance", "accepted"),
-	createdAt: NT,
-	ledger: KC(q({
-		at: NT,
+	nextRunAt: HT,
+	intervalMs: aw,
+	catchup: nw("skip", "latest"),
+	graceMs: aw,
+	requiresApproval: BT,
+	sourceIds: tw(X, 64),
+	revision: VT,
+	digest: iw,
+	runs: aw,
+	fence: aw,
+	status: nw("scheduled", "running", "paused", "revoked", "approval-blocked", "budget-blocked", "runner-blocked", "network-wait", "outcome-unknown", "cancelled", "stopped", "awaiting-acceptance", "accepted"),
+	createdAt: HT,
+	ledger: tw(q({
+		at: HT,
 		event: Y
 	}, {
-		fence: XC,
-		amountMinor: PT,
+		fence: aw,
+		amountMinor: UT,
 		reason: Y
 	}))
 }, {
-	calendar: IT,
-	input: FT,
-	plan: IT,
-	limits: IT,
-	allowedActions: KC(Y),
-	testedRoutes: KC(Y),
-	background: jT,
-	execution: IT,
-	archivedExecutions: KC(IT),
+	calendar: GT,
+	input: WT,
+	plan: GT,
+	limits: GT,
+	allowedActions: tw(Y),
+	testedRoutes: tw(Y),
+	background: BT,
+	execution: GT,
+	archivedExecutions: tw(GT),
 	type: Y,
-	scheduleAnchor: NT,
+	scheduleAnchor: HT,
 	lease: q({
 		token: Y,
 		workerId: Y,
-		fence: XC,
-		expiresAt: NT,
-		reservedMinor: PT,
-		chargedMinor: PT
+		fence: aw,
+		expiresAt: HT,
+		reservedMinor: UT,
+		chargedMinor: UT
 	}),
-	deliverable: FT,
+	deliverable: WT,
 	approval: q({
-		digest: YC,
-		revision: MT,
+		digest: iw,
+		revision: VT,
 		memberId: X,
-		epoch: MT,
-		role: LT
+		epoch: VT,
+		role: KT
 	})
-}), UT = KC(IT), WT = (e) => e.receiptIds === void 0 ? Object.freeze([]) : GC(e.receiptIds, KC(X));
-function GT(e, t, n, r = []) {
-	return WC({
+}), QT = tw(GT), $T = (e) => e.receiptIds === void 0 ? Object.freeze([]) : ew(e.receiptIds, tw(X));
+function eE(e, t, n, r = []) {
+	return $C({
 		kind: e,
 		title: t,
-		record: UC(n),
+		record: QC(n),
 		receiptIds: [...r]
 	});
 }
-function KT(e) {
+function tE(e) {
 	let t = [
 		e.value,
 		...e.points.map((e) => e.value),
 		...e.comparison ? [e.comparison.value] : []
 	];
-	return GT("tile", e.label, e, [...new Set(t.flatMap((e) => e.receiptId === null ? [] : [e.receiptId]))]);
+	return eE("tile", e.label, e, [...new Set(t.flatMap((e) => e.receiptId === null ? [] : [e.receiptId]))]);
 }
-function qT(e, t) {
-	if (!Array.isArray(e) || Object.getPrototypeOf(e) !== Array.prototype || Object.getOwnPropertySymbols(e).length !== 0) return AT();
+function nE(e, t) {
+	if (!Array.isArray(e) || Object.getPrototypeOf(e) !== Array.prototype || Object.getOwnPropertySymbols(e).length !== 0) return zT();
 	let n = [], r = Object.getOwnPropertyDescriptors(e);
 	for (let [e, i] of Object.entries(r)) {
 		let r = i;
@@ -32487,114 +32775,114 @@ function qT(e, t) {
 	}
 	return n;
 }
-function JT(e) {
+function rE(e) {
 	if (!e.live()) throw Object.assign(/* @__PURE__ */ Error("READ_INVALIDATED"), { code: "READ_INVALIDATED" });
 }
-async function YT(e, t, n, r) {
-	let i = GC(await e.guarded("actions.list", {}, t), KC(VT));
-	JT(t);
+async function iE(e, t, n, r) {
+	let i = ew(await e.guarded("actions.list", {}, t), tw(XT));
+	rE(t);
 	let a = i.filter((e) => e.id === n);
-	if (a.length !== 1) return AT();
+	if (a.length !== 1) return zT();
 	let o = a[0];
-	return r && (o.revision !== r.revision || o.digest !== r.digest) ? AT() : GT("action", `${o.connector} · ${o.operation}`, o);
+	return r && (o.revision !== r.revision || o.digest !== r.digest) ? zT() : eE("action", `${o.connector} · ${o.operation}`, o);
 }
-async function XT(e, t, n, r) {
-	let i = GC(await e.guarded("jobs.list", {}, t), KC(HT));
-	JT(t);
+async function aE(e, t, n, r) {
+	let i = ew(await e.guarded("jobs.list", {}, t), tw(ZT));
+	rE(t);
 	let a = i.filter((e) => e.id === n);
-	if (a.length !== 1) return AT();
+	if (a.length !== 1) return zT();
 	let o = a[0];
-	if (r && (o.revision !== r.revision || o.digest !== r.digest)) return AT();
+	if (r && (o.revision !== r.revision || o.digest !== r.digest)) return zT();
 	if (r?.deliverableDigest) {
-		if (!Object.hasOwn(o, "deliverable") || await xT(o.deliverable, !0) !== r.deliverableDigest) return AT();
-		JT(t);
+		if (!Object.hasOwn(o, "deliverable") || await AT(o.deliverable, !0) !== r.deliverableDigest) return zT();
+		rE(t);
 	}
-	return GT("job", o.goal, o);
+	return eE("job", o.goal, o);
 }
-async function ZT(e, t, n, r) {
+async function oE(e, t, n, r) {
 	let i = e.reference;
-	if (i.kind === "action-approval") return YT(t, n, i.id, i);
-	if (i.kind === "job-approval" || i.kind === "job-acceptance") return XT(t, n, i.id, i);
-	if (i.kind !== "lesson-decision") return AT();
+	if (i.kind === "action-approval") return iE(t, n, i.id, i);
+	if (i.kind === "job-approval" || i.kind === "job-acceptance") return aE(t, n, i.id, i);
+	if (i.kind !== "lesson-decision") return zT();
 	let a = ES(await t.guarded("memory.lessons", {}, n), r);
-	JT(n);
+	rE(n);
 	let o = a.filter((e) => e.candidate.id === i.id);
-	if (o.length !== 1) return AT();
+	if (o.length !== 1) return zT();
 	let s = o[0];
-	return s.candidate.revision !== i.revision || s.candidate.digest !== i.digest || s.review?.id !== i.reviewId || s.review?.digest !== i.reviewDigest || s.evaluation?.digest !== i.evaluationDigest ? AT() : WC({
-		...GT("lesson", e.title, s),
+	return s.candidate.revision !== i.revision || s.candidate.digest !== i.digest || s.review?.id !== i.reviewId || s.review?.digest !== i.reviewDigest || s.evaluation?.digest !== i.evaluationDigest ? zT() : $C({
+		...eE("lesson", e.title, s),
 		lesson: s
 	});
 }
-async function QT(e, t, n) {
+async function sE(e, t, n) {
 	let r = Wm(await t.guarded("receipts.get", { id: e }, n));
-	return JT(n), r.id === e ? WC({
-		...GT("receipt", e, r, [e]),
+	return rE(n), r.id === e ? $C({
+		...eE("receipt", e, r, [e]),
 		receipt: r
-	}) : AT();
+	}) : zT();
 }
-async function $T(e, t, n) {
-	if (e.kind === "receipt") return QT(e.receiptId, t, n);
-	if (e.kind === "action") return YT(t, n, e.actionId);
-	if (e.kind === "job-delivery") return XT(t, n, e.jobId);
+async function cE(e, t, n) {
+	if (e.kind === "receipt") return sE(e.receiptId, t, n);
+	if (e.kind === "action") return iE(t, n, e.actionId);
+	if (e.kind === "job-delivery") return aE(t, n, e.jobId);
 	if (e.kind === "decision") {
-		let r = GC(await t.guarded("decisions.list", {}, n), UT);
-		JT(n);
+		let r = ew(await t.guarded("decisions.list", {}, n), QT);
+		rE(n);
 		let i = r.filter((t) => t.id === e.decisionId);
-		if (i.length !== 1) return AT();
+		if (i.length !== 1) return zT();
 		let a = i[0];
-		return !Y(a.text) || !X(a.id) || !Y(a.status) || !Array.isArray(a.reviews) ? AT() : GT("decision", a.text, a, WT(a));
+		return !Y(a.text) || !X(a.id) || !Y(a.status) || !Array.isArray(a.reviews) ? zT() : eE("decision", a.text, a, $T(a));
 	}
 	if (e.kind === "import") {
-		let r = GC(qT(await t.guarded("sources.list", {}, n), "expectedTotals"), UT);
-		JT(n);
+		let r = ew(nE(await t.guarded("sources.list", {}, n), "expectedTotals"), QT);
+		rE(n);
 		let i = r.filter((t) => t.id === e.importId && t.sourceId === e.sourceId);
-		if (i.length !== 1) return AT();
+		if (i.length !== 1) return zT();
 		let a = i[0];
-		return !Y(a.format) || !YC(a.contentHash) || !YC(a.recipeHash) || !Array.isArray(a.rowIds) ? AT() : GT("import", e.sourceId, a);
+		return !Y(a.format) || !iw(a.contentHash) || !iw(a.recipeHash) || !Array.isArray(a.rowIds) ? zT() : eE("import", e.sourceId, a);
 	}
-	let r = GC(await t.guarded("learning.list", {}, n), UT);
-	JT(n);
+	let r = ew(await t.guarded("learning.list", {}, n), QT);
+	rE(n);
 	let i = r.filter((t) => t.id === e.learningEventId && t.type === "decision");
-	if (i.length !== 1) return AT();
+	if (i.length !== 1) return zT();
 	let a = i[0];
-	return !HC(a.importIdentity) || a.importIdentity.outcome !== "rejected" || a.importIdentity.qualification !== "experimental" || !X(a.importIdentity.sourceId) || !HC(a.input) || !Y(a.input.reasonCode) || !YC(a.recordIntegrity) ? AT() : GT("import-refusal", a.importIdentity.sourceId, a);
+	return !ZC(a.importIdentity) || a.importIdentity.outcome !== "rejected" || a.importIdentity.qualification !== "experimental" || !X(a.importIdentity.sourceId) || !ZC(a.input) || !Y(a.input.reasonCode) || !iw(a.recordIntegrity) ? zT() : eE("import-refusal", a.importIdentity.sourceId, a);
 }
-function eE(e) {
-	return e.reference.kind === "alert-episode" && "episode" in e ? GT("alert-episode", e.label, e, e.receiptIds) : e.reference.kind === "decision" && "text" in e ? GT("decision", e.text, e, e.receiptIds) : e.reference.kind === "compliance-entry" && "title" in e ? GT("compliance-entry", e.title, e) : e.reference.kind === "reviewed-compliance-calendar" ? GT("reviewed-compliance-calendar", e.reference.calendarId, e) : AT();
+function lE(e) {
+	return e.reference.kind === "alert-episode" && "episode" in e ? eE("alert-episode", e.label, e, e.receiptIds) : e.reference.kind === "decision" && "text" in e ? eE("decision", e.text, e, e.receiptIds) : e.reference.kind === "compliance-entry" && "title" in e ? eE("compliance-entry", e.title, e) : e.reference.kind === "reviewed-compliance-calendar" ? eE("reviewed-compliance-calendar", e.reference.calendarId, e) : zT();
 }
-async function tE(e, t, n) {
-	if (n.member.role !== "owner" && n.member.role !== "cofounder") return AT();
+async function uE(e, t, n) {
+	if (n.member.role !== "owner" && n.member.role !== "cofounder") return zT();
 	let r = await e.guarded("activity.list", {}, t);
-	if (JT(t), typeof r != "object" || !r || Array.isArray(r) || Object.getPrototypeOf(r) !== Object.prototype || Object.getOwnPropertySymbols(r).length !== 0) return AT();
+	if (rE(t), typeof r != "object" || !r || Array.isArray(r) || Object.getPrototypeOf(r) !== Object.prototype || Object.getOwnPropertySymbols(r).length !== 0) return zT();
 	let i = Object.getOwnPropertyDescriptors(r), a = i.modelReceipts;
-	if (!a || !Object.hasOwn(a, "value")) return AT();
+	if (!a || !Object.hasOwn(a, "value")) return zT();
 	let o = {};
 	for (let [e, t] of Object.entries(i)) Object.defineProperty(o, e, e === "modelReceipts" ? {
 		...t,
-		value: qT(a.value, "providerRequestId")
+		value: nE(a.value, "providerRequestId")
 	} : t);
-	let s = UC(o, !0);
+	let s = QC(o, !0);
 	return q({
-		items: KC(IT, 200),
-		modelReceipts: KC(IT)
-	})(s) ? WC({
+		items: tw(GT, 200),
+		modelReceipts: tw(GT)
+	})(s) ? $C({
 		kind: "activity",
 		title: "activity",
 		record: s,
 		receiptIds: []
-	}) : AT();
+	}) : zT();
 }
 //#endregion
 //#region app/ui/src/host/today-controller.ts
-var nE = (e, t) => WC({
+var dE = (e, t) => $C({
 	phase: e,
 	response: null,
 	page: null,
 	detail: null,
 	preparing: !1,
 	...t === void 0 ? {} : { code: t }
-}), rE = [
+}), fE = [
 	"INVALID_REPLY",
 	"READ_INVALIDATED",
 	"REQUEST_FAILED",
@@ -32605,24 +32893,24 @@ var nE = (e, t) => WC({
 	...Cb,
 	"TODAY_CONFIGURATION_CHANGED"
 ];
-function iE(e) {
+function pE(e) {
 	if (e instanceof Error && e.name === "ReplyValidationError") return "INVALID_REPLY";
 	if (typeof e == "object" && e) {
-		let t = Object.getOwnPropertyDescriptor(e, "code"), n = t && Object.hasOwn(t, "value") ? t.value : void 0, r = rE.find((e) => e === n);
+		let t = Object.getOwnPropertyDescriptor(e, "code"), n = t && Object.hasOwn(t, "value") ? t.value : void 0, r = fE.find((e) => e === n);
 		if (r) return r;
 	}
 	return "REQUEST_FAILED";
 }
-function aE(e, t, n) {
+function mE(e, t, n) {
 	let r = null, i;
 	try {
-		r = yT(t), i = nE(r.display ? "loading" : "missing");
+		r = OT(t), i = dE(r.display ? "loading" : "missing");
 	} catch {
-		i = nE("failed", "INVALID_REPLY");
+		i = dE("failed", "INVALID_REPLY");
 	}
 	let a = Symbol(), o = !1, s = null, c = null, l = null, u = /* @__PURE__ */ new Set(), d = (e) => {
 		if (!o) {
-			i = WC(e);
+			i = $C(e);
 			for (let e of u) e();
 		}
 	};
@@ -32636,19 +32924,19 @@ function aE(e, t, n) {
 		};
 	}
 	function p(e, t) {
-		t() && (s = null, c = null, l = null, d(nE("failed", iE(e))));
+		t() && (s = null, c = null, l = null, d(dE("failed", pE(e))));
 	}
 	async function m(t = () => !0) {
 		if (o || r === null) return;
 		if (!r.display) {
-			a = Symbol(), s = null, c = null, l = null, d(nE("missing"));
+			a = Symbol(), s = null, c = null, l = null, d(dE("missing"));
 			return;
 		}
 		let i = n.context();
 		if (!i) return;
 		c !== i.contextKey && (s = null, c = null);
 		let u = f(t);
-		l = null, d(nE("loading"));
+		l = null, d(dE("loading"));
 		let m = {
 			...r.display,
 			...s ? { tileCapture: s.reference } : {}
@@ -32656,7 +32944,7 @@ function aE(e, t, n) {
 		try {
 			let t = await e.guarded("today.get", m, u.guard);
 			if (!u.current()) return;
-			let n = CT(t, m, i, r.configuration);
+			let n = MT(t, m, i, r.configuration);
 			if (!u.current()) return;
 			d({
 				phase: "ready",
@@ -32679,15 +32967,15 @@ function aE(e, t, n) {
 			preparing: !0
 		});
 		try {
-			let n = await xT(h.request);
+			let n = await AT(h.request);
 			if (!g.current()) return !1;
-			if (n !== h.configurationDigest || h.request.dictionaryHash !== h.starterPack.dictionaryHash || t.response?.starterPack === null || t.response && !bT(t.response.starterPack, h.starterPack)) throw Object.assign(/* @__PURE__ */ Error("TODAY_CONFIGURATION_CHANGED"), { code: "TODAY_CONFIGURATION_CHANGED" });
+			if (n !== h.configurationDigest || h.request.dictionaryHash !== h.starterPack.dictionaryHash || t.response?.starterPack === null || t.response && !kT(t.response.starterPack, h.starterPack)) throw Object.assign(/* @__PURE__ */ Error("TODAY_CONFIGURATION_CHANGED"), { code: "TODAY_CONFIGURATION_CHANGED" });
 			let o = {
 				...r.display,
 				...h
 			}, l = await e.guarded("today.prepareTiles", o, g.guard);
 			if (!g.current()) return !1;
-			let d = ST(l, o);
+			let d = jT(l, o);
 			return g.current() ? (s = d, c = u.contextKey, await m(a), i.phase === "ready") : !1;
 		} catch (e) {
 			return p(e, g.current), !1;
@@ -32716,16 +33004,16 @@ function aE(e, t, n) {
 	}
 	async function v(t, n, r) {
 		return i !== t || !r() || !_(t).includes(n) ? null : (l = null, g(t, r, async (t, r) => {
-			let i = TT(await e.guarded("today.resolveReview", { reference: n.reference }, t), n.reference);
+			let i = PT(await e.guarded("today.resolveReview", { reference: n.reference }, t), n.reference);
 			if (!t.live()) throw Object.assign(/* @__PURE__ */ Error("READ_INVALIDATED"), { code: "READ_INVALIDATED" });
-			return ZT(i, e, t, r);
+			return oE(i, e, t, r);
 		}));
 	}
 	async function y(t, n, a) {
 		let o = t.response?.attention.state === "available" ? t.response.attention.selection.rows.find((e) => e.id === n) : void 0;
 		if (i !== t || !a() || !o || !r?.display) return null;
 		let s = r.display;
-		return l = null, g(t, a, async (t) => eE(DT(await e.guarded("today.resolveAttention", {
+		return l = null, g(t, a, async (t) => lE(IT(await e.guarded("today.resolveAttention", {
 			...s,
 			reference: o.value.reference
 		}, t), o.value.reference)));
@@ -32735,16 +33023,16 @@ function aE(e, t, n) {
 		if (i !== t || !a() || !o || !r?.display) return null;
 		let s = r.display;
 		return l = null, g(t, a, async (t) => {
-			let n = ET(await e.guarded("today.resolveEvent", {
+			let n = FT(await e.guarded("today.resolveEvent", {
 				...s,
 				eventId: o.id
 			}, t), o.reference);
 			if (!t.live()) throw Object.assign(/* @__PURE__ */ Error("READ_INVALIDATED"), { code: "READ_INVALIDATED" });
-			let r = await $T(n, e, t);
+			let r = await cE(n, e, t);
 			if (!t.live()) throw Object.assign(/* @__PURE__ */ Error("READ_INVALIDATED"), { code: "READ_INVALIDATED" });
-			return WC({
+			return $C({
 				...r,
-				record: UC({
+				record: QC({
 					event: o,
 					current: r.record
 				})
@@ -32767,7 +33055,7 @@ function aE(e, t, n) {
 				...o ? { cursor: o } : {}
 			}, s.guard);
 			if (!s.current()) return !1;
-			let n = wT(t, 4);
+			let n = NT(t, 4);
 			return d({
 				...i,
 				page: n
@@ -32784,7 +33072,7 @@ function aE(e, t, n) {
 			...e.comparison ? [e.comparison.value] : []
 		]) t.receiptId && i.add(t.receiptId);
 		if (!i.has(n)) return null;
-		let a = t.detail, o = await g(t, r, (t) => QT(n, e, t));
+		let a = t.detail, o = await g(t, r, (t) => sE(n, e, t));
 		return o !== null && (l = a), o;
 	}
 	function C(e) {
@@ -32798,7 +33086,7 @@ function aE(e, t, n) {
 	async function w(e, t, n) {
 		if (i !== e || !n() || e.response?.tiles.state !== "prepared") return null;
 		let r = e.response.tiles.value.result.tiles.find((e) => e.id === t);
-		return r ? (l = null, g(e, n, async () => KT(r))) : null;
+		return r ? (l = null, g(e, n, async () => tE(r))) : null;
 	}
 	function T() {
 		a = Symbol(), l = null, d({
@@ -32809,7 +33097,7 @@ function aE(e, t, n) {
 		});
 	}
 	function E() {
-		a = Symbol(), s = null, c = null, l = null, d(nE(r?.display ? "loading" : "missing"));
+		a = Symbol(), s = null, c = null, l = null, d(dE(r?.display ? "loading" : "missing"));
 	}
 	return Object.freeze({
 		input: r,
@@ -32825,7 +33113,7 @@ function aE(e, t, n) {
 		tile: w,
 		page: x,
 		receipt: S,
-		activity: (t, n) => g(t, n, (t, n) => tE(e, t, n)),
+		activity: (t, n) => g(t, n, (t, n) => uE(e, t, n)),
 		back: C,
 		cancelSelection: T,
 		invalidate: E,
@@ -32834,28 +33122,28 @@ function aE(e, t, n) {
 		}
 	});
 }
-function oE(e, t, n) {
+function hE(e, t, n) {
 	let r = e.response, i = r?.review.state === "available" ? r.review.value.rows.map((e, t) => Object.freeze({
 		id: `review-${t}`,
 		mark: "you",
 		what: e.title,
-		note: zC(n, `review.${e.kind}`),
-		detail: zC(n, "reviewNote"),
+		note: JC(n, `review.${e.kind}`),
+		detail: JC(n, "reviewNote"),
 		can: Object.freeze(["review"])
 	})) : [], a = (r?.attention.state === "available" ? r.attention.selection.rows : []).map((e) => Object.freeze({
 		id: e.id,
 		mark: e.kind === "alert-episode" && e.value.evidence.state === "uncertain" ? "unsure" : "cha",
 		what: e.kind === "alert-episode" ? e.value.label : e.kind === "due-decision" ? e.value.text : e.value.title,
-		note: e.kind === "alert-episode" ? zC(n, `episode.${e.value.episode.status}`) : e.kind === "due-decision" ? zC(n, `due.${e.value.due}`) : e.value.dueDate,
+		note: e.kind === "alert-episode" ? JC(n, `episode.${e.value.episode.status}`) : e.kind === "due-decision" ? JC(n, `due.${e.value.due}`) : e.value.dueDate,
 		can: Object.freeze(["open"])
 	})), o = r?.tiles.state === "prepared" ? r.tiles.value.result.tiles.map((e) => {
-		let n = kT(e, t?.charts?.find((t) => t.tileId === e.id));
+		let n = RT(e, t?.charts?.find((t) => t.tileId === e.id));
 		return Object.freeze({
 			id: e.id,
 			label: e.label,
-			figure: OT(e.value),
+			figure: LT(e.value),
 			...e.comparison ? {
-				change: OT(e.comparison.value),
+				change: LT(e.comparison.value),
 				changeLabel: e.comparison.operation
 			} : {},
 			...n ? {
@@ -32867,16 +33155,16 @@ function oE(e, t, n) {
 			} }
 		});
 	}) : void 0;
-	return WC({
+	return $C({
 		state: e.phase === "loading" ? { kind: "loading" } : e.phase === "failed" ? {
 			kind: "failed",
 			code: e.code ?? "REQUEST_FAILED"
 		} : {
 			kind: "partial",
 			missing: "unknown",
-			detail: zC(n, e.phase === "missing" ? "missingDisplay" : "partial")
+			detail: JC(n, e.phase === "missing" ? "missingDisplay" : "partial")
 		},
-		date: t?.display ? Gm(t.display.date, "long", n) : zC(n, "dateMissing"),
+		date: t?.display ? Gm(t.display.date, "long", n) : JC(n, "dateMissing"),
 		review: {
 			rows: i,
 			scoped: r?.review.state === "available" ? {
@@ -32893,7 +33181,7 @@ function oE(e, t, n) {
 		},
 		worthALook: a,
 		...o ? { thisMonth: o } : { thisMonthMissing: "unknown" },
-		earlierToday: r?.dayEvents.state === "available" && t?.display ? r.dayEvents.value.events.map((e) => BC(e, t.display.timeZone, n)) : [],
+		earlierToday: r?.dayEvents.state === "available" && t?.display ? r.dayEvents.value.events.map((e) => YC(e, t.display.timeZone, n)) : [],
 		...r?.dayEvents.state === "available" && r.dayEvents.value.state.kind === "complete" ? {} : { earlierTodayMissing: "unknown" },
 		cashMissing: "cash-not-captured",
 		queueMissing: "unknown",
@@ -32901,7 +33189,7 @@ function oE(e, t, n) {
 		enterpriseMissing: "unknown"
 	});
 }
-var sE = {
+var gE = {
 	steps: "_steps_1u4b7_1",
 	step: "_step_1u4b7_1",
 	dot: "_dot_1u4b7_30",
@@ -32911,43 +33199,43 @@ var sE = {
 	state: "_state_1u4b7_57",
 	at: "_at_1u4b7_58",
 	walker: "_walker_1u4b7_66"
-}, cE = (e) => `STEPSTATE.${e}`;
-function lE({ steps: e, className: t }) {
+}, _E = (e) => `STEPSTATE.${e}`;
+function vE({ steps: e, className: t }) {
 	let n = N(), r = Math.max(e.length, 2), i = e.findIndex((e) => e.state !== "done"), a = e.length > 0 && i === -1, o = a ? e.length - 1 : Math.max(i, 0), s = {
 		"--n": String(r),
 		"--i": String(o)
 	}, c = a ? "cha" : e[o]?.state === "unsure" ? "unsure" : "busy";
 	return /* @__PURE__ */ (0, M.jsxs)("ol", {
-		className: [sE.steps, t].filter(Boolean).join(" "),
+		className: [gE.steps, t].filter(Boolean).join(" "),
 		style: s,
 		children: [/* @__PURE__ */ (0, M.jsx)("span", {
-			className: [sE.walker, "m-step"].join(" "),
+			className: [gE.walker, "m-step"].join(" "),
 			"aria-hidden": "true",
 			children: /* @__PURE__ */ (0, M.jsx)(xr, { mark: c })
 		}), e.map((e, t) => {
 			let r = t < o, i = t === o;
 			return /* @__PURE__ */ (0, M.jsxs)("li", {
 				className: [
-					sE.step,
-					r ? sE.done : "",
-					i ? sE.here : ""
+					gE.step,
+					r ? gE.done : "",
+					i ? gE.here : ""
 				].filter(Boolean).join(" "),
 				"aria-current": i && !a ? "step" : void 0,
 				children: [
 					/* @__PURE__ */ (0, M.jsx)("span", {
-						className: sE.dot,
+						className: gE.dot,
 						"aria-hidden": "true"
 					}),
 					/* @__PURE__ */ (0, M.jsx)("span", {
-						className: sE.name,
+						className: gE.name,
 						children: n(e.nameKey)
 					}),
 					/* @__PURE__ */ (0, M.jsx)("span", {
-						className: i ? sE.state : "sr",
-						children: n(cE(e.state))
+						className: i ? gE.state : "sr",
+						children: n(_E(e.state))
 					}),
 					e.at !== void 0 && /* @__PURE__ */ (0, M.jsx)("span", {
-						className: [sE.at, "fig"].join(" "),
+						className: [gE.at, "fig"].join(" "),
 						children: e.at
 					})
 				]
@@ -32957,36 +33245,36 @@ function lE({ steps: e, className: t }) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/contracts.ts
-var uE = [
+var yE = [
 	"string",
 	"money",
 	"date",
 	"integer",
 	"boolean"
-], dE = [
+], bE = [
 	"regular",
 	"composition",
 	"unregistered"
-], fE = Object.freeze([
+], xE = Object.freeze([
 	"ecommerce",
 	"retail",
 	"services",
 	"distributor",
 	"manufacturing",
 	"saas"
-]), pE = Object.freeze([
+]), SE = Object.freeze([
 	"ui.context",
 	"ontology.packs",
 	"ontology.get",
 	"ontology.publish"
-]), mE = [
+]), CE = [
 	"pack",
 	"label",
 	"currency",
 	"gstMode",
 	"fields",
 	"definitions"
-], hE = [
+], wE = [
 	"name",
 	"label",
 	"meaning",
@@ -32994,7 +33282,7 @@ var uE = [
 	"field",
 	"currency",
 	"nulls"
-], gE = [
+], TE = [
 	"version",
 	"publishedAt",
 	"publishedBy",
@@ -33002,7 +33290,7 @@ var uE = [
 	"operations",
 	"schema",
 	"checks"
-], _E = [
+], EE = [
 	"contractVersion",
 	"compilerVersion",
 	"type",
@@ -33016,160 +33304,160 @@ var uE = [
 	"dictionaryVersion",
 	"definitionHash",
 	"digest"
-], vE = [
+], DE = [
 	"sum",
 	"margin",
 	"aging",
 	"change",
 	"scenario"
-], yE = ["exclude", "reject"], bE = 4e3, xE = /^[a-z][a-z0-9_]{0,63}$/, SE = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/, CE = /^[A-Z]{3}$/, wE = /^[a-f0-9]{64}$/, TE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/, EE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/, DE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
-function OE(e) {
+], OE = ["exclude", "reject"], kE = 4e3, AE = /^[a-z][a-z0-9_]{0,63}$/, jE = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/, ME = /^[A-Z]{3}$/, NE = /^[a-f0-9]{64}$/, PE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/, FE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/, IE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+function LE(e) {
 	throw new um(e);
 }
-function kE(e, t) {
-	(typeof e != "object" || !e || Array.isArray(e) || Object.getPrototypeOf(e) !== Object.prototype || Object.getOwnPropertySymbols(e).length > 0) && OE(t);
-	for (let n of Object.values(Object.getOwnPropertyDescriptors(e))) (!n.enumerable || !Object.hasOwn(n, "value") || n.value === void 0) && OE(t);
+function RE(e, t) {
+	(typeof e != "object" || !e || Array.isArray(e) || Object.getPrototypeOf(e) !== Object.prototype || Object.getOwnPropertySymbols(e).length > 0) && LE(t);
+	for (let n of Object.values(Object.getOwnPropertyDescriptors(e))) (!n.enumerable || !Object.hasOwn(n, "value") || n.value === void 0) && LE(t);
 	return e;
 }
-function AE(e, t, n, r = []) {
-	let i = kE(e, t), a = Object.keys(i);
-	return (n.some((e) => !Object.hasOwn(i, e)) || a.some((e) => !n.includes(e) && !r.includes(e))) && OE(t), i;
+function zE(e, t, n, r = []) {
+	let i = RE(e, t), a = Object.keys(i);
+	return (n.some((e) => !Object.hasOwn(i, e)) || a.some((e) => !n.includes(e) && !r.includes(e))) && LE(t), i;
 }
-function jE(e, t, n) {
-	(!Array.isArray(e) || Object.getPrototypeOf(e) !== Array.prototype || e.length > n || Object.getOwnPropertySymbols(e).length > 0) && OE(t);
+function BE(e, t, n) {
+	(!Array.isArray(e) || Object.getPrototypeOf(e) !== Array.prototype || e.length > n || Object.getOwnPropertySymbols(e).length > 0) && LE(t);
 	let r = Object.getOwnPropertyDescriptors(e);
-	Object.keys(r).length !== e.length + 1 && OE(t);
+	Object.keys(r).length !== e.length + 1 && LE(t);
 	for (let n = 0; n < e.length; n++) {
 		let e = r[String(n)];
-		(e === void 0 || !e.enumerable || !Object.hasOwn(e, "value") || e.value === void 0) && OE(t);
+		(e === void 0 || !e.enumerable || !Object.hasOwn(e, "value") || e.value === void 0) && LE(t);
 	}
 	return e;
 }
-function ME(e, t, n, r = !1) {
-	return (typeof e != "string" || e.trim().length === 0 || e.length > n || DE.test(e)) && OE(t), !r && /[\n\r]/.test(e) && OE(t), e;
+function VE(e, t, n, r = !1) {
+	return (typeof e != "string" || e.trim().length === 0 || e.length > n || IE.test(e)) && LE(t), !r && /[\n\r]/.test(e) && LE(t), e;
 }
-function NE(e, t, n) {
-	return (typeof e != "string" || !n.test(e)) && OE(t), e;
+function HE(e, t, n) {
+	return (typeof e != "string" || !n.test(e)) && LE(t), e;
 }
-function PE(e, t, n) {
-	return (typeof e != "string" || !n.includes(e)) && OE(t), e;
+function UE(e, t, n) {
+	return (typeof e != "string" || !n.includes(e)) && LE(t), e;
 }
-function FE(e, t, n) {
-	return (typeof e != "number" || !Number.isSafeInteger(e) || e < n) && OE(t), e;
+function WE(e, t, n) {
+	return (typeof e != "number" || !Number.isSafeInteger(e) || e < n) && LE(t), e;
 }
-function IE(e, t) {
-	let n = kE(e, t), r = Object.entries(n);
-	(r.length === 0 || r.length > 200) && OE(t);
-	for (let [e, n] of r) NE(e, `${t}.${e}`, SE), PE(n, `${t}.${e}`, uE);
+function GE(e, t) {
+	let n = RE(e, t), r = Object.entries(n);
+	(r.length === 0 || r.length > 200) && LE(t);
+	for (let [e, n] of r) HE(e, `${t}.${e}`, jE), UE(n, `${t}.${e}`, yE);
 	return n;
 }
-function LE(e, t = "meaning") {
-	let n = ME(e, t, bE, !0);
-	return n.trim().length < 11 && OE(t), n;
+function KE(e, t = "meaning") {
+	let n = VE(e, t, kE, !0);
+	return n.trim().length < 11 && LE(t), n;
 }
-function RE(e) {
-	return fE.includes(e);
+function qE(e) {
+	return xE.includes(e);
 }
-function zE(e, t, n) {
-	let r = ME(e, t, 100);
-	return n === "starter" && !RE(r) && OE(t), r;
+function JE(e, t, n) {
+	let r = VE(e, t, 100);
+	return n === "starter" && !qE(r) && LE(t), r;
 }
-function BE(e, t, n, r) {
-	let i = AE(e, t, hE, ["sign"]);
-	NE(i.name, `${t}.name`, xE), ME(i.label, `${t}.label`, 200), LE(i.meaning, `${t}.meaning`), NE(i.kind, `${t}.kind`, xE), r[NE(i.field, `${t}.field`, SE)] !== "money" && OE(`${t}.field`), NE(i.currency, `${t}.currency`, CE) !== n && OE(`${t}.currency`), PE(i.nulls, `${t}.nulls`, yE), Object.hasOwn(i, "sign") && i.sign !== 1 && i.sign !== -1 && OE(`${t}.sign`);
+function YE(e, t, n, r) {
+	let i = zE(e, t, wE, ["sign"]);
+	HE(i.name, `${t}.name`, AE), VE(i.label, `${t}.label`, 200), KE(i.meaning, `${t}.meaning`), HE(i.kind, `${t}.kind`, AE), r[HE(i.field, `${t}.field`, jE)] !== "money" && LE(`${t}.field`), HE(i.currency, `${t}.currency`, ME) !== n && LE(`${t}.currency`), UE(i.nulls, `${t}.nulls`, OE), Object.hasOwn(i, "sign") && i.sign !== 1 && i.sign !== -1 && LE(`${t}.sign`);
 }
-function VE(e, t, n) {
-	zE(e.pack, `${t}.pack`, n), ME(e.label, `${t}.label`, 100);
-	let r = NE(e.currency, `${t}.currency`, CE);
-	PE(e.gstMode, `${t}.gstMode`, dE);
-	let i = IE(e.fields, `${t}.fields`), a = jE(e.definitions, `${t}.definitions`, 100);
-	a.length === 0 && OE(`${t}.definitions`);
+function XE(e, t, n) {
+	JE(e.pack, `${t}.pack`, n), VE(e.label, `${t}.label`, 100);
+	let r = HE(e.currency, `${t}.currency`, ME);
+	UE(e.gstMode, `${t}.gstMode`, bE);
+	let i = GE(e.fields, `${t}.fields`), a = BE(e.definitions, `${t}.definitions`, 100);
+	a.length === 0 && LE(`${t}.definitions`);
 	let o = /* @__PURE__ */ new Set();
 	a.forEach((e, n) => {
-		BE(e, `${t}.definitions[${n}]`, r, i);
+		YE(e, `${t}.definitions[${n}]`, r, i);
 		let a = e.name;
-		o.has(a) && OE(`${t}.definitions[${n}].name`), o.add(a);
+		o.has(a) && LE(`${t}.definitions[${n}].name`), o.add(a);
 	});
 }
-function HE(e) {
+function ZE(e) {
 	if (typeof e == "object" && e) {
 		Object.freeze(e);
-		for (let t of Object.values(e)) HE(t);
+		for (let t of Object.values(e)) ZE(t);
 	}
 	return e;
 }
-function UE(e) {
-	return HE(structuredClone(e));
+function QE(e) {
+	return ZE(structuredClone(e));
 }
-function WE(e, t = "draft", n = "starter") {
-	let r = AE(e, t, mE);
-	return VE(r, t, n), UE(r);
+function $E(e, t = "draft", n = "starter") {
+	let r = zE(e, t, CE);
+	return XE(r, t, n), QE(r);
 }
-function GE(e) {
-	let t = jE(e, "ontology.packs", fE.length);
-	t.length !== fE.length && OE("ontology.packs");
-	let n = t.map((e, t) => WE(e, `ontology.packs[${t}]`, "starter"));
-	return n.some((e, t) => e.pack !== fE[t]) && OE("ontology.packs"), Object.freeze(n);
+function eD(e) {
+	let t = BE(e, "ontology.packs", xE.length);
+	t.length !== xE.length && LE("ontology.packs");
+	let n = t.map((e, t) => $E(e, `ontology.packs[${t}]`, "starter"));
+	return n.some((e, t) => e.pack !== xE[t]) && LE("ontology.packs"), Object.freeze(n);
 }
-function KE(e, t, n) {
-	let r = AE(e, t, [
+function tD(e, t, n) {
+	let r = zE(e, t, [
 		"id",
 		"label",
 		"type",
 		"definitions",
 		"parameters"
 	]);
-	NE(r.id, `${t}.id`, xE), ME(r.label, `${t}.label`, 200), PE(r.type, `${t}.type`, vE);
-	let i = jE(r.definitions, `${t}.definitions`, 20);
-	return i.length === 0 && OE(`${t}.definitions`), i.forEach((e, r) => {
-		n.has(NE(e, `${t}.definitions[${r}]`, xE)) || OE(`${t}.definitions[${r}]`);
-	}), jE(r.parameters, `${t}.parameters`, 20).forEach((e, n) => NE(e, `${t}.parameters[${n}]`, SE)), r;
+	HE(r.id, `${t}.id`, AE), VE(r.label, `${t}.label`, 200), UE(r.type, `${t}.type`, DE);
+	let i = BE(r.definitions, `${t}.definitions`, 20);
+	return i.length === 0 && LE(`${t}.definitions`), i.forEach((e, r) => {
+		n.has(HE(e, `${t}.definitions[${r}]`, AE)) || LE(`${t}.definitions[${r}]`);
+	}), BE(r.parameters, `${t}.parameters`, 20).forEach((e, n) => HE(e, `${t}.parameters[${n}]`, jE)), r;
 }
-function qE(e, t, n, r, i) {
-	let a = AE(e, t, _E);
-	(a.contractVersion !== 1 || a.compilerVersion !== "chausar-single-sum/1" || a.type !== "single-definition-sum") && OE(t);
-	let o = NE(a.operationId, `${t}.operationId`, xE), s = NE(a.definitionName, `${t}.definitionName`, xE), c = n.find((e) => e.name === s);
-	c === void 0 && OE(`${t}.definitionName`);
+function nD(e, t, n, r, i) {
+	let a = zE(e, t, EE);
+	(a.contractVersion !== 1 || a.compilerVersion !== "chausar-single-sum/1" || a.type !== "single-definition-sum") && LE(t);
+	let o = HE(a.operationId, `${t}.operationId`, AE), s = HE(a.definitionName, `${t}.definitionName`, AE), c = n.find((e) => e.name === s);
+	c === void 0 && LE(`${t}.definitionName`);
 	let l = r.find((e) => e.id === o);
-	return (l === void 0 || l.type !== "sum" || l.definitions.length !== 1 || l.definitions[0] !== s) && OE(`${t}.operationId`), o === s || o === "revenue" && s === "earned" || OE(`${t}.operationId`), NE(a.recordKind, `${t}.recordKind`, xE) !== c.kind && OE(`${t}.recordKind`), NE(a.moneyField, `${t}.moneyField`, SE) !== c.field && OE(`${t}.moneyField`), NE(a.currency, `${t}.currency`, CE) !== c.currency && OE(`${t}.currency`), a.sign !== (c.sign ?? 1) && OE(`${t}.sign`), PE(a.nullPolicy, `${t}.nullPolicy`, yE) !== c.nulls && OE(`${t}.nullPolicy`), a.dictionaryVersion !== i && OE(`${t}.dictionaryVersion`), NE(a.definitionHash, `${t}.definitionHash`, wE), NE(a.digest, `${t}.digest`, wE), a;
+	return (l === void 0 || l.type !== "sum" || l.definitions.length !== 1 || l.definitions[0] !== s) && LE(`${t}.operationId`), o === s || o === "revenue" && s === "earned" || LE(`${t}.operationId`), HE(a.recordKind, `${t}.recordKind`, AE) !== c.kind && LE(`${t}.recordKind`), HE(a.moneyField, `${t}.moneyField`, jE) !== c.field && LE(`${t}.moneyField`), HE(a.currency, `${t}.currency`, ME) !== c.currency && LE(`${t}.currency`), a.sign !== (c.sign ?? 1) && LE(`${t}.sign`), UE(a.nullPolicy, `${t}.nullPolicy`, OE) !== c.nulls && LE(`${t}.nullPolicy`), a.dictionaryVersion !== i && LE(`${t}.dictionaryVersion`), HE(a.definitionHash, `${t}.definitionHash`, NE), HE(a.digest, `${t}.digest`, NE), a;
 }
-function JE(e, t = "dictionary") {
-	let n = AE(e, t, [...mE, ...gE], ["compiledSums"]);
-	VE(n, t, "identity");
-	let r = n.definitions, i = new Set(r.map((e) => e.name)), a = FE(n.version, `${t}.version`, 1);
-	Cm(n.publishedAt, `${t}.publishedAt`), ME(n.publishedBy, `${t}.publishedBy`, 200), NE(n.hash, `${t}.hash`, wE);
-	let o = jE(n.operations, `${t}.operations`, 200).map((e, n) => KE(e, `${t}.operations[${n}]`, i));
-	new Set(o.map((e) => e.id)).size !== o.length && OE(`${t}.operations`);
-	let s = IE(n.schema, `${t}.schema`), c = n.fields, l = Object.entries(s);
-	(l.length !== Object.keys(c).length || l.some(([e, t]) => c[e] !== t)) && OE(`${t}.schema`);
-	let u = AE(n.checks, `${t}.checks`, [
+function rD(e, t = "dictionary") {
+	let n = zE(e, t, [...CE, ...TE], ["compiledSums"]);
+	XE(n, t, "identity");
+	let r = n.definitions, i = new Set(r.map((e) => e.name)), a = WE(n.version, `${t}.version`, 1);
+	Cm(n.publishedAt, `${t}.publishedAt`), VE(n.publishedBy, `${t}.publishedBy`, 200), HE(n.hash, `${t}.hash`, NE);
+	let o = BE(n.operations, `${t}.operations`, 200).map((e, n) => tD(e, `${t}.operations[${n}]`, i));
+	new Set(o.map((e) => e.id)).size !== o.length && LE(`${t}.operations`);
+	let s = GE(n.schema, `${t}.schema`), c = n.fields, l = Object.entries(s);
+	(l.length !== Object.keys(c).length || l.some(([e, t]) => c[e] !== t)) && LE(`${t}.schema`);
+	let u = zE(n.checks, `${t}.checks`, [
 		"required",
 		"currency",
 		"nullRules"
 	]);
-	jE(u.required, `${t}.checks.required`, 20).forEach((e, n) => NE(e, `${t}.checks.required[${n}]`, SE)), u.currency !== n.currency && OE(`${t}.checks.currency`);
-	let d = kE(u.nullRules, `${t}.checks.nullRules`);
-	Object.keys(d).length !== r.length && OE(`${t}.checks.nullRules`);
-	for (let e of r) (!Object.hasOwn(d, e.name) || d[e.name] !== e.nulls) && OE(`${t}.checks.nullRules.${e.name}`);
+	BE(u.required, `${t}.checks.required`, 20).forEach((e, n) => HE(e, `${t}.checks.required[${n}]`, jE)), u.currency !== n.currency && LE(`${t}.checks.currency`);
+	let d = RE(u.nullRules, `${t}.checks.nullRules`);
+	Object.keys(d).length !== r.length && LE(`${t}.checks.nullRules`);
+	for (let e of r) (!Object.hasOwn(d, e.name) || d[e.name] !== e.nulls) && LE(`${t}.checks.nullRules.${e.name}`);
 	if (Object.hasOwn(n, "compiledSums")) {
-		let e = jE(n.compiledSums, `${t}.compiledSums`, 200).map((e, n) => qE(e, `${t}.compiledSums[${n}]`, r, o, a)), i = o.filter((e) => e.type === "sum" && e.definitions.length === 1).map((e) => e.id).sort(), s = e.map((e) => e.operationId).sort();
-		(i.length !== s.length || i.some((e, t) => e !== s[t])) && OE(`${t}.compiledSums`);
+		let e = BE(n.compiledSums, `${t}.compiledSums`, 200).map((e, n) => nD(e, `${t}.compiledSums[${n}]`, r, o, a)), i = o.filter((e) => e.type === "sum" && e.definitions.length === 1).map((e) => e.id).sort(), s = e.map((e) => e.operationId).sort();
+		(i.length !== s.length || i.some((e, t) => e !== s[t])) && LE(`${t}.compiledSums`);
 	}
-	return UE(n);
+	return QE(n);
 }
-function YE(e) {
-	let t = AE(e, "ontology.get", ["current", "history"]), n = t.current === null ? null : JE(t.current, "ontology.get.current"), r = Object.freeze(jE(t.history, "ontology.get.history", 500).map((e, t) => JE(e, `ontology.get.history[${t}]`)));
+function iD(e) {
+	let t = zE(e, "ontology.get", ["current", "history"]), n = t.current === null ? null : rD(t.current, "ontology.get.current"), r = Object.freeze(BE(t.history, "ontology.get.history", 500).map((e, t) => rD(e, `ontology.get.history[${t}]`)));
 	return Object.freeze({
 		current: n,
 		history: r
 	});
 }
-function XE(e) {
-	let t = "ontology.get", n = AE(e, t, [
+function aD(e) {
+	let t = "ontology.get", n = zE(e, t, [
 		"current",
 		"history",
 		"attempt"
-	]), r = YE({
+	]), r = iD({
 		current: n.current,
 		history: n.history
 	});
@@ -33177,7 +33465,7 @@ function XE(e) {
 		...r,
 		attempt: null
 	});
-	let i = `${t}.attempt`, a = AE(n.attempt, i, [
+	let i = `${t}.attempt`, a = zE(n.attempt, i, [
 		"attemptId",
 		"workspaceId",
 		"memberId",
@@ -33187,33 +33475,33 @@ function XE(e) {
 		"dictionaryHash",
 		"version"
 	]);
-	NE(a.attemptId, `${i}.attemptId`, TE), NE(a.workspaceId, `${i}.workspaceId`, EE), NE(a.memberId, `${i}.memberId`, EE), FE(a.epoch, `${i}.epoch`, 1), NE(a.draftDigest, `${i}.draftDigest`, wE), a.expectedCurrentHash !== null && NE(a.expectedCurrentHash, `${i}.expectedCurrentHash`, wE);
-	let o = NE(a.dictionaryHash, `${i}.dictionaryHash`, wE), s = FE(a.version, `${i}.version`, 1), c = r.history.filter((e) => e.hash === o && e.version === s);
-	return (c.length !== 1 || c[0]?.publishedBy !== a.memberId) && OE(i), Object.freeze({
+	HE(a.attemptId, `${i}.attemptId`, PE), HE(a.workspaceId, `${i}.workspaceId`, FE), HE(a.memberId, `${i}.memberId`, FE), WE(a.epoch, `${i}.epoch`, 1), HE(a.draftDigest, `${i}.draftDigest`, NE), a.expectedCurrentHash !== null && HE(a.expectedCurrentHash, `${i}.expectedCurrentHash`, NE);
+	let o = HE(a.dictionaryHash, `${i}.dictionaryHash`, NE), s = WE(a.version, `${i}.version`, 1), c = r.history.filter((e) => e.hash === o && e.version === s);
+	return (c.length !== 1 || c[0]?.publishedBy !== a.memberId) && LE(i), Object.freeze({
 		...r,
-		attempt: UE(a)
+		attempt: QE(a)
 	});
 }
-function ZE(e) {
+function oD(e) {
 	let t = {}, n = e;
-	for (let e of Object.keys(n)) mE.includes(e) && (t[e] = n[e]);
-	return UE(t);
+	for (let e of Object.keys(n)) CE.includes(e) && (t[e] = n[e]);
+	return QE(t);
 }
-function QE(e) {
+function sD(e) {
 	let t = {};
 	for (let [n, r] of Object.entries(e)) n !== "hash" && (t[n] = r);
 	return JSON.stringify(t);
 }
-var $E = Object.freeze(_E.filter((e) => e !== "digest"));
-function eD(e) {
+var cD = Object.freeze(EE.filter((e) => e !== "digest"));
+function lD(e) {
 	let t = e, n = {};
-	for (let e of $E) n[e] = t[e];
+	for (let e of cD) n[e] = t[e];
 	return JSON.stringify(n);
 }
-function tD(e, t, n) {
+function uD(e, t, n) {
 	if (!e.definitions.some((e) => e.name === t)) throw new um("draft.definitions");
-	let r = LE(n);
-	return UE({
+	let r = KE(n);
+	return QE({
 		...e,
 		definitions: e.definitions.map((e) => e.name === t ? {
 			...e,
@@ -33221,16 +33509,16 @@ function tD(e, t, n) {
 		} : e)
 	});
 }
-function nD(e) {
+function dD(e) {
 	return e.member.role === "owner" || e.member.role === "cofounder";
 }
-function rD(e, t) {
+function fD(e, t) {
 	return e.workspace.id === t.workspace.id && e.member.id === t.member.id && e.member.role === t.member.role && e.member.epoch === t.member.epoch;
 }
-function iD(e, t) {
-	return rD(e, t) && e.contextKey === t.contextKey;
+function pD(e, t) {
+	return fD(e, t) && e.contextKey === t.contextKey;
 }
-var aD = Object.freeze([
+var mD = Object.freeze([
 	"INVALID_DICTIONARY",
 	"INVALID_CURRENCY",
 	"INVALID_GST_MODE",
@@ -33246,7 +33534,7 @@ var aD = Object.freeze([
 	"DICTIONARY_ATTEMPT_REUSED",
 	"DICTIONARY_ATTEMPT_AUTHORITY"
 ]);
-function oD(e) {
+function hD(e) {
 	try {
 		let t = typeof e == "object" && e ? Object.getOwnPropertyDescriptor(e, "code") : void 0;
 		return t !== void 0 && Object.hasOwn(t, "value") ? t.value : void 0;
@@ -33254,11 +33542,11 @@ function oD(e) {
 		return;
 	}
 }
-function sD(e) {
+function gD(e) {
 	if (e instanceof um) return { code: "INVALID_REPLY" };
-	let t = oD(e);
+	let t = hD(e);
 	if (typeof t != "string") return { code: "REQUEST_FAILED" };
-	let n = aD.find((e) => e === t);
+	let n = mD.find((e) => e === t);
 	return n === void 0 ? t === "VAULT_LOCKED" ? { code: "VAULT_LOCKED" } : t === "UNAUTHENTICATED" || t === "authentication_required" ? { code: "UNAUTHENTICATED" } : [
 		"ACCESS_DENIED",
 		"ACCESS_REVOKED",
@@ -33272,77 +33560,77 @@ function sD(e) {
 }
 //#endregion
 //#region app/ui/src/host/contracts.ts
-function cD(e) {
-	let t = uD(e, "workspace.create"), n = uD(t.workspace, "workspace.create.workspace");
-	n.demo !== !1 && lD("workspace.create.workspace.demo");
-	let r = fD(t.recoveryKit, "workspace.create.recoveryKit", 16384);
-	return Object.hasOwn(t, "recoveryCode") && t.recoveryCode !== r && lD("workspace.create.recoveryCode"), Object.freeze({
+function _D(e) {
+	let t = yD(e, "workspace.create"), n = yD(t.workspace, "workspace.create.workspace");
+	n.demo !== !1 && vD("workspace.create.workspace.demo");
+	let r = xD(t.recoveryKit, "workspace.create.recoveryKit", 16384);
+	return Object.hasOwn(t, "recoveryCode") && t.recoveryCode !== r && vD("workspace.create.recoveryCode"), Object.freeze({
 		workspace: Object.freeze({
-			id: pD(n.id, "workspace.create.workspace.id"),
-			name: fD(n.name, "workspace.create.workspace.name", 100),
+			id: SD(n.id, "workspace.create.workspace.id"),
+			name: xD(n.name, "workspace.create.workspace.name", 100),
 			demo: !1
 		}),
 		recoveryKit: r
 	});
 }
-function lD(e) {
+function vD(e) {
 	throw new um(e);
 }
-function uD(e, t) {
-	(typeof e != "object" || !e || Array.isArray(e) || Object.getPrototypeOf(e) !== Object.prototype || Object.getOwnPropertySymbols(e).length) && lD(t);
-	for (let n of Object.values(Object.getOwnPropertyDescriptors(e))) (!n.enumerable || !Object.hasOwn(n, "value") || n.value === void 0) && lD(t);
+function yD(e, t) {
+	(typeof e != "object" || !e || Array.isArray(e) || Object.getPrototypeOf(e) !== Object.prototype || Object.getOwnPropertySymbols(e).length) && vD(t);
+	for (let n of Object.values(Object.getOwnPropertyDescriptors(e))) (!n.enumerable || !Object.hasOwn(n, "value") || n.value === void 0) && vD(t);
 	return e;
 }
-function dD(e, t, n) {
-	let r = uD(e, n);
-	return (Object.keys(r).length !== t.length || t.some((e) => !Object.hasOwn(r, e))) && lD(n), r;
+function bD(e, t, n) {
+	let r = yD(e, n);
+	return (Object.keys(r).length !== t.length || t.some((e) => !Object.hasOwn(r, e))) && vD(n), r;
 }
-function fD(e, t, n = 200) {
-	return (typeof e != "string" || !e.trim() || e.length > n || /[\u0000-\u001f]/.test(e)) && lD(t), e;
+function xD(e, t, n = 200) {
+	return (typeof e != "string" || !e.trim() || e.length > n || /[\u0000-\u001f]/.test(e)) && vD(t), e;
 }
-function pD(e, t) {
-	let n = fD(e, t);
-	return /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(n) || lD(t), n;
+function SD(e, t) {
+	let n = xD(e, t);
+	return /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(n) || vD(t), n;
 }
-function mD(e, t, n) {
-	(!Array.isArray(e) || Object.getPrototypeOf(e) !== Array.prototype || e.length > n || Object.getOwnPropertySymbols(e).length) && lD(t);
+function CD(e, t, n) {
+	(!Array.isArray(e) || Object.getPrototypeOf(e) !== Array.prototype || e.length > n || Object.getOwnPropertySymbols(e).length) && vD(t);
 	let r = Object.getOwnPropertyDescriptors(e);
-	Object.keys(r).length !== e.length + 1 && lD(t);
-	for (let n = 0; n < e.length; n++) (!r[String(n)]?.enumerable || !Object.hasOwn(r[String(n)], "value")) && lD(t);
+	Object.keys(r).length !== e.length + 1 && vD(t);
+	for (let n = 0; n < e.length; n++) (!r[String(n)]?.enumerable || !Object.hasOwn(r[String(n)], "value")) && vD(t);
 	return e;
 }
-function hD(e) {
-	let t = dD(e, [
+function wD(e) {
+	let t = bD(e, [
 		"workspace",
 		"member",
 		"contextKey"
-	], "ui.context"), n = dD(t.workspace, [
+	], "ui.context"), n = bD(t.workspace, [
 		"id",
 		"name",
 		"demo"
-	], "ui.context.workspace"), r = dD(t.member, [
+	], "ui.context.workspace"), r = bD(t.member, [
 		"id",
 		"name",
 		"role",
 		"epoch",
 		"branches"
 	], "ui.context.member");
-	typeof n.demo != "boolean" && lD("ui.context.workspace.demo"), (typeof r.role != "string" || ![
+	typeof n.demo != "boolean" && vD("ui.context.workspace.demo"), (typeof r.role != "string" || ![
 		"owner",
 		"cofounder",
 		"accountant",
 		"viewer"
-	].includes(r.role)) && lD("ui.context.member.role"), (!Number.isSafeInteger(r.epoch) || r.epoch < 1) && lD("ui.context.member.epoch");
-	let i = mD(r.branches, "ui.context.member.branches", 1e3).map((e, t) => fD(e, `ui.context.member.branches[${t}]`));
-	return new Set(i).size !== i.length && lD("ui.context.member.branches"), (typeof t.contextKey != "string" || !/^[a-f0-9]{64}$/.test(t.contextKey)) && lD("ui.context.contextKey"), Object.freeze({
+	].includes(r.role)) && vD("ui.context.member.role"), (!Number.isSafeInteger(r.epoch) || r.epoch < 1) && vD("ui.context.member.epoch");
+	let i = CD(r.branches, "ui.context.member.branches", 1e3).map((e, t) => xD(e, `ui.context.member.branches[${t}]`));
+	return new Set(i).size !== i.length && vD("ui.context.member.branches"), (typeof t.contextKey != "string" || !/^[a-f0-9]{64}$/.test(t.contextKey)) && vD("ui.context.contextKey"), Object.freeze({
 		workspace: Object.freeze({
-			id: pD(n.id, "ui.context.workspace.id"),
-			name: fD(n.name, "ui.context.workspace.name", 100),
+			id: SD(n.id, "ui.context.workspace.id"),
+			name: xD(n.name, "ui.context.workspace.name", 100),
 			demo: n.demo
 		}),
 		member: Object.freeze({
-			id: pD(r.id, "ui.context.member.id"),
-			name: fD(r.name, "ui.context.member.name", 200),
+			id: SD(r.id, "ui.context.member.id"),
+			name: xD(r.name, "ui.context.member.name", 200),
 			role: r.role,
 			epoch: r.epoch,
 			branches: Object.freeze(i)
@@ -33350,11 +33638,11 @@ function hD(e) {
 		contextKey: t.contextKey
 	});
 }
-function gD(e) {
-	let t = mD(e, "models.list", 100).map((e, t) => {
-		let n = `models.list[${t}]`, r = uD(e, n);
-		(typeof r.enabled != "boolean" || r.installationVerified !== !1) && lD(n);
-		let i = fD(r.kind, `${n}.kind`);
+function TD(e) {
+	let t = CD(e, "models.list", 100).map((e, t) => {
+		let n = `models.list[${t}]`, r = yD(e, n);
+		(typeof r.enabled != "boolean" || r.installationVerified !== !1) && vD(n);
+		let i = xD(r.kind, `${n}.kind`);
 		[
 			"codex-cli",
 			"claude-cli",
@@ -33362,39 +33650,39 @@ function gD(e) {
 			"openai-compatible",
 			"ollama",
 			"managed"
-		].includes(i) || lD(`${n}.kind`);
-		let a = fD(r.model, `${n}.model`, 128);
+		].includes(i) || vD(`${n}.kind`);
+		let a = xD(r.model, `${n}.model`, 128);
 		return Object.freeze({
-			id: pD(r.id, `${n}.id`),
-			label: Object.hasOwn(r, "label") ? fD(r.label, `${n}.label`, 200) : a,
+			id: SD(r.id, `${n}.id`),
+			label: Object.hasOwn(r, "label") ? xD(r.label, `${n}.label`, 200) : a,
 			kind: i,
 			model: a,
 			enabled: r.enabled,
 			installationVerified: !1
 		});
 	});
-	return new Set(t.map((e) => e.id)).size !== t.length && lD("models.list"), Object.freeze(t);
+	return new Set(t.map((e) => e.id)).size !== t.length && vD("models.list"), Object.freeze(t);
 }
 //#endregion
 //#region app/ui/src/screens/first-run/digest.ts
-function _D(e) {
+function ED(e) {
 	return Array.from(e, (e) => e.toString(16).padStart(2, "0")).join("");
 }
-function vD(e) {
+function DD(e) {
 	return async (t) => {
 		let n = e ?? globalThis.crypto?.subtle;
 		if (n === void 0) throw Object.assign(/* @__PURE__ */ Error("DIGEST_UNAVAILABLE"), { code: "DIGEST_UNAVAILABLE" });
 		let r = await n.digest("SHA-256", new TextEncoder().encode(t));
-		return _D(new Uint8Array(r));
+		return ED(new Uint8Array(r));
 	};
 }
-function yD(e) {
+function OD(e) {
 	return JSON.stringify(e);
 }
-function bD(e) {
+function kD(e) {
 	return JSON.stringify(e);
 }
-function xD(e) {
+function AD(e) {
 	return JSON.stringify({
 		pack: e.pack,
 		label: e.label,
@@ -33403,30 +33691,30 @@ function xD(e) {
 		fields: e.fields
 	});
 }
-async function SD(e, t) {
-	return await t(QE(e)) === e.hash;
+async function jD(e, t) {
+	return await t(sD(e)) === e.hash;
 }
-async function CD(e, t) {
+async function MD(e, t) {
 	for (let n of e.compiledSums ?? []) {
 		let r = e.definitions.find((e) => e.name === n.definitionName);
-		if (r === void 0 || await t(bD(r)) !== n.definitionHash || await t(eD(n)) !== n.digest) return !1;
+		if (r === void 0 || await t(kD(r)) !== n.definitionHash || await t(lD(n)) !== n.digest) return !1;
 	}
 	return !0;
 }
-async function wD(e, t) {
-	return await SD(e, t) && await CD(e, t);
+async function ND(e, t) {
+	return await jD(e, t) && await MD(e, t);
 }
 //#endregion
 //#region app/ui/src/screens/first-run/review.ts
-var TD = "settings", ED = (e, t) => `${e}/${t}`;
-function DD(e, t) {
+var PD = "settings", FD = (e, t) => `${e}/${t}`;
+function ID(e, t) {
 	return Object.freeze({
 		generation: t,
-		revision: ED(t, 0),
+		revision: FD(t, 0),
 		edits: 0,
 		pack: e.pack,
 		draft: e,
-		draftJson: yD(e),
+		draftJson: OD(e),
 		digest: null,
 		rows: Object.freeze(e.definitions.map((e) => Object.freeze({
 			definition: e,
@@ -33440,64 +33728,64 @@ function DD(e, t) {
 		})
 	});
 }
-function OD(e, t) {
+function LD(e, t) {
 	return Object.freeze({
 		...e,
 		digest: t
 	});
 }
-function kD(e) {
+function RD(e) {
 	return e.digest === null ? null : Object.freeze({
 		revision: e.revision,
 		digest: e.digest
 	});
 }
-function AD(e, t) {
+function zD(e, t) {
 	return e.digest !== null && e.revision === t.revision && e.digest === t.digest;
 }
-function jD(e, t) {
+function BD(e, t) {
 	return e.rows.find((e) => e.definition.name === t);
 }
-function MD(e) {
-	return e.status === "accepted" && e.pin === bD(e.definition);
+function VD(e) {
+	return e.status === "accepted" && e.pin === kD(e.definition);
 }
-function ND(e) {
-	return e.settings.accepted && e.settings.pin === xD(e.draft);
+function HD(e) {
+	return e.settings.accepted && e.settings.pin === AD(e.draft);
 }
-function PD(e) {
-	return e.rows.filter(MD);
+function UD(e) {
+	return e.rows.filter(VD);
 }
-function FD(e) {
-	return e.digest !== null && e.draftJson === yD(e.draft) && e.rows.every(MD) && ND(e);
+function WD(e) {
+	return e.digest !== null && e.draftJson === OD(e.draft) && e.rows.every(VD) && HD(e);
 }
-function ID(e, t, n) {
-	if (!AD(e, n)) return null;
-	let r = jD(e, t);
-	return r === void 0 || MD(r) ? null : Object.freeze({
+function GD(e, t, n) {
+	if (!zD(e, n)) return null;
+	let r = BD(e, t);
+	return r === void 0 || VD(r) ? null : Object.freeze({
 		...e,
 		rows: Object.freeze(e.rows.map((e) => e === r ? Object.freeze({
 			...e,
 			status: "accepted",
-			pin: bD(e.definition)
+			pin: kD(e.definition)
 		}) : e))
 	});
 }
-function LD(e, t) {
-	return !AD(e, t) || ND(e) ? null : Object.freeze({
+function KD(e, t) {
+	return !zD(e, t) || HD(e) ? null : Object.freeze({
 		...e,
 		settings: Object.freeze({
 			accepted: !0,
-			pin: xD(e.draft)
+			pin: AD(e.draft)
 		})
 	});
 }
-function RD(e, t, n, r) {
+function qD(e, t, n, r) {
 	if (r !== e.revision) return null;
-	let i = jD(e, t);
+	let i = BD(e, t);
 	if (i === void 0) return null;
 	let a;
 	try {
-		a = tD(e.draft, t, n);
+		a = uD(e.draft, t, n);
 	} catch {
 		return null;
 	}
@@ -33506,10 +33794,10 @@ function RD(e, t, n, r) {
 	let s = e.edits + 1;
 	return Object.freeze({
 		...e,
-		revision: ED(e.generation, s),
+		revision: FD(e.generation, s),
 		edits: s,
 		draft: a,
-		draftJson: yD(a),
+		draftJson: OD(a),
 		digest: null,
 		rows: Object.freeze(e.rows.map((e) => {
 			let t = a.definitions.find((t) => t.name === e.definition.name);
@@ -33527,15 +33815,15 @@ function RD(e, t, n, r) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/controller.ts
-var zD = Object.freeze({ ok: !0 }), Z = (e) => Object.freeze({
+var JD = Object.freeze({ ok: !0 }), Z = (e) => Object.freeze({
 	ok: !1,
 	code: e
-}), BD = Object.freeze({ kind: "idle" }), VD = Object.freeze({ kind: "left" }), HD = [
+}), YD = Object.freeze({ kind: "idle" }), XD = Object.freeze({ kind: "left" }), ZD = [
 	"ACCESS_DENIED",
 	"VAULT_LOCKED",
 	"UNAUTHENTICATED"
 ];
-function UD(e) {
+function QD(e) {
 	return Object.freeze({
 		version: e.version,
 		hash: e.hash,
@@ -33545,7 +33833,7 @@ function UD(e) {
 		publishedBy: e.publishedBy
 	});
 }
-function WD(e, t, n) {
+function $D(e, t, n) {
 	return Object.freeze({
 		workspaceId: e.workspace.id,
 		memberId: e.member.id,
@@ -33560,18 +33848,18 @@ function WD(e, t, n) {
 		})
 	});
 }
-function GD(e) {
+function eO(e) {
 	return Object.freeze({
 		hash: e.published.hash,
 		contextKey: e.context.contextKey,
 		reviewDigest: e.reviewDigest
 	});
 }
-var KD = 0;
-function qD(e, t = {}) {
-	let n = t.digest ?? vD(), r = t.createAttemptId ?? (() => globalThis.crypto.randomUUID());
-	KD += 1;
-	let i = KD, a = 0, o = BD, s = Symbol(), c = Symbol(), l = !1, u = !1, d = !1, f = !1, p = null, m = /* @__PURE__ */ new Set(), h = /* @__PURE__ */ new Set();
+var tO = 0;
+function nO(e, t = {}) {
+	let n = t.digest ?? DD(), r = t.createAttemptId ?? (() => globalThis.crypto.randomUUID());
+	tO += 1;
+	let i = tO, a = 0, o = YD, s = Symbol(), c = Symbol(), l = !1, u = !1, d = !1, f = !1, p = null, m = /* @__PURE__ */ new Set(), h = /* @__PURE__ */ new Set();
 	function g(e) {
 		if (!l) {
 			o = Object.freeze(e);
@@ -33598,7 +33886,7 @@ function qD(e, t = {}) {
 	function b(e, t) {
 		return v(e) && o === t;
 	}
-	let x = () => e.request("ui.context", {}).then(hD), S = (e) => e.held === null ? null : Object.freeze({
+	let x = () => e.request("ui.context", {}).then(wD), S = (e) => e.held === null ? null : Object.freeze({
 		pack: e.pack,
 		label: e.label,
 		reviewDigest: e.reviewDigest
@@ -33610,10 +33898,10 @@ function qD(e, t = {}) {
 		let i = t.history.filter((e) => e.hash === r.dictionaryHash && e.version === r.version);
 		if (i.length !== 1 || t.current === null || JSON.stringify(t.current) !== JSON.stringify(t.history.at(-1))) return { kind: "mismatch" };
 		let a = i[0];
-		if (a.publishedBy !== e.expectedActor || yD(ZE(a)) !== e.draftJson || await n(yD(ZE(a))) !== r.draftDigest || !await wD(a, n)) return { kind: "mismatch" };
+		if (a.publishedBy !== e.expectedActor || OD(oD(a)) !== e.draftJson || await n(OD(oD(a))) !== r.draftDigest || !await ND(a, n)) return { kind: "mismatch" };
 		if (t.current.hash === a.hash) {
 			if (JSON.stringify(t.current) !== JSON.stringify(a)) return { kind: "mismatch" };
-		} else if (!await wD(t.current, n)) return { kind: "mismatch" };
+		} else if (!await ND(t.current, n)) return { kind: "mismatch" };
 		return {
 			kind: "verified",
 			dictionary: a
@@ -33623,7 +33911,7 @@ function qD(e, t = {}) {
 		return u || d || f || p?.phase === "issued" ? Z("IN_FLIGHT") : p === null ? null : Z("PUBLISH_UNRESOLVED");
 	}
 	function T() {
-		return s = Symbol(), c = Symbol(), g(BD), Z("READ_INVALIDATED");
+		return s = Symbol(), c = Symbol(), g(YD), Z("READ_INVALIDATED");
 	}
 	function E(e) {
 		return s = Symbol(), c = Symbol(), g({
@@ -33632,7 +33920,7 @@ function qD(e, t = {}) {
 		}), Z(e);
 	}
 	function D(e) {
-		s = Symbol(), c = Symbol(), p === null ? g(e === null ? BD : {
+		s = Symbol(), c = Symbol(), p === null ? g(e === null ? YD : {
 			kind: "unavailable",
 			code: e
 		}) : (p.held = null, g({
@@ -33659,21 +33947,21 @@ function qD(e, t = {}) {
 			let r = y();
 			if (!v(l)) return Z("READ_INVALIDATED");
 			if (!r) return T();
-			if (!nD(t)) return g({
+			if (!dD(t)) return g({
 				kind: "read-only",
 				context: t
 			}), Z("ROLE_FORBIDDEN");
-			let i = GE(await e.request("ontology.packs", {}));
+			let i = eD(await e.request("ontology.packs", {}));
 			if (!v(l)) return Z("READ_INVALIDATED");
 			let a = y();
 			if (!v(l)) return Z("READ_INVALIDATED");
 			if (!a) return T();
-			let o = YE(await e.request("ontology.get", {}));
+			let o = iD(await e.request("ontology.get", {}));
 			if (!v(l)) return Z("READ_INVALIDATED");
 			let s = y();
 			if (!v(l)) return Z("READ_INVALIDATED");
 			if (!s) return T();
-			let c = o.current === null || await wD(o.current, n);
+			let c = o.current === null || await ND(o.current, n);
 			if (!v(l)) return Z("READ_INVALIDATED");
 			let u = y();
 			if (!v(l)) return Z("READ_INVALIDATED");
@@ -33682,14 +33970,14 @@ function qD(e, t = {}) {
 			let d = await x();
 			if (!v(l)) return Z("READ_INVALIDATED");
 			let f = y();
-			return v(l) ? f ? rD(t, d) ? iD(t, d) ? (g({
+			return v(l) ? f ? fD(t, d) ? pD(t, d) ? (g({
 				kind: "choose",
 				context: d,
 				packs: i,
-				current: o.current === null ? null : UD(o.current)
-			}), zD) : E("CONTEXT_CHANGED") : E("ACCESS_DENIED") : T() : Z("READ_INVALIDATED");
+				current: o.current === null ? null : QD(o.current)
+			}), JD) : E("CONTEXT_CHANGED") : E("ACCESS_DENIED") : T() : Z("READ_INVALIDATED");
 		} catch (e) {
-			return v(l) ? E(sD(e).code) : Z("READ_INVALIDATED");
+			return v(l) ? E(gD(e).code) : Z("READ_INVALIDATED");
 		}
 	}
 	function te(e) {
@@ -33706,7 +33994,7 @@ function qD(e, t = {}) {
 			let a = o;
 			a.kind === "review" && a.review.revision === e.revision && a.review.draftJson === e.draftJson && a.review.digest === null && g({
 				...a,
-				review: OD(a.review, n)
+				review: LD(a.review, n)
 			});
 		}, () => {
 			if (!v(t) || c !== r) return;
@@ -33724,7 +34012,7 @@ function qD(e, t = {}) {
 		let l = r.packs.find((t) => t.pack === e);
 		if (l === void 0) return Z("PACK_UNKNOWN");
 		a += 1;
-		let u = DD(UE(l), `c${i}s${a}`);
+		let u = ID(QE(l), `c${i}s${a}`);
 		return g({
 			kind: "review",
 			context: r.context,
@@ -33733,7 +34021,7 @@ function qD(e, t = {}) {
 			review: u,
 			publishing: !1,
 			notice: null
-		}), te(u), zD;
+		}), te(u), JD;
 	}
 	function k() {
 		let e = w();
@@ -33744,7 +34032,7 @@ function qD(e, t = {}) {
 			context: n.context,
 			packs: n.packs,
 			current: n.current
-		}), zD) : Z("SELECTION_INVALID") : E("NO_AUTHORITY") : Z("READ_INVALIDATED");
+		}), JD) : Z("SELECTION_INVALID") : E("NO_AUTHORITY") : Z("READ_INVALIDATED");
 	}
 	function A(e, t) {
 		let n = w();
@@ -33758,19 +34046,19 @@ function qD(e, t = {}) {
 			...i,
 			review: c,
 			notice: null
-		}), c.digest === null && te(c), zD);
+		}), c.digest === null && te(c), JD);
 	}
 	async function ne(t) {
 		let i = w();
 		if (i !== null) return i;
 		let a = o;
 		if (a.kind !== "review") return Z("SELECTION_INVALID");
-		if (!AD(a.review, t)) return Z("DIGEST_STALE");
-		if (!FD(a.review)) return Z("NOT_REVIEWED");
+		if (!zD(a.review, t)) return Z("DIGEST_STALE");
+		if (!WD(a.review)) return Z("NOT_REVIEWED");
 		let c = s, l = y();
 		if (!b(c, a)) return Z("READ_INVALIDATED");
 		if (!l) return E("NO_AUTHORITY");
-		if (!nD(a.context)) return E("ROLE_FORBIDDEN");
+		if (!dD(a.context)) return E("ROLE_FORBIDDEN");
 		u = !0;
 		let d = a.review, f = a.context, m = t.digest;
 		g({
@@ -33787,7 +34075,7 @@ function qD(e, t = {}) {
 				...n,
 				publishing: !1,
 				notice: e
-			}), e === null ? zD : Z(e.code);
+			}), e === null ? JD : Z(e.code);
 		}, O = (e, t = !1) => {
 			let n = y();
 			return h !== null && (h.phase = "unresolved", (t || !n) && (h.held = null)), v(c) ? (g({
@@ -33810,23 +34098,23 @@ function qD(e, t = {}) {
 			let i = y();
 			if (!v(c)) return Z("READ_INVALIDATED");
 			if (!i) return T();
-			if (t !== m || yD(d.draft) !== d.draftJson) return te({ code: "DIGEST_STALE" });
+			if (t !== m || OD(d.draft) !== d.draftJson) return te({ code: "DIGEST_STALE" });
 			let a = await x();
 			if (!v(c)) return Z("READ_INVALIDATED");
 			let s = y();
 			if (!v(c)) return Z("READ_INVALIDATED");
 			if (!s) return T();
-			if (!rD(a, f)) return E("ACCESS_DENIED");
-			if (!iD(a, f)) return E("CONTEXT_CHANGED");
-			if (!nD(a)) return E("ROLE_FORBIDDEN");
+			if (!fD(a, f)) return E("ACCESS_DENIED");
+			if (!pD(a, f)) return E("CONTEXT_CHANGED");
+			if (!dD(a)) return E("ROLE_FORBIDDEN");
 			let l = r();
-			if (typeof l != "string" || !TE.test(l)) throw Object.assign(/* @__PURE__ */ Error("The publication attempt identity is unavailable."), { code: "INVALID_DICTIONARY_OPTIONS" });
+			if (typeof l != "string" || !PE.test(l)) throw Object.assign(/* @__PURE__ */ Error("The publication attempt identity is unavailable."), { code: "INVALID_DICTIONARY_OPTIONS" });
 			let u = y();
 			if (!v(c)) return Z("READ_INVALIDATED");
 			if (!u) return T();
 			let b = o;
-			if (b.kind !== "review" || b.review !== d || !FD(d)) return te({ code: "DIGEST_STALE" });
-			if (!nD(b.context)) return E("ROLE_FORBIDDEN");
+			if (b.kind !== "review" || b.review !== d || !WD(d)) return te({ code: "DIGEST_STALE" });
+			if (!dD(b.context)) return E("ROLE_FORBIDDEN");
 			h = {
 				phase: "issued",
 				attemptId: l,
@@ -33857,7 +34145,7 @@ function qD(e, t = {}) {
 			_({ kind: "issued" });
 			let w = await S;
 			ee = "after";
-			let D = JE(w), A = await wD(D, n) && yD(ZE(D)) === d.draftJson && D.version === h.expectedVersion && D.publishedBy === h.expectedActor && (h.baseline === null || D.hash !== h.baseline.hash);
+			let D = rD(w), A = await ND(D, n) && OD(oD(D)) === d.draftJson && D.version === h.expectedVersion && D.publishedBy === h.expectedActor && (h.baseline === null || D.hash !== h.baseline.hash);
 			if (A && (h.returned = D.hash), !v(c)) return k();
 			if (!A) return O("PUBLISH_MISMATCH");
 			let ne = await x();
@@ -33865,8 +34153,8 @@ function qD(e, t = {}) {
 			let re = y();
 			if (!v(c)) return k();
 			if (!re) return O("READ_INVALIDATED", !0);
-			if (!rD(ne, f)) return O("ACCESS_DENIED", !0);
-			let ie = XE(await e.request("ontology.get", { attemptId: h.attemptId }));
+			if (!fD(ne, f)) return O("ACCESS_DENIED", !0);
+			let ie = aD(await e.request("ontology.get", { attemptId: h.attemptId }));
 			if (!v(c)) return k();
 			let ae = y();
 			if (!v(c)) return k();
@@ -33881,7 +34169,7 @@ function qD(e, t = {}) {
 			let le = y();
 			if (!v(c)) return k();
 			if (!le) return O("READ_INVALIDATED", !0);
-			if (!rD(ce, f) || ce.contextKey !== ne.contextKey) return O("ACCESS_DENIED", !0);
+			if (!fD(ce, f) || ce.contextKey !== ne.contextKey) return O("ACCESS_DENIED", !0);
 			if (oe.kind === "unknown") return O("PUBLISH_UNKNOWN");
 			if (oe.kind === "mismatch" || ce.contextKey === f.contextKey || JSON.stringify(oe.dictionary) !== JSON.stringify(D)) return O("READBACK_MISMATCH");
 			if (p = null, ie.current?.hash !== D.hash) {
@@ -33894,24 +34182,24 @@ function qD(e, t = {}) {
 					outcome: "not-current"
 				}), e;
 			}
-			let ue = UD(D);
+			let ue = QD(D);
 			return g({
 				kind: "published",
 				context: ce,
 				published: ue,
 				review: d,
 				reviewDigest: m,
-				handoff: WD(ce, ue, m)
+				handoff: $D(ce, ue, m)
 			}), _({
 				kind: "settled",
 				outcome: "verified"
 			}), _({
 				kind: "resolved",
 				outcome: "published"
-			}), zD;
+			}), JD;
 		} catch (e) {
-			let t = sD(e);
-			if (h === null) return v(c) ? HD.includes(t.code) ? E(t.code) : te(t) : Z("READ_INVALIDATED");
+			let t = gD(e);
+			if (h === null) return v(c) ? ZD.includes(t.code) ? E(t.code) : te(t) : Z("READ_INVALIDATED");
 			if (!v(c)) return k();
 			if (ee === "raw" && t.code === "PUBLISH_REFUSED") {
 				p = null;
@@ -33921,7 +34209,7 @@ function qD(e, t = {}) {
 					outcome: "not-committed"
 				}), e;
 			}
-			return HD.includes(t.code) || t.engineCode === "DICTIONARY_ATTEMPT_AUTHORITY" ? O(t.code, !0) : O(t.code === "REQUEST_FAILED" ? "PUBLISH_UNKNOWN" : t.code);
+			return ZD.includes(t.code) || t.engineCode === "DICTIONARY_ATTEMPT_AUTHORITY" ? O(t.code, !0) : O(t.code === "REQUEST_FAILED" ? "PUBLISH_UNKNOWN" : t.code);
 		} finally {
 			u = !1;
 		}
@@ -33971,8 +34259,8 @@ function qD(e, t = {}) {
 			let i = y();
 			if (!v(r)) return Z("READ_INVALIDATED");
 			if (!i) return c();
-			if (!rD(n, t.reviewed)) return a("ACCESS_DENIED", !0);
-			let o = XE(await e.request("ontology.get", { attemptId: t.attemptId }));
+			if (!fD(n, t.reviewed)) return a("ACCESS_DENIED", !0);
+			let o = aD(await e.request("ontology.get", { attemptId: t.attemptId }));
 			if (!v(r)) return Z("READ_INVALIDATED");
 			let s = y();
 			if (!v(r)) return Z("READ_INVALIDATED");
@@ -33987,25 +34275,25 @@ function qD(e, t = {}) {
 			let p = y();
 			if (!v(r)) return Z("READ_INVALIDATED");
 			if (!p) return c();
-			if (!rD(f, t.reviewed)) return a("ACCESS_DENIED", !0);
-			if (!iD(n, f)) return a("CONTEXT_CHANGED");
+			if (!fD(f, t.reviewed)) return a("ACCESS_DENIED", !0);
+			if (!pD(n, f)) return a("CONTEXT_CHANGED");
 			if (u.kind === "unknown") return a("PUBLISH_UNKNOWN");
 			if (u.kind === "mismatch" || f.contextKey === t.reviewed.contextKey) return a("READBACK_MISMATCH");
 			let m = u.dictionary;
 			if (o.current?.hash !== m.hash) return l("not-current", () => E("REVIEW_NOT_CURRENT"));
-			let h = UD(m), _ = t.held;
+			let h = QD(m), _ = t.held;
 			return l("published", () => (g({
 				kind: "published",
 				context: f,
 				published: h,
 				review: _ === null ? null : _.review,
 				reviewDigest: t.reviewDigest,
-				handoff: WD(f, h, t.reviewDigest)
-			}), zD));
+				handoff: $D(f, h, t.reviewDigest)
+			}), JD));
 		} catch (e) {
 			if (!v(r)) return Z("READ_INVALIDATED");
-			let t = sD(e);
-			return a(t.code, HD.includes(t.code) || t.engineCode === "DICTIONARY_ATTEMPT_AUTHORITY");
+			let t = gD(e);
+			return a(t.code, ZD.includes(t.code) || t.engineCode === "DICTIONARY_ATTEMPT_AUTHORITY");
 		} finally {
 			d = !1;
 		}
@@ -34013,11 +34301,11 @@ function qD(e, t = {}) {
 	function ie(e) {
 		s = Symbol(), c = Symbol();
 		let t = s;
-		g(VD);
+		g(XD);
 		let n = () => {
-			if (!v(t) || o !== VD) return !1;
+			if (!v(t) || o !== XD) return !1;
 			let e = y();
-			return !v(t) || o !== VD ? !1 : e ? !0 : (D("NO_AUTHORITY"), !1);
+			return !v(t) || o !== XD ? !1 : e ? !0 : (D("NO_AUTHORITY"), !1);
 		};
 		if (!n()) return Z("READ_INVALIDATED");
 		let r = !1;
@@ -34044,9 +34332,9 @@ function qD(e, t = {}) {
 			let e = await x();
 			if (!v(r)) return Z("READ_INVALIDATED");
 			let t = y();
-			return v(r) ? t ? rD(e, n.context) ? iD(e, n.context) ? o === n ? ie(n.handoff) : Z("SELECTION_INVALID") : E("CONTEXT_CHANGED") : E("ACCESS_DENIED") : T() : Z("READ_INVALIDATED");
+			return v(r) ? t ? fD(e, n.context) ? pD(e, n.context) ? o === n ? ie(n.handoff) : Z("SELECTION_INVALID") : E("CONTEXT_CHANGED") : E("ACCESS_DENIED") : T() : Z("READ_INVALIDATED");
 		} catch (e) {
-			return v(r) ? E(sD(e).code) : Z("READ_INVALIDATED");
+			return v(r) ? E(gD(e).code) : Z("READ_INVALIDATED");
 		} finally {
 			f = !1;
 		}
@@ -34061,15 +34349,15 @@ function qD(e, t = {}) {
 		return b(r, n) ? i ? ie(n.review.draft) : E("NO_AUTHORITY") : Z("READ_INVALIDATED");
 	}
 	function se() {
-		if (l) return zD;
+		if (l) return JD;
 		if (p !== null) return Z(p.phase === "issued" ? "IN_FLIGHT" : "PUBLISH_UNRESOLVED");
-		l = !0, s = Symbol(), c = Symbol(), o = BD;
+		l = !0, s = Symbol(), c = Symbol(), o = YD;
 		let e = [...m];
 		m.clear(), h.clear();
 		for (let t of e) try {
 			t();
 		} catch {}
-		return zD;
+		return JD;
 	}
 	return Object.freeze({
 		snapshot: () => o,
@@ -34087,9 +34375,9 @@ function qD(e, t = {}) {
 		load: ee,
 		choosePack: O,
 		backToPacks: k,
-		acceptRow: (e, t) => A((n) => ID(n, e, t), "DIGEST_STALE"),
-		acceptSettings: (e) => A((t) => LD(t, e), "DIGEST_STALE"),
-		changeMeaning: (e, t, n) => A((r) => RD(r, e, t, n), o.kind === "review" && o.review.revision !== n ? "DIGEST_STALE" : "MEANING_INVALID"),
+		acceptRow: (e, t) => A((n) => GD(n, e, t), "DIGEST_STALE"),
+		acceptSettings: (e) => A((t) => KD(t, e), "DIGEST_STALE"),
+		changeMeaning: (e, t, n) => A((r) => qD(r, e, t, n), o.kind === "review" && o.review.revision !== n ? "DIGEST_STALE" : "MEANING_INVALID"),
 		publishDictionary: ne,
 		reconcile: re,
 		leave: ae,
@@ -34140,7 +34428,7 @@ var Q = {
 };
 //#endregion
 //#region app/ui/src/screens/first-run/rows.tsx
-function JD({ open: e }) {
+function rO({ open: e }) {
 	return /* @__PURE__ */ (0, M.jsx)("svg", {
 		className: [Q.arrow, e ? Q.arrowOpen : ""].filter(Boolean).join(" "),
 		viewBox: "0 0 8 8",
@@ -34156,7 +34444,7 @@ function JD({ open: e }) {
 		})
 	});
 }
-function YD(e) {
+function iO(e) {
 	if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
 	let t = e.currentTarget.closest("[data-first-run-list]");
 	if (t === null) return;
@@ -34165,12 +34453,12 @@ function YD(e) {
 	let i = n[e.key === "ArrowDown" ? r + 1 : r - 1];
 	i !== void 0 && (e.preventDefault(), i.focus());
 }
-var XD = Object.freeze({
+var aO = Object.freeze({
 	simple: 1,
 	guided: 2,
 	books: 3
-}), ZD = XD.guided;
-function QD(e, t = ZD) {
+}), oO = aO.guided;
+function sO(e, t = oO) {
 	if (t <= 0) return null;
 	let n = e.split(/\s+/u).filter((e) => e.length > 0);
 	return n.length <= t ? {
@@ -34183,7 +34471,7 @@ function QD(e, t = ZD) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/Meanings.tsx
-function $D({ initial: e, onSave: t, onDiscard: n }) {
+function cO({ initial: e, onSave: t, onDiscard: n }) {
 	let r = N(), i = (0, _.useId)(), [a, o] = (0, _.useState)(e), [s, c] = (0, _.useState)(!1), l = r("FR-08.edit.save"), u = r("FR-08.edit.discard");
 	return /* @__PURE__ */ (0, M.jsxs)("form", {
 		className: Q.editor,
@@ -34191,7 +34479,7 @@ function $D({ initial: e, onSave: t, onDiscard: n }) {
 			e.preventDefault();
 			let n;
 			try {
-				n = LE(a);
+				n = KE(a);
 			} catch {
 				c(!0);
 				return;
@@ -34239,7 +34527,7 @@ function $D({ initial: e, onSave: t, onDiscard: n }) {
 		]
 	});
 }
-function eO({ summary: e, children: t, testId: n, open: r, onToggle: i }) {
+function lO({ summary: e, children: t, testId: n, open: r, onToggle: i }) {
 	return /* @__PURE__ */ (0, M.jsxs)("details", {
 		className: Q.disclosure,
 		"data-first-run-disclosure": n,
@@ -34253,7 +34541,7 @@ function eO({ summary: e, children: t, testId: n, open: r, onToggle: i }) {
 		}), t]
 	});
 }
-function tO({ id: e, open: t, mark: n, stateKey: r, word: i, wordLang: a, preview: o, onToggle: s, mainRef: c, children: l }) {
+function uO({ id: e, open: t, mark: n, stateKey: r, word: i, wordLang: a, preview: o, onToggle: s, mainRef: c, children: l }) {
 	let u = N(), d = (0, _.useId)();
 	return /* @__PURE__ */ (0, M.jsxs)("li", {
 		className: [Q.row, t ? Q.open : ""].filter(Boolean).join(" "),
@@ -34269,7 +34557,7 @@ function tO({ id: e, open: t, mark: n, stateKey: r, word: i, wordLang: a, previe
 				"aria-expanded": t,
 				"aria-controls": t ? d : void 0,
 				onClick: s,
-				onKeyDown: YD,
+				onKeyDown: iO,
 				children: [
 					/* @__PURE__ */ (0, M.jsx)(xr, {
 						mark: n,
@@ -34295,7 +34583,7 @@ function tO({ id: e, open: t, mark: n, stateKey: r, word: i, wordLang: a, previe
 			}), /* @__PURE__ */ (0, M.jsx)("span", {
 				className: Q.arrowSlot,
 				"aria-hidden": "true",
-				children: /* @__PURE__ */ (0, M.jsx)(JD, { open: t })
+				children: /* @__PURE__ */ (0, M.jsx)(rO, { open: t })
 			})]
 		}), t && /* @__PURE__ */ (0, M.jsx)("div", {
 			id: d,
@@ -34304,7 +34592,7 @@ function tO({ id: e, open: t, mark: n, stateKey: r, word: i, wordLang: a, previe
 		})]
 	});
 }
-function nO({ row: e, pin: t, revision: n, previewWords: r, open: i, editing: a, readOnly: o, onToggle: s, onAccept: c, onStartEdit: l, onSave: u, onDiscard: d }) {
+function dO({ row: e, pin: t, revision: n, previewWords: r, open: i, editing: a, readOnly: o, onToggle: s, onAccept: c, onStartEdit: l, onSave: u, onDiscard: d }) {
 	let f = N(), p = (0, _.useRef)(null), [m, h] = (0, _.useState)(!1);
 	(0, _.useEffect)(() => {
 		h(!1);
@@ -34313,8 +34601,8 @@ function nO({ row: e, pin: t, revision: n, previewWords: r, open: i, editing: a,
 		a,
 		i
 	]);
-	let g = MD(e), v = g ? "FR-08.state.accepted" : e.status === "changed" ? "FR-08.state.changed" : "FR-08.state.proposed", y = e.definition, b = y.meaning === e.proposed, x = f("FR-08.row.accept"), S = () => p.current?.focus(), C = QD(y.meaning, r);
-	return /* @__PURE__ */ (0, M.jsxs)(tO, {
+	let g = VD(e), v = g ? "FR-08.state.accepted" : e.status === "changed" ? "FR-08.state.changed" : "FR-08.state.proposed", y = e.definition, b = y.meaning === e.proposed, x = f("FR-08.row.accept"), S = () => p.current?.focus(), C = sO(y.meaning, r);
+	return /* @__PURE__ */ (0, M.jsxs)(uO, {
 		id: y.name,
 		open: i,
 		mark: g ? "you" : "wait",
@@ -34328,7 +34616,7 @@ function nO({ row: e, pin: t, revision: n, previewWords: r, open: i, editing: a,
 		onToggle: s,
 		mainRef: p,
 		children: [
-			a && !o ? /* @__PURE__ */ (0, M.jsx)($D, {
+			a && !o ? /* @__PURE__ */ (0, M.jsx)(cO, {
 				initial: y.meaning,
 				onSave: (e) => {
 					u(e, n), S();
@@ -34353,7 +34641,7 @@ function nO({ row: e, pin: t, revision: n, previewWords: r, open: i, editing: a,
 					children: f("FR-08.row.evidence")
 				})
 			] }),
-			!b && !a && /* @__PURE__ */ (0, M.jsx)(eO, {
+			!b && !a && /* @__PURE__ */ (0, M.jsx)(lO, {
 				summary: f("FR-08.row.proposedWas"),
 				testId: "original",
 				open: m,
@@ -34385,10 +34673,10 @@ function nO({ row: e, pin: t, revision: n, previewWords: r, open: i, editing: a,
 		]
 	});
 }
-function rO({ review: e, pin: t, current: n, open: r, readOnly: i, onToggle: a, onAccept: o, onChangeSettings: s }) {
-	let c = N(), l = (0, _.useRef)(null), u = ND(e), d = e.draft, f = c("FR-08.row.accept"), p = () => l.current?.focus();
-	return /* @__PURE__ */ (0, M.jsxs)(tO, {
-		id: TD,
+function fO({ review: e, pin: t, current: n, open: r, readOnly: i, onToggle: a, onAccept: o, onChangeSettings: s }) {
+	let c = N(), l = (0, _.useRef)(null), u = HD(e), d = e.draft, f = c("FR-08.row.accept"), p = () => l.current?.focus();
+	return /* @__PURE__ */ (0, M.jsxs)(uO, {
+		id: PD,
 		open: r,
 		mark: u ? "you" : "unsure",
 		stateKey: u ? "FR-08.state.accepted" : "FR-08.state.needsAnswer",
@@ -34440,10 +34728,10 @@ function rO({ review: e, pin: t, current: n, open: r, readOnly: i, onToggle: a, 
 		]
 	});
 }
-function iO(e, t) {
+function pO(e, t) {
 	return t.code === "PUBLISH_REFUSED" ? e("FR-08.notice.PUBLISH_REFUSED", { code: t.engineCode ?? t.code }) : t.code === "DIGEST_STALE" ? e("FR-08.notice.DIGEST_STALE") : t.code === "ALREADY_CURRENT" ? e("FR-08.notice.ALREADY_CURRENT") : t.code === "PUBLISH_NOT_COMMITTED" ? e("FR-08.notice.PUBLISH_NOT_COMMITTED") : e("FR-08.notice.other", { code: t.code });
 }
-function aO({ state: e, controller: t, intents: n, view: r }) {
+function mO({ state: e, controller: t, intents: n, view: r }) {
 	let i = N(), a = (0, _.useId)(), [o, s] = (0, _.useState)(null), [c, l] = (0, _.useState)(null), u = (0, _.useRef)({
 		epoch: 0,
 		revision: null
@@ -34453,7 +34741,7 @@ function aO({ state: e, controller: t, intents: n, view: r }) {
 	}, [m, h]), (0, _.useEffect)(() => () => {
 		u.current.epoch += 1, u.current.revision = null;
 	}, []);
-	let g = m && u.current.revision === h ? c : null, v = d === null ? null : kD(d), y = XD[r], b = e.kind === "review" ? e.review.draft.label : e.kind === "published" ? e.published.label : e.attempt === null ? null : e.attempt.label, x = b === null ? i("FR.step", {
+	let g = m && u.current.revision === h ? c : null, v = d === null ? null : RD(d), y = aO[r], b = e.kind === "review" ? e.review.draft.label : e.kind === "published" ? e.published.label : e.attempt === null ? null : e.attempt.label, x = b === null ? i("FR.step", {
 		step: "5",
 		of: "6"
 	}) : b, S = () => {
@@ -34463,13 +34751,13 @@ function aO({ state: e, controller: t, intents: n, view: r }) {
 		r.kind !== "review" || r.publishing || r.review.revision !== n || (u.current.epoch += 1, u.current.revision = n, l(e));
 	}, w = (e) => {
 		u.current.revision !== null && S(), s((t) => t === e ? null : e);
-	}, T = d === null ? null : PD(d).length + +!!ND(d), E = d === null ? null : d.rows.length + 1, D = i("FR-08.publish"), ee = n.onChangeSettings, te = ee === void 0 ? null : (e) => {
+	}, T = d === null ? null : UD(d).length + +!!HD(d), E = d === null ? null : d.rows.length + 1, D = i("FR-08.publish"), ee = n.onChangeSettings, te = ee === void 0 ? null : (e) => {
 		let n = t.leaveToSettings(e), r = n.ok ? n.admit() : null;
 		r !== null && ee(r);
 	}, O, k = null, A = null;
 	if (e.kind === "review") {
-		let n = m && g === null && v !== null && FD(e.review) ? v : null, r = u.current.epoch;
-		O = p ? i("FR-08.publishing") : e.notice === null ? n === null ? i("FR-08.footer.review") : "" : iO(i, e.notice), A = n === null ? null : /* @__PURE__ */ (0, M.jsx)(F, {
+		let n = m && g === null && v !== null && WD(e.review) ? v : null, r = u.current.epoch;
+		O = p ? i("FR-08.publishing") : e.notice === null ? n === null ? i("FR-08.footer.review") : "" : pO(i, e.notice), A = n === null ? null : /* @__PURE__ */ (0, M.jsx)(F, {
 			variant: "filled",
 			onClick: () => {
 				u.current.revision === null && u.current.epoch === r && t.publishDictionary(n);
@@ -34485,7 +34773,7 @@ function aO({ state: e, controller: t, intents: n, view: r }) {
 	});
 	else {
 		O = i("FR-08.published", { version: String(e.published.version) }), k = i("FR-08.published.hash", { hash: e.published.hash });
-		let r = n.onContinue, a = GD(e);
+		let r = n.onContinue, a = eO(e);
 		A = r === void 0 ? null : /* @__PURE__ */ (0, M.jsx)(F, {
 			variant: "quiet",
 			onClick: () => {
@@ -34521,7 +34809,7 @@ function aO({ state: e, controller: t, intents: n, view: r }) {
 			className: Q.rows,
 			"data-first-run-list": "meanings",
 			"aria-labelledby": a,
-			children: [d.rows.map((e) => /* @__PURE__ */ (0, M.jsx)(nO, {
+			children: [d.rows.map((e) => /* @__PURE__ */ (0, M.jsx)(dO, {
 				row: e,
 				pin: v,
 				revision: d.revision,
@@ -34538,7 +34826,7 @@ function aO({ state: e, controller: t, intents: n, view: r }) {
 					S(), t.changeMeaning(e.definition.name, n, r);
 				},
 				onDiscard: S
-			}, `${d.generation}:${e.definition.name}`)), /* @__PURE__ */ (0, M.jsx)(rO, {
+			}, `${d.generation}:${e.definition.name}`)), /* @__PURE__ */ (0, M.jsx)(fO, {
 				review: d,
 				pin: v,
 				current: e.kind === "review" ? e.current : null,
@@ -34581,12 +34869,12 @@ function aO({ state: e, controller: t, intents: n, view: r }) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/PickPack.tsx
-var oO = /^#\/[a-z][a-z0-9-]{0,63}(?:\/[a-z][a-z0-9-]{0,63})?$/;
-function sO(e) {
-	return oO.test(e);
+var hO = /^#\/[a-z][a-z0-9-]{0,63}(?:\/[a-z][a-z0-9-]{0,63})?$/;
+function gO(e) {
+	return hO.test(e);
 }
-function cO({ packs: e, onChoose: t, conversation: n, onLeave: r }) {
-	let i = N(), a = (0, _.useId)(), o = n !== void 0 && sO(n.href) ? n : void 0;
+function _O({ packs: e, onChoose: t, conversation: n, onLeave: r }) {
+	let i = N(), a = (0, _.useId)(), o = n !== void 0 && gO(n.href) ? n : void 0;
 	return /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [
 		/* @__PURE__ */ (0, M.jsx)(Hh, {
 			where: i("FR.step", {
@@ -34611,7 +34899,7 @@ function cO({ packs: e, onChoose: t, conversation: n, onLeave: r }) {
 						className: Q.main,
 						"data-row-main": "",
 						onClick: () => t(e.pack),
-						onKeyDown: YD,
+						onKeyDown: iO,
 						children: [
 							/* @__PURE__ */ (0, M.jsx)(xr, {
 								mark: "wait",
@@ -34631,7 +34919,7 @@ function cO({ packs: e, onChoose: t, conversation: n, onLeave: r }) {
 					}), /* @__PURE__ */ (0, M.jsx)("span", {
 						className: Q.arrowSlot,
 						"aria-hidden": "true",
-						children: /* @__PURE__ */ (0, M.jsx)(JD, { open: !1 })
+						children: /* @__PURE__ */ (0, M.jsx)(rO, { open: !1 })
 					})]
 				})
 			}, e.pack))
@@ -34652,7 +34940,7 @@ function cO({ packs: e, onChoose: t, conversation: n, onLeave: r }) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/text/en.json
-var lO = {
+var vO = {
 	"FR.loading": "Reading the starter packs.",
 	"FR.left": "Leaving this step.",
 	"FR.readOnly": "Your seat can read the books but cannot publish their meanings. An owner or cofounder does that.",
@@ -34950,7 +35238,7 @@ var lO = {
 	"FR-13.backup.btn": "Choose backup file",
 	"FR-13.backup.notBuilt": "Opening from a backup file is not built here yet.",
 	"FR-13.notBuilt": "Opening with a recovery kit is not built in this engine yet."
-}, uO = {
+}, yO = {
 	"FR.loading": "शुरुआती पैक पढ़े जा रहे हैं।",
 	"FR.left": "यह चरण छोड़ा जा रहा है।",
 	"FR.readOnly": "आपकी सीट खाते पढ़ सकती है, पर उनके मतलब प्रकाशित नहीं कर सकती। यह मालिक या सह-संस्थापक करता है।",
@@ -35248,25 +35536,25 @@ var lO = {
 	"FR-13.backup.btn": "बैकअप फ़ाइल चुनें",
 	"FR-13.backup.notBuilt": "बैकअप फ़ाइल से खोलना यहाँ अभी बना नहीं है।",
 	"FR-13.notBuilt": "इस इंजन में रिकवरी किट से खोलना अभी बना नहीं है।"
-}, dO = {
+}, bO = {
 	en: kn,
 	hi: An
-}, fO = {
-	en: lO,
-	hi: uO
+}, xO = {
+	en: vO,
+	hi: yO
 };
-function pO(e) {
+function SO(e) {
 	return {
-		...dO[e],
-		...fO[e]
+		...bO[e],
+		...xO[e]
 	};
 }
-function mO({ language: e, children: t }) {
+function CO({ language: e, children: t }) {
 	return /* @__PURE__ */ (0, M.jsx)(Nn, {
 		language: e,
 		children: /* @__PURE__ */ (0, M.jsx)(On, {
 			locale: e,
-			messages: pO(e),
+			messages: SO(e),
 			defaultLocale: "en",
 			children: t
 		})
@@ -35274,15 +35562,15 @@ function mO({ language: e, children: t }) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/FirstRun.tsx
-var hO = [
+var wO = [
 	"STEP.you",
 	"STEP.vault",
 	"STEP.model",
 	"STEP.books",
 	"STEP.meanings",
 	"STEP.first-answer"
-], gO = ["en", "hi"];
-function _O(e, t) {
+], TO = ["en", "hi"];
+function EO(e, t) {
 	let n = (e) => e ? "done" : "unsure", r = [
 		n(t.you),
 		n(t.vault),
@@ -35291,12 +35579,12 @@ function _O(e, t) {
 		e === "meanings" ? "waiting-for-you" : "not-reached",
 		"not-reached"
 	];
-	return hO.map((e, t) => ({
+	return wO.map((e, t) => ({
 		nameKey: e,
 		state: r[t] ?? "not-reached"
 	}));
 }
-function vO(e) {
+function DO(e) {
 	switch (e.kind) {
 		case "review":
 		case "unknown":
@@ -35304,7 +35592,7 @@ function vO(e) {
 		default: return "books";
 	}
 }
-var yO = /* @__PURE__ */ new Set([
+var OO = /* @__PURE__ */ new Set([
 	"NO_AUTHORITY",
 	"REVIEW_NOT_CURRENT",
 	"CONTEXT_CHANGED",
@@ -35314,12 +35602,12 @@ var yO = /* @__PURE__ */ new Set([
 	"PUBLISH_NOT_COMMITTED",
 	"ALREADY_CURRENT"
 ]);
-function bO({ code: e, onAgain: t }) {
+function kO({ code: e, onAgain: t }) {
 	let n = N();
 	return /* @__PURE__ */ (0, M.jsxs)("div", { children: [
 		/* @__PURE__ */ (0, M.jsx)("p", {
 			className: Q.status,
-			children: yO.has(e) ? n(`FR.unavailable.${e}`) : n("FR.unavailable")
+			children: OO.has(e) ? n(`FR.unavailable.${e}`) : n("FR.unavailable")
 		}),
 		/* @__PURE__ */ (0, M.jsx)("p", {
 			className: [Q.hash, "fig"].join(" "),
@@ -35335,7 +35623,7 @@ function bO({ code: e, onAgain: t }) {
 		})
 	] });
 }
-function xO({ language: e, onLanguage: t }) {
+function AO({ language: e, onLanguage: t }) {
 	let n = N(), r = (0, _.useId)(), i = (0, _.useRef)({});
 	return /* @__PURE__ */ (0, M.jsxs)("div", {
 		className: Q.language,
@@ -35348,10 +35636,10 @@ function xO({ language: e, onLanguage: t }) {
 			"aria-labelledby": r,
 			className: Q.languageWords,
 			onKeyDown: (n) => {
-				let r = gO.indexOf(e), a;
-				(n.key === "ArrowRight" || n.key === "ArrowDown") && (a = gO[(r + 1) % gO.length]), (n.key === "ArrowLeft" || n.key === "ArrowUp") && (a = gO[(r - 1 + gO.length) % gO.length]), a !== void 0 && (n.preventDefault(), i.current[a]?.focus(), t(a));
+				let r = TO.indexOf(e), a;
+				(n.key === "ArrowRight" || n.key === "ArrowDown") && (a = TO[(r + 1) % TO.length]), (n.key === "ArrowLeft" || n.key === "ArrowUp") && (a = TO[(r - 1 + TO.length) % TO.length]), a !== void 0 && (n.preventDefault(), i.current[a]?.focus(), t(a));
 			},
-			children: gO.map((r) => {
+			children: TO.map((r) => {
 				let a = r === e;
 				return /* @__PURE__ */ (0, M.jsx)("button", {
 					ref: (e) => {
@@ -35370,14 +35658,14 @@ function xO({ language: e, onLanguage: t }) {
 		})]
 	});
 }
-function SO({ language: e, onLanguage: t, steps: n, children: r }) {
+function jO({ language: e, onLanguage: t, steps: n, children: r }) {
 	let i = N();
 	return /* @__PURE__ */ (0, M.jsxs)("div", {
 		className: Q.shell,
 		lang: e,
 		children: [/* @__PURE__ */ (0, M.jsxs)("header", {
 			className: Q.top,
-			children: [/* @__PURE__ */ (0, M.jsx)(_r, {}), /* @__PURE__ */ (0, M.jsx)(xO, {
+			children: [/* @__PURE__ */ (0, M.jsx)(_r, {}), /* @__PURE__ */ (0, M.jsx)(AO, {
 				language: e,
 				onLanguage: t
 			})]
@@ -35386,14 +35674,14 @@ function SO({ language: e, onLanguage: t, steps: n, children: r }) {
 			tabIndex: -1,
 			"aria-label": i("SH-01.region.page"),
 			"data-region": "page",
-			children: [/* @__PURE__ */ (0, M.jsx)(lE, {
+			children: [/* @__PURE__ */ (0, M.jsx)(vE, {
 				steps: n,
 				className: Q.steps
 			}), r]
 		})]
 	});
 }
-function CO({ state: e, controller: t, intents: n, view: r }) {
+function MO({ state: e, controller: t, intents: n, view: r }) {
 	let i = N();
 	switch (e.kind) {
 		case "idle":
@@ -35411,13 +35699,13 @@ function CO({ state: e, controller: t, intents: n, view: r }) {
 			className: Q.status,
 			children: i("FR.readOnly")
 		});
-		case "unavailable": return /* @__PURE__ */ (0, M.jsx)(bO, {
+		case "unavailable": return /* @__PURE__ */ (0, M.jsx)(kO, {
 			code: e.code,
 			onAgain: () => {
 				t.load();
 			}
 		});
-		case "choose": return /* @__PURE__ */ (0, M.jsx)(cO, {
+		case "choose": return /* @__PURE__ */ (0, M.jsx)(_O, {
 			packs: e.packs,
 			onChoose: (e) => {
 				t.choosePack(e);
@@ -35429,7 +35717,7 @@ function CO({ state: e, controller: t, intents: n, view: r }) {
 		});
 		case "review":
 		case "unknown":
-		case "published": return /* @__PURE__ */ (0, M.jsx)(aO, {
+		case "published": return /* @__PURE__ */ (0, M.jsx)(mO, {
 			state: e,
 			controller: t,
 			intents: n,
@@ -35437,13 +35725,13 @@ function CO({ state: e, controller: t, intents: n, view: r }) {
 		}, e.kind === "review" ? e.review.generation : e.kind);
 	}
 }
-function wO({ controller: e, language: t, view: n = "guided", intents: r = {} }) {
+function NO({ controller: e, language: t, view: n = "guided", intents: r = {} }) {
 	let i = (0, _.useSyncExternalStore)(e.subscribe, e.snapshot, e.snapshot);
 	return (0, _.useEffect)(() => (e.snapshot().kind === "idle" && e.load(), () => {
 		e.cancel();
-	}), [e]), /* @__PURE__ */ (0, M.jsx)(mO, {
+	}), [e]), /* @__PURE__ */ (0, M.jsx)(CO, {
 		language: t,
-		children: /* @__PURE__ */ (0, M.jsx)(CO, {
+		children: /* @__PURE__ */ (0, M.jsx)(MO, {
 			state: i,
 			controller: e,
 			intents: r,
@@ -35451,17 +35739,17 @@ function wO({ controller: e, language: t, view: n = "guided", intents: r = {} })
 		})
 	});
 }
-function TO({ controller: e, language: t, onLanguage: n, view: r = "guided", stagesDone: i, intents: a = {} }) {
+function PO({ controller: e, language: t, onLanguage: n, view: r = "guided", stagesDone: i, intents: a = {} }) {
 	let o = (0, _.useSyncExternalStore)(e.subscribe, e.snapshot, e.snapshot);
 	return (0, _.useEffect)(() => (e.snapshot().kind === "idle" && e.load(), () => {
 		e.cancel();
-	}), [e]), /* @__PURE__ */ (0, M.jsx)(mO, {
+	}), [e]), /* @__PURE__ */ (0, M.jsx)(CO, {
 		language: t,
-		children: /* @__PURE__ */ (0, M.jsx)(SO, {
+		children: /* @__PURE__ */ (0, M.jsx)(jO, {
 			language: t,
 			onLanguage: n,
-			steps: _O(vO(o), i),
-			children: /* @__PURE__ */ (0, M.jsx)(CO, {
+			steps: EO(DO(o), i),
+			children: /* @__PURE__ */ (0, M.jsx)(MO, {
 				state: o,
 				controller: e,
 				intents: a,
@@ -35470,7 +35758,7 @@ function TO({ controller: e, language: t, onLanguage: n, view: r = "guided", sta
 		})
 	});
 }
-var EO = {
+var FO = {
 	shell: "_shell_1wj97_4",
 	top: "_top_1wj97_12",
 	language: "_language_1wj97_21",
@@ -35482,11 +35770,11 @@ var EO = {
 	task: "_task_1wj97_63",
 	foot: "_foot_1wj97_67",
 	line: "_line_1wj97_73"
-}, DO = ["en", "hi"];
-function OO({ language: e, onLanguage: t }) {
+}, IO = ["en", "hi"];
+function LO({ language: e, onLanguage: t }) {
 	let n = N(), r = (0, _.useId)(), i = (0, _.useRef)({});
 	return /* @__PURE__ */ (0, M.jsxs)("div", {
-		className: EO.language,
+		className: FO.language,
 		children: [/* @__PURE__ */ (0, M.jsx)("span", {
 			id: r,
 			className: "sr",
@@ -35494,12 +35782,12 @@ function OO({ language: e, onLanguage: t }) {
 		}), /* @__PURE__ */ (0, M.jsx)("div", {
 			role: "radiogroup",
 			"aria-labelledby": r,
-			className: EO.languageWords,
+			className: FO.languageWords,
 			onKeyDown: (n) => {
-				let r = DO.indexOf(e), a;
-				(n.key === "ArrowRight" || n.key === "ArrowDown") && (a = DO[(r + 1) % DO.length]), (n.key === "ArrowLeft" || n.key === "ArrowUp") && (a = DO[(r - 1 + DO.length) % DO.length]), a !== void 0 && (n.preventDefault(), i.current[a]?.focus(), t(a));
+				let r = IO.indexOf(e), a;
+				(n.key === "ArrowRight" || n.key === "ArrowDown") && (a = IO[(r + 1) % IO.length]), (n.key === "ArrowLeft" || n.key === "ArrowUp") && (a = IO[(r - 1 + IO.length) % IO.length]), a !== void 0 && (n.preventDefault(), i.current[a]?.focus(), t(a));
 			},
-			children: DO.map((r) => {
+			children: IO.map((r) => {
 				let a = r === e;
 				return /* @__PURE__ */ (0, M.jsx)("button", {
 					ref: (e) => {
@@ -35510,7 +35798,7 @@ function OO({ language: e, onLanguage: t }) {
 					"aria-checked": a,
 					tabIndex: a ? 0 : -1,
 					lang: r,
-					className: [EO.languageWord, a ? EO.languageChosen : ""].filter(Boolean).join(" "),
+					className: [FO.languageWord, a ? FO.languageChosen : ""].filter(Boolean).join(" "),
 					onClick: () => t(r),
 					children: n(`SH-06.language.${r}`)
 				}, r);
@@ -35518,44 +35806,44 @@ function OO({ language: e, onLanguage: t }) {
 		})]
 	});
 }
-function kO({ language: e, onLanguage: t, steps: n, blocked: r, left: i, children: a }) {
+function RO({ language: e, onLanguage: t, steps: n, blocked: r, left: i, children: a }) {
 	let o = N();
 	return /* @__PURE__ */ (0, M.jsxs)("div", {
-		className: EO.shell,
+		className: FO.shell,
 		lang: e,
 		"data-first-run-step": "",
 		children: [/* @__PURE__ */ (0, M.jsxs)("header", {
-			className: EO.top,
-			children: [/* @__PURE__ */ (0, M.jsx)(_r, {}), /* @__PURE__ */ (0, M.jsx)(OO, {
+			className: FO.top,
+			children: [/* @__PURE__ */ (0, M.jsx)(_r, {}), /* @__PURE__ */ (0, M.jsx)(LO, {
 				language: e,
 				onLanguage: t
 			})]
 		}), /* @__PURE__ */ (0, M.jsxs)("main", {
-			className: EO.page,
+			className: FO.page,
 			tabIndex: -1,
 			"aria-label": o("SH-01.region.page"),
 			"data-region": "page",
 			children: [
-				/* @__PURE__ */ (0, M.jsx)(lE, {
+				/* @__PURE__ */ (0, M.jsx)(vE, {
 					steps: n,
-					className: EO.steps
+					className: FO.steps
 				}),
 				/* @__PURE__ */ (0, M.jsx)("div", {
-					className: EO.task,
+					className: FO.task,
 					children: a
 				}),
 				/* @__PURE__ */ (0, M.jsxs)("footer", {
-					className: EO.foot,
+					className: FO.foot,
 					children: [r === null ? /* @__PURE__ */ (0, M.jsx)("p", {
-						className: EO.line,
+						className: FO.line,
 						role: "status",
 						children: o("FRSTEP.blocked.reading")
 					}) : /* @__PURE__ */ (0, M.jsx)("p", {
-						className: EO.line,
+						className: FO.line,
 						"data-first-run-blocked": r,
 						children: o(`FRSTEP.blocked.${r}`)
 					}), i !== null && /* @__PURE__ */ (0, M.jsx)("p", {
-						className: EO.line,
+						className: FO.line,
 						"data-first-run-left": i,
 						children: o(`FRSTEP.left.${i}`)
 					})]
@@ -35566,7 +35854,7 @@ function kO({ language: e, onLanguage: t, steps: n, blocked: r, left: i, childre
 }
 //#endregion
 //#region app/ui/src/screens/first-run/journey-contracts.ts
-function AO(e) {
+function zO(e) {
 	if (e instanceof um) return {
 		kind: "refused",
 		code: "INVALID_REPLY"
@@ -35584,84 +35872,84 @@ function AO(e) {
 		code: typeof t == "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(t) ? t : "REQUEST_FAILED"
 	};
 }
-function jO(e) {
+function BO(e) {
 	throw new um(e);
 }
-function MO(e, t) {
-	return (typeof e != "object" || !e || Array.isArray(e) || Object.getPrototypeOf(e) !== Object.prototype) && jO(t), e;
+function VO(e, t) {
+	return (typeof e != "object" || !e || Array.isArray(e) || Object.getPrototypeOf(e) !== Object.prototype) && BO(t), e;
 }
-function NO(e, t, n) {
-	return (!Array.isArray(e) || e.length > n) && jO(t), e;
+function HO(e, t, n) {
+	return (!Array.isArray(e) || e.length > n) && BO(t), e;
 }
-function PO(e, t) {
-	return (typeof e != "number" || !Number.isSafeInteger(e) || e < 0) && jO(t), e;
+function UO(e, t) {
+	return (typeof e != "number" || !Number.isSafeInteger(e) || e < 0) && BO(t), e;
 }
-function FO(e, t, n = !1) {
-	return (typeof e != "string" || !(n ? /^-?(0|[1-9][0-9]{0,30})$/ : /^(0|[1-9][0-9]{0,30})$/).test(e)) && jO(t), e;
+function WO(e, t, n = !1) {
+	return (typeof e != "string" || !(n ? /^-?(0|[1-9][0-9]{0,30})$/ : /^(0|[1-9][0-9]{0,30})$/).test(e)) && BO(t), e;
 }
-function IO(e, t, n = 200) {
-	return (typeof e != "string" || e.length > n || /[\u0000-\u001f\u007f]/.test(e)) && jO(t), e;
+function GO(e, t, n = 200) {
+	return (typeof e != "string" || e.length > n || /[\u0000-\u001f\u007f]/.test(e)) && BO(t), e;
 }
-var LO = /^[A-Z][A-Z0-9_]{1,63}$/;
-function RO(e, t) {
-	let n = MO(e, t), r = n.expectedRows === null ? null : PO(n.expectedRows, `${t}.expectedRows`);
-	return typeof n.reconciled != "boolean" && jO(`${t}.reconciled`), Object.freeze({
-		sourceRows: PO(n.sourceRows, `${t}.sourceRows`),
-		importedRows: PO(n.importedRows, `${t}.importedRows`),
-		rejectedRows: PO(n.rejectedRows, `${t}.rejectedRows`),
+var KO = /^[A-Z][A-Z0-9_]{1,63}$/;
+function qO(e, t) {
+	let n = VO(e, t), r = n.expectedRows === null ? null : UO(n.expectedRows, `${t}.expectedRows`);
+	return typeof n.reconciled != "boolean" && BO(`${t}.reconciled`), Object.freeze({
+		sourceRows: UO(n.sourceRows, `${t}.sourceRows`),
+		importedRows: UO(n.importedRows, `${t}.importedRows`),
+		rejectedRows: UO(n.rejectedRows, `${t}.rejectedRows`),
 		expectedRows: r,
 		reconciled: n.reconciled
 	});
 }
-function zO(e) {
-	let t = MO(e, "preview");
-	typeof t.accepted != "boolean" && jO("preview.accepted");
-	let n = NO(t.errors, "preview.errors", 1e6).map((e, t) => {
-		let n = MO(e, `preview.errors[${t}]`), r = IO(n.code, `preview.errors[${t}].code`, 64);
+function JO(e) {
+	let t = VO(e, "preview");
+	typeof t.accepted != "boolean" && BO("preview.accepted");
+	let n = HO(t.errors, "preview.errors", 1e6).map((e, t) => {
+		let n = VO(e, `preview.errors[${t}]`), r = GO(n.code, `preview.errors[${t}].code`, 64);
 		return Object.freeze({
-			row: PO(n.row, `preview.errors[${t}].row`),
-			code: LO.test(r) ? r : "INVALID_ROW"
+			row: UO(n.row, `preview.errors[${t}].row`),
+			code: KO.test(r) ? r : "INVALID_ROW"
 		});
-	}), r = NO(t.unmappedFields, "preview.unmappedFields", 1e3).map((e, t) => IO(e, `preview.unmappedFields[${t}]`));
-	NO(t.facts, "preview.facts", 1e7);
-	let i = RO(t.coverage, "preview.coverage");
-	i.importedRows + i.rejectedRows !== i.sourceRows && jO("preview.coverage"), t.accepted && n.length > 0 && jO("preview.accepted");
-	let a = t.qualification === "supported" ? "supported" : t.qualification === "experimental" ? "experimental" : jO("preview.qualification");
+	}), r = HO(t.unmappedFields, "preview.unmappedFields", 1e3).map((e, t) => GO(e, `preview.unmappedFields[${t}]`));
+	HO(t.facts, "preview.facts", 1e7);
+	let i = qO(t.coverage, "preview.coverage");
+	i.importedRows + i.rejectedRows !== i.sourceRows && BO("preview.coverage"), t.accepted && n.length > 0 && BO("preview.accepted");
+	let a = t.qualification === "supported" ? "supported" : t.qualification === "experimental" ? "experimental" : BO("preview.qualification");
 	return Object.freeze({
 		accepted: t.accepted,
 		problems: Object.freeze(n),
 		unmappedFields: Object.freeze(r),
-		totalsMinor: FO(t.totalsMinor, "preview.totalsMinor", !0),
+		totalsMinor: WO(t.totalsMinor, "preview.totalsMinor", !0),
 		coverage: i,
-		format: IO(t.format, "preview.format", 32),
+		format: GO(t.format, "preview.format", 32),
 		qualification: a
 	});
 }
-function BO(e) {
-	let t = MO(e, "import"), n = IO(t.id, "import.id");
-	return /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(n) || jO("import.id"), Object.hasOwn(t, "duplicate") && typeof t.duplicate != "boolean" && jO("import.duplicate"), Object.freeze({
+function YO(e) {
+	let t = VO(e, "import"), n = GO(t.id, "import.id");
+	return /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(n) || BO("import.id"), Object.hasOwn(t, "duplicate") && typeof t.duplicate != "boolean" && BO("import.duplicate"), Object.freeze({
 		id: n,
-		coverage: RO(t.coverage, "import.coverage"),
-		totalsMinor: FO(t.totalsMinor, "import.totalsMinor", !0),
+		coverage: qO(t.coverage, "import.coverage"),
+		totalsMinor: WO(t.totalsMinor, "import.totalsMinor", !0),
 		duplicate: t.duplicate === !0
 	});
 }
-function VO(e) {
-	let t = IO(MO(e, "calculation").id, "calculation.id");
-	return /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,199}$/.test(t) || jO("calculation.id"), t;
+function XO(e) {
+	let t = GO(VO(e, "calculation").id, "calculation.id");
+	return /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,199}$/.test(t) || BO("calculation.id"), t;
 }
-function HO(e) {
-	let t = MO(MO(e, "workspace").workspace, "workspace.workspace");
-	return Object.freeze({ name: IO(t.name, "workspace.workspace.name", 100) });
+function ZO(e) {
+	let t = VO(VO(e, "workspace").workspace, "workspace.workspace");
+	return Object.freeze({ name: GO(t.name, "workspace.workspace.name", 100) });
 }
-function UO(e) {
+function QO(e) {
 	let t = e.replace(/\.[A-Za-z0-9]{1,8}$/, "").replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^[^A-Za-z0-9]+/, "").slice(0, 60);
 	return `file-${t.length > 0 ? t : "sheet"}`;
 }
-function WO(e) {
+function $O(e) {
 	return /\.csv$/i.test(e) || /\.txt$/i.test(e) ? "csv" : /\.xlsx$/i.test(e) ? "xlsx" : null;
 }
-function GO(e) {
+function ek(e) {
 	let t = [], n = "", r = !1;
 	for (let i = 0; i < e.length; i++) {
 		let a = e[i];
@@ -35669,14 +35957,14 @@ function GO(e) {
 	}
 	return t.push(n), t;
 }
-function KO(e, t = 6) {
-	return e.replace(/^\uFEFF/, "").split(/\r?\n/).filter((e) => e.trim().length > 0).slice(0, t).map((e) => GO(e).slice(0, 12).map((e) => e.slice(0, 80)));
+function tk(e, t = 6) {
+	return e.replace(/^\uFEFF/, "").split(/\r?\n/).filter((e) => e.trim().length > 0).slice(0, t).map((e) => ek(e).slice(0, 12).map((e) => e.slice(0, 80)));
 }
-function qO(e) {
+function nk(e) {
 	let t = e.trim().replace(/^₹\s*/, "").replace(/,/g, ""), n = /^(0|[1-9][0-9]{0,15})(?:\.([0-9]{1,2}))?$/.exec(t);
 	return n === null ? null : `${n[1] ?? "0"}${(n[2] ?? "").padEnd(2, "0")}`.replace(/^0+(?=[0-9])/, "");
 }
-function JO(e, t, n, r) {
+function rk(e, t, n, r) {
 	let i = (n) => e.filter((e) => t[e] === n), a = i("date"), o = i("amount"), s = i("invoice"), c = i("customer");
 	if (a.length !== 1 || o.length !== 1 || s.length !== 1 || c.length > 1) return null;
 	let [l] = a, [u] = o, [d] = s, [f] = c;
@@ -35743,7 +36031,7 @@ function JO(e, t, n, r) {
 		ignoredFields: Object.freeze(e.filter((e) => t[e] === "ignore" || t[e] === void 0))
 	});
 }
-function YO(e) {
+function ik(e) {
 	let t = /* @__PURE__ */ new Map();
 	for (let n of e) {
 		if (n.row === 0) continue;
@@ -35755,18 +36043,18 @@ function YO(e) {
 		rows: Object.freeze(t)
 	}));
 }
-function XO(e) {
+function ak(e) {
 	return [...new Set(e.filter((e) => e.row === 0).map((e) => e.code))];
 }
-function ZO(e) {
+function ok(e) {
 	return e.coverage.sourceRows > 0 && e.coverage.importedRows === 0;
 }
-function QO(e) {
+function sk(e) {
 	let t = [];
 	for (let n = 0; n < e.length; n += 4) t.push(e.slice(n, n + 4));
 	return t;
 }
-function $O(e) {
+function ck(e) {
 	return e.replace(/\s+/g, "");
 }
 var $ = {
@@ -35804,14 +36092,14 @@ var $ = {
 };
 //#endregion
 //#region app/ui/src/screens/first-run/JourneyParts.tsx
-function ek({ label: e, values: t, ...n }) {
+function lk({ label: e, values: t, ...n }) {
 	let r = N();
 	return /* @__PURE__ */ (0, M.jsx)(F, {
 		...n,
 		children: r(e, t)
 	});
 }
-function tk({ step: e, title: t, lede: n }) {
+function uk({ step: e, title: t, lede: n }) {
 	let r = N();
 	return /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [/* @__PURE__ */ (0, M.jsx)(Hh, {
 		where: r("FR.step", {
@@ -35824,7 +36112,7 @@ function tk({ step: e, title: t, lede: n }) {
 		children: r(n)
 	})] });
 }
-function nk({ k: e, values: t, role: n }) {
+function dk({ k: e, values: t, role: n }) {
 	let r = N();
 	return /* @__PURE__ */ (0, M.jsx)("p", {
 		className: $.note,
@@ -35832,7 +36120,7 @@ function nk({ k: e, values: t, role: n }) {
 		children: r(e, t)
 	});
 }
-function rk({ k: e, values: t }) {
+function fk({ k: e, values: t }) {
 	let n = N();
 	return /* @__PURE__ */ (0, M.jsx)("p", {
 		className: $.status,
@@ -35840,7 +36128,7 @@ function rk({ k: e, values: t }) {
 		children: n(e, t)
 	});
 }
-function ik({ failure: e, notBuilt: t, refused: n }) {
+function pk({ failure: e, notBuilt: t, refused: n }) {
 	let r = N();
 	return e.kind === "not-built" ? /* @__PURE__ */ (0, M.jsx)("p", {
 		className: $.status,
@@ -35853,7 +36141,7 @@ function ik({ failure: e, notBuilt: t, refused: n }) {
 		children: r(n, { code: e.code })
 	});
 }
-function ak({ children: e }) {
+function mk({ children: e }) {
 	return /* @__PURE__ */ (0, M.jsx)("div", {
 		className: $.actions,
 		children: e
@@ -35861,13 +36149,13 @@ function ak({ children: e }) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/BringFile.tsx
-var ok = [
+var hk = [
 	"date",
 	"customer",
 	"amount",
 	"invoice",
 	"ignore"
-], sk = ["ISO", "DMY"], ck = /* @__PURE__ */ new Set([
+], gk = ["ISO", "DMY"], _k = /* @__PURE__ */ new Set([
 	"MISSING_VALUE",
 	"INVALID_DATE",
 	"AMBIGUOUS_DATE",
@@ -35876,19 +36164,19 @@ var ok = [
 	"DUPLICATE_SOURCE_ROW",
 	"CURRENCY_MISMATCH",
 	"OUTSIDE_SCOPE"
-]), lk = /* @__PURE__ */ new Set([
+]), vk = /* @__PURE__ */ new Set([
 	"SOURCE_ROW_MISMATCH",
 	"SOURCE_TOTAL_MISMATCH",
 	"SOURCE_TOTALS_REQUIRED",
 	"UNMAPPED_FIELDS"
 ]);
-function uk(e) {
+function yk(e) {
 	let t = "";
 	for (let n = 0; n < e.length; n += 32768) t += String.fromCharCode(...e.subarray(n, n + 32768));
 	return btoa(t);
 }
-async function dk(e) {
-	let t = WO(e.name);
+async function bk(e) {
+	let t = $O(e.name);
 	return t === "csv" ? {
 		name: e.name,
 		format: t,
@@ -35896,14 +36184,14 @@ async function dk(e) {
 	} : t === "xlsx" ? {
 		name: e.name,
 		format: t,
-		bytesBase64: uk(new Uint8Array(await e.arrayBuffer()))
+		bytesBase64: yk(new Uint8Array(await e.arrayBuffer()))
 	} : null;
 }
-function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, company: a, onTaken: o, onWaits: s }) {
+function xk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, company: a, onTaken: o, onWaits: s }) {
 	let c = N(), l = (0, _.useId)(), u = (0, _.useId)(), [d, f] = (0, _.useState)(n), [p, m] = (0, _.useState)({ kind: "idle" }), [h, g] = (0, _.useState)(""), [v, y] = (0, _.useState)(""), [b, x] = (0, _.useState)(null), [S, C] = (0, _.useState)(!1), [w, T] = (0, _.useState)({}), [E, D] = (0, _.useState)("ISO"), [ee, te] = (0, _.useState)(!1), O = (0, _.useRef)(0), k = (0, _.useRef)(!1), A = (0, _.useCallback)(async (t, n, a) => {
 		let o = ++O.current;
 		m({ kind: "reading" });
-		let c = UO(t.name), l = {
+		let c = QO(t.name), l = {
 			...n === null ? {} : { recipe: n },
 			...a === null ? {} : { expectedTotals: a }
 		};
@@ -35919,16 +36207,16 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 				...l
 			});
 			if (o !== O.current) return;
-			let i = zO(r);
+			let i = JO(r);
 			m({
 				kind: "previewed",
 				preview: i,
 				recipe: n,
 				totals: a
-			}), ZO(i) && t.format === "csv" && n === null && C(!0);
+			}), ok(i) && t.format === "csv" && n === null && C(!0);
 		} catch (e) {
 			if (o !== O.current) return;
-			let n = AO(e);
+			let n = zO(e);
 			if (n.kind === "refused" && n.code === "DICTIONARY_REQUIRED" && !i) {
 				r(t), s();
 				return;
@@ -35966,7 +36254,7 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 		} catch (e) {
 			m({
 				kind: "failed",
-				failure: AO(e)
+				failure: zO(e)
 			});
 		}
 	}, ie = async (t) => {
@@ -35976,7 +36264,7 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 			...t,
 			kind: "taking"
 		});
-		let r = UO(d.name), i = {
+		let r = QO(d.name), i = {
 			...t.recipe === null ? {} : { recipe: t.recipe },
 			...t.totals === null ? {} : { expectedTotals: t.totals }
 		};
@@ -35994,12 +36282,12 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 			if (n !== O.current) return;
 			m({
 				kind: "taken",
-				result: BO(t)
+				result: YO(t)
 			});
 		} catch (e) {
 			n === O.current && m({
 				kind: "failed",
-				failure: AO(e)
+				failure: zO(e)
 			});
 		}
 	}, ae = (e) => {
@@ -36009,26 +36297,26 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 			x("FR-07.totals.rowsBad");
 			return;
 		}
-		let n = qO(v);
+		let n = nk(v);
 		n === null ? x("FR-07.totals.amountBad") : (x(null), A(d, e.recipe, {
 			rowCount: Number.parseInt(t, 10),
 			amountMinor: n
 		}));
 	}, oe = (e, t) => {
 		if (d === null) return;
-		let n = JO(t, w, E, a);
+		let n = rk(t, w, E, a);
 		n === null ? te(!0) : (te(!1), C(!1), A(d, n, e.totals));
 	}, se = async (t) => {
 		let n = t.elements.namedItem("file-password"), r = n instanceof HTMLInputElement ? n.value : "";
 		if (n instanceof HTMLInputElement && (n.value = ""), d !== null && r.length !== 0) try {
 			await e.request("imports.providePassword", {
-				sourceId: UO(d.name),
+				sourceId: QO(d.name),
 				password: r
 			}), A(d, null, null);
 		} catch (e) {
 			m({
 				kind: "failed",
-				failure: AO(e)
+				failure: zO(e)
 			});
 		}
 	}, ce = t === void 0 ? /* @__PURE__ */ (0, M.jsxs)("div", {
@@ -36043,28 +36331,28 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 			accept: ".csv,.txt,.xlsx",
 			onChange: (e) => {
 				let t = e.currentTarget.files?.[0];
-				t !== void 0 && dk(t).then(ne, (e) => m({
+				t !== void 0 && bk(t).then(ne, (e) => m({
 					kind: "failed",
-					failure: AO(e)
+					failure: zO(e)
 				}));
 			}
 		}) })]
-	}) : /* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+	}) : /* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 		variant: d === null ? "filled" : "quiet",
 		label: d === null ? "FR-07.pick.btn" : "FR-07.another.btn",
 		onClick: () => {
 			re();
 		}
-	}) }), le = d?.format === "csv" ? GO(d.content.replace(/^\uFEFF/, "").split(/\r?\n/)[0] ?? "") : [];
+	}) }), le = d?.format === "csv" ? ek(d.content.replace(/^\uFEFF/, "").split(/\r?\n/)[0] ?? "") : [];
 	return /* @__PURE__ */ (0, M.jsxs)("section", {
 		"data-first-run-screen": "file",
 		children: [
-			/* @__PURE__ */ (0, M.jsx)(tk, {
+			/* @__PURE__ */ (0, M.jsx)(uk, {
 				step: 4,
 				title: "FR-07.title",
 				lede: "FR-07.lede"
 			}),
-			n !== null && i && p.kind === "reading" && /* @__PURE__ */ (0, M.jsx)(rk, { k: "FR-07.held" }),
+			n !== null && i && p.kind === "reading" && /* @__PURE__ */ (0, M.jsx)(fk, { k: "FR-07.held" }),
 			p.kind !== "taken" && ce,
 			d !== null && /* @__PURE__ */ (0, M.jsx)("p", {
 				className: $.question,
@@ -36079,15 +36367,15 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 				}), /* @__PURE__ */ (0, M.jsx)("table", {
 					className: $.sheet,
 					"data-first-rows": "",
-					children: /* @__PURE__ */ (0, M.jsx)("tbody", { children: KO(d.content).map((e, t) => /* @__PURE__ */ (0, M.jsx)("tr", { children: e.map((e, t) => /* @__PURE__ */ (0, M.jsx)("td", { children: e }, t)) }, t)) })
+					children: /* @__PURE__ */ (0, M.jsx)("tbody", { children: tk(d.content).map((e, t) => /* @__PURE__ */ (0, M.jsx)("tr", { children: e.map((e, t) => /* @__PURE__ */ (0, M.jsx)("td", { children: e }, t)) }, t)) })
 				})]
-			}) : /* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-07.noRows" })),
-			p.kind === "reading" && /* @__PURE__ */ (0, M.jsx)(rk, { k: "FR-07.reading" }),
-			p.kind === "unsupported" && /* @__PURE__ */ (0, M.jsx)(nk, {
+			}) : /* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-07.noRows" })),
+			p.kind === "reading" && /* @__PURE__ */ (0, M.jsx)(fk, { k: "FR-07.reading" }),
+			p.kind === "unsupported" && /* @__PURE__ */ (0, M.jsx)(dk, {
 				k: "FR-07.notSupported",
 				role: "alert"
 			}),
-			p.kind === "failed" && /* @__PURE__ */ (0, M.jsx)(ik, {
+			p.kind === "failed" && /* @__PURE__ */ (0, M.jsx)(pk, {
 				failure: p.failure,
 				notBuilt: "FR-07.notBuilt",
 				refused: "FR-07.refused"
@@ -36108,15 +36396,15 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 						type: "password",
 						autoComplete: "off"
 					}),
-					/* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-07.password.note" }),
-					/* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+					/* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-07.password.note" }),
+					/* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 						submit: !0,
 						label: "FR-07.password.send.btn"
 					}) })
 				]
 			}),
 			(p.kind === "previewed" || p.kind === "taking") && (() => {
-				let { preview: e, recipe: t, totals: n } = p, r = XO(e.problems), i = YO(e.problems), a = r.some((e) => e !== "SOURCE_TOTALS_REQUIRED") || i.length > 0;
+				let { preview: e, recipe: t, totals: n } = p, r = ak(e.problems), i = ik(e.problems), a = r.some((e) => e !== "SOURCE_TOTALS_REQUIRED") || i.length > 0;
 				return /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [
 					/* @__PURE__ */ (0, M.jsx)("p", {
 						className: $.note,
@@ -36143,7 +36431,7 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 							}) : t === "SOURCE_TOTAL_MISMATCH" && n !== null ? c("FR-07.whole.SOURCE_TOTAL_MISMATCH", {
 								expected: Xm(n.amountMinor),
 								found: Xm(e.totalsMinor)
-							}) : lk.has(t) && t !== "SOURCE_ROW_MISMATCH" && t !== "SOURCE_TOTAL_MISMATCH" ? c(`FR-07.whole.${t}`) : c("FR-07.whole.other", { code: t })
+							}) : vk.has(t) && t !== "SOURCE_ROW_MISMATCH" && t !== "SOURCE_TOTAL_MISMATCH" ? c(`FR-07.whole.${t}`) : c("FR-07.whole.other", { code: t })
 						}, t))]
 					}),
 					/* @__PURE__ */ (0, M.jsxs)("ul", {
@@ -36154,11 +36442,11 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 							/* @__PURE__ */ (0, M.jsx)("li", { children: c("FR-07.group.flagged") }),
 							/* @__PURE__ */ (0, M.jsx)("li", { children: i.length === 0 ? c("FR-07.group.refused", { count: eh(String(e.coverage.rejectedRows)) }) : /* @__PURE__ */ (0, M.jsxs)("details", { children: [/* @__PURE__ */ (0, M.jsx)("summary", { children: c("FR-07.group.refused", { count: eh(String(e.coverage.rejectedRows)) }) }), /* @__PURE__ */ (0, M.jsx)("ul", { children: i.map((e) => /* @__PURE__ */ (0, M.jsx)("li", { children: c("FR-07.problemRows", {
 								rows: e.rows.slice(0, 20).join(", "),
-								reason: ck.has(e.code) ? c(`FR-07.reason.${e.code}`) : c("FR-07.reason.other", { code: e.code })
+								reason: _k.has(e.code) ? c(`FR-07.reason.${e.code}`) : c("FR-07.reason.other", { code: e.code })
 							}) }, e.code)) })] }) })
 						]
 					}),
-					d?.format === "csv" && !S && i.length > 0 && p.kind === "previewed" && /* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+					d?.format === "csv" && !S && i.length > 0 && p.kind === "previewed" && /* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 						variant: "link",
 						label: "FR-07.pickColumns.btn",
 						onClick: () => C(!0)
@@ -36192,12 +36480,12 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 											value: w[e] ?? "ignore",
 											onChange: (t) => {
 												let n = t.currentTarget.value;
-												ok.includes(n) && T((t) => ({
+												hk.includes(n) && T((t) => ({
 													...t,
 													[e]: n
 												}));
 											},
-											children: ok.map((e) => /* @__PURE__ */ (0, M.jsx)("option", {
+											children: hk.map((e) => /* @__PURE__ */ (0, M.jsx)("option", {
 												value: e,
 												children: c(`FR-07.role.${e}`)
 											}, e))
@@ -36214,7 +36502,7 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 								children: [/* @__PURE__ */ (0, M.jsx)("legend", {
 									className: $.note,
 									children: c("FR-07.dateFormat")
-								}), sk.map((e) => /* @__PURE__ */ (0, M.jsxs)("label", {
+								}), gk.map((e) => /* @__PURE__ */ (0, M.jsxs)("label", {
 									className: $.radioRow,
 									children: [/* @__PURE__ */ (0, M.jsx)("input", {
 										type: "radio",
@@ -36233,12 +36521,12 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 								role: "alert",
 								children: c("FR-07.columns.need")
 							}),
-							/* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+							/* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 								submit: !0,
 								label: "FR-07.columns.use.btn"
 							}) })
 						]
-					}) : /* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-07.columns.csvOnly" })),
+					}) : /* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-07.columns.csvOnly" })),
 					!e.accepted && i.length === 0 && p.kind === "previewed" && /* @__PURE__ */ (0, M.jsxs)("form", {
 						className: $.section,
 						"data-source-totals": "",
@@ -36276,14 +36564,14 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 								role: "alert",
 								children: c(b)
 							}),
-							/* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+							/* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 								submit: !0,
 								variant: "filled",
 								label: "FR-07.check.btn"
 							}) })
 						]
 					}),
-					e.accepted && /* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+					e.accepted && /* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 						variant: "filled",
 						label: "FR-07.take.btn",
 						disabled: p.kind === "taking",
@@ -36291,7 +36579,7 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 							p.kind === "previewed" && ie(p);
 						}
 					}) }),
-					p.kind === "taking" && /* @__PURE__ */ (0, M.jsx)(rk, { k: "FR-07.taking" })
+					p.kind === "taking" && /* @__PURE__ */ (0, M.jsx)(fk, { k: "FR-07.taking" })
 				] });
 			})(),
 			p.kind === "taken" && /* @__PURE__ */ (0, M.jsxs)("div", {
@@ -36307,8 +36595,8 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 							/* @__PURE__ */ (0, M.jsx)("li", { children: c("FR-07.group.refused", { count: eh(String(p.result.coverage.rejectedRows)) }) })
 						]
 					}),
-					p.result.duplicate && /* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-07.duplicate" }),
-					/* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+					p.result.duplicate && /* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-07.duplicate" }),
+					/* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 						variant: "filled",
 						label: "FR.journey.continue.btn",
 						onClick: o
@@ -36318,7 +36606,7 @@ function fk({ rpc: e, pickFile: t, held: n, onHold: r, meaningsAgreed: i, compan
 		]
 	});
 }
-var pk = {
+var Sk = {
 	list: "_list_nrvln_1",
 	pair: "_pair_nrvln_7",
 	left: "_left_nrvln_14",
@@ -36329,20 +36617,20 @@ var pk = {
 };
 //#endregion
 //#region app/ui/src/parts/KeyValue.tsx
-function mk({ pairs: e, onReceipt: t, align: n = "left", className: r }) {
+function Ck({ pairs: e, onReceipt: t, align: n = "left", className: r }) {
 	return /* @__PURE__ */ (0, M.jsx)("dl", {
 		className: [
-			pk.list,
-			pk[n],
+			Sk.list,
+			Sk[n],
 			r
 		].filter(Boolean).join(" "),
 		children: e.map((e, n) => /* @__PURE__ */ (0, M.jsxs)("div", {
-			className: [pk.pair, e.indent ? pk.indent : ""].join(" "),
+			className: [Sk.pair, e.indent ? Sk.indent : ""].join(" "),
 			children: [/* @__PURE__ */ (0, M.jsx)("dt", {
-				className: pk.name,
+				className: Sk.name,
 				children: e.name
 			}), /* @__PURE__ */ (0, M.jsxs)("dd", {
-				className: [pk.value, e.mono ? "fig" : ""].join(" "),
+				className: [Sk.value, e.mono ? "fig" : ""].join(" "),
 				children: [e.figure === void 0 ? e.value : /* @__PURE__ */ (0, M.jsx)(Lh, {
 					value: e.figure,
 					onReceipt: t
@@ -36353,23 +36641,23 @@ function mk({ pairs: e, onReceipt: t, align: n = "left", className: r }) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/FirstAnswer.tsx
-function hk(e) {
+function wk(e) {
 	let t = e.filter((e) => e.type === "sum" && e.definitions.length === 1);
 	return t.find((e) => e.id === "billed") ?? t[0] ?? null;
 }
-function gk({ rpc: e, elapsed: t, onAnswered: n, onOpenReceipt: r, onToday: i }) {
+function Tk({ rpc: e, elapsed: t, onAnswered: n, onOpenReceipt: r, onToday: i }) {
 	let a = N(), [o, s] = (0, _.useState)({ kind: "reading" }), [c, l] = (0, _.useState)({ kind: "none" }), u = (0, _.useRef)(!0);
 	(0, _.useEffect)(() => (u.current = !0, (async () => {
 		try {
-			let t = YE(await e.request("ontology.get", {}));
+			let t = iD(await e.request("ontology.get", {}));
 			u.current && s({
 				kind: "ready",
-				operation: t.current === null ? null : hk(t.current.operations)
+				operation: t.current === null ? null : wk(t.current.operations)
 			});
 		} catch (e) {
 			u.current && s({
 				kind: "failed",
-				failure: AO(e)
+				failure: zO(e)
 			});
 		}
 	})(), () => {
@@ -36378,7 +36666,7 @@ function gk({ rpc: e, elapsed: t, onAnswered: n, onOpenReceipt: r, onToday: i })
 	let d = async (t) => {
 		l({ kind: "working" });
 		try {
-			let r = VO(await e.request("calculation.run", { operation: t.id })), i = Wm(await e.request("receipts.get", { id: r }));
+			let r = XO(await e.request("calculation.run", { operation: t.id })), i = Wm(await e.request("receipts.get", { id: r }));
 			if (i.id !== r || i.operation !== t.id) throw new um("receipt.id");
 			if (!u.current) return;
 			l({
@@ -36388,7 +36676,7 @@ function gk({ rpc: e, elapsed: t, onAnswered: n, onOpenReceipt: r, onToday: i })
 		} catch (e) {
 			u.current && l({
 				kind: "failed",
-				failure: AO(e)
+				failure: zO(e)
 			});
 		}
 	}, f = (e) => e.currency === "INR" ? Xm(e.valueMinor) : e.figures.find((t) => t.key === e.operation)?.display ?? `${e.currency} ${e.valueMinor}`, p = (e, t) => [
@@ -36430,18 +36718,18 @@ function gk({ rpc: e, elapsed: t, onAnswered: n, onOpenReceipt: r, onToday: i })
 	return /* @__PURE__ */ (0, M.jsxs)("section", {
 		"data-first-run-screen": "answer",
 		children: [
-			/* @__PURE__ */ (0, M.jsx)(tk, {
+			/* @__PURE__ */ (0, M.jsx)(uk, {
 				step: 6,
 				title: "FR-09.title",
 				lede: "FR-09.lede"
 			}),
-			o.kind === "reading" && /* @__PURE__ */ (0, M.jsx)(rk, { k: "FR-03.reading" }),
-			o.kind === "failed" && /* @__PURE__ */ (0, M.jsx)(ik, {
+			o.kind === "reading" && /* @__PURE__ */ (0, M.jsx)(fk, { k: "FR-03.reading" }),
+			o.kind === "failed" && /* @__PURE__ */ (0, M.jsx)(pk, {
 				failure: o.failure,
 				notBuilt: "FR-09.notBuilt",
 				refused: "FR-09.refused"
 			}),
-			o.kind === "ready" && o.operation === null && /* @__PURE__ */ (0, M.jsx)(nk, {
+			o.kind === "ready" && o.operation === null && /* @__PURE__ */ (0, M.jsx)(dk, {
 				k: "FR-09.noMenu",
 				role: "status"
 			}),
@@ -36453,7 +36741,7 @@ function gk({ rpc: e, elapsed: t, onAnswered: n, onOpenReceipt: r, onToday: i })
 						"data-suggested-question": e.id,
 						children: a("FR-09.question", { label: e.label })
 					}),
-					c.kind !== "ready" && /* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+					c.kind !== "ready" && /* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 						variant: "filled",
 						label: "FR-09.ask.btn",
 						disabled: c.kind === "working",
@@ -36461,8 +36749,8 @@ function gk({ rpc: e, elapsed: t, onAnswered: n, onOpenReceipt: r, onToday: i })
 							d(e);
 						}
 					}) }),
-					c.kind === "working" && /* @__PURE__ */ (0, M.jsx)(rk, { k: "FR-09.working" }),
-					c.kind === "failed" && /* @__PURE__ */ (0, M.jsx)(ik, {
+					c.kind === "working" && /* @__PURE__ */ (0, M.jsx)(fk, { k: "FR-09.working" }),
+					c.kind === "failed" && /* @__PURE__ */ (0, M.jsx)(pk, {
 						failure: c.failure,
 						notBuilt: "FR-09.notBuilt",
 						refused: "FR-09.refused"
@@ -36485,24 +36773,24 @@ function gk({ rpc: e, elapsed: t, onAnswered: n, onOpenReceipt: r, onToday: i })
 									className: $.sectionTitle,
 									children: a("FR-09.receipt")
 								}),
-								/* @__PURE__ */ (0, M.jsx)(mk, {
+								/* @__PURE__ */ (0, M.jsx)(Ck, {
 									pairs: p(c.receipt, e.label),
 									onReceipt: (e) => r?.(e)
 								}),
-								c.receipt.stale && /* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-09.receipt.stale" })
+								c.receipt.stale && /* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-09.receipt.stale" })
 							]
 						}),
-						t !== null && /* @__PURE__ */ (0, M.jsx)(nk, {
+						t !== null && /* @__PURE__ */ (0, M.jsx)(dk, {
 							k: "FR-09.elapsed",
 							values: {
 								minutes: String(Math.floor(t / 60)),
 								seconds: String(t % 60)
 							}
 						}),
-						/* @__PURE__ */ (0, M.jsxs)(ak, { children: [r !== void 0 && /* @__PURE__ */ (0, M.jsx)(ek, {
+						/* @__PURE__ */ (0, M.jsxs)(mk, { children: [r !== void 0 && /* @__PURE__ */ (0, M.jsx)(lk, {
 							label: "FR-09.open.btn",
 							onClick: () => r(c.receipt.id)
-						}), /* @__PURE__ */ (0, M.jsx)(ek, {
+						}), /* @__PURE__ */ (0, M.jsx)(lk, {
 							variant: "filled",
 							label: "FR.journey.today.btn",
 							onClick: i
@@ -36515,12 +36803,12 @@ function gk({ rpc: e, elapsed: t, onAnswered: n, onOpenReceipt: r, onToday: i })
 }
 //#endregion
 //#region app/ui/src/screens/first-run/Identity.tsx
-var _k = [
+var Ek = [
 	"regular",
 	"composition",
 	"not-registered"
 ];
-function vk({ rpc: e, held: t, onHold: n, onBack: r }) {
+function Dk({ rpc: e, held: t, onHold: n, onBack: r }) {
 	let i = N(), a = (0, _.useId)(), [o, s] = (0, _.useState)(() => ({ ...t.fields })), [c, l] = (0, _.useState)(t.gstMode), [u, d] = (0, _.useState)({}), [f, p] = (0, _.useState)(!1), [m, h] = (0, _.useState)(null), g = (0, _.useRef)(0), v = () => {
 		let e = {};
 		for (let t of Up) {
@@ -36547,7 +36835,7 @@ function vk({ rpc: e, held: t, onHold: n, onBack: r }) {
 		} catch (e) {
 			if (n !== g.current) return;
 			p(!1);
-			let t = AO(e);
+			let t = zO(e);
 			if (t.kind === "not-built" || t.code === "VAULT_LOCKED") {
 				h({ kind: "not-built" });
 				return;
@@ -36565,7 +36853,7 @@ function vk({ rpc: e, held: t, onHold: n, onBack: r }) {
 	};
 	return /* @__PURE__ */ (0, M.jsxs)("section", {
 		"data-first-run-screen": "identity",
-		children: [/* @__PURE__ */ (0, M.jsx)(tk, {
+		children: [/* @__PURE__ */ (0, M.jsx)(uk, {
 			step: 1,
 			title: "FR-02.title",
 			lede: "FR-02.lede"
@@ -36606,7 +36894,7 @@ function vk({ rpc: e, held: t, onHold: n, onBack: r }) {
 						children: i("FR-02.gst")
 					}), /* @__PURE__ */ (0, M.jsx)("ul", {
 						className: $.rows,
-						children: _k.map((e) => /* @__PURE__ */ (0, M.jsx)("li", {
+						children: Ek.map((e) => /* @__PURE__ */ (0, M.jsx)("li", {
 							className: $.row,
 							children: /* @__PURE__ */ (0, M.jsxs)("label", {
 								className: $.radioRow,
@@ -36631,19 +36919,19 @@ function vk({ rpc: e, held: t, onHold: n, onBack: r }) {
 						}, e))
 					})]
 				}),
-				f && /* @__PURE__ */ (0, M.jsx)(rk, { k: "FR-02.checking" }),
-				m !== null && /* @__PURE__ */ (0, M.jsx)(ik, {
+				f && /* @__PURE__ */ (0, M.jsx)(fk, { k: "FR-02.checking" }),
+				m !== null && /* @__PURE__ */ (0, M.jsx)(pk, {
 					failure: m,
 					notBuilt: "FR-02.checkNotBuilt",
 					refused: "FR-02.checkRefused"
 				}),
-				/* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-02.held" }),
-				/* @__PURE__ */ (0, M.jsxs)(ak, { children: [/* @__PURE__ */ (0, M.jsx)(ek, {
+				/* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-02.held" }),
+				/* @__PURE__ */ (0, M.jsxs)(mk, { children: [/* @__PURE__ */ (0, M.jsx)(lk, {
 					variant: "filled",
 					submit: !0,
 					label: "FR.journey.continue.btn",
 					disabled: f
-				}), /* @__PURE__ */ (0, M.jsx)(ek, {
+				}), /* @__PURE__ */ (0, M.jsx)(lk, {
 					variant: "link",
 					label: "FR.journey.back.btn",
 					onClick: r
@@ -36654,7 +36942,7 @@ function vk({ rpc: e, held: t, onHold: n, onBack: r }) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/Idea.tsx
-function yk({ rpc: e }) {
+function Ok({ rpc: e }) {
 	let t = N(), [n, r] = (0, _.useState)({ kind: "reading" });
 	return (0, _.useEffect)(() => {
 		let t = !0;
@@ -36667,7 +36955,7 @@ function yk({ rpc: e }) {
 		}).catch((e) => {
 			t && r({
 				kind: "failed",
-				failure: AO(e)
+				failure: zO(e)
 			});
 		}), () => {
 			t = !1;
@@ -36684,8 +36972,8 @@ function yk({ rpc: e }) {
 				className: $.note,
 				children: t("FR-12.lede")
 			}),
-			n.kind === "reading" && /* @__PURE__ */ (0, M.jsx)(rk, { k: "FR-12.reading" }),
-			n.kind === "failed" && /* @__PURE__ */ (0, M.jsx)(ik, {
+			n.kind === "reading" && /* @__PURE__ */ (0, M.jsx)(fk, { k: "FR-12.reading" }),
+			n.kind === "failed" && /* @__PURE__ */ (0, M.jsx)(pk, {
 				failure: n.failure,
 				notBuilt: "FR-12.notBuilt",
 				refused: "FR.journey.code"
@@ -36717,20 +37005,20 @@ function yk({ rpc: e }) {
 		]
 	});
 }
-function bk({ rpc: e, onDone: t }) {
+function kk({ rpc: e, onDone: t }) {
 	return /* @__PURE__ */ (0, M.jsxs)("section", {
 		"data-first-run-screen": "idea",
 		children: [
-			/* @__PURE__ */ (0, M.jsx)(tk, {
+			/* @__PURE__ */ (0, M.jsx)(uk, {
 				step: 6,
 				title: "FR-11.title"
 			}),
-			/* @__PURE__ */ (0, M.jsx)(nk, {
+			/* @__PURE__ */ (0, M.jsx)(dk, {
 				k: "FR-11.notBuilt",
 				role: "status"
 			}),
-			/* @__PURE__ */ (0, M.jsx)(yk, { rpc: e }),
-			/* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+			/* @__PURE__ */ (0, M.jsx)(Ok, { rpc: e }),
+			/* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 				variant: "filled",
 				label: "FR-12.finish.btn",
 				onClick: t
@@ -36740,38 +37028,38 @@ function bk({ rpc: e, onDone: t }) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/Model.tsx
-var xk = [
+var Ak = [
 	"codex-cli",
 	"claude-cli",
 	"api",
 	"ollama",
 	"managed"
-], Sk = {
+], jk = {
 	"codex-cli": ["codex-cli"],
 	"claude-cli": ["claude-cli"],
 	api: ["openai-responses", "openai-compatible"],
 	ollama: ["ollama"],
 	managed: ["managed"]
-}, Ck = {
+}, Mk = {
 	"codex-cli": "FR-05.note.cli",
 	"claude-cli": "FR-05.note.cli",
 	api: "FR-05.note.api",
 	ollama: "FR-05.note.ollama",
 	managed: "FR-05.note.managed"
 };
-function wk({ rpc: e, saveRouteKey: t, onDone: n }) {
+function Nk({ rpc: e, saveRouteKey: t, onDone: n }) {
 	let r = N(), [i, a] = (0, _.useState)({ kind: "reading" }), [o, s] = (0, _.useState)(null), [c, l] = (0, _.useState)(""), [u, d] = (0, _.useState)(""), [f, p] = (0, _.useState)(!1), [m, h] = (0, _.useState)(null), [g, v] = (0, _.useState)(!1), [y, b] = (0, _.useState)(!1), [x, S] = (0, _.useState)(!1), C = (0, _.useRef)(0), w = (0, _.useCallback)(async () => {
 		let t = ++C.current;
 		try {
 			let n = await e.request("models.list", {});
 			t === C.current && a({
 				kind: "ready",
-				routes: gD(n)
+				routes: TD(n)
 			});
 		} catch (e) {
 			t === C.current && a({
 				kind: "failed",
-				failure: AO(e)
+				failure: zO(e)
 			});
 		}
 	}, [e]);
@@ -36782,7 +37070,7 @@ function wk({ rpc: e, saveRouteKey: t, onDone: n }) {
 		if (e === "managed") return r("FR-05.note.managed");
 		if (i.kind === "reading") return r("FR-05.health.reading");
 		if (i.kind === "failed") return i.failure.kind === "not-built" ? r("FR-05.health.notBuilt") : r("FR.journey.code", { code: i.failure.code });
-		let t = i.routes.filter((t) => Sk[e].includes(t.kind));
+		let t = i.routes.filter((t) => jk[e].includes(t.kind));
 		return t.length === 0 ? r("FR-05.health.none") : t.some((e) => e.enabled) ? r("FR-05.health.set") : r("FR-05.health.off");
 	}, E = async (n, r) => {
 		let i = r.elements.namedItem("route-key"), a = i instanceof HTMLInputElement ? i.value : "";
@@ -36823,7 +37111,7 @@ function wk({ rpc: e, saveRouteKey: t, onDone: n }) {
 			} catch (e) {
 				h({
 					row: n,
-					failure: AO(e)
+					failure: zO(e)
 				});
 			} finally {
 				p(!1);
@@ -36833,7 +37121,7 @@ function wk({ rpc: e, saveRouteKey: t, onDone: n }) {
 		className: $.problem,
 		role: "alert",
 		children: r("FR-05.refused.DEMO_PROVIDER_DISABLED")
-	}) : /* @__PURE__ */ (0, M.jsx)(ik, {
+	}) : /* @__PURE__ */ (0, M.jsx)(pk, {
 		failure: e,
 		notBuilt: "FR-05.notBuilt",
 		refused: "FR-05.refused"
@@ -36841,14 +37129,14 @@ function wk({ rpc: e, saveRouteKey: t, onDone: n }) {
 	return /* @__PURE__ */ (0, M.jsxs)("section", {
 		"data-first-run-screen": "model",
 		children: [
-			/* @__PURE__ */ (0, M.jsx)(tk, {
+			/* @__PURE__ */ (0, M.jsx)(uk, {
 				step: 3,
 				title: "FR-05.title",
 				lede: "FR-05.lede"
 			}),
 			/* @__PURE__ */ (0, M.jsx)("ul", {
 				className: $.rows,
-				children: xk.map((e) => /* @__PURE__ */ (0, M.jsxs)("li", {
+				children: Ak.map((e) => /* @__PURE__ */ (0, M.jsxs)("li", {
 					className: $.row,
 					"data-route-row": e,
 					children: [
@@ -36864,9 +37152,9 @@ function wk({ rpc: e, saveRouteKey: t, onDone: n }) {
 						}),
 						e !== "managed" && /* @__PURE__ */ (0, M.jsx)("p", {
 							className: $.note,
-							children: r(Ck[e])
+							children: r(Mk[e])
 						}),
-						e !== "managed" && o !== e && /* @__PURE__ */ (0, M.jsx)(ek, {
+						e !== "managed" && o !== e && /* @__PURE__ */ (0, M.jsx)(lk, {
 							variant: "link",
 							label: "FR-05.connect.btn",
 							"aria-label": `${r("FR-05.connect.btn")}: ${r(`FR-05.route.${e}`)}`,
@@ -36902,11 +37190,11 @@ function wk({ rpc: e, saveRouteKey: t, onDone: n }) {
 									spellCheck: !1,
 									inputMode: "url"
 								})] })]
-							}), /* @__PURE__ */ (0, M.jsxs)(ak, { children: [/* @__PURE__ */ (0, M.jsx)(ek, {
+							}), /* @__PURE__ */ (0, M.jsxs)(mk, { children: [/* @__PURE__ */ (0, M.jsx)(lk, {
 								submit: !0,
 								label: "FR-05.save.btn",
 								disabled: f
-							}), /* @__PURE__ */ (0, M.jsx)(ek, {
+							}), /* @__PURE__ */ (0, M.jsx)(lk, {
 								variant: "link",
 								label: "FR.journey.back.btn",
 								onClick: () => s(null),
@@ -36921,15 +37209,15 @@ function wk({ rpc: e, saveRouteKey: t, onDone: n }) {
 					]
 				}, e))
 			}),
-			/* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-05.sendLevel" }),
-			x && /* @__PURE__ */ (0, M.jsx)(nk, {
+			/* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-05.sendLevel" }),
+			x && /* @__PURE__ */ (0, M.jsx)(dk, {
 				k: "FR-05.skipped",
 				role: "status"
 			}),
-			/* @__PURE__ */ (0, M.jsxs)(ak, { children: [!y && /* @__PURE__ */ (0, M.jsx)(ek, {
+			/* @__PURE__ */ (0, M.jsxs)(mk, { children: [!y && /* @__PURE__ */ (0, M.jsx)(lk, {
 				label: "FR-05.skip.btn",
 				onClick: () => S(!0)
-			}), /* @__PURE__ */ (0, M.jsx)(ek, {
+			}), /* @__PURE__ */ (0, M.jsx)(lk, {
 				variant: "filled",
 				label: "FR.journey.continue.btn",
 				disabled: !(y || x) || f,
@@ -36940,17 +37228,17 @@ function wk({ rpc: e, saveRouteKey: t, onDone: n }) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/Recover.tsx
-var Tk = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
-function Ek(e, t) {
+var Pk = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+function Fk(e, t) {
 	let n = e.elements.namedItem(t);
 	if (!(n instanceof HTMLInputElement)) return "";
 	let r = n.value;
 	return n.value = "", r;
 }
-function Dk({ rpc: e, pickBackup: t, onReopened: n, onBack: r }) {
+function Ik({ rpc: e, pickBackup: t, onReopened: n, onBack: r }) {
 	let i = N(), [a, o] = (0, _.useState)("main"), [s, c] = (0, _.useState)({ kind: "none" }), l = async (t, r) => {
-		let i = $O(Ek(t, "recovery-code")), o = Ek(t, "passphrase"), s = Ek(t, "repeat");
-		if (!Tk.test(a.trim())) c({
+		let i = ck(Fk(t, "recovery-code")), o = Fk(t, "passphrase"), s = Fk(t, "repeat");
+		if (!Pk.test(a.trim())) c({
 			kind: "problem",
 			key: "FR-03.folderBad"
 		});
@@ -36965,7 +37253,7 @@ function Dk({ rpc: e, pickBackup: t, onReopened: n, onBack: r }) {
 		else {
 			c({ kind: "opening" });
 			try {
-				let t = HO(r === null ? await e.request("workspace.recover", {
+				let t = ZO(r === null ? await e.request("workspace.recover", {
 					folder: a.trim(),
 					recoveryCode: i,
 					passphrase: o
@@ -36981,14 +37269,14 @@ function Dk({ rpc: e, pickBackup: t, onReopened: n, onBack: r }) {
 			} catch (e) {
 				c({
 					kind: "failed",
-					failure: AO(e)
+					failure: zO(e)
 				});
 			}
 		}
 	};
 	return /* @__PURE__ */ (0, M.jsxs)("section", {
 		"data-first-run-screen": "recover",
-		children: [/* @__PURE__ */ (0, M.jsx)(tk, {
+		children: [/* @__PURE__ */ (0, M.jsx)(uk, {
 			step: 1,
 			title: "FR-13.title",
 			lede: "FR-13.lede"
@@ -37033,24 +37321,24 @@ function Dk({ rpc: e, pickBackup: t, onReopened: n, onBack: r }) {
 					role: "alert",
 					children: i(s.key)
 				}),
-				s.kind === "opening" && /* @__PURE__ */ (0, M.jsx)(rk, { k: "FR-13.opening" }),
-				s.kind === "opened" && /* @__PURE__ */ (0, M.jsx)(rk, {
+				s.kind === "opening" && /* @__PURE__ */ (0, M.jsx)(fk, { k: "FR-13.opening" }),
+				s.kind === "opened" && /* @__PURE__ */ (0, M.jsx)(fk, {
 					k: "FR-13.opened",
 					values: { name: s.name }
 				}),
-				s.kind === "failed" && /* @__PURE__ */ (0, M.jsx)(ik, {
+				s.kind === "failed" && /* @__PURE__ */ (0, M.jsx)(pk, {
 					failure: s.failure,
 					notBuilt: "FR-13.notBuilt",
 					refused: "FR-13.refused"
 				}),
-				/* @__PURE__ */ (0, M.jsxs)(ak, { children: [
-					/* @__PURE__ */ (0, M.jsx)(ek, {
+				/* @__PURE__ */ (0, M.jsxs)(mk, { children: [
+					/* @__PURE__ */ (0, M.jsx)(lk, {
 						variant: "filled",
 						submit: !0,
 						label: "FR-13.open.btn",
 						disabled: s.kind === "opening" || s.kind === "opened"
 					}),
-					t !== void 0 && /* @__PURE__ */ (0, M.jsx)(ek, {
+					t !== void 0 && /* @__PURE__ */ (0, M.jsx)(lk, {
 						label: "FR-13.backup.btn",
 						disabled: s.kind === "opening" || s.kind === "opened",
 						onClick: (e) => {
@@ -37059,31 +37347,31 @@ function Dk({ rpc: e, pickBackup: t, onReopened: n, onBack: r }) {
 								e !== null && l(n, e);
 							}, (e) => c({
 								kind: "failed",
-								failure: AO(e)
+								failure: zO(e)
 							}));
 						}
 					}),
-					/* @__PURE__ */ (0, M.jsx)(ek, {
+					/* @__PURE__ */ (0, M.jsx)(lk, {
 						variant: "link",
 						label: "FR.journey.back.btn",
 						onClick: r,
 						disabled: s.kind === "opening"
 					})
 				] }),
-				t === void 0 && /* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-13.backup.notBuilt" })
+				t === void 0 && /* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-13.backup.notBuilt" })
 			]
 		})]
 	});
 }
 //#endregion
 //#region app/ui/src/screens/first-run/Vault.tsx
-var Ok = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
-function kk({ state: e, createWorkspace: t, onBack: n }) {
+var Lk = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+function Rk({ state: e, createWorkspace: t, onBack: n }) {
 	let r = N(), [i, a] = (0, _.useState)(""), [o, s] = (0, _.useState)("main"), [c, l] = (0, _.useState)(null), u = e.creation, d = u.kind === "creating";
 	return /* @__PURE__ */ (0, M.jsxs)("section", {
 		"data-first-run-screen": "vault",
 		"data-first-run-create": "",
-		children: [/* @__PURE__ */ (0, M.jsx)(tk, {
+		children: [/* @__PURE__ */ (0, M.jsx)(uk, {
 			step: 2,
 			title: "FR-03.title",
 			lede: "FR-03.lede"
@@ -37093,7 +37381,7 @@ function kk({ state: e, createWorkspace: t, onBack: n }) {
 				let n = e.currentTarget.elements, r = n.namedItem("passphrase"), a = n.namedItem("repeat"), s = r instanceof HTMLInputElement ? r.value : "", c = a instanceof HTMLInputElement ? a.value : "";
 				r instanceof HTMLInputElement && (r.value = ""), a instanceof HTMLInputElement && (a.value = "");
 				let u = i.trim();
-				u.length < 2 || u.length > 100 ? l("FR-03.nameNeeded") : Ok.test(o.trim()) ? [...s].length < 12 ? l("FR-03.short") : s === c ? (l(null), t({
+				u.length < 2 || u.length > 100 ? l("FR-03.nameNeeded") : Lk.test(o.trim()) ? [...s].length < 12 ? l("FR-03.short") : s === c ? (l(null), t({
 					name: u,
 					folder: o.trim(),
 					passphrase: s
@@ -37117,7 +37405,7 @@ function kk({ state: e, createWorkspace: t, onBack: n }) {
 							autoComplete: "off",
 							maxLength: 64,
 							spellCheck: !1
-						}), /* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-03.folder.note" })] }),
+						}), /* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-03.folder.note" })] }),
 						/* @__PURE__ */ (0, M.jsx)(rg, {
 							label: r("FR-03.passphrase"),
 							name: "passphrase",
@@ -37147,15 +37435,15 @@ function kk({ state: e, createWorkspace: t, onBack: n }) {
 					role: "alert",
 					children: r("FR-03.busy", { code: e.code })
 				}),
-				d && /* @__PURE__ */ (0, M.jsx)(rk, { k: "FR-03.creating" }),
-				/* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-03.disk" }),
-				/* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-03.honest" }),
-				/* @__PURE__ */ (0, M.jsxs)(ak, { children: [/* @__PURE__ */ (0, M.jsx)(ek, {
+				d && /* @__PURE__ */ (0, M.jsx)(fk, { k: "FR-03.creating" }),
+				/* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-03.disk" }),
+				/* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-03.honest" }),
+				/* @__PURE__ */ (0, M.jsxs)(mk, { children: [/* @__PURE__ */ (0, M.jsx)(lk, {
 					variant: "filled",
 					submit: !0,
 					label: "FR-03.create.btn",
 					disabled: d || e.phase !== "locked"
-				}), /* @__PURE__ */ (0, M.jsx)(ek, {
+				}), /* @__PURE__ */ (0, M.jsx)(lk, {
 					variant: "link",
 					label: "FR.journey.back.btn",
 					onClick: n,
@@ -37165,7 +37453,7 @@ function kk({ state: e, createWorkspace: t, onBack: n }) {
 		})]
 	});
 }
-function Ak({ rendered: e, state: t, acknowledgeRecovery: n, onOpened: r, onPrint: i }) {
+function zk({ rendered: e, state: t, acknowledgeRecovery: n, onOpened: r, onPrint: i }) {
 	let a = N(), [o, s] = (0, _.useState)(!1), [c, l] = (0, _.useState)(!1), u = (0, _.useRef)(!1);
 	(0, _.useLayoutEffect)(() => {
 		u.current = !1, s(!1), l(!1);
@@ -37175,12 +37463,12 @@ function Ak({ rendered: e, state: t, acknowledgeRecovery: n, onOpened: r, onPrin
 		"data-first-run-screen": "recovery",
 		"data-first-run-recovery": "",
 		children: [
-			/* @__PURE__ */ (0, M.jsx)(tk, {
+			/* @__PURE__ */ (0, M.jsx)(uk, {
 				step: 2,
 				title: "FR-04.title",
 				lede: "FR-04.lede"
 			}),
-			o ? /* @__PURE__ */ (0, M.jsx)(nk, {
+			o ? /* @__PURE__ */ (0, M.jsx)(dk, {
 				k: "FR-04.hidden",
 				role: "status"
 			}) : /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [/* @__PURE__ */ (0, M.jsx)("h2", {
@@ -37190,7 +37478,7 @@ function Ak({ rendered: e, state: t, acknowledgeRecovery: n, onOpened: r, onPrin
 				className: [$.code, "fig"].join(" "),
 				"data-recovery-code": "",
 				"aria-label": a("FR-04.code"),
-				children: QO(d).map((e, t) => /* @__PURE__ */ (0, M.jsx)("span", { children: e }, t))
+				children: sk(d).map((e, t) => /* @__PURE__ */ (0, M.jsx)("span", { children: e }, t))
 			})] }),
 			/* @__PURE__ */ (0, M.jsxs)("ol", {
 				className: $.kitLines,
@@ -37200,7 +37488,7 @@ function Ak({ rendered: e, state: t, acknowledgeRecovery: n, onOpened: r, onPrin
 					/* @__PURE__ */ (0, M.jsx)("li", { children: a("FR-04.new") })
 				]
 			}),
-			i === void 0 ? /* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-04.print.notBuilt" }) : !o && /* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+			i === void 0 ? /* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-04.print.notBuilt" }) : !o && /* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 				label: "FR-04.print.btn",
 				onClick: () => {
 					t.creation === e && i(d);
@@ -37217,8 +37505,8 @@ function Ak({ rendered: e, state: t, acknowledgeRecovery: n, onOpened: r, onPrin
 					}
 				}), /* @__PURE__ */ (0, M.jsx)("span", { children: a("FR-04.kept") })]
 			}),
-			c && /* @__PURE__ */ (0, M.jsx)(rk, { k: "FR-04.opening" }),
-			/* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+			c && /* @__PURE__ */ (0, M.jsx)(fk, { k: "FR-04.opening" }),
+			/* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 				variant: "filled",
 				label: "FR.journey.continue.btn",
 				disabled: !o || c,
@@ -37231,9 +37519,9 @@ function Ak({ rendered: e, state: t, acknowledgeRecovery: n, onOpened: r, onPrin
 		]
 	});
 }
-function jk(e) {
+function Bk(e) {
 	let { state: t } = e, n = t.creation;
-	return n.kind === "recovery-required" ? /* @__PURE__ */ (0, M.jsx)(Ak, {
+	return n.kind === "recovery-required" ? /* @__PURE__ */ (0, M.jsx)(zk, {
 		rendered: n,
 		state: t,
 		acknowledgeRecovery: e.acknowledgeRecovery,
@@ -37241,20 +37529,20 @@ function jk(e) {
 		onPrint: e.onPrint
 	}) : n.kind === "recovery-held" || n.kind === "idle" && t.phase === "loading" ? /* @__PURE__ */ (0, M.jsxs)("section", {
 		"data-first-run-screen": "vault",
-		children: [/* @__PURE__ */ (0, M.jsx)(tk, {
+		children: [/* @__PURE__ */ (0, M.jsx)(uk, {
 			step: 2,
 			title: "FR-03.title"
-		}), /* @__PURE__ */ (0, M.jsx)(rk, { k: "FR-03.reading" })]
+		}), /* @__PURE__ */ (0, M.jsx)(fk, { k: "FR-03.reading" })]
 	}) : n.kind === "unknown" ? /* @__PURE__ */ (0, M.jsxs)("section", {
 		"data-first-run-screen": "vault",
-		children: [/* @__PURE__ */ (0, M.jsx)(tk, {
+		children: [/* @__PURE__ */ (0, M.jsx)(uk, {
 			step: 2,
 			title: "FR-03.title"
-		}), /* @__PURE__ */ (0, M.jsx)(nk, {
+		}), /* @__PURE__ */ (0, M.jsx)(dk, {
 			k: "FR-03.unknown",
 			role: "alert"
 		})]
-	}) : /* @__PURE__ */ (0, M.jsx)(kk, {
+	}) : /* @__PURE__ */ (0, M.jsx)(Rk, {
 		state: t,
 		createWorkspace: e.createWorkspace,
 		onBack: e.onBack
@@ -37262,30 +37550,30 @@ function jk(e) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/Welcome.tsx
-var Mk = [
+var Vk = [
 	"simple",
 	"guided",
 	"books"
-], Nk = {
+], Hk = {
 	simple: $.sketchSimple ?? "",
 	guided: "",
 	books: $.sketchBooks ?? ""
-}, Pk = {
+}, Uk = {
 	simple: 2,
 	guided: 3,
 	books: 5
 };
-function Fk({ view: e, onView: t, openWorkspace: n, onOpen: r, onBusiness: i, onIdea: a, onRecover: o, onDemo: s }) {
+function Wk({ view: e, onView: t, openWorkspace: n, onOpen: r, onBusiness: i, onIdea: a, onRecover: o, onDemo: s }) {
 	let c = N(), l = (0, _.useId)(), u = (0, _.useId)();
 	return /* @__PURE__ */ (0, M.jsxs)("section", {
 		"data-first-run-screen": "welcome",
 		children: [
-			/* @__PURE__ */ (0, M.jsx)(tk, {
+			/* @__PURE__ */ (0, M.jsx)(uk, {
 				step: 1,
 				title: "FR-01.title",
 				lede: "FR-01.lede"
 			}),
-			n !== null && /* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+			n !== null && /* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 				variant: "filled",
 				label: "FR-01.open.btn",
 				values: { name: n },
@@ -37298,14 +37586,14 @@ function Fk({ view: e, onView: t, openWorkspace: n, onOpen: r, onBusiness: i, on
 					id: u,
 					className: $.sectionTitle,
 					children: c("FR-01.view")
-				}), Mk.map((n) => /* @__PURE__ */ (0, M.jsxs)("label", {
+				}), Vk.map((n) => /* @__PURE__ */ (0, M.jsxs)("label", {
 					className: [$.drawing, n === e ? $.drawingChosen : ""].filter(Boolean).join(" "),
 					"data-view-drawing": n,
 					children: [
 						/* @__PURE__ */ (0, M.jsx)("span", {
-							className: [$.sketch, Nk[n]].filter(Boolean).join(" "),
+							className: [$.sketch, Hk[n]].filter(Boolean).join(" "),
 							"aria-hidden": "true",
-							children: Array.from({ length: Pk[n] }, (e, t) => /* @__PURE__ */ (0, M.jsx)("span", {
+							children: Array.from({ length: Uk[n] }, (e, t) => /* @__PURE__ */ (0, M.jsx)("span", {
 								className: $.sketchLine,
 								style: { width: `${100 - t * 12}%` }
 							}, t))
@@ -37335,47 +37623,47 @@ function Fk({ view: e, onView: t, openWorkspace: n, onOpen: r, onBusiness: i, on
 				style: { marginTop: "var(--sp6)" },
 				children: c("FR-01.which")
 			}),
-			/* @__PURE__ */ (0, M.jsxs)(ak, { children: [/* @__PURE__ */ (0, M.jsx)(ek, {
+			/* @__PURE__ */ (0, M.jsxs)(mk, { children: [/* @__PURE__ */ (0, M.jsx)(lk, {
 				variant: n === null ? "filled" : "quiet",
 				label: "FR-01.business.btn",
 				onClick: i
-			}), /* @__PURE__ */ (0, M.jsx)(ek, {
+			}), /* @__PURE__ */ (0, M.jsx)(lk, {
 				label: "FR-01.idea.btn",
 				onClick: a
 			})] }),
-			/* @__PURE__ */ (0, M.jsxs)(ak, { children: [s === void 0 ? /* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-01.demo.notBuilt" }) : /* @__PURE__ */ (0, M.jsx)(ek, {
+			/* @__PURE__ */ (0, M.jsxs)(mk, { children: [s === void 0 ? /* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-01.demo.notBuilt" }) : /* @__PURE__ */ (0, M.jsx)(lk, {
 				variant: "link",
 				label: "FR-01.demo.btn",
 				onClick: s
-			}), n === null && /* @__PURE__ */ (0, M.jsx)(ek, {
+			}), n === null && /* @__PURE__ */ (0, M.jsx)(lk, {
 				variant: "link",
 				label: "FR-01.recover.btn",
 				onClick: o
 			})] }),
-			/* @__PURE__ */ (0, M.jsx)(nk, { k: "FR-01.memory" })
+			/* @__PURE__ */ (0, M.jsx)(dk, { k: "FR-01.memory" })
 		]
 	});
 }
 //#endregion
 //#region app/ui/src/screens/first-run/journey.ts
-var Ik = Object.freeze({
+var Gk = Object.freeze({
 	you: !1,
 	vault: !1,
 	model: !1,
 	books: !1,
 	meanings: !1,
 	answer: !1
-}), Lk = Object.freeze({
+}), Kk = Object.freeze({
 	fields: Object.freeze({}),
 	gstMode: null
 });
-function Rk(e) {
+function qk(e) {
 	return Object.freeze({
 		screen: "welcome",
 		path: null,
-		local: Ik,
+		local: Gk,
 		status: Object.freeze({ kind: "no-vault" }),
-		identity: Lk,
+		identity: Kk,
 		identityWritten: "held",
 		model: "not-chosen",
 		fileWaiting: !1,
@@ -37383,7 +37671,7 @@ function Rk(e) {
 		answeredAt: null
 	});
 }
-function zk(e) {
+function Jk(e) {
 	switch (e) {
 		case "welcome":
 		case "identity":
@@ -37397,23 +37685,23 @@ function zk(e) {
 		case "finished": return "answer";
 	}
 }
-function Bk(e, t) {
+function Yk(e, t) {
 	return e.local[t] ? !0 : e.status.kind === "known" && e.status.reply.steps[t] === "done";
 }
-function Vk(e) {
+function Xk(e) {
 	return e.status.kind !== "no-vault";
 }
-function Hk(e) {
-	let t = zk(e.screen), n = e.screen === "finished";
+function Zk(e) {
+	let t = Jk(e.screen), n = e.screen === "finished";
 	return Hp.map((r) => {
-		let i = Bk(e, r) || n && r === "answer" ? "done" : r === t || r === "books" && e.fileWaiting ? "waiting-for-you" : "not-reached";
+		let i = Yk(e, r) || n && r === "answer" ? "done" : r === t || r === "books" && e.fileWaiting ? "waiting-for-you" : "not-reached";
 		return {
 			nameKey: r === "answer" ? "STEP.first-answer" : `STEP.${r}`,
 			state: i
 		};
 	});
 }
-function Uk(e) {
+function Qk(e) {
 	switch (e.status.kind) {
 		case "no-vault": return "no-vault";
 		case "reading": return null;
@@ -37421,137 +37709,137 @@ function Uk(e) {
 		case "known": return e.status.reply.blocked;
 	}
 }
-function Wk(e) {
+function $k(e) {
 	return e.status.kind === "known" ? e.status.reply.leftThisComputer : null;
 }
-function Gk(e) {
-	return e.path === "idea" ? Bk(e, "model") ? "idea" : "model" : Bk(e, "model") ? !Bk(e, "books") && !e.fileWaiting ? "file" : Bk(e, "meanings") ? Bk(e, "books") ? Bk(e, "answer") ? "finished" : "answer" : "file" : "meanings" : "model";
+function eA(e) {
+	return e.path === "idea" ? Yk(e, "model") ? "idea" : "model" : Yk(e, "model") ? !Yk(e, "books") && !e.fileWaiting ? "file" : Yk(e, "meanings") ? Yk(e, "books") ? Yk(e, "answer") ? "finished" : "answer" : "file" : "meanings" : "model";
 }
-function Kk(e) {
+function tA(e) {
 	return e.gstMode !== null || Object.values(e.fields).some((e) => typeof e == "string" && e.trim().length > 0);
 }
-function qk(e, t) {
+function nA(e, t) {
 	return Object.freeze({
 		...e.local,
 		[t]: !0
 	});
 }
-function Jk(e, t) {
+function rA(e, t) {
 	return Object.freeze({
 		...e,
 		...t
 	});
 }
-function Yk(e, t) {
+function iA(e, t) {
 	switch (t.type) {
 		case "begin":
 			if (e.screen !== "welcome") return e;
-			if (Vk(e)) {
-				let n = Jk(e, {
+			if (Xk(e)) {
+				let n = rA(e, {
 					path: t.path,
-					local: qk(e, "you")
+					local: nA(e, "you")
 				});
-				return Jk(n, { screen: Gk(n) });
+				return rA(n, { screen: eA(n) });
 			}
-			return t.path === "idea" ? Jk(e, {
+			return t.path === "idea" ? rA(e, {
 				path: "idea",
-				local: qk(e, "you"),
+				local: nA(e, "you"),
 				screen: "vault"
-			}) : Jk(e, {
+			}) : rA(e, {
 				path: "business",
 				screen: "identity"
 			});
-		case "open-recover": return e.screen === "welcome" && !Vk(e) ? Jk(e, { screen: "recover" }) : e;
-		case "close-recover": return e.screen === "recover" ? Jk(e, { screen: "welcome" }) : e;
-		case "identity-held": return e.screen === "identity" ? Jk(e, {
+		case "open-recover": return e.screen === "welcome" && !Xk(e) ? rA(e, { screen: "recover" }) : e;
+		case "close-recover": return e.screen === "recover" ? rA(e, { screen: "welcome" }) : e;
+		case "identity-held": return e.screen === "identity" ? rA(e, {
 			identity: Object.freeze({
 				fields: Object.freeze({ ...t.identity.fields }),
 				gstMode: t.identity.gstMode
 			}),
-			local: qk(e, "you"),
+			local: nA(e, "you"),
 			screen: "vault"
 		}) : e;
-		case "vault-open": return Vk(e) ? e : Jk(Jk(e, {
+		case "vault-open": return Xk(e) ? e : rA(rA(e, {
 			local: Object.freeze({
 				...e.local,
 				you: !0,
 				vault: !0
 			}),
 			status: Object.freeze({ kind: "reading" }),
-			identityWritten: Kk(e.identity) ? "held" : "empty"
+			identityWritten: tA(e.identity) ? "held" : "empty"
 		}), { screen: e.screen === "vault" ? "model" : e.screen });
 		case "resume": {
 			if (e.screen !== "welcome" && e.screen !== "recover") return e;
-			let t = Jk(e, {
+			let t = rA(e, {
 				local: Object.freeze({
 					...e.local,
 					you: !0,
 					vault: !0
 				}),
 				path: e.path ?? "business",
-				status: Vk(e) ? e.status : Object.freeze({ kind: "reading" }),
+				status: Xk(e) ? e.status : Object.freeze({ kind: "reading" }),
 				identityWritten: "empty"
 			});
-			return Jk(t, { screen: Gk(t) });
+			return rA(t, { screen: eA(t) });
 		}
-		case "identity-written": return e.identityWritten === "held" && Vk(e) ? Jk(e, {
+		case "identity-written": return e.identityWritten === "held" && Xk(e) ? rA(e, {
 			identityWritten: t.outcome,
-			identity: t.outcome === "saved" ? Lk : e.identity
+			identity: t.outcome === "saved" ? Kk : e.identity
 		}) : e;
-		case "status-reading": return Vk(e) ? Jk(e, { status: Object.freeze({ kind: "reading" }) }) : e;
-		case "status": return Vk(e) ? Jk(e, { status: Object.freeze({
+		case "status-reading": return Xk(e) ? rA(e, { status: Object.freeze({ kind: "reading" }) }) : e;
+		case "status": return Xk(e) ? rA(e, { status: Object.freeze({
 			kind: "known",
 			reply: t.reply
 		}) }) : e;
-		case "status-not-built": return Vk(e) ? Jk(e, { status: Object.freeze({ kind: "not-built" }) }) : e;
+		case "status-not-built": return Xk(e) ? rA(e, { status: Object.freeze({ kind: "not-built" }) }) : e;
 		case "model-done": {
 			if (e.screen !== "model") return e;
-			let n = Jk(e, {
+			let n = rA(e, {
 				model: t.outcome,
-				local: qk(e, "model")
+				local: nA(e, "model")
 			});
-			return Jk(n, { screen: Gk(n) });
+			return rA(n, { screen: eA(n) });
 		}
 		case "file-taken": {
 			if (e.screen !== "file") return e;
-			let t = Jk(e, {
-				local: qk(e, "books"),
+			let t = rA(e, {
+				local: nA(e, "books"),
 				fileWaiting: !1
 			});
-			return Jk(t, { screen: Gk(t) });
+			return rA(t, { screen: eA(t) });
 		}
 		case "file-waits": {
 			if (e.screen !== "file") return e;
-			let t = Jk(e, { fileWaiting: !0 });
-			return Jk(t, { screen: Bk(t, "meanings") ? "file" : "meanings" });
+			let t = rA(e, { fileWaiting: !0 });
+			return rA(t, { screen: Yk(t, "meanings") ? "file" : "meanings" });
 		}
 		case "meanings-agreed": {
 			if (e.screen !== "meanings") return e;
-			let t = Jk(e, { local: qk(e, "meanings") });
-			return Jk(t, { screen: Gk(t) });
+			let t = rA(e, { local: nA(e, "meanings") });
+			return rA(t, { screen: eA(t) });
 		}
-		case "answered": return e.screen !== "answer" || e.answeredAt !== null ? e : Jk(e, {
-			local: qk(e, "answer"),
+		case "answered": return e.screen !== "answer" || e.answeredAt !== null ? e : rA(e, {
+			local: nA(e, "answer"),
 			answeredAt: t.at
 		});
-		case "idea-done": return e.screen === "idea" ? Jk(e, { screen: "finished" }) : e;
-		case "back": return e.screen === "identity" ? Jk(e, {
+		case "idea-done": return e.screen === "idea" ? rA(e, { screen: "finished" }) : e;
+		case "back": return e.screen === "identity" ? rA(e, {
 			screen: "welcome",
 			path: null
-		}) : e.screen === "vault" && !Vk(e) ? Jk(e, {
+		}) : e.screen === "vault" && !Xk(e) ? rA(e, {
 			screen: e.path === "idea" ? "welcome" : "identity",
 			...e.path === "idea" ? {
 				path: null,
-				local: Ik
+				local: Gk
 			} : {}
 		}) : e;
 	}
 }
-function Xk(e) {
+function aA(e) {
 	return e.answeredAt === null ? null : Math.max(0, Math.floor((e.answeredAt - e.startedAt) / 1e3));
 }
-function Zk(e) {
-	let t = Rk(e), n = /* @__PURE__ */ new Set();
+function oA(e) {
+	let t = qk(e), n = /* @__PURE__ */ new Set();
 	return Object.freeze({
 		snapshot: () => t,
 		subscribe(e) {
@@ -37560,7 +37848,7 @@ function Zk(e) {
 			};
 		},
 		dispatch(e) {
-			let r = Yk(t, e);
+			let r = iA(t, e);
 			if (r !== t) {
 				t = r;
 				for (let e of [...n]) e();
@@ -37571,10 +37859,10 @@ function Zk(e) {
 }
 //#endregion
 //#region app/ui/src/screens/first-run/FirstRunJourney.tsx
-function Qk({ state: e, host: t, hostState: n, props: r, heldFile: i, setHeldFile: a, identityCode: o, dispatch: s }) {
+function sA({ state: e, host: t, hostState: n, props: r, heldFile: i, setHeldFile: a, identityCode: o, dispatch: s }) {
 	let c = N(), l = r.now ?? Date.now;
 	switch (e.screen) {
-		case "welcome": return /* @__PURE__ */ (0, M.jsx)(Fk, {
+		case "welcome": return /* @__PURE__ */ (0, M.jsx)(Wk, {
 			view: r.view,
 			onView: r.onView,
 			openWorkspace: n.phase === "ready" && n.context !== null ? n.context.workspace.name : null,
@@ -37590,13 +37878,13 @@ function Qk({ state: e, host: t, hostState: n, props: r, heldFile: i, setHeldFil
 			onRecover: () => s({ type: "open-recover" }),
 			onDemo: r.onDemo
 		});
-		case "recover": return /* @__PURE__ */ (0, M.jsx)(Dk, {
+		case "recover": return /* @__PURE__ */ (0, M.jsx)(Ik, {
 			rpc: r.rpc,
 			pickBackup: r.pickBackup,
 			onReopened: r.onReopened,
 			onBack: () => s({ type: "close-recover" })
 		});
-		case "identity": return /* @__PURE__ */ (0, M.jsx)(vk, {
+		case "identity": return /* @__PURE__ */ (0, M.jsx)(Dk, {
 			rpc: r.rpc,
 			held: e.identity,
 			onHold: (e) => s({
@@ -37605,7 +37893,7 @@ function Qk({ state: e, host: t, hostState: n, props: r, heldFile: i, setHeldFil
 			}),
 			onBack: () => s({ type: "back" })
 		});
-		case "vault": return /* @__PURE__ */ (0, M.jsx)(jk, {
+		case "vault": return /* @__PURE__ */ (0, M.jsx)(Bk, {
 			state: n,
 			createWorkspace: (e) => t.createWorkspace(e),
 			acknowledgeRecovery: (e) => t.acknowledgeRecovery(e),
@@ -37614,20 +37902,20 @@ function Qk({ state: e, host: t, hostState: n, props: r, heldFile: i, setHeldFil
 			onBack: () => s({ type: "back" })
 		});
 		case "model": return /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [
-			e.identityWritten === "saved" && /* @__PURE__ */ (0, M.jsx)(nk, {
+			e.identityWritten === "saved" && /* @__PURE__ */ (0, M.jsx)(dk, {
 				k: "FR-02.saved",
 				role: "status"
 			}),
-			e.identityWritten === "not-built" && /* @__PURE__ */ (0, M.jsx)(nk, {
+			e.identityWritten === "not-built" && /* @__PURE__ */ (0, M.jsx)(dk, {
 				k: "FR-02.saveNotBuilt",
 				role: "status"
 			}),
-			e.identityWritten === "refused" && /* @__PURE__ */ (0, M.jsx)(nk, {
+			e.identityWritten === "refused" && /* @__PURE__ */ (0, M.jsx)(dk, {
 				k: "FR-02.saveRefused",
 				values: { code: o },
 				role: "status"
 			}),
-			/* @__PURE__ */ (0, M.jsx)(wk, {
+			/* @__PURE__ */ (0, M.jsx)(Nk, {
 				rpc: r.rpc,
 				saveRouteKey: r.saveRouteKey,
 				onDone: (e) => s({
@@ -37636,24 +37924,24 @@ function Qk({ state: e, host: t, hostState: n, props: r, heldFile: i, setHeldFil
 				})
 			})
 		] });
-		case "file": return /* @__PURE__ */ (0, M.jsx)(fk, {
+		case "file": return /* @__PURE__ */ (0, M.jsx)(xk, {
 			rpc: r.rpc,
 			pickFile: r.pickFile,
 			held: i,
 			onHold: a,
-			meaningsAgreed: Bk(e, "meanings"),
+			meaningsAgreed: Yk(e, "meanings"),
 			company: n.context?.workspace.name ?? "",
 			onTaken: () => {
 				a(null), s({ type: "file-taken" });
 			},
 			onWaits: () => s({ type: "file-waits" })
 		});
-		case "meanings": return /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [e.fileWaiting && /* @__PURE__ */ (0, M.jsx)(nk, {
+		case "meanings": return /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [e.fileWaiting && /* @__PURE__ */ (0, M.jsx)(dk, {
 			k: "FR-08.journey.waiting",
 			role: "status"
 		}), /* @__PURE__ */ (0, M.jsx)("div", {
 			"data-first-run-screen": "meanings",
-			children: /* @__PURE__ */ (0, M.jsx)(wO, {
+			children: /* @__PURE__ */ (0, M.jsx)(NO, {
 				controller: t.firstRun,
 				language: r.language,
 				view: r.view,
@@ -37662,9 +37950,9 @@ function Qk({ state: e, host: t, hostState: n, props: r, heldFile: i, setHeldFil
 				} }
 			})
 		})] });
-		case "answer": return /* @__PURE__ */ (0, M.jsx)(gk, {
+		case "answer": return /* @__PURE__ */ (0, M.jsx)(Tk, {
 			rpc: r.rpc,
-			elapsed: Xk(e),
+			elapsed: aA(e),
 			onAnswered: () => s({
 				type: "answered",
 				at: l()
@@ -37672,19 +37960,19 @@ function Qk({ state: e, host: t, hostState: n, props: r, heldFile: i, setHeldFil
 			onOpenReceipt: r.onOpenReceipt,
 			onToday: r.onDone
 		});
-		case "idea": return /* @__PURE__ */ (0, M.jsx)(bk, {
+		case "idea": return /* @__PURE__ */ (0, M.jsx)(kk, {
 			rpc: r.rpc,
 			onDone: () => s({ type: "idea-done" })
 		});
 		case "finished": return /* @__PURE__ */ (0, M.jsxs)("section", {
 			"data-first-run-screen": "finished",
 			children: [
-				/* @__PURE__ */ (0, M.jsx)(tk, {
+				/* @__PURE__ */ (0, M.jsx)(uk, {
 					step: 6,
 					title: "FR.journey.finished",
 					lede: "FR.journey.finished.lede"
 				}),
-				/* @__PURE__ */ (0, M.jsx)(ak, { children: /* @__PURE__ */ (0, M.jsx)(ek, {
+				/* @__PURE__ */ (0, M.jsx)(mk, { children: /* @__PURE__ */ (0, M.jsx)(lk, {
 					variant: "filled",
 					label: "FR.journey.today.btn",
 					onClick: r.onDone
@@ -37697,8 +37985,8 @@ function Qk({ state: e, host: t, hostState: n, props: r, heldFile: i, setHeldFil
 		});
 	}
 }
-function $k(e) {
-	let { host: t, rpc: n, language: r, onLanguage: i } = e, a = (0, _.useMemo)(() => Zk((e.now ?? Date.now)()), []), o = (0, _.useSyncExternalStore)(a.subscribe, a.snapshot, a.snapshot), s = (0, _.useSyncExternalStore)(t.subscribe, t.snapshot, t.snapshot), [c, l] = (0, _.useState)(null), [u, d] = (0, _.useState)("INVALID_REPLY"), f = (0, _.useRef)(!1), p = (0, _.useRef)(null), m = (0, _.useRef)(o.screen);
+function cA(e) {
+	let { host: t, rpc: n, language: r, onLanguage: i } = e, a = (0, _.useMemo)(() => oA((e.now ?? Date.now)()), []), o = (0, _.useSyncExternalStore)(a.subscribe, a.snapshot, a.snapshot), s = (0, _.useSyncExternalStore)(t.subscribe, t.snapshot, t.snapshot), [c, l] = (0, _.useState)(null), [u, d] = (0, _.useState)("INVALID_REPLY"), f = (0, _.useRef)(!1), p = (0, _.useRef)(null), m = (0, _.useRef)(o.screen);
 	(0, _.useLayoutEffect)(() => (f.current = !0, t.setFirstRunSurface(() => f.current && a.snapshot().screen === "meanings"), () => {
 		f.current = !1, t.setFirstRunSurface(null);
 	}), [t, a]), (0, _.useEffect)(() => {
@@ -37716,7 +38004,7 @@ function $k(e) {
 		s,
 		a
 	]);
-	let h = Vk(o), g = JSON.stringify(o.local);
+	let h = Xk(o), g = JSON.stringify(o.local);
 	return (0, _.useEffect)(() => {
 		if (!h) return;
 		let e = !0;
@@ -37749,7 +38037,7 @@ function $k(e) {
 			});
 		}, (t) => {
 			if (!e) return;
-			let n = AO(t);
+			let n = zO(t);
 			n.kind === "refused" && d(n.code), a.dispatch({
 				type: "identity-written",
 				outcome: n.kind === "not-built" ? "not-built" : "refused"
@@ -37763,20 +38051,20 @@ function $k(e) {
 		o.identity,
 		n,
 		a
-	]), /* @__PURE__ */ (0, M.jsx)(mO, {
+	]), /* @__PURE__ */ (0, M.jsx)(CO, {
 		language: r,
-		children: /* @__PURE__ */ (0, M.jsx)(kO, {
+		children: /* @__PURE__ */ (0, M.jsx)(RO, {
 			language: r,
 			onLanguage: i,
-			steps: Hk(o),
-			blocked: Uk(o),
-			left: Wk(o),
+			steps: Zk(o),
+			blocked: Qk(o),
+			left: $k(o),
 			children: /* @__PURE__ */ (0, M.jsx)("div", {
 				ref: p,
 				tabIndex: -1,
 				"data-first-run-journey": o.screen,
 				style: { outline: "none" },
-				children: /* @__PURE__ */ (0, M.jsx)(Qk, {
+				children: /* @__PURE__ */ (0, M.jsx)(sA, {
 					state: o,
 					host: t,
 					hostState: s,
@@ -37790,7 +38078,7 @@ function $k(e) {
 		})
 	});
 }
-var eA = {
+var lA = {
 	form: "_form_e48h9_1",
 	label: "_label_e48h9_7",
 	line: "_line_e48h9_12",
@@ -37801,7 +38089,7 @@ var eA = {
 };
 //#endregion
 //#region app/ui/src/host/UnlockControl.tsx
-function tA({ unlock: e, result: t = null, device: n, onRecoveryKit: r, pausedLine: i = !1 }) {
+function uA({ unlock: e, result: t = null, device: n, onRecoveryKit: r, pausedLine: i = !1 }) {
 	let a = N(), o = (0, _.useId)(), s = (0, _.useRef)(null), c = (0, _.useRef)(!1), [l, u] = (0, _.useState)(!1), d = t?.kind === "wait", f = `${o}-problem`, p = (t) => {
 		t.preventDefault();
 		let n = s.current;
@@ -37824,21 +38112,21 @@ function tA({ unlock: e, result: t = null, device: n, onRecoveryKit: r, pausedLi
 		a instanceof Promise ? a.then(i, i) : i();
 	}, m = t === null ? void 0 : t.kind === "wait" ? a("SH-02.wait", { time: t.until }) : a("SH-02.wrong");
 	return /* @__PURE__ */ (0, M.jsxs)("form", {
-		className: eA.form,
+		className: lA.form,
 		onSubmit: p,
 		autoComplete: "off",
 		children: [
 			/* @__PURE__ */ (0, M.jsx)("label", {
 				htmlFor: o,
-				className: eA.label,
+				className: lA.label,
 				children: a("SH-02.field")
 			}),
 			/* @__PURE__ */ (0, M.jsxs)("div", {
-				className: eA.line,
+				className: lA.line,
 				children: [/* @__PURE__ */ (0, M.jsx)("input", {
 					ref: s,
 					id: o,
-					className: eA.input,
+					className: lA.input,
 					type: "password",
 					name: "unlock",
 					autoComplete: "current-password",
@@ -37857,12 +38145,12 @@ function tA({ unlock: e, result: t = null, device: n, onRecoveryKit: r, pausedLi
 			}),
 			m !== void 0 && /* @__PURE__ */ (0, M.jsx)("p", {
 				id: f,
-				className: eA.problem,
+				className: lA.problem,
 				role: "alert",
 				children: m
 			}),
 			n?.supported === !0 && /* @__PURE__ */ (0, M.jsx)("p", {
-				className: eA.links,
+				className: lA.links,
 				children: /* @__PURE__ */ (0, M.jsx)(F, {
 					variant: "link",
 					onClick: n.onUnlock,
@@ -37871,7 +38159,7 @@ function tA({ unlock: e, result: t = null, device: n, onRecoveryKit: r, pausedLi
 				})
 			}),
 			r && /* @__PURE__ */ (0, M.jsxs)("p", {
-				className: eA.links,
+				className: lA.links,
 				children: [
 					a("SH-02.forgot"),
 					" ",
@@ -37883,7 +38171,7 @@ function tA({ unlock: e, result: t = null, device: n, onRecoveryKit: r, pausedLi
 				]
 			}),
 			i && /* @__PURE__ */ (0, M.jsx)("p", {
-				className: eA.note,
+				className: lA.note,
 				children: a("SH-02.paused")
 			})
 		]
@@ -37891,7 +38179,7 @@ function tA({ unlock: e, result: t = null, device: n, onRecoveryKit: r, pausedLi
 }
 //#endregion
 //#region app/ui/src/host/text.ts
-var nA = {
+var dA = {
 	legacy: "Previous interface",
 	thisWorkspace: "Your workspace",
 	refresh: "Read again",
@@ -37932,6 +38220,7 @@ var nA = {
 	receipt: "Receipt",
 	receiptLoading: "Reading this receipt with your current workspace access.",
 	receiptFailed: "This receipt is unavailable.",
+	receiptEvery: "Every field of this receipt",
 	receiptSubset: "This view shows the checked receipt fields available here. Additional receipt details are unavailable in this interface.",
 	receiptUnknown: "This receipt does not establish a known figure from counted evidence.",
 	figures: "Figures",
@@ -37973,7 +38262,7 @@ var nA = {
 	reference: "Evidence reference",
 	referenceUnavailable: "This type of evidence cannot be opened in this interface. It has not been read as a calculation receipt.",
 	referenceIdentity: "Reference: {id}."
-}, rA = {
+}, fA = {
 	helpTitle: "कीबोर्ड शॉर्टकट",
 	helpAsk: "सवाल की पंक्ति पर जाएँ।",
 	helpPlaces: "किसी जगह पर जाएँ।",
@@ -38014,6 +38303,7 @@ var nA = {
 	receipt: "रसीद",
 	receiptLoading: "आपकी मौजूदा कार्यक्षेत्र पहुँच के साथ यह रसीद पढ़ी जा रही है।",
 	receiptFailed: "यह रसीद उपलब्ध नहीं है।",
+	receiptEvery: "इस रसीद का हर हिस्सा",
 	receiptSubset: "इस दृश्य में रसीद के उपलब्ध और जाँचे गए फ़ील्ड दिखते हैं। रसीद की अतिरिक्त जानकारी इस इंटरफ़ेस में उपलब्ध नहीं है।",
 	receiptUnknown: "गिने गए साक्ष्य से यह रसीद कोई ज्ञात आँकड़ा स्थापित नहीं करती।",
 	figures: "आँकड़े",
@@ -38056,10 +38346,10 @@ var nA = {
 	referenceUnavailable: "इस प्रकार का साक्ष्य इस इंटरफ़ेस में नहीं खोला जा सकता। इसे गणना की रसीद की तरह नहीं पढ़ा गया है।",
 	referenceIdentity: "संदर्भ: {id}।"
 };
-function iA(e, t, n = {}) {
-	return (e === "hi" ? rA[t] : nA[t]).replace(/\{([A-Za-z]+)\}/g, (e, t) => n[t] ?? e);
+function pA(e, t, n = {}) {
+	return (e === "hi" ? fA[t] : dA[t]).replace(/\{([A-Za-z]+)\}/g, (e, t) => n[t] ?? e);
 }
-function aA(e) {
+function mA(e) {
 	let t = e === "hi" ? An : kn;
 	return {
 		absent: t["MISSING.absent"],
@@ -38073,13 +38363,13 @@ function aA(e) {
 }
 //#endregion
 //#region app/ui/src/host/frame-reads.ts
-var oA = {
+var hA = {
 	shell: null,
 	status: null,
 	worth: null,
 	capabilities: null,
 	help: null
-}, sA = [
+}, gA = [
 	[
 		"shell",
 		"todayx.shell",
@@ -38106,10 +38396,10 @@ var oA = {
 		sm
 	]
 ];
-function cA(e, t) {
-	let [n, r] = (0, _.useState)(oA), i = (0, _.useRef)(0), a = (0, _.useCallback)(() => {
+function _A(e, t) {
+	let [n, r] = (0, _.useState)(hA), i = (0, _.useRef)(0), a = (0, _.useCallback)(() => {
 		let t = ++i.current;
-		for (let [n, a, o] of sA) e.request(a, {}).then((e) => {
+		for (let [n, a, o] of gA) e.request(a, {}).then((e) => {
 			i.current === t && o(e) && r((t) => ({
 				...t,
 				[n]: e
@@ -38121,7 +38411,7 @@ function cA(e, t) {
 			}));
 		});
 	}, [e]);
-	return (0, _.useEffect)(() => (r(oA), a(), () => {
+	return (0, _.useEffect)(() => (r(hA), a(), () => {
 		i.current++;
 	}), [a, t]), {
 		reads: n,
@@ -38136,7 +38426,7 @@ function cA(e, t) {
 }
 //#endregion
 //#region app/ui/src/app/status-line.ts
-var lA = {
+var vA = {
 	en: {
 		sourcesNone: "No source yet",
 		sourcesFresh: "{count} sources, read {date}",
@@ -38174,62 +38464,62 @@ var lA = {
 		simpleNoModel: "कोई AI मॉडल नहीं जुड़ा। मेनू फिर भी काम करता है।"
 	}
 };
-function uA(e, t, n) {
+function yA(e, t, n) {
 	return Gm(e.slice(0, 10), t, n);
 }
-function dA(e, t, n = {}) {
-	return lA[e][t].replace(/\{(\w+)\}/g, (e, t) => n[t] ?? "");
+function bA(e, t, n = {}) {
+	return vA[e][t].replace(/\{(\w+)\}/g, (e, t) => n[t] ?? "");
 }
-var fA = {
+var xA = {
 	place: "books",
 	sub: "sources"
-}, pA = {
+}, SA = {
 	place: "trust",
 	sub: "models"
-}, mA = {
+}, CA = {
 	place: "trust",
 	sub: "network"
-}, hA = {
+}, wA = {
 	place: "trust",
 	sub: "people"
 };
-function gA(e, t) {
-	let n = e.sources, r = e.model, i = e.third, a = n.state === "none" ? dA(t, "sourcesNone") : dA(t, n.state === "fresh" ? "sourcesFresh" : "sourcesStale", {
+function TA(e, t) {
+	let n = e.sources, r = e.model, i = e.third, a = n.state === "none" ? bA(t, "sourcesNone") : bA(t, n.state === "fresh" ? "sourcesFresh" : "sourcesStale", {
 		count: eh(n.count),
-		date: uA(n.state === "fresh" ? n.newestReadAt : n.oldestReadAt, "short", t)
-	}), o = r.state === "none" ? dA(t, "modelNone") : dA(t, "modelReady", {
+		date: yA(n.state === "fresh" ? n.newestReadAt : n.oldestReadAt, "short", t)
+	}), o = r.state === "none" ? bA(t, "modelNone") : bA(t, "modelReady", {
 		route: r.routeLabel,
-		level: lA[t][r.sendLevel]
+		level: vA[t][r.sendLevel]
 	}), s = i.kind === "left-today" ? {
-		text: dA(t, "leftToday", { count: eh(i.calls) }),
-		address: mA
+		text: bA(t, "leftToday", { count: eh(i.calls) }),
+		address: CA
 	} : i.kind === "nothing-left" ? {
-		text: dA(t, "nothingLeft"),
-		address: mA
+		text: bA(t, "nothingLeft"),
+		address: CA
 	} : i.kind === "holds-pen" ? {
-		text: dA(t, "holdsPen", { holder: i.holder }),
-		address: hA
+		text: bA(t, "holdsPen", { holder: i.holder }),
+		address: wA
 	} : {
-		text: dA(t, "unknown"),
-		address: mA
+		text: bA(t, "unknown"),
+		address: CA
 	};
 	return {
 		sources: {
 			text: a,
-			address: fA
+			address: xA
 		},
 		model: {
 			text: o,
-			address: pA
+			address: SA
 		},
 		third: s
 	};
 }
-function _A(e, t) {
+function EA(e, t) {
 	let n = e.sources, r = e.model;
-	return [n.state === "none" ? dA(t, "simpleNoSources") : dA(t, "simpleSources", { date: uA(n.newestReadAt, "short", t) }), r.state === "none" ? dA(t, "simpleNoModel") : dA(t, "simpleModel", { route: r.routeLabel })];
+	return [n.state === "none" ? bA(t, "simpleNoSources") : bA(t, "simpleSources", { date: yA(n.newestReadAt, "short", t) }), r.state === "none" ? bA(t, "simpleNoModel") : bA(t, "simpleModel", { route: r.routeLabel })];
 }
-var vA = {
+var DA = {
 	stack: "_stack_1ean6_4",
 	p: "_p_1ean6_10",
 	note: "_note_1ean6_17",
@@ -38243,7 +38533,7 @@ var vA = {
 	overlay: "_overlay_1ean6_89",
 	dialog: "_dialog_1ean6_99",
 	title: "_title_1ean6_114"
-}, yA = [
+}, OA = [
 	"receipt",
 	"source",
 	"meaning",
@@ -38261,7 +38551,7 @@ var vA = {
 	"coverage",
 	"marking",
 	"starter-pack"
-], bA = [
+], kA = [
 	"books-answers",
 	"receipts",
 	"calculation-menu",
@@ -38277,33 +38567,33 @@ var vA = {
 	"updates",
 	"phone-messages"
 ];
-function xA(e) {
-	return bA.includes(e) ? `SH-12.offline.${e}` : null;
+function AA(e) {
+	return kA.includes(e) ? `SH-12.offline.${e}` : null;
 }
-function SA({ offline: e, platform: t = "windows" }) {
+function jA({ offline: e, platform: t = "windows" }) {
 	let n = N(), r = (e) => {
-		let t = xA(e);
+		let t = AA(e);
 		return /* @__PURE__ */ (0, M.jsx)("li", { children: t === null ? n("SH-12.offline.other", { code: e }) : n(t) }, e);
 	};
 	return /* @__PURE__ */ (0, M.jsxs)("div", {
-		className: vA.stack,
+		className: DA.stack,
 		children: [
 			/* @__PURE__ */ (0, M.jsxs)("section", {
-				className: vA.section,
+				className: DA.section,
 				"aria-labelledby": "help-keys",
 				children: [/* @__PURE__ */ (0, M.jsx)("h3", {
 					id: "help-keys",
-					className: vA.heading,
+					className: DA.heading,
 					children: n("SH-12.keys")
 				}), /* @__PURE__ */ (0, M.jsx)("dl", {
-					className: vA.keys,
+					className: DA.keys,
 					children: pr.map((e) => /* @__PURE__ */ (0, M.jsxs)("div", {
-						className: vA.pair,
+						className: DA.pair,
 						"data-key": e.id,
 						children: [/* @__PURE__ */ (0, M.jsxs)("dt", {
 							className: "fig",
 							children: [t === "mac" ? e.mac : e.windows, e.mac !== e.windows && /* @__PURE__ */ (0, M.jsxs)("span", {
-								className: vA.note,
+								className: DA.note,
 								children: [" ", t === "mac" ? n("SH-12.key.windows", { keys: e.windows }) : n("SH-12.key.mac", { keys: e.mac })]
 							})]
 						}), /* @__PURE__ */ (0, M.jsx)("dd", { children: n(e.textKey) })]
@@ -38311,51 +38601,51 @@ function SA({ offline: e, platform: t = "windows" }) {
 				})]
 			}),
 			/* @__PURE__ */ (0, M.jsxs)("section", {
-				className: vA.section,
+				className: DA.section,
 				"aria-labelledby": "help-words",
 				children: [/* @__PURE__ */ (0, M.jsx)("h3", {
 					id: "help-words",
-					className: vA.heading,
+					className: DA.heading,
 					children: n("SH-12.words")
 				}), /* @__PURE__ */ (0, M.jsx)("dl", {
-					className: vA.keys,
-					children: yA.map((e) => /* @__PURE__ */ (0, M.jsxs)("div", {
-						className: vA.pair,
+					className: DA.keys,
+					children: OA.map((e) => /* @__PURE__ */ (0, M.jsxs)("div", {
+						className: DA.pair,
 						children: [/* @__PURE__ */ (0, M.jsx)("dt", { children: n(`SH-12.word.${e}`) }), /* @__PURE__ */ (0, M.jsx)("dd", { children: n(`SH-12.word.${e}.meaning`) })]
 					}, e))
 				})]
 			}),
 			/* @__PURE__ */ (0, M.jsxs)("section", {
-				className: vA.section,
+				className: DA.section,
 				"aria-labelledby": "help-offline",
 				children: [/* @__PURE__ */ (0, M.jsx)("h3", {
 					id: "help-offline",
-					className: vA.heading,
+					className: DA.heading,
 					children: n("SH-12.offline")
 				}), e === null ? /* @__PURE__ */ (0, M.jsx)("p", {
-					className: vA.note,
+					className: DA.note,
 					children: n("SH-12.offline.notLoaded")
 				}) : /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [
 					/* @__PURE__ */ (0, M.jsx)("p", {
-						className: vA.note,
+						className: DA.note,
 						children: n("SH-12.offline.works")
 					}),
 					e.offline.works.length > 0 ? /* @__PURE__ */ (0, M.jsx)("ul", {
-						className: vA.list,
+						className: DA.list,
 						children: e.offline.works.map(r)
 					}) : /* @__PURE__ */ (0, M.jsx)("p", {
-						className: vA.note,
+						className: DA.note,
 						children: n("SH-12.offline.none")
 					}),
 					/* @__PURE__ */ (0, M.jsx)("p", {
-						className: vA.note,
+						className: DA.note,
 						children: n("SH-12.offline.waits")
 					}),
 					e.offline.waits.length > 0 ? /* @__PURE__ */ (0, M.jsx)("ul", {
-						className: vA.list,
+						className: DA.list,
 						children: e.offline.waits.map(r)
 					}) : /* @__PURE__ */ (0, M.jsx)("p", {
-						className: vA.note,
+						className: DA.note,
 						children: n("SH-12.offline.none")
 					})
 				] })]
@@ -38365,13 +38655,13 @@ function SA({ offline: e, platform: t = "windows" }) {
 }
 //#endregion
 //#region app/ui/src/app/DemoClockControl.tsx
-function CA({ state: e, onSet: t, onAdvance: n, busy: r = !1 }) {
+function MA({ state: e, onSet: t, onAdvance: n, busy: r = !1 }) {
 	let i = N(), [a, o] = (0, _.useState)(""), [s, c] = (0, _.useState)(!1);
 	return e.kind === "real" ? /* @__PURE__ */ (0, M.jsx)("p", {
-		className: vA.p,
+		className: DA.p,
 		children: i("SH-03.clock.real")
 	}) : e.kind === "not-set" ? /* @__PURE__ */ (0, M.jsxs)("form", {
-		className: vA.stack,
+		className: DA.stack,
 		onSubmit: (e) => {
 			e.preventDefault();
 			let n = fh(a);
@@ -38379,7 +38669,7 @@ function CA({ state: e, onSet: t, onAdvance: n, busy: r = !1 }) {
 		},
 		children: [
 			/* @__PURE__ */ (0, M.jsx)("p", {
-				className: vA.p,
+				className: DA.p,
 				children: i("SH-03.clock.once")
 			}),
 			/* @__PURE__ */ (0, M.jsx)(rg, {
@@ -38390,7 +38680,7 @@ function CA({ state: e, onSet: t, onAdvance: n, busy: r = !1 }) {
 				problem: s ? i("SH-03.clock.invalid") : void 0
 			}),
 			/* @__PURE__ */ (0, M.jsx)("div", {
-				className: vA.actions,
+				className: DA.actions,
 				children: /* @__PURE__ */ (0, M.jsx)(F, {
 					variant: "filled",
 					submit: !0,
@@ -38400,18 +38690,18 @@ function CA({ state: e, onSet: t, onAdvance: n, busy: r = !1 }) {
 			})
 		]
 	}) : /* @__PURE__ */ (0, M.jsxs)("div", {
-		className: vA.stack,
+		className: DA.stack,
 		children: [
 			/* @__PURE__ */ (0, M.jsx)("p", {
-				className: vA.p,
+				className: DA.p,
 				children: i("SH-03.demo-clock", { date: e.display })
 			}),
 			/* @__PURE__ */ (0, M.jsx)("p", {
-				className: vA.note,
+				className: DA.note,
 				children: i("SH-03.clock.forward")
 			}),
 			/* @__PURE__ */ (0, M.jsxs)("div", {
-				className: vA.actions,
+				className: DA.actions,
 				children: [/* @__PURE__ */ (0, M.jsx)(F, {
 					onClick: () => n("day"),
 					disabled: r,
@@ -38427,25 +38717,25 @@ function CA({ state: e, onSet: t, onAdvance: n, busy: r = !1 }) {
 }
 //#endregion
 //#region app/ui/src/bridge/conversation-host.ts
-var wA = Object.freeze({ ok: !0 }), TA = (e) => Object.freeze({
+var NA = Object.freeze({ ok: !0 }), PA = (e) => Object.freeze({
 	ok: !1,
 	code: e
 });
-function EA(e) {
+function FA(e) {
 	if (typeof e == "object" && e) {
-		for (let t of Object.values(e)) EA(t);
+		for (let t of Object.values(e)) FA(t);
 		Object.freeze(e);
 	}
 }
-function DA(e, t) {
+function IA(e, t) {
 	if (e === t) return !0;
 	if (e === null || t === null || typeof e != "object" || typeof t != "object") return !1;
-	if (Array.isArray(e)) return Array.isArray(t) && e.length === t.length && e.every((e, n) => DA(e, t[n]));
+	if (Array.isArray(e)) return Array.isArray(t) && e.length === t.length && e.every((e, n) => IA(e, t[n]));
 	if (Array.isArray(t)) return !1;
 	let n = Object.keys(e);
-	return n.length === Object.keys(t).length && n.every((n) => DA(Object.getOwnPropertyDescriptor(e, n)?.value, Object.getOwnPropertyDescriptor(t, n)?.value));
+	return n.length === Object.keys(t).length && n.every((n) => IA(Object.getOwnPropertyDescriptor(e, n)?.value, Object.getOwnPropertyDescriptor(t, n)?.value));
 }
-function OA(e) {
+function LA(e) {
 	if (e instanceof um) return "INVALID_REPLY";
 	let t;
 	try {
@@ -38481,7 +38771,7 @@ function OA(e) {
 		"not_found"
 	].includes(n) ? "EVIDENCE_UNAVAILABLE" : "REQUEST_FAILED" : "REQUEST_FAILED";
 }
-function kA(e) {
+function RA(e) {
 	if (!e || typeof e != "object") return null;
 	let t = Object.getOwnPropertyDescriptors(e), n = (e) => {
 		let n = t[e];
@@ -38493,9 +38783,9 @@ function kA(e) {
 		digest: a
 	} : null;
 }
-function AA(e, t = {}) {
+function zA(e, t = {}) {
 	let n = Symbol(), r = Object.freeze({ kind: "idle" }), i = null, a = null, o = /* @__PURE__ */ new Set(), s = t.now ?? Date.now, c = (e) => {
-		EA(e), r = e;
+		FA(e), r = e;
 		for (let e of o) try {
 			e();
 		} catch {}
@@ -38506,13 +38796,13 @@ function AA(e, t = {}) {
 			operation: e
 		}), r;
 	}, u = (e) => n === e, d = (e, t) => {
-		if (!u(e)) return TA("READ_INVALIDATED");
-		let r = OA(t);
+		if (!u(e)) return PA("READ_INVALIDATED");
+		let r = LA(t);
 		return u(e) ? (n = Symbol(), a = null, i = null, c({
 			kind: "unavailable",
 			code: r
-		}), TA(r)) : TA("READ_INVALIDATED");
-	}, f = () => TA("READ_INVALIDATED"), p = async (t, n, r) => {
+		}), PA(r)) : PA("READ_INVALIDATED");
+	}, f = () => PA("READ_INVALIDATED"), p = async (t, n, r) => {
 		if (!u(n)) return f();
 		let a = "id" in t ? t.id : t.modelReceiptId;
 		if (c({
@@ -38523,11 +38813,11 @@ function AA(e, t = {}) {
 		if (!u(n)) return f();
 		let s = Iy(o, a);
 		if (s.question !== r) throw new um("conversation.readback.question");
-		if (!DA(s.answer, t)) throw new um("conversation.readback.answer");
+		if (!IA(s.answer, t)) throw new um("conversation.readback.answer");
 		return u(n) ? (i = null, c({
 			kind: "answer",
 			saved: s
-		}), u(n) ? wA : f()) : f();
+		}), u(n) ? NA : f()) : f();
 	};
 	return Object.freeze({
 		snapshot: () => r,
@@ -38546,7 +38836,7 @@ function AA(e, t = {}) {
 					...o,
 					continuationId: n.turnId
 				} : o);
-				if (EA(s), !u(r)) return f();
+				if (FA(s), !u(r)) return f();
 				let l = await e.request("models.preview", s);
 				if (!u(r)) return f();
 				let d = await Sy(l, s);
@@ -38559,7 +38849,7 @@ function AA(e, t = {}) {
 				}, c({
 					kind: "review",
 					...a
-				}), u(r) ? wA : f();
+				}), u(r) ? NA : f();
 			} catch (e) {
 				return d(r, e);
 			}
@@ -38574,7 +38864,7 @@ function AA(e, t = {}) {
 				return u(n) ? (c({
 					kind: "answer",
 					saved: i
-				}), u(n) ? wA : f()) : f();
+				}), u(n) ? NA : f()) : f();
 			} catch (e) {
 				return d(n, e);
 			}
@@ -38589,13 +38879,13 @@ function AA(e, t = {}) {
 				return u(n) ? (i = a, c({
 					kind: "continuation",
 					value: a
-				}), u(n) ? wA : f()) : f();
+				}), u(n) ? NA : f()) : f();
 			} catch (e) {
 				return d(n, e);
 			}
 		},
 		async previewFinalWriting() {
-			if (r.kind !== "answer" || r.saved.kind !== "grounded-conversation") return TA("NO_TOOL_TURN");
+			if (r.kind !== "answer" || r.saved.kind !== "grounded-conversation") return PA("NO_TOOL_TURN");
 			let t = r.saved.id, n = l("synthesis-preview");
 			try {
 				if (!u(n)) return f();
@@ -38611,7 +38901,7 @@ function AA(e, t = {}) {
 				}, c({
 					kind: "review",
 					...a
-				}), u(n) ? wA : f();
+				}), u(n) ? NA : f();
 			} catch (e) {
 				return d(n, e);
 			}
@@ -38619,13 +38909,13 @@ function AA(e, t = {}) {
 		async sendReviewed(t) {
 			let o = n, m = a, h;
 			try {
-				h = kA(t);
+				h = RA(t);
 			} catch {
-				return TA("CONSENT_REQUIRED");
+				return PA("CONSENT_REQUIRED");
 			}
 			if (!u(o) || a !== m) return f();
-			if (!h || h.consent !== !0) return TA("CONSENT_REQUIRED");
-			if (r.kind !== "review" || !m || h.previewId !== m.preview.id || h.digest !== m.preview.digest) return TA("REVIEW_CHANGED");
+			if (!h || h.consent !== !0) return PA("CONSENT_REQUIRED");
+			if (r.kind !== "review" || !m || h.previewId !== m.preview.id || h.digest !== m.preview.digest) return PA("REVIEW_CHANGED");
 			let g = l("approval", !0);
 			try {
 				if (!u(g)) return f();
@@ -38636,7 +38926,7 @@ function AA(e, t = {}) {
 				if (!Number.isFinite(o) || Date.parse(r.expiresAt) <= o) return n = Symbol(), a = null, i = null, c({
 					kind: "unavailable",
 					code: "APPROVAL_EXPIRED"
-				}), TA("APPROVAL_EXPIRED");
+				}), PA("APPROVAL_EXPIRED");
 				let l;
 				if (m.stage === "planning") {
 					if (c({
@@ -38685,16 +38975,16 @@ function AA(e, t = {}) {
 }
 //#endregion
 //#region app/ui/src/host/retained-controller.ts
-var jA = Object.freeze({ ok: !0 }), MA = (e) => Object.freeze({
+var BA = Object.freeze({ ok: !0 }), VA = (e) => Object.freeze({
 	ok: !1,
 	code: e
-}), NA = Object.freeze({ kind: "idle" }), PA = Object.freeze({
-	discovery: NA,
+}), HA = Object.freeze({ kind: "idle" }), UA = Object.freeze({
+	discovery: HA,
 	scenario: Object.freeze({ kind: "idle" }),
 	lessons: Object.freeze({ kind: "idle" })
 });
-function FA(e, t) {
-	let n = PA, r = Symbol(), i = Symbol(), a = Symbol(), o = Symbol(), s = !1, c = /* @__PURE__ */ new Set(), l = (e) => {
+function WA(e, t) {
+	let n = UA, r = Symbol(), i = Symbol(), a = Symbol(), o = Symbol(), s = !1, c = /* @__PURE__ */ new Set(), l = (e) => {
 		n = Object.freeze({
 			...n,
 			...e
@@ -38717,7 +39007,7 @@ function FA(e, t) {
 	}, _ = (e) => n.discovery.kind === "ready" && oS(n.discovery.selected, e), v = (e) => {
 		let t = n.scenario, r = n.discovery;
 		return t.kind === "idle" || t.selection === null || !oS(t.selection, e.selection) || (t.kind === "ready" ? t.view : null) !== e.view ? !1 : e.list === null ? !_(e.selection) : r.kind === "ready" && r.rows === e.list.rows && r.page === e.list.page && oS(r.selected, e.selection);
-	}, y = () => (i = Symbol(), n.discovery.kind === "loading" ? NA : void 0), b = () => {
+	}, y = () => (i = Symbol(), n.discovery.kind === "loading" ? HA : void 0), b = () => {
 		if (a = Symbol(), n.scenario.kind === "loading") return { kind: "idle" };
 		if (n.scenario.kind === "ready" && n.scenario.checking) return {
 			...n.scenario,
@@ -38744,16 +39034,16 @@ function FA(e, t) {
 		} : void 0;
 	}, C = () => {
 		let e = y();
-		return e !== void 0 && l({ discovery: e }), MA("READ_INVALIDATED");
+		return e !== void 0 && l({ discovery: e }), VA("READ_INVALIDATED");
 	}, w = () => {
 		let e = S(), t = b();
 		return t !== void 0 && l(e === void 0 ? { scenario: t } : {
 			scenario: t,
 			discovery: e
-		}), MA("READ_INVALIDATED");
+		}), VA("READ_INVALIDATED");
 	}, T = () => {
 		let e = x();
-		return e !== void 0 && l({ lessons: e }), MA("READ_INVALIDATED");
+		return e !== void 0 && l({ lessons: e }), VA("READ_INVALIDATED");
 	}, E = (e, t, n) => {
 		i = Symbol(), l({
 			scenario: {
@@ -38761,11 +39051,11 @@ function FA(e, t) {
 				selection: n ? null : e,
 				code: t
 			},
-			discovery: NA
+			discovery: HA
 		});
 	};
 	async function D(t, n, o) {
-		if (!m(o)) return MA("READ_INVALIDATED");
+		if (!m(o)) return VA("READ_INVALIDATED");
 		let s = r, c = Symbol();
 		i = c, a = Symbol(), l({
 			discovery: { kind: "loading" },
@@ -38773,7 +39063,7 @@ function FA(e, t) {
 		});
 		try {
 			let r = await e.guarded("scenarios.discover", t, h(() => d(s, c), o));
-			if (!d(s, c)) return MA("READ_INVALIDATED");
+			if (!d(s, c)) return VA("READ_INVALIDATED");
 			if (!m(o)) return C();
 			let i = rS(r, t), a = iS(n, i);
 			return d(s, c) ? m(o) ? (l({ discovery: {
@@ -38782,15 +39072,15 @@ function FA(e, t) {
 				cursor: i.nextCursor,
 				page: Qx(n.length, a.length),
 				selected: null
-			} }), jA) : C() : MA("READ_INVALIDATED");
+			} }), BA) : C() : VA("READ_INVALIDATED");
 		} catch (e) {
-			if (!d(s, c)) return MA("READ_INVALIDATED");
+			if (!d(s, c)) return VA("READ_INVALIDATED");
 			if (!m(o)) return C();
 			let t = RS(e);
 			return l({ discovery: {
 				kind: "unavailable",
 				code: t
-			} }), MA(t);
+			} }), VA(t);
 		}
 	}
 	function ee(e) {
@@ -38798,7 +39088,7 @@ function FA(e, t) {
 	}
 	function te(e, t) {
 		let r = n.discovery;
-		if (r.kind !== "ready" || r.rows !== e.rows || r.cursor === null || r.cursor !== e.cursor || r.page !== e.page || !oS(r.selected, e.from) || e.page !== Qx(e.rows.length, Math.max(1, e.rows.length))) return Promise.resolve(MA("PAGE_INVALID"));
+		if (r.kind !== "ready" || r.rows !== e.rows || r.cursor === null || r.cursor !== e.cursor || r.page !== e.page || !oS(r.selected, e.from) || e.page !== Qx(e.rows.length, Math.max(1, e.rows.length))) return Promise.resolve(VA("PAGE_INVALID"));
 		let i;
 		try {
 			i = $x({
@@ -38806,7 +39096,7 @@ function FA(e, t) {
 				cursor: r.cursor
 			});
 		} catch {
-			return Promise.resolve(MA("PAGE_INVALID"));
+			return Promise.resolve(VA("PAGE_INVALID"));
 		}
 		return D(i, r.rows, t);
 	}
@@ -38825,21 +39115,21 @@ function FA(e, t) {
 		})));
 	}
 	async function k(t, o, s) {
-		if (!m(o)) return MA("READ_INVALIDATED");
+		if (!m(o)) return VA("READ_INVALIDATED");
 		let c = r, u = Symbol();
 		a = u;
 		let d = { scenario: {
 			kind: "loading",
 			selection: t
 		} };
-		!s && n.discovery.kind !== "idle" && (i = Symbol(), d.discovery = NA), l(d);
+		!s && n.discovery.kind !== "idle" && (i = Symbol(), d.discovery = HA), l(d);
 		let p = n.discovery, _ = s && p.kind === "ready" ? {
 			rows: p.rows,
 			page: p.page
 		} : null, v = () => f(c, u) && (_ === null || g(_, t));
 		try {
 			let n = await e.guarded("scenarios.reopen", t, h(v, o));
-			if (!v()) return MA("READ_INVALIDATED");
+			if (!v()) return VA("READ_INVALIDATED");
 			if (!m(o)) return w();
 			let r = Xx(n, t);
 			return v() ? m(o) ? (l({ scenario: {
@@ -38848,12 +39138,12 @@ function FA(e, t) {
 				view: r,
 				historical: Zx(r),
 				checking: !1
-			} }), jA) : w() : MA("READ_INVALIDATED");
+			} }), BA) : w() : VA("READ_INVALIDATED");
 		} catch (e) {
-			if (!v()) return MA("READ_INVALIDATED");
+			if (!v()) return VA("READ_INVALIDATED");
 			if (!m(o)) return w();
 			let n = RS(e);
-			return E(t, n, s), MA(n);
+			return E(t, n, s), VA(n);
 		}
 	}
 	async function A(e, t) {
@@ -38861,7 +39151,7 @@ function FA(e, t) {
 		try {
 			n = zx(e);
 		} catch {
-			return a = Symbol(), E(null, "INVALID_REPLY", !1), MA("SELECTION_INVALID");
+			return a = Symbol(), E(null, "INVALID_REPLY", !1), VA("SELECTION_INVALID");
 		}
 		return k(n, t, !1);
 	}
@@ -38870,21 +39160,21 @@ function FA(e, t) {
 		try {
 			i = zx(e);
 		} catch {
-			return Promise.resolve(MA("SELECTION_INVALID"));
+			return Promise.resolve(VA("SELECTION_INVALID"));
 		}
 		let a = n.discovery;
-		return a.kind !== "ready" || a.rows !== t.rows || a.page !== t.page || !oS(a.selected, t.from) || sS(a.rows, i) === void 0 ? Promise.resolve(MA("SELECTION_INVALID")) : m(r) ? (l({ discovery: {
+		return a.kind !== "ready" || a.rows !== t.rows || a.page !== t.page || !oS(a.selected, t.from) || sS(a.rows, i) === void 0 ? Promise.resolve(VA("SELECTION_INVALID")) : m(r) ? (l({ discovery: {
 			...a,
 			selected: i
-		} }), k(i, r, !0)) : Promise.resolve(MA("READ_INVALIDATED"));
+		} }), k(i, r, !0)) : Promise.resolve(VA("READ_INVALIDATED"));
 	}
 	function re(e, t) {
-		return v(e) ? k(e.selection, t, e.list !== null) : Promise.resolve(MA("SELECTION_INVALID"));
+		return v(e) ? k(e.selection, t, e.list !== null) : Promise.resolve(VA("SELECTION_INVALID"));
 	}
 	async function ie(t, i, o) {
 		let s = n.scenario;
-		if (s.kind !== "ready" || s.checking || !PS(s.selection, t) || s.view !== i) return MA("SELECTION_INVALID");
-		if (!m(o)) return MA("READ_INVALIDATED");
+		if (s.kind !== "ready" || s.checking || !PS(s.selection, t) || s.view !== i) return VA("SELECTION_INVALID");
+		if (!m(o)) return VA("READ_INVALIDATED");
 		let c = r, u = Symbol();
 		a = u;
 		let d = n.discovery, p = _(s.selection) && d.kind === "ready" ? {
@@ -38897,22 +39187,22 @@ function FA(e, t) {
 		} });
 		try {
 			let t = await e.guarded("scenarios.reopen", s.selection, h(v, o));
-			if (!v()) return MA("READ_INVALIDATED");
+			if (!v()) return VA("READ_INVALIDATED");
 			if (!m(o)) return w();
 			let n = Xx(t, s.selection);
 			return v() ? m(o) ? PS(n, s.view) ? (l({ scenario: {
 				...s,
 				checking: !1
-			} }), jA) : (E(s.selection, "SCENARIO_VIEW_CHANGED", p !== null), MA("SCENARIO_VIEW_CHANGED")) : w() : MA("READ_INVALIDATED");
+			} }), BA) : (E(s.selection, "SCENARIO_VIEW_CHANGED", p !== null), VA("SCENARIO_VIEW_CHANGED")) : w() : VA("READ_INVALIDATED");
 		} catch (e) {
-			if (!v()) return MA("READ_INVALIDATED");
+			if (!v()) return VA("READ_INVALIDATED");
 			if (!m(o)) return w();
 			let t = RS(e);
-			return E(s.selection, t, p !== null), MA(t);
+			return E(s.selection, t, p !== null), VA(t);
 		}
 	}
 	function ae(e) {
-		if (e.list === null || !v(e)) return MA("SELECTION_INVALID");
+		if (e.list === null || !v(e)) return VA("SELECTION_INVALID");
 		a = Symbol();
 		let t = n.discovery;
 		return l({
@@ -38921,24 +39211,24 @@ function FA(e, t) {
 				...t,
 				selected: null
 			} : t
-		}), jA;
+		}), BA;
 	}
 	let oe = (e) => {
 		let n = t.context();
 		return n !== null && n.contextKey === e.contextKey ? n : null;
 	};
 	async function se(i) {
-		if (n.lessons.kind === "deciding") return MA("DECISION_IN_FLIGHT");
+		if (n.lessons.kind === "deciding") return VA("DECISION_IN_FLIGHT");
 		let a = t.context();
-		if (a === null || !m(i)) return MA("READ_INVALIDATED");
+		if (a === null || !m(i)) return VA("READ_INVALIDATED");
 		let s = r, c = Symbol();
 		o = c, l({ lessons: { kind: "loading" } });
 		try {
 			let t = await e.guarded("memory.lessons", {}, h(() => p(s, c), i));
-			if (!p(s, c)) return MA("READ_INVALIDATED");
+			if (!p(s, c)) return VA("READ_INVALIDATED");
 			if (!m(i)) return T();
 			let n = oe(a);
-			if (n === null) return MA("READ_INVALIDATED");
+			if (n === null) return VA("READ_INVALIDATED");
 			let r = ES(t, n);
 			return p(s, c) ? m(i) ? (l({ lessons: {
 				kind: "ready",
@@ -38946,16 +39236,16 @@ function FA(e, t) {
 				selectedId: null,
 				notice: null,
 				page: 0
-			} }), jA) : T() : MA("READ_INVALIDATED");
+			} }), BA) : T() : VA("READ_INVALIDATED");
 		} catch (e) {
-			if (!p(s, c)) return MA("READ_INVALIDATED");
+			if (!p(s, c)) return VA("READ_INVALIDATED");
 			if (!m(i)) return T();
 			let t = RS(e);
 			return l({ lessons: {
 				kind: "unavailable",
 				code: t,
 				afterDispatch: !1
-			} }), MA(t);
+			} }), VA(t);
 		}
 	}
 	function ce(e) {
@@ -38979,13 +39269,13 @@ function FA(e, t) {
 	}
 	async function ue(i, a, c) {
 		let u = n.lessons, d = t.context();
-		if (u.kind === "deciding") return MA("DECISION_IN_FLIGHT");
-		if (u.kind !== "ready" || u.selectedId === null || d === null) return MA("DECISION_UNAVAILABLE");
+		if (u.kind === "deciding") return VA("DECISION_IN_FLIGHT");
+		if (u.kind !== "ready" || u.selectedId === null || d === null) return VA("DECISION_UNAVAILABLE");
 		let f = u.lessons.find((e) => e.candidate.id === u.selectedId);
-		if (f === void 0 || f.review === void 0 || f.evaluation === void 0 || !PS(SS(f.candidate), i.candidate) || f.review.id !== i.reviewId || f.review.digest !== i.reviewDigest || f.evaluation.digest !== i.evaluationDigest || !kS(f, d).ok || i.decision !== "approve" && i.decision !== "defer") return MA("DECISION_UNAVAILABLE");
+		if (f === void 0 || f.review === void 0 || f.evaluation === void 0 || !PS(SS(f.candidate), i.candidate) || f.review.id !== i.reviewId || f.review.digest !== i.reviewDigest || f.evaluation.digest !== i.evaluationDigest || !kS(f, d).ok || i.decision !== "approve" && i.decision !== "defer") return VA("DECISION_UNAVAILABLE");
 		let g = jS(a);
-		if (g === null) return MA("REASON_REQUIRED");
-		if (!m(c)) return MA("READ_INVALIDATED");
+		if (g === null) return VA("REASON_REQUIRED");
+		if (!m(c)) return VA("READ_INVALIDATED");
 		let _ = r, v = Symbol();
 		o = v, s = !1, l({ lessons: {
 			kind: "deciding",
@@ -38997,12 +39287,12 @@ function FA(e, t) {
 		let y = !1, b = () => p(_, v);
 		try {
 			let t = await e.guarded("memory.lessons", {}, h(b, c));
-			if (!p(_, v)) return MA("READ_INVALIDATED");
+			if (!p(_, v)) return VA("READ_INVALIDATED");
 			if (!m(c)) return T();
 			let n = oe(d);
-			if (n === null) return MA("READ_INVALIDATED");
+			if (n === null) return VA("READ_INVALIDATED");
 			let r = ES(t, n);
-			if (!p(_, v)) return MA("READ_INVALIDATED");
+			if (!p(_, v)) return VA("READ_INVALIDATED");
 			if (!m(c)) return T();
 			let a = r.find((e) => e.candidate.id === f.candidate.id);
 			if (a === void 0 || !PS(a, f) || !kS(a, n).ok) return l({ lessons: {
@@ -39011,11 +39301,11 @@ function FA(e, t) {
 				selectedId: null,
 				notice: "LESSON_REVIEW_CHANGED",
 				page: DS(u.page * 5, r.length)
-			} }), MA("LESSON_REVIEW_CHANGED");
+			} }), VA("LESSON_REVIEW_CHANGED");
 			let o = MS(f, i, g), x = await e.guarded("memory.decideLesson", o, h(b, c, () => {
 				y = !0, s = !0;
 			}));
-			if (!p(_, v)) return MA("READ_INVALIDATED");
+			if (!p(_, v)) return VA("READ_INVALIDATED");
 			if (!m(c)) return T();
 			let S = NS(x, o, f);
 			return p(_, v) ? m(c) ? (l({ lessons: {
@@ -39024,16 +39314,16 @@ function FA(e, t) {
 				selectedId: null,
 				notice: null,
 				page: DS(u.page * 5, r.length)
-			} }), jA) : T() : MA("READ_INVALIDATED");
+			} }), BA) : T() : VA("READ_INVALIDATED");
 		} catch (e) {
-			if (!p(_, v)) return MA("READ_INVALIDATED");
+			if (!p(_, v)) return VA("READ_INVALIDATED");
 			if (!m(c)) return T();
 			let t = RS(e);
 			return l({ lessons: {
 				kind: "unavailable",
 				code: t,
 				afterDispatch: y
-			} }), MA(t);
+			} }), VA(t);
 		}
 	}
 	function de() {
@@ -39041,7 +39331,7 @@ function FA(e, t) {
 		n !== void 0 && (e.discovery = n), r !== void 0 && (e.scenario = r), i !== void 0 && (e.lessons = i), (e.discovery !== void 0 || e.scenario !== void 0 || e.lessons !== void 0) && l(e);
 	}
 	function fe() {
-		r = Symbol(), i = Symbol(), a = Symbol(), o = Symbol(), s = !1, l(PA);
+		r = Symbol(), i = Symbol(), a = Symbol(), o = Symbol(), s = !1, l(UA);
 	}
 	return Object.freeze({
 		snapshot: () => n,
@@ -39068,10 +39358,10 @@ function FA(e, t) {
 }
 //#endregion
 //#region app/ui/src/host/controller.ts
-function IA(e) {
+function GA(e) {
 	return Object.assign(Error(e), { code: e });
 }
-var LA = (e, t) => Object.freeze({
+var KA = (e, t) => Object.freeze({
 	phase: e,
 	...t === void 0 ? {} : { code: t },
 	context: null,
@@ -39083,10 +39373,10 @@ var LA = (e, t) => Object.freeze({
 	todayConfiguration: "not-configured",
 	creation: Object.freeze({ kind: "idle" })
 });
-function RA(e, t = {}) {
+function qA(e, t = {}) {
 	let n = t.now ?? Date.now, r = t.timeZone ?? null;
-	if (r !== null && new Intl.DateTimeFormat("en", { timeZone: r }), t.dashboard !== void 0 && r === null) throw IA("INVALID_REPLY");
-	let i = LA("loading"), a = Symbol(), o = Symbol(), s = !1, c = null, l = null, u = null, d = null, f = null, p = null, m = t.dashboard ?? null, h = !1, g = Object.freeze({ kind: "idle" }), _ = !1, v = /* @__PURE__ */ new Set();
+	if (r !== null && new Intl.DateTimeFormat("en", { timeZone: r }), t.dashboard !== void 0 && r === null) throw GA("INVALID_REPLY");
+	let i = KA("loading"), a = Symbol(), o = Symbol(), s = !1, c = null, l = null, u = null, d = null, f = null, p = null, m = t.dashboard ?? null, h = !1, g = Object.freeze({ kind: "idle" }), _ = !1, v = /* @__PURE__ */ new Set();
 	function y(e) {
 		if (!s) {
 			let t = g.kind === "recovery-required" && (e.phase !== "loading" || _) ? Object.freeze({ kind: "recovery-held" }) : g;
@@ -39101,10 +39391,10 @@ function RA(e, t = {}) {
 		return !s && a === e;
 	}
 	async function x() {
-		return hD(await e.request("ui.context", {}));
+		return wD(await e.request("ui.context", {}));
 	}
 	function S(e, t) {
-		if (e.contextKey !== t.contextKey || e.workspace.id !== t.workspace.id || e.member.id !== t.member.id || e.member.epoch !== t.member.epoch || e.member.role !== t.member.role) throw oe("ACCESS_DENIED"), IA("ACCESS_DENIED");
+		if (e.contextKey !== t.contextKey || e.workspace.id !== t.workspace.id || e.member.id !== t.member.id || e.member.epoch !== t.member.epoch || e.member.role !== t.member.role) throw oe("ACCESS_DENIED"), GA("ACCESS_DENIED");
 	}
 	function C(e) {
 		if (e === void 0) return !0;
@@ -39116,21 +39406,21 @@ function RA(e, t = {}) {
 	}
 	async function w(t, n, r) {
 		let o = a, s = i.context;
-		if (!b(o) || s === null || i.phase !== "ready" || i.dictionaryReviewRequired) throw IA("ACCESS_DENIED");
-		if (h && (t.startsWith("today.") || t === "scenarios.discover" || t === "scenarios.reopen" || t === "memory.lessons" || t === "memory.decideLesson" || t === "conversation.get" || t === "conversation.continuation" || t === "receipts.get") || !C(r)) throw IA("READ_INVALIDATED");
+		if (!b(o) || s === null || i.phase !== "ready" || i.dictionaryReviewRequired) throw GA("ACCESS_DENIED");
+		if (h && (t.startsWith("today.") || t === "scenarios.discover" || t === "scenarios.reopen" || t === "memory.lessons" || t === "memory.decideLesson" || t === "conversation.get" || t === "conversation.continuation" || t === "receipts.get") || !C(r)) throw GA("READ_INVALIDATED");
 		try {
 			let i = await x();
-			if (!b(o)) throw IA("READ_INVALIDATED");
+			if (!b(o)) throw GA("READ_INVALIDATED");
 			if (S(i, s), t === "models.preview" || t === "conversation.ask") {
 				let e = Object.getOwnPropertyDescriptor(n, "routeId");
-				if (l === null || e?.value !== l.routeId) throw IA("ACCESS_DENIED");
+				if (l === null || e?.value !== l.routeId) throw GA("ACCESS_DENIED");
 			}
-			if (!C(r)) throw IA("READ_INVALIDATED");
+			if (!C(r)) throw GA("READ_INVALIDATED");
 			r?.issued?.();
 			let a = await e.request(t, n);
-			if (!b(o) || !C(r)) throw IA("READ_INVALIDATED");
+			if (!b(o) || !C(r)) throw GA("READ_INVALIDATED");
 			let c = await x();
-			if (!b(o) || (S(c, s), !C(r))) throw IA("READ_INVALIDATED");
+			if (!b(o) || (S(c, s), !C(r))) throw GA("READ_INVALIDATED");
 			return a;
 		} catch (e) {
 			let t = Mb(e);
@@ -39145,7 +39435,7 @@ function RA(e, t = {}) {
 		let n = te.snapshot();
 		return w(e, t, { live: () => te.snapshot() === n });
 	}
-	let te = AA({ request: ee }, { now: n }), O = FA(T, { context: () => i.phase === "ready" ? i.context : null }), k = Object.hasOwn(t, "todayProducer") ? aE(T, t.todayProducer ?? {}, { context: () => i.phase === "ready" ? i.context : null }) : null;
+	let te = zA({ request: ee }, { now: n }), O = WA(T, { context: () => i.phase === "ready" ? i.context : null }), k = Object.hasOwn(t, "todayProducer") ? mE(T, t.todayProducer ?? {}, { context: () => i.phase === "ready" ? i.context : null }) : null;
 	function A() {
 		return h ? "not-configured" : k === null ? m === null ? "not-configured" : "configured" : k.input?.display !== void 0 && k.input.configuration !== void 0 ? "configured" : "not-configured";
 	}
@@ -39157,22 +39447,22 @@ function RA(e, t = {}) {
 			return !1;
 		}
 	}
-	let re = qD({ request(t, n) {
-		if (!pE.includes(t) || !ne()) return Promise.reject(IA("READ_INVALIDATED"));
+	let re = nO({ request(t, n) {
+		if (!SE.includes(t) || !ne()) return Promise.reject(GA("READ_INVALIDATED"));
 		switch (t) {
 			case "ui.context": return e.request("ui.context", n);
 			case "ontology.packs": return e.request("ontology.packs", n);
 			case "ontology.get": return e.request("ontology.get", n);
 			case "ontology.publish": return f = i.context, e.request("ontology.publish", n);
 		}
-		return Promise.reject(IA("ACCESS_DENIED"));
+		return Promise.reject(GA("ACCESS_DENIED"));
 	} }, {
 		...t.firstRun,
 		guard: { live: ne }
-	}), ie = t.firstRun?.digest ?? vD();
+	}), ie = t.firstRun?.digest ?? DD();
 	re.subscribe(() => {
 		let e = re.snapshot();
-		e.kind !== "left" && (d = null), e.kind === "published" && ne() && (i.context === null || !rD(i.context, e.context) ? oe("ACCESS_DENIED") : (d = e.handoff, p = Object.freeze({
+		e.kind !== "left" && (d = null), e.kind === "published" && ne() && (i.context === null || !fD(i.context, e.context) ? oe("ACCESS_DENIED") : (d = e.handoff, p = Object.freeze({
 			contextKey: e.context.contextKey,
 			hash: e.published.hash,
 			version: e.published.version,
@@ -39189,7 +39479,7 @@ function RA(e, t = {}) {
 		return a = t, o = Symbol(), l = null, E.invalidate(), D.invalidate(), te.invalidate(), O.invalidate(), e ? k?.cancelSelection() : k?.invalidate(), t;
 	}
 	function oe(e = "READ_INVALIDATED") {
-		ae(), d = null, p = null, _ = !1, re.invalidate(e === "VAULT_LOCKED" ? "VAULT_LOCKED" : e === "INVALID_REPLY" ? "INVALID_REPLY" : "ACCESS_DENIED"), te.invalidate(e), y(LA(e === "VAULT_LOCKED" ? "locked" : "unavailable", e));
+		ae(), d = null, p = null, _ = !1, re.invalidate(e === "VAULT_LOCKED" ? "VAULT_LOCKED" : e === "INVALID_REPLY" ? "INVALID_REPLY" : "ACCESS_DENIED"), te.invalidate(e), y(KA(e === "VAULT_LOCKED" ? "locked" : "unavailable", e));
 	}
 	function se(e = !1) {
 		if (!e) {
@@ -39212,7 +39502,7 @@ function RA(e, t = {}) {
 		if (s || i.phase !== "ready" || i.dictionaryReviewRequired || t === null || n === null || n.contextKey !== t.contextKey || re.issuance() !== "none") return !1;
 		let r;
 		try {
-			r = yT(e);
+			r = OT(e);
 		} catch {
 			return !1;
 		}
@@ -39224,7 +39514,7 @@ function RA(e, t = {}) {
 		ae();
 		let o = a, c = k;
 		if (k = null, m = null, c?.dispose(), !b(o) || i.phase !== "ready" || i.context !== t || p !== n) return !1;
-		let l = aE(T, r, { context: () => i.phase === "ready" ? i.context : null });
+		let l = mE(T, r, { context: () => i.phase === "ready" ? i.context : null });
 		return k = l, h = r.display === void 0 || r.configuration === void 0, y({
 			...i,
 			today: null,
@@ -39240,8 +39530,8 @@ function RA(e, t = {}) {
 			try {
 				let n = await x();
 				if (!b(t) || g !== e) return;
-				if (n.workspace.id !== e.value.workspace.id || !["owner", "cofounder"].includes(n.member.role)) throw IA("ACCESS_DENIED");
-				y(LA("loading"));
+				if (n.workspace.id !== e.value.workspace.id || !["owner", "cofounder"].includes(n.member.role)) throw GA("ACCESS_DENIED");
+				y(KA("loading"));
 			} catch (e) {
 				b(t) && oe(Mb(e));
 			}
@@ -39251,13 +39541,13 @@ function RA(e, t = {}) {
 		let n = i.context, r = i.selectedRouteId;
 		re.cancel(), d = null;
 		let o = ae(k !== null);
-		if (b(o) && (t === null || _ && g.kind === "recovery-required" && g.value === t) && (y(LA("loading")), b(o) && (t === null || _ && g.kind === "recovery-required" && g.value === t))) try {
+		if (b(o) && (t === null || _ && g.kind === "recovery-required" && g.value === t) && (y(KA("loading")), b(o) && (t === null || _ && g.kind === "recovery-required" && g.value === t))) try {
 			let a = await x();
 			if (!b(o)) return;
-			if (t !== null && (a.workspace.id !== t.workspace.id || !["owner", "cofounder"].includes(a.member.role))) throw IA("ACCESS_DENIED");
-			let s = YE(await e.request("ontology.get", {}));
+			if (t !== null && (a.workspace.id !== t.workspace.id || !["owner", "cofounder"].includes(a.member.role))) throw GA("ACCESS_DENIED");
+			let s = iD(await e.request("ontology.get", {}));
 			if (!b(o)) return;
-			if (s.current !== null && !await wD(s.current, ie)) throw IA("INVALID_REPLY");
+			if (s.current !== null && !await ND(s.current, ie)) throw GA("INVALID_REPLY");
 			if (!b(o)) return;
 			let c = await x();
 			if (!b(o)) return;
@@ -39271,7 +39561,7 @@ function RA(e, t = {}) {
 				version: s.current.version,
 				pack: s.current.pack
 			}), y({
-				...LA("ready"),
+				...KA("ready"),
 				context: c,
 				dictionaryReviewRequired: s.current === null,
 				todayConfiguration: s.current === null ? "not-configured" : A()
@@ -39280,7 +39570,7 @@ function RA(e, t = {}) {
 				return;
 			}
 			(n !== null && n.contextKey !== c.contextKey || r !== null) && k?.invalidate();
-			let l = gD(await w("models.list", {}));
+			let l = TD(await w("models.list", {}));
 			if (!b(o)) return;
 			if (y({
 				...i,
@@ -39309,10 +39599,10 @@ function RA(e, t = {}) {
 		try {
 			let n = await x();
 			if (!b(t) || f !== e || re.issuance() !== "unresolved") return !1;
-			if (!rD(n, e)) return oe("ACCESS_DENIED"), !1;
+			if (!fD(n, e)) return oe("ACCESS_DENIED"), !1;
 			let r = ae();
 			return !b(r) || f !== e || re.issuance() !== "unresolved" ? !1 : (d = null, p = null, y({
-				...LA("ready"),
+				...KA("ready"),
 				context: n,
 				dictionaryReviewRequired: !0
 			}), b(r) && i.phase === "ready" && i.context === n && i.dictionaryReviewRequired && re.issuance() === "unresolved");
@@ -39326,7 +39616,7 @@ function RA(e, t = {}) {
 		return !b(e) || i.phase !== "ready" || t === null ? Promise.resolve() : (c = (async () => {
 			try {
 				let n = await x();
-				b(e) && (i.dictionaryReviewRequired && re.issuance() !== "none" ? rD(n, t) || oe("ACCESS_DENIED") : S(n, t));
+				b(e) && (i.dictionaryReviewRequired && re.issuance() !== "none" ? fD(n, t) || oe("ACCESS_DENIED") : S(n, t));
 			} catch (t) {
 				b(e) && oe(Mb(t));
 			} finally {
@@ -39355,7 +39645,7 @@ function RA(e, t = {}) {
 		if (s || i.context === null || i.phase !== "ready") return;
 		let n;
 		try {
-			if (n = Object.freeze(Bn(Vn(t))), n.sheet === void 0 || !Hn(n, t)) throw IA("INVALID_REPLY");
+			if (n = Object.freeze(Bn(Vn(t))), n.sheet === void 0 || !Hn(n, t)) throw GA("INVALID_REPLY");
 		} catch {
 			oe("INVALID_REPLY");
 			return;
@@ -39435,14 +39725,14 @@ function RA(e, t = {}) {
 		g = Object.freeze({ kind: "creating" });
 		let r = ae();
 		if (!b(r)) g = Object.freeze({ kind: "idle" }), y(i);
-		else if (y(LA("loading")), !b(r)) g = Object.freeze({ kind: "idle" }), y(i);
+		else if (y(KA("loading")), !b(r)) g = Object.freeze({ kind: "idle" }), y(i);
 		else try {
-			let t = cD(await e.request("workspace.create", n));
+			let t = _D(await e.request("workspace.create", n));
 			if (s) return;
 			g = Object.freeze({
 				kind: "recovery-required",
 				value: t
-			}), y(b(r) ? LA("loading") : i);
+			}), y(b(r) ? KA("loading") : i);
 		} catch (e) {
 			if (s) return;
 			let t = typeof e == "object" && e ? Object.getOwnPropertyDescriptor(e, "code") : void 0;
@@ -39452,7 +39742,7 @@ function RA(e, t = {}) {
 			} : {
 				kind: "unknown",
 				code: "REQUEST_FAILED"
-			}), y(b(r) ? LA("locked", "VAULT_LOCKED") : i);
+			}), y(b(r) ? KA("locked", "VAULT_LOCKED") : i);
 		}
 	}
 	async function ye(e) {
@@ -39462,7 +39752,7 @@ function RA(e, t = {}) {
 		return !s && g.kind === "idle" && i.phase === "ready" && i.context?.workspace.id === e.workspace.id;
 	}
 	return Object.freeze({
-		places: Object.freeze({ request: (t, n) => s ? Promise.reject(IA("READ_INVALIDATED")) : e.request(t, n) }),
+		places: Object.freeze({ request: (t, n) => s ? Promise.reject(GA("READ_INVALIDATED")) : e.request(t, n) }),
 		conversation: te,
 		retained: O,
 		get todayConsumer() {
@@ -39478,7 +39768,7 @@ function RA(e, t = {}) {
 		},
 		refresh: () => le(),
 		unlocked: async () => {
-			s || i.phase !== "locked" || g.kind !== "idle" || (y(LA("loading")), await le());
+			s || i.phase !== "locked" || g.kind !== "idle" || (y(KA("loading")), await le());
 		},
 		refreshToday: ue,
 		invalidateTrustedProducer: () => se(),
@@ -39508,67 +39798,67 @@ function RA(e, t = {}) {
 				code: "PUBLISH_UNRESOLVED"
 			});
 			let e = re.dispose();
-			return e.ok ? (u = null, ae(), k?.dispose(), g = Object.freeze({ kind: "idle" }), y(LA("unavailable", "READ_INVALIDATED")), s = !0, v.clear(), Object.freeze({ ok: !0 })) : e;
+			return e.ok ? (u = null, ae(), k?.dispose(), g = Object.freeze({ kind: "idle" }), y(KA("unavailable", "READ_INVALIDATED")), s = !0, v.clear(), Object.freeze({ ok: !0 })) : e;
 		}
 	});
 }
 //#endregion
 //#region app/ui/src/host/bootstrap.tsx
-var zA = {
+var JA = {
 	place: "today",
 	sub: "today"
-}, BA = {
+}, YA = {
 	place: "ask",
 	sub: "new"
-}, VA = {
+}, XA = {
 	place: "trust",
 	sub: "models"
-}, HA = {
+}, ZA = {
 	place: "first-run",
 	sub: "review"
-}, UA = {
+}, QA = {
 	owner: "roleOwner",
 	cofounder: "roleCofounder",
 	accountant: "roleAccountant",
 	viewer: "roleViewer"
 };
-function WA(e) {
+function $A(e) {
 	window.location.hash = Vn(e);
 }
-function GA() {
+function ej() {
 	return document.activeElement instanceof HTMLElement ? document.activeElement : null;
 }
-function KA(e, t) {
+function tj(e, t) {
 	return e.place === t.place && e.sub === t.sub;
 }
-function qA({ routes: e, selected: t, language: n, viewer: r, onSelect: i }) {
+function nj({ routes: e, selected: t, language: n, viewer: r, onSelect: i }) {
 	let a = "host-route-label";
 	return /* @__PURE__ */ (0, M.jsxs)("section", { children: [
 		/* @__PURE__ */ (0, M.jsx)(Hh, {
-			where: iA(n, "routeLabel"),
-			title: iA(n, "routesTitle")
+			where: pA(n, "routeLabel"),
+			title: pA(n, "routesTitle")
 		}),
 		/* @__PURE__ */ (0, M.jsx)("p", {
 			className: V.note,
-			children: iA(n, "routesNote")
+			children: pA(n, "routesNote")
 		}),
 		/* @__PURE__ */ (0, M.jsx)("p", {
 			className: V.note,
-			children: iA(n, "routesUnverified")
+			children: pA(n, "routesUnverified")
 		}),
 		r ? /* @__PURE__ */ (0, M.jsx)("p", {
 			role: "status",
-			children: iA(n, "viewerNoAsk")
+			children: pA(n, "viewerNoAsk")
 		}) : e.length === 0 ? /* @__PURE__ */ (0, M.jsx)("p", {
 			role: "status",
-			children: iA(n, "routesEmpty")
+			children: pA(n, "routesEmpty")
 		}) : /* @__PURE__ */ (0, M.jsxs)("div", {
 			className: V.block,
 			children: [
 				/* @__PURE__ */ (0, M.jsx)("label", {
 					id: a,
 					htmlFor: "host-route",
-					children: iA(n, "routeLabel")
+					children: pA(n, "routeLabel")
 				}),
 				/* @__PURE__ */ (0, M.jsxs)("select", {
 					id: "host-route",
@@ -39577,28 +39867,28 @@ function qA({ routes: e, selected: t, language: n, viewer: r, onSelect: i }) {
 					onChange: (e) => i(e.currentTarget.value || null),
 					children: [/* @__PURE__ */ (0, M.jsx)("option", {
 						value: "",
-						children: iA(n, "routePlaceholder")
+						children: pA(n, "routePlaceholder")
 					}), e.map((e) => /* @__PURE__ */ (0, M.jsx)("option", {
 						value: e.id,
 						disabled: !e.enabled,
-						children: e.enabled ? iA(n, "routeDescription", {
+						children: e.enabled ? pA(n, "routeDescription", {
 							label: e.label,
 							kind: e.kind,
 							model: e.model
-						}) : iA(n, "routeDisabled", { label: e.label })
+						}) : pA(n, "routeDisabled", { label: e.label })
 					}, e.id))]
 				}),
 				t !== null && /* @__PURE__ */ (0, M.jsx)(F, {
 					variant: "link",
 					onClick: () => i(null),
-					children: iA(n, "routeClear")
+					children: pA(n, "routeClear")
 				})
 			]
 		})
 	] });
 }
-function JA({ value: e, language: t }) {
-	let n = aA(t), r = (e) => iA(t, e), i = (e) => e === null ? n["not-applicable"] : iA(t, "dateRange", {
+function rj({ value: e, language: t }) {
+	let n = mA(t), r = (e) => pA(t, e), i = (e) => e === null ? n["not-applicable"] : pA(t, "dateRange", {
 		from: e.from,
 		to: e.to
 	}), a = (e) => e.length === 0 ? r("none") : e.join(", "), o = e.coverage.completeness !== "empty" && (e.coverage.completeness !== "partial" || e.coverage.countedRows !== 0), s = (e) => /* @__PURE__ */ (0, M.jsx)("dl", {
@@ -39649,7 +39939,7 @@ function JA({ value: e, language: t }) {
 					}),
 					/* @__PURE__ */ (0, M.jsx)("p", {
 						className: V.note,
-						children: n.unit === "basis-points" ? iA(t, "exactPoints", { minor: n.minor }) : iA(t, "exactMoney", {
+						children: n.unit === "basis-points" ? pA(t, "exactPoints", { minor: n.minor }) : pA(t, "exactMoney", {
 							minor: n.minor,
 							currency: n.currency ?? e.currency
 						})
@@ -39740,22 +40030,46 @@ function JA({ value: e, language: t }) {
 		] })
 	] });
 }
-function YA({ selection: e, language: t, origin: n, onClose: r }) {
+function ij(e, t, n) {
+	if (n === null) return null;
+	try {
+		return GC(e, {
+			language: t,
+			timeZone: n
+		});
+	} catch {
+		return null;
+	}
+}
+function aj({ selection: e, language: t, timeZone: n, origin: r, onClose: i }) {
+	let a = e.kind === "ready" ? ij(e.value, t, n) : null, o = (0, _.useRef)(null);
 	return /* @__PURE__ */ (0, M.jsxs)(bh, {
-		kind: iA(t, "receipt"),
+		kind: pA(t, "receipt"),
 		title: e.id,
-		origin: n,
-		onClose: r,
-		children: [e.kind === "ready" ? /* @__PURE__ */ (0, M.jsx)(JA, {
+		origin: r,
+		onClose: i,
+		children: [e.kind === "ready" && a !== null ? /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [/* @__PURE__ */ (0, M.jsx)(zC, {
+			receipt: a,
+			onReceipt: () => {
+				let e = o.current;
+				e && (e.open = !0, e.querySelector("summary")?.focus());
+			}
+		}), /* @__PURE__ */ (0, M.jsxs)("details", {
+			ref: o,
+			children: [/* @__PURE__ */ (0, M.jsx)("summary", { children: pA(t, "receiptEvery") }), /* @__PURE__ */ (0, M.jsx)(rj, {
+				value: e.value,
+				language: t
+			})]
+		})] }) : e.kind === "ready" ? /* @__PURE__ */ (0, M.jsx)(rj, {
 			value: e.value,
 			language: t
 		}) : /* @__PURE__ */ (0, M.jsx)("p", {
 			role: "status",
-			children: iA(t, e.kind === "loading" ? "receiptLoading" : "receiptFailed")
-		}), e.kind === "failed" && /* @__PURE__ */ (0, M.jsx)("p", { children: iA(t, "code", { code: e.code }) })]
+			children: pA(t, e.kind === "loading" ? "receiptLoading" : "receiptFailed")
+		}), e.kind === "failed" && /* @__PURE__ */ (0, M.jsx)("p", { children: pA(t, "code", { code: e.code }) })]
 	});
 }
-function XA({ runId: e, scenario: t, language: n, origin: r, back: i, onClose: a }) {
+function oj({ runId: e, scenario: t, language: n, origin: r, back: i, onClose: a }) {
 	let o = N(), s = t.kind === "ready" ? uS(t.view, e) : null;
 	return /* @__PURE__ */ (0, M.jsx)(bh, {
 		kind: o("RETAINED.proof.kind"),
@@ -39805,14 +40119,14 @@ function XA({ runId: e, scenario: t, language: n, origin: r, back: i, onClose: a
 				[o("RETAINED.scenario.evidenceDigest"), s.view.revision.evidenceDigest],
 				...s.state.reusedFromRevisionId === void 0 ? [] : [[o("RETAINED.scenario.reusedFrom"), s.state.reusedFromRevisionId]]
 			]),
-			/* @__PURE__ */ (0, M.jsx)(JA, {
+			/* @__PURE__ */ (0, M.jsx)(rj, {
 				value: s.result.receipt,
 				language: n
 			})
 		] })
 	});
 }
-function ZA({ scenario: e, origin: t, back: n, onClose: r }) {
+function sj({ scenario: e, origin: t, back: n, onClose: r }) {
 	let i = N(), a = e.kind === "ready" ? e : null;
 	return /* @__PURE__ */ (0, M.jsx)(bh, {
 		kind: i("RETAINED.scenario.provenance"),
@@ -39840,7 +40154,7 @@ function ZA({ scenario: e, origin: t, back: n, onClose: r }) {
 		})] })
 	});
 }
-function QA({ chosen: e, retained: t, origin: n, onClose: r, onRead: i, onProof: a, onProvenance: o }) {
+function cj({ chosen: e, retained: t, origin: n, onClose: r, onRead: i, onProof: a, onProvenance: o }) {
 	let s = N(), c = t.discovery, l = t.scenario, u = c.kind === "ready" ? {
 		rows: c.rows,
 		page: c.page
@@ -39872,7 +40186,7 @@ function QA({ chosen: e, retained: t, origin: n, onClose: r, onRead: i, onProof:
 		})
 	});
 }
-function $A(e) {
+function lj(e) {
 	return [
 		e.candidate.id,
 		e.candidate.digest,
@@ -39881,7 +40195,7 @@ function $A(e) {
 		e.review?.digest ?? ""
 	].join(":");
 }
-function ej({ id: e, scope: t, lessons: n, context: r, origin: i, onClose: a, onAdjacent: o, onDecide: s }) {
+function uj({ id: e, scope: t, lessons: n, context: r, origin: i, onClose: a, onAdjacent: o, onDecide: s }) {
 	let c = N(), l = n.kind === "ready" || n.kind === "deciding" ? n.lessons : [], u = l.findIndex((t) => t.candidate.id === e), d = u >= 0 ? l[u] : void 0, f = () => a(e, {
 		list: l,
 		view: d
@@ -39913,17 +40227,17 @@ function ej({ id: e, scope: t, lessons: n, context: r, origin: i, onClose: a, on
 			});
 		},
 		onDecide: s
-	}, `${$A(d)}:${t}`);
+	}, `${lj(d)}:${t}`);
 }
-var tj = (e) => () => {}, nj = () => null, rj = (e) => e.place === "today" && (e.sheet === void 0 || [
+var dj = (e) => () => {}, fj = () => null, pj = (e) => e.place === "today" && (e.sheet === void 0 || [
 	"today-review",
 	"today-record",
 	"today-proof"
-].includes(e.sheet)), ij = "what-if", aj = "what-if-proof", oj = "what-if-provenance", sj = "lesson", cj = (e) => yC(e) === "scenario" && (e.sheet === void 0 || e.sheet === ij || e.sheet === aj || e.sheet === oj), lj = (e) => JSON.stringify([e.scenarioId, e.revisionId]);
-function uj({ controller: e, state: t, context: n, language: r, view: i, setLanguage: a, setView: o, onLegacyReturn: s, scenarioSelection: c }) {
-	let l = N(), u = JSON.stringify([n.contextKey, t.selectedRouteId]), d = (0, _.useSyncExternalStore)(e.retained.subscribe, e.retained.snapshot, e.retained.snapshot), f = e.todayConsumer, p = (0, _.useSyncExternalStore)(f?.subscribe ?? tj, f?.snapshot ?? nj, f?.snapshot ?? nj), m = (0, _.useRef)(Symbol()), h = (0, _.useRef)(null), g = (0, _.useRef)(zA), v = (0, _.useRef)(null), y = (0, _.useRef)(null), b = (0, _.useRef)(null), x = (0, _.useRef)(0), [S, C] = (0, _.useState)(void 0), w = (0, _.useRef)(void 0), [T, E] = (0, _.useState)(null), D = (0, _.useRef)(T);
+].includes(e.sheet)), mj = "what-if", hj = "what-if-proof", gj = "what-if-provenance", _j = "lesson", vj = (e) => yC(e) === "scenario" && (e.sheet === void 0 || e.sheet === mj || e.sheet === hj || e.sheet === gj), yj = (e) => JSON.stringify([e.scenarioId, e.revisionId]);
+function bj({ controller: e, state: t, context: n, language: r, view: i, setLanguage: a, setView: o, onLegacyReturn: s, scenarioSelection: c }) {
+	let l = N(), u = JSON.stringify([n.contextKey, t.selectedRouteId]), d = (0, _.useSyncExternalStore)(e.retained.subscribe, e.retained.snapshot, e.retained.snapshot), f = e.todayConsumer, p = (0, _.useSyncExternalStore)(f?.subscribe ?? dj, f?.snapshot ?? fj, f?.snapshot ?? fj), m = (0, _.useRef)(Symbol()), h = (0, _.useRef)(null), g = (0, _.useRef)(JA), v = (0, _.useRef)(null), y = (0, _.useRef)(null), b = (0, _.useRef)(null), x = (0, _.useRef)(0), [S, C] = (0, _.useState)(void 0), w = (0, _.useRef)(void 0), [T, E] = (0, _.useState)(null), D = (0, _.useRef)(T);
 	D.current = T;
-	let ee = n.member.role === "viewer", te = t.routes.find((e) => e.id === t.selectedRouteId && e.enabled), O = e.questionSettings(), k = !ee && te !== void 0 && O !== null && O.routeId === te.id, A = cA(e.places, u), [ne, re] = (0, _.useState)(!1), ie = (0, _.useMemo)(() => {
+	let ee = n.member.role === "viewer", te = t.routes.find((e) => e.id === t.selectedRouteId && e.enabled), O = e.questionSettings(), k = !ee && te !== void 0 && O !== null && O.routeId === te.id, A = _A(e.places, u), [ne, re] = (0, _.useState)(!1), ie = (0, _.useMemo)(() => {
 		if (t.today === null || e.timeZone === null) return { kind: "missing" };
 		try {
 			return {
@@ -39931,7 +40245,7 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 				value: vx(t.today, {
 					language: r,
 					timeZone: e.timeZone,
-					missingWords: aA(r)
+					missingWords: mA(r)
 				})
 			};
 		} catch {
@@ -39951,9 +40265,9 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 		let r = e.snapshot().receipt;
 		r !== null && (t === null || !Hn(r.address, t)) && e.closeReceipt();
 		let i = D.current;
-		i !== null && (t === null || !Hn(i.address, t)) && (i.kind === sj && e.retained.selectLesson(null), i.todayView !== void 0 && (m.current = Symbol(), D.current = null, e.todayConsumer?.cancelSelection()), E(null)), n === null || t === null || !KA(n, t) ? e.retained.invalidate() : !Hn(n, t) && !(cj(n) && cj(t)) && e.retained.cancelPending(), n !== null && (t === null || !Hn(n, t)) && !(t !== null && rj(n) && rj(t)) && (m.current = Symbol(), e.todayConsumer?.cancelSelection()), t !== null && rj(t) && t.sheet === void 0 && n !== null && !rj(n) && e.todayConsumer?.refresh(() => Hn(Bn(window.location.hash), t));
+		i !== null && (t === null || !Hn(i.address, t)) && (i.kind === _j && e.retained.selectLesson(null), i.todayView !== void 0 && (m.current = Symbol(), D.current = null, e.todayConsumer?.cancelSelection()), E(null)), n === null || t === null || !tj(n, t) ? e.retained.invalidate() : !Hn(n, t) && !(vj(n) && vj(t)) && e.retained.cancelPending(), n !== null && (t === null || !Hn(n, t)) && !(t !== null && pj(n) && pj(t)) && (m.current = Symbol(), e.todayConsumer?.cancelSelection()), t !== null && pj(t) && t.sheet === void 0 && n !== null && !pj(n) && e.todayConsumer?.refresh(() => Hn(Bn(window.location.hash), t));
 		let a = i !== null && t !== null && Hn(i.address, t);
-		t !== null && !a && (t.sheet === ij || t.sheet === aj || t.sheet === oj || t.sheet === sj || t.sheet?.startsWith("today-")) && WA(Un(t));
+		t !== null && !a && (t.sheet === mj || t.sheet === hj || t.sheet === gj || t.sheet === _j || t.sheet?.startsWith("today-")) && $A(Un(t));
 	}, [e]), oe = () => {
 		let r = e.snapshot();
 		return r.phase === "ready" && r.context?.contextKey === n.contextKey && r.selectedRouteId === t.selectedRouteId;
@@ -39967,7 +40281,7 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 	]), ce = (e, t, n, r) => {
 		if (f === null || f.snapshot() !== e) return;
 		let i = Bn(window.location.hash), a = D.current;
-		if (!rj(i) || !se(i) || i.sheet !== void 0 && (a?.todayView !== e || !Hn(a.address, i))) return;
+		if (!pj(i) || !se(i) || i.sheet !== void 0 && (a?.todayView !== e || !Hn(a.address, i))) return;
 		let o = Symbol();
 		m.current = o;
 		let s = () => m.current === o && se(i) && D.current === a, c = r(s), l = f.snapshot();
@@ -39988,12 +40302,12 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 				todayOrigin: l,
 				todayBack: t === "today-proof" && e.detail !== null
 			};
-			D.current = u, E(u), WA(u.address);
+			D.current = u, E(u), $A(u.address);
 		});
 	}, le = (e, t) => {
 		if (D.current !== e || e.todayView === void 0 || f === null || !se(e.address)) return;
 		let n = h.current, r = f.snapshot();
-		t === r && (r === e.todayView || n?.prior === e && n.token === m.current && n.view === r) && (h.current = null, m.current = Symbol(), f.cancelSelection(), D.current = null, E(null), WA(Un(e.address)), e.todayOrigin?.isConnected && e.todayOrigin.focus());
+		t === r && (r === e.todayView || n?.prior === e && n.token === m.current && n.view === r) && (h.current = null, m.current = Symbol(), f.cancelSelection(), D.current = null, E(null), $A(Un(e.address)), e.todayOrigin?.isConnected && e.todayOrigin.focus());
 	}, ue = (e) => {
 		if (D.current !== e || e.todayView === void 0 || f?.snapshot() !== e.todayView || !se(e.address) || f.back(e.todayView) === null) return;
 		m.current = Symbol();
@@ -40003,14 +40317,14 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 			kind: "today-record",
 			todayView: f.snapshot()
 		};
-		D.current = t, E(t), WA(t.address);
+		D.current = t, E(t), $A(t.address);
 	};
 	(0, _.useEffect)(() => {
 		let e = D.current;
-		p?.phase === "failed" && e?.todayView !== void 0 && (m.current = Symbol(), D.current = null, E(null), Hn(Bn(window.location.hash), e.address) && WA(Un(e.address)));
+		p?.phase === "failed" && e?.todayView !== void 0 && (m.current = Symbol(), D.current = null, E(null), Hn(Bn(window.location.hash), e.address) && $A(Un(e.address)));
 	}, [p]);
 	let de = () => {
-		D.current?.kind === sj && e.retained.selectLesson(null);
+		D.current?.kind === _j && e.retained.selectLesson(null);
 	}, fe = () => {
 		let t = D.current;
 		if (t?.chosen === void 0) return;
@@ -40026,7 +40340,7 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 	}, pe = d.lessons.kind === "ready" || d.lessons.kind === "deciding" ? d.lessons.selectedId : null;
 	(0, _.useEffect)(() => {
 		let e = D.current;
-		e?.kind === sj && e.id !== pe && (D.current = null, E(null), Hn(Bn(window.location.hash), e.address) && WA(Un(e.address)));
+		e?.kind === _j && e.id !== pe && (D.current = null, E(null), Hn(Bn(window.location.hash), e.address) && $A(Un(e.address)));
 	}, [pe]);
 	let me = (t) => {
 		if (!oe() || !k) return;
@@ -40041,45 +40355,45 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 			address: n,
 			selectionKey: String(x.current)
 		};
-		w.current = r, C(r), WA(n);
+		w.current = r, C(r), $A(n);
 	}, he = () => {
 		let t = D.current?.kind === "help" ? v.current?.isConnected ? v.current : y.current : null;
 		de(), e.retained.cancelPending(), e.closeReceipt(), D.current = null, E(null), t?.isConnected && t.focus();
 		let n = b.current;
-		b.current = null, n !== null && oe() ? me(n) : g.current !== null && WA(Un(g.current));
+		b.current = null, n !== null && oe() ? me(n) : g.current !== null && $A(Un(g.current));
 	}, ge = (t, n = null) => {
 		if (!oe() || g.current === null) return;
-		v.current = GA(), b.current = n, de(), fe(), e.retained.cancelPending(), E(null);
+		v.current = ej(), b.current = n, de(), fe(), e.retained.cancelPending(), E(null);
 		let r = Wn(g.current, "receipt");
-		WA(r), e.openReceipt(t, r);
+		$A(r), e.openReceipt(t, r);
 	}, _e = (t, n, r, i) => {
 		let a = g.current;
 		if (a === null || yC(a) !== "scenario" || !se(a)) return;
-		let o = D.current, s = o !== null && a.sheet === ij && o.kind === ij && o.chosen !== void 0 && Hn(o.address, a) ? o.chosen : null, c = s === null ? null : o;
+		let o = D.current, s = o !== null && a.sheet === mj && o.kind === mj && o.chosen !== void 0 && Hn(o.address, a) ? o.chosen : null, c = s === null ? null : o;
 		if (a.sheet !== void 0 && c === null) return;
 		let l = e.retained.snapshot().scenario;
 		if (l.kind !== "ready" || l.checking || l.view !== i || n !== void 0 && uS(l.view, n) === null || s !== null && !oS(l.selection, s)) return;
-		let u = r ?? GA();
+		let u = r ?? ej();
 		e.retained.confirmScenario(l.selection, l.view, () => se(a)).then((r) => {
 			if (!r.ok || D.current !== c || e.snapshot().receipt !== null || !se(a)) return;
 			let i = e.retained.snapshot().scenario;
 			if (i.kind !== "ready" || i.checking || i.view !== l.view || n !== void 0 && uS(i.view, n) === null) return;
-			c === null && (v.current = u?.isConnected ? u : GA()), b.current = null, de();
+			c === null && (v.current = u?.isConnected ? u : ej()), b.current = null, de();
 			let o = Wn(a, t), d = {
 				address: o,
 				kind: t,
 				...n === void 0 ? {} : { id: n },
 				...s === null ? {} : { chosen: s }
 			};
-			D.current = d, E(d), WA(o);
+			D.current = d, E(d), $A(o);
 		});
-	}, ve = (e, t, n) => _e(aj, e, t, n), ye = (e, t) => _e(oj, void 0, e, t), j = (t) => {
+	}, ve = (e, t, n) => _e(hj, e, t, n), ye = (e, t) => _e(gj, void 0, e, t), j = (t) => {
 		let n = w.current;
 		return !(t === void 0 ? n !== void 0 : n === void 0 || n.id !== t.id || n.selectionKey !== t.selectionKey) && (n !== void 0 && (w.current = void 0, e.conversation.cancel(), C(void 0)), b.current = null, !0);
 	}, be = () => {
 		let e = g.current;
-		return e === null || !cj(e) || !se(e) || e.sheet !== void 0 && (D.current === null || !Hn(D.current.address, e)) ? null : Un(e);
-	}, xe = (e) => oe() && cj(Bn(window.location.hash)) && KA(Bn(window.location.hash), e), Se = (t, n, r) => {
+		return e === null || !vj(e) || !se(e) || e.sheet !== void 0 && (D.current === null || !Hn(D.current.address, e)) ? null : Un(e);
+	}, xe = (e) => oe() && vj(Bn(window.location.hash)) && tj(Bn(window.location.hash), e), Se = (t, n, r) => {
 		let i = be();
 		if (i === null || !j(void 0)) return !1;
 		let a = e.retained.snapshot().discovery;
@@ -40088,11 +40402,11 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 		if (o === a || o.kind !== "ready" || !oS(o.selected, t)) return !1;
 		v.current = n, b.current = null, de(), e.closeReceipt();
 		let s = {
-			address: Wn(i, ij),
-			kind: ij,
+			address: Wn(i, mj),
+			kind: mj,
 			chosen: t
 		};
-		return D.current = s, E(s), Hn(Bn(window.location.hash), s.address) || WA(s.address), !0;
+		return D.current = s, E(s), Hn(Bn(window.location.hash), s.address) || $A(s.address), !0;
 	}, Ce = (t) => {
 		let n = be();
 		return n === null || !j(t) ? !1 : (e.retained.readDiscovery(() => xe(n)), !0);
@@ -40113,79 +40427,79 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 		let r = e.retained.snapshot();
 		if (r.scenario.kind === "idle" || r.discovery.kind !== "ready" || !oS(r.discovery.selected, n.chosen)) return;
 		let i = {
-			address: Wn(n.address, ij),
-			kind: ij,
+			address: Wn(n.address, mj),
+			kind: mj,
 			chosen: n.chosen
 		};
-		D.current = i, E(i), WA(i.address);
-	}, ke = d.discovery.kind === "ready" && d.discovery.selected !== null && d.scenario.kind !== "idle" ? lj(d.discovery.selected) : null;
+		D.current = i, E(i), $A(i.address);
+	}, ke = d.discovery.kind === "ready" && d.discovery.selected !== null && d.scenario.kind !== "idle" ? yj(d.discovery.selected) : null;
 	(0, _.useEffect)(() => {
 		let e = D.current;
-		e?.chosen !== void 0 && lj(e.chosen) !== ke && (D.current = null, E(null), Hn(Bn(window.location.hash), e.address) && WA(Un(e.address)));
+		e?.chosen !== void 0 && yj(e.chosen) !== ke && (D.current = null, E(null), Hn(Bn(window.location.hash), e.address) && $A(Un(e.address)));
 	}, [ke]);
-	let Ae = () => D.current?.kind === sj ? D.current.id ?? null : null, je = (t, n, r) => {
+	let Ae = () => D.current?.kind === _j ? D.current.id ?? null : null, je = (t, n, r) => {
 		let i = g.current;
 		if (i === null || !se(i)) return;
 		let a = Un(i);
-		if (yC(a) !== "lessons" || i.sheet !== void 0 && i.sheet !== sj) return;
+		if (yC(a) !== "lessons" || i.sheet !== void 0 && i.sheet !== _j) return;
 		let o = e.retained.snapshot().lessons;
 		if (o.kind !== "ready" || o.lessons !== r.list || !o.lessons.some((e) => e.candidate.id === t) || o.selectedId !== r.from || Ae() !== r.from || r.page !== void 0 && o.page !== r.page) return;
-		v.current = n ?? GA(), b.current = null, e.closeReceipt(), e.retained.selectLesson(t);
-		let s = Wn(a, sj), c = {
+		v.current = n ?? ej(), b.current = null, e.closeReceipt(), e.retained.selectLesson(t);
+		let s = Wn(a, _j), c = {
 			address: s,
-			kind: sj,
+			kind: _j,
 			id: t
 		};
-		D.current = c, E(c), WA(s);
+		D.current = c, E(c), $A(s);
 	}, Me = (t, n) => {
 		let r = D.current;
-		if (r?.kind !== sj || r.id !== t || !se(r.address)) return;
+		if (r?.kind !== _j || r.id !== t || !se(r.address)) return;
 		let i = e.retained.snapshot().lessons, a = i.kind === "ready" || i.kind === "deciding" ? i : null;
 		(a === null ? n.view !== void 0 : a.lessons !== n.list || a.selectedId !== t || a.lessons.find((e) => e.candidate.id === t) !== n.view) || he();
 	}, Ne = (t, n) => {
 		let r = D.current;
-		if (r?.kind !== sj || r.id !== t.candidate.id || !se(r.address)) return;
+		if (r?.kind !== _j || r.id !== t.candidate.id || !se(r.address)) return;
 		let i = e.retained.snapshot().lessons;
-		i.kind === "ready" && i.selectedId === t.candidate.id && e.retained.decideLesson(t, n, () => se(r.address) && D.current?.kind === sj && D.current.id === t.candidate.id);
+		i.kind === "ready" && i.selectedId === t.candidate.id && e.retained.decideLesson(t, n, () => se(r.address) && D.current?.kind === _j && D.current.id === t.candidate.id);
 	}, Pe = (t, n = null) => {
 		if (!oe() || g.current === null) return;
-		v.current = GA(), b.current = n, de(), fe(), e.retained.cancelPending(), e.closeReceipt();
+		v.current = ej(), b.current = n, de(), fe(), e.retained.cancelPending(), e.closeReceipt();
 		let r = Wn(g.current, "reference");
 		E({
 			address: r,
 			kind: "reference",
 			id: t
-		}), WA(r);
+		}), $A(r);
 	}, Fe = (e, t) => {
 		let n = g.current;
 		if (n === null || !se(n)) return;
 		let r = w.current;
 		(yC(n) !== "scenario" || r !== void 0 && (r.id === t.id || t.kind === "clarification" && t.answer.modelReceiptId === r.id)) && (e.kind === "calculation-receipt" ? ge(e.id, t.id) : e.kind === "answer" ? me(e.id) : Pe(e.kind === "synthesis-receipt" ? e.receipt.id : e.id, t.id));
 	}, Ie = (t) => {
-		oe() && (e.selectRoute(t), WA(t === null ? zA : BA));
+		oe() && (e.selectRoute(t), $A(t === null ? JA : YA));
 	}, Le = () => {
 		if (!oe() || g.current === null) return;
-		v.current = GA(), b.current = null, de(), fe(), e.retained.cancelPending(), e.closeReceipt();
+		v.current = ej(), b.current = null, de(), fe(), e.retained.cancelPending(), e.closeReceipt();
 		let t = Wn(g.current, "about");
 		E({
 			address: t,
 			kind: "about"
-		}), WA(t);
+		}), $A(t);
 	}, Re = (t, n) => {
 		if (!oe() || g.current === null || D.current?.kind === "help") return;
-		let r = t === void 0 ? GA() : t, i = r?.closest("[data-region=\"sheet\"]") ? v.current : r;
+		let r = t === void 0 ? ej() : t, i = r?.closest("[data-region=\"sheet\"]") ? v.current : r;
 		y.current = n?.isConnected ? n : null, v.current = i?.isConnected ? i : n?.isConnected ? n : null, b.current = null, de(), fe(), e.retained.cancelPending(), e.closeReceipt();
 		let a = Wn(g.current, "help"), o = {
 			address: a,
 			kind: "help"
 		};
-		D.current = o, E(o), WA(a);
+		D.current = o, E(o), $A(a);
 	};
 	if (ie.kind === "invalid") return /* @__PURE__ */ (0, M.jsx)(Bh, { state: {
 		kind: "failed",
 		code: "INVALID_REPLY"
 	} });
-	let ze = aA(r), Be = p !== null && f !== null ? oE(p, f.input, r) : ie.kind === "ready" ? ie.value.data : {
+	let ze = mA(r), Be = p !== null && f !== null ? hE(p, f.input, r) : ie.kind === "ready" ? ie.value.data : {
 		state: { kind: "not-yet" },
 		date: "",
 		review: {
@@ -40197,41 +40511,41 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 		},
 		thisMonthMissing: "unknown",
 		earlierTodayMissing: "unknown"
-	}, Ve = A.reads.worth === null ? Be : {
+	}, Ve = e.timeZone ?? f?.input?.display?.timeZone ?? null, He = A.reads.worth === null ? Be : {
 		...Be,
 		worth: A.reads.worth
-	}, He = () => {
+	}, Ue = () => {
 		if (!oe() || g.current === null) return;
-		v.current = GA(), b.current = null, de(), fe(), e.retained.cancelPending(), e.closeReceipt();
+		v.current = ej(), b.current = null, de(), fe(), e.retained.cancelPending(), e.closeReceipt();
 		let t = Wn(g.current, "demo-clock");
 		E({
 			address: t,
 			kind: "demo-clock"
-		}), WA(t);
-	}, Ue = (t, n) => {
+		}), $A(t);
+	}, We = (t, n) => {
 		oe() && !ne && (re(!0), e.places.request(t, n).then((e) => {
 			oe() && A.setShell(e);
 		}, () => {
 			oe() && A.reread();
 		}).finally(() => re(!1)));
-	}, We = {
+	}, Ge = {
 		ask: "askx",
 		work: "approvals",
 		books: "books",
 		reports: "reportsx",
 		tools: "modelsx",
 		trust: "trustx"
-	}, Ge = (e) => {
-		let t = We[e.place];
+	}, Ke = (e) => {
+		let t = Ge[e.place];
 		return (A.reads.capabilities !== null && t !== void 0 ? ph(A.reads.capabilities, t) : null) ?? { kind: "not-built" };
-	}, Ke = s === null ? null : /* @__PURE__ */ (0, M.jsx)(F, {
+	}, qe = s === null ? null : /* @__PURE__ */ (0, M.jsx)(F, {
 		variant: "link",
 		onClick: s,
-		children: iA(r, "legacy")
-	}), qe = (e) => e.chosen === void 0 ? void 0 : {
+		children: pA(r, "legacy")
+	}), Je = (e) => e.chosen === void 0 ? void 0 : {
 		label: l("RETAINED.scenario.title"),
 		onBack: () => Oe(e)
-	}, Je = (e) => {
+	}, Ye = (e) => {
 		let t = e.chosen;
 		return t === void 0 ? he : () => De(e, {
 			selection: t,
@@ -40241,9 +40555,10 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 				page: d.discovery.page
 			} : null
 		});
-	}, Ye = t.receipt === null ? T === null ? void 0 : T.todayView !== void 0 && f !== null ? {
+	}, Xe = t.receipt === null ? T === null ? void 0 : T.todayView !== void 0 && f !== null ? {
 		address: T.address,
-		content: /* @__PURE__ */ (0, M.jsx)(RC, {
+		content: /* @__PURE__ */ (0, M.jsx)(qC, {
+			timeZone: Ve,
 			detail: T.todayView.detail,
 			page: T.todayView.page,
 			origin: T.todayOrigin ?? null,
@@ -40257,9 +40572,9 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 				onBack: () => ue(T)
 			} : void 0
 		})
-	} : T.kind === ij && T.chosen !== void 0 ? {
+	} : T.kind === mj && T.chosen !== void 0 ? {
 		address: T.address,
-		content: /* @__PURE__ */ (0, M.jsx)(QA, {
+		content: /* @__PURE__ */ (0, M.jsx)(cj, {
 			chosen: T.chosen,
 			retained: d,
 			origin: v.current,
@@ -40267,28 +40582,28 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 			onRead: (e) => Ee(T, e),
 			onProof: ve,
 			onProvenance: ye
-		}, lj(T.chosen))
-	} : T.kind === aj && T.id !== void 0 ? {
+		}, yj(T.chosen))
+	} : T.kind === hj && T.id !== void 0 ? {
 		address: T.address,
-		content: /* @__PURE__ */ (0, M.jsx)(XA, {
+		content: /* @__PURE__ */ (0, M.jsx)(oj, {
 			runId: T.id,
 			scenario: d.scenario,
 			language: r,
 			origin: v.current,
-			back: qe(T),
-			onClose: Je(T)
+			back: Je(T),
+			onClose: Ye(T)
 		}, T.id)
-	} : T.kind === oj ? {
+	} : T.kind === gj ? {
 		address: T.address,
-		content: /* @__PURE__ */ (0, M.jsx)(ZA, {
+		content: /* @__PURE__ */ (0, M.jsx)(sj, {
 			scenario: d.scenario,
 			origin: v.current,
-			back: qe(T),
-			onClose: Je(T)
+			back: Je(T),
+			onClose: Ye(T)
 		})
-	} : T.kind === sj && T.id !== void 0 ? {
+	} : T.kind === _j && T.id !== void 0 ? {
 		address: T.address,
-		content: /* @__PURE__ */ (0, M.jsx)(ej, {
+		content: /* @__PURE__ */ (0, M.jsx)(uj, {
 			id: T.id,
 			scope: `${Vn(T.address)}:${u}`,
 			lessons: d.lessons,
@@ -40301,36 +40616,37 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 	} : {
 		address: T.address,
 		content: /* @__PURE__ */ (0, M.jsxs)(bh, {
-			kind: T.kind === "demo-clock" ? l("SH-03.clock.title") : iA(r, T.kind === "help" ? "helpTitle" : T.kind === "about" ? "aboutTitle" : "reference"),
-			title: T.kind === "demo-clock" ? l("SH-03.clock.title") : iA(r, T.kind === "help" ? "helpTitle" : T.kind === "about" ? "aboutTitle" : "reference"),
+			kind: T.kind === "demo-clock" ? l("SH-03.clock.title") : pA(r, T.kind === "help" ? "helpTitle" : T.kind === "about" ? "aboutTitle" : "reference"),
+			title: T.kind === "demo-clock" ? l("SH-03.clock.title") : pA(r, T.kind === "help" ? "helpTitle" : T.kind === "about" ? "aboutTitle" : "reference"),
 			origin: v.current,
 			onClose: he,
 			children: [
-				T.kind === "help" ? /* @__PURE__ */ (0, M.jsx)(SA, {
+				T.kind === "help" ? /* @__PURE__ */ (0, M.jsx)(jA, {
 					offline: A.reads.help,
 					platform: /Mac/i.test(navigator.platform) ? "mac" : "windows"
-				}) : T.kind === "demo-clock" && A.reads.shell !== null ? /* @__PURE__ */ (0, M.jsx)(CA, {
+				}) : T.kind === "demo-clock" && A.reads.shell !== null ? /* @__PURE__ */ (0, M.jsx)(MA, {
 					state: dh(A.reads.shell, r),
 					busy: ne,
-					onSet: (e) => Ue("todayx.clock.set", { date: e }),
-					onAdvance: (e) => Ue("todayx.clock.advance", { by: e })
-				}) : /* @__PURE__ */ (0, M.jsx)("p", { children: iA(r, T.kind === "about" ? "about" : "referenceUnavailable") }),
+					onSet: (e) => We("todayx.clock.set", { date: e }),
+					onAdvance: (e) => We("todayx.clock.advance", { by: e })
+				}) : /* @__PURE__ */ (0, M.jsx)("p", { children: pA(r, T.kind === "about" ? "about" : "referenceUnavailable") }),
 				T.id !== void 0 && /* @__PURE__ */ (0, M.jsx)("p", {
 					className: V.exact,
-					children: iA(r, "referenceIdentity", { id: T.id })
+					children: pA(r, "referenceIdentity", { id: T.id })
 				}),
-				Ke
+				qe
 			]
 		})
 	} : {
 		address: t.receipt.address,
-		content: /* @__PURE__ */ (0, M.jsx)(YA, {
+		content: /* @__PURE__ */ (0, M.jsx)(aj, {
 			selection: t.receipt,
 			language: r,
+			timeZone: Ve,
 			origin: v.current,
 			onClose: he
 		}, t.receipt.id)
-	}, Xe = {
+	}, Ze = {
 		shellKind: "desktop",
 		view: i,
 		language: r,
@@ -40338,9 +40654,9 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 			workspace: {
 				name: n.workspace.name,
 				demo: n.workspace.demo,
-				who: iA(r, "memberRole", {
+				who: pA(r, "memberRole", {
 					name: n.member.name,
-					role: iA(r, UA[n.member.role])
+					role: pA(r, QA[n.member.role])
 				})
 			},
 			onSetView: o,
@@ -40353,7 +40669,7 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 		},
 		...A.reads.shell === null ? {} : {
 			banners: lh(A.reads.shell, r, {
-				...A.reads.shell.workspace.demo ? { openDemoClock: He } : {},
+				...A.reads.shell.workspace.demo ? { openDemoClock: Ue } : {},
 				dismissJobsPaused: () => {
 					e.places.request("todayx.jobsPaused.dismiss", {}).then(A.setShell, () => {});
 				}
@@ -40366,28 +40682,28 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 			}
 		},
 		ask: {
-			onAsk: () => WA(BA),
+			onAsk: () => $A(YA),
 			noModel: !k,
-			...ee ? { readOnly: { holder: iA(r, "roleViewer") } } : {}
+			...ee ? { readOnly: { holder: pA(r, "roleViewer") } } : {}
 		},
 		status: A.reads.status === null ? {
 			sources: {
-				text: iA(r, ie.kind === "ready" ? "sourcesReady" : "sourcesMissing"),
+				text: pA(r, ie.kind === "ready" ? "sourcesReady" : "sourcesMissing"),
 				address: {
 					place: "books",
 					sub: "sources"
 				}
 			},
 			model: {
-				text: te === void 0 ? iA(r, "routeMissing") : iA(r, "routeSelected", { label: te.label }),
-				address: VA
+				text: te === void 0 ? pA(r, "routeMissing") : pA(r, "routeSelected", { label: te.label }),
+				address: XA
 			},
-			third: { text: iA(r, "third") }
-		} : gA(A.reads.status, r),
-		statusSimple: A.reads.status === null ? [iA(r, ie.kind === "ready" ? "sourcesReady" : "sourcesMissing"), te === void 0 ? iA(r, "routeMissing") : iA(r, "routeSelected", { label: te.label })] : _A(A.reads.status, r),
+			third: { text: pA(r, "third") }
+		} : TA(A.reads.status, r),
+		statusSimple: A.reads.status === null ? [pA(r, ie.kind === "ready" ? "sourcesReady" : "sourcesMissing"), te === void 0 ? pA(r, "routeMissing") : pA(r, "routeSelected", { label: te.label })] : EA(A.reads.status, r),
 		capabilities: {},
 		today: {
-			data: Ve,
+			data: He,
 			intents: f !== null && p !== null ? {
 				onReview: (e, t) => {
 					let n = (p.response?.review.state === "available" ? p.response.review.value.rows : [])[Number(e.replace(/^review-/, ""))];
@@ -40402,7 +40718,7 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 					preparingTiles: p.preparing,
 					onPrepareTiles: () => {
 						let e = Bn(window.location.hash);
-						rj(e) && e.sheet === void 0 && se(e) && f.snapshot() === p && f.prepare(p, () => se(e) && D.current === null);
+						pj(e) && e.sheet === void 0 && se(e) && f.snapshot() === p && f.prepare(p, () => se(e) && D.current === null);
 					}
 				} : {},
 				...!ee && (n.member.role === "owner" || n.member.role === "cofounder") ? { onOpenActivity: () => ce(p, "today-record", document.activeElement instanceof HTMLElement ? document.activeElement : null, (e) => f.activity(p, e)) } : {}
@@ -40411,16 +40727,16 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 				onReceipt: (e) => ge(e)
 			}
 		},
-		sheet: Ye,
+		sheet: Xe,
 		onAddress: ae,
 		onHelp: Re,
-		renderPlace: (a) => yC(a) === null ? IC(a) === null ? a.place === "trust" && a.sub === "models" || a.place === "ask" && (a.sub === void 0 || a.sub === "new") ? /* @__PURE__ */ (0, M.jsx)(qA, {
+		renderPlace: (a) => yC(a) === null ? IC(a) === null ? a.place === "trust" && a.sub === "models" || a.place === "ask" && (a.sub === void 0 || a.sub === "new") ? /* @__PURE__ */ (0, M.jsx)(nj, {
 			routes: t.routes,
 			selected: t.selectedRouteId,
 			language: r,
 			viewer: ee,
 			onSelect: Ie
-		}) : /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [/* @__PURE__ */ (0, M.jsx)(Bh, { state: Ge(a) }), Ke] }) : IC(a).render({
+		}) : /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [/* @__PURE__ */ (0, M.jsx)(Bh, { state: Ke(a) }), qe] }) : IC(a).render({
 			address: a,
 			language: r,
 			view: i,
@@ -40447,20 +40763,20 @@ function uj({ controller: e, state: t, context: n, language: r, view: i, setLang
 			onProof: ve,
 			onProvenance: ye,
 			onOpenLesson: (e, t, n) => je(e, t, n),
-			legacy: Ke
+			legacy: qe
 		})
 	};
 	return k && O !== null ? /* @__PURE__ */ (0, M.jsx)(Sb, {
-		app: Xe,
+		app: Ze,
 		conversation: e.conversation,
 		questionSettings: O,
 		contextKey: u,
 		readback: S,
 		onReference: Fe,
 		onSavedOverview: (e) => Ce(e)
-	}) : /* @__PURE__ */ (0, M.jsx)(Cv, { ...Xe }, u);
+	}) : /* @__PURE__ */ (0, M.jsx)(Cv, { ...Ze }, u);
 }
-var dj = {
+var xj = {
 	en: {
 		title: "Create a workspace for reviewed meanings",
 		name: "Business name",
@@ -40498,8 +40814,8 @@ var dj = {
 		pending: "कैलेंडर, व्यवसाय का समय क्षेत्र, क्रम और आज के माप अभी तय नहीं हैं।"
 	}
 };
-function fj({ controller: e, state: t, language: n, onAcknowledged: r }) {
-	let i = dj[n], [a, o] = (0, _.useState)(!1), s = (0, _.useRef)(!1), [c, l] = (0, _.useState)(null), u = (0, _.useRef)(null), d = (0, _.useRef)(null), f = (0, _.useRef)(null), p = (0, _.useRef)(null);
+function Sj({ controller: e, state: t, language: n, onAcknowledged: r }) {
+	let i = xj[n], [a, o] = (0, _.useState)(!1), s = (0, _.useRef)(!1), [c, l] = (0, _.useState)(null), u = (0, _.useRef)(null), d = (0, _.useRef)(null), f = (0, _.useRef)(null), p = (0, _.useRef)(null);
 	if ((0, _.useLayoutEffect)(() => {
 		s.current = !1, o(!1);
 	}, [t.creation, t.phase]), t.creation.kind === "creating") return /* @__PURE__ */ (0, M.jsx)("p", {
@@ -40525,7 +40841,7 @@ function fj({ controller: e, state: t, language: n, onAcknowledged: r }) {
 					variant: "quiet",
 					onClick: () => {
 						let t = e.snapshot();
-						t.phase === "loading" && t.creation === u && (navigator.clipboard ? navigator.clipboard.writeText(d).catch(() => l(iA(n, "unavailable"))) : l(iA(n, "unavailable")));
+						t.phase === "loading" && t.creation === u && (navigator.clipboard ? navigator.clipboard.writeText(d).catch(() => l(pA(n, "unavailable"))) : l(pA(n, "unavailable")));
 					},
 					children: i.copy
 				}),
@@ -40617,7 +40933,7 @@ function fj({ controller: e, state: t, language: n, onAcknowledged: r }) {
 		})]
 	});
 }
-function pj({ controller: e, options: t, onLegacyReturn: n }) {
+function Cj({ controller: e, options: t, onLegacyReturn: n }) {
 	let r = (0, _.useSyncExternalStore)(e.subscribe, e.snapshot, e.snapshot), [i, a] = (0, _.useState)(t.language ?? "en"), [o, s] = (0, _.useState)(t.view ?? "guided"), [c, l] = (0, _.useState)(() => Bn(window.location.hash)), [u, d] = (0, _.useState)(null), f = t.firstRun === "journey", [p, m] = (0, _.useState)(!1), [h, g] = (0, _.useState)(!1), [v, y] = (0, _.useState)(null);
 	(0, _.useLayoutEffect)(() => {
 		if (f) {
@@ -40625,16 +40941,16 @@ function pj({ controller: e, options: t, onLegacyReturn: n }) {
 			return window.addEventListener("hashchange", e), () => window.removeEventListener("hashchange", e);
 		}
 		let t = !0;
-		e.setFirstRunSurface(() => t && Hn(Bn(window.location.hash), HA));
+		e.setFirstRunSurface(() => t && Hn(Bn(window.location.hash), ZA));
 		let n = () => {
 			let t = Bn(window.location.hash);
-			Hn(t, HA) || e.firstRun.cancel(), l(t);
+			Hn(t, ZA) || e.firstRun.cancel(), l(t);
 		};
 		return window.addEventListener("hashchange", n), () => {
 			t = !1, window.removeEventListener("hashchange", n), e.setFirstRunSurface(null);
 		};
 	}, [e, f]), (0, _.useLayoutEffect)(() => {
-		r.phase === "ready" && r.context !== null && (r.dictionaryReviewRequired ? (WA(HA), l(HA)) : window.location.hash || (WA(zA), l(zA)));
+		r.phase === "ready" && r.context !== null && (r.dictionaryReviewRequired ? ($A(ZA), l(ZA)) : window.location.hash || ($A(JA), l(JA)));
 	}, [
 		r.dictionaryReviewRequired,
 		r.context?.workspace.id,
@@ -40649,8 +40965,8 @@ function pj({ controller: e, options: t, onLegacyReturn: n }) {
 		if (r.phase === "locked" && r.creation.kind === "idle" && !h) return /* @__PURE__ */ (0, M.jsx)(Nn, {
 			language: i,
 			children: /* @__PURE__ */ (0, M.jsx)(kh, {
-				workspaceName: iA(i, "thisWorkspace"),
-				unlockControl: /* @__PURE__ */ (0, M.jsx)(tA, {
+				workspaceName: pA(i, "thisWorkspace"),
+				unlockControl: /* @__PURE__ */ (0, M.jsx)(uA, {
 					unlock: (t) => e.places.request("workspace.open", {
 						folder: "main",
 						passphrase: t
@@ -40664,7 +40980,7 @@ function pj({ controller: e, options: t, onLegacyReturn: n }) {
 		});
 		if (r.creation.kind !== "idle" || r.phase === "locked" || b && r.dictionaryReviewRequired) return /* @__PURE__ */ (0, M.jsx)(Nn, {
 			language: i,
-			children: /* @__PURE__ */ (0, M.jsx)($k, {
+			children: /* @__PURE__ */ (0, M.jsx)(cA, {
 				host: e,
 				rpc: e.places,
 				language: i,
@@ -40672,7 +40988,7 @@ function pj({ controller: e, options: t, onLegacyReturn: n }) {
 				view: o,
 				onView: s,
 				onDone: () => {
-					m(!0), WA(zA), l(zA), e.refresh();
+					m(!0), $A(JA), l(JA), e.refresh();
 				},
 				saveRouteKey: (t, n) => e.places.request("models.configure", {
 					config: t,
@@ -40684,7 +41000,7 @@ function pj({ controller: e, options: t, onLegacyReturn: n }) {
 			})
 		});
 	}
-	return b && r.dictionaryReviewRequired ? Hn(c, HA) ? /* @__PURE__ */ (0, M.jsx)(TO, {
+	return b && r.dictionaryReviewRequired ? Hn(c, ZA) ? /* @__PURE__ */ (0, M.jsx)(PO, {
 		controller: e.firstRun,
 		language: i,
 		onLanguage: a,
@@ -40696,16 +41012,16 @@ function pj({ controller: e, options: t, onLegacyReturn: n }) {
 			books: !1
 		},
 		intents: { onContinue: (t) => {
-			e.completeFirstRun(t) && (WA(BA), e.refresh());
+			e.completeFirstRun(t) && ($A(YA), e.refresh());
 		} }
 	}) : /* @__PURE__ */ (0, M.jsx)(Nn, {
 		language: i,
 		children: /* @__PURE__ */ (0, M.jsx)(F, {
 			variant: "link",
 			onClick: () => {
-				WA(HA), l(HA);
+				$A(ZA), l(ZA);
 			},
-			children: dj[i].resume
+			children: xj[i].resume
 		})
 	}) : /* @__PURE__ */ (0, M.jsx)(Nn, {
 		language: i,
@@ -40728,14 +41044,14 @@ function pj({ controller: e, options: t, onLegacyReturn: n }) {
 						variant: "link",
 						onClick: n,
 						disabled: r.creation.kind === "creating" || r.creation.kind === "recovery-required",
-						children: iA(i, "legacy")
+						children: pA(i, "legacy")
 					}), /* @__PURE__ */ (0, M.jsx)(F, {
 						variant: "link",
 						onClick: () => {
 							e.todayConsumer === null ? e.refresh() : e.refreshToday();
 						},
 						disabled: r.phase === "loading" || r.phase === "locked",
-						children: iA(i, "refresh")
+						children: pA(i, "refresh")
 					})]
 				}),
 				/* @__PURE__ */ (0, M.jsxs)("div", {
@@ -40746,13 +41062,13 @@ function pj({ controller: e, options: t, onLegacyReturn: n }) {
 					},
 					children: [r.phase === "locked" && /* @__PURE__ */ (0, M.jsx)("p", {
 						role: "status",
-						children: iA(i, "locked")
-					}), r.creation.kind !== "idle" || r.phase === "locked" ? /* @__PURE__ */ (0, M.jsx)(fj, {
+						children: pA(i, "locked")
+					}), r.creation.kind !== "idle" || r.phase === "locked" ? /* @__PURE__ */ (0, M.jsx)(Sj, {
 						controller: e,
 						state: r,
 						language: i,
 						onAcknowledged: d
-					}) : b && r.context !== null ? /* @__PURE__ */ (0, M.jsx)(uj, {
+					}) : b && r.context !== null ? /* @__PURE__ */ (0, M.jsx)(bj, {
 						controller: e,
 						state: r,
 						context: r.context,
@@ -40766,25 +41082,25 @@ function pj({ controller: e, options: t, onLegacyReturn: n }) {
 						style: { padding: "var(--sp6)" },
 						children: [/* @__PURE__ */ (0, M.jsx)("p", {
 							role: "status",
-							children: iA(i, r.phase === "loading" ? "loading" : "unavailable")
-						}), r.code !== void 0 && /* @__PURE__ */ (0, M.jsx)("p", { children: iA(i, "code", { code: r.code }) })]
+							children: pA(i, r.phase === "loading" ? "loading" : "unavailable")
+						}), r.code !== void 0 && /* @__PURE__ */ (0, M.jsx)("p", { children: pA(i, "code", { code: r.code }) })]
 					})]
 				}),
 				b && !r.dictionaryReviewRequired && r.todayConfiguration === "not-configured" && /* @__PURE__ */ (0, M.jsx)("p", {
 					role: "status",
 					"data-today-configuration": "",
-					children: dj[i].pending
+					children: xj[i].pending
 				})
 			]
 		})
 	});
 }
-function mj(e, t, n = {}) {
+function wj(e, t, n = {}) {
 	document.documentElement.removeAttribute("data-theme");
 	let r = (0, v.createRoot)(e), i = !1, a = () => {
 		i || (i = !0, t.setFirstRunSurface(null), r.unmount());
 	};
-	return r.render(/* @__PURE__ */ (0, M.jsx)(pj, {
+	return r.render(/* @__PURE__ */ (0, M.jsx)(Cj, {
 		controller: t,
 		options: n,
 		onLegacyReturn: n.onLegacyReturn === void 0 ? null : () => {
@@ -40799,6 +41115,6 @@ function mj(e, t, n = {}) {
 	});
 }
 //#endregion
-export { Ob as createDesktopRequestPort, RA as createHostController, mj as mountHost };
+export { Ob as createDesktopRequestPort, qA as createHostController, wj as mountHost };
 
 //# sourceMappingURL=host.js.map
