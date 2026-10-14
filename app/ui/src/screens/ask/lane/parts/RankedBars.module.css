@@ -1,0 +1,53 @@
+/* Ranked bars are quiet: thin bars on plain ground, the largest in ink, the rest grey. */
+.bars {
+  margin: 0;
+  min-width: 0;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp2);
+}
+
+.item {
+  display: grid;
+  grid-template-columns: minmax(0, 12rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp3);
+  min-height: var(--target);
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg2);
+  font-size: var(--fs-note2);
+}
+
+.track {
+  display: block;
+  min-width: 0;
+}
+
+.bar {
+  display: block;
+  height: var(--bar-h);
+  border: 0;
+  padding: 0;
+  border-radius: var(--radius);
+  background: var(--dim);
+  cursor: pointer;
+}
+
+.ink { background: var(--fg); }
+
+.figure { justify-self: end; }
+
+@media (max-width: 560px) {
+  .item { grid-template-columns: minmax(0, 1fr) auto; }
+  .track { grid-column: 1 / -1; grid-row: 2; }
+}

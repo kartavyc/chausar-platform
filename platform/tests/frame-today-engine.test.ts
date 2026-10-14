@@ -4,6 +4,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
+import { phoneMessages } from '../runtime/frame-today/frame.ts';
+import type { ModuleHost } from '../runtime/modules/types.ts';
 import type { Context } from '../runtime/contracts.ts';
 import {
   isActivityReply, isCapabilitiesReply, isChecklistReply, isFaultReport, isFirstRunStatusReply, isHelpReply, isIdentityCard,
@@ -112,7 +114,8 @@ test('status, capabilities, first run, checklist, help and phone replies pass th
   assert.ok(isHelpReply(await engine.request('todayx.help', {})));
   const phone = await engine.request('todayx.phoneMessages', {});
   valid(isPhoneMessagesReply, phone);
-  assert.deepEqual(phone.channels.map((c: any) => c.state), ['not-built', 'not-built', 'not-built']);
+  // The hosted-link lane registers its methods, so channels are built and off until the owner turns one on.
+  assert.deepEqual(phone.channels.map((c: any) => c.state), ['off', 'off', 'off']);
   assert.equal(phone.sentThisMonth, null);
   assert.equal(phone.monthlyBudget, '30');
 
@@ -206,4 +209,32 @@ test('worth a look shows at most five rows from real refusals', async t => {
   assert.equal(worth.rows[0].kind, 'setup');
   assert.ok(worth.rows.slice(1).every((row: any) => row.kind === 'file-refused' && row.opens === '#/books/sources'));
   assert.ok(worth.rows.every((row: any) => !('figure' in row)));
+});
+
+test('phone messages read the hosted-link channel list and month counts', async () => {
+  const calls: string[] = [];
+  const replies: Record<string, unknown> = {
+    'phone.channels.list': { stale: false, refreshedAt: null, channels: [
+      { channel: 'whatsapp', desktop: { enabled: true, optInAt: '2026-04-01T00:00:00.000Z' }, relay: null },
+      { channel: 'telegram', desktop: { enabled: false, optInAt: null }, relay: null },
+    ] },
+    'phone.messages.counts': { month: '2026-04', sent: 7, budget: 30, remaining: 23, desktopBudget: 30 },
+  };
+  const host = (demo: boolean) => ({ demo, call: async (method: string) => { calls.push(method); return replies[method]; } }) as unknown as ModuleHost;
+  const real = await phoneMessages(host(false));
+  valid(isPhoneMessagesReply, real);
+  assert.deepEqual(real.channels.map(c => c.state), ['on', 'off', 'off']);
+  assert.equal(real.sentThisMonth, '7');
+  assert.equal(real.monthlyBudget, '30');
+  assert.deepEqual(calls, ['phone.channels.list', 'phone.messages.counts']);
+
+  calls.length = 0;
+  const demo = await phoneMessages(host(true));
+  assert.equal(demo.sentThisMonth, null, 'Demo never asks the relay for counts.');
+  assert.deepEqual(calls, ['phone.channels.list']);
+
+  replies['phone.messages.counts'] = { sent: -1, desktopBudget: 1.5 };
+  const odd = await phoneMessages(host(false));
+  assert.equal(odd.sentThisMonth, null, 'A malformed count is unknown, never zero.');
+  assert.equal(odd.monthlyBudget, '30');
 });
