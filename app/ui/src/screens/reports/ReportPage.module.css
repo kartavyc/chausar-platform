@@ -1,0 +1,28 @@
+/* RP-02: the page as it will print. On paper only the page is printed: the app frame,
+   the sheet's own controls and anything marked noPrint are left out. */
+.page { display: flex; flex-direction: column; gap: var(--sp4); padding-top: var(--sp4); color: var(--fg); }
+.pageTitle { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-medium); }
+.markings { margin: 0; font-size: var(--fs-label); letter-spacing: var(--ls-label); text-transform: uppercase; color: var(--fg); }
+.block { display: flex; flex-direction: column; gap: var(--sp2); }
+.sectionTitle { margin: 0; font-size: var(--fs-read); font-weight: var(--fw-medium); }
+.lineLabel { width: 55%; }
+.amount { text-align: end; white-space: nowrap; }
+.side { width: 3em; color: var(--fg2); }
+.gapCell { font-size: var(--fs-note2); color: var(--amber-t); }
+.gapBeside { display: block; font-size: var(--fs-note2); color: var(--amber-t); }
+.projection { display: flex; flex-direction: column; gap: var(--sp3); padding: var(--sp3); border: var(--hair) dashed var(--line2); }
+.projectionHead { margin: 0; display: flex; gap: var(--sp2); align-items: baseline; }
+.note { display: flex; flex-direction: column; gap: var(--sp1); }
+.disclaimer { margin: 0; font-size: var(--fs-note); color: var(--fg); font-weight: var(--fw-medium); }
+.footer { display: flex; flex-wrap: wrap; gap: var(--sp3); padding-top: var(--sp2); border-top: var(--hair) solid var(--line); font-size: var(--fs-note2); color: var(--mute); }
+.noPrint { display: flex; flex-direction: column; gap: var(--sp2); }
+
+@media print {
+  :global(body *) { visibility: hidden; }
+  .page, .page * { visibility: visible; }
+  .page { position: absolute; inset: 0 auto auto 0; width: 100%; padding: 0; }
+  .page button { border: 0; background: none; padding: 0; }
+  .noPrint { display: none; }
+  .projection { break-inside: avoid; }
+  .block { break-inside: avoid-page; }
+}

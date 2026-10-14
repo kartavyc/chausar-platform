@@ -1,0 +1,8 @@
+.figure { margin: 0; display: flex; flex-direction: column; gap: var(--sp1); }
+.svg { width: 100%; max-width: var(--col); height: auto; color: var(--fg); }
+.wall { fill: none; stroke: currentColor; stroke-width: 2; }
+.lock { fill: none; stroke: currentColor; stroke-width: 2; }
+.doorShut { stroke: currentColor; stroke-width: 4; }
+.doorOpen { stroke: var(--cha); stroke-width: 4; stroke-linecap: round; }
+.text { fill: currentColor; font-family: var(--f); font-size: var(--fs-note); }
+.caption { font-size: var(--fs-note2); color: var(--mute); }
