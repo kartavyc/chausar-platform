@@ -11,6 +11,7 @@
  */
 
 import type { Chart, ColumnsChart, Count, DayEvent, Figure, FigureOrMissing, Lens, Mark, Missing, RowItem, ScreenState, StatTile } from '../../app/presentation.ts';
+import type { WorthReply } from '../../bridge/todayx-contract.ts';
 
 export interface TodayReview {
   /** The count across the whole app. Not known is its missing word, never zero. */
@@ -39,12 +40,25 @@ export interface BooksQueueRow {
   readonly then: 'you' | 'owner' | 'waiting';
 }
 
+/** The four fixed steps of the month's close (TD-03), in their order. */
+export type CloseStepKind = 'bank' | 'gstr2b' | 'tds' | 'trial-balance';
+export const CLOSE_STEP_ORDER: ReadonlyArray<CloseStepKind> = ['bank', 'gstr2b', 'tds', 'trial-balance'];
+/** A close step's state as a code; the screen gives its words and its square. */
+export type CloseStepState = 'done' | 'in-progress' | 'not-started' | 'needs-you' | 'not-applicable' | 'not-loaded-yet' | 'failed';
+
 export interface CloseStep {
   readonly id: string;
   readonly mark: Mark;
-  readonly name: string;
+  /** Which fixed step this is. With it, the name comes from the text file. */
+  readonly step?: CloseStepKind;
+  /** The step's state as a code, drawn as words beside its square. */
+  readonly state?: CloseStepState;
+  /** Why a step does not apply, as a code: "composition" (no GSTR-2B to match). */
+  readonly notApplicable?: 'composition';
+  /** A name supplied by the adapter, for a step outside the four fixed ones. */
+  readonly name?: string;
   /** The state in words or figures, from the engine: "28 of 31 lines", "not loaded yet". */
-  readonly status: string;
+  readonly status?: string;
   readonly statusMono?: boolean;
   readonly action?: { readonly label: string; readonly onPress: () => void };
   /** A thin progress mark drawn as a chart, when the engine supplied one. */
@@ -66,6 +80,9 @@ export interface TodayData {
   readonly review: TodayReview;
   /** Up to five rows; review rows and these together never show more than five at rest. */
   readonly worthALook?: ReadonlyArray<RowItem>;
+  /** `todayx.worthALook`, checked with `isWorthReply` by the host. When present it is the
+   *  worth-a-look section, projected by worth.ts; `worthALook` is then not drawn. */
+  readonly worth?: WorthReply;
   /** Guided: "This month", three stat charts. Missing as a whole shows its words. */
   readonly thisMonth?: ReadonlyArray<StatTile>;
   readonly thisMonthMissing?: Missing;
@@ -87,6 +104,10 @@ export interface TodayData {
   /** Books: the queue as a table, and the month's close. */
   readonly queue?: ReadonlyArray<BooksQueueRow>;
   readonly close?: { readonly month: string; readonly steps: ReadonlyArray<CloseStep> };
+  /** Books: the one quiet line for what waits on someone else ("Waiting for the owner:
+   *  3 reminders you prepared"). `holder` and `what` are display strings from the adapter.
+   *  These items are not in this seat's count. */
+  readonly waiting?: { readonly holder: string; readonly what: string };
   readonly enterprise?: TodayEnterprise;
   readonly cashMissing?: Missing;
   readonly queueMissing?: Missing;

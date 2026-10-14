@@ -25,7 +25,7 @@ import { LensRow } from '../../patterns/Lens';
 import { TodaySimple } from './TodaySimple';
 import { TodayBooks } from './TodayBooks';
 import { todayIntentsForState } from './permissions.ts';
-import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, TodayConsumerControls, TodayStat, type TodayScreenProps } from './shared';
+import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayConsumerControls, TodayStat, type TodayScreenProps } from './shared';
 import s from './Today.module.css';
 
 export type { TodayScreenProps } from './shared';
@@ -36,7 +36,7 @@ export function TodayScreen(p: TodayScreenProps) {
   return <TodayGuided {...p} />;
 }
 
-function TodayGuided({ data, intents: offeredIntents }: TodayScreenProps) {
+function TodayGuided({ data, intents: offeredIntents, onNavigate }: TodayScreenProps) {
   const intents = todayIntentsForState(data.state, offeredIntents);
   const t = useT();
   const titleId = useId();
@@ -45,16 +45,23 @@ function TodayGuided({ data, intents: offeredIntents }: TodayScreenProps) {
   const changedId = useId();
   const earlierId = useId();
   const system = useSystemRows(data, intents);
-  const { review, worth } = attentionRows(data, system);
+  const worthSource = useWorth(data, intents, 'guided', onNavigate);
+  const { review, worth, hidden, offered } = attentionRows(data, system, worthSource.rows, worthSource.showAll);
   const inPlace = useInPlaceRows();
   const enterprise = data.enterprise;
   const onOpenRow = intents.onOpenRow;
+  const nothingAwaits = review.length === 0 && data.state.kind === 'ready';
   const onLens = intents.onLens;
 
   const expansion = (row: RowItem): ReactNode => <RowExpansion row={row} intents={intents} origin={inPlace.originOf(row.id)} />;
   const opensRow = (row: RowItem) => row.can?.includes('open') === true;
 
   const seeAll = data.review.total && intents.onSeeAll ? { count: data.review.total.display, onPress: intents.onSeeAll } : undefined;
+  /* Nothing awaits: the words, and the charts move up above worth a look. */
+  const worthSection = (
+    <WorthSection rows={worth} hidden={hidden} offered={offered} missing={worthSource.missing} showAll={worthSource.showAll} onToggle={worthSource.toggle}
+      onOpen={worthSource.onOpen} opens={worthSource.opens} onReceipt={intents.onReceipt} labelId={worthId} />
+  );
 
   return (
     <div className={s.today}>
@@ -76,7 +83,7 @@ function TodayGuided({ data, intents: offeredIntents }: TodayScreenProps) {
       <State state={data.state} />
       <TodayConsumerControls data={data} intents={intents} />
 
-      {review.length === 0 && data.state.kind === 'ready' ? (
+      {nothingAwaits ? (
         <State state={{ kind: 'empty' }} emptyKey="ST.empty.review" />
       ) : (
         <RowList
@@ -92,14 +99,7 @@ function TodayGuided({ data, intents: offeredIntents }: TodayScreenProps) {
         />
       )}
 
-      {worth.length > 0 && (
-        <section className={s.section} aria-labelledby={worthId}>
-          <h2 id={worthId} className={s.label}>
-            {t('TD-01.worth')}
-          </h2>
-          <RowList rows={worth} labelledBy={worthId} onOpen={onOpenRow} opens={opensRow} onReceipt={intents.onReceipt} />
-        </section>
-      )}
+      {!nothingAwaits && worthSection}
 
       <section className={s.section} aria-labelledby={monthId}>
         <h2 id={monthId} className={s.label}>
@@ -117,6 +117,8 @@ function TodayGuided({ data, intents: offeredIntents }: TodayScreenProps) {
           </p>
         )}
       </section>
+
+      {nothingAwaits && worthSection}
 
       {enterprise?.changedSince && (
         <section className={s.section} aria-labelledby={changedId}>

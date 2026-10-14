@@ -190,3 +190,75 @@
 .closeEnd {
   justify-self: end;
 }
+
+.closeReason {
+  margin-inline-start: var(--sp2);
+  color: var(--mute);
+}
+
+/* Books: the keys that work here */
+.keys {
+  margin: 0;
+  padding-top: var(--sp3);
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+/* Activity: the filters above the time line */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp3) var(--sp5);
+  padding-bottom: var(--sp3);
+}
+
+/* Phone, desktop side: the fixed messages as sent */
+.phoneList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--hair) solid var(--line2);
+}
+
+.phoneMessage {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp3);
+  min-height: var(--row);
+  padding-block: var(--sp2);
+  border-bottom: var(--hair) solid var(--line);
+}
+
+.phoneBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-width: 0;
+}
+
+.phoneHeadline {
+  font-weight: var(--fw-medium);
+}
+
+.phoneLink {
+  color: var(--mute);
+  font-size: var(--fs-note2);
+  text-decoration: underline;
+}
+
+/* PH-02: the link page */
+.linkPage {
+  display: grid;
+  gap: var(--sp4);
+  justify-items: center;
+  padding: var(--sp8) var(--sp4);
+  text-align: center;
+}
+
+.wordmark {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-medium);
+}
