@@ -1,0 +1,26 @@
+[
+  {
+    "name": "sale-report.csv accepted",
+    "recipe": "vyapar.sale-report",
+    "file": "sale-report.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "1914075",
+      "rows": 5,
+      "unmapped": [
+        "Description"
+      ]
+    }
+  },
+  {
+    "name": "purchase-report.csv accepted",
+    "recipe": "vyapar.purchase-report",
+    "file": "purchase-report.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "3304000",
+      "rows": 3,
+      "unmapped": []
+    }
+  }
+]

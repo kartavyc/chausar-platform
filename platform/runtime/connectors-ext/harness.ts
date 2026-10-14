@@ -7,8 +7,15 @@ import type { RecipeOutcome } from './types.ts';
 /**
  * The fixture harness. Each group folder under fixtures/connectors may hold `cases.json`: a list of
  * synthetic files, the recipe to run and what must come out (status, total, rows, refusal code).
- * Expected values are written by hand from the fixture, never recorded from a run.
+ * Every expected total is either the file's own stated total or a figure asserted independently in
+ * the lane's hand-written tests. API recipes are covered by their adapter tests over recorded
+ * responses, and worksheet and PDF bank recipes by the bank tests that build those inputs.
  */
+export const HARNESS_EXEMPT: Readonly<Record<string, string>> = Object.freeze({
+  'bank.statement-sheet': 'Built as an in-memory XLSX in connectors-ext-bank.test.ts.',
+  'bank.statement-sheet-drcr': 'Built as an in-memory XLSX in connectors-ext-bank.test.ts.',
+  'bank.pdf-text': 'Runs through the PDF helper fake in connectors-ext-bank.test.ts.',
+});
 export type FixtureCase = {
   name: string; recipe: string; file: string;
   /** For API recipes: a JSON file holding `{ records, meta }`. Worksheets: an .xlsx file. */
@@ -50,5 +57,5 @@ export function runCase(root: string, group: string, item: FixtureCase): CaseRes
 export function runHarness(root: string): { results: CaseResult[]; uncovered: string[] } {
   const results = loadCases(root).flatMap(({ group, cases }) => cases.map(item => runCase(root, group, item)));
   const covered = new Set(results.filter(result => result.outcome.status === 'accepted').map(result => result.recipe));
-  return { results, uncovered: [...RECIPES.keys()].filter(id => !covered.has(id)).sort() };
+  return { results, uncovered: [...RECIPES.values()].filter(item => item.decoder !== 'api-records' && !Object.hasOwn(HARNESS_EXEMPT, item.id) && !covered.has(item.id)).map(item => item.id).sort() };
 }

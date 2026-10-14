@@ -1,0 +1,16 @@
+[
+  {
+    "name": "cod-remittance.csv accepted",
+    "recipe": "shiprocket.cod-remittance",
+    "file": "cod-remittance.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "1031650",
+      "rows": 6,
+      "unmapped": [
+        "Remittance ID",
+        "Delivered Date"
+      ]
+    }
+  }
+]

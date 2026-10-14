@@ -1,0 +1,19 @@
+[
+  {
+    "name": "campaign-daily.csv accepted",
+    "recipe": "meta-ads.campaign-daily",
+    "file": "campaign-daily.csv",
+    "reportTotals": {
+      "rowCount": 6,
+      "total": "501009"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "501009",
+      "rows": 6,
+      "unmapped": [
+        "Reach"
+      ]
+    }
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "name": "canonical-sheet.rows.json accepted",
+    "recipe": "microsoft-365.canonical-sheet",
+    "file": "canonical-sheet.rows.json",
+    "expect": {
+      "status": "accepted",
+      "total": "3095050",
+      "rows": 5,
+      "unmapped": []
+    }
+  }
+]

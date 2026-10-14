@@ -1,0 +1,15 @@
+[
+  {
+    "name": "table-data.csv accepted",
+    "recipe": "youtube-analytics.views-daily",
+    "file": "table-data.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "8743",
+      "rows": 5,
+      "unmapped": [
+        "Estimated revenue (INR)"
+      ]
+    }
+  }
+]

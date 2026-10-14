@@ -1,0 +1,16 @@
+[
+  {
+    "name": "cod-remittance.csv accepted",
+    "recipe": "delhivery.cod-remittance",
+    "file": "cod-remittance.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "745750",
+      "rows": 5,
+      "unmapped": [
+        "Pickup Date",
+        "Payment Mode"
+      ]
+    }
+  }
+]

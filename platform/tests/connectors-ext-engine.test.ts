@@ -167,7 +167,7 @@ test('an interface read goes through the credential broker, checks the source to
   const item = await engine.request('connectorsx.connect', { group: 'razorpay', road: 'interface', company: 'Synthetic Cafe' });
   await assert.rejects(handlers.read(owner, { connectionId: item.id, operation: 'settlement-recon', parameters: { settlementId: SETL } }, host(engine)), code('CREDENTIAL_BROKER_REQUIRED'));
   await assert.rejects(handlers.read(owner, { connectionId: item.id, operation: 'settlement-recon', parameters: { other: 'x' } }, host(engine, options)), code('CONNECTOR_REQUEST_INVALID'));
-  const read = await handlers.read(owner, { connectionId: item.id, operation: 'settlement-recon', parameters: { settlementId: SETL } }, host(engine, options));
+  const read: any = await handlers.read(owner, { connectionId: item.id, operation: 'settlement-recon', parameters: { settlementId: SETL } }, host(engine, options));
   assert.equal(read.status, 'accepted', JSON.stringify(read.refusal ?? read.abstention)); assert.equal(read.sourceTotals.provenance, 'source-declared');
   assert.equal(read.sourceTotals.total, '126460'); assert.equal(read.read.requests, 2);
   assert.equal(JSON.stringify(read).includes('rzp_key_secret'), false); assert.equal(asked[0].origin, RZP);
@@ -178,4 +178,60 @@ test('an interface read goes through the credential broker, checks the source to
   await assert.rejects(handlers.read(owner, { connectionId: item.id, operation: 'settlement-recon', parameters: { settlementId: SETL } }, host(engine, failing)), code('SOURCE_SIGN_IN_EXPIRED'));
   const [fresh] = await engine.request('connectorsx.freshness', { sourceId: item.sourceId, asOf: '2026-10-14' });
   assert.equal(fresh.lastFailure.code, 'SOURCE_SIGN_IN_EXPIRED');
+});
+
+test('purchase register against GSTR-2B gives the four lists with receipts', async t => {
+  const engine = await open(t);
+  const gstr2b = await engine.request('connectorsx.importPreview', { recipeId: 'gst.gstr2b-b2b', sourceId: 'gstr2b-sep', company: 'Synthetic Cafe', text: await fixture('gst-downloads/gstr2b-sep-2026.json') });
+  assert.equal(gstr2b.status, 'accepted'); await engine.request('connectorsx.importCommit', { envelopeId: gstr2b.id });
+  await assert.rejects(engine.request('connectorsx.gstMatch', { registerSourceId: 'books-purchases', gstr2bSourceId: 'gstr2b-sep' }), code('GST_MATCH_SOURCES_EMPTY'));
+  const register = `id,kind,date,amount,currency,gstin,invoiceId,taxMinor
+p1,purchase,2026-09-02,10000.00,INR,29ABCDE1234F1ZW,SP/0012,1800.00
+p2,purchase,2026-09-12,5100.00,INR,29ABCDE1234F1ZW,SP/0013,918.00
+p3,purchase,2026-09-05,20000.00,INR,27PQRSX5678K1ZY,KST-101,3600.00
+p4,purchase,2026-09-21,1000.00,INR,24LMNOP4321Q1ZA,45,180.00
+p5,purchase,2026-09-25,750.00,INR,29ABCDE1234F1ZW,SP/0099,135.00
+`;
+  const bindings = [{ target: 'entityId', source: 'id', type: 'string', nulls: 'reject' }, { target: 'kind', source: 'kind', type: 'string', nulls: 'reject' },
+    { target: 'validFrom', source: 'date', type: 'date', dateFormat: 'ISO', nulls: 'reject' }, { target: 'amountMinor', source: 'amount', type: 'money', moneyUnit: 'major', currency: 'INR', nulls: 'reject' },
+    { target: 'currency', source: 'currency', type: 'string', nulls: 'reject' }, { target: 'gstin', source: 'gstin', type: 'string', nulls: 'reject' },
+    { target: 'invoiceId', source: 'invoiceId', type: 'string', nulls: 'reject' }, { target: 'taxMinor', source: 'taxMinor', type: 'money', moneyUnit: 'major', currency: 'INR', nulls: 'reject' }];
+  await engine.request('sources.import', { sourceId: 'books-purchases', format: 'csv', content: register, expectedTotals: { rowCount: 5, amountMinor: '3685000' },
+    recipe: { version: 1, id: 'register', system: 'books', edition: '1', scope: { company: 'Synthetic Cafe', branches: ['main'] }, bindings, allowedKinds: ['purchase'], allowedStatuses: [''], onUnmapped: 'reject' } });
+  const result = await engine.request('connectorsx.gstMatch', { registerSourceId: 'books-purchases', gstr2bSourceId: 'gstr2b-sep', period: { from: '2026-09-01', to: '2026-09-30' } });
+  assert.equal(result.mode, 'matched');
+  assert.deepEqual([result.matched.length, result.amountMismatch.length, result.inBooksOnly.length, result.in2bOnly.length, result.probable.length], [2, 1, 1, 1, 1]);
+  assert.equal(result.amountMismatch[0].receipt.register.entityId, 'p2');
+  assert.equal(result.inBooksOnly[0].receipt.entityId ?? result.inBooksOnly[0].receipt.register?.entityId, 'p5');
+});
+
+test('counts import as quantity facts, never as money', async t => {
+  const engine = await open(t);
+  const preview = await engine.request('connectorsx.importPreview', { recipeId: 'google-analytics.sessions-daily', sourceId: 'ga4', company: 'Synthetic Cafe', text: await fixture('google-analytics/sessions-daily.csv') });
+  assert.equal(preview.status, 'accepted', JSON.stringify(preview.refusal ?? preview.abstention));
+  const done = await engine.request('connectorsx.importCommit', { envelopeId: preview.id });
+  const facts = (await engine.request('memory.list', {})).facts.filter((f: any) => f.sourceId === 'ga4');
+  assert.equal(facts.length, done.committed.rows);
+  assert.ok(facts.every((f: any) => Number.isSafeInteger(f.fields.quantity) && f.fields.unit === 'sessions' && f.fields.amountMinor === undefined));
+  assert.equal(String(facts.reduce((sum: number, f: any) => sum + f.fields.quantity, 0)), preview.observed.total);
+  const again = await engine.request('connectorsx.importPreview', { recipeId: 'google-analytics.sessions-daily', sourceId: 'ga4', company: 'Synthetic Cafe', text: await fixture('google-analytics/sessions-daily.csv') });
+  assert.equal((await engine.request('connectorsx.importCommit', { envelopeId: again.id })).committed.duplicate, true);
+});
+
+test('a plain SQLite database is read read-only and checked against its own aggregate', async t => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const engine = await open(t);
+  const path = join(tmpdir(), `chausar-cx-${process.pid}-${Date.now()}.db`);
+  const db = new DatabaseSync(path);
+  db.exec("CREATE TABLE sales (id TEXT PRIMARY KEY, day TEXT, amount_paise INTEGER); INSERT INTO sales VALUES ('s1','2026-09-01',125000),('s2','2026-09-02',99950),('s3','2026-10-01',5000);");
+  db.close(); t.after(() => rm(path, { force: true }));
+  const item = await engine.request('connectorsx.connect', { group: 'plain-database', road: 'database', company: 'Synthetic Cafe', settings: { engine: 'sqlite', path } });
+  await assert.rejects(engine.request('connectorsx.plainDb.read', { connectionId: item.id, mapping: {} }), code('DEMO_EXTERNAL_DISABLED'));
+  const tables: any = await handlers.plainDbTables(owner, { connectionId: item.id }, host(engine));
+  assert.deepEqual(tables.map((table: any) => table.name), ['sales']);
+  const mapping = { engine: 'sqlite', table: { name: 'sales' }, columns: { id: 'id', date: 'day', amount: 'amount_paise' }, constantKind: 'sale', currency: 'INR', measure: 'money', moneyUnit: 'minor', dateFormat: 'ISO', period: { from: '2026-09-01', to: '2026-09-30' } };
+  const read: any = await handlers.plainDbRead(owner, { connectionId: item.id, mapping }, host(engine));
+  assert.equal(read.status, 'accepted', JSON.stringify(read.refusal)); assert.equal(read.observed.total, '224950'); assert.equal(read.sourceTotals.provenance, 'source-declared');
+  await engine.request('connectorsx.importCommit', { envelopeId: read.id });
+  await assert.rejects(handlers.plainDbRead(owner, { connectionId: item.id, mapping: { ...mapping, table: { name: 'sales; DROP TABLE sales' } } }, host(engine)));
 });

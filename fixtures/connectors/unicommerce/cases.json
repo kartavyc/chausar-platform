@@ -1,0 +1,37 @@
+[
+  {
+    "name": "sale-orders.csv accepted",
+    "recipe": "unicommerce.sale-orders",
+    "file": "sale-orders.csv",
+    "reportTotals": {
+      "rowCount": 5,
+      "total": "494600"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "494600",
+      "rows": 5,
+      "unmapped": [
+        "Invoice Code"
+      ]
+    }
+  },
+  {
+    "name": "inventory-snapshot.csv accepted",
+    "recipe": "unicommerce.inventory-snapshot",
+    "file": "inventory-snapshot.csv",
+    "reportTotals": {
+      "rowCount": 5,
+      "total": "222"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "222",
+      "rows": 5,
+      "unmapped": [
+        "Open Sale",
+        "Bad Inventory"
+      ]
+    }
+  }
+]

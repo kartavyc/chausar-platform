@@ -1,0 +1,24 @@
+[
+  {
+    "name": "settled-orders.rows.json accepted",
+    "recipe": "flipkart-seller.settled-orders",
+    "file": "settled-orders.rows.json",
+    "reportTotals": {
+      "rowCount": 3,
+      "total": "125488"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "125488",
+      "rows": 3,
+      "unmapped": [
+        "Neft Type",
+        "Input GST + TCS Credits (Rs.)",
+        "Income Tax Credits (Rs.)",
+        "Total Offer Amount (Rs.)",
+        "Order Date",
+        "Fulfilment Type"
+      ]
+    }
+  }
+]

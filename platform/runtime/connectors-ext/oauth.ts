@@ -16,7 +16,7 @@ export const OAUTH_PROVIDERS: Readonly<Record<string, OAuthProvider>> = Object.f
     scopes: { 'zoho-books': ['ZohoBooks.invoices.READ', 'ZohoBooks.customerpayments.READ', 'ZohoBooks.contacts.READ'], 'zoho-crm': ['ZohoCRM.modules.deals.READ'], 'zoho-inventory': ['ZohoInventory.salesorders.READ', 'ZohoInventory.items.READ'] },
     note: 'Zoho limits how fast anyone may ask; a first full read of a busy company takes time.' },
   hubspot: { id: 'hubspot', groups: ['hubspot'], authorize: () => 'https://app.hubspot.com/oauth/authorize', scopes: { hubspot: ['crm.objects.deals.read'] }, note: 'A private app token with read scopes also works.' },
-  xero: { id: 'xero', groups: ['xero'], authorize: () => 'https://login.xero.com/identity/connect/authorize', scopes: { xero: ['openid', 'offline_access', 'accounting.transactions.read'] }, note: 'Read scopes only.' },
+  xero: { id: 'xero', groups: ['xero'], authorize: () => 'https://login.xero.com/identity/connect/authorize', scopes: { xero: ['openid', 'offline_access', 'accounting.invoices.read'] }, note: 'Read scopes only.' },
   quickbooks: { id: 'quickbooks', groups: ['quickbooks'], authorize: () => 'https://appcenter.intuit.com/connect/oauth2', scopes: { quickbooks: ['com.intuit.quickbooks.accounting'] }, note: 'Intuit grants one accounting scope; Chausar uses it for reads only.' },
   shopify: { id: 'shopify', groups: ['shopify'], authorize: settings => {
     check(/^[a-z0-9][a-z0-9-]{0,60}\.myshopify\.com$/.test(settings.shop ?? ''), 'SHOP_REQUIRED', 'Enter the store\'s myshopify.com address.');

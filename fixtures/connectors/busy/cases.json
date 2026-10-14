@@ -1,0 +1,24 @@
+[
+  {
+    "name": "sales-register.csv accepted",
+    "recipe": "busy.sales-register",
+    "file": "sales-register.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "6077000",
+      "rows": 4,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "purchase-register.csv accepted",
+    "recipe": "busy.purchase-register",
+    "file": "purchase-register.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "3894000",
+      "rows": 3,
+      "unmapped": []
+    }
+  }
+]

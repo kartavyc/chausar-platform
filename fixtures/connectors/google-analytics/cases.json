@@ -1,0 +1,13 @@
+[
+  {
+    "name": "sessions-daily.csv accepted",
+    "recipe": "google-analytics.sessions-daily",
+    "file": "sessions-daily.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "8280",
+      "rows": 6,
+      "unmapped": []
+    }
+  }
+]

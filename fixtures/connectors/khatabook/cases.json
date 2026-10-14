@@ -1,0 +1,13 @@
+[
+  {
+    "name": "customer-transactions.csv accepted",
+    "recipe": "khatabook.customer-transactions",
+    "file": "customer-transactions.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "105050",
+      "rows": 5,
+      "unmapped": []
+    }
+  }
+]

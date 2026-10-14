@@ -1,0 +1,17 @@
+[
+  {
+    "name": "tickets.csv accepted",
+    "recipe": "freshdesk.tickets",
+    "file": "tickets.csv",
+    "reportTotals": {
+      "rowCount": 6,
+      "total": "6"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "6",
+      "rows": 6,
+      "unmapped": []
+    }
+  }
+]
