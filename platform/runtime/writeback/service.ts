@@ -42,6 +42,8 @@ export type WritebackState = {
   wanted: { id: string; system: string; action: string; count: number; firstAt: string; lastAt: string }[];
   settings: Settings;
   preparedAt: Record<string, string>;
+  /** Approval times by the service clock (the labelled test clock in drills). */
+  approvedAt: Record<string, string>;
   attestations: { actionId: string; memberId: string; said: 'sent' | 'not-sent'; at: string }[];
   notices: { id: string; actionId: string; kind: 'expired' | 'prepared-again' | 'already-done' | 'looked-first' | 'cancelled-evidence'; at: string }[];
   practiceRuns: PracticeSummary[];
@@ -53,7 +55,7 @@ export const defaultSettings = (): Settings => ({
   approvalHours: { 'inside-undoable': 24 * 7, 'seen-outside': 24, money: 24, 'cannot-undo': 24 },
   reminderCapPerCustomer: 1, reminderCapPerDay: 20, stopWords: ['STOP', 'UNSUBSCRIBE', 'BAND KARO', 'RUKO', 'बंद करो', 'रुको'],
 });
-export const initState = (): WritebackState => ({ connections: [], wanted: [], settings: defaultSettings(), preparedAt: {}, attestations: [], notices: [], practiceRuns: [], qualifications: [], consents: [], journal: [] });
+export const initState = (): WritebackState => ({ connections: [], wanted: [], settings: defaultSettings(), preparedAt: {}, approvedAt: {}, attestations: [], notices: [], practiceRuns: [], qualifications: [], consents: [], journal: [] });
 export const readState = (state: State): WritebackState => ({ ...initState(), ...(peekModuleState<WritebackState>(state, MODULE_ID) ?? {}) });
 
 export type Envelope = {
@@ -279,6 +281,7 @@ export class WritebackService {
     const expired = await this.#expire(context, action);
     if (expired) return expired;
     await this.actions.approve(context, action.id, String(expectedDigest));
+    await this.store.update(state => { moduleState(state, MODULE_ID, initState).approvedAt[action.id] = this.now(); });
     return this.view(this.store.read(), this.find(this.store.read(), action.id));
   }
   async drop(context: Context, id: unknown) {
@@ -290,7 +293,7 @@ export class WritebackService {
     if (!['prepared', 'approved'].includes(action.status)) return null;
     const e = action.payload as unknown as Envelope; const row = entry(e.system, e.action); if (!row) return null;
     const wb = readState(state); const hours = Math.min(row.approvalLifetimeHours, wb.settings.approvalHours[row.kind]);
-    const from = action.approval?.at ?? wb.preparedAt[action.id] ?? action.createdAt;
+    const from = action.approval ? wb.approvedAt[action.id] ?? action.approval.at : wb.preparedAt[action.id] ?? action.createdAt;
     return new Date(Date.parse(from) + hoursMs(hours)).toISOString();
   }
   /** An expired yes is dropped and the person is told; an expired preparation leaves the queue. Nothing is sent. */
@@ -322,13 +325,14 @@ export class WritebackService {
         return { ...this.view(this.store.read(), this.find(this.store.read(), action.id)), notice: { kind: 'cancelled-evidence', message: 'What this action was based on changed. Nothing was sent. Prepare it again.' } };
       }
     }
-    // Look first: the system is read again before anything is sent.
+    // Look first: the system is read again before anything is sent. The approved command is what is sent;
+    // a fresh command may differ only in its own time stamps (a mail Date header), never in what it changes.
     const adapter = this.adapter(e.system, e.action), ctx = this.adapterContext(context, connection);
     const fresh = JSON.parse(canonical(await adapter.prepare(ctx, structuredClone(e.payload), action.idempotencyKey))) as Preparation;
     const journalled = connection.environment !== 'practice' && this.journal().has(action.idempotencyKey);
     if (fresh.alreadyApplied) this.#skip.set(action.idempotencyKey, 'already-applied');
     else if (journalled) this.#skip.set(action.idempotencyKey, 'journal');
-    else if (canonical(fresh.before) !== canonical(e.preparation.before) || canonical(fresh.command) !== canonical(e.preparation.command) || canonical(fresh.postconditions) !== canonical(e.preparation.postconditions) || fresh.sourceVersion !== e.preparation.sourceVersion) {
+    else if (canonical(fresh.before) !== canonical(e.preparation.before) || canonical(fresh.target) !== canonical(e.preparation.target) || canonical(fresh.postconditions) !== canonical(e.preparation.postconditions) || fresh.sourceVersion !== e.preparation.sourceVersion) {
       await this.actions.revise(context, action.id, { ...e, preparation: fresh });
       await this.store.update(state => { moduleState(state, MODULE_ID, initState).preparedAt[action.id] = this.now(); });
       await this.#note(context, action.id, 'prepared-again');

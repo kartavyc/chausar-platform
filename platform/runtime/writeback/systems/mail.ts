@@ -4,6 +4,7 @@
  * fresh EHLO before AUTH PLAIN. The Message-ID is derived from the effect key, so the Sent
  * folder can be searched for it before sending and after a lost reply.
  */
+import { canonical } from '../../actions.ts';
 import { check, hash } from '../../contracts.ts';
 import { account, effectReference, secret } from '../reference.ts';
 import type { ActionAdapter, AdapterContext, LineSocket, SystemAdapters } from '../types.ts';
@@ -136,7 +137,7 @@ const smtpSend: ActionAdapter<any> = {
     if (found.uids.length > 1) return { outcome: 'conflicting', reason: 'The Sent folder holds this message more than once.' };
     if (!found.headers) return { outcome: 'inconclusive', reason: 'The message is not in the Sent folder yet.' };
     const observed = { messageId: found.headers.messageId, to: found.headers.to, subject: found.headers.subject };
-    return JSON.stringify(observed) === JSON.stringify(preparation.postconditions) ? { outcome: 'confirmed-applied', observed, externalId: id, businessSuccess: true }
+    return canonical(observed) === canonical(preparation.postconditions) ? { outcome: 'confirmed-applied', observed, externalId: id, businessSuccess: true }
       : { outcome: 'conflicting', reason: 'The message in the Sent folder does not match what was approved.' };
   },
 };

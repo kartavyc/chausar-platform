@@ -51,7 +51,7 @@ function templateSend(statuses: WhatsAppStatusSource): ActionAdapter<any> {
       const prior = await lookup(ctx, reference, null);
       const command = { messaging_product: 'whatsapp', recipient_type: 'individual', to: p.to, type: 'template',
         template: { name: p.template, language: { code: p.language }, ...(p.parameters.length ? { components: [{ type: 'body', parameters: p.parameters.map(t => ({ type: 'text', text: t })) }] } : {}) }, biz_opaque_callback_data: reference };
-      return { before: null, command, postconditions: { reference, to: p.to, template: p.template, language: p.language },
+      return { before: null, command, postconditions: { reference },
         preview: { asWritten: `To: +${p.to}\nTemplate ${p.template} (${p.language}) with: ${p.parameters.length ? p.parameters.map((t, i) => `{{${i + 1}}} ${t}`).join('; ') : 'no parameters'}` },
         target: { label: `WhatsApp message to +${p.to}`, ref: null }, sourceVersion: str(approved.id) || null, alreadyApplied: prior.length ? { externalId: prior[0].messageId } : null };
     },

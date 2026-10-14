@@ -111,7 +111,7 @@ export const writebackModule: EngineModule = {
     wb.attestations = keep(wb.attestations ?? [], a => reason.removedIds.has(a.actionId));
     wb.notices = keep(wb.notices ?? [], n => reason.removedIds.has(n.actionId));
     wb.practiceRuns = keep(wb.practiceRuns ?? [], r => r.actionId !== null && reason.removedIds.has(r.actionId));
-    for (const id of Object.keys(wb.preparedAt ?? {})) if (reason.removedIds.has(id)) { delete wb.preparedAt[id]; removed += 1; }
+    for (const map of [wb.preparedAt ?? {}, wb.approvedAt ?? {}]) for (const id of Object.keys(map)) if (reason.removedIds.has(id)) { delete map[id]; removed += 1; }
     return removed;
   },
   /** With autonomy on: drop expired yeses and expired preparations, and look at unknown results. Never sends. */

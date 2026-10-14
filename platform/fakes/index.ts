@@ -15,6 +15,8 @@ import { MailFake, mailSeed } from './mail/index.ts';
 import { WhatsAppFake, whatsappSeed } from './whatsapp/index.ts';
 import { practiceStatuses } from '../runtime/writeback/systems/index.ts';
 
+/** Tax filings are prepared only: their practice copy has no interface at all. */
+const noInterface = (): FakeBundle => ({ secret: {}, account: {}, fake: { system: 'gst-portal', log: [], fault() {}, prime() {}, snapshot: () => ({}) } });
 const builders: Partial<Record<SystemId, (clock: () => string) => FakeBundle>> = {
   'zoho-books': clock => ({ fake: new ZohoBooksFake(zohoSeed, clock), account: { organizationId: zohoSeed.organizationId, dataCenter: 'in' }, secret: { accessToken: zohoSeed.token } }),
   tally: () => ({ fake: new TallyFake(tallySeed), account: { host: '127.0.0.1', port: '9000', company: tallySeed.company }, secret: {} }),
@@ -26,6 +28,7 @@ const builders: Partial<Record<SystemId, (clock: () => string) => FakeBundle>> =
     return { fake: new MailFake(mailSeed, clock), secret: { username: user.username, password: user.password },
       account: { smtpHost: smtp.host, smtpPort: String(smtp.port), smtpSecurity: smtp.security, from: user.address, imapHost: mailSeed.imap.host, imapPort: String(mailSeed.imap.port), sentFolder: 'Sent' } };
   },
+  'gst-portal': noInterface,
   whatsapp: clock => {
     const fake = new WhatsAppFake(whatsappSeed, clock); practiceStatuses.set(fake.transport, fake.statuses);
     return { fake, account: { phoneNumberId: whatsappSeed.phoneNumberId, wabaId: whatsappSeed.wabaId }, secret: { accessToken: whatsappSeed.token } };

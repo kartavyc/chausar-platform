@@ -114,8 +114,8 @@ const paymentRecord: ActionAdapter<any> = {
     const invoice = (await call(ctx, 'GET', `/invoices/${p.invoiceId}`)).invoice;
     check(invoice && invoice.customer_id === p.customerId, 'WRITE_TARGET_NOT_FOUND', 'The invoice does not belong to this customer.');
     const balance = toPaise(invoice.balance);
-    check(BigInt(balance) >= BigInt(p.amountMinor), 'WRITE_PRECONDITION_FAILED', 'The payment is larger than what is still due on the invoice.');
     const existing = (await call(ctx, 'GET', '/customerpayments', { reference_number: reference })).customerpayments ?? [];
+    check(existing.length || BigInt(balance) >= BigInt(p.amountMinor), 'WRITE_PRECONDITION_FAILED', 'The payment is larger than what is still due on the invoice.');
     const command = { customer_id: p.customerId, payment_mode: p.mode, amount: decimal(p.amountMinor), date: p.date, reference_number: reference, ...(p.bankReference ? { description: `Bank reference ${p.bankReference}` } : {}), invoices: [{ invoice_id: p.invoiceId, amount_applied: decimal(p.amountMinor) }] };
     return { before: { balanceMinor: balance, status: str(invoice.status) }, command, postconditions: { reference_number: reference, amountMinor: p.amountMinor, date: p.date, invoice_id: p.invoiceId },
       preview: { fields: [{ name: 'Invoice', before: str(invoice.invoice_number), after: str(invoice.invoice_number) }, { name: 'Amount received', before: '', after: `₹${rupees(p.amountMinor)}` }, { name: 'Still due', before: `₹${rupees(balance)}`, after: `₹${rupees((BigInt(balance) - BigInt(p.amountMinor)).toString())}` }, { name: 'Date', before: '', after: p.date }] },
