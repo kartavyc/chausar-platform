@@ -108,3 +108,12 @@ The proxy holds the provider keys. It reserves the most a request can cost befor
 ## Health
 
 `GET /healthz` → `{ ok: true }`. `GET /readyz` checks the database.
+
+## Additional refusal codes and decisions (as built)
+
+- Accounts: `INVALID_PHONE`, `DEVICE_NAME_INVALID`, `DEVICE_NOT_FOUND` (404), `OTP_SEND_FAILED` (502). Sessions slide: each use moves expiry to thirty days ahead.
+- Billing: `PLAN_INVALID`, `PRICE_NOT_SET` (503), `SUBSCRIPTION_EXISTS`, `NO_SUBSCRIPTION`, `PAYMENT_PARTNER_CHANGED`, `SUBSCRIPTION_CHANGED` (all 409), `WEBHOOK_INVALID`, `PAYMENT_PARTNER_FAILED` (502). Cancelling ends paid entitlements at once; past due keeps them for a seven-day grace. Plans carry `priceState` (`set` or `not-set`).
+- Relay: `EVENT_UNKNOWN`, `CHANNEL_UNKNOWN`, `OFFER_INVALID`, `OFFER_NOT_ALLOWED`, `OPT_IN_REQUIRED`, `ADDRESS_REQUIRED`, `ADDRESS_INVALID`, `ACCOUNT_PHONE_MISSING`, `MESSAGE_NOT_FOUND`, `ENVELOPE_NOT_FOUND`, `IDEMPOTENCY_CONFLICT`, `WEBHOOK_VERIFY_FAILED`, `SERVICE_WINDOW_CLOSED`, `RECIPIENT_CHANGED`, `PROVIDER_*`. A message counts against the thirty when queued; a failed send does not give it back. Approve and Not now expire after thirty minutes; the Open the app link expires after seven days because it decides nothing. After STOP only START or a new desktop opt-in turns the channel on. There is no inbound mail webhook: HELP and STOP by reply work on WhatsApp and Telegram.
+- Backup: listing, download and delete work without the plan, so a lapsed account can take its backups home for thirty days; uploads need the plan.
+- Allowance: `PRICING_NOT_SET` (503), `PRICING_INVALID` (server start). A provider HTTP error releases the reservation (`PROVIDER_FAILED`); a network error, timeout or unreadable success keeps it (`PROVIDER_OUTCOME_UNKNOWN`).
+- Worker: `CONSENT_REQUIRED`, `JOB_TYPE_UNKNOWN` (404), `JOB_NOT_ENABLED` (409, due dates are stored only after consent). Turning the job off deletes its data. A server-side reminder goes through the relay's `notify` (first channel that is on), one per account per Indian day, and counts against the thirty.
