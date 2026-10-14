@@ -3,7 +3,7 @@
  * docs/lanes/work-books.md ("Work: approvals.*"). Every reply is checked here before a
  * screen draws it; a reply that does not match throws InvalidReply.
  */
-import { InvalidReply, amount, bool, count, either, id, instant, isoDate, list, literal, nullable, object, oneOf, record, text, type Check } from './kit/validate.ts';
+import { InvalidReply, amount, bool, count, either, id, instant, integerString, isoDate, list, literal, nullable, object, oneOf, record, text, type Check } from './kit/validate.ts';
 
 const short = text(400);
 const long = text(4000);
@@ -141,9 +141,32 @@ export type Jobs = ReturnType<typeof jobs>;
 export const jobStep = object({ at: instant, event: long, amount: nullable(amount), needsModel: nullable(bool), reason: nullable(short) });
 export type JobStep = ReturnType<typeof jobStep>;
 const jobResult = object({ done: list(long, 200), open: list(long, 200), receiptIds: list(id, 200) });
-const jobExtra = object({ timeline: list(jobStep), result: nullable(jobResult) });
+/** WK-08: the budget as three meters. Clock time and exposure may be missing, in words. */
+export const jobMeters = object({
+  model: object({ spent: amount, budget: amount, route: nullable(short), estimate: bool }),
+  clock: either(object({ minutes: count }), object({ missing: literal('not-counted') })),
+  exposure: amount,
+});
+export type JobMeters = ReturnType<typeof jobMeters>;
+const jobExtra = object({ timeline: list(jobStep), result: nullable(jobResult) }, { meters: jobMeters });
 export const job: Check<JobCard & ReturnType<typeof jobExtra>> = (value, path) => Object.freeze({ ...jobCard(value, path), ...jobExtra(value, path) });
 export type Job = ReturnType<typeof job>;
+
+/** WK-09: the ready-made jobs a person can propose, and whether one sentence is available. */
+export const jobTemplate = object({
+  id, title: short, goal: long, doneWhen: long, type: literal('owner-brief'), every: oneOf(['day', 'week', 'month'] as const),
+  budget: object({ minor: integerString }), maxRuns: count, days: count, missedRun: oneOf(['skip', 'run-once-on-wake'] as const),
+  actions: list(short, 200), needsModel: literal(false),
+});
+export type JobTemplate = ReturnType<typeof jobTemplate>;
+export const jobTemplates = object({ templates: list(jobTemplate, 50), fromSentence: object({ available: bool }) });
+export type JobTemplates = ReturnType<typeof jobTemplates>;
+/** A proposed job: its queue id, opened in the approval sheet. */
+export const proposed: Check<{ readonly id: string }> = (value, path) => {
+  const out = object({ id })(value, path);
+  if (!out.id.startsWith('job:')) throw new InvalidReply(`${path}.id`);
+  return out;
+};
 
 /** A core jobs.* mutation: its reply is not drawn, only checked to be an object. */
 export const accepted: Check<Readonly<Record<string, unknown>>> = record;

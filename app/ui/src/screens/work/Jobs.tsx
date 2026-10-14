@@ -8,12 +8,16 @@ import { useState, type FormEvent } from 'react';
 import type { RowItem } from '../../app/presentation.ts';
 import { State } from '../../patterns/States';
 import { Sheet, type SheetPrimary } from '../../parts/Sheet';
-import { KeyValue } from '../../parts/KeyValue';
+import { KeyValue, type Pair } from '../../parts/KeyValue';
 import { RowList } from '../../parts/RowList';
 import { useAct, useReply } from './kit/reply.ts';
 import { amountText, dayTime } from './kit/format.ts';
 import { Actions, Button, Note, Refusal, pageStyles } from './kit/Page';
-import { accepted, job, jobs, type JobRow } from './contract.ts';
+import { accepted, job, jobs, type JobMeters, type JobRow } from './contract.ts';
+import { StartJobSheet } from './StartJob.tsx';
+import type { Language } from '../../app/presentation.ts';
+import type { WorkWords } from './text.ts';
+import { missingWord } from './kit/words.ts';
 import { JobCardView, jobFacts } from './JobCard.tsx';
 import { useSheet } from './Actions.tsx';
 import { Frame, money, say, type WorkProps } from './shared.tsx';
@@ -22,6 +26,20 @@ import s from './work.module.css';
 /** Proposed jobs first; the engine's order is kept otherwise. */
 export function proposedFirst(rows: readonly JobRow[]): JobRow[] {
   return [...rows.filter(r => r.state === 'proposed'), ...rows.filter(r => r.state !== 'proposed')];
+}
+
+/** The address sheet that opens the Start a job sheet. Engine job ids never take this form. */
+export const START_SHEET = 'start';
+
+/** WK-08: model use with its route (or no model), clock time, effect exposure. Missing is words. */
+export function meterPairs(m: JobMeters, w: WorkWords, language: Language): Pair[] {
+  const spent = amountText(m.model.spent, language), budget = amountText(m.model.budget, language);
+  const model = m.model.route === null ? say(w, 'm.noModel', { spent, budget }) : say(w, 'm.modelLine', { spent, budget, route: m.model.route });
+  return [
+    { name: w['m.model'], value: m.model.estimate ? `${model} (${w['m.estimate']})` : model, mono: true },
+    { name: w['m.clock'], value: 'minutes' in m.clock ? say(w, 'm.minutes', { n: m.clock.minutes }) : missingWord(m.clock.missing, language), mono: true },
+    { name: w['m.exposure'], value: amountText(m.exposure, language), mono: true },
+  ];
 }
 
 function JobSheet({ p, row, id, origin, onClose, onChanged }: { p: WorkProps; row: JobRow | undefined; id: string; origin: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
@@ -58,6 +76,12 @@ function JobSheet({ p, row, id, origin, onClose, onChanged }: { p: WorkProps; ro
       <KeyValue pairs={jobFacts(j, stateWord, w, language)} onReceipt={p.openReceipt} />
       {row?.reason != null && <Note>{row.reason}</Note>}
       {row?.resumesAt != null && <Note>{say(w, 'job.resumes', { when: dayTime(row.resumesAt, language) })}</Note>}
+      {j.meters !== undefined && (
+        <div className={s.block}>
+          <h3 className={s.h}>{w.meters}</h3>
+          <KeyValue pairs={meterPairs(j.meters, w, language)} onReceipt={p.openReceipt} />
+        </div>
+      )}
       <JobCardView card={j} w={w} language={language} onReceipt={p.openReceipt} simple={view === 'simple'} />
       <div className={s.block}>
         <h3 className={s.h}>{w.timeline}</h3>
@@ -102,6 +126,9 @@ export function JobsPage({ p }: { p: WorkProps }) {
   const [tick, setTick] = useState(0);
   const { loaded, reload } = useReply(p.host, 'approvals.jobs', {}, jobs, String(tick));
   const sheet = useSheet(p, 'jobs');
+  // Proposing a job creates it, which core allows only an owner or a cofounder.
+  const canStart = !p.viewer && (p.member.role === 'owner' || p.member.role === 'cofounder');
+  const starting = sheet.openId === START_SHEET;
   const cost = (r: JobRow) => say(w, 'job.cost', { spent: amountText(r.spent, language), budget: amountText(r.budget, language) });
   const when = (r: JobRow) => (r.nextRunAt === null ? null : say(w, 'job.next', { when: dayTime(r.nextRunAt, language) }));
   const toRow = (r: JobRow): RowItem => {
@@ -117,6 +144,7 @@ export function JobsPage({ p }: { p: WorkProps }) {
         return (
           <div className={s.split} data-open={sheet.openId !== null ? '' : undefined}>
             <div className={s.pane}>
+              {canStart && <Actions><Button variant="filled" onClick={e => sheet.open(START_SHEET, e.currentTarget)}>{w['jobs.start']}</Button></Actions>}
               {rows.length === 0 && <Note>{w['jobs.empty']}</Note>}
               {rows.length > 0 && view === 'books' && (
                 <table className={[pageStyles.table, s.dense].join(' ')}>
@@ -137,7 +165,8 @@ export function JobsPage({ p }: { p: WorkProps }) {
               <Note>{say(w, j.active >= j.limit ? 'jobs.atLimit' : 'jobs.active', { active: j.active, limit: j.limit })}</Note>
               {!j.proposals.available && <Note>{w['jobs.proposalsMissing']}</Note>}
             </div>
-            {sheet.openId !== null && (
+            {starting && canStart && <StartJobSheet p={p} origin={sheet.origin.current} onClose={sheet.close} />}
+            {sheet.openId !== null && !starting && (
               <JobSheet key={sheet.openId} p={p} id={sheet.openId} row={j.items.find(r => r.id === sheet.openId)} origin={sheet.origin.current} onClose={sheet.close} onChanged={() => setTick(n => n + 1)} />
             )}
           </div>
