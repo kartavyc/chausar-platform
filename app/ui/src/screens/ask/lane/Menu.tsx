@@ -27,7 +27,7 @@ import s from './core.module.css';
 
 type Key =
   | 'title' | 'seed' | 'seedNote' | 'noModel' | 'empty' | 'period' | 'compareWith' | 'onDate' | 'run' | 'cancel'
-  | 'suggestions' | 'typeLabel' | 'typeAsk' | 'understood' | 'change' | 'changeCalc' | 'changePeriod' | 'changeGroup' | 'everyone'
+  | 'suggestions' | 'suggestion' | 'ownDates' | 'dateFrom' | 'dateTo' | 'ownDatesNote' | 'badDates' | 'clearDates' | 'typeLabel' | 'typeAsk' | 'understood' | 'change' | 'changeCalc' | 'changePeriod' | 'changeGroup' | 'everyone'
   | 'choose' | 'notYet' | 'no-calculation' | 'action' | 'unknownWord' | 'onList' | 'nearby' | 'seeWanted'
   | 'composition' | 'unregistered' | 'notApplicable' | 'working' | 'dictionary' | 'more'
   | 'why' | 'whatif' | 'forecast' | 'plan' | 'gst2b' | 'search' | 'saved' | 'notyetList' | 'needs'
@@ -38,7 +38,9 @@ const WORDS = {
     noModel: 'No model connected? The menu is the way to ask. Pick a calculation and a period.',
     empty: 'No calculations are on the menu yet. Agree what your words mean in Books to fill it.',
     period: 'Period', compareWith: 'Compare with', onDate: 'On the date', run: 'Run', cancel: 'Cancel',
-    suggestions: 'You often ask', typeLabel: 'Type a question', typeAsk: 'Ask',
+    suggestions: 'You often ask', suggestion: '{calc} · {period}',
+    ownDates: 'Or choose the dates', dateFrom: 'From', dateTo: 'To', ownDatesNote: 'The menu will use {period}.', badDates: 'The first date must not be after the second.', clearDates: 'Use the period above',
+    typeLabel: 'Type a question', typeAsk: 'Ask',
     understood: 'What Chausar understood', change: 'Change', changeCalc: 'Calculation', changePeriod: 'Period', changeGroup: 'Who is counted', everyone: 'All branches',
     choose: 'Which did you mean?', notYet: 'Not yet. No calculation covers this.',
     'no-calculation': 'No calculation in the menu works this out yet.', action: 'This asks Chausar to do something, and it cannot do that yet.',
@@ -56,7 +58,9 @@ const WORDS = {
     noModel: 'कोई मॉडल जुड़ा नहीं? मेन्यू ही पूछने का तरीका है। एक गणना और एक अवधि चुनें।',
     empty: 'मेन्यू में अभी कोई गणना नहीं है। इसे भरने के लिए Books में अपने शब्दों के अर्थ तय करें।',
     period: 'अवधि', compareWith: 'इससे तुलना करें', onDate: 'इस तारीख़ को', run: 'चलाएँ', cancel: 'रद्द करें',
-    suggestions: 'आप अक्सर पूछते हैं', typeLabel: 'सवाल लिखें', typeAsk: 'पूछें',
+    suggestions: 'आप अक्सर पूछते हैं', suggestion: '{calc} · {period}',
+    ownDates: 'या तारीख़ें चुनें', dateFrom: 'से', dateTo: 'तक', ownDatesNote: 'मेन्यू {period} का उपयोग करेगा।', badDates: 'पहली तारीख़ दूसरी के बाद नहीं हो सकती।', clearDates: 'ऊपर की अवधि का उपयोग करें',
+    typeLabel: 'सवाल लिखें', typeAsk: 'पूछें',
     understood: 'Chausar ने क्या समझा', change: 'बदलें', changeCalc: 'गणना', changePeriod: 'अवधि', changeGroup: 'किसे गिना गया', everyone: 'सभी शाखाएँ',
     choose: 'आपका मतलब कौन सा था?', notYet: 'अभी नहीं। कोई गणना इसे नहीं करती।',
     'no-calculation': 'मेन्यू की कोई गणना अभी यह नहीं निकालती।', action: 'यह Chausar से कुछ करने को कहता है, और वह अभी यह नहीं कर सकता।',
@@ -90,6 +94,11 @@ export function MenuScreen(_props: { view: Extract<AskView, { kind: 'menu' }> })
   const [chosen, setChosen] = useState<PeriodId | null>(null);
   const [question, setQuestion] = useState('');
   const [flow, setFlow] = useState<Flow>({ kind: 'idle' });
+  const [own, setOwn] = useState({ from: '', to: '' });
+  const ISO = /^\d{4}-\d{2}-\d{2}$/;
+  const ownBoth = ISO.test(own.from) && ISO.test(own.to);
+  /* Calendar order only: ISO dates compare as text. */
+  const ownPeriod: Period | null = ownBoth && own.from <= own.to ? { from: own.from, to: own.to } : null;
 
   async function run(payload: Record<string, unknown>) {
     setFlow({ kind: 'busy' });
@@ -123,11 +132,12 @@ export function MenuScreen(_props: { view: Extract<AskView, { kind: 'menu' }> })
     <AskPage title={w.title} load={menu} retry={reload} explain={explain}>
       {(m: MenuReply) => {
         const periodId = chosen ?? m.periods[0]?.id ?? null;
+        const when: Record<string, unknown> = ownPeriod !== null ? { period: ownPeriod } : periodId === null ? {} : { periodId };
         const periodName = (p: PeriodChoice) => w[p.id];
         const pick = (item: MenuItem) => {
           if (item.needs.includes('priceChange')) return ask.go({ kind: 'whatif' });
           if (item.needs.includes('comparePeriod') || item.needs.includes('onDate')) return setFlow({ kind: 'needs', item });
-          void run({ operationId: item.operationId, ...(periodId === null ? {} : { periodId }) });
+          void run({ operationId: item.operationId, ...when });
         };
         const items = m.topics.flatMap(t => t.items);
         const byId = new Map(items.map(i => [i.operationId, i]));
@@ -156,7 +166,7 @@ export function MenuScreen(_props: { view: Extract<AskView, { kind: 'menu' }> })
               <Button submit disabled={question.trim().length === 0 || flow.kind === 'busy'}>{w.typeAsk}</Button>
             </form>
 
-            <FlowPanel flow={flow} setFlow={setFlow} run={payload => void run(payload)} periodId={periodId} periods={m.periods} byId={byId} />
+            <FlowPanel flow={flow} setFlow={setFlow} run={payload => void run(payload)} periodId={periodId} when={when} periods={m.periods} byId={byId} />
 
             {suggestions.length > 0 && (
               <section className={s.section} aria-label={w.suggestions}>
@@ -164,7 +174,7 @@ export function MenuScreen(_props: { view: Extract<AskView, { kind: 'menu' }> })
                 <div className={s.actions}>
                   {suggestions.map(sg => (
                     <Button key={`${sg.operationId}|${sg.periodId}`} onClick={() => void run({ operationId: sg.operationId, periodId: sg.periodId })}>
-                      {fill('{calc} · {period}', { calc: sg.label, period: w[sg.periodId] })}
+                      {fill(w.suggestion, { calc: sg.label, period: w[sg.periodId] })}
                     </Button>
                   ))}
                 </div>
@@ -174,9 +184,19 @@ export function MenuScreen(_props: { view: Extract<AskView, { kind: 'menu' }> })
             {m.periods.length > 0 && periodId !== null && (
               <div className={s.block}>
                 <Choice<PeriodId> label={w.period} options={m.periods.map(p => ({ value: p.id, label: periodName(p) }))} value={periodId} onChange={setChosen} />
-                {m.periods.filter(p => p.id === periodId).map(p => <p key={p.id} className={s.small}>{periodText(p.period, ask.language)}</p>)}
+                {ownPeriod === null && m.periods.filter(p => p.id === periodId).map(p => <p key={p.id} className={s.small}>{periodText(p.period, ask.language)}</p>)}
               </div>
             )}
+            <fieldset className={[s.block, s.dates].join(' ')} data-own-dates="">
+              <legend className={s.small}>{w.ownDates}</legend>
+              <div className={s.actions}>
+                <Field label={w.dateFrom} type="date" value={own.from} onChange={e => setOwn(o => ({ ...o, from: e.target.value }))} />
+                <Field label={w.dateTo} type="date" value={own.to} onChange={e => setOwn(o => ({ ...o, to: e.target.value }))} problem={ownBoth && ownPeriod === null ? w.badDates : undefined} />
+              </div>
+              {ownPeriod !== null && (
+                <p className={s.note}>{fill(w.ownDatesNote, { period: periodText(ownPeriod, ask.language) })} <Button variant="link" onClick={() => setOwn({ from: '', to: '' })}>{w.clearDates}</Button></p>
+              )}
+            </fieldset>
 
             {items.length === 0 ? <p className={s.note} data-empty="">{w.empty}</p> : m.topics.filter(t => t.items.length > 0).map(t => (
               <section key={t.topic} className={s.section} aria-labelledby={`ask-topic-${t.topic}`} data-topic={t.topic}>
@@ -206,9 +226,9 @@ export function MenuScreen(_props: { view: Extract<AskView, { kind: 'menu' }> })
   );
 }
 
-function FlowPanel({ flow, setFlow, run, periodId, periods, byId }: {
+function FlowPanel({ flow, setFlow, run, periodId, when, periods, byId }: {
   flow: Flow; setFlow: (f: Flow) => void; run: (payload: Record<string, unknown>) => void;
-  periodId: PeriodId | null; periods: readonly PeriodChoice[]; byId: ReadonlyMap<string, MenuItem>;
+  periodId: PeriodId | null; when: Record<string, unknown>; periods: readonly PeriodChoice[]; byId: ReadonlyMap<string, MenuItem>;
 }) {
   const ask = useAsk(), w = useWords(WORDS);
   const [compare, setCompare] = useState<PeriodId | null>(null);
@@ -233,7 +253,7 @@ function FlowPanel({ flow, setFlow, run, periodId, periods, byId }: {
           {needsDate && <Field label={w.onDate} type="date" value={onDate} onChange={e => setOnDate(e.target.value)} />}
           <div className={s.actions}>
             <Button variant="filled" disabled={!ready} onClick={() => run({
-              operationId: item.operationId, ...(periodId === null ? {} : { periodId }),
+              operationId: item.operationId, ...when,
               ...(needsCompare && comparePeriod !== undefined ? { comparePeriod } : {}), ...(needsDate ? { onDate } : {}),
             })}>{w.run}</Button>
             <Button variant="link" onClick={() => setFlow({ kind: 'idle' })}>{w.cancel}</Button>
@@ -295,7 +315,7 @@ function FlowPanel({ flow, setFlow, run, periodId, periods, byId }: {
           {r.nearby.length > 0 && (
             <>
               <h2 id="ask-nearby" className={s.heading}>{w.nearby}</h2>
-              <RowList labelledBy="ask-nearby" rows={r.nearby.map(n => ({ id: n.operationId, mark: 'cha', what: n.label }))} onOpen={opId => runOp(opId, periodId)} onReceipt={toReceipt} />
+              <RowList labelledBy="ask-nearby" rows={r.nearby.map(n => ({ id: n.operationId, mark: 'cha', what: n.label }))} onOpen={opId => run({ operationId: opId, ...when })} onReceipt={toReceipt} />
             </>
           )}
           <div className={s.actions}><Button variant="link" onClick={() => ask.go({ kind: 'notyet' })}>{w.seeWanted}</Button></div>

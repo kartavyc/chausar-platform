@@ -14,16 +14,16 @@ const WORDS = {
   en: {
     title: 'Not yet', intro: 'What was asked for and could not be done yet. Each is kept so it can be built.',
     calculations: 'Wanted calculations', actions: 'Wanted actions', words: 'Words Chausar did not know',
-    count: '{count} in this list', asked: 'asked {count} times', last: 'last on {date}', none: 'Nothing here yet.',
+    count: '{count} in this list', heading: '{title} · {count}', asked: 'asked {count} times', last: 'last on {date}', none: 'Nothing here yet.',
     empty: 'Nothing is on the not-yet list. When a question cannot be answered, it is kept here.',
   },
   hi: {
     title: 'अभी नहीं', intro: 'जो माँगा गया और अभी नहीं हो सका। हर चीज़ रखी जाती है ताकि उसे बनाया जा सके।',
     calculations: 'चाही गई गणनाएँ', actions: 'चाहे गए काम', words: 'शब्द जो Chausar नहीं जानता था',
-    count: 'इस सूची में {count}', asked: '{count} बार पूछा गया', last: 'आख़िरी बार {date}', none: 'यहाँ अभी कुछ नहीं।',
+    count: 'इस सूची में {count}', heading: '{title} · {count}', asked: '{count} बार पूछा गया', last: 'आख़िरी बार {date}', none: 'यहाँ अभी कुछ नहीं।',
     empty: '“अभी नहीं” सूची में कुछ नहीं है। जब किसी सवाल का जवाब नहीं मिलता, वह यहाँ रखा जाता है।',
   },
-} as const satisfies Catalogue<'title' | 'intro' | 'calculations' | 'actions' | 'words' | 'count' | 'asked' | 'last' | 'none' | 'empty'>;
+} as const satisfies Catalogue<'title' | 'intro' | 'calculations' | 'actions' | 'words' | 'count' | 'heading' | 'asked' | 'last' | 'none' | 'empty'>;
 
 export function NotYetScreen(_props: { view: Extract<AskView, { kind: 'notyet' }> }) {
   const ask = useAsk(), w = useWords(WORDS), explain = useExplain();
@@ -43,7 +43,7 @@ export function NotYetScreen(_props: { view: Extract<AskView, { kind: 'notyet' }
             {ask.view !== 'books' && <p className={s.note}>{w.intro}</p>}
             {lists.map(l => (
               <section key={l.key} className={s.section} aria-labelledby={`notyet-${l.key}`} data-wanted={l.key}>
-                <h2 id={`notyet-${l.key}`} className={s.heading}>{l.title} · {fill(w.count, { count: n(l.items.length) })}</h2>
+                <h2 id={`notyet-${l.key}`} className={s.heading}>{fill(w.heading, { title: l.title, count: fill(w.count, { count: n(l.items.length) }) })}</h2>
                 {l.items.length === 0 ? <p className={s.small}>{w.none}</p> : (
                   <ul className={s.ledger}>
                     {l.items.map((x, i) => (

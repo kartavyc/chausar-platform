@@ -19,7 +19,8 @@ type Key =
   | 'title' | 'question' | 'fromMenu' | 'calc' | 'rowsRead' | 'checked' | 'notChecked' | 'figures' | 'definitions' | 'exclusions' | 'noExclusions'
   | 'excluded' | 'coverage' | 'notCounted' | 'fx' | 'sources' | 'file' | 'interface' | 'entered' | 'tested' | 'not-yet-tested' | 'noRecipe' | 'sourceRows'
   | 'smallPrint' | 'app' | 'dictionary' | 'definition' | 'recipes' | 'calculator' | 'allowedBy' | 'desktop' | 'phone' | 'mcp' | 'asOf' | 'createdAt'
-  | 'rowsCounted' | 'rowsLeftOut' | 'sent' | 'sentNothing' | 'sentGone' | 'meaning' | 'seedNote' | 'period' | 'compared' | 'none';
+  | 'rowsCounted' | 'rowsLeftOut' | 'sent' | 'sentNothing' | 'sentGone' | 'meaning' | 'seedNote' | 'period' | 'compared' | 'none'
+  | 'wayIn' | 'wayInValue' | 'recipeValue' | 'rate' | 'rateValue' | 'allowed' | 'allowedValue' | 'tool';
 const WORDS = {
   en: {
     title: 'The receipt', question: 'Your question: {question}', fromMenu: 'Your question: chosen from the menu', calc: 'Calculation chosen: {calc}',
@@ -32,6 +33,8 @@ const WORDS = {
     asOf: 'As known on {date}', createdAt: 'Worked out on {date}',
     rowsCounted: 'Rows counted', rowsLeftOut: 'Rows left out', sent: 'What was sent to the AI model', sentNothing: 'Nothing was sent to an AI model for this answer.',
     sentGone: 'What was sent is no longer kept.', meaning: 'Open the meaning', seedNote: 'From the starting menu.', period: 'Period', compared: 'Compared with', none: 'none',
+    wayIn: 'Way in: {source}', wayInValue: '{way} · {format}', recipeValue: '{state} · {id}', rate: 'Rate: {from} to {to}', rateValue: '{rate} · {date}',
+    allowed: 'Allowed by', allowedValue: '{role} {member} · {device} · {at}', tool: 'This was asked through a tool connection. Only the text handed to the tool is visible.',
   },
   hi: {
     title: 'रसीद', question: 'आपका सवाल: {question}', fromMenu: 'आपका सवाल: मेन्यू से चुना गया', calc: 'चुनी गई गणना: {calc}',
@@ -44,6 +47,8 @@ const WORDS = {
     asOf: '{date} को जैसा पता था', createdAt: '{date} को निकाला गया',
     rowsCounted: 'गिनी गई पंक्तियाँ', rowsLeftOut: 'छोड़ी गई पंक्तियाँ', sent: 'AI मॉडल को क्या भेजा गया', sentNothing: 'इस जवाब के लिए किसी AI मॉडल को कुछ नहीं भेजा गया।',
     sentGone: 'जो भेजा गया वह अब रखा नहीं है।', meaning: 'अर्थ खोलें', seedNote: 'शुरुआती मेन्यू से।', period: 'अवधि', compared: 'इससे तुलना', none: 'कोई नहीं',
+    wayIn: 'आने का रास्ता: {source}', wayInValue: '{way} · {format}', recipeValue: '{state} · {id}', rate: 'दर: {from} से {to}', rateValue: '{rate} · {date}',
+    allowed: 'अनुमति', allowedValue: '{role} {member} · {device} · {at}', tool: 'यह एक टूल कनेक्शन से पूछा गया। सिर्फ़ टूल को दिया गया पाठ दिखता है।',
   },
 } as const satisfies Catalogue<Key>;
 
@@ -75,6 +80,13 @@ function ReceiptBody({ receipt: r }: { receipt: ReceiptReply }) {
         { name: w.definition, value: r.versions.definitionHash, mono: true },
         { name: w.recipes, value: r.versions.recipes.length > 0 ? r.versions.recipes.join(', ') : w.none, mono: true },
         { name: w.calculator, value: r.versions.calculator, mono: true },
+        ...r.sources.map((src): Pair => ({
+          name: fill(w.wayIn, { source: src.sourceId }),
+          value: src.format === null ? w[src.wayIn] : fill(w.wayInValue, { way: w[src.wayIn], format: src.format }),
+          after: <span className={s.small}>{src.recipe === null ? w.noRecipe : fill(w.recipeValue, { state: w[src.recipe.state], id: src.recipe.id })}</span>,
+        })),
+        ...r.fx.map((x): Pair => ({ name: fill(w.rate, { from: x.from, to: x.to }), value: x.on === null ? x.rate : fill(w.rateValue, { rate: x.rate, date: dayText(x.on, lang) }), mono: true })),
+        { name: w.allowed, value: fill(w.allowedValue, { role: r.allowedBy.role, member: r.allowedBy.memberId, device, at: books ? r.allowedBy.at : dayText(r.allowedBy.at, lang) }) },
       ]} />
     </div>
   );
@@ -129,7 +141,7 @@ function ReceiptBody({ receipt: r }: { receipt: ReceiptReply }) {
         ))}
       </section>
 
-      {ask.view !== 'simple' && r.sources.length > 0 && (
+      {r.sources.length > 0 && (
         <section className={s.section} aria-label={w.sources}>
           <h2 className={s.heading}>{w.sources}</h2>
           <ul className={s.plain}>
@@ -152,6 +164,7 @@ function ReceiptBody({ receipt: r }: { receipt: ReceiptReply }) {
       {r.sent.kind === 'nothing' && <p className={s.small}>{w.sentNothing}</p>}
       <p className={s.small} data-allowed-by="">{fill(w.allowedBy, { role: r.allowedBy.role, member: r.allowedBy.memberId, device, at: dayText(r.allowedBy.at, lang) })}</p>
       {r.sent.kind === 'model' && !r.sent.available && <p className={s.small}>{w.sentGone}</p>}
+      {r.allowedBy.device === 'mcp' && <p className={s.small} data-tool="">{w.tool}</p>}
 
       {books ? (
         <section className={s.section} aria-label={w.smallPrint} data-small-print="">

@@ -14,7 +14,7 @@ import { words } from '../../../places/types.ts';
 import { PageHeader } from '../../../app/PageHeader';
 import { State } from '../../../patterns/States';
 import { Button } from '../../../parts/Button';
-import { money, percent, count as countText, date as dateText } from '../../../format/index.ts';
+import { money, moneyShort, percent, count as countText, date as dateText } from '../../../format/index.ts';
 import type { Reply } from './client.ts';
 
 /** Every Ask view. The base view comes from the sub-place; the others are reached from it. */
@@ -83,6 +83,17 @@ export function bpsFigure(bps: string, receiptId: string, labels: readonly Figur
 }
 export function figureOf(unit: 'money' | 'basis-points', minorValue: string, receiptId: string, labels: readonly FigureLabel[] = []): Figure {
   return unit === 'money' ? moneyFigure(minorValue, receiptId, labels) : bpsFigure(minorValue, receiptId, labels);
+}
+/** The words for the short money form the Simple view uses in rows (part 8). */
+const SHORT = { en: { lakh: 'lakh', crore: 'crore' }, hi: { lakh: 'लाख', crore: 'करोड़' } } as const satisfies Catalogue<'lakh' | 'crore'>;
+/**
+ * A money figure for a row of a list. In the Simple view the row shows the short form spelled
+ * out ("₹3.1 lakh"); the exact value stays in the figure and in its title, and opens the same
+ * receipt. Sheets, tiles and the receipt always use `moneyFigure`, which is exact.
+ */
+export function rowMoneyFigure(minorValue: string, receiptId: string, view: View, language: Language, labels: readonly FigureLabel[] = []): Figure {
+  const exact = moneyFigure(minorValue, receiptId, labels);
+  return view === 'simple' ? { ...exact, display: moneyShort(minorValue, words(SHORT, language)) } : exact;
 }
 export const missingFigure = (missing: Missing): FigureOrMissing => ({ kind: 'missing', missing });
 export const moneyText = money;

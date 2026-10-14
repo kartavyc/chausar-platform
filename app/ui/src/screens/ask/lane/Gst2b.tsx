@@ -22,23 +22,24 @@ import s from './analysis.module.css';
 
 const GROUPS = ['matched', 'differs-inside', 'differs-outside', 'in-2b-only', 'books-only'] as const;
 type Group = (typeof GROUPS)[number];
-interface Line { id: string; group: Group; supplier: string; invoice: string; booksMinor: string | null; twoBMinor: string | null; differenceMinor: string | null }
+interface Line { id: string; group: Group; supplier: string; invoice: string; booksMinor: string | null; twoBMinor: string | null; differenceMinor: string | null; bookRowId: string | null; twoBRowId: string | null }
 interface Ims { lineId: string; action: 'accept' | 'reject' | 'pending'; reason: 'matched' | 'amount-differs' | 'not-in-books' }
 export type Gst2bValue =
   | { readonly state: 'not-applicable'; readonly reason: 'composition' | 'unregistered' }
   | { readonly state: 'not-loaded'; readonly period: Period }
-  | { readonly state: 'ready'; readonly period: Period; readonly toleranceMinor: string; readonly via: 'connectors' | 'facts'; readonly groups: readonly { group: Group; count: number; taxableMinor: string; taxMinor: string }[]; readonly lines: readonly Line[]; readonly ims: readonly Ims[] };
+  | { readonly state: 'ready'; readonly period: Period; readonly toleranceMinor: string; readonly via: 'connectors' | 'facts'; readonly leftOut: number; readonly groups: readonly { group: Group; count: number; taxableMinor: string; taxMinor: string }[]; readonly lines: readonly Line[]; readonly ims: readonly Ims[] };
 export function gst2bReply(value: unknown): Gst2bValue {
   const v = obj(value), state = oneOf(v.state, ['not-applicable', 'not-loaded', 'ready'] as const);
   if (state === 'not-applicable') return { state, reason: oneOf(v.reason, ['composition', 'unregistered'] as const) };
   if (state === 'not-loaded') return { state, period: period(v.period) };
   const lines = list(v.lines, l => {
     const x = obj(l);
-    return { id: id(x.id), group: oneOf(x.group, GROUPS), supplier: str(x.supplier, 300), invoice: str(x.invoice, 100), booksMinor: optMinor(x.booksMinor), twoBMinor: optMinor(x.twoBMinor), differenceMinor: optMinor(x.differenceMinor) };
+    return { id: id(x.id), group: oneOf(x.group, GROUPS), supplier: str(x.supplier, 300), invoice: str(x.invoice, 100), booksMinor: optMinor(x.booksMinor), twoBMinor: optMinor(x.twoBMinor), differenceMinor: optMinor(x.differenceMinor),
+      bookRowId: x.bookRowId === null ? null : id(x.bookRowId), twoBRowId: x.twoBRowId === null ? null : id(x.twoBRowId) };
   }, 20000);
   const known = new Set(lines.map(l => l.id));
   return {
-    state, period: period(v.period), toleranceMinor: minor(v.toleranceMinor), via: oneOf(v.via, ['connectors', 'facts'] as const),
+    state, period: period(v.period), toleranceMinor: minor(v.toleranceMinor), via: oneOf(v.via, ['connectors', 'facts'] as const), leftOut: count(v.leftOut),
     groups: list(v.groups, g => { const x = obj(g); return { group: oneOf(x.group, GROUPS), count: int(x.count), taxableMinor: minor(x.taxableMinor), taxMinor: minor(x.taxMinor) }; }, 10),
     lines,
     ims: list(v.ims, i => {
@@ -61,6 +62,7 @@ export function lineReply(value: unknown): LineValue {
   oneOf(rule.key, ['supplier-gstin-and-invoice'] as const);
   return { id: id(v.id), group: oneOf(v.group, GROUPS), books: sideOf(v.books), twoB: sideOf(v.twoB), toleranceMinor: minor(rule.toleranceMinor) };
 }
+const count = (value: unknown) => { const n = int(value); if (n < 0) fail(); return n; };
 const fileName = (value: unknown) => { const v = str(value, 120); if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,115}\.csv$/.test(v)) fail(); return v; };
 
 const WORDS = catalogue({
@@ -79,6 +81,11 @@ const WORDS = catalogue({
     ims: 'The IMS list', imsNone: 'Nothing for the IMS list this month.', accept: 'Accept', reject: 'Reject', pending: 'Keep pending',
     'why-matched': 'it matches your books', 'why-amount-differs': 'the amount differs from your books', 'why-not-in-books': 'it is not in your books',
     imsLine: '{action} in the GST portal, because {reason}.', export: 'Export the IMS list', exportReady: 'The IMS list is ready.', download: 'Save {name}',
+    leftOut: '{count} rows were left out of the match: no supplier GSTIN and invoice number, no amount, or another currency. They are not counted as zero.',
+    leftOutOne: 'One row was left out of the match: no supplier GSTIN and invoice number, no amount, or another currency. It is not counted as zero.',
+    noLeftOut: 'No row was left out of the match.',
+    table: 'The match as a table', group: 'Group', invoices: 'Invoices', taxable: 'Taxable value', tax: 'Tax', 'differs-inside': 'Amount differs, inside the tolerance', 'differs-outside': 'Amount differs, outside the tolerance',
+    noReceipt: 'These amounts come from the rows as written. The match has no receipt of its own yet, so a line opens its two rows instead.',
   },
   hi: {
     title: 'GSTR-2B से ख़रीद का मिलान', period: 'महीना', composition: 'लागू नहीं। यह व्यवसाय कंपोज़िशन योजना में है, इसलिए मिलाने के लिए कोई GSTR-2B नहीं है।',
@@ -95,6 +102,11 @@ const WORDS = catalogue({
     ims: 'IMS सूची', imsNone: 'इस महीने IMS सूची के लिए कुछ नहीं।', accept: 'स्वीकार करें', reject: 'अस्वीकार करें', pending: 'लंबित रखें',
     'why-matched': 'यह आपके खातों से मिलता है', 'why-amount-differs': 'राशि आपके खातों से अलग है', 'why-not-in-books': 'यह आपके खातों में नहीं है',
     imsLine: 'GST पोर्टल में {action}, क्योंकि {reason}।', export: 'IMS सूची निर्यात करें', exportReady: 'IMS सूची तैयार है।', download: '{name} सहेजें',
+    leftOut: 'मिलान से {count} पंक्तियाँ छोड़ी गईं: आपूर्तिकर्ता का GSTIN और बिल संख्या नहीं, राशि नहीं, या कोई दूसरी मुद्रा। इन्हें शून्य नहीं गिना गया।',
+    leftOutOne: 'मिलान से एक पंक्ति छोड़ी गई: आपूर्तिकर्ता का GSTIN और बिल संख्या नहीं, राशि नहीं, या कोई दूसरी मुद्रा। इसे शून्य नहीं गिना गया।',
+    noLeftOut: 'मिलान से कोई पंक्ति नहीं छोड़ी गई।',
+    table: 'तालिका में मिलान', group: 'समूह', invoices: 'बिल', taxable: 'कर योग्य मूल्य', tax: 'कर', 'differs-inside': 'राशि में अंतर, छूट के भीतर', 'differs-outside': 'राशि में अंतर, छूट के बाहर',
+    noReceipt: 'ये राशियाँ लिखी गई पंक्तियों से हैं। मिलान की अपनी कोई रसीद अभी नहीं है, इसलिए एक पंक्ति अपनी दोनों पंक्तियाँ खोलती है।',
   },
 });
 type Month = 'last-month' | 'this-month';
@@ -146,6 +158,26 @@ function Ready({ g, periodId, onChanged }: { g: Extract<Gst2bValue, { state: 're
         <div data-gst-groups="">
           <RowList rows={rows} onOpen={k => { setGroup(k as typeof group); setLineId(null); }} onReceipt={() => undefined} selectedId={group ?? undefined} />
         </div>
+        <p className={s.note} data-gst-left-out="">{g.leftOut === 0 ? w.noLeftOut : g.leftOut === 1 ? w.leftOutOne : fill(w.leftOut, { count: countWords(String(g.leftOut)) })}</p>
+        {ask.view === 'books' && (
+          <div className={s.scroll} data-gst-table="">
+            <table className={s.table}>
+              <caption className={s.tileLabel}>{w.table}</caption>
+              <thead><tr><th scope="col">{w.group}</th><th scope="col">{w.invoices}</th><th scope="col">{w.taxable}</th><th scope="col">{w.tax}</th></tr></thead>
+              <tbody>
+                {GROUPS.map(k => { const x = of(k); return (
+                  <tr key={k}>
+                    <th scope="row">{w[k]}</th>
+                    <td>{x === undefined ? w.noInvoices : countWords(String(x.count))}</td>
+                    <td>{x === undefined ? w.noInvoices : moneyText(x.taxableMinor)}</td>
+                    <td>{x === undefined ? w.noInvoices : moneyText(x.taxMinor)}</td>
+                  </tr>
+                ); })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {ask.view !== 'simple' && <p className={s.note}>{w.noReceipt}</p>}
         <p className={s.note}>{fill(w.toleranceNow, { tolerance: tolText })} {g.via === 'connectors' ? w.via : w.viaFacts}</p>
         {!ask.viewer && (
           <form className={s.formLine} onSubmit={e => {
