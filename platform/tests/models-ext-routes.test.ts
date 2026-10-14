@@ -114,7 +114,7 @@ test('engine: catalogue, FX, pricing, cost, meters and the allowance boundary', 
     let cost = await engine.request('modelsx.cost', { kind: 'anthropic-messages', model: 'claude-sonnet-5-5', inputTokens: 1000, outputTokens: 100 });
     assert.equal(cost.costMinor, 'not counted');
     await assert.rejects(engine.request('modelsx.setFx', { paisePerUsd: '88.5', asOf: '2026-10-14' }), code('INVALID_FX'));
-    await engine.request('modelsx.setFx', { paisePerUsd: '8850', asOf: '2026-10-14' });
+    await engine.request('modelsx.setFx', { paisePerUsd: '8850', asOf: '2020-01-01' });
     cost = await engine.request('modelsx.cost', { kind: 'anthropic-messages', model: 'claude-sonnet-5-5', inputTokens: 1000, outputTokens: 100 });
     assert.equal(cost.costMinor, '27'); // ceil((1000*17700 + 100*88500)/1e6) paise
     assert.equal((await engine.request('modelsx.cost', { kind: 'ollama', model: 'llama', inputTokens: 1, outputTokens: 1 })).costMinor, '0');
