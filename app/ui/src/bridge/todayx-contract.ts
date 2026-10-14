@@ -279,7 +279,7 @@ export function isPhoneMessagesReply(v: unknown): v is PhoneMessagesReply {
 }
 
 /** The refusal codes the frame-today engine module uses. */
-export const TODAYX_REFUSALS = ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE'] as const;
+export const TODAYX_REFUSALS = ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST'] as const;
 export type TodayxRefusal = (typeof TODAYX_REFUSALS)[number];
 
 /** Codes that mean "this method does not exist yet": the screen shows "not built yet". */
