@@ -34,7 +34,7 @@ export const DAY = /^\d{4}-\d{2}-\d{2}$/;
 export function validPrice(input: any, kind: string, model: string, setBy: string): PriceEntry {
   check(input && typeof input === 'object' && Object.keys(input).every(k => ['inputUsdMicroPerMillion', 'outputUsdMicroPerMillion', 'asOf', 'source'].includes(k)),
     'INVALID_PRICE', 'A price has input and output rates, a date and a source.');
-  check(DIGITS.test(input.inputUsdMicroPerMillion) && DIGITS.test(input.outputUsdMicroPerMillion), 'INVALID_PRICE', 'Rates are whole micro-dollars per million tokens.');
+  check(typeof input.inputUsdMicroPerMillion === 'string' && typeof input.outputUsdMicroPerMillion === 'string' && DIGITS.test(input.inputUsdMicroPerMillion) && DIGITS.test(input.outputUsdMicroPerMillion), 'INVALID_PRICE', 'Rates are whole micro-dollars per million tokens.');
   check(typeof input.asOf === 'string' && DAY.test(input.asOf) && !Number.isNaN(Date.parse(input.asOf)), 'INVALID_PRICE', 'Give the date the price was read.');
   check(typeof input.source === 'string' && input.source.length > 0 && input.source.length <= 300, 'INVALID_PRICE', 'Name where the price was read.');
   return { kind, model, inputUsdMicroPerMillion: input.inputUsdMicroPerMillion, outputUsdMicroPerMillion: input.outputUsdMicroPerMillion,

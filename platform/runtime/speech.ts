@@ -36,7 +36,9 @@ function storedProviders(state: State): StoredSpeechProvider[] {
   const stored = peekModuleState<{ speech?: { providers?: StoredSpeechProvider[] } }>(state, MODULE_ID)?.speech?.providers ?? [];
   return [...(stored.some(p => p.id === 'browser') ? [] : [BROWSER_PROVIDER]), ...stored].map(p => structuredClone(p));
 }
-export type SpeechOptions = { http?: (request: { endpoint: string; headers: Record<string, string>; body: Uint8Array; redirect: 'error'; timeoutMs: number }) => Promise<{ status: number; body: string; endpoint?: string; requestId?: string }>; process?: (request: ProcessRequest) => Promise<ProcessResult>; credentialBroker?: (id: string) => string | undefined | Promise<string | undefined> };
+export type SpeechOptions = { http?: (request: { endpoint: string; headers: Record<string, string>; body: Uint8Array; redirect: 'error'; timeoutMs: number }) => Promise<{ status: number; body: string; endpoint?: string; requestId?: string }>; process?: (request: ProcessRequest) => Promise<ProcessResult>; credentialBroker?: (id: string) => string | undefined | Promise<string | undefined>;
+  /** Trusted host evidence that its renderer ends a live voice session at the approved minute cap. Without it, live voice is refused. */
+  liveVoiceCapEnforced?: boolean };
 
 const AUDIO_EXTENSIONS = { 'audio/wav': 'wav', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'audio/ogg': 'ogg' } as const;
 type AudioMime = keyof typeof AUDIO_EXTENSIONS;
@@ -118,6 +120,8 @@ export class SpeechService {
     const cloud = CLOUD_SPEECH_KINDS.includes(provider.kind); const boundary = `chausar-${newId('audio')}`;
     let bytes: Buffer; let contentType = `multipart/form-data; boundary=${boundary}`; const extra: Record<string, unknown> = {};
     if (provider.kind === 'live-voice') {
+      check(this.options.liveVoiceCapEnforced === true, 'LIVE_VOICE_CAP_NOT_ENFORCED', 'Live voice stays off until this app can end a session at its approved minute cap.');
+      check(!context.channel || context.channel === 'desktop', 'APP_APPROVAL_REQUIRED', 'Live voice runs only inside the desktop app.');
       check(input.audioBase64 === undefined && input.mimeType === undefined, 'INVALID_AUDIO', 'A live voice preview carries no recording.');
       check(Number.isSafeInteger(input.durationMs) && input.durationMs! > 0 && input.durationMs! <= LIVE_MAX_MS, 'INVALID_LIVE_CAP', 'Give a live voice minute cap, up to thirty minutes.');
       check(this.store.read().policy.send === 'samples', 'SEND_DISABLED', 'Live voice requires the samples privacy setting and an exact approval.');
@@ -182,6 +186,7 @@ export class SpeechService {
       return this.store.update(state => { authorize(this.store, context, 'prepare'); const receipt = state.modelReceipts.find(r => r.id === preview.id); check(receipt?.status === 'preview', 'ALREADY_SENT', 'This transcript has already been accepted.'); receipt.status = 'completed'; receipt.transcript = receipt.payload; receipt.costMeasured = false; receipt.actualCostMinor = null; receipt.attempts = 0; return { transcript: receipt.transcript, receipt: structuredClone(receipt) }; });
     }
     check(preview?.status === 'preview', 'PREVIEW_NOT_FOUND', 'Create an unused audio preview first.'); const provider = this.#current(context, preview);
+    if (provider.kind === 'live-voice') check(this.options.liveVoiceCapEnforced === true && (!context.channel || context.channel === 'desktop'), 'LIVE_VOICE_CAP_NOT_ENFORCED', 'Live voice stays off until this app can end a session at its approved minute cap.');
     const key = this.#credentials.get(provider.id) || (provider.credentialEnv ? process.env[provider.credentialEnv] : undefined) || await this.options.credentialBroker?.(provider.id);
     if (CLOUD_SPEECH_KINDS.includes(provider.kind)) check(key, 'CREDENTIAL_REQUIRED', 'The upload provider needs an API key.');
     await this.store.update(state => {

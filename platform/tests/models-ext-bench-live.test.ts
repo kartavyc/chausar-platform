@@ -120,6 +120,13 @@ test('live comparison through the real gateway: plan, approve exactly, run once,
   assert.equal(fake.seen.length, 0);
   await assert.rejects(asViewer('bench.compare', { live: true, planId: plan.id, approvalId: stale.id, barsDigest: bars.digest }), code('FORBIDDEN'));
 
+  // An approval from someone whose access was revoked after approving is refused at run time.
+  const cofounder = await engine.request('members.add', { id: 'cofounder-1', name: 'Cofounder', role: 'cofounder', branches: ['*'] });
+  const byCofounder = await engine.requestAs({ memberId: cofounder.id, role: cofounder.role, epoch: cofounder.epoch, channel: 'desktop' }, 'bench.approveLive', { planId: plan.id, planDigest: plan.digest });
+  await engine.request('members.revoke', { id: cofounder.id });
+  await assert.rejects(engine.request('bench.compare', { live: true, planId: plan.id, approvalId: byCofounder.id, barsDigest: bars.digest }), code('BENCH_APPROVAL_REVOKED'));
+  assert.equal(fake.seen.length, 0);
+
   const approval = await engine.request('bench.approveLive', { planId: plan.id, planDigest: plan.digest });
   const result = await engine.request('bench.compare', { live: true, planId: plan.id, approvalId: approval.id, barsDigest: bars.digest });
   assert.equal(result.mode, 'live'); assert.equal(result.recorded, 'live'); assert.equal(result.stopped, null); assert.deepEqual(result.leftUndone, []);

@@ -116,6 +116,8 @@ async function compareLive(ctx: Context, payload: Record<string, any>, host: Mod
     check(approval && approval.planId === plan.id && approval.planDigest === plan.digest, 'BENCH_APPROVAL_NOT_FOUND', 'Approve exactly this bench plan first.');
     check(!approval.used && saved?.status === 'planned', 'BENCH_APPROVAL_USED', 'This bench plan approval was already used. Prepare and approve a new plan.');
     check(Date.parse(approval.expiresAt) > Date.now(), 'BENCH_APPROVAL_EXPIRED', 'This bench plan approval expired. Approve the plan again.');
+    const approver = current.members.find(m => m.id === approval.approverId);
+    check(approver?.active && approver.epoch === approval.approverEpoch && ['owner', 'cofounder'].includes(approver.role), 'BENCH_APPROVAL_REVOKED', 'The person who approved this plan no longer has approval rights. Approve the plan again.');
     check(benchOf(current).bars?.digest === plan.barsDigest, 'BENCH_BARS_CHANGED', 'The pass bars changed since the plan was prepared. Prepare a new plan.');
     approval.used = true; saved.status = 'executing';
   });

@@ -32,7 +32,7 @@ const bhashiniReply = (source: string) => JSON.stringify({ pipelineResponse: [{ 
 
 async function setup(provider: SpeechProvider, secret: string | undefined, http: (request: Request, calls: Request[]) => Promise<{ status: number; body: string; endpoint?: string }>) {
   const store = new MemoryStore(); store.state.policy.send = 'samples'; const calls: Request[] = [];
-  const speech = new SpeechService(store, { http: async request => { calls.push(request); return http(request, calls); } });
+  const speech = new SpeechService(store, { liveVoiceCapEnforced: true, http: async request => { calls.push(request); return http(request, calls); } });
   await speech.configure(owner, provider, secret); return { store, speech, calls };
 }
 async function previewed(provider: SpeechProvider, secret: string | undefined, http: Parameters<typeof setup>[2], input: Record<string, unknown> = { audioBase64, mimeType: 'audio/wav', durationMs: 12000 }) {
@@ -224,4 +224,17 @@ test('engine: the speech bench is refused without recorded clips from the host',
     await assert.rejects(engine.request('modelsx.speechBench', {}), code('SPEECH_BENCH_FIXTURES_REQUIRED'));
     await engine.request('workspace.lock', {});
   } finally { await engine.close?.(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('live voice is refused unless the host enforces the minute cap, and only on the desktop', async () => {
+  const store = new MemoryStore(); store.state.policy.send = 'samples'; let calls = 0;
+  const off = new SpeechService(store, { http: async () => { calls++; return { status: 200, body: '{}' }; } });
+  await off.configure(owner, live, 'sk-live-key');
+  await assert.rejects(off.preview(owner, { providerId: 'live', durationMs: 60000 }), code('LIVE_VOICE_CAP_NOT_ENFORCED'));
+  const on = new SpeechService(store, { liveVoiceCapEnforced: true, http: async () => { calls++; return { status: 200, body: '{}' }; } });
+  await assert.rejects(on.preview({ ...owner, channel: 'phone' }, { providerId: 'live', durationMs: 60000 }), code('APP_APPROVAL_REQUIRED'));
+  await assert.rejects(on.preview({ ...owner, channel: 'mcp' }, { providerId: 'live', durationMs: 60000 }), code('APP_APPROVAL_REQUIRED'));
+  const preview: any = await on.preview(owner, { providerId: 'live', durationMs: 60000 }); const approval = await on.approve(owner, preview.id);
+  await assert.rejects(off.transcribe(owner, { previewId: preview.id, approvalId: approval.id }), code('LIVE_VOICE_CAP_NOT_ENFORCED'));
+  assert.equal(calls, 0);
 });

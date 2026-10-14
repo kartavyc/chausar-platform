@@ -119,6 +119,7 @@ test('engine: catalogue, FX, pricing, cost, meters and the allowance boundary', 
     assert.equal(cost.costMinor, '27'); // ceil((1000*17700 + 100*88500)/1e6) paise
     assert.equal((await engine.request('modelsx.cost', { kind: 'ollama', model: 'llama', inputTokens: 1, outputTokens: 1 })).costMinor, '0');
     await engine.request('modelsx.setPrice', { kind: 'openai-compatible', model: 'my-model', price: { inputUsdMicroPerMillion: '1000000', outputUsdMicroPerMillion: '2000000', asOf: '2026-10-01', source: 'provider page' } });
+    for (const bad of [123456789012345678901, ['7']]) await assert.rejects(engine.request('modelsx.setPrice', { kind: 'openai-compatible', model: 'my-model', price: { inputUsdMicroPerMillion: bad, outputUsdMicroPerMillion: '1', asOf: '2026-10-01', source: 'provider page' } }), code('INVALID_PRICE'));
     const pricing = await engine.request('modelsx.pricing', {});
     assert.equal(pricing.entries.find((e: any) => e.model === 'my-model').inputPerMillionMinor, '8850');
     await engine.request('models.configure', { config: { id: 'claude', kind: 'anthropic-messages', model: 'claude-sonnet-5-5', budgetMinor: '5000', maxCostMinor: '200' }, secret: 'key' });
