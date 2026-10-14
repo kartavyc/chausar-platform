@@ -124,6 +124,8 @@ export class ActionService {
     const reserved = await this.store.update(state => {
       const action = this.find(state, id); this.approved(state, context, action);
       check(action.status === 'approved' && action.attempts.length === 0, 'ACTION_ALREADY_ATTEMPTED', 'Actions execute once. Reconcile uncertain results before considering a new action.');
+      // Sending stays closed while an earlier outside effect is unsettled: check it before anything else leaves.
+      check(action.impact === 'reversible' || !state.actions.some((other: PreparedAction) => other.id !== id && other.impact !== 'reversible' && ['executing', 'unknown'].includes(other.status)), 'SENDING_CLOSED', 'An earlier message, payment or deletion is not settled. Check it before sending another.');
       action.status = 'executing'; action.attempts.push({ id: newId('attempt'), startedAt: now(), outcome: 'executing' }); audit(state, 'action.attempt', { actionId: id, attemptId: action.attempts[0].id }); return structuredClone(action);
     });
     this.active.add(id);

@@ -103,3 +103,15 @@ test('creator access binds its epoch while a currently unrestricted workspace ow
   const action = await fixture.actions.prepare(scoped, { connector: 'fixture', operation: 'create', payload: { text: 'My own private draft' }, idempotencyKey: 'scoped-local-key', sourceIds: [] }); assert.equal(fixture.actions.list(scoped)[0].id, action.id); assert.equal(fixture.actions.list(owner)[0].id, action.id);
   fixture.store.state.members.find(m => m.id === scoped.memberId)!.epoch += 1; const newer = { ...scoped, epoch: 2 }; assert.deepEqual(fixture.actions.list(newer), []); await assert.rejects(fixture.actions.revise(newer, action.id, { text: 'Replay old epoch' }), { code: 'ACTION_FORBIDDEN' });
 });
+test('sending stays closed while an earlier outside effect is unsettled', async () => {
+  const fixture = setup('message');
+  const first = await prepare(fixture.actions, owner, 'stable-key-1'); await fixture.actions.approve(owner, first.id, first.digest);
+  const second = await prepare(fixture.actions, owner, 'stable-key-2'); await fixture.actions.approve(owner, second.id, second.digest);
+  await fixture.actions.execute(owner, first.id); assert.equal(fixture.calls(), 1);
+  // The first message's outcome became uncertain: nothing else that leaves may go until it is checked.
+  fixture.store.state.actions.find((a: any) => a.id === first.id).status = 'unknown';
+  await assert.rejects(fixture.actions.execute(owner, second.id), { code: 'SENDING_CLOSED' }); assert.equal(fixture.calls(), 1);
+  assert.equal(fixture.store.state.actions.find((a: any) => a.id === second.id).status, 'approved');
+  fixture.store.state.actions.find((a: any) => a.id === first.id).status = 'verified';
+  assert.equal((await fixture.actions.execute(owner, second.id)).status, 'verified'); assert.equal(fixture.calls(), 2);
+});
