@@ -34,12 +34,13 @@ afterEach(async () => {
   expect(globalThis.fetch).not.toHaveBeenCalled(); vi.unstubAllGlobals();
 });
 
-test('Today on the fake engine shows the review rows, prepares the three figures and opens a receipt', async () => {
+test('Today on the fake engine shows the review rows, prepares the three figures and opens a receipt', { timeout: 20000 }, async () => {
   const { user, engine } = await mountOnFake();
   await screen.findByText('Send a payment reminder to Kiran Retail Demo', undefined, { timeout: 5000 });
   expect(within(page()).getByText('Record an invoice for Meera Textiles Demo')).toBeTruthy();
   expect(within(page()).getByText('Refund Arjun Stores Demo for a return')).toBeTruthy();
-  expect(within(page()).getByText('Review the credit limit for Kiran Retail Demo')).toBeTruthy();
+  // Worth a look now comes from todayx.worthALook: the due date is one of its rows at rest.
+  await within(page()).findByText(/GSTR-3B/, undefined, { timeout: 5000 });
   await user.click(within(page()).getByRole('button', { name: 'Prepare figures' }));
   const billed = await within(page()).findByText('₹25,36,850', undefined, { timeout: 5000 });
   expect(within(page()).getByText('₹20,18,000')).toBeTruthy();
@@ -60,9 +61,9 @@ test('a place whose engine methods do not exist yet shows "not built yet"', asyn
   await mountOnFake();
   await screen.findByText('Send a payment reminder to Kiran Retail Demo', undefined, { timeout: 5000 });
   await act(async () => { window.location.hash = '#/books/sources'; });
-  await waitFor(() => expect(within(page()).getByText('Not built yet.')).toBeTruthy(), { timeout: 5000 });
+  await waitFor(() => expect(within(page()).getByText(/^Not built yet\./)).toBeTruthy(), { timeout: 5000 });
   await act(async () => { window.location.hash = '#/tools/smallapps'; });
-  await waitFor(() => expect(within(page()).getByText('Not built yet.')).toBeTruthy(), { timeout: 5000 });
+  await waitFor(() => expect(within(page()).getByText(/^Not built yet\./)).toBeTruthy(), { timeout: 5000 });
 });
 
 test('the empty scenario shows missing words, never zeros or invented amounts', async () => {

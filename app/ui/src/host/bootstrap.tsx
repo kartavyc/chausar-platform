@@ -33,6 +33,11 @@ import { discoveryRowFor, lessonDecisionAvailability, sameScenarioSelection, sce
 import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, ScenarioDiscoveryRow, ScenarioSelection } from './retained-contracts.ts';
 import type { LessonReviewState, RetainedScenarioState, RetainedState, ScenarioContinuation, ScenarioDetailOrigin, ScenarioListOrigin, ScenarioRowOrigin } from './retained-controller.ts';
 import { hostMessage, hostMissingWords } from './text.ts';
+import { useFrameReads } from './frame-reads.ts';
+import { shellBanners, demoClockState, notBuiltFromCapabilities } from '../app/shell-banners.ts';
+import { statusLine, statusSentences } from '../app/status-line.ts';
+import { HelpSheet } from '../app/HelpSheet';
+import { DemoClockControl } from '../app/DemoClockControl';
 import detail from '../patterns/ModelConsentSheet.module.css';
 import '../tokens/index.css';
 import '../views/simple.css';
@@ -184,20 +189,6 @@ function ReceiptPanel({ selection, language, origin, onClose }: {
   </Sheet>;
 }
 
-function ShortcutHelpBody({ language }: { language: Language }) {
-  const shortcuts = [
-    ['Ctrl K', 'helpAsk'], ['Ctrl 1–7', 'helpPlaces'], ['Esc', 'helpClose'],
-    ['F6 / Shift F6', 'helpRegions'], ['Ctrl /', 'helpList'],
-  ] as const;
-  return <>
-    <dl className={detail.pairs}>{shortcuts.map(([keys, description]) =>
-      <div className={detail.pair} key={keys}><dt className={detail.name}>{keys}</dt>
-        <dd className={detail.value}>{hostMessage(language, description)}</dd></div>)}</dl>
-    <p>{hostMessage(language, 'helpSendGuard')}</p>
-    <p>{hostMessage(language, 'helpUnavailable')}</p>
-  </>;
-}
-
 /** The proof behind a what-if figure: the embedded receipt of the exact run in the fresh, confirmed reopen view.
  * Opened from a chosen row's detail sheet it replaces that sheet, and `back` leads back to the detail. */
 function ScenarioProofPanel({ runId, scenario, language, origin, back, onClose }: {
@@ -320,7 +311,7 @@ function LessonPanel({ id, scope, lessons, context, origin, onClose, onAdjacent,
  * provenance that replaced that detail; a trusted pin's proof or provenance, opened from the page, carries none. */
 type LocalSheet = {
   readonly address: Address;
-  readonly kind: 'about' | 'reference' | 'help' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof';
+  readonly kind: 'about' | 'reference' | 'help' | 'demo-clock' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof';
   readonly id?: string;
   readonly chosen?: ScenarioSelection;
   readonly todayView?: TodayConsumerState;
@@ -373,6 +364,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const selectedRoute = state.routes.find(route => route.id === state.selectedRouteId && route.enabled);
   const settings = controller.questionSettings();
   const conversationEnabled = !viewer && selectedRoute !== undefined && settings !== null && settings.routeId === selectedRoute.id;
+  /** The frame's own checked reads: banners, status line, worth a look, capabilities, offline help. */
+  const frame = useFrameReads(controller.places, contextKey);
+  const [clockBusy, setClockBusy] = useState(false);
   const projection = useMemo(() => {
     if (state.today === null || controller.timeZone === null) return { kind: 'missing' } as const;
     try { return { kind: 'ready', value: projectTodayHostForUi(state.today, { language, timeZone: controller.timeZone, missingWords: hostMissingWords(language) }) } as const; }
@@ -753,9 +747,26 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   if (projection.kind === 'invalid') return <State state={{ kind: 'failed', code: 'INVALID_REPLY' }} />;
   const words = hostMissingWords(language);
-  const data: TodayData = todayCurrent !== null && consumer !== null ? projectTodayConsumer(todayCurrent, consumer.input, language) : projection.kind === 'ready' ? projection.value.data : {
+  const baseData: TodayData = todayCurrent !== null && consumer !== null ? projectTodayConsumer(todayCurrent, consumer.input, language) : projection.kind === 'ready' ? projection.value.data : {
     state: { kind: 'not-yet' }, date: '', review: { count: { exact: null, display: words.unknown }, rows: [] },
     thisMonthMissing: 'unknown', earlierTodayMissing: 'unknown',
+  };
+  const data: TodayData = frame.reads.worth !== null ? { ...baseData, worth: frame.reads.worth } : baseData;
+  const showDemoClock = () => {
+    if (!stillAuthorized() || active.current === null) return;
+    origin.current = currentOrigin(); returnSavedId.current = null; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
+    const address = withSheet(active.current, 'demo-clock'); setLocalSheet({ address, kind: 'demo-clock' }); navigate(address);
+  };
+  const clockCall = (method: string, payload: Record<string, unknown>) => {
+    if (!stillAuthorized() || clockBusy) return;
+    setClockBusy(true);
+    void controller.places.request(method, payload).then(reply => { if (stillAuthorized()) frame.setShell(reply); }, () => { if (stillAuthorized()) frame.reread(); })
+      .finally(() => setClockBusy(false));
+  };
+  const placeGroup: Partial<Record<Address['place'], string>> = { ask: 'askx', work: 'approvals', books: 'books', reports: 'reportsx', tools: 'modelsx', trust: 'trustx' };
+  const notBuiltState = (address: Address) => {
+    const group = placeGroup[address.place];
+    return (frame.reads.capabilities !== null && group !== undefined ? notBuiltFromCapabilities(frame.reads.capabilities, group) : null) ?? { kind: 'not-built' as const };
   };
   const legacyLink = onLegacyReturn === null ? null : <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>;
   /** For a proof or provenance that replaced the chosen row's detail: the way back to that detail, and a close bound to the chosen chain. */
@@ -797,9 +808,11 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       origin={origin.current} onClose={closeLesson} onAdjacent={(id, binding) => openLesson(id, origin.current, binding)} onDecide={decideLesson} />,
   } : {
     address: localSheet.address,
-    content: <Sheet kind={hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')}
-      title={hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')} origin={origin.current} onClose={closeSheet}>
-      {localSheet.kind === 'help' ? <ShortcutHelpBody language={language} />
+    content: <Sheet kind={localSheet.kind === 'demo-clock' ? t('SH-03.clock.title') : hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')}
+      title={localSheet.kind === 'demo-clock' ? t('SH-03.clock.title') : hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')} origin={origin.current} onClose={closeSheet}>
+      {localSheet.kind === 'help' ? <HelpSheet offline={frame.reads.help} platform={/Mac/i.test(navigator.platform) ? 'mac' : 'windows'} />
+        : localSheet.kind === 'demo-clock' && frame.reads.shell !== null ? <DemoClockControl state={demoClockState(frame.reads.shell, language)} busy={clockBusy}
+          onSet={date => clockCall('todayx.clock.set', { date })} onAdvance={by => clockCall('todayx.clock.advance', { by })} />
         : <p>{hostMessage(language, localSheet.kind === 'about' ? 'about' : 'referenceUnavailable')}</p>}
       {localSheet.id !== undefined && <p className={detail.exact}>{hostMessage(language, 'referenceIdentity', { id: localSheet.id })}</p>}
       {legacyLink}
@@ -810,16 +823,23 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     menu: {
       workspace: { name: context.workspace.name, demo: context.workspace.demo,
         who: hostMessage(language, 'memberRole', { name: context.member.name, role: hostMessage(language, ROLE_KEY[context.member.role]) }) },
-      onSetView: setView, onSetLanguage: setLanguage, onLock: () => { void controller.lock(); }, onAbout: showAbout,
+      onSetView: setView, onSetLanguage: setLanguage, onLock: () => { void controller.lock(); }, onAbout: showAbout, onHelp: () => showHelp(),
     },
+    ...(frame.reads.shell !== null ? {
+      banners: shellBanners(frame.reads.shell, language, {
+        ...(frame.reads.shell.workspace.demo ? { openDemoClock: showDemoClock } : {}),
+        dismissJobsPaused: () => { void controller.places.request('todayx.jobsPaused.dismiss', {}).then(frame.setShell, () => {}); },
+      }),
+      idleLock: { minutes: frame.reads.shell.autoLockMinutes, onIdle: () => { void controller.lock(); } },
+    } : {}),
     ask: { onAsk: () => navigate(ASK), noModel: !conversationEnabled,
       ...(viewer ? { readOnly: { holder: hostMessage(language, 'roleViewer') } } : {}) },
-    status: {
+    status: frame.reads.status !== null ? statusLine(frame.reads.status, language) : {
       sources: { text: hostMessage(language, projection.kind === 'ready' ? 'sourcesReady' : 'sourcesMissing'), address: { place: 'books', sub: 'sources' } },
       model: { text: selectedRoute === undefined ? hostMessage(language, 'routeMissing') : hostMessage(language, 'routeSelected', { label: selectedRoute.label }), address: MODELS },
       third: { text: hostMessage(language, 'third') },
     },
-    statusSimple: [
+    statusSimple: frame.reads.status !== null ? statusSentences(frame.reads.status, language) : [
       hostMessage(language, projection.kind === 'ready' ? 'sourcesReady' : 'sourcesMissing'),
       selectedRoute === undefined ? hostMessage(language, 'routeMissing') : hostMessage(language, 'routeSelected', { label: selectedRoute.label }),
     ],
@@ -856,7 +876,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         rpc: controller.places, live, openReceipt: id => openReceipt(id), navigate: next => onAddress(next) })
       : address.place === 'trust' && address.sub === 'models' || address.place === 'ask' && (address.sub === undefined || address.sub === 'new')
       ? <RoutePicker routes={state.routes} selected={state.selectedRouteId} language={language} viewer={viewer} onSelect={chooseRoute} />
-      : <><State state={{ kind: 'not-built' }} />{legacyLink}</>,
+      : <><State state={notBuiltState(address)} />{legacyLink}</>,
   };
   return conversationEnabled && settings !== null
     ? <ConversationWorkspace app={app} conversation={controller.conversation} questionSettings={settings}

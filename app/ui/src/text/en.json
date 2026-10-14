@@ -1008,5 +1008,6 @@
   "PH-02.wordmark": "Chausar",
   "PH-02.open": "Open Chausar on your computer to see this.",
   "PH-02.expired": "This link no longer works.",
-  "TODAY_ENGINE.proofShort": "Open receipt"
+  "TODAY_ENGINE.proofShort": "Open receipt",
+  "SH-03.clock.title": "Demo clock"
 }
