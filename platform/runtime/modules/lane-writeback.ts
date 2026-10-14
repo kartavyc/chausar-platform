@@ -125,8 +125,11 @@ export const writebackModule: EngineModule = {
   },
   /** With autonomy on: drop expired yeses and expired preparations, and look at unknown results. Never sends. */
   async tick(ctx, host) {
+    const wb = peekModuleState<WritebackState>(host.store.read(), MODULE_ID);
+    const pending = (host.store.read().actions as any[]).filter(a => typeof a.connector === 'string' && a.connector.startsWith('wb-') && ['prepared', 'approved', 'unknown'].includes(a.status));
+    if (!wb || pending.length === 0) return [];
     const { service } = await ready(host); const expired = await service.expireAll(ctx);
-    let looked: unknown = null; try { if (!host.demo) looked = await service.reconcileAll(ctx); } catch { looked = null; }
-    return [{ module: 'writeback', expired, looked }];
+    const unknown = pending.some(a => a.status === 'unknown') && !host.demo ? (await service.reconcileAll(ctx).catch(() => null))?.reconciled ?? [] : [];
+    return expired.length || unknown.length ? [{ module: 'writeback', expired, looked: unknown }] : [];
   },
 };

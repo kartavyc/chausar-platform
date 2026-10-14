@@ -42,3 +42,25 @@ test('writeback over the engine in demo mode: practice connections, a consented 
   assert.equal(settings.approvalHours['seen-outside'], 12);
   assert.ok(engine.vault!.read().actions.every((a: any) => a.connector !== 'wb-zoho-books'), 'Practice leaves no action behind');
 });
+
+test('tick is silent when idle and drops an expired yes without sending', async () => {
+  const { writebackModule } = await import('../runtime/modules/lane-writeback.ts');
+  const { initialState } = await import('../runtime/contracts.ts');
+  let state = initialState('Tick test', true); let at = Date.parse('2026-10-14T04:00:00.000Z');
+  const store = { read: () => structuredClone(state), update: async (change: any) => { const draft = structuredClone(state); const out = await change(draft); draft.revision += 1; state = draft; return out; } };
+  const directory = await mkdtemp(join(tmpdir(), 'chausar-writeback-tick-'));
+  const host: any = { store, services: {}, demo: true, directory, options: { clock: () => new Date(at).toISOString() }, call: async () => null };
+  const owner = { memberId: 'owner', role: 'owner' as const, epoch: 1, channel: 'desktop' as const };
+  const m = writebackModule.methods;
+  assert.deepEqual(await writebackModule.tick!(owner, host, { awake: true, windowOpen: true, backgroundEnabled: false }), []);
+  const user = mailSeed.users[0], smtp = mailSeed.smtp[0];
+  const c: any = await m['writeback.connect'].handler(owner, { system: 'mail', label: 'p', environment: 'practice', account: { smtpHost: smtp.host, smtpPort: String(smtp.port), smtpSecurity: smtp.security, from: user.address } }, host);
+  await m['writeback.grant'].handler(owner, { connectionId: c.id, write: ['smtp.send'] }, host);
+  const prepared: any = await m['writeback.prepare'].handler(owner, { connectionId: c.id, action: 'smtp.send', intentId: 'tick-1', payload: { to: ['a@b.example'], subject: 'Hello', body: 'Body' } }, host);
+  await m['writeback.approve'].handler(owner, { id: prepared.id, digest: prepared.digest }, host);
+  at += 25 * 3600 * 1000;
+  const result: any = await writebackModule.tick!(owner, host, { awake: true, windowOpen: true, backgroundEnabled: false });
+  assert.deepEqual(result[0].expired, [prepared.id]);
+  assert.equal(state.actions[0].status, 'prepared'); assert.equal(state.actions[0].attempts.length, 0);
+  await rm(directory, { recursive: true, force: true });
+});
