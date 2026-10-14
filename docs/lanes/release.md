@@ -86,3 +86,85 @@ All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that rea
 ## Full suite
 
 `npm test` on `55d6f5f`: 4,163 tests, 4,132 passed, 4 failed, 27 skipped. The four failures are in `platform/tests/benchmark-sharding.test.ts` and fail identically on the base branch (`claude/clever-goldberg-49qobq`); they are not caused by this lane. `desktop-host-bundle-join.test.ts` needs `--experimental-vm-modules` and fails under a plain `node --test` (also on the base).
+
+## Real Linux runs: PostgreSQL
+
+Run on 2026-10-14 in a Linux x64 container (kernel 6.18, Ubuntu 24.04 userland, Node 24.13.1), as the unprivileged `postgres` account (uid 102). The checks and the staging are repeatable: `node scripts/release/verify-postgres-linux.ts --stage <dir> --old-bin /usr/lib/postgresql/16/bin --as-user postgres` (stage, then run the checks under that account through `runuser`), or `--runtime <dir>` to reuse a staged runtime. The same checks run as `platform/tests/release-postgres-real.test.ts` when `CHAUSAR_REAL_POSTGRES_RUNTIME` (and optionally `CHAUSAR_REAL_POSTGRES_OLD_BIN`) are set; without them, on another OS or as root it is skipped with the reason, so the normal suite stays offline.
+
+**Pins (linux-x64 only; every other target stays `null`).** Each archive was downloaded and hashed here, and the hash matched the publisher's own checksum file. Both are third-party builds (`official: false`).
+
+| Component | Archive | SHA-256 | Verified against |
+|---|---|---|---|
+| PostgreSQL 17.6 | theseus-rs `postgresql-17.6.0-x86_64-unknown-linux-gnu.tar.gz` (11.7 MB) | `19dbf09f0fc33255ff7596fc3ceb7696647286dd15fdf60f3f65c583aae6ad5d` | the release's `.sha256` asset next to the archive |
+| Python 3.13.7 | python-build-standalone 20250818 `cpython-3.13.7+20250818-x86_64-unknown-linux-gnu-install_only.tar.gz` (119 MB) | `f3488a36ef5c10d01d346b9e540727d0807202c9bef52f40a987dc59ddc4ecee` | the release's `SHA256SUMS` |
+
+`runtime-sources.json` records this in a new `checksumSource` field. The validator now requires `checksumSource` on every pin and refuses it on an unpinned entry.
+
+**Staging.** `stage-runtime.ts --platform linux --arch x64` passed against the real archives: 5,116 files in 25 s, with PostgreSQL at 30 MB and Python at 496 MB. The recorded layouts were right: strip folder, `COPYRIGHT` and `lib/python3.13/LICENSE.txt`. The 8 libpq/ecpg symlinks and 1,047 Python symlinks (mostly terminfo) were materialised. One fix: materialising `bin/python` and `lib/libpython3.13.so` duplicated a 113 MB interpreter and a 246 MB library (839 MB in all). A new layout `exclude` list drops those two links. The binaries are unstripped upstream. The real staged tree passed the runtime checks of `scripts/package-preflight.mjs`: ELF64 x86-64 header checks on `postgres`, `initdb`, `pg_ctl` and `python3`, and the complete integrity and provenance manifest. The non-runtime checks failed only because that check ran outside the repository and without release keys.
+
+**Real-run receipt** (`chausar.postgres-real-run.v1`, `ok: true`, PostgreSQL 17.6 bundled, 16.15 Ubuntu as the old major):
+
+| Step | Result | Time |
+|---|---|---|
+| initdb, start, `pg` connect from the connection descriptor, `select 1` | pass; port 56400, password file `0600` | 1.0 s |
+| live foreign lock (second instance on the same data root) | refused `POSTGRES_DATA_IN_USE`, lock `foreign` | 14 ms |
+| orderly stop | stopped, `postmaster.pid` gone | 0.1 s |
+| restart | same persisted port, data intact | 0.1 s |
+| `kill -9` of the postmaster after 1,000 committed inserts | lock `stale`; restart replayed WAL ("not properly shut down; automatic recovery in progress", "redo starts/done"); 1,001 rows; `stale-lock-recovered` recorded | 0.3 s |
+| `kill -9` while a backend runs a long query | the orphaned backend was found and ended; restart succeeded; rows intact | 2.6 s |
+| data newer than the bundled major (`PG_VERSION` 18) | state `newer-than-app`, refused `POSTGRES_DATA_NEWER`, not started | 0.2 s |
+| upgrade 16 → 17 (old cluster created by real PG 16 binaries, then crashed with `kill -9`) | `needs-upgrade`; start refused `POSTGRES_UPGRADE_REQUIRED`; no proof refused `BACKUP_REQUIRED`; with a real 40.8 MB tar vault copy and its SHA-256: crashed old cluster replayed by the PG 16 binaries, `pg_upgrade --check` then copy mode (`link: false`), 500 rows and their paise total intact on 17.6, `cluster.pre-17` kept with `PG_VERSION` 16 | 5.9 s |
+
+The same run also passed with the data roots under a 126-character path (`…/work/upgrade`), longer than the socket limit.
+
+**Bugs found by the real run and fixed in `postgres-lifecycle.ts`:**
+
+- *Readiness meant "port open".* During crash recovery the server listens but answers `57P03 not yet accepting connections`, so `start()` returned too early. Worse, before an upgrade the crashed old cluster was stopped mid-recovery, and `pg_upgrade` then refused it ("shut down while in recovery mode"). Readiness now also requires `ready` in the lock file, as `pg_ctl -w` checks.
+- *`delete_old_cluster.sh` would have deleted the live database.* `pg_upgrade` writes that script to its working folder (the data root). The script runs `rm -rf <data root>/cluster`, which after the swap is the upgraded cluster. `pg_upgrade` now runs from a private temporary folder that is removed afterwards.
+- *Socket path length.* `pg_upgrade` put its sockets in its working folder. With a deep data root this went past the 107-byte Unix limit ("socket path … is too long"). It now gets `--socketdir` with that short private folder.
+- *Orphaned backends after `kill -9`.* A backend busy in a query outlives its postmaster and keeps shared memory attached. The next start then failed with a generic `POSTGRES_START_FAILED` ("pre-existing shared memory block is still in use"). On Linux, the lifecycle now finds the `postgres` processes of the same user whose working folder is the data folder and ends them before restarting. This also covers the old cluster before an upgrade. The count is recorded as `orphansEnded`. If they will not end, the refusal is `POSTGRES_STALE_PROCESSES`.
+- *Running as root* failed as `POSTGRES_INITDB_FAILED`. It now refuses up front with `POSTGRES_RUN_AS_ROOT`, on non-Windows platforms with the real runner.
+- `pg_upgrade` failure output now reaches `onDiagnostic`.
+
+The public API is unchanged. The new options are `effectiveUid`, `orphanedServerProcesses` and `killProcess`, with test doubles in `release-postgres-lifecycle.test.ts`.
+
+**What this does not prove / still open:**
+
+- The theseus-rs PostgreSQL links the system's `libssl.so.3`, `libcrypto.so.3`, `libxml2.so.2`, `libzstd.so.1`, `liblz4.so.1`, `libgssapi_krb5.so.2` and `libz.so.1`, and needs glibc ≥ 2.34. These are not vendored, so the "complete runtime" rule is not met for older or minimal distributions.
+- The upgrade test lays the distribution's PG 16 `bin/` and `lib/` out as `postgres-16/` copies. No genuine relocatable PG 16 archive is pinned yet, and the README's `postgres-<major>/bin` layout needs `lib/` too for a build that resolves `$libdir` relative to `bin`.
+- The orphan sweep is Linux-only. On macOS and Windows, a crash during a long query still surfaces as `POSTGRES_START_FAILED` until the old backends finish.
+- Python was staged and launched (`python3` 3.13.7 runs from the staged tree) but not otherwise exercised. Nothing ran on macOS or Windows, on arm64, or under power loss as opposed to `kill -9`.
+- `app/desktop/main.cjs` still starts PostgreSQL through `scripts/postgres-runtime.mjs`. These results apply to `BundledPostgres`.
+
+## Real Linux runs: enterprise server
+
+Run on 2026-10-14 in one Linux container (kernel 6.18, Node 24.13.1, Docker 29.8.2, Compose v5.6.0, PostgreSQL 16 server binaries from Ubuntu, `postgres:17` image). Nothing was pushed, published or deployed; every container, network and volume was removed afterwards.
+
+### What changed
+
+- **Remote PostgreSQL over verified TLS, enterprise only.** `PostgresSnapshotAdapter.connect` accepts a new `PostgresRemoteOptions` (`host` any name or address, plus `remoteTls: { ca, servername? }`). It connects with `ssl: { ca, rejectUnauthorized: true, minVersion: 'TLSv1.2', servername? }`; a missing or malformed CA is refused (`POSTGRES_TLS_REQUIRED`). The engine passes `remoteTls` only when the trusted host sets both `storageMode: 'enterprise-server'` and `postgresTls`; the enterprise `main.ts` is the only caller that does. Every existing call (desktop, owner server, tests) builds the same loopback-only options as before and takes the unchanged code path. The server refuses to start with a non-loopback database URL and no `database.caFile` (`POSTGRES_TLS_REQUIRED`).
+- **Sessions in PostgreSQL.** `enterprise/server/state-store.ts`: `PostgresEnterpriseStore` (tables `chausar_enterprise_sessions`, `chausar_enterprise_logins`, `chausar_enterprise_rate_limits`) and `MemoryEnterpriseStore` behind one interface. Only SHA-256 digests of session ids and OIDC states are keys; client addresses are digested too. Expiry, sign-out, revocation and the per-request member re-check are unchanged; the OIDC state, nonce and PKCE verifier are taken with `DELETE … RETURNING`, so a state works once across processes. `main.ts` uses the PostgreSQL store over the same connection settings (and TLS) as the engine.
+- **Docker.** The Dockerfile builds (optional `build_ca` BuildKit secret for a TLS-intercepting proxy, not stored in the image; proxy build args do not appear in `docker history`). `compose.yaml` now runs PostgreSQL with `ssl=on` and a `pg_hba.conf` with `hostssl` lines only, on an internal network; the server verifies the database certificate against a mounted CA. `testing/compose.smoke.yaml` adds a fake OpenID provider over HTTPS (test only), and `testing/compose-smoke.ts` runs the whole smoke test and tears it down.
+
+### Results
+
+| Check | Command | Result |
+|---|---|---|
+| Typecheck | `npm run typecheck` | pass |
+| Syntax check | `node scripts/check.mjs` | pass (688 files) |
+| Release, PostgreSQL and workspace-PostgreSQL tests, no database URL | `node --experimental-vm-modules --test platform/tests/release-*.test.ts platform/tests/postgres-*.test.ts platform/tests/workspace-postgres-*.test.ts platform/tests/engine-keychain-postgres.test.ts` | 341 tests: 337 pass, 0 fail, 4 skipped (2 need the Windows C-drive fixture; 2 need `CHAUSAR_TEST_POSTGRES_URL`). `release-postgres-tls.test.ts` starts its own real cluster and is not skipped. |
+| Same, with a real TLS-only PostgreSQL 16 on a non-loopback address (192.0.2.2) | same command with `CHAUSAR_TEST_POSTGRES_URL=postgresql://chausar:…@192.0.2.2:<port>/chausar` and `CHAUSAR_TEST_POSTGRES_CA=<ca.pem>` (cluster from `enterprise/server/testing/real-postgres.ts`, run as the unprivileged `postgres` user) | 341 tests: 339 pass, 0 fail, 2 skipped (Windows fixture) |
+| Desktop still refuses a non-loopback host | `release-postgres-tls.test.ts` | pass: `192.0.2.10`, `db.example.com` and `localhost` refused with `INVALID_POSTGRES_CONFIG`; TLS options without the enterprise mode are ignored |
+| Enterprise mode without TLS refuses | `release-postgres-tls.test.ts` | pass: engine `INVALID_POSTGRES_CONFIG`; adapter, session store and `main.ts` `POSTGRES_TLS_REQUIRED` |
+| Enterprise mode with TLS against a real cluster (`ssl=on`, generated CA and server certificate, `hostssl` only) | `release-postgres-tls.test.ts` | pass: connects to 192.0.2.2 with the pinned CA (`pg_stat_ssl`: TLSv1.3); an unrelated CA and a wrong server name are refused; the plaintext loopback path is refused by the server; an engine creates, reopens and reads a workspace over TLS |
+| Two server instances on one database | `release-enterprise-postgres.test.ts` (real cluster above) | pass: sign in on A, `/api/me` and `workspace.status` on B, sign out on B, refused (401) on A; a sign-in started on A finishes on B and cannot be replayed on A; revocation ends the session on both and deletes its row; a fresh instance after A stops still accepts the session; only the digest is stored |
+| Image build | `docker build --network host --build-arg HTTPS_PROXY --secret id=build_ca,src=/root/.ccr/ca-bundle.crt -f enterprise/server/Dockerfile -t chausar-enterprise:dev .` | pass; 529 MB on disk, 130 MB compressed. Without the proxy CA, `npm ci` fails behind this container's proxy ("Exit handler never called"); the first base-image pull from Docker Hub got 429 and succeeded on retry. |
+| Compose smoke | `node enterprise/server/testing/compose-smoke.ts` | 17/17 steps pass in about 18 s: postgres (TLS only) and fake IdP up; workspace created by the operator command; container healthy; `GET /healthz` from the host `{"status":"ok","vaultOpen":true}`; both Chausar connections (`chausar-vault`, `chausar-enterprise-sessions`) on TLSv1.3; plaintext `sslmode=disable` refused (`no pg_hba.conf entry`); sign-in through the fake IdP; `/api/me` (owner), `workspace.status`, `members.list`; session row in PostgreSQL; session survives `docker compose restart server`; sign-out ends it. Torn down: no containers, networks or volumes left. |
+
+### What could not run or is still missing
+
+- Several engine processes on one workspace. The engine is one writer per workspace (in-memory snapshot plus a writer lock in the workspace directory); a second engine would not see the first one's changes and its writes would be refused (`REVISION_CONFLICT`). The two-instance test therefore runs two HTTPS servers, each with its own PostgreSQL session-store pool, over one engine. Shared sessions give restart and hand-over survival, not active-active engines.
+- The identity map (`identities.json`) stays in the server data directory, next to the single engine.
+- Private token search (`PostgresInvestigationSearch` in `platform/runtime/investigation-search.ts`, not a release-lane file) still accepts a loopback database only, so it is unavailable with a remote database.
+- Sign-ins in progress keep the PKCE verifier and nonce in the database for up to ten minutes (deleted on use).
+- Not run: CI, a real identity provider, a managed PostgreSQL service, IPv6, client-certificate authentication to PostgreSQL, and `"keychain"` unlock in a container.

@@ -117,6 +117,9 @@ export type EngineOptions = { directory: string; version?: string; demo?: boolea
   invoiceFollowUp?: InvoiceHostOptions;
   /** Explicit current evidence, personal target and evaluation authorities. Never an RPC payload. */
   lessons?: EngineLessonOptions;
+  /** Trusted enterprise-server host only. With `postgresTls`, the Vault database may be on another host over verified TLS. */
+  storageMode?: 'enterprise-server';
+  postgresTls?: { ca: string; servername?: string };
 };
 // Operational admission ceilings reject the complete operation; no namespace is truncated.
 const defaultBackupBudgets: WorkspaceBackupV2Budgets = { maxArchiveUtf8Bytes: 32 * 1024 * 1024,
@@ -480,7 +483,7 @@ export class Engine {
     check(this.options.storage === 'postgres' && this.options.postgresUrl, 'DATABASE_REQUIRED', 'Production requires configured PostgreSQL. File storage is available only in the explicitly experimental demo.');
     const url = new URL(this.options.postgresUrl);
     check(url.protocol === 'postgresql:' || url.protocol === 'postgres:', 'INVALID_POSTGRES_CONFIG', 'Use a PostgreSQL connection URL.');
-    return PostgresSnapshotAdapter.connect({ host: url.hostname.replace(/^\[|\]$/g, '') as '127.0.0.1' | '::1', port: Number(url.port || 5432), user: decodeURIComponent(url.username), password: decodeURIComponent(url.password), database: decodeURIComponent(url.pathname.slice(1)), vaultSlot: hash(this.workspacePath(folder)) });
+    return PostgresSnapshotAdapter.connect({ host: url.hostname.replace(/^\[|\]$/g, '') as '127.0.0.1' | '::1', port: Number(url.port || 5432), user: decodeURIComponent(url.username), password: decodeURIComponent(url.password), database: decodeURIComponent(url.pathname.slice(1)), vaultSlot: hash(this.workspacePath(folder)), ...(this.options.storageMode === 'enterprise-server' && this.options.postgresTls ? { remoteTls: this.options.postgresTls } : {}) });
   }
   private async withWorkspaceStorage<T>(folder: string, operation: PostgresWorkspaceStorageOperation,
     work: (adapter: 'experimental-file' | EncryptedSnapshotAdapter) => Promise<T>): Promise<T> {

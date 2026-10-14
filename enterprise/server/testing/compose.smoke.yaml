@@ -1,0 +1,34 @@
+# TEST ONLY: adds a fake OpenID provider for the smoke run in compose-smoke.ts. Never use in a deployment.
+#   docker compose -f enterprise/server/compose.yaml -f enterprise/server/testing/compose.smoke.yaml ...
+# Relative paths below resolve against enterprise/server (the directory of the first compose file).
+services:
+  idp:
+    image: node:24.13.1-bookworm-slim
+    command: ["node", "/opt/fake-oidc/fake-oidc-server.ts"]
+    user: "10001:10001"
+    environment:
+      FAKE_OIDC_ISSUER: https://idp:9443
+      FAKE_OIDC_CLIENT_ID: chausar
+      FAKE_OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
+      FAKE_OIDC_CERT: /etc/fake-oidc/cert.pem
+      FAKE_OIDC_KEY: /etc/fake-oidc/key.pem
+    secrets: [oidc_client_secret]
+    volumes:
+      - ./testing/fake-oidc-server.ts:/opt/fake-oidc/fake-oidc-server.ts:ro
+      - ./testing/fake-oidc-provider.ts:/opt/fake-oidc/fake-oidc-provider.ts:ro
+      - ${CHAUSAR_ENTERPRISE_FILES:-.}/idp-tls:/etc/fake-oidc:ro
+    networks: [front]
+    ports:
+      - "9443:9443"
+    read_only: true
+    cap_drop: [ALL]
+
+  server:
+    depends_on:
+      idp:
+        condition: service_started
+    environment:
+      # The fake provider's certificate is signed by a throw-away CA that only this run trusts.
+      NODE_EXTRA_CA_CERTS: /etc/chausar/idp-ca.pem
+    volumes:
+      - ${CHAUSAR_ENTERPRISE_FILES:-.}/idp-tls/ca.pem:/etc/chausar/idp-ca.pem:ro

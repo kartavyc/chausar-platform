@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { chmod, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { createConnection, createServer } from 'node:net';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { check } from '../contracts.ts';
 
 /**
@@ -81,6 +82,7 @@ export type PostgresUpgradePlan = {
   /** The pre-upgrade cluster is kept here after the swap: `cluster.pre-<toMajor>`. */
   retainedDataDirectory: string;
   link: false;
+  /** `upgrade()` runs the check and upgrade steps from a private short temporary folder, passed as `--socketdir`. */
   steps: PostgresUpgradeStep[];
 };
 export type BackupProof = { path: string; sha256: string };
@@ -100,6 +102,15 @@ export type BundledPostgresOptions = {
   processAlive?: (pid: number) => boolean;
   onDiagnostic?: (text: string) => void;
   now?: () => string;
+  /**
+   * Effective user id; PostgreSQL refuses to run as root (0). Defaults to the process's own id with the real
+   * runner and to null (not checked) with a substitute runner, which decides how its processes run.
+   */
+  effectiveUid?: () => number | null;
+  /** Server processes a dead postmaster left running on this data directory. Defaults to a /proc scan on Linux. */
+  orphanedServerProcesses?: (dataDirectory: string) => Promise<number[]>;
+  /** Ends an orphaned server process (SIGKILL by default). */
+  killProcess?: (pid: number) => void;
 };
 
 type Executables = { binDirectory: string; postgres: string; initdb: string; pgCtl: string; pgUpgrade: string };
@@ -150,6 +161,24 @@ function listening(port: number): Promise<boolean> {
     socket.setTimeout(250, () => done(false));
   });
 }
+/**
+ * Linux: after a `kill -9` of the postmaster, a backend busy in a query keeps running and keeps the old shared
+ * memory attached, so a new postmaster refuses to start. Such processes run the `postgres` executable with the
+ * data directory as their working directory. Only processes of the same user can be read here.
+ */
+export async function linuxOrphanedServerProcesses(dataDirectory: string): Promise<number[]> {
+  let real: string, entries: string[];
+  try { real = await realpath(dataDirectory); entries = await readdir('/proc'); } catch { return []; }
+  const found: number[] = [];
+  for (const entry of entries) {
+    if (!/^\d+$/.test(entry) || Number(entry) === process.pid) continue;
+    try {
+      if (await readlink(`/proc/${entry}/cwd`) !== real) continue;
+      if (basename(await readlink(`/proc/${entry}/exe`)).replace(/ \(deleted\)$/, '') === 'postgres') found.push(Number(entry));
+    } catch { /* another user's process, or gone */ }
+  }
+  return found;
+}
 async function sha256File(path: string): Promise<string> {
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(path)) hash.update(chunk);
@@ -172,6 +201,9 @@ export class BundledPostgres {
   private readonly processAlive: (pid: number) => boolean;
   private readonly onDiagnostic?: (text: string) => void;
   private readonly now: () => string;
+  private readonly effectiveUid: () => number | null;
+  private readonly orphanedServerProcesses: (dataDirectory: string) => Promise<number[]>;
+  private readonly killProcess: (pid: number) => void;
   private server: PostgresServerProcess | null = null;
   private serverPort: number | null = null;
   private bundledVersionCache: string | null = null;
@@ -201,6 +233,10 @@ export class BundledPostgres {
     this.processAlive = options.processAlive ?? defaultProcessAlive;
     this.onDiagnostic = options.onDiagnostic;
     this.now = options.now ?? (() => new Date().toISOString());
+    const realRunner = this.runner === nodePostgresRunner;
+    this.effectiveUid = options.effectiveUid ?? (() => realRunner && typeof process.geteuid === 'function' ? process.geteuid() : null);
+    this.orphanedServerProcesses = options.orphanedServerProcesses ?? (realRunner && this.platform === 'linux' ? linuxOrphanedServerProcesses : async () => []);
+    this.killProcess = options.killProcess ?? (pid => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
   }
 
   /** Read-only summary; never creates files or starts processes other than `postgres --version`. */
@@ -227,6 +263,7 @@ export class BundledPostgres {
   start(): Promise<PostgresConnection> {
     return this.exclusive(async () => {
       if (this.serverAlive()) return this.connection();
+      this.refuseRoot();
       const executables = await this.executables();
       await this.preparePrivateRoot();
       await this.ensurePasswordFile();
@@ -292,6 +329,7 @@ export class BundledPostgres {
   upgrade(options: { backupConfirmed?: BackupProof | null }): Promise<PostgresStatus> {
     return this.exclusive(async () => {
       const proof = options?.backupConfirmed;
+      this.refuseRoot();
       check(proof && typeof proof.path === 'string' && isAbsolute(proof.path) && typeof proof.sha256 === 'string' && /^[a-f0-9]{64}$/.test(proof.sha256), 'BACKUP_REQUIRED', 'Take a vault copy of the database before upgrading it.');
       const backupRelative = relative(this.dataDirectory, resolve(proof.path));
       check(backupRelative.startsWith(`..${sep}`) || backupRelative === '..' || isAbsolute(backupRelative), 'BACKUP_REQUIRED', 'The vault copy must be stored outside the database folder.');
@@ -312,7 +350,14 @@ export class BundledPostgres {
       await rm(passFile, { force: true });
       await writeFile(passFile, `*:*:*:${this.user}:${await this.readPassword()}\n`, { mode: 0o600, flag: 'wx' });
       const env = this.environment({ PGPASSFILE: passFile });
-      const fail = async (kind: PostgresEventKind, code: string, message: string) => {
+      // pg_upgrade writes its scripts (delete_old_cluster.sh would delete the swapped-in cluster) to its working
+      // folder and puts server sockets there; a private short folder keeps both out of the data root and keeps the
+      // socket path under the Unix 107-byte limit however deep the data root is.
+      const work = await mkdtemp(join(this.platform !== 'win32' && tmpdir().length > 64 ? '/tmp' : tmpdir(), 'chausar-pgu-'));
+      await chmod(work, 0o700);
+      const socketArgs = this.platform === 'win32' ? [] : ['--socketdir', work];
+      const fail = async (kind: PostgresEventKind, code: string, message: string, result: PostgresRunResult) => {
+        this.onDiagnostic?.(`${result.stdout}\n${result.stderr}`.trim().slice(-OUTPUT_LIMIT));
         await this.removeOwnDirectory(plan.newDataDirectory);
         await this.recordEvent(kind, { from: plan.fromMajor, to: plan.toMajor });
         check(false, code, message);
@@ -320,16 +365,19 @@ export class BundledPostgres {
       try {
         const [initdb, preflight, upgrade] = plan.steps;
         await mkdir(plan.newDataDirectory, { mode: 0o700 });
-        const created = await this.runner.run(initdb.executable, initdb.args, { timeoutMs: this.commandTimeoutMs, cwd: this.dataRoot, env });
-        if (created.code !== 0) await fail('upgrade-failed', 'POSTGRES_INITDB_FAILED', 'PostgreSQL could not create the upgraded database folder.');
-        const checked = await this.runner.run(preflight.executable, preflight.args, { timeoutMs: this.upgradeTimeoutMs, cwd: this.dataRoot, env });
-        if (checked.code !== 0) await fail('upgrade-check-failed', 'POSTGRES_UPGRADE_CHECK_FAILED', 'The upgrade check failed. The existing database was left unchanged.');
-        const upgraded = await this.runner.run(upgrade.executable, upgrade.args, { timeoutMs: this.upgradeTimeoutMs, cwd: this.dataRoot, env });
-        if (upgraded.code !== 0) await fail('upgrade-failed', 'POSTGRES_UPGRADE_FAILED', 'The upgrade did not finish. The existing database was left unchanged.');
+        const created = await this.runner.run(initdb.executable, initdb.args, { timeoutMs: this.commandTimeoutMs, cwd: work, env });
+        if (created.code !== 0) await fail('upgrade-failed', 'POSTGRES_INITDB_FAILED', 'PostgreSQL could not create the upgraded database folder.', created);
+        const checked = await this.runner.run(preflight.executable, [...preflight.args, ...socketArgs], { timeoutMs: this.upgradeTimeoutMs, cwd: work, env });
+        if (checked.code !== 0) await fail('upgrade-check-failed', 'POSTGRES_UPGRADE_CHECK_FAILED', 'The upgrade check failed. The existing database was left unchanged.', checked);
+        const upgraded = await this.runner.run(upgrade.executable, [...upgrade.args, ...socketArgs], { timeoutMs: this.upgradeTimeoutMs, cwd: work, env });
+        if (upgraded.code !== 0) await fail('upgrade-failed', 'POSTGRES_UPGRADE_FAILED', 'The upgrade did not finish. The existing database was left unchanged.', upgraded);
         await rename(plan.oldDataDirectory, plan.retainedDataDirectory);
         try { await rename(plan.newDataDirectory, plan.oldDataDirectory); }
         catch (error) { await rename(plan.retainedDataDirectory, plan.oldDataDirectory); throw error; }
-      } finally { await rm(passFile, { force: true }); }
+      } finally {
+        await rm(passFile, { force: true });
+        await rm(work, { recursive: true, force: true });
+      }
       await this.recordEvent('upgrade-completed', { from: plan.fromMajor, to: plan.toMajor, retained: `${CLUSTER_DIRECTORY}.pre-${plan.toMajor}`, backupSha256: proof.sha256 });
       return this.status();
     });
@@ -339,6 +387,9 @@ export class BundledPostgres {
     const next = this.queue.then(work, work);
     this.queue = next.catch(() => undefined);
     return next;
+  }
+  private refuseRoot(): void {
+    check(this.platform === 'win32' || this.effectiveUid() !== 0, 'POSTGRES_RUN_AS_ROOT', 'PostgreSQL refuses to run as the administrator account. Start the app as an ordinary user.');
   }
   private serverAlive(): boolean {
     return this.server !== null && !this.server.exitStatus().exited;
@@ -461,7 +512,16 @@ export class BundledPostgres {
   private async recoverLock(): Promise<void> {
     const state = await this.lock();
     check(state.kind !== 'foreign', 'POSTGRES_DATA_IN_USE', 'Another program is using the database folder.');
-    if (state.kind === 'stale') await this.recordEvent('stale-lock-recovered', { pid: state.pid });
+    if (state.kind === 'stale') await this.recordEvent('stale-lock-recovered', { pid: state.pid, orphansEnded: await this.endOrphans(this.dataDirectory) });
+  }
+  /** Ends server processes a crashed postmaster left on this data directory, so the new postmaster can start. */
+  private async endOrphans(directory: string): Promise<number> {
+    const orphans = await this.orphanedServerProcesses(directory);
+    for (const pid of orphans) this.killProcess(pid);
+    const deadline = Date.now() + Math.min(10_000, this.startTimeoutMs);
+    while (orphans.some(pid => this.processAlive(pid)) && Date.now() < deadline) await pause(50);
+    check(!orphans.some(pid => this.processAlive(pid)), 'POSTGRES_STALE_PROCESSES', 'Database processes left by a crash are still running. End them, then start again.');
+    return orphans.length;
   }
   private async vacantPorts(count: number, avoid: number[] = []): Promise<number[]> {
     const found: number[] = [];
@@ -481,13 +541,23 @@ export class BundledPostgres {
   private serverArgs(directory: string, port: number): string[] {
     return ['-D', directory, '-h', '127.0.0.1', '-p', String(port), '-c', 'unix_socket_directories=', '-c', 'password_encryption=scram-sha-256', '-c', 'fsync=on', '-c', 'synchronous_commit=on', '-c', 'full_page_writes=on'];
   }
+  /**
+   * Ready means the postmaster wrote `ready` into its lock file (PostgreSQL 10+, as `pg_ctl -w` checks). An open port
+   * alone is not enough: during crash recovery the server listens but refuses connections, and a fast stop then
+   * leaves the cluster "shut down in recovery", which pg_upgrade refuses.
+   */
+  private async ready(directory: string, pid: number | undefined): Promise<boolean> {
+    let lines: string[];
+    try { lines = (await readFile(join(directory, 'postmaster.pid'), 'utf8')).split(/\r?\n/); } catch { return false; }
+    return (pid === undefined || Number(lines[0]) === pid) && lines[7]?.trim() === 'ready';
+  }
   private async launch(executables: Executables, directory: string, port: number): Promise<void> {
     const server = this.runner.spawnServer(executables.postgres, this.serverArgs(directory, port), { env: this.environment(), onDiagnostic: this.onDiagnostic });
     this.server = server; this.serverPort = port;
     const deadline = Date.now() + this.startTimeoutMs;
     while (Date.now() < deadline) {
       if (server.exitStatus().exited) { this.server = null; this.serverPort = null; check(false, 'POSTGRES_START_FAILED', 'The bundled database stopped before it was ready.'); }
-      if (await listening(port)) return;
+      if (await this.ready(directory, server.pid) && await listening(port)) return;
       await pause(100);
     }
     await this.stopServer(executables, directory);
@@ -510,7 +580,7 @@ export class BundledPostgres {
   }
   /** pg_upgrade requires a clean shutdown: replay a crashed old cluster with its own binaries first. */
   private async cleanShutdownWithOld(plan: PostgresUpgradePlan, pid: number | null): Promise<void> {
-    await this.recordEvent('stale-lock-recovered', { pid });
+    await this.recordEvent('stale-lock-recovered', { pid, orphansEnded: await this.endOrphans(plan.oldDataDirectory) });
     const old = postgresExecutables(this.runtimeRoot, this.platform, `postgres-${plan.fromMajor}`);
     const [port] = await this.vacantPorts(1);
     await this.launch(old, plan.oldDataDirectory, port);

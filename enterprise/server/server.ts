@@ -4,13 +4,14 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { ChausarError, check } from '../../platform/runtime/contracts.ts';
-import type { Context, Role } from '../../platform/runtime/contracts.ts';
+import type { Context } from '../../platform/runtime/contracts.ts';
 import type { Engine } from '../../platform/runtime/engine.ts';
 import uiAssets from '../../app/desktop/ui-assets.cjs';
 import ipc from '../../app/desktop/ipc-contract.cjs';
 import { readSecretFile, readTlsFiles, type EnterpriseConfig } from './config.ts';
 import { OidcClient, type FetchLike } from './oidc.ts';
 import { IdentityDirectory } from './identity.ts';
+import { MemoryEnterpriseStore, type EnterpriseStateStore } from './state-store.ts';
 const { readUiAsset } = uiAssets;
 const { validateRequest } = ipc;
 
@@ -21,9 +22,10 @@ export type EnterpriseServerDeps = {
   allowLoopbackHttpIssuer?: boolean;
   oidc?: OidcClient; identity?: IdentityDirectory; tls?: { cert: Buffer; key: Buffer };
   now?: () => number; uiRoot?: string; authRateLimitPerMinute?: number;
+  /** Shared sessions, sign-ins in progress and rate limits. The caller owns and closes it. Defaults to one process's memory. */
+  store?: EnterpriseStateStore;
 };
-export type EnterpriseServer = { server: Server; oidc: OidcClient; identity: IdentityDirectory; sessionCount(): number; listen(): Promise<{ origin: string; port: number }>; close(timeoutMs?: number): Promise<void> };
-type Session = { memberId: string; role: Role; epoch: number; expiresAt: number };
+export type EnterpriseServer = { server: Server; oidc: OidcClient; identity: IdentityDirectory; store: EnterpriseStateStore; sessionCount(): Promise<number>; listen(): Promise<{ origin: string; port: number }>; close(timeoutMs?: number): Promise<void> };
 
 /** Methods that change custody or the server itself stay with the trusted local operator. */
 export const BOOTSTRAP_ONLY_METHODS: readonly string[] = Object.freeze(['auth.accept', 'workspace.create', 'workspace.open', 'workspace.restore', 'workspace.recover', 'workspace.delete', 'workspace.lock']);
@@ -74,36 +76,27 @@ function namedRequest(value: unknown): { method: string; payload: Record<string,
 /** HTTPS server: OIDC sign-in, server-side sessions, and engine requests as the signed-in member. */
 export async function createEnterpriseServer(engine: Engine, config: EnterpriseConfig, deps: EnterpriseServerDeps = {}): Promise<EnterpriseServer> {
   const now = deps.now ?? Date.now; const origin = config.publicOrigin; const expectedHost = new URL(origin).host;
+  const ownStore = !deps.store; const store = deps.store ?? new MemoryEnterpriseStore();
   const tls = deps.tls ?? await readTlsFiles(config);
   const oidc = deps.oidc ?? new OidcClient({ issuer: config.oidc.issuer, clientId: config.oidc.clientId, clientSecret: await readSecretFile(config.oidc.clientSecretFile),
-    redirectUri: `${origin}${config.oidc.redirectPath}`, scopes: config.oidc.scopes, fetch: deps.fetch, now, allowLoopbackHttpIssuer: deps.allowLoopbackHttpIssuer === true });
+    redirectUri: `${origin}${config.oidc.redirectPath}`, scopes: config.oidc.scopes, fetch: deps.fetch, now, allowLoopbackHttpIssuer: deps.allowLoopbackHttpIssuer === true, logins: store });
   const identity = deps.identity ?? await IdentityDirectory.open(engine, { dataDirectory: config.dataDirectory, rules: config.roles, allowedEmailDomains: config.allowedEmailDomains });
-  const ttlMs = config.sessionTtlMinutes * 60_000; const sessions = new Map<string, Session>();
-  const limit = deps.authRateLimitPerMinute ?? 60; const windows = new Map<string, { start: number; count: number }>();
+  const ttlMs = config.sessionTtlMinutes * 60_000;
+  const limit = deps.authRateLimitPerMinute ?? 60;
   let closing = false;
 
-  function rateLimit(address: string) {
-    const at = now();
-    if (windows.size >= 10_000) for (const [key, window] of windows) if (at - window.start >= 60_000) windows.delete(key);
-    const window = windows.get(address);
-    if (!window || at - window.start >= 60_000) { check(windows.size < 10_000, 'RATE_LIMITED', 'Too many sign-in requests. Wait a minute.'); windows.set(address, { start: at, count: 1 }); return; }
-    window.count++; check(window.count <= limit, 'RATE_LIMITED', 'Too many sign-in requests. Wait a minute.');
-  }
-  function createSession(context: Context): string {
-    const at = now();
-    if (sessions.size >= MAX_SESSIONS) for (const [key, item] of sessions) if (item.expiresAt <= at) sessions.delete(key);
-    check(sessions.size < MAX_SESSIONS, 'ENTERPRISE_BUSY', 'Too many sessions are open. Try again later.');
-    const id = randomBytes(32).toString('base64url');
-    sessions.set(digest(id), { memberId: context.memberId, role: context.role, epoch: context.epoch, expiresAt: at + ttlMs }); return id;
+  async function createSession(context: Context): Promise<string> {
+    const at = now(); const id = randomBytes(32).toString('base64url');
+    await store.putSession(digest(id), { memberId: context.memberId, role: context.role, epoch: context.epoch, expiresAt: at + ttlMs }, MAX_SESSIONS, at); return id;
   }
   /** Re-checks the member on every request: revocation or a changed epoch ends the session. */
   async function currentSession(req: IncomingMessage) {
     const id = cookies(req).get(SESSION_COOKIE) ?? '';
     check(tokenShape.test(id), 'UNAUTHENTICATED', 'Sign in to continue.');
-    const key = digest(id); const session = sessions.get(key);
+    const key = digest(id); const session = await store.getSession(key, now());
     check(session && session.expiresAt > now(), 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
     const member = await identity.current(session.memberId, session.role, session.epoch);
-    if (!member) { sessions.delete(key); check(false, 'UNAUTHENTICATED', 'Your workspace access changed. Sign in again.'); }
+    if (!member) { await store.deleteSession(key); check(false, 'UNAUTHENTICATED', 'Your workspace access changed. Sign in again.'); }
     const context: Context = { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' };
     return { key, context, member };
   }
@@ -121,7 +114,7 @@ export async function createEnterpriseServer(engine: Engine, config: EnterpriseC
     check(req.headers.host === expectedHost, 'INVALID_HOST', 'Use the configured public address.');
     if (path === '/') { check(req.method === 'GET' || req.method === 'HEAD', 'METHOD_NOT_ALLOWED', 'Use GET.'); res.writeHead(302, { Location: '/ui/index.html', 'Cache-Control': 'no-store' }); return res.end(); }
     if (path.startsWith('/auth/')) {
-      rateLimit(req.socket.remoteAddress ?? 'unknown');
+      await store.hit(req.socket.remoteAddress ?? 'unknown', now(), limit);
       if (path === '/auth/login') {
         check(req.method === 'GET', 'METHOD_NOT_ALLOWED', 'Use GET to sign in.');
         const { url: target, state } = await oidc.beginLogin();
@@ -135,13 +128,13 @@ export async function createEnterpriseServer(engine: Engine, config: EnterpriseC
         check(tokenShape.test(state) && tokenShape.test(bound) && sameText(state, bound), 'OIDC_STATE_INVALID', 'This sign-in attempt is not recognised. Start again.');
         const claims = await oidc.completeLogin({ state, code: url.searchParams.get('code') });
         const signedIn = await identity.signIn(oidc.options.issuer, claims);
-        const id = createSession(signedIn.context);
+        const id = await createSession(signedIn.context);
         res.writeHead(302, { Location: '/ui/index.html', 'Cache-Control': 'no-store', 'Set-Cookie': [sessionCookie(id, Math.floor(ttlMs / 1000)), loginCookie('', 0)] }); return res.end();
       }
       if (path === '/auth/logout') {
         check(req.method === 'POST', 'METHOD_NOT_ALLOWED', 'Use POST to sign out.');
         requireCsrf(req);
-        const id = cookies(req).get(SESSION_COOKIE) ?? ''; if (tokenShape.test(id)) sessions.delete(digest(id));
+        const id = cookies(req).get(SESSION_COOKIE) ?? ''; if (tokenShape.test(id)) await store.deleteSession(digest(id));
         return send(200, { signedOut: true }, { 'Set-Cookie': sessionCookie('', 0) });
       }
       check(false, 'NOT_FOUND', 'This address does not exist.');
@@ -188,7 +181,7 @@ export async function createEnterpriseServer(engine: Engine, config: EnterpriseC
   });
   server.requestTimeout = 60_000; server.headersTimeout = 20_000;
   return {
-    server, oidc, identity, sessionCount: () => sessions.size,
+    server, oidc, identity, store, sessionCount: () => store.sessionCount(now()),
     async listen() {
       await new Promise<void>((resolveListen, reject) => { server.once('error', reject); server.listen(config.listen.port, config.listen.host, () => { server.off('error', reject); resolveListen(); }); });
       const address = server.address(); check(address && typeof address === 'object', 'SERVER_FAILED', 'No port was assigned.');
@@ -196,7 +189,8 @@ export async function createEnterpriseServer(engine: Engine, config: EnterpriseC
     },
     async close(timeoutMs = 70000) {
       check(Number.isSafeInteger(timeoutMs) && timeoutMs >= 100 && timeoutMs <= 75000, 'INVALID_SHUTDOWN_LIMIT', 'Use a bounded server shutdown deadline.');
-      closing = true; sessions.clear();
+      // A shared store keeps its sessions: another process, or this one after a restart, continues them.
+      closing = true; if (ownStore) await store.close();
       let timer: ReturnType<typeof setTimeout> | undefined;
       const drain = new Promise<void>((resolveClose, reject) => {
         timer = setTimeout(() => { server.closeAllConnections(); reject(new Error('HTTPS shutdown exceeded its deadline.')); }, timeoutMs);

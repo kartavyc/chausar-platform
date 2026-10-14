@@ -6,7 +6,7 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { downloadArchive, inventoryRuntime, loadRuntimeSources, parseStageArguments, stageRuntime, assertOutputAllowed, type Fetcher, type RuntimeSources } from '../../scripts/release/stage-runtime.ts';
+import { downloadArchive, inventoryRuntime, loadRuntimeSources, parseStageArguments, stageRuntime, assertOutputAllowed, validateRuntimeSources, type Fetcher, type RuntimeSources } from '../../scripts/release/stage-runtime.ts';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const code = (expected: string) => (error: unknown) => (error as { code?: string }).code === expected;
@@ -38,6 +38,7 @@ async function fixture(t: TestContext, options: { pgSymlinks?: boolean; escaping
   const py = join(trees, 'python');
   await file(join(py, 'bin', 'python3.13'), 'fake interpreter', 0o755);
   await symlink('python3.13', join(py, 'bin', 'python3'));
+  await symlink('python3.13', join(py, 'bin', 'python'));
   await file(join(py, 'lib', 'python3.13', 'LICENSE.txt'), 'PSF license');
   await file(join(py, 'lib', 'python3.13', 'os.py'), '# stdlib');
   if (options.escapingLink) await symlink('/etc/hostname', join(py, 'bin', 'escape'));
@@ -50,8 +51,8 @@ async function fixture(t: TestContext, options: { pgSymlinks?: boolean; escaping
     schemaVersion: 1,
     targets: {
       'linux-x64': [
-        { component: 'postgres', version: '17.6', vendor: 'synthetic', url: 'https://vendor.test/pg.tar.gz', sha256: sha(bytes['https://vendor.test/pg.tar.gz']), license: 'PostgreSQL', licenseFile: 'postgres/COPYRIGHT', official: false, layout: { archive: 'tar.gz', strip: PG_ROOT, into: 'postgres', include: ['bin', 'lib', 'share', 'COPYRIGHT'], materialiseSymlinks: options.pgSymlinks ?? true } },
-        { component: 'python', version: '3.13.7', vendor: 'synthetic', url: 'https://vendor.test/py.tar.gz', sha256: sha(bytes['https://vendor.test/py.tar.gz']), license: 'PSF-2.0', licenseFile: 'python/lib/python3.13/LICENSE.txt', official: false, layout: { archive: 'tar.gz', strip: 'python', into: 'python', materialiseSymlinks: true } },
+        { component: 'postgres', version: '17.6', vendor: 'synthetic', url: 'https://vendor.test/pg.tar.gz', sha256: sha(bytes['https://vendor.test/pg.tar.gz']), checksumSource: 'synthetic test archive', license: 'PostgreSQL', licenseFile: 'postgres/COPYRIGHT', official: false, layout: { archive: 'tar.gz', strip: PG_ROOT, into: 'postgres', include: ['bin', 'lib', 'share', 'COPYRIGHT'], materialiseSymlinks: options.pgSymlinks ?? true } },
+        { component: 'python', version: '3.13.7', vendor: 'synthetic', url: 'https://vendor.test/py.tar.gz', sha256: sha(bytes['https://vendor.test/py.tar.gz']), checksumSource: 'synthetic test archive', license: 'PSF-2.0', licenseFile: 'python/lib/python3.13/LICENSE.txt', official: false, layout: { archive: 'tar.gz', strip: 'python', into: 'python', exclude: ['bin/python'], materialiseSymlinks: true } },
       ],
     },
   };
@@ -73,6 +74,7 @@ test('stages pinned archives into the README layout and writes a manifest the pr
   assert.deepEqual(paths, [...paths].sort());
   for (const path of ['README.md', 'postgres/bin/postgres', 'postgres/lib/libpq.so.5', 'postgres/COPYRIGHT', 'python/bin/python3', 'python/lib/python3.13/LICENSE.txt']) assert.ok(paths.includes(path), path);
   assert.ok(!paths.some(path => path.startsWith('postgres/include')), 'excluded folders are not staged');
+  assert.ok(!paths.includes('python/bin/python'), 'an excluded duplicate link is not materialised');
   assert.ok(!paths.includes('manifest.json'));
   const interpreter = await lstat(join(out, 'python', 'bin', 'python3'));
   assert.ok(interpreter.isFile() && !interpreter.isSymbolicLink(), 'the symlinked interpreter is materialised as a regular file');
@@ -103,6 +105,7 @@ test('null pins and missing upstreams refuse before any download', async t => {
   const { out, sources, fetcher, fetched } = await fixture(t);
   const unpinned = structuredClone(sources);
   unpinned.targets['linux-x64'][1].sha256 = null;
+  delete unpinned.targets['linux-x64'][1].checksumSource;
   await assert.rejects(stageRuntime({ platform: 'linux', architecture: 'x64', out, sources: unpinned, fetch: fetcher }), code('RUNTIME_SOURCE_UNPINNED'));
   const unavailable = structuredClone(sources);
   unavailable.targets['linux-x64'][0].url = null;
@@ -140,7 +143,7 @@ test('archives with parent traversal refuse', async t => {
   assert.equal(made.status, 0, made.stderr?.toString());
   const bytes = await readFile(archive);
   const evil = structuredClone(sources);
-  evil.targets['linux-x64'][0] = { ...evil.targets['linux-x64'][0], url: 'https://vendor.test/evil.tar.gz', sha256: sha(bytes) };
+  evil.targets['linux-x64'][0] = { ...evil.targets['linux-x64'][0], url: 'https://vendor.test/evil.tar.gz', sha256: sha(bytes), checksumSource: 'synthetic test archive' };
   await assert.rejects(stageRuntime({ platform: 'linux', architecture: 'x64', out, sources: evil, fetch: async () => new Response(new Uint8Array(bytes)) }), code('RUNTIME_ARCHIVE_UNSAFE'));
 });
 
@@ -154,18 +157,30 @@ test('downloads are HTTPS only and size bounded', async t => {
   assert.equal(await downloadArchive('https://vendor.test/a.zip', join(root, 'd'), { fetch: ok }), sha(Buffer.alloc(4096)));
 });
 
-test('the recorded pins are valid, honest and all await the operator', async () => {
+test('the recorded pins are valid and honest: only linux-x64 is pinned, each pin names the vendor checksum it matched', async () => {
   const sources = await loadRuntimeSources();
   assert.deepEqual(Object.keys(sources.targets).sort(), ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-arm64', 'win32-x64']);
-  for (const entries of Object.values(sources.targets)) {
+  for (const [target, entries] of Object.entries(sources.targets)) {
     for (const entry of entries) {
-      assert.equal(entry.sha256, null);
+      if (target === 'linux-x64') {
+        assert.match(entry.sha256 ?? '', /^[a-f0-9]{64}$/);
+        assert.ok(entry.url && entry.checksumSource?.includes(entry.component === 'postgres' ? `${entry.url}.sha256` : 'SHA256SUMS'), `${entry.component} names the vendor checksum file`);
+      } else assert.equal(entry.sha256, null);
       if (entry.url === null || !entry.official) assert.ok(entry.note, `${entry.component} needs a note`);
     }
   }
+  const linux = sources.targets['linux-x64'];
+  assert.equal(linux.find(entry => entry.component === 'postgres')?.sha256, '19dbf09f0fc33255ff7596fc3ceb7696647286dd15fdf60f3f65c583aae6ad5d');
+  assert.equal(linux.find(entry => entry.component === 'python')?.sha256, 'f3488a36ef5c10d01d346b9e540727d0807202c9bef52f40a987dc59ddc4ecee');
+  const unsourced = structuredClone(sources);
+  delete unsourced.targets['linux-x64'][0].checksumSource;
+  assert.throws(() => validateRuntimeSources(unsourced), code('RUNTIME_SOURCES_INVALID'), 'a pin without its verification source is refused');
+  const sourcedOnly = structuredClone(sources);
+  sourcedOnly.targets['linux-arm64'][0].checksumSource = 'claimed';
+  assert.throws(() => validateRuntimeSources(sourcedOnly), code('RUNTIME_SOURCES_INVALID'), 'a verification source without a pin is refused');
   const fetcher: Fetcher = async () => assert.fail('no download may start');
   const out = join(tmpdir(), 'chausar-unused-runtime');
-  await assert.rejects(stageRuntime({ platform: 'linux', architecture: 'x64', out, fetch: fetcher }), code('RUNTIME_SOURCE_UNPINNED'));
+  await assert.rejects(stageRuntime({ platform: 'linux', architecture: 'arm64', out, fetch: fetcher }), code('RUNTIME_SOURCE_UNPINNED'));
   await assert.rejects(stageRuntime({ platform: 'win32', architecture: 'arm64', out, fetch: fetcher }), code('RUNTIME_SOURCE_UNAVAILABLE'));
 });
 
