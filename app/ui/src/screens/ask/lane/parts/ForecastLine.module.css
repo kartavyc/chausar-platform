@@ -1,0 +1,59 @@
+.figure {
+  margin: 0;
+}
+.svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: var(--f);
+}
+.past,
+.forecast,
+.baseline {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.past {
+  stroke: var(--fg);
+  stroke-width: var(--line-w);
+}
+.forecast {
+  stroke: var(--dim);
+  stroke-width: var(--line-w);
+}
+.baseline {
+  stroke: var(--dim);
+  stroke-width: var(--hair);
+}
+.band {
+  fill: var(--line);
+}
+.label {
+  font-size: var(--fs-note);
+  fill: var(--mute);
+}
+.key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp1) var(--sp4);
+  margin-top: var(--sp2);
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+.keyItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp1);
+}
+.swatch {
+  display: inline-block;
+  width: var(--sp4);
+  height: var(--line-w);
+}
+.swPast { background: var(--fg); }
+.swForecast { background: var(--dim); }
+.swBaseline { height: var(--hair); background: var(--dim); }
+.swBand { height: var(--sp2); background: var(--line); }
