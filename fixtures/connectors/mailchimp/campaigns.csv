@@ -1,6 +1,6 @@
-Title,Subject,List,Send Date,Send Weekday,Total Recipients,Successful Deliveries,Soft Bounces,Hard Bounces,Unique Opens,Open Rate,Unique Clicks,Click Rate,Unsubscribes
-Diwali Preview,Early access to Diwali kurtas,Demo Store Customers,2026-09-02 10:00:00,Wednesday,4200,4152,30,18,1830,44.08%,402,9.68%,12
-Restock Alert,Your favourites are back,Demo Store Customers,2026-09-09 18:30:00,Wednesday,3980,3941,22,17,1622,41.16%,288,7.31%,9
-Festive Lookbook,Styled for the season,Demo Store Customers,2026-09-16 11:00:00,Wednesday,4310,4270,25,15,1904,44.59%,455,10.66%,14
-Wholesale Update,New trade prices,Demo Store Trade,2026-09-20 09:15:00,Sunday,612,608,3,1,390,64.14%,122,20.07%,1
-Last Call Sale,48 hours left,Demo Store Customers,2026-09-28 19:00:00,Monday,4405,4366,24,15,1777,40.70%,390,8.93%,20
+Title,Subject,List,"Send Date","Send Weekday","Total Recipients","Successful Deliveries","Soft Bounces","Hard Bounces","Total Bounces","Times Forwarded","Forwarded Opens","Unique Opens","Open Rate","Total Opens","Unique Clicks","Click Rate","Total Clicks",Unsubscribes,"Abuse Complaints","Times Liked on Facebook","Folder Id","Unique Id","Total Orders","Total Gross Sales","Total Revenue"
+"Diwali Preview","Early access to Diwali kurtas","Demo Store Customers","Sep 02, 2026 10:00 am",Wednesday,4200,4152,30,18,48,0,0,1830,44.08%,2911,402,9.68%,655,12,0,0,0,a1b2c3d4e5,0,0,0
+"Restock Alert","Your favourites are back","Demo Store Customers","Sep 09, 2026 06:30 pm",Wednesday,3980,3941,22,17,39,0,0,1622,41.16%,2480,288,7.31%,401,9,0,0,0,b2c3d4e5f6,0,0,0
+"Festive Lookbook","Styled for the season","Demo Store Customers","Sep 16, 2026 11:00 am",Wednesday,4310,4270,25,15,40,0,0,1904,44.59%,3002,455,10.66%,710,14,1,0,0,c3d4e5f6a7,0,0,0
+"Wholesale Update","New trade prices","Demo Store Trade","Sep 20, 2026 09:15 am",Sunday,612,608,3,1,4,0,0,390,64.14%,520,122,20.07%,160,1,0,0,0,d4e5f6a7b8,0,0,0
+"Last Call Sale","48 hours left","Demo Store Customers","Sep 28, 2026 07:00 pm",Monday,4405,4366,24,15,39,0,0,1777,40.70%,2690,390,8.93%,602,20,0,0,0,e5f6a7b8c9,0,0,0

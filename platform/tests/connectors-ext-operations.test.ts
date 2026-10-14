@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { RECIPES, runRegistered } from '../runtime/connectors-ext/recipes/index.ts';
+import { monthNameDate } from '../runtime/connectors-ext/recipes/operations.ts';
 import type { DecoderInput, RunOptions } from '../runtime/connectors-ext/recipe.ts';
 
 /** Synthetic fixtures only. Totals below are the fixtures' own totals in minor units (paise) or counts. */
@@ -29,9 +30,11 @@ const CASES: Case[] = [
   { id: 'razorpayx-payroll.payroll-report', file: 'razorpayx-payroll/payroll-report.csv', rows: 5, total: '22775000', unit: 'INR', drop: 'RX-1003', unmapped: [] },
   { id: 'chargebee.invoices', file: 'chargebee/invoices.csv', rows: 5, total: '3894000', unit: 'INR', drop: 'INV-2026-0103', report: true, unmapped: ['Amount Paid', 'Amount Due'] },
   { id: 'freshdesk.tickets', file: 'freshdesk/tickets.csv', rows: 6, total: '6', unit: 'tickets', drop: '3105,', report: true, unmapped: [] },
-  { id: 'meta-ads.campaign-daily', file: 'meta-ads/campaign-daily.csv', rows: 6, total: '501009', unit: 'INR', drop: '1249.95', report: true, unmapped: ['Reach'] },
-  { id: 'google-ads.campaign-daily', file: 'google-ads/campaign-daily.csv', rows: 6, total: '961130', unit: 'INR', drop: '"2,240.75"', unmapped: [] },
+  { id: 'meta-ads.campaign-daily', file: 'meta-ads/campaign-daily.csv', rows: 6, total: '501009', unit: 'INR', drop: '1249.95', unmapped: ['Reach'] },
+  { id: 'meta-ads.campaign-daily-report', file: 'meta-ads/campaign-daily-no-summary.csv', rows: 6, total: '501009', unit: 'INR', drop: '1249.95', report: true, unmapped: ['Reach'] },
+  { id: 'google-ads.campaign-daily', file: 'google-ads/campaign-daily.csv', rows: 9, total: '961130', unit: 'INR', drop: 'Performance Max,2240.75', unmapped: [] },
   { id: 'google-analytics.sessions-daily', file: 'google-analytics/sessions-daily.csv', rows: 6, total: '8280', unit: 'sessions', drop: '20260903', unmapped: [] },
+  { id: 'google-analytics.sessions-daily-report', file: 'google-analytics/sessions-daily-report.csv', rows: 6, total: '8280', unit: 'sessions', drop: '20260903', report: true, unmapped: [] },
   { id: 'youtube-analytics.views-daily', file: 'youtube-analytics/table-data.csv', rows: 5, total: '8743', unit: 'views', drop: '2026-09-04', unmapped: ['Estimated revenue (INR)'] },
   { id: 'instagram-insights.reach-daily', file: 'instagram-insights/reach.csv', rows: 5, total: '19296', unit: 'accounts_reached', drop: '2026-09-02T', report: true, unmapped: [] },
   { id: 'mailchimp.campaigns', file: 'mailchimp/campaigns.csv', rows: 5, total: '17507', unit: 'emails', drop: 'Wholesale Update', report: true, unmapped: [] },
@@ -194,4 +197,52 @@ test('outside text in cells stays data', () => {
   assert.equal(fd.status, 'accepted');
   assert.equal(fd.records[3].fields.status, 'open');
   assert.doesNotMatch(JSON.stringify(fd.records), /example\.invalid|Synthetic Customer/);
+});
+
+test('every recipe states whether its layout was checked against a public source', () => {
+  const groups = new Set(CASES.map(c => RECIPES.get(c.id)!.group));
+  for (const recipe of [...RECIPES.values()].filter(r => groups.has(r.group))) {
+    const lines = (recipe.notices ?? []).filter(n => /^Layout (checked against https:\/\/\S+\.|still unconfirmed: )|^Layout is Chausar/.test(n));
+    assert.equal(lines.length, 1, recipe.id);
+  }
+});
+
+test('month-name dates are normalised in the decoder, never guessed', () => {
+  assert.equal(monthNameDate('Sep 3, 2026 10:00 am'), '2026-09-03');
+  assert.equal(monthNameDate('Mar 20, 2020 01:00 pm'), '2020-03-20');
+  assert.equal(monthNameDate('September 1, 2026'), '2026-09-01');
+  assert.equal(monthNameDate('June 12, 2023 12:00 PM (GMT+2)'), '2023-06-12');
+  assert.equal(monthNameDate('September 8, 2026 → September 9, 2026'), '2026-09-08');
+  for (const other of ['01/09/2026', '2026-09-01', 'Smarch 3, 2026', '3 Sep 2026', '']) assert.equal(monthNameDate(other), null, other);
+  const mc = runRegistered('mailchimp.campaigns', { text: read('mailchimp/campaigns.csv') }, { reportTotals: { rowCount: 5, total: '17507' } });
+  assert.deepEqual(mc.records.map(r => r.date), ['2026-09-02', '2026-09-09', '2026-09-16', '2026-09-20', '2026-09-28']);
+  assert.equal(mc.records[0].entityId, 'mailchimp:a1b2c3d4e5');
+  const notion = runRegistered('notion.expense-database', { text: read('notion/expense-tracker.csv') }, { reportTotals: { rowCount: 6, total: '5402950' } });
+  assert.deepEqual(notion.period, { from: '2026-09-01', to: '2026-09-15' });
+  assert.equal(notion.records[3].date, '2026-09-08');
+  const dayFirst = read('notion/expense-tracker.csv').replace('"September 12, 2026"', '12/09/2026');
+  assert.equal(runRegistered('notion.expense-database', { text: dayFirst }, { reportTotals: { rowCount: 6, total: '5402950' } }).records[4].date, '2026-09-12');
+});
+
+test('ad exports: per-day subtotals and the Meta summary row are totals, never campaigns', () => {
+  const ads = runRegistered('google-ads.campaign-daily', { text: read('google-ads/campaign-daily.csv') });
+  assert.equal(ads.status, 'accepted');
+  assert.ok(ads.records.every(r => !/^Total:/.test(r.fields.description ?? '')));
+  assert.equal(ads.sourceTotals?.total, '961130');
+  const noOverall = read('google-ads/campaign-daily.csv').split('\n').filter(line => !line.startsWith(',Total: Account')).join('\n');
+  assert.equal(runRegistered('google-ads.campaign-daily', { text: noOverall }).refusal?.code, 'SOURCE_CUT_SHORT');
+  const meta = runRegistered('meta-ads.campaign-daily', { text: read('meta-ads/campaign-daily.csv') });
+  assert.equal(meta.records.length, 6); assert.equal(meta.sourceTotals?.provenance, 'in-file-total');
+  const withSummary = runRegistered('meta-ads.campaign-daily-report', { text: read('meta-ads/campaign-daily.csv') }, { reportTotals: { rowCount: 6, total: '501009' } });
+  assert.equal(withSummary.status, 'accepted');
+});
+
+test('PostHog breakdown and custom-name columns are labels, not dates; a total-only export is refused', () => {
+  const text = 'series,custom name,$browser,1-Sep-2026,2-Sep-2026\nPageview,Views,Chrome,10,12\nPageview,Views,Safari,4,5\n';
+  const out = runRegistered('posthog.event-trend', { text }, { reportTotals: { rowCount: 4, total: '31' } });
+  assert.equal(out.status, 'accepted', JSON.stringify(out.refusal ?? out.abstention));
+  assert.deepEqual(out.records.map(r => r.entityId), ['posthog:Pageview / Views / Chrome|2026-09-01', 'posthog:Pageview / Views / Chrome|2026-09-02',
+    'posthog:Pageview / Views / Safari|2026-09-01', 'posthog:Pageview / Views / Safari|2026-09-02']);
+  const total = runRegistered('posthog.event-trend', { text: 'series,Total Sum\nPageview,22\n' }, { reportTotals: { rowCount: 1, total: '22' } });
+  assert.equal(total.refusal?.code, 'SOURCE_LAYOUT_UNKNOWN');
 });

@@ -1,10 +1,10 @@
 Demo Kirana Store
 Sale Report
 Duration: 01/09/2026 to 30/09/2026
-Date,Invoice No.,Party Name,Party GSTIN,Transaction Type,Payment Type,Total Amount,Received Amount,Balance Amount,Payment Status,Description
-02/09/2026,101,Sharma General Traders,27AAAPZ1111A1ZC,Sale,Cash,"11,800.00","11,800.00",0.00,Paid,
-05/09/2026,102,Meera Provisions,,Sale,Credit,"4,720.50",0.00,"4,720.50",Unpaid,
-09/09/2026,103,Sharma General Traders,27AAAPZ1111A1ZC,Sale,UPI,"2,360.00","1,000.00","1,360.00",Partial,
-12/09/2026,CN-1,Meera Provisions,,Credit Note,Credit,-590.00,0.00,-590.00,Unpaid,damaged packets
-20/09/2026,104,Walk-in Customer,,Sale,Cash,850.25,850.25,0.00,Paid,
-Total,,,,,,"19,140.75","13,650.25","5,490.50",,
+Date,Party Name,Phone No.,Invoice No.,Transaction Type,Total Amount,Payment Type,Received Amount,Balance Amount,Description
+02/09/2026,Sharma General Traders,9000000001,101,Sale,"11,800.00",Cash,"11,800.00",0.00,
+05/09/2026,Meera Provisions,9000000002,102,Sale,"4,720.50",Credit,0.00,"4,720.50",
+09/09/2026,Sharma General Traders,9000000001,103,Sale,"2,360.00",UPI,"1,000.00","1,360.00",
+12/09/2026,Meera Provisions,9000000002,CN-1,Credit Note,-590.00,Credit,0.00,-590.00,damaged packets
+20/09/2026,Walk-in Customer,,104,Sale,850.25,Cash,850.25,0.00,
+Total,,,,,"19,140.75",,"13,650.25","5,490.50",

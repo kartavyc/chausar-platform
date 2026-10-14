@@ -3,13 +3,14 @@ import { tableFromGrid } from '../decoders.ts';
 import { norm, parseDelimited } from '../tabular.ts';
 import type { Decoder, SourceRecipe } from '../recipe.ts';
 import type { DecodedTable } from '../types.ts';
+import { UNCONFIRMED, checkedAgainst, tabularDecoder } from './operations.ts';
 
 /**
  * Billing and khata books used by Indian small businesses: Vyapar, BUSY, Marg ERP, myBillBook,
  * Khatabook, OkCredit, BharatPe and Petpooja. Every recipe is checked against the export's own
  * total row, or against the total the person reads off the system's own report when the export
- * carries none. Column headings follow the public exports as closely as known; layouts that were
- * not confirmed against a real file are labelled experimental by the lane document.
+ * carries none. Each recipe's notices say whether its headings were checked against a public
+ * source or are still unconfirmed.
  */
 
 /** Headings of the column the two-sided decoder adds. It names which amount column a row filled. */
@@ -74,17 +75,20 @@ const vyaparSales: SourceRecipe = {
   identity: ['invoiceNo'],
   kind: { field: 'type', values: { Sale: 'invoice', 'Sale Return': 'credit_note', 'Credit Note': 'credit_note' } },
   sign: { field: 'type', negative: ['Sale Return', 'Credit Note'], positive: ['Sale'] },
-  status: { field: 'paymentStatus', values: { Paid: 'paid', Unpaid: 'unpaid', Partial: 'partially_paid', 'Partially Paid': 'partially_paid', Overdue: 'overdue' } },
+  status: { field: 'paymentStatus', values: { '': '', Paid: 'paid', Unpaid: 'unpaid', Partial: 'partially_paid', 'Partially Paid': 'partially_paid', Overdue: 'overdue' } },
   outputs: { invoiceId: 'invoiceNo', customerName: 'party', gstin: 'gstin', paymentMethod: 'paymentType', status: 'paymentStatus' },
   totals: { kind: 'footer-row', labelField: 'date', labels: ['Total', 'Grand Total'], amountFields: ['total'] },
-  notices: [SALE_NOTICE, 'Sale returns and credit notes are imported as negative amounts.', 'Received and balance columns describe collections at export time and are not imported as cash.'],
+  ignored: ['Phone No.'],
+  notices: [SALE_NOTICE, 'Sale returns and credit notes are imported as negative amounts.', 'Received and balance columns describe collections at export time and are not imported as cash.',
+    'Vyapar exports the Sale Report as an Excel sheet; save it as CSV to import. The headings and DD/MM/YYYY dates were checked; the source did not show whether the sheet has a Total row.',
+    checkedAgainst('https://github.com/mehulbasu/trevito-dashboard/blob/2f05dbfd4fba7c82e74d7aa4e3dca366ddd4bef8/docs/vyapar.md')],
   sensitivity: 'financial',
 };
 const vyaparPurchases: SourceRecipe = {
   id: 'vyapar.purchase-report', version: '1', group: 'vyapar', operation: 'purchase-register', title: 'Vyapar Purchase Report export', decoder: 'csv',
   fields: {
     date: { from: ['Date'], type: 'date', required: true, dateFormats: DMY },
-    billNo: { from: ['Bill No.', 'Bill No', 'Ref No.', 'Ref No'], type: 'text', required: true },
+    billNo: { from: ['Bill No.', 'Bill No', 'Ref No.', 'Ref No', 'Invoice No.', 'Invoice No'], type: 'text', required: true },
     party: { from: ['Party Name'], type: 'text', required: true },
     gstin: { from: ['Party GSTIN', 'GSTIN'], type: 'text' },
     type: { from: ['Transaction Type', 'Type'], type: 'text', required: true },
@@ -98,10 +102,12 @@ const vyaparPurchases: SourceRecipe = {
   identity: ['billNo', 'party'],
   kind: { field: 'type', values: { Purchase: 'purchase_bill', 'Purchase Return': 'debit_note', 'Debit Note': 'debit_note' } },
   sign: { field: 'type', negative: ['Purchase Return', 'Debit Note'], positive: ['Purchase'] },
-  status: { field: 'paymentStatus', values: { Paid: 'paid', Unpaid: 'unpaid', Partial: 'partially_paid', 'Partially Paid': 'partially_paid', Overdue: 'overdue' } },
+  status: { field: 'paymentStatus', values: { '': '', Paid: 'paid', Unpaid: 'unpaid', Partial: 'partially_paid', 'Partially Paid': 'partially_paid', Overdue: 'overdue' } },
   outputs: { invoiceId: 'billNo', customerName: 'party', gstin: 'gstin', paymentMethod: 'paymentType', status: 'paymentStatus' },
   totals: { kind: 'footer-row', labelField: 'date', labels: ['Total', 'Grand Total'], amountFields: ['total'] },
-  notices: ['A purchase bill is an amount owed to a supplier, not cash paid.', 'Purchase returns and debit notes are imported as negative amounts.', 'The party on a purchase is a supplier, not a customer.'],
+  ignored: ['Phone No.'],
+  notices: ['A purchase bill is an amount owed to a supplier, not cash paid.', 'Purchase returns and debit notes are imported as negative amounts.', 'The party on a purchase is a supplier, not a customer.',
+    UNCONFIRMED],
   sensitivity: 'financial',
 };
 
@@ -254,36 +260,50 @@ const bharatpeSettlement: SourceRecipe = {
   sensitivity: 'financial',
 };
 
+/**
+ * Petpooja order reports carry their own Total row and summary statistics (Min., Max., Avg.) right
+ * under the header, before the bills. The Total row is the source total wherever it sits; the
+ * statistics rows are dropped, never read as bills.
+ */
+export const petpoojaDecoder = tabularDecoder({ id: 'petpooja-orders', totalsAnywhere: true, statisticRows: ['Min.', 'Max.', 'Avg.', 'Min', 'Max', 'Avg'] });
+
 const petpoojaOrders: SourceRecipe = {
-  id: 'petpooja.order-summary', version: '1', group: 'petpooja', operation: 'orders', title: 'Petpooja order-wise sales report', decoder: 'csv',
+  id: 'petpooja.order-summary', version: '2', group: 'petpooja', operation: 'orders', title: 'Petpooja order-wise sales report', decoder: 'petpooja-orders',
   fields: {
     invoiceNo: { from: ['Invoice No.', 'Invoice No', 'Order No.', 'Order No'], type: 'text', required: true },
     date: { from: ['Date', 'Order Date'], type: 'date', required: true, dateFormats: ['ISO', 'ISO-DATETIME', 'DMY'] },
     orderType: { from: ['Order Type'], type: 'text', required: true },
     paymentType: { from: ['Payment Type'], type: 'text' },
     orderStatus: { from: ['Status', 'Order Status'], type: 'text', required: true },
-    subTotal: { from: ['My Amount', 'Sub Total'], type: 'money' },
-    discount: { from: ['Total Discount', 'Discount'], type: 'money' },
-    delivery: { from: ['Delivery Charge'], type: 'money' },
-    container: { from: ['Container Charge', 'Packaging Charge'], type: 'money' },
-    tax: { from: ['Total Tax', 'Tax'], type: 'money' },
-    roundOff: { from: ['Round Off'], type: 'money' },
-    grandTotal: { from: ['Grand Total', 'Total'], type: 'money', required: true },
+    subTotal: { from: ['My Amount', 'My Amount (₹)', 'Sub Total'], type: 'money' },
+    discount: { from: ['Total Discount', 'Total Discount (₹)', 'Discount', 'Discount (₹)'], type: 'money' },
+    delivery: { from: ['Delivery Charge', 'Delivery Charge (₹)'], type: 'money' },
+    container: { from: ['Container Charge', 'Container Charge (₹)', 'Packaging Charge'], type: 'money' },
+    tax: { from: ['Total Tax', 'Total Tax (₹)', 'Tax'], type: 'money' },
+    roundOff: { from: ['Round Off', 'Round Off (₹)'], type: 'money' },
+    grandTotal: { from: ['Grand Total', 'Grand Total (₹)', 'Total', 'Total (₹)'], type: 'money', required: true },
   },
   measure: { type: 'money', amount: { field: 'grandTotal' }, currency: { constant: 'INR' }, unit: 'major' },
   identity: ['invoiceNo'],
-  kind: { field: 'orderType', values: { 'Dine In': 'order', 'Pick Up': 'order', Delivery: 'order', Online: 'order' } },
-  status: { field: 'orderStatus', values: { Success: '', Printed: '', Settled: '', Complimentary: 'complimentary' } },
+  kind: { field: 'orderType', values: { 'Dine In': 'order', DineIn: 'order', 'Pick Up': 'order', Pickup: 'order', Takeaway: 'order', Delivery: 'order', 'Delivery(Parcel)': 'order', Parcel: 'order', Online: 'order' } },
+  status: { field: 'orderStatus', values: { Success: '', Printed: '', Settled: '', Complete: '', Completed: '', Paid: '', Complimentary: 'complimentary' } },
   exclude: { field: 'orderStatus', values: ['Cancelled', 'Canceled'] },
   outputs: { orderId: 'invoiceNo', paymentMethod: 'paymentType', taxMinor: 'tax', shippingMinor: 'delivery', status: 'orderStatus' },
   totals: { kind: 'footer-row', labelField: 'invoiceNo', labels: ['Total', 'Grand Total'], amountFields: ['grandTotal'] },
+  ignored: ['Phone', 'Name', 'Area', 'Customer Name', 'Customer Phone'],
   notices: ['The amount is the order grand total including tax and charges.', 'Cancelled orders are not imported.',
-    'Orders through delivery apps are billed totals; the app pays out later net of its commission.'],
+    'Orders through delivery apps are billed totals; the app pays out later net of its commission.',
+    'The Total row may sit right under the header, followed by Min., Max. and Avg. rows; those statistics are never read as bills. Customer names and phone numbers are not imported.',
+    'Headings with "(₹)" and the summary rows follow a third-party parser of the Orders Master Report (github.com/ShopnoBanerjee/akira-backend), not a published sample.',
+    UNCONFIRMED],
   sensitivity: 'financial',
 };
 
+/** Recipes whose layout no public source showed carry that fact as a notice. */
+const unconfirmed = (recipe: SourceRecipe): SourceRecipe => ({ ...recipe, notices: [...(recipe.notices ?? []), UNCONFIRMED] });
+
 export const RECIPES: readonly SourceRecipe[] = [
-  vyaparSales, vyaparPurchases, busyRegister('sales-register'), busyRegister('purchase-register'), margBook('sales-register'), margBook('purchase-register'),
-  mybillbookSales, khatabookLedger, okcreditStatement, bharatpeSettlement, petpoojaOrders,
+  vyaparSales, vyaparPurchases, ...[busyRegister('sales-register'), busyRegister('purchase-register'), margBook('sales-register'), margBook('purchase-register'),
+    mybillbookSales, khatabookLedger, okcreditStatement, bharatpeSettlement].map(unconfirmed), petpoojaOrders,
 ];
-export const DECODERS: readonly Decoder[] = [twoSidedCsvDecoder];
+export const DECODERS: readonly Decoder[] = [twoSidedCsvDecoder, petpoojaDecoder];

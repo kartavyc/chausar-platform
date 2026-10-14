@@ -18,6 +18,8 @@ type Case = {
   kinds: Record<string, number>;
   /** Index (0-based, within data lines/rows) of the first data entry and the count of data entries in the file. */
   firstData: number; dataCount: number; headerAt?: number;
+  /** The refusal for a copy that stops before its last entry, when the total row sits above the entries. */
+  cutCode?: string;
   /** For 'report' totals: what the person reads off the system's own report. */
   report?: { rowCount: number | null; total: string };
   /** Replace this exact cell text in one row to make an unknown source value. */
@@ -60,8 +62,9 @@ const CASES: Case[] = [
     extra: out => {
       const note = out.records.find(r => r.kind === 'credit_note')!;
       assert.equal((note.measure as any).amountMinor, '-59000');
-      assert.equal(out.records[0].fields.gstin, '27AAAPZ1111A1ZC'); assert.equal(out.records[0].fields.status, 'paid');
-      assert.equal(out.records[2].fields.status, 'partially_paid');
+      // The checked Vyapar layout has no GSTIN or payment-status column: no status is invented, and the phone column is ignored.
+      assert.equal(out.records[0].fields.gstin, undefined); assert.equal(out.records[0].fields.status, undefined);
+      assert.equal(out.records[0].fields.paymentMethod, 'Cash'); assert.doesNotMatch(JSON.stringify(out.records), /9000000001/);
     } },
   { id: 'vyapar.purchase-report', file: 'vyapar/purchase-report.csv', rows: 3, total: '3304000', unmapped: [], period: { from: '2026-09-03', to: '2026-09-14' },
     kinds: { purchase_bill: 2, debit_note: 1 }, firstData: 4, dataCount: 3, unknown: ['Debit Note', 'Expense'], inject: ['Om Distributors', INJECTION], injectField: 'customerName' },
@@ -87,8 +90,11 @@ const CASES: Case[] = [
     kinds: { upi_collection: 3, upi_refund: 1 }, firstData: 1, dataCount: 5, report: { rowCount: 4, total: '34950' }, unknown: ['REFUNDED', 'CHARGEBACK'], inject: ['Arjun Mehta', INJECTION], injectField: 'customerName',
     extra: out => { assert.equal((out.records[3].measure as any).amountMinor, '-120000'); assert.equal(out.sourceTotals?.provenance, 'user-entered-report'); } },
   { id: 'petpooja.order-summary', file: 'petpooja/order-summary.csv', rows: 4, total: '135700', excluded: 1, unmapped: ['Persons'], period: { from: '2026-09-01', to: '2026-09-01' },
-    kinds: { order: 4 }, firstData: 3, dataCount: 5, unknown: ['Delivery', 'Catering'], inject: ['Online', INJECTION], injectField: 'paymentMethod',
-    extra: out => { assert.equal(out.records[3].fields.status, 'complimentary'); assert.equal(out.records[2].fields.shippingMinor, '4000'); assert.equal(out.records[0].fields.status, undefined); } },
+    kinds: { order: 4 }, firstData: 8, dataCount: 5, headerAt: 3, cutCode: 'SOURCE_TOTAL_MISMATCH', unknown: ['Delivery', 'Catering'], inject: ['Online', INJECTION], injectField: 'paymentMethod',
+    extra: out => {
+      assert.equal(out.records[0].fields.status, 'complimentary'); assert.equal(out.records[1].fields.shippingMinor, '4000'); assert.equal(out.records[3].fields.status, undefined);
+      assert.ok(out.records.every(r => !/^(Total|Min\.|Max\.|Avg\.)$/.test(r.fields.orderId ?? '')));
+    } },
   { id: 'amazon-seller.settlement-v2', file: 'amazon-seller/settlement-v2.tsv', rows: 12, total: '124012', unmapped: [], period: { from: '2026-09-03', to: '2026-09-14' },
     kinds: { sale: 3, marketplace_fee: 4, tax_withheld: 1, discount: 1, refund: 1, marketplace_adjustment: 1, advertising_cost: 1 }, firstData: 2, dataCount: 12, headerAt: 0,
     unknown: ['ItemWithheldTax', 'ItemTaxReversal'], unknownOption: 'Order / ItemTaxReversal', inject: ['Storage Fee', INJECTION], injectField: 'description',
@@ -148,7 +154,7 @@ for (const c of CASES) {
     // Cut short: the file stops partway through the entries (the total row and the last entries are gone).
     const cut = run(c, withLines(source, all.slice(0, c.firstData + c.dataCount - 1)));
     assert.equal(cut.status, 'refused');
-    const expectedCut = c.report ? 'SOURCE_ROW_MISMATCH' : RECIPES.get(c.id)!.totals.kind === 'declared' ? 'SOURCE_TOTAL_MISMATCH' : 'SOURCE_CUT_SHORT';
+    const expectedCut = c.cutCode ?? (c.report ? 'SOURCE_ROW_MISMATCH' : RECIPES.get(c.id)!.totals.kind === 'declared' ? 'SOURCE_TOTAL_MISMATCH' : 'SOURCE_CUT_SHORT');
     assert.equal(cut.refusal?.code, expectedCut);
     assert.doesNotMatch(cut.refusal!.reason, /\d/);
     // Filtered: one entry in the middle is missing, the source's own total is still there.
@@ -228,6 +234,25 @@ test('the Amazon settlement summary row is required, single, in rupees, and for 
 
 test('a missing amount is refused, never read as zero', async () => {
   const text = await readFile(new URL('vyapar/sale-report.csv', FIXTURES), 'utf8');
-  const out = runRegistered('vyapar.sale-report', { text: text.replace('"4,720.50",0.00', ',0.00') });
+  const out = runRegistered('vyapar.sale-report', { text: text.replace('"4,720.50",Credit', ',Credit') });
   assert.equal(out.refusal?.code, 'MISSING_AMOUNT'); assert.equal(out.refusal?.line, 6);
+});
+
+test('the Meesho sheet: repeated headings are told apart by section, the legend row is not a record', async () => {
+  const rows = JSON.parse(await readFile(new URL('meesho/order-payments.rows.json', FIXTURES), 'utf8')) as string[][];
+  const report = { reportTotals: { rowCount: 3, total: '78832' } };
+  const out = runRegistered('meesho.order-payments', { rows }, report);
+  assert.equal(out.status, 'accepted', JSON.stringify(out.refusal ?? out.abstention));
+  assert.ok(!out.unmappedFields.some(h => /Fixed Fee/.test(h)));
+  // Without the section row the two "Fixed Fee (Incl. GST)" columns cannot be told apart.
+  assert.equal(runRegistered('meesho.order-payments', { rows: rows.slice(1) }, report).refusal?.code, 'DUPLICATE_HEADERS');
+  // A legend-like row that carries a sub order number is read as a record, never silently dropped.
+  const withLegendOrder = rows.map((row, i) => i === 2 ? ['100000000000009_1', ...row.slice(1)] : row);
+  assert.equal(runRegistered('meesho.order-payments', { rows: withLegendOrder }, report).status, 'refused');
+});
+
+test('Amazon liquidation lines have their own kinds', async () => {
+  const kinds = RECIPES.get('amazon-seller.settlement-v2')!.kind as { field: string; values: Record<string, string> };
+  assert.equal(kinds.values['Liquidations / ItemPrice'], 'liquidation_proceeds');
+  assert.equal(kinds.values['Liquidations / ItemFees'], 'marketplace_fee');
 });

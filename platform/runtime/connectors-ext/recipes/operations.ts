@@ -20,7 +20,27 @@ export type TabularOptions = {
   added?: Readonly<Record<string, string>>;
   /** A value read from a title line above the table, added as a column (a register's month, a report's as-of date). */
   titleValue?: { pattern: RegExp; header: string };
+  /**
+   * Columns (by heading) whose month-name dates ("Sep 3, 2026 10:00 am", "September 1, 2026", a Notion
+   * range "September 3, 2026 → September 7, 2026") are rewritten as the ISO date of their start before
+   * the recipe reads them. Decoder-side normalisation: the shared date formats are not changed.
+   */
+  monthNameDates?: readonly string[];
+  /** Rows labelled with these words in the total-label column are summary statistics (Min., Max., Avg.), never records or totals. */
+  statisticRows?: readonly string[];
 };
+
+const MONTH_NUMBERS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
+  january: 1, february: 2, march: 3, april: 4, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
+const MONTH_NAME_DATE = /^([A-Za-z]{3,9})\.?\s+(\d{1,2}),\s*(\d{4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AaPp]\.?[Mm]\.?)?)?(?:\s*\([A-Za-z0-9:+\- ]{1,20}\))?(?:\s*(?:→|->)\s*.{1,80})?$/;
+/** "Sep 3, 2026 10:00 am" (Mailchimp) or "September 1, 2026 9:15 PM (IST)" (Notion) as an ISO date; null when the text has another shape. */
+export function monthNameDate(value: string): string | null {
+  const m = MONTH_NAME_DATE.exec(value.trim());
+  const month = m ? MONTH_NUMBERS[m[1].toLowerCase()] : undefined;
+  if (!m || !month) return null;
+  const day = Number(m[2]);
+  return day >= 1 && day <= 31 ? `${m[3]}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
+}
 
 const ADDED = /^\(added\) [a-z][a-z ]{1,60}$/;
 
@@ -71,7 +91,15 @@ export function tabularDecoder(options: TabularOptions): Decoder {
       }
       const known = new Set(table.headers.map(norm));
       for (const header of Object.keys(extra)) check(!known.has(norm(header)), 'DUPLICATE_HEADERS', 'Two columns have the same heading. Rename one in the export before importing.');
-      const rows: RawRow[] = table.body.map(row => ({ line: row.line, cells: cellsOf(table.headers, row.cells) }));
+      let rows: RawRow[] = table.body.map(row => ({ line: row.line, cells: cellsOf(table.headers, row.cells) }));
+      if (options.monthNameDates) {
+        const wanted = new Set(options.monthNameDates.map(norm)), dateColumns = table.headers.filter(h => wanted.has(norm(h)));
+        for (const row of rows) for (const column of dateColumns) { const date = monthNameDate(row.cells[column] ?? ''); if (date) row.cells[column] = date; }
+      }
+      if (options.statisticRows) {
+        const column = labelColumn(recipe, table.headers), statistics = new Set(options.statisticRows.map(norm));
+        if (column) rows = rows.filter(row => !statistics.has(norm(row.cells[column] ?? '')));
+      }
       const { body, footers } = options.totalsAnywhere ? splitTotals(recipe, table.headers, rows) : { body: rows, footers: [] };
       for (const row of body) Object.assign(row.cells, extra);
       return { headers: [...table.headers, ...Object.keys(extra)], rows: body, footers, declared: null, meta: { ...(input.meta ?? {}) } };
@@ -83,6 +111,9 @@ const PAYROLL_NOTICES = [
   'Payroll cost is the gross pay the register states, before employee deductions. Employer contributions such as employer PF and ESI are not included.',
   'Employee names are not imported. Each record is identified by employee id and pay month only.',
 ];
+/** Every recipe states whether its layout was checked against a public source. */
+export const UNCONFIRMED = 'Layout still unconfirmed: no public sample found.';
+export const checkedAgainst = (url: string) => `Layout checked against ${url}.`;
 const money = (from: string[], required = false) => ({ from, type: 'money' as const, ...(required ? { required } : {}) });
 const text = (from: string[], required = false) => ({ from, type: 'text' as const, ...(required ? { required } : {}) });
 
@@ -112,7 +143,7 @@ export const RECIPES: readonly SourceRecipe[] = [
     status: { field: 'status', values: { Remitted: 'settled', 'Early COD Remitted': 'settled' } },
     outputs: { orderId: 'orderId', shippingMinor: 'freight', bankReference: 'utr', status: 'status' },
     totals: { kind: 'footer-row', labelField: 'awb', labels: ['Total', 'Remittance Total'], amountFields: ['cod'] },
-    notices: ['COD amount is the cash the courier collected from buyers and remitted. Freight is shown separately and is not deducted here.'],
+    notices: ['COD amount is the cash the courier collected from buyers and remitted. Freight is shown separately and is not deducted here.', UNCONFIRMED],
     sensitivity: 'financial',
   },
   {
@@ -132,7 +163,7 @@ export const RECIPES: readonly SourceRecipe[] = [
     status: { field: 'status', values: { Remitted: 'settled', Paid: 'settled' } },
     outputs: { orderId: 'orderId', shippingMinor: 'charges', bankReference: 'utr', status: 'status' },
     totals: { kind: 'footer-row', labelField: 'waybill', labels: ['Total', 'Grand Total'], amountFields: ['cod'] },
-    notices: ['COD amount is the cash Delhivery collected and remitted. Shipping charges are shown separately and are not deducted here.'],
+    notices: ['COD amount is the cash Delhivery collected and remitted. Shipping charges are shown separately and are not deducted here.', UNCONFIRMED],
     sensitivity: 'financial',
   },
   {
@@ -156,7 +187,7 @@ export const RECIPES: readonly SourceRecipe[] = [
     totals: { kind: 'report' },
     ignored: ['Item Name'],
     notices: ['Sale order value is the selling price on each order line, by order creation date. It is not delivered revenue until the status says delivered.',
-      'Cancelled order lines are not imported. The export has no total row, so enter the order value from Unicommerce\'s own report.'],
+      'Cancelled order lines are not imported. The export has no total row, so enter the order value from Unicommerce\'s own report.', UNCONFIRMED],
     sensitivity: 'financial',
   },
   {
@@ -173,7 +204,7 @@ export const RECIPES: readonly SourceRecipe[] = [
     totals: { kind: 'report' },
     ignored: ['Item Type Name'],
     notices: ['Inventory is the good, sellable stock per facility when the snapshot was taken. Bad inventory and open sale quantities are not included.',
-      'A stock level is a count at one moment; adding snapshots from different days does not give stock.'],
+      'A stock level is a count at one moment; adding snapshots from different days does not give stock.', UNCONFIRMED],
     sensitivity: 'operational',
   },
   {
@@ -184,18 +215,21 @@ export const RECIPES: readonly SourceRecipe[] = [
       customer: text(['Customer Name'], true),
       status: text(['Status', 'SalesOrder Status'], true),
       sku: text(['SKU'], true),
-      quantity: { from: ['Quantity Ordered', 'Quantity'], type: 'integer' },
+      quantity: { from: ['QuantityOrdered', 'Quantity Ordered', 'Quantity'], type: 'integer' },
       itemTotal: money(['Item Total'], true),
       currency: text(['Currency Code'], true),
     },
     measure: { type: 'money', amount: { field: 'itemTotal' }, currency: { field: 'currency' }, unit: 'major' },
     identity: ['number', 'sku'], kind: { constant: 'order' },
-    status: { field: 'status', values: { Draft: 'draft', Confirmed: 'open', Closed: 'closed', Onhold: 'on_hold', Fulfilled: 'delivered' } },
+    status: { field: 'status', values: { Draft: 'draft', Confirmed: 'open', Open: 'open', Closed: 'closed', Onhold: 'on_hold', 'On Hold': 'on_hold', Fulfilled: 'delivered',
+      Invoiced: 'invoiced', 'Partially Invoiced': 'partially_invoiced', partially_invoiced: 'partially_invoiced', 'Pending Approval': 'pending_approval', pending_approval: 'pending_approval', Approved: 'open' } },
     exclude: { field: 'status', values: ['Void'] },
     outputs: { orderId: 'number', customerName: 'customer', sku: 'sku', quantity: 'quantity', status: 'status' },
     totals: { kind: 'report' },
-    ignored: ['Item Name', 'Item Price'],
-    notices: ['Each record is one sales order line, valued at its item total before order-level discounts and shipping. Void orders are not imported.'],
+    ignored: ['Item Name', 'Item Price', 'SalesOrder ID', 'Expected Shipment Date', 'Custom Status', 'Customer ID', 'Product ID', 'QuantityInvoiced', 'QuantityCancelled', 'SubTotal', 'Total', 'Shipping Charge'],
+    notices: ['Each record is one sales order line, valued at its item total before order-level discounts and shipping. Void orders are not imported.',
+      'Headings follow the Sales Order export of a real Zoho data backup; the status words and the ISO date format are not shown there and remain assumed.',
+      checkedAgainst('https://github.com/epritesh/order-suggest/blob/3c384cf7d55d15898194ef1e65133aa874e2f0fc/data_schema/DATA_SCHEMA.md')],
     sensitivity: 'financial',
   },
   {
@@ -211,7 +245,7 @@ export const RECIPES: readonly SourceRecipe[] = [
     identity: ['label'], kind: { constant: 'stock_level' },
     outputs: { sku: 'sku', stockQuantity: 'onHand' },
     totals: { kind: 'footer-row', labelField: 'label', labels: ['Total'], amountFields: ['onHand'] },
-    notices: ['Stock on hand is the physical quantity on the report\'s as-of date, including stock committed to open orders.'],
+    notices: ['Stock on hand is the physical quantity on the report\'s as-of date, including stock committed to open orders.', UNCONFIRMED],
     sensitivity: 'operational',
   },
   {
@@ -229,7 +263,7 @@ export const RECIPES: readonly SourceRecipe[] = [
     outputs: { costType: 'costType' },
     totals: { kind: 'footer-row', labelField: 'employeeId', labels: ['Total', 'Grand Total'], amountFields: ['gross'] },
     ignored: ['Employee Name', 'Department'],
-    notices: PAYROLL_NOTICES, sensitivity: 'personal',
+    notices: [...PAYROLL_NOTICES, UNCONFIRMED], sensitivity: 'personal',
   },
   {
     id: 'greythr.salary-register', version: '1', group: 'greythr', operation: 'salary-register', title: 'greytHR salary register', decoder: 'greythr-salary-register',
@@ -246,7 +280,7 @@ export const RECIPES: readonly SourceRecipe[] = [
     outputs: { costType: 'costType' },
     totals: { kind: 'footer-row', labelField: 'employeeId', labels: ['Total'], amountFields: ['gross'] },
     ignored: ['Sl No', 'Employee Name', 'Designation', 'Location'],
-    notices: [...PAYROLL_NOTICES, 'The pay month is read from the register title, because the register has no month column.'],
+    notices: [...PAYROLL_NOTICES, 'The pay month is read from the register title, because the register has no month column.', UNCONFIRMED],
     sensitivity: 'personal',
   },
   {
@@ -264,7 +298,7 @@ export const RECIPES: readonly SourceRecipe[] = [
     outputs: { costType: 'costType' },
     totals: { kind: 'footer-row', labelField: 'employeeId', labels: ['Total'], amountFields: ['gross'] },
     ignored: ['Employee Name', 'Department'],
-    notices: [...PAYROLL_NOTICES, 'Records are dated by the pay run\'s pay date, which can fall in the month after the work.'],
+    notices: [...PAYROLL_NOTICES, 'Records are dated by the pay run\'s pay date, which can fall in the month after the work.', UNCONFIRMED],
     sensitivity: 'personal',
   },
   {
@@ -282,7 +316,7 @@ export const RECIPES: readonly SourceRecipe[] = [
     outputs: { costType: 'costType' },
     totals: { kind: 'footer-row', labelField: 'employeeId', labels: ['Total'], amountFields: ['gross'] },
     ignored: ['Name', 'Email', 'Department'],
-    notices: PAYROLL_NOTICES, sensitivity: 'personal',
+    notices: [...PAYROLL_NOTICES, UNCONFIRMED], sensitivity: 'personal',
   },
   {
     id: 'chargebee.invoices', version: '1', group: 'chargebee', operation: 'invoices', title: 'Chargebee invoices export', decoder: 'csv',
@@ -305,7 +339,8 @@ export const RECIPES: readonly SourceRecipe[] = [
     totals: { kind: 'report' },
     ignored: ['Customer Email', 'Customer Name'],
     notices: ['Invoice amount is the invoice total as Chargebee states it, including tax. Tax is carried separately so billed value can exclude it.',
-      'Voided invoices are not imported. The export has no total row, so enter the invoiced total from Chargebee\'s own report.'],
+      'Voided invoices are not imported. The export has no total row, so enter the invoiced total from Chargebee\'s own report.',
+      'Chargebee documents that the invoice export is a zip of CSV files but not their headings.', UNCONFIRMED],
     sensitivity: 'financial',
   },
   {
@@ -323,9 +358,13 @@ export const RECIPES: readonly SourceRecipe[] = [
     status: { field: 'status', values: { Open: 'open', Pending: 'pending', Resolved: 'resolved', Closed: 'closed', 'Waiting on Customer': 'waiting', 'Waiting on Third Party': 'waiting' } },
     outputs: { description: 'type', status: 'status' },
     totals: { kind: 'report' },
-    ignored: ['Subject', 'Full name', 'Email', 'Agent', 'Group', 'Source', 'Resolved time', 'Due by Time'],
+    ignored: ['Subject', 'Full name', 'Email', 'Agent', 'Group', 'Source', 'Resolved time', 'Due by Time', 'Closed time', 'Last update time', 'Initial response time',
+      'Time tracked', 'First response time (in hrs)', 'Resolution time (in hrs)', 'Agent interactions', 'Customer interactions', 'Resolution status', 'First response status',
+      'Tags', 'Survey results', 'Association type', 'Product', 'Every response status', 'Contact ID', 'Company Name'],
     notices: ['Each ticket counts once, on the day it was created. Merged and deleted tickets are not in the export.',
-      'The export has no total, so enter the ticket count Freshdesk shows for the same filter. Requester names and emails are not imported.'],
+      'The export has no total, so enter the ticket count Freshdesk shows for the same filter. Requester names and emails are not imported.',
+      'Custom ticket statuses (for example "Waiting on <team>") are asked about once rather than guessed.',
+      checkedAgainst('https://github.com/zyn10/Freshdesk-Ticket-Insights/blob/fc41afaa84d8489741e8452bedd8cbf77ff64ef3/Monthly%20Reporter/Requirements/80000422910_tickets-February-04-2025-12_12.xls')],
     sensitivity: 'personal',
   },
 ];

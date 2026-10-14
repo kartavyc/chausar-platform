@@ -205,7 +205,7 @@ test('Form 26AS Part I is accepted against each deductor\'s own totals', () => {
   assert.equal(out.observed.total, '1740000'); assert.equal(out.records.length, 3);
   assert.equal(out.sourceTotals?.reference, 'form26as-deductor-totals');
   const r = out.records[0];
-  assert.equal(r.kind, 'tds_credit'); assert.equal(r.date, '2025-04-15'); assert.equal(r.sourceRow, 9);
+  assert.equal(r.kind, 'tds_credit'); assert.equal(r.date, '2025-04-15'); assert.equal(r.sourceRow, 10);
   assert.deepEqual(r.fields, { customerId: 'BLRA12345B', customerName: 'ASHA RETAIL PRIVATE LIMITED', status: 'final' });
   assert.equal(out.records[2].fields.status, 'provisional');
   const income = runRegistered('income-tax.form26as-income', { text });
@@ -219,7 +219,7 @@ test('Form 26AS with a deductor total that disagrees is refused naming the deduc
   const out = runRegistered('income-tax.form26as-tds', { text: bad });
   assert.equal(out.status, 'refused'); assert.equal(out.refusal?.code, 'DEDUCTOR_TOTAL_MISMATCH');
   assert.doesNotMatch(out.refusal!.reason, /\d/);
-  assert.equal(refusalOf('income-tax.form26as-tds', bad)?.line, 7);
+  assert.equal(refusalOf('income-tax.form26as-tds', bad)?.line, 8);
   const cut = runRegistered('income-tax.form26as-tds', { text: tax('form26as-fy2025-26-cut-short.txt') });
   assert.equal(cut.refusal?.code, 'SOURCE_CUT_SHORT');
   const stray = tax('form26as-fy2025-26.txt').replace('^2^194J', 'Free text line\n^2^194J');
