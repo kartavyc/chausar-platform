@@ -219,7 +219,8 @@ export const sharingMethods: Record<string, MethodSpec> = {
       check(!area.batches.some(batch => batch.consentId === consent.id), 'BATCH_ALREADY_ATTEMPTED', 'This consent was already used. An uncertain upload is settled, never sent again on its own.');
       const status = intakeStatus(state, host);
       check(status.open, 'INTAKE_NOT_OPEN', 'Sharing is not open yet. Nothing is sent.');
-      const preview = previewFor(state, ctx, consent.previewId), built = reproduce(state, ctx, preview);
+      const preview = previewFor(state, ctx, consent.previewId), built = reproduce(state, ctx, preview), done = shared(state);
+      check(preview.decisionIds.every(id => !done.has(id)), 'PREVIEW_CHANGED', 'Some of these decisions were already sent in another batch. Open a new preview.');
       check(built.digest === consent.digest, 'PREVIEW_CHANGED', 'The consented bytes changed.');
       const batch: Batch = { id: newId('sharebatch'), at: now(), consentId: consent.id, previewId: preview.id, mode: status.mode as Batch['mode'], boxes: preview.boxes, decisionIds: preview.decisionIds,
         bytes: built.bytes, digest: built.digest, size: built.size, count: preview.count, deletionToken: token(), status: 'pending' };

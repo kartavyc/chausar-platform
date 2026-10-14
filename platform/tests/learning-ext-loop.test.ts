@@ -81,7 +81,9 @@ test('consent binds the exact previewed bytes and the demo test inbox receives t
   await assert.rejects(call(h, 'learningx.consent', { previewId: preview.id, digest: '0'.repeat(64) }), { code: 'PREVIEW_CHANGED' });
   await assert.rejects(call(h, 'learningx.consent', { previewId: preview.id, digest: preview.digest }, { ...owner, channel: 'phone' }), { code: 'APP_CONSENT_REQUIRED' });
   const consent = await call(h, 'learningx.consent', { previewId: preview.id, digest: preview.digest });
+  const twin = await call(h, 'learningx.preview', {}), twinConsent = await call(h, 'learningx.consent', { previewId: twin.id, digest: twin.digest });
   const batch = await call(h, 'learningx.submit', { consentId: consent.id });
+  await assert.rejects(call(h, 'learningx.submit', { consentId: twinConsent.id }), { code: 'PREVIEW_CHANGED' });
   assert.equal(batch.status, 'sent'); assert.equal(batch.mode, 'test-inbox'); assert.equal(Object.hasOwn(batch, 'deletionToken'), false);
   await assert.rejects(call(h, 'learningx.submit', { consentId: consent.id }), { code: 'BATCH_ALREADY_ATTEMPTED' });
   const listed = await call(h, 'learningx.batches'); assert.deepEqual(listed.shared, { events: 2, names: 0, amounts: 0 });
