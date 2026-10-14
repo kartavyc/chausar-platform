@@ -64,3 +64,16 @@ test('tick is silent when idle and drops an expired yes without sending', async 
   assert.equal(state.actions[0].status, 'prepared'); assert.equal(state.actions[0].attempts.length, 0);
   await rm(directory, { recursive: true, force: true });
 });
+
+test('host options: credentials from the environment for the installed app, none in demo', async () => {
+  const { writebackHostOptions } = await import('../runtime/modules/lane-writeback.ts');
+  const env = { CHAUSAR_WRITEBACK_ZOHO_BOOKS_ACCESSTOKEN: 'synthetic-token', CHAUSAR_WRITEBACK_MAIL_USERNAME: 'u', CHAUSAR_WRITEBACK_MAIL_PASSWORD: 'p', CHAUSAR_WRITEBACK_TIME_ZONE: 'Asia/Kolkata', PATH: '/bin' };
+  assert.deepEqual(writebackHostOptions({ directory: '/x', demo: true, env }), { timeZone: 'Asia/Kolkata' });
+  const options: any = writebackHostOptions({ directory: '/x', demo: false, env });
+  const ctx = { memberId: 'owner', role: 'owner' as const, epoch: 1 };
+  assert.deepEqual(await options.credentials(ctx, { system: 'zoho-books', connectionId: 'c', account: {}, environment: 'live' }), { accessToken: 'synthetic-token' });
+  assert.deepEqual(await options.credentials(ctx, { system: 'mail', connectionId: 'c', account: {}, environment: 'sandbox' }), { username: 'u', password: 'p' });
+  await assert.rejects(options.credentials(ctx, { system: 'shopify', connectionId: 'c', account: {}, environment: 'live' }), { code: 'WRITE_CREDENTIALS_UNAVAILABLE' });
+  await assert.rejects(options.credentials(ctx, { system: 'mail', connectionId: 'c', account: {}, environment: 'practice' }), { code: 'WRITE_CREDENTIALS_UNAVAILABLE' });
+  assert.deepEqual(writebackHostOptions({ directory: '/x', demo: false, env: {} }), {});
+});

@@ -76,8 +76,36 @@ async function configure(ctx: Context, payload: Record<string, any>, host: Modul
   });
 }
 
+/**
+ * Start-up options for the installed app when the host passes none. Credentials come from the
+ * environment as CHAUSAR_WRITEBACK_<SYSTEM>_<FIELD> (for example CHAUSAR_WRITEBACK_ZOHO_BOOKS_ACCESSTOKEN,
+ * CHAUSAR_WRITEBACK_MAIL_USERNAME / _PASSWORD), read once here and never written to the vault. Demo mode
+ * installs none. The OS keychain broker (release lane) replaces this when it is installed.
+ */
+export function writebackHostOptions(input: { directory: string; demo: boolean; env: Readonly<Record<string, string | undefined>> }): Record<string, unknown> {
+  const options: Record<string, unknown> = {};
+  const zone = input.env.CHAUSAR_WRITEBACK_TIME_ZONE;
+  if (typeof zone === 'string' && /^[A-Za-z_]+\/[A-Za-z_+-]+$/.test(zone)) options.timeZone = zone;
+  if (input.demo) return options;
+  const material = new Map<string, Record<string, string>>();
+  for (const [name, value] of Object.entries(input.env)) {
+    const match = /^CHAUSAR_WRITEBACK_([A-Z_]+?)_(ACCESSTOKEN|KEYID|KEYSECRET|USERNAME|PASSWORD)$/.exec(name);
+    if (!match || typeof value !== 'string' || !value || value.length > 4096) continue;
+    const system = match[1].toLowerCase().replaceAll('_', '-');
+    const field = { ACCESSTOKEN: 'accessToken', KEYID: 'keyId', KEYSECRET: 'keySecret', USERNAME: 'username', PASSWORD: 'password' }[match[2]]!;
+    material.set(system, { ...(material.get(system) ?? {}), [field]: value });
+  }
+  if (material.size) options.credentials = (async (_ctx, scope) => {
+    check(scope.environment !== 'practice', 'WRITE_CREDENTIALS_UNAVAILABLE', 'Practice connections never use real credentials.');
+    const found = material.get(scope.system); check(found, 'WRITE_CREDENTIALS_UNAVAILABLE', 'No credential is installed for this system.');
+    return { ...found };
+  }) satisfies WriteCredentials;
+  return options;
+}
+
 export const writebackModule: EngineModule = {
   id: 'writeback',
+  hostOptions: writebackHostOptions,
   methods: {
     'writeback.catalogue': { permission: 'read', handler: (ctx, _p, host) => ws(host).catalogue(ctx) },
     'writeback.catalogueEntry': { permission: 'read', handler: (ctx, p, host) => ws(host).catalogueEntry(ctx, p.system, p.action) },
