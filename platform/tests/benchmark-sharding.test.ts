@@ -101,7 +101,7 @@ test('unsharded benchmark retains its default command, output and complete open-
   assert.equal(report.shard, null);
   assert.equal(report.fullSuite, true);
   assert.equal(report.testFiles.selection, 'all-discovered-files');
-  assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=1', 'platform/tests/*.test.ts']);
+  assert.deepEqual(report.command, ['node', '--experimental-vm-modules', '--test', '--test-reporter=tap', '--test-concurrency=1', 'platform/tests/*.test.ts']);
   assert.deepEqual((await f.executed()).sort(), [1, 2, 3, 4, 5, 6]);
 });
 
@@ -120,7 +120,7 @@ test('actual Node shards are disjoint and their union covers every fixture test 
     assert.equal(report.testFiles.selection, 'node-test-shard');
     inventories.push(report.testFiles);
     assert.equal(report.scope, `Repository open tests (shard ${index}/2)`);
-    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=1', `--test-shard=${index}/2`, 'platform/tests/*.test.ts']);
+    assert.deepEqual(report.command, ['node', '--experimental-vm-modules', '--test', '--test-reporter=tap', '--test-concurrency=1', `--test-shard=${index}/2`, 'platform/tests/*.test.ts']);
     const summary = JSON.parse(result.stdout.trim());
     assert.equal(summary.fullSuite, false);
     assert.deepEqual(summary.shard, report.shard);
@@ -150,7 +150,7 @@ test('actual four Node shards retain exact inventories and deterministic disjoin
     assert.deepEqual(report.shard, { index, total: 4 });
     assert.equal(report.testFiles.selection, 'node-test-shard');
     assert.equal(report.scope, `Repository open tests (shard ${index}/4)`);
-    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=1', `--test-shard=${index}/4`, 'platform/tests/*.test.ts']);
+    assert.deepEqual(report.command, ['node', '--experimental-vm-modules', '--test', '--test-reporter=tap', '--test-concurrency=1', `--test-shard=${index}/4`, 'platform/tests/*.test.ts']);
     const summary = JSON.parse(result.stdout.trim());
     assert.equal(summary.fullSuite, false);
     assert.deepEqual(summary.shard, report.shard);
@@ -191,7 +191,7 @@ test('five planned shards preserve the four ordinary groups and execute the inde
     assert.deepEqual(report.testFiles.selectedFiles, groups[index - 1]);
     assert.deepEqual(report.testFiles.plan, { name: 'four-stable-groups-plus-independent-activation-v1', ordinaryShardTotal: 4,
       dedicatedFile: independentFixtureFile, groups: groups.map((files, position) => ({ index: position + 1, files })) });
-    assert.deepEqual(report.command, ['node', '--test', '--test-reporter=tap', '--test-concurrency=1', ...groups[index - 1]]);
+    assert.deepEqual(report.command, ['node', '--experimental-vm-modules', '--test', '--test-reporter=tap', '--test-concurrency=1', ...groups[index - 1]]);
     assert.equal(report.command.some(argument => argument.startsWith('--test-shard=')), false);
     assert.equal(new Set(executed).size, executed.length);
     for (const previous of covered) assert.equal(executed.filter(value => previous.includes(value)).length, 0);

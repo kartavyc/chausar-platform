@@ -61,6 +61,7 @@ So that lanes can merge cleanly, each lane adds code through the seams below and
 - Keep private durable state in your namespace with `moduleState(state, '<lane-id>', init)` inside `host.store.update(...)`.
 - Implement `purge` so source deletion or revocation removes anything you derived from that source.
 - Implement `tick` for scheduled work. It runs only while autonomy is on.
+- Implement `hostOptions` when your module needs trusted start-up options (a credential broker, sign-in client registrations, update keys, endpoints). The engine calls it once, with only its directory, demo flag and process environment, when the embedding host passed no `EngineOptions.modules[<lane-id>]`. This is how the installed desktop app wires your module; do not edit `main.cjs` or the worker for it.
 - List every method you add in **`app/desktop/module-methods/<lane-id>.json`**. `platform/tests/engine-modules.test.ts` checks the two match.
 - Put larger engine code in your own files, under `platform/runtime/<lane-folder>/` (named in your lane section).
 - Never add a `case` to `engine.ts` for new work.
