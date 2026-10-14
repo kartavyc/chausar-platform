@@ -397,6 +397,7 @@ test('review: typed text stays with its member, and limited seats see nothing th
   assert.equal((await ask(engine, 'askx.checks.list')).due, true, "One member's run never clears another's due checks.");
   as(engine, accountant);
   assert.equal((await ask(engine, 'askx.forecast', { operationId: 'earned', today: TODAY })).state, 'not-enough-history', 'A one-branch seat forecasts its own branch.');
+  as(engine, { id: 'owner', role: 'owner', epoch: 1 });
   const two = await ask(engine, 'members.add', { id: 'acct-two', name: 'Two-branch accountant', role: 'accountant', branches: ['main', 'south'] });
   as(engine, two);
   await assert.rejects(ask(engine, 'askx.forecast', { operationId: 'earned', today: TODAY }), code('ASK_STOPPED_BY_RULE'));
