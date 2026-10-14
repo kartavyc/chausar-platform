@@ -5,10 +5,12 @@ import { validDate } from '../memory.ts';
 import { addDays, closed, daysBetween, dateOf, monthEnd } from './common.ts';
 
 type Rule = { type: 'monthly'; day: number | 'last'; months?: number[]; overrides?: Record<string, number> } | { type: 'annual'; dates: string[] };
-type TableRow = { id: string; what: string; rule: Rule; source: { title: string; url: string }; lastChecked: string; appliesTo: { kinds: string[]; gstModes: string[]; states: string[] } };
+/** The official page that sets the date, its notification or circular date (null when it states none), and whether it was opened and found to state the date. */
+export type DueSource = { title: string; url: string; date: string | null; confirmed: boolean };
+type TableRow = { id: string; what: string; rule: Rule; source: DueSource; lastChecked: string; appliesTo: { kinds: string[]; gstModes: string[]; states: string[] } };
 type Table = { version: string; publishedAt: string; reviewed: boolean; kinds: string[]; gstModes: string[]; states: string[]; rows: TableRow[] };
 export type DueProfile = { kind: string; gstMode: 'regular' | 'composition' | 'none'; state: string };
-export type DueRow = { id: string; what: string; dueOn: string; source: { title: string; url: string }; lastChecked: string; checkOld: boolean; appliesTo: TableRow['appliesTo'] };
+export type DueRow = { id: string; what: string; dueOn: string; source: DueSource; lastChecked: string; checkOld: boolean; appliesTo: TableRow['appliesTo'] };
 
 export const table: Table = JSON.parse(readFileSync(new URL('./due-dates.v1.json', import.meta.url), 'utf8'));
 // The shipped table is checked once at load: a malformed row would make every date suspect.
@@ -17,7 +19,9 @@ for (const row of table.rows) {
   const ok = rule.type === 'monthly' ? (rule.day === 'last' || (Number.isInteger(rule.day) && rule.day >= 1 && rule.day <= 28)) && (rule.months ?? []).every(m => m >= 1 && m <= 12)
     && Object.entries(rule.overrides ?? {}).every(([m, d]) => Number(m) >= 1 && Number(m) <= 12 && d >= 1 && d <= 30)
     : rule.type === 'annual' && rule.dates.every(date => validDate(`2025-${date}`));
-  if (!ok || !validDate(row.lastChecked) || !/^https:\/\//.test(row.source.url)) throw new Error(`Invalid due-date table row: ${row.id}`);
+  const source = row.source;
+  const sourceOk = typeof source.title === 'string' && source.title.length > 0 && /^https:\/\//.test(source.url) && typeof source.confirmed === 'boolean' && (source.date === null || validDate(source.date));
+  if (!ok || !validDate(row.lastChecked) || !sourceOk) throw new Error(`Invalid due-date table row: ${row.id}`);
 }
 
 export function validProfile(value: unknown): DueProfile {
@@ -51,7 +55,7 @@ export function dueDates(input: { from: string; days: number; profile: DueProfil
     id: `${row.id}:${dueOn}`, what: row.what, dueOn, source: { ...row.source }, lastChecked: row.lastChecked,
     checkOld: daysBetween(row.lastChecked, from) > 30, appliesTo: structuredClone(row.appliesTo) }))) : [];
   rows.sort((a, b) => a.dueOn.localeCompare(b.dueOn) || a.id.localeCompare(b.id));
-  return { caNote: 'Not yet checked by a CA.', table: { version: table.version, publishedAt: table.publishedAt, reviewed: table.reviewed }, profile, covered, coveredKinds: [...table.kinds], rows };
+  return { caNote: 'This table has not been checked by a CA yet. Each row links to the official source.', table: { version: table.version, publishedAt: table.publishedAt, reviewed: table.reviewed }, profile, covered, coveredKinds: [...table.kinds], rows };
 }
 
 export function dueRequest(payload: unknown, today: string): { from: string; days: number; profile?: DueProfile } {

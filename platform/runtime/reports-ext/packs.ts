@@ -7,7 +7,8 @@ export type GstMode = 'regular' | 'composition' | 'none';
 export type LineSpec = { id: string; op: string; figure: string; label: Words; side?: 'Dr' | 'Cr' };
 /** A section is either fixed lines over the page period, one line per month for twelve months, or the projection. */
 export type SectionSpec = { id: string; title: Words; lines?: LineSpec[]; monthly?: { op: string; figure: string }; forecast?: true };
-export type PageSpec = { id: string; title: Words; needs: string[]; sections: SectionSpec[]; notes?: ('43bh' | 'treds')[]; disclaimer?: true };
+/** A page with `connector` is built over the connector part's replies (connector-pages.ts), not from `sections`. */
+export type PageSpec = { id: string; title: Words; needs: string[]; sections: SectionSpec[]; notes?: ('43bh' | 'treds')[]; disclaimer?: true; connector?: 'gst-turnover' | 'bank-summary' | 'purchases-gstr2b' };
 export type PackSpec = { id: PackId; title: Words; gstModes: GstMode[]; pages: PageSpec[] };
 
 const w = (en: string, hi: string): Words => ({ en, hi });
@@ -15,9 +16,9 @@ const line = (id: string, op: string, figure: string, label: Words, side?: 'Dr' 
 
 /** Plain reasons for a page that cannot be made yet. */
 export const reasons = {
-  gst_turnover: w('Needs GSTR-1 and GSTR-3B returns from the GST connector.', 'GST कनेक्टर से GSTR-1 और GSTR-3B रिटर्न चाहिए।'),
-  gstr2b_match: w('Needs GSTR-2B from the GST connector.', 'GST कनेक्टर से GSTR-2B चाहिए।'),
-  bank_summary: w('Needs bank statements.', 'बैंक विवरण चाहिए।'),
+  gst_turnover: w('Needs a GSTR-1 or GSTR-3B return imported through the GST connector.', 'GST कनेक्टर से आयात किया गया GSTR-1 या GSTR-3B रिटर्न चाहिए।'),
+  gstr2b_match: w('Needs a GSTR-2B imported through the GST connector.', 'GST कनेक्टर से आयात किया गया GSTR-2B चाहिए।'),
+  bank_summary: w('No bank statement is imported yet.', 'अभी तक कोई बैंक विवरण आयात नहीं हुआ है।'),
   unregistered: w('Needs a published calculation for this page.', 'इस पेज के लिए प्रकाशित गणना चाहिए।'),
   dictionary: w('Publish your business definitions first.', 'पहले अपनी व्यावसायिक परिभाषाएँ प्रकाशित करें।'),
   empty: w('No matching records are imported yet.', 'अभी तक कोई मेल खाते रिकॉर्ड आयात नहीं हुए हैं।'),
@@ -64,15 +65,8 @@ export const packs: PackSpec[] = [
       ] },
       { id: 'by-month', title: w('Collected by month, last 12 months', 'महीने के अनुसार वसूली, पिछले 12 महीने'), monthly: { op: 'received', figure: 'total' } },
     ] },
-    { id: 'gst-turnover', title: w('GST turnover against books', 'GST टर्नओवर बनाम खाते'), needs: ['gst_turnover', 'net_sales'], sections: [
-      { id: 'compare', title: w('Turnover in returns and in the books', 'रिटर्न में और खातों में टर्नओवर'), lines: [
-        line('gst', 'gst_turnover', 'total', w('Turnover in GST returns', 'GST रिटर्न में टर्नओवर')),
-        line('books', 'net_sales', 'total', w('Net sales in the books', 'खातों में शुद्ध बिक्री')),
-      ] },
-    ] },
-    { id: 'bank-summary', title: w('Bank statement summary', 'बैंक विवरण सारांश'), needs: ['bank_summary'], sections: [
-      { id: 'bank', title: w('Bank accounts', 'बैंक खाते'), lines: [line('credits', 'bank_summary', 'total', w('Credits in the period', 'अवधि में जमा राशि'))] },
-    ] },
+    { id: 'gst-turnover', title: w('GST turnover against books', 'GST टर्नओवर बनाम खाते'), needs: [], sections: [], connector: 'gst-turnover' },
+    { id: 'bank-summary', title: w('Bank statement summary', 'बैंक विवरण सारांश'), needs: [], sections: [], connector: 'bank-summary' },
     { id: 'loan-readiness', title: w('Ready for a loan?', 'क्या आप ऋण के लिए तैयार हैं?'), needs: ['net_sales', 'received', 'aging'], disclaimer: true, sections: [
       { id: 'signals', title: w('What a lender looks at first', 'ऋणदाता सबसे पहले क्या देखते हैं'), lines: [
         line('net-sales', 'net_sales', 'total', w('Net sales in the period', 'अवधि में शुद्ध बिक्री')),
@@ -93,12 +87,7 @@ export const packs: PackSpec[] = [
     { id: 'refunds', title: w('Refunds and credit notes', 'रिफ़ंड और क्रेडिट नोट'), needs: ['refunds'], sections: [
       { id: 'total', title: w('For the period', 'इस अवधि में'), lines: [line('total', 'refunds', 'total', w('Refunds and credit notes', 'रिफ़ंड और क्रेडिट नोट'))] },
     ] },
-    { id: 'purchases-gstr2b', title: w('Purchases against GSTR-2B', 'GSTR-2B से ख़रीद का मिलान'), needs: ['gstr2b_match', 'purchases'], sections: [
-      { id: 'match', title: w('Purchase register against GSTR-2B', 'ख़रीद रजिस्टर बनाम GSTR-2B'), lines: [
-        line('books', 'purchases', 'total', w('Purchases in the books', 'खातों में ख़रीद')),
-        line('gstr2b', 'gstr2b_match', 'total', w('Purchases in GSTR-2B', 'GSTR-2B में ख़रीद')),
-      ] },
-    ] },
+    { id: 'purchases-gstr2b', title: w('Purchases against GSTR-2B', 'GSTR-2B से ख़रीद का मिलान'), needs: [], sections: [], connector: 'purchases-gstr2b' },
     ageingPage(w('Receivables ageing', 'प्राप्य राशि की आयु-सूची')),
   ] },
   { id: 'investor', title: w('Investor update', 'निवेशक अपडेट'), gstModes: ['regular', 'composition', 'none'], pages: [
@@ -129,6 +118,7 @@ export const packs: PackSpec[] = [
 ];
 
 export const words = {
+  notStarted: w('Not started yet', 'अभी शुरू नहीं हुआ'),
   disclaimer: w('This is not a loan offer or a promise of one.', 'यह ऋण का प्रस्ताव या उसका वादा नहीं है।'),
   investorNote: w('These figures come from imported records only. They are not a valuation and are not audited.', 'ये आँकड़े केवल आयात किए गए रिकॉर्ड से हैं। ये मूल्यांकन नहीं हैं और इनका ऑडिट नहीं हुआ है।'),
   emptyMonths: w('Months with no imported records are shown as missing, not as zero.', 'जिन महीनों के कोई रिकॉर्ड आयात नहीं हुए, वे शून्य नहीं, अनुपलब्ध दिखाए गए हैं।'),
