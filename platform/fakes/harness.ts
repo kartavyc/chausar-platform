@@ -6,7 +6,7 @@ import { ChausarError } from '../runtime/contracts.ts';
 import type { ActionAdapter, AdapterContext, Connection, DoReceipt, FakeSystem, Observation, Preparation, Secret, SystemId, WireObject } from '../runtime/writeback/types.ts';
 
 export function practiceConnection(system: SystemId, account: Record<string, string>, id = `practice-${system}`): Connection {
-  return { id, system, label: `Practice ${system}`, environment: 'practice', account, read: true, write: ['*'], createdAt: '2026-01-01T00:00:00.000Z', createdBy: 'practice', revokedAt: null };
+  return { id, system, label: `Practice ${system}`, environment: 'practice', account, read: true, write: ['*'], link: null, createdAt: '2026-01-01T00:00:00.000Z', createdBy: 'practice', revokedAt: null };
 }
 export function fakeContext(fake: FakeSystem, connection: Connection, secret: Secret, clock: () => string = () => new Date().toISOString()): AdapterContext {
   return {

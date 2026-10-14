@@ -726,6 +726,13 @@ export class Vault implements StateStore {
   }
   #ready() { if (this.#closed || this.#closing) fail('VAULT_CLOSED', 'The vault is closed.'); }
   read(): State { this.#ready(); return structuredClone(this.#state); }
+  /** True when the passphrase unwraps this open vault's own key. Reads nothing else and changes nothing. */
+  async verifyPassphrase(secret: string): Promise<boolean> {
+    this.#ready();
+    if (typeof secret !== 'string' || secret.length < 1 || secret.length > 1024) return false;
+    try { const key = await unwrap(secret, this.#envelope.passphrase, this.#envelope.id, 'passphrase'); try { return key.equals(this.#key); } finally { key.fill(0); } }
+    catch { return false; }
+  }
   /** Fresh identity metadata for trusted custody checks, without cloning State. */
   readIdentity(): Readonly<{ vaultId: string; workspaceId: string; revision: number }> {
     this.#ready();
