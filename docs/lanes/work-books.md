@@ -287,6 +287,9 @@ Private state lives in `state.extensions['work-books']` under `work` and `books`
 `purge` removes snoozes, notes, opt-ins, decisions and memory lines tied to removed
 sources and records.
 
+The module needs no trusted start-up options (no credentials, endpoints or keys), so it does
+not implement `hostOptions`. `host.options.hasMethod` and `host.options.clock` are test hooks only.
+
 ### Screens
 
 `app/ui/src/places/lane-work-books.tsx` registers `workPlace` (`screens/work/`) and
