@@ -4,6 +4,7 @@
  * never values) and keeps per-field evidence locally. Outside text never becomes code: a
  * model-proposed draft is accepted only as data that compiles.
  */
+import { VALUE_PATTERNS } from './structure.ts';
 import { check } from '../contracts.ts';
 import { canonical } from '../actions.ts';
 import { parseCsv } from '../ingest.ts';
@@ -33,6 +34,8 @@ const PACK_WORDS: Record<string, string[]> = {
 
 /** A source header as a safe camelCase identifier, or null when nothing safe is left. */
 export function safeFieldName(header: string): string | null {
+  // A column title with a number or an identifier in it is data (a pivot export's customer or date), never a field name.
+  if (/\p{N}/u.test(header.normalize('NFKC')) || VALUE_PATTERNS.some(item => item.pattern.test(header))) return null;
   const words = header.normalize('NFKD').replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).filter(Boolean);
   if (!words.length) return null;
   let name = words.map((word, index) => index === 0 ? word.toLowerCase() : word[0].toUpperCase() + word.slice(1).toLowerCase()).join('');

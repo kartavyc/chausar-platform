@@ -186,7 +186,8 @@ test('date independence: presets resolve against the trusted clock, never the sy
   t.after(async () => { try { await engine.request('workspace.lock'); } catch { /* already locked */ } await engine.close(); await rm(directory, { recursive: true, force: true }); });
   await engine.request('workspace.create', { name: 'Demo Shop', passphrase: 'correct horse battery staple 42', demo: true, pack: 'ecommerce' });
   const proposed = await engine.request('smallapps.propose', { line: 'sales last month with a reminder button' });
-  assert.equal(proposed.catalogue.writeback, 'absent'); // core fallback: no writeback module in this engine
+  // The installed writeback module answers the catalogue; the absent fallback is covered with a stub host above.
+  assert.equal(proposed.catalogue.writeback, 'used');
   const created = await engine.request('smallapps.create', { descriptor: proposed.descriptor });
   const shown = await engine.request('smallapps.open', { id: created.id });
   assert.equal(shown.onDate, '2026-10-14');

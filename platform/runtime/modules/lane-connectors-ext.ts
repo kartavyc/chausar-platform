@@ -4,6 +4,7 @@ import { handlers, tick } from '../connectors-ext/service.ts';
 import { ConnectorCredentialStore, hostCredentialServices, loadOAuthClients } from '../connectors-ext/credentials.ts';
 import { readHttp } from '../adapters/read-kit.ts';
 import { purgeSources } from '../connectors-ext/state.ts';
+import { imports } from '../connectors-ext/fr07.ts';
 
 /** Lane-owned engine methods. Only the owning lane edits this file. */
 export const connectorsExtModule: EngineModule = {
@@ -31,6 +32,13 @@ export const connectorsExtModule: EngineModule = {
     'connectorsx.credentials.remove': { permission: 'admin', handler: handlers.credentialsRemove },
     'connectorsx.credentials.status': { permission: 'read', handler: handlers.credentialsStatus },
     'connectorsx.schedule': { permission: 'admin', handler: handlers.schedule },
+    // FR-07, Bring a file.
+    'imports.preview': { permission: 'prepare', handler: imports.preview },
+    'imports.providePassword': { permission: 'prepare', handler: imports.providePassword },
+    'imports.commit': { permission: 'prepare', handler: imports.commit },
+    'imports.result': { permission: 'read', handler: imports.result },
+    'imports.readerStatus': { permission: 'read', handler: imports.readerStatus },
+    'imports.installReader': { permission: 'admin', external: true, handler: imports.installReader },
   },
   purge: (state, reason) => purgeSources(state, reason.sourceIds),
   tick,

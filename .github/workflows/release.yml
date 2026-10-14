@@ -1,0 +1,267 @@
+name: Release build
+
+# Builds release artifacts only. Nothing here publishes a GitHub release or an
+# update feed: artifacts go to workflow storage, and the optional draft-release
+# job (off by default) creates an unpublished draft for a person to review.
+# Secrets reach steps only through `env:` blocks, never inside `run:` text.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to build, for example v0.1.0 (must match package.json)'
+        type: string
+        required: true
+      channel:
+        description: 'Release channel'
+        type: choice
+        options: [preview, stable]
+        default: preview
+      sign:
+        description: 'Signed final build (needs signing secrets); off builds the unsigned preview'
+        type: boolean
+        default: false
+      draft_release:
+        description: 'Also create an unpublished draft GitHub release from the artifacts'
+        type: boolean
+        default: false
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            platform: win32
+            arch: x64
+          - os: macos-15
+            platform: darwin
+            arch: arm64
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+          - os: ubuntu-24.04
+            platform: linux
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      RELEASE_TAG: ${{ inputs.version || github.ref_name }}
+      RELEASE_CHANNEL: ${{ inputs.channel || 'stable' }}
+      # Tag pushes always build the signed final; dispatch follows the `sign` input.
+      PACKAGE_MODE: ${{ (github.event_name == 'push' || inputs.sign) && 'final' || 'preview' }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      HAS_WIN_SIGNING: ${{ secrets.CHAUSAR_WIN_SIGNER != '' }}
+      HAS_MAC_SIGNING: ${{ secrets.MAC_CSC_LINK_BASE64 != '' && secrets.MAC_CSC_KEY_PASSWORD != '' }}
+      HAS_RELEASE_KEY: ${{ secrets.CHAUSAR_RELEASE_PRIVATE_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.version || github.ref }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          architecture: ${{ matrix.arch }}
+          package-manager-cache: false
+      - name: Version tag and channel match package.json
+        run: |
+          node -e '
+            const version = require("./package.json").version, tag = process.env.RELEASE_TAG, channel = process.env.RELEASE_CHANNEL;
+            if (tag !== `v${version}`) { console.error(`Tag ${tag} does not match package.json version ${version}.`); process.exit(1); }
+            if (channel === "stable" && version.includes("-")) { console.error("A stable build needs a version without a pre-release suffix."); process.exit(1); }
+          '
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install the pinned Electron distribution explicitly
+        run: node node_modules/electron/install.js
+      - name: Check source and JSON syntax
+        run: node scripts/check.mjs
+      - name: Typecheck
+        run: node node_modules/typescript/bin/tsc --noEmit
+      - name: Release and desktop tests
+        run: node --experimental-vm-modules --test platform/tests/release-*.test.ts platform/tests/desktop-*.test.ts platform/tests/updater.test.ts
+
+      - name: Linux keychain build dependencies
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libsecret-1-dev libglib2.0-dev pkg-config
+      - name: Compile the native keychain helper
+        run: |
+          cmake -S platform/native/keychain -B "$RUNNER_TEMP/keychain" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/keychain" --config Release --target chausar-keychain
+          if [ "${{ matrix.platform }}" = win32 ]; then helper="$RUNNER_TEMP/keychain/Release/chausar-keychain.exe"; else helper="$RUNNER_TEMP/keychain/chausar-keychain"; fi
+          mkdir -p runtime-binaries/keychain
+          cp "$helper" "runtime-binaries/keychain/$(basename "$helper")"
+          echo "KEYCHAIN_HELPER=runtime-binaries/keychain/$(basename "$helper")" >> "$GITHUB_ENV"
+
+      # Bundled native files are signed here, before their integrity manifests pin
+      # the final bytes; electron-builder is configured to leave them unchanged.
+      - name: Prepare macOS signing identity
+        if: env.PACKAGE_MODE == 'final' && matrix.platform == 'darwin' && env.HAS_MAC_SIGNING == 'true'
+        env:
+          MAC_CSC_LINK_BASE64: ${{ secrets.MAC_CSC_LINK_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+        run: |
+          umask 077
+          printf '%s' "$MAC_CSC_LINK_BASE64" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          keychain="$RUNNER_TEMP/release.keychain-db" password="$(uuidgen)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity="$(security find-identity -v -p codesigning "$keychain" | awk '/Developer ID Application/ { print $2; exit }')"
+          if [ -z "$identity" ]; then echo '::error::MAC_SIGNING_IDENTITY_MISSING: no Developer ID Application identity in the certificate.'; exit 1; fi
+          echo "MAC_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "CSC_LINK=$RUNNER_TEMP/signing.p12" >> "$GITHUB_ENV"
+      - name: Pre-sign the macOS keychain helper
+        if: env.PACKAGE_MODE == 'final' && matrix.platform == 'darwin' && env.HAS_MAC_SIGNING == 'true'
+        run: codesign --force --options runtime --timestamp --sign "$MAC_SIGN_IDENTITY" "$KEYCHAIN_HELPER"
+      - name: Pre-sign the Windows keychain helper
+        if: env.PACKAGE_MODE == 'final' && matrix.platform == 'win32' && env.HAS_WIN_SIGNING == 'true'
+        env:
+          CHAUSAR_WIN_SIGNER: ${{ secrets.CHAUSAR_WIN_SIGNER }}
+          SM_HOST: ${{ secrets.SM_HOST }}
+          SM_API_KEY: ${{ secrets.SM_API_KEY }}
+          SM_CLIENT_CERT_FILE_B64: ${{ secrets.SM_CLIENT_CERT_FILE_B64 }}
+          SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD }}
+          SM_KEYPAIR_ALIAS: ${{ secrets.SM_KEYPAIR_ALIAS }}
+          SMCTL_PATH: ${{ vars.SMCTL_PATH }}
+          ES_USERNAME: ${{ secrets.ES_USERNAME }}
+          ES_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          ES_CREDENTIAL_ID: ${{ secrets.ES_CREDENTIAL_ID }}
+          ES_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
+          CODESIGNTOOL_PATH: ${{ vars.CODESIGNTOOL_PATH }}
+        run: |
+          umask 077
+          if [ -n "$SM_CLIENT_CERT_FILE_B64" ]; then
+            printf '%s' "$SM_CLIENT_CERT_FILE_B64" | base64 --decode > "$RUNNER_TEMP/sm-client.p12"
+            echo "SM_CLIENT_CERT_FILE=$RUNNER_TEMP/sm-client.p12" >> "$GITHUB_ENV"
+            export SM_CLIENT_CERT_FILE="$RUNNER_TEMP/sm-client.p12"
+          fi
+          node scripts/release/windows-sign.cjs "$KEYCHAIN_HELPER"
+      - name: Pin the keychain helper in its manifest
+        run: node scripts/release/keychain-manifest.ts --helper "$KEYCHAIN_HELPER" --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --out runtime-binaries/keychain
+
+      - name: Stage vendored runtimes
+        if: env.PACKAGE_MODE == 'final'
+        run: node scripts/release/stage-runtime.ts --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --out runtime-binaries
+      - name: Prepare the update-manifest signing key
+        if: env.PACKAGE_MODE == 'final' && env.HAS_RELEASE_KEY == 'true'
+        env:
+          CHAUSAR_RELEASE_PRIVATE_KEY: ${{ secrets.CHAUSAR_RELEASE_PRIVATE_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$CHAUSAR_RELEASE_PRIVATE_KEY" > "$RUNNER_TEMP/release-private.pem"
+          node -e 'const c = require("node:crypto"), fs = require("node:fs"); fs.writeFileSync(process.argv[2], c.createPublicKey(fs.readFileSync(process.argv[1])).export({ type: "spki", format: "pem" }));' "$RUNNER_TEMP/release-private.pem" "$RUNNER_TEMP/release-public.pem"
+          echo "CHAUSAR_RELEASE_PRIVATE_KEY_FILE=$RUNNER_TEMP/release-private.pem" >> "$GITHUB_ENV"
+          echo "CHAUSAR_RELEASE_PUBLIC_KEY_FILE=$RUNNER_TEMP/release-public.pem" >> "$GITHUB_ENV"
+      - name: Signed-release preflight
+        if: env.PACKAGE_MODE == 'final'
+        env:
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: node scripts/package-preflight.mjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+
+      - name: Build installers (publishing disabled)
+        env:
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CHAUSAR_WIN_SIGNER: ${{ secrets.CHAUSAR_WIN_SIGNER }}
+          SM_HOST: ${{ secrets.SM_HOST }}
+          SM_API_KEY: ${{ secrets.SM_API_KEY }}
+          SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD }}
+          SM_KEYPAIR_ALIAS: ${{ secrets.SM_KEYPAIR_ALIAS }}
+          SMCTL_PATH: ${{ vars.SMCTL_PATH }}
+          ES_USERNAME: ${{ secrets.ES_USERNAME }}
+          ES_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          ES_CREDENTIAL_ID: ${{ secrets.ES_CREDENTIAL_ID }}
+          ES_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
+          CODESIGNTOOL_PATH: ${{ vars.CODESIGNTOOL_PATH }}
+        run: node scripts/desktop-package.mjs --mode "$PACKAGE_MODE" --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+      - name: Locate the output folder
+        run: |
+          if [ "$PACKAGE_MODE" = final ]; then echo "RELEASE_DIR=release" >> "$GITHUB_ENV"; else echo "RELEASE_DIR=release/preview" >> "$GITHUB_ENV"; fi
+      - name: Sign update manifests
+        if: env.PACKAGE_MODE == 'final' && env.HAS_RELEASE_KEY == 'true'
+        env:
+          DATA_SCHEMA_VERSION: ${{ vars.CHAUSAR_DATA_SCHEMA_VERSION || '1' }}
+          MIN_ENGINE_VERSION: ${{ vars.CHAUSAR_MIN_ENGINE_VERSION || '0.0.0' }}
+          ROLLBACK_SUPPORTED: ${{ vars.CHAUSAR_ROLLBACK_SUPPORTED || 'false' }}
+          DOWNLOAD_BASE: https://github.com/${{ github.repository }}/releases/download
+        run: |
+          shopt -s nullglob
+          for artifact in "$RELEASE_DIR"/*.exe "$RELEASE_DIR"/*.dmg "$RELEASE_DIR"/*.zip "$RELEASE_DIR"/*.AppImage; do
+            name="$(basename "$artifact")"
+            node scripts/release/sign-update-manifest.ts --artifact "$artifact" --version "${RELEASE_TAG#v}" \
+              --url "$DOWNLOAD_BASE/$RELEASE_TAG/$name" --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} \
+              --min-engine "$MIN_ENGINE_VERSION" --data-schema "$DATA_SCHEMA_VERSION" --rollback "$ROLLBACK_SUPPORTED" --out "$RELEASE_DIR"
+          done
+      - name: Write SHA256SUMS and checksums.json
+        run: node scripts/release/checksums.ts "$RELEASE_DIR"
+      - name: Remove signing material from the runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/signing.p12" "$RUNNER_TEMP/sm-client.p12" "$RUNNER_TEMP/release-private.pem"
+      - name: Upload artifacts and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: chausar-${{ env.RELEASE_TAG }}-${{ env.PACKAGE_MODE }}-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            ${{ env.RELEASE_DIR }}/*.exe
+            ${{ env.RELEASE_DIR }}/*.dmg
+            ${{ env.RELEASE_DIR }}/*.zip
+            ${{ env.RELEASE_DIR }}/*.AppImage
+            ${{ env.RELEASE_DIR }}/*.tar.gz
+            ${{ env.RELEASE_DIR }}/*.blockmap
+            ${{ env.RELEASE_DIR }}/*.manifest.json
+            ${{ env.RELEASE_DIR }}/*.manifest.sig
+            ${{ env.RELEASE_DIR }}/packaging-receipt-*.json
+            ${{ env.RELEASE_DIR }}/SHA256SUMS
+            ${{ env.RELEASE_DIR }}/checksums.json
+          if-no-files-found: error
+          retention-days: 14
+
+  draft-release:
+    # Off by default; creates an unpublished draft only. A person publishes it.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.draft_release }}
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: chausar-${{ inputs.version }}-*
+      - name: Create an unpublished draft release
+        run: |
+          # Per-target checksum files share a name, so prefix them with their target folder.
+          for folder in artifacts/*/; do
+            target="$(basename "$folder")"
+            for file in SHA256SUMS checksums.json; do
+              if [ -f "$folder$file" ]; then mv "$folder$file" "$folder$target.$file"; fi
+            done
+          done
+          gh release create "$RELEASE_TAG" --draft --verify-tag --title "Chausar $RELEASE_TAG" --notes "Draft built by run $GITHUB_RUN_ID. Review checksums before publishing." artifacts/*/*

@@ -64,10 +64,11 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
   }
   class Harness extends EventEmitter {
-    state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false; workspaceOpen = false;
+    state = 'ready'; options: any; stops = 0; lifecycle: any[] = []; failLifecycle = false; workspaceOpen = false; requests: string[] = [];
     constructor(options: any) { super(); this.options = options; engines.push(this); }
     async start() {}
     async request(method: string) {
+      this.requests.push(method);
       if (method === 'workspace.status') return { method, open: this.workspaceOpen, experimental: true, storage: 'experimental-file' };
       if (method === 'workspace.create') this.workspaceOpen = true;
       if (method === 'ui.context') return { method, workspace: { demo: true }, member: { role: 'owner' } };
@@ -81,7 +82,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   const powerMonitor = new EventEmitter();
   const electron = { app, BrowserWindow: Window, Tray, shell: { openExternal: async (...args: unknown[]) => { externalOpens.push(args); } }, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle(_scheme: string, handler: any) { protocolHandlers.push(handler); } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(desktopMain, 'utf8');
-  if (postgresGate) source = source.replace("await import(pathToFileURL(join(engineRoot, 'scripts/postgres-runtime.mjs')).href)", '__postgresModule');
+  if (postgresGate) source = source.replace("await import(pathToFileURL(join(engineRoot, 'platform/runtime/native/desktop-database.ts')).href)", '__postgresModule');
   vm.runInNewContext(source, { __dirname: join(ownedApp, 'app', 'desktop'), require: (name: string) => {
     if (name === 'electron') return electron;
     if (name === './demo-profile.cjs') return profileModule.exports;
@@ -91,7 +92,13 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     if (name === 'node:fs/promises') return { readFile: async (path: string) => { if (path.endsWith('package.json')) { await metadataGate; return JSON.stringify({ chausarPreview: !postgresGate, version: '2.3.4' }); } return 'a'.repeat(43); }, mkdir: async () => {}, lstat: async () => ({ isFile: () => true, isSymbolicLink: () => false }) };
     if (name === 'node:net' && postgresGate) return { createServer: () => ({ once() {}, listen(_port: number, _host: string, callback: () => void) { callback(); }, address: () => ({ port: 5432 }), close(callback: () => void) { callback(); } }) };
     return desktopRequire(name);
-  }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', ownedApp, ...args], env: profileEnvironment, platform: 'win32', resourcesPath: ownedResources }, console: { error: (message: string) => diagnostics.push(message) }, URL, Response, Buffer });
+  }, __postgresModule: { startDesktopDatabase: async () => {
+    await postgresGate;
+    // Synthetic database states for the release-lane start-up; the real module is tested in release-desktop-database.test.ts.
+    if ((profileEnvironment as NodeJS.ProcessEnv).SYNTHETIC_DATABASE_STATE === 'newer-than-app') throw Object.assign(new Error('This database was written by a newer Chausar. Install that version again; this one will not open it.'), { code: 'DATABASE_NEWER_THAN_APP' });
+    if ((profileEnvironment as NodeJS.ProcessEnv).SYNTHETIC_DATABASE_STATE === 'needs-upgrade') return { state: 'needs-upgrade', code: 'POSTGRES_UPGRADE_REQUIRED', message: 'The local database needs an upgrade.', close: async () => { databaseCloses++; } };
+    return { state: 'running', url: 'postgresql://chausar:synthetic@127.0.0.1:55400/postgres', close: async () => { databaseCloses++; } };
+  } }, process: { argv: ['electron', ownedApp, ...args], env: profileEnvironment, platform: 'win32', resourcesPath: ownedResources }, console: { error: (message: string) => diagnostics.push(message) }, URL, Response, Buffer });
   await flush();
   return { app, windows, engines, menus, errors, diagnostics, handlers, externalOpens, prints, protocolHandlers, powerMonitor, events, paths, pathReads, directories, databaseCloses: () => databaseCloses };
 }
@@ -241,6 +248,36 @@ test('production desktop forwards its fixed packaged custody manifest through th
   assert.equal(d.engines[0].options.environment.CHAUSAR_KEYCHAIN_MANIFEST, join(ownedResources, 'runtime-binaries', 'keychain', 'manifest.json'));
   d.app.emit('before-quit', { preventDefault() {} }); await flush();
   assert.equal(d.engines[0].stops, 1); assert.equal(d.databaseCloses(), 1);
+});
+
+test('release lane: an older database cluster starts the engine without a database and says why; a newer one refuses start-up', async () => {
+  const upgrade = await desktop(['--production'], Promise.resolve(), Promise.resolve(), { SYNTHETIC_DATABASE_STATE: 'needs-upgrade' });
+  assert.equal(upgrade.engines.length, 1);
+  assert.equal(upgrade.engines[0].options.environment.CHAUSAR_DATABASE_STATE, 'needs-upgrade');
+  assert.equal(upgrade.engines[0].options.environment.CHAUSAR_POSTGRES_URL, undefined);
+  assert.deepEqual(upgrade.errors, ['The local database needs an upgrade.']);
+  assert.ok(upgrade.diagnostics.includes('Chausar database: code=POSTGRES_UPGRADE_REQUIRED'));
+  const running = await desktop(['--production'], Promise.resolve(), Promise.resolve());
+  assert.equal(running.engines[0].options.environment.CHAUSAR_POSTGRES_URL, 'postgresql://chausar:synthetic@127.0.0.1:55400/postgres');
+  assert.equal(running.engines[0].options.environment.CHAUSAR_DATABASE_STATE, undefined);
+  const newer = await desktop(['--production'], Promise.resolve(), Promise.resolve(), { SYNTHETIC_DATABASE_STATE: 'newer-than-app' });
+  assert.equal(newer.engines.length, 0); assert.equal(newer.windows.length, 0); assert.equal(newer.app.quits, 1);
+  assert.match(newer.errors[0], /newer Chausar/);
+});
+
+test('release lane: a launch through the launcher asks the engine to confirm a trial once a workspace opens', async () => {
+  const plain = await desktop(['--demo']);
+  const plainHandler = plain.handlers.get('chausar:request'), plainWindow = plain.windows[0];
+  await plainHandler({ sender: plainWindow.webContents, senderFrame: plainWindow.webContents.mainFrame }, { method: 'workspace.open', payload: {} }); await flush();
+  assert.equal(plain.engines[0].requests.includes('release.status'), false);
+  const d = await desktop(['--demo'], Promise.resolve(), undefined, { CHAUSAR_INSTALL_ROOT: '/synthetic/install' });
+  const engine = d.engines[0], handler = d.handlers.get('chausar:request'), window = d.windows[0];
+  assert.deepEqual(engine.requests.filter((method: string) => method === 'release.status'), ['release.status']);
+  await handler({ sender: window.webContents, senderFrame: window.webContents.mainFrame }, { method: 'workspace.status', payload: {} }); await flush();
+  assert.equal(engine.requests.filter((method: string) => method === 'release.status').length, 1);
+  const reply = await handler({ sender: window.webContents, senderFrame: window.webContents.mainFrame }, { method: 'workspace.open', payload: {} }); await flush();
+  assert.equal(reply.ok, true);
+  assert.equal(engine.requests.at(-1), 'release.status');
 });
 
 test('quit awaits in-flight startup and never opens a window or starts a late worker', async () => {

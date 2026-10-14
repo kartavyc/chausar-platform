@@ -1,0 +1,4 @@
+# Staged runtimes are build outputs (scripts/release/stage-runtime.ts) and are never committed.
+*
+!README.md
+!.gitignore
