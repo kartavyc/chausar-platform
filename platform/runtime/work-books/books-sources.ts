@@ -7,13 +7,17 @@ import { authorize, check, type Context, type Fact, type State, type StateStore 
 import { parseCsv } from '../ingest.ts';
 import { canSeeFact } from '../memory.ts';
 import { sourceAllowed } from '../trust.ts';
-import type { MethodSpec } from '../modules/types.ts';
+import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
 import { amountOf, input, plainId, type Amount } from './books-common.ts';
+import { connections, envelopes, freshness, systemOf, type ConnectionView, type EnvelopeView } from './books-connectors.ts';
 
 export type MonthState = 'loaded' | 'loading' | 'not-loaded-yet' | 'refused' | 'failed';
 export type SourceRow = { sourceId: string; system: string; way: 'files' | 'signed-in' | 'this-computer'; scope: string | null;
-  lastReadAt: string | null; months: { month: string; state: MonthState }[]; rows: number; refused: number; unmapped: number; experimental: boolean; connected: boolean };
+  lastReadAt: string | null; months: { month: string; state: MonthState }[]; rows: number; refused: number; unmapped: number; experimental: boolean; connected: boolean;
+  /** Round 2, additive: the connection behind this source (connectors-ext), its last failed read and whether it is past its freshness target. */
+  connection?: { connectionId: string; group: string; road: 'interface' | 'file' | 'database'; status: 'active' | 'paused' } | null;
+  lastFailure?: { at: string; code: string | null } | null; stale?: boolean };
 type Refusal = { sourceId: string; at: string; format: string | null; codes: string[] };
 
 /** Import refusals from the local learning log (an import refusal writes no import row). */
@@ -88,23 +92,110 @@ export function unmappedFields(store: StateStore, ctx: Context) {
   return [...fields.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([field, v]) => ({ field, sourceIds: [...v.sourceIds].sort(), type: v.type, filled: v.filled }));
 }
 
+const coreUnmapped = (state: State, sourceId: string): string[] =>
+  [...new Set(state.imports.filter(i => i.sourceId === sourceId).flatMap(i => Array.isArray(i.unmappedFields) ? i.unmappedFields.filter((f: unknown): f is string => typeof f === 'string') : []))];
+const wayOf = (c: ConnectionView): SourceRow['way'] => c.road === 'file' ? 'files' : c.road === 'database' || c.group === 'tally' ? 'this-computer' : 'signed-in';
+const covers = (p: { from: string; to: string } | null, month: string) => !!p && p.from.slice(0, 7) <= month && p.to.slice(0, 7) >= month;
+
+type Connected = { available: boolean; connections: ConnectionView[]; envelopes: EnvelopeView[]; freshness: Awaited<ReturnType<typeof freshness>>['items']; ids: string[] };
+/**
+ * Every source the caller may see: imported files (core), connections and reads from the
+ * connector factory. Each id passes `sourceVisible`, so the core source rule holds for all.
+ */
+async function connected(host: ModuleHost, ctx: Context, end: string | null): Promise<Connected> {
+  const asOf = `${end ?? new Date().toISOString().slice(0, 7)}-01`;
+  const [conns, reads, fresh] = await Promise.all([connections(host, ctx), envelopes(host, ctx), freshness(host, ctx, asOf)]);
+  const ids = [...new Set([...visibleSourceIds(host.store, ctx), ...conns.items.map(c => c.sourceId), ...reads.items.map(e => e.sourceId), ...fresh.items.map(f => f.sourceId)])]
+    .filter(id => sourceVisible(host.store, ctx, id)).sort();
+  return { available: conns.available || reads.available || fresh.available, connections: conns.items, envelopes: reads.items, freshness: fresh.items, ids };
+}
+/** One row: the core file view, with what the connector factory knows laid over it. */
+function mergedRow(state: State, sourceId: string, months: string[], c: Connected): SourceRow {
+  const row = sourceRow(state, sourceId, months);
+  const conn = c.connections.find(x => x.sourceId === sourceId), fresh = c.freshness.find(f => f.sourceId === sourceId);
+  const reads = c.envelopes.filter(e => e.sourceId === sourceId);
+  if (!conn && !fresh && reads.length === 0) return row;
+  const hasImports = state.imports.some(i => i.sourceId === sourceId);
+  if (conn) { row.way = wayOf(conn); if (!hasImports || row.system === 'unknown') row.system = conn.label; row.scope = conn.company || row.scope; row.connected = true; }
+  else if (!hasImports && reads[0]) row.system = reads[0].recipeId.split('.')[0] || row.system;
+  // Everything read through the connector factory is experimental until a person runs the bench.
+  row.experimental = true;
+  row.months = row.months.map(({ month, state: core }) => {
+    const f = fresh?.months.get(month);
+    if (core === 'loaded' || f === 'loaded') return { month, state: 'loaded' as const };
+    if (reads.some(e => e.waiting && covers(e.period, month))) return { month, state: 'loading' as const };
+    if (f === 'failed') return { month, state: 'failed' as const };
+    if (core === 'refused' || f === 'refused') return { month, state: 'refused' as const };
+    return { month, state: 'not-loaded-yet' as const };
+  });
+  row.lastReadAt = [row.lastReadAt, fresh?.lastRead ?? null].filter((v): v is string => typeof v === 'string').sort().at(-1) ?? null;
+  row.refused += reads.filter(e => e.status !== 'accepted').length;
+  row.unmapped = new Set([...coreUnmapped(state, sourceId), ...(fresh?.unmappedFields ?? []), ...reads.flatMap(e => e.unmappedFields)]).size;
+  row.connection = conn ? { connectionId: conn.connectionId, group: conn.group, road: conn.road, status: conn.status } : null;
+  row.lastFailure = fresh?.lastFailure ? { at: fresh.lastFailure.at, code: fresh.lastFailure.code } : null;
+  row.stale = fresh?.stale === true;
+  return row;
+}
+export type UnmappedRow = { field: string; sourceIds: string[]; type: FieldType; filled: { rows: number; of: number } | null; origin: 'file' | 'connector'; recipeId: string | null; mappable: boolean };
+/** Fields no recipe covers: core file imports with type and fill rate, and connector reads by recipe. */
+async function allUnmapped(host: ModuleHost, ctx: Context, c: Connected): Promise<UnmappedRow[]> {
+  const files: UnmappedRow[] = unmappedFields(host.store, ctx).map(f => ({ ...f, origin: 'file' as const, recipeId: null, mappable: true }));
+  const reply = await optionalCall<unknown>(host, 'connectorsx.unmapped', {});
+  const listed = reply.available && reply.value && typeof reply.value === 'object' && Array.isArray((reply.value as { fields?: unknown }).fields) ? (reply.value as { fields: unknown[] }).fields : [];
+  const seen = new Set<string>(); const out: UnmappedRow[] = [];
+  for (const raw of listed.slice(0, 2000)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const { field, recipeId } = raw as { field?: unknown; recipeId?: unknown };
+    if (typeof field !== 'string' || field.length === 0 || field.length > 400 || typeof recipeId !== 'string' || recipeId.length > 200 || seen.has(`${recipeId}\u0000${field}`)) continue;
+    const sourceIds = [...new Set(c.envelopes.filter(e => e.recipeId === recipeId && e.unmappedFields.includes(field)).map(e => e.sourceId))].sort();
+    if (!sourceIds.length) continue;
+    seen.add(`${recipeId}\u0000${field}`);
+    // A connector recipe is registered engine code chosen by id; mapping one of its fields changes that recipe, not the library.
+    out.push({ field, sourceIds, type: 'unknown', filled: null, origin: 'connector', recipeId, mappable: false });
+  }
+  return [...files, ...out.sort((a, b) => a.field.localeCompare(b.field))];
+}
+/** The read operations a connection offers, from the connector catalogue. */
+async function operationsFor(host: ModuleHost, group: string) {
+  let reply: Awaited<ReturnType<typeof optionalCall>>;
+  try { reply = await optionalCall<unknown>(host, 'connectorsx.systems', { group }); } catch { return []; }
+  if (!reply.available || !reply.value || typeof reply.value !== 'object') return [];
+  const groups = (reply.value as { groups?: unknown }).groups; const system = Array.isArray(groups) ? systemOf(groups[0], null) : null;
+  return (system?.operations ?? []).filter(op => op.road === 'interface' && op.depth === 'read' && (op.status === 'tested' || op.status === 'experimental'))
+    .map(op => ({ id: op.id, label: op.label, limitation: op.limitation, live: op.status === 'tested' }));
+}
+
 export const sourceMethods: Record<string, MethodSpec> = {
   'books.sources': { permission: 'read', async handler(ctx, payload, host) {
     const request = input(payload, ['endMonth']); check(request.endMonth === undefined || validMonth(request.endMonth), 'INVALID_BOOKS_REQUEST', 'Give the last month as YYYY-MM.');
-    const state = host.store.read(); const ids = visibleSourceIds(host.store, ctx); const months = monthsEnding(request.endMonth ?? defaultEnd(state, ids));
-    const freshness = await optionalCall(host, 'connectorsx.freshness', {});
-    return { rows: ids.map(id => sourceRow(state, id, months)), unmappedFields: unmappedFields(host.store, ctx).length, freshness: { available: freshness.available } };
+    const state = host.store.read();
+    const c = await connected(host, ctx, request.endMonth ?? null);
+    const end = request.endMonth ?? (c.connections.length ? [defaultEnd(state, c.ids), new Date().toISOString().slice(0, 7)].sort().at(-1)! : defaultEnd(state, c.ids));
+    const months = monthsEnding(end);
+    const unmapped = await allUnmapped(host, ctx, c);
+    return { rows: c.ids.map(id => mergedRow(state, id, months, c)), unmappedFields: unmapped.length, freshness: { available: c.available } };
   } },
-  'books.source': { permission: 'read', handler(ctx, payload, host) {
+  'books.source': { permission: 'read', async handler(ctx, payload, host) {
     const { sourceId } = input(payload, ['sourceId'], ['sourceId']); check(plainId(sourceId), 'INVALID_BOOKS_REQUEST', 'Name the source.');
-    const state = host.store.read(); check(visibleSourceIds(host.store, ctx).includes(sourceId), 'SOURCE_NOT_FOUND', 'This source is not available to you.');
+    const c = await connected(host, ctx, null);
+    const state = host.store.read(); check(c.ids.includes(sourceId), 'SOURCE_NOT_FOUND', 'This source is not available to you.');
     const imports = state.imports.filter(i => i.sourceId === sourceId).sort((a, b) => String(a.at).localeCompare(String(b.at)));
     const kinds = new Map<string, Set<string>>(); for (const f of liveFacts(state, sourceId) as Fact[]) kinds.set(f.kind, (kinds.get(f.kind) ?? new Set()).add(f.entityId));
-    return { row: sourceRow(state, sourceId, monthsEnding(defaultEnd(state, [sourceId]))),
+    const conn = c.connections.find(x => x.sourceId === sourceId) ?? null;
+    const reads = c.envelopes.filter(e => e.sourceId === sourceId);
+    const end = [defaultEnd(state, [sourceId]), ...(conn ? [new Date().toISOString().slice(0, 7)] : [])].sort().at(-1)!;
+    return { row: mergedRow(state, sourceId, monthsEnding(end), c),
       reads: imports.map(i => ({ id: i.id, at: i.at, rows: Number.isInteger(i.coverage?.importedRows) ? i.coverage.importedRows : (i.rowIds?.length ?? 0), totals: amountOf(i.totalsMinor) as Amount, reconciled: i.coverage?.reconciled === true, format: i.format })),
       refusals: refusals(state).filter(r => r.sourceId === sourceId).map(r => ({ at: r.at, codes: r.codes })),
       kinds: [...kinds.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([kind, rows]) => ({ kind, rows: rows.size })),
-      unmappedFields: [...new Set(imports.flatMap(i => Array.isArray(i.unmappedFields) ? i.unmappedFields : []))].sort() };
+      unmappedFields: [...new Set([...coreUnmapped(state, sourceId), ...reads.flatMap(e => e.unmappedFields)])].sort(),
+      // Round 2, additive: the connection, what it can read, and the history of reads with their envelopes.
+      connectors: { available: c.available },
+      connection: conn ? { ...conn, operations: await operationsFor(host, conn.group) } : null,
+      envelopes: reads.slice(0, 50) };
   } },
-  'books.unmapped': { permission: 'read', handler(ctx, payload, host) { input(payload, []); authorize(host.store, ctx); return { fields: unmappedFields(host.store, ctx) }; } },
+  'books.unmapped': { permission: 'read', async handler(ctx, payload, host) {
+    input(payload, []); authorize(host.store, ctx);
+    return { fields: await allUnmapped(host, ctx, await connected(host, ctx, null)) };
+  } },
 };

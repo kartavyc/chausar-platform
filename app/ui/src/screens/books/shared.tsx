@@ -24,12 +24,17 @@ export function useWords(language: Language): W { return words(BOOKS, language);
 export { fill };
 
 export const SUBS = ['sources', 'unmapped', 'meanings', 'packs', 'accounts', 'customers', 'matches', 'conflicts', 'history', 'stale', 'memory'] as const;
-export type Sub = typeof SUBS[number];
+/** Round 2: recipes is listed; add a source and a change tried on a copy are reached from Sources and Meanings. */
+export const MORE_SUBS = ['recipes', 'add', 'trial'] as const;
+export type Sub = typeof SUBS[number] | typeof MORE_SUBS[number];
+const LISTED: readonly Sub[] = [...SUBS, 'recipes'];
 const SIMPLE_SUBS: readonly Sub[] = ['sources', 'meanings', 'accounts', 'customers', 'history', 'memory'];
 
 /** Seats that may approve: the accountant prepares but cannot approve. */
 export const approves = (props: BooksProps) => !props.viewer && (props.member.role === 'owner' || props.member.role === 'cofounder');
 export const isOwner = (props: BooksProps) => !props.viewer && props.member.role === 'owner';
+/** Seats that may prepare (read a source, map a field, make a copy): anyone but a viewer. */
+export const prepares = (props: BooksProps) => !props.viewer && props.member.role !== 'viewer';
 
 /**
  * Engine ids may hold characters a sheet address cannot (`:` `@`). Each such character is
@@ -64,7 +69,7 @@ export function BooksPage({ props, sub, title, count, loaded, reload, aside, chi
   const w = useWords(props.language);
   return (
     <div className={[s.books, s[props.view]].join(' ')} data-view={props.view}>
-      <Page place="books" sub={sub} subs={props.view === 'simple' ? SIMPLE_SUBS : SUBS} title={title} count={count} language={props.language}
+      <Page place="books" sub={sub} subs={props.view === 'simple' ? SIMPLE_SUBS : LISTED} title={title} count={count} language={props.language}
         navigate={props.navigate} state={loaded ? stateOf(loaded) : undefined} onRetry={reload} aside={aside}>
         {props.viewer && <p className={s.note}>{w.readOnly}</p>}
         {children}

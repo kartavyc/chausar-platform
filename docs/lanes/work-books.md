@@ -183,6 +183,90 @@ Additions after the first build, kept additive to the shapes above:
 - Bad payloads refuse `INVALID_APPROVAL` (Work) and `INVALID_BOOKS_REQUEST` (Books). Neither
   family uses `INVALID_REQUEST`, which screens read as "not built yet".
 
+### Books, round 2: connections, add a source, recipes, map a field, a change on a copy, profile memory
+
+The Books side now calls the connectors-ext lane (`connectorsx.*`), the learning-ext lane
+(`learningx.recipePropose`, `learningx.recipeSave`) and the core `trials.*` and
+`business.profile.*` methods, as the same caller. Every reply from another lane is checked field
+by field and copied into the shapes below (`books-connectors.ts`), never passed through. A
+reader whose lane is missing answers `available: false`; a changer refuses
+`CONNECTORS_NOT_INSTALLED` or `RECIPE_PROPOSALS_NOT_INSTALLED`. Refusals from the other lane
+pass through unchanged (for example `DEMO_EXTERNAL_DISABLED`, `OAUTH_CLIENT_REQUIRED`,
+`CREDENTIAL_NOT_ACCEPTED`).
+
+Additive fields on existing replies:
+
+- `SourceRow` gains `connection?: { connectionId; group; road: 'interface' | 'file' | 'database'; status: 'active' | 'paused' } | null`,
+  `lastFailure?: { at; code: string | null } | null` and `stale?: boolean` (past its freshness target).
+  `books.sources` now lists connections without an import yet, and reads from the connector
+  factory. A month is `loaded` when either side holds facts, `loading` when an accepted read of
+  that month waits to be imported, `failed` when the read itself failed, `refused` when it was
+  refused or asked a question. Every id passes the core source rule (`sourceVisible`).
+  `freshness.available` is true when any connector method answered.
+- `books.source` gains `connectors: { available }`, `connection: (ConnectionView & { operations: { id; label; limitation; live }[] }) | null`
+  and `envelopes: EnvelopeView[]` (the history of reads, newest first, at most 50).
+- `books.unmapped` rows gain `origin: 'file' | 'connector'`, `recipeId: string | null` and
+  `mappable: boolean`. Connector fields (from `connectorsx.unmapped`) have type `unknown` and no
+  fill rate; they belong to a registered recipe and are not mapped here.
+- `MemoryLine` gains `origin?: 'business-profile'`, `field?: string` and `readOnly?: boolean`.
+  `books.memory` appends the business profile's entries (core `business.profile.history`): one
+  line per version chain, kind `claim`, status `told-by-owner` (or `corrected` with its earlier
+  versions, or `assumed` for a draft assumption), source `told-by-owner` (or `outside-content`
+  when it was recorded by tainted work). Their ids are `profile:<profileId>`.
+  `books.forget` on such a line calls `business.profile.remove` (the whole chain);
+  `books.memoryEdit` and `books.memoryConfirm` refuse `PROFILE_LINE_READ_ONLY`.
+
+```
+ConnectionView = { connectionId; sourceId; group; road: 'interface' | 'file' | 'database'; label; company; branch; status: 'active' | 'paused' }
+EnvelopeView = { id; sourceId; at; operation; recipeId; recipeVersion; status: 'accepted' | 'refused' | 'abstained' | 'failed';
+  refusal: { code; reason } | null; abstention: { reason; field; question; options: string[] } | null;
+  period: { from; to } | null; rows: number; excludedRows: number;
+  total: { measure: 'money' | 'count'; unit: string; ours: string | null; theirs: string | null; match: 'yes' | 'no' | 'unavailable' };  // exact integer text; money in paise
+  checks: { id; status: 'passed' | 'failed' | 'unavailable' }[]; unmappedFields: string[]; notices: string[];
+  waiting: boolean;   // accepted and not imported yet: Import is offered
+  committed: { at; rows: number; duplicate: boolean } | null }
+SystemRow = { id; name; family; depth: 'full' | 'read' | 'import' | null; available: boolean;
+  status: 'tested' | 'experimental' | 'planned' | 'not-possible'; tier: 'supported' | 'experimental' | 'planned'; liveVerified: boolean;
+  evidence: { synthetic: number; madeToOrder: number; realWithConsent: number };
+  ways: ('interface' | 'file' | 'database')[]; signIn: { method: 'browser' | 'key' | 'none'; note: string | null };
+  settings: string[];   // the non-secret settings its interface read takes
+  operations: { id; label; depth; road; status; tier; limitation; evidence }[] }
+RecipeRow = { id; version; system; operation; title; state: 'seed' | 'tested' | 'not-yet-tested' | 'failed'; totals: string; measure: 'money' | 'count'; lastReadAt: string | null }
+ProposalView = { id; sourceId; field; target: string | null; origin: 'library' | 'person'; state: 'proposed' | 'accepted' | 'declined' | 'published';
+  proposedBy; at; valid: boolean; fieldBound: boolean; digest: string | null; scope: { system; company; branches: string[] } | null;
+  bindings: { target; source: string | null; type; state: 'accepted' | 'proposed'; acceptedBy: { by; role; at } | null;
+    grade: 'model' | 'owner' | 'accountant' | 'ca' | 'reconciled' | null; change: 'same' | 'new' | 'changed' }[];
+  dropped: string[]; issues: { path; code }[]; removed: { path; code }[]; missingTargets: string[];
+  decided: { by; role; at } | null; libraryId: string | null; baseChanged: boolean }
+TrialCell = { value: Amount; refused: string | null; receiptId: string | null;   // receiptId: the live saved answer's receipt ("now" only)
+  receipt: { operation; period; counted: number; excluded: number; definitions: string[]; completeness: string } | null }   // the copy's receipt, shown in place
+TrialView = { trialId; draftId: string | null; proposalId: string | null; experimental: true; status: 'created' | 'evaluated';
+  change: { type; target }; cost: { preparationMs: number; diskBytes: number }; evaluationDigest: string | null;
+  rows: { answerId; operation; period; now: TrialCell; withChange: TrialCell; differs: boolean }[];
+  impact: { digest; strategy: 'prospective'; affectedAnswers: number; rebuild: number; activeWork: number } | null; impactCode: string | null; limitations: string[] }
+```
+
+| Method | Permission | Payload | Reply |
+|---|---|---|---|
+| `books.systems` | read | `{ group? }` | `{ available: boolean; systems: SystemRow[] }` (`connectorsx.systems`) |
+| `books.connect` | admin | `{ group, road: 'interface' \| 'file' \| 'database', company, branch?, label?, settings? }` | `ConnectionView` (`connectorsx.connect`; a setting named like a credential refuses `CREDENTIAL_NOT_ACCEPTED` before the call) |
+| `books.pause` | admin | `{ sourceId, paused: boolean }` | `ConnectionView` |
+| `books.disconnect` | admin | `{ sourceId }` | `{ sourceId; removed: boolean; factsKept: boolean }` (facts stay until `sources.delete`) |
+| `books.signIn` | admin | `{ sourceId, operation? }` | `{ sourceId; method: 'browser'; url: string; expiresInSeconds; note }` (an `https:` address shown as text; the screen never opens it) or `{ sourceId; method: 'key' \| 'none'; instruction }` |
+| `books.readNow` | prepare | `{ sourceId, operation, period?, reportTotals?: { total }, parameters? }` | `EnvelopeView` (`connectorsx.read`; a file source refuses `CONNECTION_REQUIRED`) |
+| `books.importRead` | prepare | `{ envelopeId }` | `EnvelopeView` after `connectorsx.importCommit` (a read the caller cannot see refuses `ENVELOPE_NOT_FOUND` first) |
+| `books.discardRead` | prepare | `{ envelopeId }` | `EnvelopeView` after `connectorsx.discard` |
+| `books.recipes` | read | `{ group? }` | `{ available; recipes: RecipeRow[]; proposals: { id; sourceId; field; state; proposedBy; at; valid }[] }` |
+| `books.recipe` | read | `{ recipeId }` | `{ recipe: RecipeRow; scope: { system; company; branch; gstin: null; period }; bindings: { meaning; headings: string[]; type; required; state: 'seed'; acceptedBy: null; grade: 'reconciled' \| null }[]; check: { envelopeId; at } & EnvelopeView['total'] \| null; questions: { envelopeId; sourceId; at; reason: 'value-not-in-list' \| 'binding-not-settled' \| 'not-known-whether-applies' \| 'check-failed' \| 'too-little-evidence'; detail; field; question; choices: string[]; ours; theirs; measure; unit }[]; newer: { readWith; current } \| null; notices: string[]; sourceIds: string[] }` |
+| `books.mapField` | prepare | `{ sourceId, field, target?, type?: 'string' \| 'money' \| 'date' \| 'integer' \| 'boolean', dateFormat?, moneyUnit? }` | `ProposalView`. The file import's own recipe plus one binding for the field goes to `learningx.recipePropose` as the candidate (without `target`, the library's best match). Only a field of a file import that no binding covers (`FIELD_NOT_UNMAPPED`, `MAP_FIELD_NOT_AVAILABLE`). |
+| `books.proposal` | read | `{ id }` | `ProposalView` |
+| `books.decideProposal` | prepare | `{ id, decision: 'accept' \| 'decline', digest }` | `ProposalView`. Accept needs a complete grammar pass (`RECIPE_GRAMMAR`) and keeps the recipe in the library (`learningx.recipeSave`, `passedTests: false`); the person is recorded by name and role. Imports do not change. |
+| `books.trialQuestions` | read | `{}` | `{ available; questions: { id; receiptId; operation; period; stale }[] }` (`trials.savedQuestions`) |
+| `books.trial` | prepare | `{ draftId \| proposalId, savedAnswerIds?: string[] (≤ 50) }` | `TrialView` after `trials.create` and `trials.evaluate`. A draft becomes `{ type: 'definition', name, replacement }`; adding or removing a word refuses `TRIAL_CHANGE_UNSUPPORTED`; a draft over an older dictionary refuses `DICTIONARY_CONFLICT`. A proposal becomes `{ type: 'recipe', sourceId, recipeId, replacement }`. Without ids, every saved question that is not stale (`TRIAL_NO_SAVED_QUESTIONS` when none). |
+| `books.trialRead` | read | `{ trialId \| draftId \| proposalId }` | `{ trial: TrialView \| null }` (only the caller's own copies; a discarded copy is `null`) |
+| `books.trialPublish` | approve | `{ trialId, evaluationDigest, impactDigest }` | `{ trialId; status: 'promoted'; publicationId; draftId; proposalId }`. A draft must still pass every release rule (unchanged digest, co-sign when the team needs one, checks); a proposal must be accepted (`PROPOSAL_NOT_ACCEPTED`). Then `trials.promote` with strategy `prospective` and the reviewed impact digest; the draft or proposal is marked published. |
+| `books.trialDiscard` | prepare | `{ trialId }` | `{ trialId; status: 'discarded'; cleanupComplete }` (`trials.discard`) |
+
 ## Lane report
 
 ### What a person can do
@@ -253,6 +337,35 @@ Additions after the first build, kept additive to the shapes above:
 - **Memory** (BK-17): what Chausar was told, with its kind, status, source and dates, and
   its earlier versions. There is a filter for outside content, which is remembered and
   never obeyed. Only the owner or a cofounder can add, edit, confirm or delete a line.
+  The business profile's entries (industry, products, customers, how the business earns,
+  location) appear as read-only claim lines with their earlier versions; Delete removes the
+  whole entry through the core business profile.
+- **Connections** (BK-01/02, round 2): a connected system appears as a source before anything
+  is imported, with failed and loading months. Its sheet offers Read now (the result's checks
+  against the source's own totals, its question or refusal in words, then Import after review
+  or Set aside), Pause, Sign in again (the browser address is shown as text: sign-in happens in
+  the person's browser and the screen never opens anything), Remove the connection, and the
+  history of reads. In the demo, a read says in a plain sentence that nothing outside is reached.
+- **Add a source** (BK-03, `#/books/add`): every system with what Chausar can do (full, read,
+  import), tested or experimental, its evidence counts and tier, not yet tested on a live
+  account; one table per system with each operation. The way in: its own interface, files or a
+  database; for Tally, where it lives (this computer; this network and another computer are
+  labelled experimental and point to a file) and "Which company?". Non-secret settings only.
+  A system with no road in is "planned, not available yet".
+- **Recipes** (BK-05, `#/books/recipes`): each registered recipe's state (seed, tested, not yet
+  tested, failed), its scope in five fields, its bindings with who accepted them and their
+  grade, the check against the system's own totals as two figures side by side, questions with
+  one of the five fixed reasons and their choices, and a newer version. Proposed mappings are
+  listed with theirs.
+- **Map this field** (BK-06): on a field of an imported file, the person names the meaning and
+  its kind; the learning lane's grammar keeps only what can be true. The proposal shows each
+  binding as new, changed or unchanged, what was removed and why, and stays "proposed" until a
+  named person accepts it.
+- **Try a change on a copy** (BK-09, `#/books/trial`, experimental): from a meaning draft or an
+  accepted proposal. Pick the saved questions, make the copy (its time and disk space are
+  shown), then each question has two figures, now and with the change; a figure that differs
+  is in ink, the rest grey. "Now" opens the saved answer's receipt; "with the change" opens the
+  copy's receipt in place. Publish (owner or cofounder, the same release rules) or Discard.
 
 Every page has the common states: loading (the last value stays shown), empty, not built
 yet, locked, read only (a viewer sees no control that changes anything), failed with its
@@ -275,6 +388,11 @@ in English and Hindi.
 | Customers and suppliers, opt-in and stop, holdings, same-or-not, conflicts and precedence | supported |
 | History as known on a date, versions, stale answers and rebuild | supported |
 | Memory lines | supported |
+| Business profile lines in Memory, delete through `business.profile.remove` | supported |
+| Connections, read now, import, pause, sign in again, remove, history of reads, add a source | experimental: over `connectorsx.*`, tested with a fake dispatcher and the real lane in demo mode (no live system) |
+| Recipe view, questions and checks | experimental: over `connectorsx.*` |
+| Map this field and proposals | experimental: over `learningx.recipePropose` / `recipeSave`, tested through the real engine |
+| Try a change on a copy | experimental (as the design marks BK-09): over core `trials.*`, tested through the real engine |
 
 "Supported" means tested end to end on synthetic data through the engine module and the
 screen with a fake rpc. No screen was tested against a live external system.
@@ -282,9 +400,9 @@ screen with a fake rpc. No screen was tested against a live external system.
 ### Engine methods
 
 There are 24 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs.ts`)
-and 33 Books methods (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
+and 33 Books methods, plus 18 from round 2 (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
 Private state lives in `state.extensions['work-books']` under `work` and `books` (`state.ts`).
-`purge` removes snoozes, notes, opt-ins, decisions and memory lines tied to removed
+`purge` removes snoozes, notes, opt-ins, decisions, memory lines, mapping proposals and their copies tied to removed
 sources and records.
 
 The module needs no trusted start-up options (no credentials, endpoints or keys), so it does
@@ -307,12 +425,17 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
 - Ready-made jobs repeat on an interval: "month-end" runs every 30 days from when it is
   approved, not on the last day of each month (calendar schedules need a typed runner).
 - Prepare-only items have no "download the file and the checklist" method.
-- BK-02 Read now, Pause and Sign in again; BK-03 Add a source; BK-05 recipes; BK-06
-  "Map this field". These belong to connectors-ext and show "not built yet".
-- BK-09 "Try it on a copy" links to trials and is not built here.
+- BK-03: Chausar cannot list the companies open in Tally (`connectorsx` has no list-companies
+  method), so "Which company?" is a typed name. The exporter and one-page guide for Tally on
+  another computer are not built.
+- BK-05: answering a recipe question in place has no method (the person fixes the export or the
+  setting and reads again); a newer recipe version says which versions, not what changed between
+  them; registered recipes have no "who accepted" (they are seeds), and tax registration in the
+  scope is unknown. A connector recipe's unmapped field cannot be mapped here.
+- BK-09: a copy is reached from a meaning draft and a proposal, not yet from "sources that
+  disagree" (BK-14); publishing uses the prospective strategy only.
 - BK-15 has no step line of the belief over time.
 - BK-19 exchange rates and the BK-20 Delete (`deletion.request`) are not built.
-- Memory lists only the lane's own lines, not business-profile entries.
 - The lane's "sending closed" gate holds for `approvals.execute`. The core
   `actions.execute` does not check it; closing that needs a core edit.
 - Phone approvals (WK-03 "Open the app") follow the core rule: the engine refuses approving

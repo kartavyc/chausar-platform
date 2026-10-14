@@ -5,6 +5,9 @@
  */
 import { amount, bool, count, either, id, instant, InvalidReply, isoDate, list, literal, month, nullable, object, oneOf, record, text, type Check } from '../work/kit/validate.ts';
 
+import { connectionWithOperations, envelopeView } from './contract-r2.ts';
+export * from './contract-r2.ts';
+
 const name = text(400);
 const line = text(4000);
 const code = text(64);
@@ -24,6 +27,10 @@ const twelve: Check<readonly { readonly month: string; readonly state: MonthStat
 export const sourceRow = object({
   sourceId: id, system: name, way: oneOf(['files', 'signed-in', 'this-computer']), scope: nullable(name),
   lastReadAt: nullable(when), months: twelve, rows: count, refused: count, unmapped: count, experimental: bool, connected: bool,
+}, {
+  // Round 2, additive: the connection behind the source, its last failed read and whether it is past its freshness target.
+  connection: nullable(object({ connectionId: id, group: name, road: oneOf(['interface', 'file', 'database']), status: oneOf(['active', 'paused']) })),
+  lastFailure: nullable(object({ at: when, code: nullable(code) })), stale: bool,
 });
 export type SourceRow = ReturnType<typeof sourceRow>;
 
@@ -34,12 +41,15 @@ export const sourceReply = object({
   refusals: list(object({ at: when, codes: list(code, 50) })),
   kinds: list(object({ kind: name, rows: count })),
   unmappedFields: list(name),
+}, {
+  // Round 2, additive: see contract-r2.ts.
+  connectors: object({ available: bool }), connection: nullable(connectionWithOperations), envelopes: list(envelopeView, 50),
 });
 export const unmappedReply = object({
   fields: list(object({
     field: name, sourceIds: list(id, 200), type: oneOf(['text', 'number', 'date', 'empty', 'unknown']),
     filled: nullable(object({ rows: count, of: count })),
-  })),
+  }, { origin: oneOf(['file', 'connector']), recipeId: nullable(name), mappable: bool })),
 });
 
 export const definition = object(
@@ -77,7 +87,7 @@ export const memoryLine = object({
   status: oneOf(['told-by-owner', 'assumed', 'corrected', 'proposed']),
   source: oneOf(['told-by-owner', 'computed', 'outside-content']), receiptId: nullable(id),
   learnedAt: when, confirmedAt: nullable(when), earlier: list(object({ text: line, at: when })),
-});
+}, { origin: oneOf(['business-profile']), field: name, readOnly: bool });
 export type MemoryLine = ReturnType<typeof memoryLine>;
 export const memoryReply = object({ lines: list(memoryLine) });
 export const forgetReply = object({ id, deleted: literal(true) });

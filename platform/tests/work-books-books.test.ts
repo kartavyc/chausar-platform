@@ -66,8 +66,8 @@ test('sources: twelve months with loaded, refused and not-loaded-yet; unmapped f
   assert.deepEqual((await call(owner, 'books.sources', { endMonth: '2026-09' }, { 'connectorsx.freshness': () => ({ items: [] }) })).freshness, { available: true });
   const unmapped = await call(owner, 'books.unmapped');
   assert.deepEqual(unmapped.fields, [
-    { field: 'channel', sourceIds: ['sheet'], type: 'text', filled: { rows: 1, of: 2 } },
-    { field: 'weight', sourceIds: ['sheet'], type: 'number', filled: { rows: 1, of: 2 } }]);
+    { field: 'channel', sourceIds: ['sheet'], type: 'text', filled: { rows: 1, of: 2 }, origin: 'file', recipeId: null, mappable: true },
+    { field: 'weight', sourceIds: ['sheet'], type: 'number', filled: { rows: 1, of: 2 }, origin: 'file', recipeId: null, mappable: true }]);
   const one = await call(owner, 'books.source', { sourceId: 'sheet' });
   assert.deepEqual(one.unmappedFields, ['channel', 'weight']); assert.deepEqual(one.reads.map((r: any) => [r.rows, r.totals, r.reconciled, r.format]), [[2, { minor: '3000' }, true, 'csv']]);
   assert.deepEqual(one.kinds, [{ kind: 'sale', rows: 2 }]);

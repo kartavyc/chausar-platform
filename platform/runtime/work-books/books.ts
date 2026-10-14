@@ -7,10 +7,14 @@ import { memoryMethods } from './books-memory.ts';
 import { accountMethods } from './books-accounts.ts';
 import { recordMethods } from './books-records.ts';
 import { historyMethods } from './books-history.ts';
+import { connectorMethods } from './books-connectors.ts';
+import { recipeMethods, r2Purge } from './books-recipes.ts';
+import { trialMethods } from './books-trial.ts';
 
 /** books, accounts, records and history methods of the work-books lane (BK-01..BK-20). */
 export const booksMethods: Readonly<Record<string, MethodSpec>> = {
   ...sourceMethods, ...meaningMethods, ...memoryMethods, ...accountMethods, ...recordMethods, ...historyMethods,
+  ...connectorMethods, ...recipeMethods, ...trialMethods,
 };
 
 /**
@@ -37,5 +41,6 @@ export const booksPurge: NonNullable<EngineModule['purge']> = (state, reason) =>
   keep<{ left: string; right: string }>('matches', m => gone(m.left) || gone(m.right));
   keep<{ answerId: string; quickReceiptId: string }>('rebuilds', r => reason.removedIds.has(r.answerId) || !answers.has(r.answerId) || !receipts.has(r.quickReceiptId));
   keep<{ receiptId: string | null; sourceIds: string[] }>('memory', m => (m.receiptId !== null && (reason.removedIds.has(m.receiptId) || !receipts.has(m.receiptId))) || m.sourceIds.some(s => sources.has(s)));
+  removed += r2Purge(state, sources);
   return removed;
 };
