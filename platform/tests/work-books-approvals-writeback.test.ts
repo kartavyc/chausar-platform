@@ -62,30 +62,37 @@ function fixture(views: any[], extra: Record<string, (payload: any) => unknown> 
 
 test('money from write-back joins the queue as tier 2 with its amount, asks a second time, and approves the exact digest', async () => {
   const v = view('action_pay');
-  const f = fixture([v], { 'writeback.approve': p => ({ ...v, status: 'approved', digest: p.digest }) });
+  const f = fixture([v], { 'writeback.reauth': () => ({ token: 'a'.repeat(64), expiresInSeconds: 120 }), 'writeback.approve': p => ({ ...v, status: 'approved', digest: p.digest }) });
   const list = await f.request(owner, 'approvals.list');
   assert.deepEqual(list.items.map((i: any) => [i.id, i.source, i.tier, i.kind]), [['writeback:action_pay', 'writeback', 'tier-2', 'money']]);
   assert.deepEqual(list.items[0].amount, { minor: '50000' }); assert.equal(list.items[0].touches, 'Razorpay: Customer A'); assert.deepEqual(list.items[0].preparedBy, { kind: 'person', name: 'Workspace owner' });
   const sheet = await f.request(owner, 'approvals.get', { id: 'writeback:action_pay' });
-  assert.equal(sheet.needsSecondAsk, true); assert.deepEqual(sheet.secondAsk, { by: 'typed-amount' }); assert.equal(sheet.reason, 'always-waits:money');
+  assert.equal(sheet.needsSecondAsk, true); assert.deepEqual(sheet.secondAsk, { by: 'passphrase' }); assert.equal(sheet.reason, 'always-waits:money');
   assert.equal(sheet.writeback.waitsBecause, 'Money always waits for a person.'); assert.equal(sheet.writeback.connection.label, 'Practice Razorpay');
   await assert.rejects(f.request(owner, 'approvals.approve', { id: 'writeback:action_pay', digest: v.digest }), code('SECOND_ASK_REQUIRED'));
   await assert.rejects(f.request(owner, 'approvals.approve', { id: 'writeback:action_pay', digest: 'digest-other' , secondAsk: true }), code('PREVIEW_CHANGED'));
-  await assert.rejects(f.request(owner, 'approvals.approve', { id: 'writeback:action_pay', digest: v.digest, secondAsk: true, reauth: 'synthetic' }), code('INVALID_APPROVAL'), 'no passphrase is sent unless write-back asks for one');
-  await f.request(owner, 'approvals.approve', { id: 'writeback:action_pay', digest: v.digest, secondAsk: true });
-  assert.deepEqual(f.calls.find(c => c.method === 'writeback.approve')?.payload, { id: 'action_pay', digest: v.digest });
+  await assert.rejects(f.request(owner, 'approvals.approve', { id: 'writeback:action_pay', digest: v.digest, secondAsk: true }), code('REAUTH_REQUIRED'));
+  await f.request(owner, 'approvals.approve', { id: 'writeback:action_pay', digest: v.digest, secondAsk: true, reauth: 'synthetic passphrase' });
+  assert.deepEqual(f.calls.find(c => c.method === 'writeback.reauth')?.payload, { id: 'action_pay', digest: v.digest, passphrase: 'synthetic passphrase' });
+  assert.deepEqual(f.calls.find(c => c.method === 'writeback.approve')?.payload, { id: 'action_pay', digest: v.digest, secondAsk: 'a'.repeat(64) });
+  assert.equal(JSON.stringify(f.store.state).includes('synthetic passphrase'), false, 'the passphrase is never stored');
   await assert.rejects(f.request(owner, 'approvals.group', { ids: ['writeback:action_pay', 'writeback:action_pay2'] }), (e: any) => ['GROUP_NOT_ALLOWED', 'NOT_FOUND', 'INVALID_APPROVAL'].includes(e.code));
 });
 
-test('re-authentication is passed through only when write-back declares it on the view', async () => {
+test('the second ask goes through writeback.reauth; its single-use token approves; no passphrase where none is asked', async () => {
   const v = view('action_refund', { reauth: 'passphrase' });
-  const f = fixture([v], { 'writeback.approve': () => ({ ...v, status: 'approved' }) });
+  const f = fixture([v], { 'writeback.reauth': () => ({ token: 'b'.repeat(64), expiresInSeconds: 120 }), 'writeback.approve': () => ({ ...v, status: 'approved' }) });
   const sheet = await f.request(owner, 'approvals.get', { id: 'writeback:action_refund' });
   assert.deepEqual(sheet.secondAsk, { by: 'passphrase' });
   await assert.rejects(f.request(owner, 'approvals.approve', { id: 'writeback:action_refund', digest: v.digest, secondAsk: true }), code('REAUTH_REQUIRED'));
   await f.request(owner, 'approvals.approve', { id: 'writeback:action_refund', digest: v.digest, secondAsk: true, reauth: 'synthetic passphrase' });
-  assert.deepEqual(f.calls.find(c => c.method === 'writeback.approve')?.payload, { id: 'action_refund', digest: v.digest, reauth: 'synthetic passphrase' });
+  assert.deepEqual(f.calls.find(c => c.method === 'writeback.approve')?.payload, { id: 'action_refund', digest: v.digest, secondAsk: 'b'.repeat(64) });
   assert.equal(JSON.stringify(f.store.state).includes('synthetic passphrase'), false, 'the passphrase is never stored');
+  const plain = view('action_mail', { kind: 'seen-outside', needsSecondAsk: false, change: { asWritten: 'Hello' } });
+  const g = fixture([plain], { 'writeback.approve': () => ({ ...plain, status: 'approved' }) });
+  await assert.rejects(g.request(owner, 'approvals.approve', { id: 'writeback:action_mail', digest: plain.digest, reauth: 'synthetic' }), code('INVALID_APPROVAL'), 'no passphrase is sent unless write-back asks for one');
+  const bad = fixture([v], { 'writeback.reauth': () => ({ token: 'not-a-token' }) });
+  await assert.rejects(bad.request(owner, 'approvals.approve', { id: 'writeback:action_refund', digest: v.digest, secondAsk: true, reauth: 'x' }), code('INVALID_WRITEBACK_REPLY'));
 });
 
 test('an expired yes from write-back refuses APPROVAL_EXPIRED; an expired item leaves the queue', async () => {

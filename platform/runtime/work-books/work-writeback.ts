@@ -70,8 +70,8 @@ export function parseView(value: unknown): WbView | null {
       kind: String(a.kind), waitsBecause: record(a.waitsBecause) && typeof a.waitsBecause.text === 'string' ? a.waitsBecause.text.slice(0, 400) : '', change,
       needsSecondAsk: a.needsSecondAsk === true, can: Array.isArray(a.can) ? a.can.filter((c: unknown) => typeof c === 'string') : [],
       preparedBy: record(a.preparedBy) && a.preparedBy.kind === 'job' ? { kind: 'job', name: String(a.preparedBy.name ?? '') } : { kind: 'person', name: record(a.preparedBy) ? String(a.preparedBy.name ?? '') : '' },
-      // Re-authentication is passed through only when write-back declares it on the view.
-      reauth: a.reauth === 'passphrase' || (record(a.reauth) && a.reauth.kind === 'passphrase') ? 'passphrase' : null,
+      // Write-back asks for the passphrase again (`writeback.reauth`) for every change that needs a second ask.
+      reauth: a.needsSecondAsk === true || a.reauth === 'passphrase' || (record(a.reauth) && a.reauth.kind === 'passphrase') ? 'passphrase' : null,
     },
   };
 }

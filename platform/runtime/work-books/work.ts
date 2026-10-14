@@ -59,7 +59,14 @@ async function approveWriteback(host: ModuleHost, raw: string, item: ApprovalDet
   const asks = item.secondAsk?.by === 'passphrase';
   check(!asks || typeof payload.reauth === 'string', 'REAUTH_REQUIRED', 'Type your passphrase to approve this.');
   check(asks || payload.reauth === undefined, 'INVALID_APPROVAL', 'No passphrase is asked for here.');
-  const reply = parseView(await host.call('writeback.approve', { id: raw, digest: payload.digest, ...(asks ? { reauth: payload.reauth } : {}) }));
+  // The passphrase goes only to write-back's own check and is never kept; its single-use token binds this exact digest.
+  let secondAsk: string | undefined;
+  if (asks) {
+    const granted = await host.call('writeback.reauth', { id: raw, digest: payload.digest, passphrase: payload.reauth }) as { token?: unknown };
+    check(typeof granted?.token === 'string' && /^[a-f0-9]{64}$/.test(granted.token), 'INVALID_WRITEBACK_REPLY', 'Write-back gave an unreadable second-ask answer.');
+    secondAsk = granted.token;
+  }
+  const reply = parseView(await host.call('writeback.approve', { id: raw, digest: payload.digest, ...(secondAsk ? { secondAsk } : {}) }));
   check(reply, 'INVALID_WRITEBACK_REPLY', 'The approval could not be read back.');
   check(reply.status !== 'prepared' && reply.status !== 'cancelled', 'APPROVAL_EXPIRED', 'This approval expired. Nothing was sent.');
 }
