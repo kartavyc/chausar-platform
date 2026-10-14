@@ -197,3 +197,36 @@ test('the write-back recipe test scores every installed row 3/3 against the fake
   assert.equal(result.rows.length, CATALOGUE.filter(r => r.tier !== 'prepare-only').length);
   assert.ok(service.catalogue(owner).filter(r => r.tier !== 'prepare-only').every(r => r.qualification === 'synthetic-tested' && r.writeScore === '3/3'));
 });
+
+// Attack cases for the hands (plan day 7, block 12).
+test('attack: the same action twice at once produces one effect', async () => {
+  const { service, connect, zoho } = setup(); const c = await connect('zoho-books', ['invoice.createDraft']);
+  const prepared: any = await service.prepare(owner, { connectionId: c.id, action: 'invoice.createDraft', payload: draft, intentId: 'dup-1' });
+  await service.approve(owner, prepared.id, prepared.digest);
+  const results = await Promise.allSettled([service.execute(owner, prepared.id), service.execute(owner, prepared.id)]);
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1); assert.equal(zoho.invoices.length, 2);
+});
+test('attack: a payload changed after approval is refused and nothing is sent', async () => {
+  const { service, connect, store, mail } = setup(); const m = await connect('mail', ['smtp.send']);
+  const prepared: any = await service.prepare(owner, { connectionId: m.id, action: 'smtp.send', payload: message, intentId: 'tamper-1' });
+  await service.approve(owner, prepared.id, prepared.digest);
+  store.state.actions[0].payload.payload.to = ['attacker@evil.example'];
+  await assert.rejects(service.execute(owner, prepared.id), { code: 'PREVIEW_CHANGED' }); assert.equal(mail.outbox.length, 0);
+});
+test('attack: a cancel after the action ran is refused instead of only looking complete', async () => {
+  const { service, connect } = setup(); const c = await connect('zoho-books', ['invoice.createDraft']);
+  const prepared: any = await service.prepare(owner, { connectionId: c.id, action: 'invoice.createDraft', payload: draft, intentId: 'cancel-1' });
+  await service.approve(owner, prepared.id, prepared.digest); await service.execute(owner, prepared.id);
+  await assert.rejects(service.drop(owner, prepared.id), { code: 'ACTION_ALREADY_ATTEMPTED' });
+  const other: any = await service.prepare(owner, { connectionId: c.id, action: 'invoice.createDraft', payload: draft, intentId: 'cancel-2' });
+  await service.drop(owner, other.id); await assert.rejects(service.execute(owner, other.id), { code: 'APPROVAL_REQUIRED' });
+});
+test('attack: work that read outside text may prepare a money action but can never approve or run it', async () => {
+  const { service, connect } = setup(); const c = await connect('zoho-books', ['payment.record']);
+  const job: Context = { ...owner, sourceTainted: true };
+  const prepared: any = await service.prepare(job, { connectionId: c.id, action: 'payment.record', payload: { customerId: customer, invoiceId: invoice, amountMinor: '60000', date: '2026-10-14', mode: 'upi' }, intentId: 'money-1' });
+  await assert.rejects(service.approve(job, prepared.id, prepared.digest), { code: 'TAINTED_APPROVAL' });
+  await service.approve(owner, prepared.id, prepared.digest);
+  await assert.rejects(service.execute(job, prepared.id), { code: 'TAINTED_EXECUTION' });
+  await assert.rejects(service.settle(job, prepared.id, 'sent'));
+});

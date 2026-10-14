@@ -236,6 +236,10 @@ export class WritebackService {
     check(action, 'NOT_FOUND', 'That action is not in the record.'); return action;
   }
   visible(context: Context, action: PreparedAction) { const state = this.store.read(); this.actions.access(state, context, action); }
+  /** The stored action must still be exactly what was prepared and, when approved, what was approved. */
+  intact(action: PreparedAction) {
+    check(action.digest === this.actions.identity(action) && (!action.approval || action.approval.digest === action.digest), 'PREVIEW_CHANGED', 'The stored action no longer matches what was prepared. Nothing was sent.');
+  }
   async prepare(context: Context, input: { connectionId: unknown; action: unknown; payload: unknown; intentId: unknown; sourceIds?: unknown; evidence?: Envelope['evidence'] }) {
     const state0 = this.store.read(); current(state0, context, 'prepare');
     const connection = this.#connection(state0, input.connectionId);
@@ -277,7 +281,7 @@ export class WritebackService {
     const action = this.find(this.store.read(), id); this.visible(context, action);
     const e = this.envelope(action.payload); const row = entry(e.system, e.action)!;
     check(row.tier !== 'prepare-only', 'PREPARE_ONLY', 'This is prepared only. Download the file and the checklist; you or your accountant completes it.');
-    check(context.channel !== 'phone', 'OPEN_DESKTOP', 'Approve outside changes in the desktop app.');
+    check(context.channel !== 'phone', 'OPEN_DESKTOP', 'Approve outside changes in the desktop app.'); this.intact(action);
     const expired = await this.#expire(context, action);
     if (expired) return expired;
     await this.actions.approve(context, action.id, String(expectedDigest));
@@ -313,6 +317,7 @@ export class WritebackService {
     const action = this.find(this.store.read(), id); this.visible(context, action);
     const e = this.envelope(action.payload); const row = entry(e.system, e.action)!;
     check(row.tier !== 'prepare-only', 'PREPARE_ONLY', 'This is prepared only. You or your accountant completes it.');
+    this.intact(action);
     check(action.status === 'approved' && action.attempts.length === 0, action.attempts.length ? 'ACTION_ALREADY_ATTEMPTED' : 'APPROVAL_REQUIRED', action.attempts.length ? 'Actions run once. Read it back instead.' : 'Approve the exact change first.');
     const expired = await this.#expire(context, action); if (expired) return expired;
     const connection = this.#connection(this.store.read(), e.connectionId);
