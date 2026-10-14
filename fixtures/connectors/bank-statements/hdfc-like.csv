@@ -1,0 +1,15 @@
+Demo Traders Private Limited (synthetic)
+Account No :,XXXXXXXX1234,Branch :,Synthetic Branch
+Statement From :,01/09/26,To :,30/09/26
+Date,Narration,Chq./Ref.No.,Value Dt,Withdrawal Amt.,Deposit Amt.,Closing Balance
+********,********,********,********,********,********,********
+01/09/26,UPI-ASHA STORES-ASHA@OKDEMO-PAYMENT,0000412345678901,01/09/26,,"12,000.00","62,000.00"
+03/09/26,NEFT DR-RAVI AND CO-INV 22,N245260012345,03/09/26,"7,500.00",,"54,500.00"
+05/09/26,ATM WDL-MG ROAD,0000000451,05/09/26,"2,000.00",,"52,500.00"
+10/09/26,IMPS-CR-MEHTA SUPPLIES,624512345678,10/09/26,,"18,000.00","70,500.00"
+15/09/26,POS 4567XXXX CHAI POINT,0000000789,15/09/26,"3,000.00",,"67,500.00"
+********,********,********,********,********,********,********
+STATEMENT SUMMARY :-
+Opening Balance,Dr Count,Cr Count,Debits,Credits,Closing Bal
+"50,000.00",3,2,"12,500.00","30,000.00","67,500.00"
+Generated On: 01/10/26,This is a computer generated statement.
