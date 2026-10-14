@@ -13,9 +13,10 @@ import type { Period } from './client.ts';
 import type { Completeness, Gap } from './core-replies.ts';
 import s from './core.module.css';
 
-type CodeKey = 'ASK_INVALID' | 'ASK_NOT_FOUND' | 'ASK_REFUSED' | 'ASK_CHANGED' | 'ASK_STALE' | 'ASK_NO_CALCULATION' | 'REQUEST_FAILED' | 'INVALID_REPLY';
+type CodeKey = 'ASK_CANNOT_REBUILD' | 'ASK_INVALID' | 'ASK_NOT_FOUND' | 'ASK_REFUSED' | 'ASK_CHANGED' | 'ASK_STALE' | 'ASK_NO_CALCULATION' | 'REQUEST_FAILED' | 'INVALID_REPLY';
 const CODES = {
   en: {
+    ASK_CANNOT_REBUILD: 'Something this answer used was deleted, so it cannot be rebuilt.',
     ASK_INVALID: 'Chausar could not read this request. Check the calculation and the period, then try again.',
     ASK_NOT_FOUND: 'This answer is no longer kept. Ask the question again from the menu.',
     ASK_REFUSED: 'Chausar will not work this out. Nothing was changed.',
@@ -26,6 +27,7 @@ const CODES = {
     INVALID_REPLY: 'The engine sent a reply this page could not check, so nothing from it is shown.',
   },
   hi: {
+    ASK_CANNOT_REBUILD: 'इस जवाब में इस्तेमाल हुई एक चीज़ हटा दी गई, इसलिए इसे फिर से नहीं बनाया जा सकता।',
     ASK_INVALID: 'Chausar यह अनुरोध पढ़ नहीं सका। गणना और अवधि जाँचें, फिर से कोशिश करें।',
     ASK_NOT_FOUND: 'यह जवाब अब रखा नहीं है। मेन्यू से सवाल फिर से पूछें।',
     ASK_REFUSED: 'Chausar यह हिसाब नहीं करेगा। कुछ बदला नहीं गया।',

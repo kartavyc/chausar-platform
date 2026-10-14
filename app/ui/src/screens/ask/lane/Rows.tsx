@@ -22,14 +22,16 @@ const WORDS = {
     reason: 'Why left out', rowId: 'Row id', showing: 'Rows {from} to {to} of {total}', earlier: 'Earlier rows', later: 'Later rows',
     hidden: 'Some rows of this receipt are hidden from your seat by a rule in Trust. Nothing about them is shown here.',
     emptyCounted: 'No rows were counted for this receipt.', emptyLeftOut: 'No rows were left out of this receipt.',
+    allHidden: 'None of these rows can be shown to your seat, so how many there are is not shown either.',
   },
   hi: {
     title: 'संख्या के पीछे की पंक्तियाँ', tabs: 'पंक्तियाँ', counted: 'गिनी गईं', 'left-out': 'छोड़ी गईं', file: 'फ़ाइल', row: 'पंक्ति', cells: 'जैसा लिखा है', amount: 'रकम',
     reason: 'क्यों छोड़ी गई', rowId: 'पंक्ति id', showing: '{total} में से पंक्तियाँ {from} से {to}', earlier: 'पहले की पंक्तियाँ', later: 'बाद की पंक्तियाँ',
     hidden: 'इस रसीद की कुछ पंक्तियाँ Trust के एक नियम से आपकी सीट से छिपी हैं। उनके बारे में यहाँ कुछ नहीं दिखाया गया।',
     emptyCounted: 'इस रसीद में कोई पंक्ति नहीं गिनी गई।', emptyLeftOut: 'इस रसीद से कोई पंक्ति नहीं छोड़ी गई।',
+    allHidden: 'इनमें से कोई पंक्ति आपकी सीट को नहीं दिखाई जा सकती, इसलिए उनकी गिनती भी नहीं दिखाई गई।',
   },
-} as const satisfies Catalogue<'title' | 'tabs' | Tab | 'file' | 'row' | 'cells' | 'amount' | 'reason' | 'rowId' | 'showing' | 'earlier' | 'later' | 'hidden' | 'emptyCounted' | 'emptyLeftOut'>;
+} as const satisfies Catalogue<'title' | 'tabs' | Tab | 'file' | 'row' | 'cells' | 'amount' | 'reason' | 'rowId' | 'showing' | 'earlier' | 'later' | 'hidden' | 'emptyCounted' | 'emptyLeftOut' | 'allHidden'>;
 
 export function RowsScreen({ view }: { view: Extract<AskView, { kind: 'rows' }> }) {
   const ask = useAsk(), w = useWords(WORDS), explain = useExplain();
@@ -45,7 +47,7 @@ export function RowsScreen({ view }: { view: Extract<AskView, { kind: 'rows' }> 
       {(r: SourceRowsReply) => (
         <div className={s.page} data-rows={r.tab}>
           {r.hidden && <p className={s.note} data-hidden="">{w.hidden}</p>}
-          {r.rows.length === 0 ? <p className={s.note}>{r.tab === 'counted' ? w.emptyCounted : w.emptyLeftOut}</p> : (
+          {r.rows.length === 0 ? <p className={s.note} data-rows-empty="">{r.hidden ? w.allHidden : r.tab === 'counted' ? w.emptyCounted : w.emptyLeftOut}</p> : (
             <>
               <div className={s.tableWrap}>
                 <table className={s.table}>

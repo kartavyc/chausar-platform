@@ -13,11 +13,12 @@ import { useAsk, useWords } from './kit';
 import s from './analysis.module.css';
 
 type Code =
-  | 'ASK_INVALID' | 'ASK_NOT_FOUND' | 'ASK_NO_DICTIONARY' | 'ASK_STOPPED_BY_RULE' | 'ASK_REFUSED' | 'ASK_CHANGED' | 'ASK_STALE'
+  | 'ASK_CANNOT_REBUILD' | 'ASK_INVALID' | 'ASK_NOT_FOUND' | 'ASK_NO_DICTIONARY' | 'ASK_STOPPED_BY_RULE' | 'ASK_REFUSED' | 'ASK_CHANGED' | 'ASK_STALE'
   | 'ASK_NOT_GROUPABLE' | 'ASK_BRIDGE_NOT_EXACT' | 'ASK_NOT_FORECASTABLE' | 'ASK_NO_CALCULATION' | 'ASK_FORECAST_GAPS'
   | 'REQUEST_FAILED' | 'INVALID_REPLY' | 'NOT_BUILT' | 'FORBIDDEN' | 'VAULT_LOCKED' | 'OTHER';
 const REFUSALS = {
   en: {
+    ASK_CANNOT_REBUILD: 'Something this used was deleted, so it cannot be rebuilt.',
     ASK_INVALID: 'Chausar could not use what was entered. Check the form and try again.',
     ASK_NOT_FOUND: 'This is no longer here. It may have been removed.',
     ASK_NO_DICTIONARY: 'Agree what your words mean in Books before asking for numbers.',
@@ -38,6 +39,7 @@ const REFUSALS = {
     OTHER: 'This did not work. Nothing was changed.',
   },
   hi: {
+    ASK_CANNOT_REBUILD: 'इसमें इस्तेमाल हुई एक चीज़ हटा दी गई, इसलिए इसे फिर से नहीं बनाया जा सकता।',
     ASK_INVALID: 'जो भरा गया उसे Chausar उपयोग नहीं कर सका। फ़ॉर्म जाँचें और फिर कोशिश करें।',
     ASK_NOT_FOUND: 'यह अब यहाँ नहीं है। शायद इसे हटा दिया गया है।',
     ASK_NO_DICTIONARY: 'संख्याएँ पूछने से पहले Books में तय करें कि आपके शब्दों का क्या अर्थ है।',

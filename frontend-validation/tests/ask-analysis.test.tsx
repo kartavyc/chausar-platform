@@ -177,7 +177,7 @@ test('plan sends exact paise and basis points, and shows which limits clash', as
 });
 
 const gst = {
-  state: 'ready', period: sep, toleranceMinor: '1000', via: 'facts',
+  state: 'ready', period: sep, toleranceMinor: '1000', via: 'facts', leftOut: 2,
   groups: [{ group: 'matched', count: 12, taxableMinor: '5000000', taxMinor: '900000' }, { group: 'differs-inside', count: 2, taxableMinor: '100000', taxMinor: '18000' }, { group: 'differs-outside', count: 1, taxableMinor: '40000', taxMinor: '7200' }, { group: 'in-2b-only', count: 1, taxableMinor: '30000', taxMinor: '5400' }, { group: 'books-only', count: 0, taxableMinor: '0', taxMinor: '0' }],
   lines: [{ id: 'l-1', group: 'in-2b-only', supplier: 'Synthetic Supplier <i>', invoice: 'INV-7', booksMinor: null, twoBMinor: '35400', differenceMinor: null, bookRowId: null, twoBRowId: 'row-9' }],
   ims: [{ lineId: 'l-1', action: 'pending', reason: 'not-in-books' }],

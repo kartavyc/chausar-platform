@@ -27,12 +27,14 @@ const WORDS = catalogue({
     moved: 'The value moved.', same: 'The value is the same.', cannot: 'This check cannot run.', because: 'After a change of {what}.',
     history: 'History', same2: 'Same.', moved2: 'Moved.', cannot2: 'Could not run.', same3: 'Same, after a change of {what}.', moved3: 'Moved, after a change of {what}.', cannot3: 'Could not run, after a change of {what}.',
     remove: 'Remove', confirmRemove: 'Remove this check?', yesRemove: 'Yes, remove the check', keep: 'Keep it',
+    oldValue: 'Old value', newValue: 'New value', eachReceipt: 'Each value opens its own receipt.',
   },
   hi: {
     title: 'एक परख', expected: 'अपेक्षित', expectedOn: '{date} को सहेजा', now: 'पिछला मान', nowOn: '{date} को', notRun: 'यह परख अभी नहीं चली।',
     moved: 'मान बदल गया।', same: 'मान वही है।', cannot: 'यह परख चल नहीं सकती।', because: '{what} बदलने के बाद।',
     history: 'इतिहास', same2: 'वही।', moved2: 'बदला।', cannot2: 'चल नहीं सकी।', same3: '{what} बदलने के बाद वही।', moved3: '{what} बदलने के बाद बदला।', cannot3: '{what} बदलने के बाद चल नहीं सकी।',
     remove: 'हटाएँ', confirmRemove: 'यह परख हटाएँ?', yesRemove: 'हाँ, परख हटाएँ', keep: 'रहने दें',
+    oldValue: 'पुराना मान', newValue: 'नया मान', eachReceipt: 'हर मान अपनी रसीद खोलता है।',
   },
 });
 
@@ -63,10 +65,11 @@ export function CheckScreen({ view }: { view: Extract<AskView, { kind: 'check' }
                 {last.code !== null && <span className={s.code}>{last.code}</span>}
               </p>
             )}
-            <div className={s.pair}>
-              <div className={s.tile}><span className={s.tileLabel}>{w.expected}</span><Figure size="tile" value={moneyFigure(c.expected.minor, c.expected.receiptId)} onReceipt={open} /><span className={s.note}>{fill(w.expectedOn, { date: dayText(c.createdAt, lang) })}</span></div>
-              {last !== null && <div className={s.tile} data-check-now=""><span className={s.tileLabel}>{w.now}</span><Figure size="tile" value={valueOf(last)} onReceipt={open} /><span className={s.note}>{fill(w.nowOn, { date: dayText(last.at, lang) })}</span></div>}
+            <div className={s.pair} data-check-pair="">
+              <div className={s.tile}><span className={s.tileLabel}>{last?.result === 'moved' ? w.oldValue : w.expected}</span><Figure size="tile" value={moneyFigure(c.expected.minor, c.expected.receiptId)} onReceipt={open} /><span className={s.note}>{fill(w.expectedOn, { date: dayText(c.createdAt, lang) })}</span></div>
+              {last !== null && <div className={s.tile} data-check-now=""><span className={s.tileLabel}>{last.result === 'moved' ? w.newValue : w.now}</span><Figure size="tile" value={valueOf(last)} onReceipt={open} /><span className={s.note}>{fill(w.nowOn, { date: dayText(last.at, lang) })}</span></div>}
             </div>
+            {last?.result === 'moved' && <p className={s.note} data-check-moved="">{w.eachReceipt}</p>}
             {events.length > 0 && <Part title={w.history}><TimeLine events={events} onReceipt={open} /></Part>}
             {!ask.viewer && (
               <div className={[s.actions, s.part].join(' ')}>

@@ -51,7 +51,7 @@ const WORDS = catalogue({
     title: 'Forecast', calculation: 'Calculation', run: 'Forecast it', noSums: 'No money total in the menu can be forecast yet.',
     notEnough: 'Not enough history to test a forecast.', notEnoughDetail: '{months} months of history are loaded; {needed} are needed.',
     cannotTest: 'There is enough history, but a month in it has rows that are not reconciled, so the forecast cannot be tested.',
-    next: 'Next: {month}', baselineWon: 'The forecast did worse than the simple baseline on the months held back, so the baseline is the answer.',
+    next: 'Next: {month}', nextBaseline: 'Next: {month}, from the simple baseline', baselineWon: 'The forecast did worse than the simple baseline on the months held back, so the baseline is the answer.',
     forecastWon: 'The forecast did better than the simple baseline on the months held back.', range: 'Range, either way', noForecast: 'The forecast gave no value for this month.',
     byMonth: 'By month', chart: '{label} by month, with the forecast and the baseline for {month}.', past: 'Past', forecast: 'Forecast', baseline: 'Baseline (last year’s pattern)', band: 'Range of the forecast',
     point: '{month}, {series}', heldBack: 'The months held back', month: 'Month', actual: 'Actual', error: 'Error on the months held back',
@@ -62,7 +62,7 @@ const WORDS = catalogue({
     title: 'अनुमान', calculation: 'गणना', run: 'अनुमान लगाएँ', noSums: 'मेनू में अभी कोई ऐसा पैसे का कुल नहीं है जिसका अनुमान लगाया जा सके।',
     notEnough: 'अनुमान को परखने के लिए पर्याप्त इतिहास नहीं है।', notEnoughDetail: '{months} महीनों का इतिहास लोड है; {needed} चाहिए।',
     cannotTest: 'इतिहास पर्याप्त है, पर उसके एक महीने की पंक्तियाँ मिलाई नहीं गई हैं, इसलिए अनुमान को परखा नहीं जा सकता।',
-    next: 'अगला: {month}', baselineWon: 'रोके गए महीनों पर अनुमान साधारण आधार-रेखा से खराब रहा, इसलिए आधार-रेखा ही उत्तर है।',
+    next: 'अगला: {month}', nextBaseline: 'अगला: {month}, साधारण आधार-रेखा से', baselineWon: 'रोके गए महीनों पर अनुमान साधारण आधार-रेखा से खराब रहा, इसलिए आधार-रेखा ही उत्तर है।',
     forecastWon: 'रोके गए महीनों पर अनुमान साधारण आधार-रेखा से बेहतर रहा।', range: 'दोनों ओर का दायरा', noForecast: 'इस महीने के लिए अनुमान ने कोई मान नहीं दिया।',
     byMonth: 'महीने के अनुसार', chart: 'महीने के अनुसार {label}, {month} के अनुमान और आधार-रेखा के साथ।', past: 'बीता समय', forecast: 'अनुमान', baseline: 'आधार-रेखा (पिछले वर्ष का ढर्रा)', band: 'अनुमान का दायरा',
     point: '{month}, {series}', heldBack: 'रोके गए महीने', month: 'महीना', actual: 'वास्तविक', error: 'रोके गए महीनों पर चूक',
@@ -141,7 +141,7 @@ function ForecastReady({ f }: { f: Ready }) {
     <>
       <p className={s.lead} data-forecast-answer={f.answer}>{f.answer === 'baseline' ? w.baselineWon : w.forecastWon}</p>
       <div className={s.tile}>
-        <span className={s.tileLabel}>{fill(w.next, { month: nextMonth })}</span>
+        <span className={s.tileLabel} data-forecast-tile={f.answer}>{fill(f.answer === 'baseline' ? w.nextBaseline : w.next, { month: nextMonth })}</span>
         <Figure size="big" value={answer} onReceipt={open} />
         {f.answer === 'forecast' && f.next.rangeMinor !== null && <KeyValue onReceipt={open} pairs={[{ name: w.range, figure: run(f.next.rangeMinor) }]} />}
         {f.answer === 'forecast' && f.next.forecastMinor === null && <p className={s.note}>{w.noForecast}</p>}

@@ -119,8 +119,8 @@ function Body({ both, receiptIds, reload }: { both: Both; receiptIds: readonly s
             <Problem code={act.problem} />
           </div>
         )}
-        {dueRows.length > 0 && <><h3 className={s.tileLabel}>{w.due}</h3><RowList rows={dueRows} onOpen={open} onReceipt={rid => ask.go({ kind: 'receipt', receiptId: rid })} /></>}
-        {waitRows.length > 0 && <><h3 className={s.tileLabel}>{w.waiting}</h3><RowList rows={waitRows} onOpen={open} onReceipt={rid => ask.go({ kind: 'receipt', receiptId: rid })} /></>}
+        {dueRows.length > 0 && <div data-decisions="due"><h3 className={s.tileLabel}>{w.due}</h3><RowList rows={dueRows} onOpen={open} onReceipt={rid => ask.go({ kind: 'receipt', receiptId: rid })} /></div>}
+        {waitRows.length > 0 && <div data-decisions="waiting"><h3 className={s.tileLabel}>{w.waiting}</h3><RowList rows={waitRows} onReceipt={rid => ask.go({ kind: 'receipt', receiptId: rid })} /></div>}
       </Part>
       {!ask.viewer && (
         <Part title={w.write}>

@@ -9,7 +9,7 @@ import type { RowItem } from '../../../app/presentation.ts';
 import { Button } from '../../../parts/Button';
 import { RowList } from '../../../parts/RowList';
 import { bool, call, date, id, list, minor, obj, oneOf, optMinor, optStr, str } from './client.ts';
-import { AskPage, dayText, fill, moneyFigure, useAsk, useRead, useWords, type AskView } from './kit';
+import { AskPage, dayText, fill, rowMoneyFigure, useAsk, useRead, useWords, type AskView } from './kit';
 import { catalogue, Part, Problem, useRefusal, useSend } from './analysis';
 import s from './analysis.module.css';
 
@@ -71,7 +71,7 @@ export function ChecksScreen(_props: { view: Extract<AskView, { kind: 'checks' }
       {first => {
         const c = ran ?? first, lang = ask.language;
         const rows: RowItem[] = c.items.map(i => ({
-          id: i.id, what: i.question, figure: moneyFigure(i.expected.minor, i.expected.receiptId),
+          id: i.id, what: i.question, figure: rowMoneyFigure(i.expected.minor, i.expected.receiptId, ask.view, lang),
           mark: i.last === null ? 'off' : i.last.result === 'same' ? 'cha' : i.last.result === 'moved' ? 'wait' : 'unsure',
           note: i.last === null ? w.notYet : fill(w[i.last.result], { date: dayText(i.last.at, lang) }),
         }));

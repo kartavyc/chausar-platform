@@ -22,7 +22,7 @@ import s from './core.module.css';
 type Key =
   | 'check' | 'guardTitle' | 'guardReplaced' | 'matchFigure' | 'matchRows' | 'matchExcluded' | 'matchDate' | 'matchNone' | 'guardEmpty'
   | 'fromTemplate' | 'fromModel' | 'monthsNotLoaded' | 'compared' | 'asOf' | 'bars' | 'save' | 'saveCheck' | 'saved' | 'savedCheck'
-  | 'why' | 'decide' | 'receipt' | 'sentNothing' | 'measures' | 'working';
+  | 'why' | 'decide' | 'receipt' | 'sentNothing' | 'measures' | 'working' | 'monthsNotLoadedMany' | 'rebuild' | 'measuresNote' | 'measureKey';
 const WORDS = {
   en: {
     check: 'Checked against the receipt. {rows} rows, {left} left out.', guardTitle: 'Numbers in the written explanation',
@@ -34,6 +34,8 @@ const WORDS = {
     save: 'Save', saveCheck: 'Save as a check', saved: 'Saved.', savedCheck: 'Saved as a check.',
     why: 'Why did it change', decide: 'Record a decision', receipt: 'See the receipt', sentNothing: 'Nothing was sent to an AI model for this answer.',
     measures: 'Every measure', working: 'Working it out again from the books.',
+    monthsNotLoadedMany: '{count} months not loaded yet: {months}.', rebuild: 'Rebuild', measureKey: '{label} ({key})',
+    measuresNote: 'These are different measures of the same question. Each one is a figure on the receipt.',
   },
   hi: {
     check: 'रसीद से जाँचा गया। {rows} पंक्तियाँ, {left} छोड़ी गईं।', guardTitle: 'लिखी व्याख्या में आई संख्याएँ',
@@ -45,6 +47,8 @@ const WORDS = {
     save: 'सहेजें', saveCheck: 'जाँच के रूप में सहेजें', saved: 'सहेजा गया।', savedCheck: 'जाँच के रूप में सहेजा गया।',
     why: 'यह क्यों बदला', decide: 'फ़ैसला दर्ज करें', receipt: 'रसीद देखें', sentNothing: 'इस जवाब के लिए किसी AI मॉडल को कुछ नहीं भेजा गया।',
     measures: 'हर माप', working: 'बही से फिर से हिसाब निकाला जा रहा है।',
+    monthsNotLoadedMany: '{count} महीने अभी लोड नहीं हुए: {months}।', rebuild: 'फिर से बनाएँ', measureKey: '{label} ({key})',
+    measuresNote: 'ये एक ही सवाल के अलग-अलग माप हैं। हर एक रसीद का एक आँकड़ा है।',
   },
 } as const satisfies Catalogue<Key>;
 
@@ -99,7 +103,9 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
           {a.comparePeriod !== null && <span>{fill(w.compared, { period: periodText(a.comparePeriod, ask.language) })}</span>}
         </p>
         {a.labels.includes('stale') && (
-          <State state={{ kind: 'stale', workedOutOn: dayText(a.asOf, ask.language) }} action={{ label: shared.retry, onPress: () => void rebuild() }} />
+          <div data-answer-stale="">
+            <State state={{ kind: 'stale', workedOutOn: dayText(a.asOf, ask.language) }} action={ask.viewer ? undefined : { label: w.rebuild, onPress: () => void rebuild() }} />
+          </div>
         )}
       </div>
 
@@ -109,10 +115,11 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
       </div>
 
       {bars.length > 1 && <RankedBars sentence={w.bars} values={bars} onReceipt={toReceipt} />}
-      {ask.view === 'books' && bars.length > 0 && (
-        <section className={s.section} aria-label={w.measures}>
+      {(ask.view === 'books' ? bars.length > 0 : bars.length > 1) && (
+        <section className={s.section} aria-label={w.measures} data-measures="">
           <h2 className={s.heading}>{w.measures}</h2>
-          <KeyValue align="right" onReceipt={toReceipt} pairs={figs.map(({ f, figure }) => ({ name: `${f.label} (${f.key})`, figure }))} />
+          {bars.length > 1 && <p className={s.note}>{w.measuresNote}</p>}
+          <KeyValue align="right" onReceipt={toReceipt} pairs={figs.map(({ f, figure }) => ({ name: ask.view === 'books' ? fill(w.measureKey, { label: f.label, key: f.key }) : f.label, figure }))} />
         </section>
       )}
 
@@ -139,7 +146,12 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
 
       {(a.monthsNotLoaded.length > 0 || a.gaps.length > 0 || a.completeness !== 'reconciled-imports') && (
         <div className={s.block} data-coverage="">
-          {a.monthsNotLoaded.length > 0 && <p className={s.note}>{fill(w.monthsNotLoaded, { months: a.monthsNotLoaded.map(m => monthText(m, ask.language)).join(', ') })}</p>}
+          {a.completeness === 'empty' && a.monthsNotLoaded.length > 0 && (
+            <State state={{ kind: 'not-enough', monthsNotLoaded: { exact: String(a.monthsNotLoaded.length), display: countWords(String(a.monthsNotLoaded.length)) } }} />
+          )}
+          {a.monthsNotLoaded.length > 0 && <p className={s.note}>{fill(a.monthsNotLoaded.length === 1 ? w.monthsNotLoaded : w.monthsNotLoadedMany, {
+            count: countWords(String(a.monthsNotLoaded.length)), months: new Intl.ListFormat(ask.language, { type: 'conjunction' }).format(a.monthsNotLoaded.map(m => monthText(m, ask.language))),
+          })}</p>}
           {a.completeness !== 'reconciled-imports' && a.completeness !== 'empty' && <p className={s.note}>{shared[a.completeness]}</p>}
           {a.gaps.map(g => <p key={g} className={s.note}>{shared[g]}</p>)}
         </div>

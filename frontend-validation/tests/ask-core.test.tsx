@@ -198,7 +198,7 @@ test('answer → receipt → rows in both tabs → what was sent', async () => {
   expect(await screen.findByText('Your question: how much did we bill last month')).toBeTruthy();
   expect(screen.getByText('217 rows read')).toBeTruthy();
   expect(screen.getByText('cancelled')).toBeTruthy();
-  expect(screen.getByText(/Recipe not yet tested/)).toBeTruthy();
+  expect(screen.getAllByText(/Recipe not yet tested/).length).toBeGreaterThan(0);
   expect(screen.getByText('calc-2')).toBeTruthy();
   expect(screen.getByText(/Allowed by owner owner-1/)).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Rows counted' }));
