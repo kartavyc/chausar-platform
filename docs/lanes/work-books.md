@@ -21,11 +21,12 @@ Conventions for every reply:
 ### Work: `approvals.*`
 
 Ids in the queue are typed: `action:<actionId>`, `job:<jobId>`, `release:<draftId>`,
-`lesson:<lessonId>`, `acceptance:<jobId>`.
+`lesson:<lessonId>`, `acceptance:<jobId>`, `writeback:<actionId>` (a write-back action; see
+"Write-back in Work" below).
 
 ```
 ApprovalRow = {
-  id: string; source: 'action' | 'job' | 'release' | 'lesson' | 'acceptance';
+  id: string; source: 'action' | 'job' | 'release' | 'lesson' | 'acceptance' | 'writeback';
   kind: 'message' | 'record-change' | 'money' | 'prepare-only' | 'job' | 'group';
   tier: 'tier-2' | 'tier-1' | 'prepare-only';   // tier-2 = always-waits list
   title: string;                // plain words built from the prepared request, never model text
@@ -50,6 +51,9 @@ ApprovalDetail = ApprovalRow & {
   readOnly: boolean; prepareOnly: boolean; needsSecondAsk: boolean;
   blocked?: { kind: 'expired' | 'owner-approves' | 'unsure' | 'changed' | 'prepare-blocked'; code: string };
   snoozedUntil?: string;
+  writeback?: WbExtra;          // write-back items only
+  secondAsk?: { by: 'typed-amount' | 'passphrase' };   // present when needsSecondAsk
+  reminder?: Reminder;          // WK-12: write-back customer reminders only (approvals.get / approve / change)
 }
 ```
 
@@ -57,24 +61,26 @@ ApprovalDetail = ApprovalRow & {
 |---|---|---|---|
 | `approvals.list` | read | `{}` | `{ items: ApprovalRow[]; expired: ApprovalRow[]; snoozed: number; counts: { tier2: number; tier1: number; prepareOnly: number } }`, tier-2 first, then tier-1, then prepare-only; newest first inside a tier |
 | `approvals.get` | read | `{ id }` | `ApprovalDetail` |
-| `approvals.approve` | approve | `{ id, digest, secondAsk?: true }` | `ApprovalDetail` after approval. Money (`needsSecondAsk`) refuses `SECOND_ASK_REQUIRED` without `secondAsk: true`. A changed digest refuses `PREVIEW_CHANGED`. Expired refuses `APPROVAL_EXPIRED`. |
+| `approvals.approve` | approve | `{ id, digest, secondAsk?: true, reauth?: string }` | `ApprovalDetail` after approval. Money (`needsSecondAsk`) refuses `SECOND_ASK_REQUIRED` without `secondAsk: true`. A changed digest refuses `PREVIEW_CHANGED`. Expired refuses `APPROVAL_EXPIRED`. `reauth` (1..1024 characters) is accepted only when the sheet says `secondAsk.by: 'passphrase'` (write-back declared it) and is passed to `writeback.approve`, never stored; missing then refuses `REAUTH_REQUIRED`; sent otherwise refuses `INVALID_APPROVAL`. |
 | `approvals.notNow` | read | `{ id, hours?: 1..168 }` | `{ id, snoozedUntil }` (default 24 h; it leaves the list until then) |
 | `approvals.change` | prepare | `{ id, payload }` | `ApprovalDetail` (a new revision, prepared again) |
 | `approvals.drop` | approve | `{ id }` | `{ id, state: 'cancelled' \| 'rejected' }` (an acceptance is sent back: `rejected`) |
 | `approvals.group` | read | `{ ids: string[] }` (2..10) | `{ title, undoable: true, items: ApprovalDetail[] }`. Refuses `GROUP_NOT_ALLOWED` if any item is tier-2 or prepare-only. |
 | `approvals.approveGroup` | approve | `{ items: { id, digest }[] }` | `{ results: { id, ok: boolean, code?: string, state?: string }[] }`, one approval per item |
 | `approvals.pace` | read | `{}` | `{ fastStreak: number; warn: boolean }` (warn after 3 approvals under 2 s each) |
-| `approvals.practice` | prepare | `{ id }` | `{ practice: true; available: boolean; steps: Step[]; wouldSend: string \| null; code?: string }`. Calls `writeback.practice` when installed; nothing is sent either way. |
-| `approvals.execute` | prepare | `{ id }` (an `action:` id) | `ActionView` (do once) |
+| `approvals.practice` | prepare | `{ id }` | `{ practice: true; available: boolean; steps: Step[]; wouldSend: string \| null; code?: string; outcome?: string; requests?: number }`. A `writeback:` item runs `writeback.practice { actionId }` against fresh practice systems; `outcome` is write-back's (`would-be-done`, `would-be-not-sure`, `would-not-happen`, `already-done`, `prepare-only`, `refused`) and `requests` counts what would leave. Other items answer `available: false` with `PRACTICE_NOT_AVAILABLE` (or `WRITEBACK_NOT_BUILT` when write-back is absent). Nothing is sent either way. |
+| `approvals.execute` | prepare | `{ id }` (an `action:` or `writeback:` id) | `ActionView` (do once). A `writeback:` id calls `writeback.execute` (look first, do once, read back) behind the same sending gate and reservation; when write-back sent nothing the reply carries `notice`. |
 | `approvals.action` | read | `{ id }` | `ActionView` |
-| `approvals.resolveUnknown` | approve | `{ id, result: 'check' \| 'was-sent' \| 'was-not-sent' }` | `ActionView`. `check` reads back first; the two person answers are recorded as told-by-owner. |
-| `approvals.ledger` | read | `{}` | `{ items: ActionView[] }` newest first (WK-05) |
-| `approvals.reverse` | approve | `{ id }` | `ApprovalDetail` of a new prepared reversing action, or refuses `REVERSAL_NOT_AVAILABLE` |
+| `approvals.resolveUnknown` | approve | `{ id, result: 'check' \| 'was-sent' \| 'was-not-sent' }` | `ActionView`. `check` reads back first; the two person answers are recorded as told-by-owner. For a `writeback:` id: `check` → `writeback.readBack`, the answers → `writeback.settle { said: 'sent' \| 'not-sent' }` (write-back reads the system first; a person's word settles only what it cannot show). |
+| `approvals.ledger` | read | `{}` | `{ items: ActionView[] }` newest first (WK-05), core actions and `writeback.ledger` merged |
+| `approvals.reverse` | approve | `{ id }` | `ApprovalDetail` of a new prepared reversing action, or refuses `REVERSAL_NOT_AVAILABLE` (always for `writeback:` ids: write-back states its reversal in words) |
 | `approvals.catalogue` | read | `{}` | `{ rows: CatalogueRow[]; writeback: { available: boolean } }` |
 | `approvals.catalogueEntry` | read | `{ system, action }` | `CatalogueEntry` |
-| `approvals.wanted` | prepare | `{ system: string; text: string }` | `{ id; at }` |
+| `approvals.wanted` | prepare | `{ system: string; text: string }` | `{ id; at; writeback: 'listed' \| 'counted' \| null }`. When the system names a write-back system (by id or title), it is also asked of `writeback.request` (counted on write-back's wanted list). |
 | `approvals.wantedList` | read | `{}` | `{ items: { id; system; text; at; by }[] }` |
-| `approvals.afterRestore` | read | `{}` | `{ sendingClosed: boolean; items: ActionView[]; notes: string[] }` |
+| `approvals.afterRestore` | read | `{}` | `{ sendingClosed: boolean; items: ActionView[]; notes: string[] }`. Includes write-back actions that are not sure, still running, or named by `writeback.afterRestore` (the send journal outside the vault); those close sending too. |
+| `approvals.exportPrepared` | prepare, desktop only | `{ id }` (a prepare-only item) | `{ files: { name; path; bytes }[] }`: the exact prepared payload as JSON (for `gst-portal return.file`, the return: form, GSTIN, period and the prepared command) and a plain-text checklist, written into `<app directory>/exports/` as `chausar-prepared-<YYYYMMDD-HHMMSSZ>-<digest12>[-n]-prepared.json` / `-checklist.txt`. Names never come from outside text; an existing file is never replaced. Refuses `NOT_PREPARE_ONLY`, `INVALID_APPROVAL_STATE`, `OPEN_DESKTOP` (phone or MCP). |
+| `approvals.prepareReminder` | prepare | `{ connectionId, customerId, invoiceId, language?: 'en' \| 'hi' }` | `{ id: 'writeback:<id>' \| null; blocked: { code; reason } \| null }`. Calls `writeback.followUp.prepare`; a refusal `FOLLOW_UP_NO_CONSENT`, `FOLLOW_UP_STOPPED`, `FOLLOW_UP_DAILY_CAP`, `FOLLOW_UP_NOTHING_DUE` or `FOLLOW_UP_NEEDS_REVIEW` comes back as `blocked` with its plain reason (blocked at prepare). Refuses `WRITEBACK_NOT_BUILT` without write-back. |
 | `approvals.jobs` | read | `{}` | `{ items: JobRow[]; active: number; limit: 10; proposals: { available: boolean } }` |
 | `approvals.job` | read | `{ id }` | `JobCard & { timeline: JobStep[]; result: JobResult \| null; meters?: JobMeters }` (WK-08 budget meters; see below) |
 | `approvals.jobTemplates` | read | `{}` | `{ templates: JobTemplate[]; fromSentence: { available: boolean } }`. Fixed ready-made jobs over the core read-only `owner-brief` type (daily, weekly, month-end brief). `fromSentence` says whether `jobsx.propose` is installed. |
@@ -86,12 +92,27 @@ ActionView = { id; system; action; title; touches: string | null; amount: Amount
   request: Record<string, string>;                    // flattened request fields, as text
   readBack: { field: string; asked: string; found: string | null; same: boolean }[] | null;
   rule: string; attestation: { by: string; said: 'was-sent' | 'was-not-sent'; at: string } | null;
-  wouldHaveDone: 'waited' | 'done' | null; createdAt; settledAt: string | null; can: ('execute' | 'reconcile' | 'resolve' | 'reverse')[] }
+  wouldHaveDone: 'waited' | 'done' | null; createdAt; settledAt: string | null; can: ('execute' | 'reconcile' | 'resolve' | 'reverse')[];
+  writeback?: WbExtra; notice?: { kind: string; message: string } }   // notice: after a write-back execute that sent nothing
 CatalogueRow = { system; systemTitle; action; title;
   kind: 'inside-undoable' | 'seen-outside' | 'money' | 'cannot-undo';
-  waits: boolean; status: 'live' | 'experimental' | 'prepare-only' | 'not-yet'; source: 'core' | 'writeback' }
+  waits: boolean; status: 'live' | 'experimental' | 'prepare-only' | 'not-yet'; source: 'core' | 'writeback';
+  qualification?: 'synthetic-tested' | 'sandbox-verified' | 'live-verified' | 'unqualified' | null; writeScore?: string | null }   // null for core rows
 CatalogueEntry = CatalogueRow & { description; idempotency; readBack; retryWindow: string | null;
-  tier: 'tier-1' | 'tier-2'; expires: string | null; readStatus: string | null }   // the eleven fields
+  tier: 'tier-1' | 'tier-2'; expires: string | null; readStatus: string | null;   // the eleven fields
+  // write-back rows also carry:
+  waitsBecause?: string | null; plannedStatus?: status | null; businessReference?: string | null; approvalLifetime?: string | null;
+  reviewedOn?: 'YYYY-MM-DD' | null; installed?: boolean; grants?: number; undo?: string | null;
+  connections?: { id; label; environment: 'live' | 'sandbox' | 'practice'; read: boolean; write: boolean }[] }
+WbExtra = { system; action; systemTitle; catalogueKind: CatalogueRow['kind']; waitsBecause: string;
+  connection: { label; environment; removed: boolean } | null; notices: { kind; at }[]; externalId: string | null; settledBy: 'person' | 'system' | null }
+Reminder = { customerId: string | null; invoiceId: string | null; channel: 'email' | 'whatsapp' | null;
+  asWritten: string | null; invoiceLink: string | null; outstanding: Amount | null;
+  notes: { id; text: { en; hi }; source: string; checkedOn: 'YYYY-MM-DD'; notLegalAdvice: true }[] | null;   // owner only; null for every other seat
+  agreement: { channel: 'email' | 'whatsapp'; answer: 'yes' | 'no' | 'not-asked'; source: string | null; on: 'YYYY-MM-DD' | null }[];   // both channels
+  stoppedOn: 'YYYY-MM-DD' | null;
+  caps: { perCustomer; perDay; day: string | null; preparedOnDay; customerOnDay; reached: boolean; customerReached: boolean } | null;
+  blocked: { code; reason } | null }   // the customer's agreement on this channel is no longer yes, or they said stop
 JobRow = { id; goal; state: 'proposed' | 'scheduled' | 'running' | 'paused' | 'waiting' | 'set-aside' | 'missed' | 'stopped-by-rule' | 'stopped' | 'awaiting-acceptance' | 'accepted' | 'cancelled';
   reason: string | null; nextRunAt: string | null; resumesAt: string | null; spent: Amount; budget: Amount; can: ('pause' | 'resume' | 'cancel' | 'accept' | 'reject' | 'approve')[] }
 JobCard = { id; goal; doneWhen: string; owner: string; budget: Amount; reserve: Amount; spent: Amount;
@@ -106,6 +127,39 @@ JobMeters = { model: { spent: Amount; budget: Amount; route: string | null; esti
 JobTemplate = { id; title; goal; doneWhen; type: 'owner-brief'; every: 'day' | 'week' | 'month'; budget: Amount;
   maxRuns: number; days: number; missedRun: 'skip' | 'run-once-on-wake'; actions: string[]; needsModel: false }
 ```
+
+#### Write-back in Work
+
+Write-back actions live in write-back's own ActionService registry, so the core `actions.list`
+never shows them. Work reads them as the same caller through `writeback.ledger` (and
+`writeback.followUp.consents`, `writeback.settings`, `writeback.afterRestore`) and joins them to
+the one queue and the one record as `source: 'writeback'`, id `writeback:<actionId>`:
+
+- Row: tier from the catalogue (`1` → `tier-1`, `2` → `tier-2`, prepare-only), kind (money,
+  message, record change, prepare only), title from the catalogue row, `touches` = system title
+  and the prepared target, the amount from the prepared payload (`amountMinor`, `priceMinor`) or
+  the reminder's outstanding balance, `preparedBy` (a reminder is prepared by the job "Invoice
+  follow-up"), write-back's own `expiresAt`, and `practice` for practice connections.
+- Sheet: the exact change from `view.approval.change`, the five steps mapped to the queue's step
+  words, `reason` from the catalogue kind, `needsSecondAsk` from write-back (money and cannot be
+  undone), `writeback` (system, connection, the catalogue's own "why it waits", notices),
+  `blocked` (`OUTCOME_UNKNOWN`, `PREPARED_AGAIN`, `EVIDENCE_CHANGED`, or the reminder block).
+  Change is offered for a plain mail (its body, `{ asWritten }`); anything built from evidence is
+  prepared again instead.
+- Mutations: approve → `writeback.approve { id, digest }` (+ `reauth` only when declared);
+  change → `writeback.change`; drop → `writeback.drop`; practice → `writeback.practice
+  { actionId }`; execute → `writeback.execute`; check → `writeback.readBack`; was sent / was not
+  sent → `writeback.settle`. Re-authentication: write-back does not declare one yet (no `reauth`
+  field on its views), so money keeps the typed-amount second ask. When a view's approval
+  carries `reauth: 'passphrase'`, the sheet asks for the passphrase instead and passes it through.
+- Catalogue: rows are read in write-back's real shape (status, qualification, write score,
+  connections and grants, and the eleven fields). A reversal named in words is shown as `undo`;
+  it becomes `approvals.reverse` only when it names an action of the same system.
+- Reminders (WK-12): the payment notes are a fixed list in `work-writeback.ts`, written by hand
+  and never by a model: the MSMED Act, 2006 sections 15 and 16 (pay a micro or small supplier
+  within 45 days; compound interest at three times the bank rate), and the Income-tax Act, 1961
+  section 43B(h) (deduction only in the year paid when paid late). Each carries its source, the
+  date it was checked (2026-10-14) and "not legal advice", and only the owner sees them.
 
 Mutations on jobs use the core methods directly: `jobs.pause`, `jobs.resume`, `jobs.cancel`,
 `jobs.approve { id, digest }`, `jobs.accept { id }`, `jobs.reject { id, reason }`.
@@ -266,7 +320,12 @@ in English and Hindi.
 | Approvals queue, approval sheet, Not now / Change / Drop, after Approve, Actions record, After a restore (core `local` connector) | supported |
 | Grouped approval and pace warning | supported (design marks WK-03 experimental) |
 | Money second ask | experimental: the screen asks the person to type the amount; the passphrase, PIN or fingerprint ask belongs to the trusted host |
-| Practice, catalogue rows from write-back, Reverse | experimental: depends on `writeback.*` (writeback lane); shows "not built yet" until it is installed |
+| Write-back actions in the queue, the sheet, approve, change, drop, execute, not sure, the record and after a restore | supported over `writeback.*`, tested end to end in the real engine against practice connections (mail, GST) |
+| Practice of a write-back action, catalogue rows in write-back's real shape (status, test, score, grants) | supported over `writeback.practice` / `writeback.catalogue` |
+| Prepare-only "Get file and checklist" (`approvals.exportPrepared`) | supported (desktop only) |
+| WK-12 reminder sheet: link, agreement per channel, stopped flag, limits, owner payment notes, blocked at prepare | supported over `writeback.followUp.*`; the payment notes are fixed text checked 2026-10-14 |
+| Passphrase second ask | experimental: drawn only when write-back declares `reauth: 'passphrase'`, which it does not yet; otherwise the typed amount |
+| Reverse | supported for core actions whose catalogue row names a reversal action; write-back reversals are shown in words |
 | Job list, card, time line, accept and send back | supported over core `jobs.*`; job proposals from `jobsx.*` experimental |
 | Start a job from a ready-made brief, budget meters | supported over core `jobs.create` (`owner-brief`); a job from one sentence is experimental (`jobsx.propose`) |
 | Sources, month squares, source sheet, unmapped fields | supported for file imports; freshness from `connectorsx.*` experimental |
@@ -281,7 +340,7 @@ screen with a fake rpc. No screen was tested against a live external system.
 
 ### Engine methods
 
-There are 24 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs.ts`)
+There are 26 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs.ts`)
 and 33 Books methods (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
 Private state lives in `state.extensions['work-books']` under `work` and `books` (`state.ts`).
 `purge` removes snoozes, notes, opt-ins, decisions and memory lines tied to removed
@@ -299,14 +358,21 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
 
 ### Still missing
 
-- WK-12 (reminder notes on payment rules, caps), WK-13 and BK-18 (a bill photo to an
-  entry), WK-14 (Chausar is driving) and WK-16 (a step for a person) are not built.
+- WK-13 and BK-18 (a bill photo to an entry), WK-14 (Chausar is driving) and WK-16 (a step for
+  a person) are not built. WK-12 has no screen entry point of its own for
+  `approvals.prepareReminder` (a customer page can call it); "record the agreement" is a note
+  that points to the customer's page.
+- Write-back does not ask for a passphrase yet; money and irreversible write-back approvals keep
+  the typed-amount second ask until it declares `reauth` on its views.
+- Files written by `approvals.exportPrepared` are not removed when the workspace is deleted (the
+  engine's purge of `exports/` matches only its own vault copies; widening it is a core edit).
+- The caps line counts reminders prepared on the reminder's own day (write-back's business day);
+  the screen does not know write-back's configured time zone.
 - WK-08 has no measure chart. Clock time is "not counted" until the core job ledger records
   durations, and effect exposure is "not counted" until a job names its actions (no core
   job does yet). Job Edit and Delete have no methods.
 - Ready-made jobs repeat on an interval: "month-end" runs every 30 days from when it is
   approved, not on the last day of each month (calendar schedules need a typed runner).
-- Prepare-only items have no "download the file and the checklist" method.
 - BK-02 Read now, Pause and Sign in again; BK-03 Add a source; BK-05 recipes; BK-06
   "Map this field". These belong to connectors-ext and show "not built yet".
 - BK-09 "Try it on a copy" links to trials and is not built here.

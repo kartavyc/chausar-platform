@@ -70,10 +70,16 @@ async function fixture(options: { writeback?: Record<string, (payload: any) => u
   const prepare = (operation: string, payload: Record<string, unknown>, key = `key-${operation}-${Math.random()}`) => actions.prepare(owner, { connector: 'books-app', operation, payload, idempotencyKey: key, sourceIds: ['sheet'] });
   return { store, actions, jobs, services, clock, calls, fake, request, prepare };
 }
+/** A row in the real `writeback.catalogue` shape (docs/lanes/writeback.md), synthetic values. */
+const wbCatalogueRow = (system: string, action: string, title: string, extra: Record<string, unknown> = {}) => ({
+  system, action, title, kind: 'inside-undoable', tier: 1, alwaysWaits: false, waitsBecause: 'Every change waits for your yes.', plannedStatus: 'experimental',
+  idempotency: 'Looks first by the effect key.', businessReference: 'The effect reference.', readBack: 'Reads the record by reference.', retryWindowHours: 720,
+  approvalLifetimeHours: 168, reviewedOn: '2026-10-01', expiresOn: '2027-04-01', reversal: null, status: 'experimental', qualification: 'synthetic-tested', installed: true, writeScore: '3/3', connections: [], ...extra,
+});
 const age = (f: Fixture, id: string, ms: number) => f.store.update(state => { const a = state.actions.find(x => x.id === id); a.createdAt = new Date(Date.parse(a.createdAt) - ms).toISOString(); });
 
 test('the queue orders tier-2 first, then tier-1, then prepare-only, newest first inside a tier', async () => {
-  const f = await fixture({ writeback: { 'writeback.catalogue': () => ({ rows: [{ system: 'books-app', action: 'voucher', title: 'Prepare a sales voucher', kind: 'inside-undoable', status: 'prepare-only' }] }) } });
+  const f = await fixture({ writeback: { 'writeback.catalogue': () => [wbCatalogueRow('books-app', 'voucher', 'Prepare a sales voucher', { status: 'prepare-only', tier: 'prepare-only', plannedStatus: 'prepare-only' })] } });
   const note = await f.prepare('note', { customerId: 'customer-a', text: 'Prefers mail' });
   const remind = await f.prepare('remind', { to: 'customer-a', text: 'Your invoice is due.' });
   const voucher = await f.prepare('voucher', { voucher: { type: 'Sales', number: null, date: '2026-10-01', lines: [{ ledger: 'Sales', creditMinor: '10000' }, { ledger: 'Customer A', debitMinor: '10000' }] } });
@@ -239,11 +245,11 @@ test('catalogue lists the core rows when writeback is absent; practice and rever
   const f = await fixture();
   const cat = await f.request(owner, 'approvals.catalogue');
   assert.deepEqual(cat.writeback, { available: false });
-  assert.deepEqual(cat.rows.find((r: any) => r.action === 'pay'), { system: 'books-app', systemTitle: 'Synthetic books app', action: 'pay', title: 'Pay a supplier', kind: 'money', waits: true, status: 'live', source: 'core' });
+  assert.deepEqual(cat.rows.find((r: any) => r.action === 'pay'), { system: 'books-app', systemTitle: 'Synthetic books app', action: 'pay', title: 'Pay a supplier', kind: 'money', waits: true, status: 'live', source: 'core', qualification: null, writeScore: null });
   assert.equal(cat.rows.find((r: any) => r.action === 'note').waits, false);
   assert.ok(cat.rows.every((r: any) => r.source === 'core'));
   const entry = await f.request(owner, 'approvals.catalogueEntry', { system: 'books-app', action: 'remind' });
-  assert.deepEqual(Object.keys(entry).sort(), ['action', 'description', 'expires', 'idempotency', 'kind', 'readBack', 'readStatus', 'retryWindow', 'source', 'status', 'system', 'systemTitle', 'tier', 'title', 'waits'].sort());
+  assert.deepEqual(Object.keys(entry).sort(), ['action', 'description', 'expires', 'idempotency', 'kind', 'qualification', 'readBack', 'readStatus', 'retryWindow', 'source', 'status', 'system', 'systemTitle', 'tier', 'title', 'waits', 'writeScore'].sort());
   assert.equal(entry.tier, 'tier-2'); assert.equal(entry.idempotency, 'The key names one record.');
   await assert.rejects(f.request(owner, 'approvals.catalogueEntry', { system: 'books-app', action: 'fly' }), code('NOT_FOUND'));
   const note = await f.prepare('note', { customerId: 'customer-a', text: 'Prefers mail' });
@@ -260,26 +266,29 @@ test('catalogue lists the core rows when writeback is absent; practice and rever
   await assert.rejects(f.request(owner, 'approvals.wanted', { system: '', text: 'Change a price' }), code('INVALID_APPROVAL'));
 });
 
-test('writeback catalogue rows merge over core rows, enable reversal and pass practice through', async () => {
+test('real writeback catalogue rows merge over core rows with their status, score and grants; a reversal named as an action is honoured', async () => {
   const f = await fixture({ writeback: {
-    'writeback.catalogue': () => ({ rows: [
-      { system: 'books-app', action: 'note', title: 'Add a note to a customer', kind: 'inside-undoable', status: 'experimental', retryWindow: '24 hours', reversal: 'unnote', readStatus: 'live' },
-      { system: 'tally', systemTitle: 'Tally', action: 'voucher', title: 'Enter a voucher', kind: 'cannot-undo', status: 'not-yet' },
+    'writeback.catalogue': () => [
+      wbCatalogueRow('books-app', 'note', 'Add a note to a customer', { reversal: 'unnote', retryWindowHours: 24 }),
+      wbCatalogueRow('tally', 'voucher.create', 'Enter a voucher in Tally', { status: 'not-yet', kind: 'cannot-undo', tier: 2, alwaysWaits: true, retryWindowHours: null, reversal: 'Alter or delete the voucher in Tally.',
+        connections: [{ id: 'connection-1', label: 'Practice Tally', environment: 'practice', read: true, write: true }, { id: 'connection-2', label: 'Office Tally', environment: 'live', read: true, write: false }] }),
       { system: 'broken', action: 'x', title: 'No status' },
-    ] }),
-    'writeback.practice': () => ({ steps: ['prepared', 'approved', 'done', 'read-back', 'recorded'].map(name => ({ name, state: 'done', at: null })), wouldSend: 'A note on customer-a' }),
+    ],
   } });
   const cat = await f.request(owner, 'approvals.catalogue');
   assert.equal(cat.writeback.available, true);
   assert.equal(cat.rows.some((r: any) => r.system === 'broken'), false);
-  assert.deepEqual(cat.rows.find((r: any) => r.system === 'tally'), { system: 'tally', systemTitle: 'Tally', action: 'voucher', title: 'Enter a voucher', kind: 'cannot-undo', waits: true, status: 'not-yet', source: 'writeback' });
+  assert.deepEqual(cat.rows.find((r: any) => r.system === 'tally'), { system: 'tally', systemTitle: 'Tally', action: 'voucher.create', title: 'Enter a voucher in Tally', kind: 'cannot-undo', waits: true, status: 'not-yet', source: 'writeback', qualification: 'synthetic-tested', writeScore: '3/3' });
   const note = cat.rows.find((r: any) => r.action === 'note'); assert.equal(note.source, 'writeback'); assert.equal(note.status, 'experimental');
   const entry = await f.request(owner, 'approvals.catalogueEntry', { system: 'books-app', action: 'note' });
-  assert.equal(entry.retryWindow, '24 hours'); assert.equal(entry.readStatus, 'live'); assert.equal(entry.idempotency, 'The key names one record.'); assert.equal('reversal' in entry, false);
+  assert.equal(entry.retryWindow, '1 day'); assert.equal(entry.readStatus, null); assert.equal(entry.idempotency, 'Looks first by the effect key.'); assert.equal('reversal' in entry, false); assert.equal(entry.undo, 'unnote');
+  const tally = await f.request(owner, 'approvals.catalogueEntry', { system: 'tally', action: 'voucher.create' });
+  assert.equal(tally.tier, 'tier-2'); assert.equal(tally.retryWindow, null); assert.equal(tally.expires, '2027-04-01'); assert.equal(tally.reviewedOn, '2026-10-01'); assert.equal(tally.approvalLifetime, '7 days');
+  assert.equal(tally.businessReference, 'The effect reference.'); assert.equal(tally.waitsBecause, 'Every change waits for your yes.'); assert.equal(tally.plannedStatus, 'experimental');
+  assert.equal(tally.grants, 1); assert.deepEqual(tally.connections.map((c: any) => [c.label, c.write]), [['Practice Tally', true], ['Office Tally', false]]); assert.equal(tally.undo, 'Alter or delete the voucher in Tally.');
   const prepared = await f.prepare('note', { customerId: 'customer-a', text: 'Prefers mail' }); const id = `action:${prepared.id}`;
   const practice = await f.request(owner, 'approvals.practice', { id });
-  assert.equal(practice.available, true); assert.equal(practice.wouldSend, 'A note on customer-a'); assert.equal(f.fake.executions, 0);
-  assert.deepEqual(f.calls.find(c => c.method === 'writeback.practice')?.payload, { actionId: prepared.id, digest: prepared.digest });
+  assert.equal(practice.available, false); assert.equal(practice.code, 'PRACTICE_NOT_AVAILABLE', 'write-back practises only its own actions'); assert.equal(f.fake.executions, 0);
   await f.request(owner, 'approvals.approve', { id, digest: prepared.digest });
   await assert.rejects(f.request(owner, 'approvals.reverse', { id }), code('REVERSAL_NOT_AVAILABLE'), 'only a verified action can be reversed');
   const done = await f.request(owner, 'approvals.execute', { id }); assert.deepEqual(done.can, ['reverse']);
@@ -428,10 +437,10 @@ test('two concurrent executes cannot both pass the sending gate; the reservation
 });
 
 test('a writeback catalogue row that always waits makes the item tier-2, never groupable, and gated by sending', async () => {
-  const f = await fixture({ writeback: { 'writeback.catalogue': () => ({ rows: [
-    { system: 'books-app', action: 'note', title: 'Add a note to a customer', kind: 'money', status: 'live' },
-    { system: 'books-app', action: 'unnote', title: 'Remove a note', kind: 'inside-undoable', tier: 'tier-2', status: 'live' },
-  ] }) } });
+  const f = await fixture({ writeback: { 'writeback.catalogue': () => [
+    wbCatalogueRow('books-app', 'note', 'Add a note to a customer', { kind: 'money', tier: 2, alwaysWaits: true, status: 'live' }),
+    wbCatalogueRow('books-app', 'unnote', 'Remove a note', { tier: 2, status: 'live' }),
+  ] } });
   const note = await f.prepare('note', { customerId: 'customer-a', text: 'x' }); const unnote = await f.prepare('unnote', { customerId: 'customer-a' });
   const other = await f.prepare('voucher', { x: 1 });
   const sheet = await f.request(owner, 'approvals.get', { id: `action:${note.id}` });
