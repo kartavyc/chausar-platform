@@ -253,19 +253,26 @@ export async function faultReport(ctx: Context, host: ModuleHost) {
 }
 
 const CHANNELS = ['whatsapp', 'telegram', 'mail'] as const;
+const COUNT = /^(0|[1-9][0-9]{0,30})$/;
 /**
  * PH-01..PH-03. Channels are `not-built` until the hosted-link lane registers its methods.
- * Assumed adapter: `hosted.channels` {} → { channels: [{ channel, state: 'on' | 'off' }], sentThisMonth?: digits }.
+ * Reads `phone.channels.list` (a channel is on when the desktop has it enabled) and
+ * `phone.messages.counts` (`sent`, `desktopBudget`); counts need a paired link, so they stay unknown otherwise.
  */
 export async function phoneMessages(host: ModuleHost) {
   const built = [...moduleMethods.values()].some(spec => spec.module === 'hosted-link');
   let channels = CHANNELS.map(channel => ({ channel, state: built ? 'off' : 'not-built' }));
   let sentThisMonth: string | null = null;
-  if (built && moduleMethods.has('hosted.channels')) {
-    const reply: any = await quiet(() => host.call('hosted.channels', {}));
+  let monthlyBudget = '30';
+  if (built && moduleMethods.has('phone.channels.list')) {
+    const reply: any = await quiet(() => host.call('phone.channels.list', {}));
     const listed = Array.isArray(reply?.channels) ? reply.channels : [];
-    channels = CHANNELS.map(channel => ({ channel, state: listed.find((item: any) => item?.channel === channel)?.state === 'on' ? 'on' : 'off' }));
-    if (typeof reply?.sentThisMonth === 'string' && /^(0|[1-9][0-9]{0,30})$/.test(reply.sentThisMonth)) sentThisMonth = reply.sentThisMonth;
+    channels = CHANNELS.map(channel => ({ channel, state: listed.find((item: any) => item?.channel === channel)?.desktop?.enabled === true ? 'on' : 'off' }));
   }
-  return { channels, kinds: ['week-ahead', 'review', 'document', 'due-date'], sentThisMonth, monthlyBudget: '30' };
+  if (built && moduleMethods.has('phone.messages.counts') && !host.demo) {
+    const counts: any = await quiet(() => host.call('phone.messages.counts', {}));
+    if (Number.isSafeInteger(counts?.sent) && COUNT.test(String(counts.sent))) sentThisMonth = String(counts.sent);
+    if (Number.isSafeInteger(counts?.desktopBudget) && COUNT.test(String(counts.desktopBudget))) monthlyBudget = String(counts.desktopBudget);
+  }
+  return { channels, kinds: ['week-ahead', 'review', 'document', 'due-date'], sentThisMonth, monthlyBudget };
 }
