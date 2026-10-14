@@ -1,5 +1,5 @@
 import { check } from '../../contracts.ts';
-import type { ApiReadSpec, ParsedPage, ReadRequest } from '../read-kit.ts';
+import { API_READ_LIMITS, type ApiReadSpec, type ParsedPage, type ReadRequest } from '../read-kit.ts';
 import type { AccountingRecord } from './common.ts';
 import { parseZohoPage, ZOHO_READ_SCOPES } from './zoho.ts';
 import { parseXeroPage } from './xero.ts';
@@ -14,8 +14,10 @@ import { checkPeriod, optionalCurrency, parseSourceJson, scalarText, sourceObjec
  * one) and grossAmount (the document total including tax). Gross billing is never net revenue: the
  * '.net' recipes measure netAmount and refuse a record without it; the '.gross' recipes say plainly
  * that they measure tax-inclusive billing.
- *  - Zoho Books: sub_total is in invoice detail, not in the list response, so a list read leaves
- *    netAmount empty and the net recipe refuses it; the gross recipe reads total.
+ *  - Zoho Books: sub_total is in invoice detail, not in the list response, so the list read
+ *    (zohoBooksInvoicesSpec) leaves netAmount empty and the net recipe refuses it; the gross recipe
+ *    reads total. zohoBooksInvoicesNetSpec lists invoices, then reads each invoice's detail
+ *    (GET /books/v3/invoices/{invoice_id}) and carries its sub_total.
  *  - Xero: SubTotal is in the list response (exclusive of tax for every LineAmountTypes).
  *  - QuickBooks: the parser exposes TotalAmt (tax-inclusive) and TotalTax only, no subtotal; only the
  *    gross recipe applies. Nothing here subtracts tax from a total.
@@ -68,6 +70,49 @@ export const zohoBooksInvoicesSpec: ApiReadSpec<ZohoBooksInvoicesConfig> = Objec
     const next: ReadRequest | null = parsed.continuation.kind === 'more' ? { method: 'GET', url: zohoBooksInvoicesUrl(config, page + 1, from && to ? { from, to } : null) } : null;
     const total = totalCount(context.total);
     return { records, next, declared: total === null ? null : { rowCount: total, reference: 'zoho-books-page-context-total' } };
+  },
+});
+
+/**
+ * Net invoices: the list pages give the invoice ids and the declared count, then one detail request per
+ * invoice (https://www.zoho.com/books/api/v3/invoices/#get-an-invoice, scope ZohoBooks.invoices.READ:
+ * GET /books/v3/invoices/{invoice_id}?organization_id=) gives sub_total, the tax-exclusive amount. The
+ * list asks per_page=200 (https://www.zoho.com/books/api/v3/invoices/#list-invoices).
+ *
+ * Bounded up front: on the first list page, the list pages plus one detail per declared invoice must
+ * fit the read kit's request budget (API_READ_LIMITS.maxRequests, 60), or the read is refused with
+ * ZOHO_DETAIL_BUDGET before any detail is read. A multi-page list without a stated total cannot be
+ * bounded and is refused the same way. A partial set is never returned: the runner fails the whole read.
+ */
+export const ZOHO_BOOKS_PER_PAGE = 200;
+const ZOHO_DETAIL_PATH = /^\/books\/v3\/invoices\/(\d{1,30})$/;
+export function zohoBooksInvoiceDetailUrl(config: ZohoBooksInvoicesConfig, invoiceId: string): string {
+  check(/^\d{1,30}$/.test(invoiceId), 'ZOHO_ID_INVALID', 'Zoho source IDs must be numeric text.');
+  return `https://www.zohoapis.${config.dataCenter}/books/v3/invoices/${invoiceId}?organization_id=${config.organizationId}`;
+}
+/** Requests a net read needs: every list page plus one detail per invoice. */
+export const zohoBooksNetRequests = (invoices: number, perPage = ZOHO_BOOKS_PER_PAGE): number => Math.max(1, Math.ceil(invoices / perPage)) + invoices;
+export const zohoBooksInvoicesNetSpec: ApiReadSpec<ZohoBooksInvoicesConfig> = Object.freeze({
+  ...zohoBooksInvoicesSpec, operation: 'invoices-net', version: '1',
+  parse(body: string, _response: unknown, config: ZohoBooksInvoicesConfig, request: ReadRequest): ParsedPage {
+    const url = new URL(request.url), detail = ZOHO_DETAIL_PATH.exec(url.pathname);
+    if (detail) {
+      check(url.searchParams.get('organization_id') === config.organizationId, 'READ_REQUEST_INVALID', 'The detail request is not one this adapter made.');
+      const parsed = parseZohoPage(body, { resource: 'invoices', organizationId: config.organizationId, detail: true, expectedResourceId: detail[1] });
+      const source = sourceObject(parseSourceJson(body).invoice);
+      return { records: parsed.records.map(record => invoiceRecord(record, source.invoice_number, source.customer_name)), next: null };
+    }
+    const page = pageOf(request.url, 'page'), parsed = parseZohoPage(body, { resource: 'invoices', organizationId: config.organizationId, expectedPage: page });
+    const context = sourceObject(parseSourceJson(body).page_context), total = totalCount(context.total), more = parsed.continuation.kind === 'more';
+    if (page === 1) {
+      const known = total ?? (more ? null : parsed.records.length);
+      check(known !== null && zohoBooksNetRequests(known) <= API_READ_LIMITS.maxRequests, 'ZOHO_DETAIL_BUDGET',
+        'Net amounts need one request per invoice, and this period has more invoices than one read allows. Choose a shorter period.');
+    }
+    const queue: ReadRequest[] = parsed.records.map(record => ({ method: 'GET', url: zohoBooksInvoiceDetailUrl(config, record.id) }));
+    const from = url.searchParams.get('date_start'), to = url.searchParams.get('date_end');
+    const next: ReadRequest | null = more ? { method: 'GET', url: zohoBooksInvoicesUrl(config, page + 1, from && to ? { from, to } : null) } : null;
+    return { records: [], queue, next, declared: total === null ? null : { rowCount: total, reference: 'zoho-books-page-context-total' } };
   },
 });
 
