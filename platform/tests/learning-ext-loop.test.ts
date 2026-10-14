@@ -182,3 +182,21 @@ test('the demo seed and an empty workspace give honest empty views', async () =>
   await assert.rejects(call(h, 'learningx.preview', {}), { code: 'NOTHING_TO_SHARE' });
   await seedDemo(store, owner); assert.equal((await call(h, 'learningx.summary')).total, 1);
 });
+
+test('the desktop client and the real intake service agree end to end on loopback', async t => {
+  const { startIntakeServer } = await import('../../hosted/learning-intake/src/server.ts');
+  const { MemoryIntakeStore } = await import('../../hosted/learning-intake/src/store.ts');
+  const intake = new MemoryIntakeStore();
+  const server = await startIntakeServer({ store: intake, open: true, port: 0, host: '127.0.0.1' });
+  t.after(() => server.close());
+  const store = await seeded(false), h = host(store, { intake: { url: server.url } }); await new LearningService(store).setSharing(owner, true);
+  await call(h, 'learningx.creditName', { publicName: 'Synthetic Shop' });
+  await call(h, 'learningx.record', { event: { kind: 'accounts-label', choice: 'corrected', accountClass: 'duties-taxes', proposedClass: 'indirect-expenses', confidence: 'low', reason: 'owner-override', evidence: ['name-keyword', 'owner'] } });
+  const preview = await call(h, 'learningx.preview', {}), consent = await call(h, 'learningx.consent', { previewId: preview.id, digest: preview.digest });
+  const batch = await call(h, 'learningx.submit', { consentId: consent.id });
+  assert.equal(batch.status, 'sent', JSON.stringify(batch)); assert.equal(batch.credits, 2);
+  const settledAgain = await fetch(`${server.url}/v1/credits/public`).then(response => response.json());
+  assert.deepEqual(settledAgain, [{ publicName: 'Synthetic Shop', credits: 2 }]);
+  assert.equal((await call(h, 'learningx.deleteBatch', { batchId: batch.id })).status, 'deleted');
+  assert.deepEqual(await fetch(`${server.url}/v1/credits/public`).then(response => response.json()), []);
+});
