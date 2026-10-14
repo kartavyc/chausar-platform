@@ -1,10 +1,20 @@
 cmake_minimum_required(VERSION 3.20)
 project(chausar_keychain LANGUAGES CXX)
 
-add_executable(chausar-keychain main.cpp)
-target_compile_features(chausar-keychain PRIVATE cxx_std_17)
+option(CHAUSAR_KEYCHAIN_PROTOCOL_ONLY "Build only the synthetic parser test without native backends" OFF)
 add_executable(chausar-keychain-protocol-selftest EXCLUDE_FROM_ALL protocol-selftest.cpp)
 target_compile_features(chausar-keychain-protocol-selftest PRIVATE cxx_std_17)
+enable_testing()
+add_test(NAME chausar-keychain-protocol COMMAND chausar-keychain-protocol-selftest)
+
+# The parser test contains no call to execute(), provider translation unit or
+# native library. Return before resolving any OS dependency in this mode.
+if(CHAUSAR_KEYCHAIN_PROTOCOL_ONLY)
+  return()
+endif()
+
+add_executable(chausar-keychain main.cpp)
+target_compile_features(chausar-keychain PRIVATE cxx_std_17)
 
 if(WIN32)
   target_sources(chausar-keychain PRIVATE windows.cpp)
