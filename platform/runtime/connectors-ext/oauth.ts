@@ -27,8 +27,8 @@ export const KEY_SIGN_IN: Readonly<Record<string, string>> = Object.freeze({
   razorpay: 'Create an API key in Razorpay with a read-only role and enter it in Trust, credentials.',
   stripe: 'Create a restricted key with read access to balance and payouts and enter it in Trust, credentials.',
   woocommerce: 'Create a REST API key with Read permission in WooCommerce and enter it in Trust, credentials.',
-  cashfree: 'Cashfree keys are entered in Trust, credentials. Live reads are not built yet.',
-  payu: 'PayU signed requests are not built yet. Read exported settlement files instead.',
+  cashfree: 'Create Cashfree API keys (client id and secret) and enter them as id:secret in Trust, credentials.',
+  payu: 'Enter the PayU merchant key and salt as key:salt in Trust, credentials. The salt signs each request on this computer and is never sent.',
   tally: 'Tally needs no sign-in: switch on its XML interface on port 9000 on this computer.',
 });
 export function providerFor(group: string): OAuthProvider | null {

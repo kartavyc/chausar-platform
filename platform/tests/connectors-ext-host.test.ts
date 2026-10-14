@@ -119,3 +119,25 @@ test('a scheduled refresh reads a real loopback Tally, honours the catch-up rule
   assert.equal(decide({ ...schedule, catchUp: 'run-once', lastRunAt: '2026-10-13T20:00:00.000Z' }, at).action, 'wait');
   assert.equal(decide({ ...schedule, catchUp: 'run-once', lastRunAt: '2026-10-13T00:00:00.000Z', runs: { day: '2026-10-14', count: 24 } }, at).action, 'budget');
 });
+
+test('review fixes: header pass-through, internal hosts, PayU var1 and database password binding', async t => {
+  const { readHttp, payuSignedBody } = await import('../runtime/adapters/read-kit.ts');
+  const { woocommerceReadSpec } = await import('../runtime/adapters/commerce/index.ts');
+  const server = createServer((_req, res) => { res.writeHead(200, { 'content-type': 'application/json', 'x-wp-total': '7', 'set-cookie': 'session=1' }); res.end('{}'); });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); t.after(() => server.close());
+  const url = `http://127.0.0.1:${(server.address() as any).port}/`;
+  const response = await readHttp({ url, method: 'GET', headers: {}, maxBytes: 1000, timeoutMs: 2000, redirect: 'error' });
+  assert.equal(response.headers?.['x-wp-total'], '7'); assert.equal(response.headers?.['set-cookie'], undefined);
+  for (const site of ['https://10.0.0.5', 'https://169.254.169.254', 'https://127.0.0.1', 'https://shop.local', 'https://erp.internal'])
+    assert.throws(() => woocommerceReadSpec.validate({ site }), code('WOOCOMMERCE_SITE_INVALID'), site);
+  assert.throws(() => payuSignedBody('command=get_settlement_details&var1=2026-09-04|x', 'merchantkey:saltsaltsalt'), code('ADAPTER_INVALID'));
+  const { engine, directory } = await open(t);
+  const options = connectorsExtModule.hostOptions!({ directory, demo: false, env: {} }) as any;
+  const host = hostFor(engine, options);
+  const stripe = await engine.request('connectorsx.connect', { group: 'stripe', road: 'interface', company: 'Synthetic Traders' });
+  await handlers.credentialsSet(owner, { connectionId: stripe.id, secret: 'sk_test_SECRET' }, host);
+  await assert.rejects(engine.request('connectorsx.connect', { group: 'plain-database', road: 'database', company: 'X', settings: { engine: 'postgres', host: 'db.example.com', port: '5432', database: 'd', user: 'u', passwordRef: stripe.sourceId } }), code('CREDENTIAL_NOT_ACCEPTED'));
+  await assert.rejects(options.databaseCredentials(owner, stripe.sourceId), code('DB_CREDENTIAL_REQUIRED'), 'another system\'s key is never a database password');
+  await assert.rejects(handlers.connect({ ...owner, sourceTainted: true }, { group: 'tally', road: 'file', company: 'X' }, host), code('OPEN_DESKTOP'));
+  await assert.rejects(handlers.read({ ...owner, channel: 'mcp' as any }, { connectionId: stripe.id, operation: 'payout-reconciliation' }, host), code('OPEN_DESKTOP'));
+});

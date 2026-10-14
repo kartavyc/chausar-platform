@@ -26,7 +26,9 @@ function origin(site: unknown): string {
   let url: URL;
   try { url = new URL(site); } catch { check(false, 'WOOCOMMERCE_SITE_INVALID', 'Enter the store address as https:// and the domain only.'); }
   check(url!.protocol === 'https:' && !url!.username && !url!.password && (url!.pathname === '/' || url!.pathname === '') && !url!.search && !url!.hash
-    && /^[a-z0-9.-]+$/.test(url!.hostname) && url!.hostname.includes('.') && site.replace(/\/$/, '') === url!.origin,
+    && /^[a-z0-9.-]+$/.test(url!.hostname) && url!.hostname.includes('.') && site.replace(/\/$/, '') === url!.origin
+    // A public store name, never an IP literal or a private or local name.
+    && !/^[\d.]+$/.test(url!.hostname) && !/(?:^|\.)(?:localhost|local|internal|intranet|lan|home|corp|localdomain)$/.test(url!.hostname),
     'WOOCOMMERCE_SITE_INVALID', 'Enter the store address as https:// and the domain only.');
   return url!.origin;
 }

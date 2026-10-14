@@ -18,7 +18,7 @@ import { sourceAllowed } from '../trust.ts';
 import { cxState, freshness, LIMITS, peekCx, prune, publicEnvelope, type Connection, type Envelope } from './state.ts';
 import type { RecipeOutcome, Road } from './types.ts';
 import { compileRecipe, runRecipe, type DecoderInput, type SourceRecipe } from './recipe.ts';
-import { extractBankPdf, pdfTextToRows } from './bank-pdf.ts';
+import { extractBankPdfWithOcr, pdfTextToRows } from './bank-pdf.ts';
 import { matchPurchaseRegister, type MatchLine } from './gst-match.ts';
 import { listTables, plainDbRead, type PlainDbConnection } from './plain-db/index.ts';
 
@@ -254,12 +254,14 @@ export const handlers = {
       check(text(payload.sourceId, 100) && /^[A-Za-z0-9_.:-]+$/.test(payload.sourceId) && text(payload.company), REQUEST, 'Choose a connection, or name the source and company.');
       target = { sourceId: payload.sourceId, company: payload.company, branch: payload.branch ?? 'main' };
     }
-    const input: DecoderInput = {};
+    const input: DecoderInput = {}; let ocrNotice: string | null = null;
     if (decoder.accepts === 'text') { check(typeof payload.text === 'string' && payload.text.length <= 20 * 1024 * 1024, REQUEST, 'This recipe reads a text export.'); input.text = payload.text; }
     else if (decoder.accepts === 'rows' && payload.pdfBase64 !== undefined) {
       check(selected.decoder === 'bank-pdf-text', 'RECIPE_INPUT_MISMATCH', 'Only the bank statement PDF recipe reads PDF files.');
-      const extracted = await extractBankPdf(host.services.helper, payload.pdfBase64);
+      // Pages with a text layer are read directly; scanned pages go to OCR (experimental) and must clear a confidence floor.
+      const extracted = await extractBankPdfWithOcr(host.services.helper, payload.pdfBase64);
       input.rows = pdfTextToRows(extracted.pages).rows;
+      if (extracted.ocrPages.length) ocrNotice = extracted.notice;
     } else if (decoder.accepts === 'rows') {
       check(typeof payload.bytesBase64 === 'string' && payload.bytesBase64.length <= 2_800_000 && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(payload.bytesBase64), REQUEST, 'Choose a bounded workbook.');
       const workbook = readWorkbook(Buffer.from(payload.bytesBase64, 'base64'), payload.sheet === undefined ? {} : { sheet: payload.sheet });
@@ -267,6 +269,7 @@ export const handlers = {
       input.rows = workbook.sheets[0].rows;
     } else check(false, 'RECIPE_INPUT_MISMATCH', 'This recipe reads records from a connected system.');
     const outcome = runRegistered(selected.id, input, payload.reportTotals ? { reportTotals: reportTotals(payload.reportTotals) } : {});
+    if (ocrNotice) outcome.notices.push(ocrNotice);
     return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target, recipe: selected, road: 'file', requestedPeriod: null }));
   },
   async importCommit(ctx: Context, payload: Record<string, any>, host: ModuleHost) {

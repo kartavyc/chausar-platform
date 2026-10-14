@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { check, ChausarError } from '../contracts.ts';
-import { boundedHttp, type BoundedHttp, type HttpRequest, type HttpResponse } from '../connectors.ts';
+import type { BoundedHttp, HttpRequest, HttpResponse } from '../connectors.ts';
 
 /**
  * Shared read side for API adapters. An adapter is a description: allowlisted origin, the first
@@ -87,7 +87,7 @@ function authHeaders(scheme: AuthScheme, token: string, keyHeaders?: readonly [s
 export function payuSignedBody(body: string | undefined, token: string): string {
   check(typeof body === 'string' && body.length <= 4000, 'ADAPTER_INVALID', 'A signed PayU request is a form body.');
   const form = new URLSearchParams(body), [key, salt] = pair(token);
-  check(!form.has('key') && !form.has('hash') && /^[a-z_]{3,60}$/.test(form.get('command') ?? '') && (form.get('var1') ?? '').length > 0, 'ADAPTER_INVALID', 'A signed PayU request carries command and var1, never the key or hash.');
+  check(!form.has('key') && !form.has('hash') && /^[a-z_]{3,60}$/.test(form.get('command') ?? '') && /^[A-Za-z0-9_.:-]{1,100}$/.test(form.get('var1') ?? ''), 'ADAPTER_INVALID', 'A signed PayU request carries command and a plain var1, never the key or hash.');
   check(/^[A-Za-z0-9]{4,40}$/.test(key) && /^[A-Za-z0-9]{8,200}$/.test(salt), 'CREDENTIAL_REQUIRED', 'The PayU key or salt is not in the expected form.');
   const signed = new URLSearchParams({ key, command: form.get('command')!, var1: form.get('var1')! });
   for (const [name, value] of form) if (!['command', 'var1'].includes(name)) signed.set(name, value);
@@ -103,7 +103,7 @@ function adapterHeaders(headers: Record<string, string> = {}, reserved: readonly
 
 export async function runApiRead<C>(spec: ApiReadSpec<C>, input: { config: C; sourceId: string; period?: { from: string; to: string } | null; credentials?: ReadCredentials; http?: BoundedHttp; limits?: Partial<ReadLimits>; now?: () => number }): Promise<ApiReadResult> {
   const config = spec.validate(structuredClone(input.config));
-  const limits = { ...API_READ_LIMITS, ...input.limits }, now = input.now ?? Date.now, http = input.http ?? boundedHttp;
+  const limits = { ...API_READ_LIMITS, ...input.limits }, now = input.now ?? Date.now, http = input.http ?? readHttp;
   for (const [key, value] of Object.entries(limits)) check(Number.isSafeInteger(value) && value > 0 && value <= (API_READ_LIMITS as any)[key], 'READ_LIMIT_INVALID', 'Read limits stay within the engine budget.');
   const origins = spec.origins(config).map(origin => new URL(origin).origin);
   check(origins.length > 0 && origins.every(origin => origin.startsWith('https://') || /^http:\/\/(?:127\.0\.0\.1|\[::1\]):\d+$/.test(origin)), 'ENDPOINT_REFUSED', 'Reads use HTTPS, or a loopback port for a program on this computer.');
@@ -152,6 +152,28 @@ export async function runApiRead<C>(spec: ApiReadSpec<C>, input: { config: C; so
   if (declared?.rowCount != null) check(declared.rowCount === records.length, 'SOURCE_ROW_MISMATCH', 'The system declared a different number of records than it returned. The read is incomplete.');
   return { system: spec.system, operation: spec.operation, version: spec.version, records, pages, requests, bytes, complete: true, declared, startedAt: new Date(startedAt).toISOString(), finishedAt: new Date(now()).toISOString(), requestLog: log };
 }
+
+/**
+ * The live transport for reads: one bounded request, no redirects, streamed size limit, and the
+ * response headers adapters need (X-WP-Total, Retry-After, content-type), lower-cased and bounded.
+ */
+export const readHttp: BoundedHttp = async request => {
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), request.timeoutMs);
+  try {
+    const response = await fetch(request.url, { method: request.method, headers: request.headers, body: request.body, redirect: 'error', signal: controller.signal });
+    check(!response.redirected && response.url === request.url, 'HTTP_REDIRECT_REFUSED', 'Redirected responses are refused.');
+    const declared = response.headers.get('content-length');
+    check(!declared || (/^\d+$/.test(declared) && Number(declared) <= request.maxBytes), 'HTTP_BYTE_LIMIT', 'The response exceeds the byte limit.');
+    const chunks: Uint8Array[] = []; let size = 0; const reader = response.body?.getReader();
+    if (reader) {
+      try { for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.byteLength; check(size <= request.maxBytes, 'HTTP_BYTE_LIMIT', 'The response exceeds the byte limit.'); chunks.push(value); } }
+      catch (error) { await reader.cancel().catch(() => {}); throw error; }
+    }
+    const headers: Record<string, string> = {}; let count = 0;
+    response.headers.forEach((value, name) => { if (++count <= 100 && value.length <= 2000 && !/^set-cookie$/i.test(name)) headers[name.toLowerCase()] = value; });
+    return { status: response.status, url: response.url, body: Buffer.concat(chunks), headers };
+  } finally { clearTimeout(timer); }
+};
 
 /** Recorded-response transport for tests and Practice: answers by method and URL, never by network. */
 export function recordedHttp(responses: Record<string, { status?: number; body: string; headers?: Record<string, string> }>, calls: HttpRequest[] = []): BoundedHttp {
