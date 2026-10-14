@@ -40,8 +40,13 @@ export interface SchedulerHost { readonly awake: boolean; readonly windowOpen: b
 export interface EngineModule {
   readonly id: string;
   readonly methods: Readonly<Record<string, MethodSpec>>;
-  /** Remove module state derived from the named sources or records. Return the number removed. */
-  purge?(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; at: string }): number;
+  /**
+   * Remove module state derived from the named sources or records, and, when `cutoff` (epoch ms)
+   * is present, anything older than the workspace retention period. Return the number removed.
+   */
+  purge?(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; at: string; cutoff?: number }): number;
+  /** True for core jobs this module runs itself; the core job scheduler then leaves them alone. */
+  ownsJob?(job: { readonly id: string; readonly type?: string }): boolean;
   /**
    * Trusted host options built at engine start when the embedding host passed none for this
    * module (`EngineOptions.modules[id]`). Read only trusted inputs: the engine's directory, demo
