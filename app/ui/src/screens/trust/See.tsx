@@ -101,7 +101,7 @@ function SourceList({ p, list, allowed, reload }: { p: P; list: Source[]; allowe
       </ul>
       {!admin && <Note>{c.adminOnly}</Note>}
       <Outcome sent={sent} language={p.language} />
-      <Pending p={p} what={['send']} round={round} onConfirmed={reload} />
+      <Pending p={p} what={['policy']} round={round} onConfirmed={reload} />
     </>
   );
 }
@@ -114,7 +114,7 @@ function markText(m: Mark, kind: string, w: Readonly<Record<keyof typeof SEE.en,
 }
 
 /** Widening a marking waits for the second person as a change to `seats` (unmarking, or a seat seeing more). */
-const MARKING_CHANGES = ['seats'] as const;
+const MARKING_CHANGES = ['markings'] as const;
 
 function MarkingsBody({ p, m, reload }: { p: P; m: Markings; reload: () => void }) {
   const c = words(COMMON, p.language), w = words(SEE, p.language), k = words(KIND_WORDS, p.language), seatW = words(SEAT_WORDS, p.language);

@@ -756,7 +756,7 @@ describe('TR-02 See: adding a marking, and a widening that waits', () => {
   });
 
   test('a seat seeing more may wait for the second person, shown with the pending changes', async () => {
-    const change = { id: 'ch-see', what: 'seats', summary: 'Seat accountant: personal on', by: 'owner-1', at: AT, needs: 'cofounder' };
+    const change = { id: 'ch-see', what: 'markings', summary: 'Seat accountant: personal on', by: 'owner-1', at: AT, needs: 'cofounder' };
     let pending: unknown[] = [];
     const rpc = fakeRpc({
       'trustx.setSeatMarking': () => { pending = [change]; return { state: 'waiting-for-second', change }; },
@@ -953,7 +953,7 @@ describe('dual control: declining, withdrawing, cooling off and source access', 
   });
 
   test('removing the only cofounder: the owner confirming early reads the 72-hour sentence', async () => {
-    const remove = { id: 'ch-7', what: 'seats', summary: 'Remove Co from the cofounder seat. The cofounder has 72 hours to answer.', by: 'owner-1', at: AT, needs: 'cofounder' };
+    const remove = { id: 'ch-7', what: 'seats', summary: 'Remove Co from the cofounder seat. The cofounder has 72 hours to answer.', by: 'owner-1', at: AT, needs: 'cofounder', coolsOffAt: '2099-01-01T00:00:00.000Z' };
     const rpc = fakeRpc({ 'trustx.pendingChanges': { items: [remove] }, 'trustx.confirmChange': refusal('COOLING_OFF') });
     const { user } = draw(at('people'), { rpc });
     await user.click(await screen.findByRole('button', { name: COMMON.en.confirmOwn }));
@@ -962,7 +962,7 @@ describe('dual control: declining, withdrawing, cooling off and source access', 
   });
 
   test('turning a source back on may wait; a change from outside the app reads its sentence', async () => {
-    const change = { id: 'ch-8', what: 'send', summary: 'Change allow 2 named sources.', by: 'owner-1', at: AT, needs: 'cofounder' };
+    const change = { id: 'ch-8', what: 'policy', summary: 'Change allow 2 named sources.', by: 'owner-1', at: AT, needs: 'cofounder' };
     let pending: unknown[] = [];
     const rpc = fakeRpc({ 'trust.get': { allowedSources: ['sales'] }, 'trustx.setPolicy': () => { pending = [change]; return { state: 'waiting-for-second', change }; }, 'trustx.pendingChanges': () => ({ items: pending }) });
     const { user } = draw(at('rules', 'see'), { rpc });

@@ -125,7 +125,7 @@ export function Pending({ p, what, round, onConfirmed }: { p: P; what: readonly 
           const mine = x.by === p.member.id;
           const busy = sent.kind === 'sending';
           // Removing the only cofounder waits 72 hours for them; after that the owner who asked may confirm it alone.
-          const ownLate = mine && admin && p.member.role === 'owner' && x.what === 'seats' && x.needs === 'cofounder';
+          const ownLate = mine && admin && p.member.role === 'owner' && x.coolsOffAt !== null;
           return (
             <li key={x.id} className={s.item}>
               <span>{x.summary}</span>

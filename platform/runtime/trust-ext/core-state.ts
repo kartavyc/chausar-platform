@@ -13,7 +13,7 @@ export type Mark = { id: string; kind: MarkKind; target: MarkTarget; auto: boole
 export type KindRule = { kind: string; on: boolean; maxPerDay: number; maxAmountMinorPerDay: string | null };
 export type Caps = { remindersPerCustomerPerDay: number; remindersPerDay: number; activeJobs: number; monthlyAiCapMinor: string | null };
 export type Preset = 'ask-everything' | 'routine' | 'all-but-waits' | 'custom';
-export type ChangeWhat = 'send' | 'sharing' | 'seats';
+export type ChangeWhat = 'send' | 'sharing' | 'seats' | 'markings' | 'policy';
 export type PendingRecord = { id: string; what: ChangeWhat; summary: string; by: string; byRole: Member['role']; at: string; expiresAt: string;
   needs: 'owner' | 'cofounder'; op: { type: string } & Record<string, unknown> };
 export type SeatRecord = { inviteId: string; seat: Seat; name: string; endsOn: string | null; invitedBy: string; at: string };

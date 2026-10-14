@@ -18,7 +18,7 @@ const apply = (ctx: Context, host: ModuleHost, op: PendingRecord['op']) => apply
 /** Each part registers how its own change type is applied once both people agree. */
 export function onApplyChange(type: string, apply: Applier) { appliers.set(type, apply); }
 
-const publicChange = (p: PendingRecord) => ({ id: p.id, what: p.what, summary: p.summary, by: p.by, at: p.at, needs: p.needs });
+const publicChange = (p: PendingRecord) => ({ id: p.id, what: p.what, summary: p.summary, by: p.by, at: p.at, needs: p.needs, coolsOffAt: (p as { coolsOffAt?: string }).coolsOffAt ?? null });
 const live = (state: State, at = Date.now()) => peekCore(state).pending.filter(p => Date.parse(p.expiresAt) > at);
 export function pendingView(state: State) { return { items: live(state).map(publicChange).sort((a, b) => b.at.localeCompare(a.at)) }; }
 

@@ -58,7 +58,7 @@ export async function setMarking(ctx: Context, payload: Record<string, any>, hos
   const op = { type: 'marking', kind, target, on: payload.on };
   if (payload.on || !allMarks(state).some(m => m.kind === kind && sameTarget(m.target, target))) return applyMarking(ctx, host, op);
   const where = target.type === 'source' ? `source ${target.sourceId}` : `a ${target.type} in source ${target.sourceId}`;
-  const result = await requestChange(ctx, host, 'seats', `Turn off the ${kind} marking on ${where}.`, op);
+  const result = await requestChange(ctx, host, 'markings', `Turn off the ${kind} marking on ${where}.`, op);
   return result.state === 'applied' ? markingsView(host.store.read()) : result;
 }
 
@@ -82,7 +82,7 @@ export async function setSeatMarking(ctx: Context, payload: Record<string, any>,
   check(markKinds.includes(payload.kind) && typeof payload.sees === 'boolean', 'INVALID_MARKING', 'Choose a marking and whether the seat sees it.');
   const op = { type: 'seat-sees', seat: payload.seat, kind: payload.kind, sees: payload.sees };
   if (!payload.sees || seatSees(host.store.read(), payload.seat)[payload.kind as MarkKind]) return applySeatMarking(ctx, host, op);
-  const result = await requestChange(ctx, host, 'seats', `Let the ${payload.seat} seat see data marked ${payload.kind}.`, op);
+  const result = await requestChange(ctx, host, 'markings', `Let the ${payload.seat} seat see data marked ${payload.kind}.`, op);
   return result.state === 'applied' ? markingsView(host.store.read()) : result;
 }
 

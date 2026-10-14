@@ -51,7 +51,7 @@ export async function setPolicy(ctx: Context, payload: Record<string, any>, host
   }
   if (autonomy !== undefined) { check(typeof autonomy === 'boolean', 'INVALID_POLICY', 'Privacy switches must be boolean.'); patch.autonomy = autonomy; parts.push(`autonomy ${autonomy ? 'on' : 'off'}`); }
   check(parts.length > 0, 'INVALID_POLICY', 'Say what to change.');
-  return requestChange(ctx, host, 'send', `Change ${parts.join(', ')}.`, { type: 'policy', patch });
+  return requestChange(ctx, host, 'policy', `Change ${parts.join(', ')}.`, { type: 'policy', patch });
 }
 onApplyChange('policy', async (ctx, host, op) => ({ policy: await host.services.trust.updatePolicy(ctx, op.patch as Partial<TrustPolicy>) }));
 

@@ -52,7 +52,7 @@ export const SEATS = ['owner', 'cofounder', 'accountant', 'ca', 'staff', 'viewer
 export type Seat = (typeof SEATS)[number];
 export const NET_KINDS = ['model', 'connector', 'action', 'sharing', 'phone', 'sync', 'plugin'] as const;
 export type NetKind = (typeof NET_KINDS)[number];
-const CHANGE_WHAT = ['send', 'sharing', 'seats'] as const;
+const CHANGE_WHAT = ['send', 'sharing', 'seats', 'markings', 'policy'] as const;
 export type ChangeWhat = (typeof CHANGE_WHAT)[number];
 
 // ---------- Rules (TR-01) ----------
@@ -126,11 +126,13 @@ export function validateMarkings(reply: unknown): Markings {
 
 // ---------- Send (TR-03) and dual control ----------
 /** `what` names the rule the change is to: send, sharing or seats today; a newer engine may add others (such as see), which a screen that does not list them leaves out. */
-export interface PendingChange { id: string; what: string; summary: string; by: string; at: string; needs: 'owner' | 'cofounder' }
+/** `coolsOffAt`: a removal of the only cofounder that its author may confirm alone after this time, else null. */
+export interface PendingChange { id: string; what: string; summary: string; by: string; at: string; needs: 'owner' | 'cofounder'; coolsOffAt: string | null }
 function pending(value: unknown, path: string): PendingChange {
   const c = rec(value, path);
   return { id: id(c['id'], `${path}.id`), what: id(c['what'], `${path}.what`), summary: str(c['summary'], `${path}.summary`, 500),
-    by: str(c['by'], `${path}.by`, ID), at: instant(c['at'], `${path}.at`), needs: oneOf(c['needs'], `${path}.needs`, ['owner', 'cofounder'] as const) };
+    by: str(c['by'], `${path}.by`, ID), at: instant(c['at'], `${path}.at`), needs: oneOf(c['needs'], `${path}.needs`, ['owner', 'cofounder'] as const),
+    coolsOffAt: c['coolsOffAt'] === null || c['coolsOffAt'] === undefined ? null : instant(c['coolsOffAt'], `${path}.coolsOffAt`) };
 }
 /** `declined` answers `trustx.confirmChange { id, decline: true }`: the needed person declined, or the author withdrew it. */
 export interface ChangeResult { state: 'applied' | 'waiting-for-second' | 'declined'; change: PendingChange | null }
