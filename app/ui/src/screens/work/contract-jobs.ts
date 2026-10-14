@@ -5,7 +5,7 @@
  * field here is optional on the job sheet, so an older engine still draws.
  */
 import { InvalidReply, amount, bool, count, either, id, instant, list, literal, nullable, object, oneOf, text, type Check } from './kit/validate.ts';
-import { job, jobStep, jobTemplate, jobTemplates } from './contract.ts';
+import { job, jobs, jobStep, jobTemplate, jobTemplates } from './contract.ts';
 
 const short = text(400);
 const long = text(4000);
@@ -36,7 +36,21 @@ const way = oneOf(['jobsx', 'core', 'not-built'] as const);
 export const manage = object({ edit: way, delete: oneOf(['jobsx', 'cancel'] as const), missedRule: way, personStep: oneOf(['jobsx', 'not-built'] as const) });
 export type Manage = ReturnType<typeof manage>;
 
-const sheetExtra = object({ timeline: list(timelineRow) }, { measure: nullable(measure), schedule, manage });
+/** WK-11: the missed-run rule with its choices; "run every missed one" exists only in job extensions. */
+export const MISSED_RUNS = ['run-once-on-wake', 'skip', 'run-all'] as const;
+export type MissedRun = typeof MISSED_RUNS[number];
+export const missedRule = object({ rule: oneOf(MISSED_RUNS), choices: list(oneOf(MISSED_RUNS), 3), runAll: oneOf(['offered', 'unsuitable', 'not-built'] as const) });
+export type MissedRuleInfo = ReturnType<typeof missedRule>;
+/** What job extensions adds for a job it runs (`jobsx.get`): its title and state, its ready-made steps, open questions, a missed-run note. */
+export const laneJob = object({
+  title: nullable(short), state: nullable(short), reason: nullable(short),
+  steps: list(object({ kind: short, title: long, needsModel: bool }), 50),
+  questions: list(object({ id, prompt: long, options: list(short, 20), askedAt: nullable(instant) }), 200),
+  missed: nullable(object({ text: long, at: instant })), leftUndone: list(long, 200),
+});
+export type LaneJob = ReturnType<typeof laneJob>;
+
+const sheetExtra = object({ timeline: list(timelineRow) }, { measure: nullable(measure), schedule, manage, missedRule, jobsx: nullable(laneJob) });
 /** The job sheet: the round-1 job, with the round-2 fields when the engine sends them. */
 export const jobSheet = (value: unknown, path: string) => Object.freeze({ ...job(value, path), ...sheetExtra(value, path) });
 export type JobSheet = ReturnType<typeof jobSheet>;
@@ -54,10 +68,21 @@ export const templatesWithSchedule = (value: unknown, path: string) => {
 };
 export type TemplateWithSchedule = ReturnType<typeof jobTemplate> & { readonly schedule?: 'interval' | 'month-end' };
 
-export const edited = object({ id, via: oneOf(['jobsx', 'core'] as const) });
+/** Edit: through job extensions it is a proposed card waiting for approval; through the core a new revision waiting for approval. */
+export const edited = object({ id, via: oneOf(['jobsx', 'core'] as const) }, { waitsFor: oneOf(['proposal', 'approval'] as const), proposal: nullable(object({ id, digest: id })) });
 export const deleted = object({ id, state: oneOf(['deleted', 'cancelled'] as const), note: nullable(literal('cancel-keeps-record')) });
-export const missedSet = object({ id, missedRun: oneOf(['skip', 'run-once-on-wake'] as const), via: oneOf(['jobsx', 'core'] as const) });
-export const stepDone = object({ jobId: id, stepId: id, done: bool });
+export const missedSet = object({ id, missedRun: oneOf(MISSED_RUNS), via: oneOf(['jobsx', 'core'] as const) }, { waitsForApproval: bool });
+export const stepDone = object({ jobId: id, stepId: id, done: bool }, { doneAt: nullable(instant), doneBy: nullable(short) });
+
+/** Proposed jobs from job extensions (`jobsx.list`), an edit of a job among them, waiting for a yes. */
+export const laneProposal = object({ id, title: short, origin: short, replacesJobId: nullable(id), evidence: list(long, 10), digest: id });
+export type LaneProposal = ReturnType<typeof laneProposal>;
+/** `approvals.jobs`, with the proposal list when job extensions sends one. */
+export const jobsWithProposals = (value: unknown, path: string) => {
+  const base = jobs(value, path);
+  const extra = object({ proposals: object({}, { items: list(laneProposal, 500) }) })(value, path);
+  return Object.freeze({ ...base, proposalItems: extra.proposals.items ?? [] });
+};
 
 /** WK-14. Nothing is drawn as driving unless the session lane says so. */
 export const DRIVING_STATES = ['idle', 'driving', 'sign-in', 'paused-by-you', 'stopped-by-key', 'stopped', 'step-failed', 'done'] as const;

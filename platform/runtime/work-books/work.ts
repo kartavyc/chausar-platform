@@ -11,7 +11,7 @@ import type { Job } from '../jobs.ts';
 import type { MethodSpec, EngineModule, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
 import { workJobMethods, jobMeters } from './work-jobs.ts';
-import { jobSheetExtras } from './work-jobs-sheet.ts';
+import { jobSheetExtras, jobsxList, laneRow } from './work-jobs-sheet.ts';
 import { section, peekSection } from './state.ts';
 import {
   initWork, normalizeWork, env, queue, order, rowOf, snoozed, expired, detail, drafts, lessons, visibleActions, visibleJobs, jobNeedsApproval, jobCard,
@@ -275,9 +275,11 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
   } },
   'approvals.jobs': { permission: 'read', async handler(ctx, payload, host) {
     exact(payload, []); const e = await env(ctx, host);
-    const rows = visibleJobs(e).map(job => jobRow(e, job)).sort((a, b) => Number(b.state === 'proposed') - Number(a.state === 'proposed') || Date.parse(b.createdAt) - Date.parse(a.createdAt));
-    const proposals = await optionalCall(host, 'jobsx.proposals', {});
-    return { items: rows.map(({ createdAt, ...row }) => row), active: rows.filter(r => !['cancelled', 'stopped', 'accepted', 'stopped-by-rule'].includes(r.state)).length, limit: 10 as const, proposals: { available: proposals.available } };
+    // jobs-ext (when installed) labels its own lane jobs and lists proposals, edits among them.
+    const lane = await jobsxList(host);
+    const rows = visibleJobs(e).map(job => laneRow(jobRow(e, job), lane.labels.get(job.id))).sort((a, b) => Number(b.state === 'proposed') - Number(a.state === 'proposed') || Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    return { items: rows.map(({ createdAt, ...row }) => row), active: rows.filter(r => !['cancelled', 'stopped', 'accepted', 'stopped-by-rule'].includes(r.state)).length, limit: 10 as const,
+      proposals: lane.available ? { available: true, items: lane.proposals } : { available: false } };
   } },
   'approvals.job': { permission: 'read', async handler(ctx, payload, host) {
     exact(payload, ['id']); check(typeof payload.id === 'string', 'INVALID_APPROVAL', 'Use a job id.');
@@ -285,12 +287,13 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     const e = await env(ctx, host); const job = visibleJobs(e).find(j => j.id === raw); check(job, 'NOT_FOUND', 'Job not found.');
     const strings = (v: unknown) => Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string') : [];
     const d = job.deliverable as Record<string, unknown> | undefined;
-    const timeline = job.ledger.map(l => ({ at: l.at, event: l.event, amount: l.amountMinor ? { minor: l.amountMinor } : null, needsModel: null, reason: l.reason ?? null }));
+    const timeline = job.ledger.map(l => ({ at: l.at, event: l.event, amount: l.amountMinor ? { minor: l.amountMinor } as Amount : null, needsModel: null, reason: l.reason ?? null }));
     return {
       ...jobCard(e.state, job),
       result: record(d) ? { done: strings(d.done), open: strings(d.open), receiptIds: strings(d.receiptIds) } : null,
       meters: jobMeters(e, job),
-      ...(await jobSheetExtras(e, job, timeline, ctx.role !== 'viewer')), // WK-08 measure, WK-11 schedule, WK-16 person steps (work-jobs-sheet.ts)
+      // WK-08 measure, WK-11 schedule, WK-16 person steps; for a lane job, jobs-ext's time line, measured meters and result (work-jobs-sheet.ts)
+      ...(await jobSheetExtras(e, job, timeline, ctx.role !== 'viewer')),
     };
   } },
   ...workJobMethods,
