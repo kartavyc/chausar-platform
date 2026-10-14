@@ -1019,5 +1019,6 @@
   "FRSTEP.blocked.not-built": "What is blocked cannot be read right now.",
   "FRSTEP.left.nothing": "Nothing has left this computer.",
   "FRSTEP.left.something": "Something has left this computer today. Trust shows what and where.",
-  "FRSTEP.left.unknown": "It is not known whether anything has left this computer."
+  "FRSTEP.left.unknown": "It is not known whether anything has left this computer.",
+  "SH-02.recovery.btn": "Use your recovery kit"
 }

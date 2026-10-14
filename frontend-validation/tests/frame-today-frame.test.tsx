@@ -132,7 +132,7 @@ test('the unlock control clears the field at once and calls unlock once per pres
   await act(async () => { release(); });
   /* No Windows Hello link when the computer does not support it; the recovery link is there. */
   expect(screen.queryByRole('button', { name: /Windows Hello/ })).toBeNull();
-  expect(screen.getByRole('button', { name: 'Forgot it? Use your recovery kit.' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Use your recovery kit' })).toBeTruthy();
 
   view.rerender(<TextProvider language="en"><UnlockControl unlock={unlock} result={{ kind: 'wrong' }} device={{ name: 'Windows Hello', supported: true, onUnlock: vi.fn() }} /></TextProvider>);
   const wrong = screen.getByRole('alert').textContent ?? '';

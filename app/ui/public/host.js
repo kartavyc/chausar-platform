@@ -13060,7 +13060,8 @@ var kn = {
 	"FRSTEP.blocked.not-built": "What is blocked cannot be read right now.",
 	"FRSTEP.left.nothing": "Nothing has left this computer.",
 	"FRSTEP.left.something": "Something has left this computer today. Trust shows what and where.",
-	"FRSTEP.left.unknown": "It is not known whether anything has left this computer."
+	"FRSTEP.left.unknown": "It is not known whether anything has left this computer.",
+	"SH-02.recovery.btn": "Use your recovery kit"
 }, An = {
 	"SH-01.wordmark": "chausar",
 	"SH-01.rail.label": "जगहें",
@@ -14082,7 +14083,8 @@ var kn = {
 	"FRSTEP.blocked.not-built": "क्या रुका है, यह अभी पढ़ा नहीं जा सकता।",
 	"FRSTEP.left.nothing": "इस कंप्यूटर से कुछ भी बाहर नहीं गया है।",
 	"FRSTEP.left.something": "आज इस कंप्यूटर से कुछ बाहर गया है। भरोसा में दिखता है कि क्या और कहाँ।",
-	"FRSTEP.left.unknown": "पता नहीं कि इस कंप्यूटर से कुछ बाहर गया है या नहीं।"
+	"FRSTEP.left.unknown": "पता नहीं कि इस कंप्यूटर से कुछ बाहर गया है या नहीं।",
+	"SH-02.recovery.btn": "रिकवरी किट से खोलें"
 }, jn = {
 	en: kn,
 	hi: An
@@ -14883,9 +14885,9 @@ function Dr() {
 	});
 }
 var Or = {
-	line: "_line_1fry5_1",
-	fact: "_fact_1fry5_12",
-	simple: "_simple_1fry5_22"
+	line: "_line_1bei5_1",
+	fact: "_fact_1bei5_12",
+	simple: "_simple_1bei5_28"
 };
 //#endregion
 //#region app/ui/src/app/StatusLine.tsx
@@ -23384,7 +23386,8 @@ function Mg({ chart: e, onReceipt: t, width: n = 200, height: r = 48, className:
 				m !== null && /* @__PURE__ */ (0, M.jsxs)(M.Fragment, { children: [/* @__PURE__ */ (0, M.jsx)("circle", {
 					className: L.ring,
 					cx: m.x,
-					cy: m.y
+					cy: m.y,
+					"data-halo": ""
 				}), /* @__PURE__ */ (0, M.jsx)("circle", {
 					className: L.dot,
 					cx: m.x,
@@ -37867,13 +37870,17 @@ function tA({ unlock: e, result: t = null, device: n, onRecoveryKit: r, pausedLi
 					children: a("SH-02.device", { device: n.name })
 				})
 			}),
-			r && /* @__PURE__ */ (0, M.jsx)("p", {
+			r && /* @__PURE__ */ (0, M.jsxs)("p", {
 				className: eA.links,
-				children: /* @__PURE__ */ (0, M.jsx)(F, {
-					variant: "link",
-					onClick: r,
-					children: a("SH-02.recovery")
-				})
+				children: [
+					a("SH-02.forgot"),
+					" ",
+					/* @__PURE__ */ (0, M.jsx)(F, {
+						variant: "link",
+						onClick: r,
+						children: a("SH-02.recovery.btn")
+					})
+				]
 			}),
 			i && /* @__PURE__ */ (0, M.jsx)("p", {
 				className: eA.note,

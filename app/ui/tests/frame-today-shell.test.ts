@@ -146,7 +146,7 @@ test('every new shell text key exists in both catalogues, with no em dash or exc
   const hi = JSON.parse(readFileSync(new URL('../src/text/hi.json', import.meta.url), 'utf8')) as Record<string, string>;
   const keys = [
     ...KEY_MAP.map((k) => k.textKey),
-    'SH-02.recovery', 'SH-03.more', 'SH-03.fewer', 'SH-03.label', 'SH-03.jobs-paused.action', 'SH-03.demo-clock.action',
+    'SH-02.recovery', 'SH-02.recovery.btn', 'SH-03.more', 'SH-03.fewer', 'SH-03.label', 'SH-03.jobs-paused.action', 'SH-03.demo-clock.action',
     'SH-03.update-needed.undated', 'SH-03.update-needed.withdrawn', 'SH-03.clock.real', 'SH-03.clock.day', 'SH-03.clock.week',
     'SH-10.title', 'SH-10.open', 'SH-10.cancel', 'SH-11.header', 'SH-11.send', 'SH-11.dontSend', 'SH-11.save', 'SH-12.title', 'SH-13.part',
   ];

@@ -109,8 +109,9 @@ export function UnlockControl({ unlock, result = null, device, onRecoveryKit, pa
       )}
       {onRecoveryKit && (
         <p className={s.links}>
+          {t('SH-02.forgot')}{' '}
           <Button variant="link" onClick={onRecoveryKit}>
-            {t('SH-02.recovery')}
+            {t('SH-02.recovery.btn')}
           </Button>
         </p>
       )}

@@ -67,7 +67,7 @@ export function Line({ chart, onReceipt, width = 200, height = 48, className }: 
         })}
         {last !== null && (
           <>
-            <circle className={s.ring} cx={last.x} cy={last.y} />
+            <circle className={s.ring} cx={last.x} cy={last.y} data-halo="" />
             <circle className={s.dot} cx={last.x} cy={last.y} />
           </>
         )}

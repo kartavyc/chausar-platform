@@ -142,6 +142,8 @@ export function auditInPage(input) {
   const markMinimum = contrast.nonTextMinimum;
   // Hairlines (line, line2) are decoration in charts; a mark a person must see (a square, a step dot) gets no such exemption.
   const checkMark = (el, colour, behind, what, hairlineExempt = true) => {
+    // The ring around a line's last point is drawn in the background colour on purpose (data-halo).
+    if (el.closest?.('[data-halo]')) return;
     if (!colour || colour[3] === 0 || (hairlineExempt && hairlines.some(token => sameColour(colour, token)))) return;
     const shown = colour[3] < 1 ? over(colour, behind) : colour;
     const value = ratio(shown, behind);
@@ -216,6 +218,8 @@ export function auditInPage(input) {
     }
     for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
       const as = style(a);
+      // A figure scrolled out of view inside its own scrolling box is not cut: the box scrolls to it.
+      if (['auto', 'scroll'].includes(as.overflowY) || ['auto', 'scroll'].includes(as.overflowX)) break;
       if (!['hidden', 'clip'].includes(as.overflowX) && !['hidden', 'clip'].includes(as.overflowY)) continue;
       const ar = a.getBoundingClientRect();
       if (rect.right > ar.right + tolerance || rect.left < ar.left - tolerance || rect.bottom > ar.bottom + tolerance || rect.top < ar.top - tolerance) { add('figure-clipped', el, `A clipping box cuts the figure (${describe(a)}).`); break; }
