@@ -82,7 +82,7 @@ The place module is `app/ui/src/places/lane-ask.tsx` → `app/ui/src/screens/ask
 ## Still missing
 
 - Ask a person (AS-08, day 10) and `trust.explain` (AS-09) belong to other lanes.
-- "Recorded later" and "cancelled" decisions: the journal has no decided-on date or cancel state, so those labels are never set.
+- "Recorded later" comes from an optional decided-on date kept by the lane; "cancelled" is a decision whose last review was rejected. The journal itself has neither.
 - The inbox's "questions Chausar is waiting on" list is empty: pending conversation clarifications are not read here.
 - Checks rerun on their own only for owners and cofounders (the scheduler runs as them); other seats run theirs with Run all.
 - The number guard is strict: a model sentence naming a month as words with a year ("September 2026") is replaced by the template.

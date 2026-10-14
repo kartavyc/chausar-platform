@@ -308,6 +308,14 @@ test('decisions: one sentence becomes a draft, then a journal entry with what wa
   assert.deepEqual(inbox.drafts.map((d: any) => [d.id, d.origin]), [[forwarded.id, 'forwarded']], 'Forwarded text is only ever a draft.');
   assert.equal((await ask(engine, 'askx.decisions.list')).items.length, 1);
   assert.deepEqual(await ask(engine, 'askx.decisions.discard', { draftId: forwarded.id }), { removed: true });
+  const late = await ask(engine, 'askx.decisions.draft', { sentence: 'Stopped credit to customer B last week.', reviewDate: '2099-02-28', decidedOn: '2026-01-05' });
+  const recorded = await ask(engine, 'askx.decisions.confirm', { draftId: late.id });
+  const rejected = await ask(engine, 'askx.decisions.review', { decisionId: recorded.decisionId, outcome: 'rejected' });
+  assert.equal(rejected.recordedLater, true);
+  const shown = (await ask(engine, 'askx.decisions.list')).items.find((i: any) => i.id === recorded.decisionId);
+  assert.deepEqual([shown.recordedLater, shown.cancelled], [true, true]);
+  assert.equal((await ask(engine, 'askx.decisions.list')).items.find((i: any) => i.id === decisionId).recordedLater, false);
+  await assert.rejects(ask(engine, 'askx.decisions.draft', { sentence: 'Future', reviewDate: '2099-01-01', decidedOn: '2099-01-01' }), code('ASK_INVALID'));
   assert.equal((await ask(engine, 'askx.search', { query: 'customer credit' })).groups[0].kind, 'decision');
 });
 

@@ -18,17 +18,19 @@ function receiptIds(value: unknown): string[] {
 }
 
 export async function draft(ctx: Context, payload: unknown, host: ModuleHost, origin: 'typed' | 'forwarded' = 'typed') {
-  const request = input(payload, origin === 'typed' ? ['sentence', 'reviewDate', 'receiptIds'] : ['text', 'reviewDate'], origin === 'typed' ? ['sentence', 'reviewDate'] : ['text']);
+  const request = input(payload, origin === 'typed' ? ['sentence', 'reviewDate', 'receiptIds', 'decidedOn'] : ['text', 'reviewDate'], origin === 'typed' ? ['sentence', 'reviewDate'] : ['text']);
   const sentence = text(origin === 'typed' ? request.sentence : request.text, 1000).trim();
   const today = businessToday(host);
   const reviewDate = request.reviewDate ?? defaultReview(today);
   check(validDate(reviewDate) && reviewDate >= today, 'ASK_INVALID', 'Choose a review date from today on.');
   const cited = origin === 'typed' ? receiptIds(request.receiptIds) : [];
+  // A decision made earlier and written down now is labelled "recorded later".
+  if (request.decidedOn !== undefined) check(validDate(request.decidedOn) && request.decidedOn <= today, 'ASK_INVALID', 'The day it was decided cannot be after today.');
   for (const id of cited) await core(host, 'receipts.get', { id });
   return host.store.update(state => {
     const own = askState(state);
     check(own.drafts.filter(d => d.memberId === ctx.memberId).length < 100, 'ASK_INVALID', 'Confirm or drop some drafts first.');
-    const item = { id: newId('draft'), memberId: ctx.memberId, sentence, reviewDate, receiptIds: cited, createdAt: now(), origin };
+    const item = { id: newId('draft'), memberId: ctx.memberId, sentence, reviewDate, receiptIds: cited, createdAt: now(), origin, ...(request.decidedOn === undefined ? {} : { decidedOn: request.decidedOn as string }) };
     own.drafts.push(item); return { id: item.id };
   });
 }
@@ -49,7 +51,10 @@ export async function confirm(ctx: Context, payload: unknown, host: ModuleHost) 
   check(item, 'ASK_NOT_FOUND', 'This draft is no longer in the inbox.');
   const prepared = await core<{ digest: string }>(host, 'decisions.journal.draft', { content: content(ctx, item) });
   const decision = await core<JournalDecision>(host, 'decisions.journal.confirm', { draft: prepared, reviewedDigest: prepared.digest });
-  await host.store.update(state => { const own = askState(state); own.drafts = own.drafts.filter(d => d.id !== id); });
+  await host.store.update(state => {
+    const own = askState(state); own.drafts = own.drafts.filter(d => d.id !== id);
+    if (item.decidedOn && item.decidedOn < item.createdAt.slice(0, 10)) (own.decided ??= []).push({ decisionId: decision.id, decidedOn: item.decidedOn });
+  });
   return { decisionId: decision.id };
 }
 
@@ -64,6 +69,8 @@ export async function discard(ctx: Context, payload: unknown, host: ModuleHost) 
 }
 
 async function decisions(host: ModuleHost): Promise<any[]> { return core<any[]>(host, 'decisions.list', {}); }
+const later = (host: ModuleHost, id: string) => (peekAsk(host.store.read()).decided ?? []).some(d => d.decisionId === id);
+const cancelled = (d: any) => d.status === 'closed' && Array.isArray(d.reviews) && d.reviews.at(-1)?.outcome === 'rejected';
 const journal = (d: any) => Array.isArray(d.options) && typeof d.revision === 'number';
 
 export async function inbox(ctx: Context, payload: unknown, host: ModuleHost): Promise<InboxReply> {
@@ -80,7 +87,7 @@ export async function listDecisions(_ctx: Context, payload: unknown, host: Modul
   input(payload, []);
   const all = await decisions(host);
   return { items: all.map(d => ({ id: d.id, text: String(d.text), createdAt: d.createdAt, reviewDate: d.reviewDate, status: d.status === 'closed' ? 'closed' as const : 'open' as const,
-    recordedLater: false, replaced: journal(d) && d.revisions.length > 0, reviews: Array.isArray(d.reviews) ? d.reviews.length : 0,
+    recordedLater: later(host, d.id), replaced: journal(d) && d.revisions.length > 0, cancelled: cancelled(d), reviews: Array.isArray(d.reviews) ? d.reviews.length : 0,
     receiptIds: Array.isArray(d.receiptIds) ? d.receiptIds : [] })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)) };
 }
 
@@ -97,7 +104,7 @@ export async function getDecision(_ctx: Context, payload: unknown, host: ModuleH
     known.push({ receiptId, label: receipt.operation, minor: figure?.minor ?? null, asOf: receipt.asOf });
   }
   return { id: found.id, text: String(found.text), createdAt: found.createdAt, reviewDate: found.reviewDate, status: found.status === 'closed' ? 'closed' : 'open',
-    recordedLater: false, revision: journal(found) ? found.revision : null, known, journal: journal(found),
+    recordedLater: later(host, found.id), revision: journal(found) ? found.revision : null, known, journal: journal(found),
     reviews: (found.reviews ?? []).map((r: any) => ({ at: r.at, outcome: r.outcome, notes: typeof r.notes === 'string' ? r.notes : null, nextReviewDate: typeof r.nextReviewDate === 'string' ? r.nextReviewDate : null })) };
 }
 

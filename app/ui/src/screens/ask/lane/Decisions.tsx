@@ -30,12 +30,12 @@ export function inboxReply(value: unknown): Inbox {
     waiting: list(v.waiting, d => { const x = obj(d); return { id: id(x.id), text: str(x.text, 2000), at: date(x.at) }; }, 500),
   };
 }
-export interface Journal { readonly items: readonly { id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; replaced: boolean; reviews: number; receiptIds: readonly string[] }[] }
+export interface Journal { readonly items: readonly { id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; replaced: boolean; cancelled: boolean; reviews: number; receiptIds: readonly string[] }[] }
 export function journalReply(value: unknown): Journal {
   return {
     items: list(obj(value).items, d => {
       const x = obj(d);
-      return { id: id(x.id), text: str(x.text, 2000), createdAt: date(x.createdAt), reviewDate: date(x.reviewDate), status: oneOf(x.status, ['open', 'closed'] as const), recordedLater: bool(x.recordedLater), replaced: bool(x.replaced), reviews: int(x.reviews), receiptIds: list(x.receiptIds, id, 50) };
+      return { id: id(x.id), text: str(x.text, 2000), createdAt: date(x.createdAt), reviewDate: date(x.reviewDate), status: oneOf(x.status, ['open', 'closed'] as const), recordedLater: bool(x.recordedLater), replaced: bool(x.replaced), cancelled: x.cancelled === undefined ? false : bool(x.cancelled), reviews: int(x.reviews), receiptIds: list(x.receiptIds, id, 50) };
     }, 5000),
   };
 }
@@ -46,7 +46,7 @@ const WORDS = catalogue({
     reviewOn: 'Review on {date}', dueOn: 'Review was due on {date}', askedOn: 'Asked on {date}', forwarded: 'Forwarded from the phone.',
     confirm: 'Confirm', discard: 'Discard', write: 'Write a decision', sentence: 'The decision, in one sentence', reviewDate: 'Review date',
     attached: '{count} receipts are attached, as known today.', draft: 'Make the draft', needBoth: 'Write the sentence and pick a review date.',
-    journal: 'Journal', journalEmpty: 'No decisions recorded yet.', open: 'review on {date}', closed: 'closed', replaced: 'replaced',
+    journal: 'Journal', journalEmpty: 'No decisions recorded yet.', open: 'review on {date}', closed: 'closed', replaced: 'replaced', cancelled: 'cancelled', decidedOn: 'Decided on (if earlier)',
     line: '{text} — {status}', lineLater: '{text} — {status}, recorded later', reviews: '{count} reviews',
   },
   hi: {
@@ -54,7 +54,7 @@ const WORDS = catalogue({
     reviewOn: '{date} को समीक्षा', dueOn: 'समीक्षा {date} को होनी थी', askedOn: '{date} को पूछा', forwarded: 'फ़ोन से भेजा गया।',
     confirm: 'पुष्टि करें', discard: 'हटाएँ', write: 'निर्णय लिखें', sentence: 'निर्णय, एक वाक्य में', reviewDate: 'समीक्षा की तारीख़',
     attached: '{count} रसीदें जुड़ी हैं, जैसी आज हैं।', draft: 'मसौदा बनाएँ', needBoth: 'वाक्य लिखें और समीक्षा की तारीख़ चुनें।',
-    journal: 'रोज़नामचा', journalEmpty: 'अभी कोई निर्णय दर्ज नहीं है।', open: '{date} को समीक्षा', closed: 'बंद', replaced: 'बदल दिया गया',
+    journal: 'रोज़नामचा', journalEmpty: 'अभी कोई निर्णय दर्ज नहीं है।', open: '{date} को समीक्षा', closed: 'बंद', replaced: 'बदल दिया गया', cancelled: 'रद्द', decidedOn: 'निर्णय की तारीख़ (यदि पहले)',
     line: '{text} — {status}', lineLater: '{text} — {status}, बाद में दर्ज', reviews: '{count} समीक्षाएँ',
   },
 });
@@ -81,13 +81,14 @@ function Body({ both, receiptIds, reload }: { both: Both; receiptIds: readonly s
   const act = useSend(), draft = useSend();
   const [sentence, setSentence] = useState('');
   const [review, setReview] = useState('');
+  const [decided, setDecided] = useState('');
   const { drafts, due, waiting } = both.inbox;
   const open = (decisionId: string) => ask.go({ kind: 'decision', decisionId });
   const empty = drafts.length === 0 && due.length === 0 && waiting.length === 0;
   const dueRows: RowItem[] = due.map(d => ({ id: d.id, mark: 'wait', what: d.text, note: fill(w.dueOn, { date: dayText(d.reviewDate, lang) }) }));
   const waitRows: RowItem[] = waiting.map(d => ({ id: d.id, mark: 'busy', what: d.text, note: fill(w.askedOn, { date: dayText(d.at, lang) }) }));
   const events: TimeEvent[] = both.journal.items.map(d => {
-    const status = d.replaced ? w.replaced : d.status === 'closed' ? w.closed : fill(w.open, { date: dayText(d.reviewDate, lang) });
+    const status = d.replaced ? w.replaced : d.cancelled ? w.cancelled : d.status === 'closed' ? w.closed : fill(w.open, { date: dayText(d.reviewDate, lang) });
     return { id: d.id, mark: d.status === 'open' && !d.replaced ? 'you' : 'off', date: dayText(d.createdAt, lang), sentence: fill(d.recordedLater ? w.lineLater : w.line, { text: d.text, status }) };
   });
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(review);
@@ -126,10 +127,11 @@ function Body({ both, receiptIds, reload }: { both: Both; receiptIds: readonly s
           <form className={s.form} onSubmit={e => {
             e.preventDefault();
             if (sentence.trim() === '' || !validDate) return;
-            void draft.send('askx.decisions.draft', { sentence: sentence.trim(), reviewDate: review, receiptIds: [...receiptIds] }, v => id(obj(v).id), () => { setSentence(''); setReview(''); reload(); });
+            void draft.send('askx.decisions.draft', { sentence: sentence.trim(), reviewDate: review, receiptIds: [...receiptIds], ...(decided === '' ? {} : { decidedOn: decided }) }, v => id(obj(v).id), () => { setSentence(''); setReview(''); setDecided(''); reload(); });
           }}>
             <Field label={w.sentence} value={sentence} maxLength={500} onChange={e => setSentence(e.target.value)} />
             <Field label={w.reviewDate} type="date" value={review} onChange={e => setReview(e.target.value)} />
+            <Field label={w.decidedOn} type="date" value={decided} onChange={e => setDecided(e.target.value)} />
             {receiptIds.length > 0 && <p className={s.note}>{fill(w.attached, { count: countWords(String(receiptIds.length)) })}</p>}
             <div><Button variant="filled" submit disabled={draft.busy || sentence.trim() === '' || !validDate}>{w.draft}</Button></div>
             <Problem code={draft.problem} />

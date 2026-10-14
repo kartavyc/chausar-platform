@@ -165,13 +165,13 @@ export type ForecastReply =
     evaluationId: string; label2: 'projection';
   };
 
-export type DecisionDraft = { id: string; memberId: string; sentence: string; reviewDate: string; receiptIds: string[]; createdAt: string; origin: 'typed' | 'forwarded' };
+export type DecisionDraft = { id: string; memberId: string; sentence: string; reviewDate: string; receiptIds: string[]; createdAt: string; origin: 'typed' | 'forwarded'; decidedOn?: string };
 export type InboxReply = {
   drafts: { id: string; sentence: string; reviewDate: string; origin: 'typed' | 'forwarded'; createdAt: string; receiptIds: string[] }[];
   due: { id: string; text: string; reviewDate: string }[];
   waiting: { id: string; text: string; at: string }[];
 };
-export type DecisionsReply = { items: { id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; replaced: boolean; reviews: number; receiptIds: string[] }[] };
+export type DecisionsReply = { items: { id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; replaced: boolean; cancelled: boolean; reviews: number; receiptIds: string[] }[] };
 
 export type SearchReply = { query: string; groups: { kind: 'saved' | 'decision' | 'investigation' | 'check' | 'why'; hits: { id: string; text: string; marks: [number, number][] }[] }[] };
 export type WantedReply = {
@@ -207,6 +207,8 @@ export type AskState = {
   /** Structure only: how often each calculation was asked, for suggestions. */
   asked: { memberId: string; operationId: string; periodId: PeriodId | null; count: number; lastAt: string }[];
   drafts: DecisionDraft[];
+  /** The day a decision was actually made, when it was recorded later. */
+  decided?: { decisionId: string; decidedOn: string }[];
   gst: { toleranceMinor: string };
 };
 
@@ -260,7 +262,7 @@ export type Gst2bLineReply = {
  *   askx.plan            { period | periodId, limits!: [{ figure, op, minor }], fromBps!, toBps!, stepBps!, today } → PlanReply
  *   askx.forecast        { operationId!, today }                           → ForecastReply
  *   askx.decisions.inbox {}                                                → InboxReply
- *   askx.decisions.draft { sentence!, reviewDate!, receiptIds }            → { id }
+ *   askx.decisions.draft { sentence!, reviewDate!, receiptIds, decidedOn }            → { id }
  *   askx.decisions.confirm { draftId! }                                    → { decisionId }
  *   askx.decisions.discard { draftId! }                                    → { removed: true }
  *   askx.decisions.forward { text!, reviewDate } (phone allowed; becomes a draft only) → { id }
