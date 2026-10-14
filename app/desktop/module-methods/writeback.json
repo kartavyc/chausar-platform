@@ -29,5 +29,9 @@
   "writeback.followUp.prepare",
   "writeback.followUp.inbound",
   "writeback.followUp.checkPaid",
-  "writeback.followUp.journal"
+  "writeback.followUp.journal",
+  "writeback.reauth",
+  "writeback.credentials.set",
+  "writeback.credentials.remove",
+  "writeback.credentials.status"
 ]

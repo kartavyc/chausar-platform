@@ -101,10 +101,12 @@ function voucherXml(p: Voucher, key: string): string {
   const entries = p.lines.map(l => `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${e(l.ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>${l.side === 'debit' ? 'Yes' : 'No'}</ISDEEMEDPOSITIVE>${l.ledger === p.party ? '<ISPARTYLEDGER>Yes</ISPARTYLEDGER>' : ''}<AMOUNT>${l.side === 'debit' ? '-' : ''}${rupees(l.amountMinor)}</AMOUNT></ALLLEDGERENTRIES.LIST>`).join('');
   return envelope('Import', '<TYPE>Data</TYPE><ID>Vouchers</ID>', p.company, '', '', `<DATA><TALLYMESSAGE><VOUCHER REMOTEID="${e(key)}" VCHTYPE="${e(p.voucherType)}" ACTION="Create"><DATE>${p.date.replaceAll('-', '')}</DATE><VOUCHERTYPENAME>${e(p.voucherType)}</VOUCHERTYPENAME><VOUCHERNUMBER>${e(p.voucherNumber)}</VOUCHERNUMBER><PARTYLEDGERNAME>${e(p.party)}</PARTYLEDGERNAME>${p.narration ? `<NARRATION>${e(p.narration)}</NARRATION>` : ''}${entries}</VOUCHER></TALLYMESSAGE></DATA>`);
 }
-/** Day Book vouchers on the payload's date with its type and number. Tally numbers vouchers per type. */
+/** Days either side of the voucher date that look-first and read-back search: a voucher entered under another date is still found. */
+export const LOOK_WINDOW_DAYS = 31;
+const shift = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00.000Z`) + days * 86400000).toISOString().slice(0, 10).replaceAll('-', '');
+/** Day Book vouchers within a bounded window around the payload's date, with its type and number. Tally numbers vouchers per type. */
 async function sameNumber(ctx: AdapterContext, p: Voucher): Promise<XmlNode[]> {
-  const day = p.date.replaceAll('-', '');
-  const doc = await send(ctx, p.company, envelope('Export', '<TYPE>Data</TYPE><ID>Day Book</ID>', p.company, `<SVFROMDATE>${day}</SVFROMDATE><SVTODATE>${day}</SVTODATE>`));
+  const doc = await send(ctx, p.company, envelope('Export', '<TYPE>Data</TYPE><ID>Day Book</ID>', p.company, `<SVFROMDATE>${shift(p.date, -LOOK_WINDOW_DAYS)}</SVFROMDATE><SVTODATE>${shift(p.date, LOOK_WINDOW_DAYS)}</SVTODATE>`));
   return exported(doc, 'VOUCHER').filter(v => val(v, 'VOUCHERNUMBER') === p.voucherNumber && (val(v, 'VOUCHERTYPENAME') || v.attrs.VCHTYPE) === p.voucherType);
 }
 function observedVoucher(node: XmlNode): WireObject {

@@ -102,3 +102,14 @@ test('a host other than this computer, another company, and unreadable replies a
     assert.throws(() => parseXml(bad), { code: 'WRITE_REPLY_INVALID' });
   assert.throws(() => parseXml(`<A>${'x'.repeat(4 * 1024 * 1024)}</A>`), { code: 'WRITE_REPLY_INVALID' });
 });
+
+test('look-first searches a bounded window around the voucher date, not only the date itself', async () => {
+  const { tallyAdapters } = await import('../runtime/writeback/systems/tally.ts');
+  const fake = new TallyFake(); const ctx = fakeContext(fake, practiceConnection('tally', { host: '127.0.0.1', port: '9000', company: tallySeed.company }), {});
+  const adapter = tallyAdapters['voucher.create'];
+  const first = await cycle(adapter, ctx, sale('S-401', { date: '2026-10-14' }), 'effect-key-window-1');
+  assert.equal(first.observation.outcome, 'confirmed-applied');
+  await assert.rejects(cycle(adapter, ctx, sale('S-401', { date: '2026-10-20' }), 'effect-key-window-2'), { code: 'WRITE_PRECONDITION_FAILED' });
+  const moved = await cycle(adapter, ctx, sale('S-401', { date: '2026-10-20' }), 'effect-key-window-1');
+  assert.ok(moved.preparation.alreadyApplied, 'the same effect entered under a nearby date is found, not entered twice');
+});

@@ -30,7 +30,8 @@ export type SystemId = typeof SYSTEMS[number];
 
 /** Credential material by field name (accessToken, username, password, apiKey, …). Never stored in the vault. */
 export type Secret = Readonly<Record<string, string>>;
-export type CredentialScope = { system: SystemId; connectionId: string; account: Readonly<Record<string, string>>; environment: Environment };
+/** `sourceId` names the sealed credential: a linked read connection's source, or this write connection's own. */
+export type CredentialScope = { system: SystemId; connectionId: string; account: Readonly<Record<string, string>>; environment: Environment; sourceId: string; group: string };
 export type WriteCredentials = (context: Context, scope: CredentialScope) => Promise<Secret>;
 
 export type Environment = 'live' | 'sandbox' | 'practice';
@@ -40,6 +41,8 @@ export type Connection = {
   account: Record<string, string>;
   /** Read and write are separate grants; write is per catalogue action. */
   read: boolean; write: string[];
+  /** The connectors-ext read connection whose credential this write connection shares. Its read grant never grants writing here. */
+  link: { connectionId: string; sourceId: string; group: string } | null;
   createdAt: string; createdBy: string; revokedAt: string | null;
 };
 
