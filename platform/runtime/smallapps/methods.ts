@@ -9,8 +9,9 @@ import { digest } from '../actions.ts';
 import { moduleState, peekModuleState, type MethodSpec, type ModuleHost } from '../modules/types.ts';
 import { MODULE_ID, type ModulePart } from '../models-ext/part.ts';
 import type { Dictionary } from '../ontology.ts';
-import { checkAgainstMenu, parseDescriptor, resolvePeriod, staleness, usableOperation, validDay, type Card, type Descriptor, type Menu, type PeriodSpec } from './descriptor.ts';
-import { plan } from './planner.ts';
+import { actionRow, checkAgainstMenu, parseDescriptor, resolvePeriod, staleness, usableOperation, validDay, type Card, type Descriptor, type Menu, type PeriodSpec } from './descriptor.ts';
+import { actionNote, plan, WAITS_WORDS } from './planner.ts';
+import { checkPayload, loadCatalogue, prepareAction, type Catalogue } from './catalogue-adapter.ts';
 import { customerScope, latestView, MAX_ENTRIES, MAX_VERSIONS, newEntry, personText, purgeBook, status, visible, whenDay, type Entry } from './book.ts';
 
 type App = { id: string; descriptor: Descriptor; digest: string; version: number; createdBy: string; createdAt: string; updatedAt: string; request: string | null;
@@ -34,18 +35,46 @@ const appId = (value: unknown) => { check(typeof value === 'string' && /^smallap
 function findApp(state: State, id: unknown): App {
   const app = peek(state).apps.find(a => a.id === appId(id)); check(app, 'SMALLAPP_NOT_FOUND', 'This small app is unavailable.'); return app;
 }
-async function menu(host: ModuleHost): Promise<Menu> {
+/** Branches that exist in the workspace: named on a live record or granted to a member. */
+const knownBranches = (state: State) => [...new Set([...state.facts.filter(f => !f.deletedAt && f.branch).map(f => f.branch!), ...state.members.flatMap(m => m.branches.filter(b => b !== '*'))])].sort();
+async function load(host: ModuleHost): Promise<{ menu: Menu; catalogue: Catalogue }> {
   const ontology = await host.call('ontology.get', {}) as { current: Dictionary | null };
-  const catalogue = await host.call('actions.catalogue', {}) as Menu['catalogue'];
-  return { dictionary: ontology.current, catalogue: catalogue.map(c => ({ id: c.id, operations: c.operations.map(o => ({ id: o.id, title: o.title })) })) };
+  const catalogue = await loadCatalogue(host);
+  return { menu: { dictionary: ontology.current, actions: catalogue.rows, branches: knownBranches(host.store.read()) }, catalogue };
 }
+const menu = async (host: ModuleHost) => (await load(host)).menu;
 const branchesOf = (state: State, ctx: Context) => state.members.find(m => m.id === ctx.memberId)?.branches ?? [];
+const catalogueWords = (c: Catalogue) => ({ writeback: c.writeback, notCounted: c.notCounted, words: c.words });
+/** The reference day for period presets: a trusted host clock when one is given (tests, fixtures), else the system clock. */
+function today(host: ModuleHost): string {
+  const clock = host.options.clock;
+  if (clock === undefined) return now().slice(0, 10);
+  check(typeof clock === 'function', 'SMALLAPP_CLOCK_INVALID', 'The configured clock is not usable.');
+  const value = clock(); const iso = value instanceof Date ? value.toISOString() : value;
+  check(typeof iso === 'string' && validDay(iso.slice(0, 10)), 'SMALLAPP_CLOCK_INVALID', 'The configured clock is not usable.');
+  return iso.slice(0, 10);
+}
+/** A branch the caller cannot see is not named back to them. */
+function redact(descriptor: Descriptor, branches: readonly string[]): Descriptor {
+  const copy = structuredClone(descriptor);
+  for (const c of copy.cards as any[]) if (c.branch !== undefined && !branches.includes('*') && !branches.includes(c.branch)) { delete c.branch; c.branchWithheld = true; }
+  return copy;
+}
+function requestLine(value: unknown): string | null {
+  if (value === undefined) return null;
+  check(typeof value === 'string' && value.length <= 500, 'SMALLAPP_INVALID', 'The request line is one short line.');
+  return personText(value, 500, 'the request line', false, 'SMALLAPP_INVALID');
+}
 function summary(app: App, m: Menu) {
   const reasons = staleness(app.descriptor, m);
   return { id: app.id, title: app.descriptor.title, version: app.version, createdBy: app.createdBy, createdAt: app.createdAt, updatedAt: app.updatedAt,
     uses: structuredClone(app.descriptor.uses), dictionary: structuredClone(app.descriptor.dictionary), outOfDate: reasons.length > 0, outOfDateReasons: reasons, experimental: true };
 }
-const full = (app: App, m: Menu) => ({ ...summary(app, m), descriptor: structuredClone(app.descriptor), digest: app.digest, request: app.request, history: structuredClone(app.history) });
+const full = (app: App, m: Menu, branches: readonly string[]) => ({ ...summary(app, m), descriptor: redact(app.descriptor, branches), digest: app.digest, request: app.request, history: structuredClone(app.history),
+  actions: actionNotes(app.descriptor, m) });
+function actionNotes(descriptor: Descriptor, m: Menu) {
+  return descriptor.cards.flatMap(c => { if (c.kind !== 'action') return []; const row = actionRow(m, `${c.connector}/${c.operation}`); return row ? [{ ...actionNote(c.id, row), available: row.available }] : []; });
+}
 const requireCurrent = (app: App, m: Menu) => check(staleness(app.descriptor, m).length === 0, 'SMALLAPP_OUT_OF_DATE', 'A definition this app uses changed. Rebuild the app before opening it.');
 
 const WITHHELD = new Set(['FORBIDDEN_BRANCH', 'BRANCH_FORBIDDEN', 'SOURCE_REVOKED', 'RECEIPT_FORBIDDEN', 'FORBIDDEN']);
@@ -85,57 +114,61 @@ const methods: Record<string, MethodSpec> = {
   'smallapps.propose': { permission: 'read', async handler(ctx, payload, host) {
     const { line } = fields(payload, ['line']);
     check(typeof line === 'string' && line.trim().length > 0 && line.length <= 500, 'SMALLAPP_INVALID', 'Ask for a small app in one line.');
-    const m = await menu(host); const result = plan(line, m, branchesOf(host.store.read(), ctx));
+    const { menu: m, catalogue } = await load(host); const result = plan(line, m, branchesOf(host.store.read(), ctx));
     if (result.supported) checkAgainstMenu(parseDescriptor(result.descriptor), m, branchesOf(host.store.read(), ctx));
-    return { ...result, experimental: true };
+    return { ...result, catalogue: catalogueWords(catalogue), experimental: true };
   } },
   'smallapps.validate': { permission: 'read', async handler(ctx, payload, host) {
     const { descriptor } = fields(payload, ['descriptor']);
-    const checked = checkAgainstMenu(parseDescriptor(descriptor), await menu(host), branchesOf(host.store.read(), ctx));
-    return { valid: true, descriptor: checked, uses: checked.uses };
+    const m = await menu(host); const checked = checkAgainstMenu(parseDescriptor(descriptor), m, branchesOf(host.store.read(), ctx));
+    return { valid: true, descriptor: checked, uses: checked.uses, actions: actionNotes(checked, m) };
   } },
   'smallapps.create': { permission: 'prepare', async handler(ctx, payload, host) {
-    const input = fields(payload, ['descriptor'], ['request']);
-    if (input.request !== undefined) check(typeof input.request === 'string' && input.request.length <= 500, 'SMALLAPP_INVALID', 'The request line is one short line.');
+    const input = fields(payload, ['descriptor'], ['request']); const request = requestLine(input.request);
     const m = await menu(host);
     const descriptor = checkAgainstMenu(parseDescriptor(input.descriptor), m, branchesOf(host.store.read(), ctx));
     const app = await host.store.update(state => {
       const ns = mine(state); check(ns.apps.length < MAX_APPS, 'SMALLAPP_LIMIT', 'Remove an app before adding another.');
       check(state.ontology?.current?.hash === descriptor.dictionary.hash, 'SMALLAPP_OUT_OF_DATE', 'The dictionary changed while the app was being saved. Propose it again.');
       const at = now(), d = digest(descriptor);
-      const created: App = { id: newId('smallapp'), descriptor, digest: d, version: 1, createdBy: ctx.memberId, createdAt: at, updatedAt: at, request: input.request ?? null,
+      const created: App = { id: newId('smallapp'), descriptor, digest: d, version: 1, createdBy: ctx.memberId, createdAt: at, updatedAt: at, request,
         history: [{ version: 1, digest: d, dictionaryVersion: descriptor.dictionary.version, dictionaryHash: descriptor.dictionary.hash, at, by: ctx.memberId, change: 'created' }], presses: [] };
       ns.apps.push(created); audit(state, 'smallapp.created', { appId: created.id }); return structuredClone(created);
     });
-    return full(app, m);
+    return full(app, m, branchesOf(host.store.read(), ctx));
   } },
   'smallapps.list': { permission: 'read', async handler(_ctx, payload, host) {
     fields(payload, []); const m = await menu(host);
     return { apps: peek(host.store.read()).apps.map(app => summary(app, m)), experimental: true };
   } },
-  'smallapps.get': { permission: 'read', async handler(_ctx, payload, host) {
-    const { id } = fields(payload, ['id']); return full(findApp(host.store.read(), id), await menu(host));
+  'smallapps.get': { permission: 'read', async handler(ctx, payload, host) {
+    const { id } = fields(payload, ['id']); return full(findApp(host.store.read(), id), await menu(host), branchesOf(host.store.read(), ctx));
   } },
   'smallapps.open': { permission: 'read', async handler(ctx, payload, host) {
     const input = fields(payload, ['id'], ['onDate']);
     if (input.onDate !== undefined) check(validDay(input.onDate), 'SMALLAPP_INVALID', 'Give the reference day as a calendar day.');
-    const onDate: string = input.onDate ?? now().slice(0, 10);
+    const onDate: string = input.onDate ?? today(host);
     const app = structuredClone(findApp(host.store.read(), input.id)); const m = await menu(host); requireCurrent(app, m);
-    const dictionary = m.dictionary!;
+    const dictionary = m.dictionary!, branches = branchesOf(host.store.read(), ctx), shown = redact(app.descriptor, branches).cards as any[];
     const cards = [];
-    for (const card of app.descriptor.cards as Card[]) {
-      const state = host.store.read();
-      if (card.kind === 'metric') cards.push({ ...card, value: await figure(host, state, dictionary, card.operation, card.period, card.branch, onDate) });
-      else if (card.kind === 'comparison') cards.push({ ...card, current: await figure(host, state, dictionary, card.operation, card.period, card.branch, onDate), previous: await figure(host, state, dictionary, card.operation, card.comparePeriod, card.branch, onDate) });
-      else if (card.kind === 'table') { const rows = []; for (const row of card.rows) rows.push({ ...row, value: await figure(host, state, dictionary, row.operation, card.period, card.branch, onDate) }); cards.push({ ...card, rows }); }
-      else if (card.kind === 'action') cards.push({ ...card, press: ctx.role === 'viewer' ? 'read-only' : 'prepares-for-approval', words: 'Pressing this prepares the action. It then waits on the normal approval card.' });
-      else cards.push({ ...card, experimental: true, entries: visibleBook(state, ctx).map(latestView).filter(e => e.status === 'open').sort((a, b) => a.when.localeCompare(b.when)) });
+    for (const [index, card] of (app.descriptor.cards as Card[]).entries()) {
+      const state = host.store.read(), view = shown[index];
+      if (card.kind === 'metric') cards.push({ ...view, value: await figure(host, state, dictionary, card.operation, card.period, card.branch, onDate) });
+      else if (card.kind === 'comparison') cards.push({ ...view, current: await figure(host, state, dictionary, card.operation, card.period, card.branch, onDate), previous: await figure(host, state, dictionary, card.operation, card.comparePeriod, card.branch, onDate) });
+      else if (card.kind === 'table') { const rows = []; for (const row of card.rows) rows.push({ ...row, value: await figure(host, state, dictionary, row.operation, card.period, card.branch, onDate) }); cards.push({ ...view, rows }); }
+      else if (card.kind === 'action') {
+        const row = actionRow(m, `${card.connector}/${card.operation}`)!, note = actionNote(card.id, row);
+        cards.push({ ...view, alwaysWaits: note.alwaysWaits, tier: note.tier, available: row.available,
+          press: !row.available ? 'unavailable' : ctx.role === 'viewer' ? 'read-only' : 'prepares-for-approval',
+          words: row.available ? note.words : 'This action is in the catalogue but not available now. Pressing it does nothing.' });
+      }
+      else cards.push({ ...view, experimental: true, entries: visibleBook(state, ctx).map(latestView).filter(e => e.status === 'open').sort((a, b) => a.when.localeCompare(b.when)) });
     }
     return { id: app.id, title: app.descriptor.title, version: app.version, onDate, uses: app.descriptor.uses, dictionary: app.descriptor.dictionary, outOfDate: false, cards, experimental: true };
   } },
   'smallapps.rebuild': { permission: 'prepare', async handler(ctx, payload, host) {
     const { id } = fields(payload, ['id']); const app = structuredClone(findApp(host.store.read(), id)); const m = await menu(host);
-    if (staleness(app.descriptor, m).length === 0) return { rebuilt: false, app: full(app, m) };
+    if (staleness(app.descriptor, m).length === 0) return { rebuilt: false, app: full(app, m, branchesOf(host.store.read(), ctx)) };
     check(m.dictionary, 'DICTIONARY_REQUIRED', 'Publish business definitions before rebuilding a small app.');
     const gone = staleness({ ...app.descriptor, dictionary: { version: m.dictionary.version, hash: m.dictionary.hash } }, m);
     check(gone.length === 0, 'SMALLAPP_OPERATION_GONE', 'A calculation or action this app uses is no longer on the menu. Propose a new app instead.');
@@ -147,7 +180,7 @@ const methods: Record<string, MethodSpec> = {
       stored.history.push({ version: stored.version, digest: stored.digest, dictionaryVersion: descriptor.dictionary.version, dictionaryHash: descriptor.dictionary.hash, at, by: ctx.memberId, change: 'rebuilt' });
       audit(state, 'smallapp.rebuilt', { appId: stored.id, version: stored.version }); return structuredClone(stored);
     });
-    return { rebuilt: true, app: full(rebuilt, m) };
+    return { rebuilt: true, app: full(rebuilt, m, branchesOf(host.store.read(), ctx)) };
   } },
   'smallapps.remove': { permission: 'prepare', async handler(ctx, payload, host) {
     const { id } = fields(payload, ['id']); appId(id);
@@ -157,24 +190,28 @@ const methods: Record<string, MethodSpec> = {
       ns.apps = ns.apps.filter(a => a.id !== id); audit(state, 'smallapp.removed', { appId: id }); return { removed: true, id };
     });
   } },
-  'smallapps.pressAction': { permission: 'prepare', async handler(_ctx, payload, host) {
+  'smallapps.pressAction': { permission: 'prepare', async handler(ctx, payload, host) {
     const input = fields(payload, ['id', 'cardId', 'payload'], ['sourceIds', 'idempotencyKey']);
     const app = findApp(host.store.read(), input.id); const m = await menu(host); requireCurrent(app, m);
     const card = app.descriptor.cards.find(c => c.id === input.cardId);
     check(card?.kind === 'action', 'SMALLAPP_NOT_ACTION_CARD', 'Only an action card can be pressed.');
-    if (input.sourceIds !== undefined) check(Array.isArray(input.sourceIds) && input.sourceIds.length <= 64 && input.sourceIds.every((s: unknown) => typeof s === 'string'), 'SMALLAPP_INVALID', 'Give plain source identifiers.');
-    if (input.idempotencyKey !== undefined) check(typeof input.idempotencyKey === 'string', 'SMALLAPP_INVALID', 'Give a plain idempotency key.');
-    // The one path to an action: the ordinary prepare. Approval and execution stay with the person.
-    const action = await host.call('actions.prepare', { connector: card.connector, operation: card.operation, payload: input.payload,
-      ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}), idempotencyKey: input.idempotencyKey ?? newId('smallapp') }) as any;
+    const row = actionRow(m, `${card.connector}/${card.operation}`)!;
+    check(row.available, 'SMALLAPP_ACTION_UNAVAILABLE', 'This action is in the catalogue but not available now. Nothing was prepared.');
+    if (input.sourceIds !== undefined) check(Array.isArray(input.sourceIds) && input.sourceIds.length <= 64 && input.sourceIds.every((s: unknown) => typeof s === 'string' && s.length <= 200), 'SMALLAPP_INVALID', 'Give plain source identifiers.');
+    if (input.idempotencyKey !== undefined) check(typeof input.idempotencyKey === 'string' && input.idempotencyKey.length <= 200, 'SMALLAPP_INVALID', 'Give a plain idempotency key.');
+    // What the person typed is data: checked against the row's schema, never through the number guard.
+    if (row.payloadSchema) checkPayload(row.payloadSchema, input.payload);
+    // The one path to an action: prepare. Approval and execution stay with the person.
+    const action = await prepareAction(host, row, { payload: input.payload, ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}), idempotencyKey: input.idempotencyKey ?? newId('smallapp') });
     await host.store.update(state => {
       const stored = mine(state).apps.find(a => a.id === app.id); if (!stored) return;
-      stored.presses.push({ actionId: action.id, cardId: card.id, at: now(), by: _ctx.memberId }); stored.presses.splice(0, Math.max(0, stored.presses.length - MAX_PRESSES));
+      stored.presses.push({ actionId: action.id, cardId: card.id, at: now(), by: ctx.memberId }); stored.presses.splice(0, Math.max(0, stored.presses.length - MAX_PRESSES));
       audit(state, 'smallapp.pressed', { appId: app.id, actionId: action.id });
     });
-    return { action: { id: action.id, connector: action.connector, operation: action.operation, status: action.status, impact: action.impact, digest: action.digest },
-      approval: { waits: true, kind: 'action', id: action.id, digest: action.digest },
-      words: 'Prepared only. It waits on the normal approval card; nothing was approved or done.' };
+    return { action: { id: action.id, connector: action.connector, operation: action.operation, status: action.status, impact: action.impact, digest: action.digest, through: action.through },
+      approval: { waits: true, alwaysWaits: row.alwaysWaits, tier: row.tier, kind: 'action', id: action.id, digest: action.digest },
+      words: row.alwaysWaits ? `Prepared only; nothing was approved or done. ${WAITS_WORDS} This one waits for a person to approve it in the app.`
+        : 'Prepared only. It waits on the normal approval card; nothing was approved or done.' };
   } },
   'smallapps.records.add': { permission: 'prepare', async handler(ctx, payload, host) {
     const input = fields(payload, ['who', 'when'], ['said', 'customerId', 'status'], 'SMALLAPP_RECORD_INVALID');

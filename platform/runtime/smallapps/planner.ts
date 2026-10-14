@@ -5,6 +5,7 @@
  * is data: any other words in it, including instructions, are never read as commands.
  */
 import { BOOKS, PRESET_WORDS, SCHEMA, usableOperation, usesOf, words, type Card, type Descriptor, type Menu, type Preset } from './descriptor.ts';
+import type { ActionRow } from './catalogue-adapter.ts';
 
 const OPERATIONS: [string, string[]][] = [
   ['net_sales', ['net sales', 'net bikri', 'shuddh bikri']],
@@ -17,7 +18,40 @@ const OPERATIONS: [string, string[]][] = [
   ['costs', ['costs', 'cost', 'expenses', 'expense', 'kharcha', 'kharch', 'lagat', 'खर्च']],
   ['revenue', ['sales', 'revenue', 'earned', 'bikri', 'becha', 'kamai', 'बिक्री']],
 ];
-const REMINDER = ['reminder', 'reminders', 'remind', 'yaad dila', 'yaad dilao', 'याद'];
+/**
+ * Action words, English, romanised Hindi and Devanagari, folded to one concept each. Catalogue rows are
+ * read through the same table: a row's concepts are the folded words of its label and operation id,
+ * so any catalogue action can be named without a rule written for it.
+ */
+const CONCEPTS: [string, string[]][] = [
+  ['reminder', ['reminder', 'reminders', 'remind', 'yaad', 'tagada', 'tagaada', 'takaza', 'takaaza', 'याद', 'तकाजा', 'तगादा']],
+  ['invoice', ['invoice', 'invoices', 'bill', 'bills', 'challan', 'बिल', 'चालान']],
+  ['payment', ['payment', 'payments', 'pay', 'bhugtan', 'bhugtaan', 'paisa', 'भुगतान']],
+  ['link', ['link', 'links', 'लिंक']],
+  ['refund', ['refund', 'refunds', 'wapas', 'vapas', 'vaapsi', 'वापसी']],
+  ['message', ['message', 'messages', 'msg', 'sandesh', 'sandesa', 'संदेश']],
+  ['whatsapp', ['whatsapp', 'watsapp', 'वॉट्सऐप', 'व्हाट्सएप']],
+  ['email', ['email', 'emails', 'mail', 'ईमेल']],
+  ['send', ['send', 'bhejo', 'bhejna', 'bhej', 'भेजो', 'भेजें']],
+  ['price', ['price', 'prices', 'pricing', 'daam', 'dam', 'keemat', 'kimat', 'rate', 'दाम', 'कीमत']],
+  ['stock', ['stock', 'inventory', 'maal', 'स्टॉक']],
+  ['delete', ['delete', 'remove', 'hatao', 'mitao', 'हटाओ']],
+  ['contact', ['contact', 'contacts', 'sampark', 'संपर्क']],
+  ['calendar', ['calendar', 'event', 'events', 'meeting', 'कैलेंडर']],
+  ['sheet', ['sheet', 'sheets', 'spreadsheet', 'शीट']],
+  ['draft', ['draft', 'drafts', 'masauda', 'मसौदा']],
+  ['record', ['record', 'records', 'darj', 'दर्ज']],
+  ['ledger', ['ledger', 'khata', 'खाता']],
+];
+/** Concepts too general to choose an action on their own. */
+const GENERIC = new Set(['payment', 'send', 'draft', 'record']);
+const STOP = new Set(['a', 'an', 'the', 'to', 'for', 'of', 'and', 'or', 'on', 'in', 'with', 'from', 'by', 'my', 'our', 'your', 'this', 'that', 'is', 'are', 'be', 'it',
+  'create', 'make', 'new', 'add', 'show', 'give', 'me', 'button', 'buttons', 'action', 'actions', 'card', 'local', 'chausar', 'workspace', 'prepare', 'issue',
+  'ka', 'ki', 'ke', 'ko', 'se', 'me', 'mein', 'aur', 'bhi', 'wala', 'wali', 'wale', 'dikhao', 'chahiye', 'karo', 'banao', 'dila', 'dilao', 'do']);
+/** A cue that the words just before it name an action ("a refund link button"), even words that also name a figure. */
+const CUES = new Set(['button', 'buttons', 'batan', 'बटन', 'action', 'actions']);
+const conceptOf = new Map(CONCEPTS.flatMap(([concept, list]) => list.map(word => [word.normalize('NFKC').toLowerCase(), concept] as const)));
+const concepts = (tokens: string[]) => new Set(tokens.filter(t => !STOP.has(t) && t.length > 1).map(t => conceptOf.get(t) ?? t));
 const FOLLOW_UP = ['follow up', 'follow ups', 'followup', 'followups', 'call list', 'who to call', 'calls to make', 'call karna', 'phone karna', 'फॉलो'];
 const PERIODS: [Preset, string[]][] = [
   ['this-month', ['this month', 'is mahine', 'iss mahine', 'is mahina', 'current month']],
@@ -35,9 +69,28 @@ const COMPARE = ['compare', 'comparison', 'vs', 'versus', 'against', 'tulna', 'm
 const TABLE = ['table', 'saari', 'saare', 'sabhi'];
 const PREVIOUS: Partial<Record<Preset, Preset>> = { 'this-month': 'last-month', 'this-quarter': 'last-quarter', 'this-financial-year': 'last-financial-year', 'today': 'yesterday' };
 
-export type Plan = { supported: true; descriptor: Descriptor; understood: Understood; message: string }
+export type Plan = { supported: true; descriptor: Descriptor; understood: Understood; actions: ActionNote[]; message: string }
   | { supported: false; state: 'not-yet'; descriptor: null; understood: Understood; message: string };
-type Understood = { calculations: string[]; actions: string[]; books: string[]; periods: Preset[]; branch: string | null };
+type Understood = { calculations: string[]; actions: string[]; unavailableActions: string[]; books: string[]; periods: Preset[]; branch: string | null };
+export type ActionNote = { cardId: string; action: string; label: string; alwaysWaits: boolean; tier: string | null; words: string };
+export const WAITS_WORDS = 'Always waits for a person: money, messages to outsiders, deleting and anything that cannot be undone are never approved or done on their own.';
+
+const rowConcepts = (row: ActionRow) => concepts([...normalize(row.label).trim().split(' '), ...row.operation.split('-')]);
+/** Choose catalogue rows the line names: best match first, safer and then alphabetical on ties, each adding a concept not yet covered. */
+function chooseActions(line: Set<string>, rows: ActionRow[]): { chosen: ActionRow[]; unavailable: string[] } {
+  const scored = rows.map(row => {
+    const own = rowConcepts(row);
+    const hits = [...own].filter(c => line.has(c));
+    return { row, hits, score: hits.some(c => !GENERIC.has(c)) ? hits.length : 0 };
+  }).filter(s => s.score > 0).sort((a, b) => b.score - a.score || Number(a.row.alwaysWaits) - Number(b.row.alwaysWaits) || a.row.key.localeCompare(b.row.key));
+  const chosen: ActionRow[] = [], covered = new Set<string>();
+  for (const { row, hits } of scored.filter(s => s.row.available)) {
+    if (chosen.length >= 3 || hits.every(c => covered.has(c))) continue;
+    chosen.push(row); hits.forEach(c => covered.add(c));
+  }
+  const unavailable = scored.filter(s => !s.row.available && s.hits.some(c => !covered.has(c))).map(s => s.row.key);
+  return { chosen, unavailable };
+}
 
 const normalize = (line: string) => ` ${line.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{M}]+/gu, ' ').replace(/\s+/g, ' ').trim()} `;
 /** Find phrases, longest first, blanking each match so a short word cannot reuse it. Returns first positions. */
@@ -57,19 +110,24 @@ function find(text: { value: string }, table: [string, string[]][]): [string, nu
 const safeWords = (value: string, fallback: string) => { try { return words(value); } catch { return fallback; } };
 
 export function plan(line: string, menu: Menu, branches: readonly string[]): Plan {
-  const text = { value: normalize(line) };
+  const original = normalize(line);
+  // Words just before an action cue ("a refund button") that name an available catalogue action are the action's, not a figure's.
+  const tokens = original.trim().split(' '), cued = tokens.flatMap((t, i) => CUES.has(t) ? tokens.slice(Math.max(0, i - 3), i) : []);
+  const named = new Set(menu.actions.filter(r => r.available).flatMap(r => [...rowConcepts(r)]).filter(c => !GENERIC.has(c)));
+  const text = { value: ` ${tokens.map(t => cued.includes(t) && named.has(conceptOf.get(t) ?? t) ? ' '.repeat(t.length) : t).join(' ')} ` };
   const dictionary = menu.dictionary;
   const ops = dictionary ? find(text, OPERATIONS).map(([id]) => id).filter(id => usableOperation(dictionary, id)) : [];
-  const reminder = find(text, [['reminder', REMINDER]]).length > 0;
   const followUp = find(text, [['follow-up', FOLLOW_UP]]).length > 0;
   const periods = find(text, PERIODS).map(([preset]) => preset as Preset);
   const compare = find(text, [['compare', COMPARE]]).length > 0, table = find(text, [['table', TABLE]]).length > 0;
-  const branchMatches = branches.filter(b => b !== '*' && text.value.includes(` ${b.toLowerCase()} `));
+  const reachable = branches.includes('*') ? menu.branches : branches.filter(b => menu.branches.includes(b));
+  const branchMatches = reachable.filter(b => text.value.includes(` ${b.toLowerCase()} `));
   const branch = branchMatches.length === 1 ? branchMatches[0] : null;
-  const action = reminder ? menu.catalogue.flatMap(c => c.operations.filter(o => o.id.includes('reminder')).map(o => ({ connector: c.id, ...o }))).sort((a, b) => `${a.connector}/${a.id}`.localeCompare(`${b.connector}/${b.id}`))[0] : undefined;
-  const understood: Understood = { calculations: ops, actions: action ? [`${action.connector}/${action.id}`] : [], books: followUp ? ['follow-up'] : [], periods, branch };
-  if (!dictionary || (!ops.length && !action && !followUp)) return { supported: false, state: 'not-yet', descriptor: null, understood,
-    message: dictionary ? 'Not yet. Nothing in that line matches a calculation on your menu, an approved action or the follow-up book. Name a figure such as sales, collections or dues, a reminder button, or a follow-up book.'
+  // Leftover words (after figures, periods and the book took theirs), plus the few words just before an action cue.
+  const { chosen, unavailable } = chooseActions(concepts([...text.value.trim().split(' ').filter(Boolean), ...cued]), menu.actions);
+  const understood: Understood = { calculations: ops, actions: chosen.map(r => r.key), unavailableActions: unavailable, books: followUp ? ['follow-up'] : [], periods, branch };
+  if (!dictionary || (!ops.length && !chosen.length && !followUp)) return { supported: false, state: 'not-yet', descriptor: null, understood,
+    message: dictionary ? `Not yet. Nothing in that line matches a calculation on your menu, an available action or the follow-up book. Name a figure such as sales, collections or dues, an action from your catalogue, or a follow-up book.${unavailable.length ? ' An action you named is in the catalogue but not available now.' : ''}`
       : 'Not yet. Publish your business definitions first; small apps are built only from your published menu.' };
 
   const period = periods[0] ?? 'this-month';
@@ -84,12 +142,22 @@ export function plan(line: string, menu: Menu, branches: readonly string[]): Pla
     const own: Preset = periods[0] ?? (op === 'aging' ? 'all-time' : 'this-month');
     cards.push({ id: id(), kind: 'metric', label: safeWords(own === 'all-time' ? label(op) : `${label(op)}, ${PRESET_WORDS[own]}`, label(op)), operation: op, period: { preset: own }, ...scope });
   }
-  if (action) cards.push({ id: id(), kind: 'action', label: safeWords(action.title ?? '', 'Prepare a reminder'), connector: action.connector, operation: action.id });
+  const notes: ActionNote[] = [];
+  for (const row of chosen) {
+    const card: Card = { id: id(), kind: 'action', label: safeWords(row.label, 'Prepare this action'), connector: row.connector, operation: row.operation };
+    cards.push(card); notes.push(actionNote(card.id, row));
+  }
   if (followUp) cards.push({ id: id(), kind: 'records', label: 'Follow-up book', book: BOOKS[0] });
 
-  const parts = [...ops.map(label), ...(action ? ['reminders'] : []), ...(followUp ? ['follow-ups'] : [])];
+  const parts = [...ops.map(label), ...(chosen.length ? ['actions'] : []), ...(followUp ? ['follow-ups'] : [])];
   let title = parts.join(', '); while (title.length > 80 && parts.length > 1) { parts.pop(); title = parts.join(', '); }
   const descriptor: Descriptor = { schema: SCHEMA, title: safeWords(title.charAt(0).toUpperCase() + title.slice(1), 'My small app'), cards, uses: usesOf(cards), dictionary: { version: dictionary.version, hash: dictionary.hash } };
-  return { supported: true, descriptor, understood,
-    message: 'This plan uses only calculations from your menu and actions from your approved list. Other words in the line change nothing. Pressing an action card only prepares it for the normal approval.' };
+  return { supported: true, descriptor, understood, actions: notes,
+    message: `This plan uses only calculations from your menu and actions from your approved list. Other words in the line change nothing. Pressing an action card only prepares it for the normal approval.${notes.some(n => n.alwaysWaits) ? ' An action on this app always waits for a person.' : ''}${unavailable.length ? ' An action you named is in the catalogue but not available now, so it is not on the app.' : ''}` };
+}
+
+/** How an action card is shown: its catalogue row's tier and whether it always waits for a person. */
+export function actionNote(cardId: string, row: ActionRow): ActionNote {
+  return { cardId, action: row.key, label: safeWords(row.label, 'Prepare this action'), alwaysWaits: row.alwaysWaits, tier: row.tier,
+    words: row.alwaysWaits ? `Pressing this only prepares it. ${WAITS_WORDS}` : 'Pressing this only prepares it. It then waits on the normal approval card.' };
 }
