@@ -24,7 +24,7 @@ export const JOB_CAN = ['pause', 'resume', 'cancel', 'accept', 'reject', 'approv
 
 const rowShape = {
   id,
-  source: oneOf(['action', 'job', 'release', 'lesson', 'acceptance', 'writeback', 'bill'] as const),
+  source: oneOf(['action', 'job', 'release', 'lesson', 'acceptance', 'writeback', 'bill', 'proposal'] as const),
   kind: oneOf(['message', 'record-change', 'money', 'prepare-only', 'job', 'group'] as const),
   tier: oneOf(TIERS),
   title: short,
@@ -36,7 +36,10 @@ const rowShape = {
   state: oneOf(ROW_STATES),
   practice: bool,
 };
-export const approvalRow = object(rowShape);
+/** What a row is, as a fixed kind and the name it is about, so it is said in the reader's language (the title is the English line). */
+export const WHAT = ['start-job', 'change-job', 'accept-result', 'publish-meaning', 'review-lesson', 'bill-zoho', 'bill-tally'] as const;
+const rowOptional = { what: object({ kind: oneOf(WHAT), name: nullable(short) }) };
+export const approvalRow = object(rowShape, rowOptional);
 export type ApprovalRow = ReturnType<typeof approvalRow>;
 
 export const step = object({ name: oneOf(STEP_NAMES), state: oneOf(STEP_STATES), at: nullable(instant) });
@@ -61,11 +64,12 @@ export type JobCard = ReturnType<typeof jobCard>;
 export const approvalDetail = object({
   ...rowShape,
   digest: id, revision: count, reason: short,
-  change: object({}, { asWritten: long, fields: list(object({ name: short, before: long, after: long }), 200) }),
+  change: object({}, { asWritten: long, key: literal('acceptance'), fields: list(object({ name: short, before: long, after: long }), 200) }),
   steps: fiveSteps,
   can: list(oneOf(CAN), 5),
   readOnly: bool, prepareOnly: bool, needsSecondAsk: bool,
 }, {
+  ...rowOptional,
   voucher: object({
     type: short, number: nullable(short), date: isoDate,
     lines: list(object({ ledger: short, debit: nullable(amount), credit: nullable(amount) }), 200),
@@ -74,6 +78,8 @@ export const approvalDetail = object({
   job: jobCard,
   blocked: object({ kind: oneOf(BLOCKED), code: short }),
   snoozedUntil: instant,
+  /** After approving a proposed job from job extensions: the queue id of the job it made. */
+  approvedJobId: id,
 });
 export type ApprovalDetail = ReturnType<typeof approvalDetail>;
 
@@ -129,7 +135,9 @@ export const catalogueEntry = object({
 export type CatalogueEntry = ReturnType<typeof catalogueEntry>;
 export const wanted = object({ id, at: instant });
 
-export const afterRestore = object({ sendingClosed: bool, items: list(actionView), notes: list(long, 200) });
+/** `noteKeys` names each note (in order) so it is said in the reader's language. */
+export const RESTORE_NOTES = ['closed-until-checked', 'may-have-gone-out', 'hidden-being-checked'] as const;
+export const afterRestore = object({ sendingClosed: bool, items: list(actionView), notes: list(long, 200) }, { noteKeys: list(oneOf(RESTORE_NOTES), 200) });
 
 export const jobRow = object({
   id, goal: short, state: oneOf(JOB_STATES), reason: nullable(short),
@@ -140,7 +148,7 @@ export const jobs = object({ items: list(jobRow), active: count, limit: literal(
 export type Jobs = ReturnType<typeof jobs>;
 export const jobStep = object({ at: instant, event: long, amount: nullable(amount), needsModel: nullable(bool), reason: nullable(short) });
 export type JobStep = ReturnType<typeof jobStep>;
-const jobResult = object({ done: list(long, 200), open: list(long, 200), receiptIds: list(id, 200) });
+const jobResult = object({ done: list(long, 200), open: list(long, 200), receiptIds: list(id, 200) }, { recommends: list(long, 200) });
 /** WK-08: the budget as three meters. Clock time and exposure may be missing, in words. */
 export const jobMeters = object({
   model: object({ spent: amount, budget: amount, route: nullable(short), estimate: bool }),
@@ -161,10 +169,13 @@ export const jobTemplate = object({
 export type JobTemplate = ReturnType<typeof jobTemplate>;
 export const jobTemplates = object({ templates: list(jobTemplate, 50), fromSentence: object({ available: bool }) });
 export type JobTemplates = ReturnType<typeof jobTemplates>;
-/** A proposed job: its queue id, opened in the approval sheet. */
+/**
+ * A proposed job: its queue id, opened in the approval sheet. A ready-made job is `job:<id>`; a job
+ * from one sentence is a card from job extensions waiting as `proposal:<id>`.
+ */
 export const proposed: Check<{ readonly id: string }> = (value, path) => {
   const out = object({ id })(value, path);
-  if (!out.id.startsWith('job:')) throw new InvalidReply(`${path}.id`);
+  if (!out.id.startsWith('job:') && !out.id.startsWith('proposal:')) throw new InvalidReply(`${path}.id`);
   return out;
 };
 

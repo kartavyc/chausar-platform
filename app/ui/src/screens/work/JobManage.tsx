@@ -12,7 +12,7 @@ import { dayTime } from './kit/format.ts';
 import { useAct } from './kit/reply.ts';
 import { Actions, Button, Note, Refusal } from './kit/Page';
 import { rupeesToPaise, paiseToRupees } from './StartJob.tsx';
-import { deleted, edited, missedSet, stepDone, type Manage, type MissedRuleInfo, type MissedRun, type PersonStep, type Schedule } from './contract-jobs.ts';
+import { answered, deleted, edited, missedSet, stepDone, type LaneJob, type Manage, type MissedRuleInfo, type MissedRun, type PersonStep, type Schedule } from './contract-jobs.ts';
 import type { JobCard } from './contract.ts';
 import { sayJob, type JobWords } from './text-jobs.ts';
 import type { WorkWords } from './text.ts';
@@ -49,6 +49,41 @@ export function PersonStepRow({ step, jobId, j, language, rpc, way, onDone }: { 
   );
 }
 
+/**
+ * WK-08 "waiting for you": a job's question as the top row of its time line, with the answers it
+ * allows and, when the rule has one, its own pick and how sure it is. The person picks; nothing is
+ * answered for them.
+ */
+export function QuestionRow({ question, jobId, way, canAnswer, j, language, rpc, onAnswered }: {
+  question: LaneJob['questions'][number]; jobId: string; way: Manage['answer'] | undefined; canAnswer: boolean; j: JobWords; language: Language; rpc: PlaceRpc; onAnswered: () => void;
+}) {
+  const act = useAct(rpc);
+  const [done, setDone] = useState<string | null>(null);
+  const answer = async (option: string) => {
+    const out = await act.run('approvals.answerQuestion', { jobId, questionId: question.id, option }, answered);
+    if (out.ok) { setDone(out.value.answer); onAnswered(); }
+  };
+  const live = canAnswer && way === 'jobsx' && done === null;
+  return (
+    <li className={s.item} data-job-question={question.id}>
+      <div>
+        <p className={s.meta}>{[j['question.waiting'], question.askedAt === null ? null : dayTime(question.askedAt, language)].filter((x): x is string => x !== null).join(' · ')}</p>
+        <span>{question.prompt}</span>
+        <p className={s.meta}>{sayJob(j, 'lane.options', { options: question.options.join(', ') })}</p>
+        {question.suggested != null && <p className={s.meta}>{sayJob(j, 'question.suggested', { option: question.suggested.option, percent: question.suggested.percent })}</p>}
+        {done !== null && <p role="status">{sayJob(j, 'question.answered', { option: done })}</p>}
+        {done === null && canAnswer && way !== 'jobsx' && <p className={s.meta}>{j['question.notBuilt']}</p>}
+        {live && (
+          <div role="group" aria-label={j['question.choose']}>
+            <Actions>{question.options.map(o => <Button key={o} variant="quiet" disabled={act.busy} onClick={() => void answer(o)}>{o}</Button>)}</Actions>
+          </div>
+        )}
+        <Refusal code={act.refusal} language={language} />
+      </div>
+    </li>
+  );
+}
+
 export function scheduleText(sc: Schedule, j: JobWords): string {
   if (sc.kind === 'interval') return sc.everyDays === null ? j['schedule.everyMs'] : sayJob(j, 'schedule.every', { n: sc.everyDays });
   const line = sayJob(j, sc.rule === 'month-end' ? 'schedule.monthEnd' : 'schedule.calendar', { at: sc.at ?? '', zone: sc.timeZone });
@@ -81,13 +116,14 @@ function MissedRule({ id, current, info, rpc, w, j, language, onChanged }: { id:
 }
 
 /** Through job extensions the most runs comes from the ready-made card and is not editable. */
-function EditForm({ card, way, missedNow, choices, rpc, w, j, language, onChanged }: { card: JobCard; way: Manage['edit']; missedNow: Missed; choices: readonly Missed[]; rpc: PlaceRpc; w: WorkWords; j: JobWords; language: Language; onChanged: () => void }) {
+function EditForm({ card, way, missedNow, choices, rpc, w, j, language, onChanged, onOpenApproval }: { card: JobCard; way: Manage['edit']; missedNow: Missed; choices: readonly Missed[]; rpc: PlaceRpc; w: WorkWords; j: JobWords; language: Language; onChanged: () => void; onOpenApproval?: ((id: string) => void) | undefined }) {
   const first = 'minor' in card.budget ? paiseToRupees(card.budget.minor) : '';
   const [budget, setBudget] = useState(first);
   const [runs, setRuns] = useState(String(card.stopRule.maxRuns));
   const [missed, setMissed] = useState<Missed>(missedNow);
   const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [approval, setApproval] = useState<string | null>(null);
   const lane = way === 'jobsx';
   const act = useAct(rpc);
   const submit = async (event: FormEvent) => {
@@ -99,7 +135,7 @@ function EditForm({ card, way, missedNow, choices, rpc, w, j, language, onChange
     if (Object.keys(config).length === 0) { setProblem(j['edit.nothing']); return; }
     setProblem(null);
     const out = await act.run('approvals.editJob', { id: card.id, config }, edited);
-    if (out.ok) { setDone(out.value.via === 'jobsx' ? j['edit.proposed'] : j['edit.done']); onChanged(); }
+    if (out.ok) { setDone(out.value.via === 'jobsx' ? j['edit.proposed'] : j['edit.done']); setApproval(out.value.approvalId ?? null); onChanged(); }
   };
   return (
     <form className={s.form} onSubmit={e => void submit(e)} aria-label={j['edit.title']}>
@@ -115,6 +151,7 @@ function EditForm({ card, way, missedNow, choices, rpc, w, j, language, onChange
       {problem !== null && <p role="alert">{problem}</p>}
       <Actions><Button submit variant="filled" disabled={act.busy}>{j['edit.save']}</Button></Actions>
       {done !== null && <p role="status">{done}</p>}
+      {approval !== null && onOpenApproval !== undefined && <Actions><Button variant="link" onClick={() => onOpenApproval(approval)}>{j['edit.openApproval']}</Button></Actions>}
       <Refused code={act.refusal} j={j} language={language} />
     </form>
   );
@@ -148,8 +185,8 @@ function DeleteJob({ id, way, rpc, j, language, onChanged }: { id: string; way: 
 }
 
 /** Schedule, missed-run rule, Edit and Delete. Hidden controls for a seat that cannot change jobs. */
-export function JobManage({ card, schedule, manage, missedRule, pendingEdit = false, canChange, rpc, w, j, language, onChanged }: {
-  card: JobCard; schedule: Schedule | undefined; manage: Manage | undefined; missedRule?: MissedRuleInfo | undefined; pendingEdit?: boolean; canChange: boolean; rpc: PlaceRpc; w: WorkWords; j: JobWords; language: Language; onChanged: () => void;
+export function JobManage({ card, schedule, manage, missedRule, pendingEdit = false, canChange, rpc, w, j, language, onChanged, onOpenApproval }: {
+  card: JobCard; schedule: Schedule | undefined; manage: Manage | undefined; missedRule?: MissedRuleInfo | undefined; pendingEdit?: boolean; canChange: boolean; rpc: PlaceRpc; w: WorkWords; j: JobWords; language: Language; onChanged: () => void; onOpenApproval?: ((id: string) => void) | undefined;
 }) {
   const [editing, setEditing] = useState(false);
   const current: Missed = missedRule?.rule ?? card.missedRun;
@@ -164,7 +201,7 @@ export function JobManage({ card, schedule, manage, missedRule, pendingEdit = fa
           <h3 className={s.h}>{j['edit.title']}</h3>
           {pendingEdit && <Note>{j['edit.pending']}</Note>}
           {manage.edit === 'not-built' ? <Note>{j['edit.notBuilt']}</Note>
-            : editing ? <EditForm card={card} way={manage.edit} missedNow={current} choices={missedRule?.choices ?? CORE_CHOICES} rpc={rpc} w={w} j={j} language={language} onChanged={onChanged} />
+            : editing ? <EditForm card={card} way={manage.edit} missedNow={current} choices={missedRule?.choices ?? CORE_CHOICES} rpc={rpc} w={w} j={j} language={language} onChanged={onChanged} onOpenApproval={onOpenApproval} />
               : <Actions><Button variant="quiet" onClick={() => setEditing(true)}>{j['edit.open']}</Button></Actions>}
           <DeleteJob id={card.id} way={manage.delete} rpc={rpc} j={j} language={language} onChanged={onChanged} />
         </>

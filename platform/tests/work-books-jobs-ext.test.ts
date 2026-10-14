@@ -98,7 +98,7 @@ test('WK-08: the measure is the calculation receipts the job names; an unreadabl
 test('without jobs-ext a read-only brief cannot be edited, and Delete cancels it and keeps its record', async () => {
   const f = fixture();
   const id = await f.brief();
-  assert.deepEqual((await f.request(owner, 'approvals.job', { id })).manage, { edit: 'not-built', delete: 'cancel', missedRule: 'not-built', personStep: 'not-built' });
+  assert.deepEqual((await f.request(owner, 'approvals.job', { id })).manage, { edit: 'not-built', delete: 'cancel', missedRule: 'not-built', personStep: 'not-built', answer: 'not-built', accept: 'core' });
   await assert.rejects(f.request(owner, 'approvals.editJob', { id, config: { maxRuns: 3 } }), code('JOB_EDIT_NOT_BUILT'));
   await assert.rejects(f.request(owner, 'approvals.setMissedRule', { id, rule: 'skip' }), code('MISSED_RULE_NOT_BUILT'));
   assert.deepEqual(await f.request(owner, 'approvals.deleteJob', { id: `job:${id}` }), { id, state: 'cancelled', note: 'cancel-keeps-record' });
@@ -178,7 +178,7 @@ test('real engine with calendar rules: the month-end brief runs on the core cale
   const sheet = await engine.request('approvals.job', { id: proposed.id });
   assert.deepEqual(sheet.schedule, { kind: 'calendar', rule: 'month-end', at: '18:00', timeZone: job.calendar.definition.timeZone, paused: false });
   assert.equal(sheet.missedRun, 'skip'); assert.equal(sheet.measure, null);
-  assert.deepEqual(sheet.manage, { edit: 'core', delete: 'cancel', missedRule: 'core', personStep: 'not-built' });
+  assert.deepEqual(sheet.manage, { edit: 'core', delete: 'cancel', missedRule: 'core', personStep: 'not-built', answer: 'not-built', accept: 'core' });
   const queued = await engine.request('approvals.get', { id: proposed.id });
   await engine.request('approvals.approve', { id: proposed.id, digest: queued.digest });
 

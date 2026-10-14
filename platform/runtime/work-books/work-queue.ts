@@ -16,22 +16,27 @@ import { loadWriteback, wbDetail, findView, catalogueFromWriteback } from './wor
 import type { WbEnv, WbExtra, Reminder } from './work-writeback.ts';
 
 export type Amount = { minor: string } | { missing: 'absent' | 'null' | 'unknown' | 'withheld' | 'not-applicable' | 'not-loaded-yet' | 'not-counted' };
-export type Source = 'action' | 'job' | 'release' | 'lesson' | 'acceptance' | 'writeback' | 'bill';
+export type Source = 'action' | 'job' | 'release' | 'lesson' | 'acceptance' | 'writeback' | 'bill' | 'proposal';
 import { storedBills, type StoredBill } from './books-bill.ts';
+import { loadLaneProposals, proposalDetail, type LaneProposal } from './work-jobs-lane.ts';
 export type Tier = 'tier-2' | 'tier-1' | 'prepare-only';
 export type RowState = PreparedAction['status'];
 export type ApprovalRow = {
   id: string; source: Source; kind: 'message' | 'record-change' | 'money' | 'prepare-only' | 'job' | 'group'; tier: Tier;
   title: string; touches: string | null; amount: Amount | null; preparedBy: { kind: 'person' | 'job' | 'chausar'; name: string } | null;
   createdAt: string; expiresAt: string | null; state: RowState; practice: boolean;
+  /** What the row is, as a fixed kind and the name it is about, so a screen can say it in its own language (the title stays the English line). */
+  what?: { kind: WhatKind; name: string | null };
 };
+export type WhatKind = 'start-job' | 'change-job' | 'accept-result' | 'publish-meaning' | 'review-lesson' | 'bill-zoho' | 'bill-tally';
 export type StepName = 'prepared' | 'approved' | 'done' | 'read-back' | 'recorded';
 export type StepState = 'done' | 'waiting-for-you' | 'waiting-for-network' | 'unsure' | 'stopped-by-rule' | 'not-reached';
 export type Step = { name: StepName; state: StepState; at: string | null };
 export type Can = 'approve' | 'notNow' | 'change' | 'drop' | 'reconcile';
 export type ApprovalDetail = ApprovalRow & {
   digest: string; revision: number; reason: string;
-  change: { asWritten?: string; fields?: { name: string; before: string; after: string }[] };
+  /** `key`: a fixed line of this lane's own (the acceptance sentence), so a screen can say it in its language. */
+  change: { asWritten?: string; key?: 'acceptance'; fields?: { name: string; before: string; after: string }[] };
   voucher?: { type: string; number: string | null; date: string; lines: { ledger: string; debit: Amount | null; credit: Amount | null }[]; note: 'prepare-only' };
   job?: JobCard; steps: Step[]; can: Can[]; readOnly: boolean; prepareOnly: boolean; needsSecondAsk: boolean;
   blocked?: { kind: 'expired' | 'owner-approves' | 'unsure' | 'changed' | 'prepare-blocked'; code: string };
@@ -42,6 +47,8 @@ export type ApprovalDetail = ApprovalRow & {
   secondAsk?: { by: 'typed-amount' | 'passphrase' };
   /** WK-12: a reminder to a customer, with its agreement, limits and (owner only) payment notes. */
   reminder?: Reminder;
+  /** After approving a jobs-ext proposal: the queue id of the job it made. */
+  approvedJobId?: string;
 };
 export type JobCard = {
   id: string; goal: string; doneWhen: string; owner: string; budget: Amount; reserve: Amount; spent: Amount;
@@ -106,10 +113,10 @@ const minorAmount = (value: unknown): Amount | null => typeof value === 'string'
 const memberName = (state: State, id: string | undefined) => state.members.find(m => m.id === id)?.name ?? null;
 export const steps = (...states: [StepState, string | null][]): Step[] => STEP_NAMES.map((name, i) => ({ name, state: states[i]?.[0] ?? 'not-reached', at: states[i]?.[1] ?? null }));
 
-/** Typed queue ids: `action:<id>`, `job:<id>`, `release:<draftId>`, `lesson:<id>`, `acceptance:<jobId>`, `writeback:<actionId>`, `bill:<billId>`. */
+/** Typed queue ids: `action:<id>`, `job:<id>`, `release:<draftId>`, `lesson:<id>`, `acceptance:<jobId>`, `writeback:<actionId>`, `bill:<billId>`, `proposal:<jobs-ext proposal id>`. */
 export function parseId(value: unknown): { source: Source; raw: string } {
   check(typeof value === 'string' && value.length <= 240, 'INVALID_APPROVAL', 'Use a typed approval id.');
-  const match = /^(action|job|release|lesson|acceptance|writeback|bill):([A-Za-z0-9_.:-]{1,200})$/.exec(value);
+  const match = /^(action|job|release|lesson|acceptance|writeback|bill|proposal):([A-Za-z0-9_.:-]{1,200})$/.exec(value);
   check(match, 'INVALID_APPROVAL', 'Use a typed approval id.');
   return { source: match[1] as Source, raw: match[2] };
 }
@@ -159,10 +166,17 @@ export const catalogueEntry = ({ reversal, ...entry }: CatalogueEntry & { revers
 
 // ---------- Queue ----------
 
-export type Env = { ctx: Context; host: ModuleHost; state: State; work: WorkState; catalogue: Catalogue; now: number; wb: WbEnv };
+/** `proposals`: jobs-ext's proposed cards, loaded only where the queue or a `proposal:` item needs them (`withProposals`). */
+export type Env = { ctx: Context; host: ModuleHost; state: State; work: WorkState; catalogue: Catalogue; now: number; wb: WbEnv; proposals?: LaneProposal[] };
 export async function env(ctx: Context, host: ModuleHost): Promise<Env> {
   const cat = await catalogue(ctx, host); const wb = await loadWriteback(host); const state = host.store.read();
   return { ctx, host, state, work: readWork(state), catalogue: cat, now: nowMs(host), wb };
+}
+/** The environment with jobs-ext's proposals, for the queue and for a `proposal:` id (any other id needs none). */
+export async function withProposals(ctx: Context, host: ModuleHost, id?: unknown): Promise<Env> {
+  const e = await env(ctx, host);
+  if (id === undefined || (typeof id === 'string' && id.startsWith('proposal:'))) e.proposals = await loadLaneProposals(host);
+  return e;
 }
 const readOnly = (e: Env) => READ_ONLY_ROLES.includes(e.ctx.role);
 const snoozedUntil = (e: Env, id: string) => { const until = e.work.snoozes[e.ctx.memberId]?.[id]; return until && Date.parse(until) > e.now ? until : undefined; };
@@ -309,7 +323,7 @@ export const acceptanceDigest = (ref: ReturnType<typeof acceptanceReference>) =>
 function acceptanceChange(job: Job): ApprovalDetail['change'] {
   const d = job.deliverable; const receipts = record(d) && Array.isArray(d.receiptIds) ? d.receiptIds.filter(r => typeof r === 'string').length : null;
   return {
-    asWritten: 'The job delivered a result. Accepting it closes this run.',
+    asWritten: 'The job delivered a result. Accepting it closes this run.', key: 'acceptance',
     fields: [{ name: 'goal', before: '', after: job.goal }, { name: 'receipts', before: '', after: receipts === null ? 'not shown here' : String(receipts) }],
   };
 }
@@ -320,7 +334,7 @@ export function jobDetail(e: Env, job: Job, acceptance: boolean): ApprovalDetail
   const owner = memberName(e.state, job.ownerId) ?? job.ownerId;
   const row: ApprovalRow = {
     id: `${acceptance ? 'acceptance' : 'job'}:${job.id}`, source: acceptance ? 'acceptance' : 'job', kind: 'job', tier: 'tier-2',
-    title: acceptance ? `Accept result: ${job.goal}` : `Start job: ${job.goal}`, touches: job.allowedActions?.length ? job.allowedActions.join(', ') : null,
+    title: acceptance ? `Accept result: ${job.goal}` : `Start job: ${job.goal}`, what: { kind: acceptance ? 'accept-result' : 'start-job', name: job.goal }, touches: job.allowedActions?.length ? job.allowedActions.join(', ') : null,
     amount: { minor: acceptance ? job.spentMinor : job.budgetMinor }, preparedBy: acceptance ? { kind: 'job', name: job.goal } : { kind: 'person', name: owner },
     createdAt: job.createdAt, expiresAt: null, state, practice: false,
   };
@@ -339,7 +353,7 @@ const DEFINITION_FIELDS = ['label', 'meaning', 'kind', 'field', 'nulls', 'sign']
 export function releaseDetail(e: Env, draft: Draft): ApprovalDetail {
   const state: RowState = ['draft', 'cosigned'].includes(draft.state) ? 'prepared' : draft.state === 'published' ? 'verified' : draft.state === 'discarded' ? 'cancelled' : 'blocked';
   const row: ApprovalRow = {
-    id: `release:${draft.id}`, source: 'release', kind: 'record-change', tier: 'tier-2', title: `Publish meaning: ${draft.name}`, touches: `Dictionary: ${draft.name}`,
+    id: `release:${draft.id}`, source: 'release', kind: 'record-change', tier: 'tier-2', title: `Publish meaning: ${draft.name}`, what: { kind: 'publish-meaning', name: draft.name }, touches: `Dictionary: ${draft.name}`,
     amount: null, preparedBy: draft.author ? { kind: 'person', name: draft.author } : null, createdAt: draft.createdAt, expiresAt: null, state, practice: false,
   };
   const value = (d: Record<string, unknown> | null, f: string) => d && d[f] !== undefined ? (typeof d[f] === 'string' ? d[f] as string : JSON.stringify(d[f])) : '';
@@ -353,7 +367,7 @@ export function releaseDetail(e: Env, draft: Draft): ApprovalDetail {
 export function lessonDetail(e: Env, lesson: Lesson): ApprovalDetail {
   const c = lesson.candidate; const state: RowState = lesson.status === 'approved' ? 'verified' : ['rejected', 'retired', 'superseded'].includes(lesson.status) ? 'cancelled' : 'prepared';
   const row: ApprovalRow = {
-    id: `lesson:${c.id}`, source: 'lesson', kind: 'record-change', tier: 'tier-1', title: 'Review a learned preference', touches: text(c.change?.kind, 80) ? `Preference: ${c.change.kind}` : null,
+    id: `lesson:${c.id}`, source: 'lesson', kind: 'record-change', tier: 'tier-1', title: 'Review a learned preference', what: { kind: 'review-lesson', name: null }, touches: text(c.change?.kind, 80) ? `Preference: ${c.change.kind}` : null,
     amount: null, preparedBy: { kind: 'chausar', name: 'Chausar' }, createdAt: typeof c.proposedAt === 'string' ? c.proposedAt : isoAt(0), expiresAt: null, state, practice: false,
   };
   const show = (v: unknown) => typeof v === 'string' ? v : JSON.stringify(v) ?? '';
@@ -373,7 +387,7 @@ export function billDetail(e: Env, bill: StoredBill): ApprovalDetail {
   const zoho = bill.route === 'zoho-books' && bill.writeback !== null; const name = memberName(e.state, bill.memberId) ?? bill.by;
   const row: ApprovalRow = {
     id: `bill:${bill.id}`, source: 'bill', kind: zoho ? 'record-change' : 'prepare-only', tier: zoho ? 'tier-1' : 'prepare-only',
-    title: zoho ? `Book a bill read from a photo: ${bill.supplier}` : `Purchase voucher from a bill photo: ${bill.supplier}`, touches: `${zoho ? 'Zoho Books' : 'Tally'}: ${bill.supplier}`,
+    title: zoho ? `Book a bill read from a photo: ${bill.supplier}` : `Purchase voucher from a bill photo: ${bill.supplier}`, what: { kind: zoho ? 'bill-zoho' : 'bill-tally', name: bill.supplier }, touches: `${zoho ? 'Zoho Books' : 'Tally'}: ${bill.supplier}`,
     amount: minorAmount(bill.totalMinor), preparedBy: { kind: 'person', name }, createdAt: bill.createdAt,
     expiresAt: zoho ? isoAt(Date.parse(bill.createdAt) + 7 * DAY) : null, state: bill.state, practice: false,
   };
@@ -403,12 +417,13 @@ export function queue(e: Env): ApprovalDetail[] {
   for (const lesson of lessons(e)) if (lesson.status === 'review-ready') items.push(lessonDetail(e, lesson));
   for (const view of e.wb.views) if (view.status === 'prepared') items.push(wbDetail(e, view));
   for (const bill of storedBills(e.state)) if (bill.state === 'prepared') items.push(billDetail(e, bill));
+  for (const proposal of e.proposals ?? []) items.push(proposalDetail(e, proposal));
   return items;
 }
 export const order = (a: ApprovalRow, b: ApprovalRow) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || Date.parse(b.createdAt) - Date.parse(a.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 export function rowOf(detail: ApprovalDetail): ApprovalRow {
-  const { id, source, kind, tier, title, touches, amount, preparedBy, createdAt, expiresAt, state, practice } = detail;
-  return { id, source, kind, tier, title, touches, amount, preparedBy, createdAt, expiresAt, state, practice };
+  const { id, source, kind, tier, title, touches, amount, preparedBy, createdAt, expiresAt, state, practice, what } = detail;
+  return { id, source, kind, tier, title, touches, amount, preparedBy, createdAt, expiresAt, state, practice, ...(what ? { what } : {}) };
 }
 export function snoozed(e: Env, id: string) { return snoozedUntil(e, id) !== undefined; }
 
@@ -419,6 +434,7 @@ export function detail(e: Env, id: string): ApprovalDetail {
   if (source === 'job' || source === 'acceptance') { const job = visibleJobs(e).find(j => j.id === raw); check(job, 'NOT_FOUND', 'Approval not found.'); return jobDetail(e, job, source === 'acceptance'); }
   if (source === 'writeback') return wbDetail(e, findView(e, raw));
   if (source === 'release') { const draft = drafts(e.state).find(d => d.id === raw); check(draft, 'NOT_FOUND', 'Approval not found.'); return releaseDetail(e, draft); }
+  if (source === 'proposal') { const proposal = (e.proposals ?? []).find(p => p.id === raw); check(proposal, 'NOT_FOUND', 'Approval not found.'); return proposalDetail(e, proposal); }
   if (source === 'bill') { const bill = storedBills(e.state).find(b => b.id === raw); check(bill, 'NOT_FOUND', 'Approval not found.'); return billDetail(e, bill); }
   const lesson = lessons(e).find(l => l.candidate.id === raw); check(lesson, 'NOT_FOUND', 'Approval not found.'); return lessonDetail(e, lesson);
 }

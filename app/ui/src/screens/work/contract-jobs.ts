@@ -33,7 +33,8 @@ export const schedule = either(
 );
 export type Schedule = ReturnType<typeof schedule>;
 const way = oneOf(['jobsx', 'core', 'not-built'] as const);
-export const manage = object({ edit: way, delete: oneOf(['jobsx', 'cancel'] as const), missedRule: way, personStep: oneOf(['jobsx', 'not-built'] as const) });
+export const manage = object({ edit: way, delete: oneOf(['jobsx', 'cancel'] as const), missedRule: way, personStep: oneOf(['jobsx', 'not-built'] as const) },
+  { answer: oneOf(['jobsx', 'not-built'] as const), accept: oneOf(['jobsx', 'core'] as const) });
 export type Manage = ReturnType<typeof manage>;
 
 /** WK-11: the missed-run rule with its choices; "run every missed one" exists only in job extensions. */
@@ -45,12 +46,14 @@ export type MissedRuleInfo = ReturnType<typeof missedRule>;
 export const laneJob = object({
   title: nullable(short), state: nullable(short), reason: nullable(short),
   steps: list(object({ kind: short, title: long, needsModel: bool }), 50),
-  questions: list(object({ id, prompt: long, options: list(short, 20), askedAt: nullable(instant) }), 200),
+  questions: list(object({ id, prompt: long, options: list(short, 20), askedAt: nullable(instant) }, { suggested: nullable(object({ option: short, percent: count })) }), 200),
   missed: nullable(object({ text: long, at: instant })), leftUndone: list(long, 200),
-});
+}, { tainted: bool, upcoming: list(instant, 20) });
 export type LaneJob = ReturnType<typeof laneJob>;
 
-const sheetExtra = object({ timeline: list(timelineRow) }, { measure: nullable(measure), schedule, manage, missedRule, jobsx: nullable(laneJob) });
+/** WK-10: the exact delivered result to accept, as its queue item (approvals.approve with this digest). */
+export const acceptance = object({ id, digest: id });
+const sheetExtra = object({ timeline: list(timelineRow) }, { measure: nullable(measure), schedule, manage, missedRule, jobsx: nullable(laneJob), acceptance: nullable(acceptance) });
 /** The job sheet: the round-1 job, with the round-2 fields when the engine sends them. */
 export const jobSheet = (value: unknown, path: string) => Object.freeze({ ...job(value, path), ...sheetExtra(value, path) });
 export type JobSheet = ReturnType<typeof jobSheet>;
@@ -69,7 +72,12 @@ export const templatesWithSchedule = (value: unknown, path: string) => {
 export type TemplateWithSchedule = ReturnType<typeof jobTemplate> & { readonly schedule?: 'interval' | 'month-end' };
 
 /** Edit: through job extensions it is a proposed card waiting for approval; through the core a new revision waiting for approval. */
-export const edited = object({ id, via: oneOf(['jobsx', 'core'] as const) }, { waitsFor: oneOf(['proposal', 'approval'] as const), proposal: nullable(object({ id, digest: id })) });
+export const edited = object({ id, via: oneOf(['jobsx', 'core'] as const) }, { waitsFor: oneOf(['proposal', 'approval'] as const), proposal: nullable(object({ id, digest: id })), approvalId: id });
+/** A question answered through job extensions. */
+export const answered = object({ jobId: id, questionId: id, answer: short, answeredAt: nullable(instant) });
+/** A result sent back; pause and resume, through job extensions or the core. */
+export const sentBack = object({ id, state: literal('rejected'), via: oneOf(['jobsx', 'core'] as const) });
+export const jobMoved = object({ id, via: oneOf(['jobsx', 'core'] as const) });
 export const deleted = object({ id, state: oneOf(['deleted', 'cancelled'] as const), note: nullable(literal('cancel-keeps-record')) });
 export const missedSet = object({ id, missedRun: oneOf(MISSED_RUNS), via: oneOf(['jobsx', 'core'] as const) }, { waitsForApproval: bool });
 export const stepDone = object({ jobId: id, stepId: id, done: bool }, { doneAt: nullable(instant), doneBy: nullable(short) });

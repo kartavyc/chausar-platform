@@ -123,7 +123,7 @@ export const workJobEditMethods: Readonly<Record<string, MethodSpec>> = {
     check(!TERMINAL.includes(view.status), 'INVALID_JOB_STATE', 'A finished job cannot be changed.');
     if (await laneMethod(host, view, 'jobsx.edit')) {
       const proposal = proposalOf(await host.call('jobsx.edit', { id: raw, changes: laneChanges(stored, edit) }), raw);
-      return { id: `job:${raw}`, via: 'jobsx' as const, waitsFor: 'proposal' as const, proposal };
+      return { id: `job:${raw}`, via: 'jobsx' as const, waitsFor: 'proposal' as const, proposal, approvalId: `proposal:${proposal.id}` };
     }
     if (!stored.plan) throw new ChausarError('JOB_EDIT_NOT_BUILT', 'Editing this job is not built yet.');
     await applyCore(host, stored, edit);

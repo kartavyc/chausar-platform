@@ -12,20 +12,21 @@ import { State } from '../../patterns/States';
 import { Sheet, type SheetPrimary } from '../../parts/Sheet';
 import { KeyValue, type Pair } from '../../parts/KeyValue';
 import { RowList } from '../../parts/RowList';
+import { Label } from '../../parts/Label';
 import { useAct, useReply } from './kit/reply.ts';
 import { amountText, dayTime } from './kit/format.ts';
 import { Actions, Button, Note, Refusal, pageStyles } from './kit/Page';
-import { accepted, type JobMeters, type JobRow } from './contract.ts';
+import { accepted, approvalDetail, sheetOf, type JobMeters, type JobRow } from './contract.ts';
 import { StartJobSheet } from './StartJob.tsx';
 import type { Language } from '../../app/presentation.ts';
 import type { WorkWords } from './text.ts';
 import { missingWord } from './kit/words.ts';
 import { JobCardView, jobFacts } from './JobCard.tsx';
 import { useSheet } from './Actions.tsx';
-import { Frame, money, say, type WorkProps } from './shared.tsx';
-import { isPersonStep, jobSheet, jobsWithProposals, type LaneJob, type LaneProposal } from './contract-jobs.ts';
+import { Frame, jobEvent, jobReason, money, say, type WorkProps } from './shared.tsx';
+import { isPersonStep, jobMoved, jobSheet, jobsWithProposals, sentBack, type LaneJob, type LaneProposal } from './contract-jobs.ts';
 import { jobWords, sayJob, type JobWords } from './text-jobs.ts';
-import { JobManage, PersonStepRow } from './JobManage.tsx';
+import { JobManage, PersonStepRow, QuestionRow } from './JobManage.tsx';
 import { MeasureChart } from './parts/MeasureChart.tsx';
 import s from './work.module.css';
 
@@ -48,22 +49,14 @@ export function meterPairs(m: JobMeters, w: WorkWords, language: Language): Pair
   ];
 }
 
-/** What job extensions adds for a job it runs: its ready-made steps, its open questions, its missed-run note. */
+/** What job extensions adds for a job it runs: its ready-made steps and its missed-run note. Its open questions lead the time line. */
 function LaneParts({ lane, w, j, language }: { lane: LaneJob; w: WorkWords; j: JobWords; language: Language }) {
   return (
     <>
+      {lane.tainted === true && <p className={s.meta}><Label kind="from-outside" /> {j['lane.tainted']}</p>}
       {lane.missed !== null && <Note>{`${lane.missed.text} (${dayTime(lane.missed.at, language)})`}</Note>}
-      {lane.questions.length > 0 && (
-        <div className={s.block} data-job-questions="">
-          <h3 className={s.h}>{j['lane.questions']}</h3>
-          <ul className={s.list}>
-            {lane.questions.map(q => (
-              <li key={q.id} className={s.item}><div><span>{q.prompt}</span>
-                <p className={s.meta}>{[sayJob(j, 'lane.options', { options: q.options.join(', ') }), q.askedAt === null ? null : dayTime(q.askedAt, language)].filter((x): x is string => x !== null).join(' · ')}</p></div></li>
-            ))}
-          </ul>
-          <Note>{j['lane.questionNote']}</Note>
-        </div>
+      {lane.upcoming !== undefined && lane.upcoming.length > 0 && (
+        <div className={s.block} data-job-upcoming=""><h3 className={s.h}>{j['lane.upcoming']}</h3><ul>{lane.upcoming.map(at => <li key={at} className={s.fig}>{dayTime(at, language)}</li>)}</ul></div>
       )}
       {lane.steps.length > 0 && (
         <div className={s.block} data-job-steps="">
@@ -81,7 +74,7 @@ function LaneParts({ lane, w, j, language }: { lane: LaneJob; w: WorkWords; j: J
 }
 
 /** Proposed jobs from job extensions, waiting for a yes. An edit names that it replaces a job. */
-function LaneProposals({ items, j }: { items: readonly LaneProposal[]; j: JobWords }) {
+function LaneProposals({ items, j, onOpen }: { items: readonly LaneProposal[]; j: JobWords; onOpen: (id: string) => void }) {
   if (items.length === 0) return null;
   return (
     <div className={s.block} data-job-proposals="">
@@ -89,7 +82,8 @@ function LaneProposals({ items, j }: { items: readonly LaneProposal[]; j: JobWor
       <ul className={s.list}>
         {items.map(item => (
           <li key={item.id} className={s.item} data-proposal={item.id}><div><span>{item.title}</span>
-            {(item.replacesJobId !== null || item.evidence.length > 0) && <p className={s.meta}>{[item.replacesJobId !== null ? j['proposals.edit'] : null, ...item.evidence].filter((x): x is string => x !== null).join(' · ')}</p>}</div></li>
+            {(item.replacesJobId !== null || item.evidence.length > 0) && <p className={s.meta}>{[item.replacesJobId !== null ? j['proposals.edit'] : null, ...item.evidence].filter((x): x is string => x !== null).join(' · ')}</p>}</div>
+            <Button variant="link" onClick={() => onOpen(`proposal:${item.id}`)}>{j['proposals.open']}</Button></li>
         ))}
       </ul>
       <Note>{j['proposals.note']}</Note>
@@ -105,6 +99,7 @@ function JobSheet({ p, row, id, origin, pendingEdit, onClose, onChanged }: { p: 
   const owns = !p.viewer && (p.member.role === 'owner' || p.member.role === 'cofounder');
   const act = useAct(p.rpc);
   const [reason, setReason] = useState('');
+  const [said, setSaid] = useState<string | null>(null);
   if (loaded.phase !== 'ready') {
     return (
       <Sheet kind={w['job.kind']} title={row?.goal ?? w['job.kind']} onClose={onClose} origin={origin}>
@@ -118,22 +113,31 @@ function JobSheet({ p, row, id, origin, pendingEdit, onClose, onChanged }: { p: 
     const out = await act.run(method, payload, accepted);
     if (out.ok) { setTick(n => n + 1); onChanged(); }
   };
-  const sendBack = (event: FormEvent) => { event.preventDefault(); if (reason.trim().length > 0) void run('jobs.reject', { id: j.id, reason }); };
-  const primary: SheetPrimary | undefined = can('approve') ? { label: w.approveJob, onPress: () => void run('jobs.approve', { id: j.id, digest: j.digest }), disabled: act.busy }
-    : can('accept') && j.result !== null ? { label: w.accept, onPress: () => void run('jobs.accept', { id: j.id }), disabled: act.busy } : undefined;
+  // Every change goes through approvals.*: the engine sends a job run by job extensions to its own methods, a core job to the core.
+  const move = async (method: string, payload: Record<string, unknown>, check: (value: unknown, path: string) => unknown, after?: string) => {
+    setSaid(null);
+    const out = await act.run(method, payload, check);
+    if (out.ok) { if (after !== undefined) setSaid(after); setTick(n => n + 1); onChanged(); }
+  };
+  const sendBack = (event: FormEvent) => { event.preventDefault(); if (reason.trim().length > 0) void move('approvals.sendBack', { id: j.id, reason: reason.trim() }, sentBack, jw['sendBack.done']); };
+  // Accept is bound to the exact delivered result: its queue item and digest (WK-10).
+  const acceptance = j.acceptance ?? null;
+  const primary: SheetPrimary | undefined = can('approve') ? { label: w.approveJob, onPress: () => void move('approvals.approve', { id: `job:${j.id}`, digest: j.digest }, approvalDetail), disabled: act.busy }
+    : can('accept') && j.result !== null && acceptance !== null ? { label: w.accept, onPress: () => void move('approvals.approve', { id: acceptance.id, digest: acceptance.digest }, approvalDetail), disabled: act.busy } : undefined;
+  const openApproval = (approvalId: string) => p.navigate({ place: 'work', sub: 'approvals', sheet: sheetOf(approvalId) });
   const stateWord = row === undefined ? '' : w[`job.${row.state}`];
 
   return (
     <Sheet kind={w['job.kind']} title={j.goal} onClose={onClose} origin={origin} primary={primary}
       actions={<>
-        {can('pause') && <Button variant="quiet" disabled={act.busy} onClick={() => void run('jobs.pause', { id: j.id })}>{w.pause}</Button>}
-        {can('resume') && <Button variant="quiet" disabled={act.busy} onClick={() => void run('jobs.resume', { id: j.id })}>{w.resume}</Button>}
+        {can('pause') && <Button variant="quiet" disabled={act.busy} onClick={() => void move('approvals.pauseJob', { id: j.id }, jobMoved)}>{w.pause}</Button>}
+        {can('resume') && <Button variant="quiet" disabled={act.busy} onClick={() => void move('approvals.resumeJob', { id: j.id }, jobMoved)}>{w.resume}</Button>}
         {can('cancel') && <Button variant="link" danger disabled={act.busy} onClick={() => void run('jobs.cancel', { id: j.id })}>{w.cancelJob}</Button>}
       </>}>
       <KeyValue pairs={jobFacts(j, stateWord, w, language)} onReceipt={p.openReceipt} />
-      {row?.reason != null && <Note>{row.reason}</Note>}
+      {row?.reason != null && <Note>{jobReason(row.reason, w)}</Note>}
       {row?.resumesAt != null && <Note>{say(w, 'job.resumes', { when: dayTime(row.resumesAt, language) })}</Note>}
-      {j.meters !== undefined && (
+      {j.meters !== undefined && view !== 'simple' && (
         <div className={s.block}>
           <h3 className={s.h}>{w.meters}</h3>
           <KeyValue pairs={meterPairs(j.meters, w, language)} onReceipt={p.openReceipt} />
@@ -148,20 +152,23 @@ function JobSheet({ p, row, id, origin, pendingEdit, onClose, onChanged }: { p: 
       )}
       {j.jobsx != null && <LaneParts lane={j.jobsx} w={w} j={jw} language={language} />}
       <JobManage card={j} schedule={j.schedule} manage={j.manage} missedRule={j.missedRule} pendingEdit={pendingEdit} canChange={owns && row !== undefined && !['cancelled', 'stopped', 'accepted'].includes(row.state)}
-        rpc={p.rpc} w={w} j={jw} language={language} onChanged={() => { setTick(n => n + 1); onChanged(); }} />
+        rpc={p.rpc} w={w} j={jw} language={language} onChanged={() => { setTick(n => n + 1); onChanged(); }} onOpenApproval={openApproval} />
       <div className={s.block}>
         <h3 className={s.h}>{w.timeline}</h3>
-        {j.timeline.length === 0 ? <Note>{w['timeline.empty']}</Note> : (
+        {j.timeline.length === 0 && (j.jobsx?.questions.length ?? 0) === 0 ? <Note>{w['timeline.empty']}</Note> : (
           <ol className={s.list}>
+            {(j.jobsx?.questions ?? []).map(q => (
+              <QuestionRow key={`question-${q.id}`} question={q} jobId={j.id} way={j.manage?.answer} canAnswer={owns} j={jw} language={language} rpc={p.rpc} onAnswered={() => { setTick(n => n + 1); onChanged(); }} />
+            ))}
             {j.timeline.map((st, i) => {
               if (isPersonStep(st)) {
                 return <PersonStepRow key={`person-${st.stepId}`} step={st} jobId={j.id} j={jw} language={language} rpc={p.rpc} way={j.manage?.personStep} onDone={() => { setTick(n => n + 1); onChanged(); }} />;
               }
               const cost = money(st.amount, language);
-              const meta = [dayTime(st.at, language), cost, st.needsModel === null ? null : st.needsModel ? w['needsModel.yes'] : w['needsModel.no'], st.reason];
+              const meta = [dayTime(st.at, language), cost, st.needsModel === null ? null : st.needsModel ? w['needsModel.yes'] : w['needsModel.no'], st.reason === null ? null : jobReason(st.reason, w)];
               return (
                 <li key={`${st.at}-${i}`} className={s.item}>
-                  <div><span>{st.event}</span><p className={s.meta}>{meta.filter((m): m is string => m !== null).join(' · ')}</p></div>
+                  <div><span>{jobEvent(st.event, w)}</span><p className={s.meta}>{meta.filter((m): m is string => m !== null).join(' · ')}</p></div>
                 </li>
               );
             })}
@@ -175,7 +182,9 @@ function JobSheet({ p, row, id, origin, pendingEdit, onClose, onChanged }: { p: 
           <ul>{j.result.done.map((line, i) => <li key={i}>{line}</li>)}</ul>
           <p className={s.meta}>{w['result.open']}</p>
           <ul>{j.result.open.map((line, i) => <li key={i}>{line}</li>)}</ul>
+          {j.result.recommends !== undefined && j.result.recommends.length > 0 && (<><p className={s.meta}>{jw['result.recommends']}</p><ul>{j.result.recommends.map((line, i) => <li key={i}>{line}</li>)}</ul></>)}
           <Actions>{j.result.receiptIds.map((rid, i) => <Button key={rid} variant="link" onClick={() => p.openReceipt(rid)}>{say(w, 'result.receipt', { n: String(i + 1) })}</Button>)}</Actions>
+          {can('accept') && acceptance === null && <Note>{jw['accept.unavailable']}</Note>}
           {can('reject') && (
             <form className={s.form} onSubmit={sendBack}>
               <label>{w['sendBack.field']}<input value={reason} onChange={e => setReason(e.currentTarget.value)} /></label>
@@ -185,6 +194,7 @@ function JobSheet({ p, row, id, origin, pendingEdit, onClose, onChanged }: { p: 
           <Note>{w.finishedNote}</Note>
         </div>
       )}
+      {said !== null && <p role="status">{said}</p>}
       <Refusal code={act.refusal} language={language} />
     </Sheet>
   );
@@ -203,7 +213,7 @@ export function JobsPage({ p }: { p: WorkProps }) {
   const when = (r: JobRow) => (r.nextRunAt === null ? null : say(w, 'job.next', { when: dayTime(r.nextRunAt, language) }));
   const toRow = (r: JobRow): RowItem => {
     const parts = view === 'simple' ? [w[`job.${r.state}`]]
-      : [w[`job.${r.state}`], when(r), r.resumesAt === null ? null : say(w, 'job.resumes', { when: dayTime(r.resumesAt, language) }), r.reason];
+      : [w[`job.${r.state}`], when(r), r.resumesAt === null ? null : say(w, 'job.resumes', { when: dayTime(r.resumesAt, language) }), r.reason === null ? null : jobReason(r.reason, w)];
     return { id: r.id, mark: r.state === 'proposed' || r.state === 'awaiting-acceptance' ? 'wait' : r.state === 'running' ? 'busy' : r.state === 'stopped-by-rule' || r.state === 'set-aside' || r.state === 'missed' ? 'unsure' : 'off',
       what: r.goal, note: parts.filter((x): x is string => x !== null).join(' · '), asWritten: cost(r) };
   };
@@ -215,7 +225,7 @@ export function JobsPage({ p }: { p: WorkProps }) {
           <div className={s.split} data-open={sheet.openId !== null ? '' : undefined}>
             <div className={s.pane}>
               {canStart && <Actions><Button variant="filled" onClick={e => sheet.open(START_SHEET, e.currentTarget)}>{w['jobs.start']}</Button></Actions>}
-              <LaneProposals items={j.proposalItems} j={jw} />
+              <LaneProposals items={j.proposalItems} j={jw} onOpen={id => p.navigate({ place: 'work', sub: 'approvals', sheet: sheetOf(id) })} />
               {rows.length === 0 && <Note>{w['jobs.empty']}</Note>}
               {rows.length > 0 && view === 'books' && (
                 <table className={[pageStyles.table, s.dense].join(' ')}>
@@ -224,7 +234,7 @@ export function JobsPage({ p }: { p: WorkProps }) {
                     {rows.map(r => (
                       <tr key={r.id}>
                         <td><button type="button" className={s.open} onClick={e => sheet.open(r.id, e.currentTarget)}>{r.goal}</button></td>
-                        <td>{w[`job.${r.state}`]}{r.reason === null ? '' : ` · ${r.reason}`}</td>
+                        <td>{w[`job.${r.state}`]}{r.reason === null ? '' : ` · ${jobReason(r.reason, w)}`}</td>
                         <td className={s.fig}>{r.nextRunAt === null ? '' : dayTime(r.nextRunAt, language)}</td>
                         <td className={pageStyles.num}>{cost(r)}</td>
                       </tr>

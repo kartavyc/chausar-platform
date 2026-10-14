@@ -16,7 +16,7 @@ import { actionRecord, type ActionRecord } from './contract-writeback.ts';
 import { WbNotices } from './WritebackParts.tsx';
 import { wbWords } from './writeback-text.ts';
 import { money, say, stepItems, type WorkProps } from './shared.tsx';
-import type { WorkKey } from './text.ts';
+import { known, type WorkKey } from './text.ts';
 import s from './work.module.css';
 
 export interface ActionPaneProps {
@@ -99,7 +99,7 @@ export function ActionPane({ p, view, origin, onClose, onView }: ActionPaneProps
               </tbody>
             </table>
           )}
-          <Note>{say(w, 'rule', { rule: view.rule })}</Note>
+          <Note>{say(w, 'rule', { rule: known(w, `reason.${view.rule}`) ?? view.rule })}</Note>
         </div>
       )}
       {view.can.includes('reverse') && !p.viewer && <Note>{w['reverse.note']}</Note>}

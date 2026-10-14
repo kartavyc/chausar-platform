@@ -16,13 +16,15 @@ import { useAct, useReply } from './kit/reply.ts';
 import { amountText, day, dayTime } from './kit/format.ts';
 import { Actions, Button, Note, Refusal, pageStyles } from './kit/Page';
 import { approvalDetail, dropped, pace, snoozed, type ApprovalDetail } from './contract.ts';
-import { actionRecord, approvalSheet, exported, practiceRun, type ActionRecord, type Exported } from './contract-writeback.ts';
+import { actionRecord, approvalSheet, exported, practiceRun, type ActionRecord, type ApprovalSheetReply, type Exported } from './contract-writeback.ts';
+import { sheetOf } from './contract.ts';
+import { jobWords } from './text-jobs.ts';
 import { ReminderBlock, SavedFiles, WbNotices, wbPairs } from './WritebackParts.tsx';
 import { wbKnown, wbSay, wbWords } from './writeback-text.ts';
 import { ActionPane } from './ActionPane.tsx';
 import { JobCardView, jobFacts } from './JobCard.tsx';
 import { KeyValue } from '../../parts/KeyValue';
-import { expiryNote, money, say, stepItems, type WorkProps } from './shared.tsx';
+import { expiryNote, fieldName, fieldValue, money, rowTitle, say, stepItems, type WorkProps } from './shared.tsx';
 import type { WorkKey, WorkWords } from './text.ts';
 import s from './work.module.css';
 
@@ -34,12 +36,13 @@ export function toApproval(d: ApprovalDetail, p: Pick<WorkProps, 'w' | 'language
   if (amountWords !== null) target.push({ name: w['f.amount'], value: amountWords });
   target.push({ name: w['f.reason'], value: reasonWords(d.reason, w) });
   const expiry = d.expiresAt === null ? null : expiryNote(d.expiresAt, w, language);
+  // This lane's own fixed lines and field names are said in the reader's language; text from the books or another lane is shown as it came.
   const change: ApprovalChange = {
-    ...(d.change.asWritten !== undefined ? { asWritten: d.change.asWritten } : {}),
-    ...(d.change.fields !== undefined ? { fields: d.change.fields } : {}),
+    ...(d.change.asWritten !== undefined ? { asWritten: d.change.key === 'acceptance' ? w['fixed.acceptance'] : d.change.asWritten } : {}),
+    ...(d.change.fields !== undefined ? { fields: d.change.fields.map(f => ({ name: fieldName(f.name, w), before: fieldValue(f.name, f.before, w, language), after: fieldValue(f.name, f.after, w, language) })) } : {}),
   };
   const out: { -readonly [K in keyof Approval]: Approval[K] } = {
-    approvalId: d.id, kind: d.kind, state: d.state, what: d.title, target, change,
+    approvalId: d.id, kind: d.kind, state: d.state, what: rowTitle(d, w), target, change,
     steps: stepItems(d.steps, language),
     note: expiry === null ? w['note.plain'] : say(w, 'note.expires', { when: expiry }),
     readOnly: p.viewer || d.readOnly, prepareOnly: d.prepareOnly, needsSecondAsk: d.needsSecondAsk, can: d.can,
@@ -86,9 +89,11 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
   const [passphrase, setPassphrase] = useState<string | null>(null);
   const [saved, setSaved] = useState<Exported | null>(null);
   const [saving, setSaving] = useState(false);
+  // A proposed job from job extensions leaves the queue once approved: its reply is shown in place of a reload.
+  const [shown, setShown] = useState<ApprovalSheetReply | null>(null);
 
   if (after) return <ActionPane p={p} view={after} origin={origin} onClose={onClose} onView={setAfter} />;
-  const d = loaded.phase === 'ready' ? loaded.value : loaded.phase === 'loading' ? loaded.last : undefined;
+  const d = shown ?? (loaded.phase === 'ready' ? loaded.value : loaded.phase === 'loading' ? loaded.last : undefined);
   if (d === undefined) {
     const state = loaded.phase === 'refused' ? loaded.state : { kind: 'loading' as const };
     return (
@@ -108,12 +113,13 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
     }
     const payload: Record<string, unknown> = secondAsk ? { id: d.id, digest: d.digest, secondAsk: true } : { id: d.id, digest: d.digest };
     if (reauth !== undefined) payload.reauth = reauth;
-    const out = await act.run('approvals.approve', payload, approvalDetail);
+    const out = await act.run('approvals.approve', payload, approvalSheet);
     if (!out.ok) {
       if (out.code === 'PREVIEW_CHANGED') { act.clear(); setNotice('blocked.changed'); reload(); }
       return;
     }
     onListChanged();
+    if (out.value.source === 'proposal') { setShown(out.value); return; }
     if (out.value.source !== 'action' && out.value.source !== 'writeback') { setNotice('approved'); reload(); return; }
     const done = await act.run('approvals.execute', { id: out.value.id }, actionRecord);
     if (done.ok) setAfter(done.value); else reload();
@@ -188,7 +194,7 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
           )}
         </div>
       )}
-      {d.reminder && <ReminderBlock reminder={d.reminder} ww={ww} language={language} onReceipt={p.openReceipt} />}
+      {d.reminder && <ReminderBlock reminder={d.reminder} ww={ww} language={language} onReceipt={p.openReceipt} onRecord={p.viewer ? undefined : () => p.navigate({ place: 'books', sub: 'customers' })} />}
 
       {passphrase !== null && (
         <form className={[s.block, s.form].join(' ')} role="dialog" aria-label={ww['pass.title']} onSubmit={confirmPassphrase}>
@@ -277,6 +283,12 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
           <KeyValue pairs={jobFacts(d.job, w['job.proposed'], w, language)} onReceipt={p.openReceipt} />
           <JobCardView card={d.job} w={w} language={language} onReceipt={p.openReceipt} simple={p.view === 'simple'} />
         </>
+      )}
+      {shown !== null && (
+        <div className={s.block} role="status">
+          <Note>{jobWords(language)['approved.job']}</Note>
+          {shown.approvedJobId !== undefined && <Actions><Button variant="link" onClick={() => p.navigate({ place: 'work', sub: 'jobs', sheet: sheetOf(shown.approvedJobId!.replace(/^job:/, '')) })}>{jobWords(language)['approved.openJob']}</Button></Actions>}
+        </div>
       )}
       {d.snoozedUntil !== undefined && <Note>{say(w, 'snoozedUntil', { when: dayTime(d.snoozedUntil, language) })}</Note>}
     </div>

@@ -17,14 +17,14 @@ import { section, peekSection } from './state.ts';
 import {
   initWork, normalizeWork, env, queue, order, rowOf, snoozed, expired, detail, drafts, lessons, visibleActions, visibleJobs, jobNeedsApproval, jobCard,
   actionView, actionDetail, findAction, catalogue, catalogueRow, catalogueEntry, catalogueKey, parseId, steps, isoAt, nowMs, isReadOnly,
-  actionTier, acceptanceReference, boundLogs,
+  actionTier, boundLogs, withProposals, acceptanceReference, acceptanceDigest,
 } from './work-queue.ts';
+import { acceptResult, approveProposal, dismissProposal, sendBack, SENT_BACK } from './work-jobs-lane.ts';
 import type { ApprovalDetail, Env, WorkState, Amount, ActionView } from './work-queue.ts';
 import { findView, wbDetail, wbActionView, reminderOf, practiceReply, changedPayload, parseView, SYSTEM_TITLES, REMINDER_BLOCKS } from './work-writeback.ts';
 import { exportPrepared } from './work-writeback-export.ts';
 
 const FAST_MS = 2000, PACE_KEEP = 20, WANTED_MAX = 500, GROUP_MAX = 10, RESERVATION_MS = 15 * 60000;
-const SENT_BACK = 'Sent back from the approvals queue.';
 const record = (value: unknown): value is Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 function exact(payload: Record<string, any>, required: string[], optional: string[] = []) {
   check(record(payload) && required.every(k => Object.hasOwn(payload, k)) && Object.keys(payload).every(k => required.includes(k) || optional.includes(k)), 'INVALID_APPROVAL', 'Use only the declared request fields.');
@@ -66,8 +66,9 @@ async function approveWriteback(host: ModuleHost, raw: string, item: ApprovalDet
 
 /** One approval of one exact item. Group approvals call this once per item. */
 async function approveOne(ctx: Context, host: ModuleHost, payload: { id: string; digest: string; secondAsk?: true; reauth?: string }, group = false): Promise<ApprovalDetail> {
-  const e = await env(ctx, host); const item = await fullDetail(e, payload.id); const { source, raw } = parseId(payload.id);
+  const e = await withProposals(ctx, host, payload.id); const item = await fullDetail(e, payload.id); const { source, raw } = parseId(payload.id);
   check(!isReadOnly(e), 'OWNER_APPROVES', 'The owner approves this.');
+  check(source !== 'proposal' || item.blocked?.kind !== 'owner-approves', 'JOB_OWNER_REQUIRED', 'Only the job’s owner approves its card.');
   check(!group || (item.tier === 'tier-1' && item.source !== 'job'), 'GROUP_NOT_ALLOWED', 'Items on the always-waits list are approved one at a time.');
   check(item.state === 'prepared', 'INVALID_APPROVAL_STATE', 'Only an item that is waiting can be approved.');
   check(!expired(e, item), 'APPROVAL_EXPIRED', 'This approval expired. Nothing was sent.');
@@ -81,8 +82,14 @@ async function approveOne(ctx: Context, host: ModuleHost, payload: { id: string;
   else if (source === 'job') await host.call('jobs.approve', { id: raw, digest: payload.digest });
   else if (source === 'acceptance') {
     // The full reference from the same snapshot the digest was checked against: core refuses PREVIEW_CHANGED if the objective or deliverable moved since.
-    const job = visibleJobs(e).find(j => j.id === raw)!;
-    await host.call('jobs.accept', { id: raw, reference: acceptanceReference(e, job) });
+    // A lane job is accepted through jobs-ext (it writes its own time line and catches up a missed run), a core job through the core.
+    await acceptResult(e, visibleJobs(e).find(j => j.id === raw)!);
+  }
+  else if (source === 'proposal') {
+    // jobs-ext's own approval of this exact card; the item leaves the queue and the new job runs.
+    const jobId = await approveProposal(host, raw, payload.digest);
+    await recordPace(host, ctx, payload.id, null);
+    return { ...item, state: 'verified', can: [], steps: steps(item.steps[0] ? ['done', item.steps[0].at] : ['done', null], ['done', isoAt(nowMs(host))]), ...(jobId ? { approvedJobId: `job:${jobId}` } : {}) };
   }
   else if (source === 'release') await host.call('books.publish', { draftId: raw, digest: payload.digest });
   else if (source === 'bill') await approveBill(ctx, host, raw, payload.digest);
@@ -145,7 +152,7 @@ function jobRow(e: Env, job: Job) {
 
 export const workMethods: Readonly<Record<string, MethodSpec>> = {
   'approvals.list': { permission: 'read', phone: true, async handler(ctx, payload, host) {
-    exact(payload, []); const e = await env(ctx, host); const all = queue(e).sort(order);
+    exact(payload, []); const e = await withProposals(ctx, host); const all = queue(e).sort(order);
     const live = all.filter(item => !expired(e, item)); const shown = live.filter(item => !snoozed(e, item.id));
     return {
       items: shown.map(rowOf), expired: all.filter(item => expired(e, item)).map(rowOf), snoozed: live.length - shown.length,
@@ -153,7 +160,7 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     };
   } },
   'approvals.get': { permission: 'read', phone: true, async handler(ctx, payload, host) {
-    const id = idOf(payload); const item = await fullDetail(await env(ctx, host), id);
+    const id = idOf(payload); const item = await fullDetail(await withProposals(ctx, host, id), id);
     if (item.state === 'prepared' && !item.readOnly) await update(host, work => { work.opened[`${ctx.memberId} ${id}`] = nowMs(host); boundLogs(work); });
     return item;
   } },
@@ -161,13 +168,13 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
   'approvals.notNow': { permission: 'read', phone: true, async handler(ctx, payload, host) {
     exact(payload, ['id'], ['hours']);
     check(payload.hours === undefined || (Number.isInteger(payload.hours) && payload.hours >= 1 && payload.hours <= 168), 'INVALID_APPROVAL', 'Snooze for 1 to 168 hours.');
-    const e = await env(ctx, host); const item = detail(e, payload.id); check(item.state === 'prepared', 'INVALID_APPROVAL_STATE', 'Only a waiting item can wait longer.');
+    const e = await withProposals(ctx, host, payload.id); const item = detail(e, payload.id); check(item.state === 'prepared', 'INVALID_APPROVAL_STATE', 'Only a waiting item can wait longer.');
     const snoozedUntil = isoAt(e.now + (payload.hours ?? 24) * 3600000);
     await update(host, work => { (work.snoozes[ctx.memberId] ??= {})[item.id] = snoozedUntil; });
     return { id: item.id, snoozedUntil };
   } },
   'approvals.change': { permission: 'prepare', async handler(ctx, payload, host) {
-    exact(payload, ['id', 'payload']); const e = await env(ctx, host); const item = detail(e, payload.id); const { source, raw } = parseId(payload.id);
+    exact(payload, ['id', 'payload']); const e = await withProposals(ctx, host, payload.id); const item = detail(e, payload.id); const { source, raw } = parseId(payload.id);
     check(item.state === 'prepared', 'INVALID_APPROVAL_STATE', 'Only a waiting item can be changed.');
     if (source === 'action') {
       check(record(payload.payload), 'INVALID_APPROVAL', 'Send the changed request as an object.');
@@ -192,12 +199,13 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     throw new ChausarError('CHANGE_NOT_AVAILABLE', 'This item cannot be changed here.');
   } },
   'approvals.drop': { permission: 'approve', async handler(ctx, payload, host) {
-    const id = idOf(payload); const e = await env(ctx, host); const item = detail(e, id); const { source, raw } = parseId(id);
+    const id = idOf(payload); const e = await withProposals(ctx, host, id); const item = detail(e, id); const { source, raw } = parseId(id);
     check(item.can.includes('drop'), 'INVALID_APPROVAL_STATE', 'This item can no longer be dropped.');
     if (source === 'action') await host.services.actions.cancel(ctx, raw);
     else if (source === 'writeback') await host.call('writeback.drop', { id: raw });
     else if (source === 'job') await host.call('jobs.cancel', { id: raw });
-    else if (source === 'acceptance') await host.call('jobs.reject', { id: raw, reason: SENT_BACK }); // sends the result back; the job stays, paused
+    else if (source === 'acceptance') await sendBack(host, visibleJobs(e).find(j => j.id === raw)!, SENT_BACK); // sends the result back; the job stays, paused
+    else if (source === 'proposal') await dismissProposal(host, raw);
     else if (source === 'release') await host.call('books.discard', { draftId: raw });
     else if (source === 'bill') await dropBill(ctx, host, raw);
     else await host.call('memory.decideLesson', lessonDecision(e, raw, 'reject'));
@@ -207,7 +215,7 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
   'approvals.group': { permission: 'read', async handler(ctx, payload, host) {
     exact(payload, ['ids']);
     check(Array.isArray(payload.ids) && payload.ids.length >= 2 && payload.ids.length <= GROUP_MAX && new Set(payload.ids).size === payload.ids.length, 'INVALID_APPROVAL', 'A group holds 2 to 10 different items.');
-    const e = await env(ctx, host); const items = payload.ids.map((id: unknown) => { parseId(id); return detail(e, id as string); });
+    const e = await withProposals(ctx, host, payload.ids.some((id: unknown) => typeof id === 'string' && id.startsWith('proposal:')) ? undefined : null); const items = payload.ids.map((id: unknown) => { parseId(id); return detail(e, id as string); });
     check(items.every((i: ApprovalDetail) => i.tier === 'tier-1' && i.source !== 'job'), 'GROUP_NOT_ALLOWED', 'Items on the always-waits list are approved one at a time.');
     return { title: `${items.length} changes that can be undone`, undoable: true as const, items };
   } },
@@ -229,7 +237,7 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     return { fastStreak, warn: fastStreak >= 3 };
   } },
   'approvals.practice': { permission: 'prepare', async handler(ctx, payload, host) {
-    const id = idOf(payload); const e = await env(ctx, host); const item = detail(e, id); const { source, raw } = parseId(id);
+    const id = idOf(payload); const e = await withProposals(ctx, host, id); const item = detail(e, id); const { source, raw } = parseId(id);
     const none = (code: string) => ({ practice: true as const, available: false, steps: steps(), wouldSend: null, code });
     // Write-back practises its own prepared actions against fresh practice systems; core actions have none.
     if (source === 'writeback') { void item; return practiceReply(await host.call('writeback.practice', { actionId: raw })); }
@@ -335,8 +343,9 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     const canSee = (a: PreparedAction) => { try { host.services.actions.access(e.state, ctx, a); return true; } catch { return false; } };
     // Sending is closed by every unsure action, but only those the caller may see are listed or counted.
     const hidden = open.some(a => !canSee(a));
-    const notes = [...(items.length ? ['Sending stays closed until every action below is checked.'] : []), ...(journalled.size ? ['Some of these may already have gone out after the backup was made. Chausar will look before doing anything.'] : []), ...(hidden ? ['Some actions you cannot see are still being checked.'] : [])];
-    return { sendingClosed: open.length > 0, items, notes };
+    // Each note is a fixed line of this lane; `noteKeys` names them in order so a screen says them in its own language.
+    const keyed = [...(items.length ? [['closed-until-checked', 'Sending stays closed until every action below is checked.']] : []), ...(journalled.size ? [['may-have-gone-out', 'Some of these may already have gone out after the backup was made. Chausar will look before doing anything.']] : []), ...(hidden ? [['hidden-being-checked', 'Some actions you cannot see are still being checked.']] : [])] as [string, string][];
+    return { sendingClosed: open.length > 0, items, notes: keyed.map(([, line]) => line), noteKeys: keyed.map(([k]) => k) };
   } },
   'approvals.exportPrepared': { permission: 'prepare', async handler(ctx, payload, host) {
     const id = idOf(payload);
@@ -374,8 +383,10 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     const timeline = job.ledger.map(l => ({ at: l.at, event: l.event, amount: l.amountMinor ? { minor: l.amountMinor } as Amount : null, needsModel: null, reason: l.reason ?? null }));
     return {
       ...jobCard(e.state, job),
-      result: record(d) ? { done: strings(d.done), open: strings(d.open), receiptIds: strings(d.receiptIds) } : null,
+      result: record(d) ? { done: strings(d.done), open: strings(d.open), recommends: strings(d.recommendations), receiptIds: strings(d.receiptIds) } : null,
       meters: jobMeters(e, job),
+      // WK-10: the exact result to accept, as the queue item `acceptance:<id>` (approvals.approve with this digest).
+      acceptance: job.status === 'awaiting-acceptance' ? { id: `acceptance:${job.id}`, digest: acceptanceDigest(acceptanceReference(e, job)) } : null,
       // WK-08 measure, WK-11 schedule, WK-16 person steps; for a lane job, jobs-ext's time line, measured meters and result (work-jobs-sheet.ts)
       ...(await jobSheetExtras(e, job, timeline, ctx.role !== 'viewer')),
     };
@@ -395,8 +406,9 @@ export const workPurge: NonNullable<EngineModule['purge']> = (state, reason) => 
   const ls = state.lessonState as { lessons?: unknown } | undefined;
   const lessonIds = ls && Array.isArray(ls.lessons) ? new Set(ls.lessons.flatMap((l: any) => [l?.id, ...(Array.isArray(l?.revisions) ? l.revisions.map((r: any) => r?.id) : [])]).filter((id: unknown) => typeof id === 'string')) : null;
   const gone = (typed: string) => {
-    const m = /^(action|job|acceptance|release|lesson|writeback):(.+)$/.exec(typed); if (!m) return false;
+    const m = /^(action|job|acceptance|release|lesson|writeback|proposal):(.+)$/.exec(typed); if (!m) return false;
     if (reason.removedIds.has(m[2])) return true;
+    if (m[1] === 'proposal') return false;   // jobs-ext keeps its proposals; a snooze on one ends with its time
     if (m[1] === 'release') return draftIds !== null && !draftIds.has(m[2]);
     if (m[1] === 'lesson') return lessonIds !== null && !lessonIds.has(m[2]);
     return !(m[1] === 'action' || m[1] === 'writeback' ? actions : jobs).has(m[2]);

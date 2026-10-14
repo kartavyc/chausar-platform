@@ -16,6 +16,7 @@ import { installed } from './work-jobs-sheet.ts';
 import { workJobEditMethods } from './work-jobs-edit.ts';
 import { calendarInfo, createMonthEnd } from './work-jobs-calendar.ts';
 import { workDrivingMethods } from './work-driving.ts';
+import { workJobLaneMethods } from './work-jobs-lane.ts';
 
 const DAY = 86_400_000;
 const INTERVAL = { day: DAY, week: 7 * DAY, month: 30 * DAY } as const;
@@ -85,7 +86,7 @@ function queueIdOf(value: unknown): string {
 }
 /** The card `jobsx.propose` returns (`Proposal`): it waits for `jobsx.approveProposal` with this digest. */
 function proposalOf(value: unknown): { id: string; digest: string } | null {
-  return record(value) && value.status === 'proposed' && typeof value.id === 'string' && typeof value.digest === 'string' ? { id: value.id, digest: value.digest } : null;
+  return record(value) && value.status === 'proposed' && typeof value.id === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(value.id) && typeof value.digest === 'string' && value.digest.length >= 8 && value.digest.length <= 200 ? { id: value.id, digest: value.digest } : null;
 }
 
 /**
@@ -137,8 +138,10 @@ export const workJobMethods: Readonly<Record<string, MethodSpec>> = {
         'INVALID_JOB_PROPOSAL', 'Say the job in one sentence of up to 500 characters.');
       if (!(await sentenceAvailable(host))) throw new ChausarError('PROPOSAL_FROM_SENTENCE_NOT_BUILT', 'Proposing a job from one sentence is not built yet.');
       // jobsx.propose { sentence } makes a proposal (a card waiting for jobsx.approveProposal), not a job.
-      const proposal = await host.call('jobsx.propose', { sentence: payload.sentence.trim() });
-      return { id: queueIdOf(proposal), proposal: proposalOf(proposal) };
+      // It waits in the queue as `proposal:<id>` (approved there through jobsx.approveProposal with this digest).
+      const proposal = proposalOf(await host.call('jobsx.propose', { sentence: payload.sentence.trim() }));
+      check(proposal, 'INVALID_JOB_REPLY', 'The proposed job could not be read back.');
+      return { id: `proposal:${proposal.id}`, proposal };
     }
     const { template, budgetMinor, maxRuns, missedRun, schedule } = templatePayload(payload);
     const at = nowMs(host);
@@ -154,4 +157,5 @@ export const workJobMethods: Readonly<Record<string, MethodSpec>> = {
   } },
   ...workJobEditMethods,
   ...workDrivingMethods,
+  ...workJobLaneMethods,
 };
