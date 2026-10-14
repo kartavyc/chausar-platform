@@ -79,6 +79,7 @@ import { ReleaseUpdater, compareVersions } from './updater.ts';
 import { authorize, audit, check, ChausarError, hash, newId, now, type Context, type State, type StateStore } from './contracts.ts';
 import { engineModules, moduleMethods } from './modules/registry.ts';
 import type { ModuleHost } from './modules/types.ts';
+import { dictionaryMcpTools } from './learning-ext/dictionary-layers.ts';
 import { registerPrivateStatePurgeHook } from './private-state-lifecycle.ts';
 
 // Engine modules register their namespace purge once, at load.
@@ -783,7 +784,8 @@ export class Engine {
       name: 'calculate', description: 'Run a published read-only business calculation and return its exact receipt.',
       inputSchema: { type: 'object', additionalProperties: false, required: ['operation'], properties: { operation: { type: 'string', enum: ['billed', 'received', 'earned', 'refunds', 'costs', 'purchases', 'revenue', 'net_sales', 'margin', 'aging', 'change', 'scenario'] }, period: { type: 'object' }, asOf: { type: 'string' }, branch: { type: 'string' }, customerId: { type: 'string' }, orderId: { type: 'string' }, comparePeriod: { type: 'object' }, assumptions: { type: 'object' }, onDate: { type: 'string' } } },
       calculate: async (request: any, ctx: Context) => { const receipt = await this.services.calculator.calculate(ctx, request); return { value: receipt.totalMinor, receipt }; },
-    }], receiptReader: (ctx: Context, id: string) => this.services.calculator.receipt(ctx, id) });
+    }], receiptReader: (ctx: Context, id: string) => this.services.calculator.receipt(ctx, id),
+      readTools: dictionaryMcpTools(store) });
     const todayHost = this.options.today, installedReports = this.options.reports,
       installedJobs = this.options.durableJobs, installedLessons = this.options.lessons,
       installedConnectors = this.options.connectorRuntime, installedCalendar = this.options.jobCalendar;

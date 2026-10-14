@@ -351,7 +351,7 @@ test('trusted Engine lifecycle runs invoice and generic deterministic jobs throu
     f.engine.updateJobLifecycle(lifecycle); assert.deepEqual(await f.engine.tick(), []);
   }
   f.engine.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
-  const ran = await f.engine.tick();
+  const ran = (await f.engine.tick()).filter((item: any) => item.module === undefined); // engine-module ticks report separately
   assert.deepEqual(ran.map((item: any) => item.id).sort(), [before.id, invoice.id, after.id].sort());
   assert.ok(ran.every((item: any) => item.status === 'awaiting-acceptance'));
   assert.deepEqual(await f.engine.tick(), []);
