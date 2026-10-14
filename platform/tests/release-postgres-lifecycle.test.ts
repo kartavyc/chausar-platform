@@ -1,18 +1,18 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { chmod, lstat, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile, access } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile, access } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { BundledPostgres, nodePostgresRunner, postgresMajor, type PostgresRunner, type PostgresRunOptions, type PostgresServerProcess } from '../runtime/native/postgres-lifecycle.ts';
+import { BundledPostgres, nodePostgresRunner, postgresMajor, type BundledPostgresOptions, type PostgresRunner, type PostgresRunOptions, type PostgresServerProcess } from '../runtime/native/postgres-lifecycle.ts';
 
 type Call = { name: string; executable: string; args: string[]; options?: PostgresRunOptions };
 const DEAD_PID = 2_147_483_646;
 
 /** Emulates initdb, postgres (a TCP listener plus postmaster.pid), pg_ctl stop, `postgres --version` and pg_upgrade. */
-function fakeRunner(settings: { bundled?: string; failFastStop?: boolean; failUpgradeCheck?: boolean } = {}) {
+function fakeRunner(settings: { bundled?: string; failFastStop?: boolean; failUpgradeCheck?: boolean; neverReady?: boolean } = {}) {
   const calls: Call[] = [];
   const servers = new Map<string, { server: Server; exited: boolean }>();
   const option = (args: string[], flag: string) => args[args.indexOf(flag) + 1];
@@ -60,7 +60,7 @@ function fakeRunner(settings: { bundled?: string; failFastStop?: boolean; failUp
       const entry = { server, exited: false };
       servers.set(directory, entry);
       server.once('error', () => { entry.exited = true; });
-      writeFileSync(join(directory, 'postmaster.pid'), `${process.pid}\n${directory}\n0\n${port}\n\n127.0.0.1\n`);
+      writeFileSync(join(directory, 'postmaster.pid'), `${process.pid}\n${directory}\n0\n${port}\n\n127.0.0.1\n0\n${settings.neverReady ? 'starting' : 'ready   '}\n`);
       server.listen(port, '127.0.0.1');
       const handle: PostgresServerProcess = {
         pid: process.pid,
@@ -78,14 +78,14 @@ async function runtime(root: string, component = 'postgres', tools = ['postgres'
   await mkdir(bin, { recursive: true });
   for (const tool of tools) { await writeFile(join(bin, tool), 'fake binary'); await chmod(join(bin, tool), 0o755); }
 }
-async function setup(t: TestContext, settings: Parameters<typeof fakeRunner>[0] = {}) {
+async function setup(t: TestContext, settings: Parameters<typeof fakeRunner>[0] = {}, options: Partial<BundledPostgresOptions> = {}) {
   const root = await mkdtemp(join(tmpdir(), 'chausar-pg-'));
   const runtimeRoot = join(root, 'runtime-binaries');
   const dataRoot = join(root, 'database');
   await runtime(runtimeRoot);
   const fake = fakeRunner(settings);
   const port = 56000 + Math.floor(Math.random() * 800);
-  const make = () => new BundledPostgres({ runtimeRoot, dataRoot, runner: fake.runner, portRange: [port, port + 40], platform: 'linux', startTimeoutMs: 5000 });
+  const make = () => new BundledPostgres({ runtimeRoot, dataRoot, runner: fake.runner, portRange: [port, port + 40], platform: 'linux', startTimeoutMs: 5000, ...options });
   t.after(async () => { await fake.closeAll(); await rm(root, { recursive: true, force: true }); });
   return { root, runtimeRoot, dataRoot, fake, make, pg: make() };
 }
@@ -142,6 +142,40 @@ test('a dead postmaster PID is a recorded stale lock; a live foreign PID refuses
   assert.equal((await intruder.status()).lock, 'foreign');
   await assert.rejects(intruder.start(), code('POSTGRES_DATA_IN_USE'));
   await recovering.stop();
+});
+
+test('an open port is not readiness: start waits for the lock file to say ready', async t => {
+  const { pg } = await setup(t, { neverReady: true }, { startTimeoutMs: 600 });
+  await assert.rejects(pg.start(), code('POSTGRES_START_TIMEOUT'));
+});
+
+test('as root, start and upgrade refuse before running any PostgreSQL program', async t => {
+  const { pg, root, fake } = await setup(t, {}, { effectiveUid: () => 0 });
+  await assert.rejects(pg.start(), code('POSTGRES_RUN_AS_ROOT'));
+  await assert.rejects(pg.upgrade({ backupConfirmed: await vaultCopy(root) }), code('POSTGRES_RUN_AS_ROOT'));
+  assert.deepEqual(fake.calls, []);
+  const windows = new BundledPostgres({ runtimeRoot: join(root, 'rt'), dataRoot: join(root, 'db'), platform: 'win32', effectiveUid: () => 0, runner: fake.runner });
+  await assert.rejects(windows.start(), code('POSTGRES_RUNTIME_MISSING'), 'Windows has no root refusal');
+});
+
+test('server processes a crashed postmaster left behind are ended before the restart', async t => {
+  const alive = new Set([4242]);
+  const killed: number[] = [];
+  const { pg, dataRoot } = await setup(t, {}, {
+    processAlive: pid => alive.has(pid),
+    orphanedServerProcesses: async directory => { assert.equal(directory, join(dataRoot, 'cluster')); return [...alive]; },
+    killProcess: pid => { killed.push(pid); alive.delete(pid); },
+  });
+  await pg.start(); await pg.stop();
+  await writeFile(join(dataRoot, 'cluster', 'postmaster.pid'), `${DEAD_PID}\n`);
+  await pg.start();
+  assert.deepEqual(killed, [4242]);
+  assert.equal((await pg.status()).lastRecovery?.detail.orphansEnded, 1);
+  await pg.stop();
+  const stubborn = await setup(t, {}, { startTimeoutMs: 400, processAlive: pid => pid === 4343, orphanedServerProcesses: async () => [4343], killProcess: () => undefined });
+  await stubborn.pg.start(); await stubborn.pg.stop();
+  await writeFile(join(stubborn.dataRoot, 'cluster', 'postmaster.pid'), `${DEAD_PID}\n`);
+  await assert.rejects(stubborn.pg.start(), code('POSTGRES_STALE_PROCESSES'));
 });
 
 test('a failed fast stop falls back to immediate and is recorded', async t => {
@@ -230,6 +264,11 @@ test('an older cluster plans and runs pg_upgrade in copy mode only after a verif
   const upgradeCalls = fake.calls.filter(call => call.name === 'pg_upgrade');
   assert.deepEqual(upgradeCalls.map(call => call.args.includes('--check')), [true, false]);
   assert.ok(upgradeCalls.every(call => call.options?.env?.PGPASSFILE === join(dataRoot, 'upgrade.pgpass')));
+  const workFolder = upgradeCalls[0].options?.cwd as string;
+  assert.ok(workFolder && !workFolder.startsWith(dataRoot) && basename(workFolder).startsWith('chausar-pgu-'), 'pg_upgrade runs from a private folder outside the data root');
+  assert.ok(upgradeCalls.every(call => call.options?.cwd === workFolder && call.args[call.args.indexOf('--socketdir') + 1] === workFolder), 'its sockets go to the short private folder');
+  await assert.rejects(access(workFolder), 'the private folder, with pg_upgrade\'s delete_old_cluster script, is removed');
+  assert.deepEqual((await readdir(dataRoot)).sort(), ['chausar-cluster.json', 'cluster', 'cluster.pre-17', 'database-password']);
   assert.ok(fake.calls.some(call => call.name === 'postgres:server' && call.executable.includes('postgres-16')), 'the crashed old cluster is replayed with its own binaries first');
   const upgraded = make();
   await upgraded.start();

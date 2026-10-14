@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "note": "Upstream runtime archives per target. Every sha256 is null on purpose: the release operator downloads each archive, verifies it against the vendor's own published integrity data, and pins the lowercase SHA-256 here. scripts/release/stage-runtime.ts refuses a null pin with RUNTIME_SOURCE_UNPINNED and a null url with RUNTIME_SOURCE_UNAVAILABLE. URLs were checked to resolve on 2026-10-14; layouts and license paths were read from the archive listings. Entries with official=false come from a third-party redistributor because the upstream project ships no relocatable build for that target; their provenance needs separate review.",
+  "note": "Upstream runtime archives per target. A sha256 stays null until it is verified: the release operator downloads each archive, verifies it against the vendor's own published integrity data, and pins the lowercase SHA-256 here. scripts/release/stage-runtime.ts refuses a null pin with RUNTIME_SOURCE_UNPINNED and a null url with RUNTIME_SOURCE_UNAVAILABLE. URLs were checked to resolve on 2026-10-14; layouts and license paths were read from the archive listings. Entries with official=false come from a third-party redistributor because the upstream project ships no relocatable build for that target; their provenance needs separate review.",
   "targets": {
     "win32-x64": [
       {
@@ -110,7 +110,8 @@
         "vendor": "theseus-rs postgresql-binaries 17.6.0",
         "url": "https://github.com/theseus-rs/postgresql-binaries/releases/download/17.6.0/postgresql-17.6.0-x86_64-unknown-linux-gnu.tar.gz",
         "note": "postgresql.org publishes Linux builds only as distribution packages, not relocatable archives. This third-party build is compiled from upstream source.",
-        "sha256": null,
+        "sha256": "19dbf09f0fc33255ff7596fc3ceb7696647286dd15fdf60f3f65c583aae6ad5d",
+        "checksumSource": "Downloaded 2026-10-14 and hashed locally; matches the publisher's postgresql-17.6.0-x86_64-unknown-linux-gnu.tar.gz.sha256 release asset (https://github.com/theseus-rs/postgresql-binaries/releases/download/17.6.0/postgresql-17.6.0-x86_64-unknown-linux-gnu.tar.gz.sha256).",
         "license": "PostgreSQL",
         "licenseFile": "postgres/COPYRIGHT",
         "official": false,
@@ -122,11 +123,12 @@
         "vendor": "astral-sh python-build-standalone 20250818 (install_only)",
         "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250818/cpython-3.13.7+20250818-x86_64-unknown-linux-gnu-install_only.tar.gz",
         "note": "python.org publishes Linux Python only as source, so this third-party relocatable build is used.",
-        "sha256": null,
+        "sha256": "f3488a36ef5c10d01d346b9e540727d0807202c9bef52f40a987dc59ddc4ecee",
+        "checksumSource": "Downloaded 2026-10-14 and hashed locally; matches the publisher's SHA256SUMS release asset for 20250818 (https://github.com/astral-sh/python-build-standalone/releases/download/20250818/SHA256SUMS).",
         "license": "PSF-2.0",
         "licenseFile": "python/lib/python3.13/LICENSE.txt",
         "official": false,
-        "layout": { "archive": "tar.gz", "strip": "python", "into": "python", "materialiseSymlinks": true }
+        "layout": { "archive": "tar.gz", "strip": "python", "into": "python", "exclude": ["bin/python", "lib/libpython3.13.so"], "materialiseSymlinks": true }
       }
     ],
     "linux-arm64": [

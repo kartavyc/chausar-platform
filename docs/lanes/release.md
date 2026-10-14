@@ -86,3 +86,52 @@ All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that rea
 ## Full suite
 
 `npm test` on `55d6f5f`: 4,163 tests, 4,132 passed, 4 failed, 27 skipped. The four failures are in `platform/tests/benchmark-sharding.test.ts` and fail identically on the base branch (`claude/clever-goldberg-49qobq`); they are not caused by this lane. `desktop-host-bundle-join.test.ts` needs `--experimental-vm-modules` and fails under a plain `node --test` (also on the base).
+
+## Real Linux runs: PostgreSQL
+
+Run on 2026-10-14 in a Linux x64 container (kernel 6.18, Ubuntu 24.04 userland, Node 24.13.1), as the unprivileged `postgres` account (uid 102). The checks and the staging are repeatable: `node scripts/release/verify-postgres-linux.ts --stage <dir> --old-bin /usr/lib/postgresql/16/bin --as-user postgres` (stage, then run the checks under that account through `runuser`), or `--runtime <dir>` to reuse a staged runtime. The same checks run as `platform/tests/release-postgres-real.test.ts` when `CHAUSAR_REAL_POSTGRES_RUNTIME` (and optionally `CHAUSAR_REAL_POSTGRES_OLD_BIN`) are set; without them, on another OS or as root it is skipped with the reason, so the normal suite stays offline.
+
+**Pins (linux-x64 only; every other target stays `null`).** Each archive was downloaded and hashed here, and the hash matched the publisher's own checksum file. Both are third-party builds (`official: false`).
+
+| Component | Archive | SHA-256 | Verified against |
+|---|---|---|---|
+| PostgreSQL 17.6 | theseus-rs `postgresql-17.6.0-x86_64-unknown-linux-gnu.tar.gz` (11.7 MB) | `19dbf09f0fc33255ff7596fc3ceb7696647286dd15fdf60f3f65c583aae6ad5d` | the release's `.sha256` asset next to the archive |
+| Python 3.13.7 | python-build-standalone 20250818 `cpython-3.13.7+20250818-x86_64-unknown-linux-gnu-install_only.tar.gz` (119 MB) | `f3488a36ef5c10d01d346b9e540727d0807202c9bef52f40a987dc59ddc4ecee` | the release's `SHA256SUMS` |
+
+`runtime-sources.json` records this in a new `checksumSource` field. The validator now requires `checksumSource` on every pin and refuses it on an unpinned entry.
+
+**Staging.** `stage-runtime.ts --platform linux --arch x64` passed against the real archives: 5,116 files in 25 s, with PostgreSQL at 30 MB and Python at 496 MB. The recorded layouts were right: strip folder, `COPYRIGHT` and `lib/python3.13/LICENSE.txt`. The 8 libpq/ecpg symlinks and 1,047 Python symlinks (mostly terminfo) were materialised. One fix: materialising `bin/python` and `lib/libpython3.13.so` duplicated a 113 MB interpreter and a 246 MB library (839 MB in all). A new layout `exclude` list drops those two links. The binaries are unstripped upstream. The real staged tree passed the runtime checks of `scripts/package-preflight.mjs`: ELF64 x86-64 header checks on `postgres`, `initdb`, `pg_ctl` and `python3`, and the complete integrity and provenance manifest. The non-runtime checks failed only because that check ran outside the repository and without release keys.
+
+**Real-run receipt** (`chausar.postgres-real-run.v1`, `ok: true`, PostgreSQL 17.6 bundled, 16.15 Ubuntu as the old major):
+
+| Step | Result | Time |
+|---|---|---|
+| initdb, start, `pg` connect from the connection descriptor, `select 1` | pass; port 56400, password file `0600` | 1.0 s |
+| live foreign lock (second instance on the same data root) | refused `POSTGRES_DATA_IN_USE`, lock `foreign` | 14 ms |
+| orderly stop | stopped, `postmaster.pid` gone | 0.1 s |
+| restart | same persisted port, data intact | 0.1 s |
+| `kill -9` of the postmaster after 1,000 committed inserts | lock `stale`; restart replayed WAL ("not properly shut down; automatic recovery in progress", "redo starts/done"); 1,001 rows; `stale-lock-recovered` recorded | 0.3 s |
+| `kill -9` while a backend runs a long query | the orphaned backend was found and ended; restart succeeded; rows intact | 2.6 s |
+| data newer than the bundled major (`PG_VERSION` 18) | state `newer-than-app`, refused `POSTGRES_DATA_NEWER`, not started | 0.2 s |
+| upgrade 16 → 17 (old cluster created by real PG 16 binaries, then crashed with `kill -9`) | `needs-upgrade`; start refused `POSTGRES_UPGRADE_REQUIRED`; no proof refused `BACKUP_REQUIRED`; with a real 40.8 MB tar vault copy and its SHA-256: crashed old cluster replayed by the PG 16 binaries, `pg_upgrade --check` then copy mode (`link: false`), 500 rows and their paise total intact on 17.6, `cluster.pre-17` kept with `PG_VERSION` 16 | 5.9 s |
+
+The same run also passed with the data roots under a 126-character path (`…/work/upgrade`), longer than the socket limit.
+
+**Bugs found by the real run and fixed in `postgres-lifecycle.ts`:**
+
+- *Readiness meant "port open".* During crash recovery the server listens but answers `57P03 not yet accepting connections`, so `start()` returned too early. Worse, before an upgrade the crashed old cluster was stopped mid-recovery, and `pg_upgrade` then refused it ("shut down while in recovery mode"). Readiness now also requires `ready` in the lock file, as `pg_ctl -w` checks.
+- *`delete_old_cluster.sh` would have deleted the live database.* `pg_upgrade` writes that script to its working folder (the data root). The script runs `rm -rf <data root>/cluster`, which after the swap is the upgraded cluster. `pg_upgrade` now runs from a private temporary folder that is removed afterwards.
+- *Socket path length.* `pg_upgrade` put its sockets in its working folder. With a deep data root this went past the 107-byte Unix limit ("socket path … is too long"). It now gets `--socketdir` with that short private folder.
+- *Orphaned backends after `kill -9`.* A backend busy in a query outlives its postmaster and keeps shared memory attached. The next start then failed with a generic `POSTGRES_START_FAILED` ("pre-existing shared memory block is still in use"). On Linux, the lifecycle now finds the `postgres` processes of the same user whose working folder is the data folder and ends them before restarting. This also covers the old cluster before an upgrade. The count is recorded as `orphansEnded`. If they will not end, the refusal is `POSTGRES_STALE_PROCESSES`.
+- *Running as root* failed as `POSTGRES_INITDB_FAILED`. It now refuses up front with `POSTGRES_RUN_AS_ROOT`, on non-Windows platforms with the real runner.
+- `pg_upgrade` failure output now reaches `onDiagnostic`.
+
+The public API is unchanged. The new options are `effectiveUid`, `orphanedServerProcesses` and `killProcess`, with test doubles in `release-postgres-lifecycle.test.ts`.
+
+**What this does not prove / still open:**
+
+- The theseus-rs PostgreSQL links the system's `libssl.so.3`, `libcrypto.so.3`, `libxml2.so.2`, `libzstd.so.1`, `liblz4.so.1`, `libgssapi_krb5.so.2` and `libz.so.1`, and needs glibc ≥ 2.34. These are not vendored, so the "complete runtime" rule is not met for older or minimal distributions.
+- The upgrade test lays the distribution's PG 16 `bin/` and `lib/` out as `postgres-16/` copies. No genuine relocatable PG 16 archive is pinned yet, and the README's `postgres-<major>/bin` layout needs `lib/` too for a build that resolves `$libdir` relative to `bin`.
+- The orphan sweep is Linux-only. On macOS and Windows, a crash during a long query still surfaces as `POSTGRES_START_FAILED` until the old backends finish.
+- Python was staged and launched (`python3` 3.13.7 runs from the staged tree) but not otherwise exercised. Nothing ran on macOS or Windows, on arm64, or under power loss as opposed to `kill -9`.
+- `app/desktop/main.cjs` still starts PostgreSQL through `scripts/postgres-runtime.mjs`. These results apply to `BundledPostgres`.
