@@ -47,7 +47,8 @@ export type { ScenarioSelection } from './retained-contracts.ts';
 export interface HostMountOptions {
   readonly language?: Language;
   readonly view?: View;
-  /** The trusted entry preserves its transport context when returning to legacy. */
+  /** Supplied only when the trusted host launched with the legacy renderer available; it
+   *  preserves its transport context when returning there. Without it no legacy link is drawn. */
   readonly onLegacyReturn?: () => void;
   /**
    * An exact retained scenario pin chosen by the trusted host, opened on Ask, Saved with a
@@ -347,7 +348,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   view: View;
   setLanguage: (language: Language) => void;
   setView: (view: View) => void;
-  onLegacyReturn: () => void;
+  onLegacyReturn: (() => void) | null;
   scenarioSelection: ScenarioSelection | null;
 }) {
   const t = useT();
@@ -756,7 +757,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     state: { kind: 'not-yet' }, date: '', review: { count: { exact: null, display: words.unknown }, rows: [] },
     thisMonthMissing: 'unknown', earlierTodayMissing: 'unknown',
   };
-  const legacyLink = <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>;
+  const legacyLink = onLegacyReturn === null ? null : <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>;
   /** For a proof or provenance that replaced the chosen row's detail: the way back to that detail, and a close bound to the chosen chain. */
   const chainBack = (current: LocalSheet): SheetProps['back'] => current.chosen === undefined ? undefined : { label: t('RETAINED.scenario.title'), onBack: () => returnToDetail(current) };
   const chainClose = (current: LocalSheet) => {
@@ -801,7 +802,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       {localSheet.kind === 'help' ? <ShortcutHelpBody language={language} />
         : <p>{hostMessage(language, localSheet.kind === 'about' ? 'about' : 'referenceUnavailable')}</p>}
       {localSheet.id !== undefined && <p className={detail.exact}>{hostMessage(language, 'referenceIdentity', { id: localSheet.id })}</p>}
-      <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>
+      {legacyLink}
     </Sheet>,
   };
   const app: AppProps = {
@@ -923,7 +924,7 @@ function WorkspaceStart({ controller, state, language, onAcknowledged }: { contr
 function HostWorkspace({ controller, options, onLegacyReturn }: {
   controller: HostController;
   options: HostMountOptions;
-  onLegacyReturn: () => void;
+  onLegacyReturn: (() => void) | null;
 }) {
   const state = useSyncExternalStore(controller.subscribe, controller.snapshot, controller.snapshot);
   const [language, setLanguage] = useState<Language>(options.language ?? 'en');
@@ -958,7 +959,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
   return <TextProvider language={language}>
     <div style={{ height: '100vh', display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp4)', padding: 'var(--sp2) var(--sp4)', borderBottom: 'var(--hair) solid var(--line)' }}>
-        <Button variant="link" onClick={onLegacyReturn} disabled={state.creation.kind === 'creating' || state.creation.kind === 'recovery-required'}>{hostMessage(language, 'legacy')}</Button>
+        {onLegacyReturn !== null && <Button variant="link" onClick={onLegacyReturn} disabled={state.creation.kind === 'creating' || state.creation.kind === 'recovery-required'}>{hostMessage(language, 'legacy')}</Button>}
         <Button variant="link" onClick={() => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); }} disabled={state.phase === 'loading' || state.phase === 'locked'}>{hostMessage(language, 'refresh')}</Button>
       </div>
       <div data-host-workspace="" style={{ minHeight: 0, overflow: 'auto' }}>
@@ -990,10 +991,10 @@ export function mountHost(container: HTMLElement, controller: HostController, op
     const result = controller.dispose(); unmount(); return result;
   };
   root.render(<HostWorkspace controller={controller} options={options}
-    onLegacyReturn={() => {
+    onLegacyReturn={options.onLegacyReturn === undefined ? null : () => {
       if (controller.firstRun.issuance() !== 'none') { controller.firstRun.cancel(); return; }
       const ended = controller.dispose(); if (!ended.ok) return;
-      unmount(); if (options.onLegacyReturn) options.onLegacyReturn(); else window.location.assign('/index.html');
+      unmount(); options.onLegacyReturn?.();
     }} />);
   return Object.freeze({ unmount, dispose });
 }

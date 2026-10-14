@@ -36,6 +36,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     if (name === 'node:os') return { tmpdir: () => syntheticTemporary };
     return desktopRequire(name);
   } });
+  const protocolHandlers: any[] = [];
   const app = new EventEmitter() as any; app.isPackaged = true; app.quits = 0;
   app.getName = () => 'app'; app.commandLine = { hasSwitch: (name: string) => args.some(value => value === `--${name}` || value.startsWith(`--${name}=`)) };
   app.requestSingleInstanceLock = () => { events.push('lock'); return fault !== 'lock-denied'; }; app.whenReady = () => { events.push('ready'); if (fault === 'late-binding') paths.userData = ownedApp; return Promise.resolve(); };
@@ -77,7 +78,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   class Tray extends EventEmitter { setToolTip() {} setContextMenu(menu: any) { menus.push(menu); } destroy() {} }
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
   const powerMonitor = new EventEmitter();
-  const electron = { app, BrowserWindow: Window, Tray, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle() {} }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const electron = { app, BrowserWindow: Window, Tray, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle(_scheme: string, handler: any) { protocolHandlers.push(handler); } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(desktopMain, 'utf8');
   if (postgresGate) source = source.replace("await import(pathToFileURL(join(engineRoot, 'scripts/postgres-runtime.mjs')).href)", '__postgresModule');
   vm.runInNewContext(source, { __dirname: join(ownedApp, 'app', 'desktop'), require: (name: string) => {
@@ -91,7 +92,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     return desktopRequire(name);
   }, __postgresModule: { startBundledPostgres: async () => { await postgresGate; return { close: async () => { databaseCloses++; } }; } }, process: { argv: ['electron', ownedApp, ...args], env: profileEnvironment, platform: 'win32', resourcesPath: ownedResources }, console: { error: (message: string) => diagnostics.push(message) }, URL, Response, Buffer });
   await flush();
-  return { app, windows, engines, menus, errors, diagnostics, handlers, powerMonitor, events, paths, pathReads, directories, databaseCloses: () => databaseCloses };
+  return { app, windows, engines, menus, errors, diagnostics, handlers, protocolHandlers, powerMonitor, events, paths, pathReads, directories, databaseCloses: () => databaseCloses };
 }
 
 test('demo claims new user and session directories before the lock and pins worker storage to that profile', async () => {
@@ -212,6 +213,23 @@ test('UI preview opt-in opens the UI document with its trusted IPC frame and syn
   const stale = await handler({ sender: window.webContents, senderFrame: { url: 'chausar://app/index.html' } }, { method: 'workspace.status', payload: {} });
   assert.equal(stale.ok, false);
   assert.equal(stale.error.code, 'UNTRUSTED_SENDER');
+});
+
+test('the new UI is the default document and the legacy renderer is served only behind its explicit flag', async () => {
+  const standard = await desktop(['--demo']);
+  assert.equal(standard.errors.length, 0);
+  assert.equal(standard.windows[0].webContents.mainFrame.url, 'chausar://app/ui/index.html');
+  let prevented = false;
+  standard.windows[0].webContents.emit('will-navigate', { preventDefault() { prevented = true; } }, 'chausar://app/index.html');
+  assert.equal(prevented, true, 'The default UI cannot navigate to the legacy renderer.');
+  for (const path of ['/index.html', '/', '/app.js']) assert.equal((await standard.protocolHandlers[0]({ url: `chausar://app${path}` })).status, 404);
+  const legacy = await desktop(['--demo', '--legacy-renderer']);
+  assert.equal(legacy.errors.length, 0);
+  assert.equal(legacy.windows[0].webContents.mainFrame.url, 'chausar://app/index.html');
+  assert.equal((await legacy.protocolHandlers[0]({ url: 'chausar://app/index.html' })).status, 200);
+  const handler = legacy.handlers.get('chausar:request');
+  const reply = await handler({ sender: legacy.windows[0].webContents, senderFrame: legacy.windows[0].webContents.mainFrame }, { method: 'workspace.status', payload: {} });
+  assert.equal(reply.ok, true);
 });
 
 test('production desktop forwards its fixed packaged custody manifest through the real startup composition', async () => {

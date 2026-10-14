@@ -11,6 +11,11 @@ const { bindDemoProfile, assertDemoProfile } = require('./demo-profile.cjs');
 const packageMetadata = require('../../package.json');
 const demo = packageMetadata.chausarPreview === true || process.argv.includes('--demo');
 const uiPreview = process.argv.includes('--ui-preview');
+// The new UI is the default renderer. The legacy renderer is reachable only behind the explicit
+// --legacy-renderer flag (it then opens first), or from the older --ui-preview opt-in, which keeps
+// its return link.
+const legacyRenderer = process.argv.includes('--legacy-renderer');
+const legacyAvailable = legacyRenderer || uiPreview;
 const firstRunPreview = process.argv.includes('--first-run-preview');
 const firstRunPreviewRequested = process.argv.some(value => value === '--first-run-preview' || value.startsWith('--first-run-preview='));
 let demoProfile; let previewLifecycle; let singleInstance = false; let startupStage = 'preview-mode';
@@ -53,7 +58,7 @@ let window; let engine; let database; let tray; let demoMode = demo; let stoppin
 let previewStopResult; const previewStopErrors = [];
 let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
-let selectedDocument = uiPreview ? 'chausar://app/ui/index.html' : 'chausar://app/index.html';
+let selectedDocument = legacyRenderer ? 'chausar://app/index.html' : 'chausar://app/ui/index.html';
 const root = resolve(__dirname, '../..');
 const renderer = join(root, 'app/renderer');
 const engineRoot = app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked') : root;
@@ -152,7 +157,7 @@ function createWindow() {
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => {
-    if (uiPreview && selectedDocument === 'chausar://app/ui/index.html' && url === 'chausar://app/index.html') selectedDocument = url;
+    if (legacyAvailable && selectedDocument === 'chausar://app/ui/index.html' && url === 'chausar://app/index.html') selectedDocument = url;
     else event.preventDefault();
   });
   window.once('ready-to-show', () => {
@@ -177,9 +182,9 @@ if (singleInstance) app.whenReady().then(async () => {
   protocol.handle('chausar', async request => {
     const url = new URL(request.url); const files = new Map([['/index.html', 'index.html'], ['/', 'index.html'], ['/app.js', 'app.js'], ['/styles.css', 'styles.css'], ['/assets/icon.svg', 'assets/icon.svg']]);
     if (url.hostname !== 'app' || url.username || url.password || url.port) return new Response('Not found', { status: 404 });
-    const preview = await readUiAsset(root, url.pathname, uiPreview);
+    const preview = await readUiAsset(root, url.pathname, true, legacyAvailable);
     if (preview) return new Response(preview.body, { headers: { 'Content-Type': preview.mime, 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff' } });
-    const file = files.get(url.pathname); if (url.hostname !== 'app' || !file) return new Response('Not found', { status: 404 });
+    const file = legacyAvailable ? files.get(url.pathname) : undefined; if (url.hostname !== 'app' || !file) return new Response('Not found', { status: 404 });
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
     const ext = file.slice(file.lastIndexOf('.')); const data = await readFile(join(renderer, file));
     return new Response(data, { headers: { 'Content-Type': types[ext], 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff' } });
