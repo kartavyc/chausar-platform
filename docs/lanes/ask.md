@@ -38,6 +38,52 @@ Refusals are the lane's own fixed codes (listed on the ask line of `laneRefusals
 
 `purge`: a deleted source turns each saved item that used it into its question and the deletion date, and removes checks and why-changed pages that used it. `tick`: reruns checks when something they depend on changed.
 
-## Status
+## Screens
 
-<!-- STATUS -->
+The place module is `app/ui/src/places/lane-ask.tsx` → `app/ui/src/screens/ask/lane/AskPlace.tsx`. It draws **Ask › Saved, Decisions, Checks and Not yet**. Every view (menu, answer, receipt, rows, sent, why, what if, forecast, plan, GSTR-2B, search, saved, decision, check) opens on a small in-page stack with Back, and every lane page has "Ask from the menu". Addresses with `?sheet=why`, `whatif`, `forecast`, `plan`, `gst2b`, `search`, `answer.<receiptId>`, `decision.<id>`, `check.<id>` or `why.<id>` open that view directly. Shared parts built here for promotion: `parts/RankedBars`, `parts/Bridge` (measured bridge, BigInt-scaled, written out instead of drawn if parts do not add up), `parts/ForecastLine` (past, forecast with band, baseline). Every word is in per-file catalogues in English and Hindi; every figure opens the lane's own receipt view; viewer seats get no change controls; all replies are validated before drawing (`client.ts`, `core-replies.ts`, each analysis screen's validators).
+
+## Labels
+
+| Feature | Label |
+|---|---|
+| Menu, suggestions, typed question → proposal / one question back / Not yet / stopped by a rule | supported |
+| Answer with receipt, number guard list, months not loaded, coverage words | supported |
+| Receipt in six parts, rows counted and left out, what was sent (menu answers: nothing) | supported |
+| What was sent for a model-written answer (`askx.sent` finding the model preview by question) | experimental (needs a live model route) |
+| `askx.guard` over model-written text | supported (tested on synthetic text) |
+| Saved with stale marks, Rebuild, deleted-source words | supported |
+| Why did it change: measured bridge plus labelled guesses | supported |
+| What if (price assumption) | supported |
+| Best plan under limits | experimental |
+| Forecast against baseline (restated-diagnostic backtest) | supported |
+| Decisions: draft, confirm into the journal, review, inbox | supported |
+| Decisions forwarded from the phone (`askx.decisions.forward`) | experimental (needs the phone channel) |
+| Checks, Run all, rerun on change through the scheduler | supported |
+| Not yet list, search | supported |
+| Purchases against GSTR-2B with IMS list and export | supported on imported `gstr2b` facts; experimental against real 2B files (depends on the connectors-ext import shape) |
+
+## Tests
+
+- `platform/tests/ask-engine.test.ts` (18): the whole engine on synthetic businesses, including the review regressions (per-member lists and checks, hidden rows never marking stale, corrected rows, strict number guard, GST left-out rows, forecast scope).
+- `frontend-validation/tests/ask-core.test.tsx` (18) and `ask-analysis.test.tsx` (20): every screen against a fake `rpc`, both languages, three views, viewer seat, not built, invalid replies.
+
+## Cross-lane assumptions
+
+- **frame-today (host composition).** Ask › New and the bare Ask address stay with the host, which draws the model route picker and the conversation there; Ask › Saved is drawn first by the host's retained what-if surface. To show the lane's menu in New (the "no model connected" way to ask, AS-01) and the lane's Saved (AS-14), the host should hand those addresses to `askPlaces` when its own surface is idle. Until then both are reached from every lane page. The frame's `navigate` prop records the address without moving the hash, so `AskPlace.leave` also sets the hash.
+- **connectors-ext.** GSTR-2B lines are read as facts of kind `gstr2b` (or `gstr-2b`) with `gstin`, `invoiceId`, `amountMinor`, `taxMinor`, beside the purchase register (`purchase`). If that lane imports 2B under another shape, `TWO_B_KINDS` and `key()` in `platform/runtime/ask/gst2b.ts` are the one place to adapt.
+- **reports-tools-trust.** AS-08 "Ask a person" (`support.askAPerson`, RP-08) and AS-09 `trust.explain` are not built here; the screens show the fixed rule sentence and an Open Trust link.
+- **work-books.** "Rebuild" for stale answers uses the lane's own `askx.rebuild`, not `history.rebuild`.
+- Core methods called through `host.call`: `calculation.run`, `receipts.get`, `forecasts.evaluate`, `forecasts.get`, `decisions.list`, `decisions.review`, `decisions.journal.draft|confirm|review`, `investigations.list`.
+
+## Core edits
+
+- `app/desktop/preload.cjs`: the ask line of `laneRefusals` lists the lane's refusal codes (the permitted edit).
+
+## Still missing
+
+- Ask a person (AS-08, day 10) and `trust.explain` (AS-09) belong to other lanes.
+- "Recorded later" and "cancelled" decisions: the journal has no decided-on date or cancel state, so those labels are never set.
+- The inbox's "questions Chausar is waiting on" list is empty: pending conversation clarifications are not read here.
+- Checks rerun on their own only for owners and cofounders (the scheduler runs as them); other seats run theirs with Run all.
+- The number guard is strict: a model sentence naming a month as words with a year ("September 2026") is replaced by the template.
+- Forecast builds one receipt per month on every run (bounded at 240 months), so each run adds receipts to the vault.
