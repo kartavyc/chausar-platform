@@ -1,0 +1,153 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, dirname, resolve } from 'node:path';
+import { Engine } from '../runtime/engine.ts';
+import type { Context } from '../runtime/contracts.ts';
+import { jobsExtModule } from '../runtime/modules/lane-jobs-ext.ts';
+import { autonomyTick } from '../runtime/jobs-ext/autonomy-methods.ts';
+import { ALWAYS_WAITS, ALWAYS_WAITS_WORDS, alwaysWaits, kindTable, switchable } from '../runtime/jobs-ext/autonomy.ts';
+
+const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
+const KIND = 'local.reminder-draft';
+// Until the coordinator wires `tick` into the lane module, the test attaches the exported tick itself.
+if (!jobsExtModule.tick) (jobsExtModule as { tick?: unknown }).tick = autonomyTick;
+
+async function fixture(t: any) {
+  const directory = await mkdtemp(join(tmpdir(), 'chausar-autonomy-'));
+  const engine = new Engine({ directory, demo: true, storage: 'experimental-file' });
+  t.after(async () => {
+    await engine.shutdown(); assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
+    assert.ok(directory.split(/[\\/]/).at(-1)!.startsWith('chausar-autonomy-')); await rm(directory, { recursive: true, force: true });
+  });
+  await engine.request('workspace.create', { name: 'Synthetic autonomy shop', passphrase: 'Synthetic-autonomy-passphrase', demo: false });
+  engine.updateJobLifecycle({ awake: true, windowOpen: true, backgroundEnabled: false });
+  return engine;
+}
+const prepare = (engine: Engine, n: number, ctx: Context = owner) => engine.requestAs(ctx, 'actions.prepare', { connector: 'local', operation: 'reminder-draft',
+  payload: { invoiceId: `inv-${n}`, text: 'Synthetic reminder' }, idempotencyKey: `synthetic-key-${n}` });
+async function refused(work: Promise<unknown>, code: string) { await assert.rejects(work, (error: any) => { assert.equal(error.code, code); return true; }); }
+const status = async (engine: Engine, id: string) => (await engine.request('actions.list')).find((a: any) => a.id === id).status;
+const autoRuns = (results: any[]) => results.filter(r => r && typeof r.actionId === 'string');
+
+test('the classification table: reversible local kinds are switchable, the always-waits words never are', () => {
+  assert.equal(switchable(KIND, 'reversible'), true);
+  for (const kind of ['shop.update-price', 'shop.set_stock', 'store.listing-edit', 'writeback.whatsapp.payment-reminder', 'books.delete-entry', 'mail.send',
+    'shop.product-status', 'gst.gst-file', 'drive.share', 'team.invite', 'hooks.webhook-create', 'bank.payout']) assert.equal(alwaysWaits(kind), true, kind);
+  assert.equal(switchable('bank.match-statement', 'reversible'), true);
+  assert.equal(switchable('bank.match-statement', 'money'), false, 'Only reversible kinds have a switch.');
+  assert.equal(switchable('bank.match-statement', 'reversible', true), false, 'A writeback row may say it always waits.');
+  assert.ok(ALWAYS_WAITS_WORDS.includes('refund') && ALWAYS_WAITS_WORDS.includes('telegram'));
+  assert.equal(ALWAYS_WAITS.intro, 'Anything that cannot be undone, and in particular:');
+  assert.equal(ALWAYS_WAITS.items.at(-1), 'tax filings (prepare only)');
+});
+
+test('writeback catalogue rows are validated defensively and a missing method is skipped', async () => {
+  const actions = { catalogue: () => [{ id: 'local', operations: [{ id: 'reminder-draft', title: 'Draft', impact: 'reversible' }] }] };
+  const absent = await kindTable(owner, { services: { actions }, call: async () => { throw Object.assign(new Error('x'), { code: 'UNKNOWN_METHOD' }); } });
+  assert.deepEqual([...absent.keys()], [KIND]);
+  const rows = [{ system: 'sheets', action: 'append-row', impact: 'reversible' }, { system: 'sheets', action: 'note-row', impact: 'reversible', alwaysWaits: true },
+    { system: 'tally', action: 'post-voucher' }, { system: '../x', action: 'y' }, { system: 'a', action: 'b', impact: 'free' }, null, 'junk', { system: 'a', action: 'c', alwaysWaits: 'yes' }];
+  const table = await kindTable(owner, { services: { actions }, call: async () => rows });
+  assert.deepEqual([...table.keys()].sort(), [KIND, 'writeback.sheets.append-row', 'writeback.sheets.note-row', 'writeback.tally.post-voucher']);
+  assert.equal(table.get('writeback.sheets.append-row')!.switchable, true);
+  assert.equal(table.get('writeback.sheets.note-row')!.switchable, false);
+  assert.equal(table.get('writeback.tally.post-voucher')!.impact, 'destructive', 'A row without an impact is treated as one that cannot be undone.');
+});
+
+test('a new install asks before everything; always-waits kinds have no switch; presets and caps', async t => {
+  const engine = await fixture(t);
+  // A synthetic connector with kinds that always wait. Its operations are never executed here.
+  const never = async () => { throw new Error('Synthetic connector must not run.'); };
+  const op = (title: string, impact: string) => ({ title, description: 'Synthetic fixture only.', impact, idempotency: 'key', readback: 'read', validate: (p: any) => p, execute: never, reconcile: never });
+  (engine as any).services.actions.registry.set('synthetic-shop', { id: 'synthetic-shop', title: 'Synthetic shop', operations: {
+    'update-price': op('Change a price', 'reversible'), 'pay-supplier': op('Pay a supplier', 'money'), 'match-statement': op('Match a statement line', 'reversible') } });
+  const fresh = await engine.request('jobsx.autonomy');
+  assert.equal(fresh.master, false); assert.equal(fresh.preset, 'ask-everything');
+  assert.ok(fresh.kinds.length > 0 && fresh.kinds.every((k: any) => k.on === false && k.usedToday === 0));
+  assert.deepEqual(fresh.alwaysWaits, { intro: ALWAYS_WAITS.intro, items: [...ALWAYS_WAITS.items] });
+  assert.equal(fresh.caps.activeJobCap, 10);
+  const draft = fresh.kinds.find((k: any) => k.kind === KIND); assert.equal(draft.switchable, true); assert.equal(draft.impact, 'reversible');
+  const waiting = fresh.kinds.filter((k: any) => !k.switchable);
+  assert.deepEqual(waiting.map((k: any) => k.kind).sort(), ['synthetic-shop.pay-supplier', 'synthetic-shop.update-price']);
+  for (const kind of waiting) await refused(engine.request('jobsx.setAutonomy', { kind: kind.kind, on: true }), 'ALWAYS_WAITS');
+  assert.deepEqual((await engine.request('jobsx.setAutonomy', { kind: 'synthetic-shop.update-price', on: false })).on, false);
+  await refused(engine.request('jobsx.setAutonomy', { kind: 'nowhere.unknown', on: true }), 'UNSUPPORTED_ACTION');
+  await refused(engine.request('jobsx.setAutonomy', { kind: KIND, on: true, dailyCount: 0 }), 'INVALID_AUTONOMY');
+  await refused(engine.request('jobsx.setAutonomy', { kind: KIND, on: true, extra: 1 }), 'INVALID_AUTONOMY');
+  await refused(engine.requestAs({ ...owner, sourceTainted: true }, 'jobsx.setAutonomy', { kind: KIND, on: true }), 'APP_APPROVAL_REQUIRED');
+  await refused(engine.requestAs({ ...owner, channel: 'phone' }, 'jobsx.setAutonomy', { kind: KIND, on: true }), 'OPEN_DESKTOP');
+
+  assert.deepEqual(await engine.request('jobsx.setAutonomy', { kind: KIND, on: true, dailyCount: 5 }), { kind: KIND, on: true, dailyCount: 5, preset: 'custom' });
+  let view = await engine.request('jobsx.autonomy');
+  assert.equal(view.preset, 'custom'); assert.deepEqual(view.kinds.find((k: any) => k.kind === KIND).on, true);
+  assert.equal(view.master, false, 'A kind switch never turns the master switch on.');
+
+  assert.deepEqual((await engine.request('jobsx.autonomyPreset', { preset: 'ask-everything' })).on, []);
+  const routine = await engine.request('jobsx.autonomyPreset', { preset: 'routine' });
+  assert.deepEqual(routine.on, ['local.reminder-draft', 'synthetic-shop.match-statement']);
+  const all = await engine.request('jobsx.autonomyPreset', { preset: 'all-but-always-waits' });
+  view = await engine.request('jobsx.autonomy');
+  assert.equal(view.preset, 'all-but-always-waits');
+  assert.deepEqual(all.on, view.kinds.filter((k: any) => k.switchable).map((k: any) => k.kind).sort());
+  assert.ok(view.kinds.filter((k: any) => !k.switchable).every((k: any) => !k.on));
+  assert.equal(view.master, false, 'Presets never change the master switch.');
+  await refused(engine.request('jobsx.autonomyPreset', { preset: 'everything' }), 'INVALID_AUTONOMY');
+  await refused(engine.requestAs({ ...owner, sourceTainted: true }, 'jobsx.autonomyPreset', { preset: 'routine' }), 'APP_APPROVAL_REQUIRED');
+
+  assert.equal((await engine.request('jobsx.setCaps', { activeJobCap: 12, groupMax: 50 })).activeJobCap, 12);
+  assert.equal((await engine.request('jobsx.caps')).groupMax, 50);
+  await refused(engine.request('jobsx.setCaps', { activeJobCap: 51 }), 'INVALID_CAPS');
+  await refused(engine.request('jobsx.setCaps', { reminderPerCustomerPerDay: 1.5 }), 'INVALID_CAPS');
+  await refused(engine.request('jobsx.setCaps', { backgroundMode: true }), 'INVALID_CAPS');
+  await refused(engine.request('jobsx.setCaps', {}), 'INVALID_CAPS');
+  await refused(engine.requestAs({ ...owner, sourceTainted: true }, 'jobsx.setCaps', { failureLimit: 2 }), 'APP_APPROVAL_REQUIRED');
+});
+
+test('auto-run: master switch, kind switch, daily count, taint and agreement', async t => {
+  const engine = await fixture(t);
+  const first = await prepare(engine, 1);
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: true, dailyCount: 1 });
+  assert.deepEqual(autoRuns(await engine.tick()), [], 'With the master switch off nothing runs.');
+  assert.equal(await status(engine, first.id), 'prepared');
+
+  await engine.request('trust.update', { autonomy: true });
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: false });
+  assert.deepEqual(autoRuns(await engine.tick()), [], 'A kind that is switched off waits.');
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: true, dailyCount: 1 });
+
+  const second = await prepare(engine, 2);
+  const ran = autoRuns(await engine.tick());
+  assert.equal(ran.length, 1); assert.equal(ran[0].actionId, first.id); assert.equal(ran[0].kind, KIND); assert.equal(ran[0].status, 'verified');
+  assert.equal(await status(engine, first.id), 'verified');
+  assert.equal(await status(engine, second.id), 'prepared', 'The daily count holds.');
+  assert.deepEqual(autoRuns(await engine.tick()), []);
+  let view = await engine.request('jobsx.autonomy');
+  assert.equal(view.kinds.find((k: any) => k.kind === KIND).usedToday, 1);
+
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: true, dailyCount: 10 });
+  const tainted = await engine.requestAs({ ...owner, sourceTainted: true }, 'actions.prepare', { connector: 'local', operation: 'reminder-draft',
+    payload: { invoiceId: 'inv-3', text: 'Synthetic reminder from imported text' }, idempotencyKey: 'synthetic-key-3' });
+  const next = autoRuns(await engine.tick());
+  assert.deepEqual(next.map(r => r.actionId), [second.id]);
+  assert.equal(await status(engine, tainted.id), 'prepared', 'An action prepared from imported text never runs on its own.');
+  assert.deepEqual(autoRuns(await engine.tick()), []);
+  const activity = (engine as any).store().read().activity.filter((e: any) => e.event === 'jobsx.autonomy.ran');
+  assert.deepEqual(activity.map((e: any) => e.details.actionId), [first.id, second.id]);
+
+  // Agreement counts only what a person decided, not what the rule ran.
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: false });
+  const manual = await prepare(engine, 4);
+  await engine.request('actions.approve', { id: manual.id, digest: manual.digest });
+  const declined = await prepare(engine, 5);
+  await engine.withContext(owner, () => (engine as any).services.actions.cancel(owner, declined.id));
+  view = await engine.request('jobsx.autonomy');
+  assert.deepEqual(view.kinds.find((k: any) => k.kind === KIND).agreement, { approved: 1, declined: 1 });
+
+  await engine.request('jobsx.setAutonomy', { kind: KIND, on: true, dailyCount: 10 });
+  await engine.request('trust.update', { autonomy: false });
+  const later = await prepare(engine, 6);
+  assert.deepEqual(autoRuns(await engine.tick()), []);
+  assert.equal(await status(engine, later.id), 'prepared', 'Turning the master switch off stops every kind.');
+});

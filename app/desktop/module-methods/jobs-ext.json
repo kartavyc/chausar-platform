@@ -1,1 +1,7 @@
-[]
+[
+  "jobsx.autonomy",
+  "jobsx.setAutonomy",
+  "jobsx.autonomyPreset",
+  "jobsx.caps",
+  "jobsx.setCaps"
+]

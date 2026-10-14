@@ -1,0 +1,115 @@
+/**
+ * The autonomy switch (TR-05, Trust · Rules · Do). A new install asks before every action.
+ * The owner may let one kind of action run on its own, within a daily count, only when that
+ * kind can be undone and stays inside the workspace. The always-waits list has no switch.
+ * Auto-run still goes through ActionService: approve exactly this digest, execute once, read back.
+ */
+import { audit } from '../contracts.ts';
+import type { Context, State } from '../contracts.ts';
+import type { PreparedAction } from '../actions.ts';
+import type { ModuleHost } from '../modules/types.ts';
+import { optionalCall } from './adapters.ts';
+import { dayOf, lane, peekLane } from './state.ts';
+
+export type Impact = PreparedAction['impact'];
+export type KindRow = { kind: string; operation: string; title: string; impact: Impact; switchable: boolean };
+export type AutoResult = { actionId: string; kind: string; status: string } | { actionId: string; error: string };
+
+/** Words that put a kind on the always-waits list, matched on the kind split by `.`, `-` and `_`. */
+export const ALWAYS_WAITS_WORDS: readonly string[] = Object.freeze(['price', 'prices', 'stock', 'inventory', 'listing', 'listings', 'share', 'sharing',
+  'invite', 'webhook', 'tax', 'filing', 'delete', 'remove', 'refund', 'payment', 'pay', 'payout', 'transfer', 'message', 'send', 'email', 'mail',
+  'whatsapp', 'sms', 'telegram']);
+/** Word pairs that put a kind on the list when both appear (a product's status, a GST file). */
+export const ALWAYS_WAITS_PAIRS: readonly (readonly [string, string])[] = Object.freeze([['product', 'status'], ['products', 'status'], ['gst', 'file']] as const);
+export const ALWAYS_WAITS = Object.freeze({
+  intro: 'Anything that cannot be undone, and in particular:',
+  items: Object.freeze(['money', 'messages to outsiders', 'deleting', 'prices', 'stock', 'listings', 'sharing', 'invites to outsiders', 'webhooks', 'tax filings (prepare only)']),
+});
+export const DEFAULT_DAILY_COUNT = 20;
+export const RUNS_LIMIT = 5000;
+const ROUTINE = /draft|match|reconcile|note|label|tag|sheet/;
+const IMPACTS = new Set<Impact>(['reversible', 'message', 'money', 'destructive']);
+const PART = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
+
+export const words = (kind: string) => kind.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase().split(/[._-]+/).filter(Boolean);
+export function alwaysWaits(kind: string): boolean {
+  const parts = new Set(words(kind));
+  return ALWAYS_WAITS_WORDS.some(word => parts.has(word)) || ALWAYS_WAITS_PAIRS.some(([a, b]) => parts.has(a) && parts.has(b));
+}
+export const switchable = (kind: string, impact: Impact, rowAlwaysWaits = false) => impact === 'reversible' && !rowAlwaysWaits && !alwaysWaits(kind);
+export const routine = (row: KindRow) => row.switchable && ROUTINE.test(row.operation);
+export const kindOf = (action: { connector: string; operation: string }) => `${action.connector}.${action.operation}`;
+
+/** Every action kind this workspace knows: the written connector catalogue plus writeback's rows when that lane exists. */
+export async function kindTable(ctx: Context, host: Pick<ModuleHost, 'services' | 'call'>): Promise<Map<string, KindRow>> {
+  const table = new Map<string, KindRow>();
+  for (const connector of host.services.actions.catalogue(ctx) as { id: string; operations: { id: string; title: string; impact: Impact }[] }[])
+    for (const op of connector.operations) {
+      const kind = `${connector.id}.${op.id}`;
+      table.set(kind, { kind, operation: op.id, title: op.title, impact: op.impact, switchable: switchable(kind, op.impact) });
+    }
+  const remote = await optionalCall<unknown>(host, 'writeback.catalogue', {});
+  const rows = remote.available ? (Array.isArray(remote.value) ? remote.value : (remote.value as any)?.rows) : [];
+  if (Array.isArray(rows)) for (const row of rows.slice(0, 2000)) {
+    if (!row || typeof row !== 'object' || typeof row.system !== 'string' || typeof row.action !== 'string' || !PART.test(row.system) || !PART.test(row.action)) continue;
+    if (row.impact !== undefined && !IMPACTS.has(row.impact)) continue;
+    if (row.alwaysWaits !== undefined && typeof row.alwaysWaits !== 'boolean') continue;
+    const kind = `writeback.${row.system}.${row.action}`; if (table.has(kind)) continue;
+    // A row that does not state its impact is treated as one that cannot be undone.
+    const impact: Impact = row.impact ?? 'destructive';
+    table.set(kind, { kind, operation: row.action, title: typeof row.title === 'string' && row.title.length <= 200 ? row.title : kind, impact, switchable: switchable(kind, impact, row.alwaysWaits === true) });
+  }
+  return table;
+}
+
+export const today = (host: Pick<ModuleHost, 'services'>) => dayOf(new Date(host.services.jobs.clock()).toISOString());
+export const usedToday = (state: State, kind: string, day: string) => peekLane(state).autonomy.runs.filter(run => run.kind === kind && dayOf(run.at) === day).length;
+
+/** Integer counts of how often a person agreed (approved) or declined (cancelled) each kind, leaving out what the rule ran itself. */
+export function agreement(state: State): Map<string, { approved: number; declined: number }> {
+  const ran = new Set(peekLane(state).autonomy.runs.map(run => run.actionId)); const counts = new Map<string, { approved: number; declined: number }>();
+  for (const action of state.actions as PreparedAction[]) {
+    if (ran.has(action.id)) continue;
+    const entry = counts.get(kindOf(action)) ?? { approved: 0, declined: 0 };
+    if (action.approval) entry.approved++; else if (action.status === 'cancelled') entry.declined++; else continue;
+    counts.set(kindOf(action), entry);
+  }
+  return counts;
+}
+
+export function taintedActions(state: State): Set<string> {
+  return new Set(state.activity.filter((e: any) => e?.event === 'action.prepared' && e.details?.taintedSource === true && typeof e.details.actionId === 'string').map((e: any) => e.details.actionId));
+}
+
+/** Runs prepared actions whose kind is switched on, while the master switch in Trust is on. Never throws per action. */
+export async function autoRun(ctx: Context, host: ModuleHost): Promise<AutoResult[]> {
+  const state = host.store.read();
+  if (state.policy.autonomy !== true || ctx.sourceTainted || ctx.channel === 'phone') return [];
+  const switches = peekLane(state).autonomy.kinds;
+  if (!Object.values(switches).some(entry => entry.on)) return [];
+  const table = await kindTable(ctx, host); const tainted = taintedActions(state); const day = today(host);
+  const visible = new Set((host.services.actions.list(ctx) as PreparedAction[]).map(action => action.id));
+  const used = new Map<string, number>(); const results: AutoResult[] = [];
+  for (const action of state.actions as PreparedAction[]) {
+    const kind = kindOf(action); const row = table.get(kind); const entry = switches[kind];
+    if (action.status !== 'prepared' || action.attempts.length !== 0 || action.impact !== 'reversible' || !row?.switchable || !entry?.on) continue;
+    if (tainted.has(action.id) || !visible.has(action.id)) continue;
+    const count = used.get(kind) ?? usedToday(host.store.read(), kind, day);
+    if (count >= entry.dailyCount) continue;
+    if (host.store.read().policy.autonomy !== true) break;
+    try {
+      await host.services.actions.approve(ctx, action.id, action.digest); used.set(kind, count + 1);
+      await host.store.update(next => {
+        const ns = lane(next); ns.autonomy.runs.push({ kind, actionId: action.id, at: new Date(host.services.jobs.clock()).toISOString() });
+        if (ns.autonomy.runs.length > RUNS_LIMIT) ns.autonomy.runs.splice(0, ns.autonomy.runs.length - RUNS_LIMIT);
+        audit(next, 'jobsx.autonomy.ran', { actionId: action.id, kind });
+      });
+      const done = await host.services.actions.execute(ctx, action.id) as PreparedAction;
+      results.push({ actionId: action.id, kind, status: done.status });
+    } catch (error) {
+      const code = (error as { code?: unknown })?.code;
+      results.push({ actionId: action.id, error: typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(code) ? code : 'AUTONOMY_RUN_FAILED' });
+    }
+  }
+  return results;
+}
