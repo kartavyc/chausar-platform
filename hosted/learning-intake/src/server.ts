@@ -18,7 +18,25 @@ export type IntakeOptions = {
   maxBytes?: number;
   /** Requests per contributor per window; `false` turns the limit off. */
   rateLimit?: { max: number; windowMs: number } | false;
+  /** Addresses of reverse proxies in front of the service. Only their `X-Forwarded-For` is believed. */
+  trustedProxies?: readonly string[];
 };
+const ADDRESS = /^[0-9A-Fa-f:.]{2,45}$/;
+const bare = (address: string) => address.startsWith('::ffff:') ? address.slice(7) : address;
+/**
+ * The client the rate limit counts. A direct caller is its socket address. A caller that came
+ * through a trusted proxy is the right-most `X-Forwarded-For` entry that is not itself a trusted
+ * proxy; a malformed header, or one from an untrusted peer, is ignored.
+ */
+export function clientAddress(socketAddress: string | undefined, forwardedFor: string | undefined, trustedProxies: readonly string[] = []): string | undefined {
+  if (!socketAddress) return undefined;
+  const trusted = new Set(trustedProxies.map(bare)), peer = bare(socketAddress);
+  if (!trusted.has(peer) || !forwardedFor || forwardedFor.length > 2000) return peer;
+  const hops = forwardedFor.split(',').map(hop => bare(hop.trim()));
+  if (!hops.every(hop => ADDRESS.test(hop))) return peer;
+  for (let index = hops.length - 1; index >= 0; index--) if (!trusted.has(hops[index])) return hops[index];
+  return hops[0] ?? peer;
+}
 export type IntakeHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 
 const STATUS: Record<string, number> = {
@@ -74,7 +92,7 @@ export function createIntakeHandler(options: IntakeOptions): IntakeHandler {
     const at = clock().getTime();
     if (windows.size > 10_000) for (const [key, window] of windows) if (at - window.start >= limit.windowMs) windows.delete(key);
     need(windows.size <= 50_000, 'RATE_LIMITED');
-    const address = req?.socket?.remoteAddress;
+    const address = req ? clientAddress(req.socket?.remoteAddress, header(req, 'x-forwarded-for'), options.trustedProxies) : undefined;
     const keys: [string, number][] = [[`c:${contributorHash}`, limit.max], ...(address ? [[`a:${address}`, limit.max * 4] as [string, number]] : []), ['global', limit.max * 200]];
     for (const [key, max] of keys) {
       const window = windows.get(key);

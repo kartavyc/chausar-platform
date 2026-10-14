@@ -311,3 +311,13 @@ class FakePostgres implements PoolLike {
     throw new Error(`Fake PostgreSQL does not understand: ${text}`);
   }
 }
+
+test('behind a trusted proxy the rate limit counts the real client; an untrusted peer cannot forge one', async () => {
+  const { clientAddress } = await import('../../hosted/learning-intake/src/server.ts');
+  assert.equal(clientAddress('203.0.113.9', '198.51.100.1', ['10.0.0.5']), '203.0.113.9', 'an untrusted peer forwards nothing');
+  assert.equal(clientAddress('10.0.0.5', '198.51.100.1', ['10.0.0.5']), '198.51.100.1');
+  assert.equal(clientAddress('::ffff:10.0.0.5', '192.0.2.7, 198.51.100.1, 10.0.0.6', ['10.0.0.5', '10.0.0.6']), '198.51.100.1', 'the right-most untrusted hop is the client');
+  assert.equal(clientAddress('10.0.0.5', 'not an address', ['10.0.0.5']), '10.0.0.5', 'a malformed header is ignored');
+  assert.equal(clientAddress('10.0.0.5', undefined, ['10.0.0.5']), '10.0.0.5');
+  assert.equal(clientAddress(undefined, '198.51.100.1', ['10.0.0.5']), undefined);
+});

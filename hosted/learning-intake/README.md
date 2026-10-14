@@ -80,3 +80,11 @@ These steps are for the founder, not the build:
 - The public domain the desktop app points at.
 - A lawyer's review of the consent text before the intake opens.
 - That same review before the `account-words` and `question-shapes` boxes are added to `OPEN_BOXES`. Opening a box means changing both vocabulary copies together.
+
+## Behind a reverse proxy
+
+The rate limit counts each contributor token, each client address and the service as a whole. A client sending a new made-up token every time is still counted by its address.
+
+Behind a reverse proxy the connecting address is the proxy's. To fix that, set `trustedProxies` (in `main.ts`, the `INTAKE_TRUSTED_PROXIES` variable, a comma-separated list of the proxies' addresses).
+
+The client is then the right-most `X-Forwarded-For` entry that is not a trusted proxy. The header is believed only when the request came from one of those addresses. A malformed header is ignored.
