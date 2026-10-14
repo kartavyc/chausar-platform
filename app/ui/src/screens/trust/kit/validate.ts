@@ -5,7 +5,8 @@
  */
 export class ShapeError extends Error {
   readonly code = 'INVALID_REPLY';
-  constructor(readonly path: string) { super(`INVALID_REPLY:${path}`); }
+  readonly path: string;
+  constructor(path: string) { super(`INVALID_REPLY:${path}`); this.path = path; }
 }
 export type Rec = Readonly<Record<string, unknown>>;
 export function rec(value: unknown, path = 'reply'): Rec {
