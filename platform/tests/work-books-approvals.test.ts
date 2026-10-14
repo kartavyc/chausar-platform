@@ -41,7 +41,7 @@ async function fixture(options: { writeback?: Record<string, (payload: any) => u
   const actions = new ActionService(store, [connector]); const jobs = new JobService(store, options.deliverableGuard ? { deliverableGuard: options.deliverableGuard } : {}); const ontology = new OntologyService(store);
   const clock = { offset: 0 }; const calls: { method: string; payload: any }[] = []; const services: Record<string, any> = { actions, jobs, ontology };
   const host = (ctx: Context): ModuleHost => ({
-    store, services, demo: true, directory: '/tmp/x', options: { clock: () => Date.now() + clock.offset },
+    store, services, demo: true, directory: '/tmp/x', options: { clock: () => Date.now() + clock.offset, hasMethod: () => false },
     async call(method, payload) {
       calls.push({ method, payload });
       if (method === 'jobs.approve') return jobs.approve(ctx, payload.id as string, payload.digest as string);
