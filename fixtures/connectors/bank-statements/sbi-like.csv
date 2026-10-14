@@ -1,0 +1,9 @@
+Account Statement (synthetic)
+Account Name :,DEMO TRADERS
+Opening Balance : 8500.00
+Txn Date,Value Date,Description,Ref No./Cheque No.,Branch Code,Debit,Credit,Balance
+1 Sep 2026,1 Sep 2026,BY TRANSFER-UPI/CR/624800002222/VERMA/DEMO,TRANSFER FROM 624800002222,99999,,"2,500.00","11,000.00"
+4 Sep 2026,4 Sep 2026,TO TRANSFER-UPI/DR/624800003333/SINGH ELECT,TRANSFER TO 624800003333,99999,"1,150.00",,"9,850.00"
+9 Sep 2026,9 Sep 2026,ATM WDL-ATM CASH 4321 DEMO NAGAR,ATM 4321,99999,500.00,,"9,350.00"
+Closing Balance : 9350.00
+**This is a computer generated statement**
