@@ -1,0 +1,14 @@
+{
+  "name": "chausar-hosted",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chausar hosted services: relay, link page, blind backup, model allowance, always-on jobs, accounts and billing. Written and tested, not deployed.",
+  "type": "module",
+  "engines": { "node": ">=24.13.1" },
+  "scripts": {
+    "migrate": "node db/migrate-cli.ts",
+    "api": "node server.ts api",
+    "worker": "node server.ts worker"
+  },
+  "dependencies": { "pg": "8.23.0" }
+}
