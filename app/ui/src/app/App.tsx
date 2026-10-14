@@ -23,6 +23,7 @@ import { parseAddress, formatAddress, sameAddress } from './routes.ts';
 import { resolveAddress, type ShellKind, type ShellConfig } from './places.ts';
 import { sheetAtAddress, workspaceLocked, type AddressBoundSheet } from './composition.ts';
 import { Frame } from './Frame';
+import { useIdleLock } from './useIdleLock.ts';
 import { LockScreen, type LockScreenProps } from './LockScreen';
 import type { AskLineProps } from './AskLine';
 import type { WorkspaceMenuProps } from './WorkspaceMenu';
@@ -56,6 +57,8 @@ export interface AppProps {
   onHelp?: ((origin?: HTMLElement | null, fallback?: HTMLElement | null) => void) | undefined;
   /** Called for initial, keyboard and history addresses. Null means no private surface. */
   onAddress?: ((address: Address | null) => void) | undefined;
+  /** Idle auto-lock (SH-02): `todayx.shell` autoLockMinutes and the host's lock. Off while locked. */
+  idleLock?: { readonly minutes: number; readonly onIdle: () => void } | undefined;
 }
 
 function readHash(): Address {
@@ -83,6 +86,8 @@ export function App(p: AppProps) {
   const locked = p.lock != null || workspaceLocked(p.today.data.state);
   const activeAddressKey = locked || safeAddress === null ? null : formatAddress(safeAddress);
   const activeAddress = useMemo(() => activeAddressKey === null ? null : parseAddress(activeAddressKey), [activeAddressKey]);
+  const idleOnIdle = p.idleLock?.onIdle;
+  useIdleLock({ minutes: p.idleLock?.minutes ?? 0, onIdle: () => idleOnIdle?.(), enabled: p.idleLock !== undefined && !locked });
 
   useEffect(() => {
     const onHash = () => {

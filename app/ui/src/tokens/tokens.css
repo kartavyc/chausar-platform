@@ -154,8 +154,8 @@
   }
 }
 
-/* Medium window: rail 176, column 640. The sheet covers the list (Frame.module.css). */
-@media (min-width: 1024px) and (max-width: 1279px) {
+/* Medium window, 1024 to 1315: rail 176, column 640. The sheet covers the list (Frame.module.css). */
+@media (min-width: 1024px) and (max-width: 1315px) {
   :root {
     --rail: 176px;
     --col: 640px;

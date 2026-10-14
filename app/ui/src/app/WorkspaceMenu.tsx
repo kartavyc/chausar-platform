@@ -31,6 +31,8 @@ export interface WorkspaceMenuProps {
   /** Listed only with `onSwitchWorkspace`: a workspace that cannot be chosen is not offered. */
   workspaces?: ReadonlyArray<WorkspaceEntry> | undefined;
   onSwitchWorkspace?: ((id: string) => void) | undefined;
+  /** The workspace in use, marked chosen in the list. */
+  workspaceId?: string | undefined;
   /** Enterprise: group companies and "All companies". Listed only with `onSwitchCompany`. */
   companies?: ReadonlyArray<CompanyEntry> | undefined;
   companyId?: string | undefined;
@@ -43,6 +45,8 @@ export interface WorkspaceMenuProps {
   onSetLanguage: (l: Language) => void;
   onLock: () => void;
   onAbout: () => void;
+  /** Help (SH-12), the same sheet as Ctrl /. Listed only when supplied. */
+  onHelp?: (() => void) | undefined;
 }
 
 const VIEWS: ReadonlyArray<View> = ['simple', 'guided', 'books'];
@@ -60,6 +64,7 @@ export function WorkspaceMenu(p: WorkspaceMenuProps) {
     else if (kind === 'lang' && (id === 'en' || id === 'hi')) p.onSetLanguage(id);
     else if (kind === 'lock') p.onLock();
     else if (kind === 'about') p.onAbout();
+    else if (kind === 'help') p.onHelp?.();
   };
 
   const views = p.views ?? VIEWS;
@@ -79,7 +84,7 @@ export function WorkspaceMenu(p: WorkspaceMenuProps) {
             <MenuSection className={[s.section].join(' ')}>
               <Header className={s.header}>{t('SH-06.workspaces')}</Header>
               {p.workspaces.map((w) => (
-                <MenuItem key={w.id} id={`ws:${w.id}`} className={[s.item].join(' ')}>
+                <MenuItem key={w.id} id={`ws:${w.id}`} className={[s.item, p.workspaceId === w.id ? s.chosen : ''].join(' ')}>
                   {w.name}
                   <span className={s.demo}> {w.demo ? t('SH-06.demo') : t('SH-06.real')}</span>
                 </MenuItem>
@@ -119,6 +124,11 @@ export function WorkspaceMenu(p: WorkspaceMenuProps) {
             <MenuItem id="lock" className={[s.item].join(' ')}>
               {t('SH-06.lock')}
             </MenuItem>
+            {p.onHelp && (
+              <MenuItem id="help" className={[s.item].join(' ')}>
+                {t('SH-12.title')}
+              </MenuItem>
+            )}
             <MenuItem id="about" className={[s.item].join(' ')}>
               {t('SH-06.about')}
             </MenuItem>

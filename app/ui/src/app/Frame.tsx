@@ -1,8 +1,12 @@
 /**
  * The frame (SH-01): rail, page, sheet, ask line, status line. The same on every screen.
  * - Rail 216, column 720 (wide 1010), sheet 480 with the list at 570, ask 54, status 34.
- * - 1024 to 1279: rail 176, column 640, the sheet covers the list.
- * - Under 1024: a bar across the top, full-width page, the sheet fills the screen.
+ * - 1316 and wider: as drawn.
+ * - 1024 to 1315: rail 176, column 640, the sheet covers the list.
+ * - Under 1024: a bar across the top, full-width page, the sheet fills the screen. Down to
+ *   360 wide. Zoom 80 to 200 percent moves through the same widths, since they are CSS pixels.
+ * - Banners (SH-03) sit across the full width above the page and the sheet; at most two
+ *   show and the rest fold into "and N more".
  * - Landmarks: the rail is navigation, the page is main, the sheet is a labelled region,
  *   the ask line is search. F6 moves between them, and lands on something visible: in
  *   the narrow bar that is the place menu's own control, not a link inside the closed menu.
@@ -180,19 +184,22 @@ export function Frame({ shell, address, onNavigate, counts, menu, banners = [], 
       <div ref={rootRef} className={[s.frame, narrow ? s.narrow : '', wide ? s.wide : '', sheet ? s.withSheet : ''].filter(Boolean).join(' ')}>
         <Rail shell={shell} address={address} onNavigate={onNavigate} counts={counts} narrow={narrow} foot={<WorkspaceMenu {...menu} />} />
         <div className={s.main}>
-          <div className={s.pageCol}>
-            <div className={s.column}>
-              <Banners items={banners} />
-            </div>
-            <main className={[s.page, s.column].join(' ')} tabIndex={-1} aria-label={t('SH-01.region.page')} data-region="page">
-              {children}
-            </main>
-            <div className={s.column}>
-              <AskLine ref={askRef} {...ask} hold={hold} simple={simple} />
-              <StatusLine status={status} view={shell.view} onNavigate={onNavigate} simpleSentences={statusSimple} />
-            </div>
+          {/* Banners run across the full width, above the page and above any open sheet. */}
+          <div className={s.banners}>
+            <Banners items={banners} />
           </div>
-          {sheet && <div className={s.sheetCol}>{sheet}</div>}
+          <div className={s.body}>
+            <div className={s.pageCol}>
+              <main className={[s.page, s.column].join(' ')} tabIndex={-1} aria-label={t('SH-01.region.page')} data-region="page">
+                {children}
+              </main>
+              <div className={s.column}>
+                <AskLine ref={askRef} {...ask} hold={hold} simple={simple} />
+                <StatusLine status={status} view={shell.view} onNavigate={onNavigate} simpleSentences={statusSimple} />
+              </div>
+            </div>
+            {sheet && <div className={s.sheetCol}>{sheet}</div>}
+          </div>
         </div>
       </div>
     </SheetRegistryContext.Provider>
