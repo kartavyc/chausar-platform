@@ -289,6 +289,13 @@
   "CHART.unavailable.CHART_HAS_NO_POINTS": "No chart. The series has no points.",
   "CHART.unavailable.CHART_HAS_NO_KNOWN_POINTS": "No chart. No point in the series is known.",
   "CHART.shares.unavailable": "No bar. These values cannot be drawn as parts of one whole.",
+  "CHART.bridge.guess": "Guess",
+  "CHART.bridge.guessLabel": "{label}, a guess",
+  "CHART.bridge.mixed": "No bridge. A guess cannot be drawn among measured causes.",
+  "CHART.goalLine.rule": "{label}: {amount}",
+  "CHART.ruleBar.value": "{label}: {amount}",
+  "CHART.strip.failed": "read failed",
+  "CHART.strip.open": "Open the receipt for {label}, {state}",
 
   "STRIP.done": "done",
   "STRIP.loading": "loading",

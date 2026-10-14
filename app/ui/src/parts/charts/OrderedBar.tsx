@@ -16,7 +16,7 @@ import type { OrderedBarChart } from '../../app/presentation.ts';
 import { isFigure } from '../../app/presentation.ts';
 import { useT } from '../../app/text';
 import { exactShares, toExact } from './scale.ts';
-import { Mark, MissingList, Target, ValueList } from './marks';
+import { Mark, MissingList, Target, ValueList, moveAmongMarks } from './marks';
 import s from './charts.module.css';
 
 export interface OrderedBarProps {
@@ -71,7 +71,7 @@ export function OrderedBar({ chart, onReceipt, width = 200, className }: Ordered
   let cursor = 0;
   return (
     <div className={className}>
-      <svg className={s.svg} viewBox={`0 0 ${width} ${total}`} width={width} height={total} role="group" aria-label={chart.sentence}>
+      <svg className={s.svg} viewBox={`0 0 ${width} ${total}`} width={width} height={total} role="group" aria-label={chart.sentence} onKeyDown={moveAmongMarks}>
         {chart.values.map((v, i) => {
           const share = shares[i] ?? null;
           const w = share === null ? STUB : usable * share;

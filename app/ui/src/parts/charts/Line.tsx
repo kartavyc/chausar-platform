@@ -9,7 +9,7 @@
 import type { LineChart } from '../../app/presentation.ts';
 import { isFigure } from '../../app/presentation.ts';
 import { exactExtent, exactLinear, linear, toExact } from './scale.ts';
-import { Mark, MissingList, Target } from './marks';
+import { Mark, MissingList, Target, moveAmongMarks } from './marks';
 import s from './charts.module.css';
 
 export interface LineProps {
@@ -55,7 +55,7 @@ export function Line({ chart, onReceipt, width = 200, height = 48, className }: 
 
   return (
     <div className={className}>
-      <svg className={s.svg} viewBox={`0 0 ${width} ${total}`} width={width} height={total} role="group" aria-label={chart.sentence}>
+      <svg className={s.svg} viewBox={`0 0 ${width} ${total}`} width={width} height={total} role="group" aria-label={chart.sentence} onKeyDown={moveAmongMarks}>
         {runs.map((r, k) => {
           const first = r[0];
           if (first === undefined) return null;

@@ -19,3 +19,30 @@
 .loading { background: var(--bg); border: var(--hair) solid var(--cha); }
 .not-done { background: var(--bg); border: var(--hair) solid var(--dim); }
 .refused { background: var(--amber); }
+/* The read failed: an amber ring, not the filled amber of a refused file. */
+.failed { background: var(--bg); border: var(--square-stroke) solid var(--amber); }
+
+/* As a chart: each square stands in a 24 pixel slot, so a loaded month can be pressed. */
+.slots {
+  display: inline-flex;
+}
+.slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--target);
+  height: var(--target);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+.open {
+  cursor: pointer;
+  border-radius: var(--radius);
+  outline: none;
+}
+.open:focus-visible {
+  outline: var(--focus) solid var(--fg);
+  outline-offset: 0;
+}

@@ -289,6 +289,13 @@
   "CHART.unavailable.CHART_HAS_NO_POINTS": "चार्ट नहीं है। शृंखला में कोई बिंदु नहीं है।",
   "CHART.unavailable.CHART_HAS_NO_KNOWN_POINTS": "चार्ट नहीं है। शृंखला का कोई बिंदु पता नहीं है।",
   "CHART.shares.unavailable": "पट्टी नहीं है। ये मान एक पूरे के हिस्सों की तरह नहीं खींचे जा सकते।",
+  "CHART.bridge.guess": "अनुमान",
+  "CHART.bridge.guessLabel": "{label}, अनुमान",
+  "CHART.bridge.mixed": "चार्ट नहीं है। अनुमान को मापे गए कारणों के बीच नहीं खींचा जा सकता।",
+  "CHART.goalLine.rule": "{label}: {amount}",
+  "CHART.ruleBar.value": "{label}: {amount}",
+  "CHART.strip.failed": "पढ़ना विफल रहा",
+  "CHART.strip.open": "{label}, {state} की रसीद खोलें",
 
   "STRIP.done": "हो गया",
   "STRIP.loading": "लोड हो रहा है",
