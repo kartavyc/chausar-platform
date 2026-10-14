@@ -443,6 +443,29 @@ export async function workerSet(ctx: Context, payload: Record<string, any>, host
   await change(host, (_m, state) => audit(state, 'hosted.worker.set', { type: payload.type, enabled: payload.enabled, consentAt: payload.enabled ? recordedAt : null }));
   return { ...job, label: LABELS.worker };
 }
+/**
+ * Sends the due dates the reminder job uses: date only, never an amount or a name, each with a plain id the
+ * caller chooses (for example from the compliance calendar). The server stores them only after consent.
+ */
+export async function workerDueDates(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  desktopOnly(ctx); input(payload, ['dueDates']);
+  const list = payload.dueDates;
+  check(Array.isArray(list) && list.length <= 200 && list.every((d: any) => d && typeof d === 'object' && !Array.isArray(d)
+    && Object.keys(d).sort().join() === 'date,id,remindDaysBefore' && typeof d.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(d.id)
+    && typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.date) && Number.isSafeInteger(d.remindDaysBefore) && d.remindDaysBefore >= 0 && d.remindDaysBefore <= 30),
+  'INVALID_REQUEST', 'Send at most two hundred due dates, each a plain id, a date and how many days ahead to remind.');
+  const { client, pairing } = connected(host);
+  const result = await client.setDueDates(pairing.sessionToken, list.map((d: any) => ({ id: d.id, date: d.date, remindDaysBefore: d.remindDaysBefore })));
+  await change(host, (_m, state) => audit(state, 'hosted.worker.dueDates', { stored: result.stored }));
+  return { stored: result.stored, label: LABELS.worker };
+}
+export async function workerDeleteData(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  desktopOnly(ctx); input(payload, []);
+  const { client, pairing } = connected(host);
+  await client.deleteWorkerData(pairing.sessionToken);
+  await change(host, (_m, state) => audit(state, 'hosted.worker.deleted', {}));
+  return { deleted: true };
+}
 
 // Engine lifecycle
 

@@ -23,6 +23,8 @@ export const hostedLinkModule: EngineModule = {
     'hosted.allowance.status': { permission: 'read', external: true, handler: hosted.allowanceStatus },
     'hosted.worker.status': { permission: 'read', external: true, handler: hosted.workerStatus },
     'hosted.worker.set': { permission: 'admin', external: true, handler: hosted.workerSet },
+    'hosted.worker.dueDates': { permission: 'admin', external: true, handler: hosted.workerDueDates },
+    'hosted.worker.deleteData': { permission: 'admin', external: true, handler: hosted.workerDeleteData },
   },
   purge: (state, reason) => hosted.purgeOffers(state, reason),
   tick: (ctx, host) => hosted.tickCollect(ctx, host),

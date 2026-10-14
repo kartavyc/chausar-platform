@@ -79,7 +79,7 @@ export type Counts = { month: string; sent: number; budget: number; costPaise: s
 export type BackupEntry = { backupId: string; sizeBytes: number; sha256: string; createdAt: string };
 export type AllowanceRequest = { requestId: string; route: 'anthropic' | 'openai'; model: string; system?: string; messages: { role: 'user' | 'assistant'; content: string }[]; maxOutputTokens: number };
 export type AllowanceReply = { requestId: string; text: string; usage: { inputTokens: number; outputTokens: number }; costPaise: string; balancePaise: string; route: 'anthropic' | 'openai'; model: string; pricingCheckedOn: string };
-export type WorkerJob = { type: string; title: string; enabled: boolean; consentAt: string | null; uses: string[] };
+export type WorkerJob = { type: string; title: string; enabled: boolean; consentAt: string | null; uses: string };
 
 function entitlements(value: unknown): Entitlements {
   const e = shape(value, ['plan', 'relay', 'backup', 'backupQuotaBytes', 'backupKeep', 'allowance', 'allowanceMonthlyPaise', 'worker', 'monthlyMessages']);
@@ -307,16 +307,16 @@ export class HostedClient {
   }
   async setWorkerJob(token: string, type: string, body: { enabled: boolean; consent: { notEndToEndEncrypted: true; recordedAt: string } | null }): Promise<WorkerJob> {
     check(/^[a-z][a-z-]{1,60}$/.test(type), 'INVALID_REQUEST', 'Choose a job type the server offers.');
-    const job = workerJob(await this.#json('PUT', `/v1/worker/jobs/${type}`, { token, json: body }));
+    const job = workerJob(unlabel(await this.#json('PUT', `/v1/worker/jobs/${type}`, { token, json: body })));
     valid(job.type === type); return job;
   }
   async setDueDates(token: string, dueDates: { id: string; date: string; remindDaysBefore: number }[]): Promise<{ stored: number }> {
     check(Array.isArray(dueDates) && dueDates.length <= 200, 'INVALID_REQUEST', 'Send at most two hundred due dates.');
-    const r = shape(await this.#json('PUT', '/v1/worker/due-dates', { token, json: { dueDates } }), ['stored']);
+    const r = shape(unlabel(await this.#json('PUT', '/v1/worker/due-dates', { token, json: { dueDates } })), ['stored']);
     valid(count(r.stored)); return r as any;
   }
   async deleteWorkerData(token: string): Promise<{ deleted: true }> {
-    const r = shape(await this.#json('DELETE', '/v1/worker/data', { token }), ['deleted']);
+    const r = shape(unlabel(await this.#json('DELETE', '/v1/worker/data', { token })), ['deleted']);
     valid(r.deleted === true); return r as any;
   }
 
@@ -325,9 +325,14 @@ export class HostedClient {
     const r = shape(await this.#json('GET', '/healthz'), ['ok']); valid(r.ok === true); return r as any;
   }
 }
+/** The worker labels every reply as not end-to-end encrypted; the label is checked, then set aside. */
+function unlabel(value: unknown): Record<string, unknown> {
+  const { endToEndEncrypted, label, ...rest } = (value && typeof value === 'object' && !Array.isArray(value) ? value : {}) as Record<string, unknown>;
+  valid(endToEndEncrypted === false && text(label, 500)); return rest;
+}
 function workerJob(value: unknown): WorkerJob {
   const job = shape(value, ['type', 'title', 'enabled', 'consentAt', 'uses']);
   valid(/^[a-z][a-z-]{1,60}$/.test(job.type ?? '') && text(job.title, 200) && typeof job.enabled === 'boolean' && isoOrNull(job.consentAt)
-    && Array.isArray(job.uses) && job.uses.length <= 50 && job.uses.every((u: unknown) => text(u, 200)));
+    && text(job.uses, 300));
   return job as WorkerJob;
 }

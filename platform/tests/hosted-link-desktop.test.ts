@@ -153,11 +153,11 @@ class FakeHosted {
       return reply(200, this.allowanceReplyText);
     }
     if (method === 'GET' && path === '/v1/worker') return reply(200, { endToEndEncrypted: false, label: 'Not end-to-end encrypted. The server does the work, so it can read what each job uses.',
-      jobs: [{ type: 'due-date-reminder', title: 'Due date reminders', enabled: false, consentAt: null, uses: ['Due dates you send'] }] });
+      jobs: [{ type: 'due-date-reminder', title: 'Due date reminders', enabled: false, consentAt: null, uses: 'Due dates you send' }] });
     if (method === 'PUT' && (m = /^\/v1\/worker\/jobs\/([a-z-]+)$/.exec(path))) {
       const b = json(); this.workerBodies.push(b);
       if (!exact(b, ['enabled', 'consent']) || (b.enabled && !(exact(b.consent, ['notEndToEndEncrypted', 'recordedAt']) && b.consent.notEndToEndEncrypted === true))) return refuse(400, 'INVALID_REQUEST');
-      return reply(200, { type: m[1], title: 'Due date reminders', enabled: b.enabled, consentAt: b.enabled ? b.consent.recordedAt : null, uses: ['Due dates you send'] });
+      return reply(200, { endToEndEncrypted: false, label: 'Not end-to-end encrypted. The server does the work, so it can read what each job uses.', type: m[1], title: 'Due date reminders', enabled: b.enabled, consentAt: b.enabled ? b.consent.recordedAt : null, uses: 'Due dates you send' });
     }
     return refuse(404, 'NOT_FOUND');
   }

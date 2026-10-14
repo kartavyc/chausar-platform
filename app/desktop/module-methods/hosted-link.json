@@ -16,5 +16,7 @@
   "hosted.backup.exportKey",
   "hosted.allowance.status",
   "hosted.worker.status",
-  "hosted.worker.set"
+  "hosted.worker.set",
+  "hosted.worker.dueDates",
+  "hosted.worker.deleteData"
 ]
