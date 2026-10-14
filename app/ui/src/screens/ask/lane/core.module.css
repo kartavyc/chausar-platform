@@ -1,0 +1,196 @@
+/* The core Ask screens hold layout only: plain ground, grey notes, rows between hairlines.
+   No boxes and no colour of their own; the parts carry the type and the marks. */
+
+.page,
+.section {
+  display: grid;
+  gap: var(--sp4);
+  align-content: start;
+  min-width: 0;
+}
+
+.page { gap: var(--sp6); }
+
+.heading {
+  margin: 0;
+  font-size: var(--fs-note2);
+  font-weight: var(--fw-regular);
+  color: var(--mute);
+}
+
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+
+.small {
+  margin: 0;
+  font-size: var(--fs-note);
+  color: var(--mute);
+  overflow-wrap: anywhere;
+}
+
+.block {
+  display: grid;
+  gap: var(--sp2);
+  justify-items: start;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp3);
+}
+
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--sp3);
+}
+
+.form > :first-child { flex: 1 1 18rem; min-width: 0; }
+
+.line {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp2);
+  color: var(--fg2);
+}
+
+.big {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp3);
+}
+
+.chain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2) var(--sp4);
+  color: var(--fg2);
+}
+
+.chain li + li::before {
+  content: '·';
+  margin-right: var(--sp4);
+  color: var(--mute);
+}
+
+.plain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp2);
+}
+
+.ledger {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ledger > li {
+  display: grid;
+  gap: var(--sp1);
+  padding: var(--sp3) 0;
+  border-bottom: var(--hair) solid var(--line);
+}
+
+.ledger > li:first-child { border-top: var(--hair) solid var(--line); }
+
+.ledgerLine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--sp3);
+}
+
+.open {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.open:focus-visible {
+  outline: var(--focus) solid var(--fg);
+  outline-offset: var(--focus-gap);
+}
+
+.tableWrap {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-note2);
+}
+
+.table th {
+  text-align: left;
+  font-weight: var(--fw-regular);
+  color: var(--mute);
+  padding: var(--sp2) var(--sp3) var(--sp2) 0;
+  border-bottom: var(--hair) solid var(--line2);
+}
+
+.table td {
+  vertical-align: top;
+  padding: var(--sp2) var(--sp3) var(--sp2) 0;
+  border-bottom: var(--hair) solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.table td.num { text-align: right; white-space: nowrap; }
+
+.cell { display: block; }
+
+.cellName { color: var(--mute); margin-right: var(--sp1); }
+
+.pre {
+  margin: 0;
+  padding: var(--sp3) 0;
+  border-top: var(--hair) solid var(--line);
+  border-bottom: var(--hair) solid var(--line);
+  font-family: var(--fm);
+  font-size: var(--fs-note2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.details > summary {
+  cursor: pointer;
+  color: var(--fg2);
+}
+
+.details[open] > summary { margin-bottom: var(--sp3); }
