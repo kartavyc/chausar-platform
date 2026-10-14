@@ -1,4 +1,4 @@
-import { authorize, audit, check, hash, newId, now } from './contracts.ts';
+import { authorize, audit, check, guardChange, hash, newId, now, sourceHidden } from './contracts.ts';
 import type { Context, Fact, Member, State, StateStore, TrustPolicy } from './contracts.ts';
 import { prepareInvoicePurge } from './invoice-follow-up-lineage.ts';
 import { assertLearningDecisionRecord, type LearningDecision } from './learning.ts';
@@ -9,6 +9,7 @@ export function sourceAllowed(state: State, context: Context, sourceId: string):
   if (!member?.active || member.epoch !== context.epoch || member.role !== context.role) return false;
   if (!(state.policy.allowedSources.includes('*') || state.policy.allowedSources.includes(sourceId))) return false;
   if (state.tombstones.some(t => t.sourceId === sourceId && (t.kind === 'source' || t.deleted === true))) return false;
+  if (sourceHidden(state, member, sourceId)) return false;
   const rules = state.sourceRules.filter(r => r.sourceId === sourceId);
   return rules.every(r => r.revoked !== true && r.allow !== false &&
     (!r.memberIds || r.memberIds.includes(context.memberId)) && (!r.roles || r.roles.includes(member.role)));
@@ -87,7 +88,7 @@ export class TrustService {
     if (patch.retentionDays !== undefined) check(Number.isInteger(patch.retentionDays) && patch.retentionDays >= 1 && patch.retentionDays <= 3650, 'INVALID_POLICY', 'Retention must be between one and 3650 days.');
     for (const k of ['autonomy', 'sharing'] as const) if (patch[k] !== undefined) check(typeof patch[k] === 'boolean', 'INVALID_POLICY', 'Privacy switches must be boolean.');
     return this.store.update(state => {
-      authorize(this.store, context, 'admin');
+      authorize(this.store, context, 'admin'); guardChange(state, context, { kind: 'policy', patch });
       if (patch.allowedSources) purgePrivateState(state, { sourceIds: privateSourceIds(state).filter(sourceId => !patch.allowedSources!.includes('*') && !patch.allowedSources!.includes(sourceId)), at: now() });
       state.policy = { ...state.policy, ...structuredClone(patch) };
       audit(state, 'trust.policy.changed', { memberId: context.memberId, fields: Object.keys(patch) }); return structuredClone(state.policy);
@@ -105,6 +106,7 @@ export class TrustService {
     return this.store.update(state => {
       const currentIssuer = authorize(this.store, context, 'admin');
       check((input.role !== 'owner' || currentIssuer.role === 'owner') && (currentIssuer.branches.includes('*') || branches.every(branch => currentIssuer.branches.includes(branch))), 'MEMBER_SCOPE_FORBIDDEN', 'The issuing administrator authority changed.');
+      guardChange(state, context, { kind: 'member-add', role: input.role });
       const id = input.id || newId('member');
       check(!state.members.some(m => m.id === id), 'MEMBER_EXISTS', 'This member already exists.');
       const member = { id, name: input.name.trim(), role: input.role, branches: [...branches], active: true, epoch: 1 };
@@ -115,7 +117,7 @@ export class TrustService {
     authorize(this.store, context, 'admin');
     return this.store.update(state => {
       authorize(this.store, context, 'admin'); const member = state.members.find(m => m.id === memberId);
-      check(member, 'MEMBER_NOT_FOUND', 'Member was not found.');
+      check(member, 'MEMBER_NOT_FOUND', 'Member was not found.'); guardChange(state, context, { kind: 'member-revoke', memberId });
       check(!(member.role === 'owner' && state.members.filter(m => m.active && m.role === 'owner').length === 1), 'LAST_OWNER', 'Keep an active owner in the workspace.');
       member.active = false; member.epoch++; state.sessions = state.sessions.filter(s => s.memberId !== memberId);
       audit(state, 'trust.member.revoked', { memberId }); return { memberId, epoch: member.epoch, active: false };

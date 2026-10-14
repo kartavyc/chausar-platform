@@ -111,9 +111,10 @@ test('dual control: owner alone applies; with a cofounder each waits for the oth
   assert.equal(alone.state, 'applied'); assert.equal(f.store.read().policy.send, 'shape');
   let levels = await f.rpc('trustx.sendLevels'); assert.equal(levels.localOnly, true); assert.deepEqual(levels.financialRoutes, ['local-model']);
 
+  // Core auth.invite is a seat change: with a cofounder it refuses SECOND_PERSON_REQUIRED, so the accountant joins first.
+  const accountant = await f.member('Synthetic books', 'accountant');
   const invited = await f.rpc('trustx.invite', { seat: 'cofounder', name: 'Synthetic partner' }); assert.equal(invited.state, 'applied');
   const accepted = await f.rpc('auth.accept', { token: invited.invite.token }); const partner: Context = { ...accepted.context, channel: 'desktop' };
-  const accountant = await f.member('Synthetic books', 'accountant');
 
   const waiting = await f.rpc('trustx.setSend', { level: 'samples' });
   assert.equal(waiting.state, 'waiting-for-second'); assert.equal(waiting.change.needs, 'cofounder'); assert.equal(waiting.change.what, 'send');
@@ -218,7 +219,7 @@ test('the scheduled tick ends dated seats', async t => {
   assert.equal(f.store.read().members.find(m => m.id === member.member.id)!.active, false);
 });
 
-test('a dated seat ends before any request of this lane, with the scheduler off', async t => {
+test('a dated seat is refused at authorization, and ends at the next request of this lane, with the scheduler off', async t => {
   const f = await fixture(t);
   const ca = await f.rpc('trustx.invite', { seat: 'ca', name: 'Synthetic CA', endsOn: new Date().toISOString().slice(0, 10) });
   const member = await f.rpc('auth.accept', { token: ca.invite.token }); const seat: Context = { ...member.context, channel: 'desktop' };
@@ -226,5 +227,7 @@ test('a dated seat ends before any request of this lane, with the scheduler off'
   await f.store.update(state => { (state.extensions as any)['reports-tools-trust'].trust.core.seats[ca.invite.id].endsOn = '2020-01-01'; });
   assert.equal(f.store.read().policy.autonomy, false);
   await assert.rejects(f.as({ ...seat }, 'reportsx.packs'), code('ACCESS_REVOKED'));
+  await assert.rejects(f.as({ ...seat }, 'trust.get'), code('ACCESS_REVOKED'));
+  await f.rpc('trustx.rules');
   assert.equal(f.store.read().members.find(m => m.id === member.member.id)!.active, false);
 });

@@ -16,6 +16,10 @@ import { conversationCalculationParameterDisclosure, validateReviewedConversatio
 import { buildBusinessContext, assertBusinessContextCurrent, businessContextDisclosure, validateBusinessSelection, renderBusinessAnswer, type BusinessContextHooks, type BusinessContextManifest, type BusinessContextRequest, type BusinessSelection } from './conversation-context.ts';
 import type { ConversationSynthesisCodec, GatewaySynthesisAuthority, GroundedSynthesisOutput } from './conversation-synthesis-contract.ts';
 
+/** A last check engine modules register on the exact outgoing bytes, run before any provider or CLI dispatch; throwing sends nothing. */
+export type OutboundCheck = (store: StateStore, context: Context, outgoing: { receiptId: string; endpoint: string; payload: string }) => void | Promise<void>;
+const outboundChecks = new Set<OutboundCheck>();
+export function registerOutboundCheck(outbound: OutboundCheck): void { outboundChecks.add(outbound); }
 export const DEFAULT_OPERATIONS = ['billed', 'received', 'earned', 'refunds', 'costs', 'purchases', 'revenue', 'net_sales', 'margin', 'order-margin', 'aging', 'change', 'scenario'];
 export type RouteKind = 'codex-cli' | 'claude-cli' | 'openai-responses' | 'openai-compatible' | 'ollama' | 'managed' | 'anthropic-messages' | 'subq-snap';
 export type RouteConfig = {
@@ -977,6 +981,7 @@ export class ModelGateway {
     });
     let result: HttpResult | ProcessResult; let directory: string | undefined;
     try {
+      for (const outbound of outboundChecks) await outbound(this.store, context, { receiptId: preview.id, endpoint: preview.endpoint, payload: preview.payload });
       if (cli) {
         directory = await mkdtemp(join(tmpdir(), 'chausar-model-')); const schemaPath = join(directory, 'plan-schema.json');
         const schema = preview.schema ?? planSchema(preview.operations);

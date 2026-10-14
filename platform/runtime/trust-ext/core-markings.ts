@@ -27,6 +27,12 @@ export function markingsForSources(state: State, sourceIds: readonly string[]): 
   const wanted = new Set(sourceIds); const kinds = new Set(allMarks(state).filter(m => wanted.has(m.target.sourceId)).map(m => m.kind));
   return markKinds.filter(k => kinds.has(k));
 }
+/** The kinds marked on a whole source, the automatic bank mark included; cheap enough to ask for each fact. */
+export function sourceMarkKinds(state: State, sourceId: string): MarkKind[] {
+  const core = peekCore(state); const kinds = new Set(core.marks.filter(m => m.target.type === 'source' && m.target.sourceId === sourceId).map(m => m.kind));
+  if (!core.autoOff.includes(sourceId) && (/bank/i.test(sourceId) || state.imports.some(i => i?.sourceId === sourceId && [i.type, i.format, i.system].some(v => typeof v === 'string' && /bank/i.test(v))))) kinds.add('financial');
+  return markKinds.filter(k => kinds.has(k));
+}
 export function seatSees(state: State, seat: Seat): Sees { return seat === 'owner' ? { ...defaultSees.owner } : { ...defaultSees[seat], ...(peekCore(state).seatSees[seat] ?? {}) }; }
 
 export function markingsView(state: State) {

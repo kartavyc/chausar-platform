@@ -50,9 +50,25 @@ export function initialState(name: string, demo = false): State {
     facts: [], imports: [], receipts: [], answers: [], decisions: [], actions: [], jobs: [], learning: [], plugins: [], modelReceipts: [], activity: [], conflicts: [], merges: [], tombstones: [], conversations: [], routes: [], sessions: [], unsupported: [], schedules: [], sourceRules: [],
   };
 }
+/** A core change to Send, Sharing or seats, described for the registered change guards. */
+export type CoreChange = { kind: 'policy'; patch: Partial<TrustPolicy> } | { kind: 'invite' | 'member-add'; role: Role } | { kind: 'member-revoke'; memberId: string };
+type CoreHooks = {
+  /** Throws to refuse a core change before it applies (dual control). */
+  change: (state: State, context: Context, change: CoreChange) => void;
+  /** True when the member's seat has ended; every request is then refused. */
+  seatEnded: (state: State, memberId: string) => boolean;
+  /** True when the member's seat may not see data from this source (markings). */
+  sourceHidden: (state: State, member: Member, sourceId: string) => boolean;
+};
+const coreHooks: { [K in keyof CoreHooks]: Set<CoreHooks[K]> } = { change: new Set(), seatEnded: new Set(), sourceHidden: new Set() };
+/** Engine modules register these guards at load (late-bound to avoid import cycles). */
+export function registerCoreHook<K extends keyof CoreHooks>(kind: K, hook: CoreHooks[K]): void { (coreHooks[kind] as Set<CoreHooks[K]>).add(hook); }
+export function guardChange(state: State, context: Context, change: CoreChange): void { for (const hook of coreHooks.change) hook(state, context, change); }
+export function sourceHidden(state: State, member: Member, sourceId: string): boolean { for (const hook of coreHooks.sourceHidden) if (hook(state, member, sourceId)) return true; return false; }
 export function authorize(store: StateStore, context: Context, permission: 'read' | 'prepare' | 'approve' | 'admin' = 'read'): Member {
-  const member = store.read().members.find(m => m.id === context.memberId);
+  const state = store.read(); const member = state.members.find(m => m.id === context.memberId);
   check(member?.active && member.epoch === context.epoch && member.role === context.role, 'ACCESS_REVOKED', 'Your workspace access has changed. Sign in again.');
+  for (const ended of coreHooks.seatEnded) check(!ended(state, member.id), 'ACCESS_REVOKED', 'Your workspace access has changed. Sign in again.');
   if (permission !== 'read') check(member.role !== 'viewer', 'FORBIDDEN', 'Your role can only read.');
   if (permission === 'approve' || permission === 'admin') check(['owner', 'cofounder'].includes(member.role), 'FORBIDDEN', 'An owner must approve this change.');
   return member;
