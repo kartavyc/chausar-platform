@@ -117,6 +117,13 @@ test('ready-made jobs: types, availability, proposals from a sentence, an exact 
   await assert.rejects(ui('jobsx.approveProposal', { id: proposal.id, digest: proposal.digest }), { code: 'INVALID_PROPOSAL_STATE' });
   const list = await ui('jobsx.list');
   assert.equal(list.jobs[0].id, job.id); assert.equal(list.proposals.some((p: any) => p.proposalId === stock.id), true, 'proposed jobs are listed first, as approvals');
+  // An edit is a new card; approving it replaces the job.
+  const edit = await ui('jobsx.edit', { id: job.id, changes: { budgetMinor: '9000', missedRule: 'all' } });
+  assert.equal(edit.replacesJobId, job.id); assert.equal(edit.card.budgetMinor, '9000');
+  const replaced = await ui('jobsx.approveProposal', { id: edit.id, digest: edit.digest });
+  assert.equal((await ui('jobs.list')).find((j: any) => j.id === job.id).status, 'stopped');
+  assert.equal((await ui('jobsx.get', { id: replaced.job.id })).missedRule, 'all');
+  await assert.rejects(ui('jobsx.get', { id: job.id }).then((v: any) => { if (v.deleted) throw Object.assign(new Error('deleted'), { code: 'DELETED' }); }), { code: 'DELETED' });
   await ui('jobsx.setCaps', { activeJobCap: 1 });
   const second = await ui('jobsx.propose', { template: 'cash-position' });
   await assert.rejects(ui('jobsx.approveProposal', { id: second.id, digest: second.digest }), { code: 'ACTIVE_JOB_LIMIT' });
