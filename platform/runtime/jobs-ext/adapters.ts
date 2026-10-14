@@ -15,8 +15,8 @@ export const NOT_BUILT = new Set(['UNKNOWN_METHOD', 'INVALID_REQUEST', 'METHOD_U
 
 export type Optional<T> = { available: true; value: T } | { available: false; code: string };
 
-export async function optionalCall<T = unknown>(host: Pick<ModuleHost, 'call'>, method: string, payload: Record<string, unknown>): Promise<Optional<T>> {
-  try { return { available: true, value: await host.call(method, payload) as T }; }
+export async function optionalCall<T = unknown>(host: Pick<ModuleHost, 'call'>, method: string, payload: Record<string, unknown>, options?: { tainted?: boolean }): Promise<Optional<T>> {
+  try { return { available: true, value: await (options ? host.call(method, payload, options) : host.call(method, payload)) as T }; }
   catch (error) {
     const code = (error as { code?: string }).code ?? 'REQUEST_FAILED';
     if (NOT_BUILT.has(code)) return { available: false, code };
@@ -77,25 +77,51 @@ export async function consentFor(host: Pick<ModuleHost, 'call'>, local: { custom
     if (row && ['yes', 'no', 'not-asked'].includes(row.agreed)) return { channel, agreed: row.agreed, source: typeof row.source === 'string' ? row.source.slice(0, 200) : 'records', at: typeof row.at === 'string' ? row.at : undefined, stoppedAt: typeof row.stoppedAt === 'string' ? row.stoppedAt : undefined, via: 'records' };
     return { channel, agreed: 'not-asked', source: 'records', via: 'records' };
   }
+  const wb = await optionalCall<any>(host, 'writeback.followUp.consents', {});
+  if (wb.available && Array.isArray(wb.value)) {
+    const latest = [...wb.value].reverse().find((c: any) => c && c.customerId === customerId && c.channel === (channel === 'mail' ? 'email' : 'whatsapp'));
+    if (latest && ['yes', 'no', 'not-asked', 'stopped'].includes(latest.answer))
+      return { channel, agreed: latest.answer === 'stopped' ? 'no' : latest.answer, source: 'writeback', at: typeof latest.observedOn === 'string' ? latest.observedOn : undefined, ...(latest.answer === 'stopped' ? { stoppedAt: String(latest.observedOn ?? 'stopped') } : {}), via: 'records' };
+  }
   const row = [...local].reverse().find(item => item.customerId === customerId && item.channel === channel);
   if (!row) return { channel, agreed: 'not-asked', source: 'none', via: 'local' };
   return { channel, agreed: row.agreed ? 'yes' : 'no', source: row.source, at: row.at, stoppedAt: row.stoppedAt, via: 'local' };
 }
 
+export type ReminderOutcome = { prepared: true; actionId: string; via: 'writeback' | 'local-draft' } | { prepared: false; reason: string };
+
+/** Writeback's own refusals are rules, not failures: the case is blocked with the reason. */
+const WRITEBACK_REFUSALS: Record<string, string> = { FOLLOW_UP_NO_CONSENT: 'no-agreement', FOLLOW_UP_STOPPED: 'stopped-by-customer', FOLLOW_UP_DAILY_CAP: 'daily-cap',
+  FOLLOW_UP_NEEDS_REVIEW: 'needs-review', FOLLOW_UP_NOTHING_DUE: 'nothing-due', FOLLOW_UP_RECIPIENT_CHANGED: 'needs-review' };
+
 /**
- * Prepares an outside message through the writeback lane when it exists. Otherwise it prepares
- * a local reminder draft: that draft is inside the workspace and sends nothing.
+ * Prepares a payment reminder. With a live or sandbox mail (or WhatsApp) connection granted to send,
+ * it goes through `writeback.followUp.prepare`: writeback checks consent, caps and the invoice evidence,
+ * fills its fixed template, and the reminder waits for a person's yes. Without one, a local draft is
+ * prepared instead: it stays inside the workspace and sends nothing.
+ * An agent-touched reminder carries its outside-text mark on the call's own context.
  */
-export async function prepareReminder(host: Pick<ModuleHost, 'call' | 'services'>, context: import('../contracts.ts').Context, request: { invoiceId: string; customerId: string; text: string; channel: 'mail' | 'whatsapp'; idempotencyKey: string; sourceIds: string[] }): Promise<{ actionId: string; via: 'writeback' | 'local-draft' }> {
-  const remote = await optionalCall<any>(host, 'writeback.prepare', { system: request.channel === 'mail' ? 'smtp' : 'whatsapp', action: 'payment-reminder',
-    payload: { invoiceId: request.invoiceId, customerId: request.customerId, text: request.text }, idempotencyKey: request.idempotencyKey, sourceIds: request.sourceIds,
-    // host.call runs as the module's caller; an agent-touched reminder carries its outside-text mark explicitly.
-    ...(context.sourceTainted ? { sourceTainted: true } : {}) });
-  if (remote.available) {
-    const id = remote.value?.actionId ?? remote.value?.id;
-    check(typeof id === 'string' && id.length > 0, 'WRITEBACK_REPLY_INVALID', 'The writeback lane returned no prepared action.');
-    return { actionId: id, via: 'writeback' };
+export async function prepareReminder(host: Pick<ModuleHost, 'call' | 'services'>, context: import('../contracts.ts').Context, request: { invoiceId: string; customerId: string; text: string; channel: 'mail' | 'whatsapp'; idempotencyKey: string; sourceIds: string[] }): Promise<ReminderOutcome> {
+  const system = request.channel === 'mail' ? 'mail' : 'whatsapp'; const send = system === 'mail' ? 'smtp.send' : 'template.send';
+  const listed = await optionalCall<any>(host, 'writeback.connections', {});
+  const connection = listed.available && Array.isArray(listed.value) ? listed.value.find((c: any) => c && c.system === system && !c.revokedAt && ['live', 'sandbox'].includes(c.environment) && Array.isArray(c.write) && c.write.includes(send) && typeof c.id === 'string') : undefined;
+  if (connection) {
+    let value: any;
+    try {
+      value = await optionalCall<any>(host, 'writeback.followUp.prepare', { connectionId: connection.id, customerId: request.customerId, invoiceId: request.invoiceId, sourceIds: request.sourceIds },
+        context.sourceTainted ? { tainted: true } : undefined);
+    } catch (error) {
+      const reason = WRITEBACK_REFUSALS[(error as { code?: string }).code ?? ''];
+      if (reason) return { prepared: false, reason };
+      throw error;
+    }
+    if (value.available) {
+      if (value.value?.status === 'already-done') return { prepared: false, reason: 'already-done' };
+      const id = value.value?.id ?? value.value?.actionId;
+      check(typeof id === 'string' && id.length > 0, 'WRITEBACK_REPLY_INVALID', 'The writeback lane returned no prepared action.');
+      return { prepared: true, actionId: id, via: 'writeback' };
+    }
   }
   const prepared = await host.services.actions.prepare(context, { connector: 'local', operation: 'reminder-draft', payload: { invoiceId: request.invoiceId, text: request.text }, idempotencyKey: request.idempotencyKey, sourceIds: request.sourceIds });
-  return { actionId: prepared.id, via: 'local-draft' };
+  return { prepared: true, actionId: prepared.id, via: 'local-draft' };
 }

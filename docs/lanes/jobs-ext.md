@@ -38,7 +38,7 @@ Branch `claude/lane-jobs-ext`. Spec: plan days 7–8, architecture piece 11, the
 | Cash position (`cash-position`) | `received`, `aging` | Daily. |
 | Weekly close (`weekly-close`) | `net_sales`, `margin`, `aging` | Weekly. Ends with a step for a person: review the week and lock it in the books. |
 | Stock check (`stock-check`) | `stock_on_hand` | Refused with `TEMPLATE_CALCULATION_MISSING` until the dictionary publishes that calculation. |
-| GST matching (`gst-matching`) | `connectorsx.gstMatch` | Refused with `TEMPLATE_NOT_BUILT` until the connectors lane serves it. Filing is a step for a person. |
+| GST matching (`gst-matching`) | `connectorsx.gstMatch` | Monthly: last month's purchase register against GSTR-2B, through the connectors lane. The card names both sources (`GST_SOURCES_REQUIRED` otherwise). Filing is a step for a person. |
 | A job in your own words (`agent-task`) | the installed agent route | Needs an agent route (`AGENT_ROUTE_REQUIRED`). An imported skill makes a card marked "instructions only, no tools, untrusted". |
 
 How `receivables-week` handles each step:
@@ -169,7 +169,7 @@ Refusal codes that screens can tell apart are on the jobs-ext line of `laneRefus
 | Lane | Method | Assumed shape |
 |---|---|---|
 | models-ext | `modelsx.price` | `{ routeId }` → `{ unitMinor, basis: 'measured'\|'estimate'\|'zero', pricedAt }` |
-| writeback | `writeback.prepare` | `{ system, action: 'payment-reminder', payload, idempotencyKey, sourceIds }` → `{ actionId \| id }` |
+| writeback | `writeback.connections`, `writeback.followUp.prepare`, `writeback.followUp.consents` | `followUp.prepare { connectionId, customerId, invoiceId, sourceIds }` → the prepared action's view `{ id }`; an agent-touched reminder is called with `{ tainted: true }` on the call's context; `FOLLOW_UP_*` refusals block the case with their reason |
 | writeback | `writeback.catalogue` | rows `{ system, action, impact, alwaysWaits }` |
 | work-books | `records.optIn` | `{ customerId }` → `{ channels: [{ channel, agreed: 'yes'\|'no'\|'not-asked', source, at, stoppedAt }] }` |
 | connectors-ext | `connectorsx.gstMatch` | `{ sourceIds }` → `{ matched, unmatched }` |
@@ -183,7 +183,7 @@ A missing method is treated as "not built", and the lane falls back to:
 
 ## Still missing
 
-- **Real sending.** Reminders are sent only once writeback is merged, which gives them its approval, read-back and unknown-state handling.
+- **Real sending needs a connection.** With a live or sandbox mail (or WhatsApp) connection granted `smtp.send` (or `template.send`) in writeback, reminders go through `writeback.followUp.prepare`: writeback's consent, caps, invoice evidence and fixed template, then a person's yes. Without one, they are local drafts and nothing is sent.
 - **Always-on jobs and the home box.** These are paid or experimental, and are only described.
 - **The OS wake timer and the background service install.** These belong to the release lane.
 - **Two core suggestions from the autonomy review (not made, core files):**

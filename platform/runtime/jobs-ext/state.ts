@@ -66,6 +66,7 @@ export type LaneJob = {
   /** Runs while the window is closed, when background mode is on. */
   background: boolean;
   approvedDigest: string;
+  gstSources?: { registerSourceId: string; gstr2bSourceId: string };
   /** A private nonce in this job's action keys (never returned by any method). */
   keyNonce?: string;
 };
@@ -89,6 +90,8 @@ export type JobCard = {
   allowedActions: string[]; testedRoutes: string[]; reviewDate: string; computer: 'this-computer';
   background: boolean; steps: { kind: StepKind; title: string; needsModel: boolean }[];
   sourceIds: string[]; untrustedInstructions?: boolean;
+  /** GST matching: the purchase register and the GSTR-2B source it compares. */
+  gstSources?: { registerSourceId: string; gstr2bSourceId: string };
 };
 
 export type AutonomyKind = { on: boolean; dailyCount: number };

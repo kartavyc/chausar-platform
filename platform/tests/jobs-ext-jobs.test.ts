@@ -102,7 +102,7 @@ test('ready-made jobs: types, availability, proposals from a sentence, an exact 
   const byId = Object.fromEntries(types.templates.map((x: any) => [x.id, x]));
   assert.equal(byId['receivables-week'].available, true);
   assert.equal(byId['stock-check'].code, 'TEMPLATE_CALCULATION_MISSING');
-  assert.equal(byId['gst-matching'].code, 'TEMPLATE_NOT_BUILT');
+  assert.equal(byId['gst-matching'].available, true, 'the connectors lane serves the GST match');
   assert.equal(byId['agent-task'].code, 'AGENT_ROUTE_REQUIRED');
   const proposal = await ui('jobsx.propose', { sentence: 'Chase the unpaid invoices for me' });
   assert.equal(proposal.template, 'receivables-week'); assert.equal(proposal.card.missedRule, 'once'); assert.equal(proposal.card.background, false);

@@ -211,9 +211,13 @@ async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: L
       else {
         // Anything an agent touched is marked as read from outside: its send always waits for a person.
         const prepared = await prepareReminder(host, tainted ? { ...ctx, sourceTainted: true } : ctx, { invoiceId: item.invoiceId, customerId: item.customerId, text: reminderText(item.invoiceId), channel: 'mail', idempotencyKey: reminderKey(meta, job.id, item.invoiceId, today), sourceIds: [item.sourceId] });
-        outcome.actionIds = [...new Set([...outcome.actionIds, prepared.actionId])]; outcome.reason = prepared.via;
-        addStep(trace, { kind: 'question', tool: 'question.decision', outcome: 'ok', durationMs: 0, units: 0 }); trace.push({ kind: 'action', tool: prepared.via === 'writeback' ? 'action.writeback.payment-reminder' : 'action.local.reminder-draft', outcome: 'ok', durationMs: 0, units: 0 });
-        lines.push(entry(job.id, run, at, { kind: 'step', stepKind: 'action', needsModel: false, text: prepared.via === 'writeback' ? 'Prepared a reminder. It waits for your yes before it is sent.' : 'Prepared a reminder draft. Nothing is sent from a draft.', recordIds: [item.factId], actionIds: [prepared.actionId], receiptIds: [receipt.id], caseId }));
+        addStep(trace, { kind: 'question', tool: 'question.decision', outcome: 'ok', durationMs: 0, units: 0 });
+        if (!prepared.prepared) { outcome.status = 'blocked'; outcome.reason = prepared.reason; }
+        else {
+          outcome.actionIds = [...new Set([...outcome.actionIds, prepared.actionId])]; outcome.reason = prepared.via;
+          trace.push({ kind: 'action', tool: prepared.via === 'writeback' ? 'action.writeback.payment-reminder' : 'action.local.reminder-draft', outcome: 'ok', durationMs: 0, units: 0 });
+          lines.push(entry(job.id, run, at, { kind: 'step', stepKind: 'action', needsModel: false, text: prepared.via === 'writeback' ? 'Prepared a reminder. It waits for your yes before it is sent.' : 'Prepared a reminder draft. Nothing is sent from a draft.', recordIds: [item.factId], actionIds: [prepared.actionId], receiptIds: [receipt.id], caseId }));
+        }
       }
     } else if (decision === 'ask-owner') { outcome.status = 'waiting-for-you'; addStep(trace, { kind: 'question', tool: 'question.decision', outcome: 'ok', durationMs: 0, units: 0 }); }
     else if (decision === 'stop') { outcome.status = 'done'; outcome.reason = 'stopped-by-you'; }
@@ -233,7 +237,7 @@ async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: L
         ns.personSteps.push({ id: newId('jobsx_person'), jobId: job.id, recordIds: [item.factId], title: `Call the customer about invoice ${item.invoiceId}`, assignee: job.ownerId, status: 'waiting', createdAt: at }); bound(ns.personSteps, 2000, p => p.status === 'done');
         lines.push(entry(job.id, run, at, { kind: 'person-step', text: 'A step for a person: call the customer. The job does not mark it done by itself.', recordIds: [item.factId], caseId }));
       }
-      if (outcome.status === 'blocked') lines.push(entry(job.id, run, at, { kind: 'stopped-by-rule', text: { 'no-agreement': 'No reminder: this customer has not agreed to reminders by mail.', 'stopped-by-customer': 'No reminder: the customer replied with the stop word.', 'daily-cap': 'The daily cap for reminders is reached. The rest wait until tomorrow.', 'customer-cap': 'This customer already has a reminder today.' }[outcome.reason as string] ?? 'Stopped by a rule.', code: (outcome.reason ?? 'rule').toUpperCase().replace(/-/g, '_'), recordIds: [item.factId], caseId }));
+      if (outcome.status === 'blocked') lines.push(entry(job.id, run, at, { kind: 'stopped-by-rule', text: { 'no-agreement': 'No reminder: this customer has not agreed to reminders by mail.', 'stopped-by-customer': 'No reminder: the customer replied with the stop word.', 'daily-cap': 'The daily cap for reminders is reached. The rest wait until tomorrow.', 'customer-cap': 'This customer already has a reminder today.', 'needs-review': 'No reminder: the invoice is disputed or its records are incomplete. Look at it first.', 'nothing-due': 'No reminder: nothing is due on this invoice in the books.', 'already-done': 'This reminder is already in the system. Nothing more was prepared.' }[outcome.reason as string] ?? 'Stopped by a rule.', code: (outcome.reason ?? 'rule').toUpperCase().replace(/-/g, '_'), recordIds: [item.factId], caseId }));
       for (const line of lines) pushTimeline(ns, line);
       for (const id of outcome.actionIds.filter(a => !(prior?.actionIds ?? []).includes(a))) { ns.reminders.push({ customerId: item.customerId, invoiceId: item.invoiceId, day: today, actionId: id, jobId: job.id, key: reminderKey(meta, job.id, item.invoiceId, today), ownerId: job.ownerId }); bound(ns.reminders, 5000); }
       recordRun(state, ctx, { at, jobId: job.id, template: meta.template, caseId, route: traceRoute, ...(proc && traceRoute === 'procedure' ? { procedureId: proc.id } : {}), ...(routeId ? { routeId } : {}),
@@ -251,7 +255,7 @@ async function receivablesStep(host: ModuleHost, ctx: Context, job: Job, meta: L
   return work;
 }
 
-async function figuresStep(host: ModuleHost, ctx: Context, job: Job, tpl: JobTemplate, run: number): Promise<StepWork> {
+async function figuresStep(host: ModuleHost, ctx: Context, job: Job, tpl: JobTemplate, run: number, gst?: LaneJob['gstSources']): Promise<StepWork> {
   const at = nowIso(host); const today = dayOf(at); const sources = job.sourceIds.length ? { sourceIds: [...job.sourceIds] } : {};
   const work: StepWork = { figures: [], receiptIds: [], done: [], open: [], recommendations: [], cases: [] };
   const weekAgo = dayOf(new Date(Date.parse(at) - 6 * 86_400_000).toISOString());
@@ -270,11 +274,23 @@ async function figuresStep(host: ModuleHost, ctx: Context, job: Job, tpl: JobTem
     await host.store.update(state => pushTimeline(lane(state), entry(job.id, run, at, { kind: 'step', stepKind: 'calculate', needsModel: false, text: `Calculated ${operation.replace(/_/g, ' ')} with a receipt.`, receiptIds: [receipt.id], costMinor: '0' })));
   }
   if (tpl.requires.method) {
-    const reply = await optionalCall<any>(host, tpl.requires.method, sources);
+    // GST matching: last month's purchase register against GSTR-2B, through the connectors lane.
+    const first = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 2, 1)); const last = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, 0));
+    const payload = gst ? { registerSourceId: gst.registerSourceId, gstr2bSourceId: gst.gstr2bSourceId, period: { from: dayOf(first.toISOString()), to: dayOf(last.toISOString()) } } : sources;
+    let reply;
+    try { reply = await optionalCall<any>(host, tpl.requires.method, payload); }
+    catch (error) {
+      if ((error as { code?: string }).code !== 'GST_MATCH_SOURCES_EMPTY') throw error;
+      reply = { available: true as const, value: { mode: 'empty' } };
+    }
     if (!reply.available) { work.stop = { rule: 'needs-another-part', reason: 'This job needs a part of Chausar that is not built yet.', leftUndone: tpl.steps.map(s => s.title) }; return work; }
-    const counted = (value: unknown) => Number.isSafeInteger(value) && (value as number) >= 0 ? value as number : null;
-    const matched = counted(reply.value?.matched); const unmatched = counted(reply.value?.unmatched);
-    work.done.push(matched === null || unmatched === null ? 'The match ran; its counts were not readable.' : `${matched} purchase lines match and ${unmatched} do not.`);
+    const counts = reply.value?.counts; const count = (key: string) => Number.isSafeInteger(counts?.[key]) && counts[key] >= 0 ? counts[key] as number : null;
+    if (reply.value?.mode === 'not-applicable') work.done.push('GST matching does not apply to this business’s registration.');
+    else if (reply.value?.mode === 'empty') work.open.push('Last month’s purchase register or GSTR-2B has no imported purchases yet. A source not loaded is not matched as empty.');
+    else if (['matched', 'amountMismatch', 'inBooksOnly', 'in2bOnly', 'probable', 'invalid'].every(key => count(key) !== null)) {
+      work.done.push(`${count('matched')} purchase lines match GSTR-2B. ${count('amountMismatch')} differ in amount, ${count('inBooksOnly')} are in your books only, ${count('in2bOnly')} are in GSTR-2B only, ${count('probable')} are probable matches for you to confirm and ${count('invalid')} were set aside.`);
+      if (count('inBooksOnly')! > 0) work.recommendations.push('Ask the suppliers of the lines in your books only to report them: their input tax credit is at risk until they do.');
+    } else work.open.push('The match ran; its counts were not readable.');
   }
   if (tpl.steps.some(s => s.kind === 'person')) work.personStep = tpl.steps.find(s => s.kind === 'person')!.title;
   work.done.push(`${work.figures.length} figures were calculated, each with its receipt.`);
@@ -371,7 +387,7 @@ export async function runLaneJob(ctx: Context, host: ModuleHost, jobId: string):
     const meter = new Meter(host, ctx, job, lease);
     const meta = peekLane(host.store.read()).jobs[jobId];
     const work = meta.pending ? await resumePending(meta) : tpl.caseSource === 'unpaid-invoices' ? await receivablesStep(host, ctx, job, meta, meter, run)
-      : tpl.caseSource === 'goal' ? await agentStep(host, ctx, job, meta, meter, run) : await figuresStep(host, ctx, job, tpl, run);
+      : tpl.caseSource === 'goal' ? await agentStep(host, ctx, job, meta, meter, run) : await figuresStep(host, ctx, job, tpl, run, meta.gstSources);
     return await finishStep(ctx, host, job, tpl, lease, run, work);
   } catch (error) {
     return failStep(host, jobId, lease, run, error);

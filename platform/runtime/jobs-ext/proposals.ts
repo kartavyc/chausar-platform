@@ -21,7 +21,7 @@ const TERMINAL = ['accepted', 'cancelled', 'revoked', 'stopped'];
 const jobsOf = (host: ModuleHost) => host.services.jobs as JobService;
 const nowIso = (host: ModuleHost) => new Date(jobsOf(host).clock()).toISOString();
 
-export type CardOverrides = { budgetMinor?: string; reserveMinor?: string; nextRunAt?: string; missedRule?: MissedRule; testedRoutes?: string[]; background?: boolean; sourceIds?: string[] };
+export type CardOverrides = { gstSources?: { registerSourceId: string; gstr2bSourceId: string }; budgetMinor?: string; reserveMinor?: string; nextRunAt?: string; missedRule?: MissedRule; testedRoutes?: string[]; background?: boolean; sourceIds?: string[] };
 
 /** Whether this workspace can run the template now, and why not. */
 export async function availability(host: ModuleHost, ctx: Context, tpl: JobTemplate): Promise<{ available: boolean; code?: string; reason?: string }> {
@@ -40,13 +40,14 @@ export async function availability(host: ModuleHost, ctx: Context, tpl: JobTempl
 
 function overrides(value: unknown): CardOverrides {
   if (value === undefined) return {};
-  check(value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(k => ['budgetMinor', 'reserveMinor', 'nextRunAt', 'missedRule', 'testedRoutes', 'background', 'sourceIds'].includes(k)), 'INVALID_JOB_CARD', 'Only the card’s budget, start, missed-run rule, routes, background mode and sources can be set.');
+  check(value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(k => ['budgetMinor', 'reserveMinor', 'nextRunAt', 'missedRule', 'testedRoutes', 'background', 'sourceIds', 'gstSources'].includes(k)), 'INVALID_JOB_CARD', 'Only the card’s budget, start, missed-run rule, routes, background mode and sources can be set.');
   const o = value as CardOverrides;
   if (o.budgetMinor !== undefined) paise(o.budgetMinor); if (o.reserveMinor !== undefined) paise(o.reserveMinor);
   if (o.nextRunAt !== undefined) check(typeof o.nextRunAt === 'string' && Number.isFinite(Date.parse(o.nextRunAt)), 'INVALID_SCHEDULE', 'Give a valid start time.');
   if (o.missedRule !== undefined) validRule(o.missedRule);
   for (const key of ['testedRoutes', 'sourceIds'] as const) if (o[key] !== undefined) check(Array.isArray(o[key]) && o[key]!.length <= 50 && o[key]!.every(v => typeof v === 'string' && /^[A-Za-z0-9_.:-]{1,120}$/.test(v)), 'INVALID_JOB_CARD', 'Name routes and sources by their identifiers.');
   if (o.background !== undefined) check(typeof o.background === 'boolean', 'INVALID_JOB_CARD', 'Background mode is on or off.');
+  if (o.gstSources !== undefined) { const g = o.gstSources as any; check(g && typeof g === 'object' && Object.keys(g).length === 2 && [g.registerSourceId, g.gstr2bSourceId].every(v => typeof v === 'string' && /^[A-Za-z0-9_.:-]{1,100}$/.test(v)) && g.registerSourceId !== g.gstr2bSourceId, 'INVALID_JOB_CARD', 'Name the purchase register and the GSTR-2B source.'); }
   return o;
 }
 
@@ -67,6 +68,7 @@ export function buildCard(host: ModuleHost, ctx: Context, tpl: JobTemplate, goal
     background: (o.background ?? false) === true, steps: tpl.steps.map(s => ({ ...s })), sourceIds,
   };
   check(card.missedRule !== 'all' || tpl.stepsPerDelivery === 1, 'MISSED_RULE_UNSUITABLE', 'Daily rounds cannot all be caught up on one day. Choose skip or run once.');
+  if (tpl.id === 'gst-matching') { check(o.gstSources, 'GST_SOURCES_REQUIRED', 'Choose the purchase register and the GSTR-2B source this job compares.'); card.gstSources = { registerSourceId: o.gstSources.registerSourceId, gstr2bSourceId: o.gstSources.gstr2bSourceId }; card.sourceIds = [...new Set([...card.sourceIds, card.gstSources.registerSourceId, card.gstSources.gstr2bSourceId])].sort(); }
   if (flags.untrusted) card.untrustedInstructions = true;
   return card;
 }
@@ -152,7 +154,7 @@ export async function approveProposal(host: ModuleHost, ctx: Context, id: unknow
     if (p.replacesJobId) await tx.remove(ctx, p.replacesJobId);
     p.status = 'approved'; p.decidedAt = new Date(jobs.clock()).toISOString(); p.jobId = created.id;
     const meta: LaneJob = { jobId: created.id, template: card.template, createdAt: p.decidedAt, proposalId: p.id, missedRule: card.missedRule, stepsPerDelivery: card.stepsPerDelivery, stepsDone: 0, backlog: 0,
-      failureLimit: card.extraStopRules.failures, consecutiveFailures: 0, testedRoutes: card.testedRoutes, sourceIds: card.sourceIds, cases: {}, background: card.background, approvedDigest: p.digest, keyNonce: newId('nonce').slice(6, 30),
+      failureLimit: card.extraStopRules.failures, consecutiveFailures: 0, testedRoutes: card.testedRoutes, sourceIds: card.sourceIds, cases: {}, background: card.background, approvedDigest: p.digest, ...(card.gstSources ? { gstSources: card.gstSources } : {}), keyNonce: newId('nonce').slice(6, 30),
       ...(p.replacesJobId ? { replaces: p.replacesJobId } : {}) };
     ns.jobs[created.id] = meta;
     const raw = tx.find(state, created.id); raw.testedRoutes = [...card.testedRoutes]; raw.allowedActions = [...card.allowedActions]; raw.digest = tx.identity(raw);
