@@ -1,0 +1,3 @@
+[
+  { "name": "payments export, buyer details ignored", "recipe": "instamojo.payments", "file": "payments-sep-2026.csv", "reportTotals": { "rowCount": 2, "total": "300000" }, "expect": { "status": "accepted", "total": "300000", "rows": 2, "unmapped": [] } }
+]

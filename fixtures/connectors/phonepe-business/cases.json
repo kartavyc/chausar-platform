@@ -1,0 +1,4 @@
+[
+  { "name": "complete settlement report", "recipe": "phonepe.settlements", "file": "settlements-sep-2026.csv", "reportTotals": { "rowCount": 2, "total": "103000" }, "expect": { "status": "accepted", "total": "103000", "rows": 2, "unmapped": ["Store Name"] } },
+  { "name": "row count from the dashboard differs", "recipe": "phonepe.settlements", "file": "settlements-sep-2026.csv", "reportTotals": { "rowCount": 3, "total": "103000" }, "expect": { "status": "refused", "code": "SOURCE_ROW_MISMATCH" } }
+]

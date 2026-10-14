@@ -37,9 +37,9 @@ export const RECIPES: readonly SourceRecipe[] = [
     notices: ['Net payout is after commission, taxes and deductions; it is not the order value.'] },
   { id: 'quick-commerce.sales', version: '1', group: 'quick-commerce', operation: 'sales-report', title: 'Blinkit, Zepto or Instamart seller sales report', decoder: 'csv',
     fields: { id: { from: ['Order ID', 'Invoice No'], type: 'text', required: true }, date: { ...date(['Order Date', 'Date']), dateFormats: ['DMY', 'DMY-MON', 'ISO'] },
-      sku: { from: ['SKU', 'Item ID', 'Product ID'], type: 'text', required: true }, amount: { from: ['Net Sales', 'Selling Price', 'GMV'], type: 'money', required: true }, city: { from: ['City'], type: 'text' } },
+      sku: { from: ['SKU', 'Item ID', 'Product ID'], type: 'text', required: true }, amount: { from: ['Net Sales', 'Selling Price', 'GMV'], type: 'money', required: true }, qty: { from: ['Quantity', 'Qty'], type: 'integer' }, city: { from: ['City'], type: 'text' } },
     measure: { type: 'money', amount: { field: 'amount' }, currency: { constant: 'INR' }, unit: 'major' }, identity: ['id', 'sku'], kind: { constant: 'invoice' },
-    outputs: { sku: 'sku', orderId: 'id' }, totals: { kind: 'report' }, sensitivity: 'financial',
+    outputs: { sku: 'sku', orderId: 'id', quantity: 'qty' }, ignored: ['Item Name'], totals: { kind: 'report' }, sensitivity: 'financial',
     notices: ['A platform sales line is a billed claim; the platform\'s payout is separate.'] },
 ];
 export const DECODERS: readonly Decoder[] = [];

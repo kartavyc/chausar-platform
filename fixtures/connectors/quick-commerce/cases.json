@@ -1,0 +1,3 @@
+[
+  { "name": "two orders, three lines", "recipe": "quick-commerce.sales", "file": "sales-sep-2026.csv", "reportTotals": { "rowCount": 3, "total": "83900" }, "expect": { "status": "accepted", "total": "83900", "rows": 3, "unmapped": [] } }
+]

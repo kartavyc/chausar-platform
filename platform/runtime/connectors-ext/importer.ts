@@ -21,8 +21,8 @@ function dictionaryFields(store: StateStore, ctx: Context): Record<string, strin
   check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business meanings before importing.');
   return dictionary.fields ?? {};
 }
-const outputFields = (records: readonly CanonicalRecord[], known: Record<string, string>) =>
-  [...new Set(records.flatMap(record => Object.keys(record.fields)))].filter(name => Object.hasOwn(known, name) && !['currency', 'amountMinor', 'quantity'].includes(name)).sort();
+const outputFields = (records: readonly CanonicalRecord[], known: Record<string, string>, count = false) =>
+  [...new Set(records.flatMap(record => Object.keys(record.fields)))].filter(name => Object.hasOwn(known, name) && !['currency', 'amountMinor', 'unit', ...(count ? ['quantity'] : [])].includes(name)).sort();
 
 /** The canonical CSV and data recipe the core importer validates and totals a second time. */
 export function canonicalImport(outcome: RecipeOutcome, target: CommitTarget, known: Record<string, string>): { content: string; recipe: MappingRecipe; expectedTotals: { rowCount: number; amountMinor: string } } {
@@ -67,11 +67,11 @@ export async function commitOutcome(store: StateStore, imports: ImportService, c
     check(!isNoResend(state, outcome.contentHash), 'SOURCE_DELETED', 'This file was previously deleted. Its content cannot be imported again.');
     const prior = state.imports.find(item => item.sourceId === target.sourceId && item.contentHash === contentHash && item.recipeHash === recipeHash);
     if (prior) return { importId: prior.id, rowIds: [...prior.rowIds], duplicate: true, measure: 'count' as const };
-    const extra = outputFields(outcome.records, known);
+    const extra = outputFields(outcome.records, known, true);
     const facts: FactInput[] = outcome.records.map(record => {
       check(record.measure.type === 'count' && /^-?\d{1,15}$/.test(record.measure.quantity), 'INVALID_COUNT', 'A count must be a whole number.');
       return { entityId: record.entityId, kind: record.kind, validFrom: record.date, sourceId: target.sourceId, sourceRow: record.sourceRow, branch: target.branch,
-        fields: { quantity: Number(record.measure.quantity), unit: record.measure.unit, ...Object.fromEntries(extra.filter(name => record.fields[name] !== undefined && known[name] !== 'money').map(name => [name, record.fields[name]])) } };
+        fields: { quantity: Number(record.measure.quantity), unit: record.measure.unit, ...Object.fromEntries(extra.filter(name => record.fields[name] !== undefined && known[name] !== 'money').map(name => [name, known[name] === 'integer' ? Number(record.fields[name]) : record.fields[name]])) } };
     });
     insertFacts(state, facts, now());
     const latest = new Map(state.facts.filter(fact => fact.sourceId === target.sourceId).map(fact => [`${fact.kind}\u0000${fact.entityId}`, fact.id] as const));
