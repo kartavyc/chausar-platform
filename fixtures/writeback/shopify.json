@@ -1,0 +1,20 @@
+{
+  "shop": "chausar-practice",
+  "token": "shpat_practice_synthetic_token",
+  "products": [
+    { "id": 8800000000101, "title": "Steel tiffin box (synthetic)", "status": "active", "vendor": "Asha Traders (synthetic)", "updated_at": "2026-10-01T09:00:00.000Z",
+      "variants": [
+        { "id": 4400000000201, "product_id": 8800000000101, "title": "Small", "price": "199.00", "sku": "TIF-S", "inventory_item_id": 4600000000301, "updated_at": "2026-10-01T09:00:00.000Z" },
+        { "id": 4400000000202, "product_id": 8800000000101, "title": "Large", "price": "349.50", "sku": "TIF-L", "inventory_item_id": 4600000000302, "updated_at": "2026-10-01T09:00:00.000Z" }
+      ] },
+    { "id": 8800000000102, "title": "Cotton tote bag (synthetic)", "status": "draft", "vendor": "Bharat Packaging (synthetic)", "updated_at": "2026-10-02T09:00:00.000Z",
+      "variants": [
+        { "id": 4400000000203, "product_id": 8800000000102, "title": "Default Title", "price": "99.00", "sku": "TOTE", "inventory_item_id": 4600000000303, "updated_at": "2026-10-02T09:00:00.000Z" }
+      ] }
+  ],
+  "inventoryLevels": [
+    { "inventory_item_id": 4600000000301, "location_id": 7700000000401, "available": 40, "updated_at": "2026-10-01T09:00:00.000Z" },
+    { "inventory_item_id": 4600000000302, "location_id": 7700000000401, "available": 12, "updated_at": "2026-10-01T09:00:00.000Z" },
+    { "inventory_item_id": 4600000000303, "location_id": 7700000000401, "available": 0, "updated_at": "2026-10-02T09:00:00.000Z" }
+  ]
+}

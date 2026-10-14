@@ -1,0 +1,13 @@
+{
+  "keyId": "rzp_test_SYNTHETIC00001",
+  "keySecret": "practice-razorpay-secret",
+  "payments": [
+    { "id": "pay_SYNTH00000001A", "entity": "payment", "amount": 150000, "currency": "INR", "status": "captured", "amount_refunded": 0, "refund_status": null, "captured": true, "method": "upi", "email": "accounts@asha.example", "contact": "+919000000001", "description": "September order (synthetic)", "created_at": 1790000000 },
+    { "id": "pay_SYNTH00000002B", "entity": "payment", "amount": 80000, "currency": "INR", "status": "captured", "amount_refunded": 30000, "refund_status": "partial", "captured": true, "method": "card", "email": "billing@bharat.example", "contact": "+919000000002", "description": "Packing order (synthetic)", "created_at": 1790000100 },
+    { "id": "pay_SYNTH00000003C", "entity": "payment", "amount": 50000, "currency": "INR", "status": "authorized", "amount_refunded": 0, "refund_status": null, "captured": false, "method": "card", "email": "hello@chitra.example", "contact": "+919000000003", "description": "Held order (synthetic)", "created_at": 1790000200 }
+  ],
+  "refunds": [
+    { "id": "rfnd_SYNTH000000001", "entity": "refund", "payment_id": "pay_SYNTH00000002B", "amount": 30000, "currency": "INR", "receipt": "manual-return-1", "notes": {}, "status": "processed", "speed_requested": "normal", "speed_processed": "normal", "created_at": 1790000500 }
+  ],
+  "paymentLinks": []
+}
