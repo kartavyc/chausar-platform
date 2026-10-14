@@ -29,6 +29,8 @@ import type { HostController, HostReceiptSelection, HostState } from './controll
 import type { FirstRunResult } from '../screens/first-run/controller.ts';
 import { FirstRunScreen } from '../screens/first-run/FirstRun';
 import { FirstRunJourney } from '../screens/first-run/FirstRunJourney';
+import { AskRecoveryContact, LockFolderChoice } from '../screens/first-run/ThisComputer';
+import { readDeviceChoices, saveDeviceChoices } from '../screens/first-run/this-computer.ts';
 import { LockScreen } from '../app/LockScreen';
 import { LinkDialog } from '../app/LinkDialog';
 import type { ShellPort } from '../bridge/shell.ts';
@@ -1029,6 +1031,18 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
   const state = useSyncExternalStore(controller.subscribe, controller.snapshot, controller.snapshot);
   const [language, setLanguage] = useState<Language>(options.language ?? 'en');
   const [view, setView] = useState<View>(options.view ?? 'guided');
+  const [lockFolder, setLockFolder] = useState('main');
+  // SH-06: the language and view saved for this computer, unless the trusted mount fixed them.
+  useEffect(() => {
+    if (options.firstRun !== 'journey') return;
+    let current = true;
+    void readDeviceChoices(controller.places).then(saved => {
+      if (!current || saved === null) return;
+      if (options.language === undefined) setLanguage(saved.language);
+      if (options.view === undefined) setView(saved.view);
+    }, () => {});
+    return () => { current = false; };
+  }, [controller]);
   const [address, setAddress] = useState(() => parseAddress(window.location.hash));
   const [vaultAcknowledged, setVaultAcknowledged] = useState<string | null>(null);
   const journeyMode = options.firstRun === 'journey';
@@ -1062,17 +1076,24 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
     document.documentElement.removeAttribute('data-theme');
   }, [language, view]);
   const authorized = state.phase === 'ready' && state.context !== null;
+  /** A person's change of language or view is kept for this computer once a workspace is open. */
+  const chooseLanguage = (next: Language) => { setLanguage(next); if (journeyMode && authorized) void saveDeviceChoices(controller.places, next, view).catch(() => {}); };
+  const chooseView = (next: View) => { setView(next); if (journeyMode && authorized) void saveDeviceChoices(controller.places, language, next).catch(() => {}); };
   if (journeyMode) {
     // The lock screen holds whenever the workspace is locked, before or after first run.
     if (state.phase === 'locked' && state.creation.kind === 'idle' && !startNew) {
       // SH-02: the passphrase passes straight to the engine once; the field is cleared by the control.
-      const unlock = (passphrase: string) => controller.places.request('workspace.open', { folder: 'main', passphrase }).then(
+      const unlock = (passphrase: string) => controller.places.request('workspace.open', { folder: lockFolder, passphrase }).then(
         () => { setUnlockResult(null); return controller.unlocked(); },
         (error: unknown) => { setUnlockResult((error as { code?: unknown })?.code === 'UNLOCK_FAILED' ? { kind: 'wrong' } : null);
           if ((error as { code?: unknown })?.code !== 'UNLOCK_FAILED') setStartNew(true); });
       return <TextProvider language={language}>
-        <LockScreen workspaceName={hostMessage(language, 'thisWorkspace')}
-          unlockControl={<UnlockControl unlock={unlock} result={unlockResult} onRecoveryKit={() => setStartNew(true)} />} />
+        <LockScreen workspaceName={lockFolder === 'main' ? hostMessage(language, 'thisWorkspace') : lockFolder}
+          unlockControl={<>
+            <LockFolderChoice rpc={controller.places} folder={lockFolder} onFolder={setLockFolder} />
+            <UnlockControl unlock={unlock} result={unlockResult} onRecoveryKit={() => setStartNew(true)} />
+            <AskRecoveryContact rpc={controller.places} folder={lockFolder} />
+          </>} />
       </TextProvider>;
     }
     if ((!journeyDone || startNew) && (state.creation.kind !== 'idle' || state.phase === 'locked' || (authorized && state.dictionaryReviewRequired))) {
@@ -1080,6 +1101,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
         onDone={() => { setJourneyDone(true); navigate(TODAY); setAddress(TODAY); void controller.refresh(); }}
         saveRouteKey={(config, key) => controller.places.request('models.configure', { config, secret: key })}
         {...(options.shell !== undefined ? { onPrint: () => options.shell!.print('recovery-kit') } : {})}
+        onOpenFolder={folder => { setLockFolder(folder); setUnlockResult(null); setStartNew(false); }}
         onReopened={() => { setStartNew(false); void controller.unlocked(); }} /></TextProvider>;
     }
   }
@@ -1102,7 +1124,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
           : authorized && state.context !== null
           ? <AuthorizedWorkspace key={JSON.stringify([state.context.contextKey, state.selectedRouteId])}
             controller={controller} state={state} context={state.context} language={language} view={view}
-            setLanguage={setLanguage} setView={setView} onLegacyReturn={onLegacyReturn} scenarioSelection={options.scenarioSelection ?? null} shell={options.shell ?? null} />
+            setLanguage={chooseLanguage} setView={chooseView} onLegacyReturn={onLegacyReturn} scenarioSelection={options.scenarioSelection ?? null} shell={options.shell ?? null} />
           : <div style={{ padding: 'var(--sp6)' }}>
             <p role="status">{hostMessage(language, state.phase === 'loading' ? 'loading' : 'unavailable')}</p>
             {state.code !== undefined && <p>{hostMessage(language, 'code', { code: state.code })}</p>}
