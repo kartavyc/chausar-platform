@@ -1,15 +1,16 @@
 /**
  * models-ext speech part: the provider catalogue, "what it understood", the person's confirmation
- * of that exact reading, and the offline recorded-clip bench. Provider configuration, previews,
- * approvals and transcription stay on the core `speech.*` methods (SpeechService).
+ * of that exact reading, the offline recorded-clip bench and provider revocation. Provider configuration,
+ * previews, approvals and transcription stay on the core `speech.*` methods (SpeechService), which keep
+ * provider settings in this namespace under `speech.providers`; keys stay in memory, the broker or CHAUSAR_* variables.
  */
 import { check, hash, money, newId, now } from '../contracts.ts';
 import type { Context, State } from '../contracts.ts';
-import { moduleState } from '../modules/types.ts';
+import { peekModuleState } from '../modules/types.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { ModulePart } from './part.ts';
 import { MODULE_ID } from './part.ts';
-import { SPEECH_DISCLOSURE, SPEECH_KINDS, SPEECH_NETWORK } from '../speech.ts';
+import { SPEECH_DISCLOSURE, SPEECH_KINDS, SPEECH_NETWORK, speechNamespace } from '../speech.ts';
 import type { SpeechKind } from '../speech.ts';
 import { BHASHINI_DOCS, LIVE_VOICE_DOCS, SARVAM_DOCS, SARVAM_MAX_MS } from '../speech-providers.ts';
 import { interpretSpeech } from '../speech-understood.ts';
@@ -17,7 +18,7 @@ import { BENCH_KINDS, runSpeechBench } from '../speech-bench.ts';
 
 type Confirmation = { id: string; digest: string; understood: string; receiptId: string | null; memberId: string; epoch: number; createdAt: string; negations: number; numbers: { display: string; integer: string | null; paise: string | null }[]; ambiguities: number };
 type SpeechNamespace = { confirmations?: Confirmation[]; benchRuns?: { id: string; ranAt: string; memberId: string; fixturesDigest: string; providers: unknown[] }[] };
-const speechState = (state: State) => { const ns = moduleState<{ speech?: SpeechNamespace }>(state, MODULE_ID, () => ({})); ns.speech ??= {}; ns.speech.confirmations ??= []; ns.speech.benchRuns ??= []; return ns.speech as Required<SpeechNamespace>; };
+const speechState = (state: State) => { const ns = speechNamespace(state) as SpeechNamespace; ns.confirmations ??= []; ns.benchRuns ??= []; return ns as Required<SpeechNamespace>; };
 const onlyKeys = (payload: Record<string, unknown>, keys: string[]) => check(Object.keys(payload).every(k => keys.includes(k)), 'INVALID_REQUEST', 'Unknown speech request field.');
 
 const CATALOGUE: Record<SpeechKind, { label: string; status: 'supported' | 'experimental'; privacyGate: string; cost: 'free' | 'per-minute'; needsFounderAccount: boolean; account: string | null; limits: string; docs: string | null }> = {
@@ -35,8 +36,8 @@ const CATALOGUE: Record<SpeechKind, { label: string; status: 'supported' | 'expe
     privacyGate: 'Needs the samples privacy setting. An owner approves the minute cap and its cost in the app. Chausar hands the app a one-minute session secret; it never streams audio itself.', limits: 'A minute cap up to thirty minutes. Minutes used are not measured.' },
 };
 
-function catalogue(ctx: Context, host: ModuleHost) {
-  const configured: any[] = host.services.speech?.providers(ctx) ?? [];
+async function catalogue(ctx: Context, host: ModuleHost) {
+  const configured: any[] = await host.services.speech?.providers(ctx) ?? [];
   return {
     providers: SPEECH_KINDS.map(kind => {
       const entry = CATALOGUE[kind];
@@ -45,7 +46,8 @@ function catalogue(ctx: Context, host: ModuleHost) {
           ratePerMinuteMinor: entry.cost === 'free' ? null : p.ratePerMinuteMinor, ratePerMinute: entry.cost === 'free' ? 'Free' : `${money(p.ratePerMinuteMinor)} per minute`,
           budgetMinor: entry.cost === 'free' ? null : p.budgetMinor, budget: entry.cost === 'free' ? 'Not applicable' : money(p.budgetMinor) })) };
     }),
-    configurationIsSessionLocal: true,
+    configurationStoredInWorkspace: true, credentialsStoredInWorkspace: false,
+    credentials: 'Keys stay in memory, in the credential broker or in a CHAUSAR_ variable. After a restart, give the key again before sending audio.',
     understood: 'Every spoken question is shown as text, with negations and Indian amounts marked, and runs only after you confirm it.',
   };
 }
@@ -78,6 +80,10 @@ export const speechPart: ModulePart = {
         return { confirmationId: confirmation.id, digest: confirmation.digest, understood: confirmation.understood, receiptId, confirmedAt: confirmation.createdAt };
       });
     } },
+    'modelsx.speechRevoke': { permission: 'admin', handler: async (ctx, payload, host) => {
+      onlyKeys(payload, ['providerId']); check(typeof payload.providerId === 'string' && payload.providerId.length <= 80, 'INVALID_REQUEST', 'Name the speech provider to revoke.');
+      check(host.services.speech, 'SPEECH_UNAVAILABLE', 'Speech is not available in this workspace.'); return host.services.speech.revoke(ctx, payload.providerId);
+    } },
     'modelsx.speechBench': { permission: 'prepare', handler: async (ctx, payload, host) => {
       onlyKeys(payload, ['kinds']); check(payload.kinds === undefined || (Array.isArray(payload.kinds) && payload.kinds.every((k: unknown) => typeof k === 'string')), 'INVALID_REQUEST', 'Choose speech provider kinds as a list.');
       check(host.options.speechBench !== undefined, 'SPEECH_BENCH_FIXTURES_REQUIRED', 'The speech bench runs only on recorded clips supplied by this installation.');
@@ -89,8 +95,10 @@ export const speechPart: ModulePart = {
       });
     } },
   },
+  /** Provider settings and bench scores derive from no source. A confirmation goes with its speech receipt, whether this purge or an earlier one removed it. */
   purge(state, reason) {
-    const ns = (state.extensions?.[MODULE_ID] as { speech?: SpeechNamespace } | undefined)?.speech; if (!ns?.confirmations) return 0;
-    const before = ns.confirmations.length; ns.confirmations = ns.confirmations.filter(c => !c.receiptId || !reason.removedIds.has(c.receiptId)); return before - ns.confirmations.length;
+    const ns = peekModuleState<{ speech?: SpeechNamespace }>(state, MODULE_ID)?.speech; if (!ns?.confirmations) return 0;
+    const receipts = new Set(state.modelReceipts.map(r => r.id));
+    const before = ns.confirmations.length; ns.confirmations = ns.confirmations.filter(c => !c.receiptId || (!reason.removedIds.has(c.receiptId) && receipts.has(c.receiptId))); return before - ns.confirmations.length;
   },
 };
