@@ -5,7 +5,7 @@
 import type { Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { SearchReply } from './contracts.ts';
-import { codeOf, input, peekAsk, text, words } from './shared.ts';
+import { codeOf, input, peekAsk, text, translate, words } from './shared.ts';
 
 const LIMIT = 50;
 
@@ -32,7 +32,7 @@ export async function search(ctx: Context, payload: unknown, host: ModuleHost): 
   add('saved', own.saved.filter(s => s.memberId === ctx.memberId).flatMap(s => hit(s.id, s.question ?? s.operationId ?? '')));
   add('check', own.checks.filter(c => c.memberId === ctx.memberId).flatMap(c => hit(c.id, c.question)));
   add('why', own.why.filter(w => w.memberId === ctx.memberId).flatMap(w => [...hit(w.id, w.label), ...w.guesses.flatMap(g => hit(w.id, g.text))]));
-  const optional = async (method: string) => { try { return await host.call(method, {}) as any[]; } catch (error) { if (['UNKNOWN_METHOD', 'FORBIDDEN'].includes(codeOf(error))) return []; throw error; } };
+  const optional = async (method: string) => { try { return await host.call(method, {}) as any[]; } catch (error) { if (['UNKNOWN_METHOD', 'FORBIDDEN'].includes(codeOf(error))) return []; throw translate(error); } };
   add('decision', (await optional('decisions.list')).flatMap(d => hit(d.id, String(d.text ?? ''))));
   add('investigation', (await optional('investigations.list')).flatMap(i => hit(i.id, String(i.objective ?? ''))));
   return { query, groups };

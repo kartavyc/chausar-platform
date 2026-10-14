@@ -8,7 +8,8 @@ import type { Context } from '../runtime/contracts.ts';
 import { askModule } from '../runtime/modules/lane-ask.ts';
 import { periodChoices, priorPeriod } from '../runtime/ask/shared.ts';
 import { trendAt } from '../runtime/ask/forecast.ts';
-import { matchLines } from '../runtime/ask/gst2b.ts';
+import { matchLines, matchable } from '../runtime/ask/gst2b.ts';
+import { guardLines } from '../runtime/ask/answers.ts';
 import { marks } from '../runtime/ask/search.ts';
 
 // Synthetic businesses only. No network, provider, model or real person is involved.
@@ -360,4 +361,74 @@ test('the module declares every askx method and purges what a deleted source der
   assert.deepEqual([state.extensions.ask.saved[0].deletedOn, state.extensions.ask.saved[0].question, state.extensions.ask.saved[0].receiptId], ['2026-10-02', 'Q', null]);
   assert.deepEqual(state.extensions.ask.checks.map((c: any) => c.id), ['d']);
   assert.equal(state.extensions.ask.why.length, 0);
+});
+
+const as = (engine: Engine, member: any) => { (engine as any).context = { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' }; };
+
+test('review: typed text stays with its member, and limited seats see nothing they cannot open', async t => {
+  const engine = await workspace(t);
+  await ask(engine, 'sources.import', source('september', SEPT));
+  await ask(engine, 'askx.understand', { question: 'Send Ravi the secret Acme note', today: TODAY });
+  await ask(engine, 'askx.understand', { question: 'payroll of Sunita', today: TODAY });
+  const accountant = await ask(engine, 'members.add', { id: 'acct-main', name: 'Main accountant', role: 'accountant', branches: ['main'] });
+  as(engine, accountant);
+  assert.deepEqual(await ask(engine, 'askx.wanted'), { calculations: [], actions: [], words: [] });
+  assert.ok((await ask(engine, 'askx.suggest')).suggestions.every((s: any) => s.why === 'starter'));
+  const mine = await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
+  assert.equal(mine.figures[0].minor, '125025');
+  const { id } = await ask(engine, 'askx.save', { receiptId: mine.receiptId });
+  const check = await ask(engine, 'askx.checks.save', { receiptId: mine.receiptId });
+  as(engine, { id: 'owner', role: 'owner', epoch: 1 });
+  await ask(engine, 'sources.import', source('west-later', [['west-late', 'sale', '2026-09-20', '10.00', 'customer-w', 'inv-w', 'delivered', 'west']]));
+  const ownerAnswer = await ask(engine, 'askx.run', { operationId: 'billed', periodId: 'last-month', today: TODAY });
+  await ask(engine, 'askx.checks.save', { receiptId: ownerAnswer.receiptId });
+  const packs = await ask(engine, 'ontology.packs');
+  const draft = structuredClone(packs.find((p: any) => p.pack === 'distributor'));
+  draft.definitions.find((d: any) => d.name === 'received').meaning = 'Settled cash receipts, by settlement date, reviewed by the owner.';
+  await ask(engine, 'ontology.publish', { draft });
+  as(engine, accountant);
+  // A hidden west row neither marks the accountant's answer stale nor says when it arrived.
+  const saved = (await ask(engine, 'askx.saved')).items.find((i: any) => i.id === id);
+  assert.notEqual(saved.stale?.reason, 'new-rows');
+  assert.equal((await ask(engine, 'askx.checks.list')).due, true);
+  await ask(engine, 'askx.checks.run');
+  assert.equal((await ask(engine, 'askx.checks.get', { checkId: check.id })).results.length, 1);
+  as(engine, { id: 'owner', role: 'owner', epoch: 1 });
+  assert.equal((await ask(engine, 'askx.checks.list')).due, true, "One member's run never clears another's due checks.");
+  as(engine, accountant);
+  assert.equal((await ask(engine, 'askx.forecast', { operationId: 'earned', today: TODAY })).state, 'not-enough-history', 'A one-branch seat forecasts its own branch.');
+  const two = await ask(engine, 'members.add', { id: 'acct-two', name: 'Two-branch accountant', role: 'accountant', branches: ['main', 'south'] });
+  as(engine, two);
+  await assert.rejects(ask(engine, 'askx.forecast', { operationId: 'earned', today: TODAY }), code('ASK_STOPPED_BY_RULE'));
+  as(engine, { id: 'owner', role: 'owner', epoch: 1 });
+});
+
+test('review: a corrected row that moved out of the period marks a saved answer stale', async t => {
+  const engine = await workspace(t);
+  await ask(engine, 'sources.import', source('september', SEPT));
+  const answer = await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
+  const { id } = await ask(engine, 'askx.save', { receiptId: answer.receiptId });
+  const moved = SEPT.map(row => row[0] === 'sale-a' ? [row[0], row[1], '2026-08-30', ...row.slice(3)] as Row : row);
+  await ask(engine, 'sources.import', source('september', moved));
+  assert.equal((await ask(engine, 'askx.saved')).items.find((i: any) => i.id === id).stale.reason, 'books-changed');
+});
+
+test('review: the number guard reads every digit run in any script and never accepts paise for rupees', async () => {
+  const receipt: any = { figures: [{ key: 'total', label: 'Earned', minor: '125025', display: '₹1,250.25', unit: 'money' }], rows: [1, 2], coverage: { countedRows: 2, excludedRows: 1 },
+    period: { from: '2026-09-01', to: '2026-09-30' }, comparePeriod: null, asOf: '2026-10-14T00:00:00.000Z', assumptions: {} };
+  const unmatched = (text: string) => guardLines(text, receipt).filter(l => l.matched === null).map(l => l.number);
+  assert.deepEqual(unmatched('Earned was Rs9999'), ['9999']);
+  assert.deepEqual(unmatched('बिक्री ₹९,९९९ थी'), ['9,999']);
+  assert.deepEqual(unmatched('Sales were 50lakh'), ['50']);
+  assert.deepEqual(unmatched('Earned was ₹125025'), ['125025']);
+  assert.deepEqual(unmatched('grew 2026 percent'), ['2026']);
+  assert.deepEqual(unmatched('Earned ₹1,250.25 from 2 rows, 1 left out, 2026-09-01 to 2026-09-30.'), []);
+});
+
+test('review: GST rows without a key, an amount or in another currency are left out, never zero', () => {
+  const fact = (fields: Record<string, unknown>) => ({ id: 'f', entityId: 'f', sourceId: 's', sourceRow: 1, kind: 'purchase', validFrom: '2026-09-01', validTo: null, learnedAt: '', supersededAt: null, fields });
+  assert.equal(matchable(fact({ gstin: 'X', invoiceId: 'I', amountMinor: '100', currency: 'INR' }), 'INR'), true);
+  assert.equal(matchable(fact({ gstin: 'X', invoiceId: 'I', currency: 'INR' }), 'INR'), false);
+  assert.equal(matchable(fact({ amountMinor: '100', currency: 'INR' }), 'INR'), false);
+  assert.equal(matchable(fact({ gstin: 'X', invoiceId: 'I', amountMinor: '100', currency: 'USD' }), 'INR'), false);
 });

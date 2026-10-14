@@ -45,7 +45,7 @@ export function minorString(value: unknown): string {
 }
 
 export function initAskState(): AskState {
-  return { version: 1, saved: [], checks: [], checkFingerprint: null, why: [], corrections: [], wantedWords: [], wantedActions: [], asked: [], drafts: [], gst: { toleranceMinor: '100' } };
+  return { version: 1, saved: [], checks: [], why: [], corrections: [], wantedWords: [], wantedActions: [], asked: [], drafts: [], gst: { toleranceMinor: '100' } };
 }
 export const askState = (state: State) => moduleState(state, LANE, initAskState);
 export const peekAsk = (state: State) => peekModuleState<AskState>(state, LANE) ?? initAskState();

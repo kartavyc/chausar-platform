@@ -12,6 +12,7 @@
  */
 import { check, now, type Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
+import { canSeeFact } from '../memory.ts';
 import type { CalculationReceipt } from '../calculator.ts';
 import type { SavedForecastEvaluation } from '../forecast-contracts.ts';
 import type { ForecastReply } from './contracts.ts';
@@ -42,7 +43,10 @@ export async function forecast(ctx: Context, payload: unknown, host: ModuleHost)
   check(operation.type === 'sum' && (operation.definitions.length === 1 || operation.id === 'net_sales'), 'ASK_NOT_FORECASTABLE', 'Only a published sum of money can be forecast.');
   const today = businessToday(host, request.today), kinds = new Set(dictionary.definitions.filter(d => operation.definitions.includes(d.name)).map(d => d.kind));
   const state = host.store.read(), member = state.members.find(m => m.id === ctx.memberId);
-  const facts = state.facts.filter(f => kinds.has(f.kind) && !f.deletedAt && !f.supersededAt && (member?.branches.includes('*') || f.branch && member?.branches.includes(f.branch)));
+  // A forecast covers every branch, or the one branch a seat holds; anything else is a rule, said before any work.
+  const branch = member?.branches.includes('*') ? null : member?.branches.length === 1 ? member.branches[0]! : undefined;
+  check(branch !== undefined, 'ASK_STOPPED_BY_RULE', 'A rule in Trust stops this answer for your seat.');
+  const facts = state.facts.filter(f => kinds.has(f.kind) && !f.deletedAt && !f.supersededAt && (branch === null || f.branch === branch) && canSeeFact(host.store, ctx, f));
   const first = facts.map(f => f.validFrom.slice(0, 7)).sort()[0];
   const [ty, tm] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))], [ly, lm] = addMonths(ty, tm, -1);
   const months: [number, number][] = [];
@@ -51,7 +55,7 @@ export async function forecast(ctx: Context, payload: unknown, host: ModuleHost)
   const sourceIds = [...new Set(facts.map(f => f.sourceId))].sort(), asOf = now();
   const history: { month: string; minor: string; receiptId: string }[] = [];
   for (const [y, m] of months) {
-    const receipt = await core<CalculationReceipt>(host, 'calculation.run', { operation: operation.id, sourceIds, period: { from: monthStart(y, m), to: monthEnd(y, m) }, asOf });
+    const receipt = await core<CalculationReceipt>(host, 'calculation.run', { operation: operation.id, sourceIds, period: { from: monthStart(y, m), to: monthEnd(y, m) }, asOf, ...(branch === null ? {} : { branch }) });
     history.push({ month: monthStart(y, m).slice(0, 7), minor: receipt.valueMinor, receiptId: receipt.id });
   }
   const held = history.slice(-HELD_BACK), origins = held.map((target, k) => {
@@ -61,7 +65,7 @@ export async function forecast(ctx: Context, payload: unknown, host: ModuleHost)
   });
   let evaluation: SavedForecastEvaluation;
   try {
-    evaluation = await host.call('forecasts.evaluate', { version: 1, mode: 'restated-diagnostic', operation: operation.id, dictionaryHash: dictionary.hash, sourceIds, branch: null,
+    evaluation = await host.call('forecasts.evaluate', { version: 1, mode: 'restated-diagnostic', operation: operation.id, dictionaryHash: dictionary.hash, sourceIds, branch,
       horizonsMonths: [1], cadenceMonths: 1, minimumTrainingMonths: 12, method: 'linear-trend-v1', benchmark: 'last-observed-v1', availabilityLagMs: 0, origins }) as SavedForecastEvaluation;
   } catch (error) {
     const code = codeOf(error);
@@ -75,7 +79,7 @@ export async function forecast(ctx: Context, payload: unknown, host: ModuleHost)
   return {
     state: 'ready', answer: wins ? 'forecast' : 'baseline', operationId: operation.id, label: operation.label, history,
     heldBack: evaluation.folds.map(fold => ({ month: fold.targetPeriod.from.slice(0, 7), actualMinor: fold.actualMinor, forecastMinor: fold.candidate.minor, baselineMinor: fold.benchmark.minor })),
-    error: { forecastMinor: truncate(horizon.candidate.meanAbsoluteErrorMinor) ?? '0', baselineMinor: truncate(horizon.benchmark.meanAbsoluteErrorMinor) ?? '0' },
+    error: { forecastMinor: truncate(horizon.candidate.meanAbsoluteErrorMinor), baselineMinor: truncate(horizon.benchmark.meanAbsoluteErrorMinor) },
     next: { month: monthStart(fy, fm).slice(0, 7), forecastMinor: wins ? String(next) : null, baselineMinor: history.at(-1)!.minor, rangeMinor: wins ? String(spread) : null },
     method: { forecast: 'linear-trend-v1', baseline: 'last-observed-v1', learnedFrom: { from: history[0]!.month, to: history.at(-1)!.month },
       testedOn: { from: held[0]!.month, to: held.at(-1)!.month } },

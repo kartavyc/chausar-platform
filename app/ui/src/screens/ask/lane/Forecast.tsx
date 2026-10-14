@@ -21,7 +21,7 @@ interface Ready {
   readonly state: 'ready'; readonly answer: 'forecast' | 'baseline'; readonly operationId: string; readonly label: string;
   readonly history: readonly { month: string; minor: string; receiptId: string }[];
   readonly heldBack: readonly { month: string; actualMinor: string; forecastMinor: string; baselineMinor: string }[];
-  readonly error: { forecastMinor: string; baselineMinor: string };
+  readonly error: { forecastMinor: string | null; baselineMinor: string | null };
   readonly next: { month: string; forecastMinor: string | null; baselineMinor: string; rangeMinor: string | null };
   readonly method: { forecast: string; baseline: string; learnedFrom: Period; testedOn: Period };
   readonly evaluationId: string;
@@ -37,7 +37,7 @@ export function forecastReply(value: unknown): ForecastValue {
     state, answer: oneOf(v.answer, ['forecast', 'baseline'] as const), operationId: id(v.operationId), label: str(v.label, 300),
     history: list(v.history, h => { const x = obj(h); return { month: month(x.month), minor: minor(x.minor), receiptId: id(x.receiptId) }; }, 600),
     heldBack: list(v.heldBack, h => { const x = obj(h); return { month: month(x.month), actualMinor: minor(x.actualMinor), forecastMinor: minor(x.forecastMinor), baselineMinor: minor(x.baselineMinor) }; }, 120),
-    error: { forecastMinor: minor(e.forecastMinor), baselineMinor: minor(e.baselineMinor) },
+    error: { forecastMinor: optMinor(e.forecastMinor), baselineMinor: optMinor(e.baselineMinor) },
     next: { month: month(n.month), forecastMinor: optMinor(n.forecastMinor), baselineMinor: minor(n.baselineMinor), rangeMinor: optMinor(n.rangeMinor) },
     method: { forecast: str(m.forecast, 200), baseline: str(m.baseline, 200), learnedFrom: period(m.learnedFrom), testedOn: period(m.testedOn) },
     evaluationId: id(v.evaluationId),
@@ -174,7 +174,7 @@ function ForecastReady({ f }: { f: Ready }) {
         </div>
         <h3 className={s.tileLabel}>{w.error}</h3>
         <div data-forecast-error="">
-          <KeyValue onReceipt={open} pairs={[{ name: w.errorForecast, figure: run(f.error.forecastMinor) }, { name: w.errorBaseline, figure: run(f.error.baselineMinor) }]} />
+          <KeyValue onReceipt={open} pairs={[{ name: w.errorForecast, figure: f.error.forecastMinor === null ? missingFigure('not-counted') : run(f.error.forecastMinor) }, { name: w.errorBaseline, figure: f.error.baselineMinor === null ? missingFigure('not-counted') : run(f.error.baselineMinor) }]} />
         </div>
       </Part>
       <Part title={w.method}>

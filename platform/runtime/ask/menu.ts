@@ -8,6 +8,7 @@
  */
 import { newId, now, type Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
+import { canSeeFact } from '../memory.ts';
 import type { Dictionary, Operation } from '../ontology.ts';
 import { resolveCoreOperationAlias } from '../core-operation-aliases.ts';
 import type { MenuReply, PeriodId, SuggestReply, UnderstandReply, WantedReply } from './contracts.ts';
@@ -39,7 +40,7 @@ export function suggest(ctx: Context, payload: unknown, host: ModuleHost): Sugge
   input(payload, []);
   const dictionary = currentDictionary(host, ctx); if (!dictionary) return { suggestions: [] };
   const label = (id: string) => dictionary.operations.find(operation => operation.id === id)?.label;
-  const asked = [...peekAsk(host.store.read()).asked].filter(entry => label(entry.operationId))
+  const asked = [...peekAsk(host.store.read()).asked].filter(entry => entry.memberId === ctx.memberId && label(entry.operationId))
     .sort((a, b) => b.count - a.count || b.lastAt.localeCompare(a.lastAt));
   const out: SuggestReply['suggestions'] = [];
   for (const entry of asked) if (out.length < 6) out.push({ operationId: entry.operationId, label: label(entry.operationId)!, periodId: entry.periodId ?? 'last-month', asked: entry.count, why: 'asked-before' });
@@ -103,7 +104,7 @@ export async function understand(ctx: Context, payload: unknown, host: ModuleHos
   const nearby = (ids: string[]) => dictionary.operations.filter(operation => ids.includes(operation.id) || !ids.length && ['received', 'billed', 'aging'].includes(operation.id))
     .slice(0, 4).map(operation => ({ operationId: operation.id, label: operation.label }));
   if (tokens.some(token => ACTION_WORDS.has(token))) {
-    await remember(host, state => bump(state.wantedActions, question.trim(), 'text'));
+    await remember(host, state => bump(state.wantedActions, ctx.memberId, question.trim(), 'text'));
     return { kind: 'no-match', reason: 'action', word: null, nearby: [] };
   }
   if (found.ids.length === 1) {
@@ -119,52 +120,62 @@ export async function understand(ctx: Context, payload: unknown, host: ModuleHos
   // No calculation. One or two unknown words is a business word Chausar does not know.
   const word = found.unknown.length > 0 && found.unknown.length <= 2 ? found.unknown.join(' ') : null;
   await remember(host, state => {
-    if (word) bump(state.wantedWords, word, 'word');
+    if (word) bump(state.wantedWords, ctx.memberId, word, 'word');
   });
-  await host.store.update(state => { state.unsupported.push({ id: newId('wanted'), at: now(), question: question.trim(), status: 'not-yet', by: ctx.memberId }); });
+  await host.store.update(state => {
+    // The core wanted list is shared with the calculator; each member adds at most a bounded number of rows.
+    if (state.unsupported.filter(entry => entry?.by === ctx.memberId).length < WANTED_PER_MEMBER)
+      state.unsupported.push({ id: newId('wanted'), at: now(), question: question.trim().slice(0, 500), status: 'not-yet', by: ctx.memberId });
+  });
   return { kind: 'no-match', reason: word ? 'unknown-word' : 'no-calculation', word, nearby: nearby([]) };
 }
 
 function branchesOf(host: ModuleHost, ctx: Context): string[] {
-  const member = host.store.read().members.find(m => m.id === ctx.memberId);
   const seen = new Set<string>();
-  for (const fact of host.store.read().facts) if (fact.branch && !fact.deletedAt && (member?.branches.includes('*') || member?.branches.includes(fact.branch))) seen.add(fact.branch);
+  for (const fact of host.store.read().facts) if (fact.branch && !fact.deletedAt && !seen.has(fact.branch) && canSeeFact(host.store, ctx, fact)) seen.add(fact.branch);
   return [...seen].sort().slice(0, 50);
 }
 
-function bump<T extends { count: number; lastAt: string }>(list: (T & Record<string, any>)[], value: string, key: string) {
+const WANTED_PER_MEMBER = 500;
+/** Counts one more ask of a typed text in the member's own list, bounded per member. */
+function bump(list: ({ memberId: string; count: number; lastAt: string } & Record<string, any>)[], memberId: string, value: string, key: string) {
   const normal = value.toLowerCase().replace(/\s+/g, ' ').slice(0, 300);
-  const found = list.find(entry => String(entry[key]).toLowerCase() === normal);
-  if (found) { found.count += 1; found.lastAt = now(); } else list.push({ [key]: value.replace(/\s+/g, ' ').slice(0, 300), count: 1, lastAt: now() } as any);
-  if (list.length > 500) list.splice(0, list.length - 500);
+  const found = list.find(entry => entry.memberId === memberId && String(entry[key]).toLowerCase() === normal);
+  if (found) { found.count += 1; found.lastAt = now(); return; }
+  const mine = list.filter(entry => entry.memberId === memberId);
+  if (mine.length >= WANTED_PER_MEMBER) list.splice(list.indexOf(mine.sort((a, b) => a.lastAt.localeCompare(b.lastAt))[0]!), 1);
+  list.push({ memberId, [key]: value.replace(/\s+/g, ' ').slice(0, 300), count: 1, lastAt: now() });
 }
 async function remember(host: ModuleHost, change: (state: ReturnType<typeof askState>) => void) {
   await host.store.update(state => change(askState(state)));
 }
 
 /** Records which calculation was asked and, for a correction, what replaced what. Structure only. */
-export async function recordAsked(host: ModuleHost, operationId: string, periodId: PeriodId | null, correctedFrom: { operationId?: string; periodChanged?: boolean; groupChanged?: boolean } | null) {
+export async function recordAsked(host: ModuleHost, memberId: string, operationId: string, periodId: PeriodId | null, correctedFrom: { operationId?: string; periodChanged?: boolean; groupChanged?: boolean } | null) {
   await remember(host, state => {
-    const found = state.asked.find(entry => entry.operationId === operationId && entry.periodId === periodId);
-    if (found) { found.count += 1; found.lastAt = now(); } else state.asked.push({ operationId, periodId, count: 1, lastAt: now() });
-    if (correctedFrom) state.corrections.push({ at: now(), from: correctedFrom.operationId ?? operationId, to: operationId, periodChanged: correctedFrom.periodChanged === true, groupChanged: correctedFrom.groupChanged === true });
-    if (state.corrections.length > 1000) state.corrections.splice(0, state.corrections.length - 1000);
+    const found = state.asked.find(entry => entry.memberId === memberId && entry.operationId === operationId && entry.periodId === periodId);
+    if (found) { found.count += 1; found.lastAt = now(); } else state.asked.push({ memberId, operationId, periodId, count: 1, lastAt: now() });
+    if (correctedFrom) state.corrections.push({ memberId, at: now(), from: correctedFrom.operationId ?? operationId, to: operationId, periodChanged: correctedFrom.periodChanged === true, groupChanged: correctedFrom.groupChanged === true });
+    const mine = state.corrections.filter(entry => entry.memberId === memberId);
+    if (mine.length > 1000) state.corrections.splice(state.corrections.indexOf(mine[0]!), 1);
   });
 }
 export const isPeriodId = (value: unknown): value is PeriodId => typeof value === 'string' && (PERIOD_IDS as readonly string[]).includes(value);
 
-export function wanted(_ctx: Context, payload: unknown, host: ModuleHost): WantedReply {
+/** The member's own not-yet lists. Typed text is never shown to another seat. */
+export function wanted(ctx: Context, payload: unknown, host: ModuleHost): WantedReply {
   input(payload, []);
   const state = host.store.read(), own = peekAsk(state);
   const grouped = new Map<string, { text: string; count: number; lastAt: string }>();
   for (const entry of state.unsupported) {
-    if (typeof entry?.question !== 'string') continue;
+    if (typeof entry?.question !== 'string' || entry.by !== ctx.memberId) continue;
     const key = entry.question.toLowerCase().replace(/\s+/g, ' ').trim();
     const found = grouped.get(key);
     if (found) { found.count += 1; if (entry.at > found.lastAt) found.lastAt = entry.at; } else grouped.set(key, { text: entry.question.trim().slice(0, 300), count: 1, lastAt: String(entry.at ?? '') });
   }
   const order = <T extends { count: number; lastAt: string }>(list: T[]) => [...list].sort((a, b) => b.count - a.count || b.lastAt.localeCompare(a.lastAt)).slice(0, 200);
-  return { calculations: order([...grouped.values()]), actions: order(own.wantedActions.map(a => ({ ...a }))), words: order(own.wantedWords.map(w => ({ ...w }))) };
+  return { calculations: order([...grouped.values()]), actions: order(own.wantedActions.filter(a => a.memberId === ctx.memberId).map(({ memberId: _m, ...a }) => a)),
+    words: order(own.wantedWords.filter(w => w.memberId === ctx.memberId).map(({ memberId: _m, ...w }) => w)) };
 }
 
 export function operationOf(dictionary: Dictionary, id: unknown): Operation | undefined {

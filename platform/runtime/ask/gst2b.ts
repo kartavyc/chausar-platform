@@ -20,7 +20,10 @@ const MONEY = /^-?\d+$/;
 type Line = { id: string; group: Gst2bGroup; supplier: string; invoice: string; books: Fact | null; twoB: Fact | null; booksMinor: bigint | null; twoBMinor: bigint | null; booksTax: bigint; twoBTax: bigint };
 
 const key = (fact: Fact) => `${asText(fact.fields.gstin ?? fact.fields.supplierGstin).trim().toUpperCase()}|${asText(fact.fields.invoiceId ?? fact.fields.invoiceNumber).trim().toUpperCase()}`;
-const amount = (fact: Fact, field: string) => { const value = fact.fields[field]; return typeof value === 'string' && MONEY.test(value) ? BigInt(value) : 0n; };
+const amount = (fact: Fact, field: string) => { const value = fact.fields[field]; return typeof value === 'string' && MONEY.test(value) ? BigInt(value) : null; };
+/** A row can be matched only with a supplier GSTIN, an invoice number and its amount in the books' currency. */
+export const matchable = (fact: Fact, currency: string) => key(fact).split('|').every(part => part.length > 0) && amount(fact, 'amountMinor') !== null
+  && (fact.fields.currency === undefined || fact.fields.currency === currency);
 const abs = (n: bigint) => n < 0n ? -n : n;
 
 export function matchLines(books: Fact[], twoB: Fact[], tolerance: bigint): Line[] {
@@ -34,7 +37,8 @@ export function matchLines(books: Fact[], twoB: Fact[], tolerance: bigint): Line
     for (let i = 0; i < pairs; i++) {
       const b = entry.books[i] ?? null, t = entry.twoB[i] ?? null;
       const booksMinor = b ? amount(b, 'amountMinor') : null, twoBMinor = t ? amount(t, 'amountMinor') : null;
-      const booksTax = b ? amount(b, 'taxMinor') : 0n, twoBTax = t ? amount(t, 'taxMinor') : 0n;
+      // A missing tax amount is no tax recorded on that side; the taxable amount is never missing here.
+      const booksTax = b ? amount(b, 'taxMinor') ?? 0n : 0n, twoBTax = t ? amount(t, 'taxMinor') ?? 0n : 0n;
       let group: Gst2bGroup;
       if (!t) group = 'books-only';
       else if (!b) group = 'in-2b-only';
@@ -51,9 +55,11 @@ function scope(ctx: Context, payload: unknown, host: ModuleHost, extra: string[]
   const p: Period = request.period !== undefined ? period(request.period) : namedPeriod(request.periodId ?? 'last-month', businessToday(host, request.today));
   return { request, p };
 }
-function load(ctx: Context, host: ModuleHost, p: Period) {
+function load(ctx: Context, host: ModuleHost, p: Period, currency = 'INR') {
   const state = host.store.read(), within = (f: Fact) => !f.deletedAt && !f.supersededAt && f.validFrom >= p.from && f.validFrom <= p.to && canSeeFact(host.store, ctx, f);
-  return { books: state.facts.filter(f => f.kind === BOOK_KIND && within(f)), twoB: state.facts.filter(f => TWO_B_KINDS.includes(f.kind) && within(f)), tolerance: BigInt(peekAsk(state).gst.toleranceMinor) };
+  const books = state.facts.filter(f => f.kind === BOOK_KIND && within(f)), twoB = state.facts.filter(f => TWO_B_KINDS.includes(f.kind) && within(f));
+  const ok = (f: Fact) => matchable(f, currency);
+  return { books: books.filter(ok), twoB: twoB.filter(ok), leftOut: [...books, ...twoB].filter(f => !ok(f)).length, anyTwoB: twoB.length > 0, tolerance: BigInt(peekAsk(state).gst.toleranceMinor) };
 }
 
 export function gst2b(ctx: Context, payload: unknown, host: ModuleHost): Gst2bReply {
@@ -61,8 +67,8 @@ export function gst2b(ctx: Context, payload: unknown, host: ModuleHost): Gst2bRe
   const dictionary = currentDictionary(host, ctx);
   check(dictionary, 'ASK_NO_DICTIONARY', 'Publish what your words mean before asking for numbers.');
   if (dictionary.gstMode !== 'regular') return { state: 'not-applicable', reason: dictionary.gstMode };
-  const { books, twoB, tolerance } = load(ctx, host, p);
-  if (!twoB.length) return { state: 'not-loaded', period: p };
+  const { books, twoB, tolerance, leftOut, anyTwoB } = load(ctx, host, p, dictionary.currency);
+  if (!anyTwoB) return { state: 'not-loaded', period: p };
   const lines = matchLines(books, twoB, tolerance);
   const groups = (['matched', 'differs-inside', 'differs-outside', 'in-2b-only', 'books-only'] as const).map(group => {
     const these = lines.filter(l => l.group === group);
@@ -70,7 +76,7 @@ export function gst2b(ctx: Context, payload: unknown, host: ModuleHost): Gst2bRe
     return { group, count: these.length, taxableMinor: String(these.reduce((s, l) => s + (l.booksMinor ?? l.twoBMinor ?? 0n), 0n)), taxMinor: String(these.reduce((s, l) => s + (l.books ? l.booksTax : l.twoBTax), 0n)) };
   });
   return {
-    state: 'ready', period: p, toleranceMinor: String(tolerance), via: 'facts', groups,
+    state: 'ready', period: p, toleranceMinor: String(tolerance), via: 'facts', leftOut, groups,
     lines: lines.map(l => ({ id: l.id, group: l.group, supplier: l.supplier, invoice: l.invoice, booksMinor: l.booksMinor === null ? null : String(l.booksMinor), twoBMinor: l.twoBMinor === null ? null : String(l.twoBMinor),
       differenceMinor: l.booksMinor !== null && l.twoBMinor !== null ? String(l.twoBMinor - l.booksMinor) : null, bookRowId: l.books?.id ?? null, twoBRowId: l.twoB?.id ?? null })),
     ims: lines.filter(l => l.twoB).map(l => ({ lineId: l.id, action: l.group === 'in-2b-only' ? 'pending' as const : l.group === 'differs-outside' ? 'reject' as const : 'accept' as const,
@@ -101,9 +107,10 @@ export function line(ctx: Context, payload: unknown, host: ModuleHost): Gst2bLin
 export function exportIms(ctx: Context, payload: unknown, host: ModuleHost) {
   const reply = gst2b(ctx, payload, host);
   check(reply.state === 'ready', 'ASK_NOT_FOUND', 'There is no IMS list for this period.');
-  const cell = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replaceAll('"', '""')}"`;
+  // Text from files is neutralised; the paise columns are digits written by Chausar and stay exact.
+  const cell = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replaceAll('"', '""')}"`, digits = (v: string) => `"${v}"`;
   const byId = new Map(reply.lines.map(l => [l.id, l]));
   const rows = [['supplier_gstin', 'invoice', 'action', 'reason', 'books_taxable_paise', 'gstr2b_taxable_paise'].join(','),
-    ...reply.ims.map(entry => { const l = byId.get(entry.lineId)!; return [l.supplier, l.invoice, entry.action, entry.reason, l.booksMinor ?? '', l.twoBMinor ?? ''].map(cell).join(','); })];
+    ...reply.ims.map(entry => { const l = byId.get(entry.lineId)!; return [cell(l.supplier), cell(l.invoice), cell(entry.action), cell(entry.reason), digits(l.booksMinor ?? ''), digits(l.twoBMinor ?? '')].join(','); })];
   return { fileName: `ims-${reply.period.from}-to-${reply.period.to}.csv`, csv: rows.join('\r\n') + '\r\n' };
 }

@@ -66,7 +66,12 @@ export async function start(ctx: Context, payload: unknown, host: ModuleHost): P
   const record: WhyRecord = { id: newId('why'), memberId: ctx.memberId, createdAt: now(), operationId: operation.id, label: operation.label, by,
     earlier: { period: earlierPeriod, minor: earlierReceipt.valueMinor, receiptId: earlierReceipt.id }, later: { period: later, minor: laterReceipt.valueMinor, receiptId: laterReceipt.id },
     bars: measured.bars, otherMinor: measured.otherMinor, guesses: [], sourceIds: [...new Set([...earlierReceipt.sourceIds, ...laterReceipt.sourceIds])] };
-  await host.store.update(state => { const own = askState(state); own.why.push(record); if (own.why.length > 200) own.why.splice(0, own.why.length - 200); });
+  // Each member keeps their own most recent pages; one seat never pushes out another's.
+  await host.store.update(state => {
+    const own = askState(state), mine = own.why.filter(w => w.memberId === ctx.memberId);
+    if (mine.length >= 200) own.why.splice(own.why.indexOf(mine[0]!), 1);
+    own.why.push(record);
+  });
   return reply(record);
 }
 

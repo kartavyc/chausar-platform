@@ -31,6 +31,8 @@ export function changedParts(before: Fingerprint | null, after: Fingerprint): st
   return out;
 }
 
+const CHECKS_PER_MEMBER = 200;
+
 export async function saveCheck(ctx: Context, payload: unknown, host: ModuleHost) {
   const request = input(payload, ['receiptId', 'question', 'figureKey'], ['receiptId']);
   const receipt = await core<CalculationReceipt>(host, 'receipts.get', { id: requireId(request.receiptId) });
@@ -43,9 +45,9 @@ export async function saveCheck(ctx: Context, payload: unknown, host: ModuleHost
   return host.store.update(state => {
     const own = askState(state);
     const item: CheckItem = { id: newId('check'), memberId: ctx.memberId, question, operationId: receipt.operation, request: structuredClone(answer.request),
-      figureKey, expectedMinor: figure.minor, expectedReceiptId: receipt.id, createdAt: now(), results: [], sourceIds: [...receipt.sourceIds] };
+      figureKey, expectedMinor: figure.minor, expectedReceiptId: receipt.id, createdAt: now(), results: [], sourceIds: [...receipt.sourceIds], fingerprint: fingerprint(state, host) };
+    check(own.checks.filter(c => c.memberId === ctx.memberId).length < CHECKS_PER_MEMBER, 'ASK_INVALID', 'Remove some checks before adding more.');
     own.checks.push(item);
-    own.checkFingerprint ??= { ...fingerprint(state, host), at: now() };
     return { id: item.id };
   });
 }
@@ -59,7 +61,7 @@ export function listChecks(ctx: Context, payload: unknown, host: ModuleHost): Ch
   input(payload, []);
   const state = host.store.read(), own = peekAsk(state), current = fingerprint(state, host);
   const mine = own.checks.filter(c => c.memberId === ctx.memberId);
-  const changed = changedParts(own.checkFingerprint, current);
+  const changed = [...new Set(mine.flatMap(c => changedParts(c.fingerprint, current)))];
   const lastRunAt = mine.flatMap(c => c.results.map(r => r.at)).sort().at(-1) ?? null;
   return { items: mine.map(shown), due: changed.length > 0 && mine.length > 0, changed, lastRunAt };
 }
@@ -67,10 +69,9 @@ export function listChecks(ctx: Context, payload: unknown, host: ModuleHost): Ch
 /** Works every check of this member out again as known now. */
 export async function runChecks(ctx: Context, host: ModuleHost): Promise<ChecksReply> {
   const before = host.store.read(), own = peekAsk(before), current = fingerprint(before, host);
-  const because = changedParts(own.checkFingerprint, current);
   const results = new Map<string, CheckItem['results'][number]>();
   for (const item of own.checks.filter(c => c.memberId === ctx.memberId)) {
-    const at = now(), { asOf: _asOf, ...again } = item.request;
+    const at = now(), because = changedParts(item.fingerprint, current), { asOf: _asOf, ...again } = item.request;
     try {
       const receipt = await host.call('calculation.run', again) as CalculationReceipt;
       const figure = receipt.figures.find(f => f.key === item.figureKey);
@@ -82,8 +83,8 @@ export async function runChecks(ctx: Context, host: ModuleHost): Promise<ChecksR
   }
   await host.store.update(state => {
     const mine = askState(state);
-    for (const item of mine.checks) { const result = results.get(item.id); if (result) { item.results.push(result); if (item.results.length > 50) item.results.splice(0, item.results.length - 50); } }
-    mine.checkFingerprint = { ...fingerprint(state, host), at: now() };
+    const after = fingerprint(state, host);
+    for (const item of mine.checks) { const result = results.get(item.id); if (result) { item.results.push(result); item.fingerprint = after; if (item.results.length > 50) item.results.splice(0, item.results.length - 50); } }
   });
   return listChecks(ctx, {}, host);
 }
@@ -107,9 +108,8 @@ export async function removeCheck(ctx: Context, payload: unknown, host: ModuleHo
 
 /** Scheduler: run the owner's checks when something they depend on changed. */
 export async function tickChecks(ctx: Context, host: ModuleHost): Promise<unknown[]> {
-  const state = host.store.read(), own = peekAsk(state);
-  if (!own.checks.some(c => c.memberId === ctx.memberId)) return [];
-  const changed = changedParts(own.checkFingerprint, fingerprint(state, host));
+  const state = host.store.read(), own = peekAsk(state), current = fingerprint(state, host);
+  const changed = [...new Set(own.checks.filter(c => c.memberId === ctx.memberId).flatMap(c => changedParts(c.fingerprint, current)))];
   if (!changed.length) return [];
   try { const reply = await runChecks(ctx, host); return [{ module: 'ask', job: 'checks', ran: reply.items.length, moved: reply.items.filter(i => i.last?.result === 'moved').length, because: changed }]; }
   catch (error) { return [{ module: 'ask', job: 'checks', error: { code: codeOf(error) } }]; }

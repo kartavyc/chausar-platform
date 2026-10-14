@@ -67,7 +67,7 @@ export const askModule: EngineModule = {
     const touched = (ids: readonly string[]) => ids.some(id => reason.sourceIds.includes(id));
     let removed = 0;
     // A saved item keeps only its question and the day its source was deleted.
-    for (const item of own.saved) if (!item.deletedOn && touched(item.sourceIds)) {
+    for (const item of own.saved) if (!item.deletedOn && (touched(item.sourceIds) || item.receiptId !== null && reason.removedIds.has(item.receiptId))) {
       Object.assign(item, { receiptId: null, request: null, refId: null, headline: null, workedOutAt: null, sourceIds: [], deletedOn: reason.at.slice(0, 10) }); removed++;
     }
     const checks = own.checks.length, why = own.why.length;

@@ -9,13 +9,18 @@
 import { check, hash, type Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt, CalculationRequest } from '../calculator.ts';
-import type { Period } from '../memory.ts';
+import { canSeeFact, type Period } from '../memory.ts';
 import type { AnswerReply, Gap, GuardLine, ReceiptReply, RunReply, SentReply, SourceRowsReply } from './contracts.ts';
 import { asText, businessToday, codeOf, core, currentDictionary, headlineKey, identifier, input, isRuleCode, minorString, monthsOf, namedPeriod, period, priorPeriod, requireId, seedDictionary, text, translate } from './shared.ts';
 import { isPeriodId, operationOf, recordAsked } from './menu.ts';
 
-const NUMBER = /(?<![\p{L}\d])[+-]?\d[\d,]*(?:\.\d+)?(?![\p{L}\d])/gu;
-const tokens = (value: string) => [...value.matchAll(NUMBER)].map(match => match[0]);
+// Every run of digits is a number, in any script and even when it touches letters ("Rs9999",
+// "50lakh"). A whole ISO date is one token. Digits are read as ASCII before matching.
+const NUMBER = /\d{4}-\d{2}-\d{2}|[+-]?\d[\d,]*(?:\.\d+)?/g;
+export function asciiDigits(value: string): string {
+  return value.normalize('NFKC').replace(/\p{Nd}/gu, digit => { const code = digit.codePointAt(0)!; for (let zero = code; zero > code - 10; zero--) if (!/\p{Nd}/u.test(String.fromCodePoint(zero - 1))) return String(code - zero); return digit; });
+}
+const tokens = (value: string) => [...asciiDigits(value).matchAll(NUMBER)].map(match => match[0]);
 function normal(value: string) {
   const v = value.replaceAll(',', '').replace(/^\+/, ''); const negative = v.startsWith('-'); const [whole, decimals] = v.replace(/^-/, '').split('.');
   return `${negative ? '-' : ''}${BigInt(whole || '0')}${decimals ? '.' + decimals.replace(/0+$/, '') : ''}`.replace(/\.$/, '');
@@ -35,14 +40,15 @@ export function gapsOf(receipt: CalculationReceipt): Gap[] {
 
 /** Every number in a written explanation, and the receipt line it matched, or none. */
 export function guardLines(explanation: string, receipt: CalculationReceipt): GuardLine[] {
+  const dates = new Set([receipt.period?.from, receipt.period?.to, receipt.comparePeriod?.from, receipt.comparePeriod?.to, receipt.asOf.slice(0, 10), receipt.assumptions?.onDate].filter((d): d is string => typeof d === 'string'));
   return tokens(explanation).map(token => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(token)) return { number: token, matched: dates.has(token) ? { field: 'date' } : null };
     const n = normal(token);
-    const figure = receipt.figures.find(f => normal(f.minor) === n || tokens(f.display).some(t => normal(t) === n));
+    // A figure matches only as it is shown: paise are never accepted for rupees.
+    const figure = receipt.figures.find(f => tokens(f.display).some(t => normal(t) === n));
     if (figure) return { number: token, matched: { figureKey: figure.key } };
     if (n === String(receipt.rows.length) || n === String(receipt.coverage.countedRows)) return { number: token, matched: { field: 'rows' } };
     if (n === String(receipt.coverage.excludedRows)) return { number: token, matched: { field: 'excluded' } };
-    const dates = tokens(JSON.stringify({ period: receipt.period, comparePeriod: receipt.comparePeriod, asOf: receipt.asOf, onDate: receipt.assumptions?.onDate })).map(normal);
-    if (dates.includes(n)) return { number: token, matched: { field: 'date' } };
     return { number: token, matched: null };
   });
 }
@@ -50,10 +56,12 @@ export function guardLines(explanation: string, receipt: CalculationReceipt): Gu
 /** Months of the period, up to the knowledge date, with no visible rows of any kind. */
 function monthsNotLoaded(host: ModuleHost, ctx: Context, receipt: CalculationReceipt): string[] {
   if (!receipt.period) return [];
-  const loaded = new Set<string>(), member = host.store.read().members.find(m => m.id === ctx.memberId);
+  // Only rows of the kinds this calculation counts, that this seat may see, in its scope.
+  const loaded = new Set<string>(), kinds = new Set(receipt.definitions.map(d => d.kind));
   for (const fact of host.store.read().facts) {
-    if (fact.deletedAt || fact.supersededAt) continue;
-    if (!(member?.branches.includes('*') || fact.branch && member?.branches.includes(fact.branch))) continue;
+    if (fact.deletedAt || fact.supersededAt || !kinds.has(fact.kind) || receipt.branch !== null && fact.branch !== receipt.branch) continue;
+    if (receipt.requestedSourceIds && !receipt.requestedSourceIds.includes(fact.sourceId)) continue;
+    if (!canSeeFact(host.store, ctx, fact)) continue;
     loaded.add(fact.validFrom.slice(0, 7));
   }
   const until = receipt.asOf.slice(0, 7);
@@ -104,7 +112,7 @@ export async function run(ctx: Context, payload: unknown, host: ModuleHost): Pro
     if (isRuleCode(code)) return { kind: 'refused', code: 'ASK_STOPPED_BY_RULE' };
     throw translate(error);
   }
-  await recordAsked(host, operation.id, isPeriodId(request.periodId) && request.period === undefined ? request.periodId : null, corrected);
+  await recordAsked(host, ctx.memberId, operation.id, isPeriodId(request.periodId) && request.period === undefined ? request.periodId : null, corrected);
   return answerOf(host, ctx, receipt);
 }
 

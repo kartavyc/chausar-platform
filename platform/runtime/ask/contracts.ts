@@ -114,6 +114,8 @@ export type CheckItem = {
   figureKey: string; expectedMinor: string; expectedReceiptId: string; createdAt: string;
   results: { at: string; result: 'same' | 'moved' | 'cannot-run'; minor: string | null; receiptId: string | null; code: string | null; because: string[] }[];
   sourceIds: string[];
+  /** What the check depended on when it last ran (or was saved), to know when it is due. */
+  fingerprint: Fingerprint | null;
 };
 export type ChecksReply = {
   items: { id: string; question: string; operationId: string; figureKey: string; expected: { minor: string; receiptId: string }; last: CheckItem['results'][number] | null }[];
@@ -157,7 +159,7 @@ export type ForecastReply =
     operationId: string; label: string;
     history: { month: string; minor: string; receiptId: string }[];
     heldBack: { month: string; actualMinor: string; forecastMinor: string; baselineMinor: string }[];
-    error: { forecastMinor: string; baselineMinor: string };
+    error: { forecastMinor: string | null; baselineMinor: string | null };
     next: { month: string; forecastMinor: string | null; baselineMinor: string; rangeMinor: string | null };
     method: { forecast: string; baseline: string; learnedFrom: { from: string; to: string }; testedOn: { from: string; to: string } };
     evaluationId: string; label2: 'projection';
@@ -184,6 +186,8 @@ export type Gst2bReply =
   | { state: 'not-loaded'; period: Period }
   | {
     state: 'ready'; period: Period; toleranceMinor: string; via: 'connectors' | 'facts';
+    /** Rows left out of the match: no supplier GSTIN and invoice, no amount, or another currency. Never counted as zero. */
+    leftOut: number;
     groups: { group: Gst2bGroup; count: number; taxableMinor: string; taxMinor: string }[];
     lines: { id: string; group: Gst2bGroup; supplier: string; invoice: string; booksMinor: string | null; twoBMinor: string | null; differenceMinor: string | null; bookRowId: string | null; twoBRowId: string | null }[];
     ims: { lineId: string; action: 'accept' | 'reject' | 'pending'; reason: 'matched' | 'amount-differs' | 'not-in-books' }[];
@@ -194,14 +198,14 @@ export type AskState = {
   version: 1;
   saved: SavedItem[];
   checks: CheckItem[];
-  checkFingerprint: (Fingerprint & { at: string }) | null;
   why: WhyRecord[];
   /** Structure only: which calculation was swapped for which, never the question text. */
-  corrections: { at: string; from: string; to: string; periodChanged: boolean; groupChanged: boolean }[];
-  wantedWords: { word: string; count: number; lastAt: string }[];
-  wantedActions: { text: string; count: number; lastAt: string }[];
+  corrections: { memberId: string; at: string; from: string; to: string; periodChanged: boolean; groupChanged: boolean }[];
+  /** Each member's own lists: one member's typed words are never shown to another. */
+  wantedWords: { memberId: string; word: string; count: number; lastAt: string }[];
+  wantedActions: { memberId: string; text: string; count: number; lastAt: string }[];
   /** Structure only: how often each calculation was asked, for suggestions. */
-  asked: { operationId: string; periodId: PeriodId | null; count: number; lastAt: string }[];
+  asked: { memberId: string; operationId: string; periodId: PeriodId | null; count: number; lastAt: string }[];
   drafts: DecisionDraft[];
   gst: { toleranceMinor: string };
 };

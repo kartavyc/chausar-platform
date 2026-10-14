@@ -7,25 +7,39 @@
  * access and keeps the new receipt. When a source it used is deleted, its derived values are
  * removed and only the question and the deletion date remain.
  */
-import { check, newId, now, type Context, type State } from '../contracts.ts';
+import { check, newId, now, type Context, type Fact } from '../contracts.ts';
+import { canSeeFact } from '../memory.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
 import type { SavedItem, SavedKind, SavedReply } from './contracts.ts';
-import { askState, codeOf, core, headlineKey, input, peekAsk, requireId, text } from './shared.ts';
+import { askState, codeOf, core, headlineKey, input, isRuleCode, peekAsk, requireId, text, translate } from './shared.ts';
 
-export function staleOf(state: State, item: SavedItem, receipt: CalculationReceipt | null, dictionaryHash: string | null): SavedReply['items'][number]['stale'] {
+export function staleOf(host: ModuleHost, ctx: Context, item: SavedItem, receipt: CalculationReceipt | null, dictionaryHash: string | null): SavedReply['items'][number]['stale'] {
   if (!receipt) return { reason: 'access-changed', since: null };
   if (dictionaryHash !== null && receipt.dictionaryHash !== dictionaryHash) return { reason: 'meaning-changed', since: null };
-  const rows = new Set(receipt.rowIds);
-  const replaced = state.facts.filter(fact => rows.has(fact.id) && (fact.supersededAt || fact.deletedAt));
-  if (replaced.length) return { reason: 'books-changed', since: replaced.map(f => String(f.supersededAt ?? f.deletedAt)).sort()[0]!.slice(0, 10) };
+  void item;
+  const state = host.store.read(), rows = new Set(receipt.rowIds), lineage = new Set([...receipt.rowIds, ...receipt.exclusions.map(e => e.rowId)]);
+  // Only what this seat may see, in the receipt's own scope, can make its answer stale.
   const kinds = new Set(receipt.definitions.map(d => d.kind));
+  const inScope = (fact: Fact) => kinds.has(fact.kind) && (receipt.branch === null || fact.branch === receipt.branch)
+    && (!receipt.requestedSourceIds || receipt.requestedSourceIds.includes(fact.sourceId)) && canSeeFact(host.store, ctx, fact);
+  const replaced = state.facts.filter(fact => lineage.has(fact.id) && (fact.supersededAt || fact.deletedAt));
+  // A corrected version of a row it counted or left out, wherever its date now falls.
+  const claims = new Set(state.facts.filter(fact => lineage.has(fact.id)).map(fact => `${fact.sourceId}|${fact.kind}|${fact.entityId}`));
+  const corrected = state.facts.filter(fact => !lineage.has(fact.id) && fact.learnedAt > receipt.createdAt && claims.has(`${fact.sourceId}|${fact.kind}|${fact.entityId}`) && inScope(fact));
+  const changed = [...replaced.map(f => String(f.supersededAt ?? f.deletedAt)), ...corrected.map(f => f.learnedAt)].sort();
+  if (changed.length) return { reason: 'books-changed', since: changed[0]!.slice(0, 10) };
   if (receipt.period) {
-    const later = state.facts.filter(fact => !rows.has(fact.id) && kinds.has(fact.kind) && fact.learnedAt > receipt.createdAt && !fact.deletedAt
-      && fact.validFrom >= receipt.period!.from && fact.validFrom <= receipt.period!.to);
+    const later = state.facts.filter(fact => !rows.has(fact.id) && !lineage.has(fact.id) && fact.learnedAt > receipt.createdAt && !fact.deletedAt
+      && fact.validFrom >= receipt.period!.from && fact.validFrom <= receipt.period!.to && inScope(fact));
     if (later.length) return { reason: 'new-rows', since: later.map(f => f.learnedAt).sort()[0]!.slice(0, 10) };
   }
   return null;
+}
+
+const SAVED_PER_MEMBER = 500;
+function roomFor(own: ReturnType<typeof askState>, memberId: string) {
+  check(own.saved.filter(item => item.memberId === memberId).length < SAVED_PER_MEMBER, 'ASK_INVALID', 'Remove some saved items before saving more.');
 }
 
 export async function save(ctx: Context, payload: unknown, host: ModuleHost) {
@@ -39,6 +53,7 @@ export async function save(ctx: Context, payload: unknown, host: ModuleHost) {
     const own = askState(state);
     const existing = own.saved.find(item => item.memberId === ctx.memberId && item.receiptId === receipt.id);
     if (existing) return { id: existing.id };
+    roomFor(own, ctx.memberId);
     const item: SavedItem = { id: newId('saved'), memberId: ctx.memberId, kind: 'answer', question, operationId: receipt.operation, savedAt: now(),
       receiptId: receipt.id, request: structuredClone(answer.request), refId: null,
       headline: figure ? { kind: figure.unit, minor: figure.minor } : null, workedOutAt: receipt.createdAt, sourceIds: [...receipt.sourceIds], deletedOn: null };
@@ -70,6 +85,9 @@ export async function saveRef(ctx: Context, payload: unknown, host: ModuleHost) 
   const answer = receiptId ? host.store.read().answers.find(a => a?.receiptId === receiptId && a.request) : undefined;
   return host.store.update(state => {
     const own = askState(state);
+    const existing = own.saved.find(s => s.memberId === ctx.memberId && s.kind === kind && s.refId === refId && !s.deletedOn);
+    if (existing) return { id: existing.id };
+    roomFor(own, ctx.memberId);
     const item: SavedItem = { id: newId('saved'), memberId: ctx.memberId, kind, question, operationId, savedAt: now(), receiptId,
       request: answer ? structuredClone(answer.request) : null, refId, headline, workedOutAt, sourceIds, deletedOn: null };
     own.saved.push(item); return { id: item.id };
@@ -83,9 +101,10 @@ export async function saved(ctx: Context, payload: unknown, host: ModuleHost): P
   for (const item of peekAsk(state).saved.filter(s => s.memberId === ctx.memberId).reverse()) {
     let receipt: CalculationReceipt | null = null;
     if (item.receiptId && !item.deletedOn) {
-      try { receipt = await host.call('receipts.get', { id: item.receiptId }) as CalculationReceipt; } catch (error) { if (!['RECEIPT_FORBIDDEN', 'ACCESS_REVOKED', 'RECEIPT_NOT_FOUND', 'SOURCE_REVOKED'].includes(codeOf(error)) && !codeOf(error).endsWith('_FORBIDDEN')) throw error; }
+      try { receipt = await host.call('receipts.get', { id: item.receiptId }) as CalculationReceipt; }
+      catch (error) { const code = codeOf(error); if (code !== 'RECEIPT_NOT_FOUND' && !isRuleCode(code)) throw translate(error); }
     }
-    const stale = item.deletedOn ? null : item.receiptId ? staleOf(state, item, receipt, dictionary?.hash ?? null) : null;
+    const stale = item.deletedOn ? null : item.receiptId ? staleOf(host, ctx, item, receipt, dictionary?.hash ?? null) : null;
     const { memberId: _m, request, sourceIds: _s, ...shown } = item;
     items.push({ ...shown, stale, rebuildable: !item.deletedOn && request !== null && (item.kind === 'answer' || item.kind === 'what-if') });
   }
