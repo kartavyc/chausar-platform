@@ -1,0 +1,5 @@
+Order ID,Order Date,Order Status,Order Value,Commission,Net Payout
+Z1001,01/09/2026,Delivered,600.00,120.00,456.00
+Z1002,02/09/2026,Delivered,350.00,70.00,266.00
+Z1003,02/09/2026,Cancelled,200.00,0.00,0.00
+Total,,,,,722.00

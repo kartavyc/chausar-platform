@@ -1,0 +1,4 @@
+Payment ID,Created At,Link/Purpose,Buyer Name,Buyer Email,Buyer Phone,Amount,Fees,Status
+MOJO6901A,2026-09-04T10:15:00+05:30,Workshop seat,Synthetic Buyer One,one@example.invalid,+910000000001,1500.00,44.25,Credit
+MOJO6902B,2026-09-06T18:40:00+05:30,Workshop seat,Synthetic Buyer Two,two@example.invalid,+910000000002,1500.00,44.25,Credit
+MOJO6903C,2026-09-07T09:00:00+05:30,Workshop seat,Synthetic Buyer Three,three@example.invalid,+910000000003,1500.00,0.00,Failed

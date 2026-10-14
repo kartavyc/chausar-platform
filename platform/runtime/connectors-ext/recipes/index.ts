@@ -15,8 +15,9 @@ import * as apiCommerce from './api-commerce.ts';
 import * as apiGoogle from './api-google.ts';
 import * as apiCrm from './api-crm.ts';
 import * as apiAccounting from './api-accounting.ts';
+import * as more from './more.ts';
 
-const families = [books, marketplaces, operations, marketing, work, gst, incomeTax, bank, apiPayments, apiCommerce, apiGoogle, apiCrm, apiAccounting];
+const families = [books, marketplaces, operations, marketing, work, gst, incomeTax, bank, apiPayments, apiCommerce, apiGoogle, apiCrm, apiAccounting, more];
 const decoderMap = new Map<string, Decoder>();
 for (const decoder of [...BUILT_IN_DECODERS, ...families.flatMap(family => family.DECODERS)]) {
   check(/^[a-z][a-z0-9-]{1,60}$/.test(decoder.id) && !decoderMap.has(decoder.id), 'DECODER_DUPLICATE', 'Decoder ids are unique.');
