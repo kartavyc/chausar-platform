@@ -17,7 +17,7 @@ import { Figure, MissingWords } from '../../parts/Figure';
 import { Columns } from '../../parts/charts/Columns';
 import { State } from '../../patterns/States';
 import { todayIntentsForState } from './permissions.ts';
-import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayConsumerControls, TodayProducerSections, type TodayScreenProps } from './shared';
+import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayReviewLink, TodayProducerSections, type TodayScreenProps } from './shared';
 import { cashWeek } from './cash.ts';
 import s from './Today.module.css';
 
@@ -49,9 +49,9 @@ export function TodaySimple({ data, intents: offeredIntents, onNavigate }: Today
 
   return (
     <div className={s.today}>
-      <PageHeader where={data.date} title={t('TD-01.title')} titleId={titleId} count={data.review.count} />
+      <div className={s.lead}>
+      <PageHeader where={data.date} title={t('TD-01.title')} titleId={titleId} count={data.review.count} aside={<TodayReviewLink data={data} intents={intents} />} />
       <State state={data.state} />
-      <TodayConsumerControls data={data} intents={intents} />
 
       {rows.length === 0 && data.state.kind === 'ready' ? (
         <State state={{ kind: 'empty' }} emptyKey="ST.empty.review" />
@@ -68,6 +68,7 @@ export function TodaySimple({ data, intents: offeredIntents, onNavigate }: Today
           seeAll={data.review.total && intents.onSeeAll ? { count: data.review.total.display, onPress: intents.onSeeAll } : undefined}
         />
       )}
+      </div>
 
       <WorthSection rows={worth} hidden={hidden} offered={offered} missing={worthSource.missing} showAll={worthSource.showAll} onToggle={worthSource.toggle}
         onOpen={worthSource.onOpen} opens={worthSource.opens} onReceipt={intents.onReceipt} labelId={worthId} />

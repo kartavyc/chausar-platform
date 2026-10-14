@@ -92,6 +92,8 @@
   --sp8: 48px;
   --page-top: 40px;
   --rail-pad: 28px;
+  /* Space under each place in the rail: Guided 12, Simple 4 (its targets are 44 high), Books 8. */
+  --rail-gap: var(--sp3);
 
   /* Times. One easing: fast start, slow end. */
   --t-press: 120ms;

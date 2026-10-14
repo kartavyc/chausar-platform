@@ -25,7 +25,7 @@ import { LensRow } from '../../patterns/Lens';
 import { TodaySimple } from './TodaySimple';
 import { TodayBooks } from './TodayBooks';
 import { todayIntentsForState } from './permissions.ts';
-import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayConsumerControls, TodayStat, type TodayScreenProps } from './shared';
+import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayPrepare, TodayReviewLink, TodayStat, type TodayScreenProps } from './shared';
 import s from './Today.module.css';
 
 export type { TodayScreenProps } from './shared';
@@ -65,6 +65,7 @@ function TodayGuided({ data, intents: offeredIntents, onNavigate }: TodayScreenP
 
   return (
     <div className={s.today}>
+      <div className={s.lead}>
       <PageHeader
         where={data.date}
         title={t('TD-01.title')}
@@ -76,12 +77,11 @@ function TodayGuided({ data, intents: offeredIntents, onNavigate }: TodayScreenP
             <Button variant="link" onClick={seeAll.onPress}>
               {t('BTN.seeAll', { count: seeAll.count })}
             </Button>
-          ) : undefined
+          ) : <TodayReviewLink data={data} intents={intents} />
         }
       />
 
       <State state={data.state} />
-      <TodayConsumerControls data={data} intents={intents} />
 
       {nothingAwaits ? (
         <State state={{ kind: 'empty' }} emptyKey="ST.empty.review" />
@@ -98,6 +98,7 @@ function TodayGuided({ data, intents: offeredIntents, onNavigate }: TodayScreenP
           seeAll={enterprise ? undefined : seeAll}
         />
       )}
+      </div>
 
       {!nothingAwaits && worthSection}
 
@@ -116,6 +117,7 @@ function TodayGuided({ data, intents: offeredIntents, onNavigate }: TodayScreenP
             <MissingWords missing={data.thisMonthMissing ?? 'not-loaded-yet'} />
           </p>
         )}
+        <TodayPrepare data={data} intents={intents} />
       </section>
 
       {nothingAwaits && worthSection}

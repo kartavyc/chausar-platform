@@ -14,4 +14,5 @@
   --square: 10px;
   --chart-h: var(--chart-h-simple);
   --target: 44px;
+  --rail-gap: var(--sp1);
 }

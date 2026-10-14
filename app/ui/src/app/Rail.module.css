@@ -25,7 +25,7 @@
 .m1 { fill: var(--fg); }
 .m2 { fill: var(--cha); }
 
-.word {
+.wordmark .word {
   font-family: var(--fw);
   font-weight: var(--fw-medium);
   font-size: var(--fs-mark);
@@ -40,7 +40,7 @@
 }
 
 .placeItem {
-  margin-bottom: var(--sp3);
+  margin-bottom: var(--rail-gap);
 }
 
 .place,
