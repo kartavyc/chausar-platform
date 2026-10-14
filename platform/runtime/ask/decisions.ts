@@ -79,8 +79,28 @@ export async function inbox(ctx: Context, payload: unknown, host: ModuleHost): P
   return {
     drafts: peekAsk(host.store.read()).drafts.filter(d => d.memberId === ctx.memberId).map(({ memberId: _m, ...d }) => d),
     due: all.filter(d => d.status === 'open' && typeof d.reviewDate === 'string' && d.reviewDate <= today).map(d => ({ id: d.id, text: String(d.text), reviewDate: d.reviewDate })),
-    waiting: [],
+    waiting: await waiting(ctx, host),
   };
+}
+
+/**
+ * Questions Chausar is waiting on: this member's model clarifications that no reply has resolved
+ * yet. Each is opened through the engine's own continuation check, so only one that is still
+ * retained, intact and inside current access is listed. The clarification is model text: data only.
+ */
+async function waiting(ctx: Context, host: ModuleHost): Promise<InboxReply['waiting']> {
+  const state = host.store.read();
+  const resolved = new Set(state.conversations.filter(r => r?.kind === 'conversation-continuation-resolved').map(r => r.continuationId));
+  const pending = state.conversations.filter(r => r?.kind === 'conversation-clarification-answer' && r.memberId === ctx.memberId && r.epoch === ctx.epoch && !resolved.has(r.id))
+    .sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 20);
+  const out: InboxReply['waiting'] = [];
+  for (const record of pending) {
+    try {
+      const continuation = await host.call('conversation.continuation', { id: record.id }) as { clarification?: unknown };
+      if (typeof continuation?.clarification === 'string') out.push({ id: record.id, text: continuation.clarification.slice(0, 1000), at: String(record.at) });
+    } catch { /* Unavailable under current access or retention: not listed. */ }
+  }
+  return out;
 }
 
 export async function listDecisions(_ctx: Context, payload: unknown, host: ModuleHost): Promise<DecisionsReply> {

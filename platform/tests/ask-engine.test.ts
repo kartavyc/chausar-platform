@@ -441,3 +441,21 @@ test('review: GST rows without a key, an amount or in another currency are left 
   assert.equal(matchable(fact({ amountMinor: '100', currency: 'INR' }), 'INR'), false);
   assert.equal(matchable(fact({ gstin: 'X', invoiceId: 'I', amountMinor: '100', currency: 'USD' }), 'INR'), false);
 });
+
+test('review: the inbox lists only this member’s unresolved clarifications that still open', async () => {
+  const { inbox } = await import('../runtime/ask/decisions.ts');
+  const state: any = { conversations: [
+    { id: 'c1', kind: 'conversation-clarification-answer', memberId: 'owner', epoch: 1, at: '2026-10-10T10:00:00.000Z' },
+    { id: 'c2', kind: 'conversation-clarification-answer', memberId: 'owner', epoch: 1, at: '2026-10-11T10:00:00.000Z' },
+    { id: 'c3', kind: 'conversation-clarification-answer', memberId: 'owner', epoch: 1, at: '2026-10-12T10:00:00.000Z' },
+    { id: 'c4', kind: 'conversation-clarification-answer', memberId: 'other', epoch: 1, at: '2026-10-12T10:00:00.000Z' },
+    { id: 'r1', kind: 'conversation-continuation-resolved', continuationId: 'c2' },
+  ], extensions: {} };
+  const host: any = { options: {}, store: { read: () => state }, call: async (method: string, payload: any) => {
+    if (method === 'decisions.list') return [];
+    if (method === 'conversation.continuation') { if (payload.id === 'c3') throw Object.assign(new Error('x'), { code: 'CONVERSATION_CONTINUATION_UNAVAILABLE' }); return { clarification: `Which period for ${payload.id}?` }; }
+    throw new Error(method);
+  } };
+  const reply = await inbox(owner, {}, host);
+  assert.deepEqual(reply.waiting, [{ id: 'c1', text: 'Which period for c1?', at: '2026-10-10T10:00:00.000Z' }]);
+});
