@@ -13,8 +13,8 @@ import { RowList } from '../../parts/RowList';
 import { Sheet } from '../../parts/Sheet';
 import { useEngine, useSend } from './kit/engine.ts';
 import { Group, Screen } from './kit/Screen';
-import { Outcome, bytesText, dayText, powers, useClose, type P } from './common';
-import { NET_KINDS, validateNetwork, validatePlanted, type NetItem, type NetKind, type Network } from './validate.ts';
+import { AskTwice, Outcome, Refusal, bytesText, dayText, powers, useClose, type P } from './common';
+import { NET_KINDS, validateApproval, validateNetwork, validatePlanted, type NetItem, type NetKind, type Network } from './validate.ts';
 import { COMMON, NETWORK, fill } from './words.ts';
 import s from './Trust.module.css';
 
@@ -97,7 +97,33 @@ function WaitingSheet({ p, item }: { p: P; item: NetItem }) {
         <p className={s.quiet}>{item.why}</p>
         <p className={s.quiet}>{w.waitingNote}</p>
         {item.waitingContent === null ? <p className={s.quiet}>{w.noContent}</p> : <pre className={s.pre} data-waiting-content="">{item.waitingContent}</pre>}
+        {item.outcome === 'waiting' && (item.kind === 'model' ? <Release p={p} item={item} /> : (
+          <>
+            <p className={s.text}>{w.approveElsewhere}</p>
+            <span><Button variant="link" onClick={() => p.navigate({ place: 'work', sub: 'approvals' })}>{w.openApprovals}</Button></span>
+          </>
+        ))}
       </div>
     </Sheet>
+  );
+}
+
+/** A waiting model call: Release is core `models.approve { id }` on its preview; there is no discard method, so the sheet says it expires. */
+function Release({ p, item }: { p: P; item: NetItem }) {
+  const w = words(NETWORK, p.language);
+  const { admin } = powers(p);
+  const { sent, send } = useSend(p.rpc, validateApproval);
+  return (
+    <div className={s.stack}>
+      {admin && sent.kind !== 'done' && (
+        <span><AskTwice label={w.release} ask={fill(w.releaseAsk, { destination: item.destination })} confirmLabel={w.release}
+          onConfirm={() => void send('models.approve', { id: item.id })} language={p.language} disabled={sent.kind === 'sending'} /></span>
+      )}
+      {!admin && <p className={s.quiet}>{w.releaseAdmin}</p>}
+      {sent.kind === 'done' && <p className={s.status} role="status">{w.released}</p>}
+      {sent.kind === 'refused' && <Refusal code={sent.code} language={p.language} />}
+      {sent.kind === 'sending' && <Outcome sent={sent} language={p.language} />}
+      <p className={s.quiet}>{w.discard}</p>
+    </div>
   );
 }

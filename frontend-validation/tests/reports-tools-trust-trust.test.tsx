@@ -7,11 +7,25 @@ import { TextProvider } from '../../app/ui/src/app/text';
 import type { Address, Language, View } from '../../app/ui/src/app/presentation';
 import type { PlaceRenderProps } from '../../app/ui/src/places/types';
 import { trustPlaces } from '../../app/ui/src/screens/trust/index';
-import { COMMON, DELETION, NETWORK, PEOPLE, RECORD, RULES, SEND, SHARING, VAULT } from '../../app/ui/src/screens/trust/words';
+import { COMMON, DELETION, KEEP, NETWORK, PEOPLE, RECORD, RULES, SEE, SEND, SHARING, VAULT } from '../../app/ui/src/screens/trust/words';
 
 afterEach(cleanup);
 
 const AT = '2026-10-14T09:00:00Z';
+
+const SHARE_BATCH = {
+  id: 'sharebatch_1', at: AT, consentId: 'shareconsent_0', previewId: 'sharepreview_0', mode: 'test-inbox', boxes: ['setup-shapes'], decisionIds: ['decision_0'],
+  bytes: '{"schema":"chausar.learning.v1","boxes":["setup-shapes"],"events":[\n{"choice":"accepted","kind":"mapping"}\n]}', digest: 'dg-batch', size: 2048, count: 400,
+  status: 'sent', reference: 'test-inbox:sharebatch_1',
+};
+const SHARE_PREVIEW = {
+  id: 'sharepreview_1', at: AT, memberId: 'owner-1', epoch: 1, boxes: ['setup-shapes'], decisionIds: ['d1', 'd2'], sourceIds: [], digest: 'dg-file', size: 3, count: 2,
+  blocked: [], bytes: '{"schema":"chausar.learning.v1"}\n<b>not markup</b>', names: 0, amounts: 0, publicName: null, authors: [{ memberId: 'owner-1', count: 2 }], status: {},
+};
+const SAMPLE = {
+  id: 'sample_1', at: AT, memberId: 'owner-1', label: 'Sample', status: 'blocked', cleaned: 'Name,Notes\nName A,call 98765 43210',
+  hits: [{ line: 2, column: 'Notes', code: 'PHONE' }], replaced: { Name: 1 }, upload: 'Uploading samples waits until the receiving service has been reviewed. Nothing is uploaded.',
+};
 
 const FIXTURES: Record<string, unknown> = {
   'trustx.rules': {
@@ -87,7 +101,7 @@ const FIXTURES: Record<string, unknown> = {
   'trustx.verifyRecord': { verified: false, brokenAt: 7, head: 'AB12-CD34' },
   'trustx.sharing': {
     on: true, intake: { open: false, words: 'Intake is not open.' }, preview: { digest: 'sha256:aa', bytes: 4096, events: 12 },
-    batches: [{ id: 'b1', at: AT, bytes: 2048, events: 400 }], totals: { events: 412, names: 0, amounts: 0 }, withdrawnAt: null,
+    batches: [{ id: 'b1', at: AT, bytes: 2048, events: 400 }], totals: { events: 412, names: 0, amounts: 0 }, withdrawnAt: AT,
   },
   'trustx.cleanSample': { cleaned: 'Call [PHONE] today', hits: [{ line: 1, kind: 'phone' }], uploaded: false },
   'trustx.hosted': {
@@ -106,7 +120,20 @@ const FIXTURES: Record<string, unknown> = {
     recoveryContact: { name: null, experimental: true }, version: '0.1.0-preview.1',
   },
   'trustx.deletions': { items: [] },
+  // learning-ext (platform/runtime/learning-ext/sharing.ts and log.ts)
+  'learningx.intakeStatus': {
+    open: false, mode: 'closed', sharingSwitch: true, label: 'Sharing is not open yet. Nothing is sent.',
+    boxes: [{ box: 'setup-shapes', open: true }, { box: 'corrections', open: true },
+      { box: 'account-words', open: false, reason: 'Waits for the founder switch and a reviewed consent text.', shown: false },
+      { box: 'question-shapes', open: false, reason: 'Waits for the founder switch and a reviewed consent text.', shown: true }],
+  },
+  'learningx.batches': { items: [SHARE_BATCH], shared: { events: 412, names: 0, amounts: 0 }, credits: { publicName: null, latest: null } },
+  'learningx.batch': SHARE_BATCH,
+  'learningx.log': { items: [{ id: 'decision_1', at: AT, origin: 'lane', event: { kind: 'mapping', choice: 'accepted', reason: 'library-match' }, sourceIds: [], refs: [] }], total: 1, next: null },
+  'learningx.outbox': { items: [] },
 };
+
+const SERVICE = { platform: 'linux', mechanism: 'linux-systemd-user', installed: false, running: false, unitPath: '/home/synthetic/.config/systemd/user/chausar-background.service' };
 
 const REPORT = {
   id: 'del-1', at: AT, sourceId: 'sales',
@@ -260,7 +287,8 @@ describe('TR-02 See', () => {
   test('without the source list, the counts from the rules', async () => {
     const base = { ...FIXTURES }; delete base['sources.list'];
     draw(at('rules', 'see'), { rpc: fakeRpc({}, base) });
-    expect(await screen.findByText(/The list of sources is not built yet/)).toBeTruthy();
+    expect(await screen.findByText(/The list of sources is not built yet\. From the rules:/)).toBeTruthy();
+    expect(await screen.findByText(SEE.en.addNotBuilt)).toBeTruthy();
   });
 });
 
@@ -459,50 +487,166 @@ describe('TR-10 Record', () => {
   });
 });
 
-describe('TR-11, TR-14 and TR-15 Sharing', () => {
-  test('intake closed, the running line, hosted promises and the notice in each language', async () => {
-    draw(at('sharing'));
+describe('TR-11, TR-14 and TR-15 Sharing (over learning-ext)', () => {
+  test('intake closed, the boxes with their state, the running line, hosted promises and the notice in both languages', async () => {
+    const { container } = draw(at('sharing'));
     expect(await screen.findByText(SHARING.en.notOpen)).toBeTruthy();
-    expect(screen.getByText('412 events shared, 0 names, 0 amounts.')).toBeTruthy();
+    expect(screen.getByText(SHARING.en.on)).toBeTruthy();
+    expect(screen.getByText(SHARING.en['box.setup-shapes'])).toBeTruthy();
+    const closed = container.querySelector('[data-box="question-shapes"]') as HTMLElement;
+    expect(within(closed).getByText(SHARING.en.boxClosed)).toBeTruthy();
+    expect(within(closed).queryByRole('radiogroup')).toBeNull();
+    expect(screen.queryByText(SHARING.en['box.account-words'])).toBeNull();
+    expect(await screen.findByText('412 events shared, 0 names, 0 amounts.')).toBeTruthy();
     expect(await screen.findByText(/Hosted backup and sync are blind/)).toBeTruthy();
     expect(await screen.findByText('English privacy notice.')).toBeTruthy();
+    expect(screen.getByText('हिंदी निजता सूचना।')).toBeTruthy();
+    expect([...container.querySelectorAll('[data-notice]')].map((n) => n.getAttribute('data-notice'))).toEqual(['en', 'hi']);
     cleanup();
-    draw(at('sharing'), { language: 'hi' });
+    const hi = draw(at('sharing'), { language: 'hi' });
     expect(await screen.findByText('हिंदी निजता सूचना।')).toBeTruthy();
-    expect(screen.getByText('412 घटनाएँ साझा, 0 नाम, 0 रकम।')).toBeTruthy();
+    expect(screen.getByText('English privacy notice.')).toBeTruthy();
+    expect([...hi.container.querySelectorAll('[data-notice]')].map((n) => n.getAttribute('data-notice'))).toEqual(['hi', 'en']);
+    expect(await screen.findByText('412 घटनाएँ साझा, 0 नाम, 0 रकम।')).toBeTruthy();
+    expect(screen.getByText(SHARING.hi.notOpen)).toBeTruthy();
   });
 
-  test('the local cleaner', async () => {
-    const rpc = fakeRpc();
+  test('the exact file is shown as text; a blocked batch says so and offers no Agree', async () => {
+    const rpc = fakeRpc({ 'learningx.preview': { ...SHARE_PREVIEW, blocked: [{ line: 2, code: 'GSTIN' }] } });
+    const { user, container } = draw(at('sharing'), { rpc });
+    await user.click(await screen.findByRole('button', { name: SHARING.en.showFile }));
+    expect(await screen.findByText(SHARING.en.blocked)).toBeTruthy();
+    expect(screen.getByText('Line 2 looks like a GSTIN.')).toBeTruthy();
+    expect(container.querySelector('[data-share-bytes]')!.textContent).toBe(SHARE_PREVIEW.bytes);
+    expect(screen.queryByRole('button', { name: SHARING.en.agree })).toBeNull();
+    expect(rpc.of('learningx.preview')).toEqual([{ method: 'learningx.preview', payload: { boxes: ['setup-shapes', 'corrections'] } }]);
+  });
+
+  test('choose the boxes, see the file, agree to its digest and share it once', async () => {
+    const rpc = fakeRpc({
+      'learningx.intakeStatus': { ...(FIXTURES['learningx.intakeStatus'] as object), open: true, mode: 'test-inbox', label: 'Demo test: sends to a test inbox only.' },
+      'learningx.preview': SHARE_PREVIEW,
+      'learningx.consent': { id: 'shareconsent_1', at: AT, previewId: 'sharepreview_1', digest: 'dg-file', publicName: null, memberId: 'owner-1', role: 'owner', epoch: 1, integrity: 'x' },
+      'learningx.submit': { ...SHARE_BATCH, id: 'sharebatch_2' },
+    });
+    const { user } = draw(at('sharing'), { rpc });
+    expect(await screen.findByText(SHARING.en.testInbox)).toBeTruthy();
+    const corrections = screen.getByRole('radiogroup', { name: 'Share: Your corrections to mappings' });
+    await user.click(within(corrections).getByRole('radio', { name: 'No' }));
+    await user.click(screen.getByRole('button', { name: SHARING.en.showFile }));
+    expect(await screen.findByText('3 bytes, 2 decisions, 0 names, 0 amounts.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: SHARING.en.agree }));
+    expect(await screen.findByText('This batch is sent.')).toBeTruthy();
+    expect(rpc.of('learningx.preview')).toEqual([{ method: 'learningx.preview', payload: { boxes: ['setup-shapes'] } }]);
+    expect(rpc.of('learningx.consent')).toEqual([{ method: 'learningx.consent', payload: { previewId: 'sharepreview_1', digest: 'dg-file' } }]);
+    expect(rpc.of('learningx.submit')).toEqual([{ method: 'learningx.submit', payload: { consentId: 'shareconsent_1' } }]);
+  });
+
+  test('no box chosen is never sent, and a refusal reads its sentence', async () => {
+    const rpc = fakeRpc({ 'learningx.preview': refusal('NOTHING_TO_SHARE') });
+    const { user } = draw(at('sharing'), { rpc });
+    for (const name of ['Share: How your files are set up', 'Share: Your corrections to mappings']) {
+      await user.click(within(await screen.findByRole('radiogroup', { name })).getByRole('radio', { name: 'No' }));
+    }
+    await user.click(screen.getByRole('button', { name: SHARING.en.showFile }));
+    expect(screen.getByText(SHARING.en.noBox)).toBeTruthy();
+    expect(rpc.of('learningx.preview')).toHaveLength(0);
+    await user.click(within(screen.getByRole('radiogroup', { name: 'Share: Your corrections to mappings' })).getByRole('radio', { name: 'Yes' }));
+    await user.click(screen.getByRole('button', { name: SHARING.en.showFile }));
+    expect(await screen.findByText(COMMON.en.nothingToShare)).toBeTruthy();
+  });
+
+  test('what I shared: each batch with Open and Delete, credits under a public name, and the batch sheet', async () => {
+    const rpc = fakeRpc({ 'learningx.deleteBatch': { ...SHARE_BATCH, status: 'deleted', bytes: '' }, 'learningx.creditName': { publicName: 'Asha Rao' } });
+    const { user, navigate } = draw(at('sharing'), { rpc });
+    const row = await waitFor(() => { const el = document.querySelector('[data-batch="sharebatch_1"]'); expect(el).toBeTruthy(); return el as HTMLElement; });
+    expect(within(row).getByText('sent')).toBeTruthy();
+    expect(within(row).getByText(SHARING.en.testInboxTag)).toBeTruthy();
+    await user.click(within(row).getByRole('button', { name: SHARING.en.open }));
+    expect(navigate).toHaveBeenCalledWith({ place: 'trust', sub: 'sharing', sheet: 'sharebatch_1' });
+    await user.click(within(row).getByRole('button', { name: SHARING.en.deleteBatch }));
+    expect(rpc.of('learningx.deleteBatch')).toHaveLength(0);
+    await user.click(within(row).getAllByRole('button', { name: SHARING.en.deleteBatch }).at(-1)!);
+    await waitFor(() => expect(rpc.of('learningx.deleteBatch')).toEqual([{ method: 'learningx.deleteBatch', payload: { batchId: 'sharebatch_1' } }]));
+    expect(screen.getByText(SHARING.en.creditsNone)).toBeTruthy();
+    await user.type(screen.getByLabelText(SHARING.en.publicName), 'Asha 7');
+    await user.click(within(screen.getByRole('heading', { name: SHARING.en.creditsTitle }).closest('section') as HTMLElement).getByRole('button', { name: COMMON.en.save }));
+    expect(screen.getByText(SHARING.en.badName)).toBeTruthy();
+    expect(rpc.of('learningx.creditName')).toHaveLength(0);
+    await user.clear(screen.getByLabelText(SHARING.en.publicName));
+    await user.type(screen.getByLabelText(SHARING.en.publicName), 'Asha Rao');
+    await user.click(within(screen.getByRole('heading', { name: SHARING.en.creditsTitle }).closest('section') as HTMLElement).getByRole('button', { name: COMMON.en.save }));
+    await waitFor(() => expect(rpc.of('learningx.creditName')).toEqual([{ method: 'learningx.creditName', payload: { publicName: 'Asha Rao' } }]));
+    cleanup();
+    const sheet = draw(at('sharing', 'sharebatch_1'));
+    const pre = await waitFor(() => { const el = sheet.container.querySelector('[data-batch-bytes]'); expect(el).toBeTruthy(); return el!; });
+    expect(pre.textContent).toBe(SHARE_BATCH.bytes);
+    expect(sheet.rpc.of('learningx.batch')).toEqual([{ method: 'learningx.batch', payload: { batchId: 'sharebatch_1' } }]);
+  });
+
+  test('the learning log shows kind and choice in words; a seat that is not an admin sees no batches', async () => {
+    draw(at('sharing'));
+    expect(await screen.findByText('Reading a file: accepted')).toBeTruthy();
+    expect(screen.getByText('Showing 1 of 1 decisions.')).toBeTruthy();
+    cleanup();
+    const staff = draw(at('sharing'), { role: 'accountant' });
+    expect(await screen.findByText(SHARING.en.sharedAdmin)).toBeTruthy();
+    expect(staff.rpc.of('learningx.batches')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: SHARING.en.showFile })).toBeNull();
+  });
+
+  test('the local cleaner sends the sample as data once and shows each hit by line and column', async () => {
+    const rpc = fakeRpc({ 'learningx.cleanSample': SAMPLE });
     const { user, container } = draw(at('sharing'), { rpc });
     await user.click(await screen.findByRole('button', { name: SHARING.en.clean }));
     expect(screen.getByText(SHARING.en.emptySample)).toBeTruthy();
-    expect(rpc.of('trustx.cleanSample')).toHaveLength(0);
-    await user.type(screen.getByLabelText(SHARING.en.sample), 'Call 98765 43210 today');
+    expect(rpc.of('learningx.cleanSample')).toHaveLength(0);
+    await user.type(screen.getByLabelText(SHARING.en.sample), 'Name,Notes{enter}Asha,call 98765 43210');
     await user.click(screen.getByRole('button', { name: SHARING.en.clean }));
-    expect(await screen.findByText('Line 1: phone')).toBeTruthy();
-    expect(container.querySelector('[data-original]')!.textContent).toBe('Call 98765 43210 today');
-    expect(container.querySelector('[data-cleaned]')!.textContent).toBe('Call [PHONE] today');
-    expect(screen.getAllByText(SHARING.en.nothingUploaded).length).toBeGreaterThan(0);
-    expect(rpc.of('trustx.cleanSample')).toEqual([{ method: 'trustx.cleanSample', payload: { text: 'Call 98765 43210 today' } }]);
+    expect(await screen.findByText('Line 2, column Notes: a phone number')).toBeTruthy();
+    expect(screen.getByText(SHARING.en.sampleBlocked)).toBeTruthy();
+    expect(container.querySelector('[data-original]')!.textContent).toBe('Name,Notes\nAsha,call 98765 43210');
+    expect(container.querySelector('[data-cleaned]')!.textContent).toBe(SAMPLE.cleaned);
+    expect(rpc.of('learningx.cleanSample')).toEqual([{ method: 'learningx.cleanSample', payload: { content: 'Name,Notes\nAsha,call 98765 43210' } }]);
+    expect(rpc.of('trustx.cleanSample')).toHaveLength(0);
   });
 
-  test('withdraw sharing and an agreement, owner only', async () => {
-    const rpc = fakeRpc({ 'trustx.withdrawSharing': { ...(FIXTURES['trustx.sharing'] as object), on: false, withdrawnAt: AT }, 'trustx.withdraw': FIXTURES['trustx.agreements'] });
+  test('withdraw (owner, asks twice), turning sharing on, and an agreement', async () => {
+    const rpc = fakeRpc({ 'learningx.withdraw': { sharing: false, withdrawnConsents: 2, sentBatches: [] }, 'trustx.withdraw': FIXTURES['trustx.agreements'] });
     const { user } = draw(at('sharing'), { rpc });
     const sharing = (await screen.findByRole('heading', { level: 2, name: COMMON.en.sharing })).closest('section') as HTMLElement;
     await user.click(within(sharing).getByRole('button', { name: SHARING.en.withdraw }));
     await user.click(within(sharing).getByRole('button', { name: SHARING.en.withdrawConfirm }));
-    await waitFor(() => expect(rpc.of('trustx.withdrawSharing')).toEqual([{ method: 'trustx.withdrawSharing', payload: {} }]));
+    expect(await screen.findByText('Sharing is withdrawn. 2 agreements not yet used were voided.')).toBeTruthy();
+    expect(rpc.of('learningx.withdraw')).toEqual([{ method: 'learningx.withdraw', payload: {} }]);
     const agreements = screen.getByRole('heading', { name: SHARING.en.agreementsTitle }).closest('section') as HTMLElement;
     await user.click(within(agreements).getByRole('button', { name: SHARING.en.withdrawAgreement }));
     await user.click(within(agreements).getAllByRole('button', { name: SHARING.en.withdrawAgreement }).at(-1)!);
     await waitFor(() => expect(rpc.of('trustx.withdraw')).toEqual([{ method: 'trustx.withdraw', payload: { id: 'ag1' } }]));
     cleanup();
+    const off = fakeRpc({ 'learningx.intakeStatus': { ...(FIXTURES['learningx.intakeStatus'] as object), sharingSwitch: false }, 'learning.sharing': refusal('SECOND_PERSON_REQUIRED') });
+    const second = draw(at('sharing'), { rpc: off });
+    await second.user.click(await screen.findByRole('button', { name: SHARING.en.turnOn }));
+    expect(await screen.findByText(COMMON.en.secondPerson)).toBeTruthy();
+    expect(off.of('learning.sharing')).toEqual([{ method: 'learning.sharing', payload: { enabled: true } }]);
+    expect(screen.getByText('Sharing withdrawn on 14 Oct 2026.')).toBeTruthy();
+    cleanup();
     draw(at('sharing'), { role: 'cofounder' });
     expect(await screen.findByText(COMMON.en.ownerOnly)).toBeTruthy();
     const group = screen.getByRole('heading', { level: 2, name: COMMON.en.sharing }).closest('section') as HTMLElement;
     expect(within(group).queryByRole('button', { name: SHARING.en.withdraw })).toBeNull();
+  });
+
+  test('TR-14: when the plan ended, it says so first; sharing not built', async () => {
+    draw(at('sharing'), { rpc: fakeRpc({ 'trustx.hosted': { ...(FIXTURES['trustx.hosted'] as object), plan: 'ended' } }) });
+    expect(await screen.findByText(SHARING.en.planEnded)).toBeTruthy();
+    cleanup();
+    draw(at('sharing'), { rpc: fakeRpc({ 'trustx.hosted': { ...(FIXTURES['trustx.hosted'] as object), plan: 'ended' } }), language: 'hi' });
+    expect(await screen.findByText(SHARING.hi.planEnded)).toBeTruthy();
+    cleanup();
+    const base = { ...FIXTURES }; delete base['learningx.intakeStatus'];
+    draw(at('sharing'), { rpc: fakeRpc({}, base) });
+    expect(await screen.findByText('Not built yet.')).toBeTruthy();
   });
 });
 
@@ -591,5 +735,197 @@ describe('Simple and Books views', () => {
     draw(at('models'), { view: 'simple' });
     expect(await screen.findByText('Read on 1 Sep 2026')).toBeTruthy();
     expect(screen.queryByText('United States')).toBeNull();
+  });
+});
+
+describe('TR-02 See: adding a marking, and a widening that waits', () => {
+  test('choose a source and a kind, Mark sends exactly the source marking once', async () => {
+    const rpc = fakeRpc({ 'trustx.setMarking': FIXTURES['trustx.markings'] });
+    const { user } = draw(at('rules', 'see'), { rpc });
+    const form = await screen.findByRole('form', { name: SEE.en.addTitle });
+    await user.click(within(form).getByRole('button', { name: SEE.en.mark }));
+    expect(screen.getByText(SEE.en.pickBoth)).toBeTruthy();
+    expect(rpc.of('trustx.setMarking')).toHaveLength(0);
+    await user.click(within(within(form).getByRole('radiogroup', { name: SEE.en.addSource })).getByRole('radio', { name: 'HDFC statement' }));
+    await user.click(within(within(form).getByRole('radiogroup', { name: SEE.en.addKind })).getByRole('radio', { name: 'confidential' }));
+    await user.click(within(form).getByRole('button', { name: SEE.en.mark }));
+    await waitFor(() => expect(rpc.of('trustx.setMarking')).toEqual([{ method: 'trustx.setMarking',
+      payload: { kind: 'confidential', target: { type: 'source', sourceId: 'bank-hdfc' }, on: true } }]));
+    expect(await screen.findByText(COMMON.en.applied)).toBeTruthy();
+  });
+
+  test('a seat seeing more may wait for the second person, shown with the pending changes', async () => {
+    const change = { id: 'ch-see', what: 'see', summary: 'Seat accountant: personal on', by: 'owner-1', at: AT, needs: 'cofounder' };
+    let pending: unknown[] = [];
+    const rpc = fakeRpc({
+      'trustx.setSeatMarking': () => { pending = [change]; return { state: 'waiting-for-second', change }; },
+      'trustx.pendingChanges': () => ({ items: pending }),
+    });
+    const { user } = draw(at('rules', 'see'), { rpc });
+    const cell = await screen.findByRole('radiogroup', { name: 'Accountant sees personal' });
+    await user.click(within(cell).getByRole('radio', { name: 'Yes' }));
+    expect(await screen.findByText(COMMON.en.waitCofounder)).toBeTruthy();
+    expect(await screen.findByText('Seat accountant: personal on')).toBeTruthy();
+    expect(screen.getByText(COMMON.en.yourChange)).toBeTruthy();
+    expect(rpc.of('trustx.setSeatMarking')).toHaveLength(1);
+  });
+
+  test('Hindi words for the form; a viewer has no form', async () => {
+    draw(at('rules', 'see'), { language: 'hi' });
+    expect(await screen.findByRole('form', { name: SEE.hi.addTitle })).toBeTruthy();
+    cleanup();
+    draw(at('rules', 'see'), { viewer: true });
+    await screen.findByText('marked financial from the start');
+    expect(screen.queryByRole('form', { name: SEE.en.addTitle })).toBeNull();
+  });
+});
+
+describe('TR-03 Send: approving a route for financial data, and the voice row', () => {
+  test('a route from Models is added to the list, sent once as the whole list; voice reads the speech provider', async () => {
+    const rpc = fakeRpc({ 'trustx.setSend': { state: 'applied' } });
+    const { user } = draw(at('rules', 'send'), { rpc });
+    expect(await screen.findByText(SEND.en.voiceNone)).toBeTruthy();
+    const form = await screen.findByRole('form', { name: SEND.en.addRoute });
+    await user.click(within(form).getByRole('button', { name: SEND.en.addRouteButton }));
+    expect(screen.getByText(SEND.en.pickRoute)).toBeTruthy();
+    await user.click(within(form).getByRole('radio', { name: 'Cloud A' }));
+    await user.click(within(form).getByRole('button', { name: SEND.en.addRouteButton }));
+    await waitFor(() => expect(rpc.of('trustx.setSend')).toEqual([{ method: 'trustx.setSend', payload: { financialRoutes: ['local-llama', 'cloud-a'] } }]));
+    cleanup();
+    const models = structuredClone(FIXTURES['trustx.models']) as { voice: { provider: string | null } };
+    models.voice.provider = 'Synthetic Speech';
+    draw(at('rules', 'send'), { rpc: fakeRpc({ 'trustx.models': models, 'trustx.sendLevels': { ...(FIXTURES['trustx.sendLevels'] as object), financialRoutes: ['local', 'cloud-a'] } }) });
+    expect(await screen.findByText('Speech provider: Synthetic Speech.')).toBeTruthy();
+    expect(screen.getByText(SEND.en.allApproved)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Remove Cloud A' })).toBeTruthy();
+  });
+
+  test('without Models, routes cannot be added here and the screen says so', async () => {
+    const base = { ...FIXTURES }; delete base['trustx.models'];
+    draw(at('rules', 'send'), { rpc: fakeRpc({}, base) });
+    expect(await screen.findByText(SEND.en.routesNotBuilt)).toBeTruthy();
+  });
+});
+
+describe('TR-04 Keep and TR-06 People: engine codes in words', () => {
+  test('keep kinds by name in Hindi; Books keeps the code', async () => {
+    const keep = { kinds: [{ kind: 'facts', days: 365, note: 'Facts: removed after 365 days.' }, { kind: 'brand-new', days: null, note: '' }], inventory: [] };
+    draw(at('rules', 'keep'), { rpc: fakeRpc({ 'trustx.keep': keep }), language: 'hi' });
+    expect(await screen.findByText(KEEP.hi['kind.facts'])).toBeTruthy();
+    expect(screen.getByText('brand-new')).toBeTruthy();
+    cleanup();
+    draw(at('rules', 'keep'), { rpc: fakeRpc({ 'trustx.keep': keep }), view: 'books' });
+    expect(await screen.findByText(KEEP.en['kind.facts'])).toBeTruthy();
+    expect(screen.getByText('facts')).toBeTruthy();
+  });
+
+  test('seat limits and deletion places from the engine read in Hindi; an unknown one is shown as sent', async () => {
+    const seats = structuredClone(FIXTURES['trustx.seats']) as { seats: { limits: string[] }[] };
+    seats.seats[1]!.limits = ['Reads only.', 'Something new.'];
+    draw(at('people'), { rpc: fakeRpc({ 'trustx.seats': seats }), language: 'hi' });
+    expect(await screen.findByText('केवल पढ़ता है। · Something new.')).toBeTruthy();
+    cleanup();
+    draw(at('vault', 'delete'), { rpc: fakeRpc({ 'trustx.deletions': { items: [REPORT] } }), language: 'hi' });
+    expect(await screen.findByText(DELETION.hi['place.AI provider'])).toBeTruthy();
+    expect(screen.getByText('Books')).toBeTruthy();
+  });
+});
+
+describe('TR-12 Vault: missing values, Restore, PIN and this computer', () => {
+  test('a null idle time and version read as words; restore and PIN are plain words; the background service', async () => {
+    const vault = { ...(FIXTURES['trustx.vault'] as object), lock: { idleMinutes: null, deviceCheck: false }, version: null };
+    const rpc = fakeRpc({ 'trustx.vault': vault, 'service.status': SERVICE, 'service.install': { ...SERVICE, installed: true, running: true } });
+    const { user } = draw(at('vault'), { rpc });
+    expect(await screen.findByText(VAULT.en.versionUnknown)).toBeTruthy();
+    expect(screen.getByText(VAULT.en.idleUnknown)).toBeTruthy();
+    expect((screen.getByLabelText(VAULT.en.idle) as HTMLInputElement).value).toBe('');
+    expect(screen.getByText(VAULT.en.restoreNote)).toBeTruthy();
+    expect(screen.getByText(VAULT.en.pin)).toBeTruthy();
+    expect(await screen.findByText(`${VAULT.en.service}: ${VAULT.en['service.off']}`)).toBeTruthy();
+    expect(screen.getByText(VAULT.en.wake)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: VAULT.en.turnOn }));
+    expect(rpc.of('service.install')).toHaveLength(0);
+    await user.click(screen.getAllByRole('button', { name: VAULT.en.turnOn }).at(-1)!);
+    await waitFor(() => expect(rpc.of('service.install')).toEqual([{ method: 'service.install', payload: { confirmed: true } }]));
+    cleanup();
+    draw(at('vault'), { rpc: fakeRpc({ 'trustx.vault': vault }), viewer: true, language: 'hi' });
+    expect(await screen.findByText(VAULT.hi.versionUnknown)).toBeTruthy();
+    expect(screen.getByText(new RegExp(VAULT.hi.idleUnknown))).toBeTruthy();
+    expect(screen.getByText(VAULT.hi.computerAdmin)).toBeTruthy();
+  });
+
+  test('this computer is not built yet without the service methods', async () => {
+    draw(at('vault'));
+    const group = (await screen.findByRole('heading', { name: VAULT.en.computerTitle })).closest('section') as HTMLElement;
+    expect(await within(group).findByText('Not built yet.')).toBeTruthy();
+  });
+});
+
+describe('TR-09 Network: release a waiting send', () => {
+  const MODEL_WAIT = { id: 'mp-1', at: AT, kind: 'model', destination: 'Cloud A', why: 'Answer a question', bytes: 64, outcome: 'waiting', waitingContent: 'What was billed?' };
+  const net = { ...(FIXTURES['trustx.network'] as object), items: [MODEL_WAIT, ...(FIXTURES['trustx.network'] as { items: unknown[] }).items] };
+
+  test('Release asks once more and sends models.approve with the id once; no Discard, in words', async () => {
+    const rpc = fakeRpc({ 'trustx.network': net, 'models.approve': { id: 'outbound_approval_1', kind: 'outbound-approval', previewId: 'mp-1', expiresAt: AT } });
+    const { user } = draw(at('network', 'mp-1'), { rpc });
+    expect(await screen.findByText(NETWORK.en.discard)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: NETWORK.en.release }));
+    expect(screen.getByText('Release exactly this content to Cloud A?')).toBeTruthy();
+    expect(rpc.of('models.approve')).toHaveLength(0);
+    await user.click(screen.getAllByRole('button', { name: NETWORK.en.release }).at(-1)!);
+    expect(await screen.findByText(NETWORK.en.released)).toBeTruthy();
+    expect(rpc.of('models.approve')).toEqual([{ method: 'models.approve', payload: { id: 'mp-1' } }]);
+  });
+
+  test('a tainted context is refused with its sentence; a waiting plugin send points to Approvals; a viewer cannot release', async () => {
+    const rpc = fakeRpc({ 'trustx.network': net, 'models.approve': refusal('TAINTED_APPROVAL') });
+    const { user } = draw(at('network', 'mp-1'), { rpc, language: 'hi' });
+    await user.click(await screen.findByRole('button', { name: NETWORK.hi.release }));
+    await user.click(screen.getAllByRole('button', { name: NETWORK.hi.release }).at(-1)!);
+    expect(await screen.findByText(COMMON.hi.taintedApproval)).toBeTruthy();
+    cleanup();
+    const other = draw(at('network', 'n2'));
+    expect(await screen.findByText(NETWORK.en.approveElsewhere)).toBeTruthy();
+    await other.user.click(screen.getByRole('button', { name: NETWORK.en.openApprovals }));
+    expect(other.navigate).toHaveBeenCalledWith({ place: 'work', sub: 'approvals' });
+    expect(screen.queryByRole('button', { name: NETWORK.en.release })).toBeNull();
+    cleanup();
+    draw(at('network', 'mp-1'), { rpc: fakeRpc({ 'trustx.network': net }), viewer: true });
+    expect(await screen.findByText(NETWORK.en.releaseAdmin)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: NETWORK.en.release })).toBeNull();
+  });
+});
+
+describe('the See, Send and Keep sheets and TR-13 in Simple and Books', () => {
+  const sheets: [Address, string][] = [[at('rules', 'see'), COMMON.en.see], [at('rules', 'send'), COMMON.en.send], [at('rules', 'keep'), COMMON.en.keep], [at('vault', 'delete'), DELETION.en.title]];
+  for (const view of ['simple', 'books'] as const) {
+    for (const [address, title] of sheets) {
+      test(`${address.sub}?sheet=${address.sheet} in ${view}`, async () => {
+        draw(address, { view, rpc: fakeRpc({ 'trustx.deletions': { items: [REPORT] } }) });
+        expect(await screen.findByRole('heading', { level: 2, name: title })).toBeTruthy();
+        await waitFor(() => expect(screen.queryByText(/INVALID_REPLY/)).toBeNull());
+      });
+    }
+  }
+  test('Books adds source ids on See, the route id on Send and the kind code on Keep; Simple keeps the same facts', async () => {
+    draw(at('rules', 'see'), { view: 'books' });
+    expect(await screen.findByText('bank-hdfc')).toBeTruthy();
+    cleanup();
+    draw(at('rules', 'see'), { view: 'simple' });
+    expect(await screen.findByText('marked financial from the start')).toBeTruthy();
+    expect(await screen.findByRole('form', { name: SEE.en.addTitle })).toBeTruthy();
+    cleanup();
+    draw(at('rules', 'send'), { view: 'books' });
+    expect((await screen.findAllByText('local-llama')).length).toBe(2);
+    cleanup();
+    draw(at('rules', 'send'), { view: 'simple' });
+    expect(await screen.findByText(SEND.en.financialTitle)).toBeTruthy();
+    expect(screen.getByText(SEND.en.voiceNote)).toBeTruthy();
+    cleanup();
+    draw(at('rules', 'keep'), { view: 'simple' });
+    expect(await screen.findByText('vault/state.enc')).toBeTruthy();
+    cleanup();
+    draw(at('vault', 'delete'), { view: 'books', rpc: fakeRpc({ 'trustx.deletions': { items: [REPORT] } }) });
+    expect(await screen.findByText('Kept for 30 days by the provider.')).toBeTruthy();
   });
 });

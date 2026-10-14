@@ -4,10 +4,12 @@
  * which what it produced stays, labelled with its name. "Install a plugin" (admin) opens
  * TL-05 in the sheet. The page also holds TL-06 (tools from outside, over models-ext: the
  * description Chausar wrote beside the one the tool sent) and TL-10 (language packs).
- * Simple shows only the installed plugins with On or Off and one "Add a plugin" link; Books
- * adds ids, status words and digests.
+ * Simple shows each plugin with On or Off, its level and, when blocked, the reason in words,
+ * plus one "Add a plugin" link; tools from outside and language packs are one short line each
+ * with a link that opens the full group (nothing is hidden for good). Books adds ids, status
+ * words and digests.
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { withSheet } from '../../app/routes.ts';
 import { count } from '../../format/index.ts';
 import type { PlaceRenderProps } from '../../places/types.ts';
@@ -26,7 +28,23 @@ import s from './Plugins.module.css';
 const RUNNING: ReadonlySet<string> = new Set(['enabled', 'on', 'active', 'installed']);
 
 function SimpleLine({ p, w }: { p: PluginRow; w: Words }) {
-  return <Line title={p.name} after={<span className={s.note}>{RUNNING.has(p.status) ? w.on : w.off}</span>} />;
+  return (
+    <Line title={p.name} notes={[w[`level.${p.level}`]]} after={<span className={s.note}>{RUNNING.has(p.status) ? w.on : w.off}</span>}>
+      {p.level === 'blocked' && p.blockedReason !== null && <><p className={s.note}>{w.blockedBy}</p><Quoted>{p.blockedReason}</Quoted></>}
+    </Line>
+  );
+}
+
+/** Simple: one short line and a link; the link opens the full group in place. */
+function Folded({ line, link, children }: { line: string; link: string; children: () => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  if (open) return <>{children()}</>;
+  return (
+    <div className={s.stack}>
+      <p className={s.text}>{line}</p>
+      <div><Button variant="link" aria-expanded={false} onClick={() => setOpen(true)}>{link}</Button></div>
+    </div>
+  );
 }
 
 function PluginLine({ p, admin, books, w, onRemove }: { p: PluginRow; admin: boolean; books: boolean; w: Words; onRemove: (id: string) => void }) {
@@ -170,8 +188,8 @@ export function PluginsPlace(props: PlaceRenderProps) {
           </>
         )}
       </Screen>
-      {!simple && <Outside props={props} w={w} />}
-      {!simple && <Packs props={props} w={w} />}
+      {simple ? <Folded line={w.outsideShort} link={w.showOutside}>{() => <Outside props={props} w={w} />}</Folded> : <Outside props={props} w={w} />}
+      {simple ? <Folded line={w.packsShort} link={w.showPacks}>{() => <Packs props={props} w={w} />}</Folded> : <Packs props={props} w={w} />}
       {address.sheet === INSTALL_SHEET && <InstallSheet props={props} onInstalled={reload} />}
     </div>
   );
