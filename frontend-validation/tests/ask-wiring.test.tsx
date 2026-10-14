@@ -380,3 +380,64 @@ test('the waiting note is in Hindi', async () => {
   const waiting = await found<HTMLElement>('[data-decisions="waiting"]');
   expect(within(waiting).getByText(/इनका जवाब पूछें › नया से दें।/)).toBeTruthy();
 });
+
+/* Second engine review: withheld figures after narrowed access, other numerals, owner-set tolerance. */
+const WITHHELD = 'hidden from your seat';
+test.each(VIEWS)('a check whose receipt no longer opens shows the withheld word, not a figure (%s)', async view => {
+  const withheld = { at: '2026-10-14T00:00:00.000Z', result: 'same', minor: null, receiptId: null, code: null, because: [] };
+  mount({ place: 'ask', sub: 'checks' }, {
+    'askx.checks.list': () => ({ items: [{ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', expected: { minor: null, receiptId: null }, last: withheld }], due: false, changed: [], lastRunAt: '2026-10-14T00:00:00.000Z' }),
+  }, { view });
+  const list = await found<HTMLElement>('[data-checks]');
+  expect(within(list).getByText(WITHHELD)).toBeTruthy();
+  expect(within(list).queryByRole('button', { name: money('100000') })).toBeNull();
+  cleanup();
+  mount(sheet('check.c-1', 'checks'), {
+    'askx.checks.get': () => ({ id: 'c-1', question: 'Collections in August', operationId: 'collections.total', figureKey: 'total', createdAt: '2026-09-05T00:00:00.000Z', expected: { minor: null, receiptId: null }, results: [withheld] }),
+  }, { view });
+  const pair = await found<HTMLElement>('[data-check-pair]');
+  expect(within(pair).getAllByText(WITHHELD)).toHaveLength(2);
+});
+
+test('a check expected value with only half of it withheld is refused', async () => {
+  mount(sheet('check.c-1', 'checks'), {
+    'askx.checks.get': () => ({ id: 'c-1', question: 'Q', operationId: 'collections.total', figureKey: 'total', createdAt: '2026-09-05T00:00:00.000Z', expected: { minor: '100', receiptId: null }, results: [] }),
+  });
+  expect(await screen.findByText('The reply could not be checked, so it is not shown.')).toBeTruthy();
+});
+
+test('a saved answer whose access changed shows the withheld word', async () => {
+  mount({ place: 'ask', sub: 'saved' }, { 'askx.saved': () => ({ items: [
+    { id: 's-1', kind: 'answer', question: 'Billed in September', operationId: 'sales.invoiced', savedAt: '2026-09-12', receiptId: 'r-1', refId: null, headline: null, workedOutAt: '2026-09-12', deletedOn: null, stale: { reason: 'access-changed', since: '2026-10-01' }, rebuildable: true },
+  ] }) });
+  const row = await found<HTMLElement>('[data-saved-id="s-1"]');
+  expect(within(row).getByText(WITHHELD)).toBeTruthy();
+});
+
+test.each(VIEWS)('a numeral that is not a decimal digit is named in words, never as the stand-in character (%s)', async view => {
+  const user = userEvent.setup();
+  mount(sheet('answer.r-1'), { 'askx.answer': () => answer({ guard: { status: 'replaced', lines: [{ number: '', matched: null }, { number: '3rd', matched: { field: 'ordinal' } }] } }) }, { view });
+  const line = await screen.findByRole('button', { name: /Checked against the receipt/ });
+  if (line.getAttribute('aria-expanded') !== 'true') await user.click(line);
+  const guard = await found<HTMLElement>('[data-guard]');
+  expect(within(guard).getByText('a numeral not on the receipt')).toBeTruthy();
+  expect(within(guard).getByText('an ordinal, not an amount')).toBeTruthy();
+  expect(guard.textContent).not.toContain('');
+});
+
+const gst = {
+  state: 'ready', period: sep, toleranceMinor: '1000', via: 'facts', leftOut: 0,
+  groups: [{ group: 'matched', count: 1, taxableMinor: '100', taxMinor: '18' }, { group: 'differs-inside', count: 0, taxableMinor: '0', taxMinor: '0' }, { group: 'differs-outside', count: 0, taxableMinor: '0', taxMinor: '0' }, { group: 'in-2b-only', count: 0, taxableMinor: '0', taxMinor: '0' }, { group: 'books-only', count: 0, taxableMinor: '0', taxMinor: '0' }],
+  lines: [], ims: [],
+};
+test.each([['owner', true], ['cofounder', true], ['accountant', false], ['member', false]] as const)('the tolerance control is offered to an approving seat only (%s)', async (role, shown) => {
+  const rpc = fakeRpc({ 'askx.gst2b': () => gst });
+  render(
+    <TextProvider language="en">
+      <AskPlace address={sheet('gst2b')} language="en" view="guided" member={{ id: 'm-1', role }} viewer={false}
+        rpc={rpc} live={() => true} openReceipt={() => undefined} navigate={() => undefined} />
+    </TextProvider>,
+  );
+  expect(await screen.findByText(/count as inside the tolerance/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Change the tolerance' }) !== null).toBe(shown);
+});

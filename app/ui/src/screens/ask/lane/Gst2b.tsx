@@ -179,7 +179,8 @@ function Ready({ g, periodId, onChanged }: { g: Extract<Gst2bValue, { state: 're
         )}
         {ask.view !== 'simple' && <p className={s.note}>{w.noReceipt}</p>}
         <p className={s.note}>{fill(w.toleranceNow, { tolerance: tolText })} {g.via === 'connectors' ? w.via : w.viaFacts}</p>
-        {!ask.viewer && (
+        {/* Changing the tolerance needs approve permission: owner or cofounder only. */}
+        {!ask.viewer && (ask.member.role === 'owner' || ask.member.role === 'cofounder') && (
           <form className={s.formLine} onSubmit={e => {
             e.preventDefault();
             if (paise !== null) void tol.send('askx.gst2b.tolerance', { toleranceMinor: paise }, v => minor(obj(v).toleranceMinor), () => { setTolerance(''); onChanged(); });

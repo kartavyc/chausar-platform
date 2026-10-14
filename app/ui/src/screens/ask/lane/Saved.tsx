@@ -73,7 +73,7 @@ export function SavedScreen(_props: { view: Extract<AskView, { kind: 'saved' }> 
             const figure: FigureOrMissing = item.deletedOn !== null ? missingFigure('absent')
               : item.headline !== null && item.receiptId !== null
                 ? (item.headline.kind === 'money' ? rowMoneyFigure(item.headline.minor, item.receiptId, ask.view, ask.language, item.stale !== null ? ['stale'] : []) : bpsFigure(item.headline.minor, item.receiptId, item.stale !== null ? ['stale'] : []))
-              : missingFigure(item.headline === null ? 'not-applicable' : 'unknown');
+              : missingFigure(item.headline === null ? (item.stale?.reason === 'access-changed' ? 'withheld' : 'not-applicable') : 'unknown');
             const when = item.workedOutAt === null ? null : dayText(item.workedOutAt, ask.language);
             const what = item.question ?? w.noQuestion;
             const mine = act !== null && act.id === item.id ? act : null;

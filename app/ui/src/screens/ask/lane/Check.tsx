@@ -11,14 +11,14 @@ import { TimeLine } from '../../../parts/TimeLine';
 import { call, date, id, list, minor, obj, str } from './client.ts';
 import { AskPage, dayText, fill, missingFigure, moneyFigure, useAsk, useRead, useWords, type AskView } from './kit';
 import { catalogue, Part, Problem, removed, useRefusal, useSend } from './analysis';
-import { CHANGE_WORDS, changeWord, checkResult, type CheckResult } from './Checks';
+import { CHANGE_WORDS, changeWord, checkResult, expectedOf, type CheckResult } from './Checks';
 import s from './analysis.module.css';
 
-export interface CheckValue { readonly id: string; readonly question: string; readonly createdAt: string; readonly expected: { minor: string; receiptId: string }; readonly results: readonly CheckResult[] }
+export interface CheckValue { readonly id: string; readonly question: string; readonly createdAt: string; readonly expected: { minor: string | null; receiptId: string | null }; readonly results: readonly CheckResult[] }
 export function checkReply(value: unknown): CheckValue {
   const v = obj(value), e = obj(v.expected);
   id(v.operationId); str(v.figureKey, 100);
-  return { id: id(v.id), question: str(v.question, 2000), createdAt: date(v.createdAt), expected: { minor: minor(e.minor), receiptId: id(e.receiptId) }, results: list(v.results, checkResult, 1000) };
+  return { id: id(v.id), question: str(v.question, 2000), createdAt: date(v.createdAt), expected: expectedOf(e), results: list(v.results, checkResult, 1000) };
 }
 
 const WORDS = catalogue({
@@ -50,7 +50,7 @@ export function CheckScreen({ view }: { view: Extract<AskView, { kind: 'check' }
     <AskPage title={load.kind === 'ok' ? load.value.question : w.title} load={load} retry={retry} explain={explain}>
       {c => {
         const last = c.results[c.results.length - 1] ?? null;
-        const valueOf = (r: CheckResult) => (r.minor !== null && r.receiptId !== null ? moneyFigure(r.minor, r.receiptId) : missingFigure(r.result === 'cannot-run' ? 'not-counted' : 'null'));
+        const valueOf = (r: CheckResult) => (r.minor !== null && r.receiptId !== null ? moneyFigure(r.minor, r.receiptId) : missingFigure(r.result === 'cannot-run' ? 'not-counted' : 'withheld'));
         const events: TimeEvent[] = c.results.map((r, i): TimeEvent => {
           const plain = r.result === 'same' ? w.same2 : r.result === 'moved' ? w.moved2 : w.cannot2;
           const withWhy = r.result === 'same' ? w.same3 : r.result === 'moved' ? w.moved3 : w.cannot3;
@@ -66,7 +66,7 @@ export function CheckScreen({ view }: { view: Extract<AskView, { kind: 'check' }
               </p>
             )}
             <div className={s.pair} data-check-pair="">
-              <div className={s.tile}><span className={s.tileLabel}>{last?.result === 'moved' ? w.oldValue : w.expected}</span><Figure size="tile" value={moneyFigure(c.expected.minor, c.expected.receiptId)} onReceipt={open} /><span className={s.note}>{fill(w.expectedOn, { date: dayText(c.createdAt, lang) })}</span></div>
+              <div className={s.tile}><span className={s.tileLabel}>{last?.result === 'moved' ? w.oldValue : w.expected}</span><Figure size="tile" value={c.expected.minor === null || c.expected.receiptId === null ? missingFigure('withheld') : moneyFigure(c.expected.minor, c.expected.receiptId)} onReceipt={open} /><span className={s.note}>{fill(w.expectedOn, { date: dayText(c.createdAt, lang) })}</span></div>
               {last !== null && <div className={s.tile} data-check-now=""><span className={s.tileLabel}>{last.result === 'moved' ? w.newValue : w.now}</span><Figure size="tile" value={valueOf(last)} onReceipt={open} /><span className={s.note}>{fill(w.nowOn, { date: dayText(last.at, lang) })}</span></div>}
             </div>
             {last?.result === 'moved' && <p className={s.note} data-check-moved="">{w.eachReceipt}</p>}
