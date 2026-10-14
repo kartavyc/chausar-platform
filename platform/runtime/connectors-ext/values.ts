@@ -2,8 +2,8 @@ import { check } from '../contracts.ts';
 import { parseIndianMoney } from '../ingest.ts';
 import { validDate } from '../memory.ts';
 
-export type DateFormat = 'ISO' | 'ISO-DATETIME' | 'DMY' | 'DMY-MON' | 'MDY' | 'YMD8' | 'EPOCH-S-IST' | 'EPOCH-MS-IST' | 'YYYY-MM' | 'MON-YYYY';
-export const DATE_FORMATS: readonly DateFormat[] = ['ISO', 'ISO-DATETIME', 'DMY', 'DMY-MON', 'MDY', 'YMD8', 'EPOCH-S-IST', 'EPOCH-MS-IST', 'YYYY-MM', 'MON-YYYY'];
+export type DateFormat = 'ISO' | 'ISO-DATETIME' | 'ISO-DATETIME-IST' | 'DMY' | 'DMY-MON' | 'MDY' | 'YMD8' | 'EPOCH-S-IST' | 'EPOCH-MS-IST' | 'YYYY-MM' | 'MON-YYYY';
+export const DATE_FORMATS: readonly DateFormat[] = ['ISO', 'ISO-DATETIME', 'ISO-DATETIME-IST', 'DMY', 'DMY-MON', 'MDY', 'YMD8', 'EPOCH-S-IST', 'EPOCH-MS-IST', 'YYYY-MM', 'MON-YYYY'];
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
   january: 1, february: 2, march: 3, april: 4, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
 const iso = (y: number, m: number, d: number): string | null => {
@@ -20,6 +20,13 @@ export function parseDateAs(value: string, format: DateFormat): string | null {
   switch (format) {
     case 'ISO': return /^\d{4}-\d{2}-\d{2}$/.test(text) && validDate(text) ? text : null;
     case 'ISO-DATETIME': m = /^(\d{4}-\d{2}-\d{2})[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})?$/.exec(text); return m && validDate(m[1]) ? m[1] : null;
+    /** A timestamp with an explicit offset or Z, read as its India business date. No offset: not this format. */
+    case 'ISO-DATETIME-IST': {
+      m = /^(\d{4}-\d{2}-\d{2})[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(Z|[+-]\d{2}:?\d{2})$/.exec(text);
+      if (!m || !validDate(m[1])) return null;
+      const ms = Date.parse(text.replace(' ', 'T').replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+      return Number.isFinite(ms) ? istDate(ms) : null;
+    }
     case 'DMY': m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})$/.exec(text); return m ? iso(year(m[3]), Number(m[2]), Number(m[1])) : null;
     case 'MDY': m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})$/.exec(text); return m ? iso(year(m[3]), Number(m[1]), Number(m[2])) : null;
     case 'DMY-MON': {

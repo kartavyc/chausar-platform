@@ -20,7 +20,7 @@ export const SHOPIFY_NOTICES = Object.freeze([
   'Draft orders are not sales. They are not read here and do not establish settled business activity.',
   'Refunds need separate evidence: a refund object alone does not prove money moved.',
   'Subtotals may include tax when the store shows tax-inclusive prices. Review the tax basis before reporting net sales.',
-  'Order times are read in UTC. An order placed between midnight and 5:30 a.m. IST is dated the previous day.',
+  'Order times are converted to the India business date (UTC+05:30).',
 ]);
 export type ShopifyOrdersConfig = { shop: string; pageSize?: number };
 

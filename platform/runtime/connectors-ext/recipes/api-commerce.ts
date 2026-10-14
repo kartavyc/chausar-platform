@@ -12,7 +12,7 @@ const shopifyOrders: SourceRecipe = {
   fields: {
     id: { from: ['id'], type: 'text', required: true },
     name: { from: ['name'], type: 'text', required: true },
-    date: { from: ['processedAt'], type: 'date', required: true, dateFormats: ['ISO-DATETIME'] },
+    date: { from: ['processedAt'], type: 'date', required: true, dateFormats: ['ISO-DATETIME-IST'] },
     subtotal: { from: ['subtotalPriceSet.shopMoney.amount'], type: 'money', required: true },
     currency: { from: ['subtotalPriceSet.shopMoney.currencyCode'], type: 'text', required: true },
     tax: { from: ['totalTaxSet.shopMoney.amount'], type: 'money' },
