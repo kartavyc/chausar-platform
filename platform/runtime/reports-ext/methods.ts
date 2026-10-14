@@ -88,9 +88,11 @@ export const reportsMethods: Record<string, MethodSpec> = {
   'reportsx.setDueProfile': { permission: 'admin', async handler(_ctx, payload, host) {
     const profile = validProfile(payload); await host.store.update(state => { reportsState(state).dueProfile = { ...profile }; }); return profile;
   } },
-  'reportsx.exports': { permission: 'read', handler(_ctx, payload, host) {
+  'reportsx.exports': { permission: 'read', handler(ctx, payload, host) {
     closed(payload, [], 'INVALID_EXPORT_REQUEST');
-    const items = [...(peekReports(host.store.read()).exports ?? [])].reverse().map(publicRecord);
+    // Row counts cover every source and branch, hidden ones included, so only an unrestricted owner sees what each export holds.
+    const member = authorize(host.store, ctx); const owner = member.role === 'owner' && member.branches.includes('*');
+    const items = [...(peekReports(host.store.read()).exports ?? [])].reverse().map(item => owner ? publicRecord(item) : { ...publicRecord(item), stores: [] });
     return { warning: 'Exported files are not encrypted.', items };
   } },
   'reportsx.exportAll': { permission: 'admin', async handler(ctx, payload, host) {

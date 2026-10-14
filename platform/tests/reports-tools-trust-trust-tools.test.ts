@@ -6,6 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
 import { createLocalServer } from '../runtime/server.ts';
+import { initialState } from '../runtime/contracts.ts';
+import { coreState, today } from '../runtime/trust-ext/core-state.ts';
+import { endedMembers, seatHasEnded } from '../runtime/trust-ext/core-seats.ts';
 
 const passphrase = 'Synthetic-trust-tools-fixture';
 const sourceId = 'synthetic-trust-tools-sales';
@@ -235,4 +238,15 @@ test('language packs report counts; Hindi and Hinglish are not yet reviewed; a v
     ['trustx.setAssistants', { on: true }], ['trustx.installPlugin', {}], ['trustx.withdrawSharing', {}]] as const)
     await f.refused(method, payload, 'FORBIDDEN', session.token);
   await f.refused('trustx.network', { unexpected: true }, 'INVALID_FIELDS');
+});
+
+test('the lane day is the India date: at 20:00 UTC on 14 October it is already the 15th, and a CA seat ending on the 14th is over', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-14T20:00:00Z') });
+  assert.equal(today(), '2026-10-15'); assert.equal(today(Date.parse('2026-10-14T18:29:59Z')), '2026-10-14');
+  const state = initialState('Synthetic India day'); const at = new Date().toISOString();
+  state.members.push({ id: 'ca-1', name: 'Synthetic CA', role: 'viewer', branches: ['*'], active: true, epoch: 1 } as any);
+  state.activity.push({ id: 'ev-accept', at, event: 'auth.invitation.accepted', details: { memberId: 'ca-1', invitationId: 'invite-ca' } } as any);
+  coreState(state).seats['invite-ca'] = { inviteId: 'invite-ca', seat: 'ca', name: 'Synthetic CA', endsOn: '2026-10-14', invitedBy: 'owner', at };
+  assert.equal(seatHasEnded(state, 'ca-1'), true); assert.deepEqual(endedMembers(state), ['ca-1']);
+  coreState(state).seats['invite-ca'].endsOn = '2026-10-15'; assert.equal(seatHasEnded(state, 'ca-1'), false);
 });

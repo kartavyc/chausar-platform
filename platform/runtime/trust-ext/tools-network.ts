@@ -15,6 +15,8 @@ const PURPOSE: Record<string, string> = {
   'conversation-synthesis': 'To write up results that were already calculated',
 };
 const WAITING_LIMIT = 4000;
+/** A model request whose payload actually left: dispatched, completed, or failed after dispatch; never a preview or a blocked call. */
+const left = (r: any) => SENT.has(r.status) && typeof r.dispatchedAt === 'string' && r.errorCode !== 'CANARY_BLOCKED';
 
 function termsFor(route: any): Omit<Terms, 'hosts'> | null {
   const entry = Object.hasOwn(TERMS.kinds, route.kind) ? TERMS.kinds[route.kind] : undefined;
@@ -31,7 +33,7 @@ const cost = (receipt: any) => typeof receipt.costReservedMinor === 'string' && 
 
 function healthOf(route: any, receipts: any[]): string {
   if (!route.enabled) return 'off';
-  const last = receipts.filter(r => r.routeId === route.id && SENT.has(r.status)).sort((a, b) => String(b.dispatchedAt ?? b.at).localeCompare(String(a.dispatchedAt ?? a.at)))[0];
+  const last = receipts.filter(r => r.routeId === route.id && left(r)).sort((a, b) => String(b.dispatchedAt ?? b.at).localeCompare(String(a.dispatchedAt ?? a.at)))[0];
   if (last?.status === 'failed') return 'failing';
   if (route.kind.endsWith('-cli')) return 'not-checked';
   return route.credentialConfigured ? 'ready' : 'needs-key';
@@ -44,7 +46,7 @@ export async function modelsView(ctx: Context, host: ModuleHost) {
   const month = now().slice(0, 7);
   // models-ext meters the month's spend in rupees from measured costs; when it answers, its figure is used
   // instead of this lane's sum of reserved and estimated costs from the receipts.
-  const spent = meters.spendThisMonthMinor ?? receipts.filter(r => SENT.has(r.status) && String(r.dispatchedAt ?? r.at).startsWith(month)).reduce((sum, r) => sum + paise(cost(r)), 0n).toString();
+  const spent = meters.spendThisMonthMinor ?? receipts.filter(r => left(r) && String(r.dispatchedAt ?? r.at).startsWith(month)).reduce((sum, r) => sum + paise(cost(r)), 0n).toString();
   let voice: string | null = null;
   try { const providers: any[] = host.services.speech?.providers(ctx) ?? []; voice = providers.find(p => p.enabled)?.kind ?? null; } catch { voice = null; }
   return {
@@ -88,7 +90,7 @@ export async function networkView(ctx: Context, payload: Record<string, any>, ho
   for (const r of host.services.gateway.receipts(ctx) as any[]) {
     if (r.kind !== 'model-preview') continue;
     const bytes = typeof r.payload === 'string' ? Buffer.byteLength(r.payload) : null; const base = { id: r.id, kind: 'model', destination: destination(r.endpoint), why: PURPOSE[r.purpose] ?? 'To ask the AI model', bytes };
-    if (SENT.has(r.status)) items.push({ ...base, at: String(r.dispatchedAt ?? r.at), outcome: r.status === 'failed' && !r.dispatchedAt ? 'stopped' : 'allowed' });
+    if (SENT.has(r.status)) items.push({ ...base, at: String(r.dispatchedAt ?? r.at), outcome: left(r) ? 'allowed' : 'stopped' });
     else if (r.status === 'preview' && r.approvalRequired === true)
       items.push({ ...base, at: String(r.at), outcome: 'waiting', ...(typeof r.payload === 'string' ? { waitingContent: r.payload.slice(0, WAITING_LIMIT) } : {}) });
   }
@@ -123,38 +125,50 @@ export async function plantCanary(_ctx: Context, payload: Record<string, any>, h
   return { planted: true as const, at };
 }
 
-const SENSITIVE = [/\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b/g, /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){1,8}/g, /(?<!\d)[6-9]\d{9}(?!\d)/g];
-/** Values in the books that must never leave as written: GSTINs, mail addresses and mobile numbers are
- *  swapped for stand-ins before any call. Bounded so the scan stays cheap. */
-function guarded(state: State): string[] {
-  const found = new Set<string>();
+const SENSITIVE = [/\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b/g, /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){1,8}/g];
+/** An Indian mobile number as people write it: an optional +91, then ten digits that may be split by spaces or hyphens. */
+const PHONE = /(?<!\d)(?:\+?91[ -]?)?([6-9](?:[ -]?\d){9})(?!\d)/g;
+const GUARDED_LIMIT = 5000;
+const phonesIn = (text: string) => [...text.matchAll(PHONE)].map(m => m[1].replace(/\D/g, ''));
+/** Values in the books that must never leave as written: GSTINs, mail addresses and mobile numbers (kept as their ten digits).
+ *  Bounded so the scan stays cheap. */
+function guarded(state: State): { exact: string[]; phones: Set<string> } {
+  const exact = new Set<string>(); const phones = new Set<string>();
   for (const fact of state.facts) {
     if (fact.deletedAt) continue;
     for (const value of Object.values(fact.fields ?? {})) {
       if (typeof value !== 'string' || value.length > 500) continue;
-      for (const pattern of SENSITIVE) for (const match of value.match(pattern) ?? []) { found.add(match); if (found.size >= 500) return [...found]; }
+      for (const pattern of SENSITIVE) for (const match of value.match(pattern) ?? []) exact.add(match);
+      for (const phone of phonesIn(value)) phones.add(phone);
+      if (exact.size + phones.size >= GUARDED_LIMIT) return { exact: [...exact], phones };
     }
   }
-  return [...found];
+  return { exact: [...exact], phones };
 }
-/** Scan every model request payload for the planted value and for any guarded value from the books; a hit stops every send. */
+/** A test for the planted value and the guarded values; phone numbers match on their digits, whatever spacing the payload uses. */
+function leakTest(state: State, canaryValue: unknown): ((payload: string) => boolean) | null {
+  const { exact, phones } = guarded(state); const needles = [...(typeof canaryValue === 'string' && canaryValue ? [canaryValue] : []), ...exact];
+  if (needles.length === 0 && phones.size === 0) return null;
+  return payload => needles.some(needle => payload.includes(needle)) || (phones.size > 0 && phonesIn(payload).some(phone => phones.has(phone)));
+}
+/** Scan every model request payload that left for the planted value and for any guarded value from the books; a hit stops every send.
+ *  A call the gateway blocked never left, so it is not a hit. */
 export function canaryHit(state: State): { at: string; callId: string } | null {
   const canary = tools(state).canary;
   if (canary?.alert) return canary.alert;
-  const needles = [...(canary?.value ? [canary.value] : []), ...guarded(state)];
-  if (needles.length === 0) return null;
-  const hit = state.modelReceipts.find(r => r.kind === 'model-preview' && typeof r.payload === 'string' && needles.some(needle => r.payload.includes(needle)));
+  const leaks = leakTest(state, canary?.value); if (!leaks) return null;
+  const hit = state.modelReceipts.find(r => r.kind === 'model-preview' && left(r) && typeof r.payload === 'string' && leaks(r.payload));
   return hit ? { at: now(), callId: hit.id } : null;
 }
 /** The planted value or a guarded value from the books inside an outgoing payload: the call is stopped before it leaves. */
 export function payloadLeaks(state: State, payload: string): boolean {
-  const canary = peekLane(state)?.tools?.canary;
-  return [...(canary?.value ? [canary.value as string] : []), ...guarded(state)].some(needle => payload.includes(needle));
+  return leakTest(state, peekLane(state)?.tools?.canary?.value)?.(payload) ?? false;
 }
+/** Stops a leaking call before it leaves. The block is kept apart from the leak alert: nothing left, so Send is not forced to nothing. */
 export async function blockLeak(store: StateStore, outgoing: { receiptId: string; payload: string }) {
   if (!payloadLeaks(store.read(), outgoing.payload)) return;
   await store.update(state => {
-    const canary = (tools(state).canary ??= { value: null, plantedAt: null, alert: null }); canary.alert ??= { at: now(), callId: outgoing.receiptId };
+    const canary = (tools(state).canary ??= { value: null, plantedAt: null, alert: null }); canary.blocked = { at: now(), callId: outgoing.receiptId };
     audit(state, 'trustx.canary.blocked', { receiptId: outgoing.receiptId });
   });
   throw new ChausarError('CANARY_BLOCKED', 'This request carried a protected value, so nothing was sent.');

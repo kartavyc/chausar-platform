@@ -10,6 +10,7 @@ import type { Context } from '../runtime/contracts.ts';
 import { csvFile } from '../runtime/reports-ext/export-files.ts';
 import { xlsxBook, crc32 } from '../runtime/reports-ext/xlsx.ts';
 import { pendingExportPaths, reportsMethods } from '../runtime/reports-ext/methods.ts';
+import { validateExports } from '../../app/ui/src/screens/reports/validate.ts';
 
 // Synthetic records only: one month of an invented business, with a formula-shaped description.
 const csv = `id,kind,date,amount,currency,customerId,invoiceId,dueDate,status,description
@@ -273,6 +274,11 @@ test('export everything writes open files with row counts and check numbers; del
   assert.equal(locked.locked, true); assert.equal(locked.encrypted, true); await access(join(locked.folder, locked.stores[0].file));
   const list = await engine.request('reportsx.exports', {});
   assert.equal(list.warning, 'Exported files are not encrypted.'); assert.deepEqual(list.items.map((i: any) => i.id), [locked.id, record.id]);
+  assert.equal(list.items[1].stores.find((s: any) => s.name === 'facts').rows, 6);
+  // Row counts cover hidden sources too: other seats get the list without them, still valid for the screen.
+  await engine.request('members.add', { id: 'viewer-exports', name: 'Synthetic viewer', role: 'viewer' });
+  const seen = validateExports(await engine.requestAs({ memberId: 'viewer-exports', role: 'viewer', epoch: 1, channel: 'desktop' }, 'reportsx.exports', {}));
+  assert.deepEqual(seen.items.map(i => i.id), [locked.id, record.id]); assert.ok(seen.items.every(i => i.stores.length === 0));
   const question = await engine.request('reportsx.askPerson', { question: 'Is <this> right?', reason: 'Chausar cannot classify this cost yet.',
     receiptId: (await engine.request('calculation.run', { operation: 'billed', period: september })).id });
   assert.equal(question.sent, false); assert.equal(dirname(question.file.path), join(directory, 'exports', 'questions'));

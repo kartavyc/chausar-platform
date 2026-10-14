@@ -8,6 +8,10 @@ import { createLocalServer } from '../runtime/server.ts';
 import { initialState, now } from '../runtime/contracts.ts';
 import type { Context, State, StateStore } from '../runtime/contracts.ts';
 import { ModelGateway } from '../runtime/gateway.ts';
+import { flushMcpCalls, MCPService } from '../runtime/mcp.ts';
+import { assistantsView } from '../runtime/trust-ext/tools-assistants.ts';
+import { today } from '../runtime/trust-ext/core-state.ts';
+import { canaryHit, checkCanary, payloadLeaks } from '../runtime/trust-ext/tools-network.ts';
 import { visibleFacts } from '../runtime/trust.ts';
 import '../runtime/trust-ext/core-hooks.ts';
 
@@ -133,7 +137,8 @@ test('the gateway stops a payload carrying the canary or a GSTIN from the books 
     assert.equal(sent, 0, 'the transport is never called');
     const receipt = store.state.modelReceipts.find(r => r.id === preview.id);
     assert.equal(receipt.status, 'failed'); assert.equal(receipt.errorCode, 'CANARY_BLOCKED');
-    assert.deepEqual((store.state.extensions as any)[LANE].tools.canary.alert.callId, preview.id);
+    // A block is kept apart from the leak alert: nothing left.
+    assert.equal((store.state.extensions as any)[LANE].tools.canary.blocked.callId, preview.id); assert.equal((store.state.extensions as any)[LANE].tools.canary.alert, null);
     assert.ok(store.state.activity.some(a => a.event === 'trustx.canary.blocked'));
   }
   // A clean payload still goes out.
@@ -164,6 +169,7 @@ test('a paired assistant token works on /mcp only; each call, refused ones inclu
   assert.equal(write.body.error.data.code, 'UNKNOWN_TOOL');
   assert.equal((await mcp({ jsonrpc: '2.0', id: 5, method: 'resources/write', params: {} })).body.error.data.code, 'METHOD_NOT_FOUND');
 
+  await flushMcpCalls(); // records wait up to a second or twenty calls before one store update
   const view = await f.rpc('trustx.assistants');
   assert.deepEqual(view.calls.map((c: any) => [c.client, c.calculation, c.refused]).sort(), [
     ['Synthetic assistant', 'An unregistered request', true], ['Synthetic assistant', 'An unregistered request', true], ['Synthetic assistant', 'calculate', false]]);
@@ -181,7 +187,7 @@ test('a paired assistant token works on /mcp only; each call, refused ones inclu
 
 test('a CA seat past its end date is refused on every request, core or lane, and its session stops working', async t => {
   const f = await fixture(t);
-  const ca = await f.rpc('trustx.invite', { seat: 'ca', name: 'Synthetic CA', endsOn: new Date().toISOString().slice(0, 10) });
+  const ca = await f.rpc('trustx.invite', { seat: 'ca', name: 'Synthetic CA', endsOn: today() });
   const accepted = await f.rpc('auth.accept', { token: ca.invite.token }); const seat: Context = { ...accepted.context, channel: 'desktop' };
   assert.equal((await f.as(seat, 'trust.get')).send, 'nothing'); assert.equal((await f.call('trust.get', {}, accepted.token)).status, 200);
   await f.vault().update(state => { (state.extensions as any)[LANE].trust.core.seats[ca.invite.id].endsOn = '2020-01-01'; });
@@ -216,4 +222,64 @@ test('trustx.deleteSource uses the engine deletion from inside its request: mana
   assert.equal(f.vault().read().facts.some(fact => fact.sourceId === 'synthetic-hooks-shop'), false);
   // The engine fence is released afterwards: the next request runs.
   assert.equal((await f.rpc('trustx.deletions')).items.length, 1);
+});
+
+test('a blocked call reserves nothing and consumes no approval; after a block and a re-plant the tick does not force Send to nothing', async () => {
+  const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1 };
+  const reply = { status: 200, endpoint: 'https://api.example.test/v1/responses', body: JSON.stringify({ output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ operation: 'earned' }) }] }] }) };
+  const store = new MemoryStore(); store.state.policy.send = 'samples';
+  store.state.facts.push({ id: 'fact_note', sourceId: 'books', sourceRow: 1, entityId: 'inv_1', kind: 'invoice', validFrom: '2026-09-01', validTo: null, learnedAt: now(), supersededAt: null, branch: 'main',
+    fields: { amountMinor: '100', note: '27ABCDE1234F1Z5' } });
+  store.state.extensions = { [LANE]: { reports: {}, trust: {}, tools: {} } };
+  let sent = 0; const gateway = new ModelGateway(store, { http: async () => { sent++; return reply; } });
+  // Room for two reservations only: before the fix, two blocked calls used it all up.
+  await gateway.configureRoute(owner, { id: 'api', kind: 'openai-responses', model: 'explicit-model', endpoint: 'https://api.example.test/v1/responses', maxCostMinor: '100', budgetMinor: '250' }, 'api-secret-value');
+  for (let i = 0; i < 2; i++) {
+    const preview = await gateway.preview(owner, { question: 'revenue', samples: [{ factId: 'fact_note', fields: ['note'] }] });
+    const approval = await gateway.approveOutbound(owner, preview.id);
+    await assert.rejects(gateway.execute(owner, { previewId: preview.id, approvalId: approval.id }), code('CANARY_BLOCKED'));
+    const receipt = store.state.modelReceipts.find(r => r.id === preview.id);
+    assert.equal(receipt.status, 'failed'); assert.equal(receipt.errorCode, 'CANARY_BLOCKED'); assert.equal(receipt.dispatchedAt, undefined);
+    assert.equal(store.state.modelReceipts.find(r => r.id === approval.id).used, false);
+  }
+  assert.ok([undefined, '0'].includes(store.state.routes[0].costConsumedMinor), String(store.state.routes[0].costConsumedMinor)); assert.equal(sent, 0);
+  store.state.policy.send = 'shape'; // a request without samples carries no protected value
+  const preview = await gateway.preview(owner, { question: 'revenue' }); const approval = await gateway.approveOutbound(owner, preview.id);
+  await gateway.execute(owner, { previewId: preview.id, approvalId: approval.id }); assert.equal(sent, 1); assert.equal(store.state.routes[0].costConsumedMinor, '100');
+  // The owner plants a new value: the blocked payloads never left, so the tick finds nothing and Send stays as it was.
+  (store.state.extensions as any)[LANE].tools.canary = { value: 'CANARY-0123456789abcdef01234567', plantedAt: now(), alert: null };
+  assert.equal(canaryHit(store.state), null);
+  let forced = false; const host = { store, call: async () => { forced = true; } } as any;
+  assert.deepEqual(await checkCanary(owner, {}, host), { alert: null }); assert.equal(forced, false); assert.equal(store.state.policy.send, 'shape');
+});
+
+test('guarded values keep up to 5,000 values and match a phone number on its digits, however it is spaced', () => {
+  const state = initialState('Synthetic phone books');
+  const fact = (id: string, value: string) => ({ id, sourceId: 'books', sourceRow: 1, entityId: id, kind: 'customer', validFrom: '2026-09-01', validTo: null, learnedAt: now(), supersededAt: null, fields: { contact: value } });
+  // A thousand GSTINs first: the old limit of 500 stopped before the phone number.
+  for (let i = 0; i < 1000; i++) state.facts.push(fact(`gstin_${i}`, `27ABCDE${String(i).padStart(4, '0')}F1Z5`) as any);
+  state.facts.push(fact('phone', 'Call 98765 43210 after six') as any);
+  assert.equal(payloadLeaks(state, '{"sample":"9876543210"}'), true);
+  assert.equal(payloadLeaks(state, 'reach +91 98765-43210'), true);
+  assert.equal(payloadLeaks(state, '{"sample":"9876543211"}'), false);
+  assert.equal(payloadLeaks(state, '{"amountMinor":"19876543210"}'), false);
+  assert.equal(payloadLeaks(state, 'customer 27ABCDE0999F1Z5'), true);
+});
+
+test('numbers server call records are written in batches, at most a thousand kept, and the list still shows them', async () => {
+  const store = new MemoryStore(); let updates = 0; const update = store.update.bind(store);
+  store.update = async change => { updates++; return update(change); };
+  store.state.extensions = { [LANE]: { reports: {}, trust: {}, tools: { assistants: { on: true, paired: [{ id: 'owner', name: 'Synthetic assistant', pairedAt: now(), sessionId: 'session_x' }] } } } };
+  const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1 };
+  const mcp = new MCPService(store, { calculations: [] });
+  await mcp.handle(owner, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'synthetic-client' } } });
+  await mcp.handle(owner, { jsonrpc: '2.0', method: 'notifications/initialized' });
+  updates = 0;
+  for (let i = 0; i < 200; i++) assert.equal((await mcp.handle(owner, { jsonrpc: '2.0', id: i + 2, method: 'tools/call', params: { name: 'synthetic_unknown', arguments: {} } }))!.error!.data!.code, 'UNKNOWN_TOOL');
+  await flushMcpCalls(store);
+  assert.ok(updates <= 12, `${updates} store updates for 200 calls`);
+  assert.equal(assistantsView(store.state).calls.length, 200);
+  for (let i = 0; i < 1000; i++) await mcp.handle(owner, { jsonrpc: '2.0', id: i + 300, method: 'tools/call', params: { name: 'synthetic_unknown', arguments: {} } });
+  await flushMcpCalls(store);
+  assert.equal(((store.state.extensions as any)[LANE].tools.mcpCalls as unknown[]).length, 1000);
 });

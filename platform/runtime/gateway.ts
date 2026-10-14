@@ -989,6 +989,11 @@ export class ModelGateway {
     check(cli || route.kind === 'ollama' || Boolean(key), route.kind === 'managed' ? 'MANAGED_UNAVAILABLE' : 'CREDENTIAL_REQUIRED', 'This model route needs its configured API credential.');
     // Credentials may be retrieved asynchronously; recheck access immediately before reserving and dispatch.
     route = this.#assertCurrent(context, preview);
+    // Registered outbound checks run before anything is reserved: a refused call keeps its budget, its approval and no dispatch time.
+    try { for (const outbound of outboundChecks) await outbound(this.store, context, { receiptId: preview.id, endpoint: preview.endpoint, payload: preview.payload }); } catch (error) {
+      await this.store.update(state => { const current = state.modelReceipts.find(r => r.id === preview.id); if (current?.status === 'preview') { current.status = 'failed'; current.errorCode = error instanceof ChausarError ? error.code : 'MODEL_FAILED'; current.completedAt = now(); } });
+      throw error;
+    }
     await this.store.update(state => {
       this.#assertCurrent(context, preview, state); const current = state.modelReceipts.find(r => r.id === preview.id);
       check(current?.status === 'preview', 'ALREADY_SENT', 'Every model preview can be dispatched once only.');
@@ -1009,7 +1014,6 @@ export class ModelGateway {
     });
     let result: HttpResult | ProcessResult; let directory: string | undefined;
     try {
-      for (const outbound of outboundChecks) await outbound(this.store, context, { receiptId: preview.id, endpoint: preview.endpoint, payload: preview.payload });
       if (cli) {
         directory = await mkdtemp(join(tmpdir(), 'chausar-model-')); const schemaPath = join(directory, 'plan-schema.json');
         const schema = preview.schema ?? planSchema(preview.operations);
