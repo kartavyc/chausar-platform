@@ -150,3 +150,37 @@ test('WhatsApp read-back uses the hosted relay through hosted.messageStatuses wh
   await m['writeback.execute'].handler(owner2, { id: again.id }, missing);
   await assert.rejects(Promise.resolve().then(() => m['writeback.readBack'].handler(owner2, { id: again.id }, forged)), { code: 'INVALID_DATE' });
 });
+
+test('outside-text mark on prepare, by context or by payload: logged as tainted, and only an untainted person can approve or run it', async () => {
+  const { service, connection, store } = await moneySetup();
+  const viaContext: any = await service.prepare({ ...owner, sourceTainted: true }, { connectionId: connection.id, action: 'paymentLink.create', intentId: 'link-ctx', payload: { amountMinor: '1000', description: 'Synthetic', customer: { name: 'Asha (synthetic)' } } });
+  const viaPayload: any = await service.prepare(owner, { connectionId: connection.id, action: 'paymentLink.create', intentId: 'link-payload', sourceTainted: true, payload: { amountMinor: '2000', description: 'Synthetic', customer: { name: 'Asha (synthetic)' } } });
+  const plain: any = await service.prepare(owner, { connectionId: connection.id, action: 'paymentLink.create', intentId: 'link-plain', sourceTainted: false, payload: { amountMinor: '3000', description: 'Synthetic', customer: { name: 'Asha (synthetic)' } } });
+  for (const [view, tainted] of [[viaContext, true], [viaPayload, true], [plain, false]] as const) {
+    assert.equal(view.taintedSource, tainted);
+    const logged = store.state.activity.filter(a => a.event === 'action.prepared' && a.details.actionId === view.id);
+    assert.equal(logged.length, 1); assert.equal(logged[0].details.taintedSource, tainted);
+  }
+  await assert.rejects(service.prepare(owner, { connectionId: connection.id, action: 'paymentLink.create', intentId: 'link-bad', sourceTainted: 'yes', payload: {} }), { code: 'INVALID_REQUEST' });
+  const tainted: Context = { ...owner, sourceTainted: true };
+  await assert.rejects(service.reauth(tainted, viaPayload.id, viaPayload.digest, PASS), { code: 'TAINTED_APPROVAL' });
+  await assert.rejects(service.approve(tainted, viaPayload.id, viaPayload.digest), { code: 'TAINTED_APPROVAL' });
+  const { token } = await service.reauth(owner, viaPayload.id, viaPayload.digest, PASS);
+  await assert.rejects(service.approve(tainted, viaPayload.id, viaPayload.digest, token), { code: 'TAINTED_APPROVAL' }, 'a token for the person does not serve tainted work');
+  await service.approve(owner, viaPayload.id, viaPayload.digest, token);
+  await assert.rejects(service.execute(tainted, viaPayload.id), { code: 'TAINTED_EXECUTION' });
+  assert.equal((await service.execute(owner, viaPayload.id) as any).status, 'verified');
+});
+
+test('the module route: a call marked tainted through the engine prepares a tainted action; catalogue rows say whether they can be undone', async () => {
+  const store = new Store(); const fake = new RazorpayFake(); const directory = mkdtempSync(join(tmpdir(), 'chausar-r2-taint-'));
+  const host: any = { store, services: {}, demo: false, directory, call: async () => [], options: { http: fake.transport, credentials: async () => ({ keyId: razorpaySeed.keyId, keySecret: razorpaySeed.keySecret }) } };
+  const m = writebackModule.methods;
+  const c: any = await m['writeback.connect'].handler(owner, { system: 'razorpay', label: 'Keys', environment: 'sandbox', account: {} }, host);
+  await m['writeback.grant'].handler(owner, { connectionId: c.id, write: ['paymentLink.create'] }, host);
+  const marked: any = await m['writeback.prepare'].handler(owner, { connectionId: c.id, action: 'paymentLink.create', intentId: 'm-1', sourceTainted: true, payload: { amountMinor: '1000', description: 'Synthetic', customer: { name: 'Asha (synthetic)' } } }, host);
+  assert.equal(marked.taintedSource, true);
+  const rows: any[] = await m['writeback.catalogue'].handler(owner, {}, host) as any;
+  assert.ok(rows.every(r => typeof r.undoable === 'boolean'));
+  assert.equal(rows.find(r => r.action === 'sheets.append').undoable, true); assert.equal(rows.find(r => r.action === 'refund.create').undoable, false);
+});

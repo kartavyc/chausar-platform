@@ -46,6 +46,8 @@ export type WritebackState = {
   preparedAt: Record<string, string>;
   /** Approval times by the service clock (the labelled test clock in drills). */
   approvedAt: Record<string, string>;
+  /** Actions prepared by work that had read outside text. A person must approve them; nothing tainted may. */
+  tainted: Record<string, true>;
   attestations: { actionId: string; memberId: string; said: 'sent' | 'not-sent'; at: string }[];
   notices: { id: string; actionId: string; kind: 'expired' | 'prepared-again' | 'already-done' | 'looked-first' | 'cancelled-evidence'; at: string }[];
   practiceRuns: PracticeSummary[];
@@ -57,7 +59,7 @@ export const defaultSettings = (): Settings => ({
   approvalHours: { 'inside-undoable': 24 * 7, 'seen-outside': 24, money: 24, 'cannot-undo': 24 },
   reminderCapPerCustomer: 1, reminderCapPerDay: 20, stopWords: ['STOP', 'UNSUBSCRIBE', 'BAND KARO', 'RUKO', 'बंद करो', 'रुको'],
 });
-export const initState = (): WritebackState => ({ connections: [], wanted: [], settings: defaultSettings(), preparedAt: {}, approvedAt: {}, attestations: [], notices: [], practiceRuns: [], qualifications: [], consents: [], journal: [] });
+export const initState = (): WritebackState => ({ connections: [], wanted: [], settings: defaultSettings(), preparedAt: {}, approvedAt: {}, tainted: {}, attestations: [], notices: [], practiceRuns: [], qualifications: [], consents: [], journal: [] });
 export const readState = (state: State): WritebackState => ({ ...initState(), ...(peekModuleState<WritebackState>(state, MODULE_ID) ?? {}) });
 
 export type Envelope = {
@@ -114,7 +116,7 @@ export class WritebackService {
     const wb = readState(state), qualified = this.qualification(state, row);
     const latest = wb.qualifications.filter(q => q.system === row.system && q.action === row.action).at(-1);
     const hours = wb.settings.approvalHours[row.kind];
-    return { ...structuredClone(row), status: effectiveStatus(row, qualified), qualification: qualified, installed: Boolean(this.ports.adapters[row.system]?.[row.action]),
+    return { ...structuredClone(row), undoable: row.kind === 'inside-undoable', status: effectiveStatus(row, qualified), qualification: qualified, installed: Boolean(this.ports.adapters[row.system]?.[row.action]),
       approvalLifetimeHours: Math.min(row.approvalLifetimeHours, hours), writeScore: latest ? latest.score : null,
       connections: wb.connections.filter(c => c.system === row.system && !c.revokedAt).map(c => ({ id: c.id, label: c.label, environment: c.environment, read: c.read, write: c.write.includes(row.action) })) };
   }
@@ -277,7 +279,10 @@ export class WritebackService {
   intact(action: PreparedAction) {
     check(action.digest === this.actions.identity(action) && (!action.approval || action.approval.digest === action.digest), 'PREVIEW_CHANGED', 'The stored action no longer matches what was prepared. Nothing was sent.');
   }
-  async prepare(context: Context, input: { connectionId: unknown; action: unknown; payload: unknown; intentId: unknown; sourceIds?: unknown; evidence?: Envelope['evidence'] }) {
+  async prepare(context: Context, input: { connectionId: unknown; action: unknown; payload: unknown; intentId: unknown; sourceIds?: unknown; evidence?: Envelope['evidence']; sourceTainted?: unknown }) {
+    // Outside text marks the work either way, through the caller's context or the request; the mark is never cleared here.
+    check(input.sourceTainted === undefined || typeof input.sourceTainted === 'boolean', 'INVALID_REQUEST', 'The outside-text mark is true or false.');
+    if (input.sourceTainted === true) context = { ...context, sourceTainted: true };
     const state0 = this.store.read(); current(state0, context, 'prepare');
     const connection = this.#connection(state0, input.connectionId);
     const row = entry(connection.system, String(input.action));
@@ -300,7 +305,8 @@ export class WritebackService {
       intentId, payload, preparation: JSON.parse(canonical(preparation)), catalogueDigest: catalogueDigest(row), evidence: input.evidence ?? null };
     if (preparation.alreadyApplied) return { status: 'already-done', externalId: preparation.alreadyApplied.externalId, preview: preparation.preview, target: preparation.target, message: 'This is already in the system. Nothing will be sent.' };
     const action = await this.actions.prepare(context, { connector: connectorId(connection.system), operation: row.action, payload: envelope, idempotencyKey: key, sourceIds });
-    await this.store.update(state => { current(state, context, 'prepare'); moduleState(state, MODULE_ID, initState).preparedAt[action.id] = this.now(); audit(state, 'writeback.prepared', { actionId: action.id, system: connection.system, action: row.action, environment: connection.environment }); });
+    await this.store.update(state => { current(state, context, 'prepare'); const wb = moduleState(state, MODULE_ID, initState); wb.preparedAt[action.id] = this.now(); if (context.sourceTainted === true) wb.tainted[action.id] = true;
+      audit(state, 'writeback.prepared', { actionId: action.id, system: connection.system, action: row.action, environment: connection.environment, taintedSource: context.sourceTainted === true }); });
     return this.view(this.store.read(), this.find(this.store.read(), action.id));
   }
   /** A changed payload is a new exact change: the yes is gone and the preview is built again. */
@@ -346,6 +352,7 @@ export class WritebackService {
     return { token, expiresInSeconds: SECOND_ASK_MS / 1000 };
   }
   async approve(context: Context, id: unknown, expectedDigest: unknown, secondAsk?: unknown) {
+    check(!context.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot authorize an action.');
     const action = this.find(this.store.read(), id); this.visible(context, action);
     const e = this.envelope(action.payload); const row = entry(e.system, e.action)!;
     check(row.tier !== 'prepare-only', 'PREPARE_ONLY', 'This is prepared only. Download the file and the checklist; you or your accountant completes it.');
@@ -505,7 +512,7 @@ export class WritebackService {
     const expiresAt = this.expiresAt(state, action);
     const notices = wb.notices.filter(n => n.actionId === action.id).map(n => ({ kind: n.kind, at: n.at }));
     return {
-      id: action.id, system: e.system, action: e.action, title: row.title, digest: action.digest, revision: action.revision, status: action.status, word,
+      id: action.id, system: e.system, action: e.action, title: row.title, digest: action.digest, taintedSource: wb.tainted?.[action.id] === true, revision: action.revision, status: action.status, word,
       connection: connection ? { id: connection.id, label: connection.label, environment: connection.environment, removed: Boolean(connection.revokedAt) } : null,
       practice: e.environment === 'practice', kind: row.kind, tier: row.tier, alwaysWaits: row.alwaysWaits, preview: e.preparation.preview, target: e.preparation.target,
       steps, expiresAt, readBack: back ? { outcome: back.data?.outcome ?? null, reason: back.data?.reason ?? null, comparison, settledBy: settledByPerson ? 'person' : back.verified || back.absent ? 'system' : null } : null,

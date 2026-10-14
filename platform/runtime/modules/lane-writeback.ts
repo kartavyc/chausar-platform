@@ -187,7 +187,7 @@ export const writebackModule: EngineModule = {
       if (store && !removed.link && removed.environment !== 'practice') store.remove(ownCredential(removed));
       return removed;
     } },
-    'writeback.prepare': { permission: 'prepare', handler: async (ctx, p, host) => (await ready(host)).service.prepare(ctx, { connectionId: p.connectionId, action: p.action, payload: p.payload, intentId: p.intentId, sourceIds: p.sourceIds }) },
+    'writeback.prepare': { permission: 'prepare', handler: async (ctx, p, host) => (await ready(host)).service.prepare(ctx, { connectionId: p.connectionId, action: p.action, payload: p.payload, intentId: p.intentId, sourceIds: p.sourceIds, sourceTainted: p.sourceTainted }) },
     'writeback.change': { permission: 'prepare', handler: async (ctx, p, host) => (await ready(host)).service.change(ctx, p.id, p.payload) },
     'writeback.reauth': { permission: 'approve', handler: async (ctx, p, host) => (await ready(host)).service.reauth(ctx, p.id, p.digest, p.passphrase) },
     'writeback.approve': { permission: 'approve', handler: async (ctx, p, host) => (await ready(host)).service.approve(ctx, p.id, p.digest, p.secondAsk) },
@@ -219,7 +219,7 @@ export const writebackModule: EngineModule = {
     wb.attestations = keep(wb.attestations ?? [], a => reason.removedIds.has(a.actionId));
     wb.notices = keep(wb.notices ?? [], n => reason.removedIds.has(n.actionId));
     wb.practiceRuns = keep(wb.practiceRuns ?? [], r => r.actionId !== null && reason.removedIds.has(r.actionId));
-    for (const map of [wb.preparedAt ?? {}, wb.approvedAt ?? {}]) for (const id of Object.keys(map)) if (reason.removedIds.has(id)) { delete map[id]; removed += 1; }
+    for (const map of [wb.preparedAt ?? {}, wb.approvedAt ?? {}, wb.tainted ?? {}] as Record<string, unknown>[]) for (const id of Object.keys(map)) if (reason.removedIds.has(id)) { delete map[id]; removed += 1; }
     return removed;
   },
   /** With autonomy on: drop expired yeses and expired preparations, and look at unknown results. Never sends. */
