@@ -3,16 +3,16 @@
  * `trust.update` with `allowedSources`), and the markings personal, financial and
  * confidential: where each is set, the marks, and what each seat may see.
  */
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { words } from '../../places/types.ts';
 import { Button } from '../../parts/Button';
-import { YesNo } from '../../parts/Choice';
+import { Choice, YesNo } from '../../parts/Choice';
 import { State } from '../../patterns/States';
 import { useEngine, useSend } from './kit/engine.ts';
 import { Group, Note } from './kit/Screen';
 import { screenState } from './kit/Screen';
-import { AskTwice, Frame, Outcome, countText, dayText, powers, type P } from './common';
-import { MARK_KINDS, validateMarkings, validatePolicy, validateRules, validateSources, type Mark, type Markings, type Source } from './validate.ts';
+import { Frame, Outcome, Pending, countText, dayText, powers, type P } from './common';
+import { MARK_KINDS, validateChange, validateMarkingChange, validateMarkings, validatePolicy, validateRules, validateSources, type Mark, type MarkKind, type Markings, type Source } from './validate.ts';
 import { COMMON, KIND_WORDS, RULES, SEAT_WORDS, SEE, fill } from './words.ts';
 import s from './Trust.module.css';
 
@@ -63,15 +63,19 @@ function Counts({ p }: { p: P }) {
 function SourceList({ p, list, allowed, reload }: { p: P; list: Source[]; allowed: string[]; reload: () => void }) {
   const c = words(COMMON, p.language), w = words(SEE, p.language);
   const { admin } = powers(p);
-  const { sent, send } = useSend(p.rpc, validatePolicy);
+  // Source access is under dual control: `trustx.setPolicy`, which may wait for the second person.
+  const { sent, send } = useSend(p.rpc, validateChange);
   const [asking, setAsking] = useState<string | null>(null);
+  const [round, setRound] = useState(0);
   if (list.length === 0) return <p className={s.quiet}>{w.sourcesNone}</p>;
   const all = allowed.includes('*');
   const reads = (id: string) => all || allowed.includes(id);
   const change = async (id: string, yes: boolean) => {
     const next = yes ? [...allowed, id] : (all ? list.map((x) => x.sourceId) : allowed).filter((x) => x !== id);
     setAsking(null);
-    if (await send('trust.update', { allowedSources: next }) !== null && p.live(p.address)) reload();
+    const done = await send('trustx.setPolicy', { allowedSources: next });
+    if (done === null || !p.live(p.address)) return;
+    if (done.state === 'waiting-for-second') setRound((n) => n + 1); else reload();
   };
   return (
     <>
@@ -97,6 +101,7 @@ function SourceList({ p, list, allowed, reload }: { p: P; list: Source[]; allowe
       </ul>
       {!admin && <Note>{c.adminOnly}</Note>}
       <Outcome sent={sent} language={p.language} />
+      <Pending p={p} what={['policy']} round={round} onConfirmed={reload} />
     </>
   );
 }
@@ -108,12 +113,18 @@ function markText(m: Mark, kind: string, w: Readonly<Record<keyof typeof SEE.en,
   return fill(w.markSource, { kind, source: t.sourceId });
 }
 
+/** Widening a marking waits for the second person as a change to `seats` (unmarking, or a seat seeing more). */
+const MARKING_CHANGES = ['markings'] as const;
+
 function MarkingsBody({ p, m, reload }: { p: P; m: Markings; reload: () => void }) {
   const c = words(COMMON, p.language), w = words(SEE, p.language), k = words(KIND_WORDS, p.language), seatW = words(SEAT_WORDS, p.language);
   const { admin } = powers(p);
-  const { sent, send } = useSend(p.rpc, validateMarkings);
+  const { sent, send } = useSend(p.rpc, validateMarkingChange);
+  const [round, setRound] = useState(0);
   const change = async (method: string, payload: Record<string, unknown>) => {
-    if (await send(method, payload) !== null && p.live(p.address)) reload();
+    const done = await send(method, payload);
+    if (done === null || !p.live(p.address)) return;
+    if ('state' in done && done.state === 'waiting-for-second') setRound((n) => n + 1); else reload();
   };
   const seatName = (seat: string) => (seat in seatW ? seatW[seat as keyof typeof seatW] : seat);
   const whereRows = [
@@ -147,6 +158,7 @@ function MarkingsBody({ p, m, reload }: { p: P; m: Markings; reload: () => void 
           ))}
         </ul>
       )}
+      {admin && <AddMarking p={p} busy={sent.kind === 'sending'} onMark={(sourceId, kind) => void change('trustx.setMarking', { kind, target: { type: 'source', sourceId }, on: true })} />}
       <h3 className={s.label}>{w.seatsTitle}</h3>
       <table className={s.table}>
         <thead><tr><th scope="col">{w.seatCol}</th>{MARK_KINDS.map((kind) => <th key={kind} scope="col">{k[kind]}</th>)}</tr></thead>
@@ -167,6 +179,40 @@ function MarkingsBody({ p, m, reload }: { p: P; m: Markings; reload: () => void 
         </tbody>
       </table>
       <Outcome sent={sent} language={p.language} />
+      <Pending p={p} what={MARKING_CHANGES} round={round} onConfirmed={reload} />
+    </div>
+  );
+}
+
+/** Mark a whole source: choose it from the source list and choose the marking. */
+function AddMarking({ p, busy, onMark }: { p: P; busy: boolean; onMark: (sourceId: string, kind: MarkKind) => void }) {
+  const w = words(SEE, p.language), k = words(KIND_WORDS, p.language);
+  const sources = useEngine(p.rpc, 'sources.list', {}, validateSources);
+  const [sourceId, setSourceId] = useState<string | null>(null);
+  const [kind, setKind] = useState<MarkKind | null>(null);
+  const [problem, setProblem] = useState(false);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (sourceId === null || kind === null) { setProblem(true); return; }
+    setProblem(false); onMark(sourceId, kind);
+  };
+  let body;
+  if (sources.state.kind === 'not-built') body = <p className={s.quiet}>{w.addNotBuilt}</p>;
+  else if (sources.state.kind !== 'ready') body = <State state={screenState(sources.state)} />;
+  else if (sources.state.value.length === 0) body = <p className={s.quiet}>{w.addNoSources}</p>;
+  else body = (
+    <form className={s.stack} onSubmit={submit} aria-label={w.addTitle}>
+      <Choice label={w.addSource} options={sources.state.value.map((x) => ({ value: x.sourceId, label: x.name }))} value={sourceId} onChange={setSourceId} />
+      <Choice label={w.addKind} options={MARK_KINDS.map((value) => ({ value, label: k[value] }))} value={kind} onChange={setKind} />
+      {problem && <p className={s.problem}>{w.pickBoth}</p>}
+      <span><Button submit disabled={busy}>{w.mark}</Button></span>
+    </form>
+  );
+  return (
+    <div className={s.stack} data-add-marking="">
+      <h3 className={s.label}>{w.addTitle}</h3>
+      <p className={s.quiet}>{w.addNote}</p>
+      {body}
     </div>
   );
 }

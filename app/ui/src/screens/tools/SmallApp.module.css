@@ -9,3 +9,6 @@
 .p { margin: 0; font-size: var(--fs-read); color: var(--fg); }
 .note { margin: 0; font-size: var(--fs-note2); color: var(--mute); }
 .small { margin: 0; font-size: var(--fs-note2); font-weight: 400; color: var(--mute); }
+.value { display: flex; flex-direction: column; gap: var(--sp1); align-self: stretch; }
+.row { display: flex; flex-direction: column; gap: var(--sp1); align-self: stretch; }
+.buttons { display: flex; gap: var(--sp2); flex-wrap: wrap; align-items: center; }

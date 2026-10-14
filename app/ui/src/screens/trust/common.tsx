@@ -13,7 +13,7 @@ import { Sheet } from '../../parts/Sheet';
 import { State } from '../../patterns/States';
 import { NOT_BUILT_CODES, useEngine, useSend, type Loaded, type Sent } from './kit/engine.ts';
 import { Group, Screen, screenState } from './kit/Screen';
-import { validateInvite, validatePending, type ChangeResult, type ChangeWhat, type InviteResult } from './validate.ts';
+import { validateInvite, validatePending, type ChangeResult, type InviteResult } from './validate.ts';
 import { COMMON, PEOPLE, fill } from './words.ts';
 import s from './Trust.module.css';
 
@@ -51,10 +51,17 @@ export function Frame<T>({ p, mode, where, title, loaded, children }: { p: P; mo
   );
 }
 
-const REFUSAL_WORDS: Readonly<Record<string, 'notAllowed' | 'lockedChange' | 'invalidReply'>> = {
+type CommonWord = keyof typeof COMMON.en;
+/** Codes this lane and the lanes it draws over refuse with, each with its plain sentence. */
+const REFUSAL_WORDS: Readonly<Record<string, CommonWord>> = {
   FORBIDDEN: 'notAllowed', ACCESS_DENIED: 'notAllowed', PERMISSION_DENIED: 'notAllowed', NOT_ALLOWED: 'notAllowed', OWNER_ONLY: 'notAllowed',
   ROLE_FORBIDDEN: 'notAllowed', ACCESS_REVOKED: 'notAllowed', VAULT_LOCKED: 'lockedChange', WORKSPACE_LOCKED: 'lockedChange', LOCKED: 'lockedChange',
-  INVALID_REPLY: 'invalidReply',
+  INVALID_REPLY: 'invalidReply', OWNER_REQUIRED: 'ownerRequired', SECOND_PERSON_REQUIRED: 'secondPerson', TAINTED_APPROVAL: 'taintedApproval',
+  APP_CONSENT_REQUIRED: 'appOnly', APP_APPROVAL_REQUIRED: 'appOnly', OPEN_DESKTOP: 'appOnly', PREVIEW_NOT_FOUND: 'previewGone', MODEL_RECEIPT_EXPIRED: 'previewGone',
+  PREVIEW_STALE: 'previewStale', SHARING_DISABLED: 'sharingOff', BOX_NOT_OPEN: 'boxClosed', NOTHING_TO_SHARE: 'nothingToShare', PREVIEW_CHANGED: 'previewChanged',
+  SHARING_BLOCKED: 'sharingBlocked', CONSENT_REQUIRED: 'consentRequired', INTAKE_NOT_OPEN: 'intakeClosed', DELETE_UNKNOWN: 'deleteUnknown',
+  SESSION_SCOPE_FORBIDDEN: 'sessionScope', COOLING_OFF: 'coolingOff', SELF_CONFIRM: 'selfConfirm', CHANGE_NEEDS_OTHER: 'needsOther',
+  INVALID_PUBLIC_NAME: 'badPublicName', BATCH_NOT_SENT: 'batchNotSent', EMPTY_FILE: 'emptySample', DEMO_EXTERNAL_DISABLED: 'demoOff',
 };
 
 /** A refusal in a plain sentence for a known code, and the short code otherwise. */
@@ -82,24 +89,33 @@ export function Outcome({ sent, language }: { sent: Sent<unknown>; language: Lan
   if (isChange(v) && v.state === 'waiting-for-second') {
     return <p className={s.status} role="status">{v.change?.needs === 'owner' ? c.waitOwner : c.waitCofounder}</p>;
   }
+  if (isChange(v) && v.state === 'declined') return <p className={s.status} role="status">{c.declined}</p>;
   return <p className={s.quiet} role="status">{c.applied}</p>;
 }
 
 /** Changes to Send, Sharing or seats waiting for the other admin. Never a Confirm on your own change. */
-export function Pending({ p, what, round, onConfirmed }: { p: P; what: readonly ChangeWhat[]; round: number; onConfirmed?: () => void }) {
+export function Pending({ p, what, round, onConfirmed }: { p: P; what: readonly string[]; round: number; onConfirmed?: () => void }) {
   const c = words(COMMON, p.language);
   const { state, reload } = useEngine(p.rpc, 'trustx.pendingChanges', {}, validatePending, String(round));
   // A confirmed invite carries its one-time code: validate it as an invite so the code is shown once.
   const { sent, send } = useSend(p.rpc, validateInvite);
   const [shown, setShown] = useState<InviteResult | null>(null);
+  const [said, setSaid] = useState<string | null>(null);
   const { admin } = powers(p);
   if (state.kind === 'loading' || state.kind === 'not-built') return shown === null ? null : <Group title={c.pendingTitle}><InviteShown p={p} shown={shown} /></Group>;
   if (state.kind !== 'ready') return <Group title={c.pendingTitle}><State state={screenState(state)} /></Group>;
   const items = state.value.filter((x) => what.includes(x.what));
   if (items.length === 0 && shown === null) return null;
   const confirm = async (id: string) => {
+    setSaid(null);
     const done = await send('trustx.confirmChange', { id });
     if (done !== null && p.live(p.address)) { if (done.invite !== null || done.guide !== null) setShown(done); reload(); onConfirmed?.(); }
+  };
+  // The needed person declines, or the author withdraws: the same request with `decline: true`.
+  const decline = async (id: string, mine: boolean) => {
+    setSaid(null);
+    const done = await send('trustx.confirmChange', { id, decline: true });
+    if (done !== null && p.live(p.address)) { setSaid(mine ? c.withdrawnChange : c.declined); reload(); }
   };
   if (items.length === 0 && shown !== null) return <Group title={c.pendingTitle}><InviteShown p={p} shown={shown} /></Group>;
   return (
@@ -107,17 +123,31 @@ export function Pending({ p, what, round, onConfirmed }: { p: P; what: readonly 
       <ul className={s.list}>
         {items.map((x) => {
           const mine = x.by === p.member.id;
+          const busy = sent.kind === 'sending';
+          // Removing the only cofounder waits 72 hours for them; after that the owner who asked may confirm it alone.
+          const ownLate = mine && admin && p.member.role === 'owner' && x.coolsOffAt !== null;
           return (
             <li key={x.id} className={s.item}>
               <span>{x.summary}</span>
               <span className={s.quiet}>{fill(c.pendingBy, { by: x.by, date: dayText(x.at, p.language) })} {x.needs === 'owner' ? c.needsOwner : c.needsCofounder}</span>
-              {mine ? <span className={s.quiet}>{c.yourChange}</span>
-                : admin && p.member.role === x.needs && <span><Button variant="quiet" onClick={() => void confirm(x.id)}>{c.confirm}</Button></span>}
+              {mine && <span className={s.quiet}>{c.yourChange}</span>}
+              {mine && admin && (
+                <span className={s.line}>
+                  <Button variant="quiet" disabled={busy} onClick={() => void decline(x.id, true)}>{c.withdrawChange}</Button>
+                  {ownLate && <Button variant="quiet" disabled={busy} onClick={() => void confirm(x.id)}>{c.confirmOwn}</Button>}
+                </span>
+              )}
+              {!mine && admin && p.member.role === x.needs && (
+                <span className={s.line}>
+                  <Button variant="quiet" disabled={busy} onClick={() => void confirm(x.id)}>{c.confirm}</Button>
+                  <Button variant="quiet" danger disabled={busy} onClick={() => void decline(x.id, false)}>{c.decline}</Button>
+                </span>
+              )}
             </li>
           );
         })}
       </ul>
-      <Outcome sent={sent} language={p.language} />
+      {said !== null ? <p className={s.status} role="status">{said}</p> : <Outcome sent={sent} language={p.language} />}
       {shown !== null && <InviteShown p={p} shown={shown} />}
     </Group>
   );

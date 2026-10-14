@@ -1,7 +1,8 @@
 import { assert, test } from 'vitest';
 import { assistants, inspection, languagePacks, pairing, pluginPackage, plugins } from '../../app/ui/src/screens/tools/validate.ts';
-import { channels, usage } from '../../app/ui/src/screens/tools/adapters/phone.ts';
-import { app, draft } from '../../app/ui/src/screens/tools/adapters/smallapps.ts';
+import { channels, counts, status } from '../../app/ui/src/screens/tools/adapters/phone.ts';
+import { opened, proposal } from '../../app/ui/src/screens/tools/adapters/smallapps.ts';
+import { detail } from '../../app/ui/src/screens/tools/adapters/wrapped.ts';
 import { TOOLS_WORDS, fill } from '../../app/ui/src/screens/tools/words.ts';
 
 // Synthetic replies only.
@@ -41,13 +42,24 @@ test('plugins, packs, assistants and pairing replies are checked', () => {
   invalid(() => pairing({ id: 'a', name: 'n', token: '', expiresAt: '2026-10-01' }));
 });
 
-test('assumed other-lane replies are checked into view types', () => {
-  invalid(() => usage({ month: 'Oct', sent: 1, budget: 40 }));
-  invalid(() => channels({ relay: 'maybe', testMode: false, channels: [] }));
-  invalid(() => channels({ relay: 'available', testMode: false, channels: [{ id: 'mail', on: true, address: null, verified: false, agreedOn: null, costMinor: '0.5' }] }));
-  invalid(() => draft({ draftId: '', title: 't', uses: { calculations: [], actions: [] }, refused: null }));
-  const base = { id: 'a', title: 't', state: 'made', madeFrom: 'l', madeOn: '2026-10-01', uses: { calculations: [], actions: [] }, textRemoved: false };
-  assert.equal(app({ ...base, cards: [{ kind: 'metric', title: '<script>', figure: { kind: 'missing', missing: 'withheld' } }] }).cards[0]!.title, '<script>');
-  invalid(() => app({ ...base, cards: [{ kind: 'html', title: 'x', html: '<b>x</b>' }] }));
-  invalid(() => app({ ...base, cards: [{ kind: 'metric', title: 'x', figure: { kind: 'money', exact: '10', receiptId: '' } }] }));
+test('other lanes\' replies are checked into view types', () => {
+  // hosted-link
+  invalid(() => counts({ month: '2026-10', sent: 1, budget: 40, costPaise: null, costState: 'unknown', byChannel: {} }));
+  invalid(() => counts({ month: '2026-10', sent: 1, budget: 30, costPaise: '0.5', costState: 'known', byChannel: {} }));
+  invalid(() => counts({ month: '2026-10', sent: 1, budget: 30, costPaise: '5', costState: 'unknown', byChannel: {} }));
+  invalid(() => channels({ stale: false, refreshedAt: null, channels: [{ channel: 'sms', desktop: { enabled: false, optInAt: null }, relay: null }] }));
+  invalid(() => status({ configured: true, paired: true, demo: false, pairing: null }));
+  // models-ext: a small app's labels are text; a card kind the adapter does not know, or a figure without its receipt, is refused
+  const figureValue = { state: 'figure', receiptId: 'rc-1', figures: [{ key: 'value', label: 'Sales', minor: '1050', display: '₹10.50', unit: 'money' }], completeness: 'reconciled-imports', gaps: [] };
+  const app = { id: 'smallapp_a', onDate: '2026-10-14', cards: [{ id: 'card-a', kind: 'metric', label: '<script>', value: figureValue }] };
+  const card = opened(app).cards[0]!;
+  assert.equal(card.kind === 'metric' && card.label, '<script>');
+  assert.equal(card.kind === 'metric' && card.value.kind === 'figures' && card.value.items[0]!.figure.kind === 'money' && card.value.items[0]!.figure.exact, '1050');
+  invalid(() => opened({ ...app, cards: [{ id: 'card-a', kind: 'html', label: 'x', html: '<b>x</b>' }] }));
+  invalid(() => opened({ ...app, cards: [{ id: 'card-a', kind: 'metric', label: 'x', value: { ...figureValue, receiptId: '' } }] }));
+  invalid(() => opened({ ...app, cards: [{ id: 'card-a', kind: 'metric', label: 'x', value: { state: 'missing', missing: 'zero' } }] }));
+  assert.deepEqual(proposal({ supported: false, state: 'not-yet', descriptor: null, message: 'Not yet.' }), { supported: false, message: 'Not yet.' });
+  invalid(() => proposal({ supported: true, descriptor: null, actions: [] }));
+  // models-ext wrapped tools: outside text must come marked as untrusted
+  invalid(() => detail({ description: 'plain', tools: [], skills: [] }));
 });

@@ -36,6 +36,13 @@ export function seatsView(state: State, ctx: Context) {
 export function endedMembers(state: State, day = today()): string[] {
   return state.members.filter(m => m.active && ended(seatRecordFor(state, m.id)?.endsOn ?? null, day)).map(m => m.id);
 }
+/** True when this member's dated seat is past its end. Owners, cofounders and members without a dated seat answer at once. */
+export function seatHasEnded(state: State, memberId: string, day?: string): boolean {
+  const member = state.members.find(m => m.id === memberId);
+  if (!member || member.role === 'owner' || member.role === 'cofounder') return false;
+  const seats = peekCore(state).seats; if (!Object.values(seats).some(seat => seat.endsOn !== null)) return false;
+  const endsOn = seatRecordFor(state, memberId)?.endsOn ?? null; return endsOn !== null && ended(endsOn, day ?? today());
+}
 /** Ends dated seats inside a store update: the member loses access and its sessions, as `members.revoke` would. */
 export function endSeats(state: State, day = today()): string[] {
   const ids = endedMembers(state, day);

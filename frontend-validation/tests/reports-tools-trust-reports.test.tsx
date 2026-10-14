@@ -79,11 +79,15 @@ const RHYTHM = {
   testMode: true, relay: 'not-available',
 };
 const DUE = {
-  caNote: 'Not yet checked by a CA.', table: { version: '2026.10', publishedAt: '2026-10-01' }, profile: { kind: 'retail', gstMode: 'regular', state: 'MH' },
-  covered: true, coveredKinds: ['retail', 'wholesale'],
+  caNote: 'Not yet checked by a CA.', tableNote: 'Each row links to the official source that sets its date.', table: { version: '2026.10', publishedAt: '2026-10-01' },
+  profile: { kind: 'retail', gstMode: 'regular', state: 'MH' }, profileWords: { kind: 'Shop or retail', gstMode: 'Regular GST', state: 'Maharashtra' },
+  covered: true, coveredKinds: ['retail', 'wholesale'], kinds: [{ id: 'retail', name: 'Shop or retail' }, { id: 'wholesale', name: 'Distribution or wholesale' }],
+  states: [{ code: 'MH', name: 'Maharashtra' }, { code: 'KA', name: 'Karnataka' }, { code: 'GJ', name: 'Gujarat' }],
   rows: [
-    { id: 'gstr3b-sep', what: 'GSTR-3B for September', dueOn: '2026-10-20', source: { title: 'GST portal', url: 'https://www.gst.gov.in/' }, lastChecked: '2026-10-01', checkOld: false, appliesTo: { kinds: ['retail'], gstModes: ['regular'], states: ['MH', 'KA'] } },
-    { id: 'tds-q2', what: 'TDS return for Q2', dueOn: '2026-10-31', source: { title: 'Income Tax', url: 'http://insecure.example/' }, lastChecked: '2026-08-01', checkOld: true, appliesTo: { kinds: ['retail', 'wholesale'], gstModes: ['regular', 'composition'], states: ['MH'] } },
+    { id: 'gstr3b-sep', what: 'GSTR-3B for September', dueOn: '2026-10-20', source: { title: 'Notification 82/2020-Central Tax', url: 'https://gstcouncil.gov.in/n82.pdf', date: '2020-11-10', confirmed: true }, lastChecked: '2026-10-01', checkOld: false,
+      appliesTo: { kinds: ['retail'], gstModes: ['regular'], states: ['MH', 'KA'] }, appliesToWords: { kinds: ['Shop or retail'], gstModes: ['Regular GST'], states: ['Maharashtra', 'Karnataka'] } },
+    { id: 'tds-q2', what: 'TDS return for Q2', dueOn: '2026-10-31', source: { title: 'Income Tax', url: 'http://insecure.example/' }, lastChecked: '2026-08-01', checkOld: true,
+      appliesTo: { kinds: ['retail', 'wholesale'], gstModes: ['regular', 'composition'], states: ['MH'] }, appliesToWords: { kinds: ['Shop or retail', 'Distribution or wholesale'], gstModes: ['Regular GST', 'GST composition'], states: ['Maharashtra'] } },
   ],
 };
 const RECORD = { id: 'ex-1', at: '2026-10-01T10:00:00Z', locked: false, encrypted: false, folder: '/exports/2026-10-01', stores: [{ name: 'ledger', rows: 12500, checkNumber: 'c0ffee12', file: 'ledger.csv' }] };
@@ -108,13 +112,13 @@ function mount({ sub, sheet, language = 'en', view = 'guided', role = 'owner', v
   if (sub !== undefined) address.sub = sub;
   if (sheet !== undefined) address.sheet = sheet;
   const fake = fakeRpc(replies);
-  const navigate = vi.fn(), openReceipt = vi.fn();
+  const navigate = vi.fn(), openReceipt = vi.fn(), openLink = vi.fn();
   const module = placeModuleFor(address, reportsPlaces);
   if (module === null) throw new Error('no module');
-  const props: PlaceRenderProps = { address, language, view, viewer, member: { id: 'm1', role }, rpc: fake.rpc, live: () => true, openReceipt, navigate };
+  const props: PlaceRenderProps = { address, language, view, viewer, member: { id: 'm1', role }, rpc: fake.rpc, live: () => true, openReceipt, navigate, openLink };
   const ui = (p: PlaceRenderProps): ReactElement => <TextProvider language={p.language}>{module.render(p)}</TextProvider>;
   const view_ = render(ui(props));
-  return { ...fake, navigate, openReceipt, module, rerender: (next: Partial<PlaceRenderProps>) => view_.rerender(ui({ ...props, ...next })) };
+  return { ...fake, navigate, openReceipt, openLink, module, rerender: (next: Partial<PlaceRenderProps>) => view_.rerender(ui({ ...props, ...next })) };
 }
 
 const ALL = { 'reportsx.packs': PACKS, 'reportsx.page': PAGE, 'reportsx.weekAhead': WEEK, 'reportsx.friday': FRIDAY, 'reportsx.rhythm': RHYTHM, 'reportsx.due': DUE, 'reportsx.exports': EXPORTS };
@@ -143,7 +147,7 @@ test('RP-01 packs: pages say their state in words, packs their GST modes, and a 
   expect(screen.getByText('This pack has no pages yet.')).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: /Ready for a loan\?/ }));
   expect(m.navigate).toHaveBeenCalledWith({ place: 'reports', sub: 'packs', sheet: 'lender.ready-for-loan' });
-  expect(m.sent('reportsx.packs')).toEqual([{ method: 'reportsx.packs', payload: {} }]);
+  expect(m.sent('reportsx.packs')).toEqual([{ method: 'reportsx.packs', payload: { language: 'en' } }]);
 });
 
 test('RP-01 packs in Hindi', async () => {
@@ -169,8 +173,10 @@ test('RP-02 a report page: figures open receipts, missing is words, Dr and Cr, g
   const projection = page.getByRole('region', { name: 'Projection' });
   expect(within(projection).getByText('Cash in three months')).toBeTruthy();
   expect(within(projection).getByText('projection')).toBeTruthy();
-  const link = page.getByRole('link', { name: 'https://incometaxindia.gov.in/43bh' });
-  expect(link.getAttribute('href')).toBe('https://incometaxindia.gov.in/43bh');
+  // Outside addresses go through the host's link dialog (SH-10), never a direct link.
+  page.getByRole('button', { name: 'https://incometaxindia.gov.in/43bh' }).click();
+  expect(m.openLink).toHaveBeenCalledWith('https://incometaxindia.gov.in/43bh');
+  expect(page.queryAllByRole('link')).toHaveLength(0);
   expect(page.queryByRole('link', { name: 'javascript:alert(1)' })).toBeNull();
   expect(page.getByText('javascript:alert(1)')).toBeTruthy();
   expect(page.getAllByText('Not legal advice.').length).toBe(2);
@@ -211,6 +217,47 @@ test('RP-02 export: a file shows its name, size and check number; PDF and Tally 
   await userEvent.click(screen.getByRole('button', { name: 'Export · File for Tally' }));
   expect(await screen.findByText('A file Tally can import is not available for a single report page yet.')).toBeTruthy();
   expect(m.sent('reportsx.export').length).toBe(3);
+});
+
+test('RP-02 period: the financial year to date by default, then a month, a quarter or from and to, sent to the page and to exports and shown in the header', async () => {
+  const m = mount({ sub: 'packs', sheet: 'lender.ready-for-loan', replies: { ...ALL,
+    'reportsx.page': (p: Record<string, unknown>) => ({ ...PAGE, period: p['period'] ?? PAGE.period }),
+    'reportsx.export': (p: Record<string, unknown>) => ({ format: p['format'], name: 'f.csv', path: '/out/f.csv', bytes: 10, sha256: SHA, encrypted: false, textCellsProtected: true }) } });
+  const sheet = within(await screen.findByRole('region', { name: 'Ready for a loan?' }));
+  expect(sheet.getByText(/^This financial year to date: 1 Apr 2026 to 30 Sept? 2026/)).toBeTruthy();
+  expect(m.sent('reportsx.page')[0]?.payload['period']).toBeUndefined();
+  await userEvent.click(sheet.getByRole('radio', { name: 'A quarter' }));
+  await userEvent.click(sheet.getByRole('radio', { name: 'July to September' }));
+  await userEvent.click(sheet.getByRole('button', { name: 'Show this period' }));
+  await waitFor(() => expect(m.sent('reportsx.page').at(-1)?.payload['period']).toEqual({ from: expect.stringMatching(/-07-01$/), to: expect.stringMatching(/-09-30$/) }));
+  expect(await sheet.findByText(/^A quarter: 1 Jul/)).toBeTruthy();
+  await userEvent.click(sheet.getByRole('radio', { name: 'From and to' }));
+  const from = sheet.getByLabelText('From'), to = sheet.getByLabelText('To');
+  await userEvent.clear(from); await userEvent.type(from, '2026-09-30');
+  await userEvent.clear(to); await userEvent.type(to, '2026-09-01');
+  const asked = m.sent('reportsx.page').length;
+  await userEvent.click(sheet.getByRole('button', { name: 'Show this period' }));
+  expect(await sheet.findByText('The start date must be on or before the end date.')).toBeTruthy();
+  expect(m.sent('reportsx.page').length).toBe(asked);
+  await userEvent.clear(from); await userEvent.type(from, '2026-09-01');
+  await userEvent.clear(to); await userEvent.type(to, '2026-09-30');
+  await userEvent.click(sheet.getByRole('button', { name: 'Show this period' }));
+  await waitFor(() => expect(m.sent('reportsx.page').at(-1)?.payload['period']).toEqual({ from: '2026-09-01', to: '2026-09-30' }));
+  expect(await sheet.findByText(/^From and to: 1 Sept? 2026 to 30 Sept? 2026/)).toBeTruthy();
+  await userEvent.click(sheet.getByRole('button', { name: 'Export · CSV' }));
+  await waitFor(() => expect(m.sent('reportsx.export')[0]?.payload).toEqual({ pack: 'lender', page: 'ready-for-loan', language: 'en', period: { from: '2026-09-01', to: '2026-09-30' }, format: 'csv' }));
+});
+
+test('RP-02 period words in Hindi; a period over two years is a sentence, not a request', async () => {
+  const m = mount({ sub: 'packs', sheet: 'lender.ready-for-loan', language: 'hi', replies: ALL });
+  await screen.findByRole('heading', { level: 3 });
+  await userEvent.click(screen.getByRole('radio', { name: 'से और तक' }));
+  const from = screen.getByLabelText('से'), to = screen.getByLabelText('तक');
+  await userEvent.clear(from); await userEvent.type(from, '2022-01-01');
+  await userEvent.clear(to); await userEvent.type(to, '2026-01-01');
+  await userEvent.click(screen.getByRole('button', { name: 'यह अवधि दिखाएँ' }));
+  expect(await screen.findByText('अधिकतम दो साल की अवधि चुनें।')).toBeTruthy();
+  expect(m.sent('reportsx.page').every((c) => c.payload['period'] === undefined)).toBe(true);
 });
 
 test('RP-02 viewer: can print, cannot export', async () => {
@@ -259,7 +306,7 @@ test('RP-04 the Friday review: decisions with what was observed, at most five le
   await screen.findByText('What changed');
   await userEvent.click(screen.getByRole('radio', { name: 'Friday' }));
   expect(await screen.findByText('Decisions due for review')).toBeTruthy();
-  expect(m.sent('reportsx.friday')).toEqual([{ method: 'reportsx.friday', payload: {} }]);
+  expect(m.sent('reportsx.friday')).toEqual([{ method: 'reportsx.friday', payload: { language: 'en' } }]);
   expect(screen.getByText('What was observed: Paid the old bill in full.')).toBeTruthy();
   expect(screen.getByText('Nothing observed yet.')).toBeTruthy();
   expect(screen.getByText('Lesson 5')).toBeTruthy();
@@ -283,23 +330,19 @@ test('RP-05 rhythm: Save sends exactly reportsx.setRhythm with the changed field
   const sheet = await screen.findByRole('region', { name: 'Rhythm and delivery' });
   const s = within(sheet);
   expect(s.getByText('Sends only to the demo inbox and phone.')).toBeTruthy();
-  expect(s.getAllByText('Nothing is sent until this is verified.').length).toBe(2);
-  expect(s.getByText('Partial · The WhatsApp message template is not approved yet.')).toBeTruthy();
-  expect(s.getByText(/Three things changed\./)).toBeTruthy();
-  expect(s.getByText('Your week ahead is ready.')).toBeTruthy();
   expect((s.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
   const time = s.getByLabelText('Time (HH:MM)');
   await userEvent.clear(time);
   await userEvent.type(time, '07:45');
   await userEvent.click(s.getByRole('button', { name: 'Fri' }));
-  await userEvent.type(s.getByLabelText('Your phone number'), '+919800000000');
   await userEvent.click(s.getByRole('button', { name: 'Save' }));
   expect(await s.findByText('Saved.')).toBeTruthy();
-  expect(m.sent('reportsx.setRhythm')).toEqual([{ method: 'reportsx.setRhythm', payload: { days: [1, 4, 5], time: '07:45', whatsapp: { on: false, phone: '+919800000000' } } }]);
+  expect(m.sent('reportsx.setRhythm')).toEqual([{ method: 'reportsx.setRhythm', payload: { days: [1, 4, 5], time: '07:45' } }]);
+  expect(m.sent('reportsx.rhythm')[0]?.payload).toEqual({ language: 'en' });
 });
 
-test('RP-05 rhythm: a bad time is a sentence, not a request; Verify without the relay says so', async () => {
-  const m = mount({ sub: 'weekahead', sheet: 'rhythm', replies: { ...ALL, 'reportsx.verifyChannel': () => new Refusal('RELAY_NOT_AVAILABLE') } });
+test('RP-05 rhythm: a bad time is a sentence, not a request; no delivery switch is copied here', async () => {
+  const m = mount({ sub: 'weekahead', sheet: 'rhythm', replies: ALL });
   const sheet = await screen.findByRole('region', { name: 'Rhythm and delivery' });
   const s = within(sheet);
   const time = s.getByLabelText('Time (HH:MM)');
@@ -308,9 +351,11 @@ test('RP-05 rhythm: a bad time is a sentence, not a request; Verify without the 
   await userEvent.click(s.getByRole('button', { name: 'Save' }));
   expect(s.getByText('Write the time as HH:MM, for example 08:30.')).toBeTruthy();
   expect(m.sent('reportsx.setRhythm')).toEqual([]);
-  await userEvent.click(s.getAllByRole('button', { name: 'Verify' })[0]!);
-  expect(await s.findByText('The relay is a paid, hosted part: planned, not available yet.', { selector: '[role=status]' })).toBeTruthy();
-  expect(m.sent('reportsx.verifyChannel')).toEqual([{ method: 'reportsx.verifyChannel', payload: { channel: 'mail' } }]);
+  expect(s.queryByRole('button', { name: 'Verify' })).toBeNull();
+  expect(s.queryByLabelText('Your phone number')).toBeNull();
+  expect(await s.findByText('Phone channels are not built yet, so briefs are not sent anywhere.')).toBeTruthy();
+  await userEvent.click(s.getByRole('button', { name: 'Open Tools · Phone' }));
+  expect(m.navigate).toHaveBeenCalledWith({ place: 'tools', sub: 'phone' });
 });
 
 test('RP-05 rhythm is read only for an accountant and a viewer, in Hindi too', async () => {
@@ -320,7 +365,7 @@ test('RP-05 rhythm is read only for an accountant and a viewer, in Hindi too', a
     expect(within(sheet).getByText('आपकी सीट ये सेटिंग पढ़ सकती है, बदल नहीं सकती।')).toBeTruthy();
     expect(within(sheet).getByText('सोम, गुरु')).toBeTruthy();
     expect(within(sheet).queryByRole('button', { name: 'सहेजें' })).toBeNull();
-    expect(within(sheet).queryByRole('button', { name: 'पुष्टि करें' })).toBeNull();
+    expect(within(sheet).getByRole('button', { name: 'औज़ार · फ़ोन खोलें' })).toBeTruthy();
     cleanup();
   }
 });
@@ -334,13 +379,22 @@ test('changedFields keeps only what differs', () => {
 test('RP-06 due dates: CA line, rows with source, last checked, what they apply to; profile saved by an admin', async () => {
   const m = mount({ sub: 'duedates', replies: { ...ALL, 'reportsx.setDueProfile': (p: Record<string, unknown>) => p } });
   expect(await screen.findByText('Not yet checked by a CA.')).toBeTruthy();
+  expect(screen.getByText('Each row links to the official source that sets its date.')).toBeTruthy();
+  expect(m.sent('reportsx.due')[0]?.payload).toEqual({ language: 'en' });
   expect(screen.getByText('GSTR-3B for September')).toBeTruthy();
   expect(screen.getByText('Due 20 Oct 2026')).toBeTruthy();
-  expect(screen.getByRole('link', { name: 'GST portal' }).getAttribute('href')).toBe('https://www.gst.gov.in/');
+  screen.getByRole('button', { name: 'Notification 82/2020-Central Tax' }).click();
+  expect(m.openLink).toHaveBeenCalledWith('https://gstcouncil.gov.in/n82.pdf');
+  expect(screen.getByText('Source dated 10 Nov 2020')).toBeTruthy();
+  // An older reply without the source date or check reads as undated and not confirmed.
+  expect(screen.getByText('The source states no date.')).toBeTruthy();
+  expect(screen.getAllByText('This source could not be opened and checked yet; it is the closest official page found.').length).toBe(1);
   expect(screen.queryByRole('link', { name: 'Income Tax' })).toBeNull();
   expect(screen.getByText('Checked more than 30 days ago.')).toBeTruthy();
-  expect(screen.getByText('States: MH, KA')).toBeTruthy();
-  expect(screen.getByText('GST modes: regular, composition')).toBeTruthy();
+  expect(screen.getByText('States: Maharashtra, Karnataka')).toBeTruthy();
+  expect(screen.getByText('GST modes: Regular GST, GST composition')).toBeTruthy();
+  expect(screen.getByText('Kinds of business: Shop or retail, Distribution or wholesale')).toBeTruthy();
+  expect(screen.queryByText(/States: MH/)).toBeNull();
   const state = screen.getByLabelText('State (two letters)');
   await userEvent.clear(state);
   await userEvent.type(state, 'ka');
@@ -352,11 +406,14 @@ test('RP-06 due dates: CA line, rows with source, last checked, what they apply 
 });
 
 test('RP-06 a kind not covered says so with the covered list; an accountant reads the profile; Hindi', async () => {
-  mount({ sub: 'duedates', role: 'accountant', language: 'hi', replies: { ...ALL, 'reportsx.due': { ...DUE, covered: false, profile: { kind: 'restaurant', gstMode: 'none', state: 'GJ' }, rows: [] } } });
-  expect(await screen.findByText('अभी किसी CA ने नहीं जाँचा।')).toBeTruthy();
+  const m = mount({ sub: 'duedates', role: 'accountant', language: 'hi', replies: { ...ALL, 'reportsx.due': { ...DUE, caNote: 'अभी किसी CA ने नहीं जाँचा है।', tableNote: 'हर पंक्ति आधिकारिक स्रोत से जुड़ी है।', covered: false,
+    profile: { kind: 'restaurant', gstMode: 'none', state: 'GJ' }, profileWords: { kind: 'restaurant', gstMode: 'GST पंजीकरण नहीं', state: 'गुजरात' },
+    kinds: [{ id: 'retail', name: 'दुकान या खुदरा' }, { id: 'wholesale', name: 'वितरण या थोक' }], rows: [] } } });
+  expect(await screen.findByText('अभी किसी CA ने नहीं जाँचा है।')).toBeTruthy();
+  expect(m.sent('reportsx.due')[0]?.payload).toEqual({ language: 'hi' });
   expect(screen.getByText('इस तरह के व्यवसाय की नियत तारीख़ें अभी शामिल नहीं हैं।')).toBeTruthy();
-  expect(screen.getByText('अभी शामिल: retail, wholesale')).toBeTruthy();
-  expect(screen.getByText('restaurant · GST नहीं · GJ')).toBeTruthy();
+  expect(screen.getByText('अभी शामिल: दुकान या खुदरा, वितरण या थोक')).toBeTruthy();
+  expect(screen.getByText('restaurant · GST पंजीकरण नहीं · गुजरात')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'सहेजें' })).toBeNull();
 });
 

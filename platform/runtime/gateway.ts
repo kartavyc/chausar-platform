@@ -16,6 +16,10 @@ import { conversationCalculationParameterDisclosure, validateReviewedConversatio
 import { buildBusinessContext, assertBusinessContextCurrent, businessContextDisclosure, validateBusinessSelection, renderBusinessAnswer, type BusinessContextHooks, type BusinessContextManifest, type BusinessContextRequest, type BusinessSelection } from './conversation-context.ts';
 import type { ConversationSynthesisCodec, GatewaySynthesisAuthority, GroundedSynthesisOutput } from './conversation-synthesis-contract.ts';
 
+/** A last check engine modules register on the exact outgoing bytes, run before any provider or CLI dispatch; throwing sends nothing. */
+export type OutboundCheck = (store: StateStore, context: Context, outgoing: { receiptId: string; endpoint: string; payload: string }) => void | Promise<void>;
+const outboundChecks = new Set<OutboundCheck>();
+export function registerOutboundCheck(outbound: OutboundCheck): void { outboundChecks.add(outbound); }
 export const DEFAULT_OPERATIONS = ['billed', 'received', 'earned', 'refunds', 'costs', 'purchases', 'revenue', 'net_sales', 'margin', 'order-margin', 'aging', 'change', 'scenario'];
 export type RouteKind = 'codex-cli' | 'claude-cli' | 'openai-responses' | 'openai-compatible' | 'ollama' | 'managed' | 'anthropic-messages' | 'subq-snap';
 export type RouteConfig = {
@@ -985,6 +989,11 @@ export class ModelGateway {
     check(cli || route.kind === 'ollama' || Boolean(key), route.kind === 'managed' ? 'MANAGED_UNAVAILABLE' : 'CREDENTIAL_REQUIRED', 'This model route needs its configured API credential.');
     // Credentials may be retrieved asynchronously; recheck access immediately before reserving and dispatch.
     route = this.#assertCurrent(context, preview);
+    // Registered outbound checks run before anything is reserved: a refused call keeps its budget, its approval and no dispatch time.
+    try { for (const outbound of outboundChecks) await outbound(this.store, context, { receiptId: preview.id, endpoint: preview.endpoint, payload: preview.payload }); } catch (error) {
+      await this.store.update(state => { const current = state.modelReceipts.find(r => r.id === preview.id); if (current?.status === 'preview') { current.status = 'failed'; current.errorCode = error instanceof ChausarError ? error.code : 'MODEL_FAILED'; current.completedAt = now(); } });
+      throw error;
+    }
     await this.store.update(state => {
       this.#assertCurrent(context, preview, state); const current = state.modelReceipts.find(r => r.id === preview.id);
       check(current?.status === 'preview', 'ALREADY_SENT', 'Every model preview can be dispatched once only.');

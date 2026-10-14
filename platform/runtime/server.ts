@@ -66,7 +66,7 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         let context;
         if (bootstrap) context = engine.bootstrapContext();
         else {
-          try { context = engine.contextForSession(suppliedToken); }
+          try { context = engine.contextForSession(suppliedToken, url.pathname === '/mcp' ? 'mcp' : 'desktop'); }
           catch { throw Object.assign(new Error('This workspace session expired or was revoked.'), { code: 'UNAUTHENTICATED' }); }
         }
         check((req.headers['content-type'] ?? '').startsWith('application/json'), 'INVALID_CONTENT_TYPE', 'Use a JSON request.');

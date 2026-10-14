@@ -3,24 +3,30 @@
  * that opens its receipt, balances carry Dr or Cr, each section's gaps are printed beside
  * its total, a projection sits apart under its own label, and notes carry their source,
  * the date it was checked and "not legal advice". The report's language is chosen here;
- * the page prints, and exports to Excel, CSV and HTML (PDF goes through Print).
+ * the page prints, and exports to Excel, CSV and HTML (PDF goes through Print). The period
+ * is chosen here too (the financial year to date unless changed) and goes to the page and to
+ * every export; the screen checks the dates, the engine works out every figure.
  */
 import { useState } from 'react';
 import type { Language } from '../../app/presentation.ts';
 import { Button } from '../../parts/Button';
 import { Choice } from '../../parts/Choice';
+import { Field } from '../../parts/Field';
 import { Figure } from '../../parts/Figure';
 import { Label } from '../../parts/Label';
 import { Sheet } from '../../parts/Sheet';
 import { State } from '../../patterns/States';
+import { createShellPort, type DesktopShellBridge } from '../../bridge/shell.ts';
+import { OutsideLink } from '../trust/kit/OutsideLink';
 import type { PlaceRenderProps } from '../../places/types.ts';
 import { words } from '../../places/types.ts';
 import { count } from '../../format/index.ts';
 import { useEngine, useSend } from '../trust/kit/engine.ts';
 import { Note, screenState } from '../trust/kit/Screen';
-import { day, refusal, when } from './shared';
+import { day, refusal, shown, when } from './shared';
 import { httpsUrl, validateExportedFile, validatePage, type PageSection, type ReportPage as Page } from './validate.ts';
 import { WORDS, fill, type Words } from './words.ts';
+import { PERIOD_KINDS, defaultChoice, indiaToday, periodOf, type Period, type PeriodChoice, type PeriodKind } from './period.ts';
 import s from './Reports.module.css';
 import p from './ReportPage.module.css';
 
@@ -34,25 +40,30 @@ export interface ReportPageSheetProps extends PlaceRenderProps {
   onClose: () => void;
 }
 
-export function ReportPageSheet({ pack, page, origin, onClose, language, view, viewer, member, rpc, openReceipt }: ReportPageSheetProps) {
+export function ReportPageSheet({ pack, page, origin, onClose, language, view, viewer, member, rpc, openReceipt, openLink }: ReportPageSheetProps) {
   const w = words(WORDS, language);
   const [lang, setLang] = useState<Language>(language);
-  const { state } = useEngine(rpc, 'reportsx.page', { pack, page, language: lang }, validatePage, `${pack}.${page}`);
+  const [today] = useState(() => indiaToday());
+  const [applied, setApplied] = useState<{ kind: PeriodKind; period: Period | undefined }>({ kind: 'fytd', period: undefined });
+  const asked = { pack, page, language: lang, ...(applied.period !== undefined ? { period: applied.period } : {}) };
+  const { state } = useEngine(rpc, 'reportsx.page', asked, validatePage, `${pack}.${page}`);
   const exporter = useSend(rpc, validateExportedFile);
   const readOnly = viewer || member.role === 'viewer';
   const title = state.kind === 'ready' ? state.value.title : w.pageKind;
-  const print = () => window.print();
+  // The system print dialog through the guarded shell port; the page's own @media print rule hides the frame.
+  const print = () => { void createShellPort((window as { chausar?: DesktopShellBridge }).chausar ?? null).print('page'); };
 
   return (
     <Sheet kind={w.pageKind} title={title} onClose={onClose} origin={origin}>
       <div className={[s.stack, p.noPrint].join(' ')}>
         <Choice<Language> label={w.language} options={[{ value: 'en', label: w.english }, { value: 'hi', label: w.hindi }]} value={lang}
           onChange={(next) => { setLang(next); exporter.clear(); }} />
+        <PeriodPicker w={w} today={today} onApply={(kind, period) => { setApplied({ kind, period }); exporter.clear(); }} />
         <div className={s.actions}>
           <Button onClick={print}>{w.print}</Button>
           {!readOnly && state.kind === 'ready' && FORMATS.map((format) => (
             <Button key={format} disabled={exporter.sent.kind === 'sending'}
-              onClick={() => { void exporter.send('reportsx.export', { pack, page, format, language: lang }); }}>
+              onClick={() => { void exporter.send('reportsx.export', { ...asked, format }); }}>
               {`${w.exportTo} · ${w[`fmt.${format}`]}`}
             </Button>
           ))}
@@ -74,12 +85,45 @@ export function ReportPageSheet({ pack, page, origin, onClose, language, view, v
           </div>
         )}
       </div>
-      {state.kind === 'ready' ? <PrintedPage page={state.value} w={w} language={language} view={view} openReceipt={openReceipt} /> : <State state={screenState(state)} />}
+      {state.kind === 'ready' ? <PrintedPage page={state.value} w={w} language={language} view={view} openReceipt={openReceipt} openLink={openLink} periodKind={applied.kind} /> : <State state={screenState(state)} />}
     </Sheet>
   );
 }
 
-function PrintedPage({ page, w, language, view, openReceipt }: { page: Page; w: Words; language: Language; view: PlaceRenderProps['view']; openReceipt: (id: string) => void }) {
+/** RP-02's period control: the financial year to date, last financial year, a month, a quarter, or from and to. */
+function PeriodPicker({ w, today, onApply }: { w: Words; today: string; onApply: (kind: PeriodKind, period: Period | undefined) => void }) {
+  const [choice, setChoice] = useState<PeriodChoice>(() => defaultChoice(today));
+  const [problem, setProblem] = useState<string | null>(null);
+  const set = (part: Partial<PeriodChoice>) => { setChoice((c) => ({ ...c, ...part })); setProblem(null); };
+  const apply = () => {
+    const result = periodOf(choice, today);
+    if (!result.ok) { setProblem(w[`period.${result.problem}`]); return; }
+    setProblem(null); onApply(choice.kind, result.period);
+  };
+  return (
+    <form className={s.stack} aria-label={w.period} onSubmit={(e) => { e.preventDefault(); apply(); }}>
+      <Choice<PeriodKind> label={w.period} options={PERIOD_KINDS.map((k) => ({ value: k, label: w[`period.${k}`] }))} value={choice.kind} onChange={(kind) => set({ kind })} />
+      {choice.kind === 'month' && <Field label={w.periodMonth} type="month" value={choice.month} onChange={(e) => set({ month: e.currentTarget.value })} />}
+      {choice.kind === 'quarter' && (
+        <>
+          <Field label={w.periodFyStart} inputMode="numeric" maxLength={4} value={choice.fyStart} onChange={(e) => set({ fyStart: e.currentTarget.value.trim() })} />
+          <Choice<PeriodChoice['quarter']> label={w.periodQuarter} options={(['1', '2', '3', '4'] as const).map((q) => ({ value: q, label: w[`quarter.${q}`] }))}
+            value={choice.quarter} onChange={(quarter) => set({ quarter })} />
+        </>
+      )}
+      {choice.kind === 'custom' && (
+        <>
+          <Field label={w.periodFrom} type="date" value={choice.from} onChange={(e) => set({ from: e.currentTarget.value })} />
+          <Field label={w.periodTo} type="date" value={choice.to} onChange={(e) => set({ to: e.currentTarget.value })} />
+        </>
+      )}
+      {problem !== null && <Note status>{problem}</Note>}
+      <div><Button submit>{w.periodShow}</Button></div>
+    </form>
+  );
+}
+
+function PrintedPage({ page, w, language, view, openReceipt, openLink, periodKind }: { page: Page; w: Words; language: Language; view: PlaceRenderProps['view']; openReceipt: (id: string) => void; openLink: PlaceRenderProps['openLink']; periodKind: PeriodKind }) {
   const facts = page.sections.filter((x) => !x.projection), projections = page.sections.filter((x) => x.projection);
   return (
     <article className={p.page} lang={page.language}>
@@ -88,7 +132,9 @@ function PrintedPage({ page, w, language, view, openReceipt }: { page: Page; w: 
       )}
       <h3 className={p.pageTitle}>{page.title}</h3>
       <p className={s.quiet}>
-        {page.period !== null ? fill(w.periodLine, { from: day(page.period.from, language), to: day(page.period.to, language) }) : w.noPeriod}
+        {page.period !== null
+          ? fill(w.periodHead, { kind: w[`period.${periodKind}`], period: fill(w.periodLine, { from: day(page.period.from, language), to: day(page.period.to, language) }) })
+          : w.noPeriod}
         {' · '}{fill(w.madeAt, { when: when(page.generatedAt, w, language) })}
       </p>
       {page.state !== 'ready-tested' && <p className={s.say}>{page.state === 'not-started' ? w.pageNotStarted : w['state.ready-untested']}</p>}
@@ -116,7 +162,7 @@ function PrintedPage({ page, w, language, view, openReceipt }: { page: Page; w: 
                 {note.source !== null && (
                   <p className={s.quiet}>
                     {fill(w.source, { title: note.source.title })}{' '}
-                    {href !== null ? <a href={href} target="_blank" rel="noopener noreferrer">{note.source.url}</a> : <span>{note.source.url}</span>}
+                    {href !== null ? <OutsideLink url={href} label={note.source.url} openLink={openLink} /> : <span>{note.source.url}</span>}
                     {' · '}{fill(w.checkedOn, { date: day(note.source.checkedOn, language) })}
                   </p>
                 )}
@@ -159,7 +205,7 @@ function Section({ section, w, view, openReceipt }: { section: PageSection; w: W
                   {line.label}
                   {view === 'books' && <span className={[s.quiet, s.code].join(' ')}> {fill(w.lineId, { id: line.id })}</span>}
                 </th>
-                <td className={p.amount}><Figure value={line.figure} onReceipt={openReceipt} /></td>
+                <td className={p.amount}><Figure value={shown(line.figure, view, w)} onReceipt={openReceipt} /></td>
                 <td className={p.side}>{line.side !== null ? w[line.side] : ''}</td>
                 <td className={p.gapCell}>
                   {last && section.gaps.map((gap, k) => <span key={k} className={p.gapBeside}>{fill(w.gap, { gap })}</span>)}

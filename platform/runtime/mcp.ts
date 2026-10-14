@@ -14,6 +14,25 @@ export type RegisteredReadTool = { name: string; description: string; inputSchem
 /** Read tools that engine modules contribute at load (for example the dictionary layers); each MCPService adds them for its store. */
 const readToolProviders = new Set<(store: StateStore) => RegisteredReadTool[]>();
 export function registerMcpReadTools(provider: (store: StateStore) => RegisteredReadTool[]): void { readToolProviders.add(provider); }
+/** A per-call record: the member, the registered tool (null for anything else), the receipt and how the call ended. */
+export type McpCallRecord = { memberId: string; method: 'tools/call' | 'other'; tool: string | null; receiptId: string | null; outcome: 'answered' | 'failed' | 'refused'; code: string | null };
+const callHooks = new Set<(store: StateStore, record: McpCallRecord) => void | Promise<void>>();
+/** Engine modules register at load to keep each tool call and refused request; a hook failure never changes the reply. */
+export function registerMcpCallHook(hook: (store: StateStore, record: McpCallRecord) => void | Promise<void>): void { callHooks.add(hook); }
+/** Call records wait here and reach the hooks in one store update: every 20 records, a second after the first, or on `flushMcpCalls`. */
+const MCP_FLUSH_RECORDS = 20, MCP_FLUSH_MS = 1000;
+const pendingCalls = new Map<StateStore, { records: McpCallRecord[]; timer: NodeJS.Timeout | undefined }>();
+/** Writes the waiting call records of one store (or of every store) through the hooks, in one store update each. */
+export async function flushMcpCalls(store?: StateStore): Promise<void> {
+  for (const [target, waiting] of [...pendingCalls]) {
+    if (store && target !== store) continue;
+    pendingCalls.delete(target); clearTimeout(waiting.timer);
+    const changes: ((state: State) => unknown)[] = [];
+    const batch: StateStore = { read: () => target.read(), update: async <T>(change: (state: State) => T | Promise<T>) => { changes.push(change); return undefined as T; } };
+    for (const record of waiting.records) for (const hook of callHooks) try { await hook(batch, structuredClone(record)); } catch { /* a record never changes the reply */ }
+    if (changes.length) try { await target.update(async state => { for (const change of changes) await change(state); }); } catch { /* a record never changes the reply */ }
+  }
+}
 type Session = { identity: string; phase: 'initializing' | 'ready'; protocol: string };
 const receiptSchema = { type: 'object', additionalProperties: false, required: ['receiptId'], properties: {
   receiptId: { type: 'string', minLength: 1, maxLength: 200 },
@@ -94,6 +113,15 @@ export class MCPService {
     check(args.receiptDigest === undefined || args.receiptDigest === receiptDigest, 'RECEIPT_CHANGED', 'The retained receipt no longer matches the requested evidence.');
     return { receipt, receiptDigest };
   }
+  /** One record per tool call or refused request for the registered hooks, structure only (no arguments, no values). */
+  async #record(context: Context, request: JSONRPCRequest, outcome: McpCallRecord['outcome'], code: string | null, receiptId: unknown = null) {
+    const name = request?.params?.name; const tool = typeof name === 'string' && (this.calculations.has(name) || this.readTools.has(name) || receiptTools.some(t => t.name === name)) ? name : null;
+    const record: McpCallRecord = { memberId: context.memberId, method: request?.method === 'tools/call' ? 'tools/call' : 'other', tool, receiptId: typeof receiptId === 'string' && receiptId.length <= 200 ? receiptId : null, outcome, code };
+    const waiting = pendingCalls.get(this.store) ?? { records: [] as McpCallRecord[], timer: undefined as NodeJS.Timeout | undefined };
+    pendingCalls.set(this.store, waiting); waiting.records.push(record);
+    if (waiting.records.length >= MCP_FLUSH_RECORDS) await flushMcpCalls(this.store);
+    else waiting.timer ??= setTimeout(() => { void flushMcpCalls(this.store); }, MCP_FLUSH_MS).unref();
+  }
   async handle(context: Context, request: JSONRPCRequest, sessionId = 'local'): Promise<JSONRPCResponse | null> {
     const id = request?.id ?? null;
     try {
@@ -118,7 +146,7 @@ export class MCPService {
         check(calculation || receiptTool || readTool, 'UNKNOWN_TOOL', 'This read-only calculation or receipt tool is not registered.');
         const args = validateArguments((calculation || receiptTool || readTool)!.inputSchema, request.params.arguments ?? {});
         try {
-          const verified = (structuredContent: unknown) => respond({ content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: false });
+          const verified = async (structuredContent: any) => { await this.#record(context, request, 'answered', null, readTool ? null : structuredContent?.receipt?.id ?? structuredContent?.receiptId); return respond({ content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: false }); };
           if (readTool) { const structuredContent = await readTool.read(args, { ...context, channel: 'mcp' }); authorize(this.store, context); return verified(structuredContent); }
           if (receiptTool) {
             const { receipt, receiptDigest } = this.retainedReceipt(context, args);
@@ -135,12 +163,14 @@ export class MCPService {
         catch (error) {
           authorize(this.store, context);
           if (error instanceof ChausarError && permissionErrors.has(error.code)) throw new ChausarError(error.code, 'Your current permissions do not allow this calculation or receipt.');
+          await this.#record(context, request, 'failed', error instanceof ChausarError && evidenceErrors.has(error.code) ? error.code : 'UNVERIFIED_NUMBER');
           return respond({ content: [{ type: 'text', text: 'The requested calculation or receipt could not provide current verified evidence.' }], structuredContent: { code: error instanceof ChausarError && evidenceErrors.has(error.code) ? error.code : 'UNVERIFIED_NUMBER' }, isError: true });
         }
       }
       throw new ChausarError('METHOD_NOT_FOUND', 'This server only exposes read-only verified calculation tools.');
     } catch (error) {
       const code = error instanceof ChausarError ? error.code : 'INTERNAL_ERROR';
+      if (request?.method === 'tools/call' || code === 'METHOD_NOT_FOUND') await this.#record(context, request, 'refused', code);
       if (request?.id === undefined && request?.method?.startsWith('notifications/')) return null;
       return { jsonrpc: '2.0', id, error: { code: code === 'METHOD_NOT_FOUND' ? -32601 : ['INVALID_ARGUMENTS', 'UNKNOWN_TOOL'].includes(code) ? -32602 : code === 'INVALID_RPC' ? -32600 : -32001, message: error instanceof ChausarError ? error.message : 'MCP request failed.', data: { code } } };
     }

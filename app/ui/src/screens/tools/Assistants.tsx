@@ -4,6 +4,9 @@
  * with its last call and Remove; pairing that shows the code once; the call list with the
  * client, the calculation, the receipt id (which opens the receipt) and what the
  * disclosure check removed; a call that asked to change something is shown as refused.
+ * Pairing is for the owner; a code is shown once, and a refusal such as
+ * ASSISTANT_SCOPE_NOT_AVAILABLE reads as its sentence. Simple leaves out the server card and
+ * what the disclosure check removed; Books adds ids.
  */
 import { useState, type FormEvent } from 'react';
 import type { PlaceRenderProps } from '../../places/types.ts';
@@ -57,7 +60,7 @@ function Pair({ props, w, onPaired }: { props: PlaceRenderProps; w: Words; onPai
 }
 
 function Body({ value, props, w, reload }: { value: Assistants; props: PlaceRenderProps; w: Words; reload: () => void }) {
-  const admin = isAdmin(props), books = props.view === 'books';
+  const admin = isAdmin(props), books = props.view === 'books', simple = props.view === 'simple';
   const change = useSend(props.rpc, assistants);
   const sendChange = async (method: string, payload: Record<string, unknown>) => { if (await change.send(method, payload) !== null) reload(); };
   return (
@@ -73,9 +76,11 @@ function Body({ value, props, w, reload }: { value: Assistants; props: PlaceRend
         <Note>{w.offByDefault}</Note>
       </div>
       <SentLine sent={change.sent} w={w} />
-      <Group title={w.server}>
-        <KeyValue onReceipt={props.openReceipt} pairs={[{ name: w.serverVersion, value: value.server.version, mono: true }, { name: w.reach, value: w.thisComputer }]} />
-      </Group>
+      {!simple && (
+        <Group title={w.server}>
+          <KeyValue onReceipt={props.openReceipt} pairs={[{ name: w.serverVersion, value: value.server.version, mono: true }, { name: w.reach, value: w.thisComputer }]} />
+        </Group>
+      )}
       <Group title={w.allowed}>
         {value.assistants.length === 0 ? <Note>{w.noAssistants}</Note> : (
           <Lines label={w.allowed}>
@@ -96,10 +101,10 @@ function Body({ value, props, w, reload }: { value: Assistants; props: PlaceRend
             {value.calls.map((c) => (
               <Line key={c.id} title={c.calculation} notes={[
                 c.client, fill(w.callOn, { date: day(c.at, props.language) }),
-                c.refused ? w.refusedCall : c.removed.length === 0 ? w.removedNothing : null, books ? c.id : null,
+                c.refused ? w.refusedCall : c.removed.length === 0 && !simple ? w.removedNothing : null, books ? c.id : null,
               ]} after={c.receiptId === null ? <span className={s.note}>{w.noReceipt}</span>
                 : <Button variant="link" className="fig" aria-label={fill(w.receiptOf, { id: c.receiptId })} onClick={() => props.openReceipt(c.receiptId as string)}>{c.receiptId}</Button>}>
-                {!c.refused && c.removed.length > 0 && <div><p className={s.note}>{w.removedBy}</p><ul className={s.list}>{c.removed.map((r, i) => <li key={i}>{r}</li>)}</ul></div>}
+                {!c.refused && c.removed.length > 0 && !simple && <div><p className={s.note}>{w.removedBy}</p><ul className={s.list}>{c.removed.map((r, i) => <li key={i}>{r}</li>)}</ul></div>}
               </Line>
             ))}
           </Lines>

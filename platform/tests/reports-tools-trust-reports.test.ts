@@ -9,7 +9,8 @@ import { Engine } from '../runtime/engine.ts';
 import type { Context } from '../runtime/contracts.ts';
 import { csvFile } from '../runtime/reports-ext/export-files.ts';
 import { xlsxBook, crc32 } from '../runtime/reports-ext/xlsx.ts';
-import { pendingExportPaths } from '../runtime/reports-ext/methods.ts';
+import { pendingExportPaths, reportsMethods } from '../runtime/reports-ext/methods.ts';
+import { validateExports } from '../../app/ui/src/screens/reports/validate.ts';
 
 // Synthetic records only: one month of an invented business, with a formula-shaped description.
 const csv = `id,kind,date,amount,currency,customerId,invoiceId,dueDate,status,description
@@ -60,9 +61,9 @@ test('packs give each page a state from registered calculations and receipt cove
   assert.deepEqual(ca.gstModes, ['regular', 'composition']); assert.deepEqual(lender.gstModes, ['regular', 'composition', 'none']); assert.ok(investor.gstModes.includes('none'));
   assert.equal(pageOf(lender, 'key-financials').state, 'ready-tested');
   assert.equal(pageOf(lender, 'receivables-ageing').state, 'ready-tested');
-  assert.deepEqual(pageOf(lender, 'bank-summary'), { id: 'bank-summary', title: 'Bank statement summary', state: 'not-started', reason: 'Needs bank statements.' });
-  assert.equal(pageOf(lender, 'gst-turnover').reason, 'Needs GSTR-1 and GSTR-3B returns from the GST connector.');
-  assert.equal(pageOf(ca, 'purchases-gstr2b').state, 'not-started'); assert.equal(pageOf(ca, 'purchases-gstr2b').reason, 'Needs GSTR-2B from the GST connector.');
+  assert.deepEqual(pageOf(lender, 'bank-summary'), { id: 'bank-summary', title: 'Bank statement summary', state: 'not-started', reason: 'No bank statement is imported yet.' });
+  assert.equal(pageOf(lender, 'gst-turnover').reason, 'Needs a GSTR-1 or GSTR-3B return imported through the GST connector.');
+  assert.equal(pageOf(ca, 'purchases-gstr2b').state, 'not-started'); assert.equal(pageOf(ca, 'purchases-gstr2b').reason, 'Needs a GSTR-2B imported through the GST connector.');
   // Facts that are not reconciled to a source total make the same pages computed but untested.
   await engine.vault!.update(state => { for (const item of state.imports) item.coverage.reconciled = false; });
   const after = (await engine.request('reportsx.packs', {})).packs[0];
@@ -95,8 +96,8 @@ test('every printed figure opens its calculation receipt; missing values are mis
   const months = monthly.sections[0].lines; assert.equal(months.length, 12); assert.equal(months.at(-1).id, '2026-09'); assert.equal(months.at(-1).figure.exact, '112525');
   assert.deepEqual(months[0].figure, { kind: 'missing', missing: 'absent' }); assert.ok(months.every((l: any) => l.figure.kind === 'missing' || l.figure.exact !== '0'));
   const gst = await engine.request('reportsx.page', { pack: 'lender', page: 'gst-turnover', period: september });
-  assert.equal(gst.state, 'not-started'); assert.deepEqual(lineOf(gst, 'compare', 'gst').figure, { kind: 'missing', missing: 'not-loaded-yet' });
-  assert.ok(gst.sections[0].gaps.some((gap: string) => gap.includes('Needs GSTR-1 and GSTR-3B')));
+  assert.equal(gst.state, 'not-started'); assert.deepEqual(gst.sections.map((s: any) => [s.id, s.lines.length]), [['not-started', 0]]);
+  assert.deepEqual(gst.gaps, ['Needs a GSTR-1 or GSTR-3B return imported through the GST connector.']);
   const projections = await engine.request('reportsx.page', { pack: 'lender', page: 'projections', period: september });
   const forecast = projections.sections.find((s: any) => s.id === 'forecast');
   assert.equal(forecast.projection, true); assert.equal(projections.sections[0].projection, false);
@@ -216,24 +217,42 @@ test('Friday review and rhythm settings validate, preview without digits and ref
   await assert.rejects(engine.request('reportsx.verifyChannel', { channel: 'mail' }), code('CHANNEL_ADDRESS_REQUIRED'));
   const set = await engine.request('reportsx.setRhythm', { days: [5, 1], time: '08:30', mail: { on: true, address: 'owner@example.com' }, whatsapp: { phone: '+919876543210' } });
   assert.deepEqual(set.days, [1, 5]); assert.equal(set.mail.address, 'owner@example.com'); assert.equal(set.mailVerified, false);
-  await assert.rejects(engine.request('reportsx.verifyChannel', { channel: 'mail' }), code('RELAY_NOT_AVAILABLE'));
+  // The relay's phone.verify belongs to hosted-link; stub the host so this holds whether or not that lane is merged.
+  const verify = reportsMethods['reportsx.verifyChannel']!;
+  const hostWith = (call: (method: string) => Promise<unknown>) => ({ ...engine.moduleHost('reports-tools-trust', engine.context), call });
+  for (const absent of ['UNKNOWN_METHOD', 'DEMO_EXTERNAL_DISABLED', 'HOSTED_NOT_CONFIGURED', 'HOSTED_NOT_PAIRED'])
+    await assert.rejects(Promise.resolve(verify.handler(engine.context, { channel: 'mail' }, hostWith(async () => { throw Object.assign(new Error('x'), { code: absent }); }) as any)), code('RELAY_NOT_AVAILABLE'), absent);
+  await assert.rejects(Promise.resolve(verify.handler(engine.context, { channel: 'mail' }, hostWith(async () => { throw Object.assign(new Error('x'), { code: 'FORBIDDEN' }); }) as any)), code('FORBIDDEN'));
+  assert.deepEqual(await verify.handler(engine.context, { channel: 'mail' }, hostWith(async method => { assert.equal(method, 'phone.verify'); return { verified: true }; }) as any), { channel: 'mail', verified: true });
 });
 
 test('due dates are worked out from the sourced table for a profile, mark old checks and say what is not covered', async t => {
   const { engine } = await fixture(t, false);
   const due = await engine.request('reportsx.due', { from: '2026-10-14', days: 30, profile: { kind: 'services', gstMode: 'regular', state: 'MH' } });
-  assert.equal(due.caNote, 'Not yet checked by a CA.'); assert.equal(due.covered, true); assert.equal(due.table.version, 'due-dates.v1');
+  assert.equal(due.caNote, 'Not yet checked by a CA.'); assert.match(due.tableNote, /official source/); assert.equal(due.covered, true); assert.equal(due.table.version, 'due-dates.v1');
   const ids = due.rows.map((row: any) => row.id);
   for (const id of ['pf-ecr:2026-10-15', 'esi:2026-10-15', 'gstr3b-monthly:2026-10-20', 'gstr3b-qrmp-22:2026-10-22', 'itr-audit:2026-10-31', 'tds-return:2026-10-31', 'pt-mh-employer:2026-10-31', 'tds-deposit:2026-11-07', 'gstr1-monthly:2026-11-11'])
     assert.ok(ids.includes(id), id);
   assert.ok(!ids.some((id: string) => id.startsWith('gstr3b-qrmp-24') || id.startsWith('pt-ka') || id.startsWith('cmp08')));
   assert.deepEqual(ids, [...ids].sort((a: string, b: string) => a.split(':')[1].localeCompare(b.split(':')[1]) || a.localeCompare(b)));
   const row = due.rows.find((r: any) => r.id === 'gstr3b-monthly:2026-10-20');
-  assert.equal(row.checkOld, false); assert.equal(row.lastChecked, '2026-10-14'); assert.match(row.source.url, /^https:\/\/www\.gst\.gov\.in\//); assert.deepEqual(row.appliesTo.gstModes, ['regular']);
+  assert.equal(row.checkOld, false); assert.equal(row.lastChecked, '2026-10-14'); assert.deepEqual(row.appliesTo.gstModes, ['regular']);
+  assert.deepEqual(row.source, { title: 'CBIC Notification No. 82/2020-Central Tax: CGST Rules, rule 59(2) (IFF) and rule 61 (GSTR-3B by the 20th, 22nd or 24th)',
+    url: 'https://gstcouncil.gov.in/sites/default/files/2024-05/notfctn-82-central-tax-english-2020.pdf', date: '2020-11-10', confirmed: true });
+  // Every source is a specific official page, never a site's home page, unless it is marked as not confirmed.
+  for (const item of due.rows) {
+    assert.match(item.source.url, /^https:\/\/[a-z0-9.-]+\.gov\.in\//); assert.equal(typeof item.source.confirmed, 'boolean');
+    assert.ok(item.source.date === null || /^\d{4}-\d{2}-\d{2}$/.test(item.source.date));
+    if (item.source.confirmed) assert.ok(new URL(item.source.url).pathname.length > 1, item.id);
+  }
   const april = await engine.request('reportsx.due', { from: '2027-04-01', days: 40, profile: { kind: 'retail', gstMode: 'composition', state: 'KA' } });
   const aprilIds = april.rows.map((r: any) => r.id);
   assert.ok(aprilIds.includes('tds-deposit:2027-04-30') && !aprilIds.includes('tds-deposit:2027-04-07'));
-  assert.ok(aprilIds.includes('cmp08:2027-04-18') && aprilIds.includes('gstr4:2027-04-30') && aprilIds.includes('pt-ka-enrolment:2027-04-30'));
+  assert.ok(aprilIds.includes('cmp08:2027-04-18') && !aprilIds.some((id: string) => id.startsWith('gstr4')) && aprilIds.includes('pt-ka-enrolment:2027-04-30'));
+  const june = await engine.request('reportsx.due', { from: '2027-06-01', days: 30, profile: { kind: 'retail', gstMode: 'composition', state: 'KA' } });
+  assert.ok(june.rows.some((r: any) => r.id === 'gstr4:2027-06-30' && r.source.confirmed === true && r.source.date === '2024-07-10'));
+  const companies = await engine.request('reportsx.due', { from: '2026-10-14', days: 60, profile: { kind: 'retail', gstMode: 'none', state: 'DL' } });
+  assert.deepEqual(companies.rows.filter((r: any) => r.id.startsWith('mca-')).map((r: any) => r.id), ['mca-aoc4:2026-10-30', 'mca-mgt7:2026-11-29']);
   assert.ok(!aprilIds.some((id: string) => id.startsWith('gstr3b')) && april.rows.every((r: any) => r.checkOld === true));
   const uncovered = await engine.request('reportsx.due', { from: '2026-10-14', profile: { kind: 'agriculture', gstMode: 'none', state: 'MH' } });
   assert.equal(uncovered.covered, false); assert.deepEqual(uncovered.rows, []); assert.ok(uncovered.coveredKinds.includes('services'));
@@ -257,6 +276,11 @@ test('export everything writes open files with row counts and check numbers; del
   assert.equal(locked.locked, true); assert.equal(locked.encrypted, true); await access(join(locked.folder, locked.stores[0].file));
   const list = await engine.request('reportsx.exports', {});
   assert.equal(list.warning, 'Exported files are not encrypted.'); assert.deepEqual(list.items.map((i: any) => i.id), [locked.id, record.id]);
+  assert.equal(list.items[1].stores.find((s: any) => s.name === 'facts').rows, 6);
+  // Row counts cover hidden sources too: other seats get the list without them, still valid for the screen.
+  await engine.request('members.add', { id: 'viewer-exports', name: 'Synthetic viewer', role: 'viewer' });
+  const seen = validateExports(await engine.requestAs({ memberId: 'viewer-exports', role: 'viewer', epoch: 1, channel: 'desktop' }, 'reportsx.exports', {}));
+  assert.deepEqual(seen.items.map(i => i.id), [locked.id, record.id]); assert.ok(seen.items.every(i => i.stores.length === 0));
   const question = await engine.request('reportsx.askPerson', { question: 'Is <this> right?', reason: 'Chausar cannot classify this cost yet.',
     receiptId: (await engine.request('calculation.run', { operation: 'billed', period: september })).id });
   assert.equal(question.sent, false); assert.equal(dirname(question.file.path), join(directory, 'exports', 'questions'));
@@ -333,11 +357,13 @@ test('markings follow the data: a seat that does not see a marking gets withheld
   const brief = await engine.requestAs(accountant, 'reportsx.weekAhead', { onDate: '2026-09-08' });
   const sales = brief.changed.find((item: any) => item.id === 'net_sales');
   assert.deepEqual(sales.figure, { kind: 'missing', missing: 'withheld' }); assert.ok(sales.chart.every((bar: any) => bar.figure.missing === 'withheld'));
-  assert.deepEqual(brief.gaps, [words]); assert.equal(brief.receiptIds.length, 3);
-  // Only the receipts of the empty week before stay listed: none of them reads the marked source.
+  assert.deepEqual(brief.gaps, [words]);
+  // The engine leaves the marked source out of this seat's calculations: no receipt it can open reads that source.
   for (const id of brief.receiptIds) assert.ok(!(await engine.requestAs(accountant, 'receipts.get', { id })).sourceIds.includes(sourceId));
   assert.equal((await engine.request('reportsx.weekAhead', { onDate: '2026-09-08' })).changed.find((item: any) => item.id === 'net_sales').figure.exact, '112525');
-  await engine.request('trustx.setSeatMarking', { seat: 'accountant', kind: 'financial', sees: true });
+  // Widening what a seat sees needs the owner and the cofounder.
+  const widen = await engine.request('trustx.setSeatMarking', { seat: 'accountant', kind: 'financial', sees: true }); assert.equal(widen.state, 'waiting-for-second');
+  await engine.requestAs(cofounder, 'trustx.confirmChange', { id: widen.change.id });
   const after = await engine.requestAs(accountant, 'reportsx.weekAhead', { onDate: '2026-09-08' });
   assert.equal(after.changed.find((item: any) => item.id === 'net_sales').figure.exact, '112525'); assert.deepEqual(after.gaps, []);
 });

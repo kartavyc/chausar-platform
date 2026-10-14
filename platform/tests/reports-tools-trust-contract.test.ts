@@ -55,13 +55,16 @@ test('every reportsx and trustx reply passes the validator of the screen that dr
   await pass('reportsx.rhythm', {}, reports.validateRhythm);
   await pass('reportsx.setRhythm', { dailyClosing: true }, reports.validateRhythm);
   await pass('reportsx.setDueProfile', { kind: 'trader', gstMode: 'regular', state: 'MH' }, reports.validateDueProfile);
-  await pass('reportsx.due', {}, reports.validateDue);
+  const due = reports.validateDue(await pass('reportsx.due', { from: '2026-10-14', days: 60, profile: { kind: 'retail', gstMode: 'regular', state: 'MH' } }, reports.validateDue));
+  // The source date and check reach the screen as the engine sends them.
+  if (!due.rows.length || !due.rows.every(row => typeof row.source.confirmed === 'boolean') || !due.rows.some(row => row.source.confirmed && row.source.date !== null)) failures.push('reportsx.due source date and check');
   await pass('reportsx.exportAll', { confirmed: true }, reports.validateExportRecord);
   await pass('reportsx.exports', {}, reports.validateExports);
   const receiptId = (await call('reportsx.page', { pack: 'lender', page: 'key-financials', period: september })).receiptIds[0];
   await pass('reportsx.askPerson', { question: 'Why did sales fall?', reason: 'Not yet', receiptId }, reports.validateAskPerson);
 
   // Trust
+  // The Do row's preset now comes from jobs-ext (absent here, so null); the screen reads it from jobsx.* directly.
   await pass('trustx.rules', {}, trust.validateRules);
   await pass('trustx.markings', {}, trust.validateMarkings);
   await pass('trustx.setMarking', { kind: 'confidential', target: { type: 'source', sourceId: 'synthetic-contract-source' }, on: true }, trust.validateMarkings);
@@ -69,8 +72,6 @@ test('every reportsx and trustx reply passes the validator of the screen that dr
   await pass('trustx.setSend', { level: 'shape' }, trust.validateChange);
   await pass('trustx.pendingChanges', {}, trust.validatePending);
   await pass('trustx.keep', {}, trust.validateKeep);
-  await pass('trustx.autonomy', {}, trust.validateAutonomy);
-  await pass('trustx.setAutonomy', { preset: 'routine' }, trust.validateAutonomy);
   await pass('trustx.seats', {}, trust.validateSeats);
   await pass('trustx.invite', { seat: 'accountant', name: 'Synthetic Accountant' }, trust.validateInvite);
   await pass('trustx.models', {}, trust.validateModels);
@@ -90,7 +91,38 @@ test('every reportsx and trustx reply passes the validator of the screen that dr
   // Tools
   await pass('trustx.assistants', {}, tools.assistants);
   await pass('trustx.setAssistants', { on: true }, tools.assistants);
+  await pass('trustx.pairAssistant', { name: 'Synthetic assistant' }, tools.pairing);
+  await pass('trustx.assistants', {}, tools.assistants);
   await pass('trustx.plugins', {}, tools.plugins);
   await pass('trustx.languagePacks', {}, tools.languagePacks);
   assert.deepEqual(failures, []);
+});
+
+test("other lanes' real replies pass this lane's adapters wherever those lanes answer", async t => {
+  const jobs = await import('../../app/ui/src/screens/trust/adapters/jobs.ts');
+  const phone = await import('../../app/ui/src/screens/tools/adapters/phone.ts');
+  const smallapps = await import('../../app/ui/src/screens/tools/adapters/smallapps.ts');
+  const learning = await import('../../app/ui/src/screens/trust/adapters/learning.ts');
+  const directory = await mkdtemp(join(tmpdir(), 'chausar-rtt-adapters-'));
+  const engine = new Engine({ directory, demo: true, storage: 'experimental-file' });
+  t.after(async () => { await engine.close(); await rm(directory, { recursive: true, force: true }); });
+  await engine.request('workspace.create', { name: 'Synthetic Adapter Co', passphrase: 'Synthetic adapter passphrase 2026', demo: false, pack: 'ecommerce' });
+  const failures: string[] = []; let answered = 0;
+  const check = async (method: string, payload: Record<string, unknown>, validate: (reply: unknown) => unknown) => {
+    let reply: unknown;
+    // A lane that is not installed, or refuses here (demo, not set up), is not a contract mismatch.
+    try { reply = await engine.request(method, payload); } catch (error) { if ((error as { code?: unknown }).code) return; throw error; }
+    answered++;
+    try { validate(reply); } catch (error) { failures.push(`${method} ${(error as { path?: string }).path ?? (error as Error).message}`); }
+  };
+  await check('jobsx.autonomy', {}, jobs.autonomy);
+  await check('phone.channels.list', {}, phone.channels);
+  await check('phone.templates.preview', {}, phone.preview);
+  await check('hosted.status', {}, phone.status);
+  await check('smallapps.list', {}, smallapps.appList);
+  await check('learningx.intakeStatus', {}, learning.intakeStatus);
+  await check('learningx.batches', {}, learning.batches);
+  await check('learningx.outbox', {}, learning.outbox);
+  assert.deepEqual(failures, []);
+  t.diagnostic(`answered: ${answered}`);
 });

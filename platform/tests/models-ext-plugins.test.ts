@@ -160,7 +160,9 @@ test('wrap, sign, inspect, install, enable and call a WASM tool through the real
   await assert.rejects(engine.request('smallapps.pluginCallRemote', { id: remoteInstalled.id, tool: 'lookup' }), code('PLUGIN_REMOTE_APPROVAL_REQUIRED'));
   await assert.rejects(engine.request('smallapps.pluginPrepareRemote', { id: remoteInstalled.id, tool: 'lookup' }), code('PLUGIN_SEND_WITHHELD'));
   const policy = (await engine.request('trust.get', {})).policy;
-  await engine.request('trust.update', { policy: { ...policy, send: 'shape' } });
+  // With a cofounder in, raising the send level needs both (Trust dual control): ask, then the cofounder confirms.
+  const raise = await engine.request('trustx.setSend', { level: 'shape' });
+  await engine.requestAs(cofounder, 'trustx.confirmChange', { id: raise.change.id });
   await assert.rejects(engine.request('smallapps.pluginPrepareRemote', { id: remoteInstalled.id, tool: 'lookup' }), code('PLUGIN_TOOL_REQUESTS_UNDECLARED'));
   await engine.request('trust.update', { policy });
 

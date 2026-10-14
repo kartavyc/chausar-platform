@@ -4,6 +4,7 @@
  * own limit sentence; the recovery contact (experimental); the version; where Restore is.
  * The deletion sheet (TR-13) opens from here.
  */
+import { RecoveryContactSettings } from '../first-run/ThisComputer';
 import { useState, type FormEvent } from 'react';
 import { withSheet } from '../../app/routes.ts';
 import { words } from '../../places/types.ts';
@@ -12,10 +13,10 @@ import { YesNo } from '../../parts/Choice';
 import { Field } from '../../parts/Field';
 import { useEngine, useSend } from './kit/engine.ts';
 import { Group, Note, Screen } from './kit/Screen';
-import { Outcome, Refusal, Tag, bytesText, countText, dayText, powers, type P } from './common';
+import { AskTwice, Loads, Outcome, Refusal, Tag, bytesText, countText, dayText, powers, type P } from './common';
 import { DeletionSheet } from './Deletion';
 import { wholeNumber } from './paise.ts';
-import { validateBackup, validateVault, type Backup, type VaultView } from './validate.ts';
+import { validateBackup, validateService, validateVault, type Backup, type ServiceStatus, type VaultView } from './validate.ts';
 import { COMMON, VAULT, fill } from './words.ts';
 import s from './Trust.module.css';
 
@@ -52,19 +53,23 @@ function VaultBody({ p, v, reload }: { p: P; v: VaultView; reload: () => void })
       {admin && last !== undefined && <TestRestore p={p} file={last.file} reload={reload} />}
       <Group title={w.lockTitle}>
         {admin ? <LockForm p={p} v={v} reload={reload} /> : (
-          <p className={s.text}>{w.idle}: {countText(v.lock.idleMinutes)} · {w.deviceCheck}: {v.lock.deviceCheck ? c.on : c.off}</p>
+          <p className={s.text}>{w.idle}: {v.lock.idleMinutes === null ? w.idleUnknown : countText(v.lock.idleMinutes)} · {w.deviceCheck}: {v.lock.deviceCheck ? c.on : c.off}</p>
         )}
+        {admin && v.lock.idleMinutes === null && <p className={s.quiet}>{w.idleUnknown}</p>}
+        <p className={s.quiet} data-pin="">{w.pin}</p>
       </Group>
       <Group title={w.diskTitle}>
         <p className={s.text}>{v.disk === null ? w.noDisk : fill(w.disk, { free: bytesText(v.disk.freeBytes, p.language), total: bytesText(v.disk.totalBytes, p.language) })}</p>
         <p className={s.quiet} data-limit="">{v.limit}</p>
       </Group>
       <Group title={w.recoveryTitle} note={w.recoveryNote}>
-        <p className={s.text}>{v.recoveryContact === null ? w.recoveryNone : fill(w.recoveryIs, { name: v.recoveryContact })} <Tag>{c.experimental}</Tag></p>
-        {admin && <RecoveryForm p={p} name={v.recoveryContact} reload={reload} />}
+        {/* The recovery contact is frame-today's (one source of truth, also set in first run). */}
+        <p className={s.text}><Tag>{c.experimental}</Tag></p>
+        {admin ? <RecoveryContactSettings rpc={p.rpc} /> : <p className={s.text}>{v.recoveryContact === null ? w.recoveryNone : fill(w.recoveryIs, { name: v.recoveryContact })}</p>}
       </Group>
-      <Group title={w.versionTitle}><p className={s.mono}>{v.version}</p></Group>
+      <Group title={w.versionTitle}>{v.version === null ? <p className={s.quiet}>{w.versionUnknown}</p> : <p className={s.mono}>{v.version}</p>}</Group>
       <Group title={w.restoreTitle}><p className={s.text}>{w.restoreNote}</p></Group>
+      <ThisComputer p={p} />
       {owner && <span><Button variant="link" onClick={() => p.navigate(withSheet(p.address, 'delete'))}>{w.deleteLink}</Button></span>}
       {!admin && <Note>{c.adminOnly}</Note>}
     </>
@@ -99,7 +104,7 @@ function TestRestore({ p, file, reload }: { p: P; file: string; reload: () => vo
 
 function LockForm({ p, v, reload }: { p: P; v: VaultView; reload: () => void }) {
   const w = words(VAULT, p.language);
-  const [minutes, setMinutes] = useState(String(v.lock.idleMinutes));
+  const [minutes, setMinutes] = useState(v.lock.idleMinutes === null ? '' : String(v.lock.idleMinutes));
   const [deviceCheck, setDeviceCheck] = useState(v.lock.deviceCheck);
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const { sent, send } = useSend(p.rpc, validateVault);
@@ -120,17 +125,33 @@ function LockForm({ p, v, reload }: { p: P; v: VaultView; reload: () => void }) 
   );
 }
 
-function RecoveryForm({ p, name, reload }: { p: P; name: string | null; reload: () => void }) {
-  const c = words(COMMON, p.language), w = words(VAULT, p.language);
-  const [typed, setTyped] = useState(name ?? '');
-  const { sent, send } = useSend(p.rpc, validateVault);
-  const save = async (value: string | null) => { if (await send('trustx.setRecoveryContact', { name: value }) !== null && p.live(p.address)) reload(); };
+function ThisComputer({ p }: { p: P }) {
+  const w = words(VAULT, p.language);
+  const { admin } = powers(p);
+  if (!admin) return <Group title={w.computerTitle}><p className={s.quiet}>{w.computerAdmin}</p><p className={s.quiet}>{w.wake}</p></Group>;
+  return <ServiceGroup p={p} />;
+}
+
+function ServiceGroup({ p }: { p: P }) {
+  const w = words(VAULT, p.language);
+  const { state, reload } = useEngine(p.rpc, 'service.status', {}, validateService);
+  const { sent, send } = useSend(p.rpc, validateService);
+  const change = async (method: string) => { if (await send(method, { confirmed: true }) !== null && p.live(p.address)) reload(); };
+  const said = (x: ServiceStatus) => w[`service.${!x.installed ? 'off' : x.running === null ? 'unknown' : x.running ? 'running' : 'stopped'}`];
   return (
-    <form className={s.form} onSubmit={(e) => { e.preventDefault(); if (typed.trim().length > 0) void save(typed.trim()); }}>
-      <Field label={w.recoveryName} value={typed} onChange={(e) => setTyped(e.currentTarget.value)} autoComplete="off" />
-      <Button submit disabled={sent.kind === 'sending' || typed.trim().length === 0}>{c.save}</Button>
-      {name !== null && <Button variant="link" onClick={() => { setTyped(''); void save(null); }}>{w.clearRecovery}</Button>}
-      <Outcome sent={sent} language={p.language} />
-    </form>
+    <Loads title={w.computerTitle} note={w.serviceNote} loaded={state}>
+      {(x) => (
+        <div className={s.stack}>
+          <p className={s.text} data-service="">{w.service}: {said(x)}</p>
+          <span>
+            {x.installed
+              ? <AskTwice label={w.turnOff} ask={w.turnOffAsk} confirmLabel={w.turnOff} onConfirm={() => void change('service.uninstall')} language={p.language} disabled={sent.kind === 'sending'} />
+              : <AskTwice label={w.turnOn} ask={w.turnOnAsk} confirmLabel={w.turnOn} onConfirm={() => void change('service.install')} language={p.language} disabled={sent.kind === 'sending'} />}
+          </span>
+          <Outcome sent={sent} language={p.language} />
+          <p className={s.quiet}>{w.wake}</p>
+        </div>
+      )}
+    </Loads>
   );
 }

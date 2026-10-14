@@ -24,9 +24,11 @@ export const money = (value: string | bigint, currency = 'INR') => {
   return `${currency === 'INR' ? '₹' : currency + ' '}${negative ? '-' : ''}${(absolute / 100n).toLocaleString('en-IN')}.${String(absolute % 100n).padStart(2, '0')}`;
 };
 export type Role = 'owner' | 'cofounder' | 'accountant' | 'viewer';
-export type Context = { memberId: string; role: Role; epoch: number; channel?: 'desktop' | 'phone' | 'mcp'; sourceTainted?: boolean };
+/** `issuedBy`: the member who issued this session for someone else; that person cannot stand in as the second person. */
+export type Context = { memberId: string; role: Role; epoch: number; channel?: 'desktop' | 'phone' | 'mcp'; sourceTainted?: boolean; issuedBy?: string };
 export type TrustPolicy = { send: 'nothing' | 'shape' | 'samples'; autonomy: boolean; allowedSources: string[]; retentionDays: number; sharing: boolean };
-export type Member = { id: string; name: string; role: Role; active: boolean; epoch: number; branches: string[] };
+/** `scope: 'mcp'` marks a numbers-only member (a paired assistant): only the numbers server accepts its sessions. */
+export type Member = { id: string; name: string; role: Role; active: boolean; epoch: number; branches: string[]; scope?: 'mcp' };
 export type Fact = { id: string; entityId: string; sourceId: string; sourceRow: number; kind: string; validFrom: string; validTo: string | null; learnedAt: string; supersededAt: string | null; fields: Record<string, unknown>; deletedAt?: string; branch?: string };
 export type State = {
   schemaVersion: number; revision: number; workspace: { id: string; name: string; currency: string; demo: boolean; createdAt: string };
@@ -50,9 +52,25 @@ export function initialState(name: string, demo = false): State {
     facts: [], imports: [], receipts: [], answers: [], decisions: [], actions: [], jobs: [], learning: [], plugins: [], modelReceipts: [], activity: [], conflicts: [], merges: [], tombstones: [], conversations: [], routes: [], sessions: [], unsupported: [], schedules: [], sourceRules: [],
   };
 }
+/** A core change to Send, Sharing or seats, described for the registered change guards. */
+export type CoreChange = { kind: 'policy'; patch: Partial<TrustPolicy> } | { kind: 'invite' | 'member-add'; role: Role } | { kind: 'member-revoke'; memberId: string };
+type CoreHooks = {
+  /** Throws to refuse a core change before it applies (dual control). */
+  change: (state: State, context: Context, change: CoreChange) => void;
+  /** True when the member's seat has ended; every request is then refused. */
+  seatEnded: (state: State, memberId: string) => boolean;
+  /** True when the member's seat may not see data from this source (markings). */
+  sourceHidden: (state: State, member: Member, sourceId: string) => boolean;
+};
+const coreHooks: { [K in keyof CoreHooks]: Set<CoreHooks[K]> } = { change: new Set(), seatEnded: new Set(), sourceHidden: new Set() };
+/** Engine modules register these guards at load (late-bound to avoid import cycles). */
+export function registerCoreHook<K extends keyof CoreHooks>(kind: K, hook: CoreHooks[K]): void { (coreHooks[kind] as Set<CoreHooks[K]>).add(hook); }
+export function guardChange(state: State, context: Context, change: CoreChange): void { for (const hook of coreHooks.change) hook(state, context, change); }
+export function sourceHidden(state: State, member: Member, sourceId: string): boolean { for (const hook of coreHooks.sourceHidden) if (hook(state, member, sourceId)) return true; return false; }
 export function authorize(store: StateStore, context: Context, permission: 'read' | 'prepare' | 'approve' | 'admin' = 'read'): Member {
-  const member = store.read().members.find(m => m.id === context.memberId);
+  const state = store.read(); const member = state.members.find(m => m.id === context.memberId);
   check(member?.active && member.epoch === context.epoch && member.role === context.role, 'ACCESS_REVOKED', 'Your workspace access has changed. Sign in again.');
+  for (const ended of coreHooks.seatEnded) check(!ended(state, member.id), 'ACCESS_REVOKED', 'Your workspace access has changed. Sign in again.');
   if (permission !== 'read') check(member.role !== 'viewer', 'FORBIDDEN', 'Your role can only read.');
   if (permission === 'approve' || permission === 'admin') check(['owner', 'cofounder'].includes(member.role), 'FORBIDDEN', 'An owner must approve this change.');
   return member;

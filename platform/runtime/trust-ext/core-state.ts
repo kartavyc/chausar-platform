@@ -13,9 +13,9 @@ export type Mark = { id: string; kind: MarkKind; target: MarkTarget; auto: boole
 export type KindRule = { kind: string; on: boolean; maxPerDay: number; maxAmountMinorPerDay: string | null };
 export type Caps = { remindersPerCustomerPerDay: number; remindersPerDay: number; activeJobs: number; monthlyAiCapMinor: string | null };
 export type Preset = 'ask-everything' | 'routine' | 'all-but-waits' | 'custom';
-export type ChangeWhat = 'send' | 'sharing' | 'seats';
+export type ChangeWhat = 'send' | 'sharing' | 'seats' | 'markings' | 'policy';
 export type PendingRecord = { id: string; what: ChangeWhat; summary: string; by: string; byRole: Member['role']; at: string; expiresAt: string;
-  needs: 'owner' | 'cofounder'; op: { type: string } & Record<string, unknown> };
+  needs: 'owner' | 'cofounder'; op: { type: string } & Record<string, unknown>; byIssuer?: string };
 export type SeatRecord = { inviteId: string; seat: Seat; name: string; endsOn: string | null; invitedBy: string; at: string };
 export type CoreState = {
   marks: Mark[]; autoOff: string[]; seatSees: Partial<Record<Seat, Sees>>;
@@ -55,7 +55,8 @@ export function coreState(state: State): CoreState {
 /** Read-only view with defaults; never creates the namespace. */
 export function peekCore(state: State): CoreState { return { ...fresh(), ...(peekLane(state)?.trust?.core ?? {}) } as CoreState; }
 
-export const today = (at = Date.now()) => new Date(at).toISOString().slice(0, 10);
+/** The India Standard Time date (UTC+5:30, no daylight saving): the lane's day for CA end dates and daily limits. */
+export const today = (at = Date.now()) => new Date(at + 19800000).toISOString().slice(0, 10);
 export const isDate = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
 export const boundedText = (value: unknown, max = 200): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
 
@@ -68,13 +69,22 @@ export function knownSources(state: State): string[] {
 }
 
 const roleSeat: Record<Member['role'], Seat> = { owner: 'owner', cofounder: 'cofounder', accountant: 'accountant', viewer: 'viewer' };
+/** Invitation by member from the `auth.invitation.accepted` activity entries, built once per activity log and rebuilt when it changes. */
+const acceptances = new WeakMap<unknown[], { length: number; last: unknown; byMember: Map<string, string> }>();
 /** The invitation that made a member, from the `auth.invitation.accepted` activity entry. */
 export function invitationOf(state: State, memberId: string): string | undefined {
-  return state.activity.find(a => a.event === 'auth.invitation.accepted' && a.details?.memberId === memberId)?.details?.invitationId;
+  const log = state.activity; let index = acceptances.get(log);
+  if (!index || index.length !== log.length || index.last !== log.at(-1)) {
+    const byMember = new Map<string, string>();
+    for (const a of log) if (a.event === 'auth.invitation.accepted' && typeof a.details?.memberId === 'string' && !byMember.has(a.details.memberId)) byMember.set(a.details.memberId, a.details.invitationId);
+    acceptances.set(log, index = { length: log.length, last: log.at(-1), byMember });
+  }
+  return index.byMember.get(memberId);
 }
 export function seatOf(state: State, member: Member): Seat {
-  const core = peekCore(state); const invite = invitationOf(state, member.id);
-  return core.memberSeats[member.id] ?? (invite && core.seats[invite]?.seat) ?? roleSeat[member.role];
+  const core = peekCore(state); const known = core.memberSeats[member.id]; if (known) return known;
+  const invite = invitationOf(state, member.id);
+  return (invite && core.seats[invite]?.seat) || roleSeat[member.role];
 }
 export function admin(state: State, ctx: Context): Member {
   const member = state.members.find(m => m.id === ctx.memberId);

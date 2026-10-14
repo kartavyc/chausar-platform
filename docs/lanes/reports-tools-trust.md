@@ -96,8 +96,6 @@ FileRef = { name, path, bytes, sha256 }
 | `trustx.confirmChange` | admin | `{ id }` | `ChangeResult` |
 | `trustx.keep` | read | `{}` | `Keep` |
 | `trustx.setKeep` | admin | `{ kind, days }` | `Keep` |
-| `trustx.autonomy` | read | `{}` | `Autonomy` |
-| `trustx.setAutonomy` | admin | `{ preset? , kind?: KindRule, caps?: Partial<Caps> }` | `Autonomy` |
 | `trustx.seats` | read | `{}` | `Seats` |
 | `trustx.invite` | admin | `{ seat, name, endsOn? }` | `ChangeResult & { invite?: { id, token, expiresAt }, guide?: { html } }` |
 | `trustx.removeSeat` | admin | `{ memberId }` | `ChangeResult` |
@@ -136,7 +134,7 @@ Types.
 
 ```
 Rules = { see: { allSources: boolean, allowed: number, refused: number }, send: { level: "nothing"|"shape"|"samples", localOnly: boolean },
-  keep: { days: number }, do: { preset: Preset }, leftToday: { date, items: { destination, kind, count, bytes, stopped }[] },
+  keep: { days: number }, do: { preset: string | null }  /* jobs-ext's preset from jobsx.autonomy, null when it does not answer */, leftToday: { date, items: { destination, kind, count, bytes, stopped }[] },
   canChange: boolean, ownerOnly: ("send" | "sharing" | "seats")[] }
 Markings = { kinds: ["personal","financial","confidential"],
   marks: { id, kind, target: { type: "source"|"record"|"field", sourceId, recordId?, field? }, auto: boolean, by, at }[],
@@ -148,11 +146,6 @@ SendLevels = { current, localOnly, financialRoutes: string[], synthetic: boolean
 ChangeResult = { state: "applied" | "waiting-for-second", change?: PendingChange }
 PendingChange = { id, what: "send" | "sharing" | "seats", summary, by, at, needs: "owner" | "cofounder" }
 Keep = { kinds: { kind, days: number | null, note }[], inventory: { path, bytes, what }[] }
-Preset = "ask-everything" | "routine" | "all-but-waits" | "custom"
-KindRule = { kind, on: boolean, maxPerDay: number, maxAmountMinorPerDay: string | null }
-Caps = { remindersPerCustomerPerDay: number, remindersPerDay: number, activeJobs: number, monthlyAiCapMinor: string | null }
-Autonomy = { preset: Preset, kinds: (KindRule & { agreement: { agreed: number, total: number } | null })[],
-  alwaysWaits: { id, words }[], caps: Caps }
 Seats = { seats: { memberId, name, seat: "owner"|"cofounder"|"accountant"|"ca"|"staff"|"viewer"|"assistant",
   limits: string[], endsOn: string | null, ended: boolean, removedOn: string | null, active: boolean, you: boolean }[],
   templates: { seat, limits: string[] }[] }
@@ -193,82 +186,119 @@ Notes on the contract as built (additive to the tables above):
 - `trustx.record` items may have `rule: null`; `head.at` is null for an empty record. `record` and `verifyRecord` extend the stored chain.
 - `trustx.installPlugin` also returns `missing: string[]`, the asks not answered Yes.
 - `trustx.deleteSource` and `trustx.pairAssistant` need the owner, not only an admin.
-- `trustx.pairAssistant` refuses `ASSISTANT_SCOPE_NOT_AVAILABLE` after its checks: a member session would also open every read request on `/api/rpc`, so pairing waits for a session that reaches only the numbers server. No token is issued.
+- `trustx.pairAssistant` issues a session scoped to the numbers server (`/mcp`) only, for one day (the AuthService maximum), and returns its token once. The owner pairs alone. `Assistants.calls[]` carries `code: string | null` and lists refused calls from the per-call MCP record.
 - `reportsx.weekAhead` refuses `WEEK_TOO_OLD` for weeks before last week, compares the last completed week with the one before it, and carries `gaps: string[]`.
 - Figures from a source marked with a kind the caller's seat does not see print as `withheld` on pages, briefs and exports, with a gap saying so.
 - The projection line is always `not-counted`; a passed forecast is named in a gap and opens in Ask.
 - `trustx.models` gives `spendThisMonthMinor: null` to seats other than owner and cofounder, `voice.minutesThisMonth: null`, and `capEnforced: false`.
 - `trustx.checkCanary` also looks for GSTINs, mail addresses and phone numbers from the books in what left, with or without a planted value.
-- `trustx.setAutonomy` never turns the engine's one autonomy switch on (that would run every scheduled job); switching every kind off turns it off.
 - A seat past its end date ends before any request of this lane runs, and that seat's own request is refused.
 - Validation refusals in the trust part use `INVALID_FIELDS`, never `INVALID_REQUEST`, which screens read as "not built yet".
 - `trustx.confirmChange` on an invite also returns `invite` and `guide`; an applied `removeSeat` also returns `removedOn` and `kept`.
-- Exported for other lanes: `autonomyDecision(state, { kind, amountMinor?, countToday, customerCountToday? })` → `{ allowed, reason }` and `markingsForSources(state, sourceIds)`, from `platform/runtime/trust-ext/methods-core.ts`. Dual control can be extended with `requestChange` / `onApplyChange` from `core-dual.ts`.
+- Exported for other lanes: `markingsForSources(state, sourceIds)` (`core-markings.ts`). Dual control can be extended with `requestChange` / `onApplyChange` from `core-dual.ts`. Autonomy is owned by jobs-ext (`jobsx.*`); this lane keeps no decision engine of its own.
+- `trustx.autonomy` and `trustx.setAutonomy` were removed in round 2: TR-05 is drawn over jobs-ext's `jobsx.autonomy`, `jobsx.setAutonomy`, `jobsx.autonomyPreset` and `jobsx.setCaps`.
+- `trustx.network` also lists writeback's ledger (`action`), relay messages (`phone`) and hosted backup uploads (`sync`); `trustx.record` reads writeback, hosted-link and jobs-ext events in plain words; `trustx.agreements` lists phone opt-ins and invoice reminder consents, withdrawn through `phone.channels.set` and `writeback.followUp.consent`.
+- `reportsx.due` rows carry `source: { title, url, date, confirmed }`; `caNote` is "This table has not been checked by a CA yet. Each row links to the official source."
+- Report pages take any `period`; the lender GST turnover and bank summary pages and the CA purchases against GSTR-2B page are built from `connectorsx.envelopes`, `connectorsx.gstMatch` and `connectorsx.freshness`. A connector reply that does not validate refuses `CONNECTOR_REPLY_INVALID`.
+- `VaultView.lock.idleMinutes` is frame-today's own idle-lock setting (`todayx.lock.settings`), read and written through; it may be null.
+- `trustx.deleteSource` uses the engine's module-callable source deletion, which also removes managed copies.
+- Core paths refuse `SECOND_PERSON_REQUIRED` when a change to Send, Sharing or seats needs the owner and the cofounder; the gateway refuses `CANARY_BLOCKED` before a payload carrying the canary or a guarded value leaves; an MCP-scoped token on any other channel gets `SESSION_SCOPE_FORBIDDEN` (401 over HTTP).
+
+- Round 2, later: `reportsx.packs`, `weekAhead`, `friday`, `rhythm` and `due` take `language: 'en' | 'hi'` and write their words in Hindi when asked. Brief items carry `movement` (`moved`, `same`, `not-enough`, decided by comparing exact strings) and `coverage`; `friday` lessons carry `changeText`; `due` adds `tableNote`, `profileWords`, `kinds[{ id, name }]`, `states[{ code, name }]` and `appliesToWords` per row, and `caNote` is "Not yet checked by a CA.".
+- `reportsx.questions {}` → `{ items: [{ name, bytes, at }] }` and `reportsx.openQuestion { name }` → `{ name, bytes, sha256, at, text }` (read; accountant or CA seat): only `question-*.html` files in `<directory>/exports/questions/`; anything else refuses `INVALID_QUESTION_FILE` or `QUESTION_FILE_NOT_FOUND`.
+- `reportsx.exports` gives row counts only to an owner with every branch; other seats get each item with `stores: []`.
+- `trustx.setPolicy { allowedSources?, autonomy? }` (admin): source access and autonomy. The design puts Send, Sharing and seats under two people; See and autonomy are one admin's, made in the app.
+- `trustx.confirmChange { id, decline: true }`: the needed person declines, or the author withdraws; the reply is `{ state: 'declined' }`. Removing a seat (any seat, the only cofounder included) applies at once with one admin: it only takes access away, and a compromised seat must be cut off without waiting. `coolsOffAt` is always null (kept for screens).
+- `PendingChange` carries `what: 'send' | 'sharing' | 'seats' | 'markings' | 'policy'` and `coolsOffAt: string | null`. Widening a marking (`setMarking` with `on: false`, `setSeatMarking` with `sees: true`) waits for the second person; narrowing applies at once.
+- Widening changes (Send up, sharing on, autonomy on, more sources, new seats) from a tainted request or a non-desktop channel refuse `APP_CONSENT_REQUIRED`. A session one person issues for another is marked with its issuer (`Context.issuedBy`); a change cannot be confirmed by its author, nor through a session either of them issued for the other (`SELF_CONFIRM`). A paired assistant is a numbers-only member (`scope: 'mcp'`) whose sessions work only on `/mcp`; pairing a name again revokes the earlier assistant, and an expired assistant is revoked.
+- The gateway runs the outbound check before reserving budget; a blocked call is `failed` / `CANARY_BLOCKED`, spends nothing, shows as `stopped`, and is recorded as a block, not a leak alert.
+- Dates in the trust part (CA end dates, today's counts, the month's spend) are India dates.
 
 ## 2. What was built
 
-Engine: 58 module methods in `platform/runtime/modules/lane-reports-tools-trust.ts`, listed in `app/desktop/module-methods/reports-tools-trust.json`. Code in `platform/runtime/reports-ext/` (packs, pages, exports, XLSX writer, briefs, due dates) and `platform/runtime/trust-ext/` (`core-*` for rules, markings, send, dual control, keep, do, seats; `tools-*` for models, network and canary, the record, sharing and the cleaner, vault and deletion, assistants, plugins, language packs; `lifecycle.ts` for purge and tick; `lane-state.ts` for the private namespace).
+Engine: the `reportsx.*` and `trustx.*` methods above, in `platform/runtime/modules/lane-reports-tools-trust.ts` and listed in `app/desktop/module-methods/reports-tools-trust.json`. Code in `platform/runtime/reports-ext/` (packs, pages, connector pages, exports, the XLSX writer, briefs, due dates, withholding) and `platform/runtime/trust-ext/` (`core-*`: rules, markings, send, dual control, keep, seats, the core hooks; `tools-*`: models, network and canary, the record, sharing and the cleaner, vault and deletion, assistants, plugins, language packs; `adapters.ts` for other lanes' reads; `lifecycle.ts`; `lane-state.ts`).
 
-Screens: place modules in `app/ui/src/screens/reports/`, `tools/` and `trust/`, joined in `app/ui/src/places/lane-reports-tools-trust.tsx`, with a shared kit in `app/ui/src/screens/trust/kit/` (engine read hook, reply checks, figure conversion, page frame). Every screen has English and Hindi words, draws in Simple, Guided and Books, and handles loading, not built, locked, failed, read only and invalid replies.
+Screens: place modules in `app/ui/src/screens/reports/`, `tools/` and `trust/`, joined in `app/ui/src/places/lane-reports-tools-trust.tsx`, with a shared kit in `app/ui/src/screens/trust/kit/` and adapters for other lanes' methods (`tools/adapters/phone.ts`, `smallapps.ts`, `wrapped.ts`; `trust/adapters/jobs.ts`). Every screen has English and Hindi words and draws in Simple, Guided and Books; Tools and Do differ by view as the design asks.
 
-### Reports
+### Core edits (authorized by the coordinator in round 2; each minimal and additive)
 
-| Screen | Address | Label |
+| File | What | Why |
 |---|---|---|
-| RP-01 Packs: lender (CMA-style key financials, 12 months of sales, ageing, collections, GST turnover, bank summary, ready for a loan, projections), CA, investor; page states and GST modes | `reports/packs` | supported |
-| RP-02 A report page: every figure opens its receipt, gaps beside totals, projection apart, loan disclaimer, 43B(h) and TReDS notes with sources, markings, record check code; English or Hindi; print; CSV, XLSX and HTML export with formula-safe text cells | `reports/packs?sheet=<pack>.<page>` | supported |
-| RP-03 The week ahead and RP-04 the Friday review | `reports/weekahead` | supported (engine); see gap on the host's retained surface |
-| RP-05 Rhythm and delivery | `reports/weekahead?sheet=rhythm` | supported for settings; delivery experimental (needs the hosted relay) |
-| RP-06 Due dates from a shipped, sourced table | `reports/duedates` | experimental until a CA checks the table |
-| RP-07 Export everything, plain or locked | `reports/exports` | supported |
-| RP-08 Ask a person: a question file, nothing sent | `reports/exports?sheet=ask-a-person` | supported |
-
-### Tools
-
-| Screen | Address | Label |
-|---|---|---|
-| TL-01..TL-03 Small apps, a small app, the follow-up book | `tools/smallapps` | not built yet until models-ext serves `smallapps.*`; screens built against an adapter |
-| TL-04 Plugins, TL-05 Install a plugin (inspection without install, signature, locked-box drawing, Yes/No asks, flagged text), TL-10 Language packs | `tools/plugins` | supported |
-| TL-06 A tool from outside | `tools/plugins` | not built yet until models-ext serves `plugins.wrapped` |
-| TL-07 A request from a connected tool | `ToolRequestSheet` | supported as a component; nothing raises it yet |
-| TL-08 Other assistants: off by default, server card, call list | `tools/assistants` | experimental: pairing refuses `ASSISTANT_SCOPE_NOT_AVAILABLE` until core issues numbers-only sessions |
-| TL-09 Phone | `tools/phone` | not built yet until hosted-link serves `phone.*`; the relay sentence shows |
-
-### Trust
-
-| Screen | Address | Label |
-|---|---|---|
-| TR-01 Rules with "what left this computer today" | `trust/rules` | supported |
-| TR-02 See with markings and per-seat visibility | `trust/rules?sheet=see` | supported (markings follow data into this lane's pages; enforcement in other reads is a gap) |
-| TR-03 Send with stand-in tables, local only, financial routes, dual control | `trust/rules?sheet=send` | supported on the `trustx.*` path; dual control is experimental because core `trust.update`, `learning.sharing` and `auth.invite` still let a cofounder change these alone |
-| TR-04 Keep with the on-disk inventory | `trust/rules?sheet=keep` | supported (non-fact kinds stored, not yet enforced) |
-| TR-05 Do: presets, kinds with limits, the always-waits list, caps, agreement | `trust/rules?sheet=do` | experimental: the rules are stored and `autonomyDecision` answers them, but no job or action path calls it yet |
-| TR-06 People and seats (cofounder, accountant, CA with end date, staff), invite guide, TR-07 the pen | `trust/people` | supported; CA end dates enforced on this lane's requests only; staff "sees their own" not enforced; seat dual control experimental as for Send |
-| TR-08 Models with terms cards and spend | `trust/models` | supported; terms texts need checking |
-| TR-09 Network ledger and the canary (planted value and the books' own GSTINs, mail addresses and phone numbers) | `trust/network` | supported for the ledger; canary experimental: it finds a leak after it left |
-| TR-10 The tamper-evident record | `trust/record` | supported |
-| TR-11 Sharing, the local cleaner, TR-14 hosted promises, TR-15 notice and agreements | `trust/sharing` | supported; intake closed ("Nothing is sent.") |
-| TR-12 Vault: backups, test restore, lock, disk, recovery contact | `trust/vault` | supported; lock settings stored, not enforced; recovery contact experimental |
-| TR-13 Delete and the deletion report | `trust/vault?sheet=delete` | supported (see gap on managed copies) |
+| `platform/runtime/contracts.ts` | `registerCoreHook` (change, seatEnded, sourceHidden), `guardChange`, `sourceHidden`; `authorize` asks the seat-ended hook | dual control on core paths; CA end dates at authorization |
+| `platform/runtime/trust.ts` | `sourceHidden` in `sourceAllowed`; `guardChange` in `updatePolicy`, `addMember`, `revokeMember` | marking visibility in every fact read; dual control |
+| `platform/runtime/auth.ts` | `guardChange` in `invite`; `issueSession` option `scope: 'mcp'`; `authenticate` refuses a scoped session on another channel | dual control on invites; numbers-only assistant sessions |
+| `platform/runtime/learning.ts` | `guardChange` in `setSharing` | dual control on sharing |
+| `platform/runtime/mcp.ts` | `registerMcpCallHook` and a structure-only per-call record | the assistants' call list, refused calls included |
+| `platform/runtime/gateway.ts` | `registerOutboundCheck`, called once on the exact payload before dispatch | the canary blocks a leak before it leaves |
+| `platform/runtime/server.ts` | `/mcp` authenticates on the `mcp` channel | numbers-only sessions |
+| `platform/runtime/engine.ts` | `moduleHost` adds `sourceDeletion` bound to the calling request | source deletion with managed-copy cleanup from a module |
+| `app/desktop/preload.cjs` | this lane's line in `laneRefusals` | screens tell the lane's refusals apart |
+| `platform/runtime/contracts.ts` (later) | optional `scope?: 'mcp'` on `Member`; optional `issuedBy` on `Context` | numbers-only assistant members; a session issued by the change's author cannot confirm it |
+| `platform/runtime/auth.ts` (later) | `issueSession` records `issuedBy` for a session issued for someone else and `authenticate` carries it on the context; both honour `scope: 'mcp'` members | the owner cannot confirm their own change as the cofounder; assistants stay on `/mcp` |
+| `platform/runtime/trust.ts` (later) | `addMember` takes an optional `scope`; `visibleFacts` asks the marking hook once per source | assistant members; fact reads stay linear |
+| `platform/runtime/gateway.ts` (later) | the outbound check runs before the reservation | a blocked call spends no budget and uses no approval |
+| `platform/runtime/mcp.ts` (later) | call records are buffered and written in batches; `flushMcpCalls` | one assistant token cannot flood vault writes |
+| `platform/runtime/engine.ts` (later) | module source deletion needs the owner, a confirmation equal to the source id, and the caller's own single request | deletion from a module cannot run outside its request |
+| `platform/tests/import-learning-http.test.ts`, `ask-engine.test.ts`, `models-ext-plugins.test.ts`, `auth.test.ts` | a seat invited before the cofounder joins; raising Send through Trust with the cofounder confirming; a session test uses an accountant | the two-person rule now holds on core paths |
 
 ## 3. How a person uses it
 
-- **Reports · Packs**: open a pack, open a page, read it as it will print, press any figure to see its receipt, choose Hindi, then Print or export.
-- **Reports · The week ahead**: read Monday's three sections or switch to Friday; set the days, time and delivery in Rhythm.
-- **Reports · Due dates**: set the kind of business, GST mode and state once; the dates follow from the table. "Not yet checked by a CA."
-- **Reports · Exports**: Export everything (owner), with the warning that plain files are not encrypted, or a locked archive.
-- **Tools · Plugins**: choose a plugin file, read who made it and what it asks for, answer each ask, install. Remove takes its permissions away at once.
-- **Tools · Other assistants**: switch on, pair an assistant, copy the code once.
-- **Trust · Rules**: the four rows; Send and Sharing changes need the owner, and both owner and cofounder when there is a cofounder.
+- **Reports · Packs**: open a pack and a page; choose the period and the language; press any figure for its receipt; print, or export to Excel, CSV or HTML. GST turnover, the bank summary and purchases against GSTR-2B fill in once those sources are imported.
+- **Reports · The week ahead**: Monday's three sections, or Friday's review; Rhythm sets the days, time and delivery.
+- **Reports · Due dates**: set the kind of business, GST mode and state; each row links to its official source and its date.
+- **Reports · Exports**: Export everything (owner), plain or as a locked archive; Ask a person makes a question file.
+- **Tools · Small apps**: write one line, read what it would use, make it; open it; the follow-up book.
+- **Tools · Plugins**: choose a plugin file, read who made it and what it asks for, answer each ask, install; remove; outside tools set aside until approved again; language packs with their test counts.
+- **Tools · Other assistants**: switch on, pair an assistant (the owner), copy the code once; see each call, refused ones included.
+- **Tools · Phone**: switch WhatsApp, Telegram or mail on after agreeing to its text; verify your number; see the month's count against 30.
+- **Trust · Rules**: See, Send, Keep and Do; Send, Sharing and seat changes need the owner and the cofounder when there is a cofounder.
 - **Trust · People**: invite a cofounder, accountant, CA until a date, or staff; remove a person.
-- **Trust · Network / Record**: see every call that left, plant a test value; verify the record.
-- **Trust · Vault**: back up now, test a restore with the passphrase, delete a source everywhere and keep the report.
+- **Trust · Models, Network, Record, Sharing, Vault**: route terms and spend; every call that left and the canary; the verifiable record; the cleaner and agreements; backups, restore test, lock, and delete-everywhere with its report.
 
 ## 4. What is still missing
 
-- **Host precedence**: `reports/weekahead` is still drawn by the retained lesson review (`retainedSurface` in `app/ui/src/screens/retained/RetainedPlace.tsx`, used by `bootstrap.tsx`, owned by frame-today) before any place module. The week ahead module is reached once that precedence is changed. `trust/models` is now drawn by this lane, which supersedes the host's route picker there.
-- **Other lanes' methods** assumed by the screens behind adapters: `smallapps.list/make/create/get/rebuild/view/act` (models-ext), `plugins.wrapped/reapprove` (models-ext), `phone.channels/preview/usage/optIn/verify` (hosted-link). They show "not built yet" until served.
-- **Core hooks that would be needed** (not made): numbers-only (MCP) sessions, so assistant pairing can be turned on; dual control on the core `trust.update` (send, sharing), `learning.sharing`, `auth.invite`, `members.add` and `members.revoke` paths; a call to `autonomyDecision` from the job runner and the action path; seat visibility of markings in `visibleFacts` (this lane withholds marked figures only on its own pages, briefs and exports); a deletion entry point a module can call (`sources.delete` refuses `VAULT_BUSY` from inside a module request, so `trustx.deleteSource` calls the trust service directly and skips the engine's managed-copy cleanup; older backups and exports are reported `pending`); a gateway hook to block a payload carrying the canary before it leaves; a per-call MCP record (what the disclosure check removed, refused write calls) and MCP-only tokens; enforcement of the idle lock, CA end dates at authorization time and seat visibility of markings in `visibleFacts`.
-- **Needs a person**: a CA must check every row of `platform/runtime/reports-ext/due-dates.v1.json` (shipped `reviewed: false`, several sources linked to home pages) and the 43B(h) note; the model terms in `tools-terms.v1.json` must be checked against each provider; Hindi and Hinglish need a native reader's review.
-- Report pages for GST turnover, bank statements and purchases against GSTR-2B stay "not started" until the connector lanes register those calculations.
-- No period picker on report pages; Simple and Guided look nearly alike on Tools; phone items in the network ledger and phone opt-ins in agreements wait for the hosted-link record shape; voice minutes read 0.
+- **Reachability**: resolved in round 2 — the host now lets a lane's place module win its address, so the week ahead, the Friday review and Rhythm are reached at `reports/weekahead`; the retained lesson review keeps its own address. Outside links open through the host's link dialog (`openLink`, SH-10), report pages print through the guarded shell port (`print('page')`), and Vault places frame-today's recovery contact (`RecoveryContactSettings`), so `trustx.setRecoveryContact` remains only for older callers.
+- **Needs a person**: a CA must check `platform/runtime/reports-ext/due-dates.v1.json` (shipped `reviewed: false`; 10 of 25 sources could not be opened and are marked unconfirmed: EPFO, ESIC, Maharashtra and Karnataka professional tax, MCA, two income-tax rows), and decide whether extensions such as CBDT Circular 07/2026 are shown; the 43B(h) and TReDS notes; the model terms in `tools-terms.v1.json`; a native reader's review of Hindi and Hinglish.
+- **Other lanes**: connectors-ext issues no calculation receipts for bank totals, GSTR-3B turnover or the GSTR-2B match, so those lines are "not counted" and the three connector pages stay "ready, not tested". jobs-ext has no daily amount limit, so Do limits by count. hosted-link gives no per-message cost and no log of messages whose result was lost, and cannot verify a mail address. models-ext's meters do not measure voice minutes or the month's spend; there is no method listing pending plugin network requests or tool requests, so TL-07's sheet is never raised; small-app action buttons send an empty payload. Core has no `devices.*` methods, so TR-07 shows only this computer's sync role. No core method discards a waiting model send (it expires).
+- **The outbound check** covers the model gateway only; plugin network calls (models-ext), the learning upload (learning-ext) and hosted-link's allowance client are not routed through it.
+- **Within the lane**: staff "sees their own" is not enforced; keep periods for kinds other than facts are stored, not enforced; record- and field-level markings label pages but only source-level markings hide data; the monthly model cap is recorded, not enforced; the connector pages recalculate when the packs list is drawn; deletion places and seat limits are matched to screen words by the engine's English sentences.
+
+## 5. Screen audit (round 2)
+
+Each screen was checked against every Shows, You can, States and Rules line of the design, in Simple, Guided and Books and in English and Hindi. All screens have their own words in both languages and render tests; "Engine" names the methods drawn over. The full audit with every design item is kept with the build notes; this is its outcome after the round-2 fixes.
+
+| Screen | Address | Status | Open items |
+|---|---|---|---|
+| RP-01 Packs | `reports/packs` | met | — |
+| RP-02 A report page | `reports/packs?sheet=<pack>.<page>` | met | Tally export refused; PDF through Print |
+| RP-03 The week ahead | `reports/weekahead`, `reports/briefs` | met | — |
+| RP-04 The Friday review | same | met | Approve and Not now stay in Work · Approvals |
+| RP-05 Rhythm and delivery | `?sheet=rhythm` | met | delivery depends on the hosted relay |
+| RP-06 Due dates | `reports/duedates` | met | table needs a CA |
+| RP-07 Exports | `reports/exports` | met | — |
+| RP-08 Ask a person | `?sheet=ask-a-person` | met | no link from Ask's Not yet page (ask lane) |
+| TL-01 Small apps | `tools/smallapps` | met | — |
+| TL-02 A small app | `tools/smallapps?sheet=<id>` | partial | drawn in a sandboxed box, not a separate-origin frame; no charts or forms yet |
+| TL-03 The follow-up book | `?sheet=follow-up-book` | partial | entries cannot be deleted or exported from here |
+| TL-04 Plugins | `tools/plugins` | met | — |
+| TL-05 Install a plugin | `tools/plugins?sheet=install` | met | no "No internet" state |
+| TL-06 A tool from outside | Plugins page | met | — |
+| TL-07 A request from a connected tool | component | built, not raised | needs a models-ext list of pending requests |
+| TL-08 Other assistants | `tools/assistants` | met | the MCP server removes nothing from answers, so "removed" is always empty |
+| TL-09 Phone | `tools/phone` | met | mail not verifiable; cost is a month total |
+| TL-10 Language packs | Plugins page | met | packs not reviewed by a native reader |
+| TR-01 Rules | `trust/rules` | met | — |
+| TR-02 See | `?sheet=see` | met | — |
+| TR-03 Send | `?sheet=send` | met | — |
+| TR-04 Keep | `?sheet=keep` | met | non-fact kinds stored, not enforced |
+| TR-05 Do | `?sheet=do` | met over jobs-ext | no amount limit in jobs-ext |
+| TR-06 People | `trust/people` | met | staff "sees their own" not enforced |
+| TR-07 Machines and the pen | People page | partial | no `devices.*` in core: no hand-over, machine list or sync set-up |
+| TR-08 Models | `trust/models` | partial | routes cannot be reordered here; cap not enforced; no comparison table |
+| TR-09 Network | `trust/network` | met | a waiting send can be released, not discarded |
+| TR-10 Record | `trust/record` | met | — |
+| TR-11 Sharing | `trust/sharing` | met over learning-ext | — |
+| TR-12 Vault | `trust/vault` | met | restore from the lock screen; PIN not built in frame-today |
+| TR-13 Delete and the report | `?sheet=delete` | met | — |
+| TR-14 What the paid plan can see | Sharing page | met | no engine sends "plan ended" yet |
+| TR-15 Notice and agreements | Sharing page | met | — |

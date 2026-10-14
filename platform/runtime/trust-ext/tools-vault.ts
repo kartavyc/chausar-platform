@@ -45,9 +45,12 @@ export async function vaultView(_ctx: Context, host: ModuleHost) {
   try { const info = await statfs(host.directory); disk = { freeBytes: Number(info.bavail) * Number(info.bsize), totalBytes: Number(info.blocks) * Number(info.bsize) }; } catch { disk = null; }
   let version: string | null = null;
   try { const status = await host.call('updates.status', {}) as { version?: unknown }; version = typeof status?.version === 'string' ? status.version : null; } catch { version = null; }
+  // The idle lock is the frame's own setting (todayx.shell), which the app enforces; this lane keeps no second copy.
+  let idleMinutes: number | null = null;
+  try { const shell = await host.call('todayx.shell', {}) as { autoLockMinutes?: unknown }; idleMinutes = Number.isInteger(shell?.autoLockMinutes) ? shell.autoLockMinutes as number : null; } catch { idleMinutes = null; }
   return {
     backups: (await files(backupsDir(host), name => name.endsWith('.backup'))).map(file => backupRow(state, file)),
-    lock: { idleMinutes: t.lock?.idleMinutes ?? 15, deviceCheck: t.lock?.deviceCheck ?? false }, disk, limit: LIMIT,
+    lock: { idleMinutes, deviceCheck: t.lock?.deviceCheck ?? false }, disk, limit: LIMIT,
     recoveryContact: { name: t.recoveryContact ?? null, experimental: true as const }, version,
   };
 }
@@ -93,7 +96,8 @@ export async function setLock(ctx: Context, payload: Record<string, any>, host: 
   const { idleMinutes, deviceCheck } = fields(payload, ['idleMinutes', 'deviceCheck']);
   check(idleMinutes === undefined || (Number.isInteger(idleMinutes) && idleMinutes >= 1 && idleMinutes <= 240), 'INVALID_LOCK', 'Lock after 1 to 240 idle minutes.');
   check(deviceCheck === undefined || typeof deviceCheck === 'boolean', 'INVALID_LOCK', 'Turn the device check on or off.');
-  await host.store.update(state => { const t = tools(state); t.lock = { idleMinutes: idleMinutes ?? t.lock?.idleMinutes ?? 15, deviceCheck: deviceCheck ?? t.lock?.deviceCheck ?? false }; });
+  if (idleMinutes !== undefined) await host.call('todayx.lock.settings', { minutes: idleMinutes });
+  if (deviceCheck !== undefined) await host.store.update(state => { const t = tools(state); t.lock = { deviceCheck }; });
   return vaultView(ctx, host);
 }
 export async function setRecoveryContact(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
@@ -116,8 +120,8 @@ export async function deleteSource(ctx: Context, payload: Record<string, any>, h
   const before = host.store.read(); const factIds = new Set(before.facts.filter(fact => fact.sourceId === sourceId).map(fact => fact.id));
   const sent = before.modelReceipts.filter(r => SENT.has(r.status) && references(r, sourceId, factIds)).length;
   const startedAt = Date.now(); const at = now();
-  // sources.delete holds the engine's transition fence, which a module call cannot take; the trust service does the same deletion.
-  await host.services.trust.deleteSource(ctx, sourceId);
+  // The engine's own deletion, with its managed-copy cleanup (older managed backups and exports), callable from this request.
+  await host.services.sourceDeletion.delete(sourceId, confirmation);
   const after = host.store.read(); const rows: Row[] = [];
   for (const [place, key] of PLACES) {
     const left = (after[key] as unknown[]).filter(item => references(item, sourceId, factIds)).length;

@@ -1,5 +1,6 @@
 import type { MethodSpec } from '../modules/types.ts';
 import { onPurge, onTick } from './lifecycle.ts';
+import { setPolicy } from './core-hooks.ts';
 import { peekLane } from './lane-state.ts';
 import type { CoreState } from './core-state.ts';
 import { rulesView } from './core-rules.ts';
@@ -7,15 +8,15 @@ import { markingsView, setMarking, setSeatMarking } from './core-markings.ts';
 import { sendLevels, setSend } from './core-send.ts';
 import { confirmChange, expirePending, pendingView } from './core-dual.ts';
 import { keepView, setKeep } from './core-keep.ts';
-import { autonomyView, setAutonomy } from './core-autonomy.ts';
+import { autonomyPreset } from './adapters.ts';
 import { endSeats, endedMembers, invite, removeSeat, seats } from './core-seats.ts';
 
 export { markingsForSources, seatSees } from './core-markings.ts';
-export { autonomyDecision } from './core-autonomy.ts';
 
-/** trustx.*: rules, markings, send, keep, do, seats and dual control. */
+/** trustx.*: rules, markings, send, keep, seats and dual control. What may run on its own is jobs-ext's (`jobsx.autonomy*`). */
 export const trustCoreMethods: Record<string, MethodSpec> = {
-  'trustx.rules': { permission: 'read', handler: (ctx, _p, host) => rulesView(host.store.read(), ctx) },
+  // The Do row shows the preset jobs-ext holds, or null when that lane does not answer.
+  'trustx.rules': { permission: 'read', handler: async (ctx, _p, host) => ({ ...rulesView(host.store.read(), ctx), do: { preset: await autonomyPreset(host) } }) },
   'trustx.markings': { permission: 'read', handler: (_ctx, _p, host) => markingsView(host.store.read()) },
   'trustx.setMarking': { permission: 'admin', handler: setMarking },
   'trustx.setSeatMarking': { permission: 'admin', handler: setSeatMarking },
@@ -23,10 +24,10 @@ export const trustCoreMethods: Record<string, MethodSpec> = {
   'trustx.setSend': { permission: 'admin', handler: setSend },
   'trustx.pendingChanges': { permission: 'read', handler: (_ctx, _p, host) => pendingView(host.store.read()) },
   'trustx.confirmChange': { permission: 'admin', handler: confirmChange },
+  /** Source access and autonomy: the same two-person rule as Send when there is a cofounder. */
+  'trustx.setPolicy': { permission: 'admin', handler: setPolicy },
   'trustx.keep': { permission: 'read', handler: (_ctx, _p, host) => keepView(host) },
   'trustx.setKeep': { permission: 'admin', handler: setKeep },
-  'trustx.autonomy': { permission: 'read', handler: (_ctx, _p, host) => autonomyView(host.store.read()) },
-  'trustx.setAutonomy': { permission: 'admin', handler: setAutonomy },
   'trustx.seats': { permission: 'read', handler: (ctx, _p, host) => seats(ctx, host) },
   'trustx.invite': { permission: 'admin', handler: invite },
   'trustx.removeSeat': { permission: 'admin', handler: removeSeat },

@@ -18,12 +18,27 @@ const WORDS: Record<string, string> = {
   'model.route.configured': 'Set up an AI model', 'model.route.revoked': 'Turned off an AI model', 'model.dispatch.prepared': 'Prepared a request to an AI model', 'model.outbound.approved': 'Approved a request to an AI model', 'model.dispatch.completed': 'Sent a request to an AI model',
   'learning.sharing': 'Changed the sharing switch', 'learning.consented': 'Agreed to share the shape of some work', 'learning.export-settled': 'Shared the shape of some work',
   'auth.session.issued': 'Signed someone in', 'auth.session.revoked': 'Signed someone out', 'auth.invitation.created': 'Invited a person', 'auth.invitation.accepted': 'Accepted an invitation',
+  'writeback.prepared': 'Prepared a change in an outside system', 'writeback.settled-by-person': 'Said whether an uncertain outside change happened', 'writeback.connected': 'Connected an outside system for writing',
+  'writeback.grant': 'Changed what may be written to an outside system', 'writeback.disconnected': 'Disconnected an outside system', 'writeback.wanted': 'Asked for a change Chausar cannot make yet',
+  'writeback.settings': 'Changed how long a yes lasts or the reminder limits', 'writeback.practice': 'Practised changes on copies of outside systems', 'writeback.qualified': 'Tested the outside changes on practice copies',
+  'writeback.qualified-sandbox': 'Tested the outside changes on a sandbox account', 'writeback.consent': 'Recorded whether a customer agreed to reminders', 'writeback.follow-up.sent': 'Sent a payment reminder',
+  'writeback.follow-up.paid': 'Recorded that a reminded invoice was paid', 'writeback.expired': 'An outside change expired before it was sent', 'writeback.prepared-again': 'Prepared an outside change again because its target changed',
+  'writeback.already-done': 'Found an outside change already done; nothing was sent', 'writeback.looked-first': 'Looked at an outside system before sending', 'writeback.cancelled-evidence': 'Cancelled a reminder because what it was based on changed',
+  'hosted.paired': 'Paired this computer with the Chausar relay', 'hosted.unpaired': 'Unpaired this computer from the Chausar relay', 'hosted.channel.set': 'Turned a phone channel on or off',
+  'hosted.relay.message': 'Sent a message through the Chausar relay', 'hosted.relay.approved': 'Approved a change from the phone', 'hosted.relay.notNow': 'Said not now to a change from the phone',
+  'hosted.relay.refused': 'Refused a phone approval that no longer fit', 'hosted.relay.expired': 'Ignored a phone approval that came too late', 'hosted.backup.uploaded': 'Uploaded a locked backup',
+  'hosted.backup.downloaded': 'Downloaded a locked backup', 'hosted.backup.keyExported': 'Showed the hosted backup key for the recovery kit', 'hosted.worker.set': 'Turned an always-on job on or off',
+  'hosted.worker.dueDates': 'Sent due dates to the always-on reminder job', 'hosted.worker.deleted': 'Deleted the always-on jobs\' data',
+  'jobsx.autonomy.changed': 'Changed what may run without asking', 'jobsx.autonomy.preset': 'Chose how much may run without asking', 'jobsx.caps.changed': 'Changed the limits on jobs and reminders', 'jobsx.autonomy.ran': 'Did a change on its own, within your limits',
   'sync.push.completed': 'Copied the locked workspace to the sync store', 'dictionary.published': 'Published the business dictionary', 'job.created': 'Set up a job', 'job.cancelled': 'Cancelled a job',
 };
 const RULES: [string, string][] = [
   ['trust.', 'Only an owner may change this.'], ['plugin.', 'Plugins run in a locked box with no network.'], ['model.', 'The send rule decides what may leave.'],
   ['action.', 'A change waits for approval of exactly that change.'], ['learning.', 'Sharing is off unless you turn it on, and shares structure only.'],
   ['calculation.', 'Every number carries its receipt.'], ['sync.', 'Only locked files leave for sync.'],
+  ['writeback.consent', 'A reminder goes only to a customer who agreed, at the address they gave.'], ['writeback.follow-up.', 'A reminder goes only to a customer who agreed, at the address they gave.'],
+  ['writeback.', 'A change waits for approval of exactly that change, and is done once.'], ['hosted.backup.', 'Backups leave locked; the server cannot open them.'],
+  ['hosted.', 'Phone messages carry a headline and a link only.'], ['jobsx.', 'Anything on the always-waits list always waits for you.'],
 ];
 
 /** Append links for activity not yet in the chain. Runs inside `store.update`. */

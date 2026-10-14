@@ -2,9 +2,9 @@
  * Small helpers shared by the Reports screens: dates and instants through the format
  * module, the sentence for a refusal code, and who may change what.
  */
-import type { Language } from '../../app/presentation.ts';
+import type { FigureOrMissing, Language, View } from '../../app/presentation.ts';
 import type { PlaceMember } from '../../places/types.ts';
-import { date, time } from '../../format/index.ts';
+import { date, moneyShort, time } from '../../format/index.ts';
 import { NOT_BUILT_CODES } from '../trust/kit/engine.ts';
 import { fill, type Words } from './words.ts';
 
@@ -23,6 +23,14 @@ export function refusal(code: string, w: Words): string {
   if (known !== undefined) return w[`refused.${known}`];
   if (NOT_BUILT_CODES.has(code)) return w['refused.notBuilt'];
   return fill(w['refused.other'], { code });
+}
+
+/**
+ * Money as the view shows it (part 8): Simple reads the short form ("₹3.1 lakh"), Guided and Books the full one. The exact
+ * value stays in the figure, in its title and in the receipt it opens; only the display string changes.
+ */
+export function shown(value: FigureOrMissing, view: View, w: Words): FigureOrMissing {
+  return view === 'simple' && value.kind === 'money' ? { ...value, display: moneyShort(value.exact, { lakh: w.lakh, crore: w.crore }) } : value;
 }
 
 /** `admin` in the contract: the owner or a cofounder, never a viewer seat. */

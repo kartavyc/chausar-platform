@@ -5,6 +5,7 @@ import { trustCoreMethods } from '../trust-ext/methods-core.ts';
 import { trustToolsMethods } from '../trust-ext/methods-tools.ts';
 import { endSeats, endedMembers } from '../trust-ext/core-seats.ts';
 import { purgeLane, tickLane } from '../trust-ext/lifecycle.ts';
+import '../trust-ext/core-hooks.ts';
 
 /** A CA seat past its end date ends before any request of this lane runs, whether or not
  *  the scheduler is on; a request from that seat is then refused. */

@@ -5,12 +5,16 @@ import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { validDate } from '../memory.ts';
 import { onPurge, onTick } from '../trust-ext/lifecycle.ts';
 import { peekLane } from '../trust-ext/lane-state.ts';
-import { clock, closed, escapeHtml, indiaDate, language, peekReports, reportsState, stamp, validPeriod, type Period } from './common.ts';
+import { clock, closed, escapeHtml, indiaDate, language, peekReports, reportsState, stamp, validPeriod, type Language, type Period } from './common.ts';
 import { buildPage, findPage, listPacks } from './pages.ts';
 import { checkNumberOf, csvFile, exportStores, pageHtml, pageRows, writeOut } from './export-files.ts';
 import { xlsxBook } from './xlsx.ts';
 import { friday, mergeRhythm, rhythmSettings, rhythmView, tickBrief, weekAhead } from './briefs.ts';
 import { dueDates, dueRequest, validProfile } from './due-dates.ts';
+import { openQuestion, questionFiles } from './questions.ts';
+
+/** hosted-link's relay is absent, off in demo, not set up or not paired: each means delivery is not available here. */
+const RELAY_ABSENT = new Set(['UNKNOWN_METHOD', 'DEMO_EXTERNAL_DISABLED', 'HOSTED_NOT_CONFIGURED', 'HOSTED_NOT_PAIRED']);
 
 const today = (host: ModuleHost) => indiaDate(clock(host));
 /** The default report period: the financial year to date, from the rhythm's financial-year start. */
@@ -19,10 +23,10 @@ function defaultPeriod(host: ModuleHost): Period {
   return { from: `${to >= `${year}-${start}` ? year : year - 1}-${start}`, to };
 }
 const periodOf = (host: ModuleHost, value: unknown) => value === undefined ? defaultPeriod(host) : validPeriod(value);
-function onDateOf(host: ModuleHost, payload: unknown, code: string): string {
-  const input = closed(payload, ['onDate'], code);
+function briefRequest(host: ModuleHost, payload: unknown, code: string): { onDate: string; language: Language } {
+  const input = closed(payload, ['onDate', 'language'], code);
   check(input.onDate === undefined || validDate(input.onDate), code, 'Give a valid date.');
-  return input.onDate ?? today(host);
+  return { onDate: input.onDate ?? today(host), language: language(input.language) };
 }
 /** "Export everything" copies the whole vault, so it needs an unrestricted owner, as workspace.export does. */
 function requireOwner(host: ModuleHost, ctx: Context) {
@@ -35,7 +39,7 @@ const publicRecord = (item: ExportRecord & Record<string, unknown>): ExportRecor
 
 export const reportsMethods: Record<string, MethodSpec> = {
   'reportsx.packs': { permission: 'read', async handler(ctx, payload, host) {
-    closed(payload, [], 'INVALID_REPORT_REQUEST'); return listPacks(ctx, host, defaultPeriod(host));
+    const input = closed(payload, ['language'], 'INVALID_REPORT_REQUEST'); return listPacks(ctx, host, defaultPeriod(host), language(input.language));
   } },
   'reportsx.page': { permission: 'read', async handler(ctx, payload, host) {
     const input = closed(payload, ['pack', 'page', 'language', 'period'], 'INVALID_REPORT_REQUEST'); findPage(input.pack, input.page);
@@ -57,9 +61,9 @@ export const reportsMethods: Record<string, MethodSpec> = {
     await host.store.update(state => { (reportsState(state).pageExports ??= []).push({ id: newId('report-export'), at: now(), path, sourceIds, rowIds, receiptIds: page.receiptIds }); });
     return { format: input.format, ...file, encrypted: false, textCellsProtected: true };
   } },
-  'reportsx.weekAhead': { permission: 'read', async handler(ctx, payload, host) { return weekAhead(ctx, host, onDateOf(host, payload, 'INVALID_BRIEF_REQUEST')); } },
-  'reportsx.friday': { permission: 'read', async handler(ctx, payload, host) { return friday(ctx, host, onDateOf(host, payload, 'INVALID_BRIEF_REQUEST')); } },
-  'reportsx.rhythm': { permission: 'read', handler(_ctx, payload, host) { closed(payload, [], 'INVALID_RHYTHM'); return rhythmView(host.store.read(), host); } },
+  'reportsx.weekAhead': { permission: 'read', async handler(ctx, payload, host) { const input = briefRequest(host, payload, 'INVALID_BRIEF_REQUEST'); return weekAhead(ctx, host, input.onDate, input.language); } },
+  'reportsx.friday': { permission: 'read', async handler(ctx, payload, host) { const input = briefRequest(host, payload, 'INVALID_BRIEF_REQUEST'); return friday(ctx, host, input.onDate, input.language); } },
+  'reportsx.rhythm': { permission: 'read', handler(_ctx, payload, host) { const input = closed(payload, ['language'], 'INVALID_RHYTHM'); return rhythmView(host.store.read(), host, language(input.language)); } },
   'reportsx.setRhythm': { permission: 'admin', async handler(_ctx, payload, host) {
     await host.store.update(state => {
       const current = rhythmSettings(state), next = mergeRhythm(current, payload), reports = reportsState(state), verified = (reports.verified ??= {});
@@ -76,21 +80,23 @@ export const reportsMethods: Record<string, MethodSpec> = {
     check(input.channel === 'mail' ? rhythm.mail.address : rhythm.whatsapp.phone, 'CHANNEL_ADDRESS_REQUIRED', 'Add the address before verifying it.');
     let reply: unknown;
     try { reply = await host.call('phone.verify', { channel: input.channel }); }
-    catch (error) { check((error as { code?: string }).code !== 'UNKNOWN_METHOD', 'RELAY_NOT_AVAILABLE', 'Delivery by mail and WhatsApp is not available yet.'); throw error; }
+    catch (error) { check(!RELAY_ABSENT.has(String((error as { code?: string }).code)), 'RELAY_NOT_AVAILABLE', 'Delivery by mail and WhatsApp is not available yet.'); throw error; }
     const verified = (reply as { verified?: unknown })?.verified === true;
     await host.store.update(state => { (reportsState(state).verified ??= {})[input.channel] = verified; });
     return { channel: input.channel, verified };
   } },
   'reportsx.due': { permission: 'read', handler(_ctx, payload, host) {
     const request = dueRequest(payload, today(host));
-    return dueDates({ from: request.from, days: request.days, profile: request.profile ?? peekReports(host.store.read()).dueProfile ?? null });
+    return dueDates({ from: request.from, days: request.days, profile: request.profile ?? peekReports(host.store.read()).dueProfile ?? null, language: language(request.language) });
   } },
   'reportsx.setDueProfile': { permission: 'admin', async handler(_ctx, payload, host) {
     const profile = validProfile(payload); await host.store.update(state => { reportsState(state).dueProfile = { ...profile }; }); return profile;
   } },
-  'reportsx.exports': { permission: 'read', handler(_ctx, payload, host) {
+  'reportsx.exports': { permission: 'read', handler(ctx, payload, host) {
     closed(payload, [], 'INVALID_EXPORT_REQUEST');
-    const items = [...(peekReports(host.store.read()).exports ?? [])].reverse().map(publicRecord);
+    // Row counts cover every source and branch, hidden ones included, so only an unrestricted owner sees what each export holds.
+    const member = authorize(host.store, ctx); const owner = member.role === 'owner' && member.branches.includes('*');
+    const items = [...(peekReports(host.store.read()).exports ?? [])].reverse().map(item => owner ? publicRecord(item) : { ...publicRecord(item), stores: [] });
     return { warning: 'Exported files are not encrypted.', items };
   } },
   'reportsx.exportAll': { permission: 'admin', async handler(ctx, payload, host) {
@@ -123,6 +129,8 @@ export const reportsMethods: Record<string, MethodSpec> = {
     await host.store.update(state => { (reportsState(state).questions ??= []).push({ id: newId('question'), at: now(), path: file.path, sourceIds: receipt?.sourceIds ?? [], rowIds: receipt?.rowIds ?? [], receiptIds: receipt ? [receipt.id] : [] }); });
     return { file, sent: false };
   } },
+  'reportsx.questions': { permission: 'read', async handler(ctx, payload, host) { closed(payload, [], 'INVALID_QUESTION_FILE'); return questionFiles(ctx, host); } },
+  'reportsx.openQuestion': { permission: 'read', async handler(ctx, payload, host) { const input = closed(payload, ['name'], 'INVALID_QUESTION_FILE'); return openQuestion(ctx, host, input.name); } },
 };
 
 /** A file path an export, question or "export everything" record points at. */
