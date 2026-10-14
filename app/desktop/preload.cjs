@@ -38,7 +38,7 @@ const refusalCodes = new Set([
 const laneRefusals = [
   ['UNKNOWN_METHOD', 'INVALID_REQUEST', 'METHOD_UNAVAILABLE', 'OPEN_DESKTOP', 'DEMO_EXTERNAL_DISABLED'],
 
-  /* frame-today */ ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST'],
+  /* frame-today */ ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST', 'IDEA_APP_ONLY', 'IDEA_FOUNDER_ONLY', 'IDEA_NOT_STARTED', 'IDEA_FULL', 'IDEA_CLAIM_NOT_FOUND', 'IDEA_CLAIM_DECIDED', 'RECOVERY_CONTACT_INVALID', 'RECOVERY_CONTACT_RELAY_REQUIRED', 'UNLOCK_FAILED', 'VAULT_OPEN', 'VAULT_BUSY'],
 
   /* ask */ ['ASK_INVALID', 'ASK_NOT_FOUND', 'ASK_NO_DICTIONARY', 'ASK_NO_CALCULATION', 'ASK_STOPPED_BY_RULE', 'ASK_REFUSED', 'ASK_CHANGED', 'ASK_STALE', 'ASK_NOT_GROUPABLE', 'ASK_BRIDGE_NOT_EXACT', 'ASK_CANNOT_REBUILD', 'ASK_NOT_FORECASTABLE', 'ASK_FAILED'],
 
@@ -105,5 +105,14 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     const listener = (_event, value) => callback(Object.freeze({ healthy: value?.healthy === true, state: states.includes(value?.state) ? value.state : 'failed' }));
     ipcRenderer.on('chausar:engine-status', listener);
     return () => ipcRenderer.removeListener('chausar:engine-status', listener);
+  },
+  // SH-10 and FR-04 (frame-today): checked here and again in main (app/desktop/shell-ipc.cjs).
+  openExternal: async url => {
+    if (typeof url !== 'string' || url.length === 0 || url.length > 2048) return 'refused';
+    try { return await ipcRenderer.invoke('chausar:shell-open-external', url) === 'opened' ? 'opened' : 'refused'; } catch { return 'refused'; }
+  },
+  print: async kind => {
+    if (kind !== 'recovery-kit' && kind !== 'page') return 'refused';
+    try { return await ipcRenderer.invoke('chausar:shell-print', kind) === 'printed' ? 'printed' : 'refused'; } catch { return 'refused'; }
   },
 }));

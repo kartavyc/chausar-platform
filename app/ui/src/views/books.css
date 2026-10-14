@@ -13,4 +13,5 @@
   --row: 32px;
   --page-top: var(--sp6);
   --rail-pad: var(--sp5);
+  --rail-gap: var(--sp2);
 }

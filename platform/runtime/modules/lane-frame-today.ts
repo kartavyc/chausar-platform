@@ -5,6 +5,11 @@ import { addDays, capabilities, faultReport, firstRun, frameOf, help, phoneMessa
 import { activityFilter, activityPage, auditEvents, modelEvents } from '../frame-today/activity.ts';
 import { checkIdentity, identityCard, identityFields } from '../frame-today/identity.ts';
 import { setupChecklist } from '../frame-today/setup-rules.ts';
+import { ideaCorrect, ideaGet, ideaStart, ideaTell } from '../frame-today/idea.ts';
+import { deviceInput, diskCheck, readDevice, systemProbe, workspaceFolders, writeDevice, type DiskProbe } from '../frame-today/device.ts';
+import { recoveryContactInput, recoveryContactReply, requestRecoveryThroughContact } from '../frame-today/recovery.ts';
+import { composeReceiptDetail } from '../frame-today/receipt-detail.ts';
+import { closing } from '../frame-today/closing.ts';
 
 const keys = (payload: Record<string, unknown>, allowed: readonly string[]) =>
   check(Object.keys(payload).every(key => allowed.includes(key)), 'INVALID_TODAYX_REQUEST', 'This request has fields it does not use.');
@@ -41,6 +46,9 @@ export const frameTodayModule: EngineModule = {
     'todayx.shell': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return shell(ctx, host); } },
     'todayx.clock.set': { permission: 'admin', handler: clockSet },
     'todayx.clock.advance': { permission: 'admin', handler: clockAdvance },
+    // A seat's own banner dismissal is its own read-level state. The identity card (PAN, GSTIN) needs a
+    // seat that prepares; this computer's folders, device choices and system tools need an admin once a
+    // vault is open (before a vault only the trusted desktop calls them).
     'todayx.jobsPaused.dismiss': { permission: 'read', handler: async (ctx, payload, host) => {
       keys(payload, []);
       await updateFrame(host, ctx, 'read', frame => { frame.jobsPausedDismissedAt[ctx.memberId] = now(); });
@@ -65,7 +73,7 @@ export const frameTodayModule: EngineModule = {
       const { steps, blocked, leftThisComputer } = await firstRun(ctx, host);
       return { steps, blocked, leftThisComputer };
     } },
-    'todayx.identity.check': { permission: 'read', handler: (_ctx, payload) => {
+    'todayx.identity.check': { permission: 'read', preVault: true, handler: (_ctx, payload) => {
       keys(payload, ['fields']);
       return { fields: checkIdentity(identityFields(payload.fields)) };
     } },
@@ -78,14 +86,54 @@ export const frameTodayModule: EngineModule = {
         return structuredClone(card);
       });
     } },
-    'todayx.identity.get': { permission: 'read', handler: (_ctx, payload, host) => { keys(payload, []); return structuredClone(frameOf(host.store.read()).identity); } },
+    'todayx.identity.get': { permission: 'prepare', handler: (_ctx, payload, host) => { keys(payload, []); return structuredClone(frameOf(host.store.read()).identity); } },
     'todayx.setupChecklist': { permission: 'read', handler: (_ctx, payload, host) => { keys(payload, []); return setupChecklist(frameOf(host.store.read()).identity); } },
     'todayx.help': { permission: 'read', handler: (_ctx, payload) => { keys(payload, []); return help(); } },
     'todayx.faultReport': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return faultReport(ctx, host); } },
     'todayx.phoneMessages': { permission: 'read', handler: (_ctx, payload, host) => { keys(payload, []); return phoneMessages(host); } },
+    'todayx.idea.start': { permission: 'prepare', handler: ideaStart },
+    'todayx.idea.tell': { permission: 'prepare', handler: ideaTell },
+    'todayx.idea.correct': { permission: 'prepare', handler: ideaCorrect },
+    'todayx.idea.get': { permission: 'read', handler: ideaGet },
+    // This computer, before any workspace is open. Trusted host options may replace the probe and platform (tests).
+    'todayx.diskCheck': { permission: 'admin', preVault: true, handler: (_ctx, payload, host) => {
+      keys(payload, []);
+      const probe = typeof host.options.diskProbe === 'function' ? host.options.diskProbe as DiskProbe : systemProbe;
+      const platform = typeof host.options.platform === 'string' ? host.options.platform : process.platform;
+      return diskCheck({ directory: host.directory, platform, env: process.env, probe, timeoutMs: typeof host.options.probeTimeoutMs === 'number' ? host.options.probeTimeoutMs : undefined });
+    } },
+    'todayx.device.get': { permission: 'read', preVault: true, handler: (_ctx, payload, host) => { keys(payload, []); return readDevice(host.directory); } },
+    'todayx.device.set': { permission: 'admin', preVault: true, handler: (_ctx, payload, host) => writeDevice(host.directory, deviceInput(payload)) },
+    'todayx.workspaces': { permission: 'admin', preVault: true, handler: async (_ctx, payload, host) => { keys(payload, []); return { folders: await workspaceFolders(host.directory) }; } },
+    'todayx.recoveryContact.get': { permission: 'admin', handler: (_ctx, payload, host) => { keys(payload, []); return recoveryContactReply(frameOf(host.store.read()).recoveryContact); } },
+    'todayx.recoveryContact.set': { permission: 'admin', handler: (ctx, payload, host) => {
+      const contact = recoveryContactInput(payload, now());
+      return updateFrame(host, ctx, 'admin', (frame, state) => {
+        frame.recoveryContact = contact;
+        audit(state, contact === null ? 'recovery-contact.removed' : 'recovery-contact.saved', { memberId: ctx.memberId });
+        return recoveryContactReply(contact);
+      });
+    } },
+    'todayx.recoveryContact.request': { permission: 'admin', preVault: true, handler: (_ctx, payload) => requestRecoveryThroughContact(payload) },
+    'todayx.receiptDetail': { permission: 'read', handler: async (ctx, payload, host) => {
+      keys(payload, ['receiptId']);
+      check(typeof payload.receiptId === 'string' && /^[A-Za-z0-9_.:-]{1,200}$/.test(payload.receiptId), 'INVALID_TODAYX_REQUEST', 'Name one receipt.');
+      // The receipt is read as this caller: a seat that may not read it gets the same refusal.
+      const receipt: any = await host.call('receipts.get', { id: payload.receiptId });
+      const sources: any = await host.call('sources.list', {}).catch(() => []);
+      const models = (() => { try { return host.services.gateway?.receipts(ctx) ?? []; } catch { return []; } })();
+      return composeReceiptDetail(host.store.read(), ctx, receipt, Array.isArray(sources) ? sources : [], models);
+    } },
+    'todayx.closing': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return closing(ctx, host); } },
+    'todayx.closing.set': { permission: 'admin', handler: async (ctx, payload, host) => {
+      keys(payload, ['on']);
+      check(typeof payload.on === 'boolean', 'INVALID_TODAYX_REQUEST', 'Say whether daily closing is on.');
+      await updateFrame(host, ctx, 'admin', (frame, state) => { frame.dailyClosing = payload.on; audit(state, 'closing.daily-set', { memberId: ctx.memberId, on: payload.on }); });
+      return closing(ctx, host);
+    } },
   },
   /**
-   * Nothing this module keeps is derived from a source: the identity card is typed by a person,
+   * Nothing this module keeps is derived from a source: the identity card and the idea (FR-11) are typed by a person,
    * and the clock, lock and dismissal settings are workspace preferences. Activity and status are
    * computed on each call from records the engine itself purges, so no cache can outlive a source.
    */

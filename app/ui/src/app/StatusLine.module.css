@@ -1,7 +1,8 @@
 .line {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp5);
+  /* Facts that wrap stay close under each other; across, they keep the wide gap. */
+  gap: var(--sp1) var(--sp5);
   align-items: center;
   min-height: var(--status);
   margin: 0;

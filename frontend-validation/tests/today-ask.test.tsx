@@ -644,7 +644,7 @@ test('actual hash departure during held host context preflight issues zero Today
 
 test('Saved discovery and returning to legacy coexist with independent Today and never prepare figures automatically', async () => {
   const fixture = await mountedToday();
-  act(() => { window.location.hash = '#/ask/saved'; });
+  act(() => { window.location.hash = '#/ask/whatifs'; });
   await waitFor(() => expect(fixture.count('scenarios.discover')).toBe(1));
   await screen.findByText(words('RETAINED.saved.empty'));
   expect(fixture.count('today.prepareTiles')).toBe(0); expect(fixture.count('dashboard.get')).toBe(0);

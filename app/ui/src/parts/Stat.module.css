@@ -1,5 +1,7 @@
 .stat {
   display: grid;
+  /* Rows at the top: in a row of tiles of different heights the labels and figures stay on one line. */
+  align-content: start;
   gap: var(--sp2);
   min-width: 0;
 }

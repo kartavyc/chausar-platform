@@ -18,6 +18,7 @@ const demoProfileRoot = join(syntheticTemporary, 'fresh-preview');
 
 async function desktop(args: string[], metadataGate: Promise<void> = Promise.resolve(), postgresGate?: Promise<void>, environment: NodeJS.ProcessEnv = {}, fault?: 'existing-root' | 'ignored-binding' | 'late-binding' | 'lock-denied' | 'unavailable-defaults' | 'unavailable-user-default' | 'unavailable-session-default' | 'unavailable-app-data' | 'invalid-app-data', profileClaimFailure?: Error) {
   const windows: any[] = [], engines: any[] = [], menus: any[] = [], handlers = new Map<string, any>(), errors: string[] = [];
+  const externalOpens: unknown[][] = [], prints: unknown[][] = [];
   let databaseCloses = 0;
   const events: string[] = [], diagnostics: string[] = [], directories = new Set<string>([syntheticTemporary]);
   const paths: Record<string, string> = { userData: ownedApp, sessionData: ownedApp };
@@ -58,7 +59,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   }; app.quit = () => { app.quits++; };
   class Window extends EventEmitter {
     webContents: any; options: any;
-    constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.send = () => {}; windows.push(this); }
+    constructor(options: any) { super(); this.options = options; this.webContents = new EventEmitter(); this.webContents.mainFrame = { url: 'chausar://app/index.html' }; this.webContents.setWindowOpenHandler = (handler: any) => { this.webContents.open = handler; }; this.webContents.send = () => {}; this.webContents.print = (...args: unknown[]) => { prints.push(args); (args[1] as (success: boolean) => void)(true); }; windows.push(this); }
     loadURL(url: string) { this.webContents.mainFrame.url = url; }
     show() {} focus() {} restore() {} isMinimized() { return false; } isDestroyed() { return false; }
   }
@@ -79,7 +80,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
   class Tray extends EventEmitter { setToolTip() {} setContextMenu(menu: any) { menus.push(menu); } destroy() {} }
   const session = { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, webRequest: { onBeforeRequest() {} } } };
   const powerMonitor = new EventEmitter();
-  const electron = { app, BrowserWindow: Window, Tray, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle(_scheme: string, handler: any) { protocolHandlers.push(handler); } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
+  const electron = { app, BrowserWindow: Window, Tray, shell: { openExternal: async (...args: unknown[]) => { externalOpens.push(args); } }, powerMonitor, Menu: { buildFromTemplate: (items: any) => items }, nativeImage: { createFromPath: () => ({ isEmpty: () => false }) }, protocol: { registerSchemesAsPrivileged() {}, handle(_scheme: string, handler: any) { protocolHandlers.push(handler); } }, session, dialog: { showErrorBox: (_title: string, message: string) => errors.push(message) }, ipcMain: { handle: (name: string, handler: any) => handlers.set(name, handler) } };
   let source = await readFile(desktopMain, 'utf8');
   if (postgresGate) source = source.replace("await import(pathToFileURL(join(engineRoot, 'platform/runtime/native/desktop-database.ts')).href)", '__postgresModule');
   vm.runInNewContext(source, { __dirname: join(ownedApp, 'app', 'desktop'), require: (name: string) => {
@@ -99,7 +100,7 @@ async function desktop(args: string[], metadataGate: Promise<void> = Promise.res
     return { state: 'running', url: 'postgresql://chausar:synthetic@127.0.0.1:55400/postgres', close: async () => { databaseCloses++; } };
   } }, process: { argv: ['electron', ownedApp, ...args], env: profileEnvironment, platform: 'win32', resourcesPath: ownedResources }, console: { error: (message: string) => diagnostics.push(message) }, URL, Response, Buffer });
   await flush();
-  return { app, windows, engines, menus, errors, diagnostics, handlers, protocolHandlers, powerMonitor, events, paths, pathReads, directories, databaseCloses: () => databaseCloses };
+  return { app, windows, engines, menus, errors, diagnostics, handlers, externalOpens, prints, protocolHandlers, powerMonitor, events, paths, pathReads, directories, databaseCloses: () => databaseCloses };
 }
 
 test('demo claims new user and session directories before the lock and pins worker storage to that profile', async () => {
@@ -322,4 +323,61 @@ test('foreground closure reports no background permission and failed acknowledge
   failed.powerMonitor.emit('suspend'); await flush();
   assert.equal(failed.engines[0].state, 'failed'); assert.equal(failed.app.quits, 1);
   assert.match(failed.errors[0], /could not confirm the desktop state/);
+});
+
+// SH-10 and FR-04: the two shell channels, each answering only the trusted main frame.
+const trustedEvent = (window: any) => ({ sender: window.webContents, senderFrame: window.webContents.mainFrame });
+const settleRateLimit = () => new Promise<void>(accept => setTimeout(accept, 1_050));
+
+test('shell.openExternal opens only a trusted, re-serialized https address once a second while a workspace is open', async () => {
+  const d = await desktop(['--demo', '--ui-preview']);
+  assert.equal(d.errors.length, 0);
+  const window = d.windows[0], open = d.handlers.get('chausar:shell-open-external');
+  assert.equal(typeof open, 'function');
+  // Untrusted senders and stale frames are refused before the address is read.
+  assert.equal(await open({ sender: {}, senderFrame: window.webContents.mainFrame }, 'https://example.com/'), 'refused');
+  assert.equal(await open({ sender: window.webContents, senderFrame: { url: 'chausar://app/index.html' } }, 'https://example.com/'), 'refused');
+  const refused = ['javascript:alert(1)', 'file:///etc/passwd', 'chausar://app/ui/index.html', 'http://example.com/', 'mailto:someone@example.com',
+    'data:text/html,hi', 'https://user:secret@example.com/', 'https://user@example.com/', 'https://localhost/', 'https://127.0.0.1/', 'https://0x7f.1/',
+    'https://[::1]/', 'https://intranet/', 'https://a.localhost/', ` https://example.com/`, 'https://exa mple.com/', 'https://example.com/\n',
+    `https://example.com/${'a'.repeat(2048)}`, '', 42, null, undefined, { href: 'https://example.com/' }, ['https://example.com/']];
+  for (const value of refused) assert.equal(await open(trustedEvent(window), value), 'refused', String(value));
+  assert.deepEqual(d.externalOpens, []);
+  // Accepted and re-serialized by URL: only the serialized string reaches the shell.
+  assert.equal(await open(trustedEvent(window), 'https://EXAMPLE.com:443/a/../b?q=1#f'), 'opened');
+  assert.deepEqual(d.externalOpens, [['https://example.com/b?q=1#f']]);
+  // One a second: a second valid address at once is refused, then accepted after the interval.
+  assert.equal(await open(trustedEvent(window), 'https://example.org/'), 'refused');
+  await settleRateLimit();
+  assert.equal(await open(trustedEvent(window), 'https://example.org/'), 'opened');
+  assert.deepEqual(d.externalOpens, [['https://example.com/b?q=1#f'], ['https://example.org/']]);
+});
+
+test('shell.openExternal is refused while no workspace is open', async () => {
+  const d = await desktop(['--demo']);
+  assert.equal(d.errors.length, 0);
+  assert.equal(d.engines[0].workspaceOpen, false);
+  assert.equal(await d.handlers.get('chausar:shell-open-external')(trustedEvent(d.windows[0]), 'https://example.com/'), 'refused');
+  assert.deepEqual(d.externalOpens, []);
+});
+
+test('shell.print shows the system dialog for the trusted window only, with nothing from the renderer in its options', async () => {
+  const d = await desktop(['--demo', '--ui-preview']);
+  const window = d.windows[0], print = d.handlers.get('chausar:shell-print');
+  assert.equal(typeof print, 'function');
+  assert.equal(await print({ sender: {}, senderFrame: window.webContents.mainFrame }, 'recovery-kit'), 'refused');
+  for (const kind of ['<h1>kit</h1>', '/etc/passwd', { silent: true }, 'file:///tmp/kit.pdf', undefined, 1]) assert.equal(await print(trustedEvent(window), kind), 'refused');
+  assert.equal(d.prints.length, 0);
+  assert.equal(await print(trustedEvent(window), 'recovery-kit'), 'printed');
+  assert.equal(d.prints.length, 1);
+  assert.deepEqual(d.prints[0][0], { silent: false });
+  assert.equal(d.prints[0].length, 2); assert.equal(typeof d.prints[0][1], 'function');
+  assert.equal(await print(trustedEvent(window), 'page'), 'refused', 'One print dialog a second.');
+  await settleRateLimit();
+  assert.equal(await print(trustedEvent(window), 'page'), 'printed');
+  assert.deepEqual(d.prints.map(args => args[0]), [{ silent: false }, { silent: false }]);
+  // Navigation stays denied and new windows stay refused.
+  assert.equal(window.webContents.open().action, 'deny');
+  let prevented = false; window.webContents.emit('will-navigate', { preventDefault() { prevented = true; } }, 'https://example.com/');
+  assert.equal(prevented, true);
 });

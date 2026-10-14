@@ -279,11 +279,280 @@ export function isPhoneMessagesReply(v: unknown): v is PhoneMessagesReply {
 }
 
 /** The refusal codes the frame-today engine module uses. */
-export const TODAYX_REFUSALS = ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST'] as const;
+export const TODAYX_REFUSALS = ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST',
+  'RECOVERY_CONTACT_INVALID', 'RECOVERY_CONTACT_RELAY_REQUIRED'] as const;
 export type TodayxRefusal = (typeof TODAYX_REFUSALS)[number];
 
 /** Codes that mean "this method does not exist yet": the screen shows "not built yet". */
 export const NOT_BUILT_CODES: readonly string[] = ['UNKNOWN_METHOD', 'INVALID_REQUEST', 'METHOD_UNAVAILABLE'];
 export function notBuilt(error: unknown): boolean {
   return isRec(error) && typeof error['code'] === 'string' && NOT_BUILT_CODES.includes(error['code']);
+}
+
+/* ----------------------------------------------------------- FR-11 an idea */
+
+/**
+ * `todayx.idea.start` {} (prepare), `todayx.idea.tell` { text, section?, answers?, guess? } (prepare),
+ * `todayx.idea.correct` { claimId, text?, guess?, withdraw? } (prepare) and `todayx.idea.get` {} (read),
+ * each → IdeaReply. Built without a model: every line is the owner's text as typed, in the section
+ * the owner picked. No number is written by anything but the owner; a standard unknown is blank
+ * until told, or a range only with its official source and the date it was checked.
+ */
+export type IdeaSection = 'business' | 'sale' | 'plan' | 'unknown';
+export const IDEA_SECTIONS: readonly IdeaSection[] = ['business', 'sale', 'plan', 'unknown'];
+export type IdeaUnknown = 'price' | 'sale-cost' | 'first-customers' | 'licences';
+export const IDEA_UNKNOWNS: readonly IdeaUnknown[] = ['price', 'sale-cost', 'first-customers', 'licences'];
+export type IdeaLabel = 'told-by-owner' | 'assumption';
+export interface IdeaLine { readonly claimId: string; readonly text: string; readonly label: IdeaLabel }
+export interface IdeaTold {
+  readonly claimId: string;
+  readonly at: string;
+  /** The owner's words, shown as written. */
+  readonly text: string;
+  readonly section: IdeaSection;
+  readonly answers: IdeaUnknown | null;
+  readonly label: IdeaLabel;
+  readonly status: 'active' | 'corrected' | 'withdrawn';
+  readonly replaces: string | null;
+  readonly correctedBy: string | null;
+}
+export interface IdeaUnknownRow {
+  readonly id: IdeaUnknown;
+  readonly section: IdeaSection;
+  readonly state: 'blank' | 'told' | 'range';
+  readonly lines: readonly IdeaLine[];
+  /** Only with its source and the date a person checked it; text as the source prints it. */
+  readonly range: { readonly low: string; readonly high: string; readonly unit: string; readonly source: string; readonly checkedOn: string; readonly label: 'assumption' } | null;
+}
+export type IdeaReply =
+  | { readonly state: 'not-started' }
+  | {
+    readonly state: 'drafting';
+    readonly startedAt: string;
+    readonly conversation: readonly IdeaTold[];
+    readonly business: readonly IdeaLine[];
+    readonly sale: readonly IdeaLine[];
+    readonly plan: readonly IdeaLine[];
+    readonly unknownsTold: readonly IdeaLine[];
+    readonly unknowns: readonly IdeaUnknownRow[];
+    readonly writtenBy: 'owner-only';
+  };
+export type IdeaDraft = Extract<IdeaReply, { state: 'drafting' }>;
+
+/** The refusal codes of the idea methods. */
+export const IDEA_REFUSALS = ['IDEA_APP_ONLY', 'IDEA_FOUNDER_ONLY', 'IDEA_NOT_STARTED', 'IDEA_FULL', 'IDEA_CLAIM_NOT_FOUND', 'IDEA_CLAIM_DECIDED'] as const;
+
+const IDEA_LABELS = ['told-by-owner', 'assumption'] as const;
+function ideaTold(v: unknown): v is IdeaTold {
+  return isRec(v) && isStr(v['claimId']) && isIsoDate(v['at']) && isStr(v['text']) && v['text'].length <= 500 && oneOf(IDEA_SECTIONS)(v['section'])
+    && (v['answers'] === null || oneOf(IDEA_UNKNOWNS)(v['answers'])) && oneOf(IDEA_LABELS)(v['label'])
+    && oneOf(['active', 'corrected', 'withdrawn'] as const)(v['status']) && (v['replaces'] === null || isStr(v['replaces'])) && (v['correctedBy'] === null || isStr(v['correctedBy']));
+}
+
+/**
+ * Checks the shape and the rule: every line on the draft is an active statement in the
+ * conversation with exactly the owner's words, so no line can carry a number the owner did not type.
+ */
+export function isIdeaReply(v: unknown): v is IdeaReply {
+  if (!isRec(v)) return false;
+  if (v['state'] === 'not-started') return Object.keys(v).length === 1;
+  if (v['state'] !== 'drafting' || !isIsoDate(v['startedAt']) || v['writtenBy'] !== 'owner-only') return false;
+  const conversation = v['conversation'];
+  if (!Array.isArray(conversation) || !conversation.every(ideaTold)) return false;
+  const active = new Map((conversation as IdeaTold[]).filter(item => item.status === 'active').map(item => [item.claimId, item]));
+  const line = (where: IdeaSection, answers: IdeaUnknown | null) => (l: unknown): boolean => {
+    if (!isRec(l) || !isStr(l['claimId']) || !isStr(l['text']) || !oneOf(IDEA_LABELS)(l['label'])) return false;
+    const told = active.get(l['claimId']);
+    return told !== undefined && told.text === l['text'] && told.label === l['label'] && told.section === where && told.answers === answers;
+  };
+  for (const section of ['business', 'sale', 'plan'] as const) {
+    const lines = v[section];
+    if (!Array.isArray(lines) || !lines.every(line(section, null))) return false;
+  }
+  if (!Array.isArray(v['unknownsTold']) || !v['unknownsTold'].every(line('unknown', null))) return false;
+  const unknowns = v['unknowns'];
+  if (!Array.isArray(unknowns) || unknowns.length !== IDEA_UNKNOWNS.length) return false;
+  return unknowns.every((u, index) => {
+    if (!isRec(u) || u['id'] !== IDEA_UNKNOWNS[index] || !oneOf(IDEA_SECTIONS)(u['section']) || !Array.isArray(u['lines'])) return false;
+    if (!u['lines'].every(line(u['section'] as IdeaSection, u['id'] as IdeaUnknown))) return false;
+    const range = u['range'];
+    const rangeOk = range === null || (isRec(range) && isStr(range['low']) && isStr(range['high']) && isStr(range['unit'])
+      && isStr(range['source']) && range['source'].trim() !== '' && isIsoDate(range['checkedOn']) && range['label'] === 'assumption');
+    if (!rangeOk) return false;
+    switch (u['state']) {
+      case 'blank': return u['lines'].length === 0 && range === null;
+      case 'told': return u['lines'].length > 0 && range === null;
+      case 'range': return u['lines'].length === 0 && range !== null;
+      default: return false;
+    }
+  });
+}
+
+/* ------------------------------------------------- this computer, before the vault (round 2) */
+/*
+ * `todayx.diskCheck`, `todayx.device.get`/`.set`, `todayx.workspaces` and
+ * `todayx.recoveryContact.request` (and `todayx.identity.check`) are served before any workspace is
+ * open, to the trusted local desktop only. `todayx.recoveryContact.get`/`.set` need an open vault
+ * and an admin seat.
+ */
+
+export type DiskEncryption = 'encrypted' | 'not-encrypted' | 'unknown';
+export interface DiskCheckReply {
+  readonly disk: DiskEncryption;
+  readonly platform: 'windows' | 'macos' | 'linux' | 'other';
+  /** `none`: Linux with no safe place for a key; the passphrase is asked each time. */
+  readonly keyring: 'safe' | 'none' | 'unknown';
+}
+
+export type DeviceLanguage = 'en' | 'hi';
+export type DeviceView = 'simple' | 'guided' | 'books';
+/** The language and view saved for this computer. `saved: false` means nothing was saved yet. */
+export interface DeviceChoices { readonly language: DeviceLanguage | null; readonly view: DeviceView | null; readonly saved: boolean }
+
+export interface WorkspaceFolder { readonly folder: string; readonly main: boolean }
+/** Folder names only: nothing is decrypted, so no workspace name is known while locked. */
+export interface WorkspaceFoldersReply { readonly folders: readonly WorkspaceFolder[] }
+
+export interface RecoveryContact { readonly name: string; readonly reach: string; readonly savedAt: string }
+export interface RecoveryContactReply { readonly contact: RecoveryContact | null; readonly confirmation: 'relay-required' }
+
+export function isDiskCheckReply(v: unknown): v is DiskCheckReply {
+  return isRec(v) && Object.keys(v).length === 3 && oneOf(['encrypted', 'not-encrypted', 'unknown'] as const)(v['disk'])
+    && oneOf(['windows', 'macos', 'linux', 'other'] as const)(v['platform']) && oneOf(['safe', 'none', 'unknown'] as const)(v['keyring']);
+}
+
+export function isDeviceChoices(v: unknown): v is DeviceChoices {
+  if (!isRec(v) || Object.keys(v).length !== 3 || typeof v['saved'] !== 'boolean') return false;
+  const language = v['language'], view = v['view'];
+  if (v['saved'] === false) return language === null && view === null;
+  return oneOf(['en', 'hi'] as const)(language) && oneOf(['simple', 'guided', 'books'] as const)(view);
+}
+
+const FOLDER_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+export function isWorkspaceFoldersReply(v: unknown): v is WorkspaceFoldersReply {
+  if (!isRec(v) || !Array.isArray(v['folders']) || v['folders'].length > 50) return false;
+  const names = new Set<string>();
+  return v['folders'].every(f => isRec(f) && isStr(f['folder']) && FOLDER_NAME.test(f['folder']) && typeof f['main'] === 'boolean'
+    && f['main'] === (f['folder'] === 'main') && !names.has(f['folder']) && names.add(f['folder']) !== undefined);
+}
+
+const oneLine = (v: unknown, maximum: number): v is string => isStr(v) && v.length > 0 && v.length <= maximum && !/[\u0000-\u001f\u007f]/.test(v);
+export function isRecoveryContactReply(v: unknown): v is RecoveryContactReply {
+  if (!isRec(v) || v['confirmation'] !== 'relay-required') return false;
+  const c = v['contact'];
+  return c === null || (isRec(c) && oneLine(c['name'], 100) && oneLine(c['reach'], 200) && isIsoDate(c['savedAt']));
+}
+
+/* ------------------------------------------------- round 2: receipt detail, closing, voice */
+
+export type ReceiptDetailWayIn = 'interface' | 'exported-file' | 'computer-export';
+export type ReceiptAllowedByKind = 'read-access' | 'send-approved';
+/**
+ * `todayx.receiptDetail` { receiptId } → the receipt's small print, composed by the engine from
+ * records it already keeps. Every field but `receiptId` and `allowedBy` is absent when no record
+ * supports it; nothing is filled in. Names are shown as written; `version` and counts are digits.
+ */
+export interface ReceiptDetailReply {
+  readonly receiptId: string;
+  readonly question?: string;
+  readonly sources?: { readonly names: readonly string[]; readonly wayIn?: ReceiptDetailWayIn; readonly readAt?: string };
+  readonly recipe?: { readonly recipeId: string; readonly state: 'seed' | 'tested' | 'not-yet-tested' | 'failed'; readonly acceptedBy: string; readonly grade: 'model' | 'owner' | 'accountant' | 'ca' | 'reconciled' };
+  readonly meaning?: { readonly version: string; readonly publishedBy: string; readonly reviewedBy?: string; readonly cosignedBy?: string };
+  readonly rate?: { readonly numerator: string; readonly denominator: string; readonly from: string; readonly to: string };
+  readonly numberGuard?: { readonly passed: boolean; readonly matched: string; readonly of: string };
+  readonly allowedBy: { readonly kind: ReceiptAllowedByKind; readonly ruleId?: string; readonly step?: 1 | 2 | 3 | 4 | 5; readonly person?: string; readonly device?: string; readonly at?: string };
+  readonly route?: { readonly kind: string; readonly sendLevel: 'nothing' | 'shape' | 'samples'; readonly costPaise: string | null };
+}
+
+const isName = (v: unknown, max = 200): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= max && !/[\u0000-\u001f]/.test(v);
+const onlyKeys = (v: Rec, required: readonly string[], optional: readonly string[] = []) =>
+  required.every(k => Object.hasOwn(v, k)) && Object.keys(v).every(k => required.includes(k) || optional.includes(k));
+
+export function isReceiptDetailReply(v: unknown): v is ReceiptDetailReply {
+  if (!isRec(v) || !onlyKeys(v, ['receiptId', 'allowedBy'], ['question', 'sources', 'recipe', 'meaning', 'rate', 'numberGuard', 'route'])) return false;
+  if (!isName(v['receiptId']) || !/^[A-Za-z0-9_.:-]{1,200}$/.test(v['receiptId'])) return false;
+  if ('question' in v && !isName(v['question'], 8000)) return false;
+  const s = v['sources'];
+  if (s !== undefined && !(isRec(s) && onlyKeys(s, ['names'], ['wayIn', 'readAt']) && Array.isArray(s['names']) && s['names'].length > 0 && s['names'].length <= 64 && s['names'].every(n => isName(n))
+    && (s['wayIn'] === undefined || oneOf(['interface', 'exported-file', 'computer-export'] as const)(s['wayIn'])) && (s['readAt'] === undefined || isIsoDate(s['readAt'])))) return false;
+  const r = v['recipe'];
+  if (r !== undefined && !(isRec(r) && onlyKeys(r, ['recipeId', 'state', 'acceptedBy', 'grade']) && isName(r['recipeId']) && isName(r['acceptedBy'])
+    && oneOf(['seed', 'tested', 'not-yet-tested', 'failed'] as const)(r['state']) && oneOf(['model', 'owner', 'accountant', 'ca', 'reconciled'] as const)(r['grade']))) return false;
+  const m = v['meaning'];
+  if (m !== undefined && !(isRec(m) && onlyKeys(m, ['version', 'publishedBy'], ['reviewedBy', 'cosignedBy']) && isDigits(m['version']) && isName(m['publishedBy'])
+    && (m['reviewedBy'] === undefined || isName(m['reviewedBy'])) && (m['cosignedBy'] === undefined || isName(m['cosignedBy'])))) return false;
+  const rate = v['rate'];
+  if (rate !== undefined && !(isRec(rate) && onlyKeys(rate, ['numerator', 'denominator', 'from', 'to']) && isDigits(rate['numerator']) && isDigits(rate['denominator']) && rate['denominator'] !== '0'
+    && isName(rate['from'], 8) && isName(rate['to'], 8))) return false;
+  const g = v['numberGuard'];
+  if (g !== undefined && !(isRec(g) && onlyKeys(g, ['passed', 'matched', 'of']) && typeof g['passed'] === 'boolean' && isDigits(g['matched']) && isDigits(g['of'])
+    && BigInt(g['matched']) <= BigInt(g['of']) && (g['passed'] !== true || g['matched'] === g['of']))) return false;
+  const a = v['allowedBy'];
+  if (!isRec(a) || !onlyKeys(a, ['kind'], ['ruleId', 'step', 'person', 'device', 'at']) || !oneOf(['read-access', 'send-approved'] as const)(a['kind'])
+    || (a['ruleId'] !== undefined && !isName(a['ruleId'])) || (a['step'] !== undefined && !(Number.isInteger(a['step']) && (a['step'] as number) >= 1 && (a['step'] as number) <= 5))
+    || (a['person'] !== undefined && !isName(a['person'])) || (a['device'] !== undefined && !isName(a['device'])) || (a['at'] !== undefined && !isIsoDate(a['at']))) return false;
+  const route = v['route'];
+  if (route !== undefined && !(isRec(route) && onlyKeys(route, ['kind', 'sendLevel', 'costPaise']) && isName(route['kind'], 40)
+    && oneOf(['nothing', 'shape', 'samples'] as const)(route['sendLevel']) && isDigitsOrNull(route['costPaise']))) return false;
+  return true;
+}
+
+export type ClosingPartState = 'done' | 'not-done' | 'not-loaded-yet';
+export const CLOSING_PARTS = ['cash', 'bank', 'entries'] as const;
+export type ClosingPart = (typeof CLOSING_PARTS)[number];
+/** `todayx.closing` {} and `todayx.closing.set` { on } (admin) → whether daily closing is on, and today's three parts. */
+export interface ClosingReply {
+  readonly on: boolean;
+  readonly day: string;
+  readonly parts: Readonly<Record<ClosingPart, ClosingPartState>>;
+}
+export function isClosingReply(v: unknown): v is ClosingReply {
+  if (!isRec(v) || !onlyKeys(v, ['on', 'day', 'parts']) || typeof v['on'] !== 'boolean' || !(isStr(v['day']) && /^\d{4}-\d{2}-\d{2}$/.test(v['day']) && isIsoDate(v['day']))) return false;
+  const parts = v['parts'];
+  return isRec(parts) && onlyKeys(parts, CLOSING_PARTS) && CLOSING_PARTS.every(p => oneOf(['done', 'not-done', 'not-loaded-yet'] as const)(parts[p]));
+}
+
+/**
+ * The models-ext lane's speech reading (platform/runtime/speech-understood.ts, served by
+ * `modelsx.speechInterpret` { text } and `modelsx.speechConfirm` { text, digest }). Only text
+ * crosses: no audio is sent or kept. The reading is deterministic (no model) and always asks for
+ * a person's confirmation. Only the fields a screen uses are typed; every declared key is checked.
+ */
+export interface SpeechNumber {
+  readonly text: string;
+  /** Whole rupees or other whole units as digits; null when the number has a fraction. */
+  readonly integer: string | null;
+  readonly unit: 'rupees' | 'paise' | null;
+  /** Whole paise, when the words named rupees or paise. */
+  readonly paise: string | null;
+  readonly display: string;
+}
+export interface SpeechInterpretReply {
+  readonly version: 1;
+  readonly understood: string;
+  readonly numbers: readonly SpeechNumber[];
+  readonly negations: readonly unknown[];
+  readonly ambiguities: readonly unknown[];
+  readonly unclear: readonly unknown[];
+  readonly flipsMeaning: boolean;
+  readonly requiresConfirmation: true;
+  readonly digest: string;
+  readonly receiptId: string | null;
+}
+const SPEECH_KEYS = ['version', 'normalised', 'understood', 'language', 'segments', 'negations', 'numbers', 'ambiguities', 'unclear', 'flipsMeaning', 'requiresConfirmation', 'digest', 'receiptId'];
+const speechText = (v: unknown): v is string => typeof v === 'string' && v.length <= 10000 && !/[\u0000-\u001f]/.test(v);
+export function isSpeechInterpretReply(v: unknown): v is SpeechInterpretReply {
+  if (!isRec(v) || !onlyKeys(v, SPEECH_KEYS) || v['version'] !== 1 || v['requiresConfirmation'] !== true || typeof v['flipsMeaning'] !== 'boolean') return false;
+  if (!speechText(v['normalised']) || !speechText(v['understood']) || !isStr(v['language']) || !(isStr(v['digest']) && /^[a-f0-9]{64}$/.test(v['digest']))) return false;
+  if (!(v['receiptId'] === null || isName(v['receiptId']))) return false;
+  for (const list of ['segments', 'negations', 'ambiguities', 'unclear'] as const) if (!Array.isArray(v[list]) || !v[list].every(isRec)) return false;
+  const numbers = v['numbers'];
+  return Array.isArray(numbers) && numbers.every(n => isRec(n) && speechText(n['text']) && isStr(n['display'])
+    && (n['integer'] === null || isDigits(n['integer'])) && (n['paise'] === null || isDigits(n['paise'])) && (n['unit'] === null || n['unit'] === 'rupees' || n['unit'] === 'paise'));
+}
+/** `modelsx.speechConfirm` { text, digest } → the recorded confirmation of the exact reading. */
+export interface SpeechConfirmReply { readonly confirmationId: string; readonly digest: string; readonly understood: string; readonly receiptId: string | null; readonly confirmedAt: string }
+export function isSpeechConfirmReply(v: unknown): v is SpeechConfirmReply {
+  return isRec(v) && onlyKeys(v, ['confirmationId', 'digest', 'understood', 'receiptId', 'confirmedAt']) && isName(v['confirmationId'])
+    && isStr(v['digest']) && /^[a-f0-9]{64}$/.test(v['digest']) && speechText(v['understood']) && (v['receiptId'] === null || isName(v['receiptId'])) && isIsoDate(v['confirmedAt']);
 }

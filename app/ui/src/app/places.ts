@@ -42,7 +42,7 @@ const sub = (place: string, id: string): SubPlace => ({ id, nameKey: `SH-01.sub.
 
 const DESKTOP: Record<SevenPlace, ReadonlyArray<SubPlace>> = {
   today: [sub('today', 'today'), sub('today', 'activity')],
-  ask: [sub('ask', 'new'), sub('ask', 'saved'), sub('ask', 'decisions'), sub('ask', 'checks'), sub('ask', 'notyet')],
+  ask: [sub('ask', 'new'), sub('ask', 'saved'), sub('ask', 'whatifs'), sub('ask', 'decisions'), sub('ask', 'checks'), sub('ask', 'notyet')],
   work: [sub('work', 'approvals'), sub('work', 'jobs'), sub('work', 'actions'), sub('work', 'cando')],
   books: [
     sub('books', 'sources'),
@@ -52,7 +52,7 @@ const DESKTOP: Record<SevenPlace, ReadonlyArray<SubPlace>> = {
     sub('books', 'history'),
     sub('books', 'memory'),
   ],
-  reports: [sub('reports', 'packs'), sub('reports', 'weekahead'), sub('reports', 'duedates'), sub('reports', 'exports')],
+  reports: [sub('reports', 'packs'), sub('reports', 'weekahead'), sub('reports', 'lessons'), sub('reports', 'duedates'), sub('reports', 'exports')],
   tools: [sub('tools', 'smallapps'), sub('tools', 'plugins'), sub('tools', 'assistants'), sub('tools', 'phone')],
   trust: [
     sub('trust', 'rules'),

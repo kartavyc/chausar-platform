@@ -22,6 +22,7 @@ import type { Figure, Language, Mark, TimeEvent } from '../../app/presentation.t
 import type { PlaceRenderProps } from '../../places/types.ts';
 import { ACTIVITY_STATES, isActivityReply, notBuilt, type ActivityEvent, type ActivityState } from '../../bridge/todayx-contract.ts';
 import { parseAddress } from '../../app/routes.ts';
+import { validateUiContext } from '../../host/contracts.ts';
 import { useT } from '../../app/text';
 import { PageHeader } from '../../app/PageHeader';
 import { TimeLine } from '../../parts/TimeLine';
@@ -37,10 +38,10 @@ import { date, time } from '../../format/dates.ts';
 import s from './Today.module.css';
 
 export const ACTIVITY_METHOD = 'todayx.activity';
-/** Activity times are drawn in the business's time zone. The activity reply and the UI
- *  context do not carry one yet, so the Indian business zone is named here, never the
- *  computer's own zone. */
-export const ACTIVITY_TIME_ZONE = 'Asia/Kolkata';
+/** Activity times are drawn in the business's time zone, which `ui.context` carries when the
+ *  workspace records one. When it is not known, times are drawn in UTC and say "UTC", so no
+ *  zone is guessed and the computer's own zone is never used. */
+export const ACTIVITY_FALLBACK_ZONE = 'UTC';
 /** A cost opens the line's proof: its target is the proof's id, or the event's own id. */
 const costTarget = (event: ActivityEvent) => event.proof.id ?? event.id;
 
@@ -75,9 +76,16 @@ function codeOf(error: unknown): string {
   return typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/.test(code) ? code : 'REQUEST_FAILED';
 }
 
-function whenOf(at: string, language: Language, t: (key: string, values?: Record<string, string>) => string): string {
-  const day = date(at.slice(0, 10), 'short', language);
-  return at.length > 10 ? t('TD-04.when', { date: day, time: time(at, ACTIVITY_TIME_ZONE) }) : day;
+/** The calendar day of an instant in a named zone, as YYYY-MM-DD. */
+function dayIn(at: string, zone: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at));
+}
+
+export function whenOf(at: string, language: Language, t: (key: string, values?: Record<string, string>) => string, zone: string | null): string {
+  if (at.length <= 10) return date(at, 'short', language);
+  const shown = zone ?? ACTIVITY_FALLBACK_ZONE;
+  const day = date(dayIn(at, shown), 'short', language);
+  return t(zone === null ? 'TD-04.whenUtc' : 'TD-04.when', { date: day, time: time(at, shown) });
 }
 
 export function ActivityPlace({ address, language, rpc, live, openReceipt, navigate }: PlaceRenderProps) {
@@ -89,6 +97,16 @@ export function ActivityPlace({ address, language, rpc, live, openReceipt, navig
   /* Every person and day seen so far, so a filter never removes its own choices. */
   const seen = useRef<{ actors: Map<string, string>; days: Set<string> }>({ actors: new Map(), days: new Set() });
   const generation = useRef(0);
+  /* The workspace zone from `ui.context`; null (shown as UTC) until a checked reply names one. */
+  const [zone, setZone] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    rpc.request('ui.context', {}).then(
+      (reply) => { if (!current) return; try { setZone(validateUiContext(reply).timeZone ?? null); } catch { setZone(null); } },
+      () => { if (current) setZone(null); },
+    );
+    return () => { current = false; };
+  }, [rpc]);
 
   const actorWords = (event: ActivityEvent) => (event.actor.name !== null ? event.actor.name : t(`TD-04.actor.${event.actor.kind}`));
 
@@ -163,7 +181,7 @@ export function ActivityPlace({ address, language, rpc, live, openReceipt, navig
       id: event.id,
       mark: ACTIVITY_MARK[event.state],
       state: event.state,
-      date: whenOf(event.at, language, t),
+      date: whenOf(event.at, language, t, zone),
       sentence: event.tainted ? t('TD-04.tainted', { sentence }) : sentence,
       ...(cost !== undefined ? { cost } : {}),
       who: actorWords(event),
