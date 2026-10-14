@@ -37,11 +37,21 @@ export function customerScope(store: StateStore, ctx: Context, customerId: unkno
   check(facts.length > 0, 'SMALLAPP_CUSTOMER_UNKNOWN', 'No customer with that identifier is visible to you.');
   return { customerId, sourceIds: [...new Set(facts.map(f => f.sourceId))].sort(), branches: [...new Set(facts.map(f => f.branch ?? ''))].sort() };
 }
-export function visible(state: State, ctx: Context, entry: Entry): boolean {
-  const member = state.members.find(m => m.id === ctx.memberId); const latest = entry.versions.at(-1)!;
+/** One version is visible when every source it was bound to is allowed and the caller holds every branch it names. */
+export function versionVisible(state: State, ctx: Context, version: Version): boolean {
+  const member = state.members.find(m => m.id === ctx.memberId);
   if (!member) return false;
-  return latest.sourceIds.every(id => sourceAllowed(state, ctx, id))
-    && (member.branches.includes('*') || latest.branches.every(b => b !== '' && member.branches.includes(b)));
+  return version.sourceIds.every(id => sourceAllowed(state, ctx, id))
+    && (member.branches.includes('*') || version.branches.every(b => b !== '' && member.branches.includes(b)));
+}
+/** An entry is listed when its current version is visible; earlier versions are checked one by one wherever they are returned. */
+export const visible = (state: State, ctx: Context, entry: Entry): boolean => versionVisible(state, ctx, entry.versions.at(-1)!);
+/** The versions the caller may see, and how many were withheld. */
+export function visibleVersions(state: State, ctx: Context, entry: Entry): { versions: Version[]; withheld: number; withheldWords: string | null } {
+  const versions = entry.versions.filter(v => versionVisible(state, ctx, v)), withheld = entry.versions.length - versions.length;
+  return { versions: structuredClone(versions), withheld,
+    withheldWords: withheld === 0 ? null : withheld === 1 ? 'One earlier version is outside your current access and is not shown.'
+      : `${withheld} earlier versions are outside your current access and are not shown.` };
 }
 export function newEntry(ctx: Context, first: Omit<Version, 'version' | 'at' | 'by'>): Entry {
   const at = now();

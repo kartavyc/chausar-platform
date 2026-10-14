@@ -12,7 +12,7 @@ import type { Dictionary } from '../ontology.ts';
 import { actionRow, checkAgainstMenu, parseDescriptor, resolvePeriod, staleness, usableOperation, validDay, type Card, type Descriptor, type Menu, type PeriodSpec } from './descriptor.ts';
 import { actionNote, plan, WAITS_WORDS } from './planner.ts';
 import { checkPayload, loadCatalogue, prepareAction, type Catalogue } from './catalogue-adapter.ts';
-import { customerScope, latestView, MAX_ENTRIES, MAX_VERSIONS, newEntry, personText, purgeBook, status, visible, whenDay, type Entry } from './book.ts';
+import { customerScope, latestView, MAX_ENTRIES, MAX_VERSIONS, newEntry, personText, purgeBook, status, visible, visibleVersions, whenDay, type Entry } from './book.ts';
 
 type App = { id: string; descriptor: Descriptor; digest: string; version: number; createdBy: string; createdAt: string; updatedAt: string; request: string | null;
   history: { version: number; digest: string; dictionaryVersion: number; dictionaryHash: string; at: string; by: string; change: 'created' | 'rebuilt' }[];
@@ -243,13 +243,16 @@ const methods: Record<string, MethodSpec> = {
     const input = fields(payload, [], ['status', 'dueBy'], 'SMALLAPP_RECORD_INVALID');
     if (input.status !== undefined) status(input.status);
     if (input.dueBy !== undefined) whenDay(input.dueBy);
-    const entries = visibleBook(host.store.read(), ctx).map(latestView)
+    const state = host.store.read();
+    const entries = visibleBook(state, ctx).map(e => ({ ...latestView(e), versionsWithheld: visibleVersions(state, ctx, e).withheld }))
       .filter(e => (input.status === undefined || e.status === input.status) && (input.dueBy === undefined || e.when <= input.dueBy)).sort((a, b) => a.when.localeCompare(b.when));
     return { book: 'follow-up', entries, experimental: true };
   } },
   'smallapps.records.history': { permission: 'read', handler(ctx, payload, host) {
-    const { id } = fields(payload, ['id'], [], 'SMALLAPP_RECORD_INVALID'); const entry = findEntry(host.store.read(), ctx, id);
-    return { id: entry.id, book: entry.book, createdAt: entry.createdAt, createdBy: entry.createdBy, versions: structuredClone(entry.versions), experimental: true };
+    const { id } = fields(payload, ['id'], [], 'SMALLAPP_RECORD_INVALID'); const state = host.store.read(), entry = findEntry(state, ctx, id);
+    // Every version returned must be one the caller can see now: an entry once about a customer in another branch keeps that past to itself.
+    const { versions, withheld, withheldWords } = visibleVersions(state, ctx, entry);
+    return { id: entry.id, book: entry.book, createdAt: entry.createdAt, createdBy: entry.createdBy, versions, versionsWithheld: withheld, words: withheldWords, experimental: true };
   } },
 };
 

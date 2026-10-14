@@ -14,7 +14,7 @@
  *            `alwaysWaits` boolean
  *            `status`    `^[a-z][a-z0-9-]{0,31}$` (`depth` is accepted as the same field); only
  *                        `available`, `full`, `supported` and `experimental` can go on a card
- *            `impact`    optional: `reversible` | `message` | `money` | `destructive`
+ *            `impact`    optional: `reversible` | `message` | `money` | `destructive`; missing means always-waits
  *            `payloadSchema` optional, the small JSON-Schema subset in `parseSchema`; a schema
  *                        using anything else makes the row unreadable
  *            any other field (write table, idempotency, read-back, retry window…) is ignored.
@@ -22,9 +22,10 @@
  * Assumed `writeback.prepare` contract: request `{ system, operation, payload, idempotencyKey, sourceIds? }`,
  * reply `{ id, status: 'prepared', digest, … }`. Any other status is refused: preparing never approves or does.
  *
- * Always-waits can only be added here, never removed: a row is always-waits when it says so, when its
- * impact is not `reversible`, or when its operation or label names money, outside messages, deleting
- * or anything that cannot be undone.
+ * Always-waits can only be added here, never removed. A row is NOT always-waits only when all three
+ * hold: it says `impact: 'reversible'`, it says `alwaysWaits: false`, and neither its operation nor its
+ * label names money, outside messages, deleting or anything that cannot be undone. A missing impact
+ * counts as always-waits.
  */
 import { ChausarError, check } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
@@ -144,7 +145,7 @@ export function writebackRow(value: unknown): ActionRow {
   if (payloadSchema && payloadSchema.type !== 'object') throw bad();
   const rowImpact = (impact as ActionRow['impact'] | undefined) ?? null;
   return { key: `${connector}/${operation}`, connector, operation, label: (label as string).trim(), tier, status, available: AVAILABLE.has(status),
-    alwaysWaits: alwaysWaits || (rowImpact !== null && rowImpact !== 'reversible') || mustWait(operation, label as string), impact: rowImpact, payloadSchema, origin: 'writeback' };
+    alwaysWaits: !(rowImpact === 'reversible' && alwaysWaits === false && !mustWait(operation, label as string)), impact: rowImpact, payloadSchema, origin: 'writeback' };
 }
 
 /** Core `actions.catalogue` rows: connectors with operations and their impact. Core validates payloads itself. */

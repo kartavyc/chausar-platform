@@ -7,6 +7,7 @@ import { check } from '../contracts.ts';
 import type { Dictionary, Operation } from '../ontology.ts';
 import type { Period } from '../memory.ts';
 import type { ActionRow } from './catalogue-adapter.ts';
+import { CONCEPTS, CONNECTIVES, FOLLOW_UP, OPERATIONS, PERIODS } from './lexicon.ts';
 
 export const SCHEMA = 'chausar.smallapp.v1';
 export const BOOKS = ['follow-up'] as const;
@@ -43,16 +44,58 @@ function list(value: unknown, max: number): unknown[] {
     'SMALLAPP_INVALID', 'Small app lists are short plain lists.');
   return value;
 }
-const fold = (text: string) => text.normalize('NFKC').toLowerCase();
-const set = (...lists: string[]) => new Set(lists.join(' ').split(' ').map(fold));
-/** Number words a label may not carry: English, romanised Hindi and Devanagari. "do" and "saath" are left out (also "do" and "with"). */
-const NUMBER_WORDS = set(
+/** Case, compatibility forms and Devanagari spelling variants (nukta, candrabindu) folded together. */
+export const fold = (text: string) => text.normalize('NFKC').toLowerCase().replace(/\u093C/g, '').replace(/\u0901/g, '\u0902');
+const set = (...lists: string[]) => new Set(lists.join(' ').split(/\s+/).filter(Boolean).map(fold));
+/**
+ * Cardinal number words a label may not carry: English, and Hindi 1 to 100 in romanised (common
+ * spellings) and Devanagari form. Romanised "do" (two) and "saath"/"sath" (sixty) are left out
+ * (also "give" and "with"); the menu allowlist in `checkAgainstMenu` still refuses them where no
+ * menu word uses them.
+ */
+const ENGLISH = set(
   'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty thirty forty fourty fifty sixty seventy eighty ninety',
-  'hundred hundreds thousand thousands million millions billion billions trillion dozen dozens half lakh lakhs lac lacs crore crores',
-  'ek teen chaar char paanch panch chhe chhah chheh saat aath nau das dus gyarah barah baarah terah chaudah pandrah solah satrah atharah unnees bees pachees pachchis tees chalis chaalis pachas pachaas sattar assi nabbe sau hazaar hazar hajar laakh karod karor arab kharab dedh dhai adhai sava paune',
-  'शून्य एक दो तीन चार पांच पाँच छह छः सात आठ नौ दस ग्यारह बारह बीस पच्चीस तीस चालीस पचास साठ सत्तर अस्सी नब्बे सौ हज़ार हजार लाख करोड़ करोड अरब खरब डेढ़ ढाई सवा पौने');
-/** Long English number words also caught when letters are run together or spaced out ("t w e n t y"). */
-const JOINED = [...NUMBER_WORDS].filter(w => /^[a-z]{6,}$/.test(w) && !['dozens'].includes(w));
+  'hundred hundreds thousand thousands million millions billion billions trillion dozen dozens lakh lakhs lac lacs crore crores');
+const CARDINALS = new Set([...ENGLISH, ...set(
+  'ek teen chaar char paanch panch chhe chhah chheh chha saat aath nau das dus gyarah gyaarah barah baarah terah chaudah chodah pandrah pandra solah satrah sattrah atharah athaarah unnees unnis unees',
+  'bees bis ikkees ikkis bais baees baais baaees teis teees teeis chaubees chaubis pachees pachchis pachis pachchees chhabbees chhabbis sattaees sattais attaees atthaees atthais athais untees untis unatees',
+  'tees tis ikattees iktees iktis battees battis taintees taintis tetis chauntees chauntis chontis paintees paintis chhattees chhattis chattis saintees saintis adtees adtis artees artis untaalees untalis unchalis',
+  'chalis chaalis chaalees iktaalees iktalis bayaalees bayalis taintaalees taintalis chavaalees chavalis chawalis paintaalees paintalis chhiyaalees chhiyalis saintaalees saintalis adtaalees adtalis artalis',
+  'unanchaas unchaas unchas pachas pachaas ikyaavan ikyavan baavan bavan tirepan tirpan chauvan chauwan pachpan chhappan sattaavan sattavan athaavan atthavan attavan unsath unasath',
+  'iksath ikasath baasath basath tiresath tirsath chausath chaunsath painsath chhiyaasath chhiyasath sadsath sarsath adsath arsath unhattar',
+  'sattar ikhattar ikahattar bahattar tihattar chauhattar pachhattar chhihattar sathattar satahattar athhattar atthattar unaasi unasi unyasi',
+  'assi assee ikyaasi ikyasi bayaasi bayasi tiraasi tirasi chauraasi chaurasi pachaasi pachasi chhiyaasi chhiyasi sataasi sattasi athaasi atthasi navaasi navasi nawasi',
+  'nabbe nabbe ikyaanave ikyanve ikyanbe baanave banve banbe tiraanave tiranve tiranbe chauraanave chauranve chauranbe pachaanave pachanve pachanbe chhiyaanave chhiyanve sattaanave sattanve atthaanave attanve atthanve ninyaanave ninyanve nanyanve',
+  'sau saikda saikde hazaar hazar hajar laakh karod karor arab kharab neel padam shankh',
+  'शून्य एक दो तीन चार पांच छह छः छे सात आठ नौ दस ग्यारह बारह तेरह चौदह पंद्रह पन्द्रह सोलह सत्रह अठारह उन्नीस बीस',
+  'इक्कीस बाईस तेईस चौबीस पच्चीस छब्बीस सत्ताईस अट्ठाईस अठाईस उनतीस तीस इकतीस बत्तीस तैंतीस चौंतीस पैंतीस छत्तीस सैंतीस अड़तीस उनतालीस उनचालीस',
+  'चालीस इकतालीस बयालीस तैंतालीस चवालीस चौवालीस पैंतालीस छियालीस सैंतालीस अड़तालीस उनचास पचास इक्यावन बावन तिरेपन तिरपन चौवन पचपन छप्पन सत्तावन अट्ठावन अठावन उनसठ',
+  'साठ इकसठ बासठ तिरेसठ तिरसठ चौंसठ पैंसठ छियासठ सड़सठ अड़सठ उनहत्तर सत्तर इकहत्तर बहत्तर तिहत्तर चौहत्तर पचहत्तर छिहत्तर सतहत्तर अठहत्तर उन्यासी उनासी',
+  'अस्सी इक्यासी बयासी तिरासी चौरासी पचासी छियासी सत्तासी अट्ठासी अठासी नवासी नब्बे इक्यानबे इक्यानवे बानबे बानवे तिरानबे तिरानवे चौरानबे चौरानवे पचानबे पचानवे छियानबे छियानवे सत्तानबे सत्तानवे अट्ठानबे अट्ठानवे निन्यानबे निन्यानवे',
+  'सौ सैकड़ा सैकड़े हज़ार हजार लाख करोड़ करोड अरब खरब नील पद्म शंख')]);
+/**
+ * Other ways of stating a quantity: ordinals, fractions and shares, percentages, multiples and words
+ * for zero, in English, romanised Hindi and Devanagari. "quarter" is a period word and is left to the
+ * allowlist, which reads it only inside "this quarter" and "last quarter".
+ */
+const QUANTITY_WORDS = set(
+  'first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth twentieth thirtieth fortieth fiftieth sixtieth seventieth eightieth ninetieth hundredth thousandth millionth',
+  'half halves halved halving thirds fourths fifths sixths sevenths eighths ninths tenths hundredths thousandths percent percentage percentages percentile pct cent',
+  'double doubles doubled doubling triple triples tripled tripling treble trebled quadruple quadrupled quintuple twice thrice once twofold threefold fourfold fivefold tenfold hundredfold thousandfold single pair pairs couple',
+  'zero zeros zeroes nil nill none nothing naught nought zilch nada null',
+  'dedh dhai adhai sava paune pehla pehli pehle pahla pahli pahle doosra doosri doosre dusra dusri dusre teesra teesri teesre tisra tisri chautha chauthi chauthe paanchva paanchvan panchva panchvi chhatha chhathi satva aathva dasva',
+  'aadha aadhi aadhe adha adhi adhe chauthai chauthaai tihai tihaai paav pav pratishat fisadi feesadi fisdi',
+  'dugna dugni dugne duguna dugune doguna dogune dugunaa tigna tigni tiguna tigune chaugna chauguna guna gune guni gunaa shunya shoonya sunya sifar sifr',
+  'डेढ़ ढाई सवा पौने पहला पहली पहले दूसरा दूसरी दूसरे तीसरा तीसरी तीसरे चौथा चौथी चौथे पांचवां पांचवीं पांचवें छठा छठी सातवां आठवां दसवां',
+  'आधा आधी आधे चौथाई तिहाई पाव प्रतिशत फ़ीसदी फीसद दुगना दुगुना दोगुना दोगुनी दुगनी तिगुना चौगुना गुना गुनी गुने शून्य सिफ़र');
+/** Phrases for "nothing" used as a quantity ("kuch nahi"). */
+const ZERO_PHRASES = ['kuch nahi', 'kuchh nahi', 'kuch nahin', 'kuchh nahin', 'kuch bhi nahi', 'kuchh bhi nahi', 'कुछ नहीं', 'कुछ भी नहीं'].map(fold);
+/**
+ * Long English cardinals also caught when letters are run together or spaced out ("t w e n t y").
+ * Romanised Hindi is not matched inside other words ("paint is" would read as "paintis", thirty-five);
+ * spaced-out letters fail the menu allowlist instead.
+ */
+const JOINED = [...ENGLISH].filter(w => /^[a-z]{6,}$/.test(w) && !['dozens'].includes(w));
 const ROMAN = /^(?=[MDCLXVI]{2,}$)M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/;
 /** Words that read as orders to the system or claims about approval. A label describes; it never instructs. */
 const INSTRUCTION_WORDS = set('ignore disregard override bypass jailbreak system assistant prompt prompts instruction instructions approve approved approval approvals autoapprove',
@@ -73,7 +116,9 @@ export function words(value: unknown, max = 80): string {
   const nfkc = value.normalize('NFKC'), folded = nfkc.toLowerCase();
   check(!CODE_LIKE.test(nfkc), 'SMALLAPP_CODE_REFUSED', 'Small apps hold words and published references only; code, markup, links and scripts are refused.');
   const tokens = nfkc.split(/[^\p{L}\p{M}]+/u).filter(Boolean);
-  const numberWord = tokens.some(t => NUMBER_WORDS.has(t.toLowerCase()) || ROMAN.test(t)) || JOINED.some(w => folded.replace(/[^a-z]+/g, '').includes(w));
+  const foldedTokens = tokens.map(fold), phrase = ` ${foldedTokens.join(' ')} `;
+  const numberWord = foldedTokens.some(t => CARDINALS.has(t) || QUANTITY_WORDS.has(t)) || tokens.some(t => ROMAN.test(t))
+    || ZERO_PHRASES.some(p => phrase.includes(` ${p} `)) || JOINED.some(w => folded.replace(/[^a-z]+/g, '').includes(w));
   check(!/\p{N}/u.test(nfkc) && !numberWord, 'UNGROUNDED_NUMBER', 'Numbers in a small app come only from calculation receipts.');
   check(!/\p{S}/u.test(nfkc), 'SMALLAPP_CODE_REFUSED', 'Titles and labels are words only; symbols are refused.');
   check(tokens.every(t => { const scripts = new Set([...t].map(scriptOf).filter(s => s !== 'mark')); return scripts.size === 1 && !scripts.has('other'); }),
@@ -159,6 +204,31 @@ export function usableOperation(dictionary: Dictionary, id: string): Operation |
 }
 export const actionRow = (menu: Menu, ref: string): ActionRow | undefined => menu.actions.find(r => r.key === ref);
 
+const spaced = (text: string) => ` ${fold(text).replace(/[^\p{L}\p{M}]+/gu, ' ').trim()} `;
+export type Vocabulary = { words: Set<string>; phrases: string[] };
+/**
+ * The allowlist for model-written words (the number guard's second half). A title or label may use
+ * only: words of the published menu (operation and definition labels and ids), the catalogue's action
+ * labels and ids, branch names, the planner's own figure and action words, the period names (read
+ * only as whole phrases, so "quarter" never stands alone) and a few joining words. Anything else,
+ * including every way of stating a quantity the number lexicon may have missed, is refused.
+ */
+export function menuVocabulary(menu: Menu): Vocabulary {
+  const words = new Set(CONNECTIVES.map(fold)), phrases = new Set<string>();
+  for (const piece of [...[...OPERATIONS, ...CONCEPTS].flatMap(([, list]) => list), ...FOLLOW_UP, ...PERIODS.flatMap(([, list]) => list), ...Object.values(PRESET_WORDS)]) {
+    const text = spaced(piece).trim(); if (text.includes(' ')) phrases.add(text); else if (text) words.add(text);
+  }
+  const menuText = [...(menu.dictionary?.operations ?? []).flatMap(o => [o.label, o.id]), ...(menu.dictionary?.definitions ?? []).flatMap(d => [d.label, d.name]),
+    ...menu.actions.flatMap(r => [r.label, r.operation, r.connector]), ...menu.branches];
+  for (const text of menuText) for (const word of spaced(text).trim().split(' ')) if (word) words.add(word);
+  return { words, phrases: [...phrases].sort((a, b) => b.length - a.length) };
+}
+export function onMenu(text: string, vocabulary: Vocabulary): boolean {
+  let rest = spaced(text);
+  for (const phrase of vocabulary.phrases) while (rest.includes(` ${phrase} `)) rest = rest.replace(` ${phrase} `, ' ');
+  return rest.trim().split(' ').filter(Boolean).every(word => vocabulary.words.has(word));
+}
+
 /** The one checker for planner output and externally proposed descriptors. */
 export function checkAgainstMenu(descriptor: Descriptor, menu: Menu, branches: readonly string[]): Descriptor {
   check(menu.dictionary, 'DICTIONARY_REQUIRED', 'Publish business definitions before building a small app.');
@@ -175,6 +245,9 @@ export function checkAgainstMenu(descriptor: Descriptor, menu: Menu, branches: r
     check(branches.includes('*') || branches.includes(c.branch), 'FORBIDDEN_BRANCH', 'This branch is outside your current access.');
     check(menu.branches.includes(c.branch), 'SMALLAPP_UNKNOWN_BRANCH', 'Use a branch that exists in your records.');
   }
+  const vocabulary = menuVocabulary(menu);
+  for (const text of [descriptor.title, ...descriptor.cards.flatMap(c => [c.label, ...(c.kind === 'table' ? c.rows.map(r => r.label) : [])])])
+    check(onMenu(text, vocabulary), 'SMALLAPP_WORDS_OFF_MENU', 'Titles and labels use only words from your published menu, your action catalogue, period names and branch names.');
   check(staleness(descriptor, menu).length === 0, 'SMALLAPP_OUT_OF_DATE', 'This small app was built against another dictionary. Propose or rebuild it against the current one.');
   return descriptor;
 }
