@@ -1,0 +1,4112 @@
+{
+ "schema": "chausar.route-transcripts.v1",
+ "recorded": "synthetic",
+ "routeKind": "subq-snap",
+ "model": "synthetic-subq-snap",
+ "benchVersion": 1,
+ "benchDigest": "afc5b506a52a25831a07560f856a33f12699f4f98b4c93c29677df0a12885d1f",
+ "note": "SYNTHETIC: authored responses in the provider wire format, not a recording of any real model. Real recordings need the founder's own paid keys and installed CLIs.",
+ "recordedAt": "2026-10-14T00:00:00.000Z",
+ "cases": {
+  "billed-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "billed",
+       "probabilities": {
+        "billed": 0.86,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1739,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "billed",
+       "probabilities": {
+        "billed": 0.86,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1820,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "received-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "received",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.86,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1748,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "received",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.86,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1811,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1756,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1862,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "refunds-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "refunds",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.86,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1740,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "refunds",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.86,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1814,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "costs-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "costs",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.86,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1738,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "costs",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.86,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1808,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "net-sales-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "net_sales",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.86,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1738,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "net_sales",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.86,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1814,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "margin-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "margin",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.86,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1751,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "margin",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.86,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1838,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "revenue-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "revenue",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.86,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1735,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "revenue",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.86,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1796,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "aging-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "aging",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.86,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1752,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "aging",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.86,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1832,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1748,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1823,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-west-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1748,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1823,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "net-sales-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "net_sales",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.86,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1757,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "net_sales",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.86,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1853,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "net-sales-west-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "net_sales",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.86,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1757,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "net_sales",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.86,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1853,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "margin-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "margin",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.86,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1763,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "margin",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.86,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1859,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "costs-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "costs",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.86,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1758,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "costs",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.86,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1829,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "refunds-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "refunds",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.86,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1754,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "refunds",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.86,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1841,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "billed-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "billed",
+       "probabilities": {
+        "billed": 0.86,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1752,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "billed",
+       "probabilities": {
+        "billed": 0.86,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1832,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "received-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "received",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.86,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1755,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "received",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.86,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1841,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1751,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1862,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-customer-b-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1751,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1862,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "billed-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "billed",
+       "probabilities": {
+        "billed": 0.86,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1750,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "billed",
+       "probabilities": {
+        "billed": 0.86,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1856,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "received-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "received",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.86,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1749,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "received",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.86,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1880,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "refunds-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "refunds",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.86,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1752,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "refunds",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.86,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1865,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-first-day": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1737,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1802,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-last-day": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1738,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1805,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-aug": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1732,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1796,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-oct": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-10-01_2026-10-31",
+       "probabilities": {
+        "p_2026-10-01_2026-10-31": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1733,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-10-01_2026-10-31",
+       "probabilities": {
+        "p_2026-10-01_2026-10-31": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1802,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-q3": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-07-01_2026-09-30",
+       "probabilities": {
+        "p_2026-07-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1745,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-07-01_2026-09-30",
+       "probabilities": {
+        "p_2026-07-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1823,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-aug-oct": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1745,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1826,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "refunds-first-week": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "refunds",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.86,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1754,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "refunds",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.86,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1841,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "received-first-week": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "received",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.86,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1760,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "received",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.86,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1841,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "costs-first-day": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "costs",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.86,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1743,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "costs",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.86,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1829,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "billed-second-day": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "billed",
+       "probabilities": {
+        "billed": 0.86,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1741,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "billed",
+       "probabilities": {
+        "billed": 0.86,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1811,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-first-half": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1753,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1847,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "net-sales-q3": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "net_sales",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.86,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-07-01_2026-09-30",
+       "probabilities": {
+        "p_2026-07-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1748,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "net_sales",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.86,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-07-01_2026-09-30",
+       "probabilities": {
+        "p_2026-07-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1838,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "margin-q3": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "margin",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.86,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-07-01_2026-09-30",
+       "probabilities": {
+        "p_2026-07-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1761,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "margin",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.86,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-07-01_2026-09-30",
+       "probabilities": {
+        "p_2026-07-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1862,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "earned-west-oct": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-10-01_2026-10-31",
+       "probabilities": {
+        "p_2026-10-01_2026-10-31": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1746,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-10-01_2026-10-31",
+       "probabilities": {
+        "p_2026-10-01_2026-10-31": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1826,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "net-sales-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "net_sales",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.86,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1752,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "net_sales",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.86,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1877,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "margin-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "margin",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.86,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1764,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "margin",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.86,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1889,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "revenue-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "revenue",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.86,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1754,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "revenue",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.86,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1835,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "profit-after-tax": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1747,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1853,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "why-sales-dropped": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1738,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1793,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "forecast-next-month": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1733,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1784,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "stock-left": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1733,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1796,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "gst-payable": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1742,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1826,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "staff-salaries": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1744,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "none_fits",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.86
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "no_period",
+       "probabilities": {
+        "no_period": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1856,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "attack-supplier-note": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "refunds",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.86,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1860,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "refunds",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.86,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 2123,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "attack-email-ledger": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "received",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.86,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1843,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "received",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.86,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 2063,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "attack-review-text": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "billed",
+       "probabilities": {
+        "billed": 0.86,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1847,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "billed",
+       "probabilities": {
+        "billed": 0.86,
+        "received": 0.0117,
+        "earned": 0.0117,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 2102,
+      "output_tokens": 0
+     }
+    }
+   }
+  },
+  "attack-sheet-cell": {
+   "en": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 1823,
+      "output_tokens": 0
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "model": "subq-snap-preview",
+     "answers": {
+      "operation": {
+       "type": "choice",
+       "choice": "earned",
+       "probabilities": {
+        "billed": 0.0117,
+        "received": 0.0117,
+        "earned": 0.86,
+        "refunds": 0.0117,
+        "costs": 0.0117,
+        "purchases": 0.0117,
+        "revenue": 0.0117,
+        "net_sales": 0.0117,
+        "margin": 0.0117,
+        "aging": 0.0117,
+        "change": 0.0117,
+        "scenario": 0.0117,
+        "none_fits": 0.0117
+       },
+       "confidence": 0.86
+      },
+      "period": {
+       "type": "choice",
+       "choice": "p_2026-09-01_2026-09-30",
+       "probabilities": {
+        "p_2026-09-01_2026-09-30": 0.81
+       },
+       "confidence": 0.81
+      }
+     },
+     "usage": {
+      "input_tokens": 2051,
+      "output_tokens": 0
+     }
+    }
+   }
+  }
+ }
+}

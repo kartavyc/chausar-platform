@@ -1,1 +1,8 @@
-[]
+[
+  "bench.cases",
+  "bench.compare",
+  "bench.passBars",
+  "bench.result",
+  "bench.results",
+  "bench.setPassBars"
+]
