@@ -512,3 +512,11 @@ test('purge drops only offers whose action was removed', () => {
   assert.deepEqual((state.extensions['hosted-link'] as any).messages, [{ id: 'm1', actionId: null }, { id: 'm2', actionId: 'action_kept' }, { id: 'm3', actionId: null }]);
   assert.equal(hostedLinkModule.purge!(initialState('Empty'), { sourceIds: ['books'], removedIds: new Set(), at: '2026-10-14T06:00:00.000Z' }), 0);
 });
+
+test('the installed app configures the hosted origin from the environment, never in demo', () => {
+  assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: false, env: {} }), {});
+  assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: true, env: { CHAUSAR_HOSTED_ORIGIN: ORIGIN } }), {});
+  assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: false, env: { CHAUSAR_HOSTED_ORIGIN: 'http://insecure.example' } }), {});
+  assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: false, env: { CHAUSAR_HOSTED_ORIGIN: ORIGIN, CHAUSAR_LINK_ORIGIN: 'https://link.chausar.app' } }),
+    { origin: ORIGIN, linkOrigin: 'https://link.chausar.app' });
+});

@@ -4,6 +4,7 @@ import * as hosted from '../hosted-link/service.ts';
 /** Lane-owned engine methods. Only the owning lane edits this file. */
 export const hostedLinkModule: EngineModule = {
   id: 'hosted-link',
+  hostOptions: hosted.hostOptions,
   methods: {
     'hosted.status': { permission: 'read', handler: hosted.status },
     'hosted.pair.start': { permission: 'admin', external: true, handler: hosted.pairStart },

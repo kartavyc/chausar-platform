@@ -67,6 +67,18 @@ export function configuration(host: ModuleHost): Configured {
   const client = new HostedClient({ origin: options.origin as string, fetch: fetcher });
   return { client, linkOrigin: options.linkOrigin === undefined ? client.origin : hostedOrigin(options.linkOrigin), clock };
 }
+/**
+ * Start-up options for the installed app (EngineModule.hostOptions): the hosted origin and the link origin come from
+ * CHAUSAR_HOSTED_ORIGIN and CHAUSAR_LINK_ORIGIN, and requests use the platform fetch. Demo mode, an absent or an
+ * invalid origin leave the module unconfigured, so every hosted call refuses HOSTED_NOT_CONFIGURED.
+ */
+export function hostOptions(input: { readonly demo: boolean; readonly env: Readonly<Record<string, string | undefined>> }): Record<string, unknown> {
+  if (input.demo) return {};
+  const origin = input.env.CHAUSAR_HOSTED_ORIGIN?.trim(), link = input.env.CHAUSAR_LINK_ORIGIN?.trim();
+  if (!origin) return {};
+  try { hostedOrigin(origin); if (link) hostedOrigin(link); } catch { return {}; }
+  return { origin, ...(link ? { linkOrigin: link } : {}) };
+}
 const at = (c: Configured) => { const time = c.clock(); check(time instanceof Date && Number.isFinite(time.getTime()), 'HOSTED_CLOCK_INVALID', 'The host clock is unavailable.'); return time; };
 function connected(host: ModuleHost) {
   const c = configuration(host); check(c.client, 'HOSTED_NOT_CONFIGURED', 'The hosted connection is not set up in this app.');
