@@ -59,7 +59,31 @@ function definitionInput(value: unknown, name: string, currency: string): Defini
     && ['exclude', 'reject'].includes(d.nulls) && (d.sign === undefined || d.sign === 1 || d.sign === -1), 'INVALID_DEFINITION', 'Give the word a label, a meaning, a record kind, an amount field, null handling and an optional sign.');
   return { name, label: d.label, meaning: d.meaning, kind: d.kind, field: d.field, currency, nulls: d.nulls, ...(d.sign !== undefined ? { sign: d.sign } : {}) };
 }
-function activeApprovers(state: State): number { return state.members.filter(m => m.active && ['owner', 'cofounder', 'accountant'].includes(m.role)).length; }
+const APPROVER_ROLES = ['owner', 'cofounder', 'accountant'];
+function activeApprovers(state: State): number { return state.members.filter(m => m.active && APPROVER_ROLES.includes(m.role)).length; }
+/** A co-sign counts only while its signer is still an active member who may co-sign. */
+function activeCosigners(state: State, meta: DraftMeta): number { return meta.cosignerIds.filter(id => state.members.some(m => m.id === id && m.active && APPROVER_ROLES.includes(m.role))).length; }
+/**
+ * Every check a release needs, run against one state. Called before publishing and again
+ * inside the transaction that claims the draft, so a discard, a changed draft or a co-signer
+ * who lost access between the read and the release refuses the release.
+ */
+function assertPublishable(state: State, draft: Draft, meta: DraftMeta, digest: unknown) {
+  check(open(draft), 'DRAFT_CLOSED', 'This draft is already published or discarded.');
+  check(digest === draft.digest, 'PREVIEW_CHANGED', 'The draft changed since you read it. Read it again.');
+  check(activeApprovers(state) <= 1 || activeCosigners(state, meta) > 0, 'COSIGN_REQUIRED', 'A second person must co-sign this change before it is published.');
+  check(draft.checks.ok, draft.checks.code ?? 'INVALID_DICTIONARY', 'This draft did not pass its checks.');
+}
+/**
+ * Who may close an open draft without publishing it: an owner or cofounder any draft; anyone
+ * else only a draft they wrote that nobody has co-signed yet. A draft being released cannot be closed.
+ */
+function assertClosable(state: State, ctx: Context, draft: Draft, meta: DraftMeta) {
+  check(open(draft), 'DRAFT_CLOSED', 'This draft is already published or discarded.');
+  check(!meta.publishing, 'DRAFT_CLOSED', 'This draft is being published.');
+  const who = member(state, ctx);
+  check(['owner', 'cofounder'].includes(who.role) || (draft.state === 'draft' && meta.authorId === ctx.memberId), 'FORBIDDEN', 'Only an owner can discard a co-signed draft or a draft written by someone else.');
+}
 
 export const meaningMethods: Record<string, MethodSpec> = {
   'books.meanings': { permission: 'read', handler(ctx, payload, host) {
@@ -87,7 +111,8 @@ export const meaningMethods: Record<string, MethodSpec> = {
     return { word: structuredClone(word), origin: word ? originOf(word, dictionary!.pack) : 'you', draft: structuredClone(draft), history };
   } },
   'books.draft': { permission: 'prepare', async handler(ctx, payload, host) {
-    const request = input(payload, ['name', 'definition'], ['name']); check(typeof request.name === 'string' && NAME.test(request.name), 'INVALID_BOOKS_REQUEST', 'Name the word in lower case letters, digits and underscores.');
+    const request = input(payload, ['name', 'definition', 'replaces'], ['name']); check(typeof request.name === 'string' && NAME.test(request.name), 'INVALID_BOOKS_REQUEST', 'Name the word in lower case letters, digits and underscores.');
+    check(request.replaces === undefined || typeof request.replaces === 'string' && request.replaces.length > 0 && request.replaces.length <= 200, 'INVALID_BOOKS_REQUEST', 'Name the open draft this one replaces.');
     check(Object.hasOwn(request, 'definition'), 'INVALID_BOOKS_REQUEST', 'Give the new definition, or null to remove the word.');
     const dictionary = current(host, ctx); check(dictionary, 'DICTIONARY_REQUIRED', 'Publish business meanings before changing one.');
     const name: string = request.name; const before = dictionary.definitions.find(d => d.name === name) ?? null;
@@ -98,6 +123,17 @@ export const meaningMethods: Record<string, MethodSpec> = {
     const checks = checksOf(dictionary, name, after, ctx.memberId);
     const calculations = [...new Set([...dictionary.operations, ...(checks.compiled?.operations ?? [])].filter(o => o.definitions.includes(name)).map(o => o.id))].sort();
     return writeBooks(host.store, ctx, 'prepare', (books, state) => {
+      // A redraft replaces the open draft in the same transaction: the one named in `replaces`, or the caller's own.
+      const prior = books.drafts.find(d => d.name === name && open(d));
+      if (request.replaces !== undefined) {
+        const replaced = findDraft(books, request.replaces);
+        check(replaced.name === name, 'INVALID_BOOKS_REQUEST', 'The draft to replace is for another word.');
+        assertClosable(state, ctx, replaced, metaOf(books, replaced.id)); replaced.state = 'discarded';
+      } else if (prior) {
+        const meta = metaOf(books, prior.id);
+        check(meta.authorId === ctx.memberId, 'DRAFT_OPEN', 'This word already has an open draft. Publish or discard it first.');
+        assertClosable(state, ctx, prior, meta); prior.state = 'discarded';
+      }
       check(!books.drafts.some(d => d.name === name && open(d)), 'DRAFT_OPEN', 'This word already has an open draft. Publish or discard it first.');
       const id = newId('draft');
       const draft: Draft = { id, name, author: author.name, createdAt: now(), state: 'draft', before: structuredClone(before), after: structuredClone(after), change: describeChange(before, after),
@@ -108,13 +144,16 @@ export const meaningMethods: Record<string, MethodSpec> = {
   } },
   'books.discard': { permission: 'prepare', handler(ctx, payload, host) {
     const { draftId } = input(payload, ['draftId'], ['draftId']);
-    return writeBooks(host.store, ctx, 'prepare', books => { const draft = findDraft(books, draftId); check(open(draft), 'DRAFT_CLOSED', 'This draft is already published or discarded.'); draft.state = 'discarded'; return { draftId: draft.id, state: 'discarded' as const }; });
+    return writeBooks(host.store, ctx, 'prepare', (books, state) => {
+      const draft = findDraft(books, draftId); assertClosable(state, ctx, draft, metaOf(books, draft.id));
+      draft.state = 'discarded'; return { draftId: draft.id, state: 'discarded' as const };
+    });
   } },
   'books.cosign': { permission: 'prepare', handler(ctx, payload, host) {
     const { draftId, digest } = input(payload, ['draftId', 'digest'], ['draftId', 'digest']);
     return writeBooks(host.store, ctx, 'prepare', (books, state) => {
       const draft = findDraft(books, draftId); const meta = metaOf(books, draft.id); const signer = member(state, ctx);
-      check(open(draft), 'DRAFT_CLOSED', 'This draft is already published or discarded.');
+      check(open(draft) && !meta.publishing, 'DRAFT_CLOSED', 'This draft is already published or discarded.');
       check(digest === draft.digest, 'PREVIEW_CHANGED', 'The draft changed since you read it. Read it again.');
       check(meta.authorId !== ctx.memberId, 'COSIGN_SELF', 'A co-sign must come from a different person than the author.');
       check(!meta.cosignerIds.includes(ctx.memberId), 'ALREADY_COSIGNED', 'You have already co-signed this draft.');
@@ -125,15 +164,22 @@ export const meaningMethods: Record<string, MethodSpec> = {
   'books.publish': { permission: 'approve', async handler(ctx, payload, host) {
     const { draftId, digest } = input(payload, ['draftId', 'digest'], ['draftId', 'digest']);
     const state = host.store.read(); const books = peekBooks(state); const draft = findDraft(books, draftId); const meta = metaOf(books, draft.id);
-    check(open(draft), 'DRAFT_CLOSED', 'This draft is already published or discarded.');
-    check(digest === draft.digest, 'PREVIEW_CHANGED', 'The draft changed since you read it. Read it again.');
-    check(activeApprovers(state) <= 1 || meta.cosignerIds.length > 0, 'COSIGN_REQUIRED', 'A second person must co-sign this change before it is published.');
-    check(draft.checks.ok, draft.checks.code ?? 'INVALID_DICTIONARY', 'This draft did not pass its checks.');
+    assertPublishable(state, draft, meta, digest);
     // The change applies to the dictionary that was reviewed; a newer release refuses as DICTIONARY_CONFLICT.
     const base = ontology(host).history(ctx).find(d => d.hash === meta.baseHash); check(base, 'DICTIONARY_CONFLICT', 'The reviewed dictionary is no longer available. Draft the change again.');
     const freshBefore = new Set(state.answers.filter(a => !a.stale).map(a => a.id));
-    const published = await ontology(host).publish(ctx, draftOf(base, draft.name, draft.after), { expectedCurrentHash: meta.baseHash, attemptId: `books-${draft.id}`.slice(0, 128) });
-    await writeBooks(host.store, ctx, 'approve', fresh => { const stored = findDraft(fresh, draft.id); stored.state = 'published'; metaOf(fresh, draft.id).publishedVersion = published.version; });
+    // Claim the draft inside one transaction after checking it again, so a discard, a redraft or a lost co-signer
+    // between the read above and the release refuses the release instead of publishing a closed draft.
+    await writeBooks(host.store, ctx, 'approve', (fresh, latest) => {
+      const stored = findDraft(fresh, draft.id), storedMeta = metaOf(fresh, draft.id);
+      assertPublishable(latest, stored, storedMeta, digest);
+      check(storedMeta.baseHash === meta.baseHash, 'PREVIEW_CHANGED', 'The draft changed since you read it. Read it again.');
+      storedMeta.publishing = { by: ctx.memberId, at: now() };
+    });
+    let published: Dictionary;
+    try { published = await ontology(host).publish(ctx, draftOf(base, draft.name, draft.after), { expectedCurrentHash: meta.baseHash, attemptId: `books-${draft.id}`.slice(0, 128) }); }
+    catch (error) { await writeBooks(host.store, ctx, 'approve', fresh => { metaOf(fresh, draft.id).publishing = null; }).catch(() => undefined); throw error; }
+    await writeBooks(host.store, ctx, 'approve', fresh => { const stored = findDraft(fresh, draft.id); stored.state = 'published'; const m = metaOf(fresh, draft.id); m.publishedVersion = published.version; m.publishing = null; });
     return { version: published.version, hash: published.hash, staleAnswers: host.store.read().answers.filter(a => a.stale && freshBefore.has(a.id)).length };
   } },
   'books.packs': { permission: 'read', handler(ctx, payload, host) {

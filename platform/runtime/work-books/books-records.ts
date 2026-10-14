@@ -4,14 +4,18 @@
  * service; sources that disagree; and what the workspace holds about one record.
  */
 import { check, hash, now, type Context, type Fact, type State } from '../contracts.ts';
+import { sourceAccess, type ActionService, type PreparedAction } from '../actions.ts';
 import type { CalculatorService } from '../calculator.ts';
 import { canSeeFact, gstinValid, resolveCustomer, selectFacts, type MemoryService } from '../memory.ts';
 import type { OntologyService } from '../ontology.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { amountOf, input, isoDay, member, mentions, peekBooks, plainId, text, writeBooks, type Amount, type MatchDecision } from './books-common.ts';
+import { sourceVisible } from './books-sources.ts';
+import { visibleMemoryLine } from './books-memory.ts';
 
 type Kind = 'customer' | 'supplier' | 'item';
-type RecordEntry = { id: string; kind: Kind; facts: Fact[] };
+/** `selected` counts facts the selection chose; disputed claims are kept on the page but are not selected. */
+type RecordEntry = { id: string; kind: Kind; facts: Fact[]; selected: number };
 const DETAIL_FIELDS = ['customerName', 'supplierName', 'itemName', 'company', 'gstin', 'pan', 'phone', 'email', 'address', 'upiId', 'bankAccount', 'sku', 'unit'];
 const PAN = /^[A-Z]{5}\d{4}[A-Z]$/;
 const str = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
@@ -30,10 +34,20 @@ export function collectRecords(host: ModuleHost, ctx: Context): Map<string, Reco
   // Claims that sources disagree on stay on the record's page, each with its own source.
   const disputed = selection.conflicts.flatMap(c => c.rowIds).map(id => state.facts.find(f => f.id === id)).filter((f): f is Fact => !!f)
     .map(f => ({ ...structuredClone(f), fields: { ...structuredClone(f.fields), customerId: resolveCustomer(state, f.fields.customerId, selection.asOf) } }));
+  const chosen = new Set(selection.facts);
   for (const fact of [...selection.facts, ...disputed]) for (const [kind, id] of references(fact)) {
-    const entry = records.get(id) ?? { id, kind, facts: [] }; entry.facts.push(fact); records.set(id, entry);
+    const entry = records.get(id) ?? { id, kind, facts: [], selected: 0 }; entry.facts.push(fact); if (chosen.has(fact)) entry.selected++; records.set(id, entry);
   }
   return records;
+}
+/**
+ * Every record id the caller can see: current records plus the raw ids named by facts the
+ * caller can see (a customer joined into another keeps its own id in the facts).
+ */
+function visibleRecordIds(host: ModuleHost, ctx: Context, records = collectRecords(host, ctx)): Set<string> {
+  const ids = new Set(records.keys());
+  for (const fact of host.store.read().facts) if (!fact.deletedAt && canSeeFact(host.store, ctx, fact)) for (const [, id] of references(fact)) ids.add(id);
+  return ids;
 }
 const nameOf = (entry: RecordEntry) => { const field = `${entry.kind}Name`; return (entry.facts.map(f => f.fields[field]).find(str) as string | undefined) ?? null; };
 function findRecord(host: ModuleHost, ctx: Context, id: unknown): RecordEntry {
@@ -79,8 +93,11 @@ function identity(entry: RecordEntry) {
 }
 const pairKey = (a: string, b: string) => JSON.stringify([a, b].sort());
 type Pair = { left: string; right: string; relation: string; evidence: string[]; reason: string; state: 'open' | 'joined' | 'not-same'; mergeId: string | null };
+const DISPUTED_REASON = 'One of these customers appears only in records that sources disagree on, so their tax identities are not compared. Settle the disagreement first.';
+/** Both customers have at least one selected (not disputed) fact, so the memory service can compare them. */
+const comparable = (records: Map<string, RecordEntry>, left: string, right: string) => (records.get(left)?.selected ?? 0) > 0 && (records.get(right)?.selected ?? 0) > 0;
 function evaluate(host: ModuleHost, ctx: Context, records: Map<string, RecordEntry>, left: string, right: string): Omit<Pair, 'state' | 'mergeId'> {
-  const suggestion = (host.services.memory as MemoryService).suggestCustomerMatch(ctx, left, right);
+  const suggestion = comparable(records, left, right) ? (host.services.memory as MemoryService).suggestCustomerMatch(ctx, left, right) : { relation: 'abstain', reason: DISPUTED_REASON };
   const a = identity(records.get(left)!), b = identity(records.get(right)!); const evidence: string[] = [];
   evidence.push(...({ 'same-tax-registration': ['same-gstin'], 'same-owner-separate-registrations': ['same-pan'], 'cannot-match-tax-identities': ['different-pan'] } as Record<string, string[]>)[suggestion.relation] ?? []);
   if (a.phones.some(p => b.phones.includes(p))) evidence.push('same-phone');
@@ -109,7 +126,9 @@ function storedState(state: State, decision: MatchDecision | undefined): Pick<Pa
   return { state: decision.state === 'not-same' ? 'not-same' : 'open', mergeId: null };
 }
 function matchPairs(host: ModuleHost, ctx: Context): Pair[] {
-  const state = host.store.read(); const records = collectRecords(host, ctx); const decisions = peekBooks(state).matches;
+  const state = host.store.read(); const records = collectRecords(host, ctx); const visible = visibleRecordIds(host, ctx, records);
+  // A stored decision is shown only when the caller can see both of its records.
+  const decisions = peekBooks(state).matches.filter(d => visible.has(d.left) && visible.has(d.right));
   const latest = (key: string) => decisions.filter(d => pairKey(d.left, d.right) === key).at(-1);
   const pairs: Pair[] = candidates(records).map(([l, r]) => ({ ...evaluate(host, ctx, records, l, r), ...storedState(state, latest(pairKey(l, r))) }));
   const seen = new Set(pairs.map(p => pairKey(p.left, p.right)));
@@ -126,7 +145,11 @@ function conflicts(host: ModuleHost, ctx: Context) {
   const latest = new Map<string, Fact>();
   for (const f of visible) { if (tombstoned.has(f.id)) continue; const key = JSON.stringify([f.sourceId, f.kind, f.entityId]); const prev = latest.get(key); if (!prev || f.learnedAt >= prev.learnedAt) latest.set(key, f); }
   const groups = new Map<string, Fact[]>(); for (const f of latest.values()) { const key = JSON.stringify([f.kind, f.entityId]); groups.set(key, [...(groups.get(key) ?? []), f]); }
-  const rules = new Map<string, string[]>(); for (const r of state.sourceRules) if (typeof r?.kind === 'string' && Array.isArray(r.sourceIds)) rules.set(r.kind, [...r.sourceIds]);
+  // A precedence rule is shown only when every source it names is visible to the caller.
+  const rules = new Map<string, string[]>();
+  for (const r of state.sourceRules) if (typeof r?.kind === 'string' && Array.isArray(r.sourceIds)) {
+    if (r.sourceIds.every((s: unknown) => typeof s === 'string' && sourceVisible(host.store, ctx, s))) rules.set(r.kind, [...r.sourceIds]); else rules.delete(r.kind);
+  }
   const shown = (f: Fact) => Object.fromEntries(Object.entries(f.fields).filter(([k, v]) => !k.startsWith('_') && v !== undefined && v !== null).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]));
   const list = [];
   for (const claims of groups.values()) {
@@ -167,6 +190,7 @@ export const recordMethods: Record<string, MethodSpec> = {
     check(plainId(request.left) && plainId(request.right) && request.left !== request.right && typeof request.same === 'boolean', 'INVALID_BOOKS_REQUEST', 'Name two different customers and whether they are the same.');
     const records = collectRecords(host, ctx);
     for (const id of [request.left, request.right]) check(records.get(id)?.kind === 'customer', 'RECORD_NOT_FOUND', 'Both records must be customers available to you.');
+    check(comparable(records, request.left, request.right), 'RECORD_DISPUTED', 'One of these customers appears only in records that sources disagree on. Settle the disagreement first.');
     const pair = evaluate(host, ctx, records, request.left, request.right); const who = member(host.store.read(), ctx);
     let mergeId: string | null = null;
     if (request.same) {
@@ -179,7 +203,9 @@ export const recordMethods: Record<string, MethodSpec> = {
   } },
   'records.undoMatch': { permission: 'approve', async handler(ctx, payload, host) {
     const { mergeId } = input(payload, ['mergeId'], ['mergeId']);
-    const decision = typeof mergeId === 'string' ? peekBooks(host.store.read()).matches.find(d => d.mergeId === mergeId) : undefined; check(decision, 'MATCH_NOT_FOUND', 'This join was not found.');
+    const visible = visibleRecordIds(host, ctx);
+    const decision = typeof mergeId === 'string' ? peekBooks(host.store.read()).matches.find(d => d.mergeId === mergeId) : undefined;
+    check(decision && visible.has(decision.left) && visible.has(decision.right), 'MATCH_NOT_FOUND', 'This join was not found.');
     await (host.services.memory as MemoryService).undoMerge(ctx, mergeId);
     const who = member(host.store.read(), ctx);
     const reopened: MatchDecision = { ...structuredClone(decision), state: 'open', mergeId: null, undoneMergeId: mergeId, by: who.name, role: who.role, at: now() };
@@ -198,15 +224,27 @@ export const recordMethods: Record<string, MethodSpec> = {
     const ids = new Set([entry.id, ...state.merges.filter(m => m.type === 'merge' && Array.isArray(m.entityIds) && m.entityIds.includes(entry.id)).flatMap(m => m.entityIds as string[])]);
     const about = (value: unknown) => [...ids].some(i => mentions(value, i));
     const factIds = new Set(state.facts.filter(f => !f.deletedAt && canSeeFact(host.store, ctx, f) && [...ids].some(i => resolveCustomer(state, f.fields.customerId, now()) === i || references(f).some(([, r]) => r === i))).map(f => f.id));
-    const receipts = state.receipts.filter(r => r.memberId === ctx.memberId && (about(r.rows) || (r.rowIds ?? []).some((rid: string) => factIds.has(rid))));
-    const receiptIds = new Set(receipts.map(r => r.id));
+    // Only what the caller can see is counted: own receipts, answers and conversations, actions under core's access rule, visible memory lines and matches.
+    const ownReceipts = state.receipts.filter(r => r?.memberId === ctx.memberId);
+    const receipts = ownReceipts.filter(r => about(r.rows) || (r.rowIds ?? []).some((rid: string) => factIds.has(rid)));
+    const receiptIds = new Set(receipts.map(r => r.id)), ownReceiptIds = new Set(ownReceipts.map(r => r.id));
+    const actions = host.services.actions as ActionService | undefined;
+    const canSeeAction = (action: PreparedAction) => {
+      try {
+        if (typeof actions?.access === 'function') actions.access(state, ctx, action);
+        else { sourceAccess(state, ctx, Array.isArray(action.sourceIds) ? action.sourceIds : []); check((action.sourceIds?.length ?? 0) > 0 || action.createdBy === ctx.memberId, 'ACTION_FORBIDDEN', 'This private local action belongs to another account.'); }
+        return true;
+      } catch { return false; }
+    };
+    const visible = visibleRecordIds(host, ctx);
     return { stores: [
       { store: 'facts', count: factIds.size }, { store: 'receipts', count: receipts.length },
-      { store: 'answers', count: state.answers.filter(a => receiptIds.has(a.receiptId) || about(a.request)).length },
-      { store: 'actions', count: state.actions.filter(about).length }, { store: 'conversations', count: state.conversations.filter(about).length },
-      { store: 'memory', count: books.memory.filter(l => !l.deletedAt && l.text !== null && [...ids].some(i => l.text!.includes(i))).length },
+      { store: 'answers', count: state.answers.filter(a => ownReceiptIds.has(a?.receiptId) && (receiptIds.has(a.receiptId) || about(a.request))).length },
+      { store: 'actions', count: (state.actions as PreparedAction[]).filter(a => about(a) && canSeeAction(a)).length },
+      { store: 'conversations', count: state.conversations.filter(c => c?.memberId === ctx.memberId && about(c)).length },
+      { store: 'memory', count: books.memory.filter(l => !l.deletedAt && l.text !== null && visibleMemoryLine(host.store, ctx, l) && [...ids].some(i => l.text!.includes(i))).length },
       { store: 'opt-ins', count: books.optIns.filter(o => ids.has(o.recordId)).length + books.stops.filter(s => ids.has(s.recordId)).length },
-      { store: 'matches', count: books.matches.filter(m => ids.has(m.left) || ids.has(m.right)).length },
+      { store: 'matches', count: books.matches.filter(m => (ids.has(m.left) || ids.has(m.right)) && visible.has(m.left) && visible.has(m.right)).length },
     ] };
   } },
 };

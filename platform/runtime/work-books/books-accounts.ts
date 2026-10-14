@@ -7,9 +7,9 @@
  */
 import { check, now, type Context, type State } from '../contracts.ts';
 import { canSeeFact } from '../memory.ts';
-import { sourceAllowed } from '../trust.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
+import { sourceVisible } from './books-sources.ts';
 import { input, member, peekBooks, writeBooks, type AccountClass, type AccountDecision } from './books-common.ts';
 
 export const CLASSES: AccountClass[] = ['asset', 'liability', 'equity', 'income', 'expense', 'receivable', 'payable', 'bank', 'cash', 'tax'];
@@ -24,7 +24,10 @@ type Found = { name: string; group: string | null; chain: string[]; sides: Set<'
 export type AccountRow = { name: string; group: string | null; side: 'debit' | 'credit' | null; proposed: AccountClass | null; reason: string[];
   decided: { class: AccountClass; by: string; role: string; at: string } | null; state: 'proposed' | 'unsure' | 'decided' };
 
-const decode = (value: string) => value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_m, n) => String.fromCodePoint(Number(n) % 0x110000)).replace(/&amp;/g, '&').trim();
+/** A numeric character reference as text; an invalid code point (too large, a surrogate or NUL) reads as U+FFFD. */
+const codePoint = (n: number) => Number.isInteger(n) && n > 0 && n <= 0x10ffff && (n < 0xd800 || n > 0xdfff) ? String.fromCodePoint(n) : '\ufffd';
+export const decode = (value: string) => value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+  .replace(/&#(\d{1,7});/g, (_m, n) => codePoint(Number(n))).replace(/&#x([0-9a-f]{1,6});/gi, (_m, n) => codePoint(parseInt(n, 16))).replace(/&amp;/g, '&').trim();
 const child = (body: string, tag: string) => { const m = new RegExp(`<${tag}(?:\\s[^>]*)?>([^<]*)</${tag}>`).exec(body); return m ? decode(m[1]) : ''; };
 const named = (attributes: string, body: string) => { const m = /\bNAME="([^"]*)"/.exec(attributes); return m ? decode(m[1]) : child(body, 'NAME'); };
 
@@ -49,8 +52,11 @@ function chainOf(group: string, groups: Map<string, string>): string[] {
 function collect(state: State, ctx: Context, host: ModuleHost): Map<string, Found> {
   const found = new Map<string, Found>();
   const entry = (name: string, sourceId: string) => { const item = found.get(name) ?? { name, group: null, chain: [], sides: new Set(), recipeClass: null, sourceIds: new Set<string>() }; item.sourceIds.add(sourceId); found.set(name, item); return item; };
+  const visible = new Map<string, boolean>();
+  const shown = (sourceId: unknown) => { if (typeof sourceId !== 'string') return false; if (!visible.has(sourceId)) visible.set(sourceId, sourceVisible(host.store, ctx, sourceId)); return visible.get(sourceId)!; };
   for (const record of state.imports) {
-    if (!sourceAllowed(state, ctx, record.sourceId)) continue;
+    // Retained content is parsed only for a source the caller can see whole.
+    if (!shown(record.sourceId)) continue;
     const retained = record.retainedInput?.input; const classes = retained?.recipe?.tallyLedgerClasses;
     if (classes && typeof classes === 'object') for (const [name, cls] of Object.entries(classes)) entry(name, record.sourceId).recipeClass = String(cls);
     if (record.format === 'tally-xml' && typeof retained?.content === 'string') {
@@ -64,7 +70,7 @@ function collect(state: State, ctx: Context, host: ModuleHost): Map<string, Foun
   }
   for (const fact of state.facts) {
     const name = [fact.fields.account, fact.fields.ledger].find(v => typeof v === 'string' && v.trim()) as string | undefined;
-    if (!name || fact.deletedAt || !canSeeFact(host.store, ctx, fact)) continue;
+    if (!name || fact.deletedAt || !canSeeFact(host.store, ctx, fact) || !shown(fact.sourceId)) continue;
     const item = entry(name, fact.sourceId); const group = [fact.fields.accountGroup, fact.fields.group, fact.fields.parentGroup].find(v => typeof v === 'string' && v.trim()) as string | undefined;
     if (group && !item.group) { item.group = group; item.chain = [group]; }
   }
