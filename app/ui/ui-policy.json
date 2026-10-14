@@ -1,0 +1,372 @@
+{
+  "$comment": "Derived by frontend-validation/policy/derive.mjs. Do not edit by hand; app/ui/tests/frame-today-ui-policy.test.ts fails when this drifts from the tokens.",
+  "version": 1,
+  "generatedFrom": {
+    "files": [
+      "app/ui/src/tokens/tokens.css",
+      "app/ui/src/tokens/type.css",
+      "app/ui/src/views/simple.css",
+      "app/ui/src/views/books.css"
+    ],
+    "design": "docs/specs/CHAUSAR-APP-DESIGN.md: part 6 (Colours, Type), part 4 (Tokens), part 11 (Words, Text, Never, Motion); WCAG 2.2 AA 1.4.3, 1.4.11, 2.5.8",
+    "note": "The lane brief names reading sizes 13.5, 15 and 18: these are --fs-read in Books, Guided and Simple. Every other --fs-* token per view is an allowed size; nothing renders below the smallest token.",
+    "colours": {
+      "light": {
+        "bg": "#F7F8F8",
+        "fg": "#0B0D0E",
+        "fg2": "#3B4247",
+        "mute": "#646B71",
+        "line": "#E9ECEE",
+        "line2": "#D5DADE",
+        "cha": "#0B9A5C",
+        "amber": "#B26A00",
+        "amber-t": "#8F5B00",
+        "red": "#C0322B",
+        "dim": "#868D93"
+      },
+      "dark": {
+        "bg": "#070809",
+        "fg": "#E8EBEE",
+        "fg2": "#B7BCC1",
+        "mute": "#8B9197",
+        "line": "#15191C",
+        "line2": "#262D32",
+        "cha": "#46F09B",
+        "amber": "#E0A43C",
+        "amber-t": "#E0A43C",
+        "red": "#E24B4A",
+        "dim": "#5E666C"
+      }
+    },
+    "typeSizesPx": {
+      "guided": {
+        "--fs-fig": 15,
+        "--fs-fig-big": 34,
+        "--fs-fig-tile": 20,
+        "--fs-label": 11.5,
+        "--fs-mark": 14,
+        "--fs-note": 13,
+        "--fs-note2": 14,
+        "--fs-read": 15,
+        "--fs-row": 16,
+        "--fs-section": 22,
+        "--fs-title": 30
+      },
+      "simple": {
+        "--fs-fig": 18,
+        "--fs-fig-big": 34,
+        "--fs-fig-tile": 24,
+        "--fs-label": 11.5,
+        "--fs-mark": 14,
+        "--fs-note": 14,
+        "--fs-note2": 15,
+        "--fs-read": 18,
+        "--fs-row": 20,
+        "--fs-section": 24,
+        "--fs-title": 34
+      },
+      "books": {
+        "--fs-fig": 13.5,
+        "--fs-fig-big": 34,
+        "--fs-fig-tile": 18,
+        "--fs-label": 11.5,
+        "--fs-mark": 14,
+        "--fs-note": 12,
+        "--fs-note2": 13,
+        "--fs-read": 13.5,
+        "--fs-row": 14,
+        "--fs-section": 20,
+        "--fs-title": 26
+      }
+    },
+    "targetPx": {
+      "guided": 24,
+      "simple": 44,
+      "books": 24
+    }
+  },
+  "views": [
+    "guided",
+    "simple",
+    "books"
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "languages": [
+    "en",
+    "hi"
+  ],
+  "viewports": {
+    "full": {
+      "width": 1366,
+      "height": 768
+    },
+    "medium": {
+      "width": 1024,
+      "height": 768
+    }
+  },
+  "rules": {
+    "textSize": {
+      "readingPx": {
+        "guided": 15,
+        "simple": 18,
+        "books": 13.5
+      },
+      "allowedPx": {
+        "guided": [
+          11.5,
+          13,
+          14,
+          15,
+          16,
+          20,
+          22,
+          30,
+          34
+        ],
+        "simple": [
+          11.5,
+          14,
+          15,
+          18,
+          20,
+          24,
+          34
+        ],
+        "books": [
+          11.5,
+          12,
+          13,
+          13.5,
+          14,
+          18,
+          20,
+          26,
+          34
+        ]
+      },
+      "minimumPx": {
+        "guided": 11.5,
+        "simple": 11.5,
+        "books": 11.5
+      },
+      "tolerancePx": 0.05,
+      "applies": "Every element with its own visible text, in both languages. Hindi uses the same sizes."
+    },
+    "controlSize": {
+      "standard": "WCAG 2.2 AA 2.5.8 Target Size (Minimum)",
+      "minimumPx": {
+        "width": 24,
+        "height": 24
+      },
+      "exceptions": [
+        "inline: a link or control inside a sentence",
+        "spacing: a 24 px circle on the target centre touches no other target",
+        "hidden or disabled"
+      ],
+      "selector": "button, a[href], input:not([type=hidden]), select, textarea, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option]",
+      "designTargetPx": {
+        "guided": 24,
+        "simple": 44,
+        "books": 24
+      },
+      "designTargetSeverity": "warning"
+    },
+    "contrast": {
+      "standard": "WCAG 2.2 AA 1.4.3 Contrast (Minimum) and 1.4.11 Non-text Contrast",
+      "textMinimum": 4.5,
+      "largeTextMinimum": 3,
+      "nonTextMinimum": 3,
+      "largeTextPx": 24,
+      "largeBoldTextPx": 18.66,
+      "boldWeight": 700,
+      "exempt": [
+        "disabled controls",
+        "hairlines (line, line2): decoration, no control depends on them",
+        "invisible text"
+      ],
+      "pairs": [
+        {
+          "theme": "light",
+          "foreground": "fg",
+          "background": "bg",
+          "use": "text",
+          "minimum": 4.5
+        },
+        {
+          "theme": "light",
+          "foreground": "fg2",
+          "background": "bg",
+          "use": "text",
+          "minimum": 4.5
+        },
+        {
+          "theme": "light",
+          "foreground": "mute",
+          "background": "bg",
+          "use": "text",
+          "minimum": 4.5
+        },
+        {
+          "theme": "light",
+          "foreground": "amber-t",
+          "background": "bg",
+          "use": "text",
+          "minimum": 4.5
+        },
+        {
+          "theme": "light",
+          "foreground": "red",
+          "background": "bg",
+          "use": "text",
+          "minimum": 4.5
+        },
+        {
+          "theme": "light",
+          "foreground": "fg",
+          "background": "bg",
+          "use": "non-text mark",
+          "minimum": 3
+        },
+        {
+          "theme": "light",
+          "foreground": "mute",
+          "background": "bg",
+          "use": "non-text mark",
+          "minimum": 3
+        },
+        {
+          "theme": "light",
+          "foreground": "cha",
+          "background": "bg",
+          "use": "non-text mark",
+          "minimum": 3
+        },
+        {
+          "theme": "light",
+          "foreground": "amber",
+          "background": "bg",
+          "use": "non-text mark",
+          "minimum": 3
+        },
+        {
+          "theme": "light",
+          "foreground": "dim",
+          "background": "bg",
+          "use": "non-text mark",
+          "minimum": 3
+        },
+        {
+          "theme": "dark",
+          "foreground": "fg",
+          "background": "bg",
+          "use": "text",
+          "minimum": 4.5
+        },
+        {
+          "theme": "dark",
+          "foreground": "fg2",
+          "background": "bg",
+          "use": "text",
+          "minimum": 4.5
+        },
+        {
+          "theme": "dark",
+          "foreground": "mute",
+          "background": "bg",
+          "use": "text",
+          "minimum": 4.5
+        },
+        {
+          "theme": "dark",
+          "foreground": "amber-t",
+          "background": "bg",
+          "use": "text",
+          "minimum": 4.5
+        },
+        {
+          "theme": "dark",
+          "foreground": "red",
+          "background": "bg",
+          "use": "text",
+          "minimum": 4.5
+        },
+        {
+          "theme": "dark",
+          "foreground": "fg",
+          "background": "bg",
+          "use": "non-text mark",
+          "minimum": 3
+        },
+        {
+          "theme": "dark",
+          "foreground": "mute",
+          "background": "bg",
+          "use": "non-text mark",
+          "minimum": 3
+        },
+        {
+          "theme": "dark",
+          "foreground": "cha",
+          "background": "bg",
+          "use": "non-text mark",
+          "minimum": 3
+        },
+        {
+          "theme": "dark",
+          "foreground": "amber",
+          "background": "bg",
+          "use": "non-text mark",
+          "minimum": 3
+        },
+        {
+          "theme": "dark",
+          "foreground": "dim",
+          "background": "bg",
+          "use": "non-text mark",
+          "minimum": 3
+        }
+      ]
+    },
+    "figures": {
+      "selector": ".fig, [data-figure], figure",
+      "contained": "A figure is not clipped by its own box or a clipping ancestor and does not spill out of its parent box.",
+      "tolerancePx": 1
+    },
+    "words": {
+      "limits": {
+        "guided": 120,
+        "wide": 150,
+        "simple": 90,
+        "books": 170,
+        "sheet": 110
+      },
+      "count": "Intl.Segmenter word-like segments of the rendered text, figures, labels and chart words included (design part 11 \"Words\").",
+      "atRest": "main [data-region=page] plus the status line [data-region=status]; Guided uses the wide limit when the page column is wider than --col",
+      "sheet": "the open sheet [data-region=sheet], counted on its own"
+    },
+    "buttonLabels": {
+      "maximumCharacters": 22,
+      "selector": "button.m-press",
+      "count": "Unicode code points of the rendered, trimmed label"
+    },
+    "punctuation": {
+      "forbidden": [
+        "—",
+        "!"
+      ],
+      "applies": "all rendered text"
+    },
+    "remoteImages": {
+      "forbidden": true,
+      "applies": "img/srcset/image/CSS background or mask URLs and every request that leaves 127.0.0.1"
+    },
+    "motion": {
+      "repeatingAnimation": "forbidden",
+      "reducedMotion": "with prefers-reduced-motion: reduce, every transition and animation duration is 0"
+    }
+  }
+}
