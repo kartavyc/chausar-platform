@@ -126,7 +126,7 @@ test('meanings: draft, self co-sign refused, co-sign, atomic publish, stale hash
   await assert.rejects(call(owner, 'books.draft', { name: 'unknown_word', definition: null }), { code: 'WORD_NOT_FOUND' });
   const packs = await call(owner, 'books.packs');
   assert.equal(packs.packs.length, 6); assert.deepEqual(packs.packs.find((p: any) => p.pack === 'ecommerce'), { pack: 'ecommerce', label: 'Online brand', state: 'in-use', meanings: 6 });
-  assert.deepEqual(await call(owner, 'books.gst'), { gstMode: 'regular', rates: { available: false } });
+  assert.deepEqual(await call(owner, 'books.gst'), { gstMode: 'regular', rates: { available: true } });
 });
 
 test('meanings: a workspace with one approver publishes without a co-sign through the atomic release', async () => {

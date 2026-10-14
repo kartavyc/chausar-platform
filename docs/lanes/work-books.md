@@ -245,7 +245,7 @@ SourceRow = { sourceId; system: string; way: 'files' | 'signed-in' | 'this-compu
 | `books.cosign` | prepare | `{ draftId, digest }` | `Draft` (a different person than the author; recorded by name and role) |
 | `books.publish` | approve | `{ draftId, digest }` | `{ version; hash; staleAnswers: number }` (one release, everywhere at once) |
 | `books.packs` | read | `{}` | `{ packs: { pack; label; state: 'in-use' \| 'available'; meanings: number }[] }` |
-| `books.gst` | read | `{}` | `{ gstMode: string \| null; rates: { available: false } }` |
+| `books.gst` | read | `{}` | `{ gstMode: string \| null; rates: { available: true } }` (the table is `books.rates`, BK-19) |
 | `books.memory` | read | `{ outsideOnly?: boolean }` | `{ lines: MemoryLine[] }` |
 | `books.remember` | admin | `{ text, kind }` | `MemoryLine` (told by owner) |
 | `books.memoryEdit` | admin | `{ id, text }` | `MemoryLine` (earlier version kept) |

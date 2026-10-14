@@ -168,7 +168,9 @@ function Gst({ props }: { props: BooksProps }) {
     <Section title={w.gstTitle}>
       {loaded.phase === 'refused' && (loaded.state.kind === 'not-built' ? <Note>{fill(w.notBuiltNamed, { what: w.gstTitle })}</Note> : <Refusal code={loaded.code} language={props.language} />)}
       {value && <p>{value.gstMode === null ? <span className={s.missing}>{w.gstNotSet}</span> : fill(w.gstMode, { mode: value.gstMode })}</p>}
-      {value && !value.rates.available && <Note>{fill(w.notBuiltNamed, { what: w.rates })}</Note>}
+      {value && (value.rates.available
+        ? <p><Link onPress={() => props.navigate({ place: 'books', sub: 'rates' })}>{w.rates}</Link></p>
+        : <Note>{fill(w.notBuiltNamed, { what: w.rates })}</Note>)}
     </Section>
   );
 }

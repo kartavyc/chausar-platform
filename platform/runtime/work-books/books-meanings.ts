@@ -188,5 +188,5 @@ export const meaningMethods: Record<string, MethodSpec> = {
       ? { pack: p.pack, label: p.label, state: 'in-use' as const, meanings: dictionary.definitions.filter(d => p.definitions.some(x => same(x, d))).length }
       : { pack: p.pack, label: p.label, state: 'available' as const, meanings: p.definitions.length }) };
   } },
-  'books.gst': { permission: 'read', handler(ctx, payload, host) { input(payload, []); authorize(host.store, ctx); return { gstMode: current(host, ctx)?.gstMode ?? null, rates: { available: false as const } }; } },
+  'books.gst': { permission: 'read', handler(ctx, payload, host) { input(payload, []); authorize(host.store, ctx); return { gstMode: current(host, ctx)?.gstMode ?? null, rates: { available: true as const } }; } },
 };
