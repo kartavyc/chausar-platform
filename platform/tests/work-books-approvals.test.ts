@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { authorize, check, ChausarError, initialState } from '../runtime/contracts.ts';
 import type { Context, State, StateStore } from '../runtime/contracts.ts';
-import { ActionService } from '../runtime/actions.ts';
+import { ActionService, digest } from '../runtime/actions.ts';
 import type { Connector, Operation } from '../runtime/actions.ts';
 import { JobService } from '../runtime/jobs.ts';
 import { OntologyService } from '../runtime/ontology.ts';
@@ -14,7 +14,12 @@ class TestStore implements StateStore {
   state: State;
   constructor() { this.state = initialState('Synthetic hardware shop', true); }
   read() { return this.state; }
-  async update<T>(change: (state: State) => T | Promise<T>) { const copy = structuredClone(this.state); const result = await change(copy); copy.revision++; this.state = copy; return result; }
+  private tail: Promise<unknown> = Promise.resolve();
+  /** Serialized like the real stores: each change sees every committed change before it. */
+  update<T>(change: (state: State) => T | Promise<T>): Promise<T> {
+    const run = this.tail.then(async () => { const copy = structuredClone(this.state); const result = await change(copy); copy.revision++; this.state = copy; return result; });
+    this.tail = run.catch(() => undefined); return run;
+  }
 }
 const owner: Context = { memberId: 'owner', role: 'owner', epoch: 1, channel: 'desktop' };
 const viewer: Context = { memberId: 'viewer', role: 'viewer', epoch: 1, channel: 'desktop' };
@@ -22,25 +27,26 @@ const accountant: Context = { memberId: 'accountant', role: 'accountant', epoch:
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected); return true; };
 
 type Fixture = Awaited<ReturnType<typeof fixture>>;
-async function fixture(options: { writeback?: Record<string, (payload: any) => unknown> } = {}) {
+async function fixture(options: { writeback?: Record<string, (payload: any) => unknown>; deliverableGuard?: () => boolean } = {}) {
   const store = new TestStore();
   store.state.members.push({ id: 'viewer', name: 'Vee Viewer', role: 'viewer', active: true, epoch: 1, branches: ['*'] }, { id: 'accountant', name: 'Asha Accountant', role: 'accountant', active: true, epoch: 1, branches: ['*'] });
-  const sent = new Map<string, unknown>(); const fake = { lose: false, executions: 0 };
+  const sent = new Map<string, unknown>(); const fake: { lose: boolean; executions: number; wait?: Promise<void> } = { lose: false, executions: 0 };
   const op = (impact: Operation['impact'], title: string): Operation => ({
     title, description: `${title} in the synthetic books app.`, impact, idempotency: 'The key names one record.', readback: 'Reads the record by key.',
     validate: payload => { check(payload !== null && typeof payload === 'object' && !Array.isArray(payload), 'INVALID_ACTION', 'Send an object.'); return payload as Record<string, unknown>; },
-    execute: async (payload, key) => { fake.executions += 1; sent.set(key, payload); if (fake.lose) throw new Error('connection lost'); return { externalId: key }; },
+    execute: async (payload, key) => { fake.executions += 1; if (fake.wait) await fake.wait; sent.set(key, payload); if (fake.lose) throw new Error('connection lost'); return { externalId: key }; },
     reconcile: async (payload, key) => { const found = sent.get(key); return { verified: found !== undefined, businessSuccess: found !== undefined, data: found, absent: found === undefined }; },
   });
   const connector: Connector = { id: 'books-app', title: 'Synthetic books app', operations: { note: op('reversible', 'Add a note to a customer'), unnote: op('reversible', 'Remove a note'), remind: op('message', 'Send a payment reminder'), pay: op('money', 'Pay a supplier'), voucher: op('reversible', 'Prepare a sales voucher') } };
-  const actions = new ActionService(store, [connector]); const jobs = new JobService(store); const ontology = new OntologyService(store);
+  const actions = new ActionService(store, [connector]); const jobs = new JobService(store, options.deliverableGuard ? { deliverableGuard: options.deliverableGuard } : {}); const ontology = new OntologyService(store);
   const clock = { offset: 0 }; const calls: { method: string; payload: any }[] = []; const services: Record<string, any> = { actions, jobs, ontology };
   const host = (ctx: Context): ModuleHost => ({
     store, services, demo: true, directory: '/tmp/x', options: { clock: () => Date.now() + clock.offset },
     async call(method, payload) {
       calls.push({ method, payload });
       if (method === 'jobs.approve') return jobs.approve(ctx, payload.id as string, payload.digest as string);
-      if (method === 'jobs.accept') return jobs.accept(ctx, payload.id as string);
+      if (method === 'jobs.accept') return jobs.accept(ctx, payload.id as string, payload.repeat === true, payload.reference as any);
+      if (method === 'jobs.reject') return jobs.reject(ctx, payload.id as string, payload.reason as string);
       if (method === 'jobs.cancel') return jobs.cancel(ctx, payload.id as string);
       if (method === 'books.publish' || method === 'books.discard') return store.update(state => {
         const draft = section<{ drafts: any[] }>(state, 'books', () => ({ drafts: [] })).drafts.find(d => d.id === payload.draftId);
@@ -49,6 +55,11 @@ async function fixture(options: { writeback?: Record<string, (payload: any) => u
         check(draft.digest === payload.digest, 'PREVIEW_CHANGED', 'Changed.'); draft.state = 'published'; return { version: 3, hash: 'h', staleAnswers: 0 };
       });
       if (method === 'memory.decideLesson') return { ok: true };
+      if (method === 'books.draft') return store.update(state => {
+        const books = section<{ drafts: any[] }>(state, 'books', () => ({ drafts: [] }));
+        const old = books.drafts.find(d => d.id === payload.replaces); check(old, 'NOT_FOUND', 'Draft not found.'); old.state = 'discarded';
+        const draft = { ...old, id: `${old.id}_next`, state: 'draft', after: payload.definition, digest: 'f'.repeat(64) }; books.drafts.push(draft); return draft;
+      });
       const writeback = options.writeback?.[method]; if (writeback) return writeback(payload);
       throw new ChausarError('UNKNOWN_METHOD', 'Unknown request.');
     },
@@ -284,7 +295,7 @@ test('jobs, acceptances, release drafts and lessons share the queue and route to
   const deadline = new Date(Date.now() + 30 * 86400000).toISOString();
   const job = await f.jobs.create(owner, { goal: 'Chase overdue invoices each week', budgetMinor: '50000', stopRule: { maxRuns: 4, deadline }, requiresApproval: true });
   const done = await f.jobs.create(owner, { goal: 'Summarise the week for the owner', budgetMinor: '1000', stopRule: { maxRuns: 1, deadline } });
-  await f.store.update(state => { const j = state.jobs.find(x => x.id === done.id); j.status = 'awaiting-acceptance'; j.runs = 1; j.ledger.push({ at: new Date().toISOString(), event: 'delivered', amountMinor: '400' }); j.spentMinor = '400'; });
+  await f.store.update(state => { const j = state.jobs.find(x => x.id === done.id); j.status = 'awaiting-acceptance'; j.runs = 1; j.deliverable = { done: ['Summary written'], open: [], receiptIds: ['receipt_1', 'receipt_2'] }; j.ledger.push({ at: new Date().toISOString(), event: 'delivered', amountMinor: '400' }); j.spentMinor = '400'; });
   await f.store.update(state => { section<{ drafts: any[] }>(state, 'books', () => ({ drafts: [] })).drafts.push(
     { id: 'draft_1', name: 'received', author: 'Workspace owner', createdAt: new Date().toISOString(), state: 'cosigned', before: { label: 'Received', meaning: 'Old' }, after: { label: 'Received', meaning: 'New' }, change: 'Count UPI receipts', affects: { calculations: [], savedAnswers: 0 }, reviews: [], checks: { ok: true, code: null }, digest: 'd'.repeat(64) },
     { id: 'draft_2', name: 'old', author: 'Workspace owner', createdAt: new Date().toISOString(), state: 'published', before: null, after: null, change: 'x', digest: 'e'.repeat(64) },
@@ -343,4 +354,145 @@ test('purge removes private notes tied to removed actions and jobs', async () =>
   state.actions = state.actions.filter(a => a.id !== keep.id);
   assert.equal(workPurge(state, { sourceIds: [], removedIds: new Set(), at: new Date().toISOString() }), 1, 'a note for an action that no longer exists');
   assert.equal(workPurge(initialState('Empty'), { sourceIds: [], removedIds: new Set(), at: new Date().toISOString() }), 0);
+});
+
+// ---------- Review findings (regressions) ----------
+
+async function deliveredJob(f: Fixture, deliverable: unknown) {
+  const deadline = new Date(Date.now() + 30 * 86400000).toISOString();
+  const job = await f.jobs.create(owner, { goal: 'Summarise the week for the owner', budgetMinor: '1000', stopRule: { maxRuns: 1, deadline } });
+  await f.store.update(state => { const j = state.jobs.find(x => x.id === job.id); j.status = 'awaiting-acceptance'; j.runs = 1; j.deliverable = deliverable; j.ledger.push({ at: new Date().toISOString(), event: 'delivered', amountMinor: '400' }); j.spentMinor = '400'; });
+  return job;
+}
+
+test('an acceptance is bound to the exact deliverable and passes the full reference to jobs.accept', async () => {
+  const f = await fixture({ deliverableGuard: () => true });
+  const job = await deliveredJob(f, { done: ['Summary written'], open: [], receiptIds: ['receipt_1', 'receipt_2'] });
+  const id = `acceptance:${job.id}`; const sheet = await f.request(owner, 'approvals.get', { id });
+  const stored = f.store.read().jobs.find(j => j.id === job.id);
+  assert.notEqual(sheet.digest, stored.digest, 'not the objective digest alone');
+  assert.equal(sheet.digest, digest({ job: stored.digest, revision: stored.revision, deliverable: digest(stored.deliverable) }));
+  assert.equal(sheet.change.asWritten, 'The job delivered a result. Accepting it closes this run.');
+  assert.deepEqual(sheet.change.fields, [{ name: 'goal', before: '', after: 'Summarise the week for the owner' }, { name: 'receipts', before: '', after: '2' }]);
+  // The deliverable changes after the preview was read.
+  await f.store.update(state => { state.jobs.find(x => x.id === job.id).deliverable = { done: ['Different'], open: [], receiptIds: [] }; });
+  await assert.rejects(f.request(owner, 'approvals.approve', { id, digest: sheet.digest }), code('PREVIEW_CHANGED'));
+  assert.equal(f.calls.some(c => c.method === 'jobs.accept'), false);
+  const again = await f.request(owner, 'approvals.get', { id });
+  assert.equal((await f.request(owner, 'approvals.approve', { id, digest: again.digest })).state, 'verified');
+  const after = f.store.read().jobs.find(j => j.id === job.id);
+  assert.deepEqual(f.calls.find(c => c.method === 'jobs.accept')?.payload, { id: job.id, reference: { kind: 'job-acceptance', id: job.id, revision: after.revision, digest: after.digest, deliverableDigest: digest({ done: ['Different'], open: [], receiptIds: [] }) } });
+  assert.equal(after.status, 'accepted');
+});
+
+test('core refuses an acceptance whose deliverable moved between the check and the accept', async () => {
+  const f = await fixture();
+  const job = await deliveredJob(f, { done: ['A'] });
+  const sheet = await f.request(owner, 'approvals.get', { id: `acceptance:${job.id}` });
+  assert.equal(sheet.change.fields[1].after, 'not shown here', 'a withheld deliverable is never shown');
+  const accept = f.jobs.accept.bind(f.jobs);
+  f.jobs.accept = async (ctx: Context, jobId: string, repeat?: boolean, reference?: any) => {
+    await f.store.update(state => { state.jobs.find(x => x.id === jobId).deliverable = { done: ['B'] }; });
+    return accept(ctx, jobId, repeat, reference);
+  };
+  await assert.rejects(f.request(owner, 'approvals.approve', { id: `acceptance:${job.id}`, digest: sheet.digest }), code('PREVIEW_CHANGED'));
+  assert.equal(f.store.read().jobs.find(j => j.id === job.id).status, 'awaiting-acceptance');
+});
+
+test('dropping an acceptance sends the result back with jobs.reject instead of cancelling the job', async () => {
+  const f = await fixture();
+  const job = await deliveredJob(f, { done: ['A'] }); const id = `acceptance:${job.id}`;
+  assert.deepEqual(await f.request(owner, 'approvals.drop', { id }), { id, state: 'rejected' });
+  assert.deepEqual(f.calls.find(c => c.method === 'jobs.reject')?.payload, { id: job.id, reason: 'Sent back from the approvals queue.' });
+  assert.equal(f.calls.some(c => c.method === 'jobs.cancel'), false);
+  const after = f.store.read().jobs.find(j => j.id === job.id);
+  assert.equal(after.status, 'paused'); assert.equal(after.ledger.at(-1).event, 'rejected');
+  assert.equal((await f.request(owner, 'approvals.get', { id })).state, 'rejected');
+});
+
+test('two concurrent executes cannot both pass the sending gate; the reservation is cleared afterwards', async () => {
+  const f = await fixture();
+  const a = await f.prepare('remind', { to: 'customer-a', text: 'Due.' }); const b = await f.prepare('remind', { to: 'customer-b', text: 'Due.' });
+  await f.request(owner, 'approvals.approve', { id: `action:${a.id}`, digest: a.digest }); await f.request(owner, 'approvals.approve', { id: `action:${b.id}`, digest: b.digest });
+  let release!: () => void; f.fake.wait = new Promise(resolve => { release = resolve; });
+  const both = Promise.allSettled([f.request(owner, 'approvals.execute', { id: `action:${a.id}` }), f.request(owner, 'approvals.execute', { id: `action:${b.id}` })]);
+  await new Promise(resolve => setTimeout(resolve, 20)); release();
+  const [first, second] = await both;
+  assert.equal([first, second].filter(r => r.status === 'fulfilled').length, 1);
+  const refused = [first, second].find(r => r.status === 'rejected') as PromiseRejectedResult; assert.equal(refused.reason?.code, 'SENDING_CLOSED', String(refused.reason?.stack));
+  assert.equal(f.fake.executions, 1, 'only one message went out');
+  assert.deepEqual((f.store.read().extensions!['work-books'] as any).work.executing, {});
+  f.fake.wait = undefined; const left = first.status === 'rejected' ? a : b;
+  assert.equal((await f.request(owner, 'approvals.execute', { id: `action:${left.id}` })).state, 'verified');
+  assert.deepEqual((f.store.read().extensions!['work-books'] as any).work.executing, {});
+});
+
+test('a writeback catalogue row that always waits makes the item tier-2, never groupable, and gated by sending', async () => {
+  const f = await fixture({ writeback: { 'writeback.catalogue': () => ({ rows: [
+    { system: 'books-app', action: 'note', title: 'Add a note to a customer', kind: 'money', status: 'live' },
+    { system: 'books-app', action: 'unnote', title: 'Remove a note', kind: 'inside-undoable', tier: 'tier-2', status: 'live' },
+  ] }) } });
+  const note = await f.prepare('note', { customerId: 'customer-a', text: 'x' }); const unnote = await f.prepare('unnote', { customerId: 'customer-a' });
+  const other = await f.prepare('voucher', { x: 1 });
+  const sheet = await f.request(owner, 'approvals.get', { id: `action:${note.id}` });
+  assert.equal(sheet.tier, 'tier-2'); assert.equal(sheet.kind, 'money'); assert.equal(sheet.needsSecondAsk, true); assert.equal(sheet.reason, 'always-waits:money');
+  assert.deepEqual(sheet.amount, { missing: 'unknown' }, 'a money action without a valid amount says so');
+  assert.equal((await f.request(owner, 'approvals.get', { id: `action:${unnote.id}` })).tier, 'tier-2');
+  assert.equal((await f.request(owner, 'approvals.get', { id: `action:${other.id}` })).tier, 'tier-1');
+  await assert.rejects(f.request(owner, 'approvals.group', { ids: [`action:${unnote.id}`, `action:${other.id}`] }), code('GROUP_NOT_ALLOWED'));
+  const grouped = await f.request(owner, 'approvals.approveGroup', { items: [{ id: `action:${unnote.id}`, digest: unnote.digest }] });
+  assert.deepEqual(grouped.results, [{ id: `action:${unnote.id}`, ok: false, code: 'GROUP_NOT_ALLOWED' }]);
+  // An unsure message closes sending for the catalogue's tier-2 action too.
+  const remind = await f.prepare('remind', { to: 'customer-b', text: 'Due.' });
+  await f.request(owner, 'approvals.approve', { id: `action:${remind.id}`, digest: remind.digest });
+  f.fake.lose = true; await f.request(owner, 'approvals.execute', { id: `action:${remind.id}` }); f.fake.lose = false;
+  await f.request(owner, 'approvals.approve', { id: `action:${note.id}`, digest: note.digest, secondAsk: true });
+  await assert.rejects(f.request(owner, 'approvals.execute', { id: `action:${note.id}` }), code('SENDING_CLOSED'));
+  await f.request(owner, 'approvals.approve', { id: `action:${other.id}`, digest: other.digest });
+  assert.equal((await f.request(owner, 'approvals.execute', { id: `action:${other.id}` })).state, 'verified', 'an undoable action still runs');
+  const pay = await f.prepare('pay', { supplierId: 's', amountMinor: '12.5' });
+  assert.deepEqual((await f.request(owner, 'approvals.get', { id: `action:${pay.id}` })).amount, { missing: 'unknown' });
+});
+
+test('purge clears snoozes and opened sheets for release and lesson items that no longer exist, and bounds the logs', async () => {
+  const state = initialState('Purge');
+  const until = new Date(Date.now() + 3600000).toISOString();
+  state.extensions = { 'work-books': {
+    books: { drafts: [{ id: 'draft_1' }] },
+    work: {
+      snoozes: { owner: { 'release:draft_1': until, 'release:gone': until, 'lesson:lesson_1': until, 'lesson:gone': until } },
+      opened: { 'owner release:draft_1': 1, 'owner release:gone': 2, 'owner lesson:lesson_1': 3, 'owner lesson:gone': 4 },
+      pace: Array.from({ length: 250 }, (_, i) => ({ memberId: `m${i}`, at: i, ms: null })), attestations: {}, channels: {}, revisedAt: {}, wanted: [],
+    },
+  } } as any;
+  const withoutLessons = structuredClone(state);
+  state.lessonState = { workspaceId: state.workspace.id, episodes: [], lessons: [{ id: 'lesson_1', revisions: [{ id: 'lesson_1' }], events: [] }] } as any;
+  const reason = { sourceIds: [], removedIds: new Set<string>(), at: new Date().toISOString() };
+  assert.equal(workPurge(state, reason), 4 + 50);
+  const work = (state.extensions!['work-books'] as any).work;
+  assert.deepEqual(Object.keys(work.snoozes.owner).sort(), ['lesson:lesson_1', 'release:draft_1']);
+  assert.deepEqual(Object.keys(work.opened).sort(), ['owner lesson:lesson_1', 'owner release:draft_1']);
+  assert.equal(work.pace.length, 200); assert.equal(work.pace[0].memberId, 'm50');
+  // Lessons that cannot be read are kept.
+  workPurge(withoutLessons, reason);
+  assert.deepEqual(Object.keys((withoutLessons.extensions!['work-books'] as any).work.snoozes.owner).sort(), ['lesson:gone', 'lesson:lesson_1', 'release:draft_1']);
+});
+
+test('after restore lists only actions the caller can see, but still says sending is closed for hidden ones', async () => {
+  const f = await fixture();
+  const hidden = await f.actions.prepare(owner, { connector: 'books-app', operation: 'remind', payload: { to: 'x', text: 'Due.' }, idempotencyKey: 'private-1', sourceIds: [] });
+  await f.request(owner, 'approvals.approve', { id: `action:${hidden.id}`, digest: hidden.digest });
+  f.fake.lose = true; await f.request(owner, 'approvals.execute', { id: `action:${hidden.id}` });
+  assert.deepEqual(await f.request(viewer, 'approvals.afterRestore'), { sendingClosed: true, items: [], notes: ['Some actions you cannot see are still being checked.'] });
+  const mine = await f.request(owner, 'approvals.afterRestore');
+  assert.deepEqual(mine.items.map((i: any) => i.id), [`action:${hidden.id}`]); assert.deepEqual(mine.notes, ['Sending stays closed until every action below is checked.']);
+});
+
+test('changing a release draft asks books.draft for an atomic redraft that replaces it', async () => {
+  const f = await fixture();
+  await f.store.update(state => { section<{ drafts: any[] }>(state, 'books', () => ({ drafts: [] })).drafts.push(
+    { id: 'draft_1', name: 'received', author: 'Workspace owner', createdAt: new Date().toISOString(), state: 'draft', before: { meaning: 'Old' }, after: { meaning: 'New' }, change: 'Count UPI', digest: 'd'.repeat(64) }); });
+  const changed = await f.request(owner, 'approvals.change', { id: 'release:draft_1', payload: { meaning: 'Newer' } });
+  assert.deepEqual(f.calls.find(c => c.method === 'books.draft')?.payload, { name: 'received', definition: { meaning: 'Newer' }, replaces: 'draft_1' });
+  assert.equal(changed.id, 'release:draft_1_next'); assert.deepEqual(changed.change.fields, [{ name: 'meaning', before: 'Old', after: 'Newer' }]);
 });

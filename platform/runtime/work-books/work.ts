@@ -10,14 +10,16 @@ import type { PreparedAction } from '../actions.ts';
 import type { Job } from '../jobs.ts';
 import type { MethodSpec, EngineModule, ModuleHost } from '../modules/types.ts';
 import { optionalCall } from './adapters.ts';
-import { section } from './state.ts';
+import { section, peekSection } from './state.ts';
 import {
   initWork, normalizeWork, env, queue, order, rowOf, snoozed, expired, detail, drafts, lessons, visibleActions, visibleJobs, jobNeedsApproval, jobCard,
   actionView, actionDetail, findAction, catalogue, catalogueRow, catalogueEntry, catalogueKey, parseId, steps, isoAt, nowMs, isReadOnly,
+  actionTier, acceptanceReference, boundLogs,
 } from './work-queue.ts';
 import type { ApprovalDetail, Env, Step, WorkState, Amount } from './work-queue.ts';
 
-const FAST_MS = 2000, PACE_KEEP = 20, WANTED_MAX = 500, GROUP_MAX = 10;
+const FAST_MS = 2000, PACE_KEEP = 20, WANTED_MAX = 500, GROUP_MAX = 10, RESERVATION_MS = 15 * 60000;
+const SENT_BACK = 'Sent back from the approvals queue.';
 const record = (value: unknown): value is Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 function exact(payload: Record<string, any>, required: string[], optional: string[] = []) {
   check(record(payload) && required.every(k => Object.hasOwn(payload, k)) && Object.keys(payload).every(k => required.includes(k) || optional.includes(k)), 'INVALID_APPROVAL', 'Use only the declared request fields.');
@@ -37,6 +39,7 @@ async function recordPace(host: ModuleHost, ctx: Context, id: string, actionId: 
     work.pace = work.pace.filter(p => p.memberId !== ctx.memberId).concat(work.pace.filter(p => p.memberId === ctx.memberId).slice(-PACE_KEEP));
     delete work.opened[`${ctx.memberId} ${id}`]; if (work.snoozes[ctx.memberId]) delete work.snoozes[ctx.memberId][id];
     if (actionId) work.channels[actionId] = ctx.channel ?? 'desktop';
+    boundLogs(work);
   });
 }
 
@@ -53,7 +56,11 @@ async function approveOne(ctx: Context, host: ModuleHost, payload: { id: string;
   check(item.can.includes('approve'), 'INVALID_APPROVAL_STATE', 'This item cannot be approved here.');
   if (source === 'action') await host.services.actions.approve(ctx, raw, payload.digest);
   else if (source === 'job') await host.call('jobs.approve', { id: raw, digest: payload.digest });
-  else if (source === 'acceptance') await host.call('jobs.accept', { id: raw });
+  else if (source === 'acceptance') {
+    // The full reference from the same snapshot the digest was checked against: core refuses PREVIEW_CHANGED if the objective or deliverable moved since.
+    const job = visibleJobs(e).find(j => j.id === raw)!;
+    await host.call('jobs.accept', { id: raw, reference: acceptanceReference(e, job) });
+  }
   else if (source === 'release') await host.call('books.publish', { draftId: raw, digest: payload.digest });
   else await host.call('memory.decideLesson', lessonDecision(e, raw, 'approve'));
   await recordPace(host, ctx, payload.id, source === 'action' ? raw : null);
@@ -70,8 +77,16 @@ function approvePayload(payload: Record<string, any>) {
   check(payload.secondAsk === undefined || payload.secondAsk === true, 'INVALID_APPROVAL', 'secondAsk is true when present.');
   return { id: payload.id as string, digest: digestOf(payload.digest), ...(payload.secondAsk ? { secondAsk: true as const } : {}) };
 }
-/** WK-15: sending stays closed while any attempted action anywhere in the workspace is unsure or still running. */
-const sendingOpen = (e: Env, except: string) => !e.state.actions.some((a: PreparedAction) => a.id !== except && ['unknown', 'executing'].includes(a.status));
+/**
+ * WK-15: sending stays closed while any attempted action anywhere in the workspace is unsure or
+ * still running, or while another execution started here holds its reservation. Checked inside the
+ * store transaction that records this action's own reservation, so two concurrent executes cannot
+ * both pass. (Core `actions.execute` called directly does not go through this gate.)
+ */
+function sendingOpen(state: State, work: WorkState, except: string, now: number) {
+  return !state.actions.some((a: PreparedAction) => a.id !== except && ['unknown', 'executing'].includes(a.status))
+    && !Object.entries(work.executing).some(([id, r]) => id !== except && now - r.at < RESERVATION_MS);
+}
 
 const JOB_STATE: Partial<Record<Job['status'], string>> = {
   running: 'running', paused: 'paused', revoked: 'stopped-by-rule', 'budget-blocked': 'stopped-by-rule', 'runner-blocked': 'set-aside', 'network-wait': 'waiting',
@@ -108,7 +123,7 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
   } },
   'approvals.get': { permission: 'read', phone: true, async handler(ctx, payload, host) {
     const id = idOf(payload); const item = detail(await env(ctx, host), id);
-    if (item.state === 'prepared' && !item.readOnly) await update(host, work => { work.opened[`${ctx.memberId} ${id}`] = nowMs(host); });
+    if (item.state === 'prepared' && !item.readOnly) await update(host, work => { work.opened[`${ctx.memberId} ${id}`] = nowMs(host); boundLogs(work); });
     return item;
   } },
   'approvals.approve': { permission: 'approve', async handler(ctx, payload, host) { return approveOne(ctx, host, approvePayload(payload)); } },
@@ -133,7 +148,7 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     if (source === 'release') {
       check(payload.payload === null || record(payload.payload), 'INVALID_APPROVAL', 'Send the changed meaning as an object, or null to remove it.');
       const name = drafts(e.state).find(d => d.id === raw)!.name;
-      const draft = await host.call('books.draft', { name, definition: payload.payload }) as { id?: unknown };
+      const draft = await host.call('books.draft', { name, definition: payload.payload, replaces: raw }) as { id?: unknown };
       check(record(draft) && typeof draft.id === 'string', 'INVALID_DRAFT_REPLY', 'The dictionary draft could not be read back.');
       return detail(await env(ctx, host), `release:${draft.id}`);
     }
@@ -143,11 +158,12 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
     const id = idOf(payload); const e = await env(ctx, host); const item = detail(e, id); const { source, raw } = parseId(id);
     check(item.can.includes('drop'), 'INVALID_APPROVAL_STATE', 'This item can no longer be dropped.');
     if (source === 'action') await host.services.actions.cancel(ctx, raw);
-    else if (source === 'job' || source === 'acceptance') await host.call('jobs.cancel', { id: raw });
+    else if (source === 'job') await host.call('jobs.cancel', { id: raw });
+    else if (source === 'acceptance') await host.call('jobs.reject', { id: raw, reason: SENT_BACK }); // sends the result back; the job stays, paused
     else if (source === 'release') await host.call('books.discard', { draftId: raw });
     else await host.call('memory.decideLesson', lessonDecision(e, raw, 'reject'));
     await update(host, work => { for (const s of Object.values(work.snoozes)) delete s[id]; });
-    return { id, state: 'cancelled' as const };
+    return { id, state: source === 'acceptance' ? 'rejected' as const : 'cancelled' as const };
   } },
   'approvals.group': { permission: 'read', async handler(ctx, payload, host) {
     exact(payload, ['ids']);
@@ -187,8 +203,16 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
   } },
   'approvals.execute': { permission: 'prepare', async handler(ctx, payload, host) {
     exact(payload, ['id']); const e = await env(ctx, host); const action = findAction(e, payload.id);
-    check(action.impact === 'reversible' || sendingOpen(e, action.id), 'SENDING_CLOSED', 'Sending stays closed until every unsure action is checked.');
-    const done = await host.services.actions.execute(ctx, action.id) as PreparedAction;
+    const gated = actionTier(e, action) === 'tier-2'; const token = newId('exec');
+    await update(host, (work, state) => {
+      const at = nowMs(host); const held = work.executing[action.id];
+      check(!held || at - held.at >= RESERVATION_MS, 'ACTION_ALREADY_ATTEMPTED', 'This action is already being done.');
+      check(!gated || sendingOpen(state, work, action.id, at), 'SENDING_CLOSED', 'Sending stays closed until every unsure action is checked.');
+      work.executing[action.id] = { at, token };
+    });
+    let done: PreparedAction;
+    try { done = await host.services.actions.execute(ctx, action.id) as PreparedAction; }
+    finally { await update(host, work => { if (work.executing[action.id]?.token === token) delete work.executing[action.id]; }); }
     return actionView(await env(ctx, host), done);
   } },
   'approvals.action': { permission: 'read', phone: true, async handler(ctx, payload, host) {
@@ -240,9 +264,12 @@ export const workMethods: Readonly<Record<string, MethodSpec>> = {
   'approvals.afterRestore': { permission: 'read', async handler(ctx, payload, host) {
     exact(payload, []); const e = await env(ctx, host);
     const items = visibleActions(e).filter(a => ['unknown', 'executing'].includes(a.status)).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).map(a => actionView(e, a));
-    const closed = e.state.actions.some((a: PreparedAction) => ['unknown', 'executing'].includes(a.status));
-    const notes = closed ? ['Sending stays closed until every action below is checked.', ...(items.length < e.state.actions.filter((a: PreparedAction) => ['unknown', 'executing'].includes(a.status)).length ? ['Some unsure actions belong to another person. They must check them.'] : [])] : [];
-    return { sendingClosed: closed, items, notes };
+    const open = e.state.actions.filter((a: PreparedAction) => ['unknown', 'executing'].includes(a.status));
+    const canSee = (a: PreparedAction) => { try { host.services.actions.access(e.state, ctx, a); return true; } catch { return false; } };
+    // Sending is closed by every unsure action, but only those the caller may see are listed or counted.
+    const hidden = open.some(a => !canSee(a));
+    const notes = [...(items.length ? ['Sending stays closed until every action below is checked.'] : []), ...(hidden ? ['Some actions you cannot see are still being checked.'] : [])];
+    return { sendingClosed: open.length > 0, items, notes };
   } },
   'approvals.jobs': { permission: 'read', async handler(ctx, payload, host) {
     exact(payload, []); const e = await env(ctx, host);
@@ -270,10 +297,21 @@ export const workPurge: NonNullable<EngineModule['purge']> = (state, reason) => 
   if (!ns || !Object.hasOwn(ns, 'work')) return 0;
   const work = normalizeWork(ns.work as WorkState); let removed = 0;
   const actions = new Set(state.actions.map((a: PreparedAction) => a.id)); const jobs = new Set(state.jobs.map((j: Job) => j.id));
-  const gone = (typed: string) => { const m = /^(action|job|acceptance):(.+)$/.exec(typed); if (!m) return false; return reason.removedIds.has(m[2]) || !(m[1] === 'action' ? actions : jobs).has(m[2]); };
+  // Drafts and lessons are read from their owners' state; when that state cannot be read their entries are kept.
+  const books = peekSection<{ drafts?: unknown }>(state, 'books');
+  const draftIds = books === undefined ? null : new Set((Array.isArray(books.drafts) ? books.drafts : []).map((d: any) => d?.id).filter((id: unknown) => typeof id === 'string'));
+  const ls = state.lessonState as { lessons?: unknown } | undefined;
+  const lessonIds = ls && Array.isArray(ls.lessons) ? new Set(ls.lessons.flatMap((l: any) => [l?.id, ...(Array.isArray(l?.revisions) ? l.revisions.map((r: any) => r?.id) : [])]).filter((id: unknown) => typeof id === 'string')) : null;
+  const gone = (typed: string) => {
+    const m = /^(action|job|acceptance|release|lesson):(.+)$/.exec(typed); if (!m) return false;
+    if (reason.removedIds.has(m[2])) return true;
+    if (m[1] === 'release') return draftIds !== null && !draftIds.has(m[2]);
+    if (m[1] === 'lesson') return lessonIds !== null && !lessonIds.has(m[2]);
+    return !(m[1] === 'action' ? actions : jobs).has(m[2]);
+  };
   const goneAction = (id: string) => reason.removedIds.has(id) || !actions.has(id);
-  for (const map of [work.attestations, work.channels, work.revisedAt] as Record<string, unknown>[]) for (const id of Object.keys(map)) if (goneAction(id)) { delete map[id]; removed += 1; }
+  for (const map of [work.attestations, work.channels, work.revisedAt, work.executing] as Record<string, unknown>[]) for (const id of Object.keys(map)) if (goneAction(id)) { delete map[id]; removed += 1; }
   for (const member of Object.values(work.snoozes)) for (const id of Object.keys(member)) if (gone(id)) { delete member[id]; removed += 1; }
   for (const key of Object.keys(work.opened)) if (gone(key.slice(key.indexOf(' ') + 1))) { delete work.opened[key]; removed += 1; }
-  return removed;
+  return removed + boundLogs(work);
 };
