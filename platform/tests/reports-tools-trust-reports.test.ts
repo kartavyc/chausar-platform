@@ -229,7 +229,7 @@ test('Friday review and rhythm settings validate, preview without digits and ref
 test('due dates are worked out from the sourced table for a profile, mark old checks and say what is not covered', async t => {
   const { engine } = await fixture(t, false);
   const due = await engine.request('reportsx.due', { from: '2026-10-14', days: 30, profile: { kind: 'services', gstMode: 'regular', state: 'MH' } });
-  assert.equal(due.caNote, 'This table has not been checked by a CA yet. Each row links to the official source.'); assert.equal(due.covered, true); assert.equal(due.table.version, 'due-dates.v1');
+  assert.equal(due.caNote, 'Not yet checked by a CA.'); assert.match(due.tableNote, /official source/); assert.equal(due.covered, true); assert.equal(due.table.version, 'due-dates.v1');
   const ids = due.rows.map((row: any) => row.id);
   for (const id of ['pf-ecr:2026-10-15', 'esi:2026-10-15', 'gstr3b-monthly:2026-10-20', 'gstr3b-qrmp-22:2026-10-22', 'itr-audit:2026-10-31', 'tds-return:2026-10-31', 'pt-mh-employer:2026-10-31', 'tds-deposit:2026-11-07', 'gstr1-monthly:2026-11-11'])
     assert.ok(ids.includes(id), id);
