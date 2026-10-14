@@ -106,4 +106,13 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
     ipcRenderer.on('chausar:engine-status', listener);
     return () => ipcRenderer.removeListener('chausar:engine-status', listener);
   },
+  // SH-10 and FR-04 (frame-today): checked here and again in main (app/desktop/shell-ipc.cjs).
+  openExternal: async url => {
+    if (typeof url !== 'string' || url.length === 0 || url.length > 2048) return 'refused';
+    try { return await ipcRenderer.invoke('chausar:shell-open-external', url) === 'opened' ? 'opened' : 'refused'; } catch { return 'refused'; }
+  },
+  print: async kind => {
+    if (kind !== 'recovery-kit' && kind !== 'page') return 'refused';
+    try { return await ipcRenderer.invoke('chausar:shell-print', kind) === 'printed' ? 'printed' : 'refused'; } catch { return 'refused'; }
+  },
 }));

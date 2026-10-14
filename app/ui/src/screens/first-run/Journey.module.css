@@ -214,3 +214,14 @@
   margin: var(--sp3) 0;
   font-size: var(--fs-row);
 }
+
+/* FR-04 on paper: only the kit, in English and Hindi, on one page. The copy exists only while
+   a print is asked for, and the host marks the document `data-print="recovery-kit"` meanwhile. */
+.printKit { display: none; }
+.printTitle { margin: 0 0 var(--sp3); font-size: var(--fs-section); font-weight: var(--fw-medium); }
+.printLabel { margin: 0; font-size: var(--fs-note); }
+@media print {
+  :global(html[data-print='recovery-kit'] body > :not([data-print-kit])) { display: none !important; }
+  :global(html[data-print='recovery-kit']) .printKit { display: block; visibility: visible; color: black; background: white; break-inside: avoid; }
+  :global(html[data-print='recovery-kit']) .printKit * { visibility: visible; color: black; }
+}

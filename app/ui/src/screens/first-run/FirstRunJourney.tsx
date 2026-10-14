@@ -58,7 +58,7 @@ export interface FirstRunJourneyProps {
   readonly onDone: () => void;
   readonly pickFile?: (() => Promise<PickedFile | null>) | undefined;
   readonly saveRouteKey?: SaveRouteKey | undefined;
-  readonly onPrint?: ((kit: string) => void) | undefined;
+  readonly onPrint?: ((kit: string) => void | Promise<void>) | undefined;
   readonly pickBackup?: (() => Promise<string | null>) | undefined;
   readonly onOpenReceipt?: ((id: string) => void) | undefined;
   readonly onDemo?: (() => void) | undefined;

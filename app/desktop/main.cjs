@@ -7,6 +7,7 @@ const { randomBytes } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const { createServer } = require('node:net');
 const { readUiAsset } = require('./ui-assets.cjs');
+const { registerShellHandlers } = require('./shell-ipc.cjs');
 const { bindDemoProfile, assertDemoProfile } = require('./demo-profile.cjs');
 const packageMetadata = require('../../package.json');
 const demo = packageMetadata.chausarPreview === true || process.argv.includes('--demo');
@@ -196,6 +197,9 @@ if (singleInstance) app.whenReady().then(async () => {
       return { ok: true, result: await engine.request(request.method, request.payload) };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
+  // SH-10 and FR-04: shell.openExternal and shell.print on their own channels, trusted frame only.
+  registerShellHandlers({ ipcMain, shell: require('electron').shell, contents: () => window?.webContents, document: () => selectedDocument,
+    workspaceOpen: async () => engine?.state === 'ready' && (await engine.request('workspace.status', {}))?.open === true });
   try { startupTask = startEngine().then(() => bootstrapPreviewWorkspace()); await startupTask; if (stopping) return; startupComplete = true; createBackgroundTray(); createWindow(); }
   catch (error) { if (!stopping) { console.error(startupDiagnostic(error, 'ready-startup')); dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });

@@ -28,7 +28,7 @@ Every feature below is labelled **supported** (tested end to end in the app on s
 | Workspace menu: views, languages, Help, Lock now, About, workspace list when more than one | supported (list: experimental, the engine has no workspace list) | `app/WorkspaceMenu.tsx` |
 | Keyboard map (one `KEY_MAP` drives the handler and Help) | supported | `app/keys.ts` |
 | Help SH-12 with offline lists from `todayx.help` | supported | `app/HelpSheet.tsx` |
-| Link dialog SH-10 | supported (component; no screen opens outside links yet) | `app/LinkDialog.tsx` |
+| Link dialog SH-10, mounted by the host behind `openLink(url)` on `PlaceRenderProps`; opens through `shell.openExternal` only after "Open in your browser"; a refused address keeps the dialog open with the reason | supported (no place module calls `openLink` yet) | `app/LinkDialog.tsx`, `host/bootstrap.tsx`, `places/types.ts` |
 | Fault report SH-11 from `todayx.faultReport` | supported (component and method; Save/Send need the shell's file and send paths) | `app/FaultReport.tsx` |
 | Not built yet SH-13 with the day and the missing part from `todayx.capabilities` | supported | `patterns/States.tsx`, `app/shell-banners.ts` |
 | Narrow layout (1024–1315: rail 176, column 640, sheet over the list; under 1024: top bar; down to 360) | experimental: CSS rules, checked only at 1366 and 1024 by the policy checker | `app/Frame.module.css`, `app/Rail.module.css` |
@@ -54,7 +54,7 @@ Every feature below is labelled **supported** (tested end to end in the app on s
 |---|---|---|
 | FR-01 Welcome | none (language and view held in memory) | supported |
 | FR-02 Identity card and GST mode | `todayx.identity.check`, `todayx.identity.save` (after the vault) | supported |
-| FR-03 Vault, FR-04 recovery kit | `workspace.create` (via the host controller), recovery acknowledgement | supported |
+| FR-03 Vault, FR-04 recovery kit (Print: `shell.print('recovery-kit')`, the kit in English and Hindi on one page) | `workspace.create` (via the host controller), recovery acknowledgement | supported (the printed page itself: experimental, no printer or PDF check) |
 | FR-05 AI model | `models.list`, `models.configure` | supported for listing and the CLI/local rows; API key rows experimental (key passes once to `models.configure`) |
 | FR-07 Bring a file | `sources.preview`/`sources.import`, `sources.workbookPreview`/`sources.workbookImport` | supported for CSV and Excel; PDF and passwords not built |
 | FR-06/FR-08 Meanings | `ontology.packs`, `ontology.get`, `ontology.publish` (existing slice, embedded) | supported |
@@ -92,6 +92,19 @@ Electron opens `chausar://app/ui/index.html`; the loopback server answers `/` an
 
 Last run (582 states): 18 findings, 9 distinct, all of one rule: words at rest a little over the limit. Simple Today with the figures prepared and the receipt open (93 of 90), Simple first run (106 of 90 in English, 115 in Hindi), and Hindi on Simple Activity, Ask · Saved, Work · Approvals and Reports · The week ahead (92 to 106; Hindi word segmentation counts more words than English for the same text). 31 addresses show "not built yet" (other lanes' places). Fixed from earlier runs: button labels over 22 characters, the step dot's contrast, the start heading's size, the status facts' 24 px targets, and a real overflow: the wide Books column ran past its slot at 1024 wide.
 
+## The shell surface: `shell.openExternal` and `shell.print`
+
+Two functions on the existing `window.chausar` (preload), each on its own IPC channel, never the engine request channel; main handles them in `app/desktop/shell-ipc.cjs`. The host reaches them only through `bridge/shell.ts` (`createShellPort(window.chausar | null)`), passed from `host/shell.js` to `mountHost` as the optional `shell` option. **Supported** (desktop main, preload and host tested with synthetic Electron; no real browser or printer).
+
+| | Desktop | Browser (loopback server, design part 15) |
+|---|---|---|
+| `openExternal(url)` → `'opened' \| 'refused'` | preload: a string of 1–2048 characters; main: trusted main frame only (`assertTrustedSender`), the address rule below, one call a second, refused while no workspace is open (main asks the engine `workspace.status`), then `shell.openExternal` with the `URL`-re-serialized address | the same address rule and one a second, then `window.open(url, '_blank', 'noopener,noreferrer')` |
+| `print(kind)`, kind `'recovery-kit'` or `'page'` | preload and main accept only those two kinds; main calls `webContents.print({ silent: false }, callback)` on the trusted window: the system print dialog, nothing from the renderer in its options, no HTML and no file path; one at a time, one a second | `window.print()` |
+
+The address rule (same code shape in main and in `bridge/shell.ts`; a test checks they agree): `https:` only; no user name or password; no whitespace or control characters; a named host with a dot that is not `localhost`, `*.localhost`, an IPv4 or IPv6 literal, or a bare one-label name, so text in an answer or a file cannot point the person's browser at a service on this computer or the local network; at most 2048 characters before and after re-serialization. **Refused on purpose:** `http:` (also for `localhost`), `mailto:` (no design screen opens a mail client; the mail fallback goes through the hosted relay, and a `mailto:` from outside text could prefill a message carrying data off the machine), `javascript:`, `file:`, `data:`, `chausar:`.
+
+While a print is asked for, the host marks the document `data-print="<kind>"`. For the recovery kit, Vault draws a print-only copy at the end of the page (the code and the three lines in English and Hindi) and the `@media print` rule in `Journey.module.css` hides everything else, so one page holds only the kit; the copy is removed when the print returns. Window navigation is unchanged: `will-navigate` stays denied, `setWindowOpenHandler` stays deny, `connect-src 'none'` stays.
+
 ## Engine methods added (`todayx.*`, module `frame-today`)
 
 | Method | Permission | What it does |
@@ -115,8 +128,9 @@ Reply shapes and validators: `app/ui/src/bridge/todayx-contract.ts`. Refusals: `
 
 ## What is still missing
 
+- **Shell:** no place module renders an outside link yet, so `openLink` has no caller in the product; the reports lane's report page (RP-02) still calls `window.print()` itself rather than `print('page')` (its own `@media print` rule is what hides the frame); the printed recovery kit has not been checked on a real printer or saved PDF; `shell.openExternal` is refused before a workspace is open (no first-run screen links out today).
 - **Not served from real state** (the engine has no record behind them yet): banners driving, no connection, sending closed and update needed; worth-a-look rows approval expired, update ready, moved, due soon and brief late; activity types lesson decided, backup done, update checked, lock and unlock. The screens draw them as soon as the engine sends them.
-- **Engine methods the design names that do not exist:** `vault.diskCheck`, PIN quick unlock, `shell.print`, `shell.openExternal`, `shell.setLanguage`/`setView` (kept in host memory), `models.setLadder`, `models.localList`, a workspace list while locked, `imports.providePassword`, the PDF reader, `dictionary.proposals`, the FR-11 idea conversation, the recovery contact, device unlock.
+- **Engine methods the design names that do not exist:** `vault.diskCheck`, PIN quick unlock, `shell.setLanguage`/`setView` (kept in host memory), `models.setLadder`, `models.localList`, a workspace list while locked, `imports.providePassword`, the PDF reader, `dictionary.proposals`, the FR-11 idea conversation, the recovery contact, device unlock.
 - `todayx.identity.check` needs an open vault (the engine authorizes before any module method), so FR-02 checks formats only after the vault exists; before it, typed values are kept and checked at save.
 - The receipt's small print beyond the source names and id (question, recipe, meaning, rate, forecast, number guard, allowed by, route) is not in the engine's receipt yet.
 - Activity times are drawn in Asia/Kolkata; neither the reply nor `ui.context` carries the workspace time zone.

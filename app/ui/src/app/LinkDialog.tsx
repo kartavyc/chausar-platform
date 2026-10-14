@@ -20,9 +20,13 @@ export interface LinkDialogProps {
   /** The person chose to open it. Called with the same address that was shown. */
   onOpen: (url: string) => void;
   onCancel: () => void;
+  /** The host could not open it (not a secure named web address, or refused by the shell). */
+  refused?: boolean | undefined;
+  /** The open is on its way: the button waits. */
+  busy?: boolean | undefined;
 }
 
-export function LinkDialog({ url, onOpen, onCancel }: LinkDialogProps) {
+export function LinkDialog({ url, onOpen, onCancel, refused = false, busy = false }: LinkDialogProps) {
   const t = useT();
   if (url === null) return null;
   return (
@@ -43,8 +47,9 @@ export function LinkDialog({ url, onOpen, onCancel }: LinkDialogProps) {
           <p className={s.code} data-url="">
             {url}
           </p>
+          {refused && <p className={s.note} role="alert" data-link-refused="">{t('SH-10.refused')}</p>}
           <div className={s.actions}>
-            <Button variant="filled" onClick={() => onOpen(url)}>
+            <Button variant="filled" disabled={busy || refused} onClick={() => onOpen(url)}>
               {t('SH-10.open')}
             </Button>
             <Button onClick={onCancel}>{t('SH-10.cancel')}</Button>

@@ -828,6 +828,7 @@
   "SH-10.note": "It opens in your browser, not in Chausar. Check the full address first.",
   "SH-10.open": "Open in your browser",
   "SH-10.cancel": "Cancel",
+  "SH-10.refused": "Chausar cannot open this address. Only a secure web address (https) to a named site opens.",
   "SH-11.header": "No names, amounts, file names, cell values or questions are in this report.",
   "SH-11.label": "The fault report as text",
   "SH-11.nothing": "Nothing is sent. Save it as a file and send it yourself if you wish.",
