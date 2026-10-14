@@ -1037,6 +1037,14 @@ export class Engine {
         } })); return { workspace: this.store().read().workspace }; });
     }
     if (method === 'workspace.lock') { if (this.vault) authorize(this.vault, this.context, 'admin'); await this.closeVault(); return { locked: true }; }
+    const earlyMethod = moduleMethods.get(method);
+    if (earlyMethod?.preVault === true && !this.vault) {
+      // Only the trusted local desktop may call a module before a workspace is open; nothing is authorized yet.
+      const early = this.context;
+      check(early.channel === 'desktop' && !early.sourceTainted, 'OPEN_DESKTOP', 'Open the desktop app for this request.');
+      check(!(earlyMethod.external && this.#demo), 'DEMO_EXTERNAL_DISABLED', 'Synthetic demo mode keeps external systems disabled.');
+      return earlyMethod.handler(early, payload, this.moduleHost(earlyMethod.module, early));
+    }
     const store = this.store(); const ctx = this.context; authorize(store, ctx);
     const s = this.services;
     if (['speech.configure', 'speech.preview', 'speech.approve', 'speech.transcribe'].includes(method)) {

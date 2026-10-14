@@ -32,6 +32,11 @@ export interface MethodSpec {
   readonly phone?: boolean;
   /** Synthetic demo launches are refused when the method reaches an external system. */
   readonly external?: boolean;
+  /**
+   * Callable by the trusted local desktop before any workspace is open (no member is authorized
+   * then; `host.store` throws). Once a workspace is open the method is authorized normally.
+   */
+  readonly preVault?: boolean;
   handler(ctx: Context, payload: Record<string, any>, host: ModuleHost): Promise<unknown> | unknown;
 }
 
