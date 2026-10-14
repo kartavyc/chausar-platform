@@ -1,0 +1,43 @@
+# Local or single-host deployment of the Chausar hosted services. Nothing here is deployed by the build.
+# Secrets come from an env file the operator writes (see DEPLOY.md); none are committed.
+services:
+  db:
+    image: postgres:16.6-bookworm
+    environment:
+      POSTGRES_USER: chausar
+      POSTGRES_DB: chausar_hosted
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chausar -d chausar_hosted"]
+      interval: 10s
+      retries: 10
+    restart: unless-stopped
+  migrate:
+    build: .
+    entrypoint: ["node", "db/migrate-cli.ts"]
+    env_file: hosted.env
+    depends_on: { db: { condition: service_healthy } }
+    restart: "no"
+  api:
+    build: .
+    command: ["api"]
+    env_file: hosted.env
+    ports: ["127.0.0.1:8080:8080"]
+    volumes: [backups:/var/lib/chausar/backups]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    restart: unless-stopped
+  worker:
+    build: .
+    command: ["worker"]
+    env_file: hosted.env
+    volumes: [backups:/var/lib/chausar/backups]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    restart: unless-stopped
+secrets:
+  db_password:
+    file: ./secrets/db_password
+volumes:
+  db-data: {}
+  backups: {}

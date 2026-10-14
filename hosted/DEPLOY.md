@@ -1,0 +1,63 @@
+# Deploying the Chausar hosted services
+
+**Status: written and tested, not deployed.** Nothing in this repository deploys anything. This guide is for the person who later chooses to run the paid-plan services. Every step that needs an account, a contract, a certificate or money is marked **Founder step**.
+
+## What runs
+
+One image (`hosted/Dockerfile`), two roles, one PostgreSQL 16 database:
+
+| Role | Command | Does |
+|---|---|---|
+| `api` | `node server.ts api` | Accounts (phone OTP), billing, the relay (WhatsApp, Telegram, mail), the link pages, blind backup storage, the model allowance proxy, the worker settings |
+| `worker` | `node server.ts worker` | Drains the job queue (message dispatch with retries, due-date reminders, backup pruning) and runs maintenance sweeps about once a minute |
+| `migrate` | `node db/migrate-cli.ts` | Applies `db/migrations/*.sql` once each, under an advisory lock. An edited, already applied migration is refused |
+
+The job queue is a table in the same database (`jobs`), claimed with `FOR UPDATE SKIP LOCKED` under a lease, so several workers may run.
+
+## What each part can read
+
+| Part | Holds | Can read business data? |
+|---|---|---|
+| Relay | Opt-ins, masked addresses (sealed at rest), message status, single-use button tokens as keyed hashes, sealed approval envelopes until collected | No. Messages are fixed templates with no digits, names or amounts. Approval envelopes are sealed by the desktop with a key the server never has |
+| Link pages | Nothing | No. The pages hold no data |
+| Backup | Encrypted files and their size and SHA-256 | No. The desktop encrypts before upload; the server never receives a key |
+| Allowance proxy | Token counts and paise per request | It passes prompts to the provider and does not store prompts or answers. The provider sees what the trust panel allowed |
+| Always-on jobs worker | The inputs of each job a person turned on (today: due dates, date only) | **Yes. Not end-to-end encrypted**: the server does the work, so it can read what each job uses. Every reply and screen says so |
+
+## Configuration (`hosted.env`)
+
+Write `hosted/hosted.env` (never commit it) and `hosted/secrets/db_password`.
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `DATABASE_URL` | yes | `postgresql://chausar:<password>@db:5432/chausar_hosted` |
+| `HOSTED_PEPPER` | yes | At least 32 random characters. Keys every stored hash of a token or code, and the at-rest sealing of addresses. Rotating it signs everyone out and voids pending buttons |
+| `LINK_ORIGIN` | yes | `https://` origin of the link pages, with **no digit in it** (messages must hold no digit), for example `https://link.chausar.app` |
+| `PORT` | no | Default `8080` |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | for sign-in | SMS for phone OTP. Without them sign-in refuses `OTP_PROVIDER_NOT_CONFIGURED`. **Founder step:** a Twilio account and DLT registration of the sender and the OTP template in India |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_PLAN_ID`, `RAZORPAY_WEBHOOK_SECRET` | for billing | Without them checkout refuses `PAYMENT_PARTNER_NOT_CONFIGURED`. **Founder step:** a Razorpay account, KYC, the plan and the webhook |
+| `BILLING_PAID_PRICE_PAISE` | for billing | Whole paise as digits. Absent: the price is shown as "not set", never zero |
+| `BACKUP_DIRECTORY`, `BACKUP_QUOTA_BYTES` | for backup | A mounted volume. Without a directory backup refuses `BLOB_STORE_NOT_CONFIGURED` |
+| `ALLOWANCE_MONTHLY_PAISE` | for the allowance | The monthly grant of the paid plan, whole paise |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | for the allowance | Provider keys stay on the server. A missing key refuses `PROVIDER_NOT_CONFIGURED` for that route |
+| `ALLOWANCE_PRICING_JSON` | for the allowance | The dated pricing table (`checkedOn`, `source`, `fxPaisePerUsd`, per-model prices in micro-dollars per million tokens). Absent: every request refuses `PRICING_NOT_SET`. A person checks it against the providers' published prices and dates it |
+| `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | for WhatsApp | **Founder step:** Meta business verification, a WhatsApp Business number, and approval of the four templates named in `shared/templates.ts` (`chausar_week_ahead_ready`, `chausar_review_ready`, `chausar_document_received`, `chausar_due_date_near`), each with a URL button whose suffix is the link token, and `chausar_review_ready` also with two quick-reply buttons. Also a written reading of WhatsApp's business terms (general AI assistants are not allowed): Chausar sends only these templates and fixed replies |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_NAME`, `TELEGRAM_WEBHOOK_SECRET` | for Telegram | **Founder step:** create the bot with BotFather and set its webhook to `https://<api>/v1/webhooks/telegram` with the secret token |
+| `POSTMARK_SERVER_TOKEN`, `MAIL_FROM` | for relay mail | **Founder step:** a Postmark server and a verified sending domain (SPF, DKIM) |
+| `RELAY_PRICES_JSON` | no | Dated per-message cost per channel in paise. Absent: counts show the cost as unknown, never zero |
+
+## Steps
+
+1. **Founder step:** choose a host in India (data residency), a domain for the API and a digit-free domain for the link pages, and TLS certificates. Put a TLS-terminating proxy (Caddy, nginx or the host's load balancer) in front of `api` on port 8080. The services speak plain HTTP behind it and must not be exposed without TLS.
+2. Write `hosted.env` and `secrets/db_password` with mode `0600`.
+3. `docker compose build && docker compose up -d`. The `migrate` service runs before `api` and `worker` start.
+4. Check `GET /healthz` and `GET /readyz`.
+5. Point the providers' webhooks at `/v1/webhooks/whatsapp`, `/v1/webhooks/telegram` and `/v1/billing/webhooks/razorpay`.
+6. Back up the database (point-in-time recovery) and the backup volume. The backup volume holds only ciphertext, but losing it loses people's off-site copies.
+
+## Operating rules
+
+- Logs carry codes and ids only: never a phone number, an address, a token, a prompt or an answer.
+- HELP requests land in `relay_help_requests`; a person answers them. Nothing automatic replies beyond the fixed texts.
+- STOP is honoured at once and kept until the person turns messages on again in the desktop app.
+- Never send a free-form message from the operator side through the relay; the catalogue is fixed and tested to hold no digit.
