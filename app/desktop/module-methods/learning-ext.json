@@ -26,6 +26,7 @@
   "learningx.intakeStatus",
   "learningx.labelDataset",
   "learningx.log",
+  "learningx.logClear",
   "learningx.outbox",
   "learningx.outboxDelete",
   "learningx.preview",

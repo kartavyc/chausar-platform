@@ -118,3 +118,12 @@ test('retention cleanup ages out account sets, outbox samples, dictionary propos
   const lane = (name: string) => peekArea<any>(store.state, name);
   assert.deepEqual([lane('accounts').sets.length, lane('sharing').outbox.length, lane('dictionary').proposals.length, logOf(store.state).length], [0, 0, 0, 0]);
 });
+
+test('the owner can clear the local learning log inside the app', async () => {
+  const store = await seeded();
+  await call(store, 'learningx.record', { event: { kind: 'action', choice: 'accepted' } });
+  await assert.rejects(call(store, 'learningx.logClear', {}, accountant), { code: 'FORBIDDEN' });
+  await assert.rejects(call(store, 'learningx.logClear', {}, { ...owner, channel: 'phone' }), { code: 'OWNER_REQUIRED' });
+  assert.deepEqual(await call(store, 'learningx.logClear', { before: '2000-01-01' }), { removed: 0 });
+  assert.deepEqual(await call(store, 'learningx.logClear', {}), { removed: 1 });
+});
