@@ -138,7 +138,8 @@ export function validateBatch(value: unknown): StructuralBatch {
 /** Public names: 2 to 40 letters, spaces, `.`, `-` or `'`; never a digit or `@`. */
 export function validatePublicName(value: unknown): string | null {
   if (value === null) return null;
-  check(typeof value === 'string' && /^[\p{L}\p{M} .'-]{2,40}$/u.test(value) && value.trim().length >= 2, 'INVALID_BATCH');
+  // The same rule as the desktop: ASCII letters, spaces and simple punctuation, so a name cannot carry digits, marks or other scripts.
+  check(typeof value === 'string' && /^[A-Za-z][A-Za-z .'-]{0,38}[A-Za-z.]$/.test(value), 'INVALID_BATCH');
   return value.trim().replace(/\s+/g, ' ');
 }
 

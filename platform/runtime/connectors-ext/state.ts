@@ -17,7 +17,7 @@ export type Envelope = {
   group: string; operation: string; recipeId: string; recipeVersion: string; recipeDigest: string; road: Road;
   fetchedAt: string; requestedPeriod: { from: string; to: string } | null; period: { from: string; to: string } | null;
   status: 'accepted' | 'refused' | 'abstained' | 'failed'; refusal: Refusal | null; abstention: Abstention | null; checks: Check[];
-  observed: { rowCount: number; total: string; unit: string }; sourceTotals: SourceTotals | null; unmappedFields: string[]; excludedRows: number;
+  observed: { rowCount: number; total: string; unit: string }; sourceTotals: SourceTotals | null; balances?: { opening: string | null; closing: string | null } | null; unmappedFields: string[]; excludedRows: number;
   contentHash: string; sensitivity: 'financial' | 'personal' | 'operational'; notices: string[];
   read: { pages: number; requests: number; bytes: number } | null;
   /** Held only until the person commits or the envelope expires; cleared afterwards. */

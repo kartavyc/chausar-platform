@@ -212,6 +212,7 @@ export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: Decoder
           outcome.checks.push({ id: 'running-balance', status: 'failed', expected: String(expected), observed: balance, line: row.line });
           refuse('BALANCE_BROKEN', 'The running balance breaks at this line. An entry before it is missing or changed.', row.line);
         }
+        if (previousBalance === null) outcome.balances = { opening: opening ?? String(BigInt(balance!) - quantity), closing: null };
         if (previousBalance === null && balanceStart === null) outcome.checks.push({ id: 'opening-balance', status: 'passed', expected: String(BigInt(balance!) - quantity), observed: String(BigInt(balance!) - quantity), line: row.line });
         previousBalance = BigInt(balance!);
       }
@@ -293,6 +294,7 @@ export function runRecipe(recipe: SourceRecipe, decoder: Decoder, input: Decoder
       const passed = closingMinor !== null && previousBalance !== null && BigInt(closingMinor) === previousBalance;
       outcome.checks.push({ id: 'closing-balance', status: passed ? 'passed' : 'failed', expected: closingMinor, observed: previousBalance === null ? null : String(previousBalance) });
       outcome.sourceTotals = { rowCount: null, total: closingMinor, reference: 'statement-closing-balance', provenance: 'balance-continuity' };
+      outcome.balances = { opening: outcome.balances?.opening ?? null, closing: closingMinor };
       if (!passed) refuse('BALANCE_CLOSING_MISMATCH', 'Opening balance plus every entry does not equal the closing balance. The statement may be cut short.');
     } else {
       const report = options.reportTotals;

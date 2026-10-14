@@ -15,7 +15,9 @@ import { datasetWords, propose, type ModelProposal, type Proposed } from './acco
 
 type Decision = { choice: 'accepted' | 'corrected' | 'rejected'; accountClass: AccountClass | null; at: string; memberId: string; decisionId: string };
 type Proposal = Proposed & { accountId: string; name: string; parentGroup?: string; sourceId?: string };
-type ProposalSet = { id: string; at: string; memberId: string; sourceIds: string[]; proposals: Proposal[]; decisions: Record<string, Decision> };
+type ProposalSet = { id: string; at: string; memberId: string; sourceIds: string[]; proposals: Proposal[]; decisions: Record<string, Decision>;
+  /** Set by a model run: the set it re-sorted and the gateway's model receipt. */
+  basedOn?: string; modelReceiptId?: string };
 type AccountsArea = { sets: ProposalSet[] };
 
 const SET_LIMIT = 200, ACCOUNT_LIMIT = 5000, DATASET_THRESHOLD = 20_000;
@@ -46,7 +48,7 @@ function visibleSet(state: State, ctx: Context, setId: unknown): ProposalSet {
 function view(set: ProposalSet) {
   const proposals = set.proposals.map(p => ({ ...structuredClone(p), decision: set.decisions[p.accountId] ? structuredClone(set.decisions[p.accountId]) : null }));
   return {
-    id: set.id, at: set.at, sourceIds: [...set.sourceIds], proposals,
+    id: set.id, at: set.at, sourceIds: [...set.sourceIds], proposals, ...(set.modelReceiptId ? { basedOn: set.basedOn, modelReceiptId: set.modelReceiptId } : {}),
     counts: { total: proposals.length, decided: proposals.filter(p => p.decision).length, needsQuestion: proposals.filter(p => p.needsQuestion).length },
   };
 }
@@ -84,6 +86,21 @@ function proposeSet(state: State, ctx: Context, payload: Record<string, unknown>
     })),
   };
   chart.sets.push(set);
+  return view(set);
+}
+
+/** The accounts of a visible set, for a model request built elsewhere (`models.ts`). */
+export function askableSet(state: State, ctx: Context, setId: unknown) {
+  const set = visibleSet(state, ctx, setId);
+  return { id: set.id, sourceIds: [...set.sourceIds], accounts: set.proposals.map(p => ({ id: p.accountId, name: p.name, parentGroup: p.parentGroup, sourceId: p.sourceId })) };
+}
+/** A new proposal set from the same accounts with validated model proposals merged through the rule proposer. */
+export function proposeWithModel(state: State, ctx: Context, setId: string, modelProposals: ModelProposal[], modelReceiptId: string) {
+  const base = askableSet(state, ctx, setId);
+  const accounts = base.accounts.map(a => ({ id: a.id, name: a.name, ...(a.parentGroup !== undefined ? { parentGroup: a.parentGroup } : {}), ...(a.sourceId ? { sourceId: a.sourceId } : {}) }));
+  const created = proposeSet(state, ctx, { accounts, modelProposals: structuredClone(modelProposals) });
+  const set = accountsOf(state).sets.find(item => item.id === created.id)!;
+  set.basedOn = base.id; set.modelReceiptId = modelReceiptId;
   return view(set);
 }
 
@@ -201,11 +218,12 @@ export const accountsMethods: Record<string, MethodSpec> = {
 };
 
 /** Remove proposal sets holding an account from a removed source, or removed by identifier. */
-export function purgeAccounts(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; collect?: Set<string> }): number {
+export function purgeAccounts(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; collect?: Set<string>; cutoff?: number }): number {
   const chart = peekArea<AccountsArea>(state, 'accounts');
   if (!chart) return 0;
   const before = chart.sets.length;
-  const kept = chart.sets.filter(set => !reason.removedIds.has(set.id) && !set.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)));
+  const old = (at: string) => reason.cutoff !== undefined && !(Date.parse(at) >= reason.cutoff);
+  const kept = chart.sets.filter(set => !old(set.at) && !reason.removedIds.has(set.id) && !set.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)));
   for (const set of chart.sets) if (!kept.includes(set)) reason.collect?.add(set.id);
   chart.sets.splice(0, chart.sets.length, ...kept);
   return before - kept.length;

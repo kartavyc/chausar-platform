@@ -54,4 +54,6 @@ export type RecipeOutcome = {
   period: { from: string; to: string } | null;
   contentHash: string;
   notices: string[];
+  /** Bank statements: the opening balance (stated, or implied by the first row) and the stated closing balance, in minor units. */
+  balances?: { opening: string | null; closing: string | null };
 };

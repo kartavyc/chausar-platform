@@ -78,14 +78,55 @@ Purge: deleting or revoking a source removes the decisions, account sets, saved 
 | Dictionary over MCP in three layers | supported | Tested with a real MCP session through the engine. |
 | Builder agent, answer key, self-evolution edits | experimental | Deterministic profiler and evidence rules. A model candidate is accepted only through the same gates. |
 | Hosted intake service | experimental | Written and tested, not deployed. |
+| Model routes for accounts sorting and dictionary edits | experimental | Tested through the gateway against a fake provider on this computer; no live provider. |
+| Recipe library inside connector import previews | supported | Tested through connectors-ext previews, commits and discards. |
+| Retention and log clearing | supported | Tested through the engine's retention cleanup. |
+
+## Round 2 (coordinator review)
+
+- **Retention.**
+  - Lane purges honour the engine's retention `cutoff`. When workspace retention cleanup runs (`TrustService.cleanup`), account proposal sets, outbox samples, dictionary proposals and edits, previews and log decisions older than `retentionDays` are removed.
+  - Import decisions merged into the log are filtered by retention too.
+  - The owner can clear the local log (`learningx.logClear`, admin, owner only, inside the app).
+- **Model routes** (`platform/runtime/learning-ext/models.ts`). Accounts sorting and dictionary edits can call a route the owner chose, through the core `ModelGateway`:
+  - **Choosing the route.** `learningx.modelRouteSet` is owner only, inside the app. The choice is bound to the route's revision and endpoint, so a reconfigured or disabled route stops working until the owner chooses it again. `learningx.modelRoute` (read) shows the current choice.
+  - **Building the request.** `learningx.accountsAsk` and `learningx.editsAsk` build the request under the send level:
+    - At "nothing" there is no request.
+    - At "shape", accounts go only as aliases with Tally group labels and keyword-table words, and dictionaries as field names, types and the structure of each definition.
+    - At "samples", names and meanings are added, with identifiers masked.
+    - Each call returns the gateway's exact payload preview.
+  - **Approval.** The owner approves that exact payload with `models.approve`. A tainted context cannot approve.
+  - **Running it.** `learningx.accountsAskRun` and `learningx.editsAskRun` make a single attempt. Every attempt leaves a gateway receipt.
+  - **Checking the output.** The output is checked strictly before anything is applied:
+    - Account proposals must have known aliases and classes from the vocabulary. They are then merged as model evidence, so disagreement means a question.
+    - Edits must pass `assertEdit` and `applyEdit`, then the answer-key gate.
+    - Every refusal is a typed "not yet", with nothing applied in part.
+  - Tested against a fake provider on this computer.
+- **Recipe library inside connectors:** see Core edits below.
+- **Intake behind a proxy.** `trustedProxies` (`INTAKE_TRUSTED_PROXIES`) is a list of proxy addresses. The rate limit counts the right-most `X-Forwarded-For` address that is not a trusted proxy, and only when the request came through one of them.
+- **Consent text.** `docs/lanes/learning-consent-draft.md`, for the founder's lawyer. The two extra boxes stay closed (`BOX_NOT_OPEN`).
+- **Fixes from the smuggling review:**
+  - Batches go out in canonical order, so the order of decisions carries nothing. The preview shows how many decisions each person recorded.
+  - The public name is fixed when consent is given.
+  - The intake accepts only the desktop's batch identifier as the idempotency key, and only an ASCII public name.
+  - Sample masking normalises fullwidth and other look-alike characters first, and masks numbers written with spaces or dashes and spelled-out mail addresses.
+  - The builder refuses column titles that contain a number or an identifier.
+  - At send level "nothing", `dictionary_schema` withholds the names of fields the owner added.
+  - A residual covert channel remains: the *count* of each distinct event in a batch. Anyone who can record decisions could encode a few bits per batch through counts. It is bounded by the per-person quota, the author counts shown in the preview, and owner consent.
 
 ## Core edits
 
+- `platform/runtime/gateway.ts` (additive): `GatewayTask` and `previewTask(ctx, task)`, a structured task from in-process code only, always previewed and owner-approved. `execute` also gains an overload with a `{ validate }` argument: a task preview runs only with its validator, and the output must pass the validator before the receipt completes. The existing RPC `preview` is unchanged.
 - `platform/runtime/mcp.ts` (additive): a new type `RegisteredReadTool`, an optional `readTools` constructor option, and `registerMcpReadTools(provider)`.
   - These tools are number-free and read-only, with closed schemas and unique names. They are listed with the existing read-only annotations, and each call re-authorizes after the read.
   - The lane module registers the dictionary layers when it loads, so `engine.ts` is unchanged.
 - `platform/tests/acceptance.test.ts` and `platform/tests/mcp-receipt-public-acceptance.test.ts`: their exact MCP tool-name lists now include the three dictionary tools.
 - `app/desktop/preload.cjs`: the lane's own `laneRefusals` line.
+- `platform/runtime/connectors-ext/service.ts` (connectors-ext is closed; a few calls into `learning-ext/connectors-bridge.ts`):
+  - `connectorsx.importPreview` consults the recipe library first (ladder step 1). It ranks the library's similar past setups and the registered connector recipes for the same input against the file's column names, and returns them as a new `library` field: `suggestions` (top three with score, origin and passed-tests flag), `chosen` (the picked recipe's rank and score) and `agrees`. A reconciled import made by a connector recipe is scored by that recipe's headings.
+  - In the same transaction as the envelope, following the top suggestion logs mapping/proposed (`library-match`); picking another recipe logs mapping/corrected (`owner-override`).
+  - `connectorsx.importCommit` logs mapping/accepted (`library-match` when the preview followed the library, otherwise `reconciliation`), and `connectorsx.discard` of a waiting import logs mapping/rejected, each in the transaction that changes the envelope.
+  - Events carry the system family (connector group mapped to `SYSTEMS`, else `other`), the report shape and the canonical output fields only, with the source id and envelope (and import) id as references, so source deletion purges them. Logging is best effort and never changes a connectors-ext result or refusal.
 
 ## Installed app wiring
 
@@ -102,7 +143,4 @@ Without the intake variable, the app shows "Sharing is not open yet. Nothing is 
 - **The consent text and the two further boxes** (account words, question shapes) need a lawyer's reading and the founder switch. Until then `BOX_NOT_OPEN`.
 - **Uploading cleaned samples** waits for a reviewed receiving service. The outbox keeps them on this computer.
 - **Ladder step 3 training** needs about 20,000 checked labels, and step 4 waits until it beats step 1 on hidden tests. Neither is built.
-- **Accounts sorting and dictionary edits do not call a model route themselves.** They take a model's proposals as validated input. Wiring a route (models-ext) is the caller's step.
 - **The recipe library holds only this computer's recipes and the base set.** A shared library across businesses needs the deployed intake and a reviewed qualification step.
-- **Retention for lane records.** The decision log drops entries older than `retentionDays` and is a bounded ring (50,000 entries, 20,000 per person). Account proposal sets, outbox samples and dictionary edit evidence are bounded in count, and they are removed when their source is deleted. They do not yet age out by `retentionDays`, because the engine's purge hook carries no retention cutoff. That needs a small core change to `private-state-lifecycle.ts`, left to the coordinator.
-- **The intake's rate limit counts the connecting address.** Behind a reverse proxy, that address is the proxy's, so the deployment must pass the client address through. That is part of the deployment guide.

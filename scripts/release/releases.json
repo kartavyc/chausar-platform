@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "product": "Chausar",
+  "releases": [
+    {
+      "version": "0.1.0-preview.1",
+      "channel": "preview",
+      "date": "2026-10-14",
+      "expires": "2027-01-14",
+      "signed": false,
+      "signedBy": null,
+      "notes": [
+        "First public preview, built from the release candidate.",
+        "Windows will warn that the publisher is unknown. Check the SHA-256 fingerprint before you install.",
+        "The updater is inside, so a build with a publisher certificate can follow as the first update."
+      ],
+      "checksumsUrl": null,
+      "artifacts": [
+        { "os": "Windows", "arch": "x64", "kind": "NSIS installer", "file": "Chausar-Setup-0.1.0-preview.1-x64.exe", "url": null, "sha256": null },
+        { "os": "macOS", "arch": "arm64", "kind": "Disk image", "file": "Chausar-0.1.0-preview.1-arm64.dmg", "url": null, "sha256": null },
+        { "os": "Linux", "arch": "x64", "kind": "AppImage", "file": "Chausar-0.1.0-preview.1-x86_64.AppImage", "url": null, "sha256": null }
+      ]
+    }
+  ]
+}

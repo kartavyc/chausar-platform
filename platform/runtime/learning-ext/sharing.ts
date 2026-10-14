@@ -10,11 +10,11 @@
  */
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { audit, check, newId, now, type Context, type State } from '../contracts.ts';
-import { current, digest } from '../actions.ts';
+import { canonical, current, digest } from '../actions.ts';
 import { parseCsv } from '../ingest.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { area, peekArea } from './state.ts';
-import { visibleDecisions, type LogView } from './log.ts';
+import { logAuthor, visibleDecisions, type LogView } from './log.ts';
 import { batchBytes, scanText, VALUE_PATTERNS } from './structure.ts';
 import { BOXES, LEARNING_SCHEMA, OPEN_BOXES, type Box, type StructuralBatch } from './vocabulary.ts';
 
@@ -24,7 +24,7 @@ export type IntakeTransport = (request: IntakeRequest) => Promise<{ status: numb
 export type IntakeOptions = { url: string; transport?: IntakeTransport; timeoutMs?: number };
 
 type Preview = { id: string; at: string; memberId: string; epoch: number; boxes: Box[]; decisionIds: string[]; sourceIds: string[]; digest: string; size: number; count: number; blocked: { line: number; code: string }[] };
-type Consent = { id: string; at: string; previewId: string; digest: string; memberId: string; role: Context['role']; epoch: number; withdrawnAt?: string; integrity: string };
+type Consent = { id: string; at: string; previewId: string; digest: string; publicName: string | null; memberId: string; role: Context['role']; epoch: number; withdrawnAt?: string; integrity: string };
 type Batch = {
   id: string; at: string; consentId: string; previewId: string; mode: 'intake' | 'test-inbox'; boxes: Box[]; decisionIds: string[];
   bytes: string; digest: string; size: number; count: number; deletionToken: string;
@@ -57,7 +57,9 @@ function shared(state: State): Set<string> {
 /** The batch the given boxes would send now, from decisions not already sent. */
 function compose(state: State, ctx: Context, boxes: Box[], only?: string[]) {
   const done = shared(state);
-  const decisions = visibleDecisions(state, ctx).filter(item => boxes.includes(boxOf(item)) && (only ? only.includes(item.id) : !done.has(item.id)));
+  // Events go out in canonical order, never recorded order, so the sequence of decisions cannot carry a message.
+  const decisions = visibleDecisions(state, ctx).filter(item => boxes.includes(boxOf(item)) && (only ? only.includes(item.id) : !done.has(item.id)))
+    .map(item => ({ item, key: canonical(item.event) })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : a.item.id < b.item.id ? -1 : 1).map(entry => entry.item);
   const batch: StructuralBatch = { schema: LEARNING_SCHEMA, boxes, events: decisions.map(item => item.event) };
   const bytes = batchBytes(batch), lines = bytes.split('\n');
   // The first and last lines are fixed text; every event line is scanned, digits included.
@@ -131,7 +133,7 @@ async function deliver(ctx: Context, host: ModuleHost, batchId: string) {
     const consent = area.consents.find(item => item.id === batch.consentId);
     check(consent && consentIntact(consent) && !consent.withdrawnAt, 'CONSENT_REQUIRED', 'Sharing was withdrawn or the consent changed.');
     area.contributor.token ??= token();
-    return { batch: structuredClone(batch), publicName: area.contributor.publicName, contributor: area.contributor.token };
+    return { batch: structuredClone(batch), publicName: consent.publicName ?? null, contributor: area.contributor.token };
   });
   let outcome: { status: 'sent' | 'refused' | 'unknown'; reference?: string; credits?: number; refusal?: string };
   if (reserved.batch.mode === 'test-inbox') outcome = { status: 'sent', reference: `test-inbox:${reserved.batch.id}` };
@@ -196,7 +198,8 @@ export const sharingMethods: Record<string, MethodSpec> = {
     const preview: Preview = { id: newId('sharepreview'), at: now(), memberId: ctx.memberId, epoch: ctx.epoch, boxes, decisionIds: built.decisions.map(item => item.id),
       sourceIds: [...new Set(built.decisions.flatMap(item => item.sourceIds))].sort(), digest: built.digest, size: built.size, count: built.decisions.length, blocked: built.blocked };
     const previews = sharing(state).previews; previews.push(preview); if (previews.length > PREVIEW_LIMIT) previews.splice(0, previews.length - PREVIEW_LIMIT); audit(state, 'learningx.previewed', { previewId: preview.id, digest: preview.digest });
-    return { ...structuredClone(preview), bytes: built.bytes, names: 0, amounts: 0, status: intakeStatus(state, host) };
+    const authors = Object.entries(built.decisions.reduce<Record<string, number>>((counts, item) => { const author = logAuthor(state, item.id); counts[author] = (counts[author] ?? 0) + 1; return counts; }, {})).map(([memberId, count]) => ({ memberId, count }));
+    return { ...structuredClone(preview), bytes: built.bytes, names: 0, amounts: 0, publicName: sharing(state).contributor.publicName, authors, status: intakeStatus(state, host) };
   }) },
   'learningx.consent': { permission: 'admin', handler: (ctx, payload, host) => host.store.update(state => {
     current(state, ctx, 'admin'); appOnly(ctx);
@@ -204,7 +207,8 @@ export const sharingMethods: Record<string, MethodSpec> = {
     const preview = previewFor(state, ctx, payload.previewId);
     check(payload.digest === preview.digest, 'PREVIEW_CHANGED', 'Consent must name the exact previewed bytes.');
     reproduce(state, ctx, preview);
-    const record = { id: newId('shareconsent'), at: now(), previewId: preview.id, digest: preview.digest, memberId: ctx.memberId, role: ctx.role, epoch: ctx.epoch };
+    // The public name the credits go under is part of what is agreed: a later change does not alter this batch.
+    const record = { id: newId('shareconsent'), at: now(), previewId: preview.id, digest: preview.digest, publicName: sharing(state).contributor.publicName, memberId: ctx.memberId, role: ctx.role, epoch: ctx.epoch };
     const consent: Consent = { ...record, integrity: digest(record) };
     const area = sharing(state), used = new Set(area.batches.map(batch => batch.consentId));
     area.consents.push(consent);
@@ -314,10 +318,13 @@ export const sharingMethods: Record<string, MethodSpec> = {
 };
 
 /** Previews over removed sources are void; sent batches are structure only and stay listed. */
-export function purgeSharing(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string> }): number {
+export function purgeSharing(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; cutoff?: number }): number {
   const area = peekArea<Sharing>(state, 'sharing');
   if (!area) return 0;
-  const before = area.previews.length;
-  area.previews = area.previews.filter(preview => !preview.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)));
-  return before - area.previews.length;
+  const old = (at: string) => reason.cutoff !== undefined && !(Date.parse(at) >= reason.cutoff);
+  const before = area.previews.length + area.outbox.length;
+  area.previews = area.previews.filter(preview => !old(preview.at) && !preview.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)));
+  // Cleaned samples still hold the business's own rows: they age out with retention.
+  area.outbox = area.outbox.filter(sample => !old(sample.at));
+  return before - area.previews.length - area.outbox.length;
 }

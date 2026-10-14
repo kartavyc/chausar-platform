@@ -42,6 +42,10 @@ export type GatewayResult = { kind: 'analysis'; plan: AnalyticalPlan; answer?: n
   | { kind: 'business-context'; plan?: never; answer: ReturnType<typeof renderBusinessAnswer>; selection: BusinessSelection; receipt: any }
   | { kind: 'conversation'; plan: ConversationPlan; answer?: never; selection?: never; receipt: any }
   | { kind: 'conversation-synthesis'; output: GroundedSynthesisOutput; plan?: never; answer?: never; selection?: never; receipt: any };
+/** A structured task from trusted in-process code (an engine module), never from RPC: local instructions, content and
+ * output schema. It is always previewed and owner-approved, sent once, and its output is admitted only by the caller's validator. */
+export type GatewayTask = { task: string; routeId: string; instructions: string; content: unknown; schema: unknown; sourceIds: string[] };
+export type GatewayTaskResult = { kind: 'task'; task: string; output: unknown; receipt: any };
 export type HttpRequest = { endpoint: string; method: 'POST'; headers: Record<string, string>; body: string; redirect: 'error'; timeoutMs: number };
 export type HttpResult = { status: number; body: string; endpoint?: string; requestId?: string };
 export type ProcessRequest = { command: string; args: string[]; cwd: string; env: Record<string, string>; stdin: string; timeoutMs: number; schema: unknown };
@@ -756,6 +760,27 @@ export class ModelGateway {
       costReservedMinor: '0', estimatedCostMinor: route.maxCostMinor, costCurrency: 'INR', experimental: true };
     return this.store.update(s => { const view = { read: () => s, update: this.store.update.bind(this.store) }; authorize(view, context, 'prepare'); if (manifest) assertBusinessContextCurrent(view, context, manifest, this.options.businessContext); this.#assertContinuationCurrent(context, record, view, route); s.modelReceipts.push(record); return structuredClone(record); });
   }
+  /** Exact preview of a trusted structured task under the send policy; it needs an explicit route and outbound approval. */
+  async previewTask(context: Context, task: GatewayTask): Promise<any> {
+    authorize(this.store, context, 'prepare');
+    this.#assertProviderEnabled();
+    const state = this.store.read(); check(state.policy.send !== 'nothing', 'SEND_DISABLED', 'Your privacy policy sends nothing to models. Use the local calculator or change your send policy.');
+    check(typeof task.task === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(task.task) && typeof task.instructions === 'string' && task.instructions.length > 0 && task.instructions.length <= 8192
+      && Array.isArray(task.sourceIds) && task.sourceIds.every(id => typeof id === 'string'), 'INVALID_TASK', 'A structured task needs a name, instructions and its sources.');
+    check(typeof task.routeId === 'string' && task.routeId.length > 0, 'MODEL_ROUTE_REQUIRED', 'Choose the exact model route for this task.');
+    const route = this.#route(context, task.routeId), sourceIds = [...new Set(task.sourceIds)].sort();
+    assertSourceAccess(state, context, sourceIds);
+    const instructions = task.instructions, schema = structuredClone(task.schema), payload = modelPayload(route, instructions, JSON.stringify(task.content), schema, task.task.replace(/-/g, '_'));
+    check(Buffer.byteLength(payload) <= 262144, 'PAYLOAD_TOO_LARGE', 'The model payload is too large.');
+    const digest = hash(payload); check(!isNoResend(state, digest), 'NO_RESEND', 'This deleted or expired payload cannot be sent again.');
+    const facts = visibleFacts(this.store, context, sourceIds);
+    const record = { id: newId('model_preview'), kind: 'model-preview', status: 'preview', purpose: 'task', task: task.task, createdAt: now(), at: now(), memberId: context.memberId, epoch: context.epoch,
+      routeId: route.id, routeRevision: route.revision, questionHash: hash(task.task), schema, schemaDigest: hash(schema), instructions, sourceIds, factIds: facts.map(f => f.id), factDigest: hash(facts),
+      operations: [], selectors: { branches: [], customerIds: [] }, payload, digest, endpoint: route.endpoint, approvalRequired: true, send: state.policy.send, trustFingerprint: trustFingerprint(state, context, sourceIds),
+      receiptBoundary: route.kind.endsWith('-cli') ? 'application-to-official-cli' : 'application-to-provider-http', providerPayloadObserved: !route.kind.endsWith('-cli'),
+      costReservedMinor: '0', estimatedCostMinor: route.maxCostMinor, costCurrency: 'INR', experimental: true };
+    return this.store.update(s => { authorize({ read: () => s, update: this.store.update.bind(this.store) }, context, 'prepare'); s.modelReceipts.push(record); return structuredClone(record); });
+  }
   async approveOutbound(context: Context, previewId: string) {
     authorize(this.store, context, 'approve'); check(context.channel !== 'phone', 'APP_APPROVAL_REQUIRED', 'Approve model data transfers inside the app.');
     check(!context.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot authorize a model data transfer.');
@@ -937,13 +962,16 @@ export class ModelGateway {
       publishedCalculations: { dictionaryHash: preview.publishedCalculations?.dictionaryHash ?? null,
         dictionaryVersion: preview.publishedCalculations?.dictionaryVersion ?? null } };
   }
-  async execute(context: Context, request: Partial<ModelRequest> & { previewId?: string }): Promise<GatewayResult> {
+  async execute(context: Context, request: { previewId: string; approvalId?: string }, task: { validate(value: unknown): unknown }): Promise<GatewayTaskResult>;
+  async execute(context: Context, request: Partial<ModelRequest> & { previewId?: string }): Promise<GatewayResult>;
+  async execute(context: Context, request: Partial<ModelRequest> & { previewId?: string }, task?: { validate(value: unknown): unknown }): Promise<GatewayResult | GatewayTaskResult> {
     authorize(this.store, context, 'prepare');
     this.#assertProviderEnabled();
     check(!Object.hasOwn(request, 'continuation'), CONTINUATION_INVALID, 'Only a retained turn ID may select trusted local continuation text.');
     const preview = request.previewId ? structuredClone(this.store.read().modelReceipts.find(r => r.id === request.previewId)) : await this.preview(context, request as ModelRequest);
     check(preview && preview.status === 'preview', 'PREVIEW_NOT_FOUND', 'An unused model preview is required.');
     this.#assertRequestMatchesPreview(request, preview);
+    check((preview.purpose === 'task') === Boolean(task) && (!task || Object.keys(request).every(key => ['previewId', 'approvalId'].includes(key))), 'PREVIEW_REQUEST_CHANGED', 'A structured task runs only through its own trusted validator.');
     let route = this.#assertCurrent(context, preview); const cli = route.kind.endsWith('-cli');
     let processPort = this.options.process || defaultProcess;
     let codexCapabilities: CodexCliCapabilityProfile | undefined;
@@ -1010,13 +1038,15 @@ export class ModelGateway {
       const conversationPlan = preview.purpose === 'conversation' ? validateConversationPlan(parsed.value, { manifest: preview.businessContext, operations: preview.operations, selectors: preview.selectors, reviewedCalculationParameters: preview.reviewedCalculationParameters }) : undefined;
       const selection = preview.purpose === 'business-context' ? validateBusinessSelection(parsed.value, preview.businessContext) : undefined;
       const answer = selection ? renderBusinessAnswer(this.store, context, preview.businessContext, selection, this.options.businessContext) : undefined;
-      const plan = selection || conversationPlan || synthesisOutput ? undefined : validatePlan(parsed.value, preview.operations, preview.selectors); const costMinor = actualCost(route, parsed.usage);
+      const taskOutput = task ? task.validate(structuredClone(parsed.value)) : undefined;
+      const plan = selection || conversationPlan || synthesisOutput || task ? undefined : validatePlan(parsed.value, preview.operations, preview.selectors); const costMinor = actualCost(route, parsed.usage);
       const receipt = await this.store.update(state => {
         this.#assertCurrent(context, preview, state); const current = state.modelReceipts.find(r => r.id === preview.id); check(current?.status === 'dispatching', 'RESULT_REVOKED', 'The model result is no longer valid.');
         current.status = 'completed'; current.completedAt = now();
         if (selection) { current.selection = selection; current.answerDigest = hash(answer); }
         else if (synthesisOutput) { current.synthesisOutputWire = structuredClone(parsed.value); current.synthesisOutputWireDigest = hash(parsed.value);
           current.synthesisOutput = synthesisOutput; current.synthesisOutputDigest = hash(synthesisOutput); }
+        else if (task) { current.taskOutput = structuredClone(taskOutput); current.taskOutputDigest = hash(taskOutput); }
         else current.plan = conversationPlan ?? plan;
         if (conversationPlan) { current.conversationPlanWire = structuredClone(parsed.value); current.conversationPlanDigest = hash(conversationPlan); }
         current.actualCostMinor = costMinor; current.costMeasured = costMinor !== null; current.responseHash = hash(cli ? (result as ProcessResult).stdout : (result as HttpResult).body);
@@ -1029,6 +1059,7 @@ export class ModelGateway {
       if (synthesisOutput) return { kind: 'conversation-synthesis', output: synthesisOutput, receipt };
       if (conversationPlan) return { kind: 'conversation', plan: conversationPlan, receipt };
       if (selection && answer) return { kind: 'business-context', selection, answer, receipt };
+      if (task) return { kind: 'task', task: preview.task, output: taskOutput, receipt };
       check(plan, 'INVALID_PLAN', 'The model did not return an analytical plan.');
       return { kind: 'analysis', plan, receipt };
     } catch (error) {

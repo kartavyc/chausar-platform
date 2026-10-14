@@ -21,6 +21,7 @@ import { compileRecipe, runRecipe, type DecoderInput, type SourceRecipe } from '
 import { extractBankPdfWithOcr, pdfTextToRows } from './bank-pdf.ts';
 import { matchPurchaseRegister, type MatchLine } from './gst-match.ts';
 import { listTables, plainDbRead, type PlainDbConnection } from './plain-db/index.ts';
+import { connectorLibrary, fileColumns, recordConnectorCommit, recordConnectorDiscard, recordConnectorPreview } from '../learning-ext/connectors-bridge.ts';
 
 /** Trusted host options for this module (engine `modules['connectors-ext']`). Never from an RPC payload. */
 export type ConnectorsHostOptions = {
@@ -88,7 +89,7 @@ function databaseOptions(ctx: Context, host: ModuleHost, item: Connection) {
 export function outcomeSummary(envelope: Envelope) { return publicEnvelope(envelope); }
 
 async function recordEnvelope(host: ModuleHost, ctx: Context, input: { outcome: RecipeOutcome | null; failure?: { code: string }; connection: Connection | null; target: { sourceId: string; company: string; branch: string };
-  recipe: SourceRecipe; road: Road; requestedPeriod: { from: string; to: string } | null; read?: Envelope['read'] }): Promise<Envelope> {
+  recipe: SourceRecipe; road: Road; requestedPeriod: { from: string; to: string } | null; read?: Envelope['read']; learn?: (state: any, envelope: Envelope) => unknown }): Promise<Envelope> {
   const recipe = input.recipe, outcome = input.outcome;
   return host.store.update(state => {
     authorize(view(host.store, state), ctx, 'prepare');
@@ -99,12 +100,13 @@ async function recordEnvelope(host: ModuleHost, ctx: Context, input: { outcome: 
       recipeId: recipe.id, recipeVersion: recipe.version, recipeDigest: outcome?.recipe.digest ?? '', road: input.road, fetchedAt: now(), requestedPeriod: input.requestedPeriod,
       period: outcome?.period ?? null, status: input.failure ? 'failed' : outcome!.status, refusal: input.failure ? { code: input.failure.code, reason: 'The read itself failed.' } : outcome!.refusal,
       abstention: outcome?.abstention ?? null, checks: outcome?.checks ?? [], observed: outcome?.observed ?? { rowCount: 0, total: '0', unit: '' }, sourceTotals: outcome?.sourceTotals ?? null,
-      unmappedFields: outcome?.unmappedFields ?? [], excludedRows: outcome?.excludedRows ?? 0, contentHash: outcome?.contentHash ?? '', sensitivity: recipe.sensitivity, notices: outcome?.notices ?? [...(recipe.notices ?? [])],
+      balances: outcome?.balances ?? null, unmappedFields: outcome?.unmappedFields ?? [], excludedRows: outcome?.excludedRows ?? 0, contentHash: outcome?.contentHash ?? '', sensitivity: recipe.sensitivity, notices: outcome?.notices ?? [...(recipe.notices ?? [])],
       read: input.read ?? null, pending: keep ? { records: outcome!.records, measure: outcome!.recipe.measure, expiresAt: new Date(Date.now() + LIMITS.pendingTtlMs).toISOString() } : null,
       committed: null, createdBy: ctx.memberId };
     if (outcome?.status === 'accepted' && !keep) { envelope.status = 'refused'; envelope.refusal = { code: 'PENDING_LIMIT', reason: 'Too many rows are waiting. Import or discard earlier files first.' }; }
     cx.envelopes.push(envelope);
     audit(state, 'connectorsx.envelope', { envelopeId: envelope.id, sourceId: envelope.sourceId, status: envelope.status, code: envelope.refusal?.code ?? envelope.abstention?.reason ?? null });
+    input.learn?.(state, envelope);
     return structuredClone(envelope);
   });
 }
@@ -243,7 +245,8 @@ export const handlers = {
     const outcome = runRegistered(binding!.recipe, { records: result.records, meta }, totals ? { reportTotals: totals } : {});
     return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target: item, recipe: registeredRecipe(binding!.recipe), road: 'interface', requestedPeriod: requested, read: { pages: result.pages, requests: result.requests, bytes: result.bytes } }));
   },
-  async importPreview(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  /** `internal.password` comes only from the in-memory FR-07 password hold, never from an RPC payload. */
+  async importPreview(ctx: Context, payload: Record<string, any>, host: ModuleHost, internal: { password?: string } = {}) {
     shape(payload, ['recipeId', 'connectionId', 'sourceId', 'company', 'branch', 'text', 'bytesBase64', 'pdfBase64', 'sheet', 'reportTotals'], ['recipeId']);
     const selected = registeredRecipe(payload.recipeId), decoder = DECODERS.get(selected.decoder)!;
     let target: { sourceId: string; company: string; branch: string }, item: Connection | null = null;
@@ -259,7 +262,7 @@ export const handlers = {
     else if (decoder.accepts === 'rows' && payload.pdfBase64 !== undefined) {
       check(selected.decoder === 'bank-pdf-text', 'RECIPE_INPUT_MISMATCH', 'Only the bank statement PDF recipe reads PDF files.');
       // Pages with a text layer are read directly; scanned pages go to OCR (experimental) and must clear a confidence floor.
-      const extracted = await extractBankPdfWithOcr(host.services.helper, payload.pdfBase64);
+      const extracted = await extractBankPdfWithOcr(host.services.helper, payload.pdfBase64, internal.password ? { password: internal.password } : {});
       input.rows = pdfTextToRows(extracted.pages).rows;
       if (extracted.ocrPages.length) ocrNotice = extracted.notice;
     } else if (decoder.accepts === 'rows') {
@@ -270,7 +273,8 @@ export const handlers = {
     } else check(false, 'RECIPE_INPUT_MISMATCH', 'This recipe reads records from a connected system.');
     const outcome = runRegistered(selected.id, input, payload.reportTotals ? { reportTotals: reportTotals(payload.reportTotals) } : {});
     if (ocrNotice) outcome.notices.push(ocrNotice);
-    return outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target, recipe: selected, road: 'file', requestedPeriod: null }));
+    const library = connectorLibrary(host.store.read(), ctx, { columns: fileColumns(decoder, input, selected), chosen: selected });
+    return { ...outcomeSummary(await recordEnvelope(host, ctx, { outcome, connection: item, target, recipe: selected, road: 'file', requestedPeriod: null, learn: (state, envelope) => recordConnectorPreview(state, ctx, envelope, library) })), library };
   },
   async importCommit(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     shape(payload, ['envelopeId'], ['envelopeId']); check(text(payload.envelopeId, 100), REQUEST, 'Choose a file or read to import.');
@@ -287,13 +291,14 @@ export const handlers = {
       const envelope = cxState(state).envelopes.find(item => item.id === found.id);
       check(envelope, 'ENVELOPE_NOT_FOUND', 'This read is no longer waiting.');
       envelope.committed = { importId: committed.importId, at: now(), rows: committed.rowIds.length, duplicate: committed.duplicate }; envelope.pending = null;
+      recordConnectorCommit(state, ctx, envelope);
       audit(state, 'connectorsx.imported', { envelopeId: envelope.id, importId: committed.importId, rows: committed.rowIds.length });
       return outcomeSummary(envelope);
     });
   },
   async discard(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     shape(payload, ['envelopeId'], ['envelopeId']);
-    return host.store.update(state => { authorize(view(host.store, state), ctx, 'prepare'); const envelope = cxState(state).envelopes.find(item => item.id === payload.envelopeId); check(envelope, 'ENVELOPE_NOT_FOUND', 'This read is no longer waiting.'); envelope.pending = null; return outcomeSummary(envelope); });
+    return host.store.update(state => { authorize(view(host.store, state), ctx, 'prepare'); const envelope = cxState(state).envelopes.find(item => item.id === payload.envelopeId); check(envelope, 'ENVELOPE_NOT_FOUND', 'This read is no longer waiting.'); recordConnectorDiscard(state, ctx, envelope); envelope.pending = null; return outcomeSummary(envelope); });
   },
   envelopes(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     const allowed = visible(host, ctx);

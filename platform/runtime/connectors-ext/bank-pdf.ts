@@ -15,7 +15,7 @@ export type PdfPage = {
   /** OCR only: mean word confidence, whole percent 0-100. */
   confidence?: number;
 };
-export type PdfHelper = { run(op: 'pdf.extract' | 'pdf.ocr', input: { pdfBase64: string; maxPages?: number; language?: 'eng' }): Promise<{ result: any; receipt: any }> };
+export type PdfHelper = { run(op: 'pdf.extract' | 'pdf.ocr', input: { pdfBase64: string; maxPages?: number; language?: 'eng'; password?: string }): Promise<{ result: any; receipt: any }> };
 export type PdfLineRef = { page: number; line: number };
 export type PdfRowsMeta = {
   pages: number; transactions: number; continuations: number; skipped: number;
@@ -35,10 +35,11 @@ export class PdfStatementError extends ChausarError {
 
 const MAX_PAGES = 50;
 /** Ask the helper for page texts. The helper runs locked on this machine; nothing leaves it. */
-export async function extractBankPdf(helper: PdfHelper, pdfBase64: string): Promise<{ pages: PdfPage[]; receipt: unknown }> {
+/** `password`, when given, opens an encrypted statement once; it is passed to the helper and kept nowhere. */
+export async function extractBankPdf(helper: PdfHelper, pdfBase64: string, password?: string): Promise<{ pages: PdfPage[]; receipt: unknown }> {
   check(helper && typeof helper.run === 'function', 'PDF_HELPER_REQUIRED', 'Reading a PDF statement needs the trusted PDF helper.');
   check(typeof pdfBase64 === 'string' && pdfBase64.length > 0 && pdfBase64.length <= 5_600_000 && /^[A-Za-z0-9+/]+={0,2}$/.test(pdfBase64), 'INVALID_PDF', 'Provide the PDF statement as base64 text.');
-  const response = await helper.run('pdf.extract', { pdfBase64, maxPages: MAX_PAGES });
+  const response = await helper.run('pdf.extract', { pdfBase64, maxPages: MAX_PAGES, ...(password ? { password } : {}) });
   const pages = response?.result?.pages;
   check(Array.isArray(pages) && pages.length > 0 && pages.length <= MAX_PAGES, 'PDF_EXTRACT_INVALID', 'The PDF helper returned no readable pages.');
   const out: PdfPage[] = pages.map((item: any, index: number) => {
@@ -63,15 +64,15 @@ export type OcrExtraction = {
  * reader refuses with OCR_DEPENDENCY_UNAVAILABLE naming the first scanned page. OCR text is data, exactly
  * like extracted text, and still has to pass the statement's own balance checks downstream.
  */
-export async function extractBankPdfWithOcr(helper: PdfHelper, pdfBase64: string, options: { minConfidence?: number } = {}): Promise<OcrExtraction> {
+export async function extractBankPdfWithOcr(helper: PdfHelper, pdfBase64: string, options: { minConfidence?: number; password?: string } = {}): Promise<OcrExtraction> {
   const minConfidence = options?.minConfidence ?? 80;
   check(Number.isSafeInteger(minConfidence) && minConfidence >= 1 && minConfidence <= 100, 'PDF_OCR_OPTIONS_INVALID', 'The OCR confidence floor is a whole percent from 1 to 100.');
-  const extracted = await extractBankPdf(helper, pdfBase64);
+  const extracted = await extractBankPdf(helper, pdfBase64, options?.password);
   const pages: PdfPage[] = extracted.pages.map(page => ({ ...page, source: 'text' }));
   const scanned = pages.filter(page => page.text.trim() === '').map(page => page.page);
   if (!scanned.length) return { pages, ocrPages: [], notice: null, receipts: { extract: extracted.receipt, ocr: null } };
   let response: { result: any; receipt: any };
-  try { response = await helper.run('pdf.ocr', { pdfBase64, maxPages: MAX_PAGES, language: 'eng' }); }
+  try { response = await helper.run('pdf.ocr', { pdfBase64, maxPages: MAX_PAGES, language: 'eng', ...(options?.password ? { password: options.password } : {}) }); }
   catch (error) {
     if ((error as any)?.code === 'OCR_DEPENDENCY_UNAVAILABLE')
       throw new PdfStatementError('OCR_DEPENDENCY_UNAVAILABLE', 'A page has no text layer, and the experimental OCR reader is not installed on this machine.', scanned[0], null);
