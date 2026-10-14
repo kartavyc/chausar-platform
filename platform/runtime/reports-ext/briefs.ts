@@ -90,16 +90,24 @@ function missedRuns(state: State, ctx: Context, since: string, until: string): W
 
 /** Receipts are private to one member, so each member keeps one brief per week. */
 const briefKey = (ctx: Context, week: Period) => `${ctx.memberId}:${week.from}`;
-type StoredBrief = { brief: WeekAhead; sourceIds: string[]; rowIds: string[]; memberId: string; itemSources?: Record<string, string[]>; receiptSources?: Record<string, string[]> };
+/** `hidden` is the marking kinds the member's seat did not see when the brief was built: the engine left that data out. */
+type StoredBrief = { brief: WeekAhead; sourceIds: string[]; rowIds: string[]; memberId: string; itemSources?: Record<string, string[]>; receiptSources?: Record<string, string[]>; hidden?: string[] };
+/** A stored brief stands only while the seat sees what it saw when the brief was built; otherwise it is built again in its place. */
+const current = (state: State, ctx: Context, stored: StoredBrief) => (stored.hidden ?? []).join() === hiddenKinds(state, ctx).join();
 
 /** Figures from data marked with a kind the caller's seat does not see are withheld, with a gap in words, each time the brief is read. */
 function forCaller(state: State, ctx: Context, stored: StoredBrief): WeekAhead {
   const brief = structuredClone(stored.brief); brief.gaps ??= [];
   const hidden = hiddenKinds(state, ctx); if (!hidden.length) return brief;
+  // The engine leaves data marked away from this seat out of its calculations, so a brief this seat built may show
+  // such data as absent: when the workspace holds it, an absent figure is withheld and the brief says why.
+  const hiddenHere = withheldKinds(state, [...new Set(state.facts.filter(fact => !fact.deletedAt).map(fact => fact.sourceId))], hidden);
+  const absent = (figure?: EngineFigure) => figure?.kind === 'missing' && figure.missing === 'absent';
   const kinds = new Set<MarkKind>();
   const withheldReceipts = new Set(brief.receiptIds.filter(id => withheldKinds(state, stored.receiptSources?.[id] ?? stored.sourceIds, hidden).length));
   brief.changed = brief.changed.map(item => {
-    const found = withheldKinds(state, stored.itemSources?.[item.id] ?? stored.sourceIds, hidden);
+    const marked = withheldKinds(state, stored.itemSources?.[item.id] ?? stored.sourceIds, hidden);
+    const found = marked.length ? marked : hiddenHere.length && (absent(item.figure) || item.chart?.some(bar => absent(bar.figure))) ? hiddenHere : [];
     if (!found.length) return item;
     for (const kind of found) kinds.add(kind);
     return { ...item, ...(item.figure ? { figure: withheldFigure() } : {}), ...(item.chart ? { chart: item.chart.map(bar => ({ ...bar, figure: withheldFigure() })) } : {}) };
@@ -119,7 +127,7 @@ export async function weekAhead(ctx: Context, host: ModuleHost, onDate: string):
   check(week.from <= thisWeek.from, 'WEEK_NOT_STARTED', 'A brief can be built once its week has started.');
   check(week.from >= addDays(thisWeek.from, -7), 'WEEK_TOO_OLD', 'Briefs are kept for this week and last week.');
   const existing: StoredBrief | undefined = peekReports(host.store.read()).briefs?.[key];
-  if (existing) return forCaller(host.store.read(), ctx, existing);
+  if (existing && current(host.store.read(), ctx, existing)) return forCaller(host.store.read(), ctx, existing);
   const state = host.store.read(); const rhythm = rhythmSettings(state); const scheduled = scheduledFor(rhythm, week);
   const lastWeek = { from: addDays(week.from, -7), to: addDays(week.to, -7) }, weekBefore = { from: addDays(week.from, -14), to: addDays(week.to, -14) };
   const receipts: CalculationReceipt[] = []; const changed: BriefItem[] = []; const itemSources: Record<string, string[]> = {}, receiptSources: Record<string, string[]> = {};
@@ -150,7 +158,8 @@ export async function weekAhead(ctx: Context, host: ModuleHost, onDate: string):
   const sourceIds = [...new Set(receipts.flatMap(receipt => receipt.sourceIds))], rowIds = [...new Set(receipts.flatMap(receipt => receipt.rowIds))];
   const stored = await host.store.update(next => {
     const briefs = (reportsState(next).briefs ??= {});
-    briefs[key] ??= { brief: structuredClone(brief), sourceIds, rowIds, memberId: ctx.memberId, itemSources, receiptSources };
+    const held = briefs[key] as StoredBrief | undefined;
+    if (!held || !current(next, ctx, held)) briefs[key] = { brief: structuredClone(brief), sourceIds, rowIds, memberId: ctx.memberId, itemSources, receiptSources, hidden: hiddenKinds(next, ctx) };
     return structuredClone(briefs[key]) as StoredBrief;
   });
   return forCaller(host.store.read(), ctx, stored);

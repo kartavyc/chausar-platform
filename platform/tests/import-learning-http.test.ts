@@ -120,9 +120,11 @@ test('a queued import or refusal cannot save learning after its source is revoke
 
 test('current author epoch and ownership govern learning records and refused branch imports gain no log', async t => {
   const f = await fixture(t); const invite = await f.rpc('auth.invite', { name: 'Synthetic importer', role: 'cofounder', branches: ['main'] });
+  // Seat changes need the owner and the cofounder once a cofounder is in: invite the reader before the cofounder accepts.
+  const viewerInvite = await f.rpc('auth.invite', { name: 'Other synthetic reader', role: 'viewer', branches: ['main'] });
   const member = await f.rpc('auth.accept', { token: invite.token }); await f.rpc('sources.import', input, member.token);
   const [event] = await f.decisions(); assert.equal(event.memberId, member.member.id); assert.equal(event.epoch, member.member.epoch);
-  const viewerInvite = await f.rpc('auth.invite', { name: 'Other synthetic reader', role: 'viewer', branches: ['main'] }); const viewer = await f.rpc('auth.accept', { token: viewerInvite.token });
+  const viewer = await f.rpc('auth.accept', { token: viewerInvite.token });
   assert.equal((await f.rpc('learning.list', {}, viewer.token)).length, 0);
   const before = f.engine.vault!.read().learning.length; const wrongBranch = { ...input, recipe: { ...recipe, scope: { ...recipe.scope, branches: ['west'] } } };
   assert.equal((await f.raw('sources.import', wrongBranch, member.token)).body.error.code, 'FORBIDDEN_BRANCH'); assert.equal(f.engine.vault!.read().learning.length, before);

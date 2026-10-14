@@ -136,13 +136,19 @@ export async function buildPage(ctx: Context, host: ModuleHost, packId: string, 
     if (record(verified?.head) && typeof verified.head.short === 'string') footer = { checkCode: verified.head.short, at: typeof verified.head.at === 'string' ? verified.head.at : null };
   } catch { /* The record helper is not available: the footer says so with nulls. */ }
   const data = host.store.read();
-  const markings: ReportPage['markings'] = markingsForSources(data, sourceIds);
   const hidden = hiddenKinds(data, ctx);
-  const withheldReceipts = new Set([...receipts.values()].filter(receipt => withheldKinds(data, receipt.sourceIds, hidden).length).map(receipt => receipt.id));
+  // The engine leaves data marked away from this seat out of its calculations. When the workspace holds such
+  // data, a line left with nothing is withheld rather than absent, and every section says what is not counted.
+  const workspaceSources = [...new Set(data.facts.filter(fact => !fact.deletedAt).map(fact => fact.sourceId))];
+  const hiddenHere = withheldKinds(data, workspaceSources, hidden);
+  const shown = markingsForSources(data, sourceIds);
+  const markings: ReportPage['markings'] = markKinds.filter(kind => shown.includes(kind) || hiddenHere.includes(kind));
+  const withheldReceipts = new Set([...receipts.values()].filter(receipt => withheldKinds(data, receipt.sourceIds, hidden).length
+    || (hiddenHere.length > 0 && receipt.coverage.completeness === 'empty')).map(receipt => receipt.id));
   for (const item of sections) {
-    const kinds = new Set<MarkKind>();
+    const kinds = new Set<MarkKind>(item.lines.length ? hiddenHere : []);
     item.lines = item.lines.map(line => {
-      if (line.figure.kind === 'missing') return line;
+      if (line.figure.kind === 'missing') return hiddenHere.length && line.figure.missing === 'absent' ? { ...line, figure: withheldFigure() } : line;
       const receipt = receipts.get(line.figure.receiptId), found = withheldKinds(data, receipt?.sourceIds ?? [], hidden);
       if (!found.length) return line;
       for (const kind of found) kinds.add(kind);
