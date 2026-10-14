@@ -42,3 +42,28 @@ The shared process lock publishes complete private JSON containing the PID, rand
 The return value describes the signed manifest, artifact path, previous running version, and rollback prerequisites. It always declares `installed: false`, requires a verified previous package and a vault backup, and requires a native installer. `rollback.supported` is the publisher's declaration, not an executed rollback test. No downloaded code, script, or installer is run, even if its signature is valid.
 
 Before release qualification, ship audited platform-specific runtimes, configure the real release key, obtain the required publisher signatures, verify old-install updates with existing vaults, measure interruption and power-loss behavior, and test restoration across data-schema changes. Windows directory durability and installer-level atomic replacement need native verification. A clearly labelled source preview remains the correct status until these checks pass.
+
+## Update channel, staged rollout, kill switch and swap (release lane, 14 October 2026)
+
+The release lane builds on `ReleaseUpdater` without changing it. Code lives in `platform/runtime/native/update-*.ts`; the engine methods are in `platform/runtime/modules/lane-release.ts`.
+
+- **Channel document** (`chausar.channel.v1`): canonical JSON signed with the same pinned Ed25519 key, at `<feedUrl>` with its signature at `<feedUrl>.sig`. It lists, per platform and architecture, each release's version, manifest SHA-256, rollout percent, a `withdrawn` flag and, on the preview channel, the build's expiry. The feed itself expires within 30 days, and an older `issuedAt` than the last accepted one is refused (`UPDATE_FEED_ROLLBACK`), so a stale or replayed feed cannot freeze or downgrade an install.
+- **Staged rollout:** an install takes a release only when `sha256(installId + version)` falls inside the rollout percent. The install id is random, stored at `<appData>/release/install-id`, and is used for nothing else.
+- **Kill switch:** when the running version is marked withdrawn, `release.checkUpdate` returns `rollback-advised` with the highest earlier version that is not withdrawn.
+- **Manifests** are fetched from `releases/<version>/<platform>-<arch>.json` (and `.sig`) beside the feed; their SHA-256 must equal the feed's entry before `ReleaseUpdater.verify` checks the signature.
+- **Swap:** zip, tar.gz and AppImage artifacts unpack into `<installRoot>/versions/<version>/`; `current.json` is replaced atomically (temporary file, fsync, rename, directory fsync). A new version starts in `trial`; it is committed by `release.confirmHealthy`, and after two launches without that confirmation the launcher rolls back by itself. `release.rollback` flips back by hand. Two old versions are kept. Windows NSIS and macOS dmg installers are never executed: `NATIVE_INSTALLER_REQUIRED`.
+- **Data guard:** an update that raises the data schema needs a fresh vault copy; `release.applyUpdate` makes one through `workspace.backup` and hashes it before the swap. The marker `<appData>/release/data-schema.json` records the highest schema written; an older app refuses it with `VAULT_NEWER_THAN_APP`. `apply` does not raise the marker: the new app does when it migrates, so a rollback before migration still opens the vault.
+- **Preview expiry:** a preview build carries `chausarPreviewExpiresAt`; after that instant `release.status` reports `build.usable: false` and `updateNeeded: true` (the frame's "update needed" banner).
+
+## Building a release
+
+`.github/workflows/release.yml` builds on a `v*` tag or by hand. It never publishes: artifacts, `SHA256SUMS` and the signed update manifest go to workflow storage; an optional draft-release job is off by default. Signing runs only when its secrets exist:
+
+| Step | Needs | Without it |
+|---|---|---|
+| Windows Authenticode through a cloud key service | `CHAUSAR_WIN_SIGNER` = `digicert-keylocker` or `sslcom-esigner`, plus that service's settings | `WINDOWS_SIGNING_UNCONFIGURED`; the build is an unsigned preview |
+| macOS signing and notarization | Developer ID certificate, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | `MAC_SIGNING_IDENTITY_MISSING` |
+| Update manifest signature | `CHAUSAR_RELEASE_PRIVATE_KEY` (Ed25519 PEM) | `RELEASE_KEY_UNCONFIGURED` |
+| PostgreSQL and Python runtimes | pinned archive hashes in `scripts/release/runtime-sources.json` | `RUNTIME_SOURCE_UNPINNED` |
+
+Scripts: `scripts/release/stage-runtime.ts` (download, verify, lay out and inventory the runtimes), `keychain-manifest.ts`, `checksums.ts`, `sign-update-manifest.ts`, `windows-sign.cjs` (electron-builder sign hook), `releases-page.ts` (the public releases page), `feature-lists.ts` (the supported, experimental and left-for-later lists from `docs/lanes/*.md`) and `public-copy.ts` (the clean public copy with its secret and private-detail scan). Staged runtimes are never committed.
