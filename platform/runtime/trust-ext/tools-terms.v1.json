@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "readOn": "2026-10-01",
+  "note": "Provider terms as read on the date shown. Terms change; recheck before relying on a row.",
+  "kinds": {
+    "openai-responses": {
+      "keeps": "Requests and answers, for abuse monitoring",
+      "keepsFor": "Up to 30 days",
+      "trains": "No, not by default for API requests",
+      "country": "United States",
+      "termsUrl": "https://openai.com/policies/business-terms/",
+      "readOn": "2026-10-01"
+    },
+    "openai-compatible": {
+      "hosts": ["api.openai.com"],
+      "keeps": "Requests and answers, for abuse monitoring",
+      "keepsFor": "Up to 30 days",
+      "trains": "No, not by default for API requests",
+      "country": "United States",
+      "termsUrl": "https://openai.com/policies/business-terms/",
+      "readOn": "2026-10-01"
+    },
+    "codex-cli": {
+      "keeps": "Requests and answers under your OpenAI account",
+      "keepsFor": "As your OpenAI account settings say",
+      "trains": "Depends on your account's data controls",
+      "country": "United States",
+      "termsUrl": "https://openai.com/policies/terms-of-use/",
+      "readOn": "2026-10-01"
+    },
+    "claude-cli": {
+      "keeps": "Requests and answers under your Anthropic account",
+      "keepsFor": "As your Anthropic account settings say",
+      "trains": "Depends on your account: a subscription follows its training setting; an API key is not used for training",
+      "country": "United States",
+      "termsUrl": "https://www.anthropic.com/legal/commercial-terms",
+      "readOn": "2026-10-01"
+    },
+    "ollama": {
+      "keeps": "Nothing leaves this computer",
+      "keepsFor": "Not applicable",
+      "trains": "No",
+      "country": "This computer",
+      "termsUrl": "https://github.com/ollama/ollama/blob/main/LICENSE",
+      "readOn": "2026-10-01"
+    }
+  }
+}

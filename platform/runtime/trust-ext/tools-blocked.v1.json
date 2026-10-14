@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "checkedAt": "2026-10-01",
+  "note": "Plugins stopped by Chausar. An entry matches a plugin id or the SHA-256 of its module bytes. The list ships with the app; it is not fetched.",
+  "blocked": [
+    { "pluginId": "synthetic-exfiltration-sample", "reason": "It tried to send business data off this computer." }
+  ],
+  "checked": []
+}

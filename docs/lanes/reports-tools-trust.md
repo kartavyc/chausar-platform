@@ -128,7 +128,7 @@ FileRef = { name, path, bytes, sha256 }
 | `trustx.revokeAssistant` | admin | `{ id }` | `Assistants` |
 | `trustx.plugins` | read | `{}` | `Plugins` |
 | `trustx.inspectPlugin` | admin | `PluginPackage` | `PluginInspection` |
-| `trustx.installPlugin` | admin | `PluginPackage & { answers: Record<string, boolean>, digest }` | `PluginRow` |
+| `trustx.installPlugin` | admin | `PluginPackage & { answers: Record<string, boolean>, digest }` | `PluginRow & { missing: string[] }` (ask ids not answered Yes; the plugin stays disabled while any is missing) |
 | `trustx.removePlugin` | admin | `{ id }` | `{ removed: true, kept: string }` |
 | `trustx.languagePacks` | read | `{}` | `{ packs: LanguagePack[] }` |
 
