@@ -1022,5 +1022,6 @@
   "FRSTEP.left.unknown": "It is not known whether anything has left this computer.",
   "SH-02.recovery.btn": "Use your recovery kit",
   "TODAY_ENGINE.every": "Every field",
-  "SH-01.sub.reports.lessons": "Lessons"
+  "SH-01.sub.reports.lessons": "Lessons",
+  "SH-01.sub.ask.whatifs": "What-ifs"
 }

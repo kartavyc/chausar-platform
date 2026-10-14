@@ -18,7 +18,7 @@ import type { ConversationReferenceIntent } from '../screens/ask/ConversationAns
 import { RetainedScenario, ScenarioProvenanceBody, type RetainedScenarioShown } from '../screens/ask/RetainedScenario';
 import { LessonReviewSheet } from '../screens/reports/LessonReview';
 import { RetainedPlace, retainedSurface } from '../screens/retained/RetainedPlace';
-import { placeModuleFor } from '../places/registry.ts';
+import { placeModuleFor, placeModules } from '../places/registry.ts';
 import type { TodayData } from '../screens/today/TodayData.ts';
 import { TodayDestination } from '../screens/today/TodayDestination.tsx';
 import { projectTodayConsumer } from './today-controller.ts';
@@ -894,6 +894,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } },
     sheet, onAddress, onHelp: showHelp,
     renderPlace: address => {
+      const placeProps = (at: Address) => ({ address: at, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
+        rpc: controller.places, live, openReceipt: (id: string) => openReceipt(id),
+        navigate: (next: Address | null) => { if (!stillAuthorized()) return; if (next === null) { if (active.current !== null) navigate(withoutSheet(active.current)); } else navigate(next); } });
       const retainedNode = retainedSurface(address) !== null
         ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
           onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
@@ -901,17 +904,25 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
           onProof={openProof} onProvenance={openProvenance} onOpenLesson={(id, rowOrigin, from) => openLesson(id, rowOrigin, from)} legacy={legacyLink} />
         : null;
       const module = placeModuleFor(address);
+      // Ask, Saved belongs to the ask lane's page at rest. The host's own what-if chain keeps it while that chain is
+      // active (an overview asked for from a saved answer, a chosen what-if, its proof or provenance).
+      const retainedActive = retainedSurface(address) === 'scenario' && address.sub === 'saved'
+        && (retained.discovery.kind !== 'idle' || retained.scenario.kind !== 'idle' || localSheet !== null);
+      if (retainedActive && retainedNode !== null) return retainedNode;
       // A lane's place module wins its address. The retained lesson review keeps its own address,
       // Reports, Lessons, so it stays reachable when Week ahead and Approvals belong to lane modules.
       if (module !== null) {
-        const page = module.render({ address, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
-          rpc: controller.places, live, openReceipt: id => openReceipt(id),
-          navigate: next => { if (!stillAuthorized()) return; if (next === null) { if (active.current !== null) navigate(withoutSheet(active.current)); } else navigate(next); } });
-        return page;
+        return module.render(placeProps(address));
       }
       if (retainedNode !== null) return retainedNode;
-      return address.place === 'trust' && address.sub === 'models' || address.place === 'ask' && (address.sub === undefined || address.sub === 'new')
-        ? <RoutePicker routes={state.routes} selected={state.selectedRouteId} language={language} viewer={viewer} onSelect={chooseRoute} />
+      const routePicker = <RoutePicker routes={state.routes} selected={state.selectedRouteId} language={language} viewer={viewer} onSelect={chooseRoute} />;
+      if (address.place === 'ask' && (address.sub === undefined || address.sub === 'new')) {
+        // Ask, New at rest: the route picker, then the ask lane's menu of calculations (its "no model" way to ask).
+        const ask = placeModules.find(module => module.id === 'ask');
+        return ask === undefined ? routePicker : <>{routePicker}{ask.render(placeProps({ place: 'ask', sub: 'new' }))}</>;
+      }
+      return address.place === 'trust' && address.sub === 'models'
+        ? routePicker
         : <><State state={notBuiltState(address)} />{legacyLink}</>;
     },
   };

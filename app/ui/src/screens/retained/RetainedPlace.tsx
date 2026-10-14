@@ -37,7 +37,8 @@ export type RetainedSurface = 'scenario' | 'lessons';
 
 /** Which retained surface an address names, by place and sub-place only. */
 export function retainedSurface(address: Address): RetainedSurface | null {
-  if (address.place === 'ask' && address.sub === 'saved') return 'scenario';
+  // Ask, What-ifs is the released what-ifs' own address; Saved shows them only where no lane's place module draws it.
+  if (address.place === 'ask' && (address.sub === 'whatifs' || address.sub === 'saved')) return 'scenario';
   // Reports, Lessons is the lessons' own address (the Friday review's proposed lessons). Week ahead and
   // Approvals show them only where no lane's place module draws that address.
   if (address.place === 'reports' && address.sub === 'lessons') return 'lessons';

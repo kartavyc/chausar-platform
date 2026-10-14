@@ -42,7 +42,7 @@ const sub = (place: string, id: string): SubPlace => ({ id, nameKey: `SH-01.sub.
 
 const DESKTOP: Record<SevenPlace, ReadonlyArray<SubPlace>> = {
   today: [sub('today', 'today'), sub('today', 'activity')],
-  ask: [sub('ask', 'new'), sub('ask', 'saved'), sub('ask', 'decisions'), sub('ask', 'checks'), sub('ask', 'notyet')],
+  ask: [sub('ask', 'new'), sub('ask', 'saved'), sub('ask', 'whatifs'), sub('ask', 'decisions'), sub('ask', 'checks'), sub('ask', 'notyet')],
   work: [sub('work', 'approvals'), sub('work', 'jobs'), sub('work', 'actions'), sub('work', 'cando')],
   books: [
     sub('books', 'sources'),

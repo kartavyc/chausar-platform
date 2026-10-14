@@ -361,13 +361,13 @@ const issued = (fixture: Mounted, method: string, expected: number) => waitFor((
 async function help() { act(() => { key('/', { ctrlKey: true }); }); await screen.findByRole('heading', { name: 'Keyboard shortcuts' }); }
 async function closeHelp() { act(() => { key('Escape'); }); await waitFor(() => expect(sheetElement()).toBeNull()); }
 async function openedScenario(fixture: Mounted) {
-  go('#/ask/saved'); const table = await screen.findByRole('table');
+  go('#/ask/whatifs'); const table = await screen.findByRole('table');
   await issued(fixture, 'scenarios.reopen', 1);
   return table;
 }
 /** Saved without a trusted pin: the released rows are read at rest; nothing is reopened. */
 async function listedScenarios(fixture: Mounted, expectedReads = 1) {
-  go('#/ask/saved'); await screen.findByText(NOTE_A);
+  go('#/ask/whatifs'); await screen.findByText(NOTE_A);
   await issued(fixture, 'scenarios.discover', expectedReads);
   expect(fixture.count('scenarios.reopen')).toBe(0);
 }
@@ -484,7 +484,7 @@ test('one native header cell per option sits over its own body cell; exact prove
   expect(sheet().getByText(hex('5'))).toBeTruthy(); expect(sheet().getByText(LIMITATION)).toBeTruthy();
   expect(sheet().getByText(/^Comparison scenario_comparison_fixture, finalized /)).toBeTruthy();
   expect(sheet().getAllByText('scenario_run_alt').length).toBeGreaterThan(0);
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if-provenance');
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if-provenance');
   act(() => { key('Escape'); });
   await waitFor(() => expect(sheetElement()).toBeNull());
   expect(document.activeElement).toBe(provenance);
@@ -538,7 +538,7 @@ test('two roots recomputed at a new cut and not yet re-evaluated: one shared cue
   expect(sheet().getByText('An earlier result is retained under run scenario_run_base. It is not current and is not shown as a figure.')).toBeTruthy();
   expect(sheet().getByText('An earlier result is retained under run scenario_run_alt. It is not current and is not shown as a figure.')).toBeTruthy();
   expect(sheet().queryByText(BASE_OUTCOME.display)).toBeNull(); expect(sheet().queryByText(ALT_OUTCOME.display)).toBeNull();
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if-provenance');
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if-provenance');
   expect(fixture.count('receipts.get')).toBe(fixture.globalReads);
   expect(fixture.retainedOrDomain().filter(method => method !== 'scenarios.reopen')).toEqual([]);
 });
@@ -562,7 +562,7 @@ test('the chart draws the issued scenario outcome of each option with its receip
   expect(sheet().getAllByText('what if').length).toBeGreaterThan(0);
   expect(sheet().getByText('Price change: 0 to 500 basis points')).toBeTruthy();
   expect(sheet().getByText(ALT_OUTCOME.display)).toBeTruthy(); expect(sheet().getAllByText(hex('a')).length).toBeGreaterThan(0);
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if-proof');
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if-proof');
   // Without a comparable issued outcome there is no chart, in words; nothing is inferred from another key.
   fixture.behavior.scenario = () => edit(scenarioView(), ['results.1.receipt.figures', scenarioView().results[1]!.receipt.figures.filter(figure => figure.key !== 'scenario')], ['comparisons', []]);
   act(() => { key('Escape'); }); await waitFor(() => expect(sheetElement()).toBeNull());
@@ -581,7 +581,7 @@ test('a proof press is refused when the fresh re-read is denied, coherently chan
   expect(screen.getByText('Code SCENARIO_EVIDENCE_UNAVAILABLE')).toBeTruthy();
   expect(screen.queryByRole('table')).toBeNull(); expect(sheetElement()).toBeNull();
   expect(screen.queryByText(ALT_OUTCOME.display)).toBeNull();
-  expect(fixture.count('receipts.get')).toBe(fixture.globalReads); expect(window.location.hash).toBe('#/ask/saved');
+  expect(fixture.count('receipts.get')).toBe(fixture.globalReads); expect(window.location.hash).toBe('#/ask/whatifs');
   // A coherently changed view under the same ui.context (the head moved on for the same pin) refuses the old press rather than substituting newer results.
   fixture.behavior.refuse = null;
   await fixture.user.click(button('Read again', page()));
@@ -622,7 +622,7 @@ test('still-connected old figure and provenance controls pressed during a same-a
     expect(figure.isConnected).toBe(true); expect(provenance.isConnected).toBe(true);
     figure.click(); provenance.click();
   });
-  expect(sheetElement()).toBeNull(); expect(window.location.hash).toBe('#/ask/saved');
+  expect(sheetElement()).toBeNull(); expect(window.location.hash).toBe('#/ask/whatifs');
   // Mounted timing limit: once loading commits the original table is gone, so an original control connected beside a
   // newer ready view before commit is not reachable through these real controls. Source statically binds each press to
   // the exact rendered view object (bootstrap openScenarioSheet and controller confirmScenario); that guard is not re-proved here.
@@ -631,31 +631,31 @@ test('still-connected old figure and provenance controls pressed during a same-a
   await issued(fixture, 'scenarios.reopen', 2);
   expect(fixture.retainedOrDomain(before)).toEqual(['scenarios.reopen']);
   expect(fixture.controller.retained.snapshot().scenario.kind).toBe('loading');
-  expect(sheetElement()).toBeNull(); expect(window.location.hash).toBe('#/ask/saved');
+  expect(sheetElement()).toBeNull(); expect(window.location.hash).toBe('#/ask/whatifs');
   expect(fixture.count('receipts.get')).toBe(fixture.globalReads);
   // Release the coherent newer-head reply: the same pin now reads as a historical view with fresh controls.
   await act(async () => { release(); });
   await screen.findByText('An earlier revision; the head moved on. Nothing was recomputed.');
   await settle();
   expect(fixture.count('scenarios.reopen')).toBe(2);
-  expect(sheetElement()).toBeNull(); expect(window.location.hash).toBe('#/ask/saved');
+  expect(sheetElement()).toBeNull(); expect(window.location.hash).toBe('#/ask/whatifs');
   expect(fixture.count('receipts.get')).toBe(fixture.globalReads);
   // The fresh figure confirms with exactly one read and opens its exact embedded receipt; its own Close returns to rest.
   await fixture.user.click(page().getByRole('button', { name: /^Scenario revenue: Synthetic alternative outcome\./ }));
   await screen.findByRole('heading', { name: 'receipt_scenario_alt' });
   expect(fixture.count('scenarios.reopen')).toBe(3);
   expect(sheet().getByText(ALT_OUTCOME.display)).toBeTruthy(); expect(sheet().getAllByText(hex('a')).length).toBeGreaterThan(0);
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if-proof');
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if-proof');
   await fixture.user.click(button(CLOSE, sheet()));
   await waitFor(() => expect(sheetElement()).toBeNull());
-  expect(window.location.hash).toBe('#/ask/saved'); expect(fixture.count('scenarios.reopen')).toBe(3);
+  expect(window.location.hash).toBe('#/ask/whatifs'); expect(fixture.count('scenarios.reopen')).toBe(3);
   // The fresh provenance confirms with exactly one more read and names the newer head.
   await fixture.user.click(button('Exact provenance', page()));
   await screen.findByRole('heading', { name: PIN.revisionId });
   expect(fixture.count('scenarios.reopen')).toBe(4);
   expect(sheet().getByText('This is an earlier revision. The current head is scenario_revision_head. Nothing was recomputed; the figures are those issued for this revision.')).toBeTruthy();
   expect(sheet().getByText(/^Comparison scenario_comparison_fixture, finalized /)).toBeTruthy();
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if-provenance');
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if-provenance');
   expect(fixture.count('receipts.get')).toBe(fixture.globalReads);
   expect(fixture.retainedOrDomain(before)).toEqual(['scenarios.reopen', 'scenarios.reopen', 'scenarios.reopen']);
 });
@@ -676,7 +676,7 @@ test('an obsolete Read again control dispatches nothing after same-batch Help, r
   await waitFor(() => expect(screen.queryByRole('table')).toBeNull());
   expect(fixture.count('scenarios.reopen')).toBe(1);
   // Returning to the surface reads afresh instead of reusing the former private graph.
-  go('#/ask/saved'); await screen.findByRole('table');
+  go('#/ask/whatifs'); await screen.findByRole('table');
   await issued(fixture, 'scenarios.reopen', 2);
   const third = button('Read again', page());
   act(() => { void fixture.controller.lock(); expect(third.isConnected).toBe(true); third.click(); });
@@ -689,7 +689,7 @@ test('an obsolete Read again control dispatches nothing after same-batch Help, r
 test('a held automatic read released after Help revives nothing; the surface reads afresh only when back at rest', async () => {
   const fixture = await mounted();
   const release = fixture.hold('scenarios.reopen');
-  go('#/ask/saved');
+  go('#/ask/whatifs');
   await screen.findByText('Reading this saved what-if with your current workspace access.');
   // The raw reopen call was issued and is being held; only then is Help opened over it.
   await issued(fixture, 'scenarios.reopen', 1);
@@ -714,7 +714,7 @@ test('without a trusted pin Saved lists the released what-ifs; an unsupported di
   // The desktop method refusal for discovery: no row, no empty list, no default scenario, no reopen.
   const unsupported = await mounted('en', null);
   unsupported.behavior.refuseDiscover = 'INVALID_REQUEST';
-  go('#/ask/saved');
+  go('#/ask/whatifs');
   await screen.findByText(SAVED_NO_CAPABILITY);
   expect(screen.getByText('Code UNSUPPORTED_TRANSPORT')).toBeTruthy();
   expect(screen.queryByText(/No saved what-ifs are released/)).toBeNull(); expect(screen.queryByRole('table')).toBeNull();
@@ -723,7 +723,7 @@ test('without a trusted pin Saved lists the released what-ifs; an unsupported di
   // The preserved explicit-pin path: the trusted pin is reopened at rest exactly as before and no discovery is issued for it.
   const native = await mounted();
   native.behavior.refuse = 'INVALID_REQUEST';
-  go('#/ask/saved');
+  go('#/ask/whatifs');
   await screen.findByText('Saved what-ifs are not available in this interface yet. Nothing was read.');
   expect(screen.getByText('Code UNSUPPORTED_TRANSPORT')).toBeTruthy();
   expect(screen.queryByRole('table')).toBeNull();
@@ -756,7 +756,7 @@ test('R1 Saved lists released what-ifs in Engine order with no automatic reopen;
   await issued(fixture, 'scenarios.reopen', 1);
   expect(fixture.payloads('scenarios.reopen')).toEqual([PIN]);
   expect(Object.keys(fixture.payloads('scenarios.reopen')[0] as object).sort()).toEqual(['revisionId', 'scenarioId']);
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if');
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if');
   expect(sheet().getByRole('heading', { name: 'Price up five percent' })).toBeTruthy();
   expect(sheet().getByRole('table')).toBeTruthy(); expect(page().queryByRole('table')).toBeNull(); expect(page().queryByText(ALT_OUTCOME.display)).toBeNull();
   expect(sheet().getByText(HISTORICAL)).toBeTruthy(); expect(sheet().getByText(/^Revision scenario_revision_a, created /)).toBeTruthy();
@@ -767,17 +767,17 @@ test('R1 Saved lists released what-ifs in Engine order with no automatic reopen;
   // replaces the same sheet (never a second sheet, never receipts.get), with a way back to the detail.
   await fixture.user.click(sheet().getByRole('button', { name: /^Scenario revenue: Synthetic alternative outcome\./ }));
   await screen.findByRole('heading', { name: 'receipt_scenario_alt' });
-  expect(fixture.count('scenarios.reopen')).toBe(2); expect(window.location.hash).toBe('#/ask/saved?sheet=what-if-proof');
+  expect(fixture.count('scenarios.reopen')).toBe(2); expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if-proof');
   expect(sheet().getByText(ALT_OUTCOME.display)).toBeTruthy(); expect(document.querySelectorAll('[data-region="sheet"]')).toHaveLength(1);
   expect(savedRowIds()).toEqual([savedRowId(HEAD_PIN), savedRowId(PIN), savedRowId(OTHER_PIN)]);
   await fixture.user.click(button('Back to What if', sheet()));
   await screen.findByRole('heading', { name: 'Price up five percent' });
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if'); expect(sheet().getByRole('table')).toBeTruthy();
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if'); expect(sheet().getByRole('table')).toBeTruthy();
   expect(fixture.count('scenarios.reopen')).toBe(2); expect(savedRow(PIN).getAttribute('aria-current')).toBe('true');
   // Esc closes the detail: the view and the choice are dropped, the rows read so far stay, and focus returns to the row it came from; nothing is re-read.
   act(() => { key('Escape'); });
   await waitFor(() => expect(sheetElement()).toBeNull());
-  expect(window.location.hash).toBe('#/ask/saved'); expect(screen.queryByRole('table')).toBeNull();
+  expect(window.location.hash).toBe('#/ask/whatifs'); expect(screen.queryByRole('table')).toBeNull();
   expect(savedRowIds()).toEqual([savedRowId(HEAD_PIN), savedRowId(PIN), savedRowId(OTHER_PIN)]);
   expect(document.activeElement).toBe(savedRow(PIN)); expect(savedRow(PIN).getAttribute('aria-current')).toBeNull();
   expect(fixture.count('scenarios.discover')).toBe(1); expect(fixture.count('scenarios.reopen')).toBe(2);
@@ -794,7 +794,7 @@ test('R1 Saved lists released what-ifs in Engine order with no automatic reopen;
   // Back to the list from the detail drops the view, keeps the rows and returns focus to the accepted row.
   await fixture.user.click(button('Back to the list', sheet()));
   await waitFor(() => expect(sheetElement()).toBeNull());
-  expect(window.location.hash).toBe('#/ask/saved'); expect(document.activeElement).toBe(savedRow(OTHER_PIN));
+  expect(window.location.hash).toBe('#/ask/whatifs'); expect(document.activeElement).toBe(savedRow(OTHER_PIN));
   expect(savedRowIds()).toEqual([savedRowId(HEAD_PIN), savedRowId(PIN), savedRowId(OTHER_PIN)]); expect(fixture.count('scenarios.reopen')).toBe(4);
   // A second valid empty page is honest absence: no reopen follows.
   fixture.behavior.discover = () => discoveryPage([]);
@@ -843,12 +843,12 @@ test('R2 still-connected rows and page controls cannot act after a synchronous r
   expect(fixture.payloads('scenarios.reopen')).toEqual([HEAD_PIN]);
   expect(fixture.controller.retained.snapshot().discovery).toMatchObject({ kind: 'ready', selected: HEAD_PIN });
   expect(savedRow(HEAD_PIN).getAttribute('aria-current')).toBe('true'); expect(savedRow(PIN).getAttribute('aria-current')).toBeNull();
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if'); expect(document.querySelectorAll('[data-region="sheet"]')).toHaveLength(1);
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if'); expect(document.querySelectorAll('[data-region="sheet"]')).toHaveLength(1);
   // A fresh row beside the open sheet still switches, with exactly its own tuple, in the same one sheet.
   await fixture.user.click(savedRow(PIN));
   await screen.findByText(HISTORICAL);
   expect(fixture.payloads('scenarios.reopen')).toEqual([HEAD_PIN, PIN]);
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if'); expect(document.querySelectorAll('[data-region="sheet"]')).toHaveLength(1);
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if'); expect(document.querySelectorAll('[data-region="sheet"]')).toHaveLength(1);
   // (c) Next five from the last window, beside the open sheet, reads the exact issued cursor once: a second old Next and an old
   // row pressed in the same batch issue nothing; the new page drops the chosen view, its sheet and the old window's rows.
   const next = button('Next five', page());
@@ -864,7 +864,7 @@ test('R2 still-connected rows and page controls cannot act after a synchronous r
   await act(async () => { releaseMore(); });
   await screen.findByText('Saved what-ifs 6 to 7 read so far, newest first.');
   await waitFor(() => expect(sheetElement()).toBeNull());
-  expect(window.location.hash).toBe('#/ask/saved');
+  expect(window.location.hash).toBe('#/ask/whatifs');
   expect(savedRowIds()).toEqual([savedRowId(laterPin(3)), savedRowId(laterPin(4))]);
   expect(screen.queryByRole('table')).toBeNull(); expect(fixture.count('scenarios.reopen')).toBe(2); expect(fixture.count('scenarios.discover')).toBe(3);
   expect(button('Next five', page()).disabled).toBe(true); expect(page().queryByText(MORE_RELEASED)).toBeNull();
@@ -877,7 +877,7 @@ test('R2 still-connected rows and page controls cannot act after a synchronous r
   await fixture.user.click(savedRow(PIN));
   await screen.findByRole('table');
   expect(fixture.payloads('scenarios.reopen')).toEqual([HEAD_PIN, PIN, PIN]);
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if');
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if');
   // (d) Window controls name the selection they were drawn beside: a Next drawn beside the chosen row, pressed in the same batch
   // after a newer row is chosen, moves nothing and leaves the newer choice; the fresh Next of the newer view moves the window
   // locally, supersedes that choice and closes its sheet without any read.
@@ -891,7 +891,7 @@ test('R2 still-connected rows and page controls cannot act after a synchronous r
   await fixture.user.click(button('Next five', page()));
   await screen.findByText('Saved what-ifs 6 to 7 read so far, newest first.');
   await waitFor(() => expect(sheetElement()).toBeNull());
-  expect(window.location.hash).toBe('#/ask/saved'); expect(screen.queryByRole('table')).toBeNull();
+  expect(window.location.hash).toBe('#/ask/whatifs'); expect(screen.queryByRole('table')).toBeNull();
   expect(fixture.controller.retained.snapshot()).toMatchObject({ discovery: { kind: 'ready', page: 1, selected: null }, scenario: { kind: 'idle' } });
   expect(fixture.count('scenarios.discover')).toBe(3); expect(fixture.count('scenarios.reopen')).toBe(4);
   // A continuation never states a total or a hidden count.
@@ -905,7 +905,7 @@ test('R3 a held discovery page released after Help revives nothing; hidden names
   fixture.behavior.discover = () => discoveryPage([ROW_HEAD, ROW_A, ROW_OTHER], CURSOR);
   fixture.behavior.scenario = viewFor;
   const release = fixture.hold('scenarios.discover');
-  go('#/ask/saved');
+  go('#/ask/whatifs');
   await screen.findByText(SAVED_LOADING);
   // The raw discovery call was issued and is being held; only then is Help opened over it.
   await issued(fixture, 'scenarios.discover', 1);
@@ -951,7 +951,7 @@ test('R3 a held discovery page released after Help revives nothing; hidden names
   await settle();
   expect(fixture.count('scenarios.reopen')).toBe(0); expect(window.location.hash).toBe('#/today');
   // Returning requires a fresh authorized read; the earlier choice is not revived.
-  go('#/ask/saved');
+  go('#/ask/whatifs');
   await screen.findByText(NOTE_A);
   await issued(fixture, 'scenarios.discover', 5);
   expect(screen.queryByRole('table')).toBeNull(); expect(fixture.count('scenarios.reopen')).toBe(0);
@@ -1273,7 +1273,7 @@ test('R4 a refused chosen row is ephemeral in the mounted journey: an authority-
   await screen.findByText('The saved what-ifs changed since this list was read. Nothing from the earlier read is kept; read the list again from the start.');
   expect(screen.getByText('Code SCENARIO_AUTHORITY_CHANGED')).toBeTruthy();
   await waitFor(() => expect(sheetElement()).toBeNull());
-  expect(window.location.hash).toBe('#/ask/saved');
+  expect(window.location.hash).toBe('#/ask/whatifs');
   expect(savedRowIds()).toEqual([]); expect(screen.queryByText('Price up five percent')).toBeNull(); expect(screen.queryByText(NOTE_A)).toBeNull();
   expect(fixture.controller.retained.snapshot()).toEqual({ discovery: { kind: 'idle' }, scenario: { kind: 'unavailable', selection: null, code: 'SCENARIO_AUTHORITY_CHANGED' }, lessons: { kind: 'idle' } });
   expect(JSON.stringify(fixture.controller.retained.snapshot()).includes(CURSOR)).toBe(false);
@@ -1291,12 +1291,12 @@ test('R4 a refused chosen row is ephemeral in the mounted journey: an authority-
   await fixture.user.click(savedRow(PIN));
   await screen.findByRole('table');
   await issued(fixture, 'scenarios.reopen', 2);
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if');
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if');
   fixture.behavior.refuse = 'SCENARIO_AUTHORITY_CHANGED';
   await fixture.user.click(sheet().getByRole('button', { name: /^Scenario revenue: Synthetic alternative outcome\./ }));
   await screen.findByText('The saved what-ifs changed since this list was read. Nothing from the earlier read is kept; read the list again from the start.');
   await waitFor(() => expect(sheetElement()).toBeNull());
-  expect(window.location.hash).toBe('#/ask/saved'); expect(screen.queryByRole('table')).toBeNull();
+  expect(window.location.hash).toBe('#/ask/whatifs'); expect(screen.queryByRole('table')).toBeNull();
   expect(savedRowIds()).toEqual([]); expect(screen.queryByText(ALT_OUTCOME.display)).toBeNull(); expect(screen.queryByText(/scenario_revision_a/)).toBeNull();
   expect(fixture.controller.retained.snapshot()).toEqual({ discovery: { kind: 'idle' }, scenario: { kind: 'unavailable', selection: null, code: 'SCENARIO_AUTHORITY_CHANGED' }, lessons: { kind: 'idle' } });
   expect(page().queryByRole('button', { name: 'Read again' })).toBeNull();
@@ -1345,7 +1345,7 @@ test('R4 with a configured trusted mount pin: the explicit overview lists the ro
   await settle();
   expect(fixture.count('scenarios.reopen')).toBe(2); expect(fixture.count('scenarios.discover')).toBe(1);
   expect(page().queryByRole('button', { name: 'Read again' })).toBeNull(); expect(page().queryByRole('button', { name: 'Show saved what-ifs' })).toBeNull();
-  expect(screen.queryByRole('table')).toBeNull(); expect(window.location.hash).toBe('#/ask/saved');
+  expect(screen.queryByRole('table')).toBeNull(); expect(window.location.hash).toBe('#/ask/whatifs');
   fixture.behavior.refuse = null;
   await fixture.user.click(button('Read the list again', page()));
   await screen.findByText(NOTE_A);
@@ -1358,7 +1358,7 @@ test('R4 with a configured trusted mount pin: the explicit overview lists the ro
   // The separately trusted pin opens alone again only on a fresh arrival at rest after a departure, never as a rescue of the refused choice.
   go('#/today');
   await waitFor(() => expect(fixture.controller.retained.snapshot()).toEqual({ discovery: { kind: 'idle' }, scenario: { kind: 'idle' }, lessons: { kind: 'idle' } }));
-  go('#/ask/saved');
+  go('#/ask/whatifs');
   await screen.findByRole('table');
   await issued(fixture, 'scenarios.reopen', 3);
   expect(fixture.payloads('scenarios.reopen').at(-1)).toEqual(PIN); expect(fixture.count('scenarios.discover')).toBe(2);
@@ -1378,11 +1378,11 @@ test('R5 focus and detail controls follow the accepted choice only: a rejected o
   await screen.findByText(HISTORICAL);
   await settle();
   expect(fixture.payloads('scenarios.reopen')).toEqual([PIN]);
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if'); expect(document.querySelectorAll('[data-region="sheet"]')).toHaveLength(1);
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if'); expect(document.querySelectorAll('[data-region="sheet"]')).toHaveLength(1);
   expect(savedRow(PIN).getAttribute('aria-current')).toBe('true'); expect(savedRow(HEAD_PIN).getAttribute('aria-current')).toBeNull();
   act(() => { key('Escape'); });
   await waitFor(() => expect(sheetElement()).toBeNull());
-  expect(document.activeElement).toBe(savedRow(PIN)); expect(window.location.hash).toBe('#/ask/saved');
+  expect(document.activeElement).toBe(savedRow(PIN)); expect(window.location.hash).toBe('#/ask/whatifs');
   // (b) A chosen and ready; B chosen with its reopen held; A's still-connected Back, Read again and Close are pressed before React commits.
   await fixture.user.click(savedRow(PIN));
   await screen.findByText(HISTORICAL);
@@ -1396,11 +1396,11 @@ test('R5 focus and detail controls follow the accepted choice only: a rejected o
   await issued(fixture, 'scenarios.reopen', 3);
   expect(fixture.payloads('scenarios.reopen')).toEqual([PIN, PIN, HEAD_PIN]);
   expect(fixture.controller.retained.snapshot()).toMatchObject({ scenario: { kind: 'loading', selection: HEAD_PIN }, discovery: { kind: 'ready', selected: HEAD_PIN } });
-  expect(window.location.hash).toBe('#/ask/saved?sheet=what-if');
+  expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if');
   await act(async () => { release(); });
   await screen.findByText(CURRENT);
   await settle();
-  expect(fixture.count('scenarios.reopen')).toBe(3); expect(sheetElement()).not.toBeNull(); expect(window.location.hash).toBe('#/ask/saved?sheet=what-if');
+  expect(fixture.count('scenarios.reopen')).toBe(3); expect(sheetElement()).not.toBeNull(); expect(window.location.hash).toBe('#/ask/whatifs?sheet=what-if');
   expect(sheet().getByRole('heading', { name: 'Price up five percent' })).toBeTruthy(); expect(sheet().getByText(/^Revision scenario_revision_head, created /)).toBeTruthy();
   // Fresh controls of B: Read again re-reads exactly B and keeps the choice; Back drops B and returns focus to B's row.
   await fixture.user.click(button('Read again', sheet()));
@@ -1410,7 +1410,7 @@ test('R5 focus and detail controls follow the accepted choice only: a rejected o
   expect(savedRow(HEAD_PIN).getAttribute('aria-current')).toBe('true');
   await fixture.user.click(button('Back to the list', sheet()));
   await waitFor(() => expect(sheetElement()).toBeNull());
-  expect(document.activeElement).toBe(savedRow(HEAD_PIN)); expect(window.location.hash).toBe('#/ask/saved');
+  expect(document.activeElement).toBe(savedRow(HEAD_PIN)); expect(window.location.hash).toBe('#/ask/whatifs');
   expect(savedRowIds()).toEqual([savedRowId(HEAD_PIN), savedRowId(PIN), savedRowId(OTHER_PIN)]); expect(savedRow(HEAD_PIN).getAttribute('aria-current')).toBeNull();
   // (c) Departure: the actual hash leaves Saved while A's sheet is open; its old Back, Close and Esc, still connected, are pressed before React commits.
   await fixture.user.click(savedRow(PIN));
