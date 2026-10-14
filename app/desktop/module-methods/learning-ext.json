@@ -1,1 +1,23 @@
-["learningx.record","learningx.log","learningx.summary"]
+[
+  "learningx.batch",
+  "learningx.batches",
+  "learningx.cleanSample",
+  "learningx.consent",
+  "learningx.creditName",
+  "learningx.deleteBatch",
+  "learningx.intakeStatus",
+  "learningx.log",
+  "learningx.outbox",
+  "learningx.outboxDelete",
+  "learningx.preview",
+  "learningx.recipeCheck",
+  "learningx.recipeForget",
+  "learningx.recipeLookup",
+  "learningx.recipePropose",
+  "learningx.recipeSave",
+  "learningx.record",
+  "learningx.settle",
+  "learningx.submit",
+  "learningx.summary",
+  "learningx.withdraw"
+]
