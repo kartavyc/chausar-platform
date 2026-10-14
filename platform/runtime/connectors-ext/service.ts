@@ -131,7 +131,7 @@ export const handlers = {
       const reads = readsFor(group.id); check(reads.length > 0, 'READ_NOT_AVAILABLE', 'This system cannot be read through its own interface yet. Import an exported file.');
       const allowed = new Set(reads.flatMap(read => read.settings));
       check(Object.keys(settings).every(key => allowed.has(key)), REQUEST, 'A setting is not used by this system.');
-      for (const read of reads) if (read.settings.every(key => Object.hasOwn(settings, key))) read.spec.validate(read.config(settings));
+      for (const read of reads) if (read.settings.every(key => Object.hasOwn(settings, key)) && read.parameters.length === 0) read.spec.validate(read.config(settings));
     } else if (payload.road === 'database') {
       check(Object.keys(settings).every(key => ['engine', 'host', 'port', 'database', 'user', 'ssl', 'passwordRef', 'path'].includes(key)), REQUEST, 'A setting is not used by database connections.');
       databaseConnection({ settings } as Connection);
@@ -195,16 +195,17 @@ export const handlers = {
     return { signedIn: true, connectionId: item.id };
   },
   async read(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
-    shape(payload, ['connectionId', 'operation', 'period', 'reportTotals'], ['connectionId', 'operation']);
+    shape(payload, ['connectionId', 'operation', 'period', 'reportTotals', 'parameters'], ['connectionId', 'operation']);
     const item = connection(host.store, payload.connectionId);
     check(item.status === 'active', 'CONNECTION_PAUSED', 'This connection is paused.');
     check(item.road === 'interface', 'READ_NOT_AVAILABLE', 'This connection is read from files. Import an exported file.');
     const binding = readsFor(item.group).find(read => read.id === payload.operation); check(binding, 'READ_NOT_AVAILABLE', 'This system has no such read.');
-    const requested = period(payload.period), totals = reportTotals(payload.reportTotals);
+    const requested = period(payload.period), totals = reportTotals(payload.reportTotals), parameters = payload.parameters ?? {};
+    check(plain(parameters) && Object.keys(parameters).every(key => binding!.parameters.includes(key)) && Object.values(parameters).every(value => text(value, 200)), REQUEST, 'This read takes different choices.');
     const broker = options(host).credentialBroker;
     const credentials: ReadCredentials | undefined = broker ? request => broker(ctx, request) : undefined;
     let result: Awaited<ReturnType<typeof runApiRead>>;
-    try { result = await runApiRead(binding!.spec, { config: binding!.config(item.settings), sourceId: item.sourceId, period: requested, credentials, http: options(host).http }); }
+    try { result = await runApiRead(binding!.spec, { config: binding!.config(item.settings, parameters), sourceId: item.sourceId, period: requested, credentials, http: options(host).http }); }
     catch (error) {
       const code = error instanceof ChausarError ? error.code : 'SOURCE_READ_FAILED';
       await recordEnvelope(host, ctx, { outcome: null, failure: { code }, connection: item, target: item, recipe: registeredRecipe(binding!.recipe), road: 'interface', requestedPeriod: requested });

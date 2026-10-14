@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Engine } from '../runtime/engine.ts';
@@ -151,4 +152,30 @@ test('deleting a source removes what this lane derived from it', async t => {
 test('demo mode keeps external reads disabled', async t => {
   const engine = await open(t, { demo: true });
   await assert.rejects(engine.request('connectorsx.read', { connectionId: 'x', operation: 'y' }), code('DEMO_EXTERNAL_DISABLED'));
+});
+
+test('an interface read goes through the credential broker, checks the source total and imports', async t => {
+  const { recordedHttp } = await import('../runtime/adapters/read-kit.ts');
+  const engine = await open(t);
+  const page = (name: string) => JSON.parse(readFileSync(new URL(`../../fixtures/connectors/razorpay/${name}`, import.meta.url), 'utf8'));
+  const items = [...page('recon-page-1.json').items, ...page('recon-page-2.json').items];
+  const RZP = 'https://api.razorpay.com', SETL = 'setl_SynthRecon00001';
+  const responses = { [`GET ${RZP}/v1/settlements/${SETL}`]: { body: readFileSync(new URL('../../fixtures/connectors/razorpay/settlement.json', import.meta.url), 'utf8') },
+    [`GET ${RZP}/v1/settlements/recon/combined?year=2026&month=9&day=5&count=1000&skip=0`]: { body: JSON.stringify({ entity: 'collection', count: items.length, items }) } };
+  const calls: any[] = [], asked: any[] = [];
+  const options = { http: recordedHttp(responses, calls), credentialBroker: async (_ctx: any, request: any) => { asked.push(request); return 'rzp_key_id:rzp_key_secret'; } };
+  const item = await engine.request('connectorsx.connect', { group: 'razorpay', road: 'interface', company: 'Synthetic Cafe' });
+  await assert.rejects(handlers.read(owner, { connectionId: item.id, operation: 'settlement-recon', parameters: { settlementId: SETL } }, host(engine)), code('CREDENTIAL_BROKER_REQUIRED'));
+  await assert.rejects(handlers.read(owner, { connectionId: item.id, operation: 'settlement-recon', parameters: { other: 'x' } }, host(engine, options)), code('CONNECTOR_REQUEST_INVALID'));
+  const read = await handlers.read(owner, { connectionId: item.id, operation: 'settlement-recon', parameters: { settlementId: SETL } }, host(engine, options));
+  assert.equal(read.status, 'accepted', JSON.stringify(read.refusal ?? read.abstention)); assert.equal(read.sourceTotals.provenance, 'source-declared');
+  assert.equal(read.sourceTotals.total, '126460'); assert.equal(read.read.requests, 2);
+  assert.equal(JSON.stringify(read).includes('rzp_key_secret'), false); assert.equal(asked[0].origin, RZP);
+  assert.ok(calls.every(call => call.headers.Authorization?.startsWith('Basic ')));
+  const committed = await engine.request('connectorsx.importCommit', { envelopeId: read.id });
+  assert.ok(committed.committed.rows > 0);
+  const failing = { ...options, http: recordedHttp({ [`GET ${RZP}/v1/settlements/${SETL}`]: { status: 401, body: '{}' } }) };
+  await assert.rejects(handlers.read(owner, { connectionId: item.id, operation: 'settlement-recon', parameters: { settlementId: SETL } }, host(engine, failing)), code('SOURCE_SIGN_IN_EXPIRED'));
+  const [fresh] = await engine.request('connectorsx.freshness', { sourceId: item.sourceId, asOf: '2026-10-14' });
+  assert.equal(fresh.lastFailure.code, 'SOURCE_SIGN_IN_EXPIRED');
 });
