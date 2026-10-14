@@ -13,7 +13,7 @@
 import type { ColumnsChart } from '../../app/presentation.ts';
 import { isFigure } from '../../app/presentation.ts';
 import { BAR_MAX, BAR_RADIUS, HIT_RADIUS, exactExtent, exactLinear, includeZero, toExact } from './scale.ts';
-import { Mark, MissingList, Target } from './marks';
+import { Mark, MissingList, Target, moveAmongMarks } from './marks';
 import s from './charts.module.css';
 
 export interface ColumnsProps {
@@ -40,7 +40,7 @@ export function Columns({ chart, onReceipt, width = 200, height = 48, className 
 
   return (
     <div className={className}>
-      <svg className={s.svg} viewBox={`0 0 ${width} ${total}`} width={width} height={total} role="group" aria-label={chart.sentence}>
+      <svg className={s.svg} viewBox={`0 0 ${width} ${total}`} width={width} height={total} role="group" aria-label={chart.sentence} onKeyDown={moveAmongMarks}>
         <line className={s.baseline} x1={0} x2={width} y1={y0} y2={y0} />
         {chart.values.map((v, i) => {
           const cx = slot * i + slot / 2;

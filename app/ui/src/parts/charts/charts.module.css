@@ -120,3 +120,90 @@
 .valueLabel {
   color: var(--mute);
 }
+
+/* The remaining forms (frame-today): ranked bars, bridge, goal line, step line, pair
+   bars, spark and rule bar. Still no hue: ink, the greys and the text colours only. */
+
+/* The last step of a step line, the thing it is about, in ink. */
+.lineInk {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: var(--line-w);
+  stroke-linecap: round;
+}
+
+/* A guessed cause: an open, dashed segment that always carries the word Guess. */
+.guess {
+  transform-box: fill-box;
+  fill: var(--bg);
+  stroke: var(--fg2);
+  stroke-width: var(--hair);
+  stroke-dasharray: 3 2;
+}
+.guessWord {
+  font-size: var(--fs-note);
+  fill: var(--fg2);
+}
+
+/* The hairline from one step of a bridge to the next, and the line that keeps guesses
+   apart from measured causes. */
+.connector {
+  stroke: var(--line2);
+  stroke-width: var(--hair);
+}
+.divider {
+  stroke: var(--line2);
+  stroke-width: var(--hair);
+  stroke-dasharray: 2 2;
+}
+
+/* A goal or a rule: a marked line with its label written beside it. */
+.rule {
+  stroke: var(--fg2);
+  stroke-width: var(--hair);
+  stroke-dasharray: 4 3;
+}
+.marker {
+  stroke: var(--fg);
+  stroke-width: var(--line-w);
+}
+.ruleLabel {
+  font-size: var(--fs-note);
+  fill: var(--fg2);
+}
+
+/* A written value at the end of a row of bars. */
+.value {
+  font-family: var(--fm);
+  font-size: var(--fs-note);
+  fill: var(--fg);
+}
+.valueMissing {
+  font-size: var(--fs-note);
+  fill: var(--mute);
+}
+
+/* A fine line in a row, beside its figure. */
+.sparkRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+}
+.sparkLine {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: var(--hair);
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.sparkDot {
+  r: var(--line-w);
+  fill: var(--fg);
+}
+
+/* A sentence the engine supplied under a rule bar: "398 of 412 past invoices fit". */
+.caption {
+  margin: var(--sp1) 0 0;
+  font-size: var(--fs-note);
+  color: var(--fg2);
+}
