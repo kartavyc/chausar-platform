@@ -9,7 +9,7 @@ import { Engine } from '../runtime/engine.ts';
 import type { Context } from '../runtime/contracts.ts';
 import { csvFile } from '../runtime/reports-ext/export-files.ts';
 import { xlsxBook, crc32 } from '../runtime/reports-ext/xlsx.ts';
-import { pendingExportPaths } from '../runtime/reports-ext/methods.ts';
+import { pendingExportPaths, reportsMethods } from '../runtime/reports-ext/methods.ts';
 
 // Synthetic records only: one month of an invented business, with a formula-shaped description.
 const csv = `id,kind,date,amount,currency,customerId,invoiceId,dueDate,status,description
@@ -216,7 +216,11 @@ test('Friday review and rhythm settings validate, preview without digits and ref
   await assert.rejects(engine.request('reportsx.verifyChannel', { channel: 'mail' }), code('CHANNEL_ADDRESS_REQUIRED'));
   const set = await engine.request('reportsx.setRhythm', { days: [5, 1], time: '08:30', mail: { on: true, address: 'owner@example.com' }, whatsapp: { phone: '+919876543210' } });
   assert.deepEqual(set.days, [1, 5]); assert.equal(set.mail.address, 'owner@example.com'); assert.equal(set.mailVerified, false);
-  await assert.rejects(engine.request('reportsx.verifyChannel', { channel: 'mail' }), code('RELAY_NOT_AVAILABLE'));
+  // The relay's phone.verify belongs to hosted-link; stub the host so this holds whether or not that lane is merged.
+  const verify = reportsMethods['reportsx.verifyChannel']!;
+  const hostWith = (call: (method: string) => Promise<unknown>) => ({ ...engine.moduleHost('reports-tools-trust', engine.context), call });
+  await assert.rejects(Promise.resolve(verify.handler(engine.context, { channel: 'mail' }, hostWith(async () => { throw Object.assign(new Error('x'), { code: 'UNKNOWN_METHOD' }); }) as any)), code('RELAY_NOT_AVAILABLE'));
+  assert.deepEqual(await verify.handler(engine.context, { channel: 'mail' }, hostWith(async method => { assert.equal(method, 'phone.verify'); return { verified: true }; }) as any), { channel: 'mail', verified: true });
 });
 
 test('due dates are worked out from the sourced table for a profile, mark old checks and say what is not covered', async t => {
