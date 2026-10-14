@@ -191,8 +191,9 @@ function ConnectionPart({ props, conn, onChanged, onRemoved }: { props: BooksPro
         <div className={s.stack}>
           <p>{r.signInBrowser}</p>
           <p className={s.note}>{r.signInCopy}</p>
-          {/* Shown as text only: the screen never opens a browser by itself. */}
+          {/* Shown as text; the screen never opens a browser by itself. The host opens it on the person's press. */}
           <p className={r2Styles.address}>{signIn.url}</p>
+          {props.openLink && <Actions><Button onClick={() => props.openLink?.(signIn.url)}>{r.signInOpen}</Button></Actions>}
           {signIn.expiresInSeconds > 0 && <Note>{fill(r.signInExpires, { n: Math.round(signIn.expiresInSeconds / 60) })}</Note>}
           {signIn.note && <Note>{signIn.note}</Note>}
         </div>

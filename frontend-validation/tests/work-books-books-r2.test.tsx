@@ -66,7 +66,7 @@ const BASE: Record<string, Handler> = {
   'books.forget': payload => ({ id: payload['id'], deleted: true }),
 };
 
-function setup({ address, role = 'owner', viewer = false, language = 'en', view = 'guided', handlers = {} }: { address: Address; role?: string; viewer?: boolean; language?: Language; view?: View; handlers?: Record<string, Handler> }) {
+function setup({ address, role = 'owner', viewer = false, language = 'en', view = 'guided', handlers = {}, openLink }: { address: Address; role?: string; viewer?: boolean; language?: Language; view?: View; handlers?: Record<string, Handler>; openLink?: (url: string) => void }) {
   const calls: { method: string; payload: Record<string, unknown> }[] = [];
   const openReceipt = vi.fn();
   const table = { ...BASE, ...handlers };
@@ -78,7 +78,7 @@ function setup({ address, role = 'owner', viewer = false, language = 'en', view 
   } };
   function Harness() {
     const [at, setAt] = useState<Address>(address);
-    return <TextProvider language={language}>{booksPlace.render({ address: at, language, view, viewer, member: { id: 'm1', role }, rpc, live: () => true, openReceipt, navigate: next => setAt(next ?? { place: 'books' }) })}</TextProvider>;
+    return <TextProvider language={language}>{booksPlace.render({ address: at, language, view, viewer, member: { id: 'm1', role }, rpc, live: () => true, openReceipt, navigate: next => setAt(next ?? { place: 'books' }), ...(openLink ? { openLink } : {}) })}</TextProvider>;
   }
   render(<Harness />);
   return { openReceipt, called: (method: string) => calls.filter(c => c.method === method) };
@@ -119,6 +119,16 @@ test('read now shows the envelope with two totals and imports only after review;
   expect(open).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
   await waitFor(() => expect(called('books.pause')[0]?.payload).toEqual({ sourceId: 'cx-zoho-1', paused: true }));
+});
+
+test('sign in again opens the address only through the host, on the person\'s press', async () => {
+  const openLink = vi.fn();
+  setup({ address: { place: 'books', sub: 'sources', sheet: sheetOf('cx-zoho-1') }, openLink });
+  fireEvent.click(await screen.findByRole('button', { name: 'Sign in again' }));
+  expect(await screen.findByText('Sign-in happens in your browser.')).toBeTruthy();
+  expect(openLink).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Open in your browser' }));
+  expect(openLink).toHaveBeenCalledWith('https://accounts.zoho.in/oauth/v2/auth?client_id=abc');
 });
 
 test('demo mode: a refused external read is a plain sentence, not a code', async () => {
