@@ -8,27 +8,27 @@ const modulePath = '../../scripts/desktop-launch.mjs';
 const { desktopLaunchArguments, desktopLaunchPrerequisites, desktopLaunchEnvironment } = await import(modulePath);
 
 test('desktop launcher requires an explicit mode and accepts no arbitrary Electron flags', () => {
-  assert.deepEqual(desktopLaunchArguments(['--demo', '--background', '--check']), { demo: true, background: true, checkOnly: true, uiPreview: false, firstRunPreview: false });
-  assert.deepEqual(desktopLaunchArguments(['--production']), { demo: false, background: false, checkOnly: false, uiPreview: false, firstRunPreview: false });
+  assert.deepEqual(desktopLaunchArguments(['--demo', '--background', '--check']), { demo: true, background: true, checkOnly: true, uiPreview: false, firstRunPreview: false, legacyRenderer: false });
+  assert.deepEqual(desktopLaunchArguments(['--production']), { demo: false, background: false, checkOnly: false, uiPreview: false, firstRunPreview: false, legacyRenderer: false });
   for (const args of [[], ['--demo', '--production'], ['--demo', '--demo'], ['--demo', '--no-sandbox'], ['--demo', '--remote-debugging-port=9222']]) assert.throws(() => desktopLaunchArguments(args));
 });
 
 test('desktop launcher accepts the UI preview opt-in with an explicit mode', () => {
-  assert.deepEqual(desktopLaunchArguments(['--demo', '--ui-preview']), { demo: true, background: false, checkOnly: false, uiPreview: true, firstRunPreview: false });
-  assert.deepEqual(desktopLaunchArguments(['--production', '--ui-preview', '--check']), { demo: false, background: false, checkOnly: true, uiPreview: true, firstRunPreview: false });
+  assert.deepEqual(desktopLaunchArguments(['--demo', '--ui-preview']), { demo: true, background: false, checkOnly: false, uiPreview: true, firstRunPreview: false, legacyRenderer: false });
+  assert.deepEqual(desktopLaunchArguments(['--production', '--ui-preview', '--check']), { demo: false, background: false, checkOnly: true, uiPreview: true, firstRunPreview: false, legacyRenderer: false });
   for (const args of [['--ui-preview'], ['--demo', '--ui-preview', '--ui-preview'], ['--demo', '--ui-preview', '--no-sandbox']]) assert.throws(() => desktopLaunchArguments(args));
 });
 
 test('first-run preview requires both explicit demo and UI modes without production, duplicate or arbitrary flags', () => {
-  assert.deepEqual(desktopLaunchArguments(['--demo', '--ui-preview', '--first-run-preview']), { demo: true, background: false, checkOnly: false, uiPreview: true, firstRunPreview: true });
-  assert.deepEqual(desktopLaunchArguments(['--demo', '--ui-preview', '--first-run-preview', '--check']), { demo: true, background: false, checkOnly: true, uiPreview: true, firstRunPreview: true });
+  assert.deepEqual(desktopLaunchArguments(['--demo', '--ui-preview', '--first-run-preview']), { demo: true, background: false, checkOnly: false, uiPreview: true, firstRunPreview: true, legacyRenderer: false });
+  assert.deepEqual(desktopLaunchArguments(['--demo', '--ui-preview', '--first-run-preview', '--check']), { demo: true, background: false, checkOnly: true, uiPreview: true, firstRunPreview: true, legacyRenderer: false });
   for (const args of [
     ['--first-run-preview'], ['--demo', '--first-run-preview'], ['--production', '--ui-preview', '--first-run-preview'],
     ['--demo', '--production', '--ui-preview', '--first-run-preview'], ['--demo', '--ui-preview', '--first-run-preview', '--first-run-preview'],
     ['--demo', '--demo', '--ui-preview', '--first-run-preview'], ['--demo', '--ui-preview', '--ui-preview', '--first-run-preview'],
     ['--demo', '--ui-preview', '--first-run-preview', '--no-sandbox'], ['--demo', '--ui-preview', '--first-run-preview=false'],
   ]) assert.throws(() => desktopLaunchArguments(args), (error: unknown) => error instanceof Error && [
-    'Use --demo or --production, with optional --ui-preview, --background and --check; --first-run-preview requires --demo and --ui-preview.',
+    'Use --demo or --production, with optional --ui-preview, --legacy-renderer, --background and --check; --first-run-preview requires --demo and --ui-preview.',
     'Select exactly one launch mode: --demo or --production.',
     'First-run preview requires --demo and --ui-preview.',
   ].includes(error.message), JSON.stringify(args));
@@ -69,4 +69,10 @@ test('a parent launcher can select the same fresh temporary directory it gives t
   assert.equal(dirname(launch.CHAUSAR_DEMO_PROFILE_ROOT), realpathSync(temporary));
   assert.equal(existsSync(launch.CHAUSAR_DEMO_PROFILE_ROOT), false);
   assert.equal(launch.TEMP, temporary); assert.equal(launch.TMPDIR, temporary);
+});
+
+test('the legacy renderer flag is accepted as a fallback and unknown flags still refuse', () => {
+  assert.deepEqual(desktopLaunchArguments(['--demo', '--legacy-renderer']), { demo: true, background: false, checkOnly: false, uiPreview: false, firstRunPreview: false, legacyRenderer: true });
+  assert.throws(() => desktopLaunchArguments(['--demo', '--legacy-renderer', '--legacy-renderer']));
+  assert.throws(() => desktopLaunchArguments(['--demo', '--legacy']));
 });

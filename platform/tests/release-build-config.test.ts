@@ -182,3 +182,10 @@ test('release.yml builds only, never publishes, and passes secrets only through 
   assert.ok(text.includes("env.HAS_MAC_SIGNING == 'true'"));
   assert.ok(text.includes("env.HAS_RELEASE_KEY == 'true'"));
 });
+
+test('both desktop configs package the new UI host, its built bundle and its fonts', async () => {
+  for (const name of ['builder.json', 'builder.preview.json']) {
+    const config = JSON.parse(await readFile(new URL(`../../app/desktop/${name}`, import.meta.url), 'utf8'));
+    for (const path of ['app/ui/host/**/*', 'app/ui/public/**/*', 'app/ui/assets/fonts/**/*']) assert.ok(config.files.includes(path), `${name} must package ${path}`);
+  }
+});
