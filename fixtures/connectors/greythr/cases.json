@@ -1,0 +1,21 @@
+[
+  {
+    "name": "salary-register.csv accepted",
+    "recipe": "greythr.salary-register",
+    "file": "salary-register.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "13700000",
+      "rows": 5,
+      "unmapped": [
+        "Days Paid",
+        "BASIC",
+        "HRA",
+        "SPECIAL ALLOWANCE",
+        "PF",
+        "PROF TAX",
+        "TDS"
+      ]
+    }
+  }
+]

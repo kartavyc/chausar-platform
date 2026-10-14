@@ -33,7 +33,7 @@
   margin: calc((var(--square) - var(--dot)) / 2) 0 calc((var(--square) - var(--dot)) / 2 + var(--sp2));
   border-radius: 50%;
   background: var(--bg);
-  border: var(--hair) solid var(--line2);
+  border: var(--hair) solid var(--mute);
 }
 .done .dot {
   background: var(--dim);

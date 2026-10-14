@@ -1,0 +1,4 @@
+Invoice No,Date,Party Name,Type,Taxable Value
+S-1,03/04/2026,Asha Stores,Sale,"1,000.00"
+S-2,04/04/2026,Ravi & Co,Sale,250.50
+Total,,,,"1,250.50"

@@ -1,0 +1,58 @@
+/* Two columns, never merged. The page measures its own width, not the window's. */
+.wrap {
+  container-type: inline-size;
+  container-name: twosides;
+}
+
+.sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: var(--sp6);
+  row-gap: var(--sp5);
+}
+
+.side {
+  min-width: 0;
+  display: grid;
+  gap: var(--sp3);
+  align-content: start;
+}
+
+.right {
+  border-inline-start: var(--hair) solid var(--line);
+  padding-inline-start: var(--sp6);
+}
+
+.left {
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--fs-row);
+  font-weight: var(--fw-medium);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp2);
+}
+
+.label {
+  font-weight: var(--fw-regular);
+}
+
+.body {
+  min-width: 0;
+}
+
+@container twosides (max-width: 560px) {
+  .sides {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .right {
+    border-inline-start: 0;
+    padding-inline-start: 0;
+    border-top: var(--hair) solid var(--line);
+    padding-top: var(--sp4);
+  }
+}

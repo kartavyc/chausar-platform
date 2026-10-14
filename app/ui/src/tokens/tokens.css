@@ -100,6 +100,9 @@
   --t-chart: 360ms;
   --t-receipt: 400ms;
   --t-receipt-gap: 30ms;
+  /* The builders' names for the same two receipt times (part 4 of the builders' file). */
+  --t-row: var(--t-receipt-gap);
+  --t-rows-max: var(--t-receipt);
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
@@ -154,8 +157,8 @@
   }
 }
 
-/* Medium window: rail 176, column 640. The sheet covers the list (Frame.module.css). */
-@media (min-width: 1024px) and (max-width: 1279px) {
+/* Medium window, 1024 to 1315: rail 176, column 640. The sheet covers the list (Frame.module.css). */
+@media (min-width: 1024px) and (max-width: 1315px) {
   :root {
     --rail: 176px;
     --col: 640px;

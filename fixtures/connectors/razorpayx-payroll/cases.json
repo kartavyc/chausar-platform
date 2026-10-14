@@ -1,0 +1,13 @@
+[
+  {
+    "name": "payroll-report.csv accepted",
+    "recipe": "razorpayx-payroll.payroll-report",
+    "file": "payroll-report.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "22775000",
+      "rows": 5,
+      "unmapped": []
+    }
+  }
+]

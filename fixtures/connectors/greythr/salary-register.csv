@@ -1,0 +1,9 @@
+Demo Manufacturing Pvt Ltd
+Salary Register for the month of Sep 2026
+Sl No,Employee No,Employee Name,Designation,Location,Days Paid,BASIC,HRA,SPECIAL ALLOWANCE,GROSS,PF,PROF TAX,TDS,TOTAL DEDUCTIONS,NET PAY
+1,G-101,Synthetic Worker One,Executive,Pune,30,15000,6000,4000,25000,1800,200,0,2000,23000
+2,G-102,Synthetic Worker Two,Senior Executive,Pune,30,20000,8000,6500,34500,1800,200,1200,3200,31300
+3,G-103,Synthetic Worker Three,Manager,Mumbai,28,28000,11200,9800,49000,1800,200,4100,6100,42900
+4,G-104,Synthetic Worker Four,Associate,Mumbai,30,12000,4800,2200,19000,1440,200,0,1640,17360
+5,G-105,Synthetic Worker Five,Associate,Pune,15,6000,2400,1100,9500,720,0,0,720,8780
+,Total,,,,,81000,32400,23600,137000,7560,800,5300,13660,123340

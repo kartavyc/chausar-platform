@@ -1,0 +1,18 @@
+{
+  "token": "practice-google-token",
+  "spreadsheets": {
+    "1PracticeSheetSyntheticChausarTest000000000": {
+      "title": "Chausar test sheet (synthetic)",
+      "tabs": {
+        "Ledger": [["Reference", "Date", "Party", "Amount", "Note"], ["CHS-SEEDROW0000000001", "2026-10-01", "Asha Traders (synthetic)", "1000.00", "Opening row"]],
+        "Summary": [["Month", "Sales", "Collections"], ["2026-09", "100.00", "80.00"]]
+      }
+    }
+  },
+  "calendars": {
+    "primary": { "summary": "Practice calendar (synthetic)", "timeZone": "Asia/Kolkata", "events": [] }
+  },
+  "files": [
+    { "id": "1PracticeFolderSynthetic0001", "name": "Chausar exports (synthetic)", "mimeType": "application/vnd.google-apps.folder", "appProperties": {}, "parents": [], "trashed": false, "content": "" }
+  ]
+}

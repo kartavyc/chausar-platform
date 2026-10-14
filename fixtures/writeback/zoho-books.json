@@ -1,0 +1,12 @@
+{
+  "organizationId": "60012345678",
+  "token": "practice-zoho-token",
+  "contacts": [
+    { "contact_id": "460000000001001", "contact_name": "Asha Traders (synthetic)", "contact_type": "customer", "email": "accounts@asha.example", "phone": "", "notes": "", "payment_terms_label": "Net 15", "last_modified_time": "2026-10-01T09:00:00.000Z" },
+    { "contact_id": "460000000001002", "contact_name": "Bharat Packaging (synthetic)", "contact_type": "vendor", "email": "billing@bharat.example", "phone": "", "notes": "", "payment_terms_label": "Net 30", "last_modified_time": "2026-10-01T09:00:00.000Z" }
+  ],
+  "invoices": [
+    { "invoice_id": "460000000002001", "invoice_number": "INV-000101", "customer_id": "460000000001001", "customer_name": "Asha Traders (synthetic)", "date": "2026-09-03", "due_date": "2026-09-10", "reference_number": "", "status": "overdue",
+      "line_items": [{ "name": "September order", "quantity": 1, "rate": 1000 }], "total": 1000, "last_modified_time": "2026-09-03T09:00:00.000Z" }
+  ]
+}

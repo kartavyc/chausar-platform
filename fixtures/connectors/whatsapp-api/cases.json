@@ -1,0 +1,17 @@
+[
+  {
+    "name": "wati-broadcasts.csv accepted",
+    "recipe": "whatsapp-api.campaign-report",
+    "file": "wati-broadcasts.csv",
+    "reportTotals": {
+      "rowCount": 5,
+      "total": "5080"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "5080",
+      "rows": 5,
+      "unmapped": []
+    }
+  }
+]

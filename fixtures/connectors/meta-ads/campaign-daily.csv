@@ -1,0 +1,8 @@
+﻿"Reporting starts","Reporting ends","Campaign name",Day,"Campaign delivery","Attribution setting",Results,"Result indicator",Reach,Impressions,"Cost per results","Amount spent (INR)",Ends
+2026-09-01,2026-09-03,,,0,"7-day click or 1-day view",,,61204,125424,,5010.09,
+2026-09-01,2026-09-03,"Festive Kurtas - Conversions",2026-09-01,active,"7-day click or 1-day view",12,actions:offsite_conversion.fb_pixel_purchase,8120,11034,104.17,1250.04,Ongoing
+2026-09-01,2026-09-03,"Festive Kurtas - Conversions",2026-09-02,active,"7-day click or 1-day view",9,actions:offsite_conversion.fb_pixel_purchase,7311,9870,138.90,1250.10,Ongoing
+2026-09-01,2026-09-03,"Festive Kurtas - Conversions",2026-09-03,active,"7-day click or 1-day view",15,actions:offsite_conversion.fb_pixel_purchase,9012,12500,83.33,1249.95,Ongoing
+2026-09-01,2026-09-03,"Brand Awareness - Reels",2026-09-01,active,"7-day click or 1-day view",20400,reach,20400,31200,0.02,420.00,Ongoing
+2026-09-01,2026-09-03,"Brand Awareness - Reels",2026-09-02,active,"7-day click or 1-day view",19870,reach,19870,29944,0.02,419.80,Ongoing
+2026-09-01,2026-09-03,"Brand Awareness - Reels",2026-09-03,active,"7-day click or 1-day view",21002,reach,21002,30876,0.02,420.20,Ongoing

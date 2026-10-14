@@ -1,0 +1,95 @@
+[
+  {
+    "name": "gstr1-sep-2026-with-summary.json accepted",
+    "recipe": "gst.gstr1-invoices",
+    "file": "gstr1-sep-2026-with-summary.json",
+    "reportTotals": {
+      "rowCount": 4,
+      "total": "26700000"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "26700000",
+      "rows": 4,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "gstr1-sep-2026-with-summary.json accepted",
+    "recipe": "gst.gstr1-invoices-summary",
+    "file": "gstr1-sep-2026-with-summary.json",
+    "expect": {
+      "status": "accepted",
+      "total": "26700000",
+      "rows": 4,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "gstr1-sep-2026-with-summary.json accepted",
+    "recipe": "gst.gstr1-notes",
+    "file": "gstr1-sep-2026-with-summary.json",
+    "reportTotals": {
+      "rowCount": 2,
+      "total": "150000"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "150000",
+      "rows": 2,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "gstr2b-sep-2026.json accepted",
+    "recipe": "gst.gstr2b-b2b",
+    "file": "gstr2b-sep-2026.json",
+    "expect": {
+      "status": "accepted",
+      "total": "4000000",
+      "rows": 5,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "gstr2b-sep-2026.json accepted",
+    "recipe": "gst.gstr2b-notes",
+    "file": "gstr2b-sep-2026.json",
+    "reportTotals": {
+      "rowCount": 1,
+      "total": "50000"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "50000",
+      "rows": 1,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "gstr3b-sep-2026.json accepted",
+    "recipe": "gst.gstr3b-supplies",
+    "file": "gstr3b-sep-2026.json",
+    "reportTotals": {
+      "rowCount": 5,
+      "total": "27050000"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "27050000",
+      "rows": 5,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "gstr3b-sep-2026.json accepted",
+    "recipe": "gst.gstr3b-itc",
+    "file": "gstr3b-sep-2026.json",
+    "expect": {
+      "status": "accepted",
+      "total": "657000",
+      "rows": 7,
+      "unmapped": []
+    }
+  }
+]

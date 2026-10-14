@@ -1,0 +1,13 @@
+[
+  {
+    "name": "payroll-register.csv accepted",
+    "recipe": "zoho-payroll.payroll-register",
+    "file": "payroll-register.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "25850050",
+      "rows": 5,
+      "unmapped": []
+    }
+  }
+]

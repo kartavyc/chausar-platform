@@ -1,0 +1,5 @@
+.body { display: flex; flex-direction: column; gap: var(--sp3); }
+.form { display: flex; flex-direction: column; gap: var(--sp3); }
+.buttons { display: flex; gap: var(--sp2); flex-wrap: wrap; }
+.p { margin: 0; font-size: var(--fs-read); color: var(--fg); overflow-wrap: anywhere; }
+.small { margin: 0 0 var(--sp1); font-size: var(--fs-note2); font-weight: 400; color: var(--mute); }

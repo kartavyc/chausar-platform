@@ -1,0 +1,41 @@
+[
+  {
+    "name": "complete settlement report with the dashboard total",
+    "recipe": "paytm.settlements",
+    "file": "settlements-sep-2026.csv",
+    "reportTotals": {
+      "rowCount": 3,
+      "total": "415050"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "415050",
+      "rows": 3,
+      "unmapped": [
+        "Amount"
+      ]
+    }
+  },
+  {
+    "name": "no report total entered",
+    "recipe": "paytm.settlements",
+    "file": "settlements-sep-2026.csv",
+    "expect": {
+      "status": "refused",
+      "code": "SOURCE_TOTALS_REQUIRED"
+    }
+  },
+  {
+    "name": "report total that does not match",
+    "recipe": "paytm.settlements",
+    "file": "settlements-sep-2026.csv",
+    "reportTotals": {
+      "rowCount": 3,
+      "total": "415000"
+    },
+    "expect": {
+      "status": "refused",
+      "code": "SOURCE_TOTAL_MISMATCH"
+    }
+  }
+]

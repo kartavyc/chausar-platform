@@ -1,0 +1,13 @@
+[
+  {
+    "name": "settlement-v2.tsv accepted",
+    "recipe": "amazon-seller.settlement-v2",
+    "file": "settlement-v2.tsv",
+    "expect": {
+      "status": "accepted",
+      "total": "124012",
+      "rows": 12,
+      "unmapped": []
+    }
+  }
+]

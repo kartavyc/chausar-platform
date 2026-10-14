@@ -1,0 +1,44 @@
+{
+  "PAN": "AAPFD1234C",
+  "FinancialYear": "2025-26",
+  "AISInformation": [
+    {
+      "InformationCategory": "TDS/TCS",
+      "InformationCode": "TDS-194J",
+      "InformationDescription": "Fees for professional or technical services",
+      "InformationSource": "ASHA RETAIL PRIVATE LIMITED (BLRA12345B)",
+      "Count": "2",
+      "ReportedValue": "150000.00",
+      "ProcessedValue": "150000.00",
+      "AcceptedValue": "140000.00",
+      "Transactions": [
+        {
+          "SrNo": "1",
+          "Date": "15/04/2025",
+          "ReportedValue": "100000.00",
+          "ProcessedValue": "100000.00",
+          "AcceptedValue": "90000.00"
+        },
+        {
+          "SrNo": "2",
+          "Date": "20/05/2025",
+          "ReportedValue": "50000.00",
+          "ProcessedValue": "50000.00",
+          "AcceptedValue": "50000.00"
+        }
+      ]
+    },
+    {
+      "InformationCategory": "SFT",
+      "InformationCode": "SFT-005",
+      "InformationDescription": "Interest income",
+      "InformationSource": "KONKAN BANK LIMITED",
+      "Count": "1",
+      "ReportedValue": "24000.00",
+      "ProcessedValue": "24000.00",
+      "AcceptedValue": "24000.00",
+      "Transactions": [
+        {
+          "SrNo": "1",
+          "Date": "31/03/2026",
+          "ReportedV

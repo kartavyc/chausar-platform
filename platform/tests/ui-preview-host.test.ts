@@ -9,13 +9,13 @@ import ipc from '../../app/desktop/ipc-contract.cjs';
 import { createHostController } from '../../app/ui/src/host/controller.ts';
 import type { HostRpcPort } from '../../app/ui/src/host/contracts.ts';
 
-async function fixture(t: TestContext, uiPreview = false) {
+async function fixture(t: TestContext, uiPreview = false, legacyRenderer = false) {
   const scratch = resolve(tmpdir()); if (process.platform === 'win32') assert.match(scratch, /^C:\\/i);
   const directory = await mkdtemp(join(scratch, 'chausar-ui-host-'));
   const engine = new Engine({ directory, demo: true, storage: 'experimental-file', gateway: {
     http: async () => { throw new Error('No model call is admitted by this host test.'); },
   } });
-  const app = createLocalServer(engine, { uiPreview }); const { origin, token } = await app.listen();
+  const app = createLocalServer(engine, { uiPreview, legacyRenderer }); const { origin, token } = await app.listen();
   t.after(async () => { await app.close(5000); const child = relative(scratch, directory); assert.ok(child && !child.startsWith('..') && !isAbsolute(child)); await rm(directory, { recursive: true, force: true }); });
   async function rpc(method: string, payload: Record<string, unknown> = {}) {
     const reply = await fetch(`${origin}/api/rpc`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ method, payload }) });
@@ -49,11 +49,19 @@ test('public UI context is current, read-only, invalidates evidence changes and 
   await assert.rejects(engine.requestAs(ownerContext, 'ui.context'), (error: any) => error.code === 'ACCESS_REVOKED');
 });
 
-test('loopback preview is opt-in, fixed-whitelist, cache-free and preserves legacy', async t => {
-  const legacy = await fixture(t);
-  assert.equal((await fetch(`${legacy.origin}/ui/index.html`)).status, 404);
-  assert.equal((await fetch(`${legacy.origin}/index.html`)).status, 200);
+test('loopback serves the new UI by default and the legacy renderer only behind its explicit flag', async t => {
+  const standard = await fixture(t);
+  const home = await fetch(`${standard.origin}/`); assert.equal(home.status, 200);
+  const homeText = await home.text(); assert.match(homeText, /\/ui\/shell\.js/); assert.doesNotMatch(homeText, /data-legacy/);
+  const standardUi = await (await fetch(`${standard.origin}/ui/index.html`)).text();
+  assert.match(standardUi, /\/ui\/shell\.js/); assert.doesNotMatch(standardUi, /data-legacy/);
+  for (const path of ['/index.html', '/app.js', '/styles.css', '/assets/icon.svg']) assert.equal((await fetch(standard.origin + path)).status, 404);
+  const legacy = await fixture(t, false, true);
+  const legacyHome = await (await fetch(`${legacy.origin}/`)).text(); assert.doesNotMatch(legacyHome, /\/ui\/shell\.js/);
+  assert.equal((await fetch(`${legacy.origin}/index.html`)).status, 200); assert.equal((await fetch(`${legacy.origin}/app.js`)).status, 200);
+  assert.match(await (await fetch(`${legacy.origin}/ui/index.html`)).text(), /data-legacy="available"/);
   const preview = await fixture(t, true);
+  assert.equal((await fetch(`${preview.origin}/index.html`)).status, 200);
   const reply = await fetch(`${preview.origin}/ui/index.html`);
   assert.equal(reply.status, 200); assert.equal(reply.headers.get('cache-control'), 'no-store');
   const policy = (reply.headers.get('content-security-policy') ?? '').split(';').map(value => value.trim());
@@ -62,7 +70,7 @@ test('loopback preview is opt-in, fixed-whitelist, cache-free and preserves lega
   assert.match(fontPolicy ?? '', /^(?:font-src|default-src) 'self'$/);
   assert.match(await reply.text(), /\/ui\/shell\.js/);
   for (const [path, mime, limit] of [['/ui/host.js','text/javascript; charset=utf-8',2000000], ['/ui/host.css','text/css; charset=utf-8',200000]] as const) {
-    assert.equal((await fetch(legacy.origin + path)).status, 404);
+    assert.equal((await fetch(standard.origin + path)).status, 200);
     const asset = await fetch(preview.origin + path); assert.equal(asset.status, 200);
     assert.equal(asset.headers.get('content-type'), mime); assert.equal(asset.headers.get('cache-control'), 'no-store');
     const bytes = await asset.arrayBuffer(); assert.ok(bytes.byteLength > 0 && bytes.byteLength <= limit);
@@ -77,7 +85,7 @@ test('loopback preview is opt-in, fixed-whitelist, cache-free and preserves lega
     const expected = await readFile(new URL(`../../app/ui/assets/fonts/${name}.woff2`, import.meta.url));
     assert.equal(expected.subarray(0, 4).toString('ascii'), 'wOF2'); totalFontBytes += expected.length;
     for (const path of [`/ui/${name}.woff2`, `/assets/fonts/${name}.woff2`]) {
-      assert.equal((await fetch(legacy.origin + path)).status, 404);
+      assert.equal((await fetch(standard.origin + path)).status, 200);
       const font = await fetch(preview.origin + path); assert.equal(font.status, 200);
       assert.equal(font.headers.get('content-type'), 'font/woff2'); assert.equal(font.headers.get('cache-control'), 'no-store');
       assert.equal(font.headers.get('x-content-type-options'), 'nosniff');

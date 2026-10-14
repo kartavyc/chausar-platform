@@ -1,0 +1,4 @@
+.screen { display: flex; flex-direction: column; gap: var(--sp5); }
+.group { display: flex; flex-direction: column; gap: var(--sp2); }
+.heading { font-size: var(--fs-read); font-weight: 500; margin: 0; color: var(--fg); }
+.note { font-size: var(--fs-note2); color: var(--mute); margin: 0; }

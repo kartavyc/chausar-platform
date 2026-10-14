@@ -1,0 +1,24 @@
+[
+  {
+    "name": "purchase-book.csv accepted",
+    "recipe": "marg.sale-book",
+    "file": "purchase-book.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "6000000",
+      "rows": 2,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "purchase-book.csv accepted",
+    "recipe": "marg.purchase-book",
+    "file": "purchase-book.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "6000000",
+      "rows": 2,
+      "unmapped": []
+    }
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "code": 0,
+  "message": "success",
+  "invoice": {
+    "invoice_id": "9800000000003",
+    "invoice_number": "INV-003",
+    "customer_name": "Draft Buyer",
+    "customer_id": "9800000000100",
+    "status": "draft",
+    "date": "2026-04-15",
+    "due_date": "2026-04-15",
+    "currency_code": "INR",
+    "is_inclusive_tax": false,
+    "line_items": [
+      { "line_item_id": "9800000001003", "description": "Sample pack", "quantity": 1, "rate": 423.73, "item_total": 423.73, "tax_id": "9800000009018", "account_id": "9800000008001" }
+    ],
+    "sub_total": 423.73,
+    "tax_total": 76.27,
+    "total": 500.00,
+    "balance": 500.00,
+    "last_modified_time": "2026-04-30T10:00:00+0530"
+  }
+}

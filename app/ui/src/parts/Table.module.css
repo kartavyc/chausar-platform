@@ -1,0 +1,113 @@
+/* The Books view's rows: 32 pixels high, between hairlines, no boxes and no shading. */
+.table {
+  font-size: var(--fs-row);
+  color: var(--fg);
+}
+
+.grid {
+  display: grid;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: var(--cols);
+  column-gap: var(--sp3);
+  align-items: center;
+  height: 32px;
+  border-bottom: var(--hair) solid var(--line);
+  box-sizing: border-box;
+}
+
+.head .row {
+  border-bottom-color: var(--line2);
+  color: var(--mute);
+  font-size: var(--fs-note);
+}
+
+.body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.spacer {
+  position: relative;
+}
+
+.bodyRow {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+}
+
+.bodyRow:focus-visible,
+.open:focus-visible,
+.sort:focus-visible {
+  outline: var(--focus) solid var(--fg);
+  outline-offset: calc(var(--focus-gap) * -1);
+}
+
+.active .open {
+  font-weight: var(--fw-medium);
+}
+
+.cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.number {
+  text-align: end;
+}
+
+.textCol,
+.stateCol {
+  text-align: start;
+}
+
+.action {
+  text-align: end;
+}
+
+.text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.open,
+.sort {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  max-width: 100%;
+  min-height: var(--target);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.number .sort,
+.action .sort {
+  text-align: end;
+}
+
+.sorted {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

@@ -1,0 +1,4 @@
+Order ID,Order Date,SKU,Item Name,Quantity,Net Sales,City
+QC-77001,03/09/2026,SKU-TEA-250,Masala tea 250 g,2,360.00,Bengaluru
+QC-77001,03/09/2026,SKU-HONEY-500,Honey 500 g,1,299.00,Bengaluru
+QC-77002,04/09/2026,SKU-TEA-250,Masala tea 250 g,1,180.00,Pune

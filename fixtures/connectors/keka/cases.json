@@ -1,0 +1,13 @@
+[
+  {
+    "name": "payroll-register.csv accepted",
+    "recipe": "keka.payroll-register",
+    "file": "payroll-register.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "18925000",
+      "rows": 5,
+      "unmapped": []
+    }
+  }
+]

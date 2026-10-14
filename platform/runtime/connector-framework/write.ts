@@ -373,3 +373,34 @@ export class QualifiedSyntheticWriteService<P extends WriteObject> {
   }
   async cancel(context: Context, id: string) { this.#action(context, id); return this.#actions.cancel(context, id); }
 }
+
+/**
+ * The catalogue writeback bridge (platform/runtime/writeback). A catalogue adapter reports what it
+ * observed in the system; this turns that into the ActionService read-back with the same rules as
+ * the qualified path above: an applied effect must show every approved postcondition, an empty or
+ * lagging lookup is never absence, and business success stays separate from application.
+ */
+export type CatalogueObservation =
+  | { outcome: 'confirmed-applied'; observed: WriteObject; externalId: string | null; businessSuccess: boolean }
+  | { outcome: 'confirmed-not-applied'; reason: string }
+  | { outcome: 'inconclusive' | 'conflicting'; reason: string };
+export function catalogueReadback(value: unknown, postconditions: WriteObject): Readback {
+  check(value !== null && typeof value === 'object', 'INVALID_WRITE_OBSERVATION', 'An observation must declare its outcome.');
+  const record = value as Record<string, unknown>;
+  if (record.outcome === 'confirmed-applied') {
+    exactKeys(record, ['outcome', 'observed', 'externalId', 'businessSuccess'], 'INVALID_WRITE_OBSERVATION');
+    check(record.observed !== null && typeof record.observed === 'object' && !Array.isArray(record.observed) && typeof record.businessSuccess === 'boolean' && (record.externalId === null || text(record.externalId)), 'INVALID_WRITE_OBSERVATION', 'Applied effects need the observed record and a separate business result.');
+    const observed = boundedRecord(record.observed) as Record<string, unknown>;
+    const mismatched = Object.entries(postconditions).filter(([field, expected]) => !Object.hasOwn(observed, field) || canonical(observed[field]) !== canonical(expected)).map(([field]) => field);
+    const evidence = { reference: 'catalogue-readback', sha256: digest(observed) };
+    if (mismatched.length) return { verified: false, businessSuccess: false, data: { outcome: 'conflicting', reason: 'The system shows a different result than the approved change.', mismatched, observed: observed as WriteObject, evidence } };
+    return { verified: true, businessSuccess: record.businessSuccess, data: { outcome: 'confirmed-applied', observed: observed as WriteObject, evidence }, ...(record.externalId === null ? {} : { externalId: record.externalId as string }) };
+  }
+  if (record.outcome === 'confirmed-not-applied') {
+    exactKeys(record, ['outcome', 'reason'], 'INVALID_WRITE_OBSERVATION'); check(text(record.reason), 'INVALID_WRITE_OBSERVATION', 'Absence needs its reason.');
+    return { verified: false, businessSuccess: false, absent: true, data: { outcome: 'confirmed-not-applied', reason: record.reason } };
+  }
+  exactKeys(record, ['outcome', 'reason'], 'INVALID_WRITE_OBSERVATION');
+  check(['conflicting', 'inconclusive'].includes(String(record.outcome)) && text(record.reason), 'INVALID_WRITE_OBSERVATION', 'Unresolved observations require an explicit uncertainty reason.');
+  return { verified: false, businessSuccess: false, data: { outcome: record.outcome as string, reason: record.reason as string } };
+}

@@ -1,0 +1,15 @@
+[
+  {
+    "name": "order-summary.csv accepted",
+    "recipe": "petpooja.order-summary",
+    "file": "order-summary.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "135700",
+      "rows": 4,
+      "unmapped": [
+        "Persons"
+      ]
+    }
+  }
+]

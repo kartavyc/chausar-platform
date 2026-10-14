@@ -1,0 +1,21 @@
+/* Shared layout for the Reports screens: stacks of plain sentences, rows of quiet
+   buttons, hairline tables. Colours and sizes come from the tokens only. */
+.stack { display: flex; flex-direction: column; gap: var(--sp2); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp2) var(--sp3); }
+.say { margin: 0; font-size: var(--fs-read); color: var(--fg); }
+.quiet { margin: 0; font-size: var(--fs-note2); color: var(--mute); }
+.code { font-family: var(--fm); overflow-wrap: anywhere; }
+.plain { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--sp1); font-size: var(--fs-note); color: var(--fg2); }
+.items { margin: 0; padding: 0; list-style: none; }
+.item { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--sp1) var(--sp3); padding: var(--sp2) 0; border-bottom: var(--hair) solid var(--line); }
+.itemText { min-width: 0; font-size: var(--fs-row); color: var(--fg); }
+.preview { margin: 0; padding: var(--sp3); white-space: pre-wrap; font-size: var(--fs-note); color: var(--fg2); border-left: var(--line-w) solid var(--line); }
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-note); }
+.table th, .table td { text-align: start; padding: var(--sp2) var(--sp3) var(--sp2) 0; border-bottom: var(--hair) solid var(--line); font-weight: var(--fw-regular); color: var(--fg); }
+.table thead th { color: var(--mute); font-size: var(--fs-note2); }
+.num { text-align: end; font-family: var(--fm); }
+.days { display: flex; flex-wrap: wrap; gap: var(--sp2); }
+.day { min-width: var(--target); min-height: var(--target); font: inherit; font-size: var(--fs-note); color: var(--mute); background: none; border: var(--hair) solid var(--line); border-radius: var(--button-r); cursor: pointer; }
+.day[aria-pressed='true'] { color: var(--fg); border-color: var(--fg); font-weight: var(--fw-medium); }
+.day:disabled { cursor: default; }
+.chart { margin-top: var(--sp2); }

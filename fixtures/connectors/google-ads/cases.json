@@ -1,0 +1,13 @@
+[
+  {
+    "name": "campaign-daily.csv accepted",
+    "recipe": "google-ads.campaign-daily",
+    "file": "campaign-daily.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "961130",
+      "rows": 9,
+      "unmapped": []
+    }
+  }
+]

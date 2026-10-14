@@ -32,7 +32,10 @@ async function body(req: IncomingMessage) {
   }
   inspect(value); return value;
 }
-export function createLocalServer(engine: Engine, options: { token?: string; port?: number; uiPreview?: boolean } = {}) {
+/** The new UI is served by default. The legacy renderer is served only behind `legacyRenderer` (it then
+ *  answers `/`) or the older `uiPreview` opt-in, which keeps the new UI's return link to it. */
+export function createLocalServer(engine: Engine, options: { token?: string; port?: number; uiPreview?: boolean; legacyRenderer?: boolean } = {}) {
+  const legacyAvailable = options.legacyRenderer === true || options.uiPreview === true;
   const token = options.token ?? randomBytes(32).toString('hex'); let origin = ''; let closing = false;
   const server = createServer(async (req, res) => {
     const send = (status: number, value: unknown) => response(res, status, value, closing);
@@ -73,13 +76,14 @@ export function createLocalServer(engine: Engine, options: { token?: string; por
         return send(200, { result: await engine.requestAs(context, data.method, data.payload ?? {}) });
       }
       check(req.method === 'GET' || req.method === 'HEAD', 'METHOD_NOT_ALLOWED', 'Use GET for application files.');
-      const preview = await readUiAsset(fileURLToPath(new URL('../../', import.meta.url)), url.pathname, options.uiPreview === true);
+      const uiRoot = fileURLToPath(new URL('../../', import.meta.url));
+      const preview = await readUiAsset(uiRoot, url.pathname === '/' && options.legacyRenderer !== true ? '/ui/index.html' : url.pathname, true, legacyAvailable);
       if (preview) {
         res.writeHead(200, { 'Content-Type': preview.mime, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
         return res.end(req.method === 'HEAD' ? undefined : preview.body);
       }
       const known: Record<string, string> = { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/styles.css': 'styles.css', '/assets/icon.svg': 'assets/icon.svg' };
-      check(known[url.pathname], 'NOT_FOUND', 'This application file does not exist.');
+      check(legacyAvailable && known[url.pathname], 'NOT_FOUND', 'This application file does not exist.');
       const path = join(renderer, known[url.pathname]); const ext = path.slice(path.lastIndexOf('.')); const data = await readFile(path);
       if (closing) res.setHeader('Connection', 'close');
       res.writeHead(200, { 'Content-Type': types[ext] ?? 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(req.method === 'HEAD' ? undefined : data);
@@ -119,9 +123,9 @@ export async function createServerEngine(environment: NodeJS.ProcessEnv = proces
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const engine = await createServerEngine(); const demo = engine.options.demo;
-  const uiPreview = process.argv.includes('--ui-preview');
-  const app = createLocalServer(engine, { port: Number(process.env.CHAUSAR_PORT ?? 4317), uiPreview });
-  const { origin, token } = await app.listen(); console.log(`Chausar owner pairing link: ${origin}/${uiPreview ? 'ui/index.html' : ''}#token=${token}\n${demo ? 'Experimental local file storage; synthetic demo only.' : 'PostgreSQL authority storage.'}`);
+  const uiPreview = process.argv.includes('--ui-preview'); const legacyRenderer = process.argv.includes('--legacy-renderer');
+  const app = createLocalServer(engine, { port: Number(process.env.CHAUSAR_PORT ?? 4317), uiPreview, legacyRenderer });
+  const { origin, token } = await app.listen(); console.log(`Chausar owner pairing link: ${origin}/${legacyRenderer ? '' : 'ui/index.html'}#token=${token}\n${demo ? 'Experimental local file storage; synthetic demo only.' : 'PostgreSQL authority storage.'}`);
   const scheduler = setInterval(() => { void engine.tick().catch(() => {}); }, 30000); scheduler.unref();
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { clearInterval(scheduler); void app.close().finally(() => process.exit(0)); });
 }

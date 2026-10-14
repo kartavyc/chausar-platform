@@ -118,7 +118,7 @@ test('public MCP exact calculated receipt reopens and paginates retained counted
   const f = await fixture(t);
   refused(await f.mcp('tools/list'), 'NOT_INITIALIZED'); await f.initialize();
   const listing = await f.mcp('tools/list'); assert.equal(listing.status, 200); assert.equal(listing.body.error, undefined);
-  assert.deepEqual(listing.body.result.tools.map((tool: any) => tool.name).sort(), ['calculate', 'list_counted_rows', 'open_receipt']);
+  assert.deepEqual(listing.body.result.tools.map((tool: any) => tool.name).sort(), ['calculate', 'dictionary_operations', 'dictionary_samples', 'dictionary_schema', 'list_counted_rows', 'open_receipt']);
   assert.ok(listing.body.result.tools.every((tool: any) => tool.annotations.readOnlyHint === true && tool.annotations.destructiveHint === false));
   const result = await f.call('calculate', calculate);
   assert.equal(result.value, TOTAL); assert.equal(result.unit, 'minor'); assert.equal(typeof result.value, 'string');

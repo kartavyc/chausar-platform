@@ -196,6 +196,24 @@ function Body({ state, controller, intents, view }: { state: FirstRunState; cont
   }
 }
 
+/**
+ * The same task without its own frame, for a parent that draws the six steps itself (the
+ * first-run journey). It reads the packs once when first shown with an idle controller and
+ * cancels the controller when it is unmounted, exactly as the screen does.
+ */
+export function FirstRunTask({ controller, language, view = 'guided', intents = {} }: { controller: FirstRunController; language: Language; view?: View | undefined; intents?: FirstRunIntents | undefined }) {
+  const state = useSyncExternalStore(controller.subscribe, controller.snapshot, controller.snapshot);
+  useEffect(() => {
+    if (controller.snapshot().kind === 'idle') void controller.load();
+    return () => { controller.cancel(); };
+  }, [controller]);
+  return (
+    <FirstRunText language={language}>
+      <Body state={state} controller={controller} intents={intents} view={view} />
+    </FirstRunText>
+  );
+}
+
 export function FirstRunScreen({ controller, language, onLanguage, view = 'guided', stagesDone, intents = {} }: FirstRunScreenProps) {
   const state = useSyncExternalStore(controller.subscribe, controller.snapshot, controller.snapshot);
   // One read of the packs when first shown with an idle controller (reads only; the controller refuses a second load

@@ -1,0 +1,10 @@
+{
+  "id": "setl_SynthRecon00001",
+  "entity": "settlement",
+  "amount": 126460,
+  "status": "processed",
+  "fees": 3540,
+  "tax": 540,
+  "utr": "SYNTHUTR0000000001",
+  "created_at": 1788586200
+}

@@ -1,0 +1,13 @@
+[
+  {
+    "name": "sales-report.csv accepted",
+    "recipe": "mybillbook.sales-report",
+    "file": "sales-report.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "3775000",
+      "rows": 3,
+      "unmapped": []
+    }
+  }
+]

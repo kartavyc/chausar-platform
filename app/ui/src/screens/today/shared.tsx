@@ -3,9 +3,9 @@
  * cut of attention rows, the in-place expansion with Review, and the open-row state.
  */
 
-import { useRef, useState } from 'react';
-import type { Address, RowItem, View, StatTile } from '../../app/presentation.ts';
-import { useT } from '../../app/text';
+import { useMemo, useRef, useState } from 'react';
+import type { Address, Missing, RowItem, View, StatTile } from '../../app/presentation.ts';
+import { useLanguage, useT } from '../../app/text';
 import { Button } from '../../parts/Button';
 import { RowList } from '../../parts/RowList';
 import { Stat } from '../../parts/Stat';
@@ -13,6 +13,7 @@ import { DayLine } from '../../parts/DayLine';
 import { MissingWords } from '../../parts/Figure';
 import s from './Today.module.css';
 import { TODAY_ATTENTION_MAX, TODAY_REVIEW_MAX, type TodayData, type TodayIntents } from './TodayData.ts';
+import { projectWorth, worthAddress, WORTH_MAX } from './worth.ts';
 
 export interface TodayScreenProps {
   data: TodayData;
@@ -42,11 +43,76 @@ export function useSystemRows(data: TodayData, intents: TodayIntents): ReadonlyA
   return rows;
 }
 
-/** Review and worth-a-look rows cut to the at-rest limits: four, and five together. */
-export function attentionRows(data: TodayData, system: ReadonlyArray<RowItem>) {
+/** Review and worth-a-look rows cut to the at-rest limits: four, and five together. The
+ *  worth-a-look rows past the cut wait behind "See all"; `showAll` is that opened state.
+ *  `hidden` is how many rows the cut left out at rest. */
+export function attentionRows(data: TodayData, system: ReadonlyArray<RowItem>, worthRows: ReadonlyArray<RowItem> = data.worthALook ?? [], showAll = false) {
   const review = [...system, ...data.review.rows].slice(0, TODAY_REVIEW_MAX);
-  const worth = (data.worthALook ?? []).slice(0, Math.max(0, TODAY_ATTENTION_MAX - review.length));
-  return { review, worth };
+  const offered = worthRows.slice(0, WORTH_MAX);
+  const atRest = offered.slice(0, Math.max(0, TODAY_ATTENTION_MAX - review.length));
+  const worth = showAll ? offered : atRest;
+  return { review, worth, hidden: offered.length - atRest.length, offered: offered.length };
+}
+
+/** The worth-a-look section's rows and how each one opens. With a checked `todayx.worthALook`
+ *  reply the rows come from worth.ts and open their page through `onNavigate`; otherwise the
+ *  supplied `worthALook` rows open through `onOpenRow`, as before. */
+export function useWorth(data: TodayData, intents: TodayIntents, view: View, onNavigate: (a: Address) => void) {
+  const language = useLanguage();
+  const [showAll, setShowAll] = useState(false);
+  const projection = useMemo(() => (data.worth ? projectWorth(data.worth, { language, view }) : null), [data.worth, language, view]);
+  const rows: ReadonlyArray<RowItem> = projection ? projection.rows : data.worthALook ?? [];
+  const missing: Missing | undefined = projection?.missing;
+  const onOpenRow = intents.onOpenRow;
+  const opens = (row: RowItem) => (projection ? worthAddress(projection, row.id) !== null : row.can?.includes('open') === true && onOpenRow !== undefined);
+  const onOpen = (id: string, origin: HTMLElement | null) => {
+    if (projection) {
+      const address = worthAddress(projection, id);
+      if (address !== null) onNavigate(address);
+    } else onOpenRow?.(id, origin);
+  };
+  return { rows, missing, opens, onOpen, showAll, toggle: () => setShowAll((v) => !v) };
+}
+
+export interface WorthSectionProps {
+  rows: ReadonlyArray<RowItem>;
+  /** How many rows the at-rest cut left out, and how many the engine offered. */
+  hidden: number;
+  offered: number;
+  missing?: Missing | undefined;
+  showAll: boolean;
+  onToggle: () => void;
+  onOpen: (id: string, origin: HTMLElement | null) => void;
+  opens: (row: RowItem) => boolean;
+  onReceipt: (receiptId: string) => void;
+  /** The id the section's heading carries. */
+  labelId: string;
+}
+
+/** Worth a look, below the review rows (TD-01). Each row opens its page; each figure its
+ *  receipt. Not loaded yet is its words. "See all" opens the rows past the at-rest cut. */
+export function WorthSection({ rows, hidden, offered, missing, showAll, onToggle, onOpen, opens, onReceipt, labelId }: WorthSectionProps) {
+  const t = useT();
+  if (missing === undefined && rows.length === 0 && hidden === 0) return null;
+  return (
+    <section className={s.section} aria-labelledby={labelId}>
+      <h2 id={labelId} className={s.label}>
+        {t('TD-01.worth')}
+      </h2>
+      {missing !== undefined ? (
+        <p className={s.missing}>
+          <MissingWords missing={missing} />
+        </p>
+      ) : (
+        rows.length > 0 && <RowList rows={rows} labelledBy={labelId} onOpen={onOpen} opens={opens} onReceipt={onReceipt} />
+      )}
+      {(hidden > 0 || showAll) && missing === undefined && (
+        <Button variant="link" onClick={onToggle}>
+          {showAll ? t('TD-01.worth.fewer') : t('TD-01.worth.seeAll', { count: String(offered) })}
+        </Button>
+      )}
+    </section>
+  );
 }
 
 /** Whether a row opens in place: it has a line of detail to show or an action to offer. */

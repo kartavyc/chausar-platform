@@ -1,0 +1,27 @@
+[
+  {
+    "id": 7003,
+    "parent_id": 0,
+    "number": "7003",
+    "order_key": "wc_order_synth7003",
+    "created_via": "checkout",
+    "status": "refunded",
+    "currency": "INR",
+    "date_created": "2026-09-04T09:15:00",
+    "date_created_gmt": "2026-09-04T03:45:00",
+    "discount_total": "0.00",
+    "discount_tax": "0.00",
+    "shipping_total": "0.00",
+    "shipping_tax": "0.00",
+    "cart_tax": "18.00",
+    "total": "118.00",
+    "total_tax": "18.00",
+    "prices_include_tax": false,
+    "customer_id": 12,
+    "payment_method": "razorpay",
+    "payment_method_title": "Razorpay",
+    "transaction_id": "pay_SynthW0000003",
+    "billing": { "first_name": "Asha", "last_name": "Synthetic", "city": "Pune", "state": "MH", "country": "IN" },
+    "line_items": [{ "id": 3, "name": "Synthetic sample", "quantity": 1, "subtotal": "100.00", "total": "100.00", "sku": "SMP-1" }]
+  }
+]

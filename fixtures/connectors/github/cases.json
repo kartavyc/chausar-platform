@@ -1,0 +1,32 @@
+[
+  {
+    "name": "commits.json accepted",
+    "recipe": "github.commits-json",
+    "file": "commits.json",
+    "reportTotals": {
+      "rowCount": 5,
+      "total": "5"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "5",
+      "rows": 5,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "commits.csv accepted",
+    "recipe": "github.commits-csv",
+    "file": "commits.csv",
+    "reportTotals": {
+      "rowCount": 6,
+      "total": "6"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "6",
+      "rows": 6,
+      "unmapped": []
+    }
+  }
+]

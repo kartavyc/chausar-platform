@@ -1,0 +1,57 @@
+[
+  {
+    "name": "form26as-fy2025-26.txt accepted",
+    "recipe": "income-tax.form26as-tds",
+    "file": "form26as-fy2025-26.txt",
+    "expect": {
+      "status": "accepted",
+      "total": "1740000",
+      "rows": 3,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "form26as-fy2025-26.txt accepted",
+    "recipe": "income-tax.form26as-income",
+    "file": "form26as-fy2025-26.txt",
+    "expect": {
+      "status": "accepted",
+      "total": "17400000",
+      "rows": 3,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "ais-fy2025-26.json accepted",
+    "recipe": "income-tax.ais-reported",
+    "file": "ais-fy2025-26.json",
+    "expect": {
+      "status": "accepted",
+      "total": "17750000",
+      "rows": 5,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "ais-fy2025-26.json accepted",
+    "recipe": "income-tax.ais-processed",
+    "file": "ais-fy2025-26.json",
+    "expect": {
+      "status": "accepted",
+      "total": "17700000",
+      "rows": 5,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "ais-fy2025-26.json accepted",
+    "recipe": "income-tax.ais-accepted",
+    "file": "ais-fy2025-26.json",
+    "expect": {
+      "status": "accepted",
+      "total": "16700000",
+      "rows": 5,
+      "unmapped": []
+    }
+  }
+]

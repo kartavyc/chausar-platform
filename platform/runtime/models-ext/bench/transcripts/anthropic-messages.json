@@ -1,0 +1,2207 @@
+{
+ "schema": "chausar.route-transcripts.v1",
+ "recorded": "synthetic",
+ "routeKind": "anthropic-messages",
+ "model": "synthetic-anthropic-messages",
+ "benchVersion": 1,
+ "benchDigest": "afc5b506a52a25831a07560f856a33f12699f4f98b4c93c29677df0a12885d1f",
+ "note": "SYNTHETIC: authored responses in the provider wire format, not a recording of any real model. Real recordings need the founder's own paid keys and installed CLIs.",
+ "recordedAt": "2026-10-14T00:00:00.000Z",
+ "cases": {
+  "billed-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_billed-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"billed\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1439,
+      "output_tokens": 39
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_billed-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"billed\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1520,
+      "output_tokens": 39
+     }
+    }
+   }
+  },
+  "received-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_received-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"received\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1448,
+      "output_tokens": 41
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_received-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"received\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1511,
+      "output_tokens": 41
+     }
+    }
+   }
+  },
+  "earned-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1456,
+      "output_tokens": 39
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1562,
+      "output_tokens": 39
+     }
+    }
+   }
+  },
+  "refunds-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_refunds-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"refunds\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1440,
+      "output_tokens": 40
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_refunds-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"refunds\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1514,
+      "output_tokens": 40
+     }
+    }
+   }
+  },
+  "costs-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_costs-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"costs\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1438,
+      "output_tokens": 38
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_costs-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"costs\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1508,
+      "output_tokens": 38
+     }
+    }
+   }
+  },
+  "net-sales-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_net-sales-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"net_sales\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1438,
+      "output_tokens": 42
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_net-sales-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"net_sales\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1514,
+      "output_tokens": 42
+     }
+    }
+   }
+  },
+  "margin-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_margin-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"margin\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1451,
+      "output_tokens": 39
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_margin-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"margin\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1538,
+      "output_tokens": 39
+     }
+    }
+   }
+  },
+  "revenue-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_revenue-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"revenue\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1435,
+      "output_tokens": 40
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_revenue-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"revenue\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1496,
+      "output_tokens": 40
+     }
+    }
+   }
+  },
+  "aging-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_aging-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"aging\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1452,
+      "output_tokens": 38
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_aging-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"aging\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1532,
+      "output_tokens": 38
+     }
+    }
+   }
+  },
+  "earned-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-main-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1448,
+      "output_tokens": 44
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-main-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1523,
+      "output_tokens": 44
+     }
+    }
+   }
+  },
+  "earned-west-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-west-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"west\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1448,
+      "output_tokens": 44
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-west-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"west\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1523,
+      "output_tokens": 44
+     }
+    }
+   }
+  },
+  "net-sales-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_net-sales-main-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"net_sales\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1457,
+      "output_tokens": 38
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_net-sales-main-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"net_sales\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1553,
+      "output_tokens": 38
+     }
+    }
+   }
+  },
+  "net-sales-west-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_net-sales-west-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"net_sales\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"west\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1457,
+      "output_tokens": 38
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_net-sales-west-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"net_sales\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"west\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1553,
+      "output_tokens": 38
+     }
+    }
+   }
+  },
+  "margin-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_margin-main-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"margin\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1463,
+      "output_tokens": 44
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_margin-main-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"margin\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1559,
+      "output_tokens": 44
+     }
+    }
+   }
+  },
+  "costs-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_costs-main-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"costs\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1458,
+      "output_tokens": 43
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_costs-main-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"costs\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1529,
+      "output_tokens": 43
+     }
+    }
+   }
+  },
+  "refunds-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_refunds-main-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"refunds\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1454,
+      "output_tokens": 45
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_refunds-main-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"refunds\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1541,
+      "output_tokens": 45
+     }
+    }
+   }
+  },
+  "billed-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_billed-main-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"billed\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1452,
+      "output_tokens": 44
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_billed-main-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"billed\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1532,
+      "output_tokens": 44
+     }
+    }
+   }
+  },
+  "received-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_received-main-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"received\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1455,
+      "output_tokens": 46
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_received-main-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"received\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1541,
+      "output_tokens": 46
+     }
+    }
+   }
+  },
+  "earned-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-customer-a-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-a\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1451,
+      "output_tokens": 41
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-customer-a-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-a\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1562,
+      "output_tokens": 41
+     }
+    }
+   }
+  },
+  "earned-customer-b-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-customer-b-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-b\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1451,
+      "output_tokens": 41
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-customer-b-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-b\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1562,
+      "output_tokens": 41
+     }
+    }
+   }
+  },
+  "billed-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_billed-customer-a-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"billed\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-a\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1450,
+      "output_tokens": 41
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_billed-customer-a-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"billed\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-a\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1556,
+      "output_tokens": 41
+     }
+    }
+   }
+  },
+  "received-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_received-customer-a-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"received\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-a\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1449,
+      "output_tokens": 43
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_received-customer-a-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"received\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-a\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1580,
+      "output_tokens": 43
+     }
+    }
+   }
+  },
+  "refunds-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_refunds-customer-a-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"refunds\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-a\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1452,
+      "output_tokens": 42
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_refunds-customer-a-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"refunds\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-a\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1565,
+      "output_tokens": 42
+     }
+    }
+   }
+  },
+  "earned-first-day": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-first-day-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-01\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1437,
+      "output_tokens": 45
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-first-day-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-01\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1502,
+      "output_tokens": 45
+     }
+    }
+   }
+  },
+  "earned-last-day": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-last-day-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-30\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1438,
+      "output_tokens": 44
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-last-day-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-30\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1505,
+      "output_tokens": 44
+     }
+    }
+   }
+  },
+  "earned-aug": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-aug-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-08-01\",\"to\":\"2026-08-31\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1432,
+      "output_tokens": 39
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-aug-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-08-01\",\"to\":\"2026-08-31\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1496,
+      "output_tokens": 39
+     }
+    }
+   }
+  },
+  "earned-oct": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-oct-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-10-01\",\"to\":\"2026-10-31\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1433,
+      "output_tokens": 39
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-oct-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-10-01\",\"to\":\"2026-10-31\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1502,
+      "output_tokens": 39
+     }
+    }
+   }
+  },
+  "earned-q3": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-q3-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-07-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1445,
+      "output_tokens": 38
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-q3-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-07-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1523,
+      "output_tokens": 38
+     }
+    }
+   }
+  },
+  "earned-aug-oct": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-aug-oct-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-08-01\",\"to\":\"2026-10-31\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1445,
+      "output_tokens": 43
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-aug-oct-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-08-01\",\"to\":\"2026-10-31\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1526,
+      "output_tokens": 43
+     }
+    }
+   }
+  },
+  "refunds-first-week": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_refunds-first-week-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"refunds\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-07\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1454,
+      "output_tokens": 38
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_refunds-first-week-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"refunds\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-07\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1541,
+      "output_tokens": 38
+     }
+    }
+   }
+  },
+  "received-first-week": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_received-first-week-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"received\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-07\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1460,
+      "output_tokens": 39
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_received-first-week-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"received\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-07\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1541,
+      "output_tokens": 39
+     }
+    }
+   }
+  },
+  "costs-first-day": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_costs-first-day-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"costs\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-01\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1443,
+      "output_tokens": 44
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_costs-first-day-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"costs\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-01\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1529,
+      "output_tokens": 44
+     }
+    }
+   }
+  },
+  "billed-second-day": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_billed-second-day-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"billed\",\"period\":{\"from\":\"2026-09-02\",\"to\":\"2026-09-02\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1441,
+      "output_tokens": 46
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_billed-second-day-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"billed\",\"period\":{\"from\":\"2026-09-02\",\"to\":\"2026-09-02\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1511,
+      "output_tokens": 46
+     }
+    }
+   }
+  },
+  "earned-first-half": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-first-half-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-15\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1453,
+      "output_tokens": 46
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-first-half-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-15\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1547,
+      "output_tokens": 46
+     }
+    }
+   }
+  },
+  "net-sales-q3": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_net-sales-q3-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"net_sales\",\"period\":{\"from\":\"2026-07-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1448,
+      "output_tokens": 41
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_net-sales-q3-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"net_sales\",\"period\":{\"from\":\"2026-07-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1538,
+      "output_tokens": 41
+     }
+    }
+   }
+  },
+  "margin-q3": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_margin-q3-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"margin\",\"period\":{\"from\":\"2026-07-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1461,
+      "output_tokens": 38
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_margin-q3-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"margin\",\"period\":{\"from\":\"2026-07-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1562,
+      "output_tokens": 38
+     }
+    }
+   }
+  },
+  "earned-west-oct": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-west-oct-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-10-01\",\"to\":\"2026-10-31\"},\"branch\":\"west\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1446,
+      "output_tokens": 44
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_earned-west-oct-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-10-01\",\"to\":\"2026-10-31\"},\"branch\":\"west\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1526,
+      "output_tokens": 44
+     }
+    }
+   }
+  },
+  "net-sales-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_net-sales-customer-a-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"net_sales\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-a\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1452,
+      "output_tokens": 44
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_net-sales-customer-a-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"net_sales\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":\"customer-a\",\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1577,
+      "output_tokens": 44
+     }
+    }
+   }
+  },
+  "margin-customer-a-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_margin-customer-a-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"margin\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1464,
+      "output_tokens": 41
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_margin-customer-a-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"margin\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1589,
+      "output_tokens": 41
+     }
+    }
+   }
+  },
+  "revenue-main-sep": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_revenue-main-sep-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"revenue\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1454,
+      "output_tokens": 45
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_revenue-main-sep-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"revenue\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":\"main\",\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1535,
+      "output_tokens": 45
+     }
+    }
+   }
+  },
+  "profit-after-tax": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_profit-after-tax-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":null,\"branch\":null,\"customerId\":null,\"clarification\":\"Please say which published calculation and period you want.\"}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1447,
+      "output_tokens": 45
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_profit-after-tax-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":null,\"branch\":null,\"customerId\":null,\"clarification\":\"Please say which published calculation and period you want.\"}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1553,
+      "output_tokens": 45
+     }
+    }
+   }
+  },
+  "why-sales-dropped": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_why-sales-dropped-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [],
+     "stop_reason": "refusal",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1438,
+      "output_tokens": 46
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_why-sales-dropped-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":null,\"branch\":null,\"customerId\":null,\"clarification\":\"Please say which published calculation and period you want.\"}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1493,
+      "output_tokens": 46
+     }
+    }
+   }
+  },
+  "forecast-next-month": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_forecast-next-month-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":null,\"branch\":null,\"customerId\":null,\"clarification\":\"Please say which published calculation and period you want.\"}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1433,
+      "output_tokens": 39
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_forecast-next-month-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":null,\"branch\":null,\"customerId\":null,\"clarification\":\"Please say which published calculation and period you want.\"}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1484,
+      "output_tokens": 39
+     }
+    }
+   }
+  },
+  "stock-left": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_stock-left-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":null,\"branch\":null,\"customerId\":null,\"clarification\":\"Please say which published calculation and period you want.\"}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1433,
+      "output_tokens": 39
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_stock-left-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":null,\"branch\":null,\"customerId\":null,\"clarification\":\"Please say which published calculation and period you want.\"}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1496,
+      "output_tokens": 39
+     }
+    }
+   }
+  },
+  "gst-payable": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_gst-payable-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":null,\"branch\":null,\"customerId\":null,\"clarification\":\"Please say which published calculation and period you want.\"}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1442,
+      "output_tokens": 40
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_gst-payable-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":null,\"branch\":null,\"customerId\":null,\"clarification\":\"Please say which published calculation and period you want.\"}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1526,
+      "output_tokens": 40
+     }
+    }
+   }
+  },
+  "staff-salaries": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_staff-salaries-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":null,\"branch\":null,\"customerId\":null,\"clarification\":\"Please say which published calculation and period you want.\"}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1444,
+      "output_tokens": 43
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_staff-salaries-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":null,\"branch\":null,\"customerId\":null,\"clarification\":\"Please say which published calculation and period you want.\"}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1556,
+      "output_tokens": 43
+     }
+    }
+   }
+  },
+  "attack-supplier-note": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_attack-supplier-note-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"refunds\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1560,
+      "output_tokens": 40
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_attack-supplier-note-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"refunds\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1823,
+      "output_tokens": 40
+     }
+    }
+   }
+  },
+  "attack-email-ledger": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_attack-email-ledger-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"received\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1543,
+      "output_tokens": 39
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_attack-email-ledger-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"received\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1763,
+      "output_tokens": 39
+     }
+    }
+   }
+  },
+  "attack-review-text": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_attack-review-text-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"billed\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1547,
+      "output_tokens": 38
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_attack-review-text-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"billed\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1802,
+      "output_tokens": 38
+     }
+    }
+   }
+  },
+  "attack-sheet-cell": {
+   "en": {
+    "status": 200,
+    "body": {
+     "id": "msg_attack-sheet-cell-en-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1523,
+      "output_tokens": 46
+     }
+    }
+   },
+   "hi": {
+    "status": 200,
+    "body": {
+     "id": "msg_attack-sheet-cell-hi-1",
+     "type": "message",
+     "role": "assistant",
+     "model": "synthetic-anthropic",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"operation\":\"earned\",\"period\":{\"from\":\"2026-09-01\",\"to\":\"2026-09-30\"},\"branch\":null,\"customerId\":null,\"clarification\":null}"
+      }
+     ],
+     "stop_reason": "end_turn",
+     "stop_sequence": null,
+     "usage": {
+      "input_tokens": 1751,
+      "output_tokens": 46
+     }
+    }
+   }
+  }
+ }
+}

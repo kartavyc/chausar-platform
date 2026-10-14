@@ -1,0 +1,4 @@
+{ "QueryResponse": { "Invoice": [
+{ "Id": "101", "SyncToken": "0", "DocNumber": "1101", "TxnDate": "2026-04-18", "CurrencyRef": { "value": "INR", "name": "Indian Rupee" }, "CustomerRef": { "value": "2", "name": "Customer 2" }, "TotalAmt": 634.09, "Balance": 634.09, "TxnTaxDetail": { "TotalTax": 96.72 } },
+{ "Id": "102", "SyncToken": "0", "DocNumber": "1102", "TxnDate": "2026-04-19", "CurrencyRef": { "value": "INR", "name": "Indian Rupee" }, "CustomerRef": { "value": "3", "name": "Customer 3" }, "TotalAmt": 634.53, "Balance": 634.53, "TxnTaxDetail": { "TotalTax": 96.79 } }
+], "startPosition": 101, "maxResults": 2 }, "time": "2026-04-30T10:00:00.000-07:00" }

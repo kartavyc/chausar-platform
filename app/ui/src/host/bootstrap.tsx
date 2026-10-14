@@ -28,11 +28,21 @@ import type { UiContext, UiModelRoute } from './contracts.ts';
 import type { HostController, HostReceiptSelection, HostState } from './controller.ts';
 import type { FirstRunResult } from '../screens/first-run/controller.ts';
 import { FirstRunScreen } from '../screens/first-run/FirstRun';
+import { FirstRunJourney } from '../screens/first-run/FirstRunJourney';
+import { LockScreen } from '../app/LockScreen';
+import { UnlockControl, type UnlockResult } from './UnlockControl';
 import type { FirstRunStagesDone } from '../screens/first-run/FirstRun';
 import { discoveryRowFor, lessonDecisionAvailability, sameScenarioSelection, scenarioProof } from './retained-contracts.ts';
 import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, ScenarioDiscoveryRow, ScenarioSelection } from './retained-contracts.ts';
 import type { LessonReviewState, RetainedScenarioState, RetainedState, ScenarioContinuation, ScenarioDetailOrigin, ScenarioListOrigin, ScenarioRowOrigin } from './retained-controller.ts';
 import { hostMessage, hostMissingWords } from './text.ts';
+import { useFrameReads } from './frame-reads.ts';
+import { shellBanners, demoClockState, notBuiltFromCapabilities } from '../app/shell-banners.ts';
+import { statusLine, statusSentences } from '../app/status-line.ts';
+import { HelpSheet } from '../app/HelpSheet';
+import { DemoClockControl } from '../app/DemoClockControl';
+import { Receipt } from '../parts/Receipt';
+import { receiptViewFromEvidence } from '../bridge/receipt-view.ts';
 import detail from '../patterns/ModelConsentSheet.module.css';
 import '../tokens/index.css';
 import '../views/simple.css';
@@ -47,7 +57,8 @@ export type { ScenarioSelection } from './retained-contracts.ts';
 export interface HostMountOptions {
   readonly language?: Language;
   readonly view?: View;
-  /** The trusted entry preserves its transport context when returning to legacy. */
+  /** Supplied only when the trusted host launched with the legacy renderer available; it
+   *  preserves its transport context when returning there. Without it no legacy link is drawn. */
   readonly onLegacyReturn?: () => void;
   /**
    * An exact retained scenario pin chosen by the trusted host, opened on Ask, Saved with a
@@ -60,6 +71,12 @@ export interface HostMountOptions {
   readonly scenarioSelection?: ScenarioSelection;
   /** Certification of the earlier steps belongs to the trusted parent journey. */
   readonly firstRunStagesDone?: FirstRunStagesDone;
+  /**
+   * `journey`: the whole first run (FR-01..FR-13) as one journey, and a lock screen that unlocks
+   * an existing workspace. The product entry (host/shell.js) uses it. Absent: the earlier
+   * create, recovery and meanings slice, kept for the hosts and journeys built on it.
+   */
+  readonly firstRun?: 'journey';
 }
 export interface MountedHost {
   /** Detaches the surface while retaining the injected host and any pending attempt. */
@@ -170,31 +187,31 @@ function ReceiptBody({ value, language }: { value: CalculationReceiptEvidence; l
   </>;
 }
 
-function ReceiptPanel({ selection, language, origin, onClose }: {
+/** The six-part receipt, drawn only when the workspace time zone is known and the view could be made. */
+function receiptView(value: CalculationReceiptEvidence, language: Language, timeZone: string | null) {
+  if (timeZone === null) return null;
+  try { return receiptViewFromEvidence(value, { language, timeZone }); } catch { return null; }
+}
+
+function ReceiptPanel({ selection, language, timeZone, origin, onClose }: {
   selection: HostReceiptSelection;
   language: Language;
+  timeZone: string | null;
   origin: HTMLElement | null;
   onClose: () => void;
 }) {
+  const view = selection.kind === 'ready' ? receiptView(selection.value, language, timeZone) : null;
+  const every = useRef<HTMLDetailsElement>(null);
+  /* A figure on the receipt opens this receipt's every field: its exact values. */
+  const openEvery = () => { const element = every.current; if (element) { element.open = true; element.querySelector('summary')?.focus(); } };
   return <Sheet kind={hostMessage(language, 'receipt')} title={selection.id} origin={origin} onClose={onClose}>
-    {selection.kind === 'ready' ? <ReceiptBody value={selection.value} language={language} /> :
+    {selection.kind === 'ready' && view !== null ? <>
+      <Receipt receipt={view} onReceipt={openEvery} />
+      <details ref={every}><summary>{hostMessage(language, 'receiptEvery')}</summary><ReceiptBody value={selection.value} language={language} /></details>
+    </> : selection.kind === 'ready' ? <ReceiptBody value={selection.value} language={language} /> :
       <p role="status">{hostMessage(language, selection.kind === 'loading' ? 'receiptLoading' : 'receiptFailed')}</p>}
     {selection.kind === 'failed' && <p>{hostMessage(language, 'code', { code: selection.code })}</p>}
   </Sheet>;
-}
-
-function ShortcutHelpBody({ language }: { language: Language }) {
-  const shortcuts = [
-    ['Ctrl K', 'helpAsk'], ['Ctrl 1–7', 'helpPlaces'], ['Esc', 'helpClose'],
-    ['F6 / Shift F6', 'helpRegions'], ['Ctrl /', 'helpList'],
-  ] as const;
-  return <>
-    <dl className={detail.pairs}>{shortcuts.map(([keys, description]) =>
-      <div className={detail.pair} key={keys}><dt className={detail.name}>{keys}</dt>
-        <dd className={detail.value}>{hostMessage(language, description)}</dd></div>)}</dl>
-    <p>{hostMessage(language, 'helpSendGuard')}</p>
-    <p>{hostMessage(language, 'helpUnavailable')}</p>
-  </>;
 }
 
 /** The proof behind a what-if figure: the embedded receipt of the exact run in the fresh, confirmed reopen view.
@@ -319,7 +336,7 @@ function LessonPanel({ id, scope, lessons, context, origin, onClose, onAdjacent,
  * provenance that replaced that detail; a trusted pin's proof or provenance, opened from the page, carries none. */
 type LocalSheet = {
   readonly address: Address;
-  readonly kind: 'about' | 'reference' | 'help' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof';
+  readonly kind: 'about' | 'reference' | 'help' | 'demo-clock' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof';
   readonly id?: string;
   readonly chosen?: ScenarioSelection;
   readonly todayView?: TodayConsumerState;
@@ -347,7 +364,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   view: View;
   setLanguage: (language: Language) => void;
   setView: (view: View) => void;
-  onLegacyReturn: () => void;
+  onLegacyReturn: (() => void) | null;
   scenarioSelection: ScenarioSelection | null;
 }) {
   const t = useT();
@@ -372,6 +389,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const selectedRoute = state.routes.find(route => route.id === state.selectedRouteId && route.enabled);
   const settings = controller.questionSettings();
   const conversationEnabled = !viewer && selectedRoute !== undefined && settings !== null && settings.routeId === selectedRoute.id;
+  /** The frame's own checked reads: banners, status line, worth a look, capabilities, offline help. */
+  const frame = useFrameReads(controller.places, contextKey);
+  const [clockBusy, setClockBusy] = useState(false);
   const projection = useMemo(() => {
     if (state.today === null || controller.timeZone === null) return { kind: 'missing' } as const;
     try { return { kind: 'ready', value: projectTodayHostForUi(state.today, { language, timeZone: controller.timeZone, missingWords: hostMissingWords(language) }) } as const; }
@@ -752,11 +772,30 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   if (projection.kind === 'invalid') return <State state={{ kind: 'failed', code: 'INVALID_REPLY' }} />;
   const words = hostMissingWords(language);
-  const data: TodayData = todayCurrent !== null && consumer !== null ? projectTodayConsumer(todayCurrent, consumer.input, language) : projection.kind === 'ready' ? projection.value.data : {
+  const baseData: TodayData = todayCurrent !== null && consumer !== null ? projectTodayConsumer(todayCurrent, consumer.input, language) : projection.kind === 'ready' ? projection.value.data : {
     state: { kind: 'not-yet' }, date: '', review: { count: { exact: null, display: words.unknown }, rows: [] },
     thisMonthMissing: 'unknown', earlierTodayMissing: 'unknown',
   };
-  const legacyLink = <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>;
+  /** The workspace time zone, from the host or the trusted Today configuration; never the machine's. */
+  const workspaceZone = controller.timeZone ?? consumer?.input?.display?.timeZone ?? null;
+  const data: TodayData = frame.reads.worth !== null ? { ...baseData, worth: frame.reads.worth } : baseData;
+  const showDemoClock = () => {
+    if (!stillAuthorized() || active.current === null) return;
+    origin.current = currentOrigin(); returnSavedId.current = null; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
+    const address = withSheet(active.current, 'demo-clock'); setLocalSheet({ address, kind: 'demo-clock' }); navigate(address);
+  };
+  const clockCall = (method: string, payload: Record<string, unknown>) => {
+    if (!stillAuthorized() || clockBusy) return;
+    setClockBusy(true);
+    void controller.places.request(method, payload).then(reply => { if (stillAuthorized()) frame.setShell(reply); }, () => { if (stillAuthorized()) frame.reread(); })
+      .finally(() => setClockBusy(false));
+  };
+  const placeGroup: Partial<Record<Address['place'], string>> = { ask: 'askx', work: 'approvals', books: 'books', reports: 'reportsx', tools: 'modelsx', trust: 'trustx' };
+  const notBuiltState = (address: Address) => {
+    const group = placeGroup[address.place];
+    return (frame.reads.capabilities !== null && group !== undefined ? notBuiltFromCapabilities(frame.reads.capabilities, group) : null) ?? { kind: 'not-built' as const };
+  };
+  const legacyLink = onLegacyReturn === null ? null : <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>;
   /** For a proof or provenance that replaced the chosen row's detail: the way back to that detail, and a close bound to the chosen chain. */
   const chainBack = (current: LocalSheet): SheetProps['back'] => current.chosen === undefined ? undefined : { label: t('RETAINED.scenario.title'), onBack: () => returnToDetail(current) };
   const chainClose = (current: LocalSheet) => {
@@ -769,10 +808,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   const sheet: AppProps['sheet'] = state.receipt !== null ? {
     address: state.receipt.address,
-    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} origin={origin.current} onClose={closeSheet} />,
+    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} timeZone={workspaceZone} origin={origin.current} onClose={closeSheet} />,
   } : localSheet === null ? undefined : localSheet.todayView !== undefined && consumer !== null ? {
     address: localSheet.address,
-    content: <TodayDestination detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
+    content: <TodayDestination timeZone={workspaceZone} detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
       onClose={() => closeToday(localSheet, todayCurrent)}
       onReview={(row, rowOrigin) => launchToday(localSheet.todayView!, 'today-record', rowOrigin, current => consumer.review(localSheet.todayView!, row, current))}
       onNext={localSheet.todayView.page?.nextCursor ? () => launchToday(localSheet.todayView!, 'today-review', localSheet.todayOrigin ?? null, current => consumer.page(localSheet.todayView!, true, current)) : undefined}
@@ -796,12 +835,14 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       origin={origin.current} onClose={closeLesson} onAdjacent={(id, binding) => openLesson(id, origin.current, binding)} onDecide={decideLesson} />,
   } : {
     address: localSheet.address,
-    content: <Sheet kind={hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')}
-      title={hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')} origin={origin.current} onClose={closeSheet}>
-      {localSheet.kind === 'help' ? <ShortcutHelpBody language={language} />
+    content: <Sheet kind={localSheet.kind === 'demo-clock' ? t('SH-03.clock.title') : hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')}
+      title={localSheet.kind === 'demo-clock' ? t('SH-03.clock.title') : hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')} origin={origin.current} onClose={closeSheet}>
+      {localSheet.kind === 'help' ? <HelpSheet offline={frame.reads.help} platform={/Mac/i.test(navigator.platform) ? 'mac' : 'windows'} />
+        : localSheet.kind === 'demo-clock' && frame.reads.shell !== null ? <DemoClockControl state={demoClockState(frame.reads.shell, language)} busy={clockBusy}
+          onSet={date => clockCall('todayx.clock.set', { date })} onAdvance={by => clockCall('todayx.clock.advance', { by })} />
         : <p>{hostMessage(language, localSheet.kind === 'about' ? 'about' : 'referenceUnavailable')}</p>}
       {localSheet.id !== undefined && <p className={detail.exact}>{hostMessage(language, 'referenceIdentity', { id: localSheet.id })}</p>}
-      <Button variant="link" onClick={onLegacyReturn}>{hostMessage(language, 'legacy')}</Button>
+      {legacyLink}
     </Sheet>,
   };
   const app: AppProps = {
@@ -809,16 +850,23 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     menu: {
       workspace: { name: context.workspace.name, demo: context.workspace.demo,
         who: hostMessage(language, 'memberRole', { name: context.member.name, role: hostMessage(language, ROLE_KEY[context.member.role]) }) },
-      onSetView: setView, onSetLanguage: setLanguage, onLock: () => { void controller.lock(); }, onAbout: showAbout,
+      onSetView: setView, onSetLanguage: setLanguage, onLock: () => { void controller.lock(); }, onAbout: showAbout, onHelp: () => showHelp(),
     },
+    ...(frame.reads.shell !== null ? {
+      banners: shellBanners(frame.reads.shell, language, {
+        ...(frame.reads.shell.workspace.demo ? { openDemoClock: showDemoClock } : {}),
+        dismissJobsPaused: () => { void controller.places.request('todayx.jobsPaused.dismiss', {}).then(frame.setShell, () => {}); },
+      }),
+      idleLock: { minutes: frame.reads.shell.autoLockMinutes, onIdle: () => { void controller.lock(); } },
+    } : {}),
     ask: { onAsk: () => navigate(ASK), noModel: !conversationEnabled,
       ...(viewer ? { readOnly: { holder: hostMessage(language, 'roleViewer') } } : {}) },
-    status: {
+    status: frame.reads.status !== null ? statusLine(frame.reads.status, language) : {
       sources: { text: hostMessage(language, projection.kind === 'ready' ? 'sourcesReady' : 'sourcesMissing'), address: { place: 'books', sub: 'sources' } },
       model: { text: selectedRoute === undefined ? hostMessage(language, 'routeMissing') : hostMessage(language, 'routeSelected', { label: selectedRoute.label }), address: MODELS },
       third: { text: hostMessage(language, 'third') },
     },
-    statusSimple: [
+    statusSimple: frame.reads.status !== null ? statusSentences(frame.reads.status, language) : [
       hostMessage(language, projection.kind === 'ready' ? 'sourcesReady' : 'sourcesMissing'),
       selectedRoute === undefined ? hostMessage(language, 'routeMissing') : hostMessage(language, 'routeSelected', { label: selectedRoute.label }),
     ],
@@ -855,7 +903,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         rpc: controller.places, live, openReceipt: id => openReceipt(id), navigate: next => onAddress(next) })
       : address.place === 'trust' && address.sub === 'models' || address.place === 'ask' && (address.sub === undefined || address.sub === 'new')
       ? <RoutePicker routes={state.routes} selected={state.selectedRouteId} language={language} viewer={viewer} onSelect={chooseRoute} />
-      : <><State state={{ kind: 'not-built' }} />{legacyLink}</>,
+      : <><State state={notBuiltState(address)} />{legacyLink}</>,
   };
   return conversationEnabled && settings !== null
     ? <ConversationWorkspace app={app} conversation={controller.conversation} questionSettings={settings}
@@ -923,20 +971,30 @@ function WorkspaceStart({ controller, state, language, onAcknowledged }: { contr
 function HostWorkspace({ controller, options, onLegacyReturn }: {
   controller: HostController;
   options: HostMountOptions;
-  onLegacyReturn: () => void;
+  onLegacyReturn: (() => void) | null;
 }) {
   const state = useSyncExternalStore(controller.subscribe, controller.snapshot, controller.snapshot);
   const [language, setLanguage] = useState<Language>(options.language ?? 'en');
   const [view, setView] = useState<View>(options.view ?? 'guided');
   const [address, setAddress] = useState(() => parseAddress(window.location.hash));
   const [vaultAcknowledged, setVaultAcknowledged] = useState<string | null>(null);
+  const journeyMode = options.firstRun === 'journey';
+  const [journeyDone, setJourneyDone] = useState(false);
+  const [startNew, setStartNew] = useState(false);
+  const [unlockResult, setUnlockResult] = useState<UnlockResult | null>(null);
   useLayoutEffect(() => {
+    // The journey owns the first-run surface while it is mounted.
+    if (journeyMode) {
+      const changed = () => setAddress(parseAddress(window.location.hash));
+      window.addEventListener('hashchange', changed);
+      return () => window.removeEventListener('hashchange', changed);
+    }
     let mounted = true;
     controller.setFirstRunSurface(() => mounted && sameAddress(parseAddress(window.location.hash), FIRST_RUN));
     const changed = () => { const next = parseAddress(window.location.hash); if (!sameAddress(next, FIRST_RUN)) controller.firstRun.cancel(); setAddress(next); };
     window.addEventListener('hashchange', changed);
     return () => { mounted = false; window.removeEventListener('hashchange', changed); controller.setFirstRunSurface(null); };
-  }, [controller]);
+  }, [controller, journeyMode]);
   useLayoutEffect(() => {
     if (state.phase !== 'ready' || state.context === null) return;
     if (state.dictionaryReviewRequired) { navigate(FIRST_RUN); setAddress(FIRST_RUN); }
@@ -949,6 +1007,25 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
     document.documentElement.removeAttribute('data-theme');
   }, [language, view]);
   const authorized = state.phase === 'ready' && state.context !== null;
+  if (journeyMode && !journeyDone) {
+    if (state.phase === 'locked' && state.creation.kind === 'idle' && !startNew) {
+      // SH-02: the passphrase passes straight to the engine once; the field is cleared by the control.
+      const unlock = (passphrase: string) => controller.places.request('workspace.open', { folder: 'main', passphrase }).then(
+        () => { setUnlockResult(null); return controller.unlocked(); },
+        (error: unknown) => { setUnlockResult((error as { code?: unknown })?.code === 'UNLOCK_FAILED' ? { kind: 'wrong' } : null);
+          if ((error as { code?: unknown })?.code !== 'UNLOCK_FAILED') setStartNew(true); });
+      return <TextProvider language={language}>
+        <LockScreen workspaceName={hostMessage(language, 'thisWorkspace')}
+          unlockControl={<UnlockControl unlock={unlock} result={unlockResult} onRecoveryKit={() => setStartNew(true)} />} />
+      </TextProvider>;
+    }
+    if (state.creation.kind !== 'idle' || state.phase === 'locked' || (authorized && state.dictionaryReviewRequired)) {
+      return <TextProvider language={language}><FirstRunJourney host={controller} rpc={controller.places} language={language} onLanguage={setLanguage} view={view} onView={setView}
+        onDone={() => { setJourneyDone(true); navigate(TODAY); setAddress(TODAY); void controller.refresh(); }}
+        saveRouteKey={(config, key) => controller.places.request('models.configure', { config, secret: key })}
+        onReopened={() => { setStartNew(false); void controller.unlocked(); }} /></TextProvider>;
+    }
+  }
   if (authorized && state.dictionaryReviewRequired) {
     return sameAddress(address, FIRST_RUN) ? <FirstRunScreen controller={controller.firstRun} language={language} onLanguage={setLanguage} view={view}
       stagesDone={options.firstRunStagesDone ?? { you: false, vault: vaultAcknowledged === state.context.workspace.id, model: false, books: false }}
@@ -958,7 +1035,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
   return <TextProvider language={language}>
     <div style={{ height: '100vh', display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp4)', padding: 'var(--sp2) var(--sp4)', borderBottom: 'var(--hair) solid var(--line)' }}>
-        <Button variant="link" onClick={onLegacyReturn} disabled={state.creation.kind === 'creating' || state.creation.kind === 'recovery-required'}>{hostMessage(language, 'legacy')}</Button>
+        {onLegacyReturn !== null && <Button variant="link" onClick={onLegacyReturn} disabled={state.creation.kind === 'creating' || state.creation.kind === 'recovery-required'}>{hostMessage(language, 'legacy')}</Button>}
         <Button variant="link" onClick={() => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); }} disabled={state.phase === 'loading' || state.phase === 'locked'}>{hostMessage(language, 'refresh')}</Button>
       </div>
       <div data-host-workspace="" style={{ minHeight: 0, overflow: 'auto' }}>
@@ -990,10 +1067,10 @@ export function mountHost(container: HTMLElement, controller: HostController, op
     const result = controller.dispose(); unmount(); return result;
   };
   root.render(<HostWorkspace controller={controller} options={options}
-    onLegacyReturn={() => {
+    onLegacyReturn={options.onLegacyReturn === undefined ? null : () => {
       if (controller.firstRun.issuance() !== 'none') { controller.firstRun.cancel(); return; }
       const ended = controller.dispose(); if (!ended.ok) return;
-      unmount(); if (options.onLegacyReturn) options.onLegacyReturn(); else window.location.assign('/index.html');
+      unmount(); options.onLegacyReturn?.();
     }} />);
   return Object.freeze({ unmount, dispose });
 }

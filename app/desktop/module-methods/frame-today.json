@@ -1,1 +1,19 @@
-[]
+[
+  "todayx.shell",
+  "todayx.clock.set",
+  "todayx.clock.advance",
+  "todayx.jobsPaused.dismiss",
+  "todayx.lock.settings",
+  "todayx.status",
+  "todayx.capabilities",
+  "todayx.worthALook",
+  "todayx.activity",
+  "todayx.firstRun.status",
+  "todayx.identity.check",
+  "todayx.identity.save",
+  "todayx.identity.get",
+  "todayx.setupChecklist",
+  "todayx.help",
+  "todayx.faultReport",
+  "todayx.phoneMessages"
+]

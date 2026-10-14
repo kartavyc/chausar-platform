@@ -1,1 +1,24 @@
-[]
+[
+  "connectorsx.systems",
+  "connectorsx.recipes",
+  "connectorsx.connections",
+  "connectorsx.connect",
+  "connectorsx.pause",
+  "connectorsx.disconnect",
+  "connectorsx.signIn",
+  "connectorsx.signInComplete",
+  "connectorsx.read",
+  "connectorsx.importPreview",
+  "connectorsx.importCommit",
+  "connectorsx.discard",
+  "connectorsx.envelopes",
+  "connectorsx.freshness",
+  "connectorsx.unmapped",
+  "connectorsx.gstMatch",
+  "connectorsx.plainDb.tables",
+  "connectorsx.plainDb.read",
+  "connectorsx.credentials.set",
+  "connectorsx.credentials.remove",
+  "connectorsx.credentials.status",
+  "connectorsx.schedule"
+]

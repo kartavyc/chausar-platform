@@ -1,0 +1,24 @@
+[
+  {
+    "name": "axis-like.csv accepted",
+    "recipe": "bank.statement-csv",
+    "file": "axis-like.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "-423456",
+      "rows": 3,
+      "unmapped": []
+    }
+  },
+  {
+    "name": "kotak-like.csv accepted",
+    "recipe": "bank.statement-csv-drcr",
+    "file": "kotak-like.csv",
+    "expect": {
+      "status": "accepted",
+      "total": "468200",
+      "rows": 3,
+      "unmapped": []
+    }
+  }
+]

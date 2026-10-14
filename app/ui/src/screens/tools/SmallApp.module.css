@@ -1,0 +1,11 @@
+.body { display: flex; flex-direction: column; gap: var(--sp4); }
+.sandbox { display: flex; flex-direction: column; gap: var(--sp3); padding: var(--sp3); border: var(--hair) dashed var(--line2); border-radius: var(--radius); }
+.frameLabel { margin: 0; font-size: var(--fs-label); color: var(--mute); text-transform: uppercase; letter-spacing: 0.04em; }
+.card { display: flex; flex-direction: column; gap: var(--sp1); align-items: flex-start; }
+.card > dl { align-self: stretch; }
+.cardTitle { margin: 0; font-size: var(--fs-note); font-weight: 500; color: var(--fg2); overflow-wrap: anywhere; }
+.blocked { display: flex; flex-direction: column; gap: var(--sp2); }
+.under { display: flex; flex-direction: column; gap: var(--sp2); border-top: var(--hair) solid var(--line); padding-top: var(--sp3); }
+.p { margin: 0; font-size: var(--fs-read); color: var(--fg); }
+.note { margin: 0; font-size: var(--fs-note2); color: var(--mute); }
+.small { margin: 0; font-size: var(--fs-note2); font-weight: 400; color: var(--mute); }

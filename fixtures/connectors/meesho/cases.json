@@ -1,0 +1,23 @@
+[
+  {
+    "name": "order-payments.rows.json accepted",
+    "recipe": "meesho.order-payments",
+    "file": "order-payments.rows.json",
+    "reportTotals": {
+      "rowCount": 3,
+      "total": "78832"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "78832",
+      "rows": 3,
+      "unmapped": [
+        "Dispatch Date",
+        "Product GST %",
+        "Listing Price (Incl. taxes)",
+        "Price Type",
+        "Total Sale Return Amount (Incl. Shipping & GST)"
+      ]
+    }
+  }
+]

@@ -1,0 +1,64 @@
+.bridge {
+  margin: 0;
+}
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) minmax(96px, 2fr) auto;
+  align-items: center;
+  gap: var(--sp3);
+  padding: var(--sp1) 0;
+}
+.endRow {
+  border-top: var(--hair) solid var(--line2);
+  margin-top: var(--sp1);
+}
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-note);
+  color: var(--fg2);
+}
+.track {
+  display: block;
+  width: 100%;
+  height: var(--sp4);
+  overflow: visible;
+}
+.zero {
+  stroke: var(--line2);
+  stroke-width: var(--hair);
+  vector-effect: non-scaling-stroke;
+}
+.bar {
+  vector-effect: non-scaling-stroke;
+}
+.start { fill: var(--dim); }
+.up { fill: var(--dim); }
+.down {
+  fill: var(--bg);
+  stroke: var(--fg2);
+  stroke-width: var(--square-stroke);
+}
+.end { fill: var(--fg); }
+.amount {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp2);
+  justify-self: end;
+}
+.direction {
+  font-size: var(--fs-note);
+  color: var(--mute);
+}
+.note {
+  margin: 0 0 var(--sp2);
+  font-size: var(--fs-note);
+  color: var(--mute);
+}

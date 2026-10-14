@@ -23,7 +23,8 @@ export interface ModuleHost {
   /** Trusted host options passed to the engine for this module, if any. */
   readonly options: Readonly<Record<string, unknown>>;
   /** Calls another engine method as the same caller, through the full authorization path. */
-  call(method: string, payload: Record<string, unknown>): Promise<unknown>;
+  /** Calls another engine method as the same caller. `{ tainted: true }` marks the call as touched by outside text; it can never clear the mark. */
+  call(method: string, payload: Record<string, unknown>, options?: { tainted?: boolean }): Promise<unknown>;
 }
 
 export interface MethodSpec {
@@ -32,6 +33,11 @@ export interface MethodSpec {
   readonly phone?: boolean;
   /** Synthetic demo launches are refused when the method reaches an external system. */
   readonly external?: boolean;
+  /**
+   * Callable by the trusted local desktop before any workspace is open (no member is authorized
+   * then; `host.store` throws). Once a workspace is open the method is authorized normally.
+   */
+  readonly preVault?: boolean;
   handler(ctx: Context, payload: Record<string, any>, host: ModuleHost): Promise<unknown> | unknown;
 }
 

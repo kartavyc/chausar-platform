@@ -1,0 +1,8 @@
+Account Statement (synthetic)
+Period,01-09-2026 to 30-09-2026
+Sl. No.,Transaction Date,Value Date,Description,Chq / Ref No.,Amount,Dr / Cr,Balance,Dr / Cr
+1,01-09-2026,01-09-2026,UPI/RAVI AND CO/624500000001,UPI-624500000001,"1,200.00",DR,"1,800.00",CR
+2,05-09-2026,05-09-2026,NEFT/MEHTA SUPPLIES,NEFTINW-0099,"6,000.00",CR,"7,800.00",CR
+3,08-09-2026,08-09-2026,BANK CHARGES INCL GST,,118.00,DR,"7,682.00",CR
+Opening Balance,Total Withdrawals,Total Deposits,Closing Balance
+"3,000.00","1,318.00","6,000.00","7,682.00"

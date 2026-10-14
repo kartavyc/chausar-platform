@@ -1,0 +1,23 @@
+{
+  "code": 0,
+  "message": "success",
+  "invoice": {
+    "invoice_id": "9800000000001",
+    "invoice_number": "INV-001",
+    "customer_name": "Asha Stores",
+    "customer_id": "9800000000100",
+    "status": "sent",
+    "date": "2026-04-03",
+    "due_date": "2026-04-03",
+    "currency_code": "INR",
+    "is_inclusive_tax": false,
+    "line_items": [
+      { "line_item_id": "9800000001001", "description": "Assam tea 1 kg", "quantity": 4, "rate": 250.00, "item_total": 1000.00, "tax_id": "9800000009018", "account_id": "9800000008001" }
+    ],
+    "sub_total": 1000.00,
+    "tax_total": 180.00,
+    "total": 1180.00,
+    "balance": 1180.00,
+    "last_modified_time": "2026-04-30T10:00:00+0530"
+  }
+}

@@ -5,7 +5,8 @@ import en from '../text/en.json';
 import hi from '../text/hi.json';
 
 const EN = {
-  legacy: 'Open the previous interface',
+  legacy: 'Previous interface',
+  thisWorkspace: 'Your workspace',
   refresh: 'Read again',
   loading: 'Reading your workspace.',
   unavailable: 'This workspace is unavailable. Open the previous interface to continue.',
@@ -44,6 +45,7 @@ const EN = {
   receipt: 'Receipt',
   receiptLoading: 'Reading this receipt with your current workspace access.',
   receiptFailed: 'This receipt is unavailable.',
+  receiptEvery: 'Every field of this receipt',
   receiptSubset: 'This view shows the checked receipt fields available here. Additional receipt details are unavailable in this interface.',
   receiptUnknown: 'This receipt does not establish a known figure from counted evidence.',
   figures: 'Figures',
@@ -98,6 +100,7 @@ const HI: Readonly<Record<HostTextKey, string>> = {
   helpSendGuard: 'Ctrl Enter से AI अनुरोध नहीं भेजा जाता।',
   helpUnavailable: 'आवाज़, शीट के अगले और पिछले आइटम, शब्द सूची और ऑफ़लाइन उपलब्धता यहाँ नहीं दी गई है।',
   legacy: 'पिछला इंटरफ़ेस खोलें',
+  thisWorkspace: 'आपका कार्यस्थान',
   refresh: 'फिर से पढ़ें',
   loading: 'आपका कार्यक्षेत्र पढ़ा जा रहा है।',
   unavailable: 'यह कार्यक्षेत्र उपलब्ध नहीं है। आगे बढ़ने के लिए पिछला इंटरफ़ेस खोलें।',
@@ -128,6 +131,7 @@ const HI: Readonly<Record<HostTextKey, string>> = {
   receipt: 'रसीद',
   receiptLoading: 'आपकी मौजूदा कार्यक्षेत्र पहुँच के साथ यह रसीद पढ़ी जा रही है।',
   receiptFailed: 'यह रसीद उपलब्ध नहीं है।',
+  receiptEvery: 'इस रसीद का हर हिस्सा',
   receiptSubset: 'इस दृश्य में रसीद के उपलब्ध और जाँचे गए फ़ील्ड दिखते हैं। रसीद की अतिरिक्त जानकारी इस इंटरफ़ेस में उपलब्ध नहीं है।',
   receiptUnknown: 'गिने गए साक्ष्य से यह रसीद कोई ज्ञात आँकड़ा स्थापित नहीं करती।',
   figures: 'आँकड़े',

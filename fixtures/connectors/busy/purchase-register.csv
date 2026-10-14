@@ -1,0 +1,8 @@
+Demo Hardware Mart
+Purchase Register
+From 01-09-2026 To 30-09-2026
+Date,Vch/Bill No,Particulars,Vch Type,GSTIN,Taxable Amt,Tax Amt,Bill Amount
+02-09-2026,INV-884,Kumar Steel Suppliers,Purchase,33AAHPZ5555E1ZG,"30,000.00","5,400.00","35,400.00"
+18-09-2026,INV-901,Kumar Steel Suppliers,Purchase,33AAHPZ5555E1ZG,"5,000.00",900.00,"5,900.00"
+22-09-2026,PR-12,Kumar Steel Suppliers,Purchase Return,33AAHPZ5555E1ZG,"-2,000.00",-360.00,"-2,360.00"
+,,Total,,,"33,000.00","5,940.00","38,940.00"

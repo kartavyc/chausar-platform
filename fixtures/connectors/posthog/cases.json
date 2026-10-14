@@ -1,0 +1,17 @@
+[
+  {
+    "name": "trends.csv accepted",
+    "recipe": "posthog.event-trend",
+    "file": "trends.csv",
+    "reportTotals": {
+      "rowCount": 12,
+      "total": "8360"
+    },
+    "expect": {
+      "status": "accepted",
+      "total": "8360",
+      "rows": 12,
+      "unmapped": []
+    }
+  }
+]
