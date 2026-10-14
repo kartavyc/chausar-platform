@@ -81,7 +81,7 @@ So that lanes can merge cleanly, each lane adds code through the seams below and
 - Each screen handles the design's common states: loading, empty, not built, locked, read only, error, stale, and partial coverage.
 - A screen whose engine method does not exist yet shows the design's "not built yet" state when the reply is `UNKNOWN_METHOD`, `INVALID_REQUEST` or `METHOD_UNAVAILABLE`.
 - Screens call engine methods only through `rpc`, and validate every reply before drawing it.
-- Over the desktop bridge only listed refusal codes reach a screen; any other code arrives as `REQUEST_FAILED`. To let a screen tell your own refusals apart, add the codes to **your lane's own line** in `laneRefusals` in `app/desktop/preload.cjs`. That is the one permitted edit there.
+- Over the desktop bridge only listed refusal codes reach a screen; any other code arrives as `REQUEST_FAILED`. To let a screen tell your own refusals apart, add the codes to **your lane's own line** in `laneRefusals` in `app/desktop/preload.cjs`. That is the one permitted edit there. Then run `node scripts/sync-lane-refusals.mjs`, which copies the lines into the renderer's own check (`laneRefusalCodes` in `app/ui/src/bridge/client.ts`); `desktop-bridge-error.test.ts` fails until they agree.
 
 ### Ownership
 

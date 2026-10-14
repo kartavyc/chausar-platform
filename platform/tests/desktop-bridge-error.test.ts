@@ -292,7 +292,7 @@ test('the renderer mirrors every lane refusal line of the preload, and passes ex
   const { laneRefusalCodes } = await import('../../app/ui/src/bridge/client.ts');
   const block = preloadSource.slice(preloadSource.indexOf('const laneRefusals = ['));
   const preloadLane = [...new Set([...block.slice(0, block.indexOf('];')).matchAll(/'([A-Z][A-Z0-9_]+)'/g)].map(match => match[1]!))].sort();
-  assert.deepEqual([...laneRefusalCodes].sort(), preloadLane);
+  assert.deepEqual([...laneRefusalCodes].sort(), preloadLane, 'Run node scripts/sync-lane-refusals.mjs after changing a laneRefusals line.');
   for (const code of ['UNLOCK_FAILED', 'DEMO_CLOCK_ALREADY_SET']) {
     assert.throws(() => unwrapDesktopRequestEnvelope({ version: 1, ok: false, error: { code } }), { code });
   }
