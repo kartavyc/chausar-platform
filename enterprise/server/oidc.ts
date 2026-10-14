@@ -1,5 +1,6 @@
 import { createHash, createPublicKey, randomBytes, timingSafeEqual, verify, type KeyObject } from 'node:crypto';
 import { check } from '../../platform/runtime/contracts.ts';
+import { MemoryEnterpriseStore, type LoginStateStore } from './state-store.ts';
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 export type OidcClientOptions = {
@@ -7,10 +8,11 @@ export type OidcClientOptions = {
   fetch?: FetchLike; now?: () => number; clockSkewSeconds?: number; timeoutMs?: number;
   /** Trusted test composition only. Never read from configuration. */
   allowLoopbackHttpIssuer?: boolean;
+  /** Where sign-ins in progress are kept; a shared store lets the callback reach another server process. */
+  logins?: LoginStateStore;
 };
 export type OidcMetadata = { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string };
 export type VerifiedClaims = Readonly<Record<string, unknown>> & { iss: string; sub: string };
-type Pending = { nonce: string; verifier: string; expiresAt: number };
 type CachedKey = { kid?: string; alg: 'RS256' | 'ES256'; key: KeyObject };
 
 const DOCUMENT_LIMIT = 256 * 1024;
@@ -37,12 +39,12 @@ function decodeJson(segment: string, code: string): Record<string, unknown> {
 export class OidcClient {
   readonly options: Readonly<OidcClientOptions>;
   #fetch: FetchLike; #now: () => number; #skew: number; #timeout: number;
-  #metadata: OidcMetadata | null = null; #pending = new Map<string, Pending>();
+  #metadata: OidcMetadata | null = null; #logins: LoginStateStore;
   #keys: CachedKey[] = []; #keysFetchedAt = 0; #keysRefreshing: Promise<void> | null = null;
   constructor(options: OidcClientOptions) {
     this.options = Object.freeze({ ...options, scopes: [...options.scopes] });
     this.#fetch = options.fetch ?? ((input, init) => fetch(input, init)); this.#now = options.now ?? Date.now;
-    this.#skew = options.clockSkewSeconds ?? 60; this.#timeout = options.timeoutMs ?? 10_000;
+    this.#skew = options.clockSkewSeconds ?? 60; this.#timeout = options.timeoutMs ?? 10_000; this.#logins = options.logins ?? new MemoryEnterpriseStore();
     check(Number.isSafeInteger(this.#skew) && this.#skew >= 0 && this.#skew <= 300, 'OIDC_CONFIG_INVALID', 'Clock skew must be at most five minutes.');
     check(this.allowedUrl(options.issuer), 'OIDC_CONFIG_INVALID', 'The sign-in issuer must use https.');
     check(typeof options.clientId === 'string' && options.clientId.length > 0 && typeof options.clientSecret === 'string' && options.clientSecret.length > 0, 'OIDC_CONFIG_INVALID', 'The sign-in client needs an id and secret.');
@@ -83,13 +85,11 @@ export class OidcClient {
     this.#metadata = { issuer, authorization_endpoint: document.authorization_endpoint as string, token_endpoint: document.token_endpoint as string, jwks_uri: document.jwks_uri as string };
     return this.#metadata;
   }
-  private prune() { const at = this.#now(); for (const [key, item] of this.#pending) if (item.expiresAt <= at) this.#pending.delete(key); }
   /** Returns the provider URL and the state value the caller binds to the browser. */
   async beginLogin(): Promise<{ url: string; state: string }> {
     const metadata = await this.discover();
-    this.prune(); check(this.#pending.size < MAX_PENDING, 'OIDC_LOGIN_BUSY', 'Too many sign-ins are in progress. Try again shortly.');
     const state = b64url(randomBytes(32)), nonce = b64url(randomBytes(32)), verifier = b64url(randomBytes(48));
-    this.#pending.set(b64url(sha256(state)), { nonce, verifier, expiresAt: this.#now() + LOGIN_LIFETIME_MS });
+    await this.#logins.putLogin(b64url(sha256(state)), { nonce, verifier, expiresAt: this.#now() + LOGIN_LIFETIME_MS }, MAX_PENDING, this.#now());
     const url = new URL(metadata.authorization_endpoint);
     for (const [key, value] of Object.entries({ response_type: 'code', client_id: this.options.clientId, redirect_uri: this.options.redirectUri, scope: this.options.scopes.join(' '), state, nonce, code_challenge: b64url(sha256(verifier)), code_challenge_method: 'S256' })) url.searchParams.set(key, value);
     return { url: url.toString(), state };
@@ -97,7 +97,7 @@ export class OidcClient {
   /** Consumes the state before any provider call, so a state value works once. */
   async completeLogin(input: { state: unknown; code: unknown }): Promise<VerifiedClaims> {
     check(typeof input.state === 'string' && /^[A-Za-z0-9_-]{43}$/.test(input.state), 'OIDC_STATE_INVALID', 'This sign-in attempt is not recognised. Start again.');
-    const key = b64url(sha256(input.state)); const pending = this.#pending.get(key); this.#pending.delete(key);
+    const pending = await this.#logins.takeLogin(b64url(sha256(input.state)), this.#now());
     check(pending && pending.expiresAt > this.#now(), 'OIDC_STATE_INVALID', 'This sign-in attempt is not recognised. Start again.');
     check(typeof input.code === 'string' && input.code.length > 0 && input.code.length <= 2048 && /^[\x21-\x7e]+$/.test(input.code), 'OIDC_CODE_INVALID', 'The sign-in provider returned no usable code.');
     const metadata = await this.discover();
