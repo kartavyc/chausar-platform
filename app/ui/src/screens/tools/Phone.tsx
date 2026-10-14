@@ -1,92 +1,226 @@
 /**
- * TL-09 Phone (tools/phone): WhatsApp and mail, each with its switch; your mail address and
- * phone number, each with Save and Verify; the exact text of each message; your agreement
- * with its date; messages this month against 30; the cost of each; what may be approved
- * from the phone. The relay is a paid hosted part that is planned and not available yet:
- * that sentence is shown whenever it is so, and also when the phone methods are not built.
+ * TL-09 Phone (tools/phone), over hosted-link's methods through adapters/phone.ts.
+ * Guided and Books: your phone number with Verify (hosted-link pairs this computer with a code
+ * sent to it); WhatsApp, Telegram and mail, each with its switch, which turns on only after the
+ * exact opt-in text is agreed to; your mail address (hosted-link does not check a mail address
+ * with a code, and the screen says so); the exact text of every message; your agreement with its
+ * date; messages this month against 30 and what they cost; what may be approved from the phone;
+ * HELP and STOP. Books adds message ids, the engine's own reply texts and the count per channel.
+ * Simple: two switches, WhatsApp and mail, and the count. The relay sentence shows whenever the
+ * hosted part is not set up; test mode shows in demo.
  */
-import { useState } from 'react';
-import type { PlaceRenderProps } from '../../places/types.ts';
+import { useState, type FormEvent } from 'react';
 import { count } from '../../format/index.ts';
+import type { PlaceRenderProps } from '../../places/types.ts';
 import { Button } from '../../parts/Button';
-import { Choice } from '../../parts/Choice';
+import { Choice, YesNo } from '../../parts/Choice';
 import { Field } from '../../parts/Field';
-import { State } from '../../patterns/States';
 import { useEngine, useSend } from '../trust/kit/engine.ts';
 import { rupees } from '../trust/kit/figure.ts';
-import { Group, Note, Screen, screenState } from '../trust/kit/Screen';
-import { PHONE, channels, preview, usage, type Channel, type Channels } from './adapters/phone.ts';
-import { Line, Lines, Quoted, SentLine, Warn, day, toolsWords, type Words } from './shared';
+import { Group, Note, Screen } from '../trust/kit/Screen';
+import { CHANNEL_IDS, MESSAGE_BUDGET, PAIR_CODE, PHONE, PHONE_NUMBER, channels, counts, pairStarted, paired, preview, status,
+  type Channel, type ChannelId, type Preview, type Status } from './adapters/phone.ts';
+import { Line, Lines, Names, Part, Quoted, SentLine, Warn, day, isAdmin, toolsWords, type Words } from './shared';
 import { anyObject } from './validate.ts';
 import { fill } from './words.ts';
 import s from './Phone.module.css';
 
-function ChannelLine({ c, props, w, onChanged }: { c: Channel; props: PlaceRenderProps; w: Words; onChanged: () => void }) {
-  const [address, setAddress] = useState(c.address ?? '');
+/** Turning a channel on needs the ticked opt-in; turning it off withdraws it. */
+function ChannelLine({ c, optInText, st, props, w, simple, onChanged }: {
+  c: Channel; optInText: string | null; st: Status; props: PlaceRenderProps; w: Words; simple: boolean; onChanged: () => void;
+}) {
+  const admin = isAdmin(props);
+  const [agreed, setAgreed] = useState(false);
+  const [address, setAddress] = useState(c.relay?.address ?? '');
+  const [badAddress, setBadAddress] = useState(false);
   const change = useSend(props.rpc, anyObject);
   const [done, setDone] = useState<string | undefined>(undefined);
-  const send = async (method: string, payload: Record<string, unknown>, sentence: string) => {
+  const send = async (payload: Record<string, unknown>, sentence: string) => {
     setDone(sentence);
-    if (await change.send(method, payload) !== null) onChanged();
+    if (await change.send(PHONE.set, payload) !== null && props.live(props.address)) { setAgreed(false); onChanged(); }
   };
   const busy = change.sent.kind === 'sending';
+  const agreedAt = c.agreedAt ?? c.relay?.agreedAt ?? null;
+  const relay = c.relay?.status ?? null;
+  const notes = [
+    relay === null ? (c.on ? w.on : w.off) : w[`relay.${relay}`],
+    agreedAt === null ? w.notAgreed : fill(w.agreedOn, { date: day(agreedAt, props.language) }),
+    c.id === 'mail' ? (simple ? null : w.mailNotChecked) : st.paired ? null : w.notVerified,
+  ];
+  const saveAddress = (e: FormEvent) => {
+    e.preventDefault();
+    const typed = address.trim();
+    if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@.]{2,63}$/.test(typed)) { setBadAddress(true); return; }
+    setBadAddress(false);
+    void send({ channel: 'mail', enabled: false, optIn: false, address: typed }, w.saved);
+  };
   return (
-    <Line title={w[`channel.${c.id}`]} notes={[
-      c.verified ? w.verified : w.notVerified,
-      c.agreedOn === null ? w.notAgreed : fill(w.agreedOn, { date: day(c.agreedOn, props.language) }),
-      c.costMinor === null ? w.costUnknown : fill(w.cost, { cost: rupees(c.costMinor) }),
-    ]} after={props.viewer ? <span className={s.note}>{c.on ? w.on : w.off}</span> : (
-      <Choice<'off' | 'on'> label={w[`channel.${c.id}`]} labelHidden form="pair" value={c.on ? 'on' : 'off'} disabled={busy}
+    <Line title={w[`channel.${c.id}`]} notes={notes} after={!admin ? undefined : (
+      <Choice<'off' | 'on'> label={w[`channel.${c.id}`]} labelHidden form="pair" value={c.on ? 'on' : 'off'} disabled={busy || (!c.on && !agreed)}
         options={[{ value: 'off', label: w.off }, { value: 'on', label: w.on }]}
-        onChange={(v) => { if ((v === 'on') !== c.on) void send(PHONE.optIn, { channel: c.id, on: v === 'on' }, ''); }} />
+        onChange={(v) => {
+          if (v === 'off' && c.on) void send({ channel: c.id, enabled: false, optIn: false }, w.turnedOff);
+          if (v === 'on' && !c.on && agreed) void send({ channel: c.id, enabled: true, optIn: true }, w.turnedOn);
+        }} />
     )}>
-      {!props.viewer && (
-        <form className={s.address} onSubmit={(e) => { e.preventDefault(); if (address.trim() !== '' && address !== c.address) void send(PHONE.optIn, { channel: c.id, on: c.on, address }, w.saved); }}>
-          <Field label={w[`field.${c.id}`]} type={c.id === 'mail' ? 'email' : 'tel'} autoComplete={c.id === 'mail' ? 'email' : 'tel'} maxLength={320}
-            value={address} onChange={(e) => setAddress(e.target.value)} />
-          <Button submit disabled={busy || address.trim() === '' || address === c.address}>{w.save}</Button>
-          <Button disabled={busy || c.address === null || c.verified} onClick={() => { void send(PHONE.verify, { channel: c.id }, w.verifySent); }}>{w.verify}</Button>
-        </form>
+      {relay === 'stopped' && <p className={s.note}>{w.stoppedNote}</p>}
+      {relay === 'awaiting-start' && c.relay?.connectUrl != null && <><p className={s.note}>{w.connect}</p><Quoted>{c.relay.connectUrl}</Quoted></>}
+      {admin && !c.on && (
+        <div className={s.agree}>
+          {optInText === null ? <p className={s.note}>{w.optInUnknown}</p> : <Quoted label={w.optInLabel}>{optInText}</Quoted>}
+          {optInText !== null && <YesNo label={fill(w.agreeTo, { channel: w[`channel.${c.id}`] })} value={agreed} onChange={setAgreed} disabled={busy} />}
+        </div>
       )}
-      <SentLine sent={change.sent} done={done === '' ? undefined : done} w={w} />
+      {c.id === 'mail' && !simple && admin && (c.on ? <p className={s.note}>{w.addressWhileOn}</p> : (
+        <form className={s.address} onSubmit={saveAddress} noValidate>
+          <Field label={w['field.mail']} type="email" autoComplete="email" maxLength={254} value={address}
+            onChange={(e) => { setAddress(e.target.value); setBadAddress(false); }} problem={badAddress ? w.badAddress : undefined} />
+          <Button submit disabled={busy || address.trim() === '' || address.trim() === c.relay?.address}>{w.save}</Button>
+        </form>
+      ))}
+      {c.id === 'mail' && !simple && !admin && c.relay?.address != null && <p className={s.note}>{c.relay.address}</p>}
+      <SentLine sent={change.sent} done={done} w={w} />
     </Line>
   );
 }
 
-function Ready({ value, props, w, reload }: { value: Channels; props: PlaceRenderProps; w: Words; reload: () => void }) {
-  const messages = useEngine(props.rpc, PHONE.preview, {}, preview);
-  const month = useEngine(props.rpc, PHONE.usage, {}, usage);
-  const ordered = (['whatsapp', 'mail'] as const).flatMap((id) => value.channels.filter((c) => c.id === id));
+/** Your phone number, verified by the code hosted-link sends to it: this pairs the computer. */
+function YourPhone({ st, props, w, onPaired }: { st: Status; props: PlaceRenderProps; w: Words; onPaired: () => void }) {
+  const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [name, setName] = useState(w.computerName);
+  const [problem, setProblem] = useState<string | undefined>(undefined);
+  const start = useSend(props.rpc, pairStarted);
+  const finish = useSend(props.rpc, paired);
+  if (st.paired) return <p className={s.p}>{fill(w.phoneVerified, { phone: st.phoneMasked ?? '', date: st.pairedAt === null ? '' : day(st.pairedAt, props.language) })}</p>;
+  if (!isAdmin(props)) return <p className={s.note}>{w.notVerified}</p>;
+  if (!st.configured) return <p className={s.note}>{w.verifyNeedsRelay}</p>;
+  const started = start.sent.kind === 'done' ? start.sent.value : null;
+  const ask = (e: FormEvent) => {
+    e.preventDefault();
+    const typed = phone.replace(/[\s-]/g, '');
+    if (!PHONE_NUMBER.test(typed)) { setProblem(w.badPhone); return; }
+    setProblem(undefined);
+    void start.send(PHONE.pairStart, { phone: typed });
+  };
+  const confirm = async (e: FormEvent) => {
+    e.preventDefault();
+    if (started === null) return;
+    if (!PAIR_CODE.test(code.trim()) || name.trim() === '') { setProblem(w.badCode); return; }
+    setProblem(undefined);
+    if (await finish.send(PHONE.pairFinish, { challengeId: started.challengeId, code: code.trim(), deviceName: name.trim() }) !== null && props.live(props.address)) onPaired();
+  };
+  return started === null ? (
+    <form className={s.address} onSubmit={ask}>
+      <Field label={w['field.phone']} type="tel" autoComplete="tel" maxLength={20} value={phone} onChange={(e) => setPhone(e.target.value)} problem={problem} />
+      <Button submit disabled={start.sent.kind === 'sending' || phone.trim() === ''}>{w.verify}</Button>
+      <SentLine sent={start.sent} w={w} />
+    </form>
+  ) : (
+    <form className={s.address} onSubmit={(e) => void confirm(e)}>
+      <p className={s.note}>{fill(w.codeSent, { phone: started.phoneMasked })}</p>
+      <Field label={w.codeField} inputMode="numeric" autoComplete="one-time-code" maxLength={8} value={code} onChange={(e) => setCode(e.target.value)} problem={problem} />
+      <Field label={w.computerField} maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
+      <Button submit disabled={finish.sent.kind === 'sending'}>{w.confirmCode}</Button>
+      <SentLine sent={finish.sent} done={w.phoneDone} w={w} />
+    </form>
+  );
+}
+
+function Messages({ value, w, books }: { value: Preview; w: Words; books: boolean }) {
+  return (
+    <div className={s.messages}>
+      {value.channels.map((c) => (
+        <section key={c.id} className={s.messages} aria-label={w[`channel.${c.id}`]}>
+          <h3 className={s.small}>{w[`channel.${c.id}`]}</h3>
+          {c.messages.map((m) => (
+            <div key={m.event} className={s.message}>
+              {books && <p className={[s.note, 'fig'].join(' ')}>{m.event}</p>}
+              <Quoted>{m.body}</Quoted>
+              <Names names={m.buttons} w={w} />
+            </div>
+          ))}
+          {c.footer !== null && <Quoted>{c.footer}</Quoted>}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function Month({ props, w, books }: { props: PlaceRenderProps; w: Words; books: boolean }) {
+  const month = useEngine(props.rpc, PHONE.counts, {}, counts);
+  return (
+    <Part loaded={month.state} w={w}>
+      {(m) => (
+        <>
+          <p className={s.p}>{fill(w.usage, { sent: count(String(m.sent)), budget: count(String(m.budget)), month: m.month })}</p>
+          <p className={s.note}>{m.costPaise === null ? w.costUnknown : fill(w.cost, { cost: rupees(m.costPaise) })}</p>
+          {books && m.byChannel.length > 0 && <Names names={m.byChannel.map((x) => fill(w.perChannel, { channel: w[`channel.${x.id}`], sent: count(String(x.sent)) }))} w={w} />}
+        </>
+      )}
+    </Part>
+  );
+}
+
+function Ready({ st, props, w, reload }: { st: Status; props: PlaceRenderProps; w: Words; reload: () => void }) {
+  const simple = props.view === 'simple', books = props.view === 'books';
+  const list = useEngine(props.rpc, PHONE.channels, {}, channels);
+  const texts = useEngine(props.rpc, PHONE.preview, {}, preview);
+  const optIn = (id: ChannelId) => texts.state.kind === 'ready' ? texts.state.value.channels.find((c) => c.id === id)?.optInText ?? null : null;
+  const shown: readonly ChannelId[] = simple ? ['whatsapp', 'mail'] : CHANNEL_IDS;
+  const channelLines = (
+    <Part loaded={list.state} w={w}>
+      {(value) => (
+        <>
+          {value.stale && <Note>{value.refreshedAt === null ? w.staleNever : fill(w.stale, { date: day(value.refreshedAt, props.language) })}</Note>}
+          <Lines label={w.channels}>
+            {shown.flatMap((id) => value.channels.filter((c) => c.id === id)).map((c) => (
+              <ChannelLine key={c.id} c={c} optInText={optIn(c.id)} st={st} props={props} w={w} simple={simple} onChanged={list.reload} />
+            ))}
+          </Lines>
+        </>
+      )}
+    </Part>
+  );
   return (
     <>
-      {value.relay === 'not-available' && <Warn>{w.relay}</Warn>}
-      {value.testMode && <p className={s.p} role="status">{w.testMode}</p>}
+      {!st.configured && <Warn>{w.relay}</Warn>}
+      {st.demo && <p className={s.p} role="status">{w.testMode}</p>}
       {props.viewer && <Note>{w.readOnly}</Note>}
-      <Group title={w.channels}>
-        <Lines label={w.channels}>{ordered.map((c) => <ChannelLine key={c.id} c={c} props={props} w={w} onChanged={reload} />)}</Lines>
-      </Group>
-      <Group title={w.messages}>
-        {messages.state.kind !== 'ready' ? <State state={screenState(messages.state)} />
-          : messages.state.value.length === 0 ? <Note>{w.noMessages}</Note>
-          : <div className={s.messages}>{messages.state.value.map((m) => <Quoted key={m.id}>{m.text}</Quoted>)}</div>}
-      </Group>
-      <Group title={w.month}>
-        {month.state.kind !== 'ready' ? <State state={screenState(month.state)} />
-          : <p className={s.p}>{fill(w.usage, { sent: count(String(month.state.value.sent)), budget: count(String(month.state.value.budget)), month: month.state.value.month })}</p>}
-      </Group>
-      <Group title={w.fromPhone}><p className={s.p}>{w.fromPhoneRule}</p></Group>
-      <Group title={w.helpStop}><p className={s.p}>{w.help}</p><p className={s.p}>{w.stop}</p></Group>
+      {simple ? (
+        <>
+          {channelLines}
+          <Group title={w.month}><p className={s.note}>{fill(w.budgetLine, { budget: count(String(MESSAGE_BUDGET)) })}</p><Month props={props} w={w} books={false} /></Group>
+        </>
+      ) : (
+        <>
+          <Group title={w.yourPhone}><YourPhone st={st} props={props} w={w} onPaired={reload} /></Group>
+          <Group title={w.channels}>{channelLines}</Group>
+          <Group title={w.messages} note={w.noDigits}><Part loaded={texts.state} w={w}>{(v) => <Messages value={v} w={w} books={books} />}</Part></Group>
+          <Group title={w.month}><Month props={props} w={w} books={books} /></Group>
+          <Group title={w.fromPhone}>
+            <p className={s.p}>{w.fromPhoneRule}</p>
+            <p className={s.note}>{w.mailNoApprove}</p>
+            {books && texts.state.kind === 'ready' && <Quoted>{texts.state.value.approvalNote}</Quoted>}
+          </Group>
+          <Group title={w.helpStop}>
+            <p className={s.p}>{w.help}</p>
+            <p className={s.p}>{w.stop}</p>
+            {books && texts.state.kind === 'ready' && texts.state.value.replies.map((r) => <Quoted key={r.id} label={r.id}>{r.text}</Quoted>)}
+          </Group>
+        </>
+      )}
     </>
   );
 }
 
 export function PhonePlace(props: PlaceRenderProps) {
   const w = toolsWords(props.language);
-  const { state, reload } = useEngine(props.rpc, PHONE.channels, {}, channels);
+  const { state, reload } = useEngine(props.rpc, PHONE.status, {}, status);
   return (
     <div className={s.page}>
       <Screen where={w.where} title={w['title.phone']} loaded={state}>
-        {(value) => <Ready value={value} props={props} w={w} reload={reload} />}
+        {(st) => <Ready st={st} props={props} w={w} reload={reload} />}
       </Screen>
       {state.kind === 'not-built' && <Warn>{w.relay}</Warn>}
     </div>

@@ -7,7 +7,7 @@ import { TextProvider } from '../../app/ui/src/app/text';
 import type { Address, Language, View } from '../../app/ui/src/app/presentation';
 import type { PlaceRenderProps } from '../../app/ui/src/places/types';
 import { trustPlaces } from '../../app/ui/src/screens/trust/index';
-import { COMMON, DELETION, DO, NETWORK, PEOPLE, RECORD, RULES, SEND, SHARING, VAULT } from '../../app/ui/src/screens/trust/words';
+import { COMMON, DELETION, NETWORK, PEOPLE, RECORD, RULES, SEND, SHARING, VAULT } from '../../app/ui/src/screens/trust/words';
 
 afterEach(cleanup);
 
@@ -47,14 +47,12 @@ const FIXTURES: Record<string, unknown> = {
     kinds: [{ kind: 'Books', days: null, note: 'Your books.' }, { kind: 'Model answers', days: 90, note: '' }],
     inventory: [{ path: 'vault/state.enc', bytes: 10240, what: 'The locked books' }],
   },
-  'trustx.autonomy': {
-    preset: 'custom',
-    kinds: [
-      { kind: 'reminders', on: true, maxPerDay: 20, maxAmountMinorPerDay: null, agreement: { agreed: 9, total: 10 } },
-      { kind: 'invoices', on: false, maxPerDay: 5, maxAmountMinorPerDay: '500000', agreement: null },
-    ],
-    alwaysWaits: [{ id: 'money', words: 'Money' }, { id: 'messages', words: 'Messages to outsiders' }],
-    caps: { remindersPerCustomerPerDay: 1, remindersPerDay: 20, activeJobs: 10, monthlyAiCapMinor: '100000' },
+  // TR-05 Do reads jobs-ext (see reports-tools-trust-trust-do.test.tsx for the screen itself).
+  'jobsx.autonomy': {
+    master: false, preset: 'custom',
+    kinds: [{ kind: 'local.draft-note', title: 'Draft a note', impact: 'reversible', switchable: true, on: true, dailyCount: 20, usedToday: 3, agreement: { approved: 9, declined: 1 } }],
+    alwaysWaits: { intro: 'Anything that cannot be undone, and in particular:', items: ['money', 'messages to outsiders'] },
+    caps: { activeJobCap: 10, failureLimit: 3, backgroundMode: false, backgroundAsked: false, reminderPerCustomerPerDay: 1, reminderPerDay: 20, groupMax: 10, autoReviewMinutes: 0 },
   },
   'trustx.seats': {
     seats: [
@@ -196,7 +194,7 @@ describe('TR-01 Rules', () => {
     expect(await screen.findByText('Reads 3 sources, refuses 1.')).toBeTruthy();
     expect(screen.getByText(RULES.en.sendShape)).toBeTruthy();
     expect(screen.getByText('Kept for 365 days.')).toBeTruthy();
-    expect(screen.getByText(RULES.en['preset.ask-everything'])).toBeTruthy();
+    expect(await screen.findByText(RULES.en['preset.custom'])).toBeTruthy();
     await user.click(screen.getByRole('button', { name: /Send/ }));
     expect(screen.getByText(RULES.en.detailSend)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: RULES.en.openPage }));
@@ -337,39 +335,6 @@ describe('TR-04 Keep', () => {
     await user.clear(field); await user.type(field, '30');
     await user.click(screen.getAllByRole('button', { name: COMMON.en.save })[1]!);
     await waitFor(() => expect(rpc.of('trustx.setKeep')).toEqual([{ method: 'trustx.setKeep', payload: { kind: 'Model answers', days: 30 } }]));
-  });
-});
-
-describe('TR-05 Do', () => {
-  test('presets, agreement, the always-waits list without switches, and paise by string', async () => {
-    const rpc = fakeRpc({ 'trustx.setAutonomy': FIXTURES['trustx.autonomy'] });
-    const { user, container } = draw(at('rules', 'do'), { rpc });
-    expect(await screen.findByText(DO.en.presetNote)).toBeTruthy();
-    expect(screen.getByText('agreed 9 of 10 times')).toBeTruthy();
-    expect(screen.getByText('no history yet')).toBeTruthy();
-    expect(screen.getByText(DO.en.waitsLead)).toBeTruthy();
-    const waits = container.querySelector('[data-always-waits]')!.closest('section')!;
-    expect(within(waits as HTMLElement).queryAllByRole('radiogroup')).toHaveLength(0);
-    expect(within(waits as HTMLElement).queryAllByRole('button')).toHaveLength(0);
-    expect(within(waits as HTMLElement).getByText('Messages to outsiders')).toBeTruthy();
-
-    const row = container.querySelector('[data-kind="reminders"]') as HTMLElement;
-    const amount = within(row).getByLabelText(DO.en.maxAmount);
-    await user.type(amount, '1.234');
-    await user.click(within(row).getByRole('button', { name: COMMON.en.save }));
-    expect(within(row).getByText(DO.en.badAmount)).toBeTruthy();
-    expect(rpc.of('trustx.setAutonomy')).toHaveLength(0);
-    await user.clear(amount); await user.type(amount, '1,234.50');
-    await user.click(within(row).getByRole('button', { name: COMMON.en.save }));
-    await waitFor(() => expect(rpc.of('trustx.setAutonomy')).toEqual([{ method: 'trustx.setAutonomy',
-      payload: { kind: { kind: 'reminders', on: true, maxPerDay: 20, maxAmountMinorPerDay: '123450' } } }]));
-  });
-
-  test('choosing a preset sends exactly the preset', async () => {
-    const rpc = fakeRpc({ 'trustx.setAutonomy': FIXTURES['trustx.autonomy'] });
-    const { user } = draw(at('rules', 'do'), { rpc });
-    await user.click(await screen.findByRole('radio', { name: DO.en['preset.routine'] }));
-    await waitFor(() => expect(rpc.of('trustx.setAutonomy')).toEqual([{ method: 'trustx.setAutonomy', payload: { preset: 'routine' } }]));
   });
 });
 

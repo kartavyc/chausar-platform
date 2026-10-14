@@ -8,7 +8,8 @@ import { withSheet } from '../../app/routes.ts';
 import { words } from '../../places/types.ts';
 import { Button } from '../../parts/Button';
 import { RowList } from '../../parts/RowList';
-import { useEngine } from './kit/engine.ts';
+import { useEngine, type Loaded } from './kit/engine.ts';
+import { JOBS, autonomy, type Autonomy } from './adapters/jobs.ts';
 import { Group, Note, Screen } from './kit/Screen';
 import { countText, powers, type P } from './common';
 import { DoView } from './Do';
@@ -26,19 +27,32 @@ type RuleId = (typeof RULE_SHEETS)[number];
 export function RulesScreen(p: P) {
   const c = words(COMMON, p.language);
   const { state, reload } = useEngine(p.rpc, 'trustx.rules', {}, validateRules);
+  // The Do row reads its summary from jobs-ext, which owns autonomy.
+  const doState = useEngine(p.rpc, JOBS.autonomy, {}, autonomy);
   const sheet = p.address.sheet;
+  const changed = () => { reload(); doState.reload(); };
   return (
     <>
-      <Screen where={c.whereRules} title={c.rules} loaded={state}>{(rules) => <RulesBody p={p} rules={rules} />}</Screen>
+      <Screen where={c.whereRules} title={c.rules} loaded={state}>{(rules) => <RulesBody p={p} rules={rules} doState={doState.state} />}</Screen>
       {sheet === 'see' && <SeeView p={p} mode="sheet" onChanged={reload} />}
       {sheet === 'send' && <SendView p={p} mode="sheet" onChanged={reload} />}
       {sheet === 'keep' && <KeepView p={p} mode="sheet" onChanged={reload} />}
-      {sheet === 'do' && <DoView p={p} mode="sheet" onChanged={reload} />}
+      {sheet === 'do' && <DoView p={p} mode="sheet" onChanged={changed} />}
     </>
   );
 }
 
-function setting(rules: Rules, id: RuleId, w: ReturnType<typeof words<keyof typeof RULES.en>>): string {
+function doSetting(loaded: Loaded<Autonomy>, w: ReturnType<typeof words<keyof typeof RULES.en>>): string {
+  switch (loaded.kind) {
+    case 'ready': return w[`preset.${loaded.value.preset}`];
+    case 'not-built': return w.doNotBuilt;
+    case 'loading': return w.doReading;
+    case 'locked': return fill(w.doFailed, { code: 'VAULT_LOCKED' });
+    case 'failed': return fill(w.doFailed, { code: loaded.code });
+  }
+}
+
+function setting(rules: Rules, doState: Loaded<Autonomy>, id: RuleId, w: ReturnType<typeof words<keyof typeof RULES.en>>): string {
   switch (id) {
     case 'see': return rules.see.allSources ? w.seeAll : fill(w.seeSome, { allowed: countText(rules.see.allowed), refused: countText(rules.see.refused) });
     case 'send': {
@@ -46,16 +60,16 @@ function setting(rules: Rules, id: RuleId, w: ReturnType<typeof words<keyof type
       return rules.send.localOnly ? `${level} ${w.localOnly}` : level;
     }
     case 'keep': return rules.keep.days === null ? w.keepForever : fill(w.keepDays, { days: countText(rules.keep.days) });
-    case 'do': return w[`preset.${rules.do.preset}`];
+    case 'do': return doSetting(doState, w);
   }
 }
 
-function RulesBody({ p, rules }: { p: P; rules: Rules }) {
+function RulesBody({ p, rules, doState }: { p: P; rules: Rules; doState: Loaded<Autonomy> }) {
   const c = words(COMMON, p.language), w = words(RULES, p.language);
   const [openId, setOpenId] = useState<string | undefined>(undefined);
   const admin = powers(p).admin && rules.canChange;
   const detail: Record<RuleId, string> = { see: w.detailSee, send: w.detailSend, keep: w.detailKeep, do: w.detailDo };
-  const rows: RowItem[] = RULE_SHEETS.map((id) => ({ id, mark: 'you', what: c[id], note: setting(rules, id, w) }));
+  const rows: RowItem[] = RULE_SHEETS.map((id) => ({ id, mark: 'you', what: c[id], note: setting(rules, doState, id, w) }));
   return (
     <>
       <RowList

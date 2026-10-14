@@ -48,8 +48,6 @@ export const SEND_LEVELS = ['nothing', 'shape', 'samples'] as const;
 export type SendLevel = (typeof SEND_LEVELS)[number];
 export const MARK_KINDS = ['personal', 'financial', 'confidential'] as const;
 export type MarkKind = (typeof MARK_KINDS)[number];
-export const PRESETS = ['ask-everything', 'routine', 'all-but-waits', 'custom'] as const;
-export type Preset = (typeof PRESETS)[number];
 export const SEATS = ['owner', 'cofounder', 'accountant', 'ca', 'staff', 'viewer', 'assistant'] as const;
 export type Seat = (typeof SEATS)[number];
 export const NET_KINDS = ['model', 'connector', 'action', 'sharing', 'phone', 'sync', 'plugin'] as const;
@@ -63,7 +61,6 @@ export interface Rules {
   see: { allSources: boolean; allowed: number; refused: number };
   send: { level: SendLevel; localOnly: boolean };
   keep: { days: number | null };
-  do: { preset: Preset };
   leftToday: { date: string; items: LeftItem[] };
   canChange: boolean;
   ownerOnly: ChangeWhat[];
@@ -76,7 +73,6 @@ export function validateRules(reply: unknown): Rules {
     see: { allSources: bool(see['allSources'], 'reply.see.allSources'), allowed: count(see['allowed'], 'reply.see.allowed'), refused: count(see['refused'], 'reply.see.refused') },
     send: { level: oneOf(send['level'], 'reply.send.level', SEND_LEVELS), localOnly: bool(send['localOnly'], 'reply.send.localOnly') },
     keep: { days: optCount(keep['days'], 'reply.keep.days') },
-    do: { preset: oneOf(rec(r['do'], 'reply.do')['preset'], 'reply.do.preset', PRESETS) },
     leftToday: {
       date: day(left['date'], 'reply.leftToday.date'),
       items: list(left['items'], 'reply.leftToday.items', (v, p) => {
@@ -172,26 +168,7 @@ export function validateKeep(reply: unknown): Keep {
   };
 }
 
-// ---------- Do (TR-05) ----------
-export interface KindRule { kind: string; on: boolean; maxPerDay: number; maxAmountMinorPerDay: string | null }
-export interface Caps { remindersPerCustomerPerDay: number; remindersPerDay: number; activeJobs: number; monthlyAiCapMinor: string | null }
-export interface Autonomy { preset: Preset; kinds: (KindRule & { agreement: { agreed: number; total: number } | null })[]; alwaysWaits: { id: string; words: string }[]; caps: Caps }
-export function validateAutonomy(reply: unknown): Autonomy {
-  const r = rec(reply), c = rec(r['caps'], 'reply.caps');
-  return {
-    preset: oneOf(r['preset'], 'reply.preset', PRESETS),
-    kinds: list(r['kinds'], 'reply.kinds', (v, p) => {
-      const k = rec(v, p);
-      const a = k['agreement'] === null || k['agreement'] === undefined ? null : rec(k['agreement'], `${p}.agreement`);
-      const agreement = a === null ? null : { agreed: count(a['agreed'], `${p}.agreement.agreed`), total: count(a['total'], `${p}.agreement.total`) };
-      if (agreement !== null && agreement.agreed > agreement.total) throw new ShapeError(`${p}.agreement`);
-      return { kind: id(k['kind'], `${p}.kind`), on: bool(k['on'], `${p}.on`), maxPerDay: count(k['maxPerDay'], `${p}.maxPerDay`), maxAmountMinorPerDay: optPaise(k['maxAmountMinorPerDay'], `${p}.maxAmountMinorPerDay`), agreement };
-    }, 100),
-    alwaysWaits: list(r['alwaysWaits'], 'reply.alwaysWaits', (v, p) => { const w = rec(v, p); return { id: id(w['id'], `${p}.id`), words: str(w['words'], `${p}.words`, 500) }; }, 50),
-    caps: { remindersPerCustomerPerDay: count(c['remindersPerCustomerPerDay'], 'reply.caps.remindersPerCustomerPerDay'), remindersPerDay: count(c['remindersPerDay'], 'reply.caps.remindersPerDay'),
-      activeJobs: count(c['activeJobs'], 'reply.caps.activeJobs'), monthlyAiCapMinor: optPaise(c['monthlyAiCapMinor'], 'reply.caps.monthlyAiCapMinor') },
-  };
-}
+// TR-05 Do is read from jobs-ext through adapters/jobs.ts.
 
 // ---------- People (TR-06) ----------
 export interface SeatRow { memberId: string; name: string; seat: Seat; limits: string[]; endsOn: string | null; ended: boolean; removedOn: string | null; active: boolean; you: boolean }
