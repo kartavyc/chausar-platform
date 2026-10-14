@@ -672,7 +672,8 @@ in English and Hindi.
 | Passphrase second ask for write-back money and irreversible changes | supported over `writeback.reauth` → `writeback.approve {secondAsk}` (owner only, five wrong tries lock it for fifteen minutes, write-back's rules) |
 | Reverse | supported for core actions whose catalogue row names a reversal action; write-back reversals are shown in words |
 | Job list, card, time line, accept and send back | supported over core `jobs.*` (through `approvals.approve` / `approvals.sendBack`); job proposals from `jobsx.*` experimental |
-| jobs-ext proposals in the queue (`proposal:<id>`), answering a job's question, lane accept / send back / pause / resume | experimental: over `jobsx.*`, tested against stubs shaped like jobs-ext's own source (not against the merged lane) |
+| jobs-ext proposals in the queue (`proposal:<id>`): from one sentence, approve by digest, the started lane job listed and opened | supported: tested through the real engine with the merged jobs-ext lane (`work-books-jobsx-engine.test.ts`) |
+| Answering a lane job's question, lane accept / send back / pause / resume, person steps | experimental: over `jobsx.*`, tested against stubs shaped like jobs-ext's own source |
 | Start a job from a ready-made brief, budget meters | supported over core `jobs.create` (`owner-brief`); a job from one sentence is experimental (`jobsx.propose`) |
 | Month-end brief on the core calendar | supported where the engine has calendar rules; otherwise refused, with every 30 days as the labelled choice |
 | Person steps (WK-16), measure chart (WK-08), Edit, Delete and the missed-run rule | experimental: complete with `jobsx.*`; core fallback for typed jobs, Delete as cancel |
@@ -723,9 +724,7 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
   typed job's input names one. For a lane job, clock time and exposure come from jobs-ext.
   For a core job, Edit and the missed-run rule work only for typed jobs; a read-only brief
   says not built, and Delete cancels it (the record is kept).
-- jobs-ext is not merged into the base yet. Every `jobsx.*` path (proposals in the queue,
-  questions, person steps, edit, missed-run rule, lane accept) is tested against stubs copied
-  from that lane's own source, and is labelled experimental until it runs against the lane.
+- jobs-ext is merged. Proposals from one sentence are tested through the real engine; questions, person steps, edit, the missed-run rule and lane accept are tested against stubs copied from that lane's source.
 - Month-end on the calendar needs an engine started with a typed job runner and calendar
   rules (`durableJobs`, `jobCalendar`). Where the engine has none, only "every 30 days, not
   month-end" is offered, as the person's own choice. On the calendar the month-end job works
