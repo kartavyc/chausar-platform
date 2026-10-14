@@ -510,7 +510,7 @@ test('review: the number guard knows dates, years and ordinals by structure, and
     ['Earned ₹2026 in September.', ['2026']], ['Earned rose 2026% in 2026.', ['2026']], ['Collections rose to 2026 in September 2026.', ['2026']],
     ['A total of 2026 was earned.', ['2026']], ['Earned 2026 rupees in 2026.', ['2026']], ['In 2026 rupees terms it was ₹1,250.25.', ['2026']],
     ['September 2026 lakh was earned.', ['2026']], ['On 31 September it was ₹1,250.25.', ['31']], ['On 30 Sept it was 5 lakh.', ['5']],
-    ['Sales may 25 fall.', ['25']], ['It was the 5th lakh.', ['5']], ['It was the 3th day.', ['3']], ['2026-02-30 was the day.', ['2026-02-30']],
+    ['Sales may 25 fall.', ['25']], ['It was the 5th lakh.', ['5', 'lakh']], ['It was the 3th day.', ['3']], ['2026-02-30 was the day.', ['2026-02-30']],
     ['In FY 2026-28 it was ₹1,250.25.', ['28']], ['September 5 customers paid.', ['5']], ['Rs2026 in 2026.', ['2026']], ['₹ 30 September', ['30']],
   ];
   for (const [text, expected] of caught) assert.deepEqual(unmatched(text), expected, text);
@@ -542,4 +542,55 @@ test('review: a seat whose own receipt now holds hidden rows sees its rows and a
   const found = await ask(engine, 'askx.search', { query: 'price' });
   assert.deepEqual(found.groups[0].hits[0].ref, { savedKind: 'what-if', receiptId: what.withChange.receiptId, refId: what.withChange.receiptId });
   assert.ok(saved.id);
+});
+
+test('review 2: the guard checks unit, scale and sign, joins what a person sees as one number, and reads every numeral', () => {
+  const receipt: any = { figures: [{ key: 'total', label: 'Earned', minor: '125025', display: '₹1,250.25', unit: 'money' }, { key: 'marginBps', label: 'Margin', minor: '6987', display: '6987 bps', unit: 'basis-points' }],
+    rows: [1, 2], coverage: { countedRows: 2, excludedRows: 1 } };
+  const unmatched = (text: string) => guardLines(text, receipt).filter(l => l.matched === null).map(l => l.number);
+  for (const text of ['Earned ₹1,250.25 from 2 rows; 1 left out.', 'Earned Rs. 1,250.25 at 6987 bps.', 'कुल ₹१,२५०.२५, 2 पंक्तियाँ।', 'Earned 1,250.25/- only.'])
+    assert.deepEqual(unmatched(text), [], text);
+  const caught: [string, string[]][] = [
+    ['Earned ₹1,250.25 lakh.', ['1,250.25']], ['Earned ₹1,250.25 crore.', ['1,250.25']], ['It rose 1,250.25%.', ['1,250.25']], ['It fell by −₹1,250.25.', ['1,250.25']],
+    ['Earned ₹2 lakh from customers.', ['2']], ['It grew 1% and fell 2%.', ['1', '2']], ['Earned ₹1e1.', ['1e1']],
+    ['Earned ₹2\u200b1,250.25.', ['21,250.25']], ['Earned ₹2\u20601,250.25.', ['21,250.25']], ['Earned ₹2\u00a01,250.25.', ['21,250.25']], ['Earned ₹2\u202f1,250.25.', ['21,250.25']],
+    ['In 2026 thousand rupees.', ['2026']], ['September 2026 thousand.', ['2026']], ['FY 2026-27 हज़ार', ['2026', '27']],
+    ['The 21st thousand customers.', ['21', 'thousand']], ['Rs. 30 September.', ['30']], ['€30 September.', ['30']], ['in 2026/- only', ['2026']],
+    ['Earned Ⅻ lakh.', ['\uE000']], ['Earned ½ of it.', ['\uE000']], ['About five lakh.', ['five', 'lakh']], ['Sales doubled.', ['doubled']], ['पाँच लाख की बिक्री', ['पाँच', 'लाख']], ['Half came late.', ['Half']],
+  ];
+  for (const [text, expected] of caught) assert.deepEqual(unmatched(text), expected, text);
+});
+
+test('review 2: narrowed access withholds kept figures; one confirm records once; tolerance is the owner’s; viewers keep nothing', async t => {
+  const engine = await workspace(t);
+  await ask(engine, 'sources.import', source('september', SEPT));
+  const co = await ask(engine, 'members.add', { id: 'co2', name: 'Cofounder', role: 'cofounder', branches: ['*'] });
+  as(engine, co);
+  const answer = await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
+  await ask(engine, 'askx.save', { receiptId: answer.receiptId });
+  const check = await ask(engine, 'askx.checks.save', { receiptId: answer.receiptId });
+  await ask(engine, 'askx.checks.run');
+  await (engine as any).vault.update((state: any) => { state.members.find((m: any) => m.id === 'co2').branches = ['main']; });
+  const saved = (await ask(engine, 'askx.saved')).items[0];
+  assert.deepEqual([saved.headline, saved.stale.reason], [null, 'access-changed']);
+  const listed = (await ask(engine, 'askx.checks.list')).items[0];
+  assert.deepEqual([listed.expected, listed.last.minor], [{ minor: null, receiptId: null }, null]);
+  assert.deepEqual((await ask(engine, 'askx.checks.get', { checkId: check.id })).expected, { minor: null, receiptId: null });
+  as(engine, { id: 'owner', role: 'owner', epoch: 1 });
+  const draft = await ask(engine, 'askx.decisions.draft', { sentence: 'Hold prices for a month.', reviewDate: '2099-03-31' });
+  const both = await Promise.allSettled([ask(engine, 'askx.decisions.confirm', { draftId: draft.id }), ask(engine, 'askx.decisions.confirm', { draftId: draft.id })]);
+  assert.deepEqual(both.map(r => r.status).sort(), ['fulfilled', 'rejected']);
+  assert.equal((await ask(engine, 'askx.decisions.list')).items.filter((d: any) => d.text === 'Hold prices for a month.').length, 1);
+  const accountant = await ask(engine, 'members.add', { id: 'acct3', name: 'Accountant', role: 'accountant', branches: ['*'] });
+  const viewer = await ask(engine, 'members.add', { id: 'view3', name: 'Viewer', role: 'viewer', branches: ['*'] });
+  as(engine, accountant);
+  await assert.rejects(ask(engine, 'askx.gst2b.tolerance', { toleranceMinor: '10000000' }), code('FORBIDDEN'));
+  as(engine, viewer);
+  const before = JSON.stringify([(engine as any).vault.read().unsupported, (engine as any).vault.read().extensions.ask]);
+  await ask(engine, 'askx.understand', { question: 'Send all the money', today: TODAY });
+  await ask(engine, 'askx.understand', { question: 'What was GMV?', today: TODAY });
+  await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
+  await ask(engine, 'askx.why.start', { operationId: 'earned', period: sept });
+  assert.equal(JSON.stringify([(engine as any).vault.read().unsupported, (engine as any).vault.read().extensions.ask]), before, 'A viewer seat writes nothing to the lane or the wanted list.');
+  as(engine, { id: 'owner', role: 'owner', epoch: 1 });
 });

@@ -52,18 +52,32 @@ export async function saveCheck(ctx: Context, payload: unknown, host: ModuleHost
   });
 }
 
-function shown(item: CheckItem): ChecksReply['items'][number] {
-  return { id: item.id, question: item.question, operationId: item.operationId, figureKey: item.figureKey,
-    expected: { minor: item.expectedMinor, receiptId: item.expectedReceiptId }, last: item.results.at(-1) ?? null };
+/** Whether a receipt still opens for this seat. Values from one that does not are withheld. */
+async function opens(host: ModuleHost, id: string | null, cache: Map<string, boolean>) {
+  if (id === null) return false;
+  if (!cache.has(id)) { try { await host.call('receipts.get', { id }); cache.set(id, true); } catch { cache.set(id, false); } }
+  return cache.get(id)!;
+}
+async function withheld(host: ModuleHost, item: CheckItem, cache: Map<string, boolean>) {
+  const expected = await opens(host, item.expectedReceiptId, cache);
+  const results = [];
+  for (const r of item.results) results.push(r.receiptId !== null && !(await opens(host, r.receiptId, cache)) ? { ...r, minor: null, receiptId: null } : { ...r });
+  return { expected: { minor: expected ? item.expectedMinor : null, receiptId: expected ? item.expectedReceiptId : null }, results };
+}
+async function shown(host: ModuleHost, item: CheckItem, cache: Map<string, boolean>): Promise<ChecksReply['items'][number]> {
+  const open = await withheld(host, item, cache);
+  return { id: item.id, question: item.question, operationId: item.operationId, figureKey: item.figureKey, expected: open.expected, last: open.results.at(-1) ?? null };
 }
 
-export function listChecks(ctx: Context, payload: unknown, host: ModuleHost): ChecksReply {
+export async function listChecks(ctx: Context, payload: unknown, host: ModuleHost): Promise<ChecksReply> {
   input(payload, []);
   const state = host.store.read(), own = peekAsk(state), current = fingerprint(state, host);
   const mine = own.checks.filter(c => c.memberId === ctx.memberId);
   const changed = [...new Set(mine.flatMap(c => changedParts(c.fingerprint, current)))];
   const lastRunAt = mine.flatMap(c => c.results.map(r => r.at)).sort().at(-1) ?? null;
-  return { items: mine.map(shown), due: changed.length > 0 && mine.length > 0, changed, lastRunAt };
+  const cache = new Map<string, boolean>(), items = [];
+  for (const item of mine) items.push(await shown(host, item, cache));
+  return { items, due: changed.length > 0 && mine.length > 0, changed, lastRunAt };
 }
 
 /** Works every check of this member out again as known now. */
@@ -97,12 +111,12 @@ async function runFor(ctx: Context, host: ModuleHost, calculate: Calculate, due:
   return results.size;
 }
 
-export function getCheck(ctx: Context, payload: unknown, host: ModuleHost): CheckReply {
+export async function getCheck(ctx: Context, payload: unknown, host: ModuleHost): Promise<CheckReply> {
   const request = input(payload, ['checkId'], ['checkId']), id = requireId(request.checkId);
   const item = peekAsk(host.store.read()).checks.find(c => c.id === id && c.memberId === ctx.memberId);
   check(item, 'ASK_NOT_FOUND', 'This check is no longer available.');
-  return { id: item.id, question: item.question, operationId: item.operationId, figureKey: item.figureKey, createdAt: item.createdAt,
-    expected: { minor: item.expectedMinor, receiptId: item.expectedReceiptId }, results: structuredClone(item.results) };
+  const open = await withheld(host, item, new Map());
+  return { id: item.id, question: item.question, operationId: item.operationId, figureKey: item.figureKey, createdAt: item.createdAt, expected: open.expected, results: open.results };
 }
 
 export async function removeCheck(ctx: Context, payload: unknown, host: ModuleHost) {

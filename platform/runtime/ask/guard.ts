@@ -25,10 +25,22 @@ export function asciiDigits(value: string): string {
 }
 
 type Token = { kind: 'num' | 'word' | 'sym'; text: string; start: number; end: number };
-const TOKEN = /\d{4}-\d{2}-\d{2}|\d+(?:,\d+)*(?:\.\d+)?|[\p{L}\p{M}]+|\S/gu;
+// A number may carry an exponent or a fraction slash; it then never matches. Any numeral that is
+// still not an ASCII digit after NFKC (Roman, Ethiopic, Tamil tens, Kaktovik…) is its own number.
+const TOKEN = /\d{4}-\d{2}-\d{2}|\d+(?:,\d+)*(?:\.\d+)?(?:[eE][+-]?\d+|\u2044\d+)?|[\p{L}\p{M}]+|[\p{N}\uE000]|\S/gu;
+/**
+ * Invisible format characters and soft hyphens are removed first, so "2\u200B1,250" reads as
+ * the one number a person sees. Digits joined by a non-breaking or thin space or an apostrophe
+ * are one number too ("1\u202F250", "1'250").
+ */
+export function visible(value: string): string {
+  // Roman numerals, fractions and other non-decimal numerals are marked before NFKC turns them into letters.
+  const joined = value.replace(/[\p{Cf}\u00AD]/gu, '').replace(/[\p{Nl}\p{No}]/gu, '\uE000').replace(/(\p{Nd})[\u00A0\u2000-\u200A\u202F\u205F\u3000'\u2019](?=\p{Nd})/gu, '$1');
+  return asciiDigits(joined).replace(/[\p{Cf}\u00AD]/gu, '');
+}
 export function tokenize(value: string): Token[] {
-  return [...asciiDigits(value).matchAll(TOKEN)].map(m => ({
-    kind: /^\d/.test(m[0]) ? 'num' : /^[\p{L}\p{M}]/u.test(m[0]) ? 'word' : 'sym', text: m[0], start: m.index!, end: m.index! + m[0].length,
+  return [...visible(value).matchAll(TOKEN)].map(m => ({
+    kind: /^[\p{N}\uE000]/u.test(m[0]) ? 'num' : /^[\p{L}\p{M}]/u.test(m[0]) ? 'word' : 'sym', text: m[0], start: m.index!, end: m.index! + m[0].length,
   }));
 }
 
@@ -37,9 +49,18 @@ const MONTHS: Readonly<Record<string, number>> = Object.fromEntries([
   ['july', 'jul', 'जुलाई'], ['august', 'aug', 'अगस्त'], ['september', 'sep', 'sept', 'सितंबर', 'सितम्बर'], ['october', 'oct', 'अक्टूबर', 'अक्तूबर'],
   ['november', 'nov', 'नवंबर', 'नवम्बर'], ['december', 'dec', 'दिसंबर', 'दिसम्बर'],
 ].flatMap((names, index) => names.map(name => [name, index + 1])));
-const BEFORE_AMOUNT = new Set(['₹', '$', 'rs', 'inr', 'rupees', 'rupee', 'rs.', 'रु', 'रुपये', 'रुपए', 'usd', 'paise']);
-const AFTER_AMOUNT = new Set(['%', 'percent', 'pc', 'per', 'lakh', 'lakhs', 'lac', 'crore', 'crores', 'cr', 'k', 'm', 'mn', 'bn', 'paise', 'rupees', 'rupee', 'rs', 'inr',
-  'rows', 'row', 'customers', 'customer', 'invoices', 'invoice', 'orders', 'times', 'x', 'bps', 'units', 'items', 'प्रतिशत', 'लाख', 'करोड़', 'करोड', 'रुपये', 'रुपए', 'पैसे']);
+const CURRENCY = new Set(['₹', '$', '€', '£', '¥', 'rs', 'inr', 'usd', 'eur', 'rupees', 'rupee', 'dollars', 'dollar', 'रु', 'रुपये', 'रुपए', 'रुपया']);
+const SCALE = new Set(['lakh', 'lakhs', 'lac', 'lacs', 'crore', 'crores', 'cr', 'k', 'm', 'mn', 'bn', 'thousand', 'thousands', 'hundred', 'hundreds', 'million', 'millions', 'billion', 'billions',
+  'हज़ार', 'हजार', 'सौ', 'लाख', 'करोड़', 'करोड', 'अरब']);
+const PERCENT = new Set(['%', 'percent', 'per', 'pc', 'प्रतिशत', 'फ़ीसदी', 'फीसदी']);
+const BEFORE_AMOUNT = new Set([...CURRENCY, 'paise']);
+const AFTER_AMOUNT = new Set([...SCALE, ...PERCENT, ...CURRENCY, 'paise', 'पैसे', '/', 'only', 'x', 'times', 'bps',
+  'rows', 'row', 'customers', 'customer', 'invoices', 'invoice', 'orders', 'units', 'items']);
+/** Number words are amounts said in words: never on a receipt, so a sentence with one is replaced. */
+const NUMBER_WORDS = new Set(['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+  'seventeen', 'eighteen', 'nineteen', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety', 'dozen', 'half', 'double', 'doubled', 'triple', 'tripled', 'twice', 'thrice',
+  'एक', 'दो', 'तीन', 'चार', 'पाँच', 'पांच', 'छह', 'छः', 'सात', 'आठ', 'नौ', 'दस', 'बीस', 'पचास', 'आधा', 'आधी', 'दोगुना', 'दोगुनी', 'तिगुना', ...SCALE]);
+const COUNT_NOUNS = new Set(['rows', 'row', 'records', 'record', 'entries', 'entry', 'lines', 'line', 'left', 'excluded', 'counted', 'read', 'पंक्ति', 'पंक्तियाँ', 'पंक्तियां', 'पंक्तियों']);
 // Only words that introduce a time and never an amount: "rose to 2026" or "a total of 2026" stay amounts.
 const YEAR_BEFORE = new Set(['in', 'since', 'during', 'until', 'till', 'year', 'fy', 'साल', 'वर्ष']);
 const YEAR_AFTER = new Set(['में', 'तक']);
@@ -58,7 +79,9 @@ const daysIn = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate(
  */
 export function timeNumbers(tokens: readonly Token[]): Map<number, 'date' | 'ordinal'> {
   const out = new Map<number, 'date' | 'ordinal'>();
-  const amountAround = (first: number, last: number) => BEFORE_AMOUNT.has(lower(tokens[first - 1]) ?? '') || AFTER_AMOUNT.has(lower(tokens[last + 1]) ?? '');
+  // "Rs. 30 September": a full stop between a marker and the number does not hide the marker.
+  const before = (first: number) => tokens[first - 1]?.text === '.' ? tokens[first - 2] : tokens[first - 1];
+  const amountAround = (first: number, last: number) => BEFORE_AMOUNT.has(lower(before(first)) ?? '') || AFTER_AMOUNT.has(lower(tokens[last + 1]) ?? '');
   const take = (indices: number[], kind: 'date' | 'ordinal', through = Math.max(...indices)) => {
     const first = Math.min(...indices), last = through;
     if (indices.some(i => out.has(i)) || amountAround(first, last)) return false;
@@ -116,20 +139,42 @@ function normal(value: string) {
 }
 const numbersOf = (value: string) => tokenize(value).filter(t => t.kind === 'num' && !/^\d{4}-\d{2}-\d{2}$/.test(t.text)).map(t => normal(t.text));
 
+type Marks = { negative: boolean; currency: boolean; scale: boolean; percent: boolean; next: string };
+/** What sits around a number: a sign or currency before it, a scale, percent or noun after it. */
+function marksOf(tokens: readonly Token[], i: number): Marks {
+  let j = i - 1, currency = false, negative = false;
+  if (tokens[j]?.text === '.' && lower(tokens[j - 1]) === 'rs') j--;
+  if (CURRENCY.has(lower(tokens[j]) ?? '')) { currency = true; j--; }
+  if (['-', '\u2212', '\u2013'].includes(tokens[j]?.text ?? '') && (glued(tokens[j]!, tokens[j + 1]))) negative = true;
+  const after = lower(tokens[i + 1]) ?? '';
+  return { negative, currency: currency || after === '/' || CURRENCY.has(after), scale: SCALE.has(after), percent: PERCENT.has(after), next: after };
+}
+
 /** Every number in a written explanation, and the receipt line it matched, or none. */
 export function guardLines(explanation: string, receipt: Pick<CalculationReceipt, 'figures' | 'rows' | 'coverage'>): GuardLine[] {
   const tokens = tokenize(explanation), time = timeNumbers(tokens);
+  const shown = receipt.figures.map(f => ({ f, numbers: numbersOf(f.display), negative: /^\s*[-\u2212]/.test(f.display) }));
   return tokens.flatMap((t, i): GuardLine[] => {
+    if (t.kind === 'word') {
+      // An amount said in words, or a scale word with no number right before it.
+      const word = t.text.toLowerCase();
+      if (NUMBER_WORDS.has(word) && !(SCALE.has(word) && tokens[i - 1]?.kind === 'num')) return [{ number: t.text, matched: null }];
+      return [];
+    }
     if (t.kind !== 'num') return [];
     const kind = time.get(i);
     if (kind) return [{ number: t.text, matched: { field: kind } }];
-    if (/^\d{4}-\d{2}-\d{2}$/.test(t.text)) return [{ number: t.text, matched: null }];
-    const n = normal(t.text);
-    // A figure matches only as it is shown: paise are never accepted for rupees.
-    const figure = receipt.figures.find(f => numbersOf(f.display).includes(n));
-    if (figure) return [{ number: t.text, matched: { figureKey: figure.key } }];
-    if (n === String(receipt.rows.length) || n === String(receipt.coverage.countedRows)) return [{ number: t.text, matched: { field: 'rows' } }];
-    if (n === String(receipt.coverage.excludedRows)) return [{ number: t.text, matched: { field: 'excluded' } }];
+    if (!/^\d+(?:,\d+)*(?:\.\d+)?$/.test(t.text)) return [{ number: t.text, matched: null }];
+    const n = normal(t.text), m = marksOf(tokens, i);
+    // A money figure matches only as it is shown: same digits, same sign, no scale and no percent.
+    const money = shown.find(s => s.f.unit === 'money' && s.numbers.includes(n) && !m.scale && !m.percent && m.negative === s.negative);
+    if (money) return [{ number: t.text, matched: { figureKey: money.f.key } }];
+    const points = shown.find(s => s.f.unit === 'basis-points' && s.numbers.includes(n) && ['bps', 'basis'].includes(m.next) && !m.currency && !m.negative === !s.negative);
+    if (points) return [{ number: t.text, matched: { figureKey: points.f.key } }];
+    // A count matches only as a plain count of rows: no currency, sign, scale or percent, and a row word after it.
+    const count = !m.currency && !m.negative && !m.scale && !m.percent && COUNT_NOUNS.has(m.next) && /^\d+$/.test(t.text);
+    if (count && (n === String(receipt.rows.length) || n === String(receipt.coverage.countedRows))) return [{ number: t.text, matched: { field: 'rows' } }];
+    if (count && n === String(receipt.coverage.excludedRows)) return [{ number: t.text, matched: { field: 'excluded' } }];
     return [{ number: t.text, matched: null }];
   });
 }

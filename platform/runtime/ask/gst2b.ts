@@ -95,7 +95,9 @@ export async function setTolerance(_ctx: Context, payload: unknown, host: Module
 const cellsOf = (fact: Fact) => Object.entries(fact.fields).filter(([name]) => !name.startsWith('_')).map(([name, value]) => ({ name, value: asText(value).slice(0, 500) }));
 export function line(ctx: Context, payload: unknown, host: ModuleHost): Gst2bLineReply {
   const { request, p } = scope(ctx, payload, host, ['lineId']);
-  const id = requireId(request.lineId), { books, twoB, tolerance } = load(ctx, host, p);
+  const dictionary = currentDictionary(host, ctx);
+  check(dictionary && dictionary.gstMode === 'regular', 'ASK_NOT_FOUND', 'There is no GSTR-2B match for this business.');
+  const id = requireId(request.lineId), { books, twoB, tolerance } = load(ctx, host, p, dictionary.currency);
   const found = matchLines(books, twoB, tolerance).find(l => l.id === id);
   check(found, 'ASK_NOT_FOUND', 'This line is no longer in the match.');
   const side = (f: Fact | null) => f ? { rowId: f.id, sourceId: f.sourceId, sourceRow: f.sourceRow ?? null, cells: cellsOf(f) } : null;

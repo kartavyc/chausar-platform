@@ -47,15 +47,24 @@ function content(ctx: Context, item: { sentence: string; reviewDate: string; rec
 
 export async function confirm(ctx: Context, payload: unknown, host: ModuleHost) {
   const request = input(payload, ['draftId'], ['draftId']), id = requireId(request.draftId);
-  const item = peekAsk(host.store.read()).drafts.find(d => d.id === id && d.memberId === ctx.memberId);
-  check(item, 'ASK_NOT_FOUND', 'This draft is no longer in the inbox.');
-  const prepared = await core<{ digest: string }>(host, 'decisions.journal.draft', { content: content(ctx, item) });
-  const decision = await core<JournalDecision>(host, 'decisions.journal.confirm', { draft: prepared, reviewedDigest: prepared.digest });
-  await host.store.update(state => {
-    const own = askState(state); own.drafts = own.drafts.filter(d => d.id !== id);
-    if (item.decidedOn && item.decidedOn < item.createdAt.slice(0, 10)) (own.decided ??= []).push({ decisionId: decision.id, decidedOn: item.decidedOn });
+  // Claim the draft before any work, so a second press of Confirm finds nothing to record.
+  const item = await host.store.update(state => {
+    const own = askState(state), index = own.drafts.findIndex(d => d.id === id && d.memberId === ctx.memberId);
+    check(index >= 0, 'ASK_NOT_FOUND', 'This draft is no longer in the inbox.');
+    return own.drafts.splice(index, 1)[0]!;
   });
-  return { decisionId: decision.id };
+  try {
+    const prepared = await core<{ digest: string }>(host, 'decisions.journal.draft', { content: content(ctx, item) });
+    const decision = await core<JournalDecision>(host, 'decisions.journal.confirm', { draft: prepared, reviewedDigest: prepared.digest });
+    await host.store.update(state => {
+      if (item.decidedOn && item.decidedOn < item.createdAt.slice(0, 10)) (askState(state).decided ??= []).push({ decisionId: decision.id, decidedOn: item.decidedOn });
+    });
+    return { decisionId: decision.id };
+  } catch (error) {
+    // Nothing was recorded: the draft goes back to the inbox as it was.
+    await host.store.update(state => { askState(state).drafts.push(item); });
+    throw error;
+  }
 }
 
 export async function discard(ctx: Context, payload: unknown, host: ModuleHost) {

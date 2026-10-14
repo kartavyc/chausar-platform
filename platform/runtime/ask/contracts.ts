@@ -130,7 +130,8 @@ export type CheckItem = {
   fingerprint: Fingerprint | null;
 };
 export type ChecksReply = {
-  items: { id: string; question: string; operationId: string; figureKey: string; expected: { minor: string; receiptId: string }; last: CheckItem['results'][number] | null }[];
+  /** `expected` is withheld (null) when its receipt no longer opens for this seat; so is each result's value. */
+  items: { id: string; question: string; operationId: string; figureKey: string; expected: { minor: string | null; receiptId: string | null }; last: CheckItem['results'][number] | null }[];
   due: boolean; changed: string[]; lastRunAt: string | null;
 };
 export type Fingerprint = { dictionaryHash: string | null; recipes: string; route: string | null; app: string | null };
@@ -234,7 +235,7 @@ export type AskState = {
 
 export type CheckReply = {
   id: string; question: string; operationId: string; figureKey: string; createdAt: string;
-  expected: { minor: string; receiptId: string };
+  expected: { minor: string | null; receiptId: string | null };
   results: CheckItem['results'];
 };
 export type DecisionReply = {

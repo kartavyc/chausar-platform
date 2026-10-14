@@ -72,6 +72,8 @@ export async function saveRef(ctx: Context, payload: unknown, host: ModuleHost) 
   if (kind === 'why') {
     const record = peekAsk(host.store.read()).why.find(w => w.id === refId && w.memberId === ctx.memberId);
     check(record, 'ASK_NOT_FOUND', 'This investigation is no longer available.');
+    // Both measured receipts must still open for this seat before their change is copied.
+    await core(host, 'receipts.get', { id: record.earlier.receiptId }); await core(host, 'receipts.get', { id: record.later.receiptId });
     headline = { kind: 'money', minor: String(BigInt(record.later.minor) - BigInt(record.earlier.minor)) };
     receiptId = record.later.receiptId; operationId = record.operationId; workedOutAt = record.createdAt; sourceIds = [...record.sourceIds];
   } else if (kind === 'what-if') {
@@ -106,6 +108,8 @@ export async function saved(ctx: Context, payload: unknown, host: ModuleHost): P
     }
     const stale = item.deletedOn ? null : item.receiptId ? staleOf(host, ctx, item, receipt, dictionary?.hash ?? null) : null;
     const { memberId: _m, request, sourceIds: _s, ...shown } = item;
+    // A figure the seat can no longer open is withheld, not shown from the copy kept here.
+    if (item.receiptId && !item.deletedOn && !receipt) shown.headline = null;
     items.push({ ...shown, stale, rebuildable: !item.deletedOn && request !== null && (item.kind === 'answer' || item.kind === 'what-if') });
   }
   return { items };

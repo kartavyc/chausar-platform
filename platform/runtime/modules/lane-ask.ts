@@ -59,7 +59,8 @@ export const askModule: EngineModule = {
     'askx.decisions.review': prepare(review),
     'askx.search': read(search),
     'askx.gst2b': read(gst2b),
-    'askx.gst2b.tolerance': prepare(setTolerance),
+    // The tolerance changes every seat's IMS list: an owner or cofounder decides it.
+    'askx.gst2b.tolerance': { permission: 'approve', handler: setTolerance },
     'askx.gst2b.line': read(line),
     'askx.gst2b.exportIms': read(exportIms),
   },
