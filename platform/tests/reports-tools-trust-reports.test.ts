@@ -9,6 +9,7 @@ import { Engine } from '../runtime/engine.ts';
 import type { Context } from '../runtime/contracts.ts';
 import { csvFile } from '../runtime/reports-ext/export-files.ts';
 import { xlsxBook, crc32 } from '../runtime/reports-ext/xlsx.ts';
+import { pendingExportPaths } from '../runtime/reports-ext/methods.ts';
 
 // Synthetic records only: one month of an invented business, with a formula-shaped description.
 const csv = `id,kind,date,amount,currency,customerId,invoiceId,dueDate,status,description
@@ -156,16 +157,30 @@ test('page export writes CSV, XLSX and print HTML; PDF and Tally refuse with the
   await assert.rejects(engine.request('reportsx.export', { pack: 'ca', page: 'ageing', format: 'docx' }), code('INVALID_EXPORT_FORMAT'));
 });
 
-test('the week ahead is built once per period, labels a late build and shows each change with its two receipts', async t => {
+test('the week ahead is built once per period, labels a late build and compares the last completed week with the one before it', async t => {
   const { engine, at } = await fixture(t);
-  const first = await engine.request('reportsx.weekAhead', { onDate: '2026-09-02' });
-  assert.deepEqual(first.period, { from: '2026-08-31', to: '2026-09-06' }); assert.equal(first.scheduledFor, '2026-08-31T03:30:00.000Z');
-  assert.equal(first.late, true); assert.equal(first.explanation, 'not-written'); assert.deepEqual(first.missed, []);
+  at('2026-09-08T06:00:00.000Z');
+  const first = await engine.request('reportsx.weekAhead', { onDate: '2026-09-08' });
+  assert.deepEqual(first.period, { from: '2026-09-07', to: '2026-09-13' }); assert.equal(first.scheduledFor, '2026-09-07T03:30:00.000Z');
+  assert.equal(first.late, true); assert.equal(first.explanation, 'not-written'); assert.deepEqual(first.missed, []); assert.deepEqual(first.gaps, []);
   const sales = first.changed.find((item: any) => item.id === 'net_sales');
-  assert.equal(sales.chart.length, 2); assert.equal(sales.figure.exact, '112525'); assert.deepEqual(sales.chart[0].figure, { kind: 'missing', missing: 'absent' });
-  assert.equal((await engine.request('receipts.get', { id: sales.figure.receiptId })).totalMinor, '112525');
-  at('2026-10-20T06:00:00.000Z');
-  assert.deepEqual(await engine.request('reportsx.weekAhead', { onDate: '2026-09-04' }), first);
+  // The week that has barely started is never compared: last completed week (31 Aug to 6 Sep) against the week before it.
+  assert.equal(sales.text, 'Net sales, the week 2026-08-31 to 2026-09-06 against the week 2026-08-24 to 2026-08-30');
+  assert.deepEqual(sales.chart.map((bar: any) => bar.id), ['week-before', 'last-week']);
+  assert.equal(sales.chart.length, 2); assert.equal(sales.figure.exact, '112525'); assert.deepEqual(sales.chart[0].figure, { kind: 'missing', missing: 'absent' }); assert.equal(sales.chart[1].figure.exact, '112525');
+  const receipt = await engine.request('receipts.get', { id: sales.figure.receiptId });
+  assert.equal(receipt.totalMinor, '112525'); assert.deepEqual(receipt.period, { from: '2026-08-31', to: '2026-09-06' });
+  // Next week, last week's brief is still kept and returned unchanged.
+  at('2026-09-15T06:00:00.000Z');
+  assert.deepEqual(await engine.request('reportsx.weekAhead', { onDate: '2026-09-10' }), first);
+  // Two weeks on, an older week refuses and nothing is built or stored by the read.
+  at('2026-10-14T06:00:00.000Z');
+  const briefs = () => Object.keys((engine.vault!.read().extensions as any)['reports-tools-trust'].reports.briefs ?? {});
+  const before = briefs();
+  await assert.rejects(engine.request('reportsx.weekAhead', { onDate: '2026-09-08' }), code('WEEK_TOO_OLD'));
+  await assert.rejects(engine.request('reportsx.weekAhead', { onDate: '2026-01-05' }), code('WEEK_TOO_OLD'));
+  assert.deepEqual(briefs(), before);
+  assert.deepEqual((await engine.request('reportsx.weekAhead', { onDate: '2026-10-05' })).period, { from: '2026-10-05', to: '2026-10-11' });
   at('2026-10-12T04:00:00.000Z');
   const onTime = await engine.request('reportsx.weekAhead', { onDate: '2026-10-12' });
   assert.equal(onTime.late, false); assert.equal(onTime.builtAt, '2026-10-12T04:00:00.000Z');
@@ -229,7 +244,7 @@ test('due dates are worked out from the sourced table for a profile, mark old ch
 });
 
 test('export everything writes open files with row counts and check numbers; deleting the source purges derived records', async t => {
-  const { engine, directory } = await fixture(t);
+  const { engine, directory, at } = await fixture(t);
   await assert.rejects(engine.request('reportsx.exportAll', {}), code('CONFIRMATION_REQUIRED'));
   const record = await engine.request('reportsx.exportAll', { confirmed: true });
   assert.equal(record.locked, false); assert.equal(record.encrypted, false); assert.ok(record.folder.startsWith(join(directory, 'exports', 'everything-')));
@@ -246,7 +261,7 @@ test('export everything writes open files with row counts and check numbers; del
     receiptId: (await engine.request('calculation.run', { operation: 'billed', period: september })).id });
   assert.equal(question.sent, false); assert.equal(dirname(question.file.path), join(directory, 'exports', 'questions'));
   const html = await readFile(question.file.path, 'utf8'); assert.match(html, /Is &lt;this&gt; right\?/); assert.match(html, /receipt_/);
-  await engine.request('reportsx.weekAhead', { onDate: '2026-09-02' });
+  at('2026-09-08T06:00:00.000Z'); await engine.request('reportsx.weekAhead', { onDate: '2026-09-08' });
   await engine.request('sources.delete', { id: sourceId });
   const reports = (engine.vault!.read().extensions as any)['reports-tools-trust'].reports;
   assert.deepEqual(Object.keys(reports.briefs), []); assert.deepEqual(reports.questions, []);
@@ -266,6 +281,80 @@ test('a viewer reads pages but cannot export, change the rhythm or export everyt
     await assert.rejects(engine.requestAs(viewer, method, payload), code('FORBIDDEN'));
   await assert.rejects(engine.requestAs(cofounder, 'reportsx.exportAll', { confirmed: true }), code('FORBIDDEN'));
   await assert.rejects(engine.requestAs({ ...viewer, channel: 'phone' }, 'reportsx.packs', {}), code('OPEN_DESKTOP'));
+});
+
+test('a forecast that passed its baseline test prints as not counted with words, because its receipt does not open from this page', async t => {
+  const { engine } = await fixture(t);
+  (engine as any).services.reports.forecast = async () => ({ id: 'answer_synthetic', status: 'passed-local-baseline-gate', forecastMinor: '123456' });
+  for (const [language, words] of [['en', 'A forecast passed its baseline test. It opens in Ask, not on this page yet.'], ['hi', 'एक अनुमान अपनी आधार-रेखा जाँच में सफल रहा। यह Ask में खुलता है, अभी इस पृष्ठ पर नहीं।']]) {
+    const page = await engine.request('reportsx.page', { pack: 'lender', page: 'projections', period: september, language });
+    const forecast = page.sections.find((s: any) => s.id === 'forecast');
+    assert.equal(forecast.projection, true); assert.deepEqual(forecast.lines[0].figure, { kind: 'missing', missing: 'not-counted' });
+    assert.deepEqual(forecast.gaps, [words]); assert.doesNotMatch(words, /\d/); assert.ok(!page.receiptIds.includes('answer_synthetic'));
+    for (const section of page.sections) for (const line of section.lines) if (line.figure.kind !== 'missing') assert.ok(await engine.request('receipts.get', { id: line.figure.receiptId }));
+  }
+  const csvText = await readFile((await engine.request('reportsx.export', { pack: 'lender', page: 'projections', format: 'csv', period: september })).path, 'utf8');
+  assert.doesNotMatch(csvText, /1234\.56|answer_synthetic/);
+});
+
+test('markings follow the data: a seat that does not see a marking gets withheld figures and words, in pages, exports and briefs', async t => {
+  const { engine, at } = await fixture(t);
+  await engine.request('members.add', { id: 'accountant-1', name: 'Synthetic accountant', role: 'accountant' });
+  await engine.request('members.add', { id: 'cofounder-1', name: 'Synthetic cofounder', role: 'cofounder' });
+  const accountant: Context = { memberId: 'accountant-1', role: 'accountant', epoch: 1, channel: 'desktop' };
+  const cofounder: Context = { memberId: 'cofounder-1', role: 'cofounder', epoch: 1, channel: 'desktop' };
+  const words = 'Some figures are withheld: the data is marked financial and your seat does not see it.';
+  // Marked but seen by default: the accountant sees financial data until the owner turns it off.
+  await engine.request('trustx.setMarking', { kind: 'financial', target: { type: 'source', sourceId }, on: true });
+  const seen = await engine.requestAs(accountant, 'reportsx.page', { pack: 'lender', page: 'key-financials', period: september });
+  assert.equal(lineOf(seen, 'operations', 'net-sales').figure.exact, '112525'); assert.deepEqual(seen.markings, ['financial']); assert.ok(!seen.gaps.includes(words));
+  await engine.request('trustx.setSeatMarking', { seat: 'accountant', kind: 'financial', sees: false });
+  const page = await engine.requestAs(accountant, 'reportsx.page', { pack: 'lender', page: 'key-financials', period: september });
+  assert.deepEqual(lineOf(page, 'operations', 'net-sales').figure, { kind: 'missing', missing: 'withheld' });
+  for (const section of page.sections) for (const line of section.lines) assert.equal(line.figure.kind, 'missing');
+  assert.ok(page.sections.find((s: any) => s.id === 'operations').gaps.includes(words)); assert.ok(page.gaps.includes(words));
+  assert.deepEqual(page.receiptIds, []); assert.deepEqual(page.markings, ['financial']);
+  const hindi = await engine.requestAs(accountant, 'reportsx.page', { pack: 'lender', page: 'key-financials', period: september, language: 'hi' });
+  assert.ok(hindi.gaps.some((gap: string) => gap.includes('वित्तीय')));
+  // Owner and cofounder see everything by default.
+  for (const [who, ctx] of [['owner', null], ['cofounder', cofounder]] as const) {
+    const full = ctx ? await engine.requestAs(ctx, 'reportsx.page', { pack: 'lender', page: 'key-financials', period: september }) : await engine.request('reportsx.page', { pack: 'lender', page: 'key-financials', period: september });
+    assert.equal(lineOf(full, 'operations', 'net-sales').figure.exact, '112525', who); assert.ok(!full.gaps.includes(words), who);
+  }
+  // An export carries the withheld words, never the value.
+  for (const format of ['csv', 'html']) {
+    const text = await readFile((await engine.requestAs(accountant, 'reportsx.export', { pack: 'ca', page: 'ageing', format, period: september })).path, 'utf8');
+    assert.ok(text.includes(words), format); assert.match(text, /withheld/); assert.doesNotMatch(text, /975\.00|receipt_/);
+  }
+  const xlsx = unzipStored(await readFile((await engine.requestAs(accountant, 'reportsx.export', { pack: 'ca', page: 'ageing', format: 'xlsx', period: september })).path)).get('xl/worksheets/sheet1.xml')!.toString('utf8');
+  assert.ok(xlsx.includes(words)); assert.doesNotMatch(xlsx, /975\.00/);
+  // The brief withholds too, and follows a later change of the seat's visibility.
+  at('2026-09-08T06:00:00.000Z');
+  const brief = await engine.requestAs(accountant, 'reportsx.weekAhead', { onDate: '2026-09-08' });
+  const sales = brief.changed.find((item: any) => item.id === 'net_sales');
+  assert.deepEqual(sales.figure, { kind: 'missing', missing: 'withheld' }); assert.ok(sales.chart.every((bar: any) => bar.figure.missing === 'withheld'));
+  assert.deepEqual(brief.gaps, [words]); assert.equal(brief.receiptIds.length, 3);
+  // Only the receipts of the empty week before stay listed: none of them reads the marked source.
+  for (const id of brief.receiptIds) assert.ok(!(await engine.requestAs(accountant, 'receipts.get', { id })).sourceIds.includes(sourceId));
+  assert.equal((await engine.request('reportsx.weekAhead', { onDate: '2026-09-08' })).changed.find((item: any) => item.id === 'net_sales').figure.exact, '112525');
+  await engine.request('trustx.setSeatMarking', { seat: 'accountant', kind: 'financial', sees: true });
+  const after = await engine.requestAs(accountant, 'reportsx.weekAhead', { onDate: '2026-09-08' });
+  assert.equal(after.changed.find((item: any) => item.id === 'net_sales').figure.exact, '112525'); assert.deepEqual(after.gaps, []);
+});
+
+test('a derived file that cannot be removed keeps its record as pending for the deletion report', async t => {
+  const { engine } = await fixture(t);
+  const file = await engine.request('reportsx.export', { pack: 'ca', page: 'ageing', format: 'csv', period: september });
+  const question = await engine.request('reportsx.askPerson', { question: 'Is this right?', reason: 'Not yet.', receiptId: (await engine.request('calculation.run', { operation: 'billed', period: september })).id });
+  // A path with a NUL character is refused by every file system call, so its removal fails on every platform.
+  const broken = `${file.path}\u0000broken`;
+  await engine.vault!.update(state => { (state.extensions as any)['reports-tools-trust'].reports.pageExports[0].path = broken; });
+  assert.deepEqual(pendingExportPaths(engine.vault!.read()), []);
+  await engine.request('sources.delete', { id: sourceId });
+  const reports = (engine.vault!.read().extensions as any)['reports-tools-trust'].reports;
+  assert.equal(reports.pageExports.length, 1); assert.equal(reports.pageExports[0].removalFailed, true);
+  assert.deepEqual(reports.questions, []); await assert.rejects(access(question.file.path));
+  assert.deepEqual(pendingExportPaths(engine.vault!.read()), [broken]);
 });
 
 /** Every label on a printed figure is one of the canonical labels a screen shows. */

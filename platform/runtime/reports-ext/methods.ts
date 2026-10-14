@@ -125,20 +125,41 @@ export const reportsMethods: Record<string, MethodSpec> = {
   } },
 };
 
-/** Deleting a source removes every brief and file this part derived from it. */
+/** A file path an export, question or "export everything" record points at. */
+const recordPath = (list: 'pageExports' | 'questions' | 'exports', item: any): unknown => list === 'exports' ? item?.folder : item?.path;
+const derivedLists = ['pageExports', 'questions', 'exports'] as const;
+
+/** Paths still on record whose removal failed after the data they came from was deleted, for the deletion report to list as pending. */
+export function pendingExportPaths(state: State): string[] {
+  const reports = peekLane(state)?.reports; if (!reports) return [];
+  const paths: string[] = [];
+  for (const list of derivedLists) for (const item of Array.isArray(reports[list]) ? reports[list] : []) {
+    const path = recordPath(list, item); if (item?.removalFailed === true && typeof path === 'string') paths.push(path);
+  }
+  return paths;
+}
+
+/**
+ * Deleting a source removes every brief and file this part derived from it. A file that cannot be removed keeps its record,
+ * marked `removalFailed`, so the deletion report can say it is pending; each later purge tries it again.
+ */
 onPurge((state: State, reason) => {
   const reports = peekLane(state)?.reports; if (!reports) return 0;
   const sources = new Set(reason.sourceIds);
   const hit = (item: { sourceIds?: string[]; rowIds?: string[]; receiptIds?: string[]; brief?: { receiptIds?: string[] } }) =>
     (item.sourceIds ?? []).some(id => sources.has(id)) || [...(item.rowIds ?? []), ...(item.receiptIds ?? []), ...(item.brief?.receiptIds ?? [])].some(id => reason.removedIds.has(id));
-  const remove = (path: unknown) => { if (typeof path === 'string') try { rmSync(path, { recursive: true, force: true }); } catch { /* The record goes; a file that cannot be removed is left to the deletion report. */ } };
+  const remove = (path: unknown): boolean => {
+    if (typeof path !== 'string') return true;
+    try { rmSync(path, { recursive: true, force: true }); return true; } catch { return false; }
+  };
   let removed = 0;
   for (const [key, item] of Object.entries(reports.briefs ?? {})) if (hit(item as any)) { delete reports.briefs[key]; removed++; }
-  for (const list of ['pageExports', 'questions', 'exports'] as const) {
+  for (const list of derivedLists) {
     if (!Array.isArray(reports[list])) continue;
     const kept = reports[list].filter((item: any) => {
-      if (!hit(item) || item.locked) return true;
-      remove(list === 'exports' ? item.folder : item.path); removed++; return false;
+      if (item.locked || (!hit(item) && item.removalFailed !== true)) return true;
+      if (remove(recordPath(list, item))) { removed++; return false; }
+      item.removalFailed = true; return true;
     });
     reports[list] = kept;
   }

@@ -133,6 +133,7 @@ export const words = {
   investorNote: w('These figures come from imported records only. They are not a valuation and are not audited.', 'ये आँकड़े केवल आयात किए गए रिकॉर्ड से हैं। ये मूल्यांकन नहीं हैं और इनका ऑडिट नहीं हुआ है।'),
   emptyMonths: w('Months with no imported records are shown as missing, not as zero.', 'जिन महीनों के कोई रिकॉर्ड आयात नहीं हुए, वे शून्य नहीं, अनुपलब्ध दिखाए गए हैं।'),
   forecastLine: w('Projected earned revenue, next month', 'अगले महीने का अनुमानित अर्जित राजस्व'),
+  forecastInAsk: w('A forecast passed its baseline test. It opens in Ask, not on this page yet.', 'एक अनुमान अपनी आधार-रेखा जाँच में सफल रहा। यह Ask में खुलता है, अभी इस पृष्ठ पर नहीं।'),
   forecastRefused: w('The forecast was refused: it needs at least eight whole, reconciled months of earned revenue and must beat the last-month baseline.', 'अनुमान अस्वीकार किया गया: इसके लिए अर्जित राजस्व के कम से कम आठ पूरे, मिलान किए गए महीने चाहिए और इसे पिछले महीने के आधार से बेहतर होना चाहिए।'),
 };
 const checkedOn = '2026-10-14';

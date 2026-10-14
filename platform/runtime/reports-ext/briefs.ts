@@ -5,12 +5,15 @@ import type { ModuleHost } from '../modules/types.ts';
 import { validDate } from '../memory.ts';
 import { addDays, clock, closed, DAY_MS, IST_OFFSET_MS, indiaDate, isoAt, isoWeek, peekReports, record, reportsState, type EngineFigure, type Period } from './common.ts';
 import { dueDates, type DueProfile } from './due-dates.ts';
+import { hiddenKinds, markKinds, withheldFigure, withheldGap, withheldKinds, type MarkKind } from './withhold.ts';
 
 export type RhythmSettings = { days: number[]; time: string; dailyClosing: boolean; financialYearStart: string; missedRule: 'run-late' | 'skip';
   mail: { on: boolean; address: string | null }; whatsapp: { on: boolean; phone: string | null } };
 type BriefItem = { id: string; text: string; figure?: EngineFigure; chart?: { id: string; label: string; figure: EngineFigure }[] };
 export type WeekAhead = { id: string; period: Period; scheduledFor: string; builtAt: string; late: boolean; changed: BriefItem[]; decide: BriefItem[]; due: BriefItem[];
-  inbox: { id: string; text: string; reviewDate: string }[]; missed: { id: string; what: string; at: string }[]; explanation: 'not-written'; receiptIds: string[] };
+  inbox: { id: string; text: string; reviewDate: string }[]; missed: { id: string; what: string; at: string }[]; explanation: 'not-written'; receiptIds: string[];
+  /** Words for what this brief cannot show the caller, such as figures withheld by a marking. */
+  gaps: string[] };
 
 export const defaultRhythm: RhythmSettings = { days: [1], time: '09:00', dailyClosing: false, financialYearStart: '04-01', missedRule: 'run-late',
   mail: { on: false, address: null }, whatsapp: { on: false, phone: null } };
@@ -65,10 +68,11 @@ function figure(receipt: CalculationReceipt): EngineFigure {
   return receipt.coverage.completeness === 'empty' ? { kind: 'missing', missing: 'absent' } : { kind: 'money', exact: receipt.totalMinor, receiptId: receipt.id, labels: receipt.stale ? ['stale'] : [], measure: { operation: receipt.operation, key: 'total' } };
 }
 const changes: { op: string; text: string }[] = [
-  { op: 'net_sales', text: 'Net sales, this week against last week' },
-  { op: 'received', text: 'Money received, this week against last week' },
-  { op: 'billed', text: 'Invoices raised, this week against last week' },
+  { op: 'net_sales', text: 'Net sales' },
+  { op: 'received', text: 'Money received' },
+  { op: 'billed', text: 'Invoices raised' },
 ];
+const weekWords = (week: Period) => `the week ${week.from} to ${week.to}`;
 
 /** Missed scheduled runs recorded by the job scheduler between the start of the previous week and now. */
 function missedRuns(state: State, ctx: Context, since: string, until: string): WeekAhead['missed'] {
@@ -86,23 +90,50 @@ function missedRuns(state: State, ctx: Context, since: string, until: string): W
 
 /** Receipts are private to one member, so each member keeps one brief per week. */
 const briefKey = (ctx: Context, week: Period) => `${ctx.memberId}:${week.from}`;
-/** Returns the stored brief for the week, or builds and stores the first one. */
+type StoredBrief = { brief: WeekAhead; sourceIds: string[]; rowIds: string[]; memberId: string; itemSources?: Record<string, string[]>; receiptSources?: Record<string, string[]> };
+
+/** Figures from data marked with a kind the caller's seat does not see are withheld, with a gap in words, each time the brief is read. */
+function forCaller(state: State, ctx: Context, stored: StoredBrief): WeekAhead {
+  const brief = structuredClone(stored.brief); brief.gaps ??= [];
+  const hidden = hiddenKinds(state, ctx); if (!hidden.length) return brief;
+  const kinds = new Set<MarkKind>();
+  const withheldReceipts = new Set(brief.receiptIds.filter(id => withheldKinds(state, stored.receiptSources?.[id] ?? stored.sourceIds, hidden).length));
+  brief.changed = brief.changed.map(item => {
+    const found = withheldKinds(state, stored.itemSources?.[item.id] ?? stored.sourceIds, hidden);
+    if (!found.length) return item;
+    for (const kind of found) kinds.add(kind);
+    return { ...item, ...(item.figure ? { figure: withheldFigure() } : {}), ...(item.chart ? { chart: item.chart.map(bar => ({ ...bar, figure: withheldFigure() })) } : {}) };
+  });
+  brief.receiptIds = brief.receiptIds.filter(id => !withheldReceipts.has(id));
+  brief.gaps = [...new Set([...brief.gaps, ...markKinds.filter(kind => kinds.has(kind)).map(kind => withheldGap(kind, 'en'))])];
+  return brief;
+}
+
+/**
+ * Returns the stored brief for the week, or builds and stores the first one. Briefs are kept for this week and last week only,
+ * so a read cannot grow the store without bound. "What changed" compares the last completed week with the week before it.
+ */
 export async function weekAhead(ctx: Context, host: ModuleHost, onDate: string): Promise<WeekAhead> {
-  const week = isoWeek(onDate), key = briefKey(ctx, week); const existing = peekReports(host.store.read()).briefs?.[key];
-  if (existing) return structuredClone(existing.brief);
-  const s = host.services; const builtMs = clock(host); const builtAt = isoAt(builtMs);
-  check(week.from <= indiaDate(builtMs), 'WEEK_NOT_STARTED', 'A brief can be built once its week has started.');
+  const week = isoWeek(onDate), key = briefKey(ctx, week);
+  const s = host.services; const builtMs = clock(host); const builtAt = isoAt(builtMs), thisWeek = isoWeek(indiaDate(builtMs));
+  check(week.from <= thisWeek.from, 'WEEK_NOT_STARTED', 'A brief can be built once its week has started.');
+  check(week.from >= addDays(thisWeek.from, -7), 'WEEK_TOO_OLD', 'Briefs are kept for this week and last week.');
+  const existing: StoredBrief | undefined = peekReports(host.store.read()).briefs?.[key];
+  if (existing) return forCaller(host.store.read(), ctx, existing);
   const state = host.store.read(); const rhythm = rhythmSettings(state); const scheduled = scheduledFor(rhythm, week);
-  const lastWeek = { from: addDays(week.from, -7), to: addDays(week.to, -7) };
-  const receipts: CalculationReceipt[] = []; const changed: BriefItem[] = [];
+  const lastWeek = { from: addDays(week.from, -7), to: addDays(week.to, -7) }, weekBefore = { from: addDays(week.from, -14), to: addDays(week.to, -14) };
+  const receipts: CalculationReceipt[] = []; const changed: BriefItem[] = []; const itemSources: Record<string, string[]> = {}, receiptSources: Record<string, string[]> = {};
   let catalog: Set<string>;
   try { catalog = new Set((s.calculator.catalog(ctx) as { id: string }[]).map(op => op.id)); } catch { catalog = new Set(); }
   for (const change of changes.filter(item => catalog.has(item.op))) {
     try {
-      const before: CalculationReceipt = await s.calculator.calculate(ctx, { operation: change.op, period: lastWeek });
-      const after: CalculationReceipt = await s.calculator.calculate(ctx, { operation: change.op, period: week });
+      const before: CalculationReceipt = await s.calculator.calculate(ctx, { operation: change.op, period: weekBefore });
+      const after: CalculationReceipt = await s.calculator.calculate(ctx, { operation: change.op, period: lastWeek });
       receipts.push(before, after);
-      changed.push({ id: change.op, text: change.text, figure: figure(after), chart: [{ id: 'last-week', label: 'Last week', figure: figure(before) }, { id: 'this-week', label: 'This week', figure: figure(after) }] });
+      itemSources[change.op] = [...new Set([...before.sourceIds, ...after.sourceIds])];
+      receiptSources[before.id] = [...before.sourceIds]; receiptSources[after.id] = [...after.sourceIds];
+      changed.push({ id: change.op, text: `${change.text}, ${weekWords(lastWeek)} against ${weekWords(weekBefore)}`, figure: figure(after),
+        chart: [{ id: 'week-before', label: 'The week before', figure: figure(before) }, { id: 'last-week', label: 'Last week', figure: figure(after) }] });
     } catch (error) { if ((error as { code?: string }).code === 'ACCESS_REVOKED') throw error; }
   }
   const decide: BriefItem[] = [
@@ -115,14 +146,14 @@ export async function weekAhead(ctx: Context, host: ModuleHost, onDate: string):
   const inbox = (s.reports.dueDecisions(ctx, { dueOn: week.to }) as { id: string; text: string; reviewDate: string }[]).map(item => ({ id: item.id, text: item.text, reviewDate: item.reviewDate }));
   const missed = missedRuns(state, ctx, `${lastWeek.from}T00:00:00.000Z`, builtAt);
   const brief: WeekAhead = { id: newId('brief'), period: week, scheduledFor: scheduled, builtAt, late: builtMs - Date.parse(scheduled) > 3_600_000,
-    changed, decide, due, inbox, missed, explanation: 'not-written', receiptIds: receipts.map(receipt => receipt.id) };
+    changed, decide, due, inbox, missed, explanation: 'not-written', receiptIds: receipts.map(receipt => receipt.id), gaps: [] };
   const sourceIds = [...new Set(receipts.flatMap(receipt => receipt.sourceIds))], rowIds = [...new Set(receipts.flatMap(receipt => receipt.rowIds))];
-  return host.store.update(next => {
+  const stored = await host.store.update(next => {
     const briefs = (reportsState(next).briefs ??= {});
-    if (briefs[key]) return structuredClone(briefs[key].brief);
-    briefs[key] = { brief: structuredClone(brief), sourceIds, rowIds, memberId: ctx.memberId };
-    return structuredClone(brief);
+    briefs[key] ??= { brief: structuredClone(brief), sourceIds, rowIds, memberId: ctx.memberId, itemSources, receiptSources };
+    return structuredClone(briefs[key]) as StoredBrief;
   });
+  return forCaller(host.store.read(), ctx, stored);
 }
 
 export async function friday(ctx: Context, host: ModuleHost, onDate: string) {

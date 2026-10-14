@@ -4,6 +4,7 @@ import type { CalculationReceipt } from '../calculator.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import { addDays, daysBetween, lastTwelveMonths, monthLabel, record, type EngineFigure, type Language, type Missing, type Period, type Words } from './common.ts';
 import { notRegistered, notes, packs, reasons, words, type PackSpec, type PageSpec, type SectionSpec } from './packs.ts';
+import { hiddenKinds, markingsForSources, markKinds, withheldFigure, withheldGap, withheldKinds, type MarkKind } from './withhold.ts';
 
 export type PageState = 'ready-tested' | 'ready-untested' | 'not-started';
 type OpResult = { receipt?: CalculationReceipt; state: PageState; reason?: Words; missing?: Missing };
@@ -93,11 +94,11 @@ async function section(calc: Calculations, host: ModuleHost, ctx: Context, spec:
   if (spec.forecast) {
     const history: CalculationReceipt[] = [];
     for (const month of lastTwelveMonths(period.to)) { const result = await calc.run('revenue', month); if (result.receipt) history.push(result.receipt); }
-    let figure: EngineFigure = { kind: 'missing', missing: 'not-counted' };
+    const figure: EngineFigure = { kind: 'missing', missing: 'not-counted' };
     try {
       const forecast = await host.services.reports.forecast(ctx, { receiptIds: history.map(receipt => receipt.id) });
-      if (forecast.status === 'passed-local-baseline-gate' && typeof forecast.forecastMinor === 'string') figure = { kind: 'money', exact: forecast.forecastMinor, receiptId: forecast.id, labels: ['projection'], measure: { operation: 'forecast', key: 'forecastMinor' } };
-      else gaps.push(words.forecastRefused[lang]);
+      // A forecast is kept with Ask's answers, not as a calculation receipt, so its amount cannot be opened from this page: the line stays not counted.
+      gaps.push(forecast.status === 'passed-local-baseline-gate' && typeof forecast.forecastMinor === 'string' ? words.forecastInAsk[lang] : words.forecastRefused[lang]);
     } catch (error) {
       if ((error as { code?: string }).code === 'ACCESS_REVOKED') throw error;
       gaps.push(words.forecastRefused[lang]);
@@ -118,17 +119,26 @@ export async function buildPage(ctx: Context, host: ModuleHost, packId: string, 
     const verified = await host.call('trustx.verifyRecord', {}) as { head?: { short?: unknown; at?: unknown } };
     if (record(verified?.head) && typeof verified.head.short === 'string') footer = { checkCode: verified.head.short, at: typeof verified.head.at === 'string' ? verified.head.at : null };
   } catch { /* The record helper is not available: the footer says so with nulls. */ }
-  let markings: ReportPage['markings'] = [];
-  try {
-    const reply = await host.call('trustx.markings', {}) as { marks?: { kind?: unknown; target?: { sourceId?: unknown } }[] };
-    const kinds = new Set((Array.isArray(reply?.marks) ? reply.marks : []).filter(mark => typeof mark?.target?.sourceId === 'string' && sourceIds.includes(mark.target.sourceId)).map(mark => mark.kind));
-    markings = (['personal', 'financial', 'confidential'] as const).filter(kind => kinds.has(kind));
-  } catch { /* Markings are not available: none are printed. */ }
+  const data = host.store.read();
+  const markings: ReportPage['markings'] = markingsForSources(data, sourceIds);
+  const hidden = hiddenKinds(data, ctx);
+  const withheldReceipts = new Set([...receipts.values()].filter(receipt => withheldKinds(data, receipt.sourceIds, hidden).length).map(receipt => receipt.id));
+  for (const item of sections) {
+    const kinds = new Set<MarkKind>();
+    item.lines = item.lines.map(line => {
+      if (line.figure.kind === 'missing') return line;
+      const receipt = receipts.get(line.figure.receiptId), found = withheldKinds(data, receipt?.sourceIds ?? [], hidden);
+      if (!found.length) return line;
+      for (const kind of found) kinds.add(kind);
+      return { ...line, figure: withheldFigure() };
+    });
+    item.gaps = [...new Set([...item.gaps, ...markKinds.filter(kind => kinds.has(kind)).map(kind => withheldGap(kind, lang))])];
+  }
   const pageNotes: ReportPage['notes'] = (page.notes ?? []).map(id => ({ id, text: notes[id].text[lang], source: { ...notes[id].source }, notLegalAdvice: true }));
   if (pack.id === 'investor' && page.id === 'notes') pageNotes.push({ id: 'imported-only', text: words.investorNote[lang], notLegalAdvice: false });
   return { pack: pack.id, page: page.id, title: page.title[lang], language: lang, period, generatedAt: now(), state, sections,
     notes: pageNotes, disclaimer: page.disclaimer ? words.disclaimer[lang] : null, gaps: [...new Set(sections.flatMap(item => item.gaps))], markings, footer,
-    receiptIds: [...receipts.keys()], sourceIds, rowIds: [...new Set([...receipts.values()].flatMap(receipt => receipt.rowIds))] };
+    receiptIds: [...receipts.keys()].filter(id => !withheldReceipts.has(id)), sourceIds, rowIds: [...new Set([...receipts.values()].flatMap(receipt => receipt.rowIds))] };
 }
 
 export async function listPacks(ctx: Context, host: ModuleHost, period: Period) {
