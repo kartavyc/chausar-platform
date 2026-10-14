@@ -1,1 +1,24 @@
-[]
+[
+  "approvals.action",
+  "approvals.afterRestore",
+  "approvals.approve",
+  "approvals.approveGroup",
+  "approvals.catalogue",
+  "approvals.catalogueEntry",
+  "approvals.change",
+  "approvals.drop",
+  "approvals.execute",
+  "approvals.get",
+  "approvals.group",
+  "approvals.job",
+  "approvals.jobs",
+  "approvals.ledger",
+  "approvals.list",
+  "approvals.notNow",
+  "approvals.pace",
+  "approvals.practice",
+  "approvals.resolveUnknown",
+  "approvals.reverse",
+  "approvals.wanted",
+  "approvals.wantedList"
+]
