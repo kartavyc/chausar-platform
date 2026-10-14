@@ -22,7 +22,7 @@ import { Chart } from '../../parts/charts/Chart';
 import { State } from '../../patterns/States';
 import type { Mark } from '../../app/presentation.ts';
 import type { TodayScreenProps } from './shared';
-import { attentionRows, useWorth, TodayConsumerControls, TodayConsumerLedger, TodayProducerSections } from './shared';
+import { ClosingRow, attentionRows, useWorth, TodayReviewLink, TodayConsumerLedger, TodayProducerSections } from './shared';
 import { CLOSE_STEP_ORDER, type CloseStep, type CloseStepState } from './TodayData.ts';
 import { allowsTodayMutation, todayIntentsForState } from './permissions.ts';
 import s from './Today.module.css';
@@ -104,14 +104,17 @@ export function TodayBooks({ data, intents: offeredIntents, sheetId, onNavigate 
 
   return (
     <div className={s.today}>
-      <PageHeader where={data.date} title={t('TD-01.title')} titleId={titleId} count={data.review.count} />
+      <div className={s.lead}>
+      <PageHeader where={data.date} title={t('TD-01.title')} titleId={titleId} count={data.review.count} aside={<TodayReviewLink data={data} intents={intents} />} />
       <State state={data.state} />
-      <TodayConsumerControls data={data} intents={intents} />
       <TodayConsumerLedger data={data} intents={intents} />
+      </div>
       {data.queueMissing !== undefined && <p className={s.missing}>{t('TODAY_ENGINE.queueMissing')}</p>}
+      <ClosingRow data={data} />
 
-      {queue.length === 0 && data.state.kind === 'ready' ? (
-        <State state={{ kind: 'empty' }} emptyKey="ST.empty.review" />
+      {/* A table is drawn only with rows in it: column headers over no cells say nothing (axe th-has-data-cells). */}
+      {queue.length === 0 ? (
+        data.state.kind === 'ready' && <State state={{ kind: 'empty' }} emptyKey="ST.empty.review" />
       ) : (
         <table className={s.table} aria-labelledby={titleId}>
           <thead>

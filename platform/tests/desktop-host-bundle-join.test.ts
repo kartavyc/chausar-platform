@@ -19,13 +19,14 @@ interface BundleExports {
   createDesktopRequestPort(bridge: { requestEnvelope(method: string, payload?: unknown): Promise<unknown> }): RequestPort;
   createHostController(port: RequestPort, options?: { timeZone?: string; todayProducer?: object }): Controller;
   mountHost: (...args: unknown[]) => unknown;
+  createShellPort(desktop: unknown, browser: null): { openExternal(url: string): Promise<string>; print(kind: string): Promise<void> };
 }
 async function loadActualBundle(context: Context = createContext({})) {
   const module = new SourceTextModule(bundleSource, { context, identifier: bundleUrl.href });
   await module.link(specifier => { throw new Error(`Actual browser artifact must be self-contained: ${specifier}`); });
   await module.evaluate({ timeout: 5_000 });
   const namespace = module.namespace as unknown as Record<string, unknown>;
-  for (const name of ['createDesktopRequestPort', 'createHostController', 'mountHost']) assert.equal(typeof namespace[name], 'function', name);
+  for (const name of ['createDesktopRequestPort', 'createHostController', 'createShellPort', 'mountHost']) assert.equal(typeof namespace[name], 'function', name);
   return { context, exports: namespace as unknown as BundleExports };
 }
 function contextCopy(context: Context, value: unknown): unknown {
@@ -89,14 +90,19 @@ async function shellFixture(protocol: 'chausar:' | 'https:', token: string | nul
       return { ok: fetchReply.ok, async json() { return fetchReply.value; } };
     },
   });
-  const hostBoundary = new SyntheticModule(['createDesktopRequestPort', 'createHostController', 'mountHost'], function () {
+  let shellBridge: unknown = 'not-created';
+  const hostBoundary = new SyntheticModule(['createDesktopRequestPort', 'createHostController', 'createShellPort', 'mountHost'], function () {
     this.setExport('createDesktopRequestPort', actual.exports.createDesktopRequestPort);
+    this.setExport('createShellPort', (desktop: unknown) => { shellBridge = desktop; return actual.exports.createShellPort(desktop, null); });
     this.setExport('createHostController', (port: RequestPort, options: { todayProducer: object }) => {
       capturedPort = port; assert.deepEqual(ordinary(options), { todayProducer: {} });
       return { async checkAuthority() { checks++; }, invalidate(code: string) { invalidations.push(code); } };
     });
-    this.setExport('mountHost', (element: unknown, _controller: unknown, options: { onLegacyReturn?(): void }) => {
+    this.setExport('mountHost', (element: unknown, _controller: unknown, options: { onLegacyReturn?(): void; shell?: { openExternal: unknown; print: unknown } }) => {
       assert.equal(element, container); legacyReturn = options.onLegacyReturn; mountOptions = Object.keys(options);
+      // The shell port is the actual bundled adapter over the desktop bridge, or the browser's own.
+      assert.equal(typeof options.shell?.openExternal, 'function'); assert.equal(typeof options.shell?.print, 'function');
+      assert.equal(shellBridge, protocol === 'chausar:' ? bridge : null);
       return { dispose() { disposals++; } };
     });
   }, { context, identifier: 'synthetic-controller-and-dom-boundary' });
@@ -196,7 +202,7 @@ test('actual browser shell without a token refuses locally before any fetch or d
 test('actual shell offers no legacy return when the host document does not mark it available', async () => {
   for (const protocol of ['chausar:', 'https:'] as const) {
     const h = await shellFixture(protocol, 'synthetic-token', false);
-    try { assert.deepEqual(h.mountOptions, ['firstRun']); assert.throws(() => h.legacyReturn()); assert.deepEqual(h.assignments, []); }
+    try { assert.deepEqual(h.mountOptions, ['firstRun', 'shell']); assert.throws(() => h.legacyReturn()); assert.deepEqual(h.assignments, []); }
     finally { h.pagehide(); }
   }
 });

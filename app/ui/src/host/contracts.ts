@@ -11,6 +11,8 @@ export interface UiContext {
   readonly workspace: { readonly id: string; readonly name: string; readonly demo: boolean };
   readonly member: { readonly id: string; readonly name: string; readonly role: 'owner' | 'cofounder' | 'accountant' | 'viewer'; readonly epoch: number; readonly branches: readonly string[] };
   readonly contextKey: string;
+  /** The business's IANA time zone when the workspace records one; null or absent when it does not. */
+  readonly timeZone?: string | null;
 }
 export interface UiModelRoute {
   readonly id: string;
@@ -74,6 +76,13 @@ function text(value: unknown, path: string, maximum = 200): string {
   if (typeof value !== 'string' || !value.trim() || value.length > maximum || /[\u0000-\u001f]/.test(value)) invalid(path);
   return value;
 }
+/** A named IANA zone this runtime knows; the machine's own zone is never assumed. */
+function zone(value: unknown, path: string): string {
+  const name = text(value, path, 100);
+  if (!/^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/.test(name)) invalid(path);
+  try { new Intl.DateTimeFormat('en', { timeZone: name }); } catch { invalid(path); }
+  return name;
+}
 function identity(value: unknown, path: string): string {
   const id = text(value, path); if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/.test(id)) invalid(path); return id;
 }
@@ -85,7 +94,7 @@ function list(value: unknown, path: string, maximum: number): unknown[] {
   return value;
 }
 export function validateUiContext(value: unknown): UiContext {
-  const obj = exact(value, ['workspace', 'member', 'contextKey'], 'ui.context');
+  const obj = exact(value, Object.hasOwn(record(value, 'ui.context'), 'timeZone') ? ['workspace', 'member', 'contextKey', 'timeZone'] : ['workspace', 'member', 'contextKey'], 'ui.context');
   const workspace = exact(obj.workspace, ['id', 'name', 'demo'], 'ui.context.workspace');
   const member = exact(obj.member, ['id', 'name', 'role', 'epoch', 'branches'], 'ui.context.member');
   if (typeof workspace.demo !== 'boolean') invalid('ui.context.workspace.demo');
@@ -94,7 +103,9 @@ export function validateUiContext(value: unknown): UiContext {
   const branches = list(member.branches, 'ui.context.member.branches', 1000).map((branch, index) => text(branch, `ui.context.member.branches[${index}]`));
   if (new Set(branches).size !== branches.length) invalid('ui.context.member.branches');
   if (typeof obj.contextKey !== 'string' || !/^[a-f0-9]{64}$/.test(obj.contextKey)) invalid('ui.context.contextKey');
+  const timeZone = obj.timeZone === undefined || obj.timeZone === null ? null : zone(obj.timeZone, 'ui.context.timeZone');
   return Object.freeze({
+    ...(Object.hasOwn(obj, 'timeZone') ? { timeZone } : {}),
     workspace: Object.freeze({ id: identity(workspace.id, 'ui.context.workspace.id'), name: text(workspace.name, 'ui.context.workspace.name', 100), demo: workspace.demo }),
     member: Object.freeze({ id: identity(member.id, 'ui.context.member.id'), name: text(member.name, 'ui.context.member.name', 200), role: member.role as UiContext['member']['role'], epoch: member.epoch as number, branches: Object.freeze(branches) }),
     contextKey: obj.contextKey,

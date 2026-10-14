@@ -12,6 +12,44 @@
   display: grid;
   gap: var(--sp3);
 }
+/* A link or button directly in a section ("See all") sits at the start, as wide as its words. */
+.section > button,
+.section > a {
+  justify-self: start;
+}
+
+/* The date, the title and the review rows read as one block: the header keeps its own space below. */
+.lead {
+  display: grid;
+  align-content: start;
+}
+
+/* A figure with its "Definition, coverage" link under the chart, at the start of the tile. */
+.stat {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: var(--sp2);
+}
+.stat > :first-child {
+  justify-self: stretch;
+}
+
+/* The explicit preparation of the figures: its note and its button on one line under the tiles. */
+.prepare {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp3) var(--sp5);
+}
+.prepareNote {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
 
 .label {
   margin: 0;
@@ -80,6 +118,21 @@
 
 .cashEntered {
   display: inline-flex;
+}
+
+/* Simple: today's cash by voice; the heard amount is shown back large. */
+.cashVoice {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--sp3);
+  justify-items: start;
+}
+
+.cashHeard {
+  margin: 0;
+  font-size: var(--fs-fig-big);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
 }
 
 .cashChart {

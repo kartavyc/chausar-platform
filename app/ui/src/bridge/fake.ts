@@ -19,7 +19,7 @@
 import type { Language } from '../app/presentation.ts';
 import { todayDigest } from './today-engine.ts';
 import type { TodayConfiguration, TodayProducerInput, TodayTilesRequest } from './today-engine.ts';
-import type { IdentityCard, IdentityField } from './todayx-contract.ts';
+import type { DeviceChoices, IdentityCard, IdentityField, RecoveryContact } from './todayx-contract.ts';
 import { IDENTITY_FIELDS } from './todayx-contract.ts';
 import {
   ACTIONS, DEMO_CLOCK, DEMO_OWNER, DEMO_ROUTE, DEMO_SOURCES, DEMO_TIME_ZONE, DEMO_VIEWER, DEMO_WORKSPACE, IMPORT, TILES,
@@ -32,11 +32,14 @@ import {
   phoneMessagesReply, shellReply, statusReply, worthReply,
 } from './fixtures/todayx.ts';
 import type { FakeScenarioName, TodayxState } from './fixtures/todayx.ts';
+import { createFakeIdea } from './fixtures/idea.ts';
 
 export type FakeScenario = FakeScenarioName;
 /** The passphrase that opens the fake's locked workspace. Synthetic; never a real secret. */
 export const FAKE_PASSPHRASE = 'synthetic-demo-passphrase';
 export const FAKE_SCENARIOS: readonly FakeScenario[] = ['populated', 'empty', 'first-run', 'locked', 'read-only'];
+/** Served before the vault is open, as the engine serves them to the trusted local desktop. */
+export const FAKE_PRE_VAULT: readonly string[] = ['todayx.identity.check', 'todayx.diskCheck', 'todayx.device.get', 'todayx.device.set', 'todayx.workspaces', 'todayx.recoveryContact.request'];
 
 export interface FakeEngineOptions {
   readonly language?: Language;
@@ -118,6 +121,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const captures = new Map<string, Record<string, unknown>>();
   const todayx: TodayxState = { clock: { mode: 'demo', date, set: false }, jobsPaused: true };
   let identity: IdentityCard | null = null;
+  const idea = createFakeIdea(fakeRefusal);
+  let device: DeviceChoices = { language: null, view: null, saved: false };
+  let recoveryContact: RecoveryContact | null = null;
+  /* TD-01 daily closing: off until an owner turns it on, as in the engine. */
+  let closingOn = false;
   const store = new Map<string, unknown>();
   const calls: string[] = [];
 
@@ -141,7 +149,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   async function uiContext() {
     if (!unlocked) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
     const contextKey = await sha256Hex(JSON.stringify({ kind: 'fake-ui-context', workspace: workspace.id, member: seat.id, role: seat.role, epoch: 1, dictionary: dictionary()?.['hash'] ?? null, attempts: [...attempts.keys()] }));
-    return { workspace: { ...workspace }, member: { id: seat.id, name: seat.name, role: seat.role, epoch: 1, branches: ['*'] }, contextKey };
+    return { workspace: { ...workspace }, member: { id: seat.id, name: seat.name, role: seat.role, epoch: 1, branches: ['*'] }, contextKey, timeZone: DEMO_TIME_ZONE };
   }
   const mutating = () => { if (seat.role === 'viewer') throw fakeRefusal('ACCESS_DENIED', 'A viewer seat changes nothing.'); };
   const populated = () => scenario === 'populated' || scenario === 'read-only';
@@ -309,6 +317,26 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     return identity;
   }
 
+  /* ------------------------------------------------------------ round 2 */
+  function receiptDetail(payload: Readonly<Record<string, unknown>>) {
+    const id = payload['receiptId'], current = pack();
+    if (typeof id !== 'string' || Object.keys(payload).some(key => key !== 'receiptId')) throw fakeRefusal('INVALID_TODAYX_REQUEST', 'Name one receipt.');
+    const receipt = populated() && current !== null ? receiptFor(id, current.dictionaryHash, seat.id, `${date}T06:00:00.000Z`) : null;
+    if (receipt === null) throw fakeRefusal('RECEIPT_NOT_FOUND', 'No receipt has that id.');
+    const names = Array.isArray(receipt['sourceIds']) ? receipt['sourceIds'].filter((name): name is string => typeof name === 'string') : [];
+    return {
+      receiptId: id,
+      ...(names.length > 0 ? { sources: { names, wayIn: 'exported-file', readAt: `${date}T03:45:00.000Z` } } : {}),
+      recipe: { recipeId: 'recipe_demo_tally', state: 'not-yet-tested', acceptedBy: DEMO_OWNER.name, grade: 'owner' },
+      meaning: { version: String(current!.version), publishedBy: DEMO_OWNER.name },
+      allowedBy: { kind: 'read-access', person: seat.name, at: `${date}T06:00:00.000Z` },
+    };
+  }
+  function closingReply() {
+    const loaded = populated();
+    return { on: closingOn, day: date, parts: { cash: 'not-loaded-yet', bank: loaded ? 'done' : 'not-loaded-yet', entries: loaded ? 'not-done' : 'not-loaded-yet' } };
+  }
+
   const handlers: Readonly<Record<string, FakeHandler>> = {
     'ui.context': () => uiContext(),
     'models.list': () => (populated() ? [{ ...DEMO_ROUTE }] : []),
@@ -350,6 +378,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'jobs.list': () => [],
     'decisions.list': () => (populated() ? [decisionRecord()] : []),
     'sources.list': () => (populated() ? [importRecord(date)] : []),
+    // Like the real engine, a file is read only against published meanings. Reading itself is not served here.
+    'sources.preview': () => { if (ontology.current === null) throw fakeRefusal('DICTIONARY_REQUIRED', 'Agree the meanings first.'); throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not read files.'); },
+    'sources.workbookPreview': () => { if (ontology.current === null) throw fakeRefusal('DICTIONARY_REQUIRED', 'Agree the meanings first.'); throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not read files.'); },
     'learning.list': () => [],
     'activity.list': () => ({ items: populated() ? dayEvents(date).map(event => ({ id: event['id'], kind: event['kind'], at: event['at'] })) : [], modelReceipts: [] }),
     'memory.lessons': () => [],
@@ -370,6 +401,38 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'todayx.help': () => helpReply(),
     'todayx.faultReport': () => faultReport(date),
     'todayx.phoneMessages': () => phoneMessagesReply(scenario),
+    'todayx.idea.start': () => { mutating(); return idea.start(`${date}T06:00:00.000Z`); },
+    'todayx.idea.get': () => idea.get(),
+    'todayx.idea.tell': payload => { mutating(); return idea.tell(payload, `${date}T06:00:00.000Z`); },
+    'todayx.idea.correct': payload => { mutating(); return idea.correct(payload, `${date}T06:00:00.000Z`); },
+    'todayx.diskCheck': () => ({ disk: 'not-encrypted', platform: 'windows', keyring: 'safe' }),
+    'todayx.device.get': () => device,
+    'todayx.device.set': payload => {
+      const { language, view } = payload;
+      if (Object.keys(payload).length !== 2 || (language !== 'en' && language !== 'hi') || (view !== 'simple' && view !== 'guided' && view !== 'books')) throw fakeRefusal('INVALID_TODAYX_REQUEST', 'Give a language and a view.');
+      device = { language, view, saved: true };
+      return device;
+    },
+    // Folder names only; the locked scenario has two, so the lock screen asks which.
+    'todayx.workspaces': () => ({ folders: scenario === 'locked' ? [{ folder: 'main', main: true }, { folder: 'second-shop', main: false }] : [{ folder: 'main', main: true }] }),
+    'todayx.recoveryContact.get': () => { if (seat.role !== 'owner') throw fakeRefusal('FORBIDDEN', 'Only an owner sees the recovery contact.'); return { contact: recoveryContact, confirmation: 'relay-required' }; },
+    'todayx.recoveryContact.set': payload => {
+      if (seat.role !== 'owner') throw fakeRefusal('FORBIDDEN', 'Only an owner names the recovery contact.');
+      const contact = payload['contact'];
+      if (contact === null) recoveryContact = null;
+      else if (isRecord(contact) && typeof contact['name'] === 'string' && typeof contact['reach'] === 'string' && contact['name'].trim() && contact['reach'].trim() && contact['name'].length <= 100 && contact['reach'].length <= 200) {
+        recoveryContact = { name: contact['name'].trim(), reach: contact['reach'].trim(), savedAt: `${date}T06:00:00.000Z` };
+      } else throw fakeRefusal('RECOVERY_CONTACT_INVALID', 'Give a name and how to reach them.');
+      return { contact: recoveryContact, confirmation: 'relay-required' };
+    },
+    'todayx.recoveryContact.request': () => { throw fakeRefusal('RECOVERY_CONTACT_RELAY_REQUIRED', 'A recovery contact needs the hosted relay, which is not available yet.'); },
+    'todayx.receiptDetail': payload => receiptDetail(payload),
+    'todayx.closing': () => closingReply(),
+    'todayx.closing.set': payload => {
+      if (seat.role !== 'owner' && seat.role !== 'cofounder') throw fakeRefusal('FORBIDDEN', 'Only an owner turns daily closing on or off.');
+      if (typeof payload['on'] !== 'boolean') throw fakeRefusal('INVALID_TODAYX_REQUEST', 'Say whether daily closing is on.');
+      closingOn = payload['on']; return closingReply();
+    },
   };
 
   async function request(method: string, payload: unknown = {}): Promise<unknown> {
@@ -378,7 +441,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     if (typeof method !== 'string' || !isRecord(payload)) throw fakeRefusal('INVALID_REQUEST', 'A request is a method name and a plain payload.');
     const handler = handlers[method] ?? registry.get(method);
     if (handler === undefined) throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not serve this method yet.');
-    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open') throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
+    if (!unlocked && method !== 'ui.context' && method !== 'workspace.create' && method !== 'workspace.open' && !FAKE_PRE_VAULT.includes(method)) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
     const value = await handler(structuredClone(payload), context());
     return value === undefined ? undefined : structuredClone(value);
   }

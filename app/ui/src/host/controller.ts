@@ -266,7 +266,12 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
     if (keepTodayCapture) todayConsumer?.cancelSelection(); else todayConsumer?.invalidate();
     return cleared;
   }
+  /** Set by `lock()`; only `unlocked()` clears it. */
+  let heldLock = false;
   function invalidate(code: HostFailureCode = 'READ_INVALIDATED') {
+    // A lock a person or the idle timer asked for is never downgraded to "unavailable": only a successful
+    // unlock leaves it (`unlocked`).
+    if (heldLock && code !== 'VAULT_LOCKED') code = 'VAULT_LOCKED';
     clearPrivate();
     verifiedHandoff = null;
     verifiedDictionary = null;
@@ -424,14 +429,25 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
     publish({ ...state, receipt: Object.freeze({ id, address: bound, kind: 'ready', value: read.value }) });
   }
   function closeReceipt() { receiptGeneration = Symbol(); if (!disposed) publish({ ...state, receipt: null }); }
+  const LOCK_ATTEMPTS = 30, LOCK_RETRY_MS = 1000;
   async function lock() {
     if (disposed) return;
+    heldLock = true;
     const role = state.context?.member.role;
     invalidate('VAULT_LOCKED');
     // Every seat can clear its local screen; the existing Engine lock is admin-only.
     if (role !== 'owner' && role !== 'cofounder') return;
-    try { await port.request('workspace.lock', {}); }
-    catch (error) { if (!disposed) invalidate(readFailureCode(error)); }
+    // A refused engine lock (VAULT_BUSY while another request runs) keeps this screen locked and asks
+    // again: the lock never fails open. Only `unlocked()`, after an accepted unlock, leaves it.
+    for (let attempt = 0; attempt < LOCK_ATTEMPTS && !disposed; attempt++) {
+      try { await port.request('workspace.lock', {}); return; }
+      catch (error) {
+        if (disposed) return;
+        invalidate('VAULT_LOCKED');
+        if (readFailureCode(error) === 'VAULT_LOCKED') return;
+        await new Promise(resolve => setTimeout(resolve, LOCK_RETRY_MS));
+      }
+    }
   }
   function completeFirstRun(handoff: FirstRunHandoff): boolean {
     const current = state.context;
@@ -480,11 +496,15 @@ export function createHostController(port: HostRpcPort, options: HostOptions = {
   }
   return Object.freeze({
     places: Object.freeze({ request: (method: string, payload: Record<string, unknown>) => disposed ? Promise.reject(failure('READ_INVALIDATED')) : (port as unknown as PlaceRpc).request(method, payload) }),
-    conversation, retained, get todayConsumer() { return todayConsumer; }, firstRun, timeZone, snapshot: () => state,
+    conversation, retained, get todayConsumer() { return todayConsumer; }, firstRun,
+    /* The trusted host's zone, else the workspace's own from `ui.context`; never the machine's. */
+    get timeZone() { return timeZone ?? state.context?.timeZone ?? null; },
+    snapshot: () => state,
     subscribe(listener: () => void) { if (disposed) return () => {}; listeners.add(listener); return () => { listeners.delete(listener); }; },
     refresh: () => refresh(),
     unlocked: async () => {
       if (disposed || state.phase !== 'locked' || creation.kind !== 'idle') return;
+      heldLock = false;
       publish(emptyState('loading'));
       await refresh();
     },

@@ -30,7 +30,8 @@ test('public UI context is current, read-only, invalidates evidence changes and 
   assert.equal((await rpc('ui.context')).error?.code, 'VAULT_LOCKED');
   await rpc('workspace.create', { name: 'Synthetic UI host', folder: 'fixture', passphrase: 'synthetic-ui-passphrase' });
   const initial = (await rpc('ui.context')).result;
-  assert.deepEqual(Object.keys(initial).sort(), ['contextKey', 'member', 'workspace']);
+  assert.deepEqual(Object.keys(initial).sort(), ['contextKey', 'member', 'timeZone', 'workspace']);
+  assert.equal(initial.timeZone, null, 'No workspace time zone is recorded, so none is guessed.');
   assert.match(initial.contextKey, /^[a-f0-9]{64}$/); assert.equal(initial.member.role, 'owner');
   const revision = engine.vault!.read().revision;
   assert.deepEqual((await rpc('ui.context')).result, initial); assert.equal(engine.vault!.read().revision, revision);

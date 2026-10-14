@@ -116,3 +116,48 @@ test('the receipt sheet draws the six-part receipt and its every field one press
   await user.click(figure!);
   expect(details.open).toBe(true);
 });
+
+test('a lane place module wins its address and the retained lesson review keeps its own, Reports · Lessons', { timeout: 20000 }, async () => {
+  const { engine } = await mountOnFake();
+  await screen.findByText('Send a payment reminder to Kiran Retail Demo', undefined, { timeout: 5000 });
+  for (const hash of ['#/reports/weekahead', '#/work/approvals']) {
+    const before = engine.calls.length;
+    await act(async () => { window.location.hash = hash; });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 200)); });
+    expect(engine.calls.slice(before)).not.toContain('memory.lessons');
+  }
+  const before = engine.calls.length;
+  await act(async () => { window.location.hash = '#/reports/lessons'; });
+  await waitFor(() => expect(engine.calls.slice(before)).toContain('memory.lessons'), { timeout: 5000 });
+  expect(within(page()).getByRole('heading', { name: 'Lessons' })).toBeTruthy();
+});
+
+test('locking after first run shows the lock screen again, never the create form or workspace data', { timeout: 20000 }, async () => {
+  const engine = createFakeEngine({ scenario: 'populated' });
+  const controller = createHostController(engine, { todayProducer: await engine.todayProducer() });
+  const container = document.createElement('div'); document.body.append(container);
+  let mounted: MountedHost | null = null;
+  await act(async () => { mounted = mountHost(container, controller, { view: 'guided', firstRun: 'journey' }); });
+  cleanups.push(() => { mounted?.unmount(); controller.dispose(); container.remove(); });
+  await screen.findByText('Send a payment reminder to Kiran Retail Demo', undefined, { timeout: 5000 });
+  await act(async () => { await controller.lock(); });
+  await screen.findByText('Your workspace is locked', undefined, { timeout: 5000 });
+  expect(screen.queryByText('Send a payment reminder to Kiran Retail Demo')).toBeNull();
+  expect(document.querySelector('[data-first-run-create]')).toBeNull();
+  expect(document.querySelector('[data-region="page"]')).toBeNull();
+});
+
+test('the lock screen offers the workspace folders and unlocks the chosen one; saved device choices apply at start', { timeout: 20000 }, async () => {
+  const engine = createFakeEngine({ scenario: 'locked' });
+  await engine.request('todayx.device.set', { language: 'en', view: 'books' });
+  const controller = createHostController(engine, { todayProducer: await engine.todayProducer() });
+  const container = document.createElement('div'); document.body.append(container);
+  let mounted: MountedHost | null = null;
+  await act(async () => { mounted = mountHost(container, controller, { firstRun: 'journey' }); });
+  cleanups.push(() => { mounted?.unmount(); controller.dispose(); container.remove(); });
+  await screen.findByText('Your workspace is locked', undefined, { timeout: 5000 });
+  await waitFor(() => expect(document.documentElement.dataset['view']).toBe('books'), { timeout: 5000 });
+  await screen.findByText('Which workspace', undefined, { timeout: 5000 });
+  expect(engine.calls).toContain('todayx.workspaces');
+  expect(screen.queryByText('second-shop')).not.toBeNull();
+});
