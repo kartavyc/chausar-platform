@@ -7,10 +7,14 @@ import { memoryMethods } from './books-memory.ts';
 import { accountMethods } from './books-accounts.ts';
 import { recordMethods } from './books-records.ts';
 import { historyMethods } from './books-history.ts';
+import { billMethods } from './books-bill.ts';
+import { rateMethods } from './books-rates.ts';
+import { deletionMethods } from './books-deletion.ts';
 
 /** books, accounts, records and history methods of the work-books lane (BK-01..BK-20). */
 export const booksMethods: Readonly<Record<string, MethodSpec>> = {
   ...sourceMethods, ...meaningMethods, ...memoryMethods, ...accountMethods, ...recordMethods, ...historyMethods,
+  ...billMethods, ...rateMethods, ...deletionMethods,
 };
 
 /**

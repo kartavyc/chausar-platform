@@ -219,9 +219,23 @@ export const recordMethods: Record<string, MethodSpec> = {
     const rule = await (host.services.memory as MemoryService).setSourcePrecedence(ctx, request.kind, request.sourceIds);
     return { kind: rule.kind, sourceIds: [...rule.sourceIds] };
   } },
+  'records.optIn': { permission: 'read', handler(ctx, payload, host) {
+    const { customerId } = input(payload, ['customerId'], ['customerId']); const entry = findRecord(host, ctx, customerId);
+    const books = peekBooks(host.store.read()); const stoppedAt = books.stops.filter(s => s.recordId === entry.id).at(-1)?.on ?? null;
+    return { channels: (['mail', 'whatsapp'] as const).map(channel => {
+      const latest = books.optIns.filter(o => o.recordId === entry.id && o.channel === channel).at(-1);
+      return { channel, agreed: latest?.answer ?? 'not-asked' as const, source: latest?.source ?? null, at: latest?.on ?? null, stoppedAt };
+    }) };
+  } },
   'records.holdings': { permission: 'read', handler(ctx, payload, host) {
-    const { id } = input(payload, ['id'], ['id']); const entry = findRecord(host, ctx, id); const state = host.store.read(); const books = peekBooks(state);
-    const ids = new Set([entry.id, ...state.merges.filter(m => m.type === 'merge' && Array.isArray(m.entityIds) && m.entityIds.includes(entry.id)).flatMap(m => m.entityIds as string[])]);
+    const { id } = input(payload, ['id'], ['id']); return { stores: holdingsOf(host, ctx, id) };
+  } },
+};
+
+/** Every store that holds something about one record, counted only as far as the caller can see. */
+export function holdingsOf(host: ModuleHost, ctx: Context, id: unknown): { store: string; count: number }[] {
+  { const entry = findRecord(host, ctx, id); const state = host.store.read(); const books = peekBooks(state);
+    const ids = recordIdsOf(state, entry.id);
     const about = (value: unknown) => [...ids].some(i => mentions(value, i));
     const factIds = new Set(state.facts.filter(f => !f.deletedAt && canSeeFact(host.store, ctx, f) && [...ids].some(i => resolveCustomer(state, f.fields.customerId, now()) === i || references(f).some(([, r]) => r === i))).map(f => f.id));
     // Only what the caller can see is counted: own receipts, answers and conversations, actions under core's access rule, visible memory lines and matches.
@@ -237,7 +251,7 @@ export const recordMethods: Record<string, MethodSpec> = {
       } catch { return false; }
     };
     const visible = visibleRecordIds(host, ctx);
-    return { stores: [
+    return [
       { store: 'facts', count: factIds.size }, { store: 'receipts', count: receipts.length },
       { store: 'answers', count: state.answers.filter(a => ownReceiptIds.has(a?.receiptId) && (receiptIds.has(a.receiptId) || about(a.request))).length },
       { store: 'actions', count: (state.actions as PreparedAction[]).filter(a => about(a) && canSeeAction(a)).length },
@@ -245,6 +259,10 @@ export const recordMethods: Record<string, MethodSpec> = {
       { store: 'memory', count: books.memory.filter(l => !l.deletedAt && l.text !== null && visibleMemoryLine(host.store, ctx, l) && [...ids].some(i => l.text!.includes(i))).length },
       { store: 'opt-ins', count: books.optIns.filter(o => ids.has(o.recordId)).length + books.stops.filter(s => ids.has(s.recordId)).length },
       { store: 'matches', count: books.matches.filter(m => (ids.has(m.left) || ids.has(m.right)) && visible.has(m.left) && visible.has(m.right)).length },
-    ] };
-  } },
-};
+    ];
+  }
+}
+/** The record ids a deletion of `id` covers: the record and every id joined with it. */
+export function recordIdsOf(state: State, id: string): Set<string> {
+  return new Set([id, ...state.merges.filter(m => m.type === 'merge' && Array.isArray(m.entityIds) && m.entityIds.includes(id)).flatMap(m => m.entityIds as string[])]);
+}

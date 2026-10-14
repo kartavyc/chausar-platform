@@ -154,6 +154,18 @@ SourceRow = { sourceId; system: string; way: 'files' | 'signed-in' | 'this-compu
 | `history.versions` | read | `{ entityId }` | `{ versions: { factId; learnedAt; supersededAt: string \| null; kind; validFrom; amount: Amount; sourceId; change: 'first' \| 'correction' \| 'new-event' }[] }` |
 | `history.stale` | read | `{}` | `{ answers: { id; question: string \| null; workedOutOn; reason: string \| null; rebuilt: { at; matches: boolean; quick: Amount; full: Amount } \| null }[] }` |
 | `history.rebuild` | prepare | `{ id }` | the stale answer row after a quick and a full rebuild |
+| `history.beliefLine` | read | `{ operation, period: { from, to }, from: instant, to: instant }` (`to` not in the future) | `{ operation; period; from; to; points: { at; value: Amount; receiptId; changes: ('start' \| 'correction' \| 'new-event' \| 'join' \| 'undo')[] }[]; omitted: number }`. The first point is the start of the window; then one point per instant in the window where a fact dated inside the period was learned or replaced, or customers were joined or a join undone. Each point's value is a real calculator run at that `asOf`, with its receipt. At most 24 points: older changes beyond the bound are counted in `omitted`. (BK-15) |
+| `records.optIn` | read | `{ customerId }` | `{ channels: { channel: 'mail' \| 'whatsapp'; agreed: 'yes' \| 'no' \| 'not-asked'; source: string \| null; at: 'YYYY-MM-DD' \| null; stoppedAt: 'YYYY-MM-DD' \| null }[] }` from the lane's consent register (`records.setOptIn`, `records.stop`). `at` is the date of the answer, `stoppedAt` the date of the latest stop word. Same visibility as `records.get` (`RECORD_NOT_FOUND`). Used by jobs-ext; keep the name stable. |
+| `records.deletionPlan` | read | `{ id }` | `{ recordId; canDelete: boolean; sourceDeletion: { available: boolean }; stores: { store; count; state: 'can-delete' \| 'needs-owner' \| 'nothing-held'; reason: string \| null }[] }` (BK-20). `sourceDeletion` says whether `trustx.deletions` is installed. |
+| `records.delete` | approve | `{ id, confirmation }` (`confirmation` must equal `id`) | `DeletionReport`. Deletes what this lane keeps about the customer and every id joined with it: agreements and stop words, same-or-not decisions, memory lines naming it. Each store is counted again after deleting; only a store found empty is `deleted`. Core stores (facts, receipts, answers, actions, conversations) are `not-possible`, with the reason and who can remove them. Refuses `CONFIRMATION_REQUIRED`, `TAINTED_APPROVAL`, and `DELETION_NOT_AVAILABLE` when only core stores hold something. Deleting is on the always-waits list: the typed id is the person's yes. |
+| `records.deletions` | read | `{}` | `{ reports: DeletionReport[] }`, newest first |
+| `books.rates` | read | `{}` | `{ rates: { currency; on: 'YYYY-MM-DD'; rate: { units: string; per: string }; source; enteredBy; at }[]; notCounted: { currency; rows: number }[] }` (BK-19). `rate` is exact: `units` rupees for `per` units of the currency, both whole-number strings (83.2150 INR per USD is `{ units: '832150', per: '10000' }`). `notCounted` counts visible facts in another currency, not converted when read, with no rate for their date. Nothing is converted here. |
+| `books.setRate` | admin | `{ currency: 'AAA', on, rate: { units, per }, source }` | the rate row; replaces the rate for the same currency and date. Never fetched. |
+| `books.removeRate` | admin | `{ currency, on }` | `{ currency; on; removed: true }` or `RATE_NOT_FOUND` |
+| `books.billRead` | prepare | `{ bytesBase64, mime: 'application/pdf' \| 'image/png' \| 'image/jpeg' }` (at most 4 MB) | `BillRead` (WK-13/BK-18, experimental). Reads locally through the Python helper's `pdf.ocr`; a PNG or JPEG is first wrapped as a one-page PDF in memory. Nothing is stored. Refuses `OCR_DEPENDENCY_UNAVAILABLE` (no helper, no Python or no tesseract), `IMAGE_OCR_NOT_AVAILABLE` (a picture layout the wrapper cannot carry), `NOT_AVAILABLE_WITH_SEND_SETTING` (the same while send is `nothing`), `BILL_TOO_LARGE`, `INVALID_BILL_FILE`, `BILL_READ_FAILED`, `TAINTED_REQUEST`. |
+| `books.billConfirm` | prepare | `{ readId, digest, fields: { supplier, billNumber, date, lines: { description, quantity, amountMinor }[], tax: { name, amountMinor }[], totalMinor }, zoho?: { connectionId, vendorId } }` | `BillView`. The person's corrected fields, bound to the digest of the reading they saw (`PREVIEW_CHANGED`; `BILL_READ_EXPIRED` after 30 minutes, after a restart or for another person). Lines plus tax must equal the total exactly (BigInt) or `BILL_TOTAL_MISMATCH`; a missing field is `BILL_FIELD_MISSING`. With `zoho` it calls `writeback.prepare` (`zoho-books`, `bill.createFromPhoto`; `WRITEBACK_NOT_BUILT` when writeback is absent); without it, it prepares a Tally purchase voucher, prepare only. Either way the bill waits in the approvals queue as `bill:<id>`. |
+| `books.bills` | read | `{}` | `{ bills: BillView[] }`, newest first |
+| `books.billBook` | prepare | `{ id }` | `BillView` after `writeback.execute` (or `writeback.readBack` when unsure) for an approved Zoho bill. A Tally bill refuses `PREPARE_ONLY`. |
 
 ```
 Draft = { id; name; author: string; createdAt; state: 'draft' | 'cosigned' | 'published' | 'discarded';
@@ -172,6 +184,20 @@ MemoryLine = { id; text; kind: 'preference' | 'claim' | 'conversation' | 'workin
   source: 'told-by-owner' | 'computed' | 'outside-content'; receiptId: string | null;
   learnedAt; confirmedAt: string | null; earlier: { text; at }[] }
 AccountClass = 'asset' | 'liability' | 'equity' | 'income' | 'expense' | 'receivable' | 'payable' | 'bank' | 'cash' | 'tax'
+BillField = { value: string | null; certainty: 'sure' | 'check-this' | 'could-not-read'; region: { page; line; of } | null }
+                                  // amounts are whole paise as text; region is the line on the page (the reader gives no word boxes)
+BillRead = { readId; digest; mime; stored: false; expiresAt; untrusted: true;
+  reader: { engine: 'tesseract'; version; pages: number; confidence: number };      // lowest page confidence, 0-100
+  supplier: BillField; billNumber: BillField; date: BillField; total: BillField;
+  lines: { description: BillField; quantity: BillField; amount: BillField }[]; tax: { name: BillField; amount: BillField }[];
+  sums: { linesPlusTax: Amount; total: Amount; equal: boolean | null };               // null when an amount could not be read
+  routes: { zohoBooks: { available: boolean; connections: { id; label }[] }; tallyPreview: { available: true } } }
+BillView = { id; approvalId: 'bill:<id>'; route: 'tally-preview' | 'zoho-books'; state: RowState; supplier; billNumber; date;
+  lines: { description; quantity; amount: Amount }[]; tax: { name; amount: Amount }[]; total: Amount;
+  voucher: { type: 'Purchase'; number; date; lines: { ledger; debit: Amount | null; credit: Amount | null }[]; note: 'prepare-only' } | null;
+  writeback: { id } | null; createdAt; by }
+DeletionReport = { id; recordId; at; by; complete: boolean;
+  rows: { store; count; state: 'deleted' | 'pending' | 'not-possible' | 'nothing-held'; reason: string | null }[] }
 ```
 
 Additions after the first build, kept additive to the shapes above:
@@ -182,6 +208,13 @@ Additions after the first build, kept additive to the shapes above:
   cancelling the job; its reply state is `rejected`.
 - Bad payloads refuse `INVALID_APPROVAL` (Work) and `INVALID_BOOKS_REQUEST` (Books). Neither
   family uses `INVALID_REQUEST`, which screens read as "not built yet".
+- Round 2 (additive): the approvals queue has a sixth source, `bill` (ids `bill:<billId>`). A
+  Tally bill is `tier: 'prepare-only'`, `kind: 'prepare-only'` with its `voucher`; it can only
+  wait or be dropped. A Zoho bill is `tier-1`, `kind: 'record-change'`; its `digest` is the
+  writeback action's digest, `approvals.approve` passes it to `writeback.approve` and
+  `approvals.drop` calls `writeback.drop`. Its fields are listed in `change.fields`; it expires
+  after 7 days. **Screens that check `source` must accept `'bill'`**: `screens/work/contract.ts`
+  lists five sources today, so the coordinator adds the sixth when wiring `#/work/bill`.
 
 ## Lane report
 
@@ -250,6 +283,23 @@ Additions after the first build, kept additive to the shapes above:
 - **History** (BK-15/16): a figure as known on a date beside it as known now, each with its
   receipt. Versions show a correction differently from a new event. Stale answers have a
   quick and a full rebuild compared to the paisa.
+  The belief line (BK-15, `#/books/belief`, linked from History) draws the figure as known at every point in a window where the
+  knowledge changed (a correction, a new event, a join or an undo) as a step line; each mark
+  opens the receipt of a real calculation at that time. At most 24 points.
+- **A photo of a bill** (WK-13/BK-18, `#/books/bill`, experimental): choose a PDF, PNG or JPEG.
+  It is read on this computer. The page is drawn on the left from your own file, with the line
+  each field was read from outlined; the form is on the right with "read clearly", "check
+  this" or "could not read" beside each field (an unreadable field is empty and amber). Lines
+  plus tax must equal the total. Confirm prepares a Tally purchase voucher (prepare only) or,
+  with a Zoho Books connection that may write bills, a Zoho bill through writeback; it then
+  waits in Approvals. Nothing is kept before Confirm. `BillPhotoBody` is exported for Work.
+- **Exchange rates** (BK-19, `#/books/rates`, drawn under Meanings): the rates you entered,
+  each with its date, source and who entered it, as exact fractions; the rows in another
+  currency left "not counted" for want of a rate; an entry form for the owner or a cofounder.
+- **Delete what we hold** (BK-20): on a customer's record, Delete shows what each store will
+  do, asks for the customer id typed exactly, deletes what this lane keeps and shows the
+  report per store. Facts, receipts, answers, actions and conversations are "not possible
+  here", with who can remove them (delete the source in Trust).
 - **Memory** (BK-17): what Chausar was told, with its kind, status, source and dates, and
   its earlier versions. There is a filter for outside content, which is remembered and
   never obeyed. Only the owner or a cofounder can add, edit, confirm or delete a line.
@@ -274,6 +324,11 @@ in English and Hindi.
 | Accounts proposals from Tally groups and decisions | supported; proposals from `learningx.*` experimental |
 | Customers and suppliers, opt-in and stop, holdings, same-or-not, conflicts and precedence | supported |
 | History as known on a date, versions, stale answers and rebuild | supported |
+| Belief line (BK-15) | supported |
+| Bill photo to a prepared entry (WK-13/BK-18): local reading, the form, the Tally voucher preview, the Zoho route | experimental: tested with a fake reader and stubbed writeback; no real tesseract or Zoho account was used |
+| Exchange rates (BK-19) | supported (entry and "not counted"; this lane converts nothing) |
+| Delete what we hold (BK-20) | supported for the lane's own stores; core stores are reported "not possible here" |
+| `records.optIn` for jobs-ext | supported |
 | Memory lines | supported |
 
 "Supported" means tested end to end on synthetic data through the engine module and the
@@ -282,7 +337,7 @@ screen with a fake rpc. No screen was tested against a live external system.
 ### Engine methods
 
 There are 24 `approvals.*` methods (`platform/runtime/work-books/work.ts`, `work-queue.ts`, `work-jobs.ts`)
-and 33 Books methods (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
+and 45 Books methods (`books-*.ts`). They are listed in `app/desktop/module-methods/work-books.json`.
 Private state lives in `state.extensions['work-books']` under `work` and `books` (`state.ts`).
 `purge` removes snoozes, notes, opt-ins, decisions and memory lines tied to removed
 sources and records.
@@ -299,8 +354,18 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
 
 ### Still missing
 
-- WK-12 (reminder notes on payment rules, caps), WK-13 and BK-18 (a bill photo to an
-  entry), WK-14 (Chausar is driving) and WK-16 (a step for a person) are not built.
+- WK-12 (reminder notes on payment rules, caps), WK-14 (Chausar is driving) and WK-16 (a
+  step for a person) are not built.
+- Bill photo: the helper's `pdf.ocr` returns text lines with a page confidence, not word
+  boxes, so a region is the line's band across the page, not a box around the word. Only the
+  first page is outlined. Parsing is fixed patterns for Indian bill layouts (Bill No, Date,
+  CGST/SGST/IGST, Grand Total); anything else is left for the person. A PNG must be 8-bit and
+  not interlaced, a JPEG grey or RGB; other pictures refuse `IMAGE_OCR_NOT_AVAILABLE`. A
+  reading is held in memory for 30 minutes and lost on restart. No model reads pictures. The
+  Zoho route sends tax as its own line items (Zoho tax ids are not mapped) and needs the Zoho
+  vendor id typed. `approvals.execute` takes only `action:` ids, so an approved Zoho bill is
+  booked with `books.billBook`. The Tally voucher names ledgers from the bill (`Purchase: …`,
+  `Input CGST …`, the supplier); the accountant maps them.
 - WK-08 has no measure chart. Clock time is "not counted" until the core job ledger records
   durations, and effect exposure is "not counted" until a job names its actions (no core
   job does yet). Job Edit and Delete have no methods.
@@ -310,8 +375,12 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
 - BK-02 Read now, Pause and Sign in again; BK-03 Add a source; BK-05 recipes; BK-06
   "Map this field". These belong to connectors-ext and show "not built yet".
 - BK-09 "Try it on a copy" links to trials and is not built here.
-- BK-15 has no step line of the belief over time.
-- BK-19 exchange rates and the BK-20 Delete (`deletion.request`) are not built.
+- Exchange rates are not applied by the calculator: no core hook reads them, so a
+  foreign-currency row stays "not counted" and the count is on `books.rates`, not on each
+  receipt. `books.gst` still answers `rates: { available: false }`, and Meanings has no link to
+  `#/books/rates` yet (Meanings is edited in parallel).
+- BK-20 Delete cannot remove core facts, receipts, answers, actions or conversations for one
+  customer: the core has no such method, and `trustx.deleteSource` removes whole sources only.
 - Memory lists only the lane's own lines, not business-profile entries.
 - The lane's "sending closed" gate holds for `approvals.execute`. The core
   `actions.execute` does not check it; closing that needs a core edit.

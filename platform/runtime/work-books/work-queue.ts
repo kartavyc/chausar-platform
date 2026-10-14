@@ -12,9 +12,10 @@ import type { ModuleHost } from '../modules/types.ts';
 import { invoiceConnectorId, invoiceJobType } from '../invoice-follow-up.ts';
 import { optionalCall } from './adapters.ts';
 import { peekSection } from './state.ts';
+import { storedBills, type StoredBill } from './books-bill.ts';
 
 export type Amount = { minor: string } | { missing: 'absent' | 'null' | 'unknown' | 'withheld' | 'not-applicable' | 'not-loaded-yet' | 'not-counted' };
-export type Source = 'action' | 'job' | 'release' | 'lesson' | 'acceptance';
+export type Source = 'action' | 'job' | 'release' | 'lesson' | 'acceptance' | 'bill';
 export type Tier = 'tier-2' | 'tier-1' | 'prepare-only';
 export type RowState = PreparedAction['status'];
 export type ApprovalRow = {
@@ -90,10 +91,10 @@ const minorAmount = (value: unknown): Amount | null => typeof value === 'string'
 const memberName = (state: State, id: string | undefined) => state.members.find(m => m.id === id)?.name ?? null;
 export const steps = (...states: [StepState, string | null][]): Step[] => STEP_NAMES.map((name, i) => ({ name, state: states[i]?.[0] ?? 'not-reached', at: states[i]?.[1] ?? null }));
 
-/** Typed queue ids: `action:<id>`, `job:<id>`, `release:<draftId>`, `lesson:<id>`, `acceptance:<jobId>`. */
+/** Typed queue ids: `action:<id>`, `job:<id>`, `release:<draftId>`, `lesson:<id>`, `acceptance:<jobId>`, `bill:<billId>`. */
 export function parseId(value: unknown): { source: Source; raw: string } {
   check(typeof value === 'string' && value.length <= 240, 'INVALID_APPROVAL', 'Use a typed approval id.');
-  const match = /^(action|job|release|lesson|acceptance):([A-Za-z0-9_.:-]{1,200})$/.exec(value);
+  const match = /^(action|job|release|lesson|acceptance|bill):([A-Za-z0-9_.:-]{1,200})$/.exec(value);
   check(match, 'INVALID_APPROVAL', 'Use a typed approval id.');
   return { source: match[1] as Source, raw: match[2] };
 }
@@ -356,6 +357,33 @@ export function lessonDetail(e: Env, lesson: Lesson): ApprovalDetail {
   }, { change: false, approve: lesson.review !== undefined });
 }
 
+/**
+ * A bill read from a photo (WK-13): a Zoho Books booking prepared through writeback waits as a
+ * tier-1 change bound to the writeback digest; without a connection it is a prepare-only Tally
+ * purchase voucher. Built from the stored prepared bill, never from the text on the photo alone.
+ */
+export function billDetail(e: Env, bill: StoredBill): ApprovalDetail {
+  const zoho = bill.route === 'zoho-books' && bill.writeback !== null; const name = memberName(e.state, bill.memberId) ?? bill.by;
+  const row: ApprovalRow = {
+    id: `bill:${bill.id}`, source: 'bill', kind: zoho ? 'record-change' : 'prepare-only', tier: zoho ? 'tier-1' : 'prepare-only',
+    title: zoho ? `Book a bill read from a photo: ${bill.supplier}` : `Purchase voucher from a bill photo: ${bill.supplier}`, touches: `${zoho ? 'Zoho Books' : 'Tally'}: ${bill.supplier}`,
+    amount: minorAmount(bill.totalMinor), preparedBy: { kind: 'person', name }, createdAt: bill.createdAt,
+    expiresAt: zoho ? isoAt(Date.parse(bill.createdAt) + 7 * DAY) : null, state: bill.state, practice: false,
+  };
+  const fields = [{ name: 'Supplier', before: '', after: bill.supplier }, { name: 'Bill number', before: '', after: bill.billNumber }, { name: 'Date', before: '', after: bill.date },
+    ...bill.lines.map((l, i) => ({ name: `Line ${i + 1}`, before: '', after: `${l.description} × ${l.quantity}: ${l.amountMinor} paise` })),
+    ...bill.tax.map(t => ({ name: t.name, before: '', after: `${t.amountMinor} paise` })), { name: 'Total', before: '', after: `${bill.totalMinor} paise` }];
+  const voucher = !zoho && bill.voucher ? { type: bill.voucher.type, number: bill.voucher.number, date: bill.voucher.date, note: 'prepare-only' as const,
+    lines: bill.voucher.lines.map(l => ({ ledger: l.ledger, debit: minorAmount(l.debitMinor), credit: minorAmount(l.creditMinor) })) } : undefined;
+  const waiting = row.state === 'prepared';
+  return finish(e, row, {
+    digest: bill.digest, revision: 1, reason: 'autonomy-off', change: { fields }, ...(voucher ? { voucher } : {}),
+    steps: steps(['done', bill.createdAt], [waiting ? (zoho && !expired(e, row) ? 'waiting-for-you' : zoho ? 'stopped-by-rule' : 'not-reached') : row.state === 'cancelled' ? 'not-reached' : 'done', null],
+      ...(['verified', 'unknown', 'rejected'].includes(row.state) ? [[row.state === 'unknown' ? 'unsure' : 'done', null] as [StepState, null]] : [])),
+    prepareOnly: !zoho, needsSecondAsk: false,
+  }, { change: false, approve: zoho });
+}
+
 /** Every item waiting in the queue, before snoozes and expiry are applied. */
 export function queue(e: Env): ApprovalDetail[] {
   const items: ApprovalDetail[] = [];
@@ -366,6 +394,7 @@ export function queue(e: Env): ApprovalDetail[] {
   }
   for (const draft of drafts(e.state)) if (draft.state === 'draft' || draft.state === 'cosigned') items.push(releaseDetail(e, draft));
   for (const lesson of lessons(e)) if (lesson.status === 'review-ready') items.push(lessonDetail(e, lesson));
+  for (const bill of storedBills(e.state)) if (bill.state === 'prepared') items.push(billDetail(e, bill));
   return items;
 }
 export const order = (a: ApprovalRow, b: ApprovalRow) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || Date.parse(b.createdAt) - Date.parse(a.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -381,6 +410,7 @@ export function detail(e: Env, id: string): ApprovalDetail {
   if (source === 'action') { const action = visibleActions(e).find(a => a.id === raw); check(action, 'NOT_FOUND', 'Approval not found.'); return actionDetail(e, action); }
   if (source === 'job' || source === 'acceptance') { const job = visibleJobs(e).find(j => j.id === raw); check(job, 'NOT_FOUND', 'Approval not found.'); return jobDetail(e, job, source === 'acceptance'); }
   if (source === 'release') { const draft = drafts(e.state).find(d => d.id === raw); check(draft, 'NOT_FOUND', 'Approval not found.'); return releaseDetail(e, draft); }
+  if (source === 'bill') { const bill = storedBills(e.state).find(b => b.id === raw); check(bill, 'NOT_FOUND', 'Approval not found.'); return billDetail(e, bill); }
   const lesson = lessons(e).find(l => l.candidate.id === raw); check(lesson, 'NOT_FOUND', 'Approval not found.'); return lessonDetail(e, lesson);
 }
 
