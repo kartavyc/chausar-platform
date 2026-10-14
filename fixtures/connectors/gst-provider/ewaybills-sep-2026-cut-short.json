@@ -1,0 +1,43 @@
+{
+  "ewayBills": [
+    {
+      "ewbNo": "331000000001",
+      "ewayBillDate": "03/09/2026 10:15:00 AM",
+      "supplyType": "O",
+      "docType": "INV",
+      "docNo": "DT/26-27/0001",
+      "docDate": "03/09/2026",
+      "fromGstin": "27AAPFD1234C1ZS",
+      "fromTrdName": "Demo Traders",
+      "toGstin": "29AAACA1111A1ZO",
+      "toTrdName": "Asha Retail Private Limited",
+      "totalValue": 10000.00,
+      "igstValue": 1800.00,
+      "cgstValue": 0,
+      "sgstValue": 0,
+      "cessValue": 0,
+      "totInvValue": 11800.00,
+      "transDistance": "840",
+      "vehicleNo": "MH12AB0001",
+      "itemList": [
+        {
+          "itemNo": 1,
+          "productName": "Steel racks",
+          "hsnCode": 9403,
+          "quantity": 10,
+          "taxableAmount": 6000.00,
+          "igstRate": 18
+        },
+        {
+          "itemNo": 2,
+          "productName": "Shelf brackets",
+          "hsnCode": 9403,
+          "quantity": 40,
+          "taxableAmount": 4000.00,
+          "igstRate": 18
+        }
+      ]
+    },
+    {
+      "ewbNo": "331000000002",
+      "ewayBillDate": "15/09/2026 04:40:00 PM"

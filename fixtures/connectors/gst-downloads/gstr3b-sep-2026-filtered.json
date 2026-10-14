@@ -1,0 +1,97 @@
+{
+  "gstin": "27AAPFD1234C1ZS",
+  "ret_period": "092026",
+  "sup_details": {
+    "osup_det": {
+      "txval": 267000.00,
+      "iamt": 47700.00,
+      "camt": 180.00,
+      "samt": 180.00,
+      "csamt": 0
+    },
+    "osup_zero": {
+      "txval": 0,
+      "iamt": 0,
+      "csamt": 0
+    },
+    "osup_nil_exmp": {
+      "txval": 1500.00
+    },
+    "isup_rev": {
+      "txval": 2000.00,
+      "iamt": 0,
+      "camt": 180.00,
+      "samt": 180.00,
+      "csamt": 0
+    },
+    "osup_nongst": {
+      "txval": 0
+    }
+  },
+  "itc_elg": {
+    "itc_avl": [
+      {
+        "ty": "IMPG",
+        "iamt": 0,
+        "csamt": 0
+      },
+      {
+        "ty": "IMPS",
+        "iamt": 0,
+        "csamt": 0
+      },
+      {
+        "ty": "ISD",
+        "iamt": 0,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      },
+      {
+        "ty": "OTH",
+        "iamt": 2700.00,
+        "camt": 1800.00,
+        "samt": 1800.00,
+        "csamt": 0
+      }
+    ],
+    "itc_rev": [
+      {
+        "ty": "RUL",
+        "iamt": 0,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      },
+      {
+        "ty": "OTH",
+        "iamt": 90.00,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      }
+    ],
+    "itc_net": {
+      "iamt": 2610.00,
+      "camt": 1980.00,
+      "samt": 1980.00,
+      "csamt": 0
+    },
+    "itc_inelg": [
+      {
+        "ty": "RUL",
+        "iamt": 0,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      },
+      {
+        "ty": "OTH",
+        "iamt": 0,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+File Creation Date^14-10-2026
+Permanent Account Number (PAN)^Current Status of PAN^Financial Year^Assessment Year^Name of Assessee^Address Line 1^Address Line 2
+AAPFD1234C^Active^2025-26^2026-27^DEMO TRADERS^1 Synthetic Lane^Pune
+^
+PART-I - Details of Tax Deducted at Source
+Sr. No.^Name of Deductor^TAN of Deductor^Total Amount Paid / Credited(Rs.)^Total Tax Deducted(Rs.)^Total TDS Deposited(Rs.)
+1^ASHA RETAIL PRIVATE LIMITED^BLRA12345B^150000.00^15000.00^15000.00
+^Sr. No.^Section^Transaction Date^Status of Booking^Date of Booking^Remarks^Amount Paid / Credited(Rs.)^Tax Deducted(Rs.)^TDS Deposited(Rs.)
+^1^194J^15-Apr-2025^F^31-Jul-2025^-^100000.00^10000.00^10000.00
+^2^194J^20-May-2025^F^31-Jul-2025^-^50000.00^5000.00^5000.00
+2^KONKAN BANK LIMITED^MUMK54321C^24000.00^2400.00^2400.00
+^Sr. No.^Section^Transaction Date^Status of Booking^Date of Booking^Remarks^Amount Paid / Credited(Rs.)^Tax Deducted(Rs.)^TDS Deposited(Rs.)
+^1^194A^31-Mar-2026^P^15-May-2026^-^24000.00^2400.00^2400.00
+^
+PART-II - Details of Tax Deducted at Source for 15G / 15H
+Sr. No.^Name of Deductor^TAN of Deductor^Total Amount Paid / Credited(Rs.)^Total Tax Deducted(Rs.)^Total TDS Deposited(Rs.)
+No Transactions Present
+PART-III - Details of Transactions under Proviso to section 194B/First Proviso to sub-section (1) of section 194R
+No Transactions Present
+PART-IV - Details of Tax Deducted at Source u/s 194IA/ 194IB /194M/194S (For Seller/Landlord of Property/Contractors or Professionals/Seller of Virtual Digital Asset)
+No Transactions Present
+Legends used in Form 26AS
+F^Final^Deductor has filed the statement and the deposit is matched
+P^Provisional^Provisional booking pending verification
