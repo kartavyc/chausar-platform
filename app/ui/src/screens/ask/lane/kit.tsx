@@ -113,11 +113,11 @@ export function useRead<T>(key: string, read: () => Promise<Reply<T>>): [Load<T>
 }
 
 /** The fixed screen state for a refusal code. Words for the lane's own codes come from the catalogue. */
-export function refusalState(code: string, ruleWords: string): ScreenState {
+export function refusalState(code: string, ruleWords: string, what?: string): ScreenState {
   if (code === 'ASK_STOPPED_BY_RULE') return { kind: 'stopped-by-rule', rule: ruleWords };
   if (code === 'VAULT_LOCKED') return { kind: 'locked' };
   if (code === 'FORBIDDEN') return { kind: 'read-only' };
-  return { kind: 'failed', code };
+  return what === undefined ? { kind: 'failed', code } : { kind: 'failed', code, what };
 }
 
 const KIT = {
@@ -137,8 +137,10 @@ const KIT = {
  * One Ask page: the header, then either the screen's body or the state it is in. `load` is the
  * screen's main read; while it is not `ok` the body is not drawn at all.
  */
-export function AskPage<T>({ title, load, retry, empty, aside, children }: {
+export function AskPage<T>({ title, load, retry, empty, aside, explain, children }: {
   title: string;
+  /** The screen's own fixed words for a refusal code, when it has them. */
+  explain?: ((code: string) => string | undefined) | undefined;
   load?: Load<T> | undefined;
   retry?: (() => void) | undefined;
   /** True when the reply holds nothing to show; the page shows `emptyText` then. */
@@ -154,7 +156,7 @@ export function AskPage<T>({ title, load, retry, empty, aside, children }: {
   else if (load.kind === 'refused') {
     body = load.code === 'ASK_NO_DICTIONARY'
       ? <p>{w.noDictionary} <Button variant="link" onClick={() => ask.leave({ place: 'books', sub: 'meanings' })}>{w.openMeanings}</Button></p>
-      : <State state={refusalState(load.code, w.rule)} action={retry && load.code !== 'ASK_STOPPED_BY_RULE' ? { label: w.retry, onPress: retry } : undefined} />;
+      : <State state={refusalState(load.code, w.rule, explain?.(load.code))} action={retry && load.code !== 'ASK_STOPPED_BY_RULE' ? { label: w.retry, onPress: retry } : undefined} />;
   } else {
     const nothing = empty?.(load.value) ?? null;
     body = nothing ?? children(load.value);
