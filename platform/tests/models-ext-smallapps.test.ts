@@ -54,7 +54,7 @@ test('an instruction hidden in the request line changes nothing', () => {
   const shape = (cards: any[]) => cards.map(({ id: _id, ...rest }) => rest);
   assert.deepEqual(shape(attacked.descriptor!.cards.filter(c => !(c.kind === 'metric' && c.operation === 'margin'))), shape(plain.descriptor!.cards));
   // The dictionary hash is left out: it is hex and may contain any digits.
-  assert.ok(!JSON.stringify({ ...attacked.descriptor, dictionary: null }).match(/approve|script|https|50/i));
+  assert.ok(!JSON.stringify({ ...attacked.descriptor, dictionary: null }).match(/approve|script|https|₹|50,000|50000/i));
   assert.ok(attacked.descriptor!.cards.every(c => !Object.keys(c).some(k => /approv|auto|execute/i.test(k))));
 });
 

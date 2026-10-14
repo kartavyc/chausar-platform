@@ -5,6 +5,7 @@ import { benchPart } from '../models-ext/bench-methods.ts';
 import { speechPart } from '../models-ext/speech-methods.ts';
 import { smallAppsPart } from '../smallapps/methods.ts';
 import { pluginWrapPart } from '../smallapps/plugin-methods.ts';
+import { modelsExtHostOptions } from '../models-ext/host-options.ts';
 
 const parts = [routesPart, benchPart, speechPart, smallAppsPart, pluginWrapPart];
 
@@ -12,5 +13,6 @@ const parts = [routesPart, benchPart, speechPart, smallAppsPart, pluginWrapPart]
 export const modelsExtModule: EngineModule = {
   id: MODULE_ID,
   methods: Object.assign({}, ...parts.map(part => part.methods)),
+  hostOptions: modelsExtHostOptions,
   purge(state, reason) { return parts.reduce((total, part) => total + (part.purge?.(state, reason) ?? 0), 0); },
 };
