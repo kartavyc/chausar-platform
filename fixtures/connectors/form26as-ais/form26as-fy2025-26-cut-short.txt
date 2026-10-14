@@ -1,13 +1,16 @@
-File Creation Date^14-10-2026
-Permanent Account Number (PAN)^Current Status of PAN^Financial Year^Assessment Year^Name of Assessee^Address Line 1^Address Line 2
-AAPFD1234C^Active^2025-26^2026-27^DEMO TRADERS^1 Synthetic Lane^Pune
-^
-PART-I - Details of Tax Deducted at Source
-Sr. No.^Name of Deductor^TAN of Deductor^Total Amount Paid / Credited(Rs.)^Total Tax Deducted(Rs.)^Total TDS Deposited(Rs.)
-1^ASHA RETAIL PRIVATE LIMITED^BLRA12345B^150000.00^15000.00^15000.00
+^Form 26AS^
+
+File Creation Date^Permanent Account Number (PAN)^Current Status of PAN^Financial Year^Assessment Year^Name of Assessee^Address Line 1^Address Line 2^Address Line 3^Address Line 4^Address Line 5^Statecode^Pin Code
+14-10-2026^AAPFD1234C^ACTIVE^2025-2026^2026-2027^DEMO TRADERS^1 SYNTHETIC LANE^^^^PUNE^MAHARASHTRA^411001
+
+^PART-I - Details of Tax Deducted at Source^
+Sr. No.^Name of Deductor^TAN of Deductor^^^^^Total Amount Paid / Credited(Rs.)^Total Tax Deducted(Rs.)^Total TDS Deposited(Rs.)
+1^ASHA RETAIL PRIVATE LIMITED^BLRA12345B^^^^^150000.00^15000.00^15000.00^
 ^Sr. No.^Section^Transaction Date^Status of Booking^Date of Booking^Remarks^Amount Paid / Credited(Rs.)^Tax Deducted(Rs.)^TDS Deposited(Rs.)
-^1^194J^15-Apr-2025^F^31-Jul-2025^-^100000.00^10000.00^10000.00
-^2^194J^20-May-2025^F^31-Jul-2025^-^50000.00^5000.00^5000.00
-2^KONKAN BANK LIMITED^MUMK54321C^24000.00^2400.00^2400.00
+^1^194J^15-Apr-2025^F^31-Jul-2025^-^100000.00^10000.00^10000.00^
+^2^194J^20-May-2025^F^31-Jul-2025^-^50000.00^5000.00^5000.00^
+
+2^KONKAN BANK LIMITED^MUMK54321C^^^^^24000.00^2400.00^2400.00^
 ^Sr. No.^Section^Transaction Date^Status of Booking^Date of Booking^Remarks^Amount Paid / Credited(Rs.)^Tax Deducted(Rs.)^TDS Deposited(Rs.)
-^1^194A^31-Mar-2026^P^15-May-2026^-^24000.00^2400.00^2400.00
+^1^194A^31-Mar-2026^P^15-May-2026^-^24000.00^2400.00^2400.00^
+

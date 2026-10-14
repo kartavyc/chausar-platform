@@ -1,4 +1,4 @@
-Order Date,SalesOrder Number,Customer Name,Status,Item Name,SKU,Quantity Ordered,Item Price,Item Total,Currency Code
+Order Date,SalesOrder Number,Customer Name,Status,Item Name,SKU,QuantityOrdered,Item Price,Item Total,Currency Code
 2026-09-02,SO-00041,Sharma Kirana Stores,Confirmed,Steel tiffin 3 tier,TIF-3T,10,450.00,4500.00,INR
 2026-09-02,SO-00041,Sharma Kirana Stores,Confirmed,Water bottle 1L,BOT-1L,24,120.00,2880.00,INR
 2026-09-04,SO-00042,Patel Home Needs,Closed,Pressure cooker 5L,PC-5L,4,1850.00,7400.00,INR

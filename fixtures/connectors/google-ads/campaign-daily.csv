@@ -1,13 +1,24 @@
 Campaign report
 "September 1, 2026 - September 3, 2026"
-Day,Campaign,Campaign type,Currency code,Cost,Impr.,Clicks,Avg. CPC
-2026-09-01,Search - Kurtas,Search,INR,"1,820.40","5,412",211,8.63
-2026-09-01,PMax - Catalogue,Performance Max,INR,"2,105.00","18,330",164,12.84
-2026-09-02,Search - Kurtas,Search,INR,"1,790.15","5,120",199,9.00
-2026-09-02,PMax - Catalogue,Performance Max,INR,"2,240.75","19,004",171,13.10
-2026-09-03,Search - Kurtas,Search,INR,"1,655.00","4,980",190,8.71
-2026-09-03,PMax - Catalogue,Performance Max,INR,0.00,0,0,0.00
-Total: Account,--,--,INR,"9,611.30","52,846",935,--
-Total: Search,--,--,INR,"5,265.55","15,512",600,--
-Total: Performance Max,--,--,INR,"4,345.75","37,334",335,--
-Total: Campaigns,--,--,INR,"9,611.30","52,846",935,--
+Day,Campaign status,Campaign,Budget,Budget name,Budget type,Currency code,Status,Status reasons,Campaign type,Cost,Impr.,Clicks,Avg. CPC
+2026-09-01,Enabled,Search - Kurtas,2000.00, --,Daily,INR,Eligible,,Search,1820.40,"5,412",211,8.63
+2026-09-02,Enabled,Search - Kurtas,2000.00, --,Daily,INR,Eligible,,Search,1790.15,"5,120",199,9.00
+2026-09-03,Enabled,Search - Kurtas,2000.00, --,Daily,INR,Eligible,,Search,1655.00,"4,980",190,8.71
+2026-09-01,Enabled,PMax - Catalogue,2500.00, --,Daily,INR,Eligible (Limited),limited by budget,Performance Max,2105.00,"18,330",164,12.84
+2026-09-02,Enabled,PMax - Catalogue,2500.00, --,Daily,INR,Eligible (Limited),limited by budget,Performance Max,2240.75,"19,004",171,13.10
+2026-09-03,Paused,PMax - Catalogue,2500.00, --,Daily,INR,Paused,campaign paused,Performance Max,0.00,0,0,0
+2026-09-01,Paused,Search - Sarees,1000.00, --,Daily,INR,Paused,campaign paused,Search,0.00,0,0,0
+2026-09-02,Paused,Search - Sarees,1000.00, --,Daily,INR,Paused,campaign paused,Search,0.00,0,0,0
+2026-09-03,Paused,Search - Sarees,1000.00, --,Daily,INR,Paused,campaign paused,Search,0.00,0,0,0
+ --,Total: Campaigns, --, --, --, --,INR, --,, --,9611.30,"52,846",935,10.28
+2026-09-01,Total: Campaigns, --, --, --, --,INR, --,, --,3925.40,"23,742",375,10.47
+2026-09-02,Total: Campaigns, --, --, --, --,INR, --,, --,4030.90,"24,124",370,10.89
+2026-09-03,Total: Campaigns, --, --, --, --,INR, --,, --,1655.00,"4,980",190,8.71
+,Total: Account,,,,,INR,,,,9611.30,"52,846",935,10.28
+2026-09-02,Total: Account,,,,,INR,,,,4030.90,"24,124",370,10.89
+2026-09-01,Total: Account,,,,,INR,,,,3925.40,"23,742",375,10.47
+2026-09-03,Total: Account,,,,,INR,,,,1655.00,"4,980",190,8.71
+,Total: Search,,,,,INR,,,,5265.55,"15,512",600,8.78
+2026-09-01,Total: Search,,,,,INR,,,,1820.40,"5,412",211,8.63
+,Total: Performance Max,,,,,INR,,,,4345.75,"37,334",335,12.97
+2026-09-02,Total: Performance Max,,,,,INR,,,,2240.75,"19,004",171,13.10

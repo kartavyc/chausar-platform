@@ -1,9 +1,10 @@
 import { check } from '../../contracts.ts';
 import { parseJson, tableFromRecords } from '../decoders.ts';
 import { locateTable, norm, parseDelimited } from '../tabular.ts';
+import { parseDateAs } from '../values.ts';
 import type { Decoder, SourceRecipe } from '../recipe.ts';
 import type { DecodedTable, RawRow } from '../types.ts';
-import { tabularDecoder } from './operations.ts';
+import { UNCONFIRMED, checkedAgainst, tabularDecoder } from './operations.ts';
 
 /**
  * Work tools: generic databases and sheets, team chat, messaging, product analytics and code.
@@ -27,20 +28,24 @@ const githubCommitsJson: Decoder = {
 };
 
 /**
- * PostHog trends exported as CSV: one row per series, one column per date. Pivoted to one row
- * per series and date; an empty cell stays empty so the recipe refuses it as a missing count.
+ * PostHog trends exported as CSV (PostHog's csv_exporter): a "series" column, an optional "custom
+ * name" column, one column per breakdown property, then one column per date label ("1-Sep-2026").
+ * Pivoted to one row per series and date; an empty cell stays empty so the recipe refuses it as a
+ * missing count. Breakdown values join the series name so each series and date is one record. An
+ * insight exported as a single total ("Total Sum") has no dates and is refused as another layout.
  */
-/* A breakdown value, when present, joins the series name so each series and date is one record. */
+const isDateLabel = (header: string) => (['DMY-MON', 'ISO', 'ISO-DATETIME'] as const).some(format => parseDateAs(header, format) !== null);
 const posthogTrendsCsv: Decoder = {
   id: 'posthog-trends-csv', version: '1', accepts: 'text',
   decode(input): DecodedTable {
     check(typeof input.text === 'string', 'TEXT_REQUIRED', 'This recipe reads a text export.');
     const table = locateTable(parseDelimited(input.text!, ','), [['Series']]);
     const seriesAt = table.headers.findIndex(h => norm(h) === 'series');
-    const labelHeaders = table.headers.filter((h, i) => i !== seriesAt && ['breakdown value', 'breakdown'].includes(norm(h)));
-    const dateHeaders = table.headers.filter((h, i) => i !== seriesAt && !labelHeaders.includes(h));
-    check(dateHeaders.length > 0 && dateHeaders.length <= DATE_COLUMN_LIMIT && table.body.length <= SERIES_LIMIT, 'SOURCE_STRUCTURE_LIMIT', 'The trend export has more dates or series than one import accepts.');
-    check(!dateHeaders.some(h => norm(h) === 'total'), 'SOURCE_LAYOUT_UNKNOWN', 'This trend export has a layout the recipe does not read.');
+    check(!table.headers.some(h => ['total', 'total sum'].includes(norm(h))), 'SOURCE_LAYOUT_UNKNOWN', 'This trend export has a layout the recipe does not read.');
+    const labelHeaders = table.headers.filter((h, i) => i !== seriesAt && !isDateLabel(h));
+    const dateHeaders = table.headers.filter((h, i) => i !== seriesAt && isDateLabel(h));
+    check(dateHeaders.length > 0, 'SOURCE_LAYOUT_UNKNOWN', 'This trend export has a layout the recipe does not read.');
+    check(dateHeaders.length <= DATE_COLUMN_LIMIT && table.body.length <= SERIES_LIMIT, 'SOURCE_STRUCTURE_LIMIT', 'The trend export has more dates or series than one import accepts.');
     const rows: RawRow[] = [];
     for (const line of table.body) {
       const series = (line.cells[seriesAt] ?? '').trim();
@@ -57,14 +62,16 @@ export const DECODERS: readonly Decoder[] = [
   githubCommitsJson,
   posthogTrendsCsv,
   tabularDecoder({ id: 'csv-commit-count', added: { '(added) commit count': '1' } }),
+  /** Notion writes date properties as display text ("September 1, 2026", ranges with an arrow); normalised to ISO in the decoder. */
+  tabularDecoder({ id: 'notion-csv', monthNameDates: ['Date'] }),
 ];
 
 export const RECIPES: readonly SourceRecipe[] = [
   {
-    id: 'notion.expense-database', version: '1', group: 'notion', operation: 'expense-database', title: 'Notion expense tracker database export', decoder: 'csv',
+    id: 'notion.expense-database', version: '2', group: 'notion', operation: 'expense-database', title: 'Notion expense tracker database export', decoder: 'notion-csv',
     fields: {
       name: { from: ['Name'], type: 'text', required: true },
-      date: { from: ['Date'], type: 'date', required: true, dateFormats: ['DMY'] },
+      date: { from: ['Date'], type: 'date', required: true, dateFormats: ['ISO', 'DMY'] },
       amount: { from: ['Amount'], type: 'money', required: true },
       category: { from: ['Category'], type: 'text' },
       status: { from: ['Status'], type: 'text', required: true },
@@ -74,9 +81,10 @@ export const RECIPES: readonly SourceRecipe[] = [
     status: { field: 'status', values: { Paid: 'paid', Pending: 'pending', Reimbursed: 'reimbursed' } },
     outputs: { description: 'name', costType: 'category', status: 'status' },
     totals: { kind: 'report' },
-    ignored: ['Paid by', 'Receipt', 'Created time'],
+    ignored: ['Paid by', 'Receipt', 'Created time', 'Created by', 'Last edited time', 'Last edited by'],
     notices: ['Notion databases have no ids in CSV exports. Two rows with the same name, date and amount are treated as one expense.',
-      'Dates are read as day/month/year, Notion\'s Day/Month/Year date setting. The export has no total, so enter the sum Notion shows for this view.'],
+      'Notion writes dates as they are displayed: the default "September 1, 2026" (with a time and zone when the property has one, and "start → end" for a range, read as its start date) is normalised in the decoder; a Day/Month/Year date setting ("01/09/2026") is read day first. The export has no total, so enter the sum Notion shows for this view.',
+      checkedAgainst('https://github.com/cameronmurdock/Rivertree/blob/f423956fc6de0a3cf60bc69efa4ed429c223c288/Tasks%2019b1503617b48089a0def05095757fda_all.csv')],
     sensitivity: 'financial',
   },
   {
@@ -89,9 +97,13 @@ export const RECIPES: readonly SourceRecipe[] = [
     measure: { type: 'count', field: 'messages', unit: 'messages' },
     identity: ['date'], kind: { constant: 'message' },
     totals: { kind: 'report' },
-    ignored: ['Total enabled membership', 'Daily members posting messages', 'Weekly active members', 'Messages posted by members', 'Messages in public channels', 'Messages in private channels', 'Messages in DMs'],
-    notices: ['Messages posted includes messages from apps and bots; Slack counts members\' own messages in a separate column.',
-      'Active members are not added up across days.'],
+    ignored: ['Total enabled membership', 'Daily members posting messages', 'Weekly active members', 'Messages posted by members', 'Messages in public channels', 'Messages in private channels', 'Messages in DMs',
+      'Enabled Full Members', 'Enabled Guests', 'Weekly members posting messages', 'Messages in shared channels', 'Percent of messages, public channels', 'Percent of messages, private channels',
+      'Percent of messages, DMs', 'Percent of views, public channels', 'Percent of views, private channels', 'Percent of views, DMs', 'Total Full Members', 'Total Guests', 'Total Claimed Full Members',
+      'Total Claimed Guests', 'Total Members', 'Total Claimed Members', 'Files uploaded', 'Name', 'Public channels, single-workspace', 'Messages posted by apps'],
+    notices: ['Messages posted includes messages from apps and bots; Slack counts members\' own messages and apps\' messages in separate columns.',
+      'Active members are not added up across days.',
+      checkedAgainst('https://github.com/astropy/community_management/blob/9d0a37edd919d651db034f4e68e7961c9b3ad224/scripts/slack/out/slack_export_sep_14_2023.csv')],
     sensitivity: 'operational',
   },
   {
@@ -110,7 +122,8 @@ export const RECIPES: readonly SourceRecipe[] = [
     outputs: { customerName: 'customer', description: 'description' },
     totals: { kind: 'footer-row', labelField: 'id', labels: ['Total'], amountFields: ['amount'] },
     notices: ['The sheet must hold one record per row with the columns id, kind, date, amount and currency, and a Total row the sheet itself calculates.',
-      'The Total row adds every kind together; it checks the file is complete, not what any measure means.'],
+      'The Total row adds every kind together; it checks the file is complete, not what any measure means.',
+      'Layout is Chausar\'s own canonical sheet, defined by this recipe; there is no vendor export to check it against.'],
     sensitivity: 'financial',
   },
   {
@@ -129,7 +142,8 @@ export const RECIPES: readonly SourceRecipe[] = [
     totals: { kind: 'report' },
     ignored: ['Failed', 'Replied', 'Clicked', 'Status'],
     notices: ['Sent counts messages handed to WhatsApp. Delivered and read counts are lower, and read counts miss people who turned read receipts off.',
-      'Message charges are billed by the provider separately and are not in this count.'],
+      'Message charges are billed by the provider separately and are not in this count.',
+      'WATI and Interakt document summary and per-recipient broadcast exports but not their headings.', UNCONFIRMED],
     sensitivity: 'operational',
   },
   {
@@ -144,7 +158,8 @@ export const RECIPES: readonly SourceRecipe[] = [
     outputs: { description: 'series' },
     totals: { kind: 'report' },
     notices: ['Counts are as the PostHog insight computed them, with its own filters and test-account exclusion.',
-      'The export has no total, so enter the total PostHog shows for the same insight and dates.'],
+      'The export has no total, so enter the total PostHog shows for the same insight and dates.',
+      checkedAgainst('https://github.com/PostHog/posthog/blob/e9f815a9ced9905af19d3605d86c56aa11adc54d/products/exports/backend/tasks/csv_exporter.py')],
     sensitivity: 'operational',
   },
   {
@@ -162,7 +177,8 @@ export const RECIPES: readonly SourceRecipe[] = [
     ignored: ['node_id', 'url', 'html_url', 'comments_url', 'commit.author.name', 'commit.author.email', 'commit.committer.name', 'commit.committer.email', 'commit.committer.date',
       'commit.tree.sha', 'commit.tree.url', 'commit.url', 'commit.comment_count', 'author.login', 'author.id', 'committer.login', 'committer.id', 'parents.length', 'parents.0.sha', 'parents.0.url', 'parents.1.sha', 'parents.1.url'],
     notices: ['Each commit counts once on its author date in UTC. Commit authors\' names and emails are not imported.',
-      'The commit list has no total, so enter the commit count GitHub or git shows for the same branch and dates.'],
+      'The commit list has no total, so enter the commit count GitHub or git shows for the same branch and dates.',
+      checkedAgainst('https://docs.github.com/en/rest/commits/commits#list-commits')],
     sensitivity: 'personal',
   },
   {
@@ -179,7 +195,8 @@ export const RECIPES: readonly SourceRecipe[] = [
     totals: { kind: 'report' },
     ignored: ['author name', 'author email'],
     notices: ['Each commit counts once on its author date. Commit authors\' names and emails are not imported.',
-      'The commit list has no total, so enter the commit count git shows for the same branch and dates.'],
+      'The commit list has no total, so enter the commit count git shows for the same branch and dates.',
+      'The CSV is one the person writes from the commit log (columns sha, author date, message); GitHub has no commit CSV export of its own.', UNCONFIRMED],
     sensitivity: 'personal',
   },
 ];

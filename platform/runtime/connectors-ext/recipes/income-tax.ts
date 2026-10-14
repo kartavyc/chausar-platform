@@ -4,6 +4,7 @@ import { parseMoney } from '../values.ts';
 import type { Decoder, FieldSpec, SourceRecipe } from '../recipe.ts';
 import type { DeclaredTotals, RawRow } from '../types.ts';
 import { list, obj, paise, stopAt, table, text } from './gst.ts';
+import { UNCONFIRMED, checkedAgainst } from './operations.ts';
 
 /**
  * Income-tax statements: Form 26AS (TRACES text download) and the Annual Information Statement (AIS).
@@ -146,6 +147,9 @@ const minorInr = (field: string) => ({ type: 'money' as const, amount: { field }
 const NEVER_SUM = 'AIS and Form 26AS can describe the same deduction or payment. Their records are never added together; compare them instead.';
 const F26_COMMON = 'Each deductor\'s transactions must add up to that deductor\'s own totals (amount paid, tax deducted and TDS deposited), or the file is refused at that deductor\'s line.';
 const F26_TOTAL = 'The source total is the sum of the deductor totals the file states. Part I must be followed by the later parts of the statement, or the file is treated as cut short.';
+/** A public TRACES text download: "^"-separated, deductor rows with four empty columns before their totals, "^"-led transaction rows, DD-Mon-YYYY dates. */
+const F26_SOURCE = 'The "^"-separated layout (PAN line, PART A / PART-I heading, deductor rows with empty columns, "^"-led transaction rows, DD-Mon-YYYY dates) was checked; that sample stops after Part A, so the later-part headings follow public parsers.';
+const F26_CHECKED = checkedAgainst('https://github.com/SRathinaGiri/MLDemo/blob/e545b5567b714a504977e2d77f6e72c56132967c/casas_workshop/SampleCSV/FORM%2026AS.txt');
 const f26Fields = {
   tan: f('tan', 'text', true), deductorName: f('deductorName', 'text'), transactionNo: f('transactionNo', 'text', true), section: f('section', 'text', true),
   date: f('transactionDate', 'date', true, ['DMY-MON', 'DMY']), bookingStatus: f('bookingStatus', 'text'),
@@ -164,7 +168,7 @@ const aisRecipe = (valueType: 'reported' | 'processed' | 'accepted', title: stri
   outputs: { customerName: 'source', description: 'category' }, ignored: ['informationNo'], totals: { kind: 'declared' }, sensitivity: 'financial',
   notices: [`Only the ${valueType} value is imported; reported, processed and accepted values have different meanings and are never mixed or substituted.`, extra,
     'Each information entry\'s transactions must add up to its own stated value, and the file total is checked against the sum of those stated values.', NEVER_SUM,
-    'The AIS layout read here is a documented synthetic shape of the AIS download and is experimental.'],
+    'The AIS JSON is the download meant for the AIS offline utility; its field names are not published, so the shape read here is synthetic.', UNCONFIRMED],
 });
 
 export const RECIPES: readonly SourceRecipe[] = [
@@ -172,11 +176,11 @@ export const RECIPES: readonly SourceRecipe[] = [
     fields: { ...f26Fields, taxDeducted: f('taxDeducted', 'money', true) }, measure: minorInr('taxDeducted'), kind: { constant: 'tds_credit' },
     ignored: ['deductorLine', 'bookingDate', 'remarks', 'amountPaid', 'tdsDeposited'],
     notices: ['The amount is the tax deducted on each transaction. The amount paid or credited is imported by its own recipe and never mixed in.',
-      'Only booking status F (final) is final credit; provisional, unmatched and overbooked entries keep their status.', F26_COMMON, F26_TOTAL, NEVER_SUM] },
+      'Only booking status F (final) is final credit; provisional, unmatched and overbooked entries keep their status.', F26_COMMON, F26_TOTAL, NEVER_SUM, F26_SOURCE, F26_CHECKED] },
   { ...f26Base, id: 'income-tax.form26as-income', operation: 'form26as-income-reported', title: 'Form 26AS Part I amount paid or credited (TRACES text download)',
     fields: { ...f26Fields, amountPaid: f('amountPaid', 'money', true) }, measure: minorInr('amountPaid'), kind: { constant: 'tds_income_reported' },
     ignored: ['deductorLine', 'bookingDate', 'remarks', 'taxDeducted', 'tdsDeposited'],
-    notices: ['The amount is what each deductor reports as paid or credited, the income the deduction was made on. It is not tax and not credit.', F26_COMMON, F26_TOTAL, NEVER_SUM] },
+    notices: ['The amount is what each deductor reports as paid or credited, the income the deduction was made on. It is not tax and not credit.', F26_COMMON, F26_TOTAL, NEVER_SUM, F26_SOURCE, F26_CHECKED] },
   aisRecipe('reported', 'AIS reported values (JSON download)', 'Reported values are what the reporting source filed.'),
   aisRecipe('processed', 'AIS processed values (JSON download)', 'Processed values are what the system derived after removing duplicates; they can differ from reported values.'),
   aisRecipe('accepted', 'AIS values accepted after taxpayer feedback (JSON download)', 'Accepted values follow the taxpayer\'s feedback. An item without accepted value is refused, never read as zero.'),
