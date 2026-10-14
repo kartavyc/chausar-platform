@@ -72,6 +72,8 @@ export type ProcedureRun = {
   features: CaseFields;
   steps: TraceStep[]; costMinor: string; latencyMs: number; outcome: 'ok' | 'fallback' | 'refused' | 'waiting';
   note?: string; sourceIds: string[];
+  /** The member whose job ran the case; set by `recordRun` from the caller. */
+  ownerId?: string;
 };
 
 export type ProceduresState = { procedures: Procedure[]; runs: ProcedureRun[] };
