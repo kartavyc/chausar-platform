@@ -15,5 +15,9 @@
   "todayx.setupChecklist",
   "todayx.help",
   "todayx.faultReport",
-  "todayx.phoneMessages"
+  "todayx.phoneMessages",
+  "todayx.idea.start",
+  "todayx.idea.tell",
+  "todayx.idea.correct",
+  "todayx.idea.get"
 ]

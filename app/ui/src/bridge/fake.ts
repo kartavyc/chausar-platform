@@ -32,6 +32,7 @@ import {
   phoneMessagesReply, shellReply, statusReply, worthReply,
 } from './fixtures/todayx.ts';
 import type { FakeScenarioName, TodayxState } from './fixtures/todayx.ts';
+import { createFakeIdea } from './fixtures/idea.ts';
 
 export type FakeScenario = FakeScenarioName;
 /** The passphrase that opens the fake's locked workspace. Synthetic; never a real secret. */
@@ -118,6 +119,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const captures = new Map<string, Record<string, unknown>>();
   const todayx: TodayxState = { clock: { mode: 'demo', date, set: false }, jobsPaused: true };
   let identity: IdentityCard | null = null;
+  const idea = createFakeIdea(fakeRefusal);
   const store = new Map<string, unknown>();
   const calls: string[] = [];
 
@@ -370,6 +372,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     'todayx.help': () => helpReply(),
     'todayx.faultReport': () => faultReport(date),
     'todayx.phoneMessages': () => phoneMessagesReply(scenario),
+    'todayx.idea.start': () => { mutating(); return idea.start(`${date}T06:00:00.000Z`); },
+    'todayx.idea.get': () => idea.get(),
+    'todayx.idea.tell': payload => { mutating(); return idea.tell(payload, `${date}T06:00:00.000Z`); },
+    'todayx.idea.correct': payload => { mutating(); return idea.correct(payload, `${date}T06:00:00.000Z`); },
   };
 
   async function request(method: string, payload: unknown = {}): Promise<unknown> {
