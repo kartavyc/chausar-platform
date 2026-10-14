@@ -131,7 +131,8 @@ export type ScreenState =
   | { readonly kind: 'hidden'; readonly rows?: Count }
   | { readonly kind: 'refused'; readonly reason: string }
   | { readonly kind: 'locked' }
-  | { readonly kind: 'not-built'; readonly capability?: Capability }
+  /** SH-13. `part` names the missing part (a capability group, shown as written). */
+  | { readonly kind: 'not-built'; readonly capability?: Capability; readonly part?: string }
   | { readonly kind: 'boundary-state'; readonly source: ViewState };
 
 /** A chart value: exact and display, with its receipt. Missing stays a gap with words. */
@@ -258,7 +259,9 @@ export type BannerKind =
 export interface BannerItem {
   readonly kind: BannerKind;
   /** Values for the banner's sentence: program, date, holder, count. */
-  readonly values?: Readonly<Record<string, string>>;
+  readonly values?: Readonly<Record<string, string | number>>;
+  /** A variant of the kind's sentence (`SH-03.<kind>` otherwise), for example a withdrawn release. */
+  readonly textKey?: string;
   /** At most one action. */
   readonly action?: { readonly onPress: () => void };
 }

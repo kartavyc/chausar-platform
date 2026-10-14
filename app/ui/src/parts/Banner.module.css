@@ -1,23 +1,39 @@
+/* Across the full width, above the page and above any open sheet. */
 .stack {
+  display: grid;
+  width: 100%;
+}
+
+.live {
   display: grid;
 }
 
 .banner {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--sp4);
-  padding: var(--sp2) 0;
+  gap: var(--sp1) var(--sp4);
+  min-width: 0;
+  padding: var(--sp2) var(--sp5);
   border-bottom: var(--hair) solid var(--line2);
   font-size: var(--fs-note2);
   color: var(--fg2);
 }
 
 .text {
-  flex: 1 1 auto;
+  flex: 1 1 16em;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.action {
+.action,
+.more {
   flex: 0 0 auto;
   font-size: var(--fs-note2);
+}
+
+@media (max-width: 1023px) {
+  .banner {
+    padding-inline: var(--sp4);
+  }
 }
