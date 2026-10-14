@@ -40,6 +40,10 @@ A Node 24 and TypeScript service set on PostgreSQL 16, with the job queue on the
 | `hosted.allowanceRevoke` | admin, external, desktop only | Revokes every recorded credential id; `{ revoked, failed }`, one the server no longer knows counts as revoked |
 | `hosted.worker.status`, `hosted.worker.set`, `hosted.worker.dueDates`, `hosted.worker.deleteData` | read / admin, external | The server's label verbatim; enabling needs explicit consent; due dates are date only |
 | `phone.documents.register`, `phone.documents.collect`, `phone.documents.list`, `phone.documents.preview`, `phone.documents.discard` | admin, external / read / admin | PH-05 (`documents.ts`). Pairing registers a fresh X25519 public key (`register` does it on demand). `collect` (also run by `tick`) downloads each copy sealed to this device, opens and checks it, acknowledges it and holds it re-encrypted under a vault key in `<app data>/phone-documents/<workspace>/` (0600): untrusted outside data awaiting review, never imported, no facts. `list` shows the "Awaiting your review" rows without content. `preview` hands a CSV to the normal import preview (`ImportService.preview`, the code behind `sources.preview`) with `sourceTainted: true` and returns the `sources.import` input for the normal confirm; other types refuse `DOCUMENT_PREVIEW_UNAVAILABLE`. An imported or discarded document's file is deleted |
+| `phone.verify` | read, external | `{ channel: 'mail' \| 'whatsapp' }` → `{ verified }`: mail once its confirmation link was used, WhatsApp while on for the account's verified phone. Refuses `HOSTED_NOT_PAIRED` (`relay-extras.ts`) |
+| `hosted.messageStatuses` | read, external | `{ reference, messageId: string\|null }` → `[{ messageId, status, at, reference }]` from the business's own WhatsApp status callbacks, for writeback's read-back. Telegram has no delivery callbacks |
+| `hosted.businessHook.set` | admin, external, desktop only | `{ appSecret }` → `{ hookUrl, verifyToken }`: registers the business's own Meta app webhook on the relay; the secret is sealed on the server and never kept on the desktop |
+| `hosted.drive.connect`, `hosted.drive.status`, `hosted.drive.disconnect` | admin, external / read / admin | Creates or adopts a Drive folder (token only through the connectors-ext credential broker, `drive.file` scope), records it in the vault, and attaches `GoogleDriveSyncTransport` to the core `SyncService`; status re-attaches after the vault reopens; disconnect detaches and turns sync off (`drive-sync.ts`) |
 
 **Installed app wiring.** `hostOptions` reads `CHAUSAR_HOSTED_ORIGIN` and `CHAUSAR_LINK_ORIGIN` (https, the link origin digit-free) and uses the platform fetch. Demo mode, or an absent or invalid origin, leaves the module unconfigured (`HOSTED_NOT_CONFIGURED`). No edit to `main.cjs` is needed.
 
@@ -61,7 +65,7 @@ A Node 24 and TypeScript service set on PostgreSQL 16, with the job queue on the
 | Simple approvals: single use, thirty minutes, owner's number only, sealed, applied once, never executes | **supported** (code, end to end with the real relay on synthetic data); WhatsApp **experimental** | WhatsApp needs Meta verification and approved templates; Telegram needs the bot; mail needs Postmark |
 | Mail address confirmation (`/v/<letters>`, a day, single use, three a day) and `phone.verify` | **supported** (code); service **experimental** until deployed | Postmark sending domain |
 | Inbound mail: HELP ticket, STOP, fixed free-text reply, confirmed senders only (`/v1/webhooks/mail/:provider`, Postmark basic auth or a generic HMAC adapter) | **experimental** | Needs a Postmark inbound address and its webhook credentials (`POSTMARK_INBOUND_USER`/`PASSWORD`) |
-| A business's own WhatsApp statuses for writeback (`hosted.businessHook.set`, `hosted.messageStatuses`) | **experimental** | Needs `API_ORIGIN` and each business pointing its own Meta app at its hook URL; Telegram has no delivery callbacks |
+| A business's own WhatsApp statuses for writeback (`hosted.businessHook.set`, `hosted.messageStatuses`) | **experimental** | Needs `HOSTED_API_ORIGIN` and each business pointing its own Meta app at its hook URL; Telegram has no delivery callbacks |
 | Link pages | **supported** (code) | Not deployed |
 | Blind backup upload and restore | **supported** (code, round trip into `workspace.restore`) | Not deployed |
 | Allowance proxy and route client | **experimental** | Needs provider keys, a dated pricing table checked by a person, and the models-ext route wiring |
@@ -88,12 +92,27 @@ An independent review traced every path a forwarded, replayed or expired button 
 - Provider keys and a checked, dated pricing table (`PROVIDER_NOT_CONFIGURED`, `PRICING_NOT_SET`); the per-message price table (cost shows "unknown").
 - Google OAuth app verification for the Drive transport.
 
+## Cross-lane contracts
+
+| Method | Caller | Shape |
+|---|---|---|
+| `hosted.allowanceCredential` | models-ext `modelsx.connectAllowance` | `{}` → `{ endpoint, credential, model?, budgetMinor? }`; the gateway's `managed` route then speaks the OpenAI Responses format to `endpoint` with the credential. Tested end to end through the core gateway into the hosted ledger |
+| `hosted.messageStatuses` | writeback WhatsApp read-back, through `host.call` | `{ reference, messageId }` → `[{ messageId, status, at, reference }]` |
+| `phone.verify` | reports-tools-trust | `{ channel: 'mail' \| 'whatsapp' }` → `{ verified: boolean }` |
+| `phone.channels.list` | frame-today PH-01..03 | `channels[].channel`, `channels[].desktop.enabled` (kept stable) |
+| `phone.messages.counts` | frame-today | `sent`, `desktopBudget` (numbers, kept stable) |
+| `actions.approve`, `workspace.backup`, `workspace.restore`, `ImportService.preview` / `sources.import` | core | Phone approvals approve only, with the exact digest; documents enter the normal import preview marked tainted |
+| connectors-ext credential store and broker | Drive sync | The same sealed store and `oauth-clients.json`, `google-workspace` with `drive.file` |
+
+## Core edits
+
+- `platform/runtime/sync.ts`: `SyncService.attachTransport(transport | null)` (11 added lines, nothing existing changed). `SyncService` takes its transport only at construction and modules cannot change `EngineOptions.sync`; the seam accepts only a narrowly scoped Google Drive transport, never replaces a host-configured one, and turns sync off on any change.
+- `app/desktop/preload.cjs`: the hosted-link line of `laneRefusals` only.
+
 ## Gaps
 
 - The phone page (PH-04) is not built (after day 10, founder's decision).
-- PH-05 stops at the fixed reply; nothing is downloaded or imported.
-- The allowance route client is not registered in the gateway's route catalogue (models-ext owns routes); models-ext's `connectAllowance` uses `hosted.allowanceCredential` with the core `managed` route instead.
-- The engine host must wire `GoogleDriveSyncTransport` into `EngineOptions.sync` and record the picked folder; no method does it yet.
-- Mail HELP and STOP by reply need an inbound mail webhook; the mail footer says to turn mail off in the app instead. HELP and STOP by reply work on WhatsApp and Telegram.
-- Mail addresses are not verified with a confirmation link before the channel turns on.
+- PH-05: PDFs and photos are held and can be discarded, but preview refuses `DOCUMENT_PREVIEW_UNAVAILABLE` because the engine has no import format for them.
+- Drive sync in the installed app: connect and attach work, but `sync.enable` refuses `SYNC_WRITER_ADMISSION_REQUIRED` because the installed app gives the engine no sync device identity or writer admission (`worker.ts` passes no `sync` options), and configured sync trips existing core gates (`workspace.create`, backup, interchange, activation). Completing it is a core and product decision.
+- STOP by mail trusts the From address, as an unsubscribe link would.
 - Free-plan mail from the person's own mail account is the writeback lane's SMTP adapter, not this relay.
