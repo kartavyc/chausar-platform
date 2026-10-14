@@ -17,17 +17,20 @@ import { Figure, MissingWords } from '../../parts/Figure';
 import { Columns } from '../../parts/charts/Columns';
 import { State } from '../../patterns/States';
 import { todayIntentsForState } from './permissions.ts';
-import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, TodayConsumerControls, TodayProducerSections, type TodayScreenProps } from './shared';
+import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayConsumerControls, TodayProducerSections, type TodayScreenProps } from './shared';
+import { cashWeek } from './cash.ts';
 import s from './Today.module.css';
 
-export function TodaySimple({ data, intents: offeredIntents }: TodayScreenProps) {
+export function TodaySimple({ data, intents: offeredIntents, onNavigate }: TodayScreenProps) {
   const intents = todayIntentsForState(data.state, offeredIntents);
   const t = useT();
   const titleId = useId();
   const cashId = useId();
+  const worthId = useId();
   const [cash, setCash] = useState('');
   const system = useSystemRows(data, intents);
-  const { review, worth } = attentionRows(data, system);
+  const worthSource = useWorth(data, intents, 'simple', onNavigate);
+  const { review, worth, hidden, offered } = attentionRows(data, system, worthSource.rows, worthSource.showAll);
   const inPlace = useInPlaceRows();
   const onSaveClosing = intents.onSaveClosing;
 
@@ -41,7 +44,8 @@ export function TodaySimple({ data, intents: offeredIntents }: TodayScreenProps)
     setCash('');
   };
 
-  const rows = [...review, ...worth];
+  const rows = review;
+  const week = data.cash ? cashWeek(data.cash) : null;
 
   return (
     <div className={s.today}>
@@ -65,7 +69,10 @@ export function TodaySimple({ data, intents: offeredIntents }: TodayScreenProps)
         />
       )}
 
-      {data.cash && (
+      <WorthSection rows={worth} hidden={hidden} offered={offered} missing={worthSource.missing} showAll={worthSource.showAll} onToggle={worthSource.toggle}
+        onOpen={worthSource.onOpen} opens={worthSource.opens} onReceipt={intents.onReceipt} labelId={worthId} />
+
+      {data.cash && week && (
         <section className={s.cash} aria-labelledby={cashId}>
           <form className={s.cashForm} onSubmit={submit}>
             <h2 id={cashId} className={s.cashLabel}>
@@ -86,7 +93,7 @@ export function TodaySimple({ data, intents: offeredIntents }: TodayScreenProps)
               <MissingWords missing="cash-not-captured" />
             )}
           </form>
-          <Columns chart={data.cash.week} onReceipt={intents.onReceipt} className={s.cashChart} />
+          <Columns chart={week} onReceipt={intents.onReceipt} className={s.cashChart} />
         </section>
       )}
       {data.cashMissing !== undefined && <p className={s.missing}>{t('TODAY_ENGINE.cashMissing')}</p>}
