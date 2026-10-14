@@ -7,7 +7,7 @@ import { check, now, type Context, type State, type StateStore } from '../contra
 import { CalculatorService, type CalculationReceipt } from '../calculator.ts';
 import { canSeeFact, validatePeriod } from '../memory.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
-import { amountOf, input, isoInstant, peekBooks, plainId, writeBooks, type Amount, type Rebuild } from './books-common.ts';
+import { amountOf, input, isoInstant, LIMITS, peekBooks, plainId, room, writeBooks, type Amount, type Rebuild } from './books-common.ts';
 
 const calculator = (host: ModuleHost) => host.services.calculator as CalculatorService;
 /** An empty selection is not a zero: nothing was counted as known on that date. */
@@ -20,13 +20,62 @@ function staleRow(answer: any, rebuild: Rebuild | undefined) {
   return { id: answer.id as string, question: typeof answer.question === 'string' ? answer.question : null, workedOutOn: String(answer.at ?? ''), reason: typeof answer.staleReason === 'string' ? answer.staleReason : null,
     rebuilt: rebuild ? { at: rebuild.at, matches: rebuild.matches, quick: rebuild.quick, full: rebuild.full } : null };
 }
-/** A detached copy of the workspace; the full rebuild may write its receipt only into the copy. */
+/**
+ * A detached copy of the workspace rebuilt from the start (BK-16): nothing worked out before is
+ * kept (no receipts, saved answers or conversations), the facts are laid down again in the order
+ * they were learned, and a published sum is compiled again from its definition instead of using
+ * the retained compiled artifact. The full rebuild may write its receipt only into the copy.
+ */
+export function fromStart(state: State): State {
+  const copy = structuredClone(state);
+  copy.receipts = []; copy.answers = []; copy.conversations = [];
+  const order = new Map(copy.facts.map((f, i) => [f, i] as const));
+  copy.facts = [...copy.facts].sort((a, b) => a.learnedAt.localeCompare(b.learnedAt) || order.get(a)! - order.get(b)!);
+  const dictionary = copy.ontology?.current ?? (copy.ontology?.operations ? copy.ontology : null);
+  if (dictionary && typeof dictionary === 'object') delete dictionary.compiledSums;
+  return copy;
+}
 function scratchStore(state: State): StateStore {
-  let copy = structuredClone(state);
+  let copy = fromStart(state);
   return { read: () => copy, update: async change => { const next = structuredClone(copy); const result = await change(next); copy = next; return result; } };
 }
 
+const MAX_POINTS = 24;
+type Change = 'start' | 'correction' | 'new-event' | 'join' | 'undo';
+/**
+ * Every instant inside (from, to] where what was known about the selection changed: a fact
+ * in the period was learned (a correction when an earlier version from the same source
+ * exists, else a new event) or replaced, or customers were joined or a join was undone.
+ */
+function changePoints(host: ModuleHost, ctx: Context, period: { from: string; to: string }, from: string, to: string): Map<string, Set<Change>> {
+  const state = host.store.read(); const inWindow = (at: unknown): at is string => typeof at === 'string' && at > from && at <= to;
+  const facts = state.facts.filter(f => !f.deletedAt && f.validFrom.slice(0, 10) >= period.from && f.validFrom.slice(0, 10) <= period.to && canSeeFact(host.store, ctx, f));
+  const points = new Map<string, Set<Change>>(); const add = (at: string, change: Change) => points.set(at, (points.get(at) ?? new Set<Change>()).add(change));
+  for (const f of facts) {
+    if (inWindow(f.learnedAt)) add(f.learnedAt, facts.some(g => g !== f && g.sourceId === f.sourceId && g.kind === f.kind && g.entityId === f.entityId && g.learnedAt < f.learnedAt) ? 'correction' : 'new-event');
+    if (inWindow(f.supersededAt)) add(f.supersededAt, 'correction');
+  }
+  for (const m of state.merges) if (inWindow(m?.at) && (m.type === 'merge' || m.type === 'undo')) add(m.at, m.type === 'merge' ? 'join' : 'undo');
+  return points;
+}
+
 export const historyMethods: Record<string, MethodSpec> = {
+  'history.beliefLine': { permission: 'read', async handler(ctx, payload, host) {
+    const request = input(payload, ['operation', 'period', 'from', 'to'], ['operation', 'period', 'from', 'to']);
+    check(typeof request.operation === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(request.operation) && isoInstant(request.from) && isoInstant(request.to), 'INVALID_BOOKS_REQUEST', 'Choose a calculation, a period and the window to look over.');
+    validatePeriod(request.period);
+    const from = new Date(request.from).toISOString(), to = new Date(request.to).toISOString();
+    check(from < to, 'INVALID_BOOKS_REQUEST', 'The window starts before it ends.'); check(to <= now(), 'INVALID_ASOF', 'The known-on time cannot be in the future.');
+    const changes = [...changePoints(host, ctx, request.period, from, to).entries()].sort(([a], [b]) => a.localeCompare(b));
+    // Bounded: the start and the latest changes; older changes beyond the bound are counted, not drawn.
+    const kept = changes.slice(-(MAX_POINTS - 1)); const omitted = changes.length - kept.length;
+    const points = [];
+    for (const [at, kinds] of [[from, new Set<Change>(['start'])] as [string, Set<Change>], ...kept]) {
+      const receipt = await calculator(host).calculate(ctx, { operation: request.operation, period: request.period, asOf: at });
+      points.push({ at: receipt.asOf, value: valueOf(receipt), receiptId: receipt.id, changes: [...kinds].sort() });
+    }
+    return { operation: request.operation, period: { from: request.period.from, to: request.period.to }, from, to, points, omitted };
+  } },
   'history.asKnownOn': { permission: 'read', async handler(ctx, payload, host) {
     const request = input(payload, ['operation', 'period', 'asOf'], ['operation', 'period', 'asOf']);
     check(typeof request.operation === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(request.operation) && isoInstant(request.asOf), 'INVALID_BOOKS_REQUEST', 'Choose a calculation, a period and a known-on time.');
@@ -59,11 +108,15 @@ export const historyMethods: Record<string, MethodSpec> = {
     check(answer.request && typeof answer.request === 'object' && typeof answer.request.operation === 'string', 'REBUILD_NOT_AVAILABLE', 'This saved answer has no calculation to run again.');
     // A rebuild works the answer out again as known now; the full rebuild uses the same knowledge cut on a detached copy.
     const { asOf: _old, ...request } = structuredClone(answer.request);
+    // Only the latest rebuild of each answer is read, so a new one replaces the earlier; the number of answers kept is bounded.
+    const kept = peekBooks(host.store.read()).rebuilds; if (!kept.some(r => r.answerId === answer.id)) room(kept, LIMITS.rebuilds);
     const quick = await calculator(host).calculate(ctx, request);
     const full = await new CalculatorService(scratchStore(host.store.read())).calculate(ctx, { ...request, asOf: quick.asOf });
     const rebuild: Rebuild = { answerId: answer.id, at: now(), matches: BigInt(quick.valueMinor) === BigInt(full.valueMinor) && quick.coverage.countedRows === full.coverage.countedRows,
       quick: valueOf(quick), full: valueOf(full), quickReceiptId: quick.id, fullReceiptId: full.id };
-    await writeBooks(host.store, ctx, 'prepare', books => { books.rebuilds.push(rebuild); });
+    await writeBooks(host.store, ctx, 'prepare', books => {
+      books.rebuilds = books.rebuilds.filter(r => r.answerId !== answer.id); room(books.rebuilds, LIMITS.rebuilds); books.rebuilds.push(rebuild);
+    });
     return staleRow(host.store.read().answers.find(a => a.id === answer.id) ?? answer, rebuild);
   } },
 };

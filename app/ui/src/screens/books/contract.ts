@@ -3,7 +3,10 @@
  * `history.*` engine contract in docs/lanes/work-books.md field by field. Every reply is
  * untrusted data; nothing is drawn until it has passed its check here.
  */
-import { amount, bool, count, either, id, instant, InvalidReply, isoDate, list, literal, month, nullable, object, oneOf, record, text, type Check } from '../work/kit/validate.ts';
+import { amount, bool, count, either, id, instant, integerString, InvalidReply, isoDate, list, literal, month, nullable, object, oneOf, record, text, type Check } from '../work/kit/validate.ts';
+
+import { connectionWithOperations, envelopeView } from './contract-r2.ts';
+export * from './contract-r2.ts';
 
 const name = text(400);
 const line = text(4000);
@@ -24,6 +27,10 @@ const twelve: Check<readonly { readonly month: string; readonly state: MonthStat
 export const sourceRow = object({
   sourceId: id, system: name, way: oneOf(['files', 'signed-in', 'this-computer']), scope: nullable(name),
   lastReadAt: nullable(when), months: twelve, rows: count, refused: count, unmapped: count, experimental: bool, connected: bool,
+}, {
+  // Round 2, additive: the connection behind the source, its last failed read and whether it is past its freshness target.
+  connection: nullable(object({ connectionId: id, group: name, road: oneOf(['interface', 'file', 'database']), status: oneOf(['active', 'paused']) })),
+  lastFailure: nullable(object({ at: when, code: nullable(code) })), stale: bool,
 });
 export type SourceRow = ReturnType<typeof sourceRow>;
 
@@ -34,12 +41,15 @@ export const sourceReply = object({
   refusals: list(object({ at: when, codes: list(code, 50) })),
   kinds: list(object({ kind: name, rows: count })),
   unmappedFields: list(name),
+}, {
+  // Round 2, additive: see contract-r2.ts.
+  connectors: object({ available: bool }), connection: nullable(connectionWithOperations), envelopes: list(envelopeView, 50),
 });
 export const unmappedReply = object({
   fields: list(object({
     field: name, sourceIds: list(id, 200), type: oneOf(['text', 'number', 'date', 'empty', 'unknown']),
     filled: nullable(object({ rows: count, of: count })),
-  })),
+  }, { origin: oneOf(['file', 'connector']), recipeId: nullable(name), mappable: bool })),
 });
 
 export const definition = object(
@@ -77,7 +87,7 @@ export const memoryLine = object({
   status: oneOf(['told-by-owner', 'assumed', 'corrected', 'proposed']),
   source: oneOf(['told-by-owner', 'computed', 'outside-content']), receiptId: nullable(id),
   learnedAt: when, confirmedAt: nullable(when), earlier: list(object({ text: line, at: when })),
-});
+}, { origin: oneOf(['business-profile']), field: name, readOnly: bool });
 export type MemoryLine = ReturnType<typeof memoryLine>;
 export const memoryReply = object({ lines: list(memoryLine) });
 export const forgetReply = object({ id, deleted: literal(true) });
@@ -88,6 +98,10 @@ const accountClass = oneOf(ACCOUNT_CLASSES);
 export const accountRow = object({
   name, group: nullable(name), side: nullable(oneOf(['debit', 'credit'])), proposed: nullable(accountClass), reason: list(line, 50),
   decided: nullable(object({ class: accountClass, by: name, role: name, at: when })), state: oneOf(['proposed', 'unsure', 'decided']),
+}, {
+  // Audit, additive: the reason as codes, said in the person's language.
+  because: list(object({ code: oneOf(['group', 'group-unsortable', 'no-group', 'side', 'recipe', 'learned', 'said-no', 'accountant']) },
+    { group: name, under: name, side: oneOf(['debit', 'credit']), cls: name }), 20),
 });
 export type AccountRow = ReturnType<typeof accountRow>;
 export const accountsReply = object({ accounts: list(accountRow, 5000), proposals: object({ available: bool }) });
@@ -109,6 +123,10 @@ export const holdingsReply = object({ stores: list(object({ store: name, count }
 export const matchPair = object({
   left: id, right: id, relation: name, evidence: list(line, 50), reason: line,
   state: oneOf(['open', 'joined', 'not-same']), mergeId: nullable(id),
+}, {
+  // Audit, additive: malformed tax ids (not used as evidence), and after an undo the approvals that depended on the join.
+  badIds: list(object({ kind: oneOf(['GSTIN', 'PAN']), length: count, expected: count }), 20),
+  cancelled: list(id, 500), notCancelled: list(object({ id, code }), 500),
 });
 export type MatchPair = ReturnType<typeof matchPair>;
 export const matchesReply = object({ pairs: list(matchPair) });
@@ -142,3 +160,56 @@ export const staleReply = object({ answers: list(staleAnswer) });
 
 /** Any object reply, for a core method whose reply the screen only needs to have arrived. */
 export const anyObject: Check<Readonly<Record<string, unknown>>> = (value, path) => record(value, path);
+
+// ---------- Round 2: bill photo (WK-13/BK-18), belief line (BK-15), rates (BK-19), delete (BK-20) ----------
+
+export const CERTAINTY = ['sure', 'check-this', 'could-not-read'] as const;
+export type Certainty = typeof CERTAINTY[number];
+const region = object({ page: count, line: count, of: count });
+export const billField = object({ value: nullable(text(200)), certainty: oneOf(CERTAINTY), region: nullable(region) });
+export type BillField = ReturnType<typeof billField>;
+export const billReadReply = object({
+  readId: id, digest: text(200), mime: oneOf(['application/pdf', 'image/png', 'image/jpeg']), stored: literal(false), expiresAt: instant, untrusted: literal(true),
+  reader: object({ engine: literal('tesseract'), version: name, pages: count, confidence: count }),
+  supplier: billField, billNumber: billField, date: billField, total: billField,
+  lines: list(object({ description: billField, quantity: billField, amount: billField }), 50),
+  tax: list(object({ name: billField, amount: billField }), 50),
+  sums: object({ linesPlusTax: amount, total: amount, equal: nullable(bool) }),
+  routes: object({ zohoBooks: object({ available: bool, connections: list(object({ id, label: name }), 50) }), tallyPreview: object({ available: literal(true) }) }),
+});
+export type BillRead = ReturnType<typeof billReadReply>;
+const voucher = object({ type: name, number: nullable(name), date: isoDate, lines: list(object({ ledger: name, debit: nullable(amount), credit: nullable(amount) }), 200), note: literal('prepare-only') });
+export const billView = object({
+  id, approvalId: id, route: oneOf(['tally-preview', 'zoho-books']),
+  state: oneOf(['prepared', 'approved', 'executing', 'verified', 'unknown', 'rejected', 'blocked', 'cancelled']),
+  supplier: name, billNumber: name, date: isoDate, lines: list(object({ description: name, quantity: integerString, amount }), 50),
+  tax: list(object({ name, amount }), 50), total: amount, voucher: nullable(voucher), writeback: nullable(object({ id })), createdAt: when, by: name,
+});
+export type BillView = ReturnType<typeof billView>;
+export const billsReply = object({ bills: list(billView) });
+
+export const CHANGES = ['start', 'correction', 'new-event', 'join', 'undo'] as const;
+export const beliefLineReply = object({
+  operation: name, period: object({ from: isoDate, to: isoDate }), from: instant, to: instant,
+  points: list(object({ at: when, value: amount, receiptId: id, changes: list(oneOf(CHANGES), 5) }), 24), omitted: count,
+});
+export type BeliefLine = ReturnType<typeof beliefLineReply>;
+
+const positive: Check<string> = (value, path) => { const v = integerString(value, path); if (!/^[1-9]\d*$/.test(v)) throw new InvalidReply(path); return v; };
+export const rateRow = object({ currency: text(3), on: isoDate, rate: object({ units: positive, per: positive }), source: line, enteredBy: name, at: when });
+export type RateRow = ReturnType<typeof rateRow>;
+export const ratesReply = object({ rates: list(rateRow, 5000), notCounted: list(object({ currency: text(3), rows: count }), 200) });
+export const removeRateReply = object({ currency: text(3), on: isoDate, removed: literal(true) });
+
+export const deletionPlanReply = object({
+  recordId: id, canDelete: bool, sourceDeletion: object({ available: bool }),
+  stores: list(object({ store: name, count, state: oneOf(['can-delete', 'needs-owner', 'nothing-held']), reason: nullable(line) }), 50),
+});
+export type DeletionPlan = ReturnType<typeof deletionPlanReply>;
+export const deletionReport = object({
+  id, recordId: id, at: when, by: name, complete: bool,
+  rows: list(object({ store: name, count, state: oneOf(['deleted', 'pending', 'not-possible', 'nothing-held']), reason: nullable(line) }), 50),
+});
+export type DeletionReport = ReturnType<typeof deletionReport>;
+export const deletionsReply = object({ reports: list(deletionReport, 500) });
+export const optInReply = object({ channels: list(object({ channel: oneOf(['mail', 'whatsapp']), agreed: oneOf(['yes', 'no', 'not-asked']), source: nullable(name), at: nullable(isoDate), stoppedAt: nullable(isoDate) }), 10) });

@@ -9,7 +9,7 @@ import type { CalculatorService } from '../calculator.ts';
 import { canSeeFact, gstinValid, resolveCustomer, selectFacts, type MemoryService } from '../memory.ts';
 import type { OntologyService } from '../ontology.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
-import { amountOf, input, isoDay, member, mentions, peekBooks, plainId, text, writeBooks, type Amount, type MatchDecision } from './books-common.ts';
+import { amountOf, input, isoDay, LIMITS, member, mentions, namesId, peekBooks, plainId, room, text, writeBooks, type Amount, type MatchDecision } from './books-common.ts';
 import { sourceVisible } from './books-sources.ts';
 import { visibleMemoryLine } from './books-memory.ts';
 
@@ -44,7 +44,7 @@ export function collectRecords(host: ModuleHost, ctx: Context): Map<string, Reco
  * Every record id the caller can see: current records plus the raw ids named by facts the
  * caller can see (a customer joined into another keeps its own id in the facts).
  */
-function visibleRecordIds(host: ModuleHost, ctx: Context, records = collectRecords(host, ctx)): Set<string> {
+export function visibleRecordIds(host: ModuleHost, ctx: Context, records = collectRecords(host, ctx)): Set<string> {
   const ids = new Set(records.keys());
   for (const fact of host.store.read().facts) if (!fact.deletedAt && canSeeFact(host.store, ctx, fact)) for (const [, id] of references(fact)) ids.add(id);
   return ids;
@@ -89,10 +89,13 @@ function identity(entry: RecordEntry) {
   const values = (field: string) => [...new Set(entry.facts.map(f => f.fields[field]).filter(str).map(v => v.trim()))];
   const gstins = values('gstin'), pans = values('pan');
   return { gstins, pans, bad: [...gstins.filter(g => !gstinValid(g)).map(g => badId('GSTIN', g)), ...pans.filter(p => !PAN.test(p)).map(p => badId('PAN', p))],
+    badIds: [...gstins.filter(g => !gstinValid(g)).map((g: string) => ({ kind: 'GSTIN' as const, length: g.length, expected: 15 })), ...pans.filter(p => !PAN.test(p)).map(p => ({ kind: 'PAN' as const, length: p.length, expected: 10 }))],
     phones: values('phone').map(p => p.replace(/\D/g, '').slice(-10)).filter(p => p.length === 10), emails: values('email').map(e => e.toLowerCase()), names: values('customerName').map(n => n.toLowerCase().replace(/\s+/g, ' ')) };
 }
 const pairKey = (a: string, b: string) => JSON.stringify([a, b].sort());
-type Pair = { left: string; right: string; relation: string; evidence: string[]; reason: string; state: 'open' | 'joined' | 'not-same'; mergeId: string | null };
+/** `badIds`: a GSTIN or PAN that failed its format check, not used as evidence (the screen says why in the person's language). */
+type BadId = { kind: 'GSTIN' | 'PAN'; length: number; expected: number };
+type Pair = { left: string; right: string; relation: string; evidence: string[]; reason: string; badIds: BadId[]; state: 'open' | 'joined' | 'not-same'; mergeId: string | null };
 const DISPUTED_REASON = 'One of these customers appears only in records that sources disagree on, so their tax identities are not compared. Settle the disagreement first.';
 /** Both customers have at least one selected (not disputed) fact, so the memory service can compare them. */
 const comparable = (records: Map<string, RecordEntry>, left: string, right: string) => (records.get(left)?.selected ?? 0) > 0 && (records.get(right)?.selected ?? 0) > 0;
@@ -104,7 +107,8 @@ function evaluate(host: ModuleHost, ctx: Context, records: Map<string, RecordEnt
   if (a.emails.some(e => b.emails.includes(e))) evidence.push('same-email');
   if (a.names.some(n => b.names.includes(n))) evidence.push('same-name');
   const bad = [...new Set([...a.bad, ...b.bad])];
-  return { left, right, relation: suggestion.relation, evidence, reason: [suggestion.reason, ...bad.map(r => `${r} It is not used as evidence.`)].join(' ') };
+  const badIds = [...new Map([...a.badIds, ...b.badIds].map(x => [JSON.stringify(x), x])).values()];
+  return { left, right, relation: suggestion.relation, evidence, reason: [suggestion.reason, ...bad.map(r => `${r} It is not used as evidence.`)].join(' '), badIds };
 }
 function candidates(records: Map<string, RecordEntry>): [string, string][] {
   const byKey = new Map<string, string[]>();
@@ -133,8 +137,39 @@ function matchPairs(host: ModuleHost, ctx: Context): Pair[] {
   const pairs: Pair[] = candidates(records).map(([l, r]) => ({ ...evaluate(host, ctx, records, l, r), ...storedState(state, latest(pairKey(l, r))) }));
   const seen = new Set(pairs.map(p => pairKey(p.left, p.right)));
   for (const d of decisions) { const key = pairKey(d.left, d.right); if (seen.has(key)) continue; seen.add(key); const last = latest(key)!;
-    pairs.push({ left: last.left, right: last.right, relation: last.relation, evidence: [...last.evidence], reason: last.reason, ...storedState(state, last) }); }
+    pairs.push({ left: last.left, right: last.right, relation: last.relation, evidence: [...last.evidence], reason: last.reason, badIds: [], ...storedState(state, last) }); }
   return pairs;
+}
+
+/**
+ * Prepared or approved actions that depend on a join: made after the join and before its undo,
+ * not yet attempted, naming one of the joined customers in their request or sources. Each is
+ * cancelled through its owner: core actions through `ActionService.cancel`, write-back actions
+ * through `writeback.drop`. Nothing is changed in place here; one that cannot be cancelled is
+ * listed with its code.
+ */
+export function dependentActions(state: State, mergeId: string): PreparedAction[] {
+  const merge = state.merges.find(m => m.id === mergeId && m.type === 'merge'); if (!merge) return [];
+  const undo = state.merges.find(m => m.type === 'undo' && m.mergeId === mergeId);
+  const ids: string[] = (Array.isArray(merge.entityIds) ? merge.entityIds as unknown[] : []).filter((id: unknown): id is string => typeof id === 'string');
+  return (state.actions as PreparedAction[]).filter(a => a && (a.status === 'prepared' || a.status === 'approved') && Array.isArray(a.attempts) && a.attempts.length === 0
+    && typeof a.createdAt === 'string' && a.createdAt >= merge.at && (!undo || a.createdAt <= undo.at)
+    && ids.some(id => mentions(a.payload, id) || (Array.isArray(a.sourceIds) && a.sourceIds.includes(id))));
+}
+async function cancelDependents(host: ModuleHost, ctx: Context, mergeId: string): Promise<{ cancelled: string[]; notCancelled: { id: string; code: string }[] }> {
+  const cancelled: string[] = [], notCancelled: { id: string; code: string }[] = [];
+  const actions = host.services.actions as ActionService | undefined;
+  for (const action of dependentActions(host.store.read(), mergeId)) {
+    try {
+      if (action.connector.startsWith('wb-')) await host.call('writeback.drop', { id: action.id });
+      else { check(actions, 'ACTIONS_NOT_AVAILABLE', 'Actions are not available here.'); await actions.cancel(ctx, action.id); }
+      cancelled.push(action.id);
+    } catch (error) {
+      const code = (error as { code?: unknown })?.code;
+      notCancelled.push({ id: action.id, code: typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(code) ? code : 'CANCEL_FAILED' });
+    }
+  }
+  return { cancelled, notCancelled };
 }
 
 // Sources that disagree (BK-14).
@@ -174,14 +209,16 @@ export const recordMethods: Record<string, MethodSpec> = {
   'records.setOptIn': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['id', 'channel', 'answer', 'source', 'on'], ['id', 'channel', 'answer', 'source', 'on']);
     check(['mail', 'whatsapp'].includes(request.channel) && ['yes', 'no'].includes(request.answer) && text(request.source, 300) && isoDay(request.on), 'INVALID_BOOKS_REQUEST', 'Give the channel, the answer, where it came from and the date.');
+    check(!ctx.sourceTainted, 'TAINTED_CONSENT', 'Only a person records what a customer agreed to. Imported text cannot.');
     const entry = findRecord(host, ctx, request.id); const who = member(host.store.read(), ctx);
-    await writeBooks(host.store, ctx, 'prepare', books => { books.optIns.push({ recordId: entry.id, channel: request.channel, answer: request.answer, source: request.source, on: request.on, by: who.name, at: now() }); });
+    await writeBooks(host.store, ctx, 'prepare', books => { room(books.optIns, LIMITS.optIns); books.optIns.push({ recordId: entry.id, channel: request.channel, answer: request.answer, source: request.source, on: request.on, by: who.name, at: now() }); });
     return recordView(host, ctx, entry.id);
   } },
   'records.stop': { permission: 'prepare', async handler(ctx, payload, host) {
     const request = input(payload, ['id', 'on'], ['id', 'on']); check(isoDay(request.on), 'INVALID_BOOKS_REQUEST', 'Give the date the stop word arrived.');
+    check(!ctx.sourceTainted, 'TAINTED_CONSENT', 'Only a person records a stop word. Imported text cannot.');
     const entry = findRecord(host, ctx, request.id); const who = member(host.store.read(), ctx);
-    await writeBooks(host.store, ctx, 'prepare', books => { books.stops.push({ recordId: entry.id, on: request.on, by: who.name, at: now() }); });
+    await writeBooks(host.store, ctx, 'prepare', books => { room(books.stops, LIMITS.stops); books.stops.push({ recordId: entry.id, on: request.on, by: who.name, at: now() }); });
     return recordView(host, ctx, entry.id);
   } },
   'records.matches': { permission: 'read', handler(ctx, payload, host) { input(payload, []); return { pairs: matchPairs(host, ctx) }; } },
@@ -192,13 +229,15 @@ export const recordMethods: Record<string, MethodSpec> = {
     for (const id of [request.left, request.right]) check(records.get(id)?.kind === 'customer', 'RECORD_NOT_FOUND', 'Both records must be customers available to you.');
     check(comparable(records, request.left, request.right), 'RECORD_DISPUTED', 'One of these customers appears only in records that sources disagree on. Settle the disagreement first.');
     const pair = evaluate(host, ctx, records, request.left, request.right); const who = member(host.store.read(), ctx);
+    room(peekBooks(host.store.read()).matches, LIMITS.matches);
     let mergeId: string | null = null;
     if (request.same) {
       check(pair.relation !== 'cannot-match-tax-identities', 'MATCH_FORBIDDEN', 'Two different PANs cannot be the same customer.');
       mergeId = (await (host.services.memory as MemoryService).merge(ctx, [request.left, request.right], request.left)).id;
     }
-    const decision: MatchDecision = { ...pair, state: request.same ? 'joined' : 'not-same', mergeId, undoneMergeId: null, by: who.name, role: who.role, at: now() };
-    await writeBooks(host.store, ctx, 'approve', books => { books.matches.push(decision); });
+    const { badIds: _bad, ...kept } = pair;
+    const decision: MatchDecision = { ...kept, state: request.same ? 'joined' : 'not-same', mergeId, undoneMergeId: null, by: who.name, role: who.role, at: now() };
+    await writeBooks(host.store, ctx, 'approve', books => { room(books.matches, LIMITS.matches); books.matches.push(decision); });
     return { ...pair, state: decision.state, mergeId };
   } },
   'records.undoMatch': { permission: 'approve', async handler(ctx, payload, host) {
@@ -207,10 +246,12 @@ export const recordMethods: Record<string, MethodSpec> = {
     const decision = typeof mergeId === 'string' ? peekBooks(host.store.read()).matches.find(d => d.mergeId === mergeId) : undefined;
     check(decision && visible.has(decision.left) && visible.has(decision.right), 'MATCH_NOT_FOUND', 'This join was not found.');
     await (host.services.memory as MemoryService).undoMerge(ctx, mergeId);
+    // Any approval that depended on the join is cancelled (BK-13): only through the action's own service.
+    const settled = await cancelDependents(host, ctx, mergeId);
     const who = member(host.store.read(), ctx);
     const reopened: MatchDecision = { ...structuredClone(decision), state: 'open', mergeId: null, undoneMergeId: mergeId, by: who.name, role: who.role, at: now() };
     await writeBooks(host.store, ctx, 'approve', books => { books.matches.push(reopened); });
-    return { left: reopened.left, right: reopened.right, relation: reopened.relation, evidence: reopened.evidence, reason: reopened.reason, state: 'open' as const, mergeId: null };
+    return { left: reopened.left, right: reopened.right, relation: reopened.relation, evidence: reopened.evidence, reason: reopened.reason, badIds: [], state: 'open' as const, mergeId: null, ...settled };
   } },
   'records.conflicts': { permission: 'read', handler(ctx, payload, host) { input(payload, []); return conflicts(host, ctx); } },
   'records.setPrecedence': { permission: 'admin', async handler(ctx, payload, host) {
@@ -219,9 +260,23 @@ export const recordMethods: Record<string, MethodSpec> = {
     const rule = await (host.services.memory as MemoryService).setSourcePrecedence(ctx, request.kind, request.sourceIds);
     return { kind: rule.kind, sourceIds: [...rule.sourceIds] };
   } },
+  'records.optIn': { permission: 'read', handler(ctx, payload, host) {
+    const { customerId } = input(payload, ['customerId'], ['customerId']); const entry = findRecord(host, ctx, customerId);
+    const books = peekBooks(host.store.read()); const stoppedAt = books.stops.filter(s => s.recordId === entry.id).at(-1)?.on ?? null;
+    return { channels: (['mail', 'whatsapp'] as const).map(channel => {
+      const latest = books.optIns.filter(o => o.recordId === entry.id && o.channel === channel).at(-1);
+      return { channel, agreed: latest?.answer ?? 'not-asked' as const, source: latest?.source ?? null, at: latest?.on ?? null, stoppedAt };
+    }) };
+  } },
   'records.holdings': { permission: 'read', handler(ctx, payload, host) {
-    const { id } = input(payload, ['id'], ['id']); const entry = findRecord(host, ctx, id); const state = host.store.read(); const books = peekBooks(state);
-    const ids = new Set([entry.id, ...state.merges.filter(m => m.type === 'merge' && Array.isArray(m.entityIds) && m.entityIds.includes(entry.id)).flatMap(m => m.entityIds as string[])]);
+    const { id } = input(payload, ['id'], ['id']); return { stores: holdingsOf(host, ctx, id) };
+  } },
+};
+
+/** Every store that holds something about one record, counted only as far as the caller can see. */
+export function holdingsOf(host: ModuleHost, ctx: Context, id: unknown): { store: string; count: number }[] {
+  { const entry = findRecord(host, ctx, id); const state = host.store.read(); const books = peekBooks(state);
+    const ids = recordIdsOf(state, entry.id);
     const about = (value: unknown) => [...ids].some(i => mentions(value, i));
     const factIds = new Set(state.facts.filter(f => !f.deletedAt && canSeeFact(host.store, ctx, f) && [...ids].some(i => resolveCustomer(state, f.fields.customerId, now()) === i || references(f).some(([, r]) => r === i))).map(f => f.id));
     // Only what the caller can see is counted: own receipts, answers and conversations, actions under core's access rule, visible memory lines and matches.
@@ -237,14 +292,23 @@ export const recordMethods: Record<string, MethodSpec> = {
       } catch { return false; }
     };
     const visible = visibleRecordIds(host, ctx);
-    return { stores: [
+    return [
       { store: 'facts', count: factIds.size }, { store: 'receipts', count: receipts.length },
       { store: 'answers', count: state.answers.filter(a => ownReceiptIds.has(a?.receiptId) && (receiptIds.has(a.receiptId) || about(a.request))).length },
       { store: 'actions', count: (state.actions as PreparedAction[]).filter(a => about(a) && canSeeAction(a)).length },
       { store: 'conversations', count: state.conversations.filter(c => c?.memberId === ctx.memberId && about(c)).length },
-      { store: 'memory', count: books.memory.filter(l => !l.deletedAt && l.text !== null && visibleMemoryLine(host.store, ctx, l) && [...ids].some(i => l.text!.includes(i))).length },
+      { store: 'memory', count: books.memory.filter(l => !l.deletedAt && l.text !== null && visibleMemoryLine(host.store, ctx, l, host) && lineNames(l, ids)).length },
       { store: 'opt-ins', count: books.optIns.filter(o => ids.has(o.recordId)).length + books.stops.filter(s => ids.has(s.recordId)).length },
       { store: 'matches', count: books.matches.filter(m => (ids.has(m.left) || ids.has(m.right)) && visible.has(m.left) && visible.has(m.right)).length },
-    ] };
-  } },
-};
+    ];
+  }
+}
+/** The record ids a deletion of `id` covers: the record and every id joined with it. */
+export function recordIdsOf(state: State, id: string): Set<string> {
+  // The same rule as the memory service's resolveCustomer: a join that was undone no longer joins anything.
+  const undone = new Set(state.merges.filter(m => m.type === 'undo').map(m => m.mergeId));
+  return new Set([id, ...state.merges.filter(m => m.type === 'merge' && !undone.has(m.id) && Array.isArray(m.entityIds) && m.entityIds.includes(id))
+    .flatMap(m => (m.entityIds as unknown[]).filter((e): e is string => typeof e === 'string'))]);
+}
+/** A memory line about one of `ids`: the exact id as a whole word, never inside a longer id. */
+export const lineNames = (line: { text: string | null }, ids: Set<string>) => line.text !== null && [...ids].some(i => namesId(line.text!, i));

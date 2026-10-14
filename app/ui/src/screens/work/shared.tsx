@@ -11,9 +11,10 @@ import type { Loaded, ReplyHost } from './kit/reply.ts';
 import type { Amount } from './kit/validate.ts';
 import { Note, Page } from './kit/Page';
 import type { Step } from './contract.ts';
-import { workWords, type WorkKey, type WorkWords } from './text.ts';
+import { known, workWords, type WorkKey, type WorkWords } from './text.ts';
+import type { ApprovalRow } from './contract.ts';
 
-export const SUBS = ['approvals', 'jobs', 'actions', 'cando', 'after-restore'] as const;
+export const SUBS = ['approvals', 'jobs', 'actions', 'cando', 'after-restore', 'driving', 'bill'] as const;
 export type WorkSub = typeof SUBS[number];
 
 export interface WorkProps extends PlaceRenderProps { readonly w: WorkWords; readonly host: ReplyHost; readonly sub: WorkSub }
@@ -72,3 +73,25 @@ export function Frame<T>({ p, title, loaded, reload, count, children }: FramePro
 }
 
 export { workWords };
+
+/** A row's title in the reader's language when the engine named what it is; else the engine's own line. */
+export function rowTitle(r: Pick<ApprovalRow, 'title' | 'what'>, w: WorkWords): string {
+  return r.what === undefined ? r.title : say(w, `what.${r.what.kind}`, { name: r.what.name ?? '' });
+}
+/** A change field's name in words, for the names this lane's engine writes; another name is shown as it came. */
+export function fieldName(name: string, w: WorkWords): string {
+  const n = /^(?:step|Line) (\d+)$/.exec(name);
+  if (n) return say(w, name.startsWith('step') ? 'field.step' : 'field.line', { n: n[1] ?? '' });
+  return known(w, `field.${name.toLowerCase().replace(/ /g, '-')}`) ?? name;
+}
+/** A change value: whole paise written by the engine ("12500 paise") as money; this lane's fixed words in the reader's language. */
+export function fieldValue(name: string, value: string, w: WorkWords, language: Language): string {
+  const paise = /^(-?\d{1,30}) paise$/.exec(value);
+  if (paise) return amountText({ minor: paise[1] ?? '0' }, language);
+  if (name === 'receipts' && value === 'not shown here') return w['fixed.notShown'];
+  if (name === 'missed run' && value === 'run every missed one') return w['fixed.runAll'];
+  return value;
+}
+/** A job's reason or time-line event in words when it is a known engine code; another lane's own text is shown as it came. */
+export function jobReason(reason: string, w: WorkWords): string { return known(w, `jr.${reason}`) ?? reason; }
+export function jobEvent(event: string, w: WorkWords): string { return known(w, `ev.${event}`) ?? event; }

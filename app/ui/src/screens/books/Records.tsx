@@ -8,8 +8,13 @@ import { Choice } from '../../parts/Choice';
 import { Section, Note, Refusal, Actions, Button } from '../work/kit/Page';
 import { useAct, useReply } from '../work/kit/reply.ts';
 import { day } from '../work/kit/format.ts';
-import { conflictsReply, holdingsReply, matchPair, matchesReply, precedence, recordView, searchReply } from './contract.ts';
-import { BooksPage, BooksSheet, Link, Money, Recorded, Table, approves, fill, idOf, isOwner, sheetOf, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
+import { conflictsReply, deletionPlanReply, deletionReport, holdingsReply, matchPair, matchesReply, precedence, recordView, searchReply } from './contract.ts';
+import { useMoreWords } from './words-more.ts';
+import type { DeletionReport } from './contract.ts';
+import { BooksPage, BooksSheet, Link, Money, Recorded, Table, approves, fill, idOf, isOwner, prepares, sheetOf, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
+import { useAuditWords, type AuditKey, type AuditWords } from './words-audit.ts';
+import { orderSheet } from './Trial.tsx';
+import type { MatchPair } from './contract.ts';
 
 type Kind = 'all' | 'customer' | 'supplier' | 'item';
 
@@ -45,7 +50,7 @@ export function Customers(props: BooksProps) {
 const ANSWER = { yes: 'answer.yes', no: 'answer.no', 'not-asked': 'answer.not-asked' } as const;
 
 function RecordSheet({ props, id }: { props: BooksProps; id: string }) {
-  const w = useWords(props.language);
+  const w = useWords(props.language), a = useAuditWords(props.language);
   const { loaded, reload } = useReply(props, 'records.get', { id }, recordView, id);
   const value = valueOf(loaded);
   return (
@@ -55,6 +60,8 @@ function RecordSheet({ props, id }: { props: BooksProps; id: string }) {
       {value && (
         <div className={s.stack}>
           {value.stoppedOn !== null && <p className={s.amber}>{fill(w.stopped, { when: day(value.stoppedOn, props.language) })}</p>}
+          {/* BK-12 "ask about this record": the frame's ask line has no way to carry a record yet (frame-today). */}
+          <Note>{a.askAboutNotBuilt}</Note>
           <Section title={w['rec.details']}>
             {value.details.length === 0 ? <Note>{w['empty.details']}</Note> : (
               <Table view={props.view} caption={w['rec.details']} columns={[{ head: w['col.field'], simple: true }, { head: w['col.value'], simple: true }, { head: w['col.source'] }]}
@@ -119,30 +126,92 @@ function Holdings({ props, id }: { props: BooksProps; id: string }) {
         <Table view={props.view} caption={w.holdings} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true, simple: true }]}
           rows={value.stores.map(h => ({ key: h.store, cells: [h.store, String(h.count)] }))} />
       ))}
-      {value && !props.viewer && <Note>{fill(w.notBuiltNamed, { what: w.deleteRequest })}</Note>}
+      {value && approves(props) && <DeleteFlow props={props} id={id} />}
     </Section>
+  );
+}
+
+/**
+ * BK-20 Delete: what each store will do, the customer id typed to confirm (deleting always
+ * waits for a person), then the report per store. Stores the lane cannot empty say who can.
+ */
+function DeleteFlow({ props, id }: { props: BooksProps; id: string }) {
+  const w = useWords(props.language); const m = useMoreWords(props.language);
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [report, setReport] = useState<DeletionReport | null>(null);
+  const act = useAct(props.rpc);
+  if (!open) return <Actions><Button danger onClick={() => setOpen(true)}>{m['del.start']}</Button></Actions>;
+  if (report) return (
+    <div className={s.stack} data-deletion-report={report.id}>
+      <h3>{m['del.report']}</h3>
+      <p className={report.complete ? s.note : s.amber}>{report.complete ? m['del.complete'] : m['del.partial']}</p>
+      <Table view={props.view} caption={m['del.report']} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true }, { head: m['del.col.state'], simple: true }, { head: m['del.col.reason'] }]}
+        rows={report.rows.map(r => ({ key: r.store, cells: [r.store, String(r.count), <span data-state={r.state}>{m[r.state === 'nothing-held' ? 'del.nothing-held.done' : `del.${r.state}` as const]}</span>, r.reason ?? ''] }))} />
+    </div>
+  );
+  return <DeletePlan props={props} id={id} typed={typed} setTyped={setTyped} busy={act.busy} refusal={act.refusal} onCancel={() => setOpen(false)}
+    onDelete={async () => { const outcome = await act.run('records.delete', { id, confirmation: typed }, deletionReport); if (outcome.ok) setReport(outcome.value); }} />;
+}
+
+function DeletePlan({ props, id, typed, setTyped, busy, refusal, onCancel, onDelete }: {
+  props: BooksProps; id: string; typed: string; setTyped: (v: string) => void; busy: boolean; refusal: string | null; onCancel: () => void; onDelete: () => Promise<void>;
+}) {
+  const w = useWords(props.language); const m = useMoreWords(props.language);
+  const { loaded, reload } = useReply(props, 'records.deletionPlan', { id }, deletionPlanReply, id);
+  const plan = valueOf(loaded);
+  if (loaded.phase === 'refused') return loaded.state.kind === 'not-built' ? <Note>{fill(w.notBuiltNamed, { what: w.deleteRequest })}</Note>
+    : <span className={s.inline}><Refusal code={loaded.code} language={props.language} /><Button variant="link" onClick={reload}>{w.retry}</Button></span>;
+  if (!plan) return <Note>{w.reading}</Note>;
+  return (
+    <div className={s.stack} data-deletion-plan>
+      <h3>{m['del.plan']}</h3>
+      <Table view={props.view} caption={m['del.plan']} columns={[{ head: w['col.store'], simple: true }, { head: w['col.items'], num: true }, { head: m['del.col.state'], simple: true }, { head: m['del.col.reason'] }]}
+        rows={plan.stores.map(r => ({ key: r.store, cells: [r.store, String(r.count), <span data-state={r.state}>{m[`del.${r.state}`]}</span>, r.reason ?? ''] }))} />
+      {!plan.canDelete && plan.stores.some(r => r.state === 'needs-owner') && <p className={s.amber}>{m['del.notAvailable']}</p>}
+      {plan.stores.some(r => r.state === 'needs-owner') && plan.sourceDeletion.available && <Note>{m['del.sourceDeletion']}</Note>}
+      {plan.canDelete && (
+        <form className={s.form} aria-label={m['del.start']} onSubmit={(e: FormEvent) => { e.preventDefault(); if (typed === id) void onDelete(); }}>
+          <Note>{m['del.waits']}</Note>
+          <Field label={fill(m['del.type'], { id })} value={typed} onChange={e => setTyped(e.target.value)} autoComplete="off" />
+          <Actions><Button danger submit disabled={typed !== id || busy}>{m['del.confirm']}</Button><Button variant="link" onClick={onCancel}>{m['del.cancel']}</Button></Actions>
+        </form>
+      )}
+      <Refusal code={refusal} language={props.language} />
+    </div>
   );
 }
 
 const PAIR_STATE = { open: 'pair.open', joined: 'pair.joined', 'not-same': 'pair.not-same' } as const;
 
+/** A relation or evidence code in the person's language; an unknown code is shown as it came. */
+const said = (a: AuditWords, key: string) => Object.hasOwn(a, key) ? a[key as AuditKey] : key.slice(key.indexOf('.') + 1);
+function badIdText(a: AuditWords, b: NonNullable<MatchPair['badIds']>[number]) {
+  return b.length !== b.expected ? fill(a.badId, { kind: b.kind, n: b.length, expected: b.expected }) : fill(a.badIdFormat, { kind: b.kind });
+}
+
 export function Matches(props: BooksProps) {
-  const w = useWords(props.language);
+  const w = useWords(props.language), a = useAuditWords(props.language);
+  const [undone, setUndone] = useState<MatchPair | null>(null);
   const { loaded, reload } = useReply(props, 'records.matches', {}, matchesReply);
   const value = valueOf(loaded);
   const act = useAct(props.rpc);
   const can = approves(props);
   const decide = async (left: string, right: string, same: boolean) => { if ((await act.run('records.decideMatch', { left, right, same }, matchPair)).ok) reload(); };
-  const undo = async (mergeId: string) => { if ((await act.run('records.undoMatch', { mergeId }, matchPair)).ok) reload(); };
+  const undo = async (mergeId: string) => { const outcome = await act.run('records.undoMatch', { mergeId }, matchPair); if (outcome.ok) { setUndone(outcome.value); reload(); } };
   return (
     <BooksPage props={props} sub="matches" title={w['title.matches']} count={value ? String(value.pairs.length) : undefined} loaded={loaded} reload={reload}>
       {value && (value.pairs.length === 0 ? <Note>{w['empty.matches']}</Note> : (
         <Table view={props.view} caption={w['title.matches']} columns={[
           { head: w['col.pair'], simple: true }, { head: w['col.evidence'] }, { head: w['col.reason'], simple: true }, { head: w['col.state'], simple: true },
         ]} rows={value.pairs.map(p => ({ key: `${p.left}|${p.right}`, cells: [
-          <span>{p.left} · {p.right}<br /><span className={s.note}>{p.relation}</span></span>,
-          p.evidence.length ? <ul className={s.list}>{p.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul> : <span className={s.missing}>{w.noEvidence}</span>,
-          p.reason,
+          <span>{p.left} · {p.right}<br /><span className={s.note}>{said(a, `rel.${p.relation}`)}</span></span>,
+          p.evidence.length ? <ul className={s.list}>{p.evidence.map((e, i) => <li key={i}>{said(a, `ev.${e}`)}</li>)}</ul> : <span className={s.missing}>{w.noEvidence}</span>,
+          // The engine's sentence is English; the person reads the relation and any malformed tax id in their own language.
+          <span className={s.stack}>
+            {props.language === 'en' ? p.reason : said(a, `rel.${p.relation}`)}
+            {(p.badIds ?? []).map((b, i) => <span key={i} className={s.amber} data-bad-id={b.kind}>{badIdText(a, b)}</span>)}
+          </span>,
           <span className={s.inline}>
             {w[PAIR_STATE[p.state]]}
             {can && p.state === 'open' && <>
@@ -153,13 +222,19 @@ export function Matches(props: BooksProps) {
           </span>,
         ] }))} />
       ))}
+      {undone && (
+        <div role="status" className={s.stack} data-undone>
+          <p>{(undone.cancelled ?? []).length > 0 ? fill(a.undoCancelled, { n: (undone.cancelled ?? []).length }) : a.undoNothing}</p>
+          {(undone.notCancelled ?? []).length > 0 && <p className={s.amber}>{fill(a.undoNotCancelled, { n: undone.notCancelled!.length, ids: undone.notCancelled!.map(x => x.id).join(', ') })}</p>}
+        </div>
+      )}
       <Refusal code={act.refusal} language={props.language} />
     </BooksPage>
   );
 }
 
 export function Conflicts(props: BooksProps) {
-  const w = useWords(props.language);
+  const w = useWords(props.language), a = useAuditWords(props.language);
   const { loaded, reload } = useReply(props, 'records.conflicts', {}, conflictsReply);
   const value = valueOf(loaded);
   const act = useAct(props.rpc);
@@ -177,10 +252,16 @@ export function Conflicts(props: BooksProps) {
                 <span className={s.figureName}>{claim.sourceId}{c.picked === claim.sourceId && <> · {w.picked}</>}</span>
                 <ul className={s.list}>{Object.entries(claim.fields).map(([k, v]) => <li key={k}>{k}: {v}</li>)}</ul>
                 {isOwner(props) && <Button variant="link" onClick={() => { void setWinner(c.kind, claim.sourceId, c.claims.map(x => x.sourceId)); }} disabled={act.busy}>{fill(w.makeWin, { source: claim.sourceId, kind: c.kind })}</Button>}
+                {prepares(props) && c.picked !== claim.sourceId && (
+                  <Button variant="link" onClick={() => props.navigate({ place: 'books', sub: 'trial', sheet: orderSheet(c.kind, [claim.sourceId, ...c.claims.map(x => x.sourceId).filter(x => x !== claim.sourceId)]) })}>
+                    {fill(a.tryOrder, { source: claim.sourceId })}
+                  </Button>
+                )}
               </div>
             ))}
           </div>
-          {c.rule === null ? <p className={s.amber}>{w.notAgreed}</p> : <Note>{fill(w.ruleUsed, { rule: c.rule })}</Note>}
+          {/* No value is picked unless a rule picks one of these very claims. */}
+          {c.picked === null ? <p className={s.amber}>{w.notAgreed}</p> : <Note>{fill(w.ruleUsed, { rule: c.rule ?? '' })} {fill(a.together, { source: c.picked })}</Note>}
         </Section>
       ))}
       {value && value.rules.length > 0 && (

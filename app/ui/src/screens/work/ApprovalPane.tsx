@@ -15,11 +15,16 @@ import { Label } from '../../parts/Label';
 import { useAct, useReply } from './kit/reply.ts';
 import { amountText, day, dayTime } from './kit/format.ts';
 import { Actions, Button, Note, Refusal, pageStyles } from './kit/Page';
-import { actionView, approvalDetail, dropped, pace, practice, snoozed, type ActionView, type ApprovalDetail, type Practice } from './contract.ts';
+import { approvalDetail, dropped, pace, snoozed, type ApprovalDetail } from './contract.ts';
+import { actionRecord, approvalSheet, exported, practiceRun, type ActionRecord, type ApprovalSheetReply, type Exported } from './contract-writeback.ts';
+import { sheetOf } from './contract.ts';
+import { jobWords } from './text-jobs.ts';
+import { ReminderBlock, SavedFiles, WbNotices, wbPairs } from './WritebackParts.tsx';
+import { wbKnown, wbSay, wbWords } from './writeback-text.ts';
 import { ActionPane } from './ActionPane.tsx';
 import { JobCardView, jobFacts } from './JobCard.tsx';
 import { KeyValue } from '../../parts/KeyValue';
-import { expiryNote, money, say, stepItems, type WorkProps } from './shared.tsx';
+import { expiryNote, fieldName, fieldValue, money, rowTitle, say, stepItems, type WorkProps } from './shared.tsx';
 import type { WorkKey, WorkWords } from './text.ts';
 import s from './work.module.css';
 
@@ -31,12 +36,13 @@ export function toApproval(d: ApprovalDetail, p: Pick<WorkProps, 'w' | 'language
   if (amountWords !== null) target.push({ name: w['f.amount'], value: amountWords });
   target.push({ name: w['f.reason'], value: reasonWords(d.reason, w) });
   const expiry = d.expiresAt === null ? null : expiryNote(d.expiresAt, w, language);
+  // This lane's own fixed lines and field names are said in the reader's language; text from the books or another lane is shown as it came.
   const change: ApprovalChange = {
-    ...(d.change.asWritten !== undefined ? { asWritten: d.change.asWritten } : {}),
-    ...(d.change.fields !== undefined ? { fields: d.change.fields } : {}),
+    ...(d.change.asWritten !== undefined ? { asWritten: d.change.key === 'acceptance' ? w['fixed.acceptance'] : d.change.asWritten } : {}),
+    ...(d.change.fields !== undefined ? { fields: d.change.fields.map(f => ({ name: fieldName(f.name, w), before: fieldValue(f.name, f.before, w, language), after: fieldValue(f.name, f.after, w, language) })) } : {}),
   };
   const out: { -readonly [K in keyof Approval]: Approval[K] } = {
-    approvalId: d.id, kind: d.kind, state: d.state, what: d.title, target, change,
+    approvalId: d.id, kind: d.kind, state: d.state, what: rowTitle(d, w), target, change,
     steps: stepItems(d.steps, language),
     note: expiry === null ? w['note.plain'] : say(w, 'note.expires', { when: expiry }),
     readOnly: p.viewer || d.readOnly, prepareOnly: d.prepareOnly, needsSecondAsk: d.needsSecondAsk, can: d.can,
@@ -69,7 +75,8 @@ export interface ApprovalPaneProps {
 
 export function ApprovalPane({ p, id, origin, onClose, onListChanged }: ApprovalPaneProps) {
   const { w, language } = p;
-  const { loaded, reload } = useReply(p.host, 'approvals.get', { id }, approvalDetail);
+  const { loaded, reload } = useReply(p.host, 'approvals.get', { id }, approvalSheet);
+  const ww = wbWords(language);
   const paceReply = useReply(p.host, 'approvals.pace', {}, pace, p.viewer ? 'off' : 'on');
   const act = useAct(p.rpc);
   const [notice, setNotice] = useState<WorkKey | null>(null);
@@ -77,11 +84,16 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
   const [typed, setTyped] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [dropping, setDropping] = useState(false);
-  const [after, setAfter] = useState<ActionView | null>(null);
-  const [tried, setTried] = useState<Practice | null>(null);
+  const [after, setAfter] = useState<ActionRecord | null>(null);
+  const [tried, setTried] = useState<ReturnType<typeof practiceRun> | null>(null);
+  const [passphrase, setPassphrase] = useState<string | null>(null);
+  const [saved, setSaved] = useState<Exported | null>(null);
+  const [saving, setSaving] = useState(false);
+  // A proposed job from job extensions leaves the queue once approved: its reply is shown in place of a reload.
+  const [shown, setShown] = useState<ApprovalSheetReply | null>(null);
 
   if (after) return <ActionPane p={p} view={after} origin={origin} onClose={onClose} onView={setAfter} />;
-  const d = loaded.phase === 'ready' ? loaded.value : loaded.phase === 'loading' ? loaded.last : undefined;
+  const d = shown ?? (loaded.phase === 'ready' ? loaded.value : loaded.phase === 'loading' ? loaded.last : undefined);
   if (d === undefined) {
     const state = loaded.phase === 'refused' ? loaded.state : { kind: 'loading' as const };
     return (
@@ -92,21 +104,24 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
   }
   const amountWords = money(d.amount, language);
 
-  const approve = async (secondAsk: boolean) => {
+  const approve = async (secondAsk: boolean, reauth?: string) => {
     setNotice(null);
-    if (d.practice) {
-      const out = await act.run('approvals.practice', { id: d.id }, practice);
+    if (d.practice && d.source !== 'writeback') {
+      const out = await act.run('approvals.practice', { id: d.id }, practiceRun);
       if (out.ok) setTried(out.value);
       return;
     }
-    const out = await act.run('approvals.approve', secondAsk ? { id: d.id, digest: d.digest, secondAsk: true } : { id: d.id, digest: d.digest }, approvalDetail);
+    const payload: Record<string, unknown> = secondAsk ? { id: d.id, digest: d.digest, secondAsk: true } : { id: d.id, digest: d.digest };
+    if (reauth !== undefined) payload.reauth = reauth;
+    const out = await act.run('approvals.approve', payload, approvalSheet);
     if (!out.ok) {
       if (out.code === 'PREVIEW_CHANGED') { act.clear(); setNotice('blocked.changed'); reload(); }
       return;
     }
     onListChanged();
-    if (out.value.source !== 'action') { setNotice('approved'); reload(); return; }
-    const done = await act.run('approvals.execute', { id: out.value.id }, actionView);
+    if (out.value.source === 'proposal') { setShown(out.value); return; }
+    if (out.value.source !== 'action' && out.value.source !== 'writeback') { setNotice('approved'); reload(); return; }
+    const done = await act.run('approvals.execute', { id: out.value.id }, actionRecord);
     if (done.ok) setAfter(done.value); else reload();
   };
   const confirmMoney = (event: FormEvent) => {
@@ -130,8 +145,26 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
     if (out.ok) { setEditing(null); onListChanged(); reload(); }
   };
   const resolve = async (_approvalId: string, result: 'check' | 'was-sent' | 'was-not-sent') => {
-    const out = await act.run('approvals.resolveUnknown', { id: d.id, result }, actionView);
+    const out = await act.run('approvals.resolveUnknown', { id: d.id, result }, actionRecord);
     if (out.ok) setAfter(out.value);
+  };
+  /** Prepare only: the exact prepared file and a checklist, saved on this computer. */
+  const download = async () => {
+    setNotice(null); setSaving(true);
+    const out = await act.run('approvals.exportPrepared', { id: d.id }, exported);
+    setSaving(false);
+    if (out.ok) setSaved(out.value);
+  };
+  const tryIt = async () => {
+    const out = await act.run('approvals.practice', { id: d.id }, practiceRun);
+    if (out.ok) setTried(out.value);
+  };
+  const passphraseAsked = d.secondAsk?.by === 'passphrase';
+  const confirmPassphrase = (event: FormEvent) => {
+    event.preventDefault();
+    if (!passphrase) { setNotice(null); return; }
+    const typedPassphrase = passphrase; setPassphrase(null);
+    void approve(true, typedPassphrase);
   };
 
   const warn = paceReply.loaded.phase === 'ready' && paceReply.loaded.value.warn ? paceReply.loaded.value.fastStreak : null;
@@ -142,14 +175,40 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
       {warn !== null && <Note>{say(w, 'pace.warn', { n: warn })}</Note>}
       <ApprovalSheet approval={toApproval(d, p)} origin={origin} onClose={onClose} onReceipt={p.openReceipt}
         onApprove={() => void approve(false)}
-        onSecondAsk={() => { if (d.practice) void approve(false); else { setNotice(null); setConfirming(true); } }}
+        onSecondAsk={() => { if (d.practice && d.source !== 'writeback') void approve(false); else if (passphraseAsked) { setNotice(null); setPassphrase(''); } else { setNotice(null); setConfirming(true); } }}
         onNotNow={() => void notNow()}
         onChange={d.change.asWritten !== undefined ? () => setEditing(d.change.asWritten ?? '') : undefined}
         onDrop={() => setDropping(true)}
-        onDownloadPrepared={() => setNotice('file.notBuilt')}
+        onDownloadPrepared={() => void download()}
         onCheckUnknown={(approvalId, result) => void resolve(approvalId, result)} />
       {notice !== null && <p className={s.meta} role="status">{w[notice]}</p>}
       <Refusal code={act.refusal} language={language} />
+      {saving && <p className={s.meta} role="status">{ww['file.saving']}</p>}
+      {saved && <SavedFiles saved={saved} ww={ww} />}
+      {d.writeback && (
+        <div className={s.block} data-part="writeback">
+          <KeyValue pairs={wbPairs(d.writeback, ww)} onReceipt={p.openReceipt} />
+          <WbNotices notices={d.writeback.notices} ww={ww} />
+          {d.source === 'writeback' && d.state === 'prepared' && !p.viewer && !d.readOnly && !d.prepareOnly && (
+            <Actions><Button variant="link" disabled={act.busy} onClick={() => void tryIt()}>{ww['wb.practice']}</Button></Actions>
+          )}
+        </div>
+      )}
+      {d.reminder && <ReminderBlock reminder={d.reminder} ww={ww} language={language} onReceipt={p.openReceipt} onRecord={p.viewer ? undefined : () => p.navigate({ place: 'books', sub: 'customers' })} />}
+
+      {passphrase !== null && (
+        <form className={[s.block, s.form].join(' ')} role="dialog" aria-label={ww['pass.title']} onSubmit={confirmPassphrase}>
+          <h3 className={s.h}>{ww['pass.title']}</h3>
+          <Note>{ww['pass.note']}</Note>
+          <label>{ww['pass.field']}
+            <input type="password" value={passphrase} autoComplete="current-password" onChange={e => setPassphrase(e.currentTarget.value)} aria-label={ww['pass.field']} />
+          </label>
+          <Actions>
+            <Button submit variant="quiet" disabled={act.busy || passphrase.length === 0}>{ww['pass.go']}</Button>
+            <Button variant="link" onClick={() => setPassphrase(null)}>{w.cancel}</Button>
+          </Actions>
+        </form>
+      )}
 
       {confirming && (
         <form className={[s.block, s.form].join(' ')} role="dialog" aria-label={w['money.title']} onSubmit={confirmMoney}>
@@ -192,6 +251,8 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
         <div className={s.block}>
           <p className={s.meta}><Label kind="practice" /> {w['practice.done']}</p>
           {!tried.available && <Note>{w['practice.unavailable']}</Note>}
+          {tried.outcome !== undefined && wbKnown(ww, `practice.outcome.${tried.outcome}`) !== null && <Note>{wbKnown(ww, `practice.outcome.${tried.outcome}`)}</Note>}
+          {tried.requests !== undefined && <p className={s.meta}>{wbSay(ww, 'practice.requests', { n: tried.requests })}</p>}
           {tried.wouldSend !== null && <><Note>{w['practice.wouldSend']}</Note><pre className={s.asWritten}>{tried.wouldSend}</pre></>}
           {tried.steps.length > 0 && <Steps steps={stepItems(tried.steps, language)} />}
         </div>
@@ -222,6 +283,12 @@ export function ApprovalPane({ p, id, origin, onClose, onListChanged }: Approval
           <KeyValue pairs={jobFacts(d.job, w['job.proposed'], w, language)} onReceipt={p.openReceipt} />
           <JobCardView card={d.job} w={w} language={language} onReceipt={p.openReceipt} simple={p.view === 'simple'} />
         </>
+      )}
+      {shown !== null && (
+        <div className={s.block} role="status">
+          <Note>{jobWords(language)['approved.job']}</Note>
+          {shown.approvedJobId !== undefined && <Actions><Button variant="link" onClick={() => p.navigate({ place: 'work', sub: 'jobs', sheet: sheetOf(shown.approvedJobId!.replace(/^job:/, '')) })}>{jobWords(language)['approved.openJob']}</Button></Actions>}
+        </div>
       )}
       {d.snoozedUntil !== undefined && <Note>{say(w, 'snoozedUntil', { when: dayTime(d.snoozedUntil, language) })}</Note>}
     </div>

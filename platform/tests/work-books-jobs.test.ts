@@ -123,9 +123,12 @@ test('one sentence is refused as not built without jobsx, and passes through whe
   const f = fixture();
   await assert.rejects(f.request(owner, 'approvals.proposeJob', { sentence: 'Tell me every Monday who owes me money.' }), code('PROPOSAL_FROM_SENTENCE_NOT_BUILT'));
   await assert.rejects(f.request(owner, 'approvals.proposeJob', { sentence: 'Tell me every Monday.', templateId: 'daily-brief' }), code('INVALID_JOB_PROPOSAL'));
-  const g = fixture({ propose: payload => (payload.sentence ? { id: 'job_from_sentence' } : (() => { throw new ChausarError('INVALID_REQUEST', 'Say the job.'); })()) });
+  // jobsx.propose returns a Proposal (platform/runtime/jobs-ext/proposals.ts proposeCard), a card waiting for jobsx.approveProposal.
+  const proposal = { id: 'jobsx_proposal_1', createdAt: '2026-10-14T05:00:00.000Z', createdBy: 'owner', origin: 'person', template: 'receivables-week', sentence: 'Tell me every Monday who owes me money.',
+    card: { template: 'receivables-week', title: 'Chase unpaid invoices for a week' }, digest: 'd'.repeat(64), status: 'proposed', evidence: [], sourceIds: [] };
+  const g = fixture({ propose: payload => (payload.sentence ? proposal : (() => { throw new ChausarError('INVALID_REQUEST', 'Say the job.'); })()) });
   assert.deepEqual((await g.request(owner, 'approvals.jobTemplates')).fromSentence, { available: true });
-  assert.deepEqual(await g.request(owner, 'approvals.proposeJob', { sentence: '  Tell me every Monday who owes me money.  ' }), { id: 'job:job_from_sentence' });
+  assert.deepEqual(await g.request(owner, 'approvals.proposeJob', { sentence: '  Tell me every Monday who owes me money.  ' }), { id: 'proposal:jobsx_proposal_1', proposal: { id: 'jobsx_proposal_1', digest: 'd'.repeat(64) } });
   assert.deepEqual(g.calls.filter(c => c.method === 'jobsx.propose').at(-1)!.payload, { sentence: 'Tell me every Monday who owes me money.' });
 });
 
@@ -151,14 +154,15 @@ test('the job sheet carries three meters: model use, clock time and effect expos
 
 test('the real engine lists templates, proposes a job, queues it as job: and approves it', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'chausar-work-books-jobs-'));
-  const engine = new Engine({ directory, demo: true, storage: 'experimental-file' });
+  // Other lanes' methods are stubbed absent, so this test does not depend on which lanes are merged.
+  const engine = new Engine({ directory, demo: true, storage: 'experimental-file', modules: { 'work-books': { hasMethod: () => false } } });
   t.after(async () => { await engine.close(); await rm(directory, { recursive: true, force: true }); });
   await engine.request('workspace.create', { name: 'Synthetic Jobs Shop', passphrase: 'Synthetic jobs passphrase 2026', demo: false, pack: 'ecommerce', folder: 'main' });
   const templates = await engine.request('approvals.jobTemplates', {});
   assert.deepEqual(templates.templates.map((x: any) => x.id), ['daily-brief', 'weekly-brief', 'month-end-brief']);
   assert.deepEqual(templates.fromSentence, { available: false });
   await assert.rejects(engine.request('approvals.proposeJob', { sentence: 'Tell me every Monday who owes me money.' }), code('PROPOSAL_FROM_SENTENCE_NOT_BUILT'));
-  const { id } = await engine.request('approvals.proposeJob', { templateId: 'month-end-brief', budgetMinor: '15000' });
+  const { id } = await engine.request('approvals.proposeJob', { templateId: 'month-end-brief', budgetMinor: '15000', schedule: 'every-30-days' });
   assert.match(id, /^job:/);
   const list = await engine.request('approvals.list', {});
   const row = list.items.find((i: any) => i.id === id);

@@ -9,7 +9,8 @@ import { Sheet } from '../../parts/Sheet';
 import { useReply } from './kit/reply.ts';
 import { dayTime } from './kit/format.ts';
 import { Note, pageStyles } from './kit/Page';
-import { actionView, idOf, ledger, sheetOf, type ActionView } from './contract.ts';
+import { idOf, ledger, sheetOf } from './contract.ts';
+import { actionRecord, type ActionRecord } from './contract-writeback.ts';
 import { ActionPane } from './ActionPane.tsx';
 import { Dots } from './parts/Dots.tsx';
 import { Frame, money, type WorkProps, type WorkSub } from './shared.tsx';
@@ -17,8 +18,8 @@ import s from './work.module.css';
 
 /** One action's sheet, read by its id. Shared by the record and the after-restore list. */
 export function ActionSheet({ p, id, origin, onClose, onChanged }: { p: WorkProps; id: string; origin: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
-  const { loaded, reload } = useReply(p.host, 'approvals.action', { id }, actionView);
-  const [fresh, setFresh] = useState<ActionView | null>(null);
+  const { loaded, reload } = useReply(p.host, 'approvals.action', { id }, actionRecord);
+  const [fresh, setFresh] = useState<ActionRecord | null>(null);
   const view = fresh ?? (loaded.phase === 'ready' ? loaded.value : null);
   if (view === null) {
     return (

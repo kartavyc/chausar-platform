@@ -14,7 +14,9 @@ import { KeyValue, type Pair } from '../../parts/KeyValue';
 import { useAct, useReply } from './kit/reply.ts';
 import { amountText } from './kit/format.ts';
 import { Actions, Button, Note, Refusal } from './kit/Page';
-import { jobTemplates, proposed, sheetOf, type JobTemplate } from './contract.ts';
+import { proposed, sheetOf, type JobTemplate } from './contract.ts';
+import { templatesWithSchedule, type TemplateWithSchedule } from './contract-jobs.ts';
+import { jobWords } from './text-jobs.ts';
 import { say, type WorkProps } from './shared.tsx';
 import type { WorkWords } from './text.ts';
 import type { Language } from '../../app/presentation.ts';
@@ -34,11 +36,11 @@ export function paiseToRupees(minor: string): string {
   return paise === '00' ? rupees : `${rupees}.${paise}`;
 }
 
-export function templatePairs(t: JobTemplate, w: WorkWords, language: Language): Pair[] {
+export function templatePairs(t: TemplateWithSchedule, w: WorkWords, language: Language): Pair[] {
   return [
     { name: w['f.goal'], value: t.goal },
     { name: w['f.doneWhen'], value: t.doneWhen },
-    { name: w['start.every'], value: w[`every.${t.every}`] },
+    { name: w['start.every'], value: t.schedule === 'month-end' ? jobWords(language)['start.monthEnd'] : w[`every.${t.every}`] },
     { name: w['f.budget'], value: amountText(t.budget, language), mono: true },
     { name: w['f.stops'], value: say(w, 'start.stops', { runs: t.maxRuns, days: t.days }) },
     { name: w['f.missed'], value: w[`missed.${t.missedRun}`] },
@@ -47,8 +49,13 @@ export function templatePairs(t: JobTemplate, w: WorkWords, language: Language):
   ];
 }
 
-function TemplateForm({ p, t, onProposed }: { p: WorkProps; t: JobTemplate; onProposed: (id: string) => void }) {
+type Schedule = 'month-end' | 'every-30-days';
+function TemplateForm({ p, t, monthEnd, onProposed }: { p: WorkProps; t: TemplateWithSchedule; monthEnd: boolean; onProposed: (id: string) => void }) {
   const { w, language } = p;
+  const jw = jobWords(language);
+  const chooses = t.schedule === 'month-end';
+  // Every 30 days is never chosen for the person: with no calendar, nothing is picked until they pick it.
+  const [schedule, setSchedule] = useState<Schedule | null>(chooses && monthEnd ? 'month-end' : null);
   const [budget, setBudget] = useState(paiseToRupees(t.budget.minor));
   const [runs, setRuns] = useState(String(t.maxRuns));
   const [missed, setMissed] = useState<JobTemplate['missedRun']>(t.missedRun);
@@ -59,14 +66,23 @@ function TemplateForm({ p, t, onProposed }: { p: WorkProps; t: JobTemplate; onPr
     const budgetMinor = rupeesToPaise(budget);
     if (budgetMinor === null) { setProblem(w['start.budgetBad']); return; }
     if (!/^[1-9]\d{0,2}$/.test(runs.trim()) || Number(runs.trim()) > 366) { setProblem(w['start.runsBad']); return; }
+    if (chooses && schedule === null) { setProblem(jw['start.monthEndMissing']); return; }
     setProblem(null);
-    const out = await act.run('approvals.proposeJob', { templateId: t.id, budgetMinor, maxRuns: Number(runs.trim()), missedRun: missed }, proposed);
+    const out = await act.run('approvals.proposeJob', { templateId: t.id, budgetMinor, maxRuns: Number(runs.trim()), missedRun: missed, ...(chooses && schedule !== null ? { schedule } : {}) }, proposed);
     if (out.ok) onProposed(out.value.id);
   };
   return (
     <form className={s.form} onSubmit={e => void submit(e)} aria-label={t.title}>
       <label>{w['start.budget']}<input inputMode="decimal" value={budget} onChange={e => setBudget(e.currentTarget.value)} /></label>
       <p className={s.meta}>{say(w, 'start.budgetHint', { budget: amountText(t.budget, language) })}</p>
+      {chooses && (
+        <fieldset className={s.form}>
+          <legend>{jw['start.schedule']}</legend>
+          <label><span><input type="radio" name={`schedule-${t.id}`} disabled={!monthEnd} checked={schedule === 'month-end'} onChange={() => setSchedule('month-end')} /> {jw['start.monthEnd']}</span></label>
+          <label><span><input type="radio" name={`schedule-${t.id}`} checked={schedule === 'every-30-days'} onChange={() => setSchedule('every-30-days')} /> {jw['start.every30']}</span></label>
+          <p className={s.meta}>{monthEnd ? jw['start.monthEndNote'] : jw['start.monthEndMissing']}</p>
+        </fieldset>
+      )}
       <label>{w['start.maxRuns']}<input inputMode="numeric" value={runs} onChange={e => setRuns(e.currentTarget.value)} /></label>
       <fieldset className={s.form}>
         <legend>{w['start.missed']}</legend>
@@ -101,7 +117,7 @@ function SentenceForm({ p, onProposed }: { p: WorkProps; onProposed: (id: string
 
 export function StartJobSheet({ p, origin, onClose }: { p: WorkProps; origin: HTMLElement | null; onClose: () => void }) {
   const { w, language } = p;
-  const { loaded, reload } = useReply(p.host, 'approvals.jobTemplates', {}, jobTemplates);
+  const { loaded, reload } = useReply(p.host, 'approvals.jobTemplates', {}, templatesWithSchedule);
   const [chosen, setChosen] = useState<string | null>(null);
   const open = (id: string) => p.navigate({ place: 'work', sub: 'approvals', sheet: sheetOf(id) });
   if (loaded.phase !== 'ready') {
@@ -111,7 +127,7 @@ export function StartJobSheet({ p, origin, onClose }: { p: WorkProps; origin: HT
       </Sheet>
     );
   }
-  const { templates, fromSentence } = loaded.value;
+  const { templates, fromSentence, monthEnd } = loaded.value;
   return (
     <Sheet kind={w['start.kind']} title={w['start.title']} onClose={onClose} origin={origin}>
       <Note>{w['start.note']}</Note>
@@ -120,7 +136,7 @@ export function StartJobSheet({ p, origin, onClose }: { p: WorkProps; origin: HT
           <h3 className={s.h}>{t.title}</h3>
           <KeyValue pairs={templatePairs(t, w, language)} onReceipt={p.openReceipt} />
           {chosen === t.id
-            ? <TemplateForm p={p} t={t} onProposed={open} />
+            ? <TemplateForm p={p} t={t} monthEnd={monthEnd.available} onProposed={open} />
             : <Actions><Button variant="quiet" onClick={() => setChosen(t.id)}>{say(w, 'start.choose', { title: t.title })}</Button></Actions>}
         </div>
       ))}

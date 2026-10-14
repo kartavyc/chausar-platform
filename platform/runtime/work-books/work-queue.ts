@@ -12,27 +12,43 @@ import type { ModuleHost } from '../modules/types.ts';
 import { invoiceConnectorId, invoiceJobType } from '../invoice-follow-up.ts';
 import { optionalCall } from './adapters.ts';
 import { peekSection } from './state.ts';
+import { loadWriteback, wbDetail, findView, catalogueFromWriteback } from './work-writeback.ts';
+import type { WbEnv, WbExtra, Reminder } from './work-writeback.ts';
 
 export type Amount = { minor: string } | { missing: 'absent' | 'null' | 'unknown' | 'withheld' | 'not-applicable' | 'not-loaded-yet' | 'not-counted' };
-export type Source = 'action' | 'job' | 'release' | 'lesson' | 'acceptance';
+export type Source = 'action' | 'job' | 'release' | 'lesson' | 'acceptance' | 'writeback' | 'bill' | 'proposal';
+import { billVisible, storedBills, type StoredBill } from './books-bill.ts';
+import { loadLaneProposals, proposalDetail, type LaneProposal } from './work-jobs-lane.ts';
 export type Tier = 'tier-2' | 'tier-1' | 'prepare-only';
 export type RowState = PreparedAction['status'];
 export type ApprovalRow = {
   id: string; source: Source; kind: 'message' | 'record-change' | 'money' | 'prepare-only' | 'job' | 'group'; tier: Tier;
   title: string; touches: string | null; amount: Amount | null; preparedBy: { kind: 'person' | 'job' | 'chausar'; name: string } | null;
   createdAt: string; expiresAt: string | null; state: RowState; practice: boolean;
+  /** What the row is, as a fixed kind and the name it is about, so a screen can say it in its own language (the title stays the English line). */
+  what?: { kind: WhatKind; name: string | null };
 };
+export type WhatKind = 'start-job' | 'change-job' | 'accept-result' | 'publish-meaning' | 'review-lesson' | 'bill-zoho' | 'bill-tally';
 export type StepName = 'prepared' | 'approved' | 'done' | 'read-back' | 'recorded';
 export type StepState = 'done' | 'waiting-for-you' | 'waiting-for-network' | 'unsure' | 'stopped-by-rule' | 'not-reached';
 export type Step = { name: StepName; state: StepState; at: string | null };
 export type Can = 'approve' | 'notNow' | 'change' | 'drop' | 'reconcile';
 export type ApprovalDetail = ApprovalRow & {
   digest: string; revision: number; reason: string;
-  change: { asWritten?: string; fields?: { name: string; before: string; after: string }[] };
+  /** `key`: a fixed line of this lane's own (the acceptance sentence), so a screen can say it in its language. */
+  change: { asWritten?: string; key?: 'acceptance'; fields?: { name: string; before: string; after: string }[] };
   voucher?: { type: string; number: string | null; date: string; lines: { ledger: string; debit: Amount | null; credit: Amount | null }[]; note: 'prepare-only' };
   job?: JobCard; steps: Step[]; can: Can[]; readOnly: boolean; prepareOnly: boolean; needsSecondAsk: boolean;
   blocked?: { kind: 'expired' | 'owner-approves' | 'unsure' | 'changed' | 'prepare-blocked'; code: string };
   snoozedUntil?: string;
+  /** Write-back items only: the system, the catalogue's own reason, the connection and the notices. */
+  writeback?: WbExtra;
+  /** How the second ask is drawn: the typed amount, or a passphrase when write-back asks for one. */
+  secondAsk?: { by: 'typed-amount' | 'passphrase' };
+  /** WK-12: a reminder to a customer, with its agreement, limits and (owner only) payment notes. */
+  reminder?: Reminder;
+  /** After approving a jobs-ext proposal: the queue id of the job it made. */
+  approvedJobId?: string;
 };
 export type JobCard = {
   id: string; goal: string; doneWhen: string; owner: string; budget: Amount; reserve: Amount; spent: Amount;
@@ -46,10 +62,17 @@ export type ActionView = {
   readBack: { field: string; asked: string; found: string | null; same: boolean }[] | null; rule: string;
   attestation: Attestation | null; wouldHaveDone: 'waited' | 'done' | null; createdAt: string; settledAt: string | null;
   can: ('execute' | 'reconcile' | 'resolve' | 'reverse')[];
+  writeback?: WbExtra;
+  /** After a write-back execute that did not send: expired, prepared again, or cancelled because its evidence changed. */
+  notice?: { kind: string; message: string };
 };
 export type CatalogueKind = 'inside-undoable' | 'seen-outside' | 'money' | 'cannot-undo';
-export type CatalogueRow = { system: string; systemTitle: string; action: string; title: string; kind: CatalogueKind; waits: boolean; status: 'live' | 'experimental' | 'prepare-only' | 'not-yet'; source: 'core' | 'writeback' };
-export type CatalogueEntry = CatalogueRow & { description: string; idempotency: string; readBack: string; retryWindow: string | null; tier: 'tier-1' | 'tier-2'; expires: string | null; readStatus: string | null };
+export type CatalogueRow = { system: string; systemTitle: string; action: string; title: string; kind: CatalogueKind; waits: boolean; status: 'live' | 'experimental' | 'prepare-only' | 'not-yet'; source: 'core' | 'writeback';
+  /** Write-back rows: how far the write-back recipe was tested, and its score (kept apart from reading). */
+  qualification?: 'synthetic-tested' | 'sandbox-verified' | 'live-verified' | 'unqualified' | null; writeScore?: string | null };
+export type CatalogueEntry = CatalogueRow & { description: string; idempotency: string; readBack: string; retryWindow: string | null; tier: 'tier-1' | 'tier-2'; expires: string | null; readStatus: string | null;
+  waitsBecause?: string | null; plannedStatus?: CatalogueRow['status'] | null; businessReference?: string | null; approvalLifetime?: string | null; reviewedOn?: string | null;
+  installed?: boolean; connections?: { id: string; label: string; environment: 'live' | 'sandbox' | 'practice'; read: boolean; write: boolean }[]; grants?: number; undo?: string | null };
 type Attestation = { by: string; said: 'was-sent' | 'was-not-sent'; at: string };
 
 /** The work section of the lane namespace. Every key is keyed by the raw action or job id it describes. */
@@ -90,10 +113,10 @@ const minorAmount = (value: unknown): Amount | null => typeof value === 'string'
 const memberName = (state: State, id: string | undefined) => state.members.find(m => m.id === id)?.name ?? null;
 export const steps = (...states: [StepState, string | null][]): Step[] => STEP_NAMES.map((name, i) => ({ name, state: states[i]?.[0] ?? 'not-reached', at: states[i]?.[1] ?? null }));
 
-/** Typed queue ids: `action:<id>`, `job:<id>`, `release:<draftId>`, `lesson:<id>`, `acceptance:<jobId>`. */
+/** Typed queue ids: `action:<id>`, `job:<id>`, `release:<draftId>`, `lesson:<id>`, `acceptance:<jobId>`, `writeback:<actionId>`, `bill:<billId>`, `proposal:<jobs-ext proposal id>`. */
 export function parseId(value: unknown): { source: Source; raw: string } {
   check(typeof value === 'string' && value.length <= 240, 'INVALID_APPROVAL', 'Use a typed approval id.');
-  const match = /^(action|job|release|lesson|acceptance):([A-Za-z0-9_.:-]{1,200})$/.exec(value);
+  const match = /^(action|job|release|lesson|acceptance|writeback|bill|proposal):([A-Za-z0-9_.:-]{1,200})$/.exec(value);
   check(match, 'INVALID_APPROVAL', 'Use a typed approval id.');
   return { source: match[1] as Source, raw: match[2] };
 }
@@ -125,36 +148,35 @@ export async function catalogue(ctx: Context, host: ModuleHost): Promise<Catalog
     for (const op of connector.operations) entries.set(key(connector.id, op.id), {
       system: connector.id, systemTitle: connector.title, action: op.id, title: op.title, kind: IMPACT_KIND[op.impact], waits: op.impact !== 'reversible', status: 'live', source: 'core',
       description: op.description, idempotency: op.idempotency, readBack: op.readback, retryWindow: null, tier: op.impact === 'reversible' ? 'tier-1' : 'tier-2', expires: null, readStatus: null, reversal: null,
+      qualification: null, writeScore: null,
     });
   }
   const outside = await optionalCall<unknown>(host, 'writeback.catalogue', {});
   if (outside.available) {
     const rows = Array.isArray(outside.value) ? outside.value : record(outside.value) && Array.isArray(outside.value.rows) ? outside.value.rows : [];
     for (const row of rows) {
-      if (!record(row) || !text(row.system, 80) || !text(row.action, 80) || !text(row.title) || !STATUSES.includes(row.status as any)) continue;
-      const kind = KINDS.includes(row.kind as any) ? row.kind as CatalogueKind : typeof row.impact === 'string' && Object.hasOwn(IMPACT_KIND, row.impact) ? IMPACT_KIND[row.impact as Operation['impact']] : null;
-      if (!kind) continue;
-      const core = entries.get(key(row.system, row.action)); const opt = (v: unknown, fallback: string | null) => text(v, 2000) ? v : fallback;
-      entries.set(key(row.system, row.action), {
-        system: row.system, systemTitle: opt(row.systemTitle, core?.systemTitle ?? row.system)!, action: row.action, title: row.title, kind,
-        waits: kind !== 'inside-undoable' || row.waits === true, status: row.status as CatalogueRow['status'], source: 'writeback',
-        description: opt(row.description, core?.description ?? '')!, idempotency: opt(row.idempotency, core?.idempotency ?? '')!, readBack: opt(row.readBack, core?.readBack ?? '')!,
-        retryWindow: opt(row.retryWindow, null), tier: kind === 'inside-undoable' && row.tier !== 'tier-2' ? 'tier-1' : 'tier-2',
-        expires: opt(row.expires, null), readStatus: opt(row.readStatus, null), reversal: opt(row.reversal, null),
-      });
+      const entry = catalogueFromWriteback(row);
+      if (entry) entries.set(key(entry.system, entry.action), entry);
     }
   }
   return { entries, writeback: outside.available };
 }
-export const catalogueRow = ({ system, systemTitle, action, title, kind, waits, status, source }: CatalogueEntry): CatalogueRow => ({ system, systemTitle, action, title, kind, waits, status, source });
+export const catalogueRow = ({ system, systemTitle, action, title, kind, waits, status, source, qualification, writeScore }: CatalogueEntry): CatalogueRow => ({ system, systemTitle, action, title, kind, waits, status, source, qualification: qualification ?? null, writeScore: writeScore ?? null });
 export const catalogueEntry = ({ reversal, ...entry }: CatalogueEntry & { reversal: string | null }): CatalogueEntry => entry;
 
 // ---------- Queue ----------
 
-export type Env = { ctx: Context; host: ModuleHost; state: State; work: WorkState; catalogue: Catalogue; now: number };
+/** `proposals`: jobs-ext's proposed cards, loaded only where the queue or a `proposal:` item needs them (`withProposals`). */
+export type Env = { ctx: Context; host: ModuleHost; state: State; work: WorkState; catalogue: Catalogue; now: number; wb: WbEnv; proposals?: LaneProposal[] };
 export async function env(ctx: Context, host: ModuleHost): Promise<Env> {
-  const cat = await catalogue(ctx, host); const state = host.store.read();
-  return { ctx, host, state, work: readWork(state), catalogue: cat, now: nowMs(host) };
+  const cat = await catalogue(ctx, host); const wb = await loadWriteback(host); const state = host.store.read();
+  return { ctx, host, state, work: readWork(state), catalogue: cat, now: nowMs(host), wb };
+}
+/** The environment with jobs-ext's proposals, for the queue and for a `proposal:` id (any other id needs none). */
+export async function withProposals(ctx: Context, host: ModuleHost, id?: unknown): Promise<Env> {
+  const e = await env(ctx, host);
+  if (id === undefined || (typeof id === 'string' && id.startsWith('proposal:'))) e.proposals = await loadLaneProposals(host);
+  return e;
 }
 const readOnly = (e: Env) => READ_ONLY_ROLES.includes(e.ctx.role);
 const snoozedUntil = (e: Env, id: string) => { const until = e.work.snoozes[e.ctx.memberId]?.[id]; return until && Date.parse(until) > e.now ? until : undefined; };
@@ -252,12 +274,12 @@ function voucherOf(action: PreparedAction): ApprovalDetail['voucher'] {
 function canFor(e: Env, row: ApprovalRow, prepareOnly: boolean, extra: { change: boolean; approve: boolean }): Can[] {
   if (readOnly(e)) return [];
   if (row.state === 'unknown') return ['reconcile'];
-  if (row.state === 'approved' && row.source === 'action') return ['drop'];
+  if (row.state === 'approved' && (row.source === 'action' || row.source === 'writeback')) return ['drop'];
   if (row.state !== 'prepared') return [];
   if (expired(e, row)) return extra.change ? ['change', 'drop'] : ['drop'];
   return [...(!prepareOnly && extra.approve ? ['approve' as const] : []), 'notNow', ...(extra.change ? ['change' as const] : []), 'drop'];
 }
-function finish(e: Env, row: ApprovalRow, rest: Omit<ApprovalDetail, keyof ApprovalRow | 'readOnly' | 'snoozedUntil' | 'blocked' | 'can'> & { blocked?: ApprovalDetail['blocked'] }, extra: { change: boolean; approve: boolean }): ApprovalDetail {
+export function finish(e: Env, row: ApprovalRow, rest: Omit<ApprovalDetail, keyof ApprovalRow | 'readOnly' | 'snoozedUntil' | 'blocked' | 'can'> & { blocked?: ApprovalDetail['blocked'] }, extra: { change: boolean; approve: boolean }): ApprovalDetail {
   const detail: ApprovalDetail = { ...row, ...rest, can: canFor(e, row, rest.prepareOnly, extra), readOnly: readOnly(e) };
   if (expired(e, row)) detail.blocked = { kind: 'expired', code: 'APPROVAL_EXPIRED' };
   else if (row.state === 'prepared' && e.ctx.role === 'accountant') detail.blocked = { kind: 'owner-approves', code: 'OWNER_APPROVES' };
@@ -301,7 +323,7 @@ export const acceptanceDigest = (ref: ReturnType<typeof acceptanceReference>) =>
 function acceptanceChange(job: Job): ApprovalDetail['change'] {
   const d = job.deliverable; const receipts = record(d) && Array.isArray(d.receiptIds) ? d.receiptIds.filter(r => typeof r === 'string').length : null;
   return {
-    asWritten: 'The job delivered a result. Accepting it closes this run.',
+    asWritten: 'The job delivered a result. Accepting it closes this run.', key: 'acceptance',
     fields: [{ name: 'goal', before: '', after: job.goal }, { name: 'receipts', before: '', after: receipts === null ? 'not shown here' : String(receipts) }],
   };
 }
@@ -312,7 +334,7 @@ export function jobDetail(e: Env, job: Job, acceptance: boolean): ApprovalDetail
   const owner = memberName(e.state, job.ownerId) ?? job.ownerId;
   const row: ApprovalRow = {
     id: `${acceptance ? 'acceptance' : 'job'}:${job.id}`, source: acceptance ? 'acceptance' : 'job', kind: 'job', tier: 'tier-2',
-    title: acceptance ? `Accept result: ${job.goal}` : `Start job: ${job.goal}`, touches: job.allowedActions?.length ? job.allowedActions.join(', ') : null,
+    title: acceptance ? `Accept result: ${job.goal}` : `Start job: ${job.goal}`, what: { kind: acceptance ? 'accept-result' : 'start-job', name: job.goal }, touches: job.allowedActions?.length ? job.allowedActions.join(', ') : null,
     amount: { minor: acceptance ? job.spentMinor : job.budgetMinor }, preparedBy: acceptance ? { kind: 'job', name: job.goal } : { kind: 'person', name: owner },
     createdAt: job.createdAt, expiresAt: null, state, practice: false,
   };
@@ -331,7 +353,7 @@ const DEFINITION_FIELDS = ['label', 'meaning', 'kind', 'field', 'nulls', 'sign']
 export function releaseDetail(e: Env, draft: Draft): ApprovalDetail {
   const state: RowState = ['draft', 'cosigned'].includes(draft.state) ? 'prepared' : draft.state === 'published' ? 'verified' : draft.state === 'discarded' ? 'cancelled' : 'blocked';
   const row: ApprovalRow = {
-    id: `release:${draft.id}`, source: 'release', kind: 'record-change', tier: 'tier-2', title: `Publish meaning: ${draft.name}`, touches: `Dictionary: ${draft.name}`,
+    id: `release:${draft.id}`, source: 'release', kind: 'record-change', tier: 'tier-2', title: `Publish meaning: ${draft.name}`, what: { kind: 'publish-meaning', name: draft.name }, touches: `Dictionary: ${draft.name}`,
     amount: null, preparedBy: draft.author ? { kind: 'person', name: draft.author } : null, createdAt: draft.createdAt, expiresAt: null, state, practice: false,
   };
   const value = (d: Record<string, unknown> | null, f: string) => d && d[f] !== undefined ? (typeof d[f] === 'string' ? d[f] as string : JSON.stringify(d[f])) : '';
@@ -345,7 +367,7 @@ export function releaseDetail(e: Env, draft: Draft): ApprovalDetail {
 export function lessonDetail(e: Env, lesson: Lesson): ApprovalDetail {
   const c = lesson.candidate; const state: RowState = lesson.status === 'approved' ? 'verified' : ['rejected', 'retired', 'superseded'].includes(lesson.status) ? 'cancelled' : 'prepared';
   const row: ApprovalRow = {
-    id: `lesson:${c.id}`, source: 'lesson', kind: 'record-change', tier: 'tier-1', title: 'Review a learned preference', touches: text(c.change?.kind, 80) ? `Preference: ${c.change.kind}` : null,
+    id: `lesson:${c.id}`, source: 'lesson', kind: 'record-change', tier: 'tier-1', title: 'Review a learned preference', what: { kind: 'review-lesson', name: null }, touches: text(c.change?.kind, 80) ? `Preference: ${c.change.kind}` : null,
     amount: null, preparedBy: { kind: 'chausar', name: 'Chausar' }, createdAt: typeof c.proposedAt === 'string' ? c.proposedAt : isoAt(0), expiresAt: null, state, practice: false,
   };
   const show = (v: unknown) => typeof v === 'string' ? v : JSON.stringify(v) ?? '';
@@ -354,6 +376,50 @@ export function lessonDetail(e: Env, lesson: Lesson): ApprovalDetail {
     steps: state === 'verified' ? steps(['done', row.createdAt], ['done', null], ['done', null], ['not-reached', null], ['done', null]) : steps(['done', row.createdAt], [state === 'prepared' && lesson.review ? 'waiting-for-you' : 'not-reached', null]),
     prepareOnly: false, needsSecondAsk: false, ...(state === 'prepared' && !lesson.review ? { blocked: { kind: 'prepare-blocked' as const, code: 'LESSON_REVIEW_PENDING' } } : {}),
   }, { change: false, approve: lesson.review !== undefined });
+}
+
+/**
+ * A bill read from a photo (WK-13): a Zoho Books booking prepared through writeback waits as a
+ * tier-1 change bound to the writeback digest; without a connection it is a prepare-only Tally
+ * purchase voucher. Built from the stored prepared bill, never from the text on the photo alone.
+ */
+export function billDetail(e: Env, bill: StoredBill): ApprovalDetail {
+  const zoho = bill.route === 'zoho-books' && bill.writeback !== null; const name = memberName(e.state, bill.memberId) ?? bill.by;
+  // A Zoho booking's state and digest are write-back's, read live from the caller's write-back record when it is there.
+  const live = liveBill(e, bill);
+  const row: ApprovalRow = {
+    id: `bill:${bill.id}`, source: 'bill', kind: zoho ? 'record-change' : 'prepare-only', tier: zoho ? 'tier-1' : 'prepare-only',
+    title: zoho ? `Book a bill read from a photo: ${bill.supplier}` : `Purchase voucher from a bill photo: ${bill.supplier}`, what: { kind: zoho ? 'bill-zoho' : 'bill-tally', name: bill.supplier }, touches: `${zoho ? 'Zoho Books' : 'Tally'}: ${bill.supplier}`,
+    amount: minorAmount(bill.totalMinor), preparedBy: { kind: 'person', name }, createdAt: bill.createdAt,
+    expiresAt: zoho ? isoAt(Date.parse(bill.createdAt) + 7 * DAY) : null, state: live.state, practice: false,
+  };
+  const fields = [{ name: 'Supplier', before: '', after: bill.supplier }, { name: 'Bill number', before: '', after: bill.billNumber }, { name: 'Date', before: '', after: bill.date },
+    ...bill.lines.map((l, i) => ({ name: `Line ${i + 1}`, before: '', after: `${l.description} × ${l.quantity}: ${l.amountMinor} paise` })),
+    ...bill.tax.map(t => ({ name: t.name, before: '', after: `${t.amountMinor} paise` })), { name: 'Total', before: '', after: `${bill.totalMinor} paise` }];
+  const voucher = !zoho && bill.voucher ? { type: bill.voucher.type, number: bill.voucher.number, date: bill.voucher.date, note: 'prepare-only' as const,
+    lines: bill.voucher.lines.map(l => ({ ledger: l.ledger, debit: minorAmount(l.debitMinor), credit: minorAmount(l.creditMinor) })) } : undefined;
+  const waiting = row.state === 'prepared';
+  return finish(e, row, {
+    digest: live.digest, revision: live.revision, reason: 'autonomy-off', change: { fields }, ...(voucher ? { voucher } : {}),
+    steps: steps(['done', bill.createdAt], [waiting ? (zoho && !expired(e, row) ? 'waiting-for-you' : zoho ? 'stopped-by-rule' : 'not-reached') : row.state === 'cancelled' ? 'not-reached' : 'done', null],
+      ...(['verified', 'unknown', 'rejected'].includes(row.state) ? [[row.state === 'unknown' ? 'unsure' : 'done', null] as [StepState, null]] : [])),
+    prepareOnly: !zoho, needsSecondAsk: false,
+  }, { change: false, approve: zoho });
+}
+
+/** The bill's state and digest: from the write-back view behind a Zoho booking when the caller's record has it, else as stored. */
+function liveBill(e: Env, bill: StoredBill): { state: RowState; digest: string; revision: number } {
+  const view = bill.route === 'zoho-books' && bill.writeback ? e.wb.views.find(v => v.id === bill.writeback!.id) : undefined;
+  return view ? { state: view.status, digest: view.digest, revision: view.revision } : { state: bill.state, digest: bill.digest, revision: 1 };
+}
+/** Stored bills the caller may see (books-bill.ts `billVisible`), with write-back view access standing in for a Zoho booking. */
+export function visibleBills(e: Env): StoredBill[] {
+  const ids = new Set(e.wb.views.map(v => v.id));
+  return storedBills(e.state).filter(b => billVisible(e.state, e.ctx, b, ids));
+}
+/** Write-back views that back a stored bill: the `bill:` item is the one to act on, so the view is not listed twice. */
+function billBacked(e: Env): Set<string> {
+  return new Set(storedBills(e.state).map(b => b.writeback?.id).filter((id): id is string => typeof id === 'string'));
 }
 
 /** Every item waiting in the queue, before snoozes and expiry are applied. */
@@ -366,12 +432,16 @@ export function queue(e: Env): ApprovalDetail[] {
   }
   for (const draft of drafts(e.state)) if (draft.state === 'draft' || draft.state === 'cosigned') items.push(releaseDetail(e, draft));
   for (const lesson of lessons(e)) if (lesson.status === 'review-ready') items.push(lessonDetail(e, lesson));
+  const backed = billBacked(e);
+  for (const view of e.wb.views) if (view.status === 'prepared' && !backed.has(view.id)) items.push(wbDetail(e, view));
+  for (const bill of visibleBills(e)) if (liveBill(e, bill).state === 'prepared') items.push(billDetail(e, bill));
+  for (const proposal of e.proposals ?? []) items.push(proposalDetail(e, proposal));
   return items;
 }
 export const order = (a: ApprovalRow, b: ApprovalRow) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || Date.parse(b.createdAt) - Date.parse(a.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 export function rowOf(detail: ApprovalDetail): ApprovalRow {
-  const { id, source, kind, tier, title, touches, amount, preparedBy, createdAt, expiresAt, state, practice } = detail;
-  return { id, source, kind, tier, title, touches, amount, preparedBy, createdAt, expiresAt, state, practice };
+  const { id, source, kind, tier, title, touches, amount, preparedBy, createdAt, expiresAt, state, practice, what } = detail;
+  return { id, source, kind, tier, title, touches, amount, preparedBy, createdAt, expiresAt, state, practice, ...(what ? { what } : {}) };
 }
 export function snoozed(e: Env, id: string) { return snoozedUntil(e, id) !== undefined; }
 
@@ -380,7 +450,10 @@ export function detail(e: Env, id: string): ApprovalDetail {
   const { source, raw } = parseId(id);
   if (source === 'action') { const action = visibleActions(e).find(a => a.id === raw); check(action, 'NOT_FOUND', 'Approval not found.'); return actionDetail(e, action); }
   if (source === 'job' || source === 'acceptance') { const job = visibleJobs(e).find(j => j.id === raw); check(job, 'NOT_FOUND', 'Approval not found.'); return jobDetail(e, job, source === 'acceptance'); }
+  if (source === 'writeback') return wbDetail(e, findView(e, raw));
   if (source === 'release') { const draft = drafts(e.state).find(d => d.id === raw); check(draft, 'NOT_FOUND', 'Approval not found.'); return releaseDetail(e, draft); }
+  if (source === 'proposal') { const proposal = (e.proposals ?? []).find(p => p.id === raw); check(proposal, 'NOT_FOUND', 'Approval not found.'); return proposalDetail(e, proposal); }
+  if (source === 'bill') { const bill = visibleBills(e).find(b => b.id === raw); check(bill, 'NOT_FOUND', 'Approval not found.'); return billDetail(e, bill); }
   const lesson = lessons(e).find(l => l.candidate.id === raw); check(lesson, 'NOT_FOUND', 'Approval not found.'); return lessonDetail(e, lesson);
 }
 

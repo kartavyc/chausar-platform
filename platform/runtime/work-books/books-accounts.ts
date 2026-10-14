@@ -21,7 +21,9 @@ const GROUPS: Record<string, AccountClass> = {
   'loans (liability)': 'liability', 'current liabilities': 'liability', 'secured loans': 'liability', 'unsecured loans': 'liability', 'provisions': 'liability',
 };
 type Found = { name: string; group: string | null; chain: string[]; sides: Set<'debit' | 'credit'>; recipeClass: string | null; sourceIds: Set<string> };
-export type AccountRow = { name: string; group: string | null; side: 'debit' | 'credit' | null; proposed: AccountClass | null; reason: string[];
+/** The reason as codes with their values, so a screen says it in the person's language (`reason` keeps the English sentences). */
+export type Because = { code: 'group' | 'group-unsortable' | 'no-group' | 'side' | 'recipe' | 'learned' | 'said-no' | 'accountant'; group?: string; under?: string; side?: 'debit' | 'credit'; cls?: string };
+export type AccountRow = { name: string; group: string | null; side: 'debit' | 'credit' | null; proposed: AccountClass | null; reason: string[]; because: Because[];
   decided: { class: AccountClass; by: string; role: string; at: string } | null; state: 'proposed' | 'unsure' | 'decided' };
 
 /** A numeric character reference as text; an invalid code point (too large, a surrogate or NUL) reads as U+FFFD. */
@@ -79,17 +81,19 @@ function collect(state: State, ctx: Context, host: ModuleHost): Map<string, Foun
 function row(item: Found, decision: AccountDecision | undefined, learned: Map<string, { class: AccountClass; reason: string }>): AccountRow {
   const side = item.sides.size === 1 ? [...item.sides][0] : null;
   const primary = item.chain.find(g => GROUPS[g.toLowerCase()]);
-  let proposed: AccountClass | null = primary ? GROUPS[primary.toLowerCase()] : null; const reason: string[] = [];
-  if (item.group) reason.push(primary ? `Its parent group is ${item.group}${primary !== item.group ? `, under ${primary}` : ''}.` : `Its parent group ${item.group} is not one Chausar can sort.`);
-  else reason.push('No parent group was read for this account, so Chausar asks instead of guessing.');
-  if (side) reason.push(`It is a ${side} account in the vouchers read.`);
-  if (item.recipeClass) reason.push(`The import recipe treats it as ${item.recipeClass}.`);
+  let proposed: AccountClass | null = primary ? GROUPS[primary.toLowerCase()] : null; const reason: string[] = []; const because: Because[] = [];
+  if (item.group) {
+    reason.push(primary ? `Its parent group is ${item.group}${primary !== item.group ? `, under ${primary}` : ''}.` : `Its parent group ${item.group} is not one Chausar can sort.`);
+    because.push(primary ? { code: 'group', group: item.group, ...(primary !== item.group ? { under: primary } : {}) } : { code: 'group-unsortable', group: item.group });
+  } else { reason.push('No parent group was read for this account, so Chausar asks instead of guessing.'); because.push({ code: 'no-group' }); }
+  if (side) { reason.push(`It is a ${side} account in the vouchers read.`); because.push({ code: 'side', side }); }
+  if (item.recipeClass) { reason.push(`The import recipe treats it as ${item.recipeClass}.`); because.push({ code: 'recipe', cls: item.recipeClass }); }
   const fromLearning = learned.get(item.name);
-  if (!proposed && item.group && fromLearning) { proposed = fromLearning.class; reason.push(fromLearning.reason); }
-  if (decision?.decision === 'no' && decision.proposed === proposed) { reason.push('You said no to the proposed class.'); proposed = null; }
+  if (!proposed && item.group && fromLearning) { proposed = fromLearning.class; reason.push(fromLearning.reason); because.push({ code: 'learned' }); }
+  if (decision?.decision === 'no' && decision.proposed === proposed) { reason.push('You said no to the proposed class.'); because.push({ code: 'said-no' }); proposed = null; }
   const decided = decision && decision.class ? { class: decision.class, by: decision.by, role: decision.role, at: decision.at } : null;
-  if (decided && decision!.role === 'accountant' && decision!.class !== decision!.proposed) reason.push('Corrected by an accountant.');
-  return { name: item.name, group: item.group, side, proposed, reason, decided, state: decided ? 'decided' : proposed ? 'proposed' : 'unsure' };
+  if (decided && decision!.role === 'accountant' && decision!.class !== decision!.proposed) { reason.push('Corrected by an accountant.'); because.push({ code: 'accountant' }); }
+  return { name: item.name, group: item.group, side, proposed, reason, because, decided, state: decided ? 'decided' : proposed ? 'proposed' : 'unsure' };
 }
 async function learnedProposals(host: ModuleHost) {
   const result = await optionalCall<{ proposals?: unknown }>(host, 'learningx.accountsProposals', {}); const learned = new Map<string, { class: AccountClass; reason: string }>();

@@ -7,6 +7,7 @@ import { Section, Note, Refusal, Actions, Button } from '../work/kit/Page';
 import { useAct, useReply } from '../work/kit/reply.ts';
 import { dayTime } from '../work/kit/format.ts';
 import { discardReply, draft as draftCheck, gstReply, meaningReply, meaningsReply, packsReply, publishReply, type Definition, type Draft } from './contract.ts';
+import { useR2 } from './words-r2.ts';
 import { BooksPage, BooksSheet, Link, Table, approves, fill, idOf, sheetOf, styles as s, useWords, valueOf, type BooksProps, type W } from './shared.tsx';
 
 const ORIGIN = { core: 'origin.core', pack: 'origin.pack', you: 'origin.you' } as const;
@@ -63,7 +64,7 @@ function Reviews({ d, w }: { d: Draft; w: W }) {
 }
 
 function MeaningSheet({ props, name, onChanged }: { props: BooksProps; name: string; onChanged: () => void }) {
-  const w = useWords(props.language);
+  const w = useWords(props.language), r2 = useR2(props.language);
   const { loaded, reload } = useReply(props, 'books.meaning', { name }, meaningReply, name);
   const act = useAct(props.rpc);
   const [note, setNote] = useState<string | null>(null);
@@ -103,7 +104,9 @@ function MeaningSheet({ props, name, onChanged }: { props: BooksProps; name: str
               {d.affects.calculations.length > 0 && <ul className={s.list}>{d.affects.calculations.map(c => <li key={c}>{c}</li>)}</ul>}
               <Reviews d={d} w={w} />
               {d.checks.ok ? <Note>{w.checksPassed}</Note> : <p className={s.amber}>{fill(w.checksFailed, { code: d.checks.code ?? w.noCode })}</p>}
-              <Note><Label kind="experimental" /> {fill(w.notBuiltNamed, { what: w.tryCopy })}</Note>
+              {!props.viewer && live && (d.before && d.after
+                ? <Note><Label kind="experimental" /> <Link onPress={() => props.navigate({ place: 'books', sub: 'trial', sheet: sheetOf(d.id) })}>{r2.tryCopy}</Link></Note>
+                : <Note><Label kind="experimental" /> {r2.tryCopyCannot}</Note>)}
               {note && <p role="status">{note}</p>}
               <Refusal code={act.refusal} language={props.language} />
             </Section>
@@ -165,7 +168,9 @@ function Gst({ props }: { props: BooksProps }) {
     <Section title={w.gstTitle}>
       {loaded.phase === 'refused' && (loaded.state.kind === 'not-built' ? <Note>{fill(w.notBuiltNamed, { what: w.gstTitle })}</Note> : <Refusal code={loaded.code} language={props.language} />)}
       {value && <p>{value.gstMode === null ? <span className={s.missing}>{w.gstNotSet}</span> : fill(w.gstMode, { mode: value.gstMode })}</p>}
-      {value && !value.rates.available && <Note>{fill(w.notBuiltNamed, { what: w.rates })}</Note>}
+      {value && (value.rates.available
+        ? <p><Link onPress={() => props.navigate({ place: 'books', sub: 'rates' })}>{w.rates}</Link></p>
+        : <Note>{fill(w.notBuiltNamed, { what: w.rates })}</Note>)}
     </Section>
   );
 }

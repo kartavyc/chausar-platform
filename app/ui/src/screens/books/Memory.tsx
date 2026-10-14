@@ -6,13 +6,15 @@ import { Note, Refusal, Actions, Button, Section } from '../work/kit/Page';
 import { useAct, useReply } from '../work/kit/reply.ts';
 import { day } from '../work/kit/format.ts';
 import { forgetReply, memoryLine, memoryReply, type MemoryLine } from './contract.ts';
-import { BooksPage, ConfirmButton, Link, Table, approves, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
+import { BooksPage, ConfirmButton, Link, Table, approves, fill, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
+import { useR2, type R2Key } from './words-r2.ts';
+import { useAuditWords } from './words-audit.ts';
 
 type Kind = MemoryLine['kind'];
 const KINDS: readonly Kind[] = ['preference', 'claim', 'conversation', 'working-context'];
 
 export function Memory(props: BooksProps) {
-  const w = useWords(props.language);
+  const w = useWords(props.language), r2 = useR2(props.language), au = useAuditWords(props.language);
   const [outside, setOutside] = useState(false);
   const { loaded, reload } = useReply(props, 'books.memory', outside ? { outsideOnly: true } : {}, memoryReply);
   const value = valueOf(loaded);
@@ -35,6 +37,7 @@ export function Memory(props: BooksProps) {
     return (
       <span className={s.stack}>
         <span>{m.text}</span>
+        {m.origin === 'business-profile' && <span className={s.note}>{fill(r2.profileLine, { field: Object.hasOwn(r2, `pf.${m.field}`) ? r2[`pf.${m.field}` as R2Key] : m.field ?? '' })}</span>}
         {m.source === 'outside-content' && <span className={s.amber}>{w.neverObeyed}</span>}
         {props.view !== 'simple' && m.earlier.length > 0 && (
           <ul className={s.list} aria-label={w.earlier}>{m.earlier.map((e, i) => <li key={`${e.at}-${i}`}><span className={s.struck}>{e.text}</span> · {day(e.at, props.language)}</li>)}</ul>
@@ -45,15 +48,34 @@ export function Memory(props: BooksProps) {
   const source = (m: MemoryLine) => m.source === 'computed' && m.receiptId !== null
     ? <Link onPress={() => { if (m.receiptId !== null) props.openReceipt(m.receiptId); }}>{w['source.computed']}</Link>
     : w[`source.${m.source}`];
-  const controls = (m: MemoryLine) => !approves(props) ? null : (
+  const controls = (m: MemoryLine) => !approves(props) ? null : m.readOnly ? (
     <span className={s.inline}>
-      {m.status === 'proposed' && <Button onClick={() => { void run('books.memoryConfirm', { id: m.id }); }} disabled={act.busy}>{w.confirm}</Button>}
+      <span className={s.note}>{r2.profileReadOnly}</span>
+      <ConfirmButton label={w.delete} confirm={w.deleteConfirm} keep={w.keep} onConfirm={() => { void run('books.forget', { id: m.id }); }} disabled={act.busy} />
+    </span>
+  ) : (
+    <span className={s.inline}>
+      {/* A proposed line is confirmed in "Waiting for your yes" above. */}
       <Button variant="link" onClick={() => { setEditing(m.id); setDraft(m.text); }} disabled={act.busy}>{w.edit}</Button>
       <ConfirmButton label={w.delete} confirm={w.deleteConfirm} keep={w.keep} onConfirm={() => { void run('books.forget', { id: m.id }); }} disabled={act.busy} />
     </span>
   );
   return (
     <BooksPage props={props} sub="memory" title={w['title.memory']} count={value ? String(value.lines.length) : undefined} loaded={loaded} reload={reload}>
+      {/* BK-17: lines proposed from the ask line (SH-04) wait here for a yes, first, in every view. */}
+      {value && value.lines.some(m => m.status === 'proposed') && (
+        <Section title={au.waiting}>
+          <Note>{approves(props) ? au.waitingNote : au.waitingOther}</Note>
+          <ul className={s.list} data-waiting>{value.lines.filter(m => m.status === 'proposed').map(m => (
+            <li key={m.id} className={s.inline}>
+              <span>{m.text}</span>
+              {m.source === 'outside-content' && <span className={s.amber}>{w.neverObeyed}</span>}
+              {approves(props) && <Button onClick={() => { void run('books.memoryConfirm', { id: m.id }); }} disabled={act.busy}>{w.confirm}</Button>}
+              {approves(props) && <ConfirmButton label={w.delete} confirm={w.deleteConfirm} keep={w.keep} onConfirm={() => { void run('books.forget', { id: m.id }); }} disabled={act.busy} />}
+            </li>
+          ))}</ul>
+        </Section>
+      )}
       <Choice<'all' | 'outside'> label={w.show} options={[{ value: 'all', label: w.allLines }, { value: 'outside', label: w.fromOutside }]} value={outside ? 'outside' : 'all'} onChange={v => setOutside(v === 'outside')} />
       {value && (value.lines.length === 0 ? <Note>{outside ? w['empty.outside'] : w['empty.memory']}</Note> : (
         <Table view={props.view} caption={w['title.memory']} columns={[

@@ -1,0 +1,108 @@
+/**
+ * Words for the round-two Books screens (bill photo, belief line, exchange rates, delete), in
+ * English and Hindi. Kept apart from words.ts so both catalogues can change without clashing.
+ */
+import type { Language } from '../../app/presentation.ts';
+import { words, type Catalogue } from '../../places/types.ts';
+
+const en = {
+  // WK-13 / BK-18
+  'bill.title': 'A photo of a bill', 'bill.experimental': 'Experimental. Read on this computer; you check every field before anything is prepared.',
+  'bill.choose': 'Choose a bill (PDF, PNG or JPEG, up to 4 MB)', 'bill.tooLarge': 'This file is larger than 4 MB.', 'bill.wrongType': 'Choose a PDF, a PNG or a JPEG.',
+  'bill.reading': 'Reading the bill on this computer…', 'bill.page': 'The bill', 'bill.regions': 'Where each field was read (approximate band of the line)',
+  'bill.form': 'What the bill says', 'bill.supplier': 'Supplier', 'bill.number': 'Bill number', 'bill.date': 'Date', 'bill.lines': 'Lines',
+  'bill.description': 'What it is', 'bill.quantity': 'Quantity', 'bill.amount': 'Amount (₹)', 'bill.tax': 'Tax', 'bill.taxName': 'Tax name', 'bill.total': 'Total (₹)',
+  'bill.addLine': 'Add a line', 'bill.addTax': 'Add a tax', 'bill.removeRow': 'Remove',
+  'cert.sure': 'read clearly', 'cert.check-this': 'check this', 'cert.could-not-read': 'could not read',
+  'bill.sumsEqual': 'Lines plus tax equal the total as read.', 'bill.sumsDiffer': 'As read, lines plus tax do not equal the total. Correct a field; the bill is refused until they agree.',
+  'bill.sumsUnknown': 'Some amounts could not be read, so lines plus tax were not compared.',
+  'bill.untrusted': 'Text printed on the bill is only data. It fills these fields and is never followed.',
+  'bill.notStored': 'Nothing is kept until you confirm.', 'bill.route': 'Prepare it as', 'bill.route.tally': 'A Tally purchase voucher (prepare only)',
+  'bill.route.zoho': 'A bill in Zoho Books', 'bill.connection': 'Zoho Books connection', 'bill.vendor': 'Zoho vendor id',
+  'bill.confirm': 'Confirm and prepare', 'bill.prepared': 'Prepared. It waits for your yes in Approvals.', 'bill.preparedTally': 'Prepared as a Tally voucher. It is prepare only: enter it in Tally or give it to your accountant.',
+  'bill.openApprovals': 'Open Approvals', 'bill.voucher': 'Voucher preview', 'bill.ledger': 'Ledger', 'bill.debit': 'Debit', 'bill.credit': 'Credit',
+  'bill.recent': 'Bills read from photos', 'bill.empty': 'No bill has been prepared from a photo yet.', 'bill.another': 'Read another bill',
+  'bill.book': 'Book it now', 'bill.amountProblem': 'Write the amount in rupees, like 731.60.', 'bill.readOnly': 'Your seat can look at bills; it cannot read or prepare one.',
+  'state.prepared': 'waiting', 'state.approved': 'approved', 'state.executing': 'booking', 'state.verified': 'booked and read back', 'state.unknown': 'not sure',
+  'state.rejected': 'not booked', 'state.blocked': 'stopped', 'state.cancelled': 'dropped',
+  'code.OCR_DEPENDENCY_UNAVAILABLE': 'The reader for pictures (tesseract) is not installed on this computer.',
+  'code.IMAGE_OCR_NOT_AVAILABLE': 'This picture cannot be read here. Save it as a JPEG, PNG or PDF and try again.',
+  'code.NOT_AVAILABLE_WITH_SEND_SETTING': 'Not available with your send setting.',
+  'code.BILL_TOTAL_MISMATCH': 'Lines plus tax do not equal the total. Correct a field first.',
+  'code.BILL_READ_EXPIRED': 'This reading is no longer held. Read the bill again.',
+  'code.BILL_TOO_LARGE': 'The bill must be a file of at most 4 MB.',
+  'code.BILL_FIELD_MISSING': 'Fill every field: supplier, bill number, date, each line and the total.',
+  // BK-15
+  'belief.title': 'What we believed over time', 'belief.form': 'The belief line', 'belief.windowFrom': 'Look from', 'belief.windowTo': 'Look to',
+  'belief.sentence': '{op} for {from} to {to}, as known at each change', 'belief.empty': 'Nothing changed what was known in this window.',
+  'belief.omitted': '{n} earlier changes are not drawn; the line shows the latest {max}.', 'belief.when': 'Known at', 'belief.what': 'What changed it', 'belief.figure': 'Figure',
+  'change.start': 'start of the window', 'change.join': 'customers joined', 'change.undo': 'a join undone', 'change.new-event.line': 'a new event', 'change.correction.line': 'a correction',
+  // BK-19
+  'rates.title': 'Exchange rates', 'rates.note': 'You enter each rate with its date and where it came from. Chausar never fetches a rate.',
+  'rates.col.currency': 'Currency', 'rates.col.on': 'Date', 'rates.col.rate': 'Rate', 'rates.col.source': 'From', 'rates.col.by': 'Entered by',
+  'rates.rate': '₹{rate} for 1 {currency}', 'rates.fraction': '₹{units} for {per} {currency}', 'rates.empty': 'No exchange rate entered yet.',
+  'rates.notCounted': '{rows} rows in {currency} have no rate for their date. They are not counted, and each receipt says how many.',
+  'rates.allCounted': 'Every amount in another currency has a rate for its date.',
+  'rates.add': 'Enter a rate', 'rates.currency': 'Currency (three letters, like USD)', 'rates.on': 'Date of the rate', 'rates.value': 'Rupees for one unit (like 83.2150)',
+  'rates.source': 'Where the rate came from', 'rates.save': 'Save rate', 'rates.remove': 'Remove', 'rates.removeConfirm': 'Remove this rate', 'rates.problem': 'Write the rate as a number, like 83.2150.',
+  'rates.back': 'Back to meanings',
+  // BK-20
+  'del.start': 'Delete what we hold', 'del.plan': 'What can be deleted', 'del.col.state': 'What happens', 'del.col.reason': 'Why',
+  'del.can-delete': 'will be deleted', 'del.needs-owner': 'needs the owner', 'del.nothing-held': 'nothing held',
+  'del.deleted': 'deleted', 'del.pending': 'pending', 'del.not-possible': 'not possible here', 'del.nothing-held.done': 'nothing held',
+  'del.notAvailable': 'Chausar cannot delete these records itself. The stores marked "needs the owner" are removed by deleting their source.',
+  'del.sourceDeletion': 'Delete a whole source in Trust, under the vault.', 'del.type': 'Type the customer id {id} to confirm', 'del.confirm': 'Delete',
+  'del.waits': 'Deleting always waits for a person: this is your yes.', 'del.report': 'Deletion report', 'del.complete': 'Everything this app keeps about the customer is gone.',
+  'del.partial': 'Some stores still hold rows; they are named below with the reason.', 'del.cancel': 'Keep',
+};
+
+const hi: Record<keyof typeof en, string> = {
+  'bill.title': 'बिल की फ़ोटो', 'bill.experimental': 'प्रयोग में। इसी कंप्यूटर पर पढ़ा जाता है; कुछ भी तैयार होने से पहले आप हर खाना जाँचते हैं।',
+  'bill.choose': 'बिल चुनें (PDF, PNG या JPEG, 4 MB तक)', 'bill.tooLarge': 'यह फ़ाइल 4 MB से बड़ी है।', 'bill.wrongType': 'PDF, PNG या JPEG चुनें।',
+  'bill.reading': 'इसी कंप्यूटर पर बिल पढ़ा जा रहा है…', 'bill.page': 'बिल', 'bill.regions': 'हर खाना कहाँ से पढ़ा गया (पंक्ति की अनुमानित पट्टी)',
+  'bill.form': 'बिल में क्या लिखा है', 'bill.supplier': 'विक्रेता', 'bill.number': 'बिल नंबर', 'bill.date': 'तारीख़', 'bill.lines': 'पंक्तियाँ',
+  'bill.description': 'क्या है', 'bill.quantity': 'मात्रा', 'bill.amount': 'रक़म (₹)', 'bill.tax': 'टैक्स', 'bill.taxName': 'टैक्स का नाम', 'bill.total': 'कुल (₹)',
+  'bill.addLine': 'पंक्ति जोड़ें', 'bill.addTax': 'टैक्स जोड़ें', 'bill.removeRow': 'हटाएँ',
+  'cert.sure': 'साफ़ पढ़ा', 'cert.check-this': 'इसे जाँचें', 'cert.could-not-read': 'पढ़ा नहीं जा सका',
+  'bill.sumsEqual': 'जैसा पढ़ा, पंक्तियाँ और टैक्स मिलकर कुल के बराबर हैं।', 'bill.sumsDiffer': 'जैसा पढ़ा, पंक्तियाँ और टैक्स मिलकर कुल के बराबर नहीं हैं। कोई खाना ठीक करें; बराबर होने तक बिल नहीं लिया जाएगा।',
+  'bill.sumsUnknown': 'कुछ रक़में पढ़ी नहीं जा सकीं, इसलिए पंक्तियाँ और टैक्स की तुलना नहीं हुई।',
+  'bill.untrusted': 'बिल पर छपा लिखा केवल डेटा है। वह इन खानों को भरता है, उसका कहा कभी माना नहीं जाता।',
+  'bill.notStored': 'आपके पक्का करने तक कुछ भी रखा नहीं जाता।', 'bill.route': 'इसे ऐसे तैयार करें', 'bill.route.tally': 'Tally ख़रीद वाउचर (सिर्फ़ तैयारी)',
+  'bill.route.zoho': 'Zoho Books में बिल', 'bill.connection': 'Zoho Books कनेक्शन', 'bill.vendor': 'Zoho विक्रेता आईडी',
+  'bill.confirm': 'पक्का करें और तैयार करें', 'bill.prepared': 'तैयार। यह मंज़ूरियों में आपकी हाँ का इंतज़ार कर रहा है।', 'bill.preparedTally': 'Tally वाउचर के रूप में तैयार। यह सिर्फ़ तैयारी है: इसे Tally में डालें या अपने अकाउंटेंट को दें।',
+  'bill.openApprovals': 'मंज़ूरियाँ खोलें', 'bill.voucher': 'वाउचर की झलक', 'bill.ledger': 'खाता', 'bill.debit': 'नामे', 'bill.credit': 'जमा',
+  'bill.recent': 'फ़ोटो से पढ़े गए बिल', 'bill.empty': 'अभी तक फ़ोटो से कोई बिल तैयार नहीं हुआ।', 'bill.another': 'दूसरा बिल पढ़ें',
+  'bill.book': 'अभी दर्ज करें', 'bill.amountProblem': 'रक़म रुपयों में लिखें, जैसे 731.60।', 'bill.readOnly': 'आपकी सीट बिल देख सकती है; पढ़ या तैयार नहीं कर सकती।',
+  'state.prepared': 'इंतज़ार में', 'state.approved': 'मंज़ूर', 'state.executing': 'दर्ज हो रहा है', 'state.verified': 'दर्ज हुआ और वापस पढ़ा गया', 'state.unknown': 'पक्का नहीं',
+  'state.rejected': 'दर्ज नहीं हुआ', 'state.blocked': 'रुका', 'state.cancelled': 'छोड़ा गया',
+  'code.OCR_DEPENDENCY_UNAVAILABLE': 'तस्वीरें पढ़ने वाला (tesseract) इस कंप्यूटर पर इंस्टॉल नहीं है।',
+  'code.IMAGE_OCR_NOT_AVAILABLE': 'यह तस्वीर यहाँ पढ़ी नहीं जा सकती। इसे JPEG, PNG या PDF में सहेजकर फिर कोशिश करें।',
+  'code.NOT_AVAILABLE_WITH_SEND_SETTING': 'आपकी भेजने की सेटिंग में यह उपलब्ध नहीं है।',
+  'code.BILL_TOTAL_MISMATCH': 'पंक्तियाँ और टैक्स मिलकर कुल के बराबर नहीं हैं। पहले कोई खाना ठीक करें।',
+  'code.BILL_READ_EXPIRED': 'यह पढ़ाई अब रखी नहीं है। बिल फिर से पढ़ें।',
+  'code.BILL_TOO_LARGE': 'बिल की फ़ाइल 4 MB तक की होनी चाहिए।',
+  'code.BILL_FIELD_MISSING': 'हर खाना भरें: विक्रेता, बिल नंबर, तारीख़, हर पंक्ति और कुल।',
+  'belief.title': 'समय के साथ हम क्या मानते रहे', 'belief.form': 'मान्यता की रेखा', 'belief.windowFrom': 'कब से देखें', 'belief.windowTo': 'कब तक देखें',
+  'belief.sentence': '{from} से {to} तक {op}, हर बदलाव पर जैसा पता था', 'belief.empty': 'इस अवधि में जानकारी में कोई बदलाव नहीं हुआ।',
+  'belief.omitted': 'पहले के {n} बदलाव नहीं दिखाए गए; रेखा आख़िरी {max} दिखाती है।', 'belief.when': 'कब तक का ज्ञान', 'belief.what': 'किसने बदला', 'belief.figure': 'आँकड़ा',
+  'change.start': 'अवधि की शुरुआत', 'change.join': 'ग्राहक जोड़े गए', 'change.undo': 'जोड़ वापस लिया गया', 'change.new-event.line': 'नई घटना', 'change.correction.line': 'सुधार',
+  'rates.title': 'विनिमय दरें', 'rates.note': 'हर दर आप उसकी तारीख़ और स्रोत के साथ डालते हैं। Chausar कभी दर ख़ुद नहीं लाता।',
+  'rates.col.currency': 'मुद्रा', 'rates.col.on': 'तारीख़', 'rates.col.rate': 'दर', 'rates.col.source': 'स्रोत', 'rates.col.by': 'किसने डाली',
+  'rates.rate': '1 {currency} के लिए ₹{rate}', 'rates.fraction': '{per} {currency} के लिए ₹{units}', 'rates.empty': 'अभी कोई विनिमय दर नहीं डाली गई।',
+  'rates.notCounted': '{currency} की {rows} पंक्तियों की तारीख़ के लिए कोई दर नहीं है। वे गिनी नहीं जातीं, और हर रसीद बताती है कितनी।',
+  'rates.allCounted': 'दूसरी मुद्रा की हर रक़म के लिए उसकी तारीख़ की दर है।',
+  'rates.add': 'दर डालें', 'rates.currency': 'मुद्रा (तीन अक्षर, जैसे USD)', 'rates.on': 'दर की तारीख़', 'rates.value': 'एक इकाई के रुपये (जैसे 83.2150)',
+  'rates.source': 'दर कहाँ से आई', 'rates.save': 'दर सहेजें', 'rates.remove': 'हटाएँ', 'rates.removeConfirm': 'यह दर हटाएँ', 'rates.problem': 'दर संख्या में लिखें, जैसे 83.2150।',
+  'rates.back': 'अर्थों पर वापस',
+  'del.start': 'हमारे पास जो है उसे हटाएँ', 'del.plan': 'क्या हटाया जा सकता है', 'del.col.state': 'क्या होगा', 'del.col.reason': 'क्यों',
+  'del.can-delete': 'हटाया जाएगा', 'del.needs-owner': 'मालिक को करना होगा', 'del.nothing-held': 'कुछ नहीं रखा',
+  'del.deleted': 'हटाया गया', 'del.pending': 'बाक़ी', 'del.not-possible': 'यहाँ संभव नहीं', 'del.nothing-held.done': 'कुछ नहीं रखा',
+  'del.notAvailable': 'Chausar ये रिकॉर्ड ख़ुद नहीं हटा सकता। "मालिक को करना होगा" वाले भंडार उनका स्रोत हटाने से हटते हैं।',
+  'del.sourceDeletion': 'पूरा स्रोत Trust में, तिजोरी के अंदर हटाएँ।', 'del.type': 'पक्का करने के लिए ग्राहक आईडी {id} लिखें', 'del.confirm': 'हटाएँ',
+  'del.waits': 'हटाना हमेशा किसी व्यक्ति का इंतज़ार करता है: यह आपकी हाँ है।', 'del.report': 'हटाने की रिपोर्ट', 'del.complete': 'यह ऐप ग्राहक के बारे में जो रखता था, सब हट गया।',
+  'del.partial': 'कुछ भंडारों में अब भी पंक्तियाँ हैं; वे नीचे कारण के साथ लिखे हैं।', 'del.cancel': 'रहने दें',
+};
+
+export const BOOKS_MORE: Catalogue<keyof typeof en> = { en, hi };
+export type MoreKey = keyof typeof en;
+export function useMoreWords(language: Language): Readonly<Record<MoreKey, string>> { return words(BOOKS_MORE, language); }

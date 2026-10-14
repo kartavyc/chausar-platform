@@ -1,0 +1,16 @@
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp4); align-items: start; }
+@media (max-width: 52rem) { .split { grid-template-columns: minmax(0, 1fr); } }
+.page { position: relative; border: var(--hair) solid var(--line); background: var(--bg); }
+.page img, .page object { display: block; width: 100%; min-height: 24rem; }
+.page object { height: 36rem; }
+.regions { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.region { fill: none; stroke: var(--fg2); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.regionActive { fill: none; stroke: var(--fg); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.regionAmber { fill: none; stroke: var(--amber); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.row { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) minmax(0, 2fr) auto; gap: var(--sp2); align-items: end; }
+.taxRow { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) auto; gap: var(--sp2); align-items: end; }
+.field { display: flex; flex-direction: column; gap: var(--sp1); }
+.unread input { box-shadow: inset 0 -2px 0 var(--amber); }
+.mark { font-size: var(--fs-note); color: var(--fg2); }
+.markCheck { font-size: var(--fs-note); color: var(--amber-t); }
+.markUnread { font-size: var(--fs-note); color: var(--amber-t); font-weight: var(--fw-medium); }

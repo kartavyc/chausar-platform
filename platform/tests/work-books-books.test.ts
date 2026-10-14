@@ -66,8 +66,8 @@ test('sources: twelve months with loaded, refused and not-loaded-yet; unmapped f
   assert.deepEqual((await call(owner, 'books.sources', { endMonth: '2026-09' }, { 'connectorsx.freshness': () => ({ items: [] }) })).freshness, { available: true });
   const unmapped = await call(owner, 'books.unmapped');
   assert.deepEqual(unmapped.fields, [
-    { field: 'channel', sourceIds: ['sheet'], type: 'text', filled: { rows: 1, of: 2 } },
-    { field: 'weight', sourceIds: ['sheet'], type: 'number', filled: { rows: 1, of: 2 } }]);
+    { field: 'channel', sourceIds: ['sheet'], type: 'text', filled: { rows: 1, of: 2 }, origin: 'file', recipeId: null, mappable: true },
+    { field: 'weight', sourceIds: ['sheet'], type: 'number', filled: { rows: 1, of: 2 }, origin: 'file', recipeId: null, mappable: true }]);
   const one = await call(owner, 'books.source', { sourceId: 'sheet' });
   assert.deepEqual(one.unmappedFields, ['channel', 'weight']); assert.deepEqual(one.reads.map((r: any) => [r.rows, r.totals, r.reconciled, r.format]), [[2, { minor: '3000' }, true, 'csv']]);
   assert.deepEqual(one.kinds, [{ kind: 'sale', rows: 2 }]);
@@ -126,7 +126,7 @@ test('meanings: draft, self co-sign refused, co-sign, atomic publish, stale hash
   await assert.rejects(call(owner, 'books.draft', { name: 'unknown_word', definition: null }), { code: 'WORD_NOT_FOUND' });
   const packs = await call(owner, 'books.packs');
   assert.equal(packs.packs.length, 6); assert.deepEqual(packs.packs.find((p: any) => p.pack === 'ecommerce'), { pack: 'ecommerce', label: 'Online brand', state: 'in-use', meanings: 6 });
-  assert.deepEqual(await call(owner, 'books.gst'), { gstMode: 'regular', rates: { available: false } });
+  assert.deepEqual(await call(owner, 'books.gst'), { gstMode: 'regular', rates: { available: true } });
 });
 
 test('meanings: a workspace with one approver publishes without a co-sign through the atomic release', async () => {
