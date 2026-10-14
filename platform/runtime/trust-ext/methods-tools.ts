@@ -9,6 +9,7 @@ import { backupNow, deleteSource, deletions, exportDeletion, setLock, setRecover
 import { assistantsView, pairAssistant, revokeAssistant, setAssistants } from './tools-assistants.ts';
 import { inspect, installPlugin, pluginsView, purgePluginMeta, removePlugin } from './tools-plugins.ts';
 import { languagePacks } from './tools-language.ts';
+import { flushMcpCalls } from '../mcp.ts';
 
 /** trustx.*: models, network, record, sharing, vault, deletion, assistants, plugins, language packs. */
 export const trustToolsMethods: Record<string, MethodSpec> = {
@@ -33,7 +34,8 @@ export const trustToolsMethods: Record<string, MethodSpec> = {
   'trustx.hosted': { permission: 'read', handler: (_ctx, payload) => { fields(payload, []); return hostedView(); } },
   'trustx.agreements': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return agreementsView(host); } },
   'trustx.withdraw': { permission: 'admin', handler: withdraw },
-  'trustx.assistants': { permission: 'read', handler: (_ctx, payload, host) => { fields(payload, []); return assistantsView(host.store.read()); } },
+  // Calls waiting in the MCP record buffer are written first, so the list is never behind.
+  'trustx.assistants': { permission: 'read', handler: async (_ctx, payload, host) => { fields(payload, []); await flushMcpCalls(host.store); return assistantsView(host.store.read()); } },
   'trustx.setAssistants': { permission: 'admin', handler: setAssistants },
   'trustx.pairAssistant': { permission: 'admin', handler: pairAssistant },
   'trustx.revokeAssistant': { permission: 'admin', handler: revokeAssistant },

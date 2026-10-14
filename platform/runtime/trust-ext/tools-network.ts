@@ -43,10 +43,12 @@ export async function modelsView(ctx: Context, host: ModuleHost) {
   const meters = await modelMeters(host);
   const state = host.store.read(); const gateway = host.services.gateway;
   const routes: any[] = gateway.listRoutes(ctx); const receipts: any[] = gateway.receipts(ctx).filter((r: any) => r.kind === 'model-preview');
-  const month = now().slice(0, 7);
+  // The month runs on the India date, like the rest of the lane.
+  const indiaMonth = (iso: string) => new Date(Date.parse(iso) + 19_800_000).toISOString().slice(0, 7);
+  const month = indiaMonth(now());
   // models-ext meters the month's spend in rupees from measured costs; when it answers, its figure is used
   // instead of this lane's sum of reserved and estimated costs from the receipts.
-  const spent = meters.spendThisMonthMinor ?? receipts.filter(r => left(r) && String(r.dispatchedAt ?? r.at).startsWith(month)).reduce((sum, r) => sum + paise(cost(r)), 0n).toString();
+  const spent = meters.spendThisMonthMinor ?? receipts.filter(r => left(r) && indiaMonth(String(r.dispatchedAt ?? r.at)) === month).reduce((sum, r) => sum + paise(cost(r)), 0n).toString();
   let voice: string | null = null;
   try { const providers: any[] = host.services.speech?.providers(ctx) ?? []; voice = providers.find(p => p.enabled)?.kind ?? null; } catch { voice = null; }
   return {
