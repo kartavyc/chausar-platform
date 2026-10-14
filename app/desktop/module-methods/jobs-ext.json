@@ -1,7 +1,15 @@
 [
   "jobsx.autonomy",
-  "jobsx.setAutonomy",
   "jobsx.autonomyPreset",
   "jobsx.caps",
-  "jobsx.setCaps"
+  "jobsx.setAutonomy",
+  "jobsx.setCaps",
+  "procedures.approve",
+  "procedures.get",
+  "procedures.list",
+  "procedures.propose",
+  "procedures.reject",
+  "procedures.retire",
+  "procedures.route",
+  "procedures.runs"
 ]
