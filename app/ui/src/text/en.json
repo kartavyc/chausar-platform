@@ -758,5 +758,15 @@
   "TODAY_ENGINE.event.decision.reviewed": "Decision reviewed",
   "TODAY_ENGINE.event.job.delivered": "Job delivered",
   "TODAY_ENGINE.figures": "Configured figures",
-  "TODAY_ENGINE.definition": "Definition, coverage"
+  "TODAY_ENGINE.definition": "Definition, coverage",
+  "FRSTEP.blocked.reading": "Reading what is blocked.",
+  "FRSTEP.blocked.nothing": "Nothing is blocked.",
+  "FRSTEP.blocked.no-vault": "Blocked: there is no vault yet. Nothing is stored until it exists.",
+  "FRSTEP.blocked.no-source": "Blocked: no books have come in yet. Bring a file to unblock it.",
+  "FRSTEP.blocked.meanings-unpublished": "Blocked: the meanings are not agreed yet. Agree them to unblock it.",
+  "FRSTEP.blocked.no-answer": "Blocked: no first answer yet. Ask the suggested question to finish.",
+  "FRSTEP.blocked.not-built": "What is blocked cannot be read right now.",
+  "FRSTEP.left.nothing": "Nothing has left this computer.",
+  "FRSTEP.left.something": "Something has left this computer today. Trust shows what and where.",
+  "FRSTEP.left.unknown": "It is not known whether anything has left this computer."
 }

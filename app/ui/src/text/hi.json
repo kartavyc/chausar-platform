@@ -758,5 +758,15 @@
   "TODAY_ENGINE.event.decision.reviewed": "निर्णय की समीक्षा हुई",
   "TODAY_ENGINE.event.job.delivered": "काम सौंपा गया",
   "TODAY_ENGINE.figures": "तय आंकड़े",
-  "TODAY_ENGINE.definition": "परिभाषा और कवरेज"
+  "TODAY_ENGINE.definition": "परिभाषा और कवरेज",
+  "FRSTEP.blocked.reading": "क्या रुका है, यह पढ़ा जा रहा है।",
+  "FRSTEP.blocked.nothing": "कुछ भी रुका नहीं है।",
+  "FRSTEP.blocked.no-vault": "रुका है: अभी कोई वॉल्ट नहीं है। वॉल्ट बनने तक कुछ भी सहेजा नहीं जाता।",
+  "FRSTEP.blocked.no-source": "रुका है: अभी कोई बही नहीं आई है। इसे खोलने के लिए एक फ़ाइल लाएँ।",
+  "FRSTEP.blocked.meanings-unpublished": "रुका है: अर्थ अभी तय नहीं हुए हैं। इसे खोलने के लिए उन्हें तय करें।",
+  "FRSTEP.blocked.no-answer": "रुका है: अभी पहला जवाब नहीं आया है। पूरा करने के लिए सुझाया गया सवाल पूछें।",
+  "FRSTEP.blocked.not-built": "क्या रुका है, यह अभी पढ़ा नहीं जा सकता।",
+  "FRSTEP.left.nothing": "इस कंप्यूटर से कुछ भी बाहर नहीं गया है।",
+  "FRSTEP.left.something": "आज इस कंप्यूटर से कुछ बाहर गया है। भरोसा में दिखता है कि क्या और कहाँ।",
+  "FRSTEP.left.unknown": "पता नहीं कि इस कंप्यूटर से कुछ बाहर गया है या नहीं।"
 }
