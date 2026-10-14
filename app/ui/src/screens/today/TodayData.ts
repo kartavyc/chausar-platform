@@ -11,7 +11,8 @@
  */
 
 import type { Chart, ColumnsChart, Count, DayEvent, Figure, FigureOrMissing, Lens, Mark, Missing, RowItem, ScreenState, StatTile } from '../../app/presentation.ts';
-import type { WorthReply } from '../../bridge/todayx-contract.ts';
+import type { ClosingReply, WorthReply } from '../../bridge/todayx-contract.ts';
+import type { CashVoiceCapability } from './voice-cash.ts';
 
 export interface TodayReview {
   /** The count across the whole app. Not known is its missing word, never zero. */
@@ -109,6 +110,8 @@ export interface TodayData {
    *  These items are not in this seat's count. */
   readonly waiting?: { readonly holder: string; readonly what: string };
   readonly enterprise?: TodayEnterprise;
+  /** `todayx.closing`, checked with `isClosingReply` by the host. Drawn only while it is on. */
+  readonly closing?: ClosingReply;
   readonly cashMissing?: Missing;
   readonly queueMissing?: Missing;
   readonly closeMissing?: Missing;
@@ -133,6 +136,8 @@ export interface TodayIntents {
   onUpdate?: (() => void) | undefined;
   /** Simple: the day's cash, as something the owner said. The text is data. */
   onSaveClosing?: ((text: string) => void) | undefined;
+  /** Simple: the day's cash by voice (TD-02, SH-05). Off unless supplied with `on: true`. */
+  cashVoice?: CashVoiceCapability | undefined;
   /** Books: a queue row opens its sheet. */
   onOpenQueueRow?: ((rowId: string, origin: HTMLElement | null) => void) | undefined;
   onLens?: ((lens: Lens) => void) | undefined;

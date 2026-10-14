@@ -22,7 +22,7 @@ import { Chart } from '../../parts/charts/Chart';
 import { State } from '../../patterns/States';
 import type { Mark } from '../../app/presentation.ts';
 import type { TodayScreenProps } from './shared';
-import { attentionRows, useWorth, TodayReviewLink, TodayConsumerLedger, TodayProducerSections } from './shared';
+import { ClosingRow, attentionRows, useWorth, TodayReviewLink, TodayConsumerLedger, TodayProducerSections } from './shared';
 import { CLOSE_STEP_ORDER, type CloseStep, type CloseStepState } from './TodayData.ts';
 import { allowsTodayMutation, todayIntentsForState } from './permissions.ts';
 import s from './Today.module.css';
@@ -110,6 +110,7 @@ export function TodayBooks({ data, intents: offeredIntents, sheetId, onNavigate 
       <TodayConsumerLedger data={data} intents={intents} />
       </div>
       {data.queueMissing !== undefined && <p className={s.missing}>{t('TODAY_ENGINE.queueMissing')}</p>}
+      <ClosingRow data={data} />
 
       {/* A table is drawn only with rows in it: column headers over no cells say nothing (axe th-has-data-cells). */}
       {queue.length === 0 ? (

@@ -26,5 +26,8 @@
   "todayx.workspaces",
   "todayx.recoveryContact.get",
   "todayx.recoveryContact.set",
-  "todayx.recoveryContact.request"
+  "todayx.recoveryContact.request",
+  "todayx.receiptDetail",
+  "todayx.closing",
+  "todayx.closing.set"
 ]

@@ -90,7 +90,7 @@ test('status, capabilities, first run, checklist, help and phone replies pass th
   valid(isCapabilitiesReply, capabilities);
   const group = (name: string) => capabilities.groups.find((g: any) => g.group === name);
   assert.equal(group('todayx').state, 'live');
-  assert.equal(group('todayx').methods, '28');
+  assert.equal(group('todayx').methods, '31');
   assert.equal(group('today').state, 'live');
   assert.equal(group('actions').state, 'live');
   assert.equal(group('askx').day, 5);

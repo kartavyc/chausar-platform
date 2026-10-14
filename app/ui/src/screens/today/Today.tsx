@@ -25,7 +25,7 @@ import { LensRow } from '../../patterns/Lens';
 import { TodaySimple } from './TodaySimple';
 import { TodayBooks } from './TodayBooks';
 import { todayIntentsForState } from './permissions.ts';
-import { RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayPrepare, TodayReviewLink, TodayStat, type TodayScreenProps } from './shared';
+import { ClosingRow, RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayPrepare, TodayReviewLink, TodayStat, type TodayScreenProps } from './shared';
 import s from './Today.module.css';
 
 export type { TodayScreenProps } from './shared';
@@ -99,6 +99,8 @@ function TodayGuided({ data, intents: offeredIntents, onNavigate }: TodayScreenP
         />
       )}
       </div>
+
+      <ClosingRow data={data} />
 
       {!nothingAwaits && worthSection}
 

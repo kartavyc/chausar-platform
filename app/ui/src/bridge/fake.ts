@@ -124,6 +124,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const idea = createFakeIdea(fakeRefusal);
   let device: DeviceChoices = { language: null, view: null, saved: false };
   let recoveryContact: RecoveryContact | null = null;
+  /* TD-01 daily closing: off until an owner turns it on, as in the engine. */
+  let closingOn = false;
   const store = new Map<string, unknown>();
   const calls: string[] = [];
 
@@ -147,7 +149,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   async function uiContext() {
     if (!unlocked) throw fakeRefusal('VAULT_LOCKED', 'The vault is locked.');
     const contextKey = await sha256Hex(JSON.stringify({ kind: 'fake-ui-context', workspace: workspace.id, member: seat.id, role: seat.role, epoch: 1, dictionary: dictionary()?.['hash'] ?? null, attempts: [...attempts.keys()] }));
-    return { workspace: { ...workspace }, member: { id: seat.id, name: seat.name, role: seat.role, epoch: 1, branches: ['*'] }, contextKey };
+    return { workspace: { ...workspace }, member: { id: seat.id, name: seat.name, role: seat.role, epoch: 1, branches: ['*'] }, contextKey, timeZone: DEMO_TIME_ZONE };
   }
   const mutating = () => { if (seat.role === 'viewer') throw fakeRefusal('ACCESS_DENIED', 'A viewer seat changes nothing.'); };
   const populated = () => scenario === 'populated' || scenario === 'read-only';
@@ -315,6 +317,26 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     return identity;
   }
 
+  /* ------------------------------------------------------------ round 2 */
+  function receiptDetail(payload: Readonly<Record<string, unknown>>) {
+    const id = payload['receiptId'], current = pack();
+    if (typeof id !== 'string' || Object.keys(payload).some(key => key !== 'receiptId')) throw fakeRefusal('INVALID_TODAYX_REQUEST', 'Name one receipt.');
+    const receipt = populated() && current !== null ? receiptFor(id, current.dictionaryHash, seat.id, `${date}T06:00:00.000Z`) : null;
+    if (receipt === null) throw fakeRefusal('RECEIPT_NOT_FOUND', 'No receipt has that id.');
+    const names = Array.isArray(receipt['sourceIds']) ? receipt['sourceIds'].filter((name): name is string => typeof name === 'string') : [];
+    return {
+      receiptId: id,
+      ...(names.length > 0 ? { sources: { names, wayIn: 'exported-file', readAt: `${date}T03:45:00.000Z` } } : {}),
+      recipe: { recipeId: 'recipe_demo_tally', state: 'not-yet-tested', acceptedBy: DEMO_OWNER.name, grade: 'owner' },
+      meaning: { version: String(current!.version), publishedBy: DEMO_OWNER.name },
+      allowedBy: { kind: 'read-access', person: seat.name, at: `${date}T06:00:00.000Z` },
+    };
+  }
+  function closingReply() {
+    const loaded = populated();
+    return { on: closingOn, day: date, parts: { cash: 'not-loaded-yet', bank: loaded ? 'done' : 'not-loaded-yet', entries: loaded ? 'not-done' : 'not-loaded-yet' } };
+  }
+
   const handlers: Readonly<Record<string, FakeHandler>> = {
     'ui.context': () => uiContext(),
     'models.list': () => (populated() ? [{ ...DEMO_ROUTE }] : []),
@@ -404,6 +426,13 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       return { contact: recoveryContact, confirmation: 'relay-required' };
     },
     'todayx.recoveryContact.request': () => { throw fakeRefusal('RECOVERY_CONTACT_RELAY_REQUIRED', 'A recovery contact needs the hosted relay, which is not available yet.'); },
+    'todayx.receiptDetail': payload => receiptDetail(payload),
+    'todayx.closing': () => closingReply(),
+    'todayx.closing.set': payload => {
+      if (seat.role !== 'owner' && seat.role !== 'cofounder') throw fakeRefusal('FORBIDDEN', 'Only an owner turns daily closing on or off.');
+      if (typeof payload['on'] !== 'boolean') throw fakeRefusal('INVALID_TODAYX_REQUEST', 'Say whether daily closing is on.');
+      closingOn = payload['on']; return closingReply();
+    },
   };
 
   async function request(method: string, payload: unknown = {}): Promise<unknown> {
