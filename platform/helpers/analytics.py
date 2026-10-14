@@ -156,6 +156,127 @@ def pdf_extract(data):
     return {"pages": pages, "pageCount": len(pages), "characters": characters, "sourceTainted": True, "numericalStatus": "unverified", "requiresReview": True, "parserVersion": getattr(pdfplumber, "__version__", "unknown"), "coverage": "Text extraction only. Scanned image pages need a separately qualified OCR adapter."}
 
 
+OCR_DPI = 300
+OCR_MAX_SIDE = 5000
+OCR_LANGUAGES = {"eng"}
+OCR_DEADLINE_SECONDS = 25
+
+
+def ocr_tesseract():
+    """
+    The installed tesseract program, found only on the default system path (the helper is given no PATH).
+    pytesseract is deliberately not imported: it passes images through temporary files, which this helper
+    may not write (RLIMIT_FSIZE 0), and it imports pandas when present, which cannot map inside the
+    256 MB address-space limit. tesseract is driven directly over pipes instead.
+    """
+    import os
+    import shutil
+    found = shutil.which("tesseract", path=os.defpath)
+    require(found is not None, "OCR_DEPENDENCY_UNAVAILABLE")
+    return found
+
+
+def ocr_page(tesseract, png, language, deadline):
+    """One page image through tesseract over pipes (the helper may not write files). Returns lines and word confidences."""
+    import os
+    import subprocess
+    import time
+    remaining = deadline - time.monotonic()
+    require(remaining > 0, "PDF_EXTRACT_FAILED")
+    environment = {"OMP_THREAD_LIMIT": "1"}
+    if os.name == "nt":
+        environment["SystemRoot"] = os.environ.get("SystemRoot", "C:\\Windows")
+    try:
+        completed = subprocess.run([tesseract, "stdin", "stdout", "-l", language, "--psm", "6", "tsv"], input=png, capture_output=True, timeout=remaining, env=environment, shell=False)
+    except Exception:
+        raise Refused("PDF_EXTRACT_FAILED")
+    require(completed.returncode == 0, "PDF_EXTRACT_FAILED")
+    lines = {}
+    confidences = []
+    for row in completed.stdout.decode("utf-8", "replace").splitlines()[1:]:
+        cells = row.split("\t")
+        if len(cells) != 12 or cells[0] != "5" or not cells[11].strip():
+            continue
+        try:
+            confidence = float(cells[10])
+            key = (int(cells[2]), int(cells[3]), int(cells[4]))
+        except ValueError:
+            continue
+        if confidence < 0:
+            continue
+        lines.setdefault(key, []).append(cells[11].strip())
+        confidences.append(min(100.0, confidence))
+    text = "\n".join(" ".join(words) for _, words in sorted(lines.items()))
+    # Whole-number percent (the helper protocol carries integers only); a page with no words has none.
+    confidence = int(sum(confidences) / len(confidences)) if confidences else 0
+    return text, confidence
+
+
+def pdf_ocr(data):
+    """EXPERIMENTAL: scanned PDF pages rendered in memory and read by tesseract. Same limits as pdf.extract."""
+    import time
+    deadline = time.monotonic() + OCR_DEADLINE_SECONDS
+    keys(data, {"pdfBase64", "maxPages", "language"}, {"pdfBase64"})
+    require(isinstance(data["pdfBase64"], str) and len(data["pdfBase64"]) <= 5600000)
+    maximum = data.get("maxPages", 20)
+    require(type(maximum) is int and 1 <= maximum <= 50)
+    language = data.get("language", "eng")
+    require(isinstance(language, str) and language in OCR_LANGUAGES)
+    try:
+        raw = base64.b64decode(data["pdfBase64"], validate=True)
+    except Exception:
+        raise Refused("INVALID_PDF")
+    require(len(raw) <= 4 * 1024 * 1024 and raw.startswith(b"%PDF-"), "INVALID_PDF")
+    try:
+        import pypdfium2
+        from PIL import Image  # noqa: F401  (pypdfium2 renders to Pillow images)
+    except ImportError:
+        # pdf2image is not used: it hands the PDF to poppler through temporary files, which the helper may not write.
+        raise Refused("OCR_DEPENDENCY_UNAVAILABLE")
+    tesseract = ocr_tesseract()
+    pages = []
+    characters = 0
+    try:
+        document = pypdfium2.PdfDocument(raw)
+    except Exception:
+        raise Refused("PDF_EXTRACT_FAILED")
+    try:
+        require(len(document) <= maximum, "PDF_PAGE_LIMIT")
+        for index in range(len(document)):
+            try:
+                page = document[index]
+                width, height = page.get_size()
+                require(width > 0 and height > 0, "PDF_EXTRACT_FAILED")
+                scale = min(OCR_DPI / 72.0, OCR_MAX_SIDE / max(width, height))
+                image = page.render(scale=scale, grayscale=True).to_pil()
+                buffer = io.BytesIO()
+                image.save(buffer, format="PNG")
+                png = buffer.getvalue()
+                del image, buffer
+            except Refused:
+                raise
+            except Exception:
+                raise Refused("PDF_EXTRACT_FAILED")
+            text, confidence = ocr_page(tesseract, png, language, deadline)
+            characters += len(text)
+            require(characters <= 100000, "PDF_TEXT_LIMIT")
+            pages.append({"page": index + 1, "text": text, "confidence": confidence})
+    finally:
+        document.close()
+    version = "unknown"
+    try:
+        import subprocess
+        probe = subprocess.run([tesseract, "--version"], capture_output=True, timeout=5, env={"OMP_THREAD_LIMIT": "1"}, shell=False)
+        first = (probe.stdout or probe.stderr).decode("utf-8", "replace").splitlines()
+        if first and re.fullmatch(r"tesseract v?[0-9][0-9A-Za-z.\-]{0,40}", first[0].strip()):
+            version = first[0].strip().split()[-1]
+    except Exception:
+        pass
+    return {"pages": pages, "pageCount": len(pages), "characters": characters, "sourceTainted": True, "numericalStatus": "unverified", "requiresReview": True,
+            "engine": "tesseract", "engineVersion": version, "renderer": "pypdfium2", "language": language, "confidenceScale": "mean word confidence, whole percent 0-100",
+            "coverage": "EXPERIMENTAL OCR: page images read by tesseract. Characters, digits and amounts can be misread; every OCR page needs review and must pass the statement's own balance checks."}
+
+
 def unique_pairs(pairs):
     result = {}
     for key, value in pairs:
@@ -184,7 +305,7 @@ def main():
         request = json.loads(raw, object_pairs_hook=unique_pairs, parse_constant=lambda _: (_ for _ in ()).throw(Refused("INVALID_HELPER_INPUT")))
         keys(request, {"operation", "input"}, {"operation", "input"})
         operation = request["operation"]
-        handlers = {"pdf.extract": pdf_extract, "forecast": forecast, "allocation.optimize": optimize}
+        handlers = {"pdf.extract": pdf_extract, "pdf.ocr": pdf_ocr, "forecast": forecast, "allocation.optimize": optimize}
         require(operation in handlers, "HELPER_OPERATION_UNSUPPORTED")
         result = handlers[operation](request["input"])
         output = {"ok": True, "operation": operation, "result": result, "runtime": {"python": sys.version.split()[0], "resourceLimits": limits}}

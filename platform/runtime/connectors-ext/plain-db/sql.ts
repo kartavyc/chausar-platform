@@ -104,6 +104,19 @@ export function limits(options: PlainDbOptions): { rowLimit: number; timeoutMs: 
   return { rowLimit, timeoutMs };
 }
 
+/**
+ * The database's own system catalogues (role and password tables, server settings) are never read as
+ * business records, even by a user who could: Postgres pg_* and information_schema schemas, MySQL's
+ * mysql, information_schema, performance_schema and sys databases, SQLite's sqlite_* tables.
+ */
+export function isSystemCatalogue(engine: PlainDbEngine, name: string): boolean {
+  const n = name.toLowerCase();
+  if (engine === 'postgres') return n === 'information_schema' || n.startsWith('pg_');
+  if (engine === 'mysql') return ['mysql', 'information_schema', 'performance_schema', 'sys'].includes(n);
+  return n.startsWith('sqlite_');
+}
+export const SYSTEM_CATALOGUE_REFUSAL = ['DB_SYSTEM_TABLE', 'The database\'s own system tables are not read as business records.'] as const;
+
 const LOOPBACK = (host: string) => host === 'localhost' || host === '::1' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
 /** Network settings: exact keys, a plain host, and TLS unless the database is on this machine. Never a password. */
 export function validateNetworkConnection(input: unknown, engine: 'postgres' | 'mysql'): { host: string; port: number; database: string; user: string; ssl: 'require' | 'disable'; passwordRef: string } {
@@ -116,6 +129,7 @@ export function validateNetworkConnection(input: unknown, engine: 'postgres' | '
   check(typeof c.user === 'string' && /^[\p{L}\p{N}_.$@-]{1,64}$/u.test(c.user), 'DB_CONNECTION_INVALID', 'The user name has characters a plain read does not accept.');
   check(c.ssl === 'require' || c.ssl === 'disable', 'DB_CONNECTION_INVALID', 'TLS is require or disable.');
   check(c.ssl === 'require' || LOOPBACK(c.host as string), 'DB_TLS_REQUIRED', 'A database on another machine is read only over TLS.');
+  if (engine === 'mysql') check(!isSystemCatalogue('mysql', c.database as string), ...SYSTEM_CATALOGUE_REFUSAL);
   check(typeof c.passwordRef === 'string' && /^[A-Za-z0-9._:/-]{1,200}$/.test(c.passwordRef), 'DB_CONNECTION_INVALID', 'The password reference is a keychain reference.');
   return c as any;
 }

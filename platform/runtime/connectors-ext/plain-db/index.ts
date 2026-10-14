@@ -2,14 +2,14 @@ import { check, ChausarError } from '../../contracts.ts';
 import { BUILT_IN_DECODERS } from '../decoders.ts';
 import { compileRecipe, runRecipe, type Decoder } from '../recipe.ts';
 import type { RecipeOutcome } from '../types.ts';
-import { buildQueries, checkAgainstCatalogue, limits, recipeFor, validateMapping } from './sql.ts';
+import { buildQueries, checkAgainstCatalogue, isSystemCatalogue, limits, recipeFor, SYSTEM_CATALOGUE_REFUSAL, validateMapping } from './sql.ts';
 import { withPostgresSnapshot } from './postgres.ts';
 import { withMysqlSnapshot } from './mysql.ts';
 import { validateSqliteConnection, withSqliteSnapshot } from './sqlite.ts';
 import type { PlainDbConnection, PlainDbOptions, PlainDbRead, PlainDbRow, PlainDbTable, SnapshotSession } from './types.ts';
 
 export * from './types.ts';
-export { buildQueries, checkAgainstCatalogue, DIALECTS, identifierShape, mysqlLiteral, recipeFor, validateMapping, ROW_LIMIT_MAX } from './sql.ts';
+export { buildQueries, checkAgainstCatalogue, isSystemCatalogue, DIALECTS, identifierShape, mysqlLiteral, recipeFor, validateMapping, ROW_LIMIT_MAX } from './sql.ts';
 export { withPostgresSnapshot, postgresFailure } from './postgres.ts';
 export { withSqliteSnapshot, openSqliteReadOnly, validateSqliteConnection } from './sqlite.ts';
 export { withMysqlSnapshot, connectMysql, nativePasswordScramble, cachingSha2Scramble, mysqlErrorCode, lenencInt, MYSQL_LIMITS, type MysqlClient, type MysqlResult, type MysqlClientOptions } from './mysql.ts';
@@ -38,6 +38,7 @@ export async function listTables(connection: PlainDbConnection, options: PlainDb
   return withSnapshot(connection, options, async session => {
     const tables = new Map<string, PlainDbTable>();
     for (const entry of await session.catalogue()) {
+      if (isSystemCatalogue(engineOf(connection), engineOf(connection) === 'sqlite' ? entry.table : entry.schema ?? '')) continue;
       const key = JSON.stringify([entry.schema, entry.table]);
       if (!tables.has(key)) tables.set(key, { schema: entry.schema, name: entry.table, columns: [] });
       tables.get(key)!.columns.push(entry.column);
@@ -59,6 +60,7 @@ export async function plainDbRead(connection: PlainDbConnection, mappingInput: u
   if (mapping.engine === 'postgres') schema = mapping.table.schema ?? 'public';
   else if (mapping.engine === 'mysql') { check(mapping.table.schema === undefined || mapping.table.schema === (connection as any).database, 'DB_TABLE_UNKNOWN', 'A MySQL table is read from the connection\'s own database.'); schema = (connection as any).database; }
   else check(mapping.table.schema === undefined || mapping.table.schema === 'main', 'DB_TABLE_UNKNOWN', 'A SQLite table is read from the main database.');
+  check(!isSystemCatalogue(mapping.engine, mapping.engine === 'sqlite' ? mapping.table.name : schema!), ...SYSTEM_CATALOGUE_REFUSAL);
   const recipe = recipeFor(mapping, sourceKey(connection, schema, mapping.table.name));
   compileRecipe(recipe, decoders);
   return withSnapshot(connection, options, async session => {

@@ -385,3 +385,26 @@ test('mysql: TLS is required off this machine, and identifiers are checked befor
   await assert.rejects(plainDbRead(mysqlConn(3306), { ...mysqlMapping, table: { name: 'orders`; DROP TABLE orders; --' } }, { credentials: mysqlCredentials }), code('DB_IDENTIFIER_INVALID'));
   await assert.rejects(plainDbRead(mysqlConn(3306), { ...mysqlMapping, table: { schema: 'other', name: 'orders' } }, { credentials: mysqlCredentials }), code('DB_TABLE_UNKNOWN'));
 });
+
+// ---------------------------------------------------------------- found against real servers (see connectors-ext-plain-db-live.test.ts)
+
+test('system catalogues are never read as business records, on any engine', async () => {
+  const pg = fakePg({});
+  await assert.rejects(plainDbRead(pgConn, pgMapping({ table: { schema: 'pg_catalog', name: 'pg_authid' } }), { credentials, createPostgresClient: pg.factory }), code('DB_SYSTEM_TABLE'));
+  await assert.rejects(plainDbRead(pgConn, pgMapping({ table: { schema: 'information_schema', name: 'columns' } }), { credentials, createPostgresClient: pg.factory }), code('DB_SYSTEM_TABLE'));
+  assert.equal(pg.log.length, 0, 'refused before any query');
+  for (const database of ['mysql', 'information_schema', 'performance_schema', 'SYS'])
+    await assert.rejects(plainDbRead({ ...mysqlConn(1), database }, { ...mysqlMapping, table: { name: 'user' } }, { credentials: async () => 'x' }), code('DB_SYSTEM_TABLE'));
+  const conn = sqliteFile('system.db', sqliteRows);
+  await assert.rejects(plainDbRead(conn, sqliteMapping({ table: { name: 'sqlite_master' } })), code('DB_SYSTEM_TABLE'));
+});
+
+test('postgres: driver time limits without a server code are timeouts; connect failures are connection failures', async () => {
+  const base = fakePg({}).factory;
+  const connectTimeout = (config: PgClientConfig) => ({ ...base(config), async connect() { throw new Error('Connection terminated due to connection timeout'); } });
+  await assert.rejects(plainDbRead(pgConn, pgMapping(), { credentials, createPostgresClient: connectTimeout }), code('DB_TIMEOUT'));
+  const closed = (config: PgClientConfig) => ({ ...base(config), async connect() { throw new Error('Connection terminated unexpectedly'); } });
+  await assert.rejects(plainDbRead(pgConn, pgMapping(), { credentials, createPostgresClient: closed }), code('DB_CONNECT_FAILED'));
+  const readTimeout = fakePg({ fail: { at: /^SELECT CAST\(COUNT/, error: new Error('Query read timeout') } });
+  await assert.rejects(plainDbRead(pgConn, pgMapping(), { credentials, createPostgresClient: readTimeout.factory }), code('DB_TIMEOUT'));
+});

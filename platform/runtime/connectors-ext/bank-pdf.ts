@@ -8,8 +8,14 @@ import type { GridLine } from './tabular.ts';
  * parser. EXPERIMENTAL: layouts are read by line shape, not by a bank-specific template.
  * The PDF text is data: it only ever becomes cells, never an instruction, label or choice of code.
  */
-export type PdfPage = { page: number; text: string };
-export type PdfHelper = { run(op: 'pdf.extract', input: { pdfBase64: string; maxPages?: number }): Promise<{ result: any; receipt: any }> };
+export type PdfPage = {
+  page: number; text: string;
+  /** How the text was read: the PDF's own text layer, or OCR of the page image (experimental). Absent means text. */
+  source?: 'text' | 'ocr';
+  /** OCR only: mean word confidence, whole percent 0-100. */
+  confidence?: number;
+};
+export type PdfHelper = { run(op: 'pdf.extract' | 'pdf.ocr', input: { pdfBase64: string; maxPages?: number; language?: 'eng' }): Promise<{ result: any; receipt: any }> };
 export type PdfLineRef = { page: number; line: number };
 export type PdfRowsMeta = {
   pages: number; transactions: number; continuations: number; skipped: number;
@@ -18,6 +24,8 @@ export type PdfRowsMeta = {
   directionStated: number; directionInferred: number; directionUnknown: number;
   /** Row number in `rows` (1-based, header is row 1) to the page and line it came from. */
   lineMap: ({ row: number } & PdfLineRef)[];
+  /** Pages whose text was read by OCR (experimental), for the envelope to say so. Empty for text-layer PDFs. */
+  ocrPages: number[];
 };
 /** A refusal that names where in the PDF it happened. The message is a fixed sentence. */
 export class PdfStatementError extends ChausarError {
@@ -38,6 +46,48 @@ export async function extractBankPdf(helper: PdfHelper, pdfBase64: string): Prom
     return { page: item.page, text: item.text };
   });
   return { pages: out, receipt: response.receipt };
+}
+
+export const OCR_NOTICE = 'Read by OCR (experimental): characters and amounts on these pages can be misread; review them before relying on the totals.';
+export type OcrExtraction = {
+  pages: PdfPage[];
+  /** Pages read by OCR, ascending. Empty when every page had a text layer and OCR never ran. */
+  ocrPages: number[];
+  /** Present when ocrPages is not empty. */
+  notice: string | null;
+  receipts: { extract: unknown; ocr: unknown | null };
+};
+/**
+ * EXPERIMENTAL. Text-layer extraction first; only pages with no text are read again by OCR (`pdf.ocr`).
+ * An OCR page below the confidence floor is refused, naming the page. A machine without the OCR
+ * reader refuses with OCR_DEPENDENCY_UNAVAILABLE naming the first scanned page. OCR text is data, exactly
+ * like extracted text, and still has to pass the statement's own balance checks downstream.
+ */
+export async function extractBankPdfWithOcr(helper: PdfHelper, pdfBase64: string, options: { minConfidence?: number } = {}): Promise<OcrExtraction> {
+  const minConfidence = options?.minConfidence ?? 80;
+  check(Number.isSafeInteger(minConfidence) && minConfidence >= 1 && minConfidence <= 100, 'PDF_OCR_OPTIONS_INVALID', 'The OCR confidence floor is a whole percent from 1 to 100.');
+  const extracted = await extractBankPdf(helper, pdfBase64);
+  const pages: PdfPage[] = extracted.pages.map(page => ({ ...page, source: 'text' }));
+  const scanned = pages.filter(page => page.text.trim() === '').map(page => page.page);
+  if (!scanned.length) return { pages, ocrPages: [], notice: null, receipts: { extract: extracted.receipt, ocr: null } };
+  let response: { result: any; receipt: any };
+  try { response = await helper.run('pdf.ocr', { pdfBase64, maxPages: MAX_PAGES, language: 'eng' }); }
+  catch (error) {
+    if ((error as any)?.code === 'OCR_DEPENDENCY_UNAVAILABLE')
+      throw new PdfStatementError('OCR_DEPENDENCY_UNAVAILABLE', 'A page has no text layer, and the experimental OCR reader is not installed on this machine.', scanned[0], null);
+    throw error;
+  }
+  const ocr = response?.result?.pages;
+  check(Array.isArray(ocr) && ocr.length === pages.length, 'PDF_OCR_INVALID', 'The OCR reader returned a different number of pages than the PDF has.');
+  ocr.forEach((item: any, index: number) => check(item && item.page === index + 1 && typeof item.text === 'string' && Number.isSafeInteger(item.confidence) && item.confidence >= 0 && item.confidence <= 100,
+    'PDF_OCR_INVALID', 'The OCR reader returned pages in an unexpected shape.'));
+  for (const number of scanned) {
+    const read = ocr[number - 1];
+    if (read.text.trim() === '' || read.confidence < minConfidence)
+      throw new PdfStatementError('PDF_OCR_LOW_CONFIDENCE', 'A scanned page was read by OCR with too little confidence to use. Check the page named with this refusal.', number, null);
+    pages[number - 1] = { page: number, text: read.text, source: 'ocr', confidence: read.confidence };
+  }
+  return { pages, ocrPages: scanned, notice: OCR_NOTICE, receipts: { extract: extracted.receipt, ocr: response.receipt } };
 }
 
 const DATE_START = [/^(\d{1,2}[/.-]\d{1,2}[/.-](?:\d{4}|\d{2}))(?=\s|$)/, /^(\d{1,2}[ -][A-Za-z]{3,9}[ ,-]+(?:\d{4}|\d{2}))(?=\s|$)/];
@@ -91,11 +141,12 @@ type Item = Txn | { kind: 'cells'; ref: PdfLineRef; cells: string[] };
  */
 export function pdfTextToRows(pages: readonly PdfPage[]): { rows: string[][]; meta: PdfRowsMeta } {
   check(Array.isArray(pages) && pages.length > 0 && pages.length <= MAX_PAGES, 'PDF_PAGES_REQUIRED', 'Provide the page texts of the PDF statement.');
-  const meta: PdfRowsMeta = { pages: pages.length, transactions: 0, continuations: 0, skipped: 0, unparsed: [], unparsedCount: 0, directionStated: 0, directionInferred: 0, directionUnknown: 0, lineMap: [] };
+  const meta: PdfRowsMeta = { pages: pages.length, transactions: 0, continuations: 0, skipped: 0, unparsed: [], unparsedCount: 0, directionStated: 0, directionInferred: 0, directionUnknown: 0, lineMap: [], ocrPages: [] };
   const items: Item[] = []; const suspicious: PdfLineRef[] = [];
   for (const page of pages) {
     check(page && Number.isSafeInteger(page.page) && page.page > 0 && typeof page.text === 'string', 'PDF_PAGES_REQUIRED', 'Provide the page texts of the PDF statement.');
-    if (page.text.trim() === '') throw new PdfStatementError('PDF_SCANNED_PAGE', 'A page has no text layer. Scanned pages need an OCR adapter, which is not built yet.', page.page, null);
+    if (page.text.trim() === '') throw new PdfStatementError('PDF_SCANNED_PAGE', 'A page has no text layer. Scanned pages are read only through the experimental OCR reader.', page.page, null);
+    if (page.source === 'ocr') meta.ocrPages.push(page.page);
     const lines: string[] = page.text.split(/\r\n|\r|\n/);
     let pendingSummary: { labels: string[]; ref: PdfLineRef } | null = null;
     lines.forEach((raw: string, index: number) => {
