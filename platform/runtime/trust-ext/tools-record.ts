@@ -9,7 +9,7 @@ const GENESIS = '0'.repeat(64);
 const LIMIT = 'This record shows tampering. It cannot stop the owner of a computer from wiping that computer.';
 
 const WORDS: Record<string, string> = {
-  'trust.policy.changed': 'Changed the privacy rules', 'trust.member.created': 'Added a person to the workspace', 'trust.member.revoked': 'Removed a person from the workspace',
+  'trust.policy.changed': 'Changed the privacy rules', 'trustx.autonomy.changed': 'Changed what may run without asking', 'trustx.change.confirmed': 'Confirmed a change that needed two people', 'trustx.change.requested': 'Asked for a change that needs a second person', 'trustx.keep.changed': 'Changed how long data is kept', 'trustx.marking.changed': 'Changed a marking', 'trustx.seat.invited': 'Invited a person to a seat', 'trustx.seat.removed': 'Removed a seat', 'trustx.send.changed': 'Changed what may be sent to an AI model', 'trust.member.created': 'Added a person to the workspace', 'trust.member.revoked': 'Removed a person from the workspace',
   'trust.source.deleted': 'Deleted a source and what came from it', 'trust.source.grant.changed': 'Changed who may see a source', 'trust.retention.cleaned': 'Removed records past their keep date',
   'plugin.installed': 'Installed a plugin', 'plugin.enabled': 'Turned a plugin on', 'plugin.disabled': 'Turned a plugin off', 'plugin.removed': 'Removed a plugin', 'plugin.ran': 'Ran a plugin in its locked box', 'plugin.refused': 'Stopped a plugin run',
   'decision.created': 'Wrote down a decision', 'decision.reviewed': 'Reviewed a decision', 'decision.revised': 'Changed a decision',

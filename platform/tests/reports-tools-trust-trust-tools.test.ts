@@ -203,7 +203,7 @@ test('plugins are inspected without installing, refused when not built for the l
   const yes = await f.rpc('trustx.installPlugin', { ...second, answers: { [`source:${sourceId}`]: true }, digest: (await f.rpc('trustx.inspectPlugin', second)).digest });
   assert.equal(yes.status, 'enabled'); assert.deepEqual(yes.missing, []);
   const list = await f.rpc('trustx.plugins');
-  assert.equal(list.plugins.length, 2); assert.equal(list.plugins.find((p: any) => p.id === no.id).maker, 'Synthetic maker'); assert.equal(list.blockedList.version, 1);
+  assert.equal(list.plugins.length, 2); assert.equal(list.plugins.find((p: any) => p.id === no.id).maker, 'Synthetic maker'); assert.equal(list.blockedList.version, '1');
   assert.deepEqual(await f.rpc('trustx.removePlugin', { id: no.id }), { removed: true, kept: 'What it produced stays, labelled with its name.' });
   assert.equal((await f.rpc('trustx.plugins')).plugins.length, 1);
 });

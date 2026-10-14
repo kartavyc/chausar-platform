@@ -74,7 +74,7 @@ function row(state: State, plugin: any) {
 }
 export function pluginsView(ctx: Context, host: ModuleHost) {
   const state = host.store.read();
-  return { plugins: (host.services.plugins.list(ctx) as any[]).map(plugin => row(state, plugin)), blockedList: { version: BLOCKED.version, checkedAt: BLOCKED.checkedAt } };
+  return { plugins: (host.services.plugins.list(ctx) as any[]).map(plugin => row(state, plugin)), blockedList: { version: String(BLOCKED.version), checkedAt: BLOCKED.checkedAt } };
 }
 
 /** Installs only the inspected package; it is enabled only when every ask was answered Yes. */

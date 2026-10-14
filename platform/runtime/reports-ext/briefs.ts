@@ -62,7 +62,7 @@ export function scheduledFor(rhythm: RhythmSettings, week: Period): string {
 }
 
 function figure(receipt: CalculationReceipt): EngineFigure {
-  return receipt.coverage.completeness === 'empty' ? { kind: 'missing', missing: 'absent' } : { kind: 'money', exact: receipt.totalMinor, receiptId: receipt.id, labels: [receipt.operation, 'total'] };
+  return receipt.coverage.completeness === 'empty' ? { kind: 'missing', missing: 'absent' } : { kind: 'money', exact: receipt.totalMinor, receiptId: receipt.id, labels: receipt.stale ? ['stale'] : [], measure: { operation: receipt.operation, key: 'total' } };
 }
 const changes: { op: string; text: string }[] = [
   { op: 'net_sales', text: 'Net sales, this week against last week' },

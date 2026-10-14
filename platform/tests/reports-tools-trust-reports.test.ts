@@ -86,10 +86,10 @@ test('every printed figure opens its calculation receipt; missing values are mis
   let figures = 0;
   for (const section of page.sections) for (const line of section.lines) if (line.figure.kind !== 'missing') {
     const receipt = await engine.request('receipts.get', { id: line.figure.receiptId });
-    assert.equal(receipt.figures.find((f: any) => f.key === line.figure.labels[1]).minor, line.figure.exact); assert.ok(page.receiptIds.includes(receipt.id)); figures++;
+    assert.equal(receipt.figures.find((f: any) => f.key === line.figure.measure.key).minor, line.figure.exact); assert.ok(page.receiptIds.includes(receipt.id)); figures++;
   }
   assert.equal(figures, 4);
-  assert.deepEqual(page.footer, { checkCode: null, at: null }); assert.deepEqual(page.markings, []);
+  assert.match(page.footer.checkCode, /^[0-9a-f]{8}$/); assert.ok(Date.parse(page.footer.at)); assert.deepEqual(line0Labels(page), []); assert.deepEqual(page.markings, []);
   const monthly = await engine.request('reportsx.page', { pack: 'lender', page: 'monthly-sales', period: september });
   const months = monthly.sections[0].lines; assert.equal(months.length, 12); assert.equal(months.at(-1).id, '2026-09'); assert.equal(months.at(-1).figure.exact, '112525');
   assert.deepEqual(months[0].figure, { kind: 'missing', missing: 'absent' }); assert.ok(months.every((l: any) => l.figure.kind === 'missing' || l.figure.exact !== '0'));
@@ -267,3 +267,10 @@ test('a viewer reads pages but cannot export, change the rhythm or export everyt
   await assert.rejects(engine.requestAs(cofounder, 'reportsx.exportAll', { confirmed: true }), code('FORBIDDEN'));
   await assert.rejects(engine.requestAs({ ...viewer, channel: 'phone' }, 'reportsx.packs', {}), code('OPEN_DESKTOP'));
 });
+
+/** Every label on a printed figure is one of the canonical labels a screen shows. */
+function line0Labels(page: any): string[] {
+  const canonical = new Set(['seed', 'what-if', 'projection', 'from-outside', 'approximate', 'demo-clock', 'stale']);
+  const labels = page.sections.flatMap((s: any) => s.lines.flatMap((l: any) => l.figure.labels ?? []));
+  return labels.filter((label: string) => !canonical.has(label));
+}

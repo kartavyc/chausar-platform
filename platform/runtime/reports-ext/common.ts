@@ -8,7 +8,9 @@ export type Language = 'en' | 'hi';
 export type Words = { en: string; hi: string };
 export type Period = { from: string; to: string };
 export type Missing = 'absent' | 'null' | 'unknown' | 'withheld' | 'not-applicable' | 'not-loaded-yet' | 'not-counted';
-export type EngineFigure = { kind: 'money' | 'count' | 'percent'; exact: string; receiptId: string; labels: string[] } | { kind: 'missing'; missing: Missing };
+/** `labels` holds only the canonical figure labels a screen shows; `measure` names the calculation and figure. */
+export type FigureLabel = 'seed' | 'what-if' | 'projection' | 'from-outside' | 'approximate' | 'demo-clock' | 'stale';
+export type EngineFigure = { kind: 'money' | 'count' | 'percent'; exact: string; receiptId: string; labels: FigureLabel[]; measure?: { operation: string; key: string } } | { kind: 'missing'; missing: Missing };
 export type FileRef = { name: string; path: string; bytes: number; sha256: string };
 
 /** Rhythm times and "today" are India Standard Time (UTC+05:30, no daylight saving). */

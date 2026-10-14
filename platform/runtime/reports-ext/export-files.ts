@@ -52,8 +52,8 @@ export function pageHtml(page: ReportPage): string {
   return `<!doctype html><html lang="${page.language}"><meta charset="utf-8"><title>${escapeHtml(page.title)}</title><style>@page{size:A4;margin:16mm}body{font:12pt system-ui;color:#15231e;max-width:180mm;margin:auto}table{border-collapse:collapse;width:100%}td{padding:4px 6px;border-bottom:1px solid #ccd5cf}.amount{text-align:right}.side{width:3em}.projection{border:1px dashed #53645a;padding:6px}.gaps{color:#7a4b00}small{color:#53645a}footer{margin-top:24px;font-size:10pt;color:#53645a}</style><h1>${escapeHtml(page.title)}</h1><p>${page.period ? `${escapeHtml(page.period.from)} – ${escapeHtml(page.period.to)}` : ''}</p>${sections}${notes}${page.disclaimer ? `<p><strong>${escapeHtml(page.disclaimer)}</strong></p>` : ''}<footer>Check code ${escapeHtml(page.footer.checkCode ?? 'not available')}${page.footer.at ? `, ${escapeHtml(page.footer.at)}` : ''}</footer></html>`;
 }
 
-/** Workspace stores written by "Export everything". Sign-in sessions are credentials, not business records, and stay out. */
-const skipped = new Set(['sessions', 'schemaVersion', 'revision']);
+/** Workspace stores written by "Export everything". Sign-in sessions are credentials, and engine-module namespaces may hold other lanes' tokens; both stay out. */
+const skipped = new Set(['sessions', 'extensions', 'schemaVersion', 'revision']);
 export type StoreFile = { name: string; rows: number; checkNumber: string; file: string };
 export async function exportStores(state: State, folder: string): Promise<StoreFile[]> {
   const stores: StoreFile[] = [];

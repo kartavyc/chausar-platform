@@ -70,7 +70,7 @@ function figureOf(result: OpResult, key: string): EngineFigure {
   if (!receipt || receipt.coverage.completeness === 'empty') return { kind: 'missing', missing: result.missing ?? 'unknown' };
   const figure = receipt.figures.find(item => item.key === key);
   if (!figure) return { kind: 'missing', missing: 'not-applicable' };
-  return { kind: figure.unit === 'money' ? 'money' : 'percent', exact: figure.minor, receiptId: receipt.id, labels: [receipt.operation, figure.key] };
+  return { kind: figure.unit === 'money' ? 'money' : 'percent', exact: figure.minor, receiptId: receipt.id, labels: receipt.stale ? ['stale'] : [], measure: { operation: receipt.operation, key: figure.key } };
 }
 
 async function section(calc: Calculations, host: ModuleHost, ctx: Context, spec: SectionSpec, period: Period, lang: Language, receipts: Map<string, CalculationReceipt>): Promise<ReportSection> {
@@ -96,7 +96,7 @@ async function section(calc: Calculations, host: ModuleHost, ctx: Context, spec:
     let figure: EngineFigure = { kind: 'missing', missing: 'not-counted' };
     try {
       const forecast = await host.services.reports.forecast(ctx, { receiptIds: history.map(receipt => receipt.id) });
-      if (forecast.status === 'passed-local-baseline-gate' && typeof forecast.forecastMinor === 'string') figure = { kind: 'money', exact: forecast.forecastMinor, receiptId: forecast.id, labels: ['forecast', 'projection'] };
+      if (forecast.status === 'passed-local-baseline-gate' && typeof forecast.forecastMinor === 'string') figure = { kind: 'money', exact: forecast.forecastMinor, receiptId: forecast.id, labels: ['projection'], measure: { operation: 'forecast', key: 'forecastMinor' } };
       else gaps.push(words.forecastRefused[lang]);
     } catch (error) {
       if ((error as { code?: string }).code === 'ACCESS_REVOKED') throw error;

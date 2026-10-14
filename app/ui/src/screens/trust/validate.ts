@@ -278,7 +278,7 @@ export function validatePlanted(reply: unknown): { at: string } {
 }
 
 // ---------- Record (TR-10) ----------
-export interface RecordItem { seq: number; at: string; who: string; what: string; rule: string; computer: string }
+export interface RecordItem { seq: number; at: string; who: string; what: string; rule: string | null; computer: string }
 export interface RecordView { items: RecordItem[]; head: { hash: string; short: string; at: string | null; count: number }; limit: number | null }
 export function validateRecord(reply: unknown): RecordView {
   const r = rec(reply), h = rec(r['head'], 'reply.head');
@@ -286,7 +286,7 @@ export function validateRecord(reply: unknown): RecordView {
   return {
     items: list(r['items'], 'reply.items', (v, p) => {
       const i = rec(v, p);
-      return { seq: count(i['seq'], `${p}.seq`), at: instant(i['at'], `${p}.at`), who: str(i['who'], `${p}.who`, 200), what: str(i['what'], `${p}.what`, 500), rule: str(i['rule'], `${p}.rule`, 500), computer: str(i['computer'], `${p}.computer`, 200) };
+      return { seq: count(i['seq'], `${p}.seq`), at: instant(i['at'], `${p}.at`), who: str(i['who'], `${p}.who`, 200), what: str(i['what'], `${p}.what`, 500), rule: optStr(i['rule'], `${p}.rule`, 500), computer: str(i['computer'], `${p}.computer`, 200) };
     }, 5000),
     head: { hash: str(h['hash'], 'reply.head.hash', 200), short: str(h['short'], 'reply.head.short', 40), at: optInstant(h['at'], 'reply.head.at'), count: count(h['count'], 'reply.head.count') },
     // The cut-off for the list, or the engine's own sentence about the limit (the screen keeps its own words).

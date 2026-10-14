@@ -70,7 +70,7 @@ function Entries({ p, rec }: { p: P; rec: RecordView }) {
   if (rec.items.length === 0) return <p className={s.quiet}>{w.none}</p>;
   const rows: RowItem[] = rec.items.map((x) => ({
     id: String(x.seq), mark: 'you', what: x.what,
-    note: [x.who, x.rule, dayText(x.at, p.language), x.computer, ...(p.view === 'books' ? [fill(w.entry, { n: countText(x.seq) }), x.at] : [])].join(' · '),
+    note: [x.who, ...(x.rule === null ? [] : [x.rule]), dayText(x.at, p.language), x.computer, ...(p.view === 'books' ? [fill(w.entry, { n: countText(x.seq) }), x.at] : [])].join(' · '),
   }));
   return (
     <>
