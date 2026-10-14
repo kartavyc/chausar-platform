@@ -564,3 +564,24 @@ test('message statuses for the writeback lane: exact payload, validated array re
   assert.equal(JSON.stringify(f.engine.vault!.read()).includes('synthetic-business-app-secret'), false, 'the app secret is never kept on the desktop');
   assert.equal(activity(f, 'hosted.businessHook.set').length, 1);
 });
+
+test('an interrupted phone approval resumes only through the member, expiry and eligibility checks', async t => {
+  const f = await paired(t);
+  const prepared = await prepare(f);
+  const sent = await f.rpc('phone.messages.send', { event: 'review-ready', channel: 'whatsapp', actionId: prepared.id });
+  const envelopeId = f.server.press(sent.messageId, 'approve');
+  // A crash between the claim and actions.approve leaves the offer used and 'approving'; it was another member's offer.
+  await f.engine.vault!.update(state => {
+    const offer = (state.extensions!['hosted-link'] as any).offers.find((o: any) => o.offerId === sent.offer.offerId);
+    Object.assign(offer, { used: true, envelopeId, outcome: 'approving', memberId: 'member_other' });
+  });
+  const other = await f.rpc('phone.relay.collect');
+  assert.deepEqual(other.collected.map((c: any) => c.outcome), ['other-member']);
+  assert.equal(action(f, prepared.id).status, 'prepared');
+  // The owner's own interrupted approval resumes, but not after the offer expired.
+  await f.engine.vault!.update(state => { (state.extensions!['hosted-link'] as any).offers.find((o: any) => o.offerId === sent.offer.offerId).memberId = 'owner'; });
+  f.advance(31 * 60000);
+  const late = await f.rpc('phone.relay.collect');
+  assert.deepEqual(late.collected.map((c: any) => c.outcome), ['expired']);
+  assert.equal(action(f, prepared.id).status, 'prepared');
+});

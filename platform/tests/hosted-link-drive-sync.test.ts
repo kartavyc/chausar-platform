@@ -168,7 +168,12 @@ test('connect creates the Drive folder, the core sync publishes through it, and 
 
   // Disconnect clears the record, detaches and turns sync off; Drive files stay.
   await source.engine.request('sync.enable', { enabled: true });
+  // An open preview and approval given for this folder must not carry over to any other folder.
+  const open = await source.engine.request('sync.preview'), openApproval = await source.engine.request('sync.approve', { id: open.id });
   const gone = await source.engine.request('hosted.drive.disconnect');
+  const receipts = source.engine.vault!.read().modelReceipts as any[];
+  assert.equal(receipts.find(r => r.id === open.id).status, 'voided');
+  assert.equal(receipts.find(r => r.id === openApproval.id).used, true);
   assert.equal(gone.disconnected, true); assert.equal(gone.filesKept, true); assert.equal(gone.attachment, 'not-connected');
   assert.equal(recorded(source.engine), null);
   const after = await source.engine.request('sync.status'); assert.equal(after.transport, null); assert.equal(after.enabled, false);

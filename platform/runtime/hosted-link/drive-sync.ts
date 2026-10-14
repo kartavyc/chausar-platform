@@ -140,6 +140,19 @@ const matches = (transport: SyncTransport, drive: DriveRecord) => {
   return ids.length === 2 && ids[0] === drive.folderId && ids[1] === drive.headFileId && (transport as Partial<GoogleDriveSyncTransport>).workspaceId === drive.workspaceId;
 };
 
+/**
+ * A sync preview and its approval name only the transport kind, so an approval given while one folder was attached
+ * must not carry over to another: changing the folder voids every open preview and unused approval.
+ */
+function voidSyncApprovals(state: any): void {
+  let voided = 0;
+  for (const receipt of state.modelReceipts) {
+    if (receipt?.kind === 'sync-preview' && receipt.status === 'preview') { receipt.status = 'voided'; voided++; }
+    else if (receipt?.kind === 'sync-approval' && receipt.used === false) { receipt.used = true; receipt.voided = true; voided++; }
+  }
+  if (voided) audit(state, 'hosted.drive.syncApprovalsVoided', { count: voided });
+}
+
 export type Attachment = 'attached' | 'not-connected' | 'host-transport' | 'sign-in-required' | 'unavailable';
 /** Brings the core SyncService in line with the recorded folder: attach, keep, or detach. Local only; never calls Drive. */
 export function reattach(host: ModuleHost, ctx: Context): Attachment {
@@ -189,6 +202,7 @@ export async function driveConnect(ctx: Context, payload: Record<string, any>, h
     const next: DriveRecord = { ...drive, recordedAt: connectedAt, connectedAt };
     s.drive = next;
     audit(state, 'hosted.drive.connected', { folderId: next.folderId, headFileId: next.headFileId, created: next.created, workspaceId: next.workspaceId });
+    voidSyncApprovals(state);
     return structuredClone(next);
   });
   const attachment = reattach(host, ctx);
@@ -213,6 +227,7 @@ export async function driveDisconnect(ctx: Context, payload: Record<string, any>
     if (!before) return null;
     s.drive = null;
     audit(state, 'hosted.drive.disconnected', { folderId: before.folderId });
+    voidSyncApprovals(state);
     return before.folderId;
   });
   const attachment = reattach(host, ctx);

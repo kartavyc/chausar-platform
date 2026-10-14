@@ -308,11 +308,11 @@ async function applyEnvelope(ctx: Context, host: ModuleHost, c: Configured, pair
     if (!offer) return { outcome: 'not-ours' as const };
     if (offer.actionId !== intent.actionId || offer.digest !== intent.digest || offer.expiresAt !== intent.expiresAt
       || offer.channel !== envelope.channel || (offer.messageId !== null && offer.messageId !== envelope.messageId)) return { outcome: 'invalid' as const };
-    // An approval interrupted between the claim and actions.approve resumes on the next collect.
-    if (offer.used && offer.envelopeId === envelope.envelopeId && offer.outcome === 'approving') return { outcome: 'approve' as const, actionId: offer.actionId, digest: offer.digest };
-    if (offer.used) return { outcome: offer.envelopeId === envelope.envelopeId ? 'already-applied' as const : 'replayed' as const };
     if (offer.memberId !== ctx.memberId || offer.epoch !== ctx.epoch) return { outcome: 'other-member' as const };
-    offer.used = true; offer.usedAt = new Date(time).toISOString(); offer.envelopeId = envelope.envelopeId;
+    // An approval interrupted between the claim and actions.approve resumes on the next collect, through every check below.
+    const resuming = offer.used && offer.envelopeId === envelope.envelopeId && offer.outcome === 'approving';
+    if (offer.used && !resuming) return { outcome: offer.envelopeId === envelope.envelopeId ? 'already-applied' as const : 'replayed' as const };
+    if (!resuming) { offer.used = true; offer.usedAt = new Date(time).toISOString(); offer.envelopeId = envelope.envelopeId; }
     if (!(time < Date.parse(offer.expiresAt) && time < Date.parse(envelope.expiresAt))) {
       offer.outcome = 'expired'; audit(state, 'hosted.relay.expired', { actionId: offer.actionId, channel: envelope.channel }); return { outcome: 'expired' as const };
     }
