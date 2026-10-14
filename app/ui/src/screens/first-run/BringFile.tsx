@@ -10,6 +10,12 @@
  * says why from the fixed list. For a layout the standard recipe does not know, "Pick your
  * columns" builds a data-only recipe from the person's choices.
  *
+ * A bank statement PDF is offered only when the engine answers `imports.readerStatus` (the
+ * connectors-ext `imports.*` family); it is then read by `PdfStatement`, which also asks for the
+ * PDF's password. A sheet has no password path: an encrypted workbook (recognised by its first
+ * bytes before anything is sent, or `ENCRYPTED_ZIP` from the engine) shows "password needed"
+ * with the not-built words and no field.
+ *
  * The engine reads a file only against agreed meanings. If it answers `DICTIONARY_REQUIRED`
  * the file is held by the journey and read again right after the meanings are agreed.
  */
@@ -21,14 +27,18 @@ import { money } from '../../format/money.ts';
 import { Field } from '../../parts/Field';
 import {
   failureOf, fileProblems, firstRows, formatOf, pickedRecipe, problemsByCode, rupeesToPaise, sourceIdFor, splitCsvLine, unknownLayout, validateImport, validatePreview,
-  type ColumnRole, type DateFormat, type ExpectedTotals, type ImportResult, type JourneyFailure, type JourneyPort, type MappingRecipe, type SheetPreview,
+  validateReaderStatus, type ColumnRole, type DateFormat, type ExpectedTotals, type ImportResult, type JourneyFailure, type JourneyPort, type MappingRecipe, type SheetPreview,
 } from './journey-contracts.ts';
 import { Act, Actions, FailureLine, Note, Status, StepHeader } from './JourneyParts';
+import { ProposedMeanings } from './ProposedMeanings';
+import type { ProposalsOutcome } from './proposals.ts';
+import { PdfStatement } from './PdfStatement';
 import s from './Journey.module.css';
 
 export type PickedFile =
   | { readonly name: string; readonly format: 'csv'; readonly content: string }
-  | { readonly name: string; readonly format: 'xlsx'; readonly bytesBase64: string };
+  | { readonly name: string; readonly format: 'xlsx'; readonly bytesBase64: string }
+  | { readonly name: string; readonly format: 'pdf'; readonly bytesBase64: string };
 
 export interface BringFileProps {
   readonly rpc: JourneyPort;
@@ -42,6 +52,8 @@ export interface BringFileProps {
   readonly company: string;
   readonly onTaken: () => void;
   readonly onWaits: () => void;
+  /** FR-07's "Proposed meanings (draft)" after the file is taken. Absent: the list is not drawn. */
+  readonly propose?: ((file: PickedFile) => Promise<ProposalsOutcome>) | undefined;
 }
 
 type Phase =
@@ -51,6 +63,7 @@ type Phase =
   | { readonly kind: 'taking'; readonly preview: SheetPreview; readonly recipe: MappingRecipe | null; readonly totals: ExpectedTotals | null }
   | { readonly kind: 'taken'; readonly result: ImportResult }
   | { readonly kind: 'password' }
+  | { readonly kind: 'pdf' }
   | { readonly kind: 'unsupported' }
   | { readonly kind: 'failed'; readonly failure: JourneyFailure };
 
@@ -59,6 +72,14 @@ const DATE_FORMATS: readonly DateFormat[] = ['ISO', 'DMY'];
 const KNOWN_REASONS: ReadonlySet<string> = new Set(['MISSING_VALUE', 'INVALID_DATE', 'AMBIGUOUS_DATE', 'UNKNOWN_KIND', 'UNKNOWN_STATUS', 'DUPLICATE_SOURCE_ROW', 'CURRENCY_MISMATCH', 'OUTSIDE_SCOPE']);
 const WHOLE_SENTENCES: ReadonlySet<string> = new Set(['SOURCE_ROW_MISMATCH', 'SOURCE_TOTAL_MISMATCH', 'SOURCE_TOTALS_REQUIRED', 'UNMAPPED_FIELDS']);
 
+/** An encrypted Office file is an OLE compound file (D0 CF 11 E0 A1 B1 1A E1), not the ZIP an .xlsx is. */
+export function encryptedOfficeFile(bytesBase64: string): boolean {
+  let head: string;
+  try { head = atob(bytesBase64.slice(0, 12)); } catch { return false; }
+  const magic = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+  return head.length >= magic.length && magic.every((byte, index) => head.charCodeAt(index) === byte);
+}
+
 function base64Of(bytes: Uint8Array): string {
   let binary = '';
   for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
@@ -66,14 +87,14 @@ function base64Of(bytes: Uint8Array): string {
 }
 
 /** The browser fallback: the chosen file's text or bytes, held only to hand to the engine. */
-async function fromInput(file: File): Promise<PickedFile | null> {
-  const format = formatOf(file.name);
+async function fromInput(file: File, pdf: boolean): Promise<PickedFile | null> {
+  const format = formatOf(file.name, pdf);
   if (format === 'csv') return { name: file.name, format, content: await file.text() };
-  if (format === 'xlsx') return { name: file.name, format, bytesBase64: base64Of(new Uint8Array(await file.arrayBuffer())) };
+  if (format === 'xlsx' || format === 'pdf') return { name: file.name, format, bytesBase64: base64Of(new Uint8Array(await file.arrayBuffer())) };
   return null;
 }
 
-export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company, onTaken, onWaits }: BringFileProps) {
+export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company, onTaken, onWaits, propose }: BringFileProps) {
   const t = useT();
   const inputId = useId();
   const dateName = useId();
@@ -88,9 +109,18 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
   const [columnsProblem, setColumnsProblem] = useState(false);
   const generation = useRef(0);
   const resumed = useRef(false);
+  // PDF is offered only when this engine reads PDFs.
+  const [pdf, setPdf] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void rpc.request('imports.readerStatus', {}).then(reply => { validateReaderStatus(reply); if (live) setPdf(true); }, () => {});
+    return () => { live = false; };
+  }, [rpc]);
 
   const preview = useCallback(async (chosen: PickedFile, recipe: MappingRecipe | null, totals: ExpectedTotals | null) => {
     const token = ++generation.current;
+    if (chosen.format === 'pdf') { setPhase({ kind: 'pdf' }); return; }
+    if (chosen.format === 'xlsx' && encryptedOfficeFile(chosen.bytesBase64)) { setPhase({ kind: 'password' }); return; }
     setPhase({ kind: 'reading' });
     const sourceId = sourceIdFor(chosen.name);
     const extra = { ...(recipe === null ? {} : { recipe }), ...(totals === null ? {} : { expectedTotals: totals }) };
@@ -106,7 +136,7 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
       if (token !== generation.current) return;
       const failure = failureOf(error);
       if (failure.kind === 'refused' && failure.code === 'DICTIONARY_REQUIRED' && !meaningsAgreed) { onHold(chosen); onWaits(); return; }
-      if (failure.kind === 'refused' && failure.code === 'PASSWORD_REQUIRED') { setPhase({ kind: 'password' }); return; }
+      if (failure.kind === 'refused' && failure.code === 'ENCRYPTED_ZIP') { setPhase({ kind: 'password' }); return; }
       setPhase({ kind: 'failed', failure });
     }
   }, [rpc, meaningsAgreed, onHold, onWaits]);
@@ -122,7 +152,7 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
   const begin = (chosen: PickedFile | null) => {
     setColumnsOpen(false); setRoles({}); setTotalsProblem(null); setColumnsProblem(false); setRowsText(''); setAmountText('');
     onHold(null);
-    if (chosen === null) { setFile(null); setPhase({ kind: 'unsupported' }); return; }
+    if (chosen === null || (chosen.format === 'pdf' && !pdf)) { setFile(null); setPhase({ kind: 'unsupported' }); return; }
     setFile(chosen);
     void preview(chosen, null, null);
   };
@@ -140,6 +170,7 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
     const sourceId = sourceIdFor(file.name);
     const extra = { ...(current.recipe === null ? {} : { recipe: current.recipe }), ...(current.totals === null ? {} : { expectedTotals: current.totals }) };
     try {
+      if (file.format === 'pdf') return;
       const reply = file.format === 'csv'
         ? await rpc.request('sources.import', { sourceId, format: 'csv', content: file.content, ...extra })
         : await rpc.request('sources.workbookImport', { sourceId, bytesBase64: file.bytesBase64, ...extra });
@@ -166,26 +197,15 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
     void preview(file, recipe, current.totals);
   };
 
-  const sendPassword = async (form: HTMLFormElement) => {
-    const field = form.elements.namedItem('file-password');
-    const typed = field instanceof HTMLInputElement ? field.value : '';
-    if (field instanceof HTMLInputElement) field.value = '';
-    if (file === null || typed.length === 0) return;
-    try {
-      await rpc.request('imports.providePassword', { sourceId: sourceIdFor(file.name), password: typed });
-      void preview(file, null, null);
-    } catch (error) { setPhase({ kind: 'failed', failure: failureOf(error) }); }
-  };
-
   const chooser = pickFile !== undefined
     ? <Actions><Act variant={file === null ? 'filled' : 'quiet'} label={file === null ? 'FR-07.pick.btn' : 'FR-07.another.btn'} onClick={() => { void choose(); }} /></Actions>
     : (
       <div className={s.section}>
         <label htmlFor={inputId} className={s.sectionTitle}>{t('FR-07.input')}</label>
-        <div><input id={inputId} type="file" accept=".csv,.txt,.xlsx" onChange={event => {
+        <div><input id={inputId} type="file" accept={pdf ? '.csv,.txt,.xlsx,.pdf' : '.csv,.txt,.xlsx'} onChange={event => {
           const chosen = event.currentTarget.files?.[0];
           if (chosen === undefined) return;
-          void fromInput(chosen).then(begin, error => setPhase({ kind: 'failed', failure: failureOf(error) }));
+          void fromInput(chosen, pdf).then(begin, error => setPhase({ kind: 'failed', failure: failureOf(error) }));
         }} /></div>
       </div>
     );
@@ -198,7 +218,7 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
       {held !== null && meaningsAgreed && phase.kind === 'reading' && <Status k="FR-07.held" />}
       {phase.kind !== 'taken' && chooser}
       {file !== null && <p className={s.question} data-file-name="">{t('FR-07.name', { name: file.name })}</p>}
-      {file !== null && phase.kind !== 'taken' && (file.format === 'csv'
+      {file !== null && phase.kind !== 'taken' && file.format !== 'pdf' && (file.format === 'csv'
         ? (
           <div className={s.sheetWrap}>
             <h2 className={s.sectionTitle}>{t('FR-07.rows')}</h2>
@@ -213,15 +233,18 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
         )
         : <Note k="FR-07.noRows" />)}
       {phase.kind === 'reading' && <Status k="FR-07.reading" />}
-      {phase.kind === 'unsupported' && <Note k="FR-07.notSupported" role="alert" />}
+      {phase.kind === 'unsupported' && <Note k={pdf ? 'FR-07.notSupported.pdf' : 'FR-07.notSupported'} role="alert" />}
+      {phase.kind === 'pdf' && file?.format === 'pdf' && (
+        <PdfStatement key={file.name} rpc={rpc} file={file} onTaken={() => { onHold(null); onTaken(); }}
+          onNeedsMeanings={() => { if (meaningsAgreed) setPhase({ kind: 'failed', failure: { kind: 'refused', code: 'DICTIONARY_REQUIRED' } }); else { onHold(file); onWaits(); } }} />
+      )}
       {phase.kind === 'failed' && <FailureLine failure={phase.failure} notBuilt="FR-07.notBuilt" refused="FR-07.refused" />}
       {phase.kind === 'password' && (
-        <form className={s.section} onSubmit={event => { event.preventDefault(); void sendPassword(event.currentTarget); }}>
+        <div className={s.section} data-file-password="not-built">
           <h2 className={s.sectionTitle}>{t('FR-07.password.title')}</h2>
-          <Field label={t('FR-07.password')} name="file-password" type="password" autoComplete="off" />
-          <Note k="FR-07.password.note" />
-          <Actions><Act submit label="FR-07.password.send.btn" /></Actions>
-        </form>
+          <p className={s.status} role="status" data-first-run-not-built="">{t('FR-07.password.notBuilt')}</p>
+          <Note k="FR-07.password.copy" />
+        </div>
       )}
       {(phase.kind === 'previewed' || phase.kind === 'taking') && (() => {
         const { preview: checked, recipe, totals } = phase;
@@ -329,6 +352,7 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
             <li>{t('FR-07.group.refused', { count: count(String(phase.result.coverage.rejectedRows)) })}</li>
           </ul>
           {phase.result.duplicate && <Note k="FR-07.duplicate" />}
+          {file !== null && propose !== undefined && <ProposedMeanings file={file} propose={propose} />}
           <Actions><Act variant="filled" label="FR.journey.continue.btn" onClick={onTaken} /></Actions>
         </div>
       )}

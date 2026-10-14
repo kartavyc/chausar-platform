@@ -18,7 +18,7 @@ import type { ConversationReferenceIntent } from '../screens/ask/ConversationAns
 import { RetainedScenario, ScenarioProvenanceBody, type RetainedScenarioShown } from '../screens/ask/RetainedScenario';
 import { LessonReviewSheet } from '../screens/reports/LessonReview';
 import { RetainedPlace, retainedSurface } from '../screens/retained/RetainedPlace';
-import { placeModuleFor } from '../places/registry.ts';
+import { placeModuleFor, placeModules } from '../places/registry.ts';
 import type { TodayData } from '../screens/today/TodayData.ts';
 import { TodayDestination } from '../screens/today/TodayDestination.tsx';
 import { projectTodayConsumer } from './today-controller.ts';
@@ -29,7 +29,11 @@ import type { HostController, HostReceiptSelection, HostState } from './controll
 import type { FirstRunResult } from '../screens/first-run/controller.ts';
 import { FirstRunScreen } from '../screens/first-run/FirstRun';
 import { FirstRunJourney } from '../screens/first-run/FirstRunJourney';
+import { AskRecoveryContact, LockFolderChoice } from '../screens/first-run/ThisComputer';
+import { readDeviceChoices, saveDeviceChoices } from '../screens/first-run/this-computer.ts';
 import { LockScreen } from '../app/LockScreen';
+import { LinkDialog } from '../app/LinkDialog';
+import { externalUrl, type ShellPort } from '../bridge/shell.ts';
 import { UnlockControl, type UnlockResult } from './UnlockControl';
 import type { FirstRunStagesDone } from '../screens/first-run/FirstRun';
 import { discoveryRowFor, lessonDecisionAvailability, sameScenarioSelection, scenarioProof } from './retained-contracts.ts';
@@ -43,6 +47,8 @@ import { HelpSheet } from '../app/HelpSheet';
 import { DemoClockControl } from '../app/DemoClockControl';
 import { Receipt } from '../parts/Receipt';
 import { receiptViewFromEvidence } from '../bridge/receipt-view.ts';
+import { receiptWithDetail, useReceiptDetail } from '../parts/receipt-detail.ts';
+import type { PlaceRpc } from '../places/types.ts';
 import detail from '../patterns/ModelConsentSheet.module.css';
 import '../tokens/index.css';
 import '../views/simple.css';
@@ -51,6 +57,8 @@ import './host.css';
 
 export { createHostController } from './controller.ts';
 export { createDesktopRequestPort } from '../bridge/client.ts';
+export { createShellPort } from '../bridge/shell.ts';
+export type { ShellPort } from '../bridge/shell.ts';
 export type { HostRpcPort } from './contracts.ts';
 export type { ScenarioSelection } from './retained-contracts.ts';
 
@@ -77,6 +85,12 @@ export interface HostMountOptions {
    * create, recovery and meanings slice, kept for the hosts and journeys built on it.
    */
   readonly firstRun?: 'journey';
+  /**
+   * The trusted shell (`bridge/shell.ts`): `shell.print` for the recovery kit (FR-04) and
+   * `shell.openExternal` behind the link dialog (SH-10). Absent: Print draws "not built yet"
+   * and places get no `openLink`, so outside addresses stay text.
+   */
+  readonly shell?: ShellPort;
 }
 export interface MountedHost {
   /** Detaches the surface while retaining the injected host and any pending attempt. */
@@ -193,14 +207,18 @@ function receiptView(value: CalculationReceiptEvidence, language: Language, time
   try { return receiptViewFromEvidence(value, { language, timeZone }); } catch { return null; }
 }
 
-function ReceiptPanel({ selection, language, timeZone, origin, onClose }: {
+function ReceiptPanel({ selection, language, timeZone, origin, onClose, rpc }: {
   selection: HostReceiptSelection;
   language: Language;
   timeZone: string | null;
   origin: HTMLElement | null;
   onClose: () => void;
+  /** With it, the receipt's small print is read from `todayx.receiptDetail` for this receipt. */
+  rpc?: PlaceRpc | undefined;
 }) {
-  const view = selection.kind === 'ready' ? receiptView(selection.value, language, timeZone) : null;
+  const t = useT();
+  const smallPrint = useReceiptDetail(rpc, selection.kind === 'ready' ? selection.value.id : null);
+  const view = receiptWithDetail(selection.kind === 'ready' ? receiptView(selection.value, language, timeZone) : null, smallPrint, language, timeZone, t);
   const every = useRef<HTMLDetailsElement>(null);
   /* A figure on the receipt opens this receipt's every field: its exact values. */
   const openEvery = () => { const element = every.current; if (element) { element.open = true; element.querySelector('summary')?.focus(); } };
@@ -356,7 +374,23 @@ const scenarioChain = (address: Address) => retainedSurface(address) === 'scenar
   && (address.sheet === undefined || address.sheet === WHAT_IF_SHEET || address.sheet === PROOF_SHEET || address.sheet === PROVENANCE_SHEET);
 const pinKey = (pin: ScenarioSelection) => JSON.stringify([pin.scenarioId, pin.revisionId]);
 
-function AuthorizedWorkspace({ controller, state, context, language, view, setLanguage, setView, onLegacyReturn, scenarioSelection }: {
+/** SH-10 in the host: the address as text; the shell opens it only after the press. */
+function HostLinkDialog({ url, shell, onClose }: { url: string | null; shell: ShellPort; onClose: () => void }) {
+  const [outcome, setOutcome] = useState<'idle' | 'busy' | 'refused'>('idle');
+  const asked = useRef<string | null>(url);
+  useLayoutEffect(() => { asked.current = url; setOutcome(url !== null && externalUrl(url) === null ? 'refused' : 'idle'); }, [url]);
+  return <LinkDialog url={url} busy={outcome === 'busy'} refused={outcome === 'refused'} onCancel={onClose} onOpen={shown => {
+    if (outcome !== 'idle' || asked.current !== shown) return;
+    setOutcome('busy');
+    void shell.openExternal(shown).then(result => {
+      if (asked.current !== shown) return;
+      if (result === 'opened') onClose(); else setOutcome('refused');
+    });
+  }} />;
+}
+
+function AuthorizedWorkspace({ controller, state, context, language, view, setLanguage, setView, onLegacyReturn, scenarioSelection, shell }: {
+  shell: ShellPort | null;
   controller: HostController;
   state: HostState;
   context: UiContext;
@@ -368,6 +402,12 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   scenarioSelection: ScenarioSelection | null;
 }) {
   const t = useT();
+  const [linkAsked, setLinkAsked] = useState<string | null>(null);
+  // The dialog shows exactly the address that would open: the normalized one, or, for an address the rule
+  // refuses, its text with every non-plain character replaced, so nothing in it can disguise itself.
+  const openLink = shell === null ? undefined : (url: string) => {
+    if (typeof url === 'string') setLinkAsked(externalUrl(url) ?? url.slice(0, 2048).replace(/[^\u0021-\u007e]/g, '\ufffd'));
+  };
   const contextKey = JSON.stringify([context.contextKey, state.selectedRouteId]);
   const retained = useSyncExternalStore(controller.retained.subscribe, controller.retained.snapshot, controller.retained.snapshot);
   const consumer = controller.todayConsumer;
@@ -778,7 +818,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   /** The workspace time zone, from the host or the trusted Today configuration; never the machine's. */
   const workspaceZone = controller.timeZone ?? consumer?.input?.display?.timeZone ?? null;
-  const data: TodayData = frame.reads.worth !== null ? { ...baseData, worth: frame.reads.worth } : baseData;
+  const data: TodayData = { ...baseData, ...(frame.reads.worth !== null ? { worth: frame.reads.worth } : {}), ...(frame.reads.closing !== null ? { closing: frame.reads.closing } : {}) };
   const showDemoClock = () => {
     if (!stillAuthorized() || active.current === null) return;
     origin.current = currentOrigin(); returnSavedId.current = null; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
@@ -808,10 +848,10 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   const sheet: AppProps['sheet'] = state.receipt !== null ? {
     address: state.receipt.address,
-    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} timeZone={workspaceZone} origin={origin.current} onClose={closeSheet} />,
+    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} timeZone={workspaceZone} origin={origin.current} onClose={closeSheet} rpc={controller.places} />,
   } : localSheet === null ? undefined : localSheet.todayView !== undefined && consumer !== null ? {
     address: localSheet.address,
-    content: <TodayDestination timeZone={workspaceZone} detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
+    content: <TodayDestination timeZone={workspaceZone} receiptDetailRpc={controller.places} detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
       onClose={() => closeToday(localSheet, todayCurrent)}
       onReview={(row, rowOrigin) => launchToday(localSheet.todayView!, 'today-record', rowOrigin, current => consumer.review(localSheet.todayView!, row, current))}
       onNext={localSheet.todayView.page?.nextCursor ? () => launchToday(localSheet.todayView!, 'today-review', localSheet.todayOrigin ?? null, current => consumer.page(localSheet.todayView!, true, current)) : undefined}
@@ -851,14 +891,16 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       workspace: { name: context.workspace.name, demo: context.workspace.demo,
         who: hostMessage(language, 'memberRole', { name: context.member.name, role: hostMessage(language, ROLE_KEY[context.member.role]) }) },
       onSetView: setView, onSetLanguage: setLanguage, onLock: () => { void controller.lock(); }, onAbout: showAbout, onHelp: () => showHelp(),
+      onReadAgain: () => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); },
     },
     ...(frame.reads.shell !== null ? {
       banners: shellBanners(frame.reads.shell, language, {
         ...(frame.reads.shell.workspace.demo ? { openDemoClock: showDemoClock } : {}),
         dismissJobsPaused: () => { void controller.places.request('todayx.jobsPaused.dismiss', {}).then(frame.setShell, () => {}); },
       }),
-      idleLock: { minutes: frame.reads.shell.autoLockMinutes, onIdle: () => { void controller.lock(); } },
     } : {}),
+    // The idle lock never depends on a read succeeding: without the shell reply it keeps the 10-minute default.
+    idleLock: { minutes: frame.reads.shell?.autoLockMinutes ?? 10, onIdle: () => { void controller.lock(); } },
     ask: { onAsk: () => navigate(ASK), noModel: !conversationEnabled,
       ...(viewer ? { readOnly: { holder: hostMessage(language, 'roleViewer') } } : {}) },
     status: frame.reads.status !== null ? statusLine(frame.reads.status, language) : {
@@ -893,22 +935,47 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       ...(!viewer && (context.member.role === 'owner' || context.member.role === 'cofounder') ? { onOpenActivity: () => launchToday(todayCurrent, 'today-record', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.activity(todayCurrent, current)) } : {}),
     } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } },
     sheet, onAddress, onHelp: showHelp,
-    renderPlace: address => retainedSurface(address) !== null
-      ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
-        onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
-        onContinueScenarios={continueScenarios} onPageScenarios={pageScenarios}
-        onProof={openProof} onProvenance={openProvenance} onOpenLesson={(id, rowOrigin, from) => openLesson(id, rowOrigin, from)} legacy={legacyLink} />
-      : placeModuleFor(address) !== null
-      ? placeModuleFor(address)!.render({ address, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
-        rpc: controller.places, live, openReceipt: id => openReceipt(id), navigate: next => onAddress(next) })
-      : address.place === 'trust' && address.sub === 'models' || address.place === 'ask' && (address.sub === undefined || address.sub === 'new')
-      ? <RoutePicker routes={state.routes} selected={state.selectedRouteId} language={language} viewer={viewer} onSelect={chooseRoute} />
-      : <><State state={notBuiltState(address)} />{legacyLink}</>,
+    renderPlace: address => {
+      const placeProps = (at: Address) => ({ address: at, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
+        rpc: controller.places, live, openReceipt: (id: string) => openReceipt(id),
+        navigate: (next: Address | null) => { if (!stillAuthorized()) return; if (next === null) { if (active.current !== null) navigate(withoutSheet(active.current)); } else navigate(next); },
+        ...(openLink !== undefined ? { openLink } : {}) });
+      const retainedNode = retainedSurface(address) !== null
+        ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
+          onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
+          onContinueScenarios={continueScenarios} onPageScenarios={pageScenarios}
+          onProof={openProof} onProvenance={openProvenance} onOpenLesson={(id, rowOrigin, from) => openLesson(id, rowOrigin, from)} legacy={legacyLink} />
+        : null;
+      const module = placeModuleFor(address);
+      // Ask, Saved belongs to the ask lane's page at rest. The host's own what-if chain keeps it while that chain is
+      // active (an overview asked for from a saved answer, a chosen what-if, its proof or provenance).
+      const retainedActive = retainedSurface(address) === 'scenario' && address.sub === 'saved'
+        && (retained.discovery.kind !== 'idle' || retained.scenario.kind !== 'idle' || localSheet !== null);
+      if (retainedActive && retainedNode !== null) return retainedNode;
+      // A lane's place module wins its address. The retained lesson review keeps its own address,
+      // Reports, Lessons, so it stays reachable when Week ahead and Approvals belong to lane modules.
+      if (module !== null) {
+        return module.render(placeProps(address));
+      }
+      if (retainedNode !== null) return retainedNode;
+      const routePicker = <RoutePicker routes={state.routes} selected={state.selectedRouteId} language={language} viewer={viewer} onSelect={chooseRoute} />;
+      if (address.place === 'ask' && (address.sub === undefined || address.sub === 'new')) {
+        // Ask, New at rest: the route picker, then the ask lane's menu of calculations (its "no model" way to ask).
+        const ask = placeModules.find(module => module.id === 'ask');
+        return ask === undefined ? routePicker : <>{routePicker}{ask.render(placeProps({ place: 'ask', sub: 'new' }))}</>;
+      }
+      return address.place === 'trust' && address.sub === 'models'
+        ? routePicker
+        : <><State state={notBuiltState(address)} />{legacyLink}</>;
+    },
   };
-  return conversationEnabled && settings !== null
-    ? <ConversationWorkspace app={app} conversation={controller.conversation} questionSettings={settings}
-      contextKey={contextKey} readback={readback} onReference={onReference} onSavedOverview={named => showSavedOverview(named)} />
-    : <App key={contextKey} {...app} />;
+  return <>
+    {conversationEnabled && settings !== null
+      ? <ConversationWorkspace app={app} conversation={controller.conversation} questionSettings={settings}
+        contextKey={contextKey} readback={readback} onReference={onReference} onSavedOverview={named => showSavedOverview(named)} />
+      : <App key={contextKey} {...app} />}
+    {shell !== null && <HostLinkDialog url={linkAsked} shell={shell} onClose={() => setLinkAsked(null)} />}
+  </>;
 }
 
 const FIRST_RUN_WORDS = {
@@ -976,12 +1043,26 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
   const state = useSyncExternalStore(controller.subscribe, controller.snapshot, controller.snapshot);
   const [language, setLanguage] = useState<Language>(options.language ?? 'en');
   const [view, setView] = useState<View>(options.view ?? 'guided');
+  const [lockFolder, setLockFolder] = useState('main');
+  // SH-06: the language and view saved for this computer, unless the trusted mount fixed them.
+  useEffect(() => {
+    if (options.firstRun !== 'journey') return;
+    let current = true;
+    void readDeviceChoices(controller.places).then(saved => {
+      if (!current || saved === null) return;
+      if (options.language === undefined) setLanguage(saved.language);
+      if (options.view === undefined) setView(saved.view);
+    }, () => {});
+    return () => { current = false; };
+  }, [controller]);
   const [address, setAddress] = useState(() => parseAddress(window.location.hash));
   const [vaultAcknowledged, setVaultAcknowledged] = useState<string | null>(null);
   const journeyMode = options.firstRun === 'journey';
   const [journeyDone, setJourneyDone] = useState(false);
   const [startNew, setStartNew] = useState(false);
   const [unlockResult, setUnlockResult] = useState<UnlockResult | null>(null);
+  // A recovery or new workspace started from the lock screen ends when a workspace is open again.
+  useEffect(() => { if (state.phase === 'ready') setStartNew(false); }, [state.phase]);
   useLayoutEffect(() => {
     // The journey owns the first-run surface while it is mounted.
     if (journeyMode) {
@@ -1007,22 +1088,33 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
     document.documentElement.removeAttribute('data-theme');
   }, [language, view]);
   const authorized = state.phase === 'ready' && state.context !== null;
-  if (journeyMode && !journeyDone) {
+  /** A person's change of language or view is kept for this computer once a workspace is open. */
+  const chooseLanguage = (next: Language) => { setLanguage(next); if (journeyMode && authorized) void saveDeviceChoices(controller.places, next, view).catch(() => {}); };
+  const chooseView = (next: View) => { setView(next); if (journeyMode && authorized) void saveDeviceChoices(controller.places, language, next).catch(() => {}); };
+  if (journeyMode) {
+    // The lock screen holds whenever the workspace is locked, before or after first run.
     if (state.phase === 'locked' && state.creation.kind === 'idle' && !startNew) {
       // SH-02: the passphrase passes straight to the engine once; the field is cleared by the control.
-      const unlock = (passphrase: string) => controller.places.request('workspace.open', { folder: 'main', passphrase }).then(
+      const unlock = (passphrase: string) => controller.places.request('workspace.open', { folder: lockFolder, passphrase }).then(
         () => { setUnlockResult(null); return controller.unlocked(); },
-        (error: unknown) => { setUnlockResult((error as { code?: unknown })?.code === 'UNLOCK_FAILED' ? { kind: 'wrong' } : null);
-          if ((error as { code?: unknown })?.code !== 'UNLOCK_FAILED') setStartNew(true); });
+        // A wrong passphrase says so; any other refusal keeps the lock screen and says it could not unlock.
+        // Nothing here ever leads to creating or recovering a workspace on its own.
+        (error: unknown) => { setUnlockResult((error as { code?: unknown })?.code === 'UNLOCK_FAILED' ? { kind: 'wrong' } : { kind: 'failed' }); });
       return <TextProvider language={language}>
-        <LockScreen workspaceName={hostMessage(language, 'thisWorkspace')}
-          unlockControl={<UnlockControl unlock={unlock} result={unlockResult} onRecoveryKit={() => setStartNew(true)} />} />
+        <LockScreen workspaceName={lockFolder === 'main' ? hostMessage(language, 'thisWorkspace') : lockFolder}
+          unlockControl={<>
+            <LockFolderChoice rpc={controller.places} folder={lockFolder} onFolder={setLockFolder} />
+            <UnlockControl unlock={unlock} result={unlockResult} onRecoveryKit={() => setStartNew(true)} />
+            <AskRecoveryContact rpc={controller.places} folder={lockFolder} />
+          </>} />
       </TextProvider>;
     }
-    if (state.creation.kind !== 'idle' || state.phase === 'locked' || (authorized && state.dictionaryReviewRequired)) {
+    if ((!journeyDone || startNew) && (state.creation.kind !== 'idle' || state.phase === 'locked' || (authorized && state.dictionaryReviewRequired))) {
       return <TextProvider language={language}><FirstRunJourney host={controller} rpc={controller.places} language={language} onLanguage={setLanguage} view={view} onView={setView}
         onDone={() => { setJourneyDone(true); navigate(TODAY); setAddress(TODAY); void controller.refresh(); }}
         saveRouteKey={(config, key) => controller.places.request('models.configure', { config, secret: key })}
+        {...(options.shell !== undefined ? { onPrint: () => options.shell!.print('recovery-kit') } : {})}
+        onOpenFolder={folder => { setLockFolder(folder); setUnlockResult(null); setStartNew(false); }}
         onReopened={() => { setStartNew(false); void controller.unlocked(); }} /></TextProvider>;
     }
   }
@@ -1032,12 +1124,15 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
       intents={{ onContinue: handoff => { if (controller.completeFirstRun(handoff)) { navigate(ASK); void controller.refresh(); } } }} />
       : <TextProvider language={language}><Button variant="link" onClick={() => { navigate(FIRST_RUN); setAddress(FIRST_RUN); }}>{FIRST_RUN_WORDS[language].resume}</Button></TextProvider>;
   }
+  // With a workspace open the frame fills the window and "Read again" is in the workspace menu;
+  // the bar above it is drawn only for the legacy return link or while no workspace is open.
+  const hostBar = onLegacyReturn !== null || !authorized;
   return <TextProvider language={language}>
-    <div style={{ height: '100vh', display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp4)', padding: 'var(--sp2) var(--sp4)', borderBottom: 'var(--hair) solid var(--line)' }}>
+    <div style={{ height: '100vh', display: 'grid', gridTemplateRows: hostBar ? 'auto minmax(0, 1fr)' : 'minmax(0, 1fr)' }}>
+      {hostBar && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp4)', padding: 'var(--sp2) var(--sp4)', borderBottom: 'var(--hair) solid var(--line)' }}>
         {onLegacyReturn !== null && <Button variant="link" onClick={onLegacyReturn} disabled={state.creation.kind === 'creating' || state.creation.kind === 'recovery-required'}>{hostMessage(language, 'legacy')}</Button>}
         <Button variant="link" onClick={() => { void (controller.todayConsumer === null ? controller.refresh() : controller.refreshToday()); }} disabled={state.phase === 'loading' || state.phase === 'locked'}>{hostMessage(language, 'refresh')}</Button>
-      </div>
+      </div>}
       <div data-host-workspace="" style={{ minHeight: 0, overflow: 'auto' }}>
         {state.phase === 'locked' && <p role="status">{hostMessage(language, 'locked')}</p>}
         {state.creation.kind !== 'idle' || state.phase === 'locked'
@@ -1045,7 +1140,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
           : authorized && state.context !== null
           ? <AuthorizedWorkspace key={JSON.stringify([state.context.contextKey, state.selectedRouteId])}
             controller={controller} state={state} context={state.context} language={language} view={view}
-            setLanguage={setLanguage} setView={setView} onLegacyReturn={onLegacyReturn} scenarioSelection={options.scenarioSelection ?? null} />
+            setLanguage={chooseLanguage} setView={chooseView} onLegacyReturn={onLegacyReturn} scenarioSelection={options.scenarioSelection ?? null} shell={options.shell ?? null} />
           : <div style={{ padding: 'var(--sp6)' }}>
             <p role="status">{hostMessage(language, state.phase === 'loading' ? 'loading' : 'unavailable')}</p>
             {state.code !== undefined && <p>{hostMessage(language, 'code', { code: state.code })}</p>}

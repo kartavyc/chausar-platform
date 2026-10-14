@@ -22,6 +22,9 @@ export function hostBuildConfig(outputRoot) {
       outDir: resolve(outputRoot, 'bundle'),
       emptyOutDir: false,
       sourcemap: true,
+      // Vite keeps whitespace in an ES library; the bundler's own output minifier removes it so the
+      // shipped host stays inside its 2 MB limit.
+      rollupOptions: { output: { minify: true } },
       lib: {
         entry: resolve(workspaceRoot, 'app/ui/src/host/bootstrap.tsx'),
         formats: ['es'],

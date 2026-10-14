@@ -18,7 +18,7 @@ import { useT } from '../app/text';
 import { Button } from '../parts/Button';
 import s from './UnlockControl.module.css';
 
-export type UnlockResult = { readonly kind: 'wrong' } | { readonly kind: 'wait'; readonly until: string };
+export type UnlockResult = { readonly kind: 'wrong' } | { readonly kind: 'failed' } | { readonly kind: 'wait'; readonly until: string };
 
 export interface UnlockControlProps {
   /** `vault.unlock`. Receives the typed value once; may return a promise. */
@@ -70,7 +70,7 @@ export function UnlockControl({ unlock, result = null, device, onRecoveryKit, pa
     else done();
   };
 
-  const problem = result === null ? undefined : result.kind === 'wait' ? t('SH-02.wait', { time: result.until }) : t('SH-02.wrong');
+  const problem = result === null ? undefined : result.kind === 'wait' ? t('SH-02.wait', { time: result.until }) : result.kind === 'failed' ? t('SH-02.failed') : t('SH-02.wrong');
 
   return (
     <form className={s.form} onSubmit={submit} autoComplete="off">

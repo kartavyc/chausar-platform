@@ -203,6 +203,12 @@ export function ConversationWorkspace({ app, conversation, questionSettings, con
     const ownedTransition = visible && boundConversationAddress(surface, address) && openedSelection.current === readbackSelection;
     if (address.sub === 'saved' && (readback === undefined || (!sameAddress(address, readback.address) && !ownedTransition))) return app.renderPlace?.(address);
     const displayed: ConversationHostState = visible && boundConversationAddress(surface, address) ? state : { kind: 'idle' };
+    // With no conversation in progress, Ask, New belongs to the page the host composes there (the menu of
+    // calculations from the ask lane and the route picker).
+    if (displayed.kind === 'idle' && address.sub !== 'saved') {
+      const own = app.renderPlace?.(address);
+      if (own !== undefined && own !== null) return own;
+    }
     // Every answer control names the exact answer this body was drawn for; an older control names an older one.
     const owner = displayed.kind === 'answer' ? displayed.saved : null;
     // The overview control names the exact readback selection this body was drawn for. Only when the host accepts that exact

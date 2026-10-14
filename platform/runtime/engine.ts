@@ -1125,7 +1125,10 @@ export class Engine {
           ontology: state.ontology, facts: state.facts, imports: state.imports, merges: state.merges,
           routes: state.routes.map(({ costConsumedMinor: _costConsumedMinor, ...configuration }) => configuration) });
         return { workspace: { id: state.workspace.id, name: state.workspace.name, demo: state.workspace.demo },
-          member: { id: member.id, name: member.name, role: member.role, epoch: member.epoch, branches: [...member.branches] }, contextKey };
+          member: { id: member.id, name: member.name, role: member.role, epoch: member.epoch, branches: [...member.branches] }, contextKey,
+          // The business time zone, only when the workspace records one; never the machine's.
+          timeZone: (() => { const zone = (state.workspace as { timeZone?: unknown }).timeZone;
+            try { return typeof zone === 'string' && zone.length <= 100 && new Intl.DateTimeFormat('en', { timeZone: zone }) ? zone : null; } catch { return null; } })() };
       }
       case 'invoiceFollowUp.create':
         check(payload.ownerId === ctx.memberId, 'JOB_OWNER_REQUIRED', 'Declare the exact creating owner for this invoice mandate.');

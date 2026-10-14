@@ -37,7 +37,11 @@ export type RetainedSurface = 'scenario' | 'lessons';
 
 /** Which retained surface an address names, by place and sub-place only. */
 export function retainedSurface(address: Address): RetainedSurface | null {
-  if (address.place === 'ask' && address.sub === 'saved') return 'scenario';
+  // Ask, What-ifs is the released what-ifs' own address; Saved shows them only where no lane's place module draws it.
+  if (address.place === 'ask' && (address.sub === 'whatifs' || address.sub === 'saved')) return 'scenario';
+  // Reports, Lessons is the lessons' own address (the Friday review's proposed lessons). Week ahead and
+  // Approvals show them only where no lane's place module draws that address.
+  if (address.place === 'reports' && address.sub === 'lessons') return 'lessons';
   if ((address.place === 'reports' && address.sub === 'weekahead') || (address.place === 'work' && address.sub === 'approvals')) return 'lessons';
   return null;
 }
@@ -95,7 +99,7 @@ export function RetainedPlace({ address, retained, scenarioSelection, live, onOp
   if (surface === 'lessons') {
     const approvals = address.place === 'work';
     return <LessonReviewList state={state.lessons} where={t(approvals ? 'SH-01.place.work' : 'SH-01.place.reports')}
-      title={t(approvals ? 'SH-01.sub.work.approvals' : 'SH-01.sub.reports.weekahead')}
+      title={t(approvals ? 'SH-01.sub.work.approvals' : address.sub === 'lessons' ? 'SH-01.sub.reports.lessons' : 'SH-01.sub.reports.weekahead')}
       onRead={() => { if (live(address)) void retained.readLessons(() => live(address)); }}
       onOpen={onOpenLesson}
       onPage={(list, from, page) => { if (live(address)) retained.pageLessons(list, from, page); }}

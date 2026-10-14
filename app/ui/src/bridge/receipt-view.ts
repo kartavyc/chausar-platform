@@ -7,10 +7,13 @@
  * the engine did not supply is absent; it is never filled with a guess. The engine's
  * current receipt carries no question, way in, recipe, meaning, rate, forecast, number
  * guard result, allowing decision or model route, so the adapter leaves all of those out.
+ * `withReceiptDetail` adds them from a checked `todayx.receiptDetail` reply, line by line,
+ * only where that reply carries them.
  */
 
 import type { Figure as FigureView, FigureOrMissing, Count, Language, MissingState, StatementLabel } from '../app/presentation.ts';
 import type { CalculationReceiptEvidence, EngineFigureEvidence, ReceiptPeriod } from './presentation.ts';
+import type { ReceiptAllowedByKind, ReceiptDetailReply } from './todayx-contract.ts';
 import { count as formatCount, date, money, percent, time } from '../format/index.ts';
 
 export type ReceiptWayIn = 'interface' | 'exported-file' | 'computer-export';
@@ -34,8 +37,8 @@ export interface ReceiptTotal {
 /** The small print, each line present only when supplied. Strings are display strings. */
 export interface ReceiptSmallPrint {
   readonly source?: { readonly names: string; readonly wayIn?: ReceiptWayIn; readonly readAt?: string };
-  readonly recipe?: { readonly state: ReceiptRecipeState; readonly acceptedBy: string; readonly grade: ReceiptGrade };
-  readonly meaning?: { readonly publishedBy: string; readonly reviewedBy?: string; readonly cosignedBy?: string };
+  readonly recipe?: { readonly state: ReceiptRecipeState; readonly acceptedBy: string; readonly grade: ReceiptGrade; readonly recipeId?: string };
+  readonly meaning?: { readonly publishedBy: string; readonly reviewedBy?: string; readonly cosignedBy?: string; readonly version?: string };
   readonly rate?: { readonly value: string; readonly date: string; readonly source: string };
   readonly forecast?: { readonly method: string; readonly trainedOn: string; readonly heldOut: string };
   readonly numberGuard?: { readonly passed: boolean; readonly matched: Count; readonly of: Count };
@@ -150,4 +153,45 @@ export function receiptViewFromEvidence(receipt: CalculationReceiptEvidence, opt
     },
   };
   return view;
+}
+
+export interface ReceiptDetailOptions {
+  readonly language: Language;
+  readonly timeZone: string;
+  /** The words for each kind of allowing decision, from the screen's catalogue. */
+  readonly allowedByWords: Readonly<Record<ReceiptAllowedByKind, string>>;
+}
+
+/**
+ * Merge a checked `todayx.receiptDetail` reply into a view: additive, and only for the receipt
+ * it names. A line the reply leaves out keeps what the view had (usually nothing). The engine's
+ * question wins over none; a question the host already holds is kept.
+ */
+export function withReceiptDetail(view: ReceiptView, detail: ReceiptDetailReply, options: ReceiptDetailOptions): ReceiptView {
+  if (detail.receiptId !== view.receiptId) return view;
+  const at = (iso: string | undefined) => (iso === undefined ? undefined : when(iso, options));
+  const p: { -readonly [K in keyof ReceiptSmallPrint]: ReceiptSmallPrint[K] } = { ...view.smallPrint };
+  if (detail.sources) {
+    const readAt = at(detail.sources.readAt);
+    p.source = { names: detail.sources.names.join(', '), ...(detail.sources.wayIn ? { wayIn: detail.sources.wayIn } : {}), ...(readAt ? { readAt } : {}) };
+  }
+  if (detail.recipe) p.recipe = { state: detail.recipe.state, acceptedBy: detail.recipe.acceptedBy, grade: detail.recipe.grade, recipeId: detail.recipe.recipeId };
+  if (detail.meaning) p.meaning = {
+    publishedBy: detail.meaning.publishedBy, version: detail.meaning.version,
+    ...(detail.meaning.reviewedBy ? { reviewedBy: detail.meaning.reviewedBy } : {}), ...(detail.meaning.cosignedBy ? { cosignedBy: detail.meaning.cosignedBy } : {}),
+  };
+  if (detail.rate) p.rate = { value: `${detail.rate.from}/${detail.rate.to} ${detail.rate.numerator}/${detail.rate.denominator}`, date: '', source: '' };
+  if (detail.numberGuard) p.numberGuard = { passed: detail.numberGuard.passed, matched: countOf(detail.numberGuard.matched), of: countOf(detail.numberGuard.of) };
+  const allowedAt = at(detail.allowedBy.at);
+  p.allowedBy = {
+    text: options.allowedByWords[detail.allowedBy.kind],
+    ...(detail.allowedBy.ruleId ? { ruleId: detail.allowedBy.ruleId } : {}), ...(detail.allowedBy.person ? { person: detail.allowedBy.person } : {}),
+    ...(detail.allowedBy.device ? { device: detail.allowedBy.device } : {}), ...(allowedAt ? { at: allowedAt } : {}),
+  };
+  if (detail.route) p.route = {
+    kind: detail.route.kind, sendLevel: detail.route.sendLevel === 'shape' ? 'shape-only' : detail.route.sendLevel,
+    ...(detail.route.costPaise !== null ? { cost: money(detail.route.costPaise) } : {}),
+  };
+  const question = view.workedOut.question ?? detail.question?.trim();
+  return { ...view, workedOut: { ...view.workedOut, ...(question ? { question } : {}) }, smallPrint: p };
 }

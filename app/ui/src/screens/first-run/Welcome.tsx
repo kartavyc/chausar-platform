@@ -3,8 +3,10 @@
  * idea. The language is chosen in the top bar. Nothing is stored here: the language and
  * view live with the parent, in memory, until the vault exists.
  *
- * A workspace already open on this computer comes first ("Open <name>"). The demo shop and
- * an existing locked workspace open only through the parent's own callbacks.
+ * A workspace already open on this computer comes first ("Open <name>"). Otherwise the
+ * workspace folders already on this computer (`todayx.workspaces`, names only) come first as
+ * "Open <folder>", when the host can draw the lock screen for one. The demo shop and an
+ * existing locked workspace open only through the parent's own callbacks.
  */
 
 import { useId } from 'react';
@@ -27,9 +29,13 @@ export interface WelcomeProps {
   readonly onIdea: () => void;
   readonly onRecover: () => void;
   readonly onDemo?: (() => void) | undefined;
+  /** Workspace folders already on this computer (names only, nothing decrypted). */
+  readonly folders?: readonly string[] | undefined;
+  /** Open one of them: the host draws its lock screen for that folder. */
+  readonly onOpenFolder?: ((folder: string) => void) | undefined;
 }
 
-export function Welcome({ view, onView, openWorkspace, onOpen, onBusiness, onIdea, onRecover, onDemo }: WelcomeProps) {
+export function Welcome({ view, onView, openWorkspace, onOpen, onBusiness, onIdea, onRecover, onDemo, folders = [], onOpenFolder }: WelcomeProps) {
   const t = useT();
   const name = useId();
   const legend = useId();
@@ -38,6 +44,12 @@ export function Welcome({ view, onView, openWorkspace, onOpen, onBusiness, onIde
       <StepHeader step={1} title="FR-01.title" lede="FR-01.lede" />
       {openWorkspace !== null && (
         <Actions><Act variant="filled" label="FR-01.open.btn" values={{ name: openWorkspace }} onClick={onOpen} /></Actions>
+      )}
+      {openWorkspace === null && onOpenFolder !== undefined && folders.length > 0 && (
+        <div data-welcome-folders="">
+          <Actions>{folders.map((folder, index) => <Act key={folder} variant={index === 0 ? 'filled' : 'quiet'} label="FR-01.open.btn" values={{ name: folder }} onClick={() => onOpenFolder(folder)} />)}</Actions>
+          <Note k="FR-01.folders.note" />
+        </div>
       )}
       <fieldset className={s.drawings} aria-labelledby={legend}>
         <legend id={legend} className={s.sectionTitle}>{t('FR-01.view')}</legend>
@@ -56,7 +68,7 @@ export function Welcome({ view, onView, openWorkspace, onOpen, onBusiness, onIde
       </fieldset>
       <h2 className={s.sectionTitle} style={{ marginTop: 'var(--sp6)' }}>{t('FR-01.which')}</h2>
       <Actions>
-        <Act variant={openWorkspace === null ? 'filled' : 'quiet'} label="FR-01.business.btn" onClick={onBusiness} />
+        <Act variant={openWorkspace === null && (onOpenFolder === undefined || folders.length === 0) ? 'filled' : 'quiet'} label="FR-01.business.btn" onClick={onBusiness} />
         <Act label="FR-01.idea.btn" onClick={onIdea} />
       </Actions>
       <Actions>

@@ -47,3 +47,27 @@ node frontend-validation/policy/check.mjs --quick              # Guided, English
 ```
 
 It builds the preview, serves it on 127.0.0.1, runs a self-test (a planted page must trip every rule), then walks every place and sub-place address from `app/places.ts` (so other lanes' place modules are picked up through the registry), Today with a receipt sheet open, first run, the lock screen, the empty workspace and a viewer seat, in both themes x three views x two languages at 1366 x 768, and every place at rest at 1024 x 768. Rules: reading size and type-token sizes per view, text and mark contrast against the effective background, 24 x 24 targets (WCAG 2.2 2.5.8 with its inline and spacing exceptions; the Simple 44 px design target is a warning), figures contained in their boxes, the design's word limits (Guided 120, wide 150, Simple 90, Books 170, sheet 110), button labels of at most 22 characters, no em dash or `!`, no remote image or request, no repeating animation, and no transition under reduced motion. The report is `frontend-validation/dist/policy-report.json` (counts by rule and place, distinct findings, word counts, and the places that showed "not built yet"). The exit code is 1 on any violation, and on any "not built yet" place unless `--allow-not-built` is given. Playwright is imported locally if present, otherwise from the provisioned global copy; Chromium comes from `PLAYWRIGHT_BROWSERS_PATH` (default `/opt/pw-browsers`). Nothing is installed.
+
+### axe-core in the checker
+
+`axe-core` is an exact-pinned devDependency (4.10.3). `policy/axe.mjs` evaluates its source text into each audited page (no request leaves 127.0.0.1) and runs it with the WCAG 2.0, 2.1 and 2.2 A and AA tags (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22a`, `wcag22aa`) on every state the checker walks at 1366 x 768: every place and sub-place, Today with a receipt open, first run, the lock screen, the empty workspace and the viewer seat, in both themes x three views x two languages. axe skips text that a scrolling box has scrolled out of view, and the frame keeps the page in one scrolling column, so for each run the window is made tall enough to show every scrolling box's content (same width, same columns) and then put back. The report's `axe` section has the violations by rule (impact, WCAG tags, count per place), by impact, and the distinct rule, place and target with axe's failure summary; `needsReview` counts what axe could not decide (for example chart text in SVG, whose contrast the policy's own rule checks). The run fails on any violation at or above `--axe-fail` (default `serious`, so serious and critical; `none` reports only). The self-test plants a nameless button, an unlabelled field and faint text and requires axe to report `button-name`, `label` and `color-contrast`.
+
+```sh
+node frontend-validation/policy/check.mjs --allow-not-built                    # policy rules and axe
+node frontend-validation/policy/check.mjs --allow-not-built --axe-fail=critical
+node frontend-validation/policy/check.mjs --quick --no-axe                     # policy rules only
+```
+
+### Reference pictures and the side-by-side page
+
+The design's nineteen key screens are embedded in `docs/specs/Chausar-App-Design.html` as base64 PNGs, light and dark.
+
+```sh
+node frontend-validation/visual/extract.mjs    # -> dist/visual/reference/<S..>-{light,dark}.png and manifest.json
+node frontend-validation/visual/capture.mjs    # -> dist/visual/capture/<S..>-{light,dark}.png and manifest.json
+#   --no-build  reuse dist/preview   --only=<regex on the picture name>   --themes=light
+node frontend-validation/visual/page.mjs       # -> docs/lanes/frame-today-visual.html (committed)
+#   --width=1200 --quality=72  downscaled JPEG data URIs, encoded by Chromium
+```
+
+`extract.mjs` writes each picture once with every caption and design entry it appears under (for example `TD-01`, `FR-08`). `capture.mjs` maps each picture to a preview state (`PICTURES` in the file): Today Guided S01 (`#/today/today`, English), Today Simple S14 (`#/today`, Hindi), Today Books S15 (`#/today`, English), first-run Meanings S09 (scenario `first-run`, a scripted walk: a business, the model skipped, a file held until the meanings are agreed, a starter pack, two meanings accepted and the third open), and the other lanes' screens at their addresses (marked `other lane`, or `other lane, not built yet` when the preview shows the not-built state). The phone, enterprise and CA console pictures are `not drawable` in the desktop preview. Captures are 1366 x 768 at device scale 1 in the picture's theme. `page.mjs` writes one self-contained HTML file (inline CSS, every image a JPEG data URI, no external request) with each pair side by side in both themes, its caption, address and the notes in `visual/notes.json` (the differences seen, and what this round fixed). Everything under `dist/` stays uncommitted.

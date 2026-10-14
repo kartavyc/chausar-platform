@@ -4,15 +4,28 @@
  *
  * Steps and the engine methods they use (all existing in platform/runtime/engine.ts unless
  * marked `todayx`, the frame-today family whose engine module may not exist yet):
- *   FR-01/02  todayx.identity.check, todayx.identity.save (after the vault)
- *   FR-03/04  workspace.create and its recovery kit, through the host controller only
+ *   FR-01/02  todayx.workspaces, todayx.identity.check (both before the vault), todayx.identity.save
+ *             (after it), todayx.device.set (the language and view, once the vault exists)
+ *   FR-03/04  todayx.diskCheck (before the vault); workspace.create and its recovery kit, through
+ *             the host controller only
  *   FR-05     models.list, models.configure (an API key goes through the host's own adapter)
- *   FR-07     sources.preview, sources.import, sources.workbookPreview, sources.workbookImport
+ *   FR-07     sources.preview, sources.import, sources.workbookPreview, sources.workbookImport;
+ *             proposed meanings: learningx.dictionaryProposals, learningx.dictionaryBuild (proposals.ts)
  *   FR-08     ui.context, ontology.packs, ontology.get, ontology.publish, through the existing slice
  *   FR-09     ontology.get (the published menu), calculation.run, receipts.get
+ *   FR-11     todayx.idea.start, todayx.idea.tell, todayx.idea.correct (todayx.idea.get to read)
  *   FR-12     todayx.setupChecklist
- *   FR-13     workspace.recover, workspace.restore
+ *   FR-13     workspace.recover, workspace.restore, todayx.recoveryContact.request (refused until
+ *             the hosted relay exists)
  *   every step  todayx.firstRun.status
+ *
+ * FR-07 bank statement PDFs go through the connectors-ext `imports.*` family (`imports.readerStatus`,
+ * `imports.installReader`, `imports.preview`, `imports.providePassword`, `imports.commit`), with
+ * the shapes of docs/lanes/connectors-ext.md "FR-07 contract". PDF is offered only when
+ * `imports.readerStatus` answers; until then it stays out of the picker. The PDF's password
+ * passes once to `imports.providePassword` and is never held here. Sheets have no
+ * password path: an encrypted workbook (`ENCRYPTED_ZIP`, or an OLE file named .xlsx) shows
+ * "password needed" with the not-built words and no field.
  *
  * A reply of `UNKNOWN_METHOD`, `INVALID_REQUEST` or `METHOD_UNAVAILABLE` is "not built yet"
  * for that step. Engine prose (an error message, a preview's question) is never shown: only
@@ -21,11 +34,11 @@
 
 import { ReplyValidationError } from '../../bridge/validate.ts';
 import { notBuilt } from '../../bridge/todayx-contract.ts';
-import type { IdentityCard, IdentityField } from '../../bridge/todayx-contract.ts';
+import type { IdeaSection, IdeaUnknown, IdentityCard, IdentityField } from '../../bridge/todayx-contract.ts';
 
 /* ------------------------------------------------------------------ the port */
 
-export type ImportFormat = 'csv' | 'xlsx';
+export type ImportFormat = 'csv' | 'xlsx' | 'pdf';
 export interface ExpectedTotals { readonly rowCount: number; readonly amountMinor: string }
 
 /** A typed, data-only mapping recipe (platform/runtime/ingest.ts `validateRecipe`). */
@@ -64,6 +77,10 @@ export type WorkbookRequest = {
   readonly recipe?: MappingRecipe;
   readonly expectedTotals?: ExpectedTotals;
 };
+/** A bank statement PDF for the connectors-ext `imports.*` family. */
+export type PdfRequest = { readonly sourceId: string; readonly kind: 'pdf'; readonly bytesBase64: string };
+/** Takes the envelope that `imports.preview` read, for the same source. */
+export type PdfCommitRequest = { readonly sourceId: string; readonly envelopeId: string };
 export type RouteKind = 'codex-cli' | 'claude-cli' | 'openai-responses' | 'openai-compatible' | 'ollama';
 export type RouteConfigInput = { readonly kind: RouteKind; readonly model: string; readonly label?: string; readonly endpoint?: string };
 
@@ -78,12 +95,29 @@ export type JourneyPayloads = {
   'sources.import': SheetRequest;
   'sources.workbookPreview': WorkbookRequest;
   'sources.workbookImport': WorkbookRequest;
-  'imports.providePassword': { readonly sourceId: string; readonly password: string };
   'ontology.get': Record<string, never>;
   'calculation.run': { readonly operation: string };
   'receipts.get': { readonly id: string };
   'workspace.recover': { readonly folder: string; readonly recoveryCode: string; readonly passphrase: string };
   'workspace.restore': { readonly folder: string; readonly backupFile: string; readonly passphrase: string };
+  /** FR-07 proposed meanings (learning-ext; may be absent): read the drafts, or build one from the held sheet. */
+  'learningx.dictionaryProposals': { readonly limit?: number };
+  'learningx.dictionaryBuild': { readonly files: readonly { readonly content: string }[] };
+  /** FR-11 an idea (todayx). */
+  'todayx.idea.start': Record<string, never>;
+  'todayx.idea.get': Record<string, never>;
+  'todayx.idea.tell': { readonly text: string; readonly section?: IdeaSection; readonly answers?: IdeaUnknown; readonly guess?: boolean };
+  'todayx.idea.correct': { readonly claimId: string; readonly text?: string; readonly guess?: boolean; readonly withdraw?: true };
+  'imports.readerStatus': Record<string, never>;
+  'imports.installReader': Record<string, never>;
+  'imports.preview': PdfRequest;
+  'imports.providePassword': { readonly sourceId: string; readonly password: string };
+  'imports.commit': PdfCommitRequest;
+  'todayx.diskCheck': Record<string, never>;
+  'todayx.device.get': Record<string, never>;
+  'todayx.device.set': { readonly language: 'en' | 'hi'; readonly view: 'simple' | 'guided' | 'books' };
+  'todayx.workspaces': Record<string, never>;
+  'todayx.recoveryContact.request': { readonly folder: string };
 };
 export type JourneyMethod = keyof JourneyPayloads;
 
@@ -206,9 +240,11 @@ export function sourceIdFor(fileName: string): string {
   return `file-${base.length > 0 ? base : 'sheet'}`;
 }
 
-export function formatOf(fileName: string): ImportFormat | null {
+/** `pdf` only when this engine reads PDFs (`imports.readerStatus` answered). */
+export function formatOf(fileName: string, pdf = false): ImportFormat | null {
   if (/\.csv$/i.test(fileName) || /\.txt$/i.test(fileName)) return 'csv';
   if (/\.xlsx$/i.test(fileName)) return 'xlsx';
+  if (pdf && /\.pdf$/i.test(fileName)) return 'pdf';
   return null;
 }
 
@@ -317,4 +353,155 @@ export function groupsOfFour(code: string): readonly string[] {
 /** The code as typed back, without the spaces that grouping adds. */
 export function typedRecoveryCode(typed: string): string {
   return typed.replace(/\s+/g, '');
+}
+
+/* ------------------------------------------------------ bank statement PDFs (imports.*) */
+
+/**
+ * Thrown refusals of `imports.preview`: the file could not be read at all. The first two lead to
+ * the password field and the reader is shown for `READER_NOT_INSTALLED`; the rest have fixed sentences.
+ */
+export const PDF_THROWN = ['PASSWORD_REQUIRED', 'WRONG_PASSWORD', 'PICTURE_ONLY', 'READER_NOT_INSTALLED', 'INVALID_PDF', 'PDF_LINE_UNREADABLE', 'PDF_PAGE_LIMIT'] as const;
+/** Thrown refusals that refuse the file whole, each with its fixed sentence. */
+export const PDF_WHOLE_REASONS: ReadonlySet<string> = new Set(['PICTURE_ONLY', 'INVALID_PDF', 'PDF_LINE_UNREADABLE', 'PDF_PAGE_LIMIT']);
+/** Content refusals: an envelope with `status: 'refused'` and this `fr07.reason`. */
+export const PDF_CONTENT_REASONS = ['CUT_SHORT', 'FILTERED', 'DOES_NOT_ADD_UP'] as const;
+export type PdfContentReason = typeof PDF_CONTENT_REASONS[number];
+/** Every FR-07 PDF code that has the design's own words. */
+export const PDF_REFUSALS = [...PDF_THROWN, ...PDF_CONTENT_REASONS] as const;
+/** `imports.installReader` always refuses in this build; these are its expected codes. */
+export const READER_INSTALL_REFUSALS: ReadonlySet<string> = new Set(['READER_INSTALL_UNAVAILABLE', 'DEMO_EXTERNAL_DISABLED']);
+/** `imports.commit` refusals with their own words. */
+export const PDF_COMMIT_REFUSALS: ReadonlySet<string> = new Set(['IMPORT_NOT_ACCEPTED', 'ENVELOPE_NOT_FOUND', 'ENVELOPE_EXPIRED']);
+/** Reader reasons with their own words; any other helper code is shown as its code. */
+export const READER_REASONS: ReadonlySet<string> = new Set(['PYTHON_NOT_CONFIGURED', 'PDF_LIBRARY_MISSING']);
+
+const SOURCE_ID = /^[A-Za-z0-9_.:-]{1,100}$/;
+const RECORD_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,99}$/;
+function bool(value: unknown, path: string): boolean {
+  if (typeof value !== 'boolean') invalid(path);
+  return value;
+}
+function codeOrNull(value: unknown, path: string): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string' || !CODE.test(value)) invalid(path);
+  return value;
+}
+function idOf(value: unknown, path: string, pattern = RECORD_ID): string {
+  if (typeof value !== 'string' || !pattern.test(value)) invalid(path);
+  return value;
+}
+function only(obj: Rec, value: unknown, key: string, path: string): void {
+  if (obj[key] !== value) invalid(`${path}.${key}`);
+}
+
+/** `imports.readerStatus`: whether the trusted helper reads PDF text, and OCR for scanned pages. */
+export interface ReaderStatus {
+  readonly status: 'installed' | 'not-installed';
+  readonly pdfText: boolean;
+  /** OCR for scanned pages (experimental). */
+  readonly pdfOcr: boolean;
+  /** Null when installed; else `PYTHON_NOT_CONFIGURED`, `PDF_LIBRARY_MISSING` or the helper's code. */
+  readonly reason: string | null;
+}
+export function validateReaderStatus(value: unknown): ReaderStatus {
+  const obj = rec(value, 'reader');
+  const status = obj.status === 'installed' || obj.status === 'not-installed' ? obj.status : invalid('reader.status');
+  const pdfText = bool(obj.pdfText, 'reader.pdfText'), pdfOcr = bool(obj.pdfOcr, 'reader.pdfOcr');
+  const reason = codeOrNull(obj.reason, 'reader.reason');
+  // The size is not known in this build: anything but null is not this contract.
+  only(obj, null, 'sizeBytes', 'reader');
+  if ((status === 'installed') !== pdfText || (status === 'installed') !== (reason === null)) invalid('reader.status');
+  return Object.freeze({ status, pdfText, pdfOcr, reason });
+}
+
+/** `imports.providePassword`: held once, for this source; the password is never echoed. */
+export function validatePasswordHeld(value: unknown, sourceId: string): void {
+  const obj = rec(value, 'password');
+  only(obj, true, 'held', 'password');
+  only(obj, sourceId, 'sourceId', 'password');
+  only(obj, true, 'usedOnce', 'password');
+  if (whole(obj.expiresInSeconds, 'password.expiresInSeconds') === 0) invalid('password.expiresInSeconds');
+  if (Object.hasOwn(obj, 'password')) invalid('password.password');
+}
+
+/** A FILTERED total: paise as a digit string, or a count of lines when the row count differed. */
+export type PdfTotal = { readonly kind: 'money'; readonly minor: string } | { readonly kind: 'lines'; readonly count: number } | null;
+function total(value: unknown, path: string): PdfTotal {
+  if (value === null) return null;
+  if (typeof value === 'number') return Object.freeze({ kind: 'lines', count: whole(value, path) });
+  return Object.freeze({ kind: 'money', minor: digits(value, path, true) });
+}
+
+/** The `fr07` result (connectors-ext `fr07Result`), only the fields drawn. */
+export interface Fr07Result {
+  readonly envelopeId: string;
+  readonly sourceId: string;
+  readonly state: 'checked' | 'refused' | 'question' | 'imported';
+  readonly reason: PdfContentReason | null;
+  readonly code: string | null;
+  /** The line in the extracted text where it broke. */
+  readonly line: number | null;
+  /** FILTERED only. */
+  readonly totals: { readonly expected: PdfTotal; readonly observed: PdfTotal } | null;
+  readonly linesRead: number;
+  readonly openingMinor: string | null;
+  readonly closingMinor: string | null;
+  readonly checkPassed: boolean;
+  /** A scanned page was read by OCR (experimental). */
+  readonly readByOcr: boolean;
+  readonly imported: { readonly importId: string; readonly rows: number; readonly duplicate: boolean } | null;
+}
+export function validateFr07(value: unknown, path = 'fr07'): Fr07Result {
+  const obj = rec(value, path);
+  only(obj, 'bank-statement', 'kind', path);
+  const state = obj.state === 'checked' || obj.state === 'refused' || obj.state === 'question' || obj.state === 'imported' ? obj.state : invalid(`${path}.state`);
+  const reason = obj.reason === null ? null : (PDF_CONTENT_REASONS as readonly unknown[]).includes(obj.reason) ? obj.reason as PdfContentReason : invalid(`${path}.reason`);
+  const line = obj.line === null ? null : whole(obj.line, `${path}.line`);
+  let totals: Fr07Result['totals'] = null;
+  if (obj.totals !== null) {
+    const pair = rec(obj.totals, `${path}.totals`);
+    const expected = total(pair.expected, `${path}.totals.expected`), observed = total(pair.observed, `${path}.totals.observed`);
+    if (reason !== 'FILTERED' || (expected !== null && observed !== null && expected.kind !== observed.kind)) invalid(`${path}.totals`);
+    totals = Object.freeze({ expected, observed });
+  }
+  const kept = rec(obj.kept, `${path}.kept`);
+  only(kept, 'not-kept', 'file', `${path}.kept`);
+  only(kept, 'books-sources-history', 'record', `${path}.kept`);
+  let imported: Fr07Result['imported'] = null;
+  if (obj.imported !== null) {
+    const done = rec(obj.imported, `${path}.imported`);
+    imported = Object.freeze({ importId: idOf(done.importId, `${path}.imported.importId`), rows: whole(done.rows, `${path}.imported.rows`), duplicate: bool(done.duplicate, `${path}.imported.duplicate`) });
+  }
+  if ((state === 'imported') !== (imported !== null)) invalid(`${path}.imported`);
+  if (reason !== null && state !== 'refused') invalid(`${path}.reason`);
+  const checkPassed = bool(obj.checkPassed, `${path}.checkPassed`);
+  return Object.freeze({
+    envelopeId: idOf(obj.envelopeId, `${path}.envelopeId`), sourceId: idOf(obj.sourceId, `${path}.sourceId`, SOURCE_ID),
+    state, reason, code: codeOrNull(obj.code, `${path}.code`), line, totals,
+    linesRead: whole(obj.linesRead, `${path}.linesRead`),
+    openingMinor: obj.openingMinor === null ? null : digits(obj.openingMinor, `${path}.openingMinor`, true),
+    closingMinor: obj.closingMinor === null ? null : digits(obj.closingMinor, `${path}.closingMinor`, true),
+    checkPassed, readByOcr: bool(obj.readByOcr, `${path}.readByOcr`), imported,
+  });
+}
+
+/** `imports.preview` for a PDF: the envelope's id and status, and its `fr07` result. Nothing else is read. */
+export interface PdfPreview { readonly envelopeId: string; readonly status: 'accepted' | 'refused' | 'abstained' | 'failed'; readonly fr07: Fr07Result }
+export function validatePdfPreview(value: unknown, sourceId?: string): PdfPreview {
+  const obj = rec(value, 'pdf');
+  const envelopeId = idOf(obj.id, 'pdf.id');
+  const status = obj.status === 'accepted' || obj.status === 'refused' || obj.status === 'abstained' || obj.status === 'failed' ? obj.status : invalid('pdf.status');
+  const fr07 = validateFr07(obj.fr07, 'pdf.fr07');
+  if (fr07.envelopeId !== envelopeId || (sourceId !== undefined && fr07.sourceId !== sourceId)) invalid('pdf.fr07');
+  const expected = status === 'accepted' ? ['checked', 'imported'] : status === 'abstained' ? ['question'] : ['refused'];
+  if (!expected.includes(fr07.state)) invalid('pdf.fr07.state');
+  return Object.freeze({ envelopeId, status, fr07 });
+}
+
+/** `imports.commit`: the `fr07` result, now imported, for the envelope that was taken. */
+export function validatePdfCommit(value: unknown, envelopeId: string, sourceId: string): Fr07Result {
+  const fr07 = validateFr07(value, 'commit');
+  if (fr07.state !== 'imported' || fr07.envelopeId !== envelopeId || fr07.sourceId !== sourceId) invalid('commit.state');
+  return fr07;
 }
