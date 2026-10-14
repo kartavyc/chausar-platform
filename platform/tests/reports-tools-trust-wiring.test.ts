@@ -133,5 +133,7 @@ test('voice minutes and month spend come from models-ext meters when they answer
   for (const odd of [{ voice: { minutesThisMonth: -1 }, totals: { spendThisMonthMinor: 12 } }, { voice: { minutesThisMonth: '3' } }, null]) {
     const view = await modelsView(owner, host(odd)); assert.equal(view.voice.minutesThisMonth, null); assert.equal(view.spendThisMonthMinor, '0');
   }
-  await assert.rejects(modelsView(owner, host(new TypeError('a bug, not a refusal'))), TypeError);
+  // A fault in another lane's meters never stops the Models screen: minutes stay not counted and spend is summed here.
+  const faulted = await modelsView(owner, host(new TypeError('a fault in the meters')));
+  assert.equal(faulted.voice.minutesThisMonth, null); assert.equal(faulted.spendThisMonthMinor, '0');
 });
