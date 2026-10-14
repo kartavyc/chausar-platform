@@ -8,8 +8,8 @@ export type BillingConfig = {
   paidPricePaise: string | null;
   backupQuotaBytes: number;
   backupKeep: number;
-  /** Monthly model allowance grant in whole paise. '0' means no grant is set, so the allowance stays off. */
-  allowanceMonthlyPaise: string;
+  /** Monthly model allowance grant in whole paise; null when no grant is set (never zero), so the allowance stays off. */
+  allowanceMonthlyPaise: string | null;
   graceMs: number;
 };
 export const DEFAULT_BACKUP_QUOTA_BYTES = 2 * 1024 ** 3;
@@ -23,7 +23,7 @@ const paise = (value: string, name: string) => {
 
 /**
  * BILLING_PAID_PRICE_PAISE (positive whole paise; absent means the price is not set),
- * BACKUP_QUOTA_BYTES (default 2 GiB), ALLOWANCE_MONTHLY_PAISE (default '0': no grant set).
+ * BACKUP_QUOTA_BYTES (default 2 GiB), ALLOWANCE_MONTHLY_PAISE (positive whole paise; absent means no grant is set).
  * RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, RAZORPAY_PLAN_ID: all four or none.
  */
 export function billingConfig(env: Env, fetch: Fetch): { config: BillingConfig; partner: PaymentPartner } {
@@ -31,11 +31,14 @@ export function billingConfig(env: Env, fetch: Fetch): { config: BillingConfig; 
   const price = text('BILLING_PAID_PRICE_PAISE');
   const paidPricePaise = price === undefined ? null : paise(price, 'BILLING_PAID_PRICE_PAISE');
   check(paidPricePaise === null || BigInt(paidPricePaise) > 0n, 'SERVER_MISCONFIGURED', 'BILLING_PAID_PRICE_PAISE must be more than zero.', 500);
+  const grant = text('ALLOWANCE_MONTHLY_PAISE');
+  const allowanceMonthlyPaise = grant === undefined ? null : paise(grant, 'ALLOWANCE_MONTHLY_PAISE');
+  check(allowanceMonthlyPaise === null || BigInt(allowanceMonthlyPaise) > 0n, 'SERVER_MISCONFIGURED', 'ALLOWANCE_MONTHLY_PAISE must be more than zero.', 500);
   const quota = text('BACKUP_QUOTA_BYTES');
   check(quota === undefined || (/^[1-9][0-9]{0,15}$/.test(quota) && Number.isSafeInteger(Number(quota))), 'SERVER_MISCONFIGURED', 'BACKUP_QUOTA_BYTES must be a whole number of bytes.', 500);
   const config: BillingConfig = {
     paidPricePaise, backupQuotaBytes: quota === undefined ? DEFAULT_BACKUP_QUOTA_BYTES : Number(quota), backupKeep: BACKUP_KEEP,
-    allowanceMonthlyPaise: paise(text('ALLOWANCE_MONTHLY_PAISE') ?? '0', 'ALLOWANCE_MONTHLY_PAISE'), graceMs: PAST_DUE_GRACE_MS,
+    allowanceMonthlyPaise, graceMs: PAST_DUE_GRACE_MS,
   };
   const keys = ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET', 'RAZORPAY_PLAN_ID'].map(text);
   const given = keys.filter(Boolean).length;

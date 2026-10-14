@@ -16,11 +16,12 @@
 import type { HostedDeps, HostedModule } from '../shared/module.ts';
 import type { HostedRequest, Router } from '../shared/http.ts';
 import type { Sql } from '../db/sql.ts';
-import { json, fields, ok } from '../shared/http.ts';
+import { headersOnly, json, fields, ok } from '../shared/http.ts';
 import { HostedError, check } from '../shared/errors.ts';
 import { monthKey } from '../shared/clock.ts';
 import { costPaise, MODEL_NAME, ROUTES, type ModelRoute, type PricingTable } from './pricing.ts';
 import { ProviderFailed, type ChatMessage, type ModelProvider } from './providers.ts';
+import { allowanceGrant } from '../shared/auth.ts';
 
 export const MAX_MESSAGES = 50;
 export const MAX_CONTENT_CHARS = 100_000;
@@ -71,10 +72,12 @@ export function createAllowanceModule(deps: HostedDeps, options: { providers: { 
   async function summary(request: HostedRequest) {
     const { accountId } = await deps.authenticate(request);
     const plan = await deps.entitlements(accountId), month = monthKey(clock());
-    const grant = plan.allowance ? BigInt(plan.allowanceMonthlyPaise) : 0n;
+    // No grant set (or none in the plan) is said in words: grant and balance are null, never '0'.
+    const grant = allowanceGrant(plan);
     const { spent, reserved } = await totals(sql, accountId, month);
     return ok({
-      month, grantPaise: grant.toString(), spentPaise: spent.toString(), reservedPaise: reserved.toString(), balancePaise: (grant - spent - reserved).toString(),
+      month, grantPaise: grant.paise, grantState: grant.state, spentPaise: spent.toString(), reservedPaise: reserved.toString(),
+      balancePaise: grant.paise === null ? null : (BigInt(grant.paise) - spent - reserved).toString(),
       pricing: pricing ? { checkedOn: pricing.checkedOn, fxPaisePerUsd: pricing.fxPaisePerUsd, source: pricing.source } : null,
       models: pricing ? pricing.models.filter(m => providers[m.route]).map(m => ({ route: m.route, model: m.model })) : [],
     });
@@ -128,6 +131,6 @@ export function createAllowanceModule(deps: HostedDeps, options: { providers: { 
 
   return {
     id: 'allowance',
-    routes(router: Router) { router.add('GET', '/v1/allowance', summary).add('POST', '/v1/allowance/complete', complete); },
+    routes(router: Router) { router.add('GET', '/v1/allowance', summary).add('POST', '/v1/allowance/complete', complete, { authenticateFirst: headersOnly(deps.authenticate) }); },
   };
 }

@@ -30,9 +30,9 @@ export function buildHosted(env: Env, sql: Sql, fetch: Fetch, overrides: HostedO
   const entitlements = billingEntitlements(sql, clock, billing.config);
   const deps: HostedDeps = { sql, clock, queue, fetch, pepper, linkOrigin, authenticate: authenticator(sql, pepper, clock), entitlements };
   const relay = createRelayModule(deps, overrides.relay ?? relayConfig(env));
-  const allowance = allowanceConfig(env);
+  const allowance = allowanceConfig(env), accounts = accountsConfig(env, fetch);
   const modules: HostedModule[] = [
-    createAccountsModule(deps, { otp: overrides.otp ?? accountsConfig(env, fetch).otp, entitlements }),
+    createAccountsModule(deps, { otp: overrides.otp ?? accounts.otp, entitlements, limits: accounts.limits }),
     createBillingModule(deps, { partner: overrides.partner ?? billing.partner, config: billing.config }),
     relay,
     createLinkPages(deps, relay.buttons),

@@ -41,9 +41,15 @@ async function setup() {
   await api('PUT', '/v1/relay/channels/mail', { enabled: true, optIn: optIn('mail'), address: 'owner@example.com' });
   await api('PUT', '/v1/relay/channels/whatsapp', { enabled: true, optIn: optIn('whatsapp') });
   const page = (method: string, path: string) => router.handle({ method, url: path, headers: method === 'POST' ? { 'content-type': 'application/x-www-form-urlencoded' } : {}, body: Buffer.alloc(0) });
-  /** Sends a review offer by mail and returns the tokens read back from the mail body. */
+  /**
+   * Mail no longer takes an offer; this stands in for one queued before that change: an Open-only review message whose row
+   * is turned into an offer before dispatch. Returns the tokens read back from the mail body.
+   */
   const mailOffer = async () => {
-    await api('POST', '/v1/relay/messages', { event: 'review-ready', channel: 'mail', idempotencyKey: `mail-${randomUUID()}`, offer: { approve: blob(1), notNow: blob(5) } });
+    const queued = await api('POST', '/v1/relay/messages', { event: 'review-ready', channel: 'mail', idempotencyKey: `mail-${randomUUID()}` });
+    await sql.query(`UPDATE relay_messages SET buttons = 'approve-not-now-open' WHERE id = $1`, [queued.messageId]);
+    await sql.query('INSERT INTO relay_offers (message_id, approve_nonce, approve_ciphertext, not_now_nonce, not_now_ciphertext, expires_at) SELECT id, $2, $3, $4, $5, expires_at FROM relay_messages WHERE id = $1',
+      [queued.messageId, blob(1).nonce, blob(1).ciphertext, blob(5).nonce, blob(5).ciphertext]);
     await worker.runOnce();
     const text: string = sent.at(-1).body.TextBody;
     return { open: /\/l\/([A-Za-z]{48})/.exec(text)![1], approve: /Approve: https:\/\/link\.chausar\.app\/b\/([A-Za-z]{48})/.exec(text)![1], notNow: /Not now: https:\/\/link\.chausar\.app\/b\/([A-Za-z]{48})/.exec(text)![1] };
@@ -109,6 +115,29 @@ test('a mail approval link: GET only shows the confirm button (scanners consume 
   h.state.time = new Date(h.state.time.getTime() + 31 * 60000);
   assertPlainPage(await h.page('GET', `/b/${late.notNow}`), 410, LINK_PAGE.gone);
   assertPlainPage(await h.page('POST', `/b/${late.notNow}`), 410, LINK_PAGE.gone);
+});
+
+test('mail is never offered Approve and Not now: a forwarded mail would carry them to anyone', { skip: pgSkip }, async () => {
+  const h = await setup();
+  const refused = await h.router.handle({ method: 'POST', url: '/v1/relay/messages', headers: { authorization: `Bearer sessiontoken_${OWNER}`, 'content-type': 'application/json' },
+    body: Buffer.from(JSON.stringify({ event: 'review-ready', channel: 'mail', idempotencyKey: 'mail-offer-key', offer: { approve: blob(1), notNow: blob(5) } })) });
+  assert.equal(refused.status, 400); assert.equal((refused.body as any).error.code, 'OFFER_NOT_ALLOWED');
+  assert.equal((await h.sql.query('SELECT count(*)::int AS n FROM relay_messages')).rows[0].n, 0);
+  const open = await h.api('POST', '/v1/relay/messages', { event: 'review-ready', channel: 'mail', idempotencyKey: 'mail-open-key' });
+  assert.equal(open.status, 'queued');
+  await h.worker.runOnce();
+  const text: string = h.sent.at(-1).body.TextBody;
+  assert.match(text, /\/l\/[A-Za-z]{48}/); assert.equal(/\/b\//.test(text), false, 'only Open the app');
+});
+
+test('a mail link pressed after the channel is stopped decides nothing', { skip: pgSkip }, async () => {
+  const h = await setup();
+  const tokens = await h.mailOffer();
+  await h.sql.query(`UPDATE relay_channels SET status = 'stopped', stopped_at = now() WHERE channel = 'mail'`);
+  assertPlainPage(await h.page('GET', `/b/${tokens.approve}`), 410, LINK_PAGE.gone);
+  assertPlainPage(await h.page('POST', `/b/${tokens.approve}`), 410, LINK_PAGE.gone);
+  assert.deepEqual((await h.sql.query('SELECT reason FROM relay_refusals')).rows, [{ reason: 'channel-off' }]);
+  assert.deepEqual(await h.envelopes(), []);
 });
 
 test('a chat button token cannot be used as a mail link', { skip: pgSkip }, async () => {

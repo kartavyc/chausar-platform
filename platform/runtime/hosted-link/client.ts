@@ -188,10 +188,14 @@ export class HostedClient {
   }
 
   // Billing
-  async plans(token: string): Promise<{ plans: { plan: string; pricePaise: string; period: 'month'; includes: string[] }[] }> {
+  async plans(token: string): Promise<{ plans: { plan: string; pricePaise: string | null; priceState: 'set' | 'not-set'; period: 'month'; includes: Record<string, unknown> }[] }> {
     const r = shape(await this.#json('GET', '/v1/billing/plans', { token }), ['plans']);
     valid(Array.isArray(r.plans) && r.plans.length <= 20);
-    for (const plan of r.plans) { const p = shape(plan, ['plan', 'pricePaise', 'period', 'includes']); valid(text(p.plan, 40) && typeof p.pricePaise === 'string' && PAISE.test(p.pricePaise) && p.period === 'month' && Array.isArray(p.includes) && p.includes.length <= 50 && p.includes.every((i: unknown) => text(i, 200))); }
+    for (const plan of r.plans) {
+      const p = shape(plan, ['plan', 'pricePaise', 'priceState', 'period', 'includes']);
+      valid(text(p.plan, 40) && p.period === 'month' && (p.priceState === 'set' ? typeof p.pricePaise === 'string' && PAISE.test(p.pricePaise) : p.priceState === 'not-set' && p.pricePaise === null)
+        && !!p.includes && typeof p.includes === 'object' && !Array.isArray(p.includes) && Object.keys(p.includes).length <= 50);
+    }
     return r as any;
   }
   async subscription(token: string): Promise<{ plan: string; status: string; currentPeriodEnd: string | null; partner: string | null }> {
@@ -281,10 +285,13 @@ export class HostedClient {
   }
 
   // Model allowance
-  async allowance(token: string): Promise<{ month: string; grantPaise: string; spentPaise: string; reservedPaise: string; balancePaise: string; pricing: { checkedOn: string; fxPaisePerUsd: string; source: string } | null; models: { route: string; model: string }[] }> {
-    const r = shape(await this.#json('GET', '/v1/allowance', { token }), ['month', 'grantPaise', 'spentPaise', 'reservedPaise', 'balancePaise', 'pricing', 'models']);
-    valid(/^\d{4}-\d{2}$/.test(r.month ?? '') && [r.grantPaise, r.spentPaise, r.reservedPaise].every(v => typeof v === 'string' && PAISE.test(v))
-      && typeof r.balancePaise === 'string' && /^-?(?:0|[1-9]\d{0,17})$/.test(r.balancePaise) && Array.isArray(r.models) && r.models.length <= 100);
+  /** A grant that is not set, or not in the plan, is a state word with null amounts, never zero. */
+  async allowance(token: string): Promise<{ month: string; grantPaise: string | null; grantState: 'set' | 'not-set' | 'not-included'; spentPaise: string; reservedPaise: string; balancePaise: string | null; pricing: { checkedOn: string; fxPaisePerUsd: string; source: string } | null; models: { route: string; model: string }[] }> {
+    const r = shape(await this.#json('GET', '/v1/allowance', { token }), ['month', 'grantPaise', 'grantState', 'spentPaise', 'reservedPaise', 'balancePaise', 'pricing', 'models']);
+    valid(/^\d{4}-\d{2}$/.test(r.month ?? '') && [r.spentPaise, r.reservedPaise].every(v => typeof v === 'string' && PAISE.test(v))
+      && (r.grantState === 'set' ? typeof r.grantPaise === 'string' && PAISE.test(r.grantPaise) && typeof r.balancePaise === 'string' && /^-?(?:0|[1-9]\d{0,17})$/.test(r.balancePaise)
+        : ['not-set', 'not-included'].includes(r.grantState) && r.grantPaise === null && r.balancePaise === null)
+      && Array.isArray(r.models) && r.models.length <= 100);
     if (r.pricing !== null) { const p = shape(r.pricing, ['checkedOn', 'fxPaisePerUsd', 'source']); valid(text(p.checkedOn, 40) && typeof p.fxPaisePerUsd === 'string' && PAISE.test(p.fxPaisePerUsd) && text(p.source, 300)); }
     for (const model of r.models) { const m = shape(model, ['route', 'model']); valid(['anthropic', 'openai'].includes(m.route) && text(m.model, 120)); }
     return r as any;

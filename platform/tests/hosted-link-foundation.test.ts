@@ -1,6 +1,10 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { Router, json, fields, ok } from '../../hosted/shared/http.ts';
+import { request as httpRequest } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { Router, json, fields, ok, serve } from '../../hosted/shared/http.ts';
+import { check } from '../../hosted/shared/errors.ts';
+import { BACKUP_MAX_BODY } from '../../hosted/backup/index.ts';
 import { letterToken, isLetterToken, secretHash, sameHex } from '../../hosted/shared/crypto.ts';
 import { monthKey } from '../../hosted/shared/clock.ts';
 import { JobQueue, Worker, PermanentJobError } from '../../hosted/db/queue.ts';
@@ -45,6 +49,41 @@ test('the router matches, refuses and never leaks an internal error', async () =
   assert.equal((extra.body as any).error.code, 'INVALID_REQUEST');
   const boom = await router.handle({ method: 'GET', url: '/boom' });
   assert.equal(boom.status, 500); assert.equal(JSON.stringify(boom.body).includes('secret'), false);
+});
+
+test('a route that authenticates first refuses from the headers alone, before any body is read', async () => {
+  assert.equal(BACKUP_MAX_BODY, 160 * 1024 * 1024);
+  let handled = 0, checked = 0;
+  const router = new Router().add('PUT', '/v1/big', request => { handled++; return ok({ size: request.body.length }); }, {
+    maxBody: 1024, authenticateFirst: async headers => { checked++; check(headers.authorization === 'Bearer letmein', 'UNAUTHENTICATED', 'Sign in first.', 401); },
+  });
+  // In process: the same preflight runs inside handle.
+  const anonymous = await router.handle({ method: 'PUT', url: '/v1/big', body: Buffer.alloc(10) });
+  assert.equal(anonymous.status, 401); assert.equal(handled, 0);
+  const declared = await router.handle({ method: 'PUT', url: '/v1/big', headers: { authorization: 'Bearer letmein', 'Content-Length': '5000' }, body: Buffer.alloc(10) });
+  assert.equal(declared.status, 413); assert.equal(handled, 0);
+  assert.equal((await router.handle({ method: 'PUT', url: '/v1/big', headers: { authorization: 'Bearer letmein' }, body: Buffer.alloc(10) })).status, 200);
+  // Over a socket: a request that declares a body but never sends it is answered at once, so the body was never awaited.
+  const server = await serve(router, { port: 0, host: '127.0.0.1' });
+  try {
+    const port = (server.address() as AddressInfo).port;
+    const send = (headers: Record<string, string>, body?: Buffer) => new Promise<{ status: number; body: any }>((resolve, reject) => {
+      const outgoing = httpRequest({ host: '127.0.0.1', port, method: 'PUT', path: '/v1/big', headers }, response => {
+        const chunks: Buffer[] = []; response.on('data', chunk => chunks.push(chunk));
+        response.on('end', () => resolve({ status: response.statusCode ?? 0, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) }));
+      });
+      outgoing.on('error', reject);
+      if (body) outgoing.end(body); else outgoing.flushHeaders();
+    });
+    checked = 0;
+    const early = await send({ 'content-length': '900' });
+    assert.equal(early.status, 401); assert.equal(early.body.error.code, 'UNAUTHENTICATED'); assert.equal(checked, 1);
+    const tooLarge = await send({ authorization: 'Bearer letmein', 'content-length': String(64 * 1024 * 1024) });
+    assert.equal(tooLarge.status, 413); assert.equal(tooLarge.body.error.code, 'BODY_TOO_LARGE');
+    const fine = await send({ authorization: 'Bearer letmein', 'content-length': '10' }, Buffer.alloc(10));
+    assert.deepEqual(fine, { status: 200, body: { size: 10 } });
+    assert.equal(handled, 2);
+  } finally { await new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }); }
 });
 
 test('the job queue claims once, retries with backoff and survives a lost lease', { skip: pgSkip }, async () => {

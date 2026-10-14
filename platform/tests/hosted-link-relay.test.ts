@@ -72,7 +72,7 @@ test('mail goes through Postmark with the headline as subject and the one-time l
   assert.equal(await channel.sendTemplate(fetch, 'owner@example.com', sent), RECORDED.postmark.MessageID);
   assert.equal(calls[0].url, 'https://api.postmarkapp.com/email');
   assert.equal(calls[0].headers['x-postmark-server-token'], PM.serverToken);
-  assert.deepEqual(calls[0].body, { From: PM.from, To: 'owner@example.com', Subject: HEADLINES['review-ready'], MessageStream: 'outbound', TextBody: [
+  assert.deepEqual(calls[0].body, { From: PM.from, To: 'owner@example.com', Subject: HEADLINES['review-ready'], MessageStream: 'outbound', TrackLinks: 'None', TrackOpens: false, TextBody: [
     HEADLINES['review-ready'], `${ORIGIN}/l/${sent.openToken}`, `Approve: ${ORIGIN}/b/${sent.offer!.approveToken}`, `Not now: ${ORIGIN}/b/${sent.offer!.notNowToken}`, '', MAIL_FOOTER].join('\n') });
   const plain = message('due-date-near', false);
   assert.equal(mailBody(plain), messageBody('due-date-near', `${ORIGIN}/l/${plain.openToken}`, 'mail'));

@@ -1,6 +1,6 @@
 import type { Sql } from '../db/sql.ts';
 import type { Clock } from '../shared/clock.ts';
-import { FREE_ENTITLEMENTS, type EntitlementSource, type Entitlements } from '../shared/auth.ts';
+import { FREE_ENTITLEMENTS, allowanceGrant, type EntitlementSource, type Entitlements } from '../shared/auth.ts';
 import type { HostedDeps, HostedModule } from '../shared/module.ts';
 import { check } from '../shared/errors.ts';
 import { fields, json, ok, type Router } from '../shared/http.ts';
@@ -11,12 +11,18 @@ type SubscriptionRow = { account_id: string; partner: string; status: 'pending' 
 const isoOf = (value: Date | null) => value === null ? null : new Date(value).toISOString();
 const isKey = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{16,128}$/.test(value);
 
+/** A paid plan has the allowance exactly when a grant is set; `allowanceMonthlyPaise` is '0' only alongside `allowance: false`. */
 export function paidEntitlements(config: BillingConfig): Entitlements {
   return {
     plan: 'paid', relay: true, backup: true, backupQuotaBytes: config.backupQuotaBytes, backupKeep: config.backupKeep,
-    allowance: BigInt(config.allowanceMonthlyPaise) > 0n, allowanceMonthlyPaise: config.allowanceMonthlyPaise, worker: true, monthlyMessages: 30,
+    allowance: config.allowanceMonthlyPaise !== null, allowanceMonthlyPaise: config.allowanceMonthlyPaise ?? '0', worker: true, monthlyMessages: 30,
   };
 }
+/** The plans reply: the allowance line carries a state word, and null where the grant is not set or not included. */
+const planIncludes = (entitlements: Entitlements) => {
+  const grant = allowanceGrant(entitlements);
+  return { ...entitlements, allowanceMonthlyPaise: grant.paise, allowanceMonthlyState: grant.state };
+};
 /** Paid while active, or while past due within the grace period. Pending and cancelled are free. */
 export function isPaid(row: Pick<SubscriptionRow, 'status' | 'past_due_since'> | undefined, at: Date, graceMs: number): boolean {
   if (!row) return false;
@@ -35,7 +41,29 @@ export function createBillingModule(deps: HostedDeps, options: { partner: Paymen
   const subscription = async (accountId: string, tx: Sql = sql, lock = false) =>
     (await tx.query<SubscriptionRow>(`SELECT * FROM billing_subscriptions WHERE account_id = $1${lock ? ' FOR UPDATE' : ''}`, [accountId])).rows[0];
 
-  /** Applies one verified event once. Events for another (older) subscription of the account change nothing. */
+  /**
+   * Cancels a partner subscription Chausar no longer tracks, once. Called inside the event's transaction, so a failed
+   * partner call rolls the event back and the partner's retry tries again.
+   */
+  async function cancelAtPartner(tx: Sql, accountId: string, ref: string, reason: 'superseded' | 'cancelled') {
+    const { rows: [done] } = await tx.query('SELECT 1 FROM billing_cancelled_refs WHERE partner = $1 AND subscription_ref = $2', [partner.id, ref]);
+    if (done) return;
+    await partner.cancel(ref);
+    await tx.query('INSERT INTO billing_cancelled_refs (partner, subscription_ref, account_id, reason, cancelled_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING',
+      [partner.id, ref, accountId, reason, clock().toISOString()]);
+  }
+  /** The partner subscription a pending checkout already created, if any. */
+  async function checkoutRef(tx: Sql, checkoutId: string | null): Promise<string | null> {
+    if (!checkoutId) return null;
+    const { rows: [row] } = await tx.query('SELECT subscription_ref FROM billing_checkouts WHERE checkout_id = $1 AND partner = $2', [checkoutId, partner.id]);
+    return row?.subscription_ref ?? null;
+  }
+
+  /**
+   * Applies one verified event once. Events for another (older) subscription of the account change nothing, except that
+   * a second subscription that starts or charges beside the current one, or a pending checkout a paid one replaces, is
+   * cancelled at the partner so nothing untracked keeps charging.
+   */
   async function apply(event: PartnerEvent) {
     await sql.transaction(async tx => {
       const at = clock().toISOString();
@@ -49,8 +77,17 @@ export function createBillingModule(deps: HostedDeps, options: { partner: Paymen
       await tx.query('UPDATE billing_events SET account_id = $3 WHERE partner = $1 AND event_id = $2', [partner.id, event.eventId, accountId]);
       const row = await subscription(accountId, tx, true), ref = (event.subscriptionRef ?? event.checkoutId)!;
       const end = event.currentPeriodEnd, same = row?.subscription_ref === ref;
+      const current = row && (row.status === 'active' || row.status === 'past_due');
+      if ((event.type === 'activated' || event.type === 'charged') && current && !same) { await cancelAtPartner(tx, accountId, ref, 'superseded'); return; }
       if (event.type === 'activated') {
         if (same && row.status === 'cancelled') return;
+        const refs = [ref, await checkoutRef(tx, event.checkoutId)].filter(Boolean);
+        const { rows: [stopped] } = await tx.query('SELECT 1 FROM billing_cancelled_refs WHERE partner = $1 AND subscription_ref = ANY($2::text[])', [partner.id, refs]);
+        if (stopped) return; // a subscription or checkout Chausar already cancelled does not come back
+        if (row?.status === 'pending' && row.checkout_id !== event.checkoutId) {
+          const superseded = await checkoutRef(tx, row.checkout_id);
+          if (superseded && superseded !== ref) await cancelAtPartner(tx, accountId, superseded, 'superseded');
+        }
         await tx.query(
           `INSERT INTO billing_subscriptions (account_id, partner, plan, status, checkout_id, subscription_ref, current_period_end, updated_at)
            VALUES ($1, $2, 'paid', 'active', $3, $4, $5, $6)
@@ -76,8 +113,8 @@ export function createBillingModule(deps: HostedDeps, options: { partner: Paymen
         await deps.authenticate(request);
         const paid = config.paidPricePaise;
         return ok({ plans: [
-          { plan: 'free', pricePaise: '0', priceState: 'set', period: 'month', includes: { ...FREE_ENTITLEMENTS } },
-          { plan: 'paid', pricePaise: paid, priceState: paid === null ? 'not-set' : 'set', period: 'month', includes: paidEntitlements(config) },
+          { plan: 'free', pricePaise: '0', priceState: 'set', period: 'month', includes: planIncludes(FREE_ENTITLEMENTS) },
+          { plan: 'paid', pricePaise: paid, priceState: paid === null ? 'not-set' : 'set', period: 'month', includes: planIncludes(paidEntitlements(config)) },
         ] });
       });
 
@@ -103,11 +140,19 @@ export function createBillingModule(deps: HostedDeps, options: { partner: Paymen
         const made = await partner.createCheckout({ accountId, plan: 'paid', idempotencyKey: key });
         check(isPartnerRef(made.checkoutId) && typeof made.checkoutUrl === 'string' && made.checkoutUrl.startsWith('https://') && made.checkoutUrl.length <= 2048,
           'PAYMENT_PARTNER_FAILED', 'The payment partner did not complete the request.', 502);
+        const madeRef = made.subscriptionRef ?? null;
+        check(madeRef === null || isPartnerRef(madeRef), 'PAYMENT_PARTNER_FAILED', 'The payment partner did not complete the request.', 502);
         const saved = await sql.transaction(async tx => {
           const at = clock().toISOString();
-          await tx.query(`INSERT INTO billing_checkouts (checkout_id, account_id, partner, plan, idempotency_key, checkout_url, created_at) VALUES ($1, $2, $3, 'paid', $4, $5, $6)
-            ON CONFLICT (account_id, idempotency_key) DO NOTHING`, [made.checkoutId, accountId, partner.id, key, made.checkoutUrl, at]);
+          const before = await subscription(accountId, tx, true);
+          await tx.query(`INSERT INTO billing_checkouts (checkout_id, account_id, partner, plan, idempotency_key, checkout_url, subscription_ref, created_at) VALUES ($1, $2, $3, 'paid', $4, $5, $6, $7)
+            ON CONFLICT (account_id, idempotency_key) DO NOTHING`, [made.checkoutId, accountId, partner.id, key, made.checkoutUrl, madeRef, at]);
           const { rows: [winner] } = await tx.query('SELECT checkout_id, checkout_url FROM billing_checkouts WHERE account_id = $1 AND idempotency_key = $2', [accountId, key]);
+          // The earlier checkout this one replaces is cancelled at the partner, so its link can no longer start a second subscription.
+          if (before?.status === 'pending' && before.checkout_id && before.checkout_id !== winner.checkout_id) {
+            const superseded = await checkoutRef(tx, before.checkout_id);
+            if (superseded && superseded !== madeRef) await cancelAtPartner(tx, accountId, superseded, 'superseded');
+          }
           await tx.query(`INSERT INTO billing_subscriptions (account_id, partner, plan, status, checkout_id, updated_at) VALUES ($1, $2, 'paid', 'pending', $3, $4)
             ON CONFLICT (account_id) DO UPDATE SET partner = $2, status = 'pending', checkout_id = $3, subscription_ref = NULL, current_period_end = NULL,
               past_due_since = NULL, cancelled_at = NULL, updated_at = $4 WHERE billing_subscriptions.status IN ('pending', 'cancelled')`,
@@ -125,6 +170,8 @@ export function createBillingModule(deps: HostedDeps, options: { partner: Paymen
         if (row.status !== 'pending') {
           check(row.partner === partner.id, 'PAYMENT_PARTNER_CHANGED', 'This subscription belongs to a payment partner this server no longer uses.', 409);
           await partner.cancel(row.subscription_ref!);
+          await sql.query('INSERT INTO billing_cancelled_refs (partner, subscription_ref, account_id, reason, cancelled_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING',
+            [partner.id, row.subscription_ref, principal.accountId, 'cancelled', clock().toISOString()]);
         }
         const at = clock().toISOString();
         const { rowCount } = await sql.query(`UPDATE billing_subscriptions SET status = 'cancelled', cancelled_at = $3, past_due_since = NULL, updated_at = $3 WHERE account_id = $1 AND status = $2`,

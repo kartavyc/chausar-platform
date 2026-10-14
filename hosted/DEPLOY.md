@@ -35,10 +35,12 @@ Write `hosted/hosted.env` (never commit it) and `hosted/secrets/db_password`.
 | `LINK_ORIGIN` | yes | `https://` origin of the link pages, with **no digit in it** (messages must hold no digit), for example `https://link.chausar.app` |
 | `PORT` | no | Default `8080` |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | for sign-in | SMS for phone OTP. Without them sign-in refuses `OTP_PROVIDER_NOT_CONFIGURED`. **Founder step:** a Twilio account and DLT registration of the sender and the OTP template in India |
+| `OTP_GLOBAL_PER_HOUR`, `OTP_ADDRESS_PER_HOUR` | no | Sign-in codes sent per hour across the server (default 300) and per client address (default 20), on top of the per-phone limits. They cap the SMS bill |
+| `TRUST_PROXY` | no | `1` when the TLS proxy in front of `api` sets `X-Forwarded-For` to the client address (replacing any value the client sent: nginx `proxy_set_header X-Forwarded-For $remote_addr;`, Caddy does so by default). Only then is the per-address limit applied, keyed on the first entry; only a keyed hash of the address is stored. Default `0`: the per-address limit is skipped |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_PLAN_ID`, `RAZORPAY_WEBHOOK_SECRET` | for billing | Without them checkout refuses `PAYMENT_PARTNER_NOT_CONFIGURED`. **Founder step:** a Razorpay account, KYC, the plan and the webhook |
 | `BILLING_PAID_PRICE_PAISE` | for billing | Whole paise as digits. Absent: the price is shown as "not set", never zero |
 | `BACKUP_DIRECTORY`, `BACKUP_QUOTA_BYTES` | for backup | A mounted volume. Without a directory backup refuses `BLOB_STORE_NOT_CONFIGURED` |
-| `ALLOWANCE_MONTHLY_PAISE` | for the allowance | The monthly grant of the paid plan, whole paise |
+| `ALLOWANCE_MONTHLY_PAISE` | for the allowance | The monthly grant of the paid plan, whole paise above zero. Absent: the grant is shown as "not set" (never zero) and the allowance stays off |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | for the allowance | Provider keys stay on the server. A missing key refuses `PROVIDER_NOT_CONFIGURED` for that route |
 | `ALLOWANCE_PRICING_JSON` | for the allowance | The dated pricing table (`checkedOn`, `source`, `fxPaisePerUsd`, per-model prices in micro-dollars per million tokens). Absent: every request refuses `PRICING_NOT_SET`. A person checks it against the providers' published prices and dates it |
 | `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | for WhatsApp | **Founder step:** Meta business verification, a WhatsApp Business number, and approval of the four templates named in `shared/templates.ts` (`chausar_week_ahead_ready`, `chausar_review_ready`, `chausar_document_received`, `chausar_due_date_near`), each with a URL button whose suffix is the link token, and `chausar_review_ready` also with two quick-reply buttons. Also a written reading of WhatsApp's business terms (general AI assistants are not allowed): Chausar sends only these templates and fixed replies |
@@ -60,4 +62,6 @@ Write `hosted/hosted.env` (never commit it) and `hosted/secrets/db_password`.
 - Logs carry codes and ids only: never a phone number, an address, a token, a prompt or an answer.
 - HELP requests land in `relay_help_requests`; a person answers them. Nothing automatic replies beyond the fixed texts.
 - STOP is honoured at once and kept until the person turns messages on again in the desktop app.
+- Link lifetimes: Approve and Not now are single use and expire thirty minutes after the message is queued; they are offered only on WhatsApp and Telegram, where a press counts only from the owner's number or chat. The Open the app link (`/l/<token>`) stays usable for seven days because it decides nothing and holds no data: whoever opens it, forwarded or late, only reaches the app's own screen. Mail carries Open the app only.
+- Approval envelopes go back only to the desktop install (device) that sent the offer.
 - Never send a free-form message from the operator side through the relay; the catalogue is fixed and tested to hold no digit.

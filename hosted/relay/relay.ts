@@ -27,7 +27,7 @@ export type RelayButtons = {
   openDestination(token: string): Promise<Destination | null>;
   /** Which decision a still-usable button would make. Consumes nothing (mail scanners prefetch links). */
   peek(token: string, channel: Channel): Promise<Decision | null>;
-  /** Decides once. `sender` is the wa_id or Telegram user id for chat presses; null for the mail page. */
+  /** Decides once. `sender` is the wa_id or Telegram user id for chat presses; null for the mail page (tokens offered before mail offers stopped). */
   decide(token: string, channel: Channel, sender: string | null): Promise<Decision | null>;
 };
 export type RelayModule = HostedModule & {
@@ -91,15 +91,15 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       const at = now();
       const { rows: [found] } = await tx.query('SELECT message_id FROM relay_buttons WHERE token_hash = $1 AND kind IN ($2, $3)', [hash, 'approve', 'not-now']);
       if (!found) { await refuse(tx, 'unknown', channel); return null; }
-      const { rows: [message] } = await tx.query('SELECT id, account_id, channel, decided, expires_at FROM relay_messages WHERE id = $1 FOR UPDATE', [found.message_id]);
+      const { rows: [message] } = await tx.query('SELECT id, account_id, device_id, channel, decided, expires_at FROM relay_messages WHERE id = $1 FOR UPDATE', [found.message_id]);
       const { rows: [button] } = await tx.query('SELECT kind, used_at, expires_at FROM relay_buttons WHERE token_hash = $1', [hash]);
       if (!message || !button) { await refuse(tx, 'unknown', channel); return null; }
       const no = async (reason: string) => { await refuse(tx, reason, channel, message.account_id, message.id); return null; };
       if (message.channel !== channel) return no('wrong-channel');
-      if (channel !== 'mail') {
-        const { rows: [owner] } = await tx.query('SELECT recipient_hash FROM relay_channels WHERE account_id = $1 AND channel = $2', [message.account_id, channel]);
-        if (!sender || !owner?.recipient_hash || !sameHex(owner.recipient_hash, recipientHash(channel, sender))) return no('not-owner');
-      }
+      const { rows: [owner] } = await tx.query('SELECT status, recipient_hash FROM relay_channels WHERE account_id = $1 AND channel = $2', [message.account_id, channel]);
+      if (channel !== 'mail' && (!sender || !owner?.recipient_hash || !sameHex(owner.recipient_hash, recipientHash(channel, sender)))) return no('not-owner');
+      // After STOP, or with the channel turned off from the desktop, a press decides nothing.
+      if (owner?.status !== 'on') return no('channel-off');
       if (button.used_at) return no('used');
       if (message.decided) return no('decided');
       if (new Date(button.expires_at) <= at || new Date(message.expires_at) <= at) return no('expired');
@@ -109,9 +109,9 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       await tx.query('UPDATE relay_messages SET decided = $2, decided_at = $3, updated_at = $3 WHERE id = $1 AND decided IS NULL', [message.id, decision, at.toISOString()]);
       await tx.query(`UPDATE relay_buttons SET used_at = $2 WHERE message_id = $1 AND kind IN ('approve', 'not-now') AND used_at IS NULL`, [message.id, at.toISOString()]);
       const sealed = decision === 'approve' ? { nonce: offer.approve_nonce, ciphertext: offer.approve_ciphertext } : { nonce: offer.not_now_nonce, ciphertext: offer.not_now_ciphertext };
-      await tx.query(`INSERT INTO relay_envelopes (id, account_id, message_id, purpose, decision, channel, created_at, expires_at, nonce, ciphertext)
-        VALUES ($1, $2, $3, 'approval-intent', $4, $5, $6, $7, $8, $9)`,
-        [newId('env'), message.account_id, message.id, decision, channel, at.toISOString(), isoOf(message.expires_at), sealed.nonce, sealed.ciphertext]);
+      await tx.query(`INSERT INTO relay_envelopes (id, account_id, device_id, message_id, purpose, decision, channel, created_at, expires_at, nonce, ciphertext)
+        VALUES ($1, $2, $3, $4, 'approval-intent', $5, $6, $7, $8, $9, $10)`,
+        [newId('env'), message.account_id, message.device_id, message.id, decision, channel, at.toISOString(), isoOf(message.expires_at), sealed.nonce, sealed.ciphertext]);
       return decision;
     });
   }
@@ -125,6 +125,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
     async peek(token, channel) {
       if (!isLetterToken(token)) return null;
       const { rows: [row] } = await deps.sql.query(`SELECT b.kind FROM relay_buttons b JOIN relay_messages m ON m.id = b.message_id
+        JOIN relay_channels c ON c.account_id = m.account_id AND c.channel = m.channel AND c.status = 'on'
         WHERE b.token_hash = $1 AND b.kind IN ('approve', 'not-now') AND b.used_at IS NULL AND b.expires_at > $2 AND m.decided IS NULL AND m.channel = $3`,
         [tokenHash(token), now().toISOString(), channel]);
       return row ? row.kind as Decision : null;
@@ -276,7 +277,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
     throw new HostedError('CHANNEL_NOT_CONFIGURED', 'Mail replies are not sent.', 503);
   }
   /** Queues one fixed template under the month lock: idempotency, opt-in and the budget of thirty are decided together. */
-  async function queueTemplate(accountId: string, event: MessageEvent, channel: Channel, key: string, offer: { approve: Sealed; notNow: Sealed } | null) {
+  async function queueTemplate(accountId: string, deviceId: string | null, event: MessageEvent, channel: Channel, key: string, offer: { approve: Sealed; notNow: Sealed } | null) {
     const entitlements = await deps.entitlements(accountId);
     check(entitlements.relay, 'PLAN_REQUIRED', 'The relay is part of the paid plan.', 402);
     check(adapters[channel], 'CHANNEL_NOT_CONFIGURED', 'This channel is not configured.', 503);
@@ -296,9 +297,9 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       const { rows: [counted] } = await tx.query('UPDATE relay_months SET sent = sent + 1 WHERE account_id = $1 AND month = $2 AND sent < $3 RETURNING sent', [accountId, month, budget]);
       check(counted, 'MONTHLY_BUDGET_REACHED', 'This month\'s messages are used up.', 429);
       const id = newId('msg'), expires = new Date(at.getTime() + BUTTON_MS).toISOString();
-      await tx.query(`INSERT INTO relay_messages (id, account_id, kind, event, channel, idempotency_key, request_digest, month, buttons, expires_at, open_expires_at, created_at, updated_at)
-        VALUES ($1, $2, 'template', $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
-        [id, accountId, event, channel, key, digest, month, offer ? 'approve-not-now-open' : 'open-only', expires, new Date(at.getTime() + OPEN_LINK_MS).toISOString(), at.toISOString()]);
+      await tx.query(`INSERT INTO relay_messages (id, account_id, device_id, kind, event, channel, idempotency_key, request_digest, month, buttons, expires_at, open_expires_at, created_at, updated_at)
+        VALUES ($1, $2, $3, 'template', $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
+        [id, accountId, deviceId, event, channel, key, digest, month, offer ? 'approve-not-now-open' : 'open-only', expires, new Date(at.getTime() + OPEN_LINK_MS).toISOString(), at.toISOString()]);
       if (offer) await tx.query('INSERT INTO relay_offers (message_id, approve_nonce, approve_ciphertext, not_now_nonce, not_now_ciphertext, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
         [id, offer.approve.nonce, offer.approve.ciphertext, offer.notNow.nonce, offer.notNow.ciphertext, expires]);
       await deps.queue.enqueue({ type: DISPATCH_JOB, accountId, payload: { messageId: id }, dedupeKey: `relay:${id}` }, tx);
@@ -396,7 +397,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
     });
 
     router.add('POST', '/v1/relay/messages', async request => {
-      const { accountId } = await deps.authenticate(request);
+      const { accountId, deviceId } = await deps.authenticate(request);
       const body = fields<{ event: unknown; channel: unknown; idempotencyKey: unknown; offer?: any }>(json(request), ['event', 'channel', 'idempotencyKey'], ['offer']);
       check((MESSAGE_EVENTS as readonly unknown[]).includes(body.event), 'EVENT_UNKNOWN', 'There is no such message.');
       check((CHANNELS as readonly unknown[]).includes(body.channel), 'CHANNEL_UNKNOWN', 'There is no such channel.');
@@ -405,10 +406,12 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       let offer: { approve: Sealed; notNow: Sealed } | null = null;
       if (body.offer !== undefined && body.offer !== null) {
         check(event === 'review-ready', 'OFFER_NOT_ALLOWED', 'Only a review message can carry Approve and Not now.');
+        // A mail link works for whoever holds the mail, forwarded copies included; chat presses are bound to the owner's number or chat.
+        check(channel !== 'mail', 'OFFER_NOT_ALLOWED', 'Approve and Not now are offered only on WhatsApp and Telegram.');
         const given = fields<{ approve: unknown; notNow: unknown }>(body.offer, ['approve', 'notNow']);
         offer = { approve: sealedBlob(given.approve), notNow: sealedBlob(given.notNow) };
       }
-      return queueTemplate(accountId, event, channel, key, offer);
+      return queueTemplate(accountId, deviceId, event, channel, key, offer);
     });
 
     router.add('GET', '/v1/relay/messages/:messageId', async request => {
@@ -437,18 +440,19 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       return ok({ month, sent: counter?.sent ?? 0, budget, costPaise: cost === null ? null : cost.toString(), costState: cost === null ? 'unknown' : 'known', byChannel });
     });
 
+    // An envelope goes back only to the desktop install that offered the approval.
     router.add('GET', '/v1/relay/envelopes', async request => {
-      const { accountId } = await deps.authenticate(request);
-      const { rows } = await deps.sql.query('SELECT * FROM relay_envelopes WHERE account_id = $1 AND expires_at > $2 ORDER BY created_at, id', [accountId, now().toISOString()]);
+      const { accountId, deviceId } = await deps.authenticate(request);
+      const { rows } = await deps.sql.query('SELECT * FROM relay_envelopes WHERE account_id = $1 AND device_id = $2 AND expires_at > $3 ORDER BY created_at, id', [accountId, deviceId, now().toISOString()]);
       return ok({ envelopes: rows.map(row => ({ envelopeId: row.id, messageId: row.message_id, purpose: row.purpose, decision: row.decision, channel: row.channel,
         createdAt: isoOf(row.created_at), expiresAt: isoOf(row.expires_at), nonce: row.nonce, ciphertext: row.ciphertext })) });
     });
 
     router.add('POST', '/v1/relay/envelopes/:envelopeId/ack', async request => {
-      const { accountId } = await deps.authenticate(request);
+      const { accountId, deviceId } = await deps.authenticate(request);
       const { disposition } = fields<{ disposition: unknown }>(json(request), ['disposition']);
       check(disposition === 'collected' || disposition === 'expired' || disposition === 'invalid', 'INVALID_REQUEST', 'The disposition is not valid.');
-      const { rowCount } = await deps.sql.query('DELETE FROM relay_envelopes WHERE id = $1 AND account_id = $2', [request.params.envelopeId, accountId]);
+      const { rowCount } = await deps.sql.query('DELETE FROM relay_envelopes WHERE id = $1 AND account_id = $2 AND device_id = $3', [request.params.envelopeId, accountId, deviceId]);
       check(rowCount === 1, 'ENVELOPE_NOT_FOUND', 'There is no such envelope.', 404);
       return ok({ envelopeId: request.params.envelopeId, disposition });
     });
@@ -489,7 +493,7 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       const { rows } = await deps.sql.query(`SELECT channel FROM relay_channels WHERE account_id = $1 AND status = 'on'`, [accountId]);
       const channel = CHANNELS.find(name => adapters[name] && rows.some(row => row.channel === name));
       check(channel, 'CHANNEL_OFF', 'No message channel is on.', 409);
-      const reply = await queueTemplate(accountId, event, channel, idempotencyKey, null);
+      const reply = await queueTemplate(accountId, null, event, channel, idempotencyKey, null);
       return { messageId: (reply.body as { messageId: string }).messageId, channel };
     },
     jobs(worker: Worker) { worker.register(DISPATCH_JOB, dispatch); },

@@ -144,7 +144,7 @@ class FakeHosted {
       const b = this.backups.get(m[1]); if (!b) return refuse(404, 'NOT_FOUND');
       return reply(200, b.bytes, { 'content-type': 'application/octet-stream', 'x-chausar-sha256': sha256(b.bytes) });
     }
-    if (method === 'GET' && path === '/v1/allowance') return reply(200, { month: this.iso().slice(0, 7), grantPaise: '50000', spentPaise: '1200', reservedPaise: '0', balancePaise: '48800',
+    if (method === 'GET' && path === '/v1/allowance') return reply(200, { month: this.iso().slice(0, 7), grantPaise: '50000', grantState: 'set', spentPaise: '1200', reservedPaise: '0', balancePaise: '48800',
       pricing: { checkedOn: '2026-10-01', fxPaisePerUsd: '8400', source: 'Synthetic price list' }, models: [{ route: 'anthropic', model: 'claude-synthetic' }] });
     if (method === 'POST' && path === '/v1/allowance/complete') {
       this.allowanceBodies.push(String(raw)); const b = json();

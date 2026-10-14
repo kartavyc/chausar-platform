@@ -50,7 +50,8 @@ export class RazorpayPartner implements PaymentPartner {
     });
     const url = typeof body.short_url === 'string' && body.short_url.length <= 2048 ? URL.parse(body.short_url) : null;
     if (!isSubscriptionId(body.id) || body.status !== 'created' || url?.protocol !== 'https:') throw failed();
-    return { checkoutId: body.id, checkoutUrl: url.href };
+    // Razorpay creates the subscription with the checkout: its id is both.
+    return { checkoutId: body.id, checkoutUrl: url.href, subscriptionRef: body.id };
   }
   async cancel(subscriptionRef: string): Promise<void> {
     check(isSubscriptionId(subscriptionRef), 'SUBSCRIPTION_REF_INVALID', 'The subscription reference is not valid.', 500);

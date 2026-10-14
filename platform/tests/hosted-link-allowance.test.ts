@@ -105,11 +105,21 @@ test('the Anthropic and OpenAI clients send the documented request shapes', asyn
   await assert.rejects(openaiProvider('k', fakeFetch([{ status: 200, body: { usage: {} } }])).complete({ model: 'm', messages: [messages[0]], maxOutputTokens: 1 }), { code: 'PROVIDER_REPLY_INVALID' });
 });
 
+test('a grant that is not set, or not in the plan, is said in words and never shown as zero', { skip: pgSkip }, async () => {
+  const { plans, summary, complete } = await setup();
+  plans.set('acct_unset', { ...FREE_ENTITLEMENTS, plan: 'paid', relay: true, backup: true, worker: true });
+  const unset = await summary('acct_unset');
+  assert.deepEqual([unset.grantPaise, unset.grantState, unset.balancePaise, unset.spentPaise], [null, 'not-set', null, '0']);
+  const free = await summary('acct_free');
+  assert.deepEqual([free.grantPaise, free.grantState, free.balancePaise], [null, 'not-included', null]);
+  assert.equal(code(await complete(ask('req_unset_01'), 'acct_unset')), 'PLAN_REQUIRED');
+});
+
 test('a request reserves, settles the measured cost and releases the rest; one attempt per request id', { skip: pgSkip }, async () => {
   const fetch = fakeFetch([{ status: 200, body: ANTHROPIC_REPLY }, { status: 200, body: OPENAI_REPLY }]);
   const { complete, summary } = await setup({ providers: { anthropic: anthropicProvider('sk-ant', fetch), openai: openaiProvider('sk-oa', fetch) } });
   assert.deepEqual(await summary(), {
-    month: '2026-10', grantPaise: '300', spentPaise: '0', reservedPaise: '0', balancePaise: '300',
+    month: '2026-10', grantPaise: '300', grantState: 'set', spentPaise: '0', reservedPaise: '0', balancePaise: '300',
     pricing: { checkedOn: '2026-10-01', fxPaisePerUsd: '8450', source: 'Provider price pages, copied by hand' },
     models: [{ route: 'anthropic', model: 'claude-test' }, { route: 'openai', model: 'gpt-test' }],
   });

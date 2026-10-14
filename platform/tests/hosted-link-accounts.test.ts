@@ -6,7 +6,7 @@ import { FREE_ENTITLEMENTS } from '../../hosted/shared/auth.ts';
 import type { Fetch, HostedDeps } from '../../hosted/shared/module.ts';
 import { authenticator, createAccountsModule } from '../../hosted/accounts/module.ts';
 import { FakeOtpProvider, TwilioSmsOtpProvider, UnconfiguredOtpProvider, otpMessage, type OtpProvider } from '../../hosted/accounts/otp.ts';
-import { accountsConfig } from '../../hosted/accounts/config.ts';
+import { accountsConfig, DEFAULT_OTP_LIMITS, type OtpStartLimits } from '../../hosted/accounts/config.ts';
 import { postgresAvailable, freshDatabase, closeDatabases } from './hosted-link-pg.ts';
 
 after(closeDatabases);
@@ -28,17 +28,17 @@ function recordingFetch(replies: ({ status: number; body: string } | Error)[]) {
 }
 const refusingFetch: Fetch = async () => { throw new Error('network is not allowed in tests'); };
 
-async function setup(otp: OtpProvider = new FakeOtpProvider()) {
+async function setup(otp: OtpProvider = new FakeOtpProvider(), limits?: OtpStartLimits) {
   const sql = await freshDatabase();
   let now = new Date('2026-10-14T10:00:00.000Z');
   const clock = () => now;
   const entitlements = async () => ({ ...FREE_ENTITLEMENTS });
   const deps: HostedDeps = { sql, clock, queue: new JobQueue(sql, clock), fetch: refusingFetch, pepper: PEPPER, linkOrigin: 'https://link.example.invalid', authenticate: authenticator(sql, PEPPER, clock), entitlements };
-  const module = createAccountsModule(deps, { otp, entitlements });
+  const module = createAccountsModule(deps, { otp, entitlements, ...(limits ? { limits } : {}) });
   const router = new Router(); module.routes(router);
-  const call = (method: string, url: string, body?: unknown, token?: string): Promise<HostedResponse & { body: any }> => router.handle({
+  const call = (method: string, url: string, body?: unknown, token?: string, extra: Record<string, string> = {}): Promise<HostedResponse & { body: any }> => router.handle({
     method, url, body: body === undefined ? undefined : Buffer.from(JSON.stringify(body)),
-    headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(token ? { authorization: `Bearer ${token}` } : {}), ...extra },
   }) as any;
   const fake = otp as FakeOtpProvider;
   const signIn = async (phone = PHONE, deviceName = 'Shop counter PC') => {
@@ -169,6 +169,35 @@ test('starts are limited to three per fifteen minutes and ten per hour for each 
   assert.equal((await t.sql.query('SELECT count(*)::int AS n FROM otp_challenges')).rows[0].n, 1);
 });
 
+test('starts are also limited across the server and per client address, which is kept only as a keyed hash', { skip: pgSkip }, async () => {
+  const t = await setup(new FakeOtpProvider(), { globalPerHour: 6, addressPerHour: 3, trustProxy: true });
+  const start = (phone: string, forwarded?: string) => t.call('POST', '/v1/accounts/otp/start', { phone }, undefined, forwarded ? { 'x-forwarded-for': forwarded } : {});
+  const phone = (n: number) => `+9170000000${String(n).padStart(2, '0')}`;
+  for (let n = 1; n <= 3; n++) assert.equal((await start(phone(n), '203.0.113.7, 10.0.0.1')).status, 202);
+  const limited = await start(phone(4), '203.0.113.7');
+  assert.equal(limited.status, 429); assert.equal(code(limited), 'OTP_RATE_LIMITED');
+  assert.equal(/203|7000000004/.test(JSON.stringify(limited.body)), false, 'the message carries no address or phone');
+  assert.equal((await start(phone(4), '198.51.100.20, 203.0.113.7')).status, 202, 'only the first, client, address counts');
+  const { rows } = await t.sql.query('SELECT client_hash FROM otp_challenges ORDER BY created_at, id');
+  assert.equal(rows.length, 4);
+  for (const row of rows) assert.match(row.client_hash, /^[0-9a-f]{64}$/);
+  assert.equal(JSON.stringify(rows).includes('203.0.113'), false, 'the address is never stored');
+  assert.equal(new Set(rows.map(r => r.client_hash)).size, 2);
+  // The server-wide limit holds whatever the address, and a start without one still counts toward it.
+  assert.equal((await start(phone(5))).status, 202);
+  assert.equal((await start(phone(6), 'not-an-address')).status, 202);
+  const full = await start(phone(7), '192.0.2.44');
+  assert.equal(full.status, 429); assert.equal(code(full), 'OTP_RATE_LIMITED');
+  assert.equal(t.fake.sent.length, 6, 'no SMS is sent past a limit');
+  t.advance(60 * MINUTE + 1000);
+  assert.equal((await start(phone(7), '203.0.113.7')).status, 202, 'an hour later both limits have room');
+
+  // Without a trusted proxy x-forwarded-for is anyone's to write, so the per-address limit is skipped.
+  const open = await setup(new FakeOtpProvider(), { globalPerHour: 300, addressPerHour: 1, trustProxy: false });
+  for (let n = 1; n <= 3; n++) assert.equal((await open.call('POST', '/v1/accounts/otp/start', { phone: phone(n) }, undefined, { 'x-forwarded-for': '203.0.113.7' })).status, 202);
+  assert.deepEqual((await open.sql.query('SELECT DISTINCT client_hash FROM otp_challenges')).rows, [{ client_hash: null }]);
+});
+
 test('phone numbers are India only', { skip: pgSkip }, async () => {
   const t = await setup();
   for (const phone of ['+915876543210', '9876543210', '+91987654321', '+9198765432100', '+14155550100', ' +919876543210', 919876543210, null]) {
@@ -236,4 +265,9 @@ test('the accounts configuration picks the provider', () => {
   const configured = accountsConfig({ TWILIO_ACCOUNT_SID: SID, TWILIO_AUTH_TOKEN: 'tokentokentokentokentoken0123456', TWILIO_FROM: '+15005550006' }, refusingFetch);
   assert.equal(configured.otpState, 'configured'); assert.ok(configured.otp instanceof TwilioSmsOtpProvider);
   assert.throws(() => accountsConfig({ TWILIO_ACCOUNT_SID: SID }, refusingFetch), { code: 'SERVER_MISCONFIGURED' });
+  assert.deepEqual(accountsConfig({}, refusingFetch).limits, { globalPerHour: 300, addressPerHour: 20, trustProxy: false });
+  assert.deepEqual(DEFAULT_OTP_LIMITS, { globalPerHour: 300, addressPerHour: 20, trustProxy: false });
+  assert.deepEqual(accountsConfig({ OTP_GLOBAL_PER_HOUR: '50', OTP_ADDRESS_PER_HOUR: '5', TRUST_PROXY: '1' }, refusingFetch).limits, { globalPerHour: 50, addressPerHour: 5, trustProxy: true });
+  for (const env of [{ OTP_GLOBAL_PER_HOUR: '0' }, { OTP_ADDRESS_PER_HOUR: 'ten' }, { TRUST_PROXY: 'yes' }])
+    assert.throws(() => accountsConfig(env, refusingFetch), { code: 'SERVER_MISCONFIGURED' });
 });

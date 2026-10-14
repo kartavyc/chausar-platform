@@ -3,7 +3,8 @@ import { HostedError, check } from '../shared/errors.ts';
 import { hmacHex, newId, sameHex } from '../shared/crypto.ts';
 
 export type CheckoutInput = { accountId: string; plan: 'paid'; idempotencyKey: string };
-export type Checkout = { checkoutId: string; checkoutUrl: string };
+/** `subscriptionRef`: the partner subscription the checkout already created, when the partner makes one before payment. */
+export type Checkout = { checkoutId: string; checkoutUrl: string; subscriptionRef?: string | null };
 export const PARTNER_EVENT_TYPES = ['activated', 'charged', 'past_due', 'cancelled'] as const;
 export type PartnerEventType = typeof PARTNER_EVENT_TYPES[number];
 /** A verified partner event. At least one of `checkoutId` and `subscriptionRef` names the subscription. */
@@ -47,10 +48,10 @@ export class FakePaymentPartner implements PaymentPartner {
   constructor(secret = randomBytes(32).toString('hex')) { this.#secret = secret; }
   async createCheckout(input: CheckoutInput): Promise<Checkout> {
     const key = `${input.accountId}:${input.idempotencyKey}`, existing = this.checkouts.get(key);
-    if (existing) return { checkoutId: existing.checkoutId, checkoutUrl: existing.checkoutUrl };
-    const checkoutId = newId('fchk'), checkoutUrl = `https://pay.example.invalid/checkout/${checkoutId}`;
-    this.checkouts.set(key, { ...input, checkoutId, checkoutUrl });
-    return { checkoutId, checkoutUrl };
+    if (existing) return { checkoutId: existing.checkoutId, checkoutUrl: existing.checkoutUrl, subscriptionRef: existing.subscriptionRef };
+    const checkoutId = newId('fchk'), checkoutUrl = `https://pay.example.invalid/checkout/${checkoutId}`, subscriptionRef = checkoutId.replace(/^fchk_/, 'fsub_');
+    this.checkouts.set(key, { ...input, checkoutId, checkoutUrl, subscriptionRef });
+    return { checkoutId, checkoutUrl, subscriptionRef };
   }
   async cancel(subscriptionRef: string) { this.cancelled.push(subscriptionRef); }
   /** A webhook as the partner would send it. */

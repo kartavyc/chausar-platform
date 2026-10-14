@@ -45,7 +45,7 @@ async function setup(overrides: Partial<RelayOptions> = {}) {
   const queue = new JobQueue(sql, clock);
   const deps: HostedDeps = {
     sql, clock, queue, fetch, pepper: 'relay-test-pepper-that-is-long-enough', linkOrigin: 'https://link.chausar.app',
-    authenticate: async request => ({ accountId: bearer(request).replace(/^sessiontoken_/, ''), deviceId: 'dev_one', sessionId: 'ses_one' }),
+    authenticate: async request => ({ accountId: bearer(request).replace(/^sessiontoken_/, ''), deviceId: request.headers['x-test-device'] ?? 'dev_one', sessionId: 'ses_one' }),
     entitlements: async accountId => plans.get(accountId) ?? PAID,
   };
   const relay = createRelayModule(deps, {
@@ -57,8 +57,8 @@ async function setup(overrides: Partial<RelayOptions> = {}) {
   });
   const router = new Router(); relay.routes(router);
   const worker = new Worker(queue); relay.jobs!(worker);
-  const call = async (method: string, url: string, body?: unknown, account = OWNER.id) => {
-    const response = await router.handle({ method, url, headers: { authorization: `Bearer sessiontoken_${account}`, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, body: body !== undefined ? Buffer.from(JSON.stringify(body)) : undefined });
+  const call = async (method: string, url: string, body?: unknown, account = OWNER.id, device = 'dev_one') => {
+    const response = await router.handle({ method, url, headers: { authorization: `Bearer sessiontoken_${account}`, 'x-test-device': device, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, body: body !== undefined ? Buffer.from(JSON.stringify(body)) : undefined });
     return { status: response.status, body: response.body as any };
   };
   const optIn = (channel: Channel) => ({ given: true, textSha256: createHash('sha256').update(OPT_IN_TEXT[channel]).digest('hex'), recordedAt: state.time.toISOString() });
@@ -222,6 +222,42 @@ test('approve from the owner number: the sealed blob becomes an envelope, listed
   assert.deepEqual((await h.call('GET', '/v1/relay/envelopes')).body.envelopes, []);
   assert.equal((await h.sql.query('SELECT count(*)::int AS n FROM relay_envelopes')).rows[0].n, 0, 'acknowledged envelopes are deleted');
   assert.equal((await h.call('GET', `/v1/relay/messages/${messageId}`)).body.decided, 'approve');
+});
+
+test('an envelope goes back only to the desktop install that offered the approval', { skip: pgSkip }, async () => {
+  const h = await setup();
+  await h.enable('whatsapp');
+  const sent = await h.call('POST', '/v1/relay/messages', { event: 'review-ready', channel: 'whatsapp', idempotencyKey: 'offer-from-device-two', offer: OFFER }, OWNER.id, 'dev_two');
+  assert.equal(sent.status, 202);
+  const before = h.calls.length; await h.run();
+  const tokens = waTokens(h.calls.slice(before).find(c => c.body.type === 'template')!);
+  await h.waPress(OWNER.wa, tokens.approve);
+  assert.deepEqual((await h.sql.query('SELECT device_id FROM relay_envelopes')).rows, [{ device_id: 'dev_two' }]);
+  assert.deepEqual((await h.call('GET', '/v1/relay/envelopes')).body.envelopes, [], 'another desktop of the same account sees nothing');
+  const [envelope] = (await h.call('GET', '/v1/relay/envelopes', undefined, OWNER.id, 'dev_two')).body.envelopes;
+  assert.equal(envelope.messageId, sent.body.messageId);
+  assert.equal((await h.call('POST', `/v1/relay/envelopes/${envelope.envelopeId}/ack`, { disposition: 'collected' })).status, 404, 'nor can it acknowledge it');
+  assert.equal((await h.call('POST', `/v1/relay/envelopes/${envelope.envelopeId}/ack`, { disposition: 'collected' }, OWNER.id, 'dev_two')).status, 200);
+  // A server-side reminder has no offer and no device.
+  const notified = await h.relay.notify(OWNER.id, 'due-date-near', 'due-date-key-one');
+  assert.deepEqual((await h.sql.query('SELECT device_id, buttons FROM relay_messages WHERE id = $1', [notified.messageId])).rows, [{ device_id: null, buttons: 'open-only' }]);
+});
+
+test('a press on a channel that is stopped or turned off decides nothing', { skip: pgSkip }, async () => {
+  const h = await setup();
+  await h.enable('whatsapp');
+  const first = waTokens((await sendOffer(h)).call);
+  await h.waText(OWNER.wa, 'STOP');
+  await h.waPress(OWNER.wa, first.approve);
+  await h.waText(OWNER.wa, 'START');
+  const second = waTokens((await sendOffer(h)).call);
+  assert.equal((await h.call('PUT', '/v1/relay/channels/whatsapp', { enabled: false, optIn: null })).body.status, 'off');
+  await h.waPress(OWNER.wa, second.notNow);
+  await h.run();
+  assert.deepEqual(h.replies(), [REPLIES.stop, REPLIES.buttonGone, REPLIES.start, REPLIES.buttonGone]);
+  assert.deepEqual((await h.sql.query('SELECT reason FROM relay_refusals')).rows, [{ reason: 'channel-off' }, { reason: 'channel-off' }]);
+  assert.equal((await h.sql.query('SELECT count(*)::int AS n FROM relay_envelopes')).rows[0].n, 0);
+  assert.deepEqual((await h.sql.query(`SELECT decided FROM relay_messages WHERE kind = 'template'`)).rows, [{ decided: null }, { decided: null }]);
 });
 
 test('a second press, Not now after Approve, a forwarded copy, a replay and an expired press all change nothing', { skip: pgSkip }, async () => {

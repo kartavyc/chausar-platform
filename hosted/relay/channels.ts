@@ -95,7 +95,7 @@ export function telegramChannel(config: { botToken: string }): TelegramChannel {
   };
 }
 
-/** The mail body: the headline, the link, for an offer the two one-time links, and the footer. Never "reply yes". */
+/** The mail body: the headline, the link, and the footer. Never "reply yes". The two one-time links appear only for an offer queued before mail offers stopped. */
 export function mailBody(message: OutboundTemplate): string {
   const link = openLink(message.linkOrigin, message.openToken);
   if (!message.offer) return messageBody(message.event, link, 'mail');
@@ -111,7 +111,8 @@ export function mailChannel(config: { serverToken: string; from: string }): Mail
     async sendTemplate(fetch, to, message) {
       recipient(to, MAIL_ADDRESS);
       const reply = await post(fetch, 'https://api.postmarkapp.com/email', { 'x-postmark-server-token': config.serverToken },
-        { From: config.from, To: to, Subject: HEADLINES[message.event], TextBody: mailBody(message), MessageStream: 'outbound' });
+        // Tracking is off explicitly: a rewritten link would carry the one-time token through Postmark's click tracker, and an open pixel reports reading.
+        { From: config.from, To: to, Subject: HEADLINES[message.event], TextBody: mailBody(message), MessageStream: 'outbound', TrackLinks: 'None', TrackOpens: false });
       check(reply?.ErrorCode === 0, 'PROVIDER_REFUSED', 'The message provider refused the message.', 502);
       return providerId(reply.MessageID);
     },

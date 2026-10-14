@@ -172,4 +172,5 @@ test('the worker and allowance screens read the server label and state through t
   assert.equal((await f.sql.query('SELECT count(*)::int AS n FROM worker_due_dates')).rows[0].n, 0);
   const allowance = await f.rpc('hosted.allowance.status');
   assert.equal(allowance.pricing ?? null, null, 'no pricing table is configured: no price is invented');
+  assert.equal(allowance.grantState, 'not-set'); assert.equal(allowance.grantPaise, null); assert.equal(allowance.balancePaise, null, 'a grant that is not set is words, never zero');
 });

@@ -7,7 +7,10 @@ export type HostedRequest = {
 };
 export type HostedResponse = { status: number; headers?: Record<string, string>; body?: unknown };
 export type Handler = (request: HostedRequest) => Promise<HostedResponse> | HostedResponse;
-type Route = { method: string; parts: string[]; handler: Handler; maxBody: number };
+export type HeaderMap = Record<string, string | undefined>;
+/** `authenticateFirst` runs on the headers alone, before a byte of the body is read; it throws to refuse. */
+export type RouteOptions = { maxBody?: number; authenticateFirst?: (headers: HeaderMap) => Promise<unknown> };
+type Route = { method: string; parts: string[]; handler: Handler; maxBody: number; authenticateFirst?: RouteOptions['authenticateFirst'] };
 
 export const DEFAULT_MAX_BODY = 256 * 1024;
 const SECURITY_HEADERS: Record<string, string> = {
@@ -18,9 +21,9 @@ const SECURITY_HEADERS: Record<string, string> = {
 /** A small router that is testable without sockets: `handle` takes a plain request. */
 export class Router {
   readonly #routes: Route[] = [];
-  add(method: string, pattern: string, handler: Handler, options: { maxBody?: number } = {}) {
+  add(method: string, pattern: string, handler: Handler, options: RouteOptions = {}) {
     check(/^\/[A-Za-z0-9/:._-]*$/.test(pattern), 'ROUTE_INVALID', 'Route patterns are plain paths.', 500);
-    this.#routes.push({ method, parts: pattern.split('/').filter(Boolean), handler, maxBody: options.maxBody ?? DEFAULT_MAX_BODY });
+    this.#routes.push({ method, parts: pattern.split('/').filter(Boolean), handler, maxBody: options.maxBody ?? DEFAULT_MAX_BODY, authenticateFirst: options.authenticateFirst });
     return this;
   }
   match(method: string, path: string): { route: Route; params: Record<string, string> } | 'method' | undefined {
@@ -39,21 +42,36 @@ export class Router {
     }
     return wrongMethod ? 'method' : undefined;
   }
-  maxBody(method: string, path: string): number { const found = this.match(method, path); return typeof found === 'object' ? found.route.maxBody : DEFAULT_MAX_BODY; }
-  async handle(input: { method: string; url: string; headers?: Record<string, string | undefined>; body?: Buffer }): Promise<HostedResponse> {
-    let url: URL;
-    try { url = new URL(input.url, 'http://hosted.invalid'); } catch { return problem(new HostedError('INVALID_REQUEST', 'The address is not valid.')); }
-    const found = this.match(input.method, url.pathname);
+  /**
+   * What can be refused from the request line and headers alone: an unknown address, a declared length above the
+   * route's limit, and a failed `authenticateFirst`. `serve` calls it before reading the body; `handle` calls it too.
+   */
+  async preflight(method: string, url: string, headers: HeaderMap): Promise<{ route: Route; params: Record<string, string>; path: string; query: URLSearchParams } | HostedResponse> {
+    let parsed: URL;
+    try { parsed = new URL(url, 'http://hosted.invalid'); } catch { return problem(new HostedError('INVALID_REQUEST', 'The address is not valid.')); }
+    const found = this.match(method, parsed.pathname);
     if (found === 'method') return problem(new HostedError('METHOD_NOT_ALLOWED', 'This address does not accept that method.', 405));
     if (!found) return problem(new HostedError('NOT_FOUND', 'Nothing is here.', 404));
-    const headers: Record<string, string | undefined> = {};
+    const declared = (headers['content-length'] ?? '').trim();
+    if (/^[0-9]{1,20}$/.test(declared) && Number(declared) > found.route.maxBody) return problem(new HostedError('BODY_TOO_LARGE', 'The request is too large.', 413));
+    if (found.route.authenticateFirst) { try { await found.route.authenticateFirst(headers); } catch (error) { return problem(error); } }
+    return { ...found, path: parsed.pathname, query: parsed.searchParams };
+  }
+  async handle(input: { method: string; url: string; headers?: HeaderMap; body?: Buffer }, preflighted?: Awaited<ReturnType<Router['preflight']>>): Promise<HostedResponse> {
+    const headers: HeaderMap = {};
     for (const [key, value] of Object.entries(input.headers ?? {})) headers[key.toLowerCase()] = value;
+    const found = preflighted ?? await this.preflight(input.method, input.url, headers);
+    if (!('route' in found)) return found;
     const body = input.body ?? Buffer.alloc(0);
     if (body.length > found.route.maxBody) return problem(new HostedError('BODY_TOO_LARGE', 'The request is too large.', 413));
-    try { return await found.route.handler({ method: input.method, path: url.pathname, params: found.params, query: url.searchParams, headers, body }); }
+    try { return await found.route.handler({ method: input.method, path: found.path, params: found.params, query: found.query, headers, body }); }
     catch (error) { return problem(error); }
   }
 }
+
+/** For `authenticateFirst`: runs a module's authenticator on the headers alone. */
+export const headersOnly = (authenticate: (request: HostedRequest) => Promise<unknown>) => (headers: HeaderMap) =>
+  authenticate({ method: '', path: '', params: {}, query: new URLSearchParams(), headers, body: Buffer.alloc(0) });
 
 export function problem(error: unknown): HostedResponse {
   if (error instanceof HostedError) return { status: error.status, body: { error: { code: error.code, message: error.message } } };
@@ -103,11 +121,13 @@ export function serve(router: Router, options: { port: number; host?: string }):
   const server = createServer(async (request, response) => {
     try {
       const method = request.method ?? 'GET', url = request.url ?? '/';
-      const path = (() => { try { return new URL(url, 'http://hosted.invalid').pathname; } catch { return '/'; } })();
-      const body = await readBody(request, router.maxBody(method, path));
-      const headers: Record<string, string | undefined> = {};
+      const headers: HeaderMap = {};
       for (const [key, value] of Object.entries(request.headers)) headers[key] = Array.isArray(value) ? value.join(', ') : value;
-      write(response, await router.handle({ method, url, headers, body }));
+      // Refused from the headers alone (too large, not signed in) before the body is read, so nobody can make the server hold it.
+      const found = await router.preflight(method, url, headers);
+      if (!('route' in found)) { write(response, { ...found, headers: { ...found.headers, connection: 'close' } }); return; }
+      const body = await readBody(request, found.route.maxBody);
+      write(response, await router.handle({ method, url, headers, body }, found));
     } catch (error) { write(response, problem(error)); }
   });
   server.requestTimeout = 120000; server.headersTimeout = 20000;

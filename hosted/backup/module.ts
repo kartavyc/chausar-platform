@@ -13,13 +13,14 @@ import type { HostedDeps, HostedModule } from '../shared/module.ts';
 import type { HostedRequest, Router } from '../shared/http.ts';
 import type { Worker, Job } from '../db/queue.ts';
 import type { Sql } from '../db/sql.ts';
-import { ok } from '../shared/http.ts';
+import { headersOnly, ok } from '../shared/http.ts';
 import { check } from '../shared/errors.ts';
 import { sameHex } from '../shared/crypto.ts';
 import { BACKUP_ID, blobKey, type BlobStore } from './store.ts';
 
 export const BACKUP_MAGIC = Buffer.from('CHSBK1\0\0', 'latin1');
-export const BACKUP_MAX_BODY = 512 * 1024 * 1024;
+/** The desktop never sends more than 128 MiB; the margin covers the format's framing. */
+export const BACKUP_MAX_BODY = 160 * 1024 * 1024;
 export const LAPSED_KEEP_DAYS = 30;
 /** An upload that never finished (a crash between the row and the bytes) is cleared after this long. */
 const PENDING_STALE_MS = 3600000;
@@ -138,7 +139,7 @@ export function createBackupModule(deps: HostedDeps, options: { store: BlobStore
   return {
     id: 'backup',
     routes(router: Router) {
-      router.add('PUT', '/v1/backups/:backupId', upload, { maxBody: BACKUP_MAX_BODY })
+      router.add('PUT', '/v1/backups/:backupId', upload, { maxBody: BACKUP_MAX_BODY, authenticateFirst: headersOnly(deps.authenticate) })
         .add('GET', '/v1/backups', list)
         .add('GET', '/v1/backups/:backupId', download)
         .add('DELETE', '/v1/backups/:backupId', remove);

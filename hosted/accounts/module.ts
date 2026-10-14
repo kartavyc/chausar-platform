@@ -1,12 +1,14 @@
 import { randomInt } from 'node:crypto';
+import { isIP } from 'node:net';
 import type { Sql } from '../db/sql.ts';
 import type { Clock } from '../shared/clock.ts';
 import type { Authenticator, EntitlementSource, Principal } from '../shared/auth.ts';
 import type { HostedDeps, HostedModule } from '../shared/module.ts';
 import { HostedError, check } from '../shared/errors.ts';
-import { bearer, fields, json, ok, type Router } from '../shared/http.ts';
+import { bearer, fields, json, ok, type HeaderMap, type Router } from '../shared/http.ts';
 import { isId, isOpaqueToken, newId, opaqueToken, sameHex, secretHash } from '../shared/crypto.ts';
 import type { OtpProvider } from './otp.ts';
+import { DEFAULT_OTP_LIMITS, type OtpStartLimits } from './config.ts';
 
 export const OTP_TTL_MS = 5 * 60000;
 export const OTP_MAX_WRONG = 5;
@@ -19,6 +21,13 @@ const TOUCH_MS = 60000;
 export const isIndianPhone = (value: unknown): value is string => typeof value === 'string' && /^\+91[6-9][0-9]{9}$/.test(value);
 const codeHash = (pepper: string, challengeId: string, code: string) => secretHash(pepper, 'otp', challengeId + code);
 const isoOf = (value: Date | string | null) => value === null ? null : new Date(value).toISOString();
+
+/** The client address, only behind a proxy we trust to set x-forwarded-for; its first entry is the client. */
+export function clientAddress(headers: HeaderMap, trustProxy: boolean): string | null {
+  if (!trustProxy) return null;
+  const first = (headers['x-forwarded-for'] ?? '').split(',')[0].trim().toLowerCase();
+  return first.length <= 64 && isIP(first) ? first : null;
+}
 
 function deviceName(value: unknown): string {
   check(typeof value === 'string', 'INVALID_REQUEST', 'The device name must be text.');
@@ -48,25 +57,35 @@ export function authenticator(sql: Sql, pepper: string, clock: Clock): Authentic
 
 type VerifyOutcome = { failed: 'invalid' | 'expired' | 'locked' } | { accountId: string; deviceId: string; sessionToken: string; expiresAt: string };
 
-export function createAccountsModule(deps: HostedDeps, options: { otp: OtpProvider; entitlements: EntitlementSource }): HostedModule {
-  const { sql, clock, pepper } = deps;
+export function createAccountsModule(deps: HostedDeps, options: { otp: OtpProvider; entitlements: EntitlementSource; limits?: OtpStartLimits }): HostedModule {
+  const { sql, clock, pepper } = deps, limits = options.limits ?? DEFAULT_OTP_LIMITS;
   secretHash(pepper, 'check', 'pepper');
 
-  async function start(phone: string): Promise<{ challengeId: string; expiresAt: string }> {
+  async function start(phone: string, address: string | null): Promise<{ challengeId: string; expiresAt: string }> {
     const at = clock(), id = newId('otp'), code = String(randomInt(0, 1000000)).padStart(6, '0');
-    const expiresAt = new Date(at.getTime() + OTP_TTL_MS).toISOString();
-    const limited = await sql.transaction(async tx => {
-      await tx.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`otp:${phone}`]);
+    const expiresAt = new Date(at.getTime() + OTP_TTL_MS).toISOString(), hourAgo = new Date(at.getTime() - 60 * 60000).toISOString();
+    // Only a keyed hash of the client address is kept, and only as long as the challenge row.
+    const clientHash = address === null ? null : secretHash(pepper, 'otp-client', address);
+    const limited = await sql.transaction(async (tx): Promise<'server' | 'address' | 'phone' | null> => {
+      // One lock for every start: the server-wide, per-address and per-phone counts are decided together. Starts are rare.
+      await tx.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['otp:start']);
+      const { rows: [all] } = await tx.query<{ n: number }>('SELECT count(*)::int AS n FROM otp_challenges WHERE created_at > $1', [hourAgo]);
+      if (all.n >= limits.globalPerHour) return 'server';
+      if (clientHash !== null) {
+        const { rows: [mine] } = await tx.query<{ n: number }>('SELECT count(*)::int AS n FROM otp_challenges WHERE client_hash = $1 AND created_at > $2', [clientHash, hourAgo]);
+        if (mine.n >= limits.addressPerHour) return 'address';
+      }
       for (const limit of OTP_LIMITS) {
         const { rows: [count] } = await tx.query<{ n: number }>('SELECT count(*)::int AS n FROM otp_challenges WHERE phone = $1 AND created_at > $2',
           [phone, new Date(at.getTime() - limit.windowMs).toISOString()]);
-        if (count.n >= limit.max) return true;
+        if (count.n >= limit.max) return 'phone';
       }
-      await tx.query('INSERT INTO otp_challenges (id, phone, code_hash, created_at, expires_at) VALUES ($1, $2, $3, $4, $5)',
-        [id, phone, codeHash(pepper, id, code), at.toISOString(), expiresAt]);
-      return false;
+      await tx.query('INSERT INTO otp_challenges (id, phone, code_hash, client_hash, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [id, phone, codeHash(pepper, id, code), clientHash, at.toISOString(), expiresAt]);
+      return null;
     });
-    check(!limited, 'OTP_RATE_LIMITED', 'Too many codes were asked for this number. Try again later.', 429);
+    check(limited !== 'phone', 'OTP_RATE_LIMITED', 'Too many codes were asked for this number. Try again later.', 429);
+    check(limited === null, 'OTP_RATE_LIMITED', 'Too many sign-in codes were asked for. Try again later.', 429);
     // Sent after the row commits: a failed send still counts toward the limits, so retries cannot flood a number.
     await options.otp.send(phone, code);
     return { challengeId: id, expiresAt };
@@ -101,7 +120,7 @@ export function createAccountsModule(deps: HostedDeps, options: { otp: OtpProvid
       router.add('POST', '/v1/accounts/otp/start', async request => {
         const body = fields<{ phone: unknown }>(json(request), ['phone']);
         check(isIndianPhone(body.phone), 'INVALID_PHONE', 'Enter an Indian mobile number as +91 and ten digits.');
-        return ok(await start(body.phone), 202);
+        return ok(await start(body.phone, clientAddress(request.headers, limits.trustProxy)), 202);
       }, { maxBody: 4096 });
 
       router.add('POST', '/v1/accounts/otp/verify', async request => {
