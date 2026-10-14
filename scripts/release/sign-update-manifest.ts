@@ -1,10 +1,10 @@
-import { createHash, createPrivateKey, sign, type KeyObject } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, sign, verify, type KeyObject } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { lstat, readFile, writeFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check } from '../../platform/runtime/contracts.ts';
-import { canonicalReleaseManifest, compareVersions, type ReleaseManifest } from '../../platform/runtime/updater.ts';
+import { canonicalReleaseManifest, compareVersions, validateReleaseManifest, type ReleaseManifest } from '../../platform/runtime/updater.ts';
 
 /** Builds the updater's ReleaseManifest for one artifact and signs its canonical
  * bytes with the publisher's Ed25519 key, read from CHAUSAR_RELEASE_PRIVATE_KEY_FILE.
@@ -15,10 +15,10 @@ export type UpdateManifestInput = {
   minEngineVersion: string; dataSchemaVersion: number; rollbackSupported: boolean; publishedAt?: string;
 };
 
-async function digest(path: string): Promise<string> {
-  const hash = createHash('sha256');
-  for await (const chunk of createReadStream(path)) hash.update(chunk);
-  return hash.digest('hex');
+async function digest(path: string): Promise<{ sha256: string; size: number }> {
+  const hash = createHash('sha256'); let size = 0;
+  for await (const chunk of createReadStream(path)) { hash.update(chunk); size += chunk.length; }
+  return { sha256: hash.digest('hex'), size };
 }
 
 export async function buildReleaseManifest(input: UpdateManifestInput): Promise<ReleaseManifest> {
@@ -28,12 +28,16 @@ export async function buildReleaseManifest(input: UpdateManifestInput): Promise<
   check(['win32', 'linux', 'darwin'].includes(input.platform) && ['x64', 'arm64'].includes(input.architecture), 'RELEASE_TARGET_INVALID', 'Use a supported platform and architecture.');
   check(Number.isSafeInteger(input.dataSchemaVersion) && input.dataSchemaVersion > 0 && typeof input.rollbackSupported === 'boolean', 'RELEASE_MANIFEST_INVALID', 'The data schema version and rollback flag are required.');
   check(typeof input.url === 'string' && input.url.startsWith('https://'), 'RELEASE_MANIFEST_INVALID', 'The artifact URL must use HTTPS.');
-  return {
+  // Hash and length come from the same read, so an artifact changed after lstat cannot be signed with a stale size.
+  const read = await digest(input.artifactPath);
+  check(read.size === info.size, 'RELEASE_ARTIFACT_INVALID', 'The release artifact changed while it was read.');
+  // The updater's own validator: never sign a manifest every install would refuse (non-canonical URL, bad timestamp, size).
+  return validateReleaseManifest({
     schemaVersion: 1, version: input.version, publishedAt: input.publishedAt ?? new Date().toISOString(),
     platform: input.platform, architecture: input.architecture, url: input.url,
-    sha256: await digest(input.artifactPath), size: info.size, minEngineVersion: input.minEngineVersion,
+    sha256: read.sha256, size: read.size, minEngineVersion: input.minEngineVersion,
     dataSchemaVersion: input.dataSchemaVersion, rollback: { supported: input.rollbackSupported, requiresBackup: true },
-  };
+  });
 }
 
 export async function releaseSigningKey(environment: NodeJS.ProcessEnv = process.env): Promise<KeyObject> {
@@ -42,7 +46,9 @@ export async function releaseSigningKey(environment: NodeJS.ProcessEnv = process
   let key: KeyObject | undefined;
   try {
     const info = await lstat(path);
-    if (info.isFile() && !info.isSymbolicLink() && info.size > 0 && info.size <= 65536) key = createPrivateKey(await readFile(path));
+    // On POSIX the key file must not be readable by group or others (the workflow writes it under umask 077).
+    if (info.isFile() && !info.isSymbolicLink() && info.size > 0 && info.size <= 65536 && (process.platform === 'win32' || (info.mode & 0o077) === 0))
+      key = createPrivateKey(await readFile(path));
   } catch { key = undefined; }
   check(key && key.type === 'private' && key.asymmetricKeyType === 'ed25519', 'RELEASE_KEY_UNCONFIGURED', 'The release key file must hold an Ed25519 private key.');
   return key;
@@ -50,8 +56,11 @@ export async function releaseSigningKey(environment: NodeJS.ProcessEnv = process
 
 /** Returns the exact canonical payload the updater verifies and its detached base64url signature. */
 export function signReleaseManifest(manifest: ReleaseManifest, key: KeyObject): { payload: string; signature: string } {
-  const payload = canonicalReleaseManifest(manifest);
-  return { payload, signature: sign(null, Buffer.from(payload), key).toString('base64url') };
+  check(key.type === 'private' && key.asymmetricKeyType === 'ed25519', 'RELEASE_KEY_UNCONFIGURED', 'Sign with the Ed25519 release private key.');
+  const payload = canonicalReleaseManifest(validateReleaseManifest(manifest)), signature = sign(null, Buffer.from(payload), key);
+  // Self-check with the derived public key, exactly as the updater verifies (null digest, canonical bytes).
+  check(verify(null, Buffer.from(payload), createPublicKey(key), signature), 'RELEASE_SIGNING_FAILED', 'The new signature does not verify.');
+  return { payload, signature: signature.toString('base64url') };
 }
 
 export async function signUpdateManifest(input: UpdateManifestInput, environment: NodeJS.ProcessEnv = process.env) {

@@ -1,7 +1,7 @@
-import { createHash, createPublicKey, verify as verifySignature, type KeyObject } from 'node:crypto';
+import { createHash, verify as verifySignature, type KeyObject } from 'node:crypto';
 import { join } from 'node:path';
 import { check } from '../contracts.ts';
-import { compareVersions } from '../updater.ts';
+import { compareVersions, releasePublicKey } from '../updater.ts';
 import { safeDirectory } from '../vault.ts';
 import { acquireProcessLock } from '../process-lock.ts';
 import { exactKeys, isoTimestamp, readJsonFile, writeJsonAtomic } from './update-files.ts';
@@ -55,18 +55,23 @@ function validateDocument(value:any):asserts value is ChannelDocument {
   }
 }
 const freeze = (value:ChannelDocument):ChannelDocument => Object.freeze({ ...value, releases: Object.freeze(value.releases.map(release => Object.freeze({ ...release }))) });
-function publicKey(key:string|KeyObject):KeyObject {
-  const value = typeof key === 'string' ? createPublicKey(key) : key;
-  check(value.type === 'public' && value.asymmetricKeyType === 'ed25519', 'INVALID_UPDATE_KEY', 'Pin an explicit Ed25519 release public key.');
-  return value;
-}
+/** Shared with ReleaseUpdater: refuses private-key text, non-Ed25519 keys (X25519, RSA, EC) and non-public KeyObjects. */
+const publicKey = (key:string|KeyObject):KeyObject => releasePublicKey(key);
 export type VerifyChannelOptions = { publicKey:string|KeyObject; channel:ChannelName; now?:number; lastAcceptedIssuedAt?:string|null };
 /**
  * Verifies the exact canonical document text against its detached base64url Ed25519 signature, then the
  * channel, freshness and anti-rollback rules. Pure: persistence of the accepted issue time is `ChannelGuard`'s job.
  */
 export function verifyChannelDocument(text:string, signature:string, options:VerifyChannelOptions):ChannelDocument {
-  const key = publicKey(options.publicKey);
+  const value = authenticateChannelDocument(text, signature, publicKey(options.publicKey), options.channel);
+  const now = options.now ?? Date.now();
+  check(Date.parse(value.issuedAt) <= now + CLOCK_SKEW_MS, 'UPDATE_FEED_FROM_FUTURE', 'The update feed was issued in the future; check the computer clock.');
+  check(Date.parse(value.expiresAt) > now, 'UPDATE_FEED_EXPIRED', 'The update feed has expired.');
+  if (options.lastAcceptedIssuedAt != null) check(Date.parse(value.issuedAt) >= Date.parse(options.lastAcceptedIssuedAt), 'UPDATE_FEED_ROLLBACK', 'The update feed is older than one already accepted.');
+  return value;
+}
+/** Signature, canonical form, schema and channel only — no freshness. Used again on the saved last-accepted document. */
+function authenticateChannelDocument(text:string, signature:string, key:KeyObject, channel:ChannelName):ChannelDocument {
   check(typeof text === 'string' && text.length > 0, 'UPDATE_FEED_INVALID', 'The update feed is empty.');
   check(Buffer.byteLength(text) <= MAX_CHANNEL_BYTES, 'UPDATE_FEED_TOO_LARGE', 'The update feed exceeds its byte limit.');
   check(typeof signature === 'string' && signature.length > 0, 'UPDATE_FEED_UNSIGNED', 'The update feed has no detached signature.');
@@ -76,12 +81,12 @@ export function verifyChannelDocument(text:string, signature:string, options:Ver
   check(canonicalChannelDocument(value) === text, 'UPDATE_FEED_NONCANONICAL', 'The update feed must be the exact canonical signing payload.');
   const bytes = Buffer.from(signature, 'base64url');
   check(bytes.length === 64 && bytes.toString('base64url') === signature && verifySignature(null, Buffer.from(text), key, bytes), 'UPDATE_FEED_SIGNATURE_INVALID', 'The update feed signature does not match the pinned release key.');
-  check(value.channel === options.channel, 'UPDATE_FEED_WRONG_CHANNEL', 'The update feed belongs to a different release channel.');
-  const now = options.now ?? Date.now();
-  check(Date.parse(value.issuedAt) <= now + CLOCK_SKEW_MS, 'UPDATE_FEED_FROM_FUTURE', 'The update feed was issued in the future; check the computer clock.');
-  check(Date.parse(value.expiresAt) > now, 'UPDATE_FEED_EXPIRED', 'The update feed has expired.');
-  if (options.lastAcceptedIssuedAt != null) check(Date.parse(value.issuedAt) >= Date.parse(options.lastAcceptedIssuedAt), 'UPDATE_FEED_ROLLBACK', 'The update feed is older than one already accepted.');
+  check(value.channel === channel, 'UPDATE_FEED_WRONG_CHANNEL', 'The update feed belongs to a different release channel.');
   return freeze(value);
+}
+/** The entry a document lists for one exact target and version, if any. */
+export function channelEntry(document:ChannelDocument, platform:string, architecture:string, version:string):ChannelRelease|null {
+  return document.releases.find(release => release.platform === platform && release.architecture === architecture && compareVersions(release.version, version) === 0) ?? null;
 }
 /** Deterministic rollout bucket 0–99: first four bytes of SHA-256(installId + version), big-endian, modulo 100. */
 export function rolloutBucket(installId:string, version:string):number {
@@ -130,8 +135,24 @@ export class ChannelGuard {
       const document = verifyChannelDocument(text, signature, { publicKey: this.#key, channel: this.#channel, now, lastAcceptedIssuedAt: previous?.issuedAt ?? null });
       const documentSha256 = createHash('sha256').update(text).digest('hex');
       if (previous && previous.issuedAt === document.issuedAt) check(previous.documentSha256 === documentSha256, 'UPDATE_FEED_CONFLICT', 'A different update feed was signed with the same issue time.');
-      else await writeJsonAtomic(join(directory, 'channel-state.json'), { channel: this.#channel, issuedAt: document.issuedAt, documentSha256, acceptedAt: new Date(now).toISOString() });
+      // The signed text is kept so later withdrawal checks (apply, rollback) use signed data, not memory alone.
+      await writeJsonAtomic(join(directory, 'channel-document.json'), { text, signature });
+      if (!(previous && previous.issuedAt === document.issuedAt)) await writeJsonAtomic(join(directory, 'channel-state.json'), { channel: this.#channel, issuedAt: document.issuedAt, documentSha256, acceptedAt: new Date(now).toISOString() });
       return document;
     } finally { await lock.release(); }
+  }
+  /**
+   * The last accepted document, re-verified against the pinned key and bound to the saved state's digest. It may be
+   * expired: it is used only to refuse withdrawn versions, never to offer an update. Null when none is saved.
+   */
+  async lastDocument():Promise<ChannelDocument|null> {
+    const last = await this.lastAccepted();
+    if (!last || last.channel !== this.#channel) return null;
+    const value:any = await readJsonFile(join(await safeDirectory(this.#directory, true), 'channel-document.json'), 4 * MAX_CHANNEL_BYTES, 'UPDATE_FEED_STATE_INVALID');
+    if (value === undefined) return null;
+    check(exactKeys(value, ['text','signature']) && typeof value.text === 'string' && typeof value.signature === 'string', 'UPDATE_FEED_STATE_INVALID', 'The saved update feed is invalid.');
+    if (createHash('sha256').update(value.text).digest('hex') !== last.documentSha256) return null;
+    try { return authenticateChannelDocument(value.text, value.signature, this.#key, this.#channel); }
+    catch { check(false, 'UPDATE_FEED_STATE_INVALID', 'The saved update feed no longer verifies.'); }
   }
 }

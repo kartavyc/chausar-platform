@@ -3,7 +3,7 @@ import { constants } from 'node:fs';
 import { lstat, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { check } from '../contracts.ts';
-import type { KeychainHelperManifest } from '../engine-keychain-host.ts';
+import { validKeychainHelperManifest, type KeychainHelperManifest } from '../engine-keychain-host.ts';
 
 /** Read-only report on the bundled custody helper. It never starts the helper or
  * touches an OS credential store, so it cannot qualify native custody. */
@@ -38,19 +38,12 @@ async function readRegular(path: string, maximum: number): Promise<Buffer | null
   } finally { await file.close(); }
 }
 
-/** The same strict format engine-keychain-host.ts enforces before enrolling custody
- * (that check is not exported): exact keys, pinned helper name and target, lowercase SHA-256. */
+/** Parses with the exact validator engine-keychain-host.ts enforces before enrolling custody (one shared rule). */
 export function parseKeychainManifest(bytes: Uint8Array, platform: string, architecture: string): KeychainHelperManifest | null {
   let value: any;
-  try { value = JSON.parse(Buffer.from(bytes).toString('utf8')); } catch { return null; }
-  const valid = value && typeof value === 'object' && !Array.isArray(value)
-    && Object.keys(value).sort().join(',') === 'architecture,executable,format,platform,sha256'
-    && value.format === 'chausar.keychain-helper.v1' && ['win32', 'darwin', 'linux'].includes(platform)
-    && value.platform === platform && ['x64', 'arm64'].includes(architecture) && value.architecture === architecture
-    && value.executable === (platform === 'win32' ? 'chausar-keychain.exe' : 'chausar-keychain')
-    && typeof value.sha256 === 'string' && /^[a-f0-9]{64}$/.test(value.sha256);
-  return valid ? Object.freeze({ format: value.format, platform: value.platform, architecture: value.architecture,
-    executable: value.executable, sha256: value.sha256 }) : null;
+  try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { return null; }
+  return validKeychainHelperManifest(value, platform, architecture) ? Object.freeze({ format: value.format, platform: value.platform,
+    architecture: value.architecture, executable: value.executable, sha256: value.sha256 }) : null;
 }
 
 function sessionBus(environment: NodeJS.ProcessEnv): 'ok' | 'missing' {

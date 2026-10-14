@@ -3,12 +3,17 @@ import { copyFile, chmod, lstat, mkdir, readFile, writeFile } from 'node:fs/prom
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check } from '../../platform/runtime/contracts.ts';
-import type { KeychainHelperManifest } from '../../platform/runtime/engine-keychain-host.ts';
+import { validKeychainHelperManifest, type KeychainHelperManifest } from '../../platform/runtime/engine-keychain-host.ts';
 
 /** Release step after CI compiles platform/native/keychain (and pre-signs it on signed builds):
  * places the helper at runtime-binaries/keychain/<executable> and pins its final bytes in manifest.json.
  * It never runs the helper. */
 const MAX_HELPER = 8 * 1024 * 1024;
+
+async function refuseLink(path: string): Promise<void> {
+  let info; try { info = await lstat(path); } catch (error: any) { if (error?.code === 'ENOENT') return; throw error; }
+  check(info.isFile() && !info.isSymbolicLink() && info.nlink === 1, 'KEYCHAIN_HELPER_INVALID', 'The keychain output must not hold links or special files.');
+}
 
 export async function writeKeychainManifest(input: { helper: string; platform: string; architecture: string; out: string }): Promise<KeychainHelperManifest> {
   const { helper, platform, architecture, out } = input;
@@ -18,12 +23,18 @@ export async function writeKeychainManifest(input: { helper: string; platform: s
   check(info.isFile() && !info.isSymbolicLink() && info.size > 0 && info.size <= MAX_HELPER, 'KEYCHAIN_HELPER_INVALID', 'The compiled helper must be a bounded regular file.');
   const executable = platform === 'win32' ? 'chausar-keychain.exe' : 'chausar-keychain';
   await mkdir(out, { recursive: true });
-  const target = join(out, executable);
+  const target = join(out, executable), manifestPath = join(out, 'manifest.json');
+  // copyFile and writeFile follow links: a planted link in the output folder would redirect the pinned helper or manifest.
+  for (const path of [target, manifestPath]) await refuseLink(path);
+  const source = createHash('sha256').update(await readFile(helper)).digest('hex');
   if (resolve(target) !== resolve(helper)) await copyFile(helper, target);
   if (platform !== 'win32') await chmod(target, 0o755);
+  await refuseLink(target);
   const sha256 = createHash('sha256').update(await readFile(target)).digest('hex');
+  check(sha256 === source, 'KEYCHAIN_HELPER_INVALID', 'The placed helper differs from the compiled helper.');
   const manifest: KeychainHelperManifest = { format: 'chausar.keychain-helper.v1', platform, architecture, executable, sha256 };
-  await writeFile(join(out, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { mode: 0o644 });
+  check(validKeychainHelperManifest(manifest, platform, architecture), 'KEYCHAIN_MANIFEST_INVALID', 'The helper manifest would be refused by the engine.');
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', { mode: 0o644 });
   return manifest;
 }
 

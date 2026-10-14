@@ -1,13 +1,13 @@
 import { createHash, type KeyObject } from 'node:crypto';
 import { dirname, isAbsolute, join } from 'node:path';
 import { check, ChausarError } from '../contracts.ts';
-import { ReleaseUpdater, type ReleaseManifest } from '../updater.ts';
+import { ReleaseUpdater, canonicalReleaseManifest, type ReleaseManifest } from '../updater.ts';
 import type { BoundedHttp } from '../connectors.ts';
 import { safeDirectory } from '../vault.ts';
-import { ChannelGuard, selectRelease, validInstallId, type AcceptedChannelState, type ChannelName, type ChannelRelease, type ReleaseArchitecture, type ReleasePlatform } from './update-channel.ts';
+import { ChannelGuard, channelEntry, selectRelease, validInstallId, type AcceptedChannelState, type ChannelName, type ChannelRelease, type ReleaseArchitecture, type ReleasePlatform } from './update-channel.ts';
 import { buildExpiry, type BuildExpiry, type BuildUsability } from './update-expiry.ts';
-import { InstallLayout, artifactKind, type InstallPointer, type LaunchDecision, type Unpack } from './update-install.ts';
-import { DataGuard, type BackupEvidence, type DataSchemaMarker } from './update-data-guard.ts';
+import { InstallLayout, MAX_TRIAL_LAUNCHES, artifactKind, type InstallPointer, type LaunchDecision, type Unpack } from './update-install.ts';
+import { DataGuard, VersionSchemaLedger, type BackupEvidence, type DataSchemaMarker } from './update-data-guard.ts';
 import { UpdateFeedClient } from './update-feed-client.ts';
 import { readJsonFile } from './update-files.ts';
 
@@ -40,7 +40,7 @@ type Candidate = { text:string; signature:string; manifest:ReleaseManifest; rele
 
 export class UpdateService {
   #version:string; #channel:ChannelName; #installId:string; #demo:boolean; #now:()=>number; #schema:number;
-  #stageDirectory:string; #updater:ReleaseUpdater; #guard:ChannelGuard; #layout:InstallLayout; #data:DataGuard; #feed:UpdateFeedClient|null; #expiry:BuildExpiry;
+  #stageDirectory:string; #updater:ReleaseUpdater; #guard:ChannelGuard; #layout:InstallLayout; #data:DataGuard; #ledger:VersionSchemaLedger; #feed:UpdateFeedClient|null; #expiry:BuildExpiry;
   #candidate:Candidate|null = null;
   constructor(options:UpdateServiceOptions) {
     check(isAbsolute(options.installRoot) && isAbsolute(options.appDataDirectory), 'UNSAFE_UPDATE_PATH', 'Choose absolute install and application data directories.');
@@ -53,6 +53,7 @@ export class UpdateService {
     this.#guard = new ChannelGuard({ publicKey: options.publicKey, channel: options.channel, stateDirectory: join(options.appDataDirectory, 'release'), now: this.#now });
     this.#layout = new InstallLayout({ installRoot: options.installRoot, unpack: options.unpack, now: this.#now });
     this.#data = new DataGuard({ appDataDirectory: options.appDataDirectory, now: this.#now });
+    this.#ledger = new VersionSchemaLedger({ appDataDirectory: options.appDataDirectory });
     this.#feed = options.feedUrl === undefined ? null : new UpdateFeedClient({ feedUrl: options.feedUrl, http: options.http, demo: this.#demo });
     this.#expiry = buildExpiry({ channel: options.channel, builtAt: options.builtAt ?? null, previewExpiresAt: options.previewExpiresAt ?? null });
   }
@@ -88,6 +89,7 @@ export class UpdateService {
   /** Downloads and verifies the artifact chosen by the last check(). Nothing is installed or executed. */
   async stage():Promise<StageResult> {
     check(this.#candidate, 'UPDATE_NOT_CHECKED', 'Check for an update before downloading it.');
+    await this.#refuseWithdrawn(this.#candidate.manifest, 'UPDATE_WITHDRAWN');
     const staged = await this.#updater.stage(this.#candidate.text, this.#candidate.signature), manifest = staged.manifest;
     return Object.freeze({ staged: true, version: manifest.version, artifactSha256: manifest.sha256, size: manifest.size, dataSchemaVersion: manifest.dataSchemaVersion, installMode: installMode(manifest), installed: false });
   }
@@ -96,21 +98,58 @@ export class UpdateService {
     check(input?.confirmed === true, 'CONFIRMATION_REQUIRED', 'Installing an update waits for your confirmation.');
     const { manifest, artifactPath } = await this.#pending();
     check(installMode(manifest) === 'in-place-swap', 'NATIVE_INSTALLER_REQUIRED', 'This release is a native installer. Chausar never runs a downloaded installer; install it yourself.');
+    // The newest signed feed this install accepted may have withdrawn the staged release since it was downloaded.
+    await this.#refuseWithdrawn(manifest, 'UPDATE_WITHDRAWN');
     const fromSchema = await this.#fromSchema();
     check(fromSchema <= manifest.dataSchemaVersion, 'VAULT_NEWER_THAN_APP', 'This vault was written by a newer Chausar than the staged release.');
     const backup = await this.#data.requireBackupBeforeSchemaChange({ fromSchema, toSchema: manifest.dataSchemaVersion, backup: input.backup ?? null });
     // The marker is raised by the new app when it migrates, not here, so a rollback can still open the vault.
+    // Both sides' schemas are recorded before the pointer moves, so every later rollback can be checked against the marker.
+    await this.#ledger.record([[this.#version, this.#schema], [manifest.version, manifest.dataSchemaVersion]]);
     const installed = await this.#layout.install(artifactPath, manifest);
     return Object.freeze({ applied: true, version: installed.version, previous: installed.previous, state: 'trial', restartRequired: true, backupVerified: backup.backup !== null, fromSchema, toSchema: manifest.dataSchemaVersion });
   }
   async rollback(input:{ confirmed:boolean }):Promise<ServiceRollbackResult> {
     check(input?.confirmed === true, 'CONFIRMATION_REQUIRED', 'Rolling back waits for your confirmation.');
+    const pointer = await this.#layout.pointer();
+    check(pointer && pointer.previous, 'ROLLBACK_UNAVAILABLE', 'There is no previous installed version to return to.');
+    const document = await this.#guard.lastDocument();
+    check(!document || !channelEntry(document, process.platform, process.arch, pointer.previous)?.withdrawn, 'ROLLBACK_TARGET_WITHDRAWN', 'The previous version was withdrawn by the publisher; install a newer release instead.');
+    check(await this.#canOpenVault(pointer.previous), 'VAULT_NEWER_THAN_APP', 'The previous version cannot open this vault: a newer version already upgraded its data. Restore the backup made before the update instead.');
+    // These checks read the pointer before the layout takes its install lock; see docs/releases.md for the residual race.
     const result = await this.#layout.rollback();
     return Object.freeze({ rolledBack: true, from: result.from, to: result.to, restartRequired: true });
   }
   /** Called by the newly launched version once it is healthy; commits its trial. */
   confirmHealthy():Promise<InstallPointer> { return this.#layout.confirmHealthy(this.#version); }
-  resolveLaunch():Promise<LaunchDecision|null> { return this.#layout.resolveLaunch(); }
+  /**
+   * Launcher entry. Safe rule for automatic rollback: never return to a version that cannot open the vault. If the
+   * trial version already migrated the data (the marker is above the previous version's recorded schema), the trial
+   * stays current and reports `rollbackUnavailable` rather than stranding the vault behind VAULT_NEWER_THAN_APP;
+   * the backup made before the swap is the way back.
+   */
+  async resolveLaunch():Promise<LaunchDecision|null> {
+    const pointer = await this.#layout.pointer();
+    if (pointer && pointer.state === 'trial' && pointer.previous && pointer.attempts + 1 > MAX_TRIAL_LAUNCHES && !(await this.#canOpenVault(pointer.previous))) {
+      const directory = await this.#layout.versionDirectory(pointer.version);
+      return Object.freeze({ version: pointer.version, directory, state: pointer.state, attempts: pointer.attempts, rolledBack: false, rolledBackFrom: null, rollbackUnavailable: true });
+    }
+    return this.#layout.resolveLaunch();
+  }
+  /** True when `version` can open the vault the data-schema marker describes (no marker: any version can). */
+  async #canOpenVault(version:string):Promise<boolean> {
+    const marker = await this.#data.marker();
+    if (!marker) return true;
+    const schema = await this.#ledger.schemaOf(version);
+    // A version whose schema was never recorded is treated as unable to open a migrated vault.
+    return schema !== null && schema >= marker.dataSchemaVersion;
+  }
+  async #refuseWithdrawn(manifest:ReleaseManifest, code:string):Promise<void> {
+    const document = await this.#guard.lastDocument(), entry = document && channelEntry(document, manifest.platform, manifest.architecture, manifest.version);
+    if (!entry) return;
+    check(!entry.withdrawn, code, 'The publisher withdrew this release; it will not be installed.');
+    check(createHash('sha256').update(canonicalReleaseManifest(manifest)).digest('hex') === entry.manifestSha256, 'UPDATE_MANIFEST_MISMATCH', 'The staged release differs from the one named by the signed feed.');
+  }
   async #pending():Promise<{ manifest:ReleaseManifest; artifactPath:string }> {
     const directory = await safeDirectory(this.#stageDirectory, true), record:any = await readJsonFile(join(directory, 'pending-release.json'), 256 * 1024, 'UPDATE_NOT_STAGED');
     check(record && typeof record === 'object' && typeof record.artifactPath === 'string' && typeof record.signature === 'string', 'UPDATE_NOT_STAGED', 'Download and verify an update before installing it.');
