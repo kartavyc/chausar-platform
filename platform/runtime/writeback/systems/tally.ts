@@ -102,7 +102,7 @@ function voucherXml(p: Voucher, key: string): string {
   return envelope('Import', '<TYPE>Data</TYPE><ID>Vouchers</ID>', p.company, '', '', `<DATA><TALLYMESSAGE><VOUCHER REMOTEID="${e(key)}" VCHTYPE="${e(p.voucherType)}" ACTION="Create"><DATE>${p.date.replaceAll('-', '')}</DATE><VOUCHERTYPENAME>${e(p.voucherType)}</VOUCHERTYPENAME><VOUCHERNUMBER>${e(p.voucherNumber)}</VOUCHERNUMBER><PARTYLEDGERNAME>${e(p.party)}</PARTYLEDGERNAME>${p.narration ? `<NARRATION>${e(p.narration)}</NARRATION>` : ''}${entries}</VOUCHER></TALLYMESSAGE></DATA>`);
 }
 /** Days either side of the voucher date that look-first and read-back search: a voucher entered under another date is still found. */
-export const LOOK_WINDOW_DAYS = 31;
+export const LOOK_WINDOW_DAYS = 15;
 const shift = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00.000Z`) + days * 86400000).toISOString().slice(0, 10).replaceAll('-', '');
 /** Day Book vouchers within a bounded window around the payload's date, with its type and number. Tally numbers vouchers per type. */
 async function sameNumber(ctx: AdapterContext, p: Voucher): Promise<XmlNode[]> {
@@ -129,9 +129,11 @@ const voucherCreate: ActionAdapter<any> = {
     return { company: text(p.company, 200), voucherType: oneOf(p.voucherType, TYPES), voucherNumber: text(p.voucherNumber, 50), date: date(p.date), party: text(p.party, 200), ...(p.narration === undefined ? {} : { narration: optionalText(p.narration, 2000)! }), lines } as Voucher;
   },
   async prepare(ctx, p: Voucher, key) {
-    const same = await sameNumber(ctx, p);
-    check(same.every(v => v.attrs.REMOTEID === key), 'WRITE_PRECONDITION_FAILED', 'Another voucher of this type already has this number.');
-    if (!same.length) {
+    const same = await sameNumber(ctx, p), ours = same.filter(v => v.attrs.REMOTEID === key);
+    // Numbering can restart each month or year, so only a same-number voucher in the same month blocks this one.
+    const month = p.date.replaceAll('-', '').slice(0, 6);
+    check(ours.length > 0 || same.every(v => val(v, 'DATE').slice(0, 6) !== month), 'WRITE_PRECONDITION_FAILED', 'Another voucher of this type already has this number this month.');
+    if (!ours.length) {
       const ledgers = new Set((await masters(ctx, p.company, 'Ledger')).map(l => l.name));
       check([p.party, ...p.lines.map(l => l.ledger)].every(name => ledgers.has(name)), 'WRITE_PRECONDITION_FAILED', 'A ledger named in the voucher is not in this Tally company.');
     }
@@ -139,14 +141,13 @@ const voucherCreate: ActionAdapter<any> = {
     return { before: null, command: { company: p.company, ...fields, ...(p.narration ? { narration: p.narration } : {}), remoteId: key, xml: voucherXml(p, key) }, postconditions: fields,
       preview: { fields: [{ name: 'Voucher', before: '', after: `${p.voucherType} ${p.voucherNumber}` }, { name: 'Date', before: '', after: p.date }, { name: 'Party', before: '', after: p.party },
         ...(p.narration ? [{ name: 'Narration', before: '', after: p.narration }] : []), ...p.lines.map((l, index) => ({ name: `Line ${index + 1}`, before: '', after: `${l.side === 'debit' ? 'Dr' : 'Cr'} ${l.ledger} ₹${rupees(l.amountMinor)}` }))] },
-      target: { label: `${p.voucherType} voucher ${p.voucherNumber}`, ref: p.voucherNumber }, sourceVersion: null, alreadyApplied: same.length ? { externalId: val(same[0], 'MASTERID') || null } : null };
+      target: { label: `${p.voucherType} voucher ${p.voucherNumber}`, ref: p.voucherNumber }, sourceVersion: null, alreadyApplied: ours.length ? { externalId: val(ours[0], 'MASTERID') || null } : null };
   },
   async do(ctx, p: Voucher, preparation) { return imported(await send(ctx, p.company, str(preparation.command.xml)), 'LASTVCHID'); },
   async readBack(ctx, p: Voucher, _preparation, key): Promise<Observation> {
-    const same = await sameNumber(ctx, p);
-    if (same.length > 1) return { outcome: 'conflicting', reason: 'More than one voucher of this type has this number.' };
-    if (!same.length) return { outcome: 'inconclusive', reason: 'No voucher with this number is in the Day Book yet.' };
-    if (same[0].attrs.REMOTEID !== key) return { outcome: 'conflicting', reason: 'The voucher with this number was not entered by this action.' };
+    const same = (await sameNumber(ctx, p)).filter(v => v.attrs.REMOTEID === key);
+    if (same.length > 1) return { outcome: 'conflicting', reason: 'This action\'s voucher appears more than once.' };
+    if (!same.length) return { outcome: 'inconclusive', reason: 'This action\'s voucher is not in the Day Book yet.' };
     return { outcome: 'confirmed-applied', observed: observedVoucher(same[0]), externalId: val(same[0], 'MASTERID') || null, businessSuccess: true };
   },
 };

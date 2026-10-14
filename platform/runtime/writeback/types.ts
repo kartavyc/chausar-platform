@@ -42,7 +42,7 @@ export type Connection = {
   /** Read and write are separate grants; write is per catalogue action. */
   read: boolean; write: string[];
   /** The connectors-ext read connection whose credential this write connection shares. Its read grant never grants writing here. */
-  link: { connectionId: string; sourceId: string; group: string } | null;
+  link: { connectionId: string; sourceId: string; group: string; branch: string } | null;
   createdAt: string; createdBy: string; revokedAt: string | null;
 };
 

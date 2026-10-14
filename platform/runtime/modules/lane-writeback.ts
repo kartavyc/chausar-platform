@@ -16,7 +16,7 @@ import type { EngineModule, ModuleHost } from './types.ts';
 import { peekModuleState, moduleState } from './types.ts';
 import { realDialer, realTransport } from '../writeback/http.ts';
 import { initState, MODULE_ID, ownCredential, readState, WritebackService, type SecondAsk, type Settings, type WritebackState } from '../writeback/service.ts';
-import { ConnectorCredentialStore, hostCredentialServices, loadOAuthClients } from '../connectors-ext/credentials.ts';
+import { ConnectorCredentialStore } from '../connectors-ext/credentials.ts';
 import type { WhatsAppStatus } from '../writeback/systems/whatsapp.ts';
 import { installedAdapters } from '../writeback/systems/index.ts';
 import { qualify, qualifySandbox, runPractice } from '../writeback/practice.ts';
@@ -25,12 +25,13 @@ import type { FakeBundle } from '../writeback/practice.ts';
 import type { Dialer, SystemId, Transport, WriteCredentials } from '../writeback/types.ts';
 import { audit } from '../contracts.ts';
 import { current } from '../actions.ts';
-import { integer, list, record, text } from '../writeback/validate.ts';
+import { instant, integer, list, record, text } from '../writeback/validate.ts';
 
 /** Practice connections keep their fake systems for the life of the app, per workspace. */
 const practiceWorlds = new Map<string, Map<SystemId, FakeBundle>>();
 /** Single-use second-ask grants for this app run; never written to the vault. */
 const secondAsks = new Map<string, SecondAsk>();
+const reauthFailures = new Map<string, { count: number; since: number }>();
 /** WhatsApp delivery statuses: a host option, else the hosted relay through hosted.messageStatuses, else none. */
 function statusSource(host: ModuleHost, option: unknown) {
   return async (_ctx: unknown, query: { reference: string; messageId: string | null }): Promise<WhatsAppStatus[]> => {
@@ -42,7 +43,7 @@ function statusSource(host: ModuleHost, option: unknown) {
     return reply.map(item => {
       const r = record(item, ['messageId', 'status', 'at', 'reference']);
       check(['sent', 'delivered', 'read', 'failed'].includes(String(r.status)), 'WRITE_REPLY_INVALID', 'The relay sent an unknown status.');
-      return { messageId: text(r.messageId, 200), status: r.status as WhatsAppStatus['status'], at: text(r.at, 40), reference: text(r.reference, 100) };
+      return { messageId: text(r.messageId, 200, /^[A-Za-z0-9._=:+\/-]{1,200}$/), status: r.status as WhatsAppStatus['status'], at: instant(r.at), reference: text(r.reference, 40, /^CHS-[0-9A-F]{16}$/) };
     });
   };
 }
@@ -60,7 +61,7 @@ function services(host: ModuleHost) {
     credentials: typeof o.credentials === 'function' ? o.credentials as WriteCredentials : undefined,
     clock, directory: host.directory, demo: host.demo, adapters: installedAdapters({ whatsappStatuses: statusSource(host, o.whatsappStatuses) as any }),
     verifyPassphrase: typeof (host.store as any).verifyPassphrase === 'function' ? (secret: string) => (host.store as any).verifyPassphrase(secret) : typeof o.verifyPassphrase === 'function' ? o.verifyPassphrase as (secret: string) => Promise<boolean> : undefined,
-    secondAsk: secondAsks,
+    secondAsk: secondAsks, reauthFailures,
     practice: (workspaceId, connection) => {
       check(fakes, 'PRACTICE_UNAVAILABLE', 'Practice systems are not installed in this app.'); const { fakeFactory } = fakes;
       const world = practiceWorlds.get(workspaceId) ?? new Map<SystemId, FakeBundle>(); practiceWorlds.set(workspaceId, world);
@@ -110,12 +111,16 @@ export function writebackHostOptions(input: { directory: string; demo: boolean; 
   if (typeof zone === 'string' && /^[A-Za-z_]+\/[A-Za-z_+-]+$/.test(zone)) options.timeZone = zone;
   if (input.demo) return options;
   const store = new ConnectorCredentialStore(join(input.directory, 'connector-credentials'));
-  const services = hostCredentialServices(store, { clients: loadOAuthClients(input.env.CHAUSAR_OAUTH_CLIENTS_FILE ?? join(input.directory, 'oauth-clients.json')) });
   options.credentialStore = store;
-  options.credentials = (async (ctx, scope) => {
+  // Reads the sealed entry directly and never refreshes a sign-in: connectors-ext owns refresh, so two
+  // modules never race to spend the same refresh token.
+  options.credentials = (async (_ctx, scope) => {
     check(scope.environment !== 'practice', 'WRITE_CREDENTIALS_UNAVAILABLE', 'Practice connections never use real credentials.');
-    const token = await services.credentialBroker(ctx, { system: scope.group, sourceId: scope.sourceId, origin: '', scopes: [], scheme: 'bearer' });
-    return credentialFields(scope.system, token);
+    const item = store.get(scope.sourceId);
+    check(item && (item.system === scope.group || scope.group.startsWith(`${item.system}-`)), 'WRITE_CREDENTIALS_UNAVAILABLE', 'Sign in to this system, or enter its key, first.');
+    if (item.kind === 'key') return credentialFields(scope.system, item.secret);
+    check(!item.expiresAt || Date.parse(item.expiresAt) - 60_000 > Date.now(), 'WRITE_SIGN_IN_EXPIRED', 'The sign-in for this system has expired. Read from it once under Connectors to renew it, then try again.');
+    return credentialFields(scope.system, item.accessToken);
   }) satisfies WriteCredentials;
   return options;
 }
@@ -127,8 +132,8 @@ export function credentialFields(system: SystemId, token: string): Record<string
   return system === 'razorpay' ? { keyId: token.slice(0, at), keySecret: token.slice(at + 1) } : { username: token.slice(0, at), password: token.slice(at + 1) };
 }
 function trusted(ctx: Context) { check((ctx.channel === undefined || ctx.channel === 'desktop') && ctx.sourceTainted !== true, 'OPEN_DESKTOP', 'Do this yourself in the desktop app.'); }
-function ownConnection(ctx: Context, host: ModuleHost, connectionId: unknown) {
-  const connection = readState(host.store.read()).connections.find(c => c.id === connectionId && !c.revokedAt);
+function ownConnection(ctx: Context, host: ModuleHost, connectionId: unknown, revokedToo = false) {
+  const connection = readState(host.store.read()).connections.find(c => c.id === connectionId && (revokedToo || !c.revokedAt));
   check(connection, 'WRITE_CONNECTION_NOT_FOUND', 'That connection does not exist.');
   check(!connection.link, 'WRITE_CREDENTIAL_LINKED', 'This connection uses the sign-in of its linked read connection. Change it under Connectors.');
   check(connection.environment !== 'practice', 'INVALID_REQUEST', 'A practice connection never uses a real credential.');
@@ -145,15 +150,18 @@ async function credentialsSet(ctx: Context, payload: Record<string, any>, host: 
   return { stored: true, connectionId: connection.id };
 }
 async function credentialsRemove(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
-  trusted(ctx); const p = record(payload, ['connectionId']); const { connection, store } = ownConnection(ctx, host, p.connectionId);
+  trusted(ctx); const p = record(payload, ['connectionId']); const { connection, store } = ownConnection(ctx, host, p.connectionId, true);
   const removed = store.remove(ownCredential(connection));
   await host.store.update(state => { current(state, ctx, 'admin'); audit(state, 'writeback.credential-removed', { connectionId: connection.id }); });
   return { removed, connectionId: connection.id };
 }
-function credentialsStatus(_ctx: Context, _payload: Record<string, any>, host: ModuleHost) {
+function credentialsStatus(ctx: Context, _payload: Record<string, any>, host: ModuleHost) {
   const store = (host.options as any).credentialStore as ConnectorCredentialStore | undefined;
-  return readState(host.store.read()).connections.filter(c => !c.revokedAt).map(c => ({ connectionId: c.id, linked: c.link?.connectionId ?? null,
-    present: c.environment === 'practice' ? true : store ? store.has(ownCredential(c)).present : false }));
+  const member = host.store.read().members.find(m => m.id === ctx.memberId);
+  const visible = (branch: string) => Boolean(member && (member.branches.includes('*') || member.branches.includes(branch)));
+  const present = (sourceId: string) => { try { return store ? store.has(sourceId).present : false; } catch { return 'unreadable' as const; } };
+  return readState(host.store.read()).connections.filter(c => !c.revokedAt && (!c.link || visible(c.link.branch)))
+    .map(c => ({ connectionId: c.id, linked: Boolean(c.link), present: c.environment === 'practice' ? true : present(ownCredential(c)) }));
 }
 
 export const writebackModule: EngineModule = {
@@ -172,7 +180,13 @@ export const writebackModule: EngineModule = {
     'writeback.connections': { permission: 'read', handler: (ctx, _p, host) => ws(host).connections(ctx) },
     'writeback.connect': { permission: 'admin', handler: async (ctx, p, host) => { if (p.environment === 'practice') await practiceKit(); return ws(host).connect(ctx, p); } },
     'writeback.grant': { permission: 'admin', handler: (ctx, p, host) => ws(host).grant(ctx, p) },
-    'writeback.disconnect': { permission: 'admin', handler: (ctx, p, host) => ws(host).disconnect(ctx, p.connectionId) },
+    'writeback.disconnect': { permission: 'admin', handler: async (ctx, p, host) => {
+      const removed = await ws(host).disconnect(ctx, p.connectionId);
+      // A connection's own secret leaves with it; a linked sign-in stays with its read connection.
+      const store = (host.options as any).credentialStore as ConnectorCredentialStore | undefined;
+      if (store && !removed.link && removed.environment !== 'practice') store.remove(ownCredential(removed));
+      return removed;
+    } },
     'writeback.prepare': { permission: 'prepare', handler: async (ctx, p, host) => (await ready(host)).service.prepare(ctx, { connectionId: p.connectionId, action: p.action, payload: p.payload, intentId: p.intentId, sourceIds: p.sourceIds }) },
     'writeback.change': { permission: 'prepare', handler: async (ctx, p, host) => (await ready(host)).service.change(ctx, p.id, p.payload) },
     'writeback.reauth': { permission: 'approve', handler: async (ctx, p, host) => (await ready(host)).service.reauth(ctx, p.id, p.digest, p.passphrase) },
