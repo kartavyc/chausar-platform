@@ -50,6 +50,24 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  release-config:
+    # Release lane: service generators, keychain status, build configs, sign hook
+    # refusals, checksums and update-manifest signing. No signing secrets are used.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.13.1'
+          package-manager-cache: false
+      - name: Install pinned dependencies without lifecycle scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run release lane tests
+        run: node --test platform/tests/release-*.test.ts
+
   # This workflow verifies the open repository only. It neither signs releases nor
   # qualifies real customer connectors, hosted services, PostgreSQL, or hidden/sealed tests.
   # Each OS requires all five shards to pass. The four ordinary groups remain
