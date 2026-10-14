@@ -1,1 +1,11 @@
-[]
+[
+  "modelsx.applyPricing",
+  "modelsx.catalogue",
+  "modelsx.connectAllowance",
+  "modelsx.cost",
+  "modelsx.jobCost",
+  "modelsx.meters",
+  "modelsx.pricing",
+  "modelsx.setFx",
+  "modelsx.setPrice"
+]
