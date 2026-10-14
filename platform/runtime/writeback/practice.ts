@@ -136,3 +136,38 @@ export async function qualify(service: WritebackService, context: Context, cases
   });
   return { level: 'synthetic-tested', rows: results };
 }
+
+/**
+ * The same recipe test on a person's sandbox connection (a trial organisation, a test sheet, a
+ * test mailbox): applied once and read back, then the same key again sends nothing. A lost reply
+ * cannot be staged on a real system, so that check stays with the fakes. Only a sandbox connection
+ * with the action granted can run it, and only a full pass is recorded as sandbox-verified.
+ */
+export async function qualifySandbox(service: WritebackService, context: Context, input: Record<string, unknown>) {
+  current(service.store.read(), context, 'admin');
+  const p = record(input, ['connectionId', 'cases']);
+  const connection = service.connections(context).find(c => c.id === p.connectionId && !c.revokedAt);
+  check(connection && connection.environment === 'sandbox', 'SANDBOX_CONNECTION_REQUIRED', 'Run the recipe test on a sandbox connection.');
+  check(Array.isArray(p.cases) && p.cases.length > 0 && p.cases.length <= 20, 'INVALID_REQUEST', 'Give one to twenty test cases.');
+  const runId = newId('qualify'); const results: { action: string; checks: { name: string; passed: boolean }[]; score: string }[] = [];
+  for (const raw of p.cases) {
+    const c = record(raw, ['action', 'payload']); const row = entry(connection.system, String(c.action));
+    check(row && row.tier !== 'prepare-only' && connection.write.includes(row.action), 'WRITE_NOT_GRANTED', 'The sandbox connection must be granted each action it tests.');
+    const adapter = service.adapter(connection.system, row.action); const ctx = service.adapterContext(context, connection);
+    const key = `qualify-sandbox-${runId}-${row.action}`; const checks: { name: string; passed: boolean }[] = [];
+    try {
+      const payload = adapter.validate(JSON.parse(canonical(c.payload))); const preparation = await adapter.prepare(ctx, payload, key);
+      check(!preparation.alreadyApplied, 'WRITE_ALREADY_APPLIED', 'The test effect already exists.');
+      const receipt = await adapter.do(ctx, payload, preparation, key);
+      checks.push({ name: 'applied-once-and-read-back', passed: catalogueReadback(await adapter.readBack(ctx, payload, preparation, key, receipt), preparation.postconditions as any).verified });
+      checks.push({ name: 'same-key-sends-nothing', passed: Boolean((await adapter.prepare(ctx, payload, key)).alreadyApplied) });
+    } catch { checks.push({ name: 'applied-once-and-read-back', passed: false }); }
+    results.push({ action: row.action, checks, score: `${checks.filter(x => x.passed).length}/2` });
+  }
+  await service.store.update(state => {
+    current(state, context, 'admin'); const wb = moduleState(state, MODULE_ID, initState);
+    for (const result of results) if (result.checks.length === 2 && result.checks.every(x => x.passed)) wb.qualifications.push({ system: connection.system, action: result.action, level: 'sandbox-verified', connectionId: connection.id, checks: result.checks, score: result.score, at: service.ports.clock(), evidence: canonical({ runId, checks: result.checks }) });
+    audit(state, 'writeback.qualified-sandbox', { connectionId: connection.id, rows: results.length });
+  });
+  return { level: 'sandbox-verified', connectionId: connection.id, rows: results };
+}

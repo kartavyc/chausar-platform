@@ -230,3 +230,15 @@ test('attack: work that read outside text may prepare a money action but can nev
   await assert.rejects(service.execute(job, prepared.id), { code: 'TAINTED_EXECUTION' });
   await assert.rejects(service.settle(job, prepared.id, 'sent'));
 });
+
+test('a sandbox recipe pass promotes a planned-live row to live; a failure records nothing', async () => {
+  const { service, connect } = setup(); const c = await connect('zoho-books', ['invoice.createDraft', 'payment.record']);
+  const { qualifySandbox } = await import('../runtime/writeback/practice.ts');
+  const result = await qualifySandbox(service, owner, { connectionId: c.id, cases: [{ action: 'invoice.createDraft', payload: draft }, { action: 'payment.record', payload: { customerId: customer, invoiceId: invoice, amountMinor: '999999', date: '2026-10-14', mode: 'upi' } }] });
+  assert.deepEqual(result.rows.map(r => r.score), ['2/2', '0/2']);
+  const rows = service.catalogue(owner);
+  assert.equal(rows.find(r => r.action === 'invoice.createDraft')!.status, 'live');
+  assert.equal(rows.find(r => r.action === 'payment.record')!.status, 'experimental');
+  const practice = await service.connect(owner, { system: 'zoho-books', label: 'p', environment: 'practice', account: {} });
+  await assert.rejects(qualifySandbox(service, owner, { connectionId: practice.id, cases: [{ action: 'invoice.createDraft', payload: draft }] }), { code: 'SANDBOX_CONNECTION_REQUIRED' });
+});

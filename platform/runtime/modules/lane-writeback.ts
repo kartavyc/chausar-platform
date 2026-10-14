@@ -16,7 +16,7 @@ import { peekModuleState, moduleState } from './types.ts';
 import { realDialer, realTransport } from '../writeback/http.ts';
 import { initState, MODULE_ID, WritebackService, type Settings, type WritebackState } from '../writeback/service.ts';
 import { installedAdapters } from '../writeback/systems/index.ts';
-import { qualify, runPractice } from '../writeback/practice.ts';
+import { qualify, qualifySandbox, runPractice } from '../writeback/practice.ts';
 import { checkPaid, consents, FOLLOW_UP, inbound, journal, journalSent, prepareReminder, recordConsent, reminderEvidence, type FollowUpHost } from '../writeback/follow-up.ts';
 import { fakeFactory, qualificationCases } from '../../fakes/index.ts';
 import type { FakeBundle } from '../writeback/practice.ts';
@@ -95,6 +95,7 @@ export const writebackModule: EngineModule = {
     'writeback.practice': { permission: 'prepare', handler: (ctx, p, host) => runPractice(ws(host), ctx, p, fakeFactory) },
     'writeback.practiceRuns': { permission: 'read', handler: (_ctx, _p, host) => structuredClone((peekModuleState<WritebackState>(host.store.read(), MODULE_ID) ?? initState()).practiceRuns) },
     'writeback.qualify': { permission: 'admin', handler: (ctx, _p, host) => qualify(ws(host), ctx, qualificationCases, fakeFactory) },
+    'writeback.qualifySandbox': { permission: 'admin', external: true, handler: (ctx, p, host) => qualifySandbox(ws(host), ctx, p) },
     'writeback.followUp.consent': { permission: 'prepare', handler: (ctx, p, host) => recordConsent(services(host).follow, ctx, p) },
     'writeback.followUp.consents': { permission: 'read', handler: (ctx, _p, host) => consents(services(host).follow, ctx) },
     'writeback.followUp.prepare': { permission: 'prepare', handler: (ctx, p, host) => prepareReminder(services(host).follow, ctx, p) },

@@ -68,6 +68,7 @@ Jobs-ext coordinates through `writeback.followUp.prepare` (a reminder becomes an
 | `ledger {limit?}`, `get {id}` | read | The record with five steps and the field-by-field read-back |
 | `practice {steps} \| {actionId}`, `practiceRuns` | prepare / read | Practice runs |
 | `qualify` | admin | The write-back recipe test against the fakes |
+| `qualifySandbox {connectionId, cases}` | admin, external | The recipe test on a person's sandbox connection; a full pass records `sandbox-verified` and promotes a planned-live row to `live` |
 | `followUp.consent`, `followUp.consents`, `followUp.prepare`, `followUp.inbound`, `followUp.checkPaid`, `followUp.journal` | prepare / read / approve | Invoice follow-up |
 
 Every view carries `word` (`waiting-for-you`, `approved`, `doing`, `done`, `not-sure`, `not-done`, `dropped`, `prepare-only`), the five `steps`, `expiresAt`, `notices` (`expired`, `prepared-again`, `already-done`, `looked-first`, `cancelled-evidence`), and an `approval` object matching the design's `Approval` interface (tier, kind, change as written or fields, waits-because rule, `needsSecondAsk` for money and irreversible changes, `can`).
@@ -103,7 +104,7 @@ Refusal codes reaching the desktop UI are listed on the writeback line of `laneR
 - WhatsApp has no read API; without the relay's status callbacks a WhatsApp send stays `not sure` until a person settles it. The same holds for mail without IMAP, and for a mail server that keeps no Sent copy.
 - The Google Drive upload carries content with `Content-Transfer-Encoding: base64` in the multipart body; this matches Google's documentation but is untested against the live service.
 - Tally's look-first finds an existing voucher only on the voucher's own date; Tally's own import is the backstop for a duplicate number on another date.
-- Sandbox qualification (`level: 'sandbox-verified'`) is recorded by the data model but has no runner yet; it needs a sandbox account to write against.
+- Sandbox qualification (`writeback.qualifySandbox`) is built and tested against a fake standing in for a sandbox; it has not run against a real sandbox account. It cannot stage a lost reply on a real system, so that check stays with the fakes.
 - The engine's generic `actions.list` does not show writeback actions (they live in their own ActionService registry so that approval expiry, look-first and the journal cannot be bypassed). Screens read `writeback.ledger`.
 - Approval of money and irreversible changes does not yet re-ask for the passphrase (see above).
 
