@@ -2,6 +2,8 @@
   display: grid;
   grid-template-columns: var(--rail) minmax(0, 1fr);
   height: 100vh;
+  /* Inside a host slot shorter than the window, the frame fits the slot so its foot stays in view. */
+  max-height: 100%;
   overflow: hidden;
   background: var(--bg);
 }
@@ -30,6 +32,8 @@
 .pageCol {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  /* One bounded track, so a wide column narrows to the slot instead of overflowing it. */
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   min-width: 0;
   min-height: 0;

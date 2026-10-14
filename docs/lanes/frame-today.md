@@ -90,10 +90,7 @@ Electron opens `chausar://app/ui/index.html`; the loopback server answers `/` an
 
 `app/ui/ui-policy.json` is derived from the tokens (`node frontend-validation/policy/derive.mjs --write`; a node test fails on drift and checks every declared colour pair against WCAG 2.2 AA in both themes). The Playwright checker `node frontend-validation/policy/check.mjs [--allow-not-built]` builds the preview, self-tests every rule on a planted page, then walks every place and sub-place from the place registry (other lanes' place modules are picked up automatically), first run, the lock screen, the empty workspace and the viewer seat, in both themes × three views × two languages at 1366×768, plus 1024×768. Report: `frontend-validation/dist/policy-report.json`. **Supported.**
 
-Last run (582 states): 22 findings, 10 distinct.
-- Words at rest a little over the limit: Simple Today with the figures prepared and the receipt open (93 of 90), Simple first run (106 of 90 English, 115 Hindi), and Hindi on Simple Activity, Ask · Saved, Work · Approvals and Reports · The week ahead (92 to 106). Hindi word segmentation counts more words than English for the same text.
-- The status line wraps and is cut at the frame's foot in the Books view, English, 1366 wide.
-- 31 addresses show "not built yet" (other lanes' places).
+Last run (582 states): 18 findings, 9 distinct, all of one rule: words at rest a little over the limit. Simple Today with the figures prepared and the receipt open (93 of 90), Simple first run (106 of 90 in English, 115 in Hindi), and Hindi on Simple Activity, Ask · Saved, Work · Approvals and Reports · The week ahead (92 to 106; Hindi word segmentation counts more words than English for the same text). 31 addresses show "not built yet" (other lanes' places). Fixed from earlier runs: button labels over 22 characters, the step dot's contrast, the start heading's size, the status facts' 24 px targets, and a real overflow: the wide Books column ran past its slot at 1024 wide.
 
 ## Engine methods added (`todayx.*`, module `frame-today`)
 

@@ -22087,17 +22087,17 @@ function bh({ kind: e, position: t, title: n, back: r, onClose: i, onAdjacent: a
 	});
 }
 var xh = {
-	frame: "_frame_147b6_1",
-	main: "_main_147b6_10",
-	banners: "_banners_147b6_18",
-	body: "_body_147b6_22",
-	pageCol: "_pageCol_147b6_30",
-	column: "_column_147b6_39",
-	wide: "_wide_147b6_43",
-	withSheet: "_withSheet_147b6_46",
-	page: "_page_147b6_30",
-	sheetCol: "_sheetCol_147b6_59",
-	narrow: "_narrow_147b6_83"
+	frame: "_frame_1v91b_1",
+	main: "_main_1v91b_12",
+	banners: "_banners_1v91b_20",
+	body: "_body_1v91b_24",
+	pageCol: "_pageCol_1v91b_32",
+	column: "_column_1v91b_43",
+	wide: "_wide_1v91b_47",
+	withSheet: "_withSheet_1v91b_50",
+	page: "_page_1v91b_32",
+	sheetCol: "_sheetCol_1v91b_63",
+	narrow: "_narrow_1v91b_87"
 };
 //#endregion
 //#region app/ui/src/app/Frame.tsx
