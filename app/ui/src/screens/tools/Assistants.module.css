@@ -1,0 +1,11 @@
+.rule { margin: 0; font-size: var(--fs-read); color: var(--fg); }
+.switch { display: flex; flex-direction: column; gap: var(--sp1); }
+.form { display: flex; gap: var(--sp3); align-items: flex-end; flex-wrap: wrap; }
+.form > :first-child { flex: 1 1 14em; min-width: 0; }
+.token { display: flex; flex-direction: column; gap: var(--sp2); padding: var(--sp3); border: var(--hair) solid var(--line2); border-radius: var(--radius); }
+.code { font-family: var(--fm); font-size: var(--fs-read); color: var(--fg); overflow-wrap: anywhere; user-select: all; }
+.buttons { display: flex; gap: var(--sp2); flex-wrap: wrap; }
+.p { margin: 0; font-size: var(--fs-read); color: var(--fg); }
+.note { margin: 0; font-size: var(--fs-note2); color: var(--mute); }
+.small { margin: 0; font-size: var(--fs-note2); color: var(--mute); }
+.list { margin: 0; padding-left: var(--sp4); font-size: var(--fs-note); color: var(--fg2); }
