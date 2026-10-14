@@ -1,8 +1,11 @@
 import type { Fetch } from '../shared/module.ts';
 
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
-export type CompletionInput = { model: string; system?: string; messages: ChatMessage[]; maxOutputTokens: number; signal?: AbortSignal };
-export type Completion = { text: string; inputTokens: number; outputTokens: number };
+/** An OpenAI Responses structured-output format, passed through as given to a provider that supports it. */
+export type JsonSchemaFormat = { type: 'json_schema'; name: string; schema: Record<string, unknown>; strict?: boolean; description?: string };
+export type CompletionInput = { model: string; system?: string; messages: ChatMessage[]; maxOutputTokens: number; format?: JsonSchemaFormat; signal?: AbortSignal };
+/** `incomplete`: the provider stopped at the output limit, so the text is cut short (billed all the same). */
+export type Completion = { text: string; inputTokens: number; outputTokens: number; incomplete?: true };
 export interface ModelProvider { complete(input: CompletionInput): Promise<Completion> }
 
 /**
@@ -23,7 +26,7 @@ async function post(fetch: Fetch, url: string, headers: Record<string, string>, 
   try { return JSON.parse(await response.text()); } catch { throw new ProviderReplyInvalid(); }
 }
 
-/** Anthropic Messages API. */
+/** Anthropic Messages API. It takes no json_schema format: `format` is not sent. */
 export function anthropicProvider(apiKey: string, fetch: Fetch): ModelProvider {
   return {
     async complete(input) {
@@ -33,25 +36,27 @@ export function anthropicProvider(apiKey: string, fetch: Fetch): ModelProvider {
       const reply = await post(fetch, 'https://api.anthropic.com/v1/messages', { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }, body, input.signal);
       if (!Array.isArray(reply?.content)) throw new ProviderReplyInvalid();
       const text = reply.content.filter((block: any) => block?.type === 'text' && typeof block.text === 'string').map((block: any) => block.text).join('');
-      return { text, inputTokens: count(reply.usage?.input_tokens), outputTokens: count(reply.usage?.output_tokens) };
+      return { text, inputTokens: count(reply.usage?.input_tokens), outputTokens: count(reply.usage?.output_tokens), ...(reply.stop_reason === 'max_tokens' ? { incomplete: true as const } : {}) };
     },
   };
 }
 
-/** OpenAI Responses API. */
+/** OpenAI Responses API. Nothing is stored at OpenAI (`store: false`); a json_schema `format` goes in `text.format`. */
 export function openaiProvider(apiKey: string, fetch: Fetch): ModelProvider {
   return {
     async complete(input) {
       const body: Record<string, unknown> = { model: input.model, input: input.messages.map(m => ({ role: m.role, content: m.content })) };
       if (input.system !== undefined) body.instructions = input.system;
       body.max_output_tokens = input.maxOutputTokens;
+      body.store = false;
+      if (input.format !== undefined) body.text = { format: input.format };
       const reply = await post(fetch, 'https://api.openai.com/v1/responses', { authorization: `Bearer ${apiKey}` }, body, input.signal);
       let text: string;
       if (typeof reply?.output_text === 'string') text = reply.output_text;
       else if (Array.isArray(reply?.output)) text = reply.output.flatMap((item: any) => Array.isArray(item?.content) ? item.content : [])
         .filter((part: any) => (part?.type === 'output_text' || part?.type === 'text') && typeof part.text === 'string').map((part: any) => part.text).join('');
       else throw new ProviderReplyInvalid();
-      return { text, inputTokens: count(reply.usage?.input_tokens), outputTokens: count(reply.usage?.output_tokens) };
+      return { text, inputTokens: count(reply.usage?.input_tokens), outputTokens: count(reply.usage?.output_tokens), ...(reply.status === 'incomplete' ? { incomplete: true as const } : {}) };
     },
   };
 }

@@ -192,5 +192,81 @@ Checked and found sound: origin allowlists including next-page and queued reques
 
 - `app/desktop/preload.cjs`: this lane's line in `laneRefusals` only.
 - `platform/runtime/helper.ts` (shared, owned by no lane): additive registration of the `pdf.ocr` operation — the operation name in `HelperOperation` and `OPERATIONS`, `OCR_DEPENDENCY_UNAVAILABLE` in `ERROR_CODES`, its allowed input keys, and `sourceTainted` for its receipt.
-- `platform/helpers/analytics.py` (shared): the `pdf.ocr` handler and its helpers, added beside `pdf.extract`.
+- `platform/helpers/analytics.py` (shared): the `pdf.ocr` handler and its helpers, added beside `pdf.extract`; an optional `password` for `pdf.extract` and `pdf.ocr` with two distinct refusals (`PASSWORD_REQUIRED` with no password, `WRONG_PASSWORD` for a wrong one), never echoed or logged; and a `pdf.status` operation that reports which readers are importable.
+- `platform/runtime/helper.ts` (second change, for FR-07): `pdf.status` registered, `password` allowed for `pdf.extract` and `pdf.ocr`, `PASSWORD_REQUIRED` and `WRONG_PASSWORD` in `ERROR_CODES`, and the receipt's input hash computed without the password.
 - No dependency was added. OCR uses system tesseract and the Python packages pypdfium2 and Pillow when they are installed, and refuses cleanly when they are not.
+
+## FR-07 contract
+
+The `imports.*` methods serve FR-07, "Bring a file" (and BK-04). They live in this lane's engine module and are listed in `app/desktop/module-methods/connectors-ext.json`. Every refusal below is on this lane's `laneRefusals` line, so it reaches the screen by its code. Money is whole paise as strings.
+
+### `imports.providePassword` (prepare, desktop only)
+
+Request: `{ sourceId: string, password: string }`. `sourceId` matches `^[A-Za-z0-9_.:-]{1,100}$`; `password` is 1–256 characters with no control characters.
+
+Reply: `{ held: true, sourceId, expiresInSeconds: 600, usedOnce: true }`. The password is never echoed.
+
+The password is held in engine memory only, keyed by the open vault and the `sourceId`, for the member who gave it. The next `imports.preview` of that source uses it once and wipes it. It expires after 10 minutes and is dropped when the workspace is locked or the engine closes. It is never persisted, backed up, logged, audited, hashed into a receipt or returned. Refusals: `OPEN_DESKTOP` (phone, MCP or source-tainted caller), `PASSWORD_INVALID`, `CONNECTOR_REQUEST_INVALID`.
+
+### `imports.preview` (prepare, desktop only)
+
+Request:
+
+- PDF bank statement: `{ sourceId, kind: 'pdf', bytesBase64, company?, branch? }` (at most 4 MB). `company` defaults to the workspace name.
+- CSV: `{ sourceId, kind: 'csv', content, recipe?, expectedTotals? }` — a thin delegation to core `sources.preview`; the reply is the core preview unchanged.
+- XLSX: `{ sourceId, kind: 'xlsx', bytesBase64, sheet?, recipe?, expectedTotals? }` — a thin delegation to core `sources.workbookPreview`.
+
+Reply for a PDF: the envelope (as `connectorsx.importPreview` returns it: `id`, `status` `accepted | refused | abstained`, `refusal`, `abstention`, `checks`, `observed`, `sourceTotals`, `balances`, `unmappedFields`, `notices`, `pendingRows` …) plus `fr07`, the result shape below.
+
+Thrown refusals (the file could not be read at all):
+
+| Code | When | Words |
+|---|---|---|
+| `PASSWORD_REQUIRED` | The PDF is encrypted and no password is held | ask for it, then preview again |
+| `WRONG_PASSWORD` | The held password did not open it | "That password did not open the file." |
+| `PICTURE_ONLY` | No text layer, and OCR is missing or not confident enough | "This statement is a picture. Chausar cannot read it yet." |
+| `READER_NOT_INSTALLED` | The trusted Python helper or pdfplumber is missing | show `imports.readerStatus` |
+| `INVALID_PDF`, `PDF_LINE_UNREADABLE`, `PDF_PAGE_LIMIT` | Not a PDF, a transaction line that cannot be read, too many pages | fixed sentences |
+
+Content refusals return an envelope with `status: 'refused'` and `fr07.reason`:
+
+| `fr07.reason` | From | Shown with |
+|---|---|---|
+| `CUT_SHORT` | the closing balance or total row is missing, or the statement stops early | — |
+| `FILTERED` | totals differ from the statement's own summary | `fr07.totals.expected` and `fr07.totals.observed` |
+| `DOES_NOT_ADD_UP` | the running balance breaks | `fr07.line` (the line in the extracted text where it broke) |
+
+### `imports.commit` (prepare)
+
+Request: `{ sourceId, envelopeId }`. The `sourceId` must be the one the envelope was read for.
+
+Reply: the `fr07` result with `state: 'imported'` and `imported: { importId, rows, duplicate }`. The import runs through this lane's importer and the core `ImportService` (branch access, deletion tombstones and the second total check apply). Refusals: `IMPORT_NOT_ACCEPTED`, `ENVELOPE_NOT_FOUND`, `ENVELOPE_EXPIRED`.
+
+### `imports.result` (read)
+
+Request: `{ envelopeId }`. Reply, the `fr07` result:
+
+```
+{ envelopeId, sourceId, kind: 'bank-statement',
+  state: 'checked' | 'refused' | 'question' | 'imported',
+  reason: 'CUT_SHORT' | 'FILTERED' | 'DOES_NOT_ADD_UP' | null, code: string | null, line: number | null,
+  totals: { expected, observed } | null,            // FILTERED only
+  linesRead: number, openingMinor: string | null, closingMinor: string | null, checkPassed: boolean,
+  readByOcr: boolean,                               // a scanned page was read by OCR (experimental)
+  kept: { file: 'not-kept', record: 'books-sources-history' },
+  imported: { importId, rows, duplicate } | null }
+```
+
+"Where the refused file is kept": Chausar does not keep the refused file itself; its read record (checks, reason, totals, line) stays in Books, Sources history (`connectorsx.envelopes`).
+
+### `imports.readerStatus` (read)
+
+Request: `{}`. Reply: `{ status: 'installed' | 'not-installed', pdfText: boolean, pdfOcr: boolean, reason: null | 'PYTHON_NOT_CONFIGURED' | 'PDF_LIBRARY_MISSING' | <helper code>, sizeBytes: null }`. It asks the helper's `pdf.status` operation, which opens no file. The size is not known in this build.
+
+### `imports.installReader` (admin, external)
+
+Request: `{}`. Always refuses `READER_INSTALL_UNAVAILABLE` in this build: no download is made. The release lane must bundle Python with pdfplumber (text), pypdfium2 and Pillow plus tesseract with English data (OCR). Demo launches refuse it as `DEMO_EXTERNAL_DISABLED`.
+
+### Not built here
+
+`imports.pickFile` (the native file dialog belongs to the frame) and `dictionary.proposals` (learning-ext).

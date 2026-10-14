@@ -125,8 +125,27 @@ def optimize(data):
     return {"allocation": selected, "spendMinor": str(spent), "benefitMinor": str(benefit), "unspentMinor": str(budget - spent), "currency": data["currency"], "optimal": True, "qualification": "experimental", "algorithm": "Bounded integer knapsack with exact Pareto frontier", "assumptions": ["Item costs and benefits are supplied assumptions, not verified business facts.", "No money is spent and no external action is approved."]}
 
 
+def pdf_password(data):
+    """An optional PDF password: used to open the file, never echoed, logged or returned."""
+    password = data.get("password")
+    require(password is None or (isinstance(password, str) and 1 <= len(password) <= 256))
+    return password
+
+
+def password_refusal(error, password):
+    """Encrypted with no password supplied, or the supplied password is wrong: two distinct codes."""
+    seen, current = 0, error
+    while current is not None and seen < 5:
+        name = type(current).__name__
+        if name in ("PDFPasswordIncorrect", "PDFEncryptionError") or "password" in str(getattr(current, "args", [""])[:1]).lower():
+            return Refused("WRONG_PASSWORD" if password else "PASSWORD_REQUIRED")
+        current, seen = current.__cause__ or current.__context__, seen + 1
+    return None
+
+
 def pdf_extract(data):
-    keys(data, {"pdfBase64", "maxPages"}, {"pdfBase64"})
+    keys(data, {"pdfBase64", "maxPages", "password"}, {"pdfBase64"})
+    password = pdf_password(data)
     require(isinstance(data["pdfBase64"], str) and len(data["pdfBase64"]) <= 5600000)
     maximum = data.get("maxPages", 20)
     require(type(maximum) is int and 1 <= maximum <= 50)
@@ -142,7 +161,7 @@ def pdf_extract(data):
     pages = []
     characters = 0
     try:
-        with pdfplumber.open(io.BytesIO(raw)) as document:
+        with pdfplumber.open(io.BytesIO(raw), password=password or "") as document:
             require(len(document.pages) <= maximum, "PDF_PAGE_LIMIT")
             for index, page in enumerate(document.pages):
                 text = page.extract_text() or ""
@@ -151,9 +170,27 @@ def pdf_extract(data):
                 pages.append({"page": index + 1, "text": text})
     except Refused:
         raise
-    except Exception:
-        raise Refused("PDF_EXTRACT_FAILED")
+    except Exception as error:
+        raise password_refusal(error, password) or Refused("PDF_EXTRACT_FAILED")
     return {"pages": pages, "pageCount": len(pages), "characters": characters, "sourceTainted": True, "numericalStatus": "unverified", "requiresReview": True, "parserVersion": getattr(pdfplumber, "__version__", "unknown"), "coverage": "Text extraction only. Scanned image pages need a separately qualified OCR adapter."}
+
+
+def pdf_status(data):
+    """Which PDF readers this helper can use. Reads nothing and opens no file."""
+    keys(data, set(), set())
+    found = {}
+    for name in ("pdfplumber", "pypdfium2", "PIL"):
+        try:
+            __import__(name)
+            found[name] = True
+        except ImportError:
+            found[name] = False
+    try:
+        ocr_tesseract()
+        tesseract = True
+    except Exception:
+        tesseract = False
+    return {"pdfText": found["pdfplumber"], "pdfOcr": found["pypdfium2"] and found["PIL"] and tesseract, "tesseract": tesseract}
 
 
 OCR_DPI = 300
@@ -216,7 +253,8 @@ def pdf_ocr(data):
     """EXPERIMENTAL: scanned PDF pages rendered in memory and read by tesseract. Same limits as pdf.extract."""
     import time
     deadline = time.monotonic() + OCR_DEADLINE_SECONDS
-    keys(data, {"pdfBase64", "maxPages", "language"}, {"pdfBase64"})
+    keys(data, {"pdfBase64", "maxPages", "language", "password"}, {"pdfBase64"})
+    password = pdf_password(data)
     require(isinstance(data["pdfBase64"], str) and len(data["pdfBase64"]) <= 5600000)
     maximum = data.get("maxPages", 20)
     require(type(maximum) is int and 1 <= maximum <= 50)
@@ -237,9 +275,9 @@ def pdf_ocr(data):
     pages = []
     characters = 0
     try:
-        document = pypdfium2.PdfDocument(raw)
-    except Exception:
-        raise Refused("PDF_EXTRACT_FAILED")
+        document = pypdfium2.PdfDocument(raw, password=password)
+    except Exception as error:
+        raise password_refusal(error, password) or Refused("PDF_EXTRACT_FAILED")
     try:
         require(len(document) <= maximum, "PDF_PAGE_LIMIT")
         for index in range(len(document)):
@@ -305,7 +343,7 @@ def main():
         request = json.loads(raw, object_pairs_hook=unique_pairs, parse_constant=lambda _: (_ for _ in ()).throw(Refused("INVALID_HELPER_INPUT")))
         keys(request, {"operation", "input"}, {"operation", "input"})
         operation = request["operation"]
-        handlers = {"pdf.extract": pdf_extract, "pdf.ocr": pdf_ocr, "forecast": forecast, "allocation.optimize": optimize}
+        handlers = {"pdf.extract": pdf_extract, "pdf.ocr": pdf_ocr, "pdf.status": pdf_status, "forecast": forecast, "allocation.optimize": optimize}
         require(operation in handlers, "HELPER_OPERATION_UNSUPPORTED")
         result = handlers[operation](request["input"])
         output = {"ok": True, "operation": operation, "result": result, "runtime": {"python": sys.version.split()[0], "resourceLimits": limits}}

@@ -13,9 +13,11 @@
  */
 import { ActionService, canonical, current, digest } from '../actions.ts';
 import type { Connector, Operation, PreparedAction, Readback } from '../actions.ts';
-import { audit, authorize, check, ChausarError, newId } from '../contracts.ts';
+import { randomBytes } from 'node:crypto';
+import { audit, authorize, check, ChausarError, hash, newId } from '../contracts.ts';
 import type { Context, State, StateStore } from '../contracts.ts';
 import { catalogueReadback } from '../connector-framework/write.ts';
+import { currentAccess } from '../memory.ts';
 import { moduleState, peekModuleState } from '../modules/types.ts';
 import { CATALOGUE, catalogueDigest, effectiveStatus, entry } from './catalogue.ts';
 import type { CatalogueEntry, Kind } from './catalogue.ts';
@@ -44,6 +46,8 @@ export type WritebackState = {
   preparedAt: Record<string, string>;
   /** Approval times by the service clock (the labelled test clock in drills). */
   approvedAt: Record<string, string>;
+  /** Actions prepared by work that had read outside text. A person must approve them; nothing tainted may. */
+  tainted: Record<string, true>;
   attestations: { actionId: string; memberId: string; said: 'sent' | 'not-sent'; at: string }[];
   notices: { id: string; actionId: string; kind: 'expired' | 'prepared-again' | 'already-done' | 'looked-first' | 'cancelled-evidence'; at: string }[];
   practiceRuns: PracticeSummary[];
@@ -55,7 +59,7 @@ export const defaultSettings = (): Settings => ({
   approvalHours: { 'inside-undoable': 24 * 7, 'seen-outside': 24, money: 24, 'cannot-undo': 24 },
   reminderCapPerCustomer: 1, reminderCapPerDay: 20, stopWords: ['STOP', 'UNSUBSCRIBE', 'BAND KARO', 'RUKO', 'बंद करो', 'रुको'],
 });
-export const initState = (): WritebackState => ({ connections: [], wanted: [], settings: defaultSettings(), preparedAt: {}, approvedAt: {}, attestations: [], notices: [], practiceRuns: [], qualifications: [], consents: [], journal: [] });
+export const initState = (): WritebackState => ({ connections: [], wanted: [], settings: defaultSettings(), preparedAt: {}, approvedAt: {}, tainted: {}, attestations: [], notices: [], practiceRuns: [], qualifications: [], consents: [], journal: [] });
 export const readState = (state: State): WritebackState => ({ ...initState(), ...(peekModuleState<WritebackState>(state, MODULE_ID) ?? {}) });
 
 export type Envelope = {
@@ -70,10 +74,25 @@ export type WritebackPorts = {
   practice?: (workspaceId: string, connection: Connection) => { http: Transport; dial: Dialer; secret: Secret };
   /** Re-derives an action's evidence at dispatch; a changed digest cancels the action. */
   evidence?: Record<string, (context: Context, envelope: Envelope) => Promise<string>>;
+  /** Checks the vault passphrase without changing anything (the second ask for money and irreversible changes). */
+  verifyPassphrase?: (secret: string) => Promise<boolean>;
+  /** Single-use re-auth grants, kept in memory only and never in the vault. */
+  secondAsk?: Map<string, SecondAsk>;
+  /** Wrong passphrases per member, in memory: five within fifteen minutes lock the second ask. */
+  reauthFailures?: Map<string, { count: number; since: number }>;
   /** Called once an action settles as applied. */
   settled?: (context: Context, action: PreparedAction, envelope: Envelope) => Promise<void>;
 };
 
+export type SecondAsk = { actionId: string; digest: string; memberId: string; epoch: number; expiresAt: number };
+export const SECOND_ASK_MS = 2 * 60 * 1000;
+const needsSecondAsk = (row: CatalogueEntry) => row.kind === 'money' || row.kind === 'cannot-undo';
+/** Which connectors-ext groups may lend their sign-in to a write connection. Mail has no read group: it keeps its own. */
+export const LINKABLE: Partial<Record<SystemId, string[]>> = { tally: ['tally'], 'zoho-books': ['zoho-books'], razorpay: ['razorpay'], shopify: ['shopify'], 'google-workspace': ['google-workspace'], whatsapp: ['whatsapp-business', 'whatsapp-api'] };
+type ReadConnection = { id: string; group: string; sourceId: string; branch: string; status: string };
+const readConnection = (state: State, id: unknown) => (peekModuleState<{ connections?: ReadConnection[] }>(state, 'connectors-ext')?.connections ?? []).find(c => c.id === id);
+const viewOf = (state: State): StateStore => ({ read: () => state, update: async () => { throw new Error('Read-only view.'); } });
+export const ownCredential = (connection: Connection) => connection.link?.sourceId ?? `writeback.${connection.id}`;
 const impactOf = (kind: Kind): Operation['impact'] => kind === 'inside-undoable' ? 'reversible' : kind === 'seen-outside' ? 'message' : kind === 'money' ? 'money' : 'destructive';
 const hoursMs = (hours: number) => hours * 3600 * 1000;
 
@@ -97,7 +116,7 @@ export class WritebackService {
     const wb = readState(state), qualified = this.qualification(state, row);
     const latest = wb.qualifications.filter(q => q.system === row.system && q.action === row.action).at(-1);
     const hours = wb.settings.approvalHours[row.kind];
-    return { ...structuredClone(row), status: effectiveStatus(row, qualified), qualification: qualified, installed: Boolean(this.ports.adapters[row.system]?.[row.action]),
+    return { ...structuredClone(row), undoable: row.kind === 'inside-undoable', status: effectiveStatus(row, qualified), qualification: qualified, installed: Boolean(this.ports.adapters[row.system]?.[row.action]),
       approvalLifetimeHours: Math.min(row.approvalLifetimeHours, hours), writeScore: latest ? latest.score : null,
       connections: wb.connections.filter(c => c.system === row.system && !c.revokedAt).map(c => ({ id: c.id, label: c.label, environment: c.environment, read: c.read, write: c.write.includes(row.action) })) };
   }
@@ -122,7 +141,7 @@ export class WritebackService {
   // ── Connections and grants ───────────────────────────────────────────────────────────────────
   connections(context: Context) { authorize(this.store, context); return structuredClone(readState(this.store.read()).connections); }
   async connect(context: Context, input: Record<string, unknown>) {
-    const p = record(input, ['system', 'label', 'environment', 'account']);
+    const p = record(input, ['system', 'label', 'environment', 'account'], ['linkTo']);
     const system = oneOf(p.system, SYSTEMS), environment = oneOf(p.environment, ['live', 'sandbox', 'practice'] as const);
     check(environment === 'practice' || !this.ports.demo, 'DEMO_EXTERNAL_DISABLED', 'Synthetic demo mode keeps external systems disabled. Use a practice connection.');
     const accountFields = record(p.account, [], ['organizationId', 'dataCenter', 'host', 'port', 'company', 'shop', 'phoneNumberId', 'wabaId', 'smtpHost', 'smtpPort', 'smtpSecurity', 'from', 'fromName', 'imapHost', 'imapPort', 'sentFolder', 'spreadsheetId', 'calendarId', 'gstin']);
@@ -130,7 +149,15 @@ export class WritebackService {
     return this.store.update(state => {
       const member = current(state, context, 'admin'); check(!context.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot add a connection.');
       const wb = moduleState(state, MODULE_ID, initState);
-      const connection: Connection = { id: newId('connection'), system, label: text(p.label, 100), environment, account, read: true, write: [], createdAt: this.now(), createdBy: member.id, revokedAt: null };
+      let link: Connection['link'] = null;
+      if (p.linkTo !== undefined) {
+        check(environment !== 'practice', 'INVALID_REQUEST', 'A practice connection never uses a real sign-in.');
+        const read = readConnection(state, p.linkTo);
+        check(read && (LINKABLE[system] ?? []).includes(read.group) && read.status === 'active', 'WRITE_LINK_INVALID', 'Link an active, signed-in connection to the same system.');
+        currentAccess(viewOf(state), context, read.branch, read.sourceId);
+        link = { connectionId: read.id, sourceId: read.sourceId, group: read.group, branch: read.branch };
+      }
+      const connection: Connection = { id: newId('connection'), system, label: text(p.label, 100), environment, account, read: true, write: [], link, createdAt: this.now(), createdBy: member.id, revokedAt: null };
       wb.connections.push(connection); audit(state, 'writeback.connected', { connectionId: connection.id, system, environment });
       return structuredClone(connection);
     });
@@ -176,7 +203,13 @@ export class WritebackService {
     return { connection: structuredClone(connection), http: this.ports.http, dial: this.ports.dial, clock: this.ports.clock,
       credentials: async () => {
         check(credentials, 'WRITE_CREDENTIALS_UNAVAILABLE', 'No credential store is installed for writing to outside systems.');
-        return credentials(structuredClone(context), { system: connection.system, connectionId: connection.id, account: { ...connection.account }, environment: connection.environment });
+        if (connection.link) {
+          // A shared sign-in is used only while its read connection is active and inside the caller's branch and sources.
+          const state = this.store.read(); const read = readConnection(state, connection.link.connectionId);
+          check(read && read.status === 'active' && read.sourceId === connection.link.sourceId, 'WRITE_LINK_INVALID', 'The linked sign-in was paused or removed.');
+          currentAccess(this.store, context, read.branch, read.sourceId);
+        }
+        return credentials(structuredClone(context), { system: connection.system, connectionId: connection.id, account: { ...connection.account }, environment: connection.environment, sourceId: ownCredential(connection), group: connection.link?.group ?? connection.system });
       } };
   }
   adapter(system: SystemId, action: string): ActionAdapter<any> {
@@ -246,7 +279,10 @@ export class WritebackService {
   intact(action: PreparedAction) {
     check(action.digest === this.actions.identity(action) && (!action.approval || action.approval.digest === action.digest), 'PREVIEW_CHANGED', 'The stored action no longer matches what was prepared. Nothing was sent.');
   }
-  async prepare(context: Context, input: { connectionId: unknown; action: unknown; payload: unknown; intentId: unknown; sourceIds?: unknown; evidence?: Envelope['evidence'] }) {
+  async prepare(context: Context, input: { connectionId: unknown; action: unknown; payload: unknown; intentId: unknown; sourceIds?: unknown; evidence?: Envelope['evidence']; sourceTainted?: unknown }) {
+    // Outside text marks the work either way, through the caller's context or the request; the mark is never cleared here.
+    check(input.sourceTainted === undefined || typeof input.sourceTainted === 'boolean', 'INVALID_REQUEST', 'The outside-text mark is true or false.');
+    if (input.sourceTainted === true) context = { ...context, sourceTainted: true };
     const state0 = this.store.read(); current(state0, context, 'prepare');
     const connection = this.#connection(state0, input.connectionId);
     const row = entry(connection.system, String(input.action));
@@ -269,7 +305,8 @@ export class WritebackService {
       intentId, payload, preparation: JSON.parse(canonical(preparation)), catalogueDigest: catalogueDigest(row), evidence: input.evidence ?? null };
     if (preparation.alreadyApplied) return { status: 'already-done', externalId: preparation.alreadyApplied.externalId, preview: preparation.preview, target: preparation.target, message: 'This is already in the system. Nothing will be sent.' };
     const action = await this.actions.prepare(context, { connector: connectorId(connection.system), operation: row.action, payload: envelope, idempotencyKey: key, sourceIds });
-    await this.store.update(state => { current(state, context, 'prepare'); moduleState(state, MODULE_ID, initState).preparedAt[action.id] = this.now(); audit(state, 'writeback.prepared', { actionId: action.id, system: connection.system, action: row.action, environment: connection.environment }); });
+    await this.store.update(state => { current(state, context, 'prepare'); const wb = moduleState(state, MODULE_ID, initState); wb.preparedAt[action.id] = this.now(); if (context.sourceTainted === true) wb.tainted[action.id] = true;
+      audit(state, 'writeback.prepared', { actionId: action.id, system: connection.system, action: row.action, environment: connection.environment, taintedSource: context.sourceTainted === true }); });
     return this.view(this.store.read(), this.find(this.store.read(), action.id));
   }
   /** A changed payload is a new exact change: the yes is gone and the preview is built again. */
@@ -285,10 +322,47 @@ export class WritebackService {
     await this.#note(context, action.id, 'prepared-again');
     return this.view(this.store.read(), this.find(this.store.read(), action.id));
   }
-  async approve(context: Context, id: unknown, expectedDigest: unknown) {
+  /** The second ask: the passphrase again, for this exact change. Returns a single-use token that lasts two minutes. */
+  async reauth(context: Context, id: unknown, expectedDigest: unknown, secret: unknown) {
+    check(!context.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot approve an action.');
+    check(context.channel !== 'phone' && context.channel !== 'mcp', 'OPEN_DESKTOP', 'Approve money and changes that cannot be undone in the desktop app.');
+    const action = this.find(this.store.read(), id); this.visible(context, action); current(this.store.read(), context, 'approve');
+    const e = this.envelope(action.payload); const row = entry(e.system, e.action)!;
+    check(row.tier !== 'prepare-only', 'PREPARE_ONLY', 'This is prepared only. You or your accountant completes it.');
+    check(needsSecondAsk(row), 'REAUTH_NOT_NEEDED', 'This change does not need your passphrase again.');
+    check(action.status === 'prepared' && typeof expectedDigest === 'string' && expectedDigest === action.digest, 'PREVIEW_CHANGED', 'The exact action changed. Review its new preview.');
+    this.intact(action);
+    // The vault passphrase belongs to the owner; other seats cannot use it until members have their own secrets.
+    check(context.role === 'owner', 'REAUTH_OWNER_ONLY', 'Only the owner can approve money or a change that cannot be undone.');
+    const failures = this.ports.reauthFailures; const tries = failures?.get(context.memberId);
+    check(!tries || tries.count < 5 || Date.now() - tries.since > 15 * 60 * 1000, 'REAUTH_LOCKED', 'Too many wrong passphrases. Wait fifteen minutes.');
+    check(this.ports.verifyPassphrase && this.ports.secondAsk, 'REAUTH_UNAVAILABLE', 'This app cannot check your passphrase, so money and irreversible changes cannot be approved here.');
+    const asks = this.ports.secondAsk;
+    for (const [token, grant] of asks) if (grant.expiresAt <= Date.now()) asks.delete(token);
+    const ok = typeof secret === 'string' && await this.ports.verifyPassphrase(secret);
+    if (!ok) {
+      const prior = failures?.get(context.memberId); const fresh = !prior || Date.now() - prior.since > 15 * 60 * 1000;
+      failures?.set(context.memberId, { count: fresh ? 1 : prior!.count + 1, since: fresh ? Date.now() : prior!.since });
+      if (!prior || fresh || prior.count + 1 === 5) await this.store.update(state => { audit(state, 'writeback.reauth-failed', { actionId: action.id }); });
+      check(false, 'REAUTH_FAILED', 'That passphrase is not right. Nothing was approved.');
+    }
+    failures?.delete(context.memberId);
+    const token = randomBytes(32).toString('hex');
+    asks.set(hash(`second-ask:${token}`), { actionId: action.id, digest: action.digest, memberId: context.memberId, epoch: context.epoch, expiresAt: Date.now() + SECOND_ASK_MS });
+    return { token, expiresInSeconds: SECOND_ASK_MS / 1000 };
+  }
+  async approve(context: Context, id: unknown, expectedDigest: unknown, secondAsk?: unknown) {
+    check(!context.sourceTainted, 'TAINTED_APPROVAL', 'Imported text cannot authorize an action.');
     const action = this.find(this.store.read(), id); this.visible(context, action);
     const e = this.envelope(action.payload); const row = entry(e.system, e.action)!;
     check(row.tier !== 'prepare-only', 'PREPARE_ONLY', 'This is prepared only. Download the file and the checklist; you or your accountant completes it.');
+    if (needsSecondAsk(row)) {
+      // Consumed whether or not it matches: a token is never usable twice.
+      const key = typeof secondAsk === 'string' && /^[a-f0-9]{64}$/.test(secondAsk) ? hash(`second-ask:${secondAsk}`) : null;
+      const grant = key ? this.ports.secondAsk?.get(key) : undefined; if (key) this.ports.secondAsk?.delete(key);
+      check(grant && grant.expiresAt > Date.now() && grant.actionId === action.id && grant.digest === action.digest && grant.digest === expectedDigest
+        && grant.memberId === context.memberId && grant.epoch === context.epoch, 'REAUTH_REQUIRED', 'Enter your passphrase again to approve money or a change that cannot be undone.');
+    }
     check(context.channel !== 'phone', 'OPEN_DESKTOP', 'Approve outside changes in the desktop app.'); this.intact(action);
     const expired = await this.#expire(context, action);
     if (expired) return expired;
@@ -438,7 +512,7 @@ export class WritebackService {
     const expiresAt = this.expiresAt(state, action);
     const notices = wb.notices.filter(n => n.actionId === action.id).map(n => ({ kind: n.kind, at: n.at }));
     return {
-      id: action.id, system: e.system, action: e.action, title: row.title, digest: action.digest, revision: action.revision, status: action.status, word,
+      id: action.id, system: e.system, action: e.action, title: row.title, digest: action.digest, taintedSource: wb.tainted?.[action.id] === true, revision: action.revision, status: action.status, word,
       connection: connection ? { id: connection.id, label: connection.label, environment: connection.environment, removed: Boolean(connection.revokedAt) } : null,
       practice: e.environment === 'practice', kind: row.kind, tier: row.tier, alwaysWaits: row.alwaysWaits, preview: e.preparation.preview, target: e.preparation.target,
       steps, expiresAt, readBack: back ? { outcome: back.data?.outcome ?? null, reason: back.data?.reason ?? null, comparison, settledBy: settledByPerson ? 'person' : back.verified || back.absent ? 'system' : null } : null,

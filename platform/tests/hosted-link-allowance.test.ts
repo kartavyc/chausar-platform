@@ -6,6 +6,8 @@ import { FREE_ENTITLEMENTS, type Entitlements } from '../../hosted/shared/auth.t
 import type { Fetch, HostedDeps } from '../../hosted/shared/module.ts';
 import type { Sql } from '../../hosted/db/sql.ts';
 import { JobQueue } from '../../hosted/db/queue.ts';
+import { authenticator } from '../../hosted/accounts/module.ts';
+import { newId, opaqueToken, secretHash } from '../../hosted/shared/crypto.ts';
 import {
   createAllowanceModule, allowanceConfig, allowanceProviders, parsePricing, costPaise, inputTokenBound, anthropicProvider, openaiProvider,
   type ModelProvider, type PricingTable,
@@ -74,9 +76,12 @@ test('pricing is exact BigInt paise, rounded up', () => {
   assert.throws(() => parsePricing({ ...PRICING, checkedOn: '2026-02-30' }), { code: 'PRICING_INVALID' });
   assert.throws(() => allowanceConfig({ ALLOWANCE_PRICING_JSON: '{' }), { code: 'PRICING_INVALID' });
   const config = allowanceConfig({ ANTHROPIC_API_KEY: 'sk-ant', ALLOWANCE_PRICING_JSON: JSON.stringify(PRICING) });
-  assert.deepEqual(config, { anthropicApiKey: 'sk-ant', openaiApiKey: null, pricing: PRICING });
+  assert.deepEqual(config, { anthropicApiKey: 'sk-ant', openaiApiKey: null, pricing: PRICING, apiOrigin: null });
   assert.deepEqual(Object.keys(allowanceProviders(config, fakeFetch([]))), ['anthropic']);
-  assert.deepEqual(allowanceConfig({}), { anthropicApiKey: null, openaiApiKey: null, pricing: null });
+  assert.deepEqual(allowanceConfig({}), { anthropicApiKey: null, openaiApiKey: null, pricing: null, apiOrigin: null });
+  assert.equal(allowanceConfig({ HOSTED_API_ORIGIN: 'https://api.chausar.test/' }).apiOrigin, 'https://api.chausar.test');
+  for (const bad of ['http://api.chausar.test', 'https://api.chausar.test/v1', 'https://user@api.chausar.test', 'https://api.chausar.test?x=1', 'not a url'])
+    assert.throws(() => allowanceConfig({ HOSTED_API_ORIGIN: bad }), { code: 'SERVER_MISCONFIGURED' }, bad);
 });
 
 test('the Anthropic and OpenAI clients send the documented request shapes', async () => {
@@ -97,7 +102,7 @@ test('the Anthropic and OpenAI clients send the documented request shapes', asyn
     { text: 'MANGO-ANSWER done.', inputTokens: 10, outputTokens: 20 });
   assert.equal(o.calls[0].url, 'https://api.openai.com/v1/responses');
   assert.deepEqual(o.calls[0].init.headers, { 'content-type': 'application/json', authorization: 'Bearer sk-oa-key' });
-  assert.equal(o.calls[0].init.body, JSON.stringify({ model: 'gpt-test', input: [{ role: 'user', content: 'Q' }, { role: 'assistant', content: 'A' }, { role: 'user', content: 'Q2' }], instructions: 'Be brief.', max_output_tokens: 300 }));
+  assert.equal(o.calls[0].init.body, JSON.stringify({ model: 'gpt-test', input: [{ role: 'user', content: 'Q' }, { role: 'assistant', content: 'A' }, { role: 'user', content: 'Q2' }], instructions: 'Be brief.', max_output_tokens: 300, store: false }));
   assert.deepEqual(await openaiProvider('k', o).complete({ model: 'gpt-test', messages: [messages[0]], maxOutputTokens: 5 }), { text: 'Short.', inputTokens: 3, outputTokens: 1 });
   assert.equal(Object.hasOwn(JSON.parse(o.calls[1].init.body), 'instructions'), false);
 
@@ -213,5 +218,212 @@ test('the proxy stores no prompt and no answer anywhere in the database', { skip
   for (const { table_name } of tables) {
     const { rows } = await sql.query(`SELECT t::text AS row FROM "${table_name}" t`);
     for (const { row } of rows) for (const needle of ['ZEBRA', 'Sharma', 'MANGO', 'SECRETKEY']) assert.equal(row.includes(needle), false, `${table_name} holds ${needle}`);
+  }
+});
+
+// Allowance credentials and the Responses endpoint, with the real session authenticator over real account rows.
+const PEPPER = 'p'.repeat(32), API_ORIGIN = 'https://api.chausar.test';
+const SCHEMA = { type: 'object', additionalProperties: false, required: ['claimIds'], properties: { claimIds: { type: 'array', items: { type: 'string' } } } };
+/** Exactly the body the core gateway's managed route sends (gateway.ts modelPayload). */
+const gatewayBody = (model: string, extra: Record<string, unknown> = {}) => ({ model, instructions: 'Select claims. Reply in JSON.', input: '{"question":"ZEBRA-INPUT what is this business about"}',
+  tools: [], tool_choice: 'none', store: false, max_output_tokens: 512, text: { format: { type: 'json_schema', name: 'business_context_selection', strict: false, schema: SCHEMA } }, ...extra });
+const SELECTION = JSON.stringify({ claimIds: ['context_workspace'] });
+
+async function credentialSetup(options: { providers?: { anthropic?: ModelProvider; openai?: ModelProvider }; apiOrigin?: string | null } = {}) {
+  const sql = await freshDatabase();
+  let time = new Date('2026-10-14T10:00:00Z');
+  const clock = () => time;
+  const plans = new Map<string, Entitlements>();
+  const deps: HostedDeps = { sql, clock, queue: new JobQueue(sql, clock), fetch: async () => { throw new Error('no network in tests'); }, pepper: PEPPER, linkOrigin: 'https://link.chausar.test',
+    authenticate: authenticator(sql, PEPPER, clock), entitlements: async accountId => plans.get(accountId) ?? FREE_ENTITLEMENTS };
+  const router = new Router();
+  createAllowanceModule(deps, { providers: options.providers ?? {}, pricing: PRICING, apiOrigin: options.apiOrigin === undefined ? API_ORIGIN : options.apiOrigin }).routes(router);
+  let phone = 9876500000;
+  async function account(plan: Entitlements = PAID) {
+    const accountId = newId('acct'), deviceId = newId('dev'), session = opaqueToken(), at = time.toISOString();
+    await sql.query('INSERT INTO accounts (id, phone, created_at) VALUES ($1, $2, $3)', [accountId, `+91${phone++}`, at]);
+    await sql.query('INSERT INTO devices (id, account_id, device_name, created_at, last_seen_at) VALUES ($1, $2, $3, $4, $4)', [deviceId, accountId, 'Shop computer', at]);
+    await sql.query('INSERT INTO sessions (id, token_hash, account_id, device_id, created_at, last_seen_at, expires_at) VALUES ($1, $2, $3, $4, $5, $5, $6)',
+      [newId('sess'), secretHash(PEPPER, 'session', session), accountId, deviceId, at, new Date(time.getTime() + 86400000).toISOString()]);
+    plans.set(accountId, plan);
+    return { accountId, deviceId, session };
+  }
+  const call = (method: string, url: string, token: string | null, body?: unknown, headers: Record<string, string> = {}) => router.handle({ method, url,
+    headers: { ...(token === null ? {} : { authorization: `Bearer ${token}` }), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
+    body: body === undefined ? undefined : Buffer.from(JSON.stringify(body)) });
+  const issue = (session: string) => call('POST', '/v1/allowance/credentials', session, {});
+  const respond = (credential: string, body: unknown = gatewayBody('gpt-test'), headers: Record<string, string> = {}) => call('POST', '/v1/allowance/responses', credential, body, headers);
+  return { sql, plans, router, account, call, issue, respond, advance: (ms: number) => { time = new Date(time.getTime() + ms); } };
+}
+
+test('an allowance credential is issued once, bound to its device, revocable, and opens only the Responses endpoint', { skip: pgSkip }, async () => {
+  const fetch = fakeFetch(Array.from({ length: 8 }, () => ({ status: 200, body: { ...OPENAI_REPLY, output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: SELECTION }] }] } })));
+  const f = await credentialSetup({ providers: { openai: openaiProvider('sk-oa', fetch) } });
+  const free = await f.account(FREE_ENTITLEMENTS);
+  const refused = await f.issue(free.session);
+  assert.equal(refused.status, 402); assert.equal(code(refused), 'PLAN_REQUIRED');
+  assert.equal(code(await f.call('POST', '/v1/allowance/credentials', null, {})), 'UNAUTHENTICATED');
+
+  const a = await f.account();
+  const issued = await f.issue(a.session);
+  assert.equal(issued.status, 201);
+  const grant = issued.body as any;
+  assert.deepEqual(Object.keys(grant).sort(), ['createdAt', 'credential', 'credentialId', 'endpoint']);
+  assert.match(grant.credentialId, /^alc_[0-9a-f-]{36}$/); assert.match(grant.credential, /^ca_[A-Za-z0-9_-]{43}$/);
+  assert.equal(grant.endpoint, `${API_ORIGIN}/v1/allowance/responses`); assert.equal(grant.createdAt, '2026-10-14T10:00:00.000Z');
+  assert.equal(code(await f.call('POST', '/v1/allowance/credentials', a.session, { extra: true })), 'INVALID_REQUEST');
+
+  // Only a keyed hash is stored, bound to the account and the device that asked.
+  const { rows: [row] } = await f.sql.query('SELECT account_id, device_id, token_hash, revoked_at FROM allowance_credentials WHERE id = $1', [grant.credentialId]);
+  assert.deepEqual(row, { account_id: a.accountId, device_id: a.deviceId, token_hash: secretHash(PEPPER, 'allowance-credential', grant.credential), revoked_at: null });
+  const { rows: dump } = await f.sql.query(`SELECT t::text AS row FROM allowance_credentials t`);
+  assert.equal(dump.some(r => r.row.includes(grant.credential.slice(3))), false);
+
+  // Scope: the credential opens the Responses endpoint and nothing else; the session token does not open it.
+  assert.equal((await f.respond(grant.credential)).status, 200);
+  for (const [method, url, body] of [['GET', '/v1/allowance', undefined], ['POST', '/v1/allowance/complete', ask('req_scope_01', { route: 'openai', model: 'gpt-test' })],
+    ['POST', '/v1/allowance/credentials', {}], ['DELETE', `/v1/allowance/credentials/${grant.credentialId}`, undefined]] as const) {
+    const reply = await f.call(method, url, grant.credential, body);
+    assert.equal(reply.status, 401, `${method} ${url}`); assert.equal(code(reply), 'UNAUTHENTICATED');
+  }
+  const bySession = await f.respond(a.session);
+  assert.equal(bySession.status, 401); assert.equal(code(bySession), 'UNAUTHENTICATED');
+  assert.equal(code(await f.respond(`ca_${a.session}`)), 'UNAUTHENTICATED', 'the session token with the prefix is still not a credential');
+  assert.equal(fetch.calls.length, 1, 'refused credentials never reach the provider');
+
+  // At most three live per device: a fourth revokes the oldest.
+  const more: any[] = [];
+  for (let i = 0; i < 3; i++) { f.advance(1000); more.push((await f.issue(a.session)).body); }
+  assert.equal(code(await f.respond(grant.credential)), 'UNAUTHENTICATED', 'the oldest was rotated out');
+  for (const live of more) assert.equal((await f.respond(live.credential)).status, 200);
+  assert.equal((await f.sql.query('SELECT count(*)::int AS n FROM allowance_credentials WHERE device_id = $1 AND revoked_at IS NULL', [a.deviceId])).rows[0].n, 3);
+
+  // Revocation: once, idempotent, own account only.
+  const other = await f.account();
+  const notMine = await f.call('DELETE', `/v1/allowance/credentials/${more[0].credentialId}`, other.session);
+  assert.equal(notMine.status, 404); assert.equal(code(notMine), 'NOT_FOUND');
+  assert.equal(code(await f.call('DELETE', '/v1/allowance/credentials/alc_nope', a.session)), 'NOT_FOUND');
+  f.advance(1000);
+  const revoked = await f.call('DELETE', `/v1/allowance/credentials/${more[0].credentialId}`, a.session);
+  assert.deepEqual(revoked, { status: 200, body: { credentialId: more[0].credentialId, revokedAt: '2026-10-14T10:00:04.000Z' } });
+  f.advance(1000);
+  assert.deepEqual((await f.call('DELETE', `/v1/allowance/credentials/${more[0].credentialId}`, a.session)).body, revoked.body, 'a second revoke keeps the first time');
+  assert.equal(code(await f.respond(more[0].credential)), 'UNAUTHENTICATED');
+
+  // Revoking the device ends its credentials; a lapsed plan refuses before any provider call.
+  await f.sql.query('UPDATE devices SET revoked_at = $2 WHERE id = $1', [a.deviceId, '2026-10-14T10:00:06.000Z']);
+  assert.equal(code(await f.respond(more[1].credential)), 'UNAUTHENTICATED');
+  const b = await f.account(), bGrant = (await f.issue(b.session)).body as any;
+  f.plans.set(b.accountId, FREE_ENTITLEMENTS);
+  assert.equal(code(await f.respond(bGrant.credential)), 'PLAN_REQUIRED');
+  assert.equal(fetch.calls.length, 4);
+
+  const unset = await credentialSetup({ apiOrigin: null }), c = await unset.account();
+  const noEndpoint = await unset.issue(c.session);
+  assert.equal(noEndpoint.status, 503); assert.equal(code(noEndpoint), 'ALLOWANCE_ENDPOINT_NOT_SET');
+});
+
+test('the Responses endpoint forwards to OpenAI with the json_schema format and meters it through the ledger', { skip: pgSkip }, async () => {
+  const reply = { id: 'resp_upstream', object: 'response', status: 'completed', output: [{ type: 'reasoning', summary: [] }, { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: SELECTION, annotations: [] }] }], usage: { input_tokens: 400, output_tokens: 30, total_tokens: 430 } };
+  const fetch = fakeFetch([{ status: 200, body: reply }, { status: 200, body: { ...reply, status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' } } }]);
+  const f = await credentialSetup({ providers: { openai: openaiProvider('sk-oa-key', fetch) } });
+  const a = await f.account(), grant = (await f.issue(a.session)).body as any;
+  const body = gatewayBody('gpt-test');
+  const answer = await f.respond(grant.credential, body);
+  assert.equal(answer.status, 200);
+  const id = (answer.body as any).id;
+  assert.match(id, /^rsp_[0-9a-f-]{36}$/);
+  assert.deepEqual(answer.body, { id, object: 'response', status: 'completed', model: 'gpt-test',
+    output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: SELECTION }] }], output_text: SELECTION, usage: { input_tokens: 400, output_tokens: 30 } });
+  // ceil((400 * 2.5 + 30 * 10) * 8450 / 10^6) = ceil(10.985)
+  assert.deepEqual(answer.headers, { 'x-request-id': id, 'x-chausar-cost-paise': '11', 'x-chausar-balance-paise': '289' });
+  assert.equal(fetch.calls[0].url, 'https://api.openai.com/v1/responses');
+  assert.deepEqual(fetch.calls[0].init.headers, { 'content-type': 'application/json', authorization: 'Bearer sk-oa-key' });
+  assert.deepEqual(JSON.parse(fetch.calls[0].init.body), { model: 'gpt-test', input: [{ role: 'user', content: body.input }], instructions: body.instructions, max_output_tokens: 512, store: false,
+    text: { format: { type: 'json_schema', name: 'business_context_selection', schema: SCHEMA, strict: false } } });
+  const { rows } = await f.sql.query('SELECT request_id, route, model, state, cost_paise, input_tokens, output_tokens FROM allowance_requests');
+  assert.deepEqual(rows, [{ request_id: id, route: 'openai', model: 'gpt-test', state: 'settled', cost_paise: '11', input_tokens: 400, output_tokens: 30 }]);
+  const summary = (await f.call('GET', '/v1/allowance', a.session)).body as any;
+  assert.deepEqual([summary.spentPaise, summary.reservedPaise, summary.balancePaise], ['11', '0', '289']);
+
+  const cut = await f.respond(grant.credential, body, { 'idempotency-key': 'gateway-key-0001' });
+  assert.equal((cut.body as any).status, 'incomplete', 'a reply cut at the output limit is not passed off as complete');
+  assert.deepEqual((cut.body as any).incomplete_details, { reason: 'max_output_tokens' });
+  assert.equal((cut.body as any).id, 'idk_gateway-key-0001');
+  const again = await f.respond(grant.credential, body, { 'idempotency-key': 'gateway-key-0001' });
+  assert.equal(again.status, 409); assert.equal(code(again), 'REQUEST_EXISTS');
+  assert.equal(code(await f.respond(grant.credential, body, { 'idempotency-key': 'short' })), 'INVALID_REQUEST');
+  assert.equal(fetch.calls.length, 2);
+});
+
+test('the Responses endpoint calls Anthropic with the instructions as system and wraps the text as a Responses reply', { skip: pgSkip }, async () => {
+  const fetch = fakeFetch([
+    { status: 200, body: { ...ANTHROPIC_REPLY, content: [{ type: 'text', text: SELECTION }], usage: { input_tokens: 500, output_tokens: 40 } } },
+    { status: 200, body: { ...ANTHROPIC_REPLY, content: [{ type: 'text', text: '{"claimIds": [' }], stop_reason: 'max_tokens', usage: { input_tokens: 500, output_tokens: 512 } } },
+    { status: 529, body: { error: { message: 'overloaded' } } }, new TypeError('fetch failed'),
+  ]);
+  const f = await credentialSetup({ providers: { anthropic: anthropicProvider('sk-ant-key', fetch) } });
+  const a = await f.account(), grant = (await f.issue(a.session)).body as any;
+  const body = gatewayBody('claude-test');
+  const answer = await f.respond(grant.credential, body);
+  assert.equal(answer.status, 200);
+  const id = (answer.body as any).id;
+  assert.deepEqual(answer.body, { id, object: 'response', status: 'completed', model: 'claude-test',
+    output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: SELECTION }] }], output_text: SELECTION, usage: { input_tokens: 500, output_tokens: 40 } });
+  assert.equal(fetch.calls[0].url, 'https://api.anthropic.com/v1/messages');
+  assert.deepEqual(fetch.calls[0].init.headers, { 'content-type': 'application/json', 'x-api-key': 'sk-ant-key', 'anthropic-version': '2023-06-01' });
+  assert.deepEqual(JSON.parse(fetch.calls[0].init.body), { model: 'claude-test', max_tokens: 512, system: body.instructions, messages: [{ role: 'user', content: body.input }] });
+  // ceil((500 * 3 + 40 * 15) * 8450 / 10^6) = ceil(17.745)
+  assert.equal(answer.headers!['x-chausar-cost-paise'], '18');
+  const cut = await f.respond(grant.credential, body);
+  assert.equal((cut.body as any).status, 'incomplete');
+  const refused = await f.respond(grant.credential, body);
+  assert.equal(refused.status, 502); assert.equal(code(refused), 'PROVIDER_FAILED');
+  const lost = await f.respond(grant.credential, body);
+  assert.equal(lost.status, 504); assert.equal(code(lost), 'PROVIDER_OUTCOME_UNKNOWN');
+  assert.deepEqual(Object.keys(lost.body as any), ['error'], 'errors keep the hosted error shape');
+  const { rows } = await f.sql.query(`SELECT state, count(*)::int AS n FROM allowance_requests GROUP BY state ORDER BY state`);
+  assert.deepEqual(rows, [{ state: 'failed', n: 1 }, { state: 'settled', n: 2 }, { state: 'unknown', n: 1 }]);
+  const summary = (await f.call('GET', '/v1/allowance', a.session)).body as any;
+  // Settled: 18 + ceil((500 * 3 + 512 * 15) * 8450 / 10^6) = 18 + 78; held: the unknown request's worst case.
+  assert.equal(summary.spentPaise, '96');
+  assert.equal(BigInt(summary.reservedPaise) > 0n, true, 'the unclear outcome keeps its reservation');
+});
+
+test('the Responses endpoint refuses anything but the gateway form, unpriced models and tools', { skip: pgSkip }, async () => {
+  const f = await credentialSetup({ providers: { openai: { complete: async () => assert.fail('never called') } } });
+  const a = await f.account(), grant = (await f.issue(a.session)).body as any;
+  const big = { type: 'object', description: 'x'.repeat(70 * 1024) };
+  const cases: [Record<string, unknown>, string][] = [
+    [{ tools: [{ type: 'web_search' }] }, 'TOOLS_NOT_ALLOWED'], [{ tool_choice: 'auto' }, 'TOOLS_NOT_ALLOWED'],
+    [{ store: true }, 'INVALID_REQUEST'], [{ temperature: 0 }, 'INVALID_REQUEST'], [{ stream: true }, 'INVALID_REQUEST'],
+    [{ input: [{ role: 'user', content: 'x' }] }, 'INVALID_REQUEST'], [{ input: '' }, 'INVALID_REQUEST'], [{ instructions: 7 }, 'INVALID_REQUEST'],
+    [{ max_output_tokens: 0 }, 'INVALID_REQUEST'], [{ max_output_tokens: 8193 }, 'INVALID_REQUEST'], [{ max_output_tokens: 1.5 }, 'INVALID_REQUEST'],
+    [{ text: { format: { type: 'text' } } }, 'INVALID_REQUEST'], [{ text: { format: { type: 'json_schema', name: 'bad name', schema: SCHEMA } } }, 'INVALID_REQUEST'],
+    [{ text: { format: { type: 'json_schema', name: 'n', schema: [] } } }, 'INVALID_REQUEST'], [{ text: { format: { type: 'json_schema', name: 'n', schema: big } } }, 'INVALID_REQUEST'],
+    [{ text: { verbosity: 'low', format: { type: 'json_schema', name: 'n', schema: SCHEMA } } }, 'INVALID_REQUEST'],
+    [{ input: 'x'.repeat(250_001) }, 'INVALID_REQUEST'], [{ model: 'gpt-other' }, 'MODEL_NOT_PRICED'], [{ model: 'bad model' }, 'INVALID_REQUEST'],
+  ];
+  for (const [extra, expected] of cases) assert.equal(code(await f.respond(grant.credential, gatewayBody('gpt-test', extra))), expected, JSON.stringify(extra).slice(0, 80));
+  assert.equal(code(await f.respond(grant.credential, gatewayBody('claude-test'))), 'PROVIDER_NOT_CONFIGURED');
+  const { model, input, max_output_tokens } = gatewayBody('gpt-test');
+  assert.equal(code(await f.respond(grant.credential, { model, input, max_output_tokens, max_tokens: 5 })), 'INVALID_REQUEST');
+  assert.equal(code(await f.call('POST', '/v1/allowance/responses', grant.credential, undefined, { 'content-type': 'text/plain' })), 'UNSUPPORTED_MEDIA_TYPE');
+  assert.equal((await f.sql.query('SELECT count(*)::int AS n FROM allowance_requests')).rows[0].n, 0, 'nothing refused was reserved');
+});
+
+test('the Responses endpoint stores no prompt, schema or answer anywhere in the database', { skip: pgSkip }, async () => {
+  const fetch = fakeFetch([{ status: 200, body: { ...OPENAI_REPLY, output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'MANGO-ANSWER {}' }] }] } }, new TypeError('fetch failed'),
+    { status: 200, body: { ...ANTHROPIC_REPLY, content: [{ type: 'text', text: 'MANGO-ANSWER {}' }] } }]);
+  const f = await credentialSetup({ providers: { openai: openaiProvider('sk-oa-SECRETKEY', fetch), anthropic: anthropicProvider('sk-ant-SECRETKEY', fetch) } });
+  const a = await f.account(), grant = (await f.issue(a.session)).body as any;
+  const body = gatewayBody('gpt-test', { instructions: 'ZEBRA-SYSTEM Sharma Traders', text: { format: { type: 'json_schema', name: 'zebra_schema', strict: false, schema: { ...SCHEMA, description: 'ZEBRA-SCHEMA' } } } });
+  assert.equal((await f.respond(grant.credential, body)).status, 200);
+  assert.equal((await f.respond(grant.credential, body)).status, 504);
+  assert.equal((await f.respond(grant.credential, { ...body, model: 'claude-test' })).status, 200);
+  const { rows: tables } = await f.sql.query<{ table_name: string }>(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`);
+  for (const { table_name } of tables) {
+    const { rows } = await f.sql.query(`SELECT t::text AS row FROM "${table_name}" t`);
+    for (const { row } of rows) for (const needle of ['ZEBRA', 'zebra', 'Sharma', 'MANGO', 'SECRETKEY', grant.credential.slice(3)]) assert.equal(row.includes(needle), false, `${table_name} holds ${needle}`);
   }
 });

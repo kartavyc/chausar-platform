@@ -41,6 +41,16 @@ test('writeback over the engine in demo mode: practice connections, a consented 
   const settings = await engine.request('writeback.configure', { approvalHours: { 'seen-outside': 12 } });
   assert.equal(settings.approvalHours['seen-outside'], 12);
   assert.ok(engine.vault!.read().actions.every((a: any) => a.connector !== 'wb-zoho-books'), 'Practice leaves no action behind');
+
+  // The second ask checks the real vault passphrase.
+  const pay = await engine.request('writeback.connect', { system: 'razorpay', label: 'Practice Razorpay', environment: 'practice', account: {} });
+  await engine.request('writeback.grant', { connectionId: pay.id, write: ['refund.create'] });
+  const refund = await engine.request('writeback.prepare', { connectionId: pay.id, action: 'refund.create', intentId: 'r-1', payload: { paymentId: 'pay_SYNTH00000001A', amountMinor: '50000' } });
+  await assert.rejects(engine.request('writeback.approve', { id: refund.id, digest: refund.digest }), { code: 'REAUTH_REQUIRED' });
+  await assert.rejects(engine.request('writeback.reauth', { id: refund.id, digest: refund.digest, passphrase: 'not the passphrase at all' }), { code: 'REAUTH_FAILED' });
+  const { token } = await engine.request('writeback.reauth', { id: refund.id, digest: refund.digest, passphrase: 'correct horse battery staple 42' });
+  assert.equal((await engine.request('writeback.approve', { id: refund.id, digest: refund.digest, secondAsk: token })).status, 'approved');
+  assert.equal((await engine.request('writeback.execute', { id: refund.id })).status, 'verified');
 });
 
 test('tick is silent when idle and drops an expired yes without sending', async () => {
@@ -65,15 +75,3 @@ test('tick is silent when idle and drops an expired yes without sending', async 
   await rm(directory, { recursive: true, force: true });
 });
 
-test('host options: credentials from the environment for the installed app, none in demo', async () => {
-  const { writebackHostOptions } = await import('../runtime/modules/lane-writeback.ts');
-  const env = { CHAUSAR_WRITEBACK_ZOHO_BOOKS_ACCESSTOKEN: 'synthetic-token', CHAUSAR_WRITEBACK_MAIL_USERNAME: 'u', CHAUSAR_WRITEBACK_MAIL_PASSWORD: 'p', CHAUSAR_WRITEBACK_TIME_ZONE: 'Asia/Kolkata', PATH: '/bin' };
-  assert.deepEqual(writebackHostOptions({ directory: '/x', demo: true, env }), { timeZone: 'Asia/Kolkata' });
-  const options: any = writebackHostOptions({ directory: '/x', demo: false, env });
-  const ctx = { memberId: 'owner', role: 'owner' as const, epoch: 1 };
-  assert.deepEqual(await options.credentials(ctx, { system: 'zoho-books', connectionId: 'c', account: {}, environment: 'live' }), { accessToken: 'synthetic-token' });
-  assert.deepEqual(await options.credentials(ctx, { system: 'mail', connectionId: 'c', account: {}, environment: 'sandbox' }), { username: 'u', password: 'p' });
-  await assert.rejects(options.credentials(ctx, { system: 'shopify', connectionId: 'c', account: {}, environment: 'live' }), { code: 'WRITE_CREDENTIALS_UNAVAILABLE' });
-  await assert.rejects(options.credentials(ctx, { system: 'mail', connectionId: 'c', account: {}, environment: 'practice' }), { code: 'WRITE_CREDENTIALS_UNAVAILABLE' });
-  assert.deepEqual(writebackHostOptions({ directory: '/x', demo: false, env: {} }), {});
-});

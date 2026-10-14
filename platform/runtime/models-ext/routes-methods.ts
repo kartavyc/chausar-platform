@@ -100,8 +100,9 @@ async function connectAllowance(ctx: Context, payload: Record<string, any>, host
   let grant: any;
   try { grant = await host.call('hosted.allowanceCredential', {}); }
   catch (error) {
-    if (error instanceof ChausarError && ['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE', 'INVALID_REQUEST'].includes(error.code))
-      throw new ChausarError('ALLOWANCE_NOT_AVAILABLE', 'The Chausar allowance is not available in this build. Pair the hosted service first.');
+    // Not built, not set up in this app, not paired, or demo mode: all mean there is no allowance to connect yet.
+    if (error instanceof ChausarError && ['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE', 'INVALID_REQUEST', 'HOSTED_NOT_CONFIGURED', 'HOSTED_NOT_PAIRED', 'DEMO_EXTERNAL_DISABLED'].includes(error.code))
+      throw new ChausarError('ALLOWANCE_NOT_AVAILABLE', 'The Chausar allowance is not available yet. Pair this computer with the hosted service first.');
     throw error;
   }
   check(grant && typeof grant === 'object' && typeof grant.endpoint === 'string' && typeof grant.credential === 'string' && grant.credential.length > 0,

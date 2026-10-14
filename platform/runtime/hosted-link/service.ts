@@ -17,7 +17,9 @@ import type { AllowanceRequest, ChannelRow, Entitlements, Fetch, SealedBlob, Sea
 import { BUTTONS, CHANNELS, DESTINATION_OF, HEADLINES, LINK_PAGE, MAIL_FOOTER, MESSAGE_EVENTS, OPT_IN_TEXT, REPLIES, WHATSAPP_TEMPLATE, hasDigit, messageBody } from './templates.ts';
 import type { Channel, MessageEvent } from './templates.ts';
 import { newKey, openIntent, sealIntent, unwrapBackup, wrapBackup } from './seal.ts';
+import { confirmationPreview, isMailAddress } from './relay-extras.ts';
 import type { Decision } from './seal.ts';
+import { registerAfterPairing } from './documents.ts';
 
 export const MODULE_ID = 'hosted-link';
 export const LABELS = Object.freeze({
@@ -80,18 +82,18 @@ export function hostOptions(input: { readonly demo: boolean; readonly env: Reado
   return { origin, ...(link ? { linkOrigin: link } : {}) };
 }
 const at = (c: Configured) => { const time = c.clock(); check(time instanceof Date && Number.isFinite(time.getTime()), 'HOSTED_CLOCK_INVALID', 'The host clock is unavailable.'); return time; };
-function connected(host: ModuleHost) {
+export function connected(host: ModuleHost) {
   const c = configuration(host); check(c.client, 'HOSTED_NOT_CONFIGURED', 'The hosted connection is not set up in this app.');
   const s = view(host); check(s.pairing && s.relayKey, 'HOSTED_NOT_PAIRED', 'Pair this computer with Chausar first.');
   return { c, client: c.client, pairing: s.pairing, relayKey: s.relayKey, s };
 }
 /** Exact payload keys; anything else is refused before work starts. */
-function input(payload: Record<string, any>, required: readonly string[], optional: readonly string[] = []) {
+export function input(payload: Record<string, any>, required: readonly string[], optional: readonly string[] = []) {
   check(payload && typeof payload === 'object' && !Array.isArray(payload) && Object.keys(payload).every(k => required.includes(k) || optional.includes(k)) && required.every(k => Object.hasOwn(payload, k)),
     'INVALID_REQUEST', 'The request has missing or unexpected fields.');
   return payload;
 }
-const desktopOnly = (ctx: Context) => check(ctx.channel === undefined || ctx.channel === 'desktop', 'OPEN_DESKTOP', 'Open the desktop app for this request.');
+export const desktopOnly = (ctx: Context) => check(ctx.channel === undefined || ctx.channel === 'desktop', 'OPEN_DESKTOP', 'Open the desktop app for this request.');
 const indianMonth = (time: Date) => new Date(time.getTime() + 330 * 60000).toISOString().slice(0, 7);
 const optInHash = (channel: Channel) => createHash('sha256').update(OPT_IN_TEXT[channel], 'utf8').digest('hex');
 
@@ -122,13 +124,16 @@ export async function pairFinish(ctx: Context, payload: Record<string, any>, hos
   check(typeof payload.deviceName === 'string' && payload.deviceName.trim().length > 0 && payload.deviceName.length <= 80 && !/[\x00-\x1f\x7f]/.test(payload.deviceName), 'INVALID_REQUEST', 'Name this computer in at most eighty characters.');
   const verified = await c.client.otpVerify({ challengeId: payload.challengeId, code: payload.code, deviceName: payload.deviceName.trim() });
   const pairedAt = at(c).toISOString();
-  return change(host, (m, state) => {
+  const paired = await change(host, (m, state) => {
     check(!m.pairing && m.challenge?.challengeId === payload.challengeId, 'PAIRING_NOT_STARTED', 'Ask for a code first.');
     m.pairing = { accountId: verified.accountId, deviceId: verified.deviceId, sessionToken: verified.sessionToken, sessionExpiresAt: verified.expiresAt, pairedAt, phoneMasked: m.challenge!.phoneMasked };
     m.relayKey = newKey(); m.challenge = null; m.offers = []; m.account = null;
     audit(state, 'hosted.paired', { deviceId: verified.deviceId });
     return { paired: true, accountId: verified.accountId, deviceId: verified.deviceId, pairedAt };
   });
+  // Phone documents: a fresh X25519 key for this device; when the server cannot take it now, phone.documents.collect registers it later.
+  await registerAfterPairing(ctx, host);
+  return paired;
 }
 export async function unpair(ctx: Context, _payload: Record<string, any>, host: ModuleHost) {
   desktopOnly(ctx); input(_payload, []);
@@ -177,7 +182,7 @@ export async function channelsSet(ctx: Context, payload: Record<string, any>, ho
   const channel = payload.channel as Channel;
   check(CHANNELS.includes(channel) && typeof payload.enabled === 'boolean' && typeof payload.optIn === 'boolean', 'INVALID_REQUEST', 'Choose a channel and whether it is on.');
   check(!payload.enabled || payload.optIn === true, 'OPT_IN_REQUIRED', 'Tick the opt-in wording to turn this channel on.');
-  check(payload.address === undefined || (channel === 'mail' && typeof payload.address === 'string' && payload.address.length <= 254 && /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@.]{2,63}$/.test(payload.address)),
+  check(payload.address === undefined || (channel === 'mail' && isMailAddress(payload.address)),
     'INVALID_ADDRESS', 'Only mail takes an address, and it must be a mail address.');
   const { client, pairing, c } = connected(host);
   const recordedAt = at(c).toISOString(), textSha256 = optInHash(channel);
@@ -200,7 +205,7 @@ export function templatesPreview(_ctx: Context, payload: Record<string, any>, ho
     messages: MESSAGE_EVENTS.map(event => ({ event, headline: HEADLINES[event], opens: DESTINATION_OF[event], body: messageBody(event, link, channel),
       ...(channel === 'whatsapp' ? { whatsappTemplate: WHATSAPP_TEMPLATE[event] } : {}),
       buttons: event === 'review-ready' ? [BUTTONS.approve, BUTTONS.notNow, BUTTONS.open] : [BUTTONS.open] })),
-    ...(channel === 'mail' ? { footer: MAIL_FOOTER } : {}) })),
+    ...(channel === 'mail' ? { footer: MAIL_FOOTER, confirmation: confirmationPreview(`${c.linkOrigin}/v/${LINK_PLACEHOLDER}`) } : {}) })),
   approvalButtonsNote: 'Approve and Not now appear only for a small change inside your workspace that can be undone. They work once and stop working after half an hour.',
   replies: { ...REPLIES }, linkPage: { ...LINK_PAGE } };
   check(!hasDigit(JSON.stringify(preview)), 'TEMPLATE_INVALID', 'A message template contains a digit.');
@@ -303,11 +308,11 @@ async function applyEnvelope(ctx: Context, host: ModuleHost, c: Configured, pair
     if (!offer) return { outcome: 'not-ours' as const };
     if (offer.actionId !== intent.actionId || offer.digest !== intent.digest || offer.expiresAt !== intent.expiresAt
       || offer.channel !== envelope.channel || (offer.messageId !== null && offer.messageId !== envelope.messageId)) return { outcome: 'invalid' as const };
-    // An approval interrupted between the claim and actions.approve resumes on the next collect.
-    if (offer.used && offer.envelopeId === envelope.envelopeId && offer.outcome === 'approving') return { outcome: 'approve' as const, actionId: offer.actionId, digest: offer.digest };
-    if (offer.used) return { outcome: offer.envelopeId === envelope.envelopeId ? 'already-applied' as const : 'replayed' as const };
     if (offer.memberId !== ctx.memberId || offer.epoch !== ctx.epoch) return { outcome: 'other-member' as const };
-    offer.used = true; offer.usedAt = new Date(time).toISOString(); offer.envelopeId = envelope.envelopeId;
+    // An approval interrupted between the claim and actions.approve resumes on the next collect, through every check below.
+    const resuming = offer.used && offer.envelopeId === envelope.envelopeId && offer.outcome === 'approving';
+    if (offer.used && !resuming) return { outcome: offer.envelopeId === envelope.envelopeId ? 'already-applied' as const : 'replayed' as const };
+    if (!resuming) { offer.used = true; offer.usedAt = new Date(time).toISOString(); offer.envelopeId = envelope.envelopeId; }
     if (!(time < Date.parse(offer.expiresAt) && time < Date.parse(envelope.expiresAt))) {
       offer.outcome = 'expired'; audit(state, 'hosted.relay.expired', { actionId: offer.actionId, channel: envelope.channel }); return { outcome: 'expired' as const };
     }

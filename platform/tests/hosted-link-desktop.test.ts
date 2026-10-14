@@ -52,6 +52,9 @@ class FakeHosted {
   allowanceBodies: string[] = [];
   allowanceReplyText = '';
   workerBodies: any[] = [];
+  /** What GET /v1/relay/business-statuses answers (as stored by the business's own hook). */
+  businessStatuses: any[] = [];
+  hookBodies: any[] = [];
   /** 'drop-after' processes the request and then loses the reply. */
   network: 'ok' | 'down' | 'drop-after' = 'ok';
   #n = 0;
@@ -99,7 +102,7 @@ class FakeHosted {
       if (b.enabled) {
         if (!exact(b.optIn, ['given', 'textSha256', 'recordedAt']) || b.optIn.given !== true) return refuse(400, 'INVALID_REQUEST');
         if (b.optIn.textSha256 !== sha256(hostedTemplates.OPT_IN_TEXT[channel])) return refuse(409, 'OPT_IN_TEXT_CHANGED');
-        this.channels[channel] = { status: channel === 'telegram' ? 'awaiting-start' : 'on', optInAt: b.optIn.recordedAt, address: b.address ? 'o***@example.test' : null };
+        this.channels[channel] = { status: channel === 'telegram' ? 'awaiting-start' : channel === 'mail' ? 'awaiting-confirmation' : 'on', optInAt: b.optIn.recordedAt, address: b.address ? 'o***@example.test' : null };
         return reply(200, { channel, ...this.channels[channel], ...(channel === 'telegram' ? { connectUrl: 'https://t.me/ChausarBot?start=AbcDefGhi' } : {}) });
       }
       this.channels[channel] = { ...this.channels[channel], status: 'off' }; return reply(200, { channel, ...this.channels[channel] });
@@ -144,6 +147,12 @@ class FakeHosted {
       const b = this.backups.get(m[1]); if (!b) return refuse(404, 'NOT_FOUND');
       return reply(200, b.bytes, { 'content-type': 'application/octet-stream', 'x-chausar-sha256': sha256(b.bytes) });
     }
+    if (method === 'PUT' && path === '/v1/relay/business-hook') {
+      const b = json(); this.hookBodies.push(b);
+      if (!exact(b, ['appSecret'])) return refuse(400, 'INVALID_REQUEST');
+      return reply(200, { hookUrl: `${ORIGIN}/v1/webhooks/whatsapp-business/${'H'.repeat(48)}`, verifyToken: 'V'.repeat(32) });
+    }
+    if (method === 'GET' && path === '/v1/relay/business-statuses') return reply(200, { statuses: this.businessStatuses });
     if (method === 'GET' && path === '/v1/allowance') return reply(200, { month: this.iso().slice(0, 7), grantPaise: '50000', grantState: 'set', spentPaise: '1200', reservedPaise: '0', balancePaise: '48800',
       pricing: { checkedOn: '2026-10-01', fxPaisePerUsd: '8400', source: 'Synthetic price list' }, models: [{ route: 'anthropic', model: 'claude-synthetic' }] });
     if (method === 'POST' && path === '/v1/allowance/complete') {
@@ -297,7 +306,11 @@ test('a channel turns on only with the ticked opt-in, sent as the hash of the de
   await f.rpc('phone.channels.set', { channel: 'mail', enabled: true, optIn: true, address: 'owner@example.test' });
   const listed = await f.rpc('phone.channels.list');
   assert.equal(listed.stale, false);
-  assert.deepEqual(listed.channels.map((c: any) => [c.channel, c.desktop.enabled, c.relay.status]), [['whatsapp', true, 'on'], ['telegram', true, 'awaiting-start'], ['mail', true, 'on']]);
+  assert.deepEqual(listed.channels.map((c: any) => [c.channel, c.desktop.enabled, c.relay.status]), [['whatsapp', true, 'on'], ['telegram', true, 'awaiting-start'], ['mail', true, 'awaiting-confirmation']]);
+  await assert.rejects(f.rpc('phone.channels.set', { channel: 'mail', enabled: true, optIn: true, address: 'owner@localhost' }), { code: 'INVALID_ADDRESS' }, 'the relay\'s own address rule');
+  f.server.channels.mail.status = 'awaiting-something-else';
+  assert.equal((await f.rpc('phone.channels.list')).stale, true, 'an unknown status is not accepted from the server');
+  f.server.channels.mail.status = 'awaiting-confirmation';
   f.server.network = 'down';
   const cached = await f.rpc('phone.channels.list');
   assert.equal(cached.stale, true); assert.equal(cached.channels[0].relay.status, 'on');
@@ -313,6 +326,9 @@ test('the message preview shows the exact text of every message and contains no 
   assert.deepEqual(review.buttons, ['Approve', 'Not now', 'Open the app']);
   const mail = preview.channels.find((c: any) => c.channel === 'mail').messages[0];
   assert.ok(mail.body.endsWith(hostedTemplates.MAIL_FOOTER));
+  const confirmation = preview.channels.find((c: any) => c.channel === 'mail').confirmation;
+  assert.equal(confirmation.subject, hostedTemplates.MAIL_TEXT.confirmHeadline);
+  assert.equal(confirmation.body, hostedTemplates.confirmationBody(`${ORIGIN}/v/${'x'.repeat(48)}`));
   assert.equal(preview.replies.freeText, hostedTemplates.REPLIES.freeText);
 });
 
@@ -335,6 +351,7 @@ test('only a small undoable change inside the workspace gets Approve and Not now
   }
   const byMail = await prepare(f, 'inv-mail');
   await f.rpc('phone.channels.set', { channel: 'mail', enabled: true, optIn: true, address: 'owner@example.com' });
+  f.server.channels.mail.status = 'on'; // the address owner pressed the confirmation link
   const mailed = await f.rpc('phone.messages.send', { event: 'review-ready', channel: 'mail', actionId: byMail.id });
   assert.equal(mailed.buttons, 'open-only'); assert.equal(mailed.reason, 'mail-has-no-approve');
   const outside = await prepare(f, 'inv-outside');
@@ -514,9 +531,57 @@ test('purge drops only offers whose action was removed', () => {
 });
 
 test('the installed app configures the hosted origin from the environment, never in demo', () => {
-  assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: false, env: {} }), {});
+  // The Drive sync broker (drive-sync.ts) rides alongside under `drive`; its own test covers it.
+  const hostOptions = (input: Parameters<NonNullable<typeof hostedLinkModule.hostOptions>>[0]) => { const { drive: _drive, ...hosted } = hostedLinkModule.hostOptions!(input); return hosted; };
+  assert.deepEqual(hostOptions({ directory: '/x', demo: false, env: {} }), {});
   assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: true, env: { CHAUSAR_HOSTED_ORIGIN: ORIGIN } }), {});
-  assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: false, env: { CHAUSAR_HOSTED_ORIGIN: 'http://insecure.example' } }), {});
-  assert.deepEqual(hostedLinkModule.hostOptions!({ directory: '/x', demo: false, env: { CHAUSAR_HOSTED_ORIGIN: ORIGIN, CHAUSAR_LINK_ORIGIN: 'https://link.chausar.app' } }),
+  assert.deepEqual(hostOptions({ directory: '/x', demo: false, env: { CHAUSAR_HOSTED_ORIGIN: 'http://insecure.example' } }), {});
+  assert.deepEqual(hostOptions({ directory: '/x', demo: false, env: { CHAUSAR_HOSTED_ORIGIN: ORIGIN, CHAUSAR_LINK_ORIGIN: 'https://link.chausar.app' } }),
     { origin: ORIGIN, linkOrigin: 'https://link.chausar.app' });
+});
+
+test('message statuses for the writeback lane: exact payload, validated array reply, nothing from another reference', async t => {
+  const f = await paired(t);
+  const ref = 'CHS-0123456789ABCDEF';
+  f.server.businessStatuses = [{ messageId: 'wamid.BIZ=one', status: 'delivered', at: '2026-10-14T05:00:00.000Z', reference: ref }];
+  assert.deepEqual(await f.rpc('hosted.messageStatuses', { reference: ref, messageId: null }), f.server.businessStatuses);
+  const call = f.server.calls.at(-1)!;
+  assert.equal(new URL(call.url).search, `?reference=${ref}`);
+  await f.rpc('hosted.messageStatuses', { reference: ref, messageId: 'wamid.BIZ=one' });
+  assert.equal(new URL(f.server.calls.at(-1)!.url).searchParams.get('messageId'), 'wamid.BIZ=one');
+  for (const bad of [{ reference: ref }, { reference: ref, messageId: undefined }, { reference: ref, messageId: null, more: 1 }, { reference: ref, messageId: 'has space' }])
+    await assert.rejects(f.rpc('hosted.messageStatuses', bad as any), { code: 'INVALID_REQUEST' });
+  await assert.rejects(f.rpc('hosted.messageStatuses', { reference: 'CHS 1', messageId: null }), { code: 'REFERENCE_INVALID' });
+  for (const wrong of [{ messageId: 'wamid.x', status: 'delivered', at: '2026-10-14T05:00:00.000Z', reference: 'CHS-SOMEONEELSE' },
+    { messageId: 'wamid.x', status: 'seen', at: '2026-10-14T05:00:00.000Z', reference: ref }, { messageId: 'wamid.x', status: 'read', at: 'yesterday', reference: ref },
+    { messageId: 'wamid.x', status: 'read', at: '2026-10-14T05:00:00.000Z', reference: ref, text: 'hello' }]) {
+    f.server.businessStatuses = [wrong];
+    await assert.rejects(f.rpc('hosted.messageStatuses', { reference: ref, messageId: null }), { code: 'HOSTED_REPLY_INVALID' });
+  }
+  await assert.rejects(f.rpc('hosted.businessHook.set', { appSecret: 'x' }), { code: 'APP_SECRET_INVALID' });
+  const hook = await f.rpc('hosted.businessHook.set', { appSecret: 'synthetic-business-app-secret' });
+  assert.deepEqual(hook, { hookUrl: `${ORIGIN}/v1/webhooks/whatsapp-business/${'H'.repeat(48)}`, verifyToken: 'V'.repeat(32) });
+  assert.equal(JSON.stringify(f.engine.vault!.read()).includes('synthetic-business-app-secret'), false, 'the app secret is never kept on the desktop');
+  assert.equal(activity(f, 'hosted.businessHook.set').length, 1);
+});
+
+test('an interrupted phone approval resumes only through the member, expiry and eligibility checks', async t => {
+  const f = await paired(t);
+  const prepared = await prepare(f);
+  const sent = await f.rpc('phone.messages.send', { event: 'review-ready', channel: 'whatsapp', actionId: prepared.id });
+  const envelopeId = f.server.press(sent.messageId, 'approve');
+  // A crash between the claim and actions.approve leaves the offer used and 'approving'; it was another member's offer.
+  await f.engine.vault!.update(state => {
+    const offer = (state.extensions!['hosted-link'] as any).offers.find((o: any) => o.offerId === sent.offer.offerId);
+    Object.assign(offer, { used: true, envelopeId, outcome: 'approving', memberId: 'member_other' });
+  });
+  const other = await f.rpc('phone.relay.collect');
+  assert.deepEqual(other.collected.map((c: any) => c.outcome), ['other-member']);
+  assert.equal(action(f, prepared.id).status, 'prepared');
+  // The owner's own interrupted approval resumes, but not after the offer expired.
+  await f.engine.vault!.update(state => { (state.extensions!['hosted-link'] as any).offers.find((o: any) => o.offerId === sent.offer.offerId).memberId = 'owner'; });
+  f.advance(31 * 60000);
+  const late = await f.rpc('phone.relay.collect');
+  assert.deepEqual(late.collected.map((c: any) => c.outcome), ['expired']);
+  assert.equal(action(f, prepared.id).status, 'prepared');
 });

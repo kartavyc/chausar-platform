@@ -36,8 +36,10 @@ A yes lasts 24 hours for messages, money and irreversible changes, and 7 days fo
 - **Effect key.** Every action has a stable key from (system, action, connection, intent). The adapter writes a business reference derived from it into the system (Zoho `reference_number`, Razorpay `reference_id` / refund `receipt` plus the `X-Refund-Idempotency` header, Tally `REMOTEID`, Google event id / sheet key column / Drive app property, the mail `Message-ID`, WhatsApp `biz_opaque_callback_data`).
 - **Look first.** Before dispatch the service prepares again. An effect already present is read back instead of sent. A changed target (price, contact, balance) drops the yes and prepares again ("The target changed after you approved. It was prepared again; nothing was sent.").
 - **The send journal** (`writeback/journal.ts`) is a file outside the vault, in the app's folder, holding only hashes of dispatched effect keys. It is written and flushed before a request leaves. After a restore of an older vault, an approved action whose key is in the journal is never sent again: it is read back, or a person settles it. `writeback.afterRestore` lists such actions.
+- **Second ask.** Money and changes that cannot be undone need the passphrase again: `writeback.reauth {id, digest, passphrase}` checks it against the open vault (`Vault.verifyPassphrase`, which changes nothing) and returns a single-use token bound to that action, its exact digest, the member and their permission epoch, valid for two minutes and kept only in memory. `writeback.approve {id, digest, secondAsk}` refuses without it (`REAUTH_REQUIRED`); a token is consumed by any attempt, matching or not. Desktop only; imported text cannot ask. Because the vault passphrase is the owner's, only the owner can answer the second ask (`REAUTH_OWNER_ONLY`) until members have their own secrets; five wrong passphrases in fifteen minutes lock it (`REAUTH_LOCKED`).
 - **Integrity.** The stored action must still hash to the prepared and approved digest, or nothing is sent (`PREVIEW_CHANGED`).
-- **Taint.** Anything that read outside text may prepare, but cannot approve, change, drop, execute or settle.
+- **Mail read-back.** With IMAP settings, Chausar opens the Sent folder over implicit TLS (port 993), searches by the Message-ID with `UID SEARCH HEADER Message-ID` (at most 1000 reply lines), and fetches only the To, Subject and Message-ID headers (`BODY.PEEK`, so nothing is downloaded or marked read). A reply that was not sure becomes sure when the copy is found; the same search runs before sending, so a copy already there is never sent again. Tested against a local fake IMAP and SMTP server, including STARTTLS order and a lost reply.
+- **Taint.** Anything that read outside text may prepare, but cannot approve, change, drop, execute or settle. `writeback.prepare` takes the mark from the caller's context (for example `host.call(..., { tainted: true })`) or from `sourceTainted: true` in the request; either way the action log records `taintedSource: true`, the view shows `taintedSource`, and only an untainted person can approve or run it. Each catalogue row states `undoable` (true only for changes inside your own data that can be undone).
 - **Evidence pins.** A reminder cannot be edited into another message (`WRITE_PREPARE_AGAIN`); its recipient must equal the agreed address at dispatch, and the daily caps are checked again on the day of sending. A reminder pins the invoice rows, the customer and the consent. If any of them changes before dispatch (a payment, an undone merge, a new address, a stop), the reminder is cancelled and nothing is sent.
 
 ## Invoice follow-up for real customers
@@ -62,7 +64,9 @@ Jobs-ext coordinates through `writeback.followUp.prepare` (a reminder becomes an
 | `connections`, `connect`, `grant`, `disconnect` | read / admin | Connections and per-action write grants |
 | `prepare {connectionId, action, payload, intentId, sourceIds?}` | prepare | The exact change, as a view with its `approval` in the design's `Approval` shape |
 | `change {id, payload}` | prepare | A new exact change; the yes is gone |
-| `approve {id, digest}`, `drop {id}` | approve | Yes to the exact digest; drop |
+| `reauth {id, digest, passphrase}` | approve | The second ask for money and irreversible changes: a single-use, two-minute token |
+| `approve {id, digest, secondAsk?}`, `drop {id}` | approve | Yes to the exact digest (with the token where needed); drop |
+| `credentials.set {connectionId, secret}`, `credentials.remove`, `credentials.status` | admin / read | A connection's own sealed credential (desktop only); status never shows a secret |
 | `execute {id}` | prepare | Look first, do once, read back, settle |
 | `readBack {id}`, `settle {id, said}` | prepare / approve | Settle an unknown result by looking, or by a person's word |
 | `reconcile`, `afterRestore` | admin / read | Read back every unknown; list what may already have gone out |
@@ -92,13 +96,12 @@ Refusal codes reaching the desktop UI are listed on the writeback line of `laneR
 **Experimental** (the code and its real client are written and tested against fakes; no real account has been used):
 - Every adapter against the real system: Tally, Zoho Books, Razorpay, Shopify, Google Workspace, WhatsApp Business Cloud, SMTP/IMAP mail.
 - The bill-from-a-photo booking in Zoho (`bill.createFromPhoto`).
-- WhatsApp read-back, which depends on status callbacks delivered by the hosted relay.
+- WhatsApp read-back, which reads delivery statuses from the hosted relay (`hosted.messageStatuses`, called through the engine; a host option can replace it). Until the relay reports a status the send stays not sure.
 
 ## What still needs a person (typed refusals)
 
-- **Credentials.** Production writes need a credential broker. A host may pass one as `EngineOptions.modules.writeback.credentials`; otherwise the module's `hostOptions` builds one at start-up from environment variables `CHAUSAR_WRITEBACK_<SYSTEM>_<FIELD>` (`ACCESSTOKEN`, `KEYID`, `KEYSECRET`, `USERNAME`, `PASSWORD`; for example `CHAUSAR_WRITEBACK_ZOHO_BOOKS_ACCESSTOKEN`), never stored in the vault and never used for practice connections. Demo mode installs none. Without credentials every live action refuses `WRITE_CREDENTIALS_UNAVAILABLE`. Environment variables are an interim store until the release lane's OS keychain broker is wired in; `CHAUSAR_WRITEBACK_TIME_ZONE` sets the reminder day. The OAuth sign-in apps for Zoho, Google and Shopify, the Razorpay keys, the Meta WhatsApp business verification and template approval, and the user's mail settings are founder or user steps.
+- **Credentials.** Live writes use the same sealed credential store as connectors-ext (`connector-credentials` in the app folder, AES-256-GCM, owner-only files, never in the vault). A write connection can link to an active, signed-in connectors-ext read connection of the same system inside the caller's branches and sources (`linkTo` on `writeback.connect`, checked again each time the credential is used), so one credential serves its reads and writes; writeback never refreshes a shared sign-in (connectors-ext owns refresh, so two modules never spend the same refresh token) and refuses an expired one with `WRITE_SIGN_IN_EXPIRED`; the read grant still never grants writing, and the owner grants each write action. A system with no read side (your mail server) keeps its own sealed entry, set from the desktop only with `writeback.credentials.set` (key pairs such as Razorpay keys and mail logins are written `id:secret`) and removed when the connection is disconnected. `hostOptions` wires this in the installed app; demo mode installs none. The real sign-ins themselves (OAuth apps for Zoho, Google and Shopify, Razorpay keys, Meta's WhatsApp verification and template approval) remain founder or user steps.
 - **Sandbox evidence.** Promotion to `live` needs a passing run on a real sandbox (the Zoho trial organisation held by Con, the test sheet, the test mailbox). The synthetic score cannot earn it.
-- **Second ask for money.** Views mark `needsSecondAsk` for money and irreversible changes; asking for the passphrase or fingerprint belongs to the approval sheet (frame-today / work-books).
 
 ## Decisions for the founder
 
@@ -108,15 +111,14 @@ Refusal codes reaching the desktop UI are listed on the writeback line of `laneR
 
 - WhatsApp has no read API; without the relay's status callbacks a WhatsApp send stays `not sure` until a person settles it. The same holds for mail without IMAP, and for a mail server that keeps no Sent copy.
 - The Google Drive upload carries content with `Content-Transfer-Encoding: base64` in the multipart body; this matches Google's documentation but is untested against the live service.
-- Tally's look-first finds an existing voucher only on the voucher's own date; Tally's own import is the backstop for a duplicate number on another date.
+- Tally's look-first searches the Day Book 15 days either side of the voucher date for this action's own voucher (by its REMOTEID). A same-number voucher blocks only within the same month, because numbering can restart monthly or yearly; any other duplicate is left to Tally's own import check.
 - Sandbox qualification (`writeback.qualifySandbox`) is built and tested against a fake standing in for a sandbox; it has not run against a real sandbox account. It cannot stage a lost reply on a real system, so that check stays with the fakes.
 - The engine's generic `actions.list` does not show writeback actions (they live in their own ActionService registry so that approval expiry, look-first and the journal cannot be bypassed). Screens read `writeback.ledger`.
-- Approval of money and irreversible changes does not yet re-ask for the passphrase (see above).
 
 ## Cross-lane contracts
 
 - **Provided:** `writeback.*` above. `approvals.*` (work-books) can render `view.approval` directly and call `writeback.approve/drop/change/practice`. jobs-ext calls `writeback.followUp.prepare` and `writeback.practice { steps }`.
-- **Assumed:** `host.services.calculator.calculate(ctx, { operation: 'aging', … })` (existing). The hosted relay (hosted-link) feeds WhatsApp delivery statuses through `EngineOptions.modules.writeback.whatsappStatuses` (`(ctx, { reference, messageId }) => Promise<{ messageId, status, at, reference }[]>`). The release lane's credential store supplies `EngineOptions.modules.writeback.credentials` (`(ctx, { system, connectionId, account, environment }) => Promise<Record<string, string>>`).
+- **Assumed:** `host.services.calculator.calculate(ctx, { operation: 'aging', … })` (existing). hosted-link's `hosted.messageStatuses({ reference, messageId }) → [{ messageId, status, at, reference }]` (until it exists, read-back stays not sure). connectors-ext's `ConnectorCredentialStore`, `hostCredentialServices` and its connection records (`connections[].{id, group, sourceId}`) for linked credentials; writeback reads the sealed entries but never refreshes them. `Vault.verifyPassphrase` (core helper added by this lane).
 
 ## Files
 
