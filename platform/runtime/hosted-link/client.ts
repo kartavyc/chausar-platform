@@ -108,7 +108,8 @@ export function sealedEnvelope(value: unknown): SealedEnvelope {
 
 /** One call's failure as a typed refusal. The server's own message is never used. */
 async function refusal(reply: FetchReply): Promise<never> {
-  let code = 'HOSTED_REQUEST_FAILED';
+  // A server or proxy failure without a contract code may have done the work: the outcome is unknown.
+  let code = reply.status >= 500 ? 'HOSTED_UNREACHABLE' : 'HOSTED_REQUEST_FAILED';
   try {
     const raw = await reply.text();
     if (raw.length <= 8192) {
@@ -116,7 +117,7 @@ async function refusal(reply: FetchReply): Promise<never> {
       const candidate = body?.error?.code;
       if (typeof candidate === 'string' && Object.hasOwn(KNOWN_CODES, candidate)) code = candidate;
     }
-  } catch { /* An unreadable refusal stays HOSTED_REQUEST_FAILED. */ }
+  } catch { /* An unreadable refusal keeps the code chosen from its status. */ }
   throw new ChausarError(code, KNOWN_CODES[code] ?? 'The hosted service refused the request.');
 }
 

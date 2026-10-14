@@ -231,7 +231,8 @@ export async function messageSend(ctx: Context, payload: Record<string, any>, ho
     check(m.pairing?.accountId === pairing.accountId && m.relayKey, 'HOSTED_NOT_PAIRED', 'Pair this computer with Chausar first.');
     const retry = m.messages.find(item => item.status === 'unknown' && item.event === event && item.channel === channel && item.actionId === actionId && item.memberId === ctx.memberId);
     if (retry) return { entry: structuredClone(retry), reason: null as string | null, offer: m.offers.find(o => o.offerId === retry.offerId) ?? null, retried: true };
-    const reason = actionId !== null ? offerIneligibility(actions, state, ctx, actionId) : event === 'review-ready' ? 'not-a-single-action' : null;
+    // Mail has no owner binding (a forwarded mail would approve), so mail only ever carries Open the app.
+    const reason = actionId !== null ? (channel === 'mail' ? 'mail-has-no-approve' : offerIneligibility(actions, state, ctx, actionId)) : event === 'review-ready' ? 'not-a-single-action' : null;
     const id = newId('message'), idempotencyKey = createHash('sha256').update(`chausar-relay-message|${event}|${channel}|${actionId ?? '-'}|${id}`).digest('hex');
     let offer: Offer | null = null, pendingOffer: LogEntry['pendingOffer'];
     if (actionId !== null && reason === null) {
@@ -241,6 +242,9 @@ export async function messageSend(ctx: Context, payload: Record<string, any>, ho
       const seal = (decision: Decision) => sealIntent(m.relayKey!, pairing.accountId, { v: 1, offerId: offer!.offerId, actionId, digest: offer!.digest, decision, expiresAt: offer!.expiresAt });
       pendingOffer = { approve: seal('approve'), notNow: seal('not-now') };
       m.offers.push(offer);
+      // Used offers are history; keep the newest five hundred so the vault does not grow without bound.
+      const used = m.offers.filter(o => o.used);
+      if (used.length > 500) { const drop = new Set(used.slice(0, used.length - 500)); m.offers = m.offers.filter(o => !drop.has(o)); }
     }
     const created: LogEntry = { id, event, channel, status: 'unknown', at: sentAt, buttons: offer ? 'approve-not-now-open' : 'open-only', actionId, offerId: offer?.offerId ?? null,
       memberId: ctx.memberId, idempotencyKey, messageId: null, ...(pendingOffer ? { pendingOffer } : {}) };
@@ -268,7 +272,7 @@ export async function messageSend(ctx: Context, payload: Record<string, any>, ho
     offer: offer ? { offerId: offer.offerId, expiresAt: offer.expiresAt } : null, month: reply.month, sent: reply.sent, budget: reply.budget, retried: entry.retried };
 }
 
-type Collected = { envelopeId: string; decision: Decision; outcome: 'approved' | 'not-now' | 'refused' | 'expired' | 'invalid' | 'replayed' | 'already-applied' | 'other-member'; reason?: string; acked: boolean };
+type Collected = { envelopeId: string; decision: Decision; outcome: 'approved' | 'not-now' | 'refused' | 'expired' | 'invalid' | 'replayed' | 'already-applied' | 'other-member' | 'not-ours'; reason?: string; acked: boolean };
 async function applyEnvelope(ctx: Context, host: ModuleHost, c: Configured, pairing: Pairing, relayKey: string, envelope: SealedEnvelope): Promise<Collected> {
   const client = c.client!, actions = host.services.actions as ActionService;
   const finish = async (outcome: Collected['outcome'], disposition: 'collected' | 'expired' | 'invalid' | null, reason?: string): Promise<Collected> => {
@@ -277,13 +281,18 @@ async function applyEnvelope(ctx: Context, host: ModuleHost, c: Configured, pair
     return { envelopeId: envelope.envelopeId, decision: envelope.decision, outcome, ...(reason ? { reason } : {}), acked };
   };
   let intent;
+  // An envelope this computer cannot open, or whose offer it never made, may belong to another computer on the
+  // same account: it is left for that computer (or to expire), never acknowledged away.
   try { intent = openIntent(relayKey, pairing.accountId, envelope.decision, envelope); }
-  catch { return finish('invalid', 'invalid'); }
+  catch { return finish('not-ours', null); }
   const time = at(c).getTime();
   const claim = await change(host, (m, state) => {
     const offer = m.offers.find(o => o.offerId === intent.offerId);
-    if (!offer || offer.actionId !== intent.actionId || offer.digest !== intent.digest || offer.expiresAt !== intent.expiresAt
+    if (!offer) return { outcome: 'not-ours' as const };
+    if (offer.actionId !== intent.actionId || offer.digest !== intent.digest || offer.expiresAt !== intent.expiresAt
       || offer.channel !== envelope.channel || (offer.messageId !== null && offer.messageId !== envelope.messageId)) return { outcome: 'invalid' as const };
+    // An approval interrupted between the claim and actions.approve resumes on the next collect.
+    if (offer.used && offer.envelopeId === envelope.envelopeId && offer.outcome === 'approving') return { outcome: 'approve' as const, actionId: offer.actionId, digest: offer.digest };
     if (offer.used) return { outcome: offer.envelopeId === envelope.envelopeId ? 'already-applied' as const : 'replayed' as const };
     if (offer.memberId !== ctx.memberId || offer.epoch !== ctx.epoch) return { outcome: 'other-member' as const };
     offer.used = true; offer.usedAt = new Date(time).toISOString(); offer.envelopeId = envelope.envelopeId;
@@ -297,7 +306,7 @@ async function applyEnvelope(ctx: Context, host: ModuleHost, c: Configured, pair
     offer.outcome = 'approving'; return { outcome: 'approve' as const, actionId: offer.actionId, digest: offer.digest };
   });
   if (claim.outcome === 'invalid' || claim.outcome === 'replayed') return finish(claim.outcome, 'invalid');
-  if (claim.outcome === 'other-member') return finish(claim.outcome, null);
+  if (claim.outcome === 'other-member' || claim.outcome === 'not-ours') return finish(claim.outcome, null);
   if (claim.outcome === 'expired') return finish('expired', 'expired');
   if (claim.outcome === 'already-applied' || claim.outcome === 'not-now') return finish(claim.outcome, 'collected');
   if (claim.outcome === 'refused') return finish('refused', 'collected', claim.reason);
@@ -305,6 +314,11 @@ async function applyEnvelope(ctx: Context, host: ModuleHost, c: Configured, pair
   // Approve only: execution stays a separate step inside the app.
   try { await actions.approve(ctx, claim.actionId, claim.digest); }
   catch (error) {
+    const done = host.store.read().actions.find(item => item.id === claim.actionId) as PreparedAction | undefined;
+    if (done?.status === 'approved' && done.approval?.digest === claim.digest && done.approval.memberId === ctx.memberId) {
+      await change(host, (m, state) => { const offer = m.offers.find(o => o.offerId === intent.offerId); if (offer) offer.outcome = 'approved'; audit(state, 'hosted.relay.approved', { actionId: claim.actionId, digest: claim.digest, channel: envelope.channel }); });
+      return finish('approved', 'collected');
+    }
     const code = error instanceof ChausarError ? error.code : 'APPROVAL_FAILED';
     await change(host, (m, state) => { const offer = m.offers.find(o => o.offerId === intent.offerId); if (offer) offer.outcome = 'refused'; audit(state, 'hosted.relay.refused', { actionId: claim.actionId, reason: code, channel: envelope.channel }); });
     return finish('refused', 'collected', code);
@@ -474,7 +488,10 @@ export function purgeOffers(state: State, reason: { removedIds: ReadonlySet<stri
   const s = peekModuleState<HostedLinkState>(state, MODULE_ID);
   if (!s) return 0;
   const before = s.offers.length;
-  s.offers = s.offers.filter(offer => !reason.removedIds.has(offer.actionId) && state.actions.some(action => action.id === offer.actionId));
+  const gone = (actionId: string | null) => actionId !== null && (reason.removedIds.has(actionId) || !state.actions.some(action => action.id === actionId));
+  s.offers = s.offers.filter(offer => !gone(offer.actionId));
+  // The message log keeps no trace of a removed action: neither its id nor the sealed blobs that name it.
+  for (const entry of s.messages) if (gone(entry.actionId)) { entry.actionId = null; delete entry.pendingOffer; }
   return before - s.offers.length;
 }
 /** Scheduled relay collection, only when configured, paired and not in demo. */

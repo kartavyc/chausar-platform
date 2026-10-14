@@ -271,6 +271,9 @@ test('a hosted refusal keeps only known codes and never the server message', asy
   await assert.rejects(client.otpStart(PHONE), (error: any) => error.code === 'OTP_RATE_LIMITED' && !/\d/.test(error.message));
   const odd = new HostedClient({ origin: ORIGIN, fetch: async () => refuse(400, 'SOMETHING_ELSE') });
   await assert.rejects(odd.otpStart(PHONE), { code: 'HOSTED_REQUEST_FAILED' });
+  // A proxy or server failure without a contract code may have done the work: unknown, not failed.
+  const proxy = new HostedClient({ origin: ORIGIN, fetch: async () => reply(502, '<html>Bad gateway</html>') });
+  await assert.rejects(proxy.otpStart(PHONE), { code: 'HOSTED_UNREACHABLE' });
   const extra = new HostedClient({ origin: ORIGIN, fetch: async () => reply(202, { challengeId: 'otp_x', expiresAt: '2026-10-14T06:10:00.000Z', extra: true }) });
   await assert.rejects(extra.otpStart(PHONE), { code: 'HOSTED_REPLY_INVALID' });
   const huge = new HostedClient({ origin: ORIGIN, fetch: async () => reply(202, 'x'.repeat(1024 * 1024 + 1)) });
@@ -330,12 +333,16 @@ test('only a small undoable change inside the workspace gets Approve and Not now
     assert.equal(sent.buttons, 'open-only'); assert.equal(sent.reason, reason); assert.equal(sent.offer, null);
     assert.equal(f.server.messages.get(sent.messageId).offer, undefined);
   }
+  const byMail = await prepare(f, 'inv-mail');
+  await f.rpc('phone.channels.set', { channel: 'mail', enabled: true, optIn: true, address: 'owner@example.com' });
+  const mailed = await f.rpc('phone.messages.send', { event: 'review-ready', channel: 'mail', actionId: byMail.id });
+  assert.equal(mailed.buttons, 'open-only'); assert.equal(mailed.reason, 'mail-has-no-approve');
   const outside = await prepare(f, 'inv-outside');
   await f.engine.vault!.update(state => { state.actions.find((a: any) => a.id === outside.id).connector = 'zoho-books'; });
   assert.equal((await f.rpc('phone.messages.send', { event: 'review-ready', channel: 'whatsapp', actionId: outside.id })).reason, 'outside-workspace');
   assert.equal((await f.rpc('phone.messages.send', { event: 'review-ready', channel: 'whatsapp', actionId: 'group_synthetic' })).reason, 'not-a-single-action');
   const counts = await f.rpc('phone.messages.counts');
-  assert.equal(counts.month, '2026-10'); assert.equal(counts.sent, 7); assert.equal(counts.budget, 30);
+  assert.equal(counts.month, '2026-10'); assert.equal(counts.sent, 8); assert.equal(counts.budget, 30);
   assert.equal(counts.costPaise, null); assert.equal(counts.costState, 'unknown');
 });
 
@@ -378,19 +385,20 @@ test('a relayed Approve approves exactly once, records the channel and never exe
   const tampered = f.server.press(sent.messageId, 'approve', { tamper: true });
   const first = f.server.press(sent.messageId, 'approve');
   const result = await f.rpc('phone.relay.collect');
-  assert.deepEqual(result.collected.map((c: any) => [c.envelopeId, c.outcome, c.acked]), [[tampered, 'invalid', true], [first, 'approved', true]]);
-  assert.deepEqual(f.server.acks.map(a => a.disposition), ['invalid', 'collected']);
+  // An envelope this computer cannot open may be another computer's: it is left alone, never acknowledged away.
+  assert.deepEqual(result.collected.map((c: any) => [c.envelopeId, c.outcome, c.acked]), [[tampered, 'not-ours', false], [first, 'approved', true]]);
+  assert.deepEqual(f.server.acks.map(a => a.disposition), ['collected']);
   const approved = action(f, prepared.id);
   assert.equal(approved.status, 'approved'); assert.equal(approved.attempts.length, 0); assert.equal(approved.approval.digest, prepared.digest);
   assert.equal(f.engine.vault!.read().conversations.filter((c: any) => c.kind === 'reminder-draft').length, 0);
   assert.deepEqual(activity(f, 'hosted.relay.approved').map((a: any) => a.details), [{ actionId: prepared.id, digest: prepared.digest, channel: 'whatsapp' }]);
   assert.equal(activity(f, 'action.approved').length, 1);
   // A replayed blob under a new envelope does nothing.
-  f.server.press(sent.messageId, 'approve');
+  const replayed = f.server.press(sent.messageId, 'approve');
   const replay = await f.rpc('phone.relay.collect');
-  assert.equal(replay.collected[0].outcome, 'replayed');
+  assert.equal(replay.collected.find((c: any) => c.envelopeId === replayed).outcome, 'replayed');
   assert.equal(activity(f, 'action.approved').length, 1); assert.equal(action(f, prepared.id).status, 'approved');
-  assert.deepEqual((await f.rpc('phone.relay.collect')).collected, []);
+  assert.deepEqual((await f.rpc('phone.relay.collect')).collected.map((c: any) => [c.envelopeId, c.outcome]), [[tampered, 'not-ours']], 'only the unreadable one is left, to expire');
 });
 
 test('Not now leaves the action prepared and records the decision', async t => {
@@ -497,8 +505,10 @@ test('an always-on job turns on only with consent and the server label is shown 
 test('purge drops only offers whose action was removed', () => {
   const state = initialState('Synthetic purge');
   state.actions.push({ id: 'action_kept' });
-  state.extensions = { 'hosted-link': { offers: [{ offerId: 'offer_a', actionId: 'action_kept' }, { offerId: 'offer_b', actionId: 'action_gone' }] } };
+  state.extensions = { 'hosted-link': { offers: [{ offerId: 'offer_a', actionId: 'action_kept' }, { offerId: 'offer_b', actionId: 'action_gone' }],
+    messages: [{ id: 'm1', actionId: 'action_gone', pendingOffer: { approve: {}, notNow: {} } }, { id: 'm2', actionId: 'action_kept' }, { id: 'm3', actionId: null }] } };
   assert.equal(hostedLinkModule.purge!(state, { sourceIds: [], removedIds: new Set(['action_gone']), at: '2026-10-14T06:00:00.000Z' }), 1);
   assert.deepEqual((state.extensions['hosted-link'] as any).offers.map((o: any) => o.offerId), ['offer_a']);
+  assert.deepEqual((state.extensions['hosted-link'] as any).messages, [{ id: 'm1', actionId: null }, { id: 'm2', actionId: 'action_kept' }, { id: 'm3', actionId: null }]);
   assert.equal(hostedLinkModule.purge!(initialState('Empty'), { sourceIds: ['books'], removedIds: new Set(), at: '2026-10-14T06:00:00.000Z' }), 0);
 });
