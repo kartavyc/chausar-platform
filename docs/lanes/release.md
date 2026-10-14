@@ -82,3 +82,7 @@ All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that rea
 - Zip artifacts on Linux need an unpacker other than GNU tar.
 - The public-copy dry run finds 5 email hits (one npm author's public address in `package-lock.json`) and 3 private-detail markers in `platform/runtime/invoice-follow-up.md` (another lane's file).
 - Electron-builder may drop `runtime-binaries/.gitignore` when packaging, so the packaged copy can differ from its inventory by that one file; nothing checks the installed copy today.
+
+## Full suite
+
+`npm test` on `55d6f5f`: 4,163 tests, 4,132 passed, 4 failed, 27 skipped. The four failures are in `platform/tests/benchmark-sharding.test.ts` and fail identically on the base branch (`claude/clever-goldberg-49qobq`); they are not caused by this lane. `desktop-host-bundle-join.test.ts` needs `--experimental-vm-modules` and fails under a plain `node --test` (also on the base).
