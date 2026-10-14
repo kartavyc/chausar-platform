@@ -68,20 +68,26 @@ export function createIntakeHandler(options: IntakeOptions): IntakeHandler {
     need(match && TOKEN.test(match[1]), 'UNAUTHORIZED');
     return sha256(match[1]);
   }
-  function throttle(contributorHash: string) {
+  /** Per contributor, per address and overall: a fresh made-up token per request does not get past the address or global limit. */
+  function throttle(contributorHash: string, req?: IncomingMessage) {
     if (!limit) return;
     const at = clock().getTime();
     if (windows.size > 10_000) for (const [key, window] of windows) if (at - window.start >= limit.windowMs) windows.delete(key);
-    const window = windows.get(contributorHash);
-    if (!window || at - window.start >= limit.windowMs) { windows.set(contributorHash, { start: at, count: 1 }); return; }
-    window.count += 1;
-    need(window.count <= limit.max, 'RATE_LIMITED');
+    need(windows.size <= 50_000, 'RATE_LIMITED');
+    const address = req?.socket?.remoteAddress;
+    const keys: [string, number][] = [[`c:${contributorHash}`, limit.max], ...(address ? [[`a:${address}`, limit.max * 4] as [string, number]] : []), ['global', limit.max * 200]];
+    for (const [key, max] of keys) {
+      const window = windows.get(key);
+      if (!window || at - window.start >= limit.windowMs) { windows.set(key, { start: at, count: 1 }); continue; }
+      window.count += 1;
+      need(window.count <= max, 'RATE_LIMITED');
+    }
   }
 
   async function postBatch(req: IncomingMessage, res: ServerResponse) {
     need(open, 'INTAKE_CLOSED');
     const contributorHash = contributor(req);
-    throttle(contributorHash);
+    throttle(contributorHash, req);
     const key = header(req, 'idempotency-key'), deletionToken = header(req, 'x-deletion-token');
     need(key && IDEMPOTENCY_KEY.test(key), 'INVALID_BATCH');
     need(deletionToken && TOKEN.test(deletionToken), 'INVALID_BATCH');
@@ -121,7 +127,7 @@ export function createIntakeHandler(options: IntakeOptions): IntakeHandler {
     } else if (path === '/v1/credits') {
       if (!only('GET')) return;
       const contributorHash = contributor(req);
-      throttle(contributorHash);
+      throttle(contributorHash, req);
       send(res, 200, await store.credits(contributorHash));
     } else if (path === '/v1/credits/public') {
       if (only('GET')) send(res, 200, await store.publicCredits());

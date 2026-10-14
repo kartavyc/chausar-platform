@@ -23,6 +23,8 @@ export type Proposal = {
   id: string; at: string; memberId: string; origin: 'profile' | 'model'; pack: PackChoice; draft: DictionaryDraft; draftDigest: string;
   evidence: FieldEvidence[]; skipped: { header: string; reason: string }[]; sourceIds: string[]; contentHashes: string[];
   status: ProposalStatus; cases: CaseResult[]; failing: string[]; publishedHash: string | null; digest: string;
+  /** The dictionary the proposal was built against; adoption publishes against exactly this baseline. */
+  baseHash: string | null;
 };
 const EDIT_STATUSES = ['awaiting-review', 'failed-answer-key', 'accepted', 'rejected'] as const;
 type EditStatus = typeof EDIT_STATUSES[number];
@@ -78,9 +80,9 @@ async function dictionaryBuild(ctx: Context, payload: Record<string, unknown>, h
   const draft = origin === 'model' ? candidateDraft(payload.candidate) : built.draft;
   return host.store.update(state => {
     current(state, ctx, 'prepare'); assertSourceAccess(state, ctx, sourceIds);
-    const dictionary = areaOf(state), id = newId('dictproposal'), draftDigest = digest(draft);
+    const dictionary = areaOf(state), id = newId('dictproposal'), draftDigest = digest(draft), baseHash = currentDictionary(host, ctx)?.hash ?? null;
     const proposal: Proposal = { id, at: now(), memberId: ctx.memberId, origin, pack: built.pack, draft, draftDigest, evidence: built.evidence, skipped: built.skipped,
-      sourceIds, contentHashes: files.map(file => hash(file.content)), status: 'proposed', cases: [], failing: [], publishedHash: null, digest: digest({ id, draftDigest, sourceIds }) };
+      sourceIds, contentHashes: files.map(file => hash(file.content)), status: 'proposed', cases: [], failing: [], publishedHash: null, baseHash, digest: digest({ id, draftDigest, sourceIds, baseHash }) };
     dictionary.proposals.push(proposal);
     if (dictionary.proposals.length > PROPOSAL_LIMIT) dictionary.proposals.splice(0, dictionary.proposals.length - PROPOSAL_LIMIT);
     return proposalView(proposal);
@@ -102,11 +104,15 @@ async function dictionaryAdopt(ctx: Context, payload: Record<string, unknown>, h
   check(proposal.status === 'proposed', 'PROPOSAL_DECIDED', 'This dictionary proposal was already decided.');
   check(payload.digest === proposal.digest && digest(proposal.draft) === proposal.draftDigest, 'PROPOSAL_CHANGED', 'The proposal changed. Review it again before adopting it.');
   const run = await runAnswerKey(activeKey(state), proposal.draft);
-  const before = currentDictionary(host, ctx);
-  if (run.passed) await host.call('ontology.publish', { draft: structuredClone(proposal.draft), expectedCurrentHash: before?.hash ?? null, attemptId: attemptOf(proposal.id) });
+  // Publishing against the proposal's own baseline never reverts a later edit, and a retried adoption replays the retained attempt.
+  if (run.passed) {
+    try { await host.call('ontology.publish', { draft: structuredClone(proposal.draft), expectedCurrentHash: proposal.baseHash, attemptId: attemptOf(proposal.id) }); }
+    catch (error) { check(!(error instanceof ChausarError && error.code === 'DICTIONARY_CONFLICT'), 'PROPOSAL_STALE', 'The dictionary changed after this proposal was made. Build a new proposal.'); throw error; }
+  }
   const published = run.passed ? currentDictionary(host, ctx) : null;
   return host.store.update(state => {
     const record = areaOf(state).proposals.find(item => item.id === proposal.id);
+    check(!record || record.status === 'proposed', 'PROPOSAL_DECIDED', 'This dictionary proposal was already decided.');
     check(record, 'NOT_FOUND', 'This dictionary proposal is no longer available.');
     record.status = run.passed ? 'adopted' : 'failed-answer-key'; record.cases = run.cases; record.failing = run.failing; record.publishedHash = published?.hash ?? null;
     logEdit(state, ctx, run.passed ? 'accepted' : 'rejected', run.passed ? 'answer-key-passed' : 'answer-key-failed', 'add-definition', record.sourceIds, [record.id], undefined, record.origin === 'model');
@@ -118,10 +124,12 @@ async function dictionaryAdopt(ctx: Context, payload: Record<string, unknown>, h
 async function answerKeyView(ctx: Context, payload: Record<string, unknown>, host: ModuleHost) {
   payloadKeys(payload, ['run']);
   check(payload.run === undefined || typeof payload.run === 'boolean', 'INVALID_REQUEST', 'Choose whether to run the key.');
-  const state = host.store.read(); current(state, ctx);
+  const state = host.store.read(); current(state, ctx, payload.run ? 'admin' : 'read');
   const key = activeKey(state), dictionary = currentDictionary(host, ctx);
   const run = payload.run ? dictionary ? await runAnswerKey(key, draftOf(dictionary)) : { state: 'absent', reason: 'No dictionary is published yet.' } : undefined;
-  return { key: structuredClone(key), default: !peek(state)?.key, keyDigest: digest(key), ...(run ? { run, dictionaryHash: dictionary?.hash ?? null } : {}) };
+  // The hand-worked rows can be real business rows: only the owner sees them; others see the cases and the digest.
+  const shown = ctx.role === 'owner' ? structuredClone(key) : { ...structuredClone(key), rows: { state: 'withheld' } };
+  return { key: shown, default: !peek(state)?.key, keyDigest: digest(key), ...(run ? { run, dictionaryHash: dictionary?.hash ?? null } : {}) };
 }
 
 async function answerKeySet(ctx: Context, payload: Record<string, unknown>, host: ModuleHost) {
@@ -149,6 +157,7 @@ export async function proposeEdits(ctx: Context, host: ModuleHost, options: { ed
     try { candidates.push({ edit: assertEdit(value), evidence: { origin: 'model', count: 1, importIds: [], sourceIds: [], decisionIds: [] }, index }); }
     catch (error) { refused.push({ index, code: codeOf(error) }); }
   });
+  check((peek(state)?.edits ?? []).filter(item => item.status === 'awaiting-review').length < 200, 'EDITS_PENDING', 'Review the waiting dictionary edits before proposing more.');
   const base = draftOf(dictionary), key = activeKey(state), keyDigest = digest(key);
   const known = new Set((peek(state)?.edits ?? []).filter(item => item.baseHash === dictionary.hash && item.keyDigest === keyDigest).map(item => canonical(item.edit)));
   const evaluated: EditRecord[] = [];
@@ -265,13 +274,16 @@ export const dictionaryMethods: Record<string, MethodSpec> = {
 };
 
 /** Remove proposals and edits whose evidence came from deleted or revoked sources, imports or decisions. */
-export function purgeDictionary(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string> }): number {
+export function purgeDictionary(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; collect?: Set<string> }): number {
   const dictionary = peek(state);
   if (!dictionary) return 0;
   const gone = (id: string) => reason.sourceIds.includes(id) || reason.removedIds.has(id);
   const before = dictionary.proposals.length + dictionary.edits.length;
-  dictionary.proposals = dictionary.proposals.filter(item => !gone(item.id) && !item.sourceIds.some(gone));
-  dictionary.edits = dictionary.edits.filter(item => !gone(item.id) && !item.evidence.sourceIds.some(gone) && !item.evidence.importIds.some(gone) && !item.evidence.decisionIds.some(gone));
+  const proposalGone = (item: Proposal) => gone(item.id) || item.sourceIds.some(gone);
+  const editGone = (item: EditRecord) => gone(item.id) || item.evidence.sourceIds.some(gone) || item.evidence.importIds.some(gone) || item.evidence.decisionIds.some(gone);
+  for (const item of [...dictionary.proposals.filter(proposalGone), ...dictionary.edits.filter(editGone)]) reason.collect?.add(item.id);
+  dictionary.proposals = dictionary.proposals.filter(item => !proposalGone(item));
+  dictionary.edits = dictionary.edits.filter(item => !editGone(item));
   return before - dictionary.proposals.length - dictionary.edits.length;
 }
 

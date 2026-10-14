@@ -79,13 +79,15 @@ export function samplesLayer(store: StateStore, ctx: Context, payload: Record<st
       seen.add(text);
       const kind = sensitiveKind(text);
       // Amounts are numbers: they leave only through `calculate` with a receipt, so money fields show shapes at every send level.
-      if (send === 'shape' || type === 'money') { const mask = maskOf(text); if (!shapes.has(mask) && shapes.size < SAMPLE_LIMIT) shapes.set(mask, { mask, length: lengthBucket(text.length) }); }
+      const numeric = type === 'money' || /^[-+]?[\d,]+(?:\.\d+)?$/.test(text.trim());
+      if (send === 'shape' || numeric) { const mask = maskOf(text); if (!shapes.has(mask) && shapes.size < SAMPLE_LIMIT) shapes.set(mask, { mask, length: lengthBucket(text.length) }); }
       else if (values.length < SAMPLE_LIMIT) values.push(kind ? { masked: kind, mask: maskOf(text) } : text);
-      if ((send === 'shape' || type === 'money' ? shapes.size : values.length) >= SAMPLE_LIMIT) break;
+      if ((send === 'shape' || numeric ? shapes.size : values.length) >= SAMPLE_LIMIT) break;
     }
     if (!seen.size) { fields[name] = { state: 'absent', type }; continue; }
     fields[name] = send === 'shape' ? { state: 'shape', type, shapes: [...shapes.values()] }
-      : type === 'money' ? { state: 'shape', type, shapes: [...shapes.values()], reason: 'Amounts come only from a calculation with its receipt.' } : { state: 'samples', type, values };
+      : values.length === 0 ? { state: 'shape', type, shapes: [...shapes.values()], reason: 'Numbers come only from a calculation with its receipt.' }
+      : { state: 'samples', type, values, ...(shapes.size ? { shapes: [...shapes.values()] } : {}) };
   }
   return { state: 'published' as const, layer: 'samples' as const, send, version: dictionary.version, hash: dictionary.hash, fields };
 }

@@ -35,10 +35,12 @@ const text = (value: unknown, message: string) => { check(typeof value === 'stri
 const accountClass = (value: unknown) => oneOf(value, ACCOUNT_CLASSES, 'INVALID_CLASS', 'Choose a class from the chart-of-accounts list.');
 const unique = (values: string[], message: string) => check(new Set(values).size === values.length, 'INVALID_REQUEST', message);
 
+/** Account names are books data: the author, and members who prepare or decide (owner, co-founder, accountant), within source access. */
+const setVisible = (state: State, ctx: Context, set: ProposalSet) => (set.memberId === ctx.memberId || ctx.role !== 'viewer') && canSee(state, ctx, set.sourceIds);
 function visibleSet(state: State, ctx: Context, setId: unknown): ProposalSet {
   const id = plainId(setId, 'Name the proposal set.');
   const set = peekArea<AccountsArea>(state, 'accounts')?.sets.find(item => item.id === id);
-  check(set && canSee(state, ctx, set.sourceIds), 'NOT_FOUND', 'That proposal set is not available.');
+  check(set && setVisible(state, ctx, set), 'NOT_FOUND', 'That proposal set is not available.');
   return set;
 }
 function view(set: ProposalSet) {
@@ -99,6 +101,8 @@ function decide(state: State, ctx: Context, payload: Record<string, unknown>) {
     const decision = record(item, ['accountId', 'choice'], ['accountClass'], 'Each decision names an account, a choice and, for a correction, a class.');
     const proposal = set.proposals.find(p => p.accountId === plainId(decision.accountId));
     check(proposal, 'NOT_FOUND', 'A decision names an account that is not in this proposal set.');
+    const earlier = set.decisions[proposal.accountId];
+    check(!earlier || earlier.memberId === ctx.memberId || ctx.role === 'owner', 'ALREADY_DECIDED', 'Another person decided this account. Only they or the owner can change it.');
     const choice = oneOf(decision.choice, ['accepted', 'corrected', 'rejected'] as const);
     let chosen: AccountClass | null = null;
     if (choice === 'accepted') {
@@ -166,7 +170,7 @@ function classes(state: State, ctx: Context, payload: Record<string, unknown>) {
 function labelDataset(state: State, ctx: Context, payload: Record<string, unknown>) {
   current(state, ctx, 'admin');
   record(payload, [], ['setId']);
-  const sets = payload.setId === undefined ? (peekArea<AccountsArea>(state, 'accounts')?.sets ?? []).filter(set => canSee(state, ctx, set.sourceIds)) : [visibleSet(state, ctx, payload.setId)];
+  const sets = payload.setId === undefined ? (peekArea<AccountsArea>(state, 'accounts')?.sets ?? []).filter(set => setVisible(state, ctx, set)) : [visibleSet(state, ctx, payload.setId)];
   const lines: string[] = [];
   for (const set of sets) for (const p of set.proposals) {
     const decision = set.decisions[p.accountId];
@@ -187,7 +191,7 @@ export const accountsMethods: Record<string, MethodSpec> = {
   'learningx.accountsList': {
     permission: 'read', handler: (ctx, payload, host) => {
       const state = host.store.read(); current(state, ctx); record(payload, []);
-      return { sets: (peekArea<AccountsArea>(state, 'accounts')?.sets ?? []).filter(set => canSee(state, ctx, set.sourceIds)).map(view) };
+      return { sets: (peekArea<AccountsArea>(state, 'accounts')?.sets ?? []).filter(set => setVisible(state, ctx, set)).map(view) };
     },
   },
   'learningx.accountsDecide': { permission: 'prepare', handler: (ctx, payload, host) => host.store.update(state => decide(state, ctx, payload)) },
@@ -197,11 +201,12 @@ export const accountsMethods: Record<string, MethodSpec> = {
 };
 
 /** Remove proposal sets holding an account from a removed source, or removed by identifier. */
-export function purgeAccounts(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string> }): number {
+export function purgeAccounts(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; collect?: Set<string> }): number {
   const chart = peekArea<AccountsArea>(state, 'accounts');
   if (!chart) return 0;
   const before = chart.sets.length;
   const kept = chart.sets.filter(set => !reason.removedIds.has(set.id) && !set.sourceIds.some(id => reason.sourceIds.includes(id) || reason.removedIds.has(id)));
+  for (const set of chart.sets) if (!kept.includes(set)) reason.collect?.add(set.id);
   chart.sets.splice(0, chart.sets.length, ...kept);
   return before - kept.length;
 }

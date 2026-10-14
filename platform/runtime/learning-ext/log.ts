@@ -10,7 +10,7 @@ import { assertSourceAccess } from '../trust.ts';
 import { assertLearningDecisionRecord } from '../learning.ts';
 import { area, canSee, peekArea, ids, limitOf, oneOf } from './state.ts';
 import { structuralEvent } from './structure.ts';
-import { DECISION_KINDS, type StructuralEvent } from './vocabulary.ts';
+import { DECISION_KINDS, REPORT_SHAPES, type StructuralEvent } from './vocabulary.ts';
 
 export type LogEntry = {
   id: string; at: string; memberId: string; role: Context['role']; epoch: number;
@@ -20,7 +20,7 @@ export type LogView = { id: string; at: string; origin: 'lane' | 'import'; event
 export type DecisionRecord = { event: unknown; sourceIds?: unknown; refs?: unknown };
 
 export const logOf = (state: State) => area<LogEntry[]>(state, 'log', () => []);
-const LOG_LIMIT = 50_000;
+const LOG_LIMIT = 50_000, MEMBER_LIMIT = 20_000;
 
 /** Append inside the caller's transaction, so a decision commits with the change it describes. */
 export function recordDecision(state: State, ctx: Context, input: DecisionRecord): LogEntry {
@@ -28,7 +28,12 @@ export function recordDecision(state: State, ctx: Context, input: DecisionRecord
   const event = structuralEvent(input.event), sourceIds = ids(input.sourceIds, 'source identifiers'), refs = ids(input.refs, 'references');
   assertSourceAccess(state, ctx, sourceIds);
   const log = logOf(state);
-  check(log.length < LOG_LIMIT, 'LEARNING_LOG_FULL', 'The local decision log is full. Share or clear older decisions first.');
+  // A bounded ring: decisions past retention go first, then the author's own oldest past their quota, then the oldest overall.
+  const cutoff = Date.now() - state.policy.retentionDays * 86_400_000;
+  if (log.some(entry => Date.parse(entry.at) < cutoff)) log.splice(0, log.length, ...log.filter(entry => Date.parse(entry.at) >= cutoff));
+  const own = log.filter(entry => entry.memberId === ctx.memberId);
+  if (own.length >= MEMBER_LIMIT) log.splice(log.indexOf(own[0]), 1);
+  if (log.length >= LOG_LIMIT) log.splice(0, log.length - LOG_LIMIT + 1);
   const record = { id: newId('decision'), at: now(), memberId: ctx.memberId, role: ctx.role, epoch: ctx.epoch, sourceIds, refs, event };
   const entry: LogEntry = { ...record, integrity: digest(record) };
   log.push(entry); audit(state, 'learningx.logged', { id: entry.id, kind: event.kind, choice: event.choice });
@@ -52,12 +57,16 @@ export function coreDecisions(state: State, ctx: Context): LogView[] {
     try { assertLearningDecisionRecord(record); } catch { continue; }
     if (record.memberId !== ctx.memberId && ctx.role !== 'owner' || !canSee(state, ctx, record.sourceIds)) continue;
     const input = record.input;
-    const event = structuralEvent({
-      kind: input.kind === 'customer-match' ? 'identity' : input.kind, choice: input.choice,
-      ...(typeof input.reasonCode === 'string' && coreReasons[input.reasonCode] ? { reason: coreReasons[input.reasonCode] } : {}),
-      ...(input.reportShape ? { shape: input.reportShape } : {}),
-      ...(Array.isArray(input.fields) ? { fields: input.fields } : {}),
-    });
+    let event: StructuralEvent;
+    // The engine keeps its raw input; anything outside the vocabulary is left out, and a bad record never breaks the log.
+    try {
+      event = structuralEvent({
+        kind: input.kind === 'customer-match' ? 'identity' : input.kind, choice: input.choice,
+        ...(typeof input.reasonCode === 'string' && Object.hasOwn(coreReasons, input.reasonCode) ? { reason: coreReasons[input.reasonCode] } : {}),
+        ...((REPORT_SHAPES as readonly unknown[]).includes(input.reportShape) ? { shape: input.reportShape } : {}),
+        ...(Array.isArray(input.fields) ? { fields: input.fields } : {}),
+      });
+    } catch { continue; }
     views.push({ id: record.id, at: record.at, origin: 'import', event, sourceIds: [...record.sourceIds], refs: record.importIdentity ? [record.importIdentity.id] : [] });
   }
   return views;

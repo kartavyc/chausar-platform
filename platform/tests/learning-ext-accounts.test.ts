@@ -54,8 +54,8 @@ test('rules propose a class, a confidence and evidence; parent groups outweigh n
   assert.equal(byId(set, 'L35').needsQuestion, true, 'a broad group without an agreeing name asks');
   assert.deepEqual(set.counts, { total: 42, decided: 0, needsQuestion: set.proposals.filter((p: any) => p.needsQuestion).length });
   assert.equal(logOf(store.read()).length, 0, 'proposing logs nothing; only decisions are logged');
-  const listed = await call(store, viewer, 'learningx.accountsList');
-  assert.equal(listed.sets.length, 1);
+  assert.equal((await call(store, viewer, 'learningx.accountsList')).sets.length, 0, 'account names stay with members who prepare or decide');
+  assert.equal((await call(store, owner, 'learningx.accountsList')).sets.length, 1);
 });
 
 test('the demo shop scores with no wrong class accepted without a question', async () => {

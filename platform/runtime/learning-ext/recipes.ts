@@ -73,6 +73,8 @@ export function constrainRecipe(input: unknown, context: { dictionary?: Record<s
     || !Array.isArray(recipe.allowedStatuses) || !recipe.allowedStatuses.every(status => typeof status === 'string' && status.length <= 64) || !['report', 'reject'].includes(recipe.onUnmapped)) issues.push({ path: 'assertions', code: 'MISSING_ASSERTIONS' });
   if (recipe.ignoredFields !== undefined && !(Array.isArray(recipe.ignoredFields) && recipe.ignoredFields.every(field => shortText(field)))) issues.push({ path: 'ignoredFields', code: 'INVALID_RECIPE' });
   if (recipe.tallyLedgerClasses !== undefined && !(plain(recipe.tallyLedgerClasses) && Object.values(recipe.tallyLedgerClasses).every(value => ['sales', 'purchase', 'bank', 'tax', 'other'].includes(value as string)))) issues.push({ path: 'tallyLedgerClasses', code: 'INVALID_RECIPE' });
+  const layoutKeys = ['idField', 'dateField', 'descriptionField', 'debitField', 'creditField', 'balanceField'] as const;
+  if (recipe.bankLayout !== undefined && !(plain(recipe.bankLayout) && layoutKeys.every(key => shortText((recipe.bankLayout as any)[key])))) return refuse('bankLayout', 'INVALID_RECIPE');
   if (sources && recipe.bankLayout !== undefined) for (const key of ['idField', 'dateField', 'descriptionField', 'debitField', 'creditField', 'balanceField'] as const) if (!sources.has(recipe.bankLayout[key])) issues.push({ path: `bankLayout.${key}`, code: 'SOURCE_FIELD_ABSENT' });
   return { valid: issues.length === 0, recipe, issues, removed, missingTargets };
 }
@@ -90,7 +92,7 @@ export function library(state: State, ctx: Context): LibraryEntry[] {
 }
 function recipeFields(recipe: MappingRecipe): string[] {
   const layout = recipe.bankLayout ? [recipe.bankLayout.idField, recipe.bankLayout.dateField, recipe.bankLayout.descriptionField, recipe.bankLayout.debitField, recipe.bankLayout.creditField, recipe.bankLayout.balanceField] : [];
-  return [...new Set([...recipe.bindings.map(binding => binding.source).filter((field): field is string => typeof field === 'string'), ...(recipe.ignoredFields ?? []), ...layout])];
+  return [...new Set([...recipe.bindings.map(binding => binding.source), ...(recipe.ignoredFields ?? []), ...layout].filter((field): field is string => typeof field === 'string'))];
 }
 
 export type LookupRequest = { fields: string[]; system?: string; limit: number };

@@ -37,6 +37,7 @@ const sharing = (state: State) => area<Sharing>(state, 'sharing', () => ({ previ
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
 const token = () => randomBytes(32).toString('base64url');
 const appOnly = (ctx: Context) => check(!ctx.sourceTainted && ctx.channel !== 'phone' && ctx.channel !== 'mcp', 'APP_CONSENT_REQUIRED', 'Sharing is decided inside the app.');
+const OUTBOX_LIMIT = 20, PREVIEW_LIMIT = 50;
 const PUBLIC_NAME = /^[A-Za-z][A-Za-z .'-]{0,38}[A-Za-z.]$/;
 
 /** Which boxes a decision belongs in. Calculations are question shapes, a closed box. */
@@ -194,7 +195,7 @@ export const sharingMethods: Record<string, MethodSpec> = {
     check(built.decisions.length > 0, 'NOTHING_TO_SHARE', 'No new decisions are waiting in the chosen boxes.');
     const preview: Preview = { id: newId('sharepreview'), at: now(), memberId: ctx.memberId, epoch: ctx.epoch, boxes, decisionIds: built.decisions.map(item => item.id),
       sourceIds: [...new Set(built.decisions.flatMap(item => item.sourceIds))].sort(), digest: built.digest, size: built.size, count: built.decisions.length, blocked: built.blocked };
-    sharing(state).previews.push(preview); audit(state, 'learningx.previewed', { previewId: preview.id, digest: preview.digest });
+    const previews = sharing(state).previews; previews.push(preview); if (previews.length > PREVIEW_LIMIT) previews.splice(0, previews.length - PREVIEW_LIMIT); audit(state, 'learningx.previewed', { previewId: preview.id, digest: preview.digest });
     return { ...structuredClone(preview), bytes: built.bytes, names: 0, amounts: 0, status: intakeStatus(state, host) };
   }) },
   'learningx.consent': { permission: 'admin', handler: (ctx, payload, host) => host.store.update(state => {
@@ -205,7 +206,11 @@ export const sharingMethods: Record<string, MethodSpec> = {
     reproduce(state, ctx, preview);
     const record = { id: newId('shareconsent'), at: now(), previewId: preview.id, digest: preview.digest, memberId: ctx.memberId, role: ctx.role, epoch: ctx.epoch };
     const consent: Consent = { ...record, integrity: digest(record) };
-    sharing(state).consents.push(consent); audit(state, 'learningx.consented', { consentId: consent.id, digest: consent.digest });
+    const area = sharing(state), used = new Set(area.batches.map(batch => batch.consentId));
+    area.consents.push(consent);
+    // Consents behind a batch are kept as its record; unused ones beyond the bound are dropped oldest first.
+    while (area.consents.filter(item => !used.has(item.id)).length > PREVIEW_LIMIT) area.consents.splice(area.consents.findIndex(item => !used.has(item.id)), 1);
+    audit(state, 'learningx.consented', { consentId: consent.id, digest: consent.digest });
     return structuredClone(consent);
   }) },
   'learningx.submit': { permission: 'admin', handler: async (ctx, payload, host) => {
@@ -293,7 +298,7 @@ export const sharingMethods: Record<string, MethodSpec> = {
     check(payload.label === undefined || typeof payload.label === 'string' && payload.label.length <= 120, 'INVALID_REQUEST', 'A sample label is short text.');
     const area = sharing(state), result = cleanSample(payload.content, area.salt);
     const sample: Sample = { id: newId('sample'), at: now(), memberId: ctx.memberId, label: (payload.label as string | undefined) ?? 'Sample', ...result };
-    area.outbox.push(sample); audit(state, 'learningx.sample-cleaned', { sampleId: sample.id, status: sample.status });
+    area.outbox.push(sample); if (area.outbox.length > OUTBOX_LIMIT) area.outbox.splice(0, area.outbox.length - OUTBOX_LIMIT); audit(state, 'learningx.sample-cleaned', { sampleId: sample.id, status: sample.status });
     return { ...structuredClone(sample), upload: 'Uploading samples waits until the receiving service has been reviewed. Nothing is uploaded.' };
   }) },
   'learningx.outbox': { permission: 'read', handler: (ctx, _payload, host) => {

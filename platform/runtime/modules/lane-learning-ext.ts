@@ -11,7 +11,10 @@ export const learningExtModule: EngineModule = {
   id: 'learning-ext',
   methods: { ...logMethods, ...sharingMethods, ...recipeMethods, ...accountsMethods, ...dictionaryMethods },
   purge(state, reason) {
-    return purgeLog(state, reason) + purgeSharing(state, reason) + purgeRecipes(state, reason) + purgeAccounts(state, reason) + purgeDictionary(state, reason);
+    // Decisions that point at a purged account set, proposal or edit go with it.
+    const collect = new Set<string>(reason.removedIds);
+    const derived = purgeAccounts(state, { ...reason, collect }) + purgeDictionary(state, { ...reason, collect });
+    return derived + purgeLog(state, { ...reason, removedIds: collect }) + purgeSharing(state, reason) + purgeRecipes(state, reason);
   },
   tick: (ctx, host, scheduler) => dictionaryTick(ctx, host, scheduler),
 };

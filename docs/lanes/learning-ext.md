@@ -58,7 +58,7 @@ Every method is in `platform/runtime/modules/lane-learning-ext.ts`, listed in `a
 | `learningx.editsPropose`, `learningx.edits` | prepare / read | Typed edits gated by the answer key. |
 | `learningx.editApprove`, `learningx.editReject` | admin, owner, app only | The owner decides each edit; publishing goes through `ontology.publish`. |
 
-Refusal codes a screen can tell apart (on the lane's line of `laneRefusals` in `app/desktop/preload.cjs`): SHARING_DISABLED, BOX_NOT_OPEN, NOTHING_TO_SHARE, PREVIEW_CHANGED, SHARING_BLOCKED, CONSENT_REQUIRED, BATCH_ALREADY_ATTEMPTED, INTAKE_NOT_OPEN, DELETE_UNKNOWN, APP_CONSENT_REQUIRED, NO_LIBRARY_MATCH, RECIPE_GRAMMAR, ANSWER_KEY_FAILED, EDIT_STALE, APP_APPROVAL_REQUIRED, DICTIONARY_REQUIRED.
+Refusal codes a screen can tell apart (on the lane's line of `laneRefusals` in `app/desktop/preload.cjs`): SHARING_DISABLED, BOX_NOT_OPEN, NOTHING_TO_SHARE, PREVIEW_CHANGED, SHARING_BLOCKED, CONSENT_REQUIRED, BATCH_ALREADY_ATTEMPTED, INTAKE_NOT_OPEN, DELETE_UNKNOWN, APP_CONSENT_REQUIRED, NO_LIBRARY_MATCH, RECIPE_GRAMMAR, ANSWER_KEY_FAILED, EDIT_STALE, APP_APPROVAL_REQUIRED, DICTIONARY_REQUIRED, PROPOSAL_STALE, ALREADY_DECIDED, EDITS_PENDING, OWNER_REQUIRED.
 
 Trusted host options (`modules['learning-ext']`, never an RPC payload): `intake: { url, transport?, timeoutMs? }` opens production sharing; the URL must be HTTPS, or loopback for local runs. `founderSwitch: true` shows the two closed boxes, which still refuse.
 
