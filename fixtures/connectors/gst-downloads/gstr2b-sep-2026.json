@@ -1,0 +1,183 @@
+{
+  "chksum": "synthetic",
+  "data": {
+    "gstin": "27AAPFD1234C1ZS",
+    "rtnprd": "092026",
+    "version": "1.0",
+    "gendt": "14-10-2026",
+    "docdata": {
+      "b2b": [
+        {
+          "ctin": "29ABCDE1234F1ZW",
+          "trdnm": "Sahyadri Packaging",
+          "supfildt": "11-10-2026",
+          "supprd": "092026",
+          "inv": [
+            {
+              "inum": "SP/0012",
+              "typ": "R",
+              "dt": "02-09-2026",
+              "val": 11800.00,
+              "pos": "27",
+              "rev": "N",
+              "itcavl": "Y",
+              "rsn": "",
+              "diffprcnt": 1,
+              "srctyp": "e-Invoice",
+              "txval": 10000.00,
+              "igst": 1800.00,
+              "cgst": 0,
+              "sgst": 0,
+              "cess": 0
+            },
+            {
+              "inum": "SP/0013",
+              "typ": "R",
+              "dt": "12-09-2026",
+              "val": 5900.00,
+              "pos": "27",
+              "rev": "N",
+              "itcavl": "Y",
+              "rsn": "",
+              "diffprcnt": 1,
+              "srctyp": "e-Invoice",
+              "txval": 5000.00,
+              "igst": 900.00,
+              "cgst": 0,
+              "sgst": 0,
+              "cess": 0
+            }
+          ]
+        },
+        {
+          "ctin": "27PQRSX5678K1ZY",
+          "trdnm": "Konkan Steel Traders",
+          "supfildt": "10-10-2026",
+          "supprd": "092026",
+          "inv": [
+            {
+              "inum": "KST-101",
+              "typ": "R",
+              "dt": "05-09-2026",
+              "val": 23600.00,
+              "pos": "27",
+              "rev": "N",
+              "itcavl": "Y",
+              "rsn": "",
+              "diffprcnt": 1,
+              "srctyp": "e-Invoice",
+              "txval": 20000.00,
+              "igst": 0,
+              "cgst": 1800.00,
+              "sgst": 1800.00,
+              "cess": 0
+            },
+            {
+              "inum": "KST-102",
+              "typ": "R",
+              "dt": "18-09-2026",
+              "val": 4720.00,
+              "pos": "27",
+              "rev": "N",
+              "itcavl": "N",
+              "rsn": "P",
+              "diffprcnt": 1,
+              "srctyp": "e-Invoice",
+              "txval": 4000.00,
+              "igst": 0,
+              "cgst": 360.00,
+              "sgst": 360.00,
+              "cess": 0
+            }
+          ]
+        },
+        {
+          "ctin": "24LMNOP4321Q1ZA",
+          "trdnm": "Gir Logistics",
+          "supfildt": "09-10-2026",
+          "supprd": "092026",
+          "inv": [
+            {
+              "inum": "0045",
+              "typ": "R",
+              "dt": "21-09-2026",
+              "val": 1180.00,
+              "pos": "27",
+              "rev": "N",
+              "itcavl": "Y",
+              "rsn": "",
+              "diffprcnt": 1,
+              "srctyp": "e-Invoice",
+              "txval": 1000.00,
+              "igst": 180.00,
+              "cgst": 0,
+              "sgst": 0,
+              "cess": 0
+            }
+          ]
+        }
+      ],
+      "cdnr": [
+        {
+          "ctin": "29ABCDE1234F1ZW",
+          "trdnm": "Sahyadri Packaging",
+          "supfildt": "11-10-2026",
+          "supprd": "092026",
+          "nt": [
+            {
+              "ntnum": "SP-CN-3",
+              "typ": "C",
+              "suptyp": "R",
+              "dt": "25-09-2026",
+              "val": 590.00,
+              "pos": "27",
+              "rev": "N",
+              "itcavl": "Y",
+              "rsn": "",
+              "txval": 500.00,
+              "igst": 90.00,
+              "cgst": 0,
+              "sgst": 0,
+              "cess": 0
+            }
+          ]
+        }
+      ]
+    },
+    "itcsumm": {
+      "itcavl": {
+        "nonrevsup": {
+          "igst": 2790.00,
+          "cgst": 1800.00,
+          "sgst": 1800.00,
+          "cess": 0,
+          "b2b": {
+            "txval": 36000.00,
+            "igst": 2880.00,
+            "cgst": 1800.00,
+            "sgst": 1800.00,
+            "cess": 0
+          },
+          "cdnr": {
+            "txval": -500.00,
+            "igst": -90.00,
+            "cgst": 0,
+            "sgst": 0,
+            "cess": 0
+          }
+        }
+      },
+      "itcunavl": {
+        "nonrevsup": {
+          "b2b": {
+            "txval": 4000.00,
+            "igst": 0,
+            "cgst": 360.00,
+            "sgst": 360.00,
+            "cess": 0
+          }
+        }
+      }
+    }
+  }
+}
