@@ -92,3 +92,12 @@ test('the bundled database status needs the installed runtime', async t => {
   const { engine } = await fixture(t);
   await assert.rejects(engine.request('native.databaseStatus'), code('DATABASE_RUNTIME_UNAVAILABLE'));
 });
+
+test('the bundled database status reports a missing runtime as a state, not a crash', async t => {
+  const resources = await mkdtemp(join(tmpdir(), 'chausar-release-resources-'));
+  t.after(() => rm(resources, { recursive: true, force: true }));
+  const { engine } = await fixture(t, { resourcesPath: resources });
+  const status = await engine.request('native.databaseStatus');
+  assert.ok(['absent', 'unavailable'].includes(status.state), status.state);
+  assert.equal(status.port, null);
+});
