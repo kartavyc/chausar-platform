@@ -42,6 +42,12 @@ export interface EngineModule {
   readonly methods: Readonly<Record<string, MethodSpec>>;
   /** Remove module state derived from the named sources or records. Return the number removed. */
   purge?(state: State, reason: { sourceIds: readonly string[]; removedIds: ReadonlySet<string>; at: string }): number;
+  /**
+   * Trusted host options built at engine start when the embedding host passed none for this
+   * module (`EngineOptions.modules[id]`). Read only trusted inputs: the engine's directory, demo
+   * flag and the engine process environment. Never read workspace or request data here.
+   */
+  hostOptions?(input: { readonly directory: string; readonly demo: boolean; readonly env: Readonly<Record<string, string | undefined>> }): Readonly<Record<string, unknown>>;
   /** Optional scheduled work for an owner context; runs only while autonomy is on. */
   tick?(ctx: Context, host: ModuleHost, scheduler: SchedulerHost): Promise<unknown[]>;
 }
