@@ -123,9 +123,12 @@ test('one sentence is refused as not built without jobsx, and passes through whe
   const f = fixture();
   await assert.rejects(f.request(owner, 'approvals.proposeJob', { sentence: 'Tell me every Monday who owes me money.' }), code('PROPOSAL_FROM_SENTENCE_NOT_BUILT'));
   await assert.rejects(f.request(owner, 'approvals.proposeJob', { sentence: 'Tell me every Monday.', templateId: 'daily-brief' }), code('INVALID_JOB_PROPOSAL'));
-  const g = fixture({ propose: payload => (payload.sentence ? { id: 'job_from_sentence' } : (() => { throw new ChausarError('INVALID_REQUEST', 'Say the job.'); })()) });
+  // jobsx.propose returns a Proposal (platform/runtime/jobs-ext/proposals.ts proposeCard), a card waiting for jobsx.approveProposal.
+  const proposal = { id: 'jobsx_proposal_1', createdAt: '2026-10-14T05:00:00.000Z', createdBy: 'owner', origin: 'person', template: 'receivables-week', sentence: 'Tell me every Monday who owes me money.',
+    card: { template: 'receivables-week', title: 'Chase unpaid invoices for a week' }, digest: 'd'.repeat(64), status: 'proposed', evidence: [], sourceIds: [] };
+  const g = fixture({ propose: payload => (payload.sentence ? proposal : (() => { throw new ChausarError('INVALID_REQUEST', 'Say the job.'); })()) });
   assert.deepEqual((await g.request(owner, 'approvals.jobTemplates')).fromSentence, { available: true });
-  assert.deepEqual(await g.request(owner, 'approvals.proposeJob', { sentence: '  Tell me every Monday who owes me money.  ' }), { id: 'job:job_from_sentence' });
+  assert.deepEqual(await g.request(owner, 'approvals.proposeJob', { sentence: '  Tell me every Monday who owes me money.  ' }), { id: 'job:jobsx_proposal_1', proposal: { id: 'jobsx_proposal_1', digest: 'd'.repeat(64) } });
   assert.deepEqual(g.calls.filter(c => c.method === 'jobsx.propose').at(-1)!.payload, { sentence: 'Tell me every Monday who owes me money.' });
 });
 

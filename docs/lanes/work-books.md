@@ -84,7 +84,7 @@ ApprovalDetail = ApprovalRow & {
 | `approvals.jobs` | read | `{}` | `{ items: JobRow[]; active: number; limit: 10; proposals: { available: boolean } }` |
 | `approvals.job` | read | `{ id }` | `JobCard & { timeline: JobStep[]; result: JobResult \| null; meters?: JobMeters }` (WK-08 budget meters; see below) |
 | `approvals.jobTemplates` | read | `{}` | `{ templates: JobTemplate[]; fromSentence: { available: boolean } }`. Fixed ready-made jobs over the core read-only `owner-brief` type (daily, weekly, month-end brief). `fromSentence` says whether `jobsx.propose` is installed. |
-| `approvals.proposeJob` | approve | `{ templateId, budgetMinor?: string, maxRuns?: 1..366, missedRun?: 'skip' \| 'run-once-on-wake' }` or `{ sentence: string }` | `{ id: 'job:<jobId>' }`, the queue id of a new job waiting for approval. The template path calls core `jobs.create` with `type: 'owner-brief'`, `reserveMinor = budgetMinor`, `stopRule { maxRuns, deadline: now + days }`, the interval of `every` (a month is 30 days), `catchup` `skip` or `latest`, and `requiresApproval: true`. `budgetMinor` is integer paise, more than zero and at most ten times the template budget (`INVALID_BUDGET`). A sentence passes through to `jobsx.propose`, or refuses `PROPOSAL_FROM_SENTENCE_NOT_BUILT`. Core job creation needs an owner or cofounder: an accountant or viewer is refused `FORBIDDEN`. |
+| `approvals.proposeJob` | approve | `{ templateId, budgetMinor?: string, maxRuns?: 1..366, missedRun?: 'skip' \| 'run-once-on-wake' }` or `{ sentence: string }` | `{ id: 'job:<jobId>' }`, the queue id of a new job waiting for approval. The template path calls core `jobs.create` with `type: 'owner-brief'`, `reserveMinor = budgetMinor`, `stopRule { maxRuns, deadline: now + days }`, the interval of `every` (a month is 30 days), `catchup` `skip` or `latest`, and `requiresApproval: true`. `budgetMinor` is integer paise, more than zero and at most ten times the template budget (`INVALID_BUDGET`). A sentence passes through to `jobsx.propose { sentence }` when it is installed (no probe), or refuses `PROPOSAL_FROM_SENTENCE_NOT_BUILT`; jobs-ext replies a proposal, so the reply adds `proposal: { id, digest }` (see Still missing). Core job creation needs an owner or cofounder: an accountant or viewer is refused `FORBIDDEN`. |
 
 ```
 ActionView = { id; system; action; title; touches: string | null; amount: Amount | null;
@@ -178,29 +178,61 @@ measure: { name: string; goal: Amount; goalReceiptId: string | null;
   points: { at: string; value: Amount; receiptId: string }[] } | null          // WK-08
 schedule: { kind: 'interval'; everyDays: number | null; everyMs: number }
         | { kind: 'calendar'; rule: 'month-end' | 'calendar'; at: string | null; timeZone: string; paused: boolean }
-missedRun: 'skip' | 'run-once-on-wake'   // replaces the card's value: a calendar keeps its own rule
+missedRun: 'skip' | 'run-once-on-wake'   // replaces the card's value: a calendar keeps its own rule; jobs-ext 'all' reads 'run-once-on-wake' here
+missedRule: { rule: 'skip' | 'run-once-on-wake' | 'run-all'; choices: (same)[];
+              runAll: 'offered' | 'unsuitable' | 'not-built' }   // WK-11; 'run-all' only through jobs-ext
 manage: { edit: 'jobsx' | 'core' | 'not-built'; delete: 'jobsx' | 'cancel';
           missedRule: 'jobsx' | 'core' | 'not-built'; personStep: 'jobsx' | 'not-built' }
+jobsx: { title: string | null; state: string | null; reason: string | null;
+         steps: { kind; title; needsModel: boolean }[];                  // the ready-made card's steps
+         questions: { id; prompt; options: string[]; askedAt: string | null }[];
+         missed: { text; at } | null; leftUndone: string[] } | null       // null for a core job
+meters, result                                                          // replaced for a lane job, see below
 ```
 
-- Person steps come from `jobsx.get { id }` (`steps[]` of `{ id, kind: 'person', what, who: { memberId, name? }, done,
-  doneAt?, doneBy?, at? }`) when jobs-ext is installed, or from a core plan step whose `kind` or `provider` is `person`
-  with `input { what, memberId?, who? }`; a ledger entry `{ event: 'person-step-done', stepId, by? }` reads as done.
-  Nothing in this lane marks a step done.
+**Lane jobs and core jobs.** jobs-ext (`claude/lane-jobs-ext`, `platform/runtime/jobs-ext/methods.ts`) runs its jobs as
+core jobs of type `jobsx-<template>` (its `isLaneJob`), and every `jobsx.*` job method refuses any other job. So a
+`jobsx.*` method is used only for a lane job and only when the method registry (or a trusted host's `hasMethod`) lists
+it; it is never probed. A core job (the ready-made briefs, the month-end calendar job) keeps the core-only paths even
+with jobs-ext installed.
+
+- For a lane job, `approvals.job` reads `jobsx.get { id }` (`{ ...view, facts: { goal, progress: { stepsDone,
+  stepsPerDelivery, casesOpen, casesClosed }, budget: budgetView, stops }, steps, waitingForYou, timeline, next,
+  missedRule: 'skip' | 'once' | 'all', leftUndone, ... }`) and `jobsx.result { id }` (a `LaneResult`; `NO_RESULT` reads
+  as none):
+  - person steps are the `waitingForYou` rows of kind `person-step` (`{ id, jobId, title, assignee, status: 'waiting',
+    createdAt }`); `assignee` is a member id. jobs-ext lists only waiting steps, and only the job's pinned owner may mark
+    one (`canDone`);
+  - the time line is jobs-ext's own (oldest first): `event` is its fixed text, `amount` its `costMinor`, `needsModel`,
+    `reason` its `code`;
+  - `meters` come from jobs-ext's measured `budgetView`: model spent and budget, the routes it used (`estimate` when a
+    route's basis is `estimate`), clock time from `clockMs`, exposure from `exposureMinor`;
+  - `result` is `jobsx.result`'s `done`, `open` and receipts (`receiptIds` and each figure's `receiptId`);
+  - `missedRule` maps `skip | once | all` to `skip | run-once-on-wake | run-all`. "Run every missed one" is offered only
+    when `facts.progress.stepsPerDelivery` is 1; for daily rounds it is `unsuitable` (jobs-ext refuses it
+    `MISSED_RULE_UNSUITABLE`).
+- For a core job, person steps come from a core plan step whose `kind` or `provider` is `person` with `input { what,
+  memberId?, who? }`; a ledger entry `{ event: 'person-step-done', stepId, by? }` reads as done. Nothing in this lane
+  marks a step done.
 - The measure's points are the calculation receipts the job names (its deliverable, its runs' evidence, its ledger
-  `receiptId`, and `jobsx.get` `measure.receiptIds`), read with `calculator.receipt` as the caller. A receipt that exists
-  but the caller cannot read is a point `{ missing: 'withheld' }`; an id that is not a calculation receipt is ignored.
-  The operation with the most points is the measure (or `jobsx.get` `measure.operation`). The goal is `jobsx.get`
-  `measure.goal` (with `goalReceiptId`) or the plan input's `measure.goalMinor`, else `{ missing: 'absent' }`. `null`
-  when no readable receipt is named. The screen draws the goal as a rule only when it has a receipt; otherwise it
-  writes it beside the chart.
+  `receiptId`, and for a lane job the `receiptIds` on its jobs-ext time line and in its delivered result), read with
+  `calculator.receipt` as the caller. A receipt that exists but the caller cannot read is a point `{ missing: 'withheld'
+  }`; an id that is not a calculation receipt is ignored. The operation with the most points is the measure. jobs-ext
+  declares no measure goal, so the goal is the plan input's `measure.goalMinor`, else `{ missing: 'absent' }`
+  (`goalReceiptId` is then null). `null` when no readable receipt is named. The screen draws the goal as a rule only
+  when it has a receipt; otherwise it writes it beside the chart.
+- `approvals.jobs` reads `jobsx.list` when installed (else `jobsx.proposals`): `proposals` becomes `{ available: true,
+  items: { id, title, origin, replacesJobId: string | null, evidence: string[], digest }[] }` (an edit has `origin:
+  'edit'` and names the job it replaces), and a lane job's row takes jobs-ext's label (`set-aside`, `stopped-by-rule`,
+  `result-waiting` → `awaiting-acceptance`, `waiting-for-you` / `waiting-network` → `waiting` with that reason). With
+  neither installed it stays `{ available: false }`.
 
 | Method | Permission | Payload | Reply |
 |---|---|---|---|
-| `approvals.personStepDone` | prepare | `{ jobId, stepId }` | `{ jobId, stepId, done }` (`done` is read back afterwards). Calls `jobsx.personStep.done { jobId, stepId }`; refuses `PERSON_STEP_NOT_BUILT` without it, `PERSON_STEP_ALREADY_DONE`, `PERSON_STEP_NOT_YOURS` (a named person's step; an owner or cofounder may mark any). |
-| `approvals.editJob` | approve | `{ id, config: { budgetMinor?, maxRuns?: 1..366, missedRun? } }` | `{ id: 'job:<id>', via: 'jobsx' \| 'core' }`. `jobsx.edit { id, config }` when installed; else, for a typed job only, core `jobs.amend` with the whole objective (and `jobs.calendar.configure` for a calendar's missed rule). A read-only brief refuses `JOB_EDIT_NOT_BUILT`. The change waits for a new approval. Bad fields: `INVALID_JOB_CHANGE`, `INVALID_BUDGET`, `STOP_RULE_REQUIRED`, `INVALID_SCHEDULE`. |
-| `approvals.deleteJob` | approve | `{ id }` | `{ id, state: 'deleted' \| 'cancelled', note: null \| 'cancel-keeps-record' }`. `jobsx.delete { id }` when installed; else core `jobs.cancel`: the job stops and its record is kept. |
-| `approvals.setMissedRule` | approve | `{ id, rule: 'skip' \| 'run-once-on-wake' }` | `{ id: 'job:<id>', missedRun, via }`. `jobsx.edit { id, config: { missedRun } }`; else a typed job's `jobs.amend` (`catchup`) or calendar revision (`missed` `skip` with 6 h grace, or `coalesce`); else `MISSED_RULE_NOT_BUILT`. |
+| `approvals.personStepDone` | approve | `{ jobId, stepId }` | `{ jobId, stepId, done, doneAt, doneBy }` from jobs-ext's step record (`doneBy` named). Calls `jobsx.personStep.done { id: stepId }` (approve, the job's pinned owner); refuses `PERSON_STEP_NOT_BUILT` for a core job or without it, `PERSON_STEP_ALREADY_DONE`, `PERSON_STEP_NOT_YOURS`, `INVALID_JOB_REPLY`. |
+| `approvals.editJob` | approve | `{ id, config: { budgetMinor?, maxRuns?: 1..366, missedRun?: 'skip' \| 'run-once-on-wake' \| 'run-all' } }` | Lane job: `jobsx.edit { id, changes: { budgetMinor?, reserveMinor?, missedRule? } }` proposes a new card (`reserveMinor` is lowered to the budget when it would exceed it) and replies `{ id: 'job:<id>', via: 'jobsx', waitsFor: 'proposal', proposal: { id, digest } }`: the job keeps its card until that proposal is approved, and the proposal is listed in `approvals.jobs`. `maxRuns` is not a jobs-ext card field: `JOB_EDIT_FIELD_NOT_BUILT`. Core: for a typed job only, `jobs.amend` with the whole objective (and `jobs.calendar.configure` for a calendar's missed rule), replying `{ id, via: 'core', waitsFor: 'approval', proposal: null }`; a read-only brief refuses `JOB_EDIT_NOT_BUILT`; `run-all` refuses `MISSED_RULE_NOT_BUILT`. Bad fields: `INVALID_JOB_CHANGE`, `INVALID_BUDGET`, `STOP_RULE_REQUIRED`, `INVALID_SCHEDULE`. |
+| `approvals.deleteJob` | approve | `{ id }` | `{ id, state: 'deleted' \| 'cancelled', note: null \| 'cancel-keeps-record' }`. Lane job: `jobsx.delete { id }` (jobs-ext's `jobs.remove`); otherwise core `jobs.cancel`: the job stops and its record is kept. |
+| `approvals.setMissedRule` | approve | `{ id, rule: 'skip' \| 'run-once-on-wake' \| 'run-all' }` | `{ id: 'job:<id>', missedRun, via, waitsForApproval }`. Lane job: `jobsx.setMissedRule { id, rule: 'skip' \| 'once' \| 'all' }`, applied at once (`waitsForApproval: false`); `MISSED_RULE_UNSUITABLE` passes through for daily rounds. Core: a typed job's `jobs.amend` (`catchup`) or calendar revision (`missed` `skip` with 6 h grace, or `coalesce`), waiting for a new approval; `run-all` and a read-only brief refuse `MISSED_RULE_NOT_BUILT`. |
 | `approvals.drivingStatus` | read | `{}` | `{ available: false, rules }`, or `{ available: true, rules, status: DrivingStatus, windows: { id, title, app }[] }` from `session.status` and `session.windows` |
 | `approvals.drivingStart` | approve | `{ windowId }` | the same from `session.start { windowId, mode: 'read-export', typesSecrets: false }`; refuses `SESSION_WINDOW_CHANGED` if the session reports another window |
 | `approvals.drivingContinue` | prepare | `{}` | the same from `session.resume` |
@@ -616,9 +648,17 @@ refusal-to-state mapping, the page frame and bilingual words. Every reply is che
   provides `session.*`; WK-16 Done needs `jobsx.personStep.done`.
 - WK-08: clock time is "not counted" until the core job ledger records durations, and
   effect exposure is "not counted" until a job names its actions (no core job does yet).
-  Core jobs declare no measure goal, so the goal is "absent" until jobs-ext sends one.
-  Without jobs-ext, Edit and the missed-run rule work only for typed jobs; a read-only brief
-  says not built, and Delete cancels it (the record is kept).
+  Neither core jobs nor jobs-ext declare a measure goal, so the goal is "absent" unless a
+  typed job's input names one. For a lane job, clock time and exposure come from jobs-ext.
+  For a core job (with or without jobs-ext), Edit and the missed-run rule work only for typed
+  jobs; a read-only brief says not built, and Delete cancels it (the record is kept).
+- jobs-ext's questions (`jobsx.answer`), proposal approval (`jobsx.approveProposal`) and
+  result acceptance with its reference (`jobsx.accept`) are shown or listed here but not
+  answered or approved from Work: the job sheet still uses core `jobs.approve`/`jobs.accept`.
+- One sentence: `jobsx.propose` replies a proposal, not a job. `approvals.proposeJob` adds
+  `proposal: { id, digest }`, but its `id` is still `job:<proposal id>` (the Start sheet's
+  reply check needs `job:`), so opening it from the Start sheet finds no job until that sheet
+  reads `proposal` (contract.ts and StartJob.tsx).
 - Month-end on the calendar needs an engine started with a typed job runner and calendar
   rules (`durableJobs`, `jobCalendar`). Where the engine has none, only "every 30 days, not
   month-end" is offered, as the person's own choice. On the calendar the month-end job works

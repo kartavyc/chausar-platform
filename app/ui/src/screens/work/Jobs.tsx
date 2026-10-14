@@ -2,7 +2,9 @@
  * Jobs (WK-07): what runs on its own, proposed jobs first. A job (WK-08) opens to its four
  * facts, its card (WK-09, with the missed-run rule of WK-11), its time line with the cost
  * of each step, and its result (WK-10): Accept, or Send back with a sentence. Changes go
- * through the core jobs.* methods.
+ * through the core jobs.* methods. For a job run by job extensions, the sheet also shows its
+ * ready-made steps (each marked whether it needs an AI model), its open questions and its
+ * missed-run note; proposed jobs from job extensions (an edit among them) are listed first.
  */
 import { useState, type FormEvent } from 'react';
 import type { RowItem } from '../../app/presentation.ts';
@@ -13,7 +15,7 @@ import { RowList } from '../../parts/RowList';
 import { useAct, useReply } from './kit/reply.ts';
 import { amountText, dayTime } from './kit/format.ts';
 import { Actions, Button, Note, Refusal, pageStyles } from './kit/Page';
-import { accepted, jobs, type JobMeters, type JobRow } from './contract.ts';
+import { accepted, type JobMeters, type JobRow } from './contract.ts';
 import { StartJobSheet } from './StartJob.tsx';
 import type { Language } from '../../app/presentation.ts';
 import type { WorkWords } from './text.ts';
@@ -21,8 +23,8 @@ import { missingWord } from './kit/words.ts';
 import { JobCardView, jobFacts } from './JobCard.tsx';
 import { useSheet } from './Actions.tsx';
 import { Frame, money, say, type WorkProps } from './shared.tsx';
-import { isPersonStep, jobSheet } from './contract-jobs.ts';
-import { jobWords } from './text-jobs.ts';
+import { isPersonStep, jobSheet, jobsWithProposals, type LaneJob, type LaneProposal } from './contract-jobs.ts';
+import { jobWords, sayJob, type JobWords } from './text-jobs.ts';
 import { JobManage, PersonStepRow } from './JobManage.tsx';
 import { MeasureChart } from './parts/MeasureChart.tsx';
 import s from './work.module.css';
@@ -46,7 +48,56 @@ export function meterPairs(m: JobMeters, w: WorkWords, language: Language): Pair
   ];
 }
 
-function JobSheet({ p, row, id, origin, onClose, onChanged }: { p: WorkProps; row: JobRow | undefined; id: string; origin: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
+/** What job extensions adds for a job it runs: its ready-made steps, its open questions, its missed-run note. */
+function LaneParts({ lane, w, j, language }: { lane: LaneJob; w: WorkWords; j: JobWords; language: Language }) {
+  return (
+    <>
+      {lane.missed !== null && <Note>{`${lane.missed.text} (${dayTime(lane.missed.at, language)})`}</Note>}
+      {lane.questions.length > 0 && (
+        <div className={s.block} data-job-questions="">
+          <h3 className={s.h}>{j['lane.questions']}</h3>
+          <ul className={s.list}>
+            {lane.questions.map(q => (
+              <li key={q.id} className={s.item}><div><span>{q.prompt}</span>
+                <p className={s.meta}>{[sayJob(j, 'lane.options', { options: q.options.join(', ') }), q.askedAt === null ? null : dayTime(q.askedAt, language)].filter((x): x is string => x !== null).join(' · ')}</p></div></li>
+            ))}
+          </ul>
+          <Note>{j['lane.questionNote']}</Note>
+        </div>
+      )}
+      {lane.steps.length > 0 && (
+        <div className={s.block} data-job-steps="">
+          <h3 className={s.h}>{j['lane.steps']}</h3>
+          <ol className={s.list}>
+            {lane.steps.map((st, i) => <li key={`${i}-${st.title}`} className={s.item}><div><span>{st.title}</span><p className={s.meta}>{st.needsModel ? w['needsModel.yes'] : w['needsModel.no']}</p></div></li>)}
+          </ol>
+        </div>
+      )}
+      {lane.leftUndone.length > 0 && (
+        <div className={s.block}><h3 className={s.h}>{j['lane.leftUndone']}</h3><ul>{lane.leftUndone.map((line, i) => <li key={i}>{line}</li>)}</ul></div>
+      )}
+    </>
+  );
+}
+
+/** Proposed jobs from job extensions, waiting for a yes. An edit names that it replaces a job. */
+function LaneProposals({ items, j }: { items: readonly LaneProposal[]; j: JobWords }) {
+  if (items.length === 0) return null;
+  return (
+    <div className={s.block} data-job-proposals="">
+      <h3 className={s.h}>{j['proposals.title']}</h3>
+      <ul className={s.list}>
+        {items.map(item => (
+          <li key={item.id} className={s.item} data-proposal={item.id}><div><span>{item.title}</span>
+            {(item.replacesJobId !== null || item.evidence.length > 0) && <p className={s.meta}>{[item.replacesJobId !== null ? j['proposals.edit'] : null, ...item.evidence].filter((x): x is string => x !== null).join(' · ')}</p>}</div></li>
+        ))}
+      </ul>
+      <Note>{j['proposals.note']}</Note>
+    </div>
+  );
+}
+
+function JobSheet({ p, row, id, origin, pendingEdit, onClose, onChanged }: { p: WorkProps; row: JobRow | undefined; id: string; origin: HTMLElement | null; pendingEdit: boolean; onClose: () => void; onChanged: () => void }) {
   const { w, language, view } = p;
   const [tick, setTick] = useState(0);
   const { loaded, reload } = useReply(p.host, 'approvals.job', { id }, jobSheet, String(tick));
@@ -95,7 +146,8 @@ function JobSheet({ p, row, id, origin, onClose, onChanged }: { p: WorkProps; ro
           {j.measure === null ? <Note>{jw['measure.none']}</Note> : <MeasureChart measure={j.measure} j={jw} language={language} onReceipt={p.openReceipt} />}
         </div>
       )}
-      <JobManage card={j} schedule={j.schedule} manage={j.manage} canChange={owns && row !== undefined && !['cancelled', 'stopped', 'accepted'].includes(row.state)}
+      {j.jobsx != null && <LaneParts lane={j.jobsx} w={w} j={jw} language={language} />}
+      <JobManage card={j} schedule={j.schedule} manage={j.manage} missedRule={j.missedRule} pendingEdit={pendingEdit} canChange={owns && row !== undefined && !['cancelled', 'stopped', 'accepted'].includes(row.state)}
         rpc={p.rpc} w={w} j={jw} language={language} onChanged={() => { setTick(n => n + 1); onChanged(); }} />
       <div className={s.block}>
         <h3 className={s.h}>{w.timeline}</h3>
@@ -141,7 +193,8 @@ function JobSheet({ p, row, id, origin, onClose, onChanged }: { p: WorkProps; ro
 export function JobsPage({ p }: { p: WorkProps }) {
   const { w, language, view } = p;
   const [tick, setTick] = useState(0);
-  const { loaded, reload } = useReply(p.host, 'approvals.jobs', {}, jobs, String(tick));
+  const { loaded, reload } = useReply(p.host, 'approvals.jobs', {}, jobsWithProposals, String(tick));
+  const jw = jobWords(language);
   const sheet = useSheet(p, 'jobs');
   // Proposing a job creates it, which core allows only an owner or a cofounder.
   const canStart = !p.viewer && (p.member.role === 'owner' || p.member.role === 'cofounder');
@@ -162,6 +215,7 @@ export function JobsPage({ p }: { p: WorkProps }) {
           <div className={s.split} data-open={sheet.openId !== null ? '' : undefined}>
             <div className={s.pane}>
               {canStart && <Actions><Button variant="filled" onClick={e => sheet.open(START_SHEET, e.currentTarget)}>{w['jobs.start']}</Button></Actions>}
+              <LaneProposals items={j.proposalItems} j={jw} />
               {rows.length === 0 && <Note>{w['jobs.empty']}</Note>}
               {rows.length > 0 && view === 'books' && (
                 <table className={[pageStyles.table, s.dense].join(' ')}>
@@ -184,7 +238,7 @@ export function JobsPage({ p }: { p: WorkProps }) {
             </div>
             {starting && canStart && <StartJobSheet p={p} origin={sheet.origin.current} onClose={sheet.close} />}
             {sheet.openId !== null && !starting && (
-              <JobSheet key={sheet.openId} p={p} id={sheet.openId} row={j.items.find(r => r.id === sheet.openId)} origin={sheet.origin.current} onClose={sheet.close} onChanged={() => setTick(n => n + 1)} />
+              <JobSheet key={sheet.openId} p={p} id={sheet.openId} row={j.items.find(r => r.id === sheet.openId)} pendingEdit={j.proposalItems.some(x => x.replacesJobId === sheet.openId)} origin={sheet.origin.current} onClose={sheet.close} onChanged={() => setTick(n => n + 1)} />
             )}
           </div>
         );

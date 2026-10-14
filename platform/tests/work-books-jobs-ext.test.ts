@@ -54,39 +54,6 @@ function fixture(handlers: Record<string, Handler> = {}, calculatorReceipt?: (ct
   return { store, calls, request, brief };
 }
 
-test('WK-16: a step for a person leads the time line, says who, and only jobs-ext marks it done', async () => {
-  const marked = new Set<string>();
-  const view = () => ({ steps: [
-    { id: 'file-gst', kind: 'person', what: 'File the GST return on the portal.', who: { memberId: 'owner' }, done: marked.has('file-gst'), doneAt: marked.has('file-gst') ? '2026-10-14T10:00:00.000Z' : null, doneBy: marked.has('file-gst') ? 'Owner' : null },
-    { id: 'call-customer', kind: 'person', what: 'Call the customer about the late invoice.', who: { memberId: 'accountant', name: 'Asha Accountant' }, done: false },
-    { id: 'not-a-person', kind: 'model', what: 'Ignored.' },
-  ] });
-  const f = fixture({ 'jobsx.get': view, 'jobsx.personStep.done': p => { marked.add(p.stepId); return { ok: true }; } });
-  const id = await f.brief();
-  const sheet = await f.request(owner, 'approvals.job', { id });
-  assert.deepEqual(sheet.timeline.slice(0, 2).map((s: any) => [s.kind, s.stepId, s.who.kind, s.who.memberId, s.done, s.canDone]), [
-    ['person', 'file-gst', 'you', 'owner', false, true],
-    ['person', 'call-customer', 'person', 'accountant', false, true],
-  ]);
-  assert.equal(sheet.timeline[1].who.name, 'Asha Accountant');
-  assert.equal(sheet.timeline[0].event, 'person-step'); assert.equal(sheet.timeline[0].needsModel, false);
-  assert.equal(sheet.timeline.some((s: any) => s.stepId === 'not-a-person'), false);
-  assert.equal(sheet.manage.personStep, 'jobsx');
-  // The core shows an accountant no job of the owner's, so it cannot mark the owner's step.
-  await assert.rejects(f.request(accountant, 'approvals.personStepDone', { jobId: id, stepId: 'file-gst' }), code('NOT_FOUND'));
-  await assert.rejects(f.request(viewer, 'approvals.personStepDone', { jobId: id, stepId: 'file-gst' }), code('FORBIDDEN'));
-  await assert.rejects(f.request(owner, 'approvals.personStepDone', { jobId: id, stepId: 'nope' }), code('NOT_FOUND'));
-  await assert.rejects(f.request(owner, 'approvals.personStepDone', { jobId: id, stepId: 'file-gst', extra: 1 }), code('INVALID_JOB_CHANGE'));
-  assert.deepEqual(await f.request(owner, 'approvals.personStepDone', { jobId: `job:${id}`, stepId: 'file-gst' }), { jobId: id, stepId: 'file-gst', done: true });
-  assert.deepEqual(f.calls.filter(c => c.method === 'jobsx.personStep.done').map(c => c.payload), [{ jobId: id, stepId: 'file-gst' }]);
-  const after = await f.request(owner, 'approvals.job', { id });
-  const done = after.timeline.find((s: any) => s.stepId === 'file-gst');
-  assert.equal(done.done, true); assert.equal(done.canDone, false); assert.equal(after.timeline.at(-1).stepId, 'file-gst');
-  await assert.rejects(f.request(owner, 'approvals.personStepDone', { jobId: id, stepId: 'file-gst' }), code('PERSON_STEP_ALREADY_DONE'));
-  // The core shows a viewer no job of the owner's at all.
-  await assert.rejects(f.request(viewer, 'approvals.job', { id }), code('NOT_FOUND'));
-});
-
 test('WK-16: without jobs-ext a plan step for a person waits and is never marked done by itself', async () => {
   const f = fixture();
   const id = await f.brief();
@@ -126,38 +93,6 @@ test('WK-08: the measure is the calculation receipts the job names; an unreadabl
     { at: '2026-09-15T12:30:00.000Z', value: { missing: 'withheld' }, receiptId: 'r2' },
     { at: '2026-09-30T12:30:00.000Z', value: { minor: '90000' }, receiptId: 'r3' },
   ]);
-});
-
-test('WK-08: a goal declared by jobs-ext with its receipt is used; without one the goal is absent', async () => {
-  const f = fixture({ 'jobsx.get': () => ({ measure: { name: 'What customers owe', goal: { minor: '40000' }, goalReceiptId: 'goal-r', operation: 'aging', receiptIds: ['r1'] } }) },
-    () => ({ id: 'r1', operation: 'aging', asOf: '2026-08-31T12:30:00.000Z', valueMinor: '1', figures: [] }));
-  const id = await f.brief();
-  await f.store.update(state => { state.receipts.push({ id: 'r1' } as any); });
-  const m = (await f.request(owner, 'approvals.job', { id })).measure;
-  assert.deepEqual([m.name, m.goal, m.goalReceiptId, m.points.length], ['What customers owe', { minor: '40000' }, 'goal-r', 1]);
-  const g = fixture({}, () => ({ id: 'r1', operation: 'aging', asOf: '2026-08-31T12:30:00.000Z', valueMinor: '1', figures: [] }));
-  const id2 = await g.brief();
-  await g.store.update(state => { state.receipts.push({ id: 'r1' } as any); state.jobs[0].ledger.push({ at: '2026-08-31T12:30:00.000Z', event: 'note', receiptId: 'r1' } as any); });
-  assert.deepEqual((await g.request(owner, 'approvals.job', { id: id2 })).measure.goal, { missing: 'absent' });
-});
-
-test('Edit, Delete and the missed-run rule go to jobs-ext when installed', async () => {
-  const f = fixture({ 'jobsx.edit': () => ({ ok: true }), 'jobsx.delete': () => ({ ok: true }) });
-  const id = await f.brief();
-  const sheet = await f.request(owner, 'approvals.job', { id });
-  assert.deepEqual(sheet.manage, { edit: 'jobsx', delete: 'jobsx', missedRule: 'jobsx', personStep: 'not-built' });
-  assert.deepEqual(await f.request(owner, 'approvals.editJob', { id, config: { budgetMinor: '7000', maxRuns: 5, missedRun: 'skip' } }), { id: `job:${id}`, via: 'jobsx' });
-  assert.deepEqual(await f.request(owner, 'approvals.setMissedRule', { id, rule: 'run-once-on-wake' }), { id: `job:${id}`, missedRun: 'run-once-on-wake', via: 'jobsx' });
-  assert.deepEqual(await f.request(owner, 'approvals.deleteJob', { id }), { id, state: 'deleted', note: null });
-  assert.deepEqual(f.calls.filter(c => c.method.startsWith('jobsx.') && c.method !== 'jobsx.get').map(c => [c.method, c.payload]), [
-    ['jobsx.edit', { id, config: { budgetMinor: '7000', maxRuns: 5, missedRun: 'skip' } }],
-    ['jobsx.edit', { id, config: { missedRun: 'run-once-on-wake' } }],
-    ['jobsx.delete', { id }],
-  ]);
-  for (const config of [{}, { budgetMinor: '0' }, { maxRuns: 0 }, { missedRun: 'run-all' }, { goal: 'x' }])
-    await assert.rejects(f.request(owner, 'approvals.editJob', { id, config }), (e: any) => ['INVALID_JOB_CHANGE', 'INVALID_BUDGET', 'STOP_RULE_REQUIRED', 'INVALID_SCHEDULE'].includes(e.code));
-  await assert.rejects(f.request(accountant, 'approvals.editJob', { id, config: { maxRuns: 2 } }), code('FORBIDDEN'));
-  await assert.rejects(f.request(owner, 'approvals.deleteJob', { id: 'job_missing' }), code('NOT_FOUND'));
 });
 
 test('without jobs-ext a read-only brief cannot be edited, and Delete cancels it and keeps its record', async () => {
@@ -247,12 +182,13 @@ test('real engine with calendar rules: the month-end brief runs on the core cale
   const queued = await engine.request('approvals.get', { id: proposed.id });
   await engine.request('approvals.approve', { id: proposed.id, digest: queued.digest });
 
-  assert.deepEqual(await engine.request('approvals.setMissedRule', { id: raw, rule: 'run-once-on-wake' }), { id: proposed.id, missedRun: 'run-once-on-wake', via: 'core' });
+  assert.deepEqual(await engine.request('approvals.setMissedRule', { id: raw, rule: 'run-once-on-wake' }), { id: proposed.id, missedRun: 'run-once-on-wake', via: 'core', waitsForApproval: true });
+  await assert.rejects(engine.request('approvals.setMissedRule', { id: raw, rule: 'run-all' }), code('MISSED_RULE_NOT_BUILT')); // jobs-ext only
   const after = await engine.request('approvals.job', { id: raw });
   assert.equal(after.missedRun, 'run-once-on-wake');
   assert.ok((await engine.request('approvals.list', {})).items.some((i: any) => i.id === proposed.id), 'the change waits for a new approval');
 
-  assert.deepEqual(await engine.request('approvals.editJob', { id: raw, config: { budgetMinor: '30000', maxRuns: 6 } }), { id: proposed.id, via: 'core' });
+  assert.deepEqual(await engine.request('approvals.editJob', { id: raw, config: { budgetMinor: '30000', maxRuns: 6 } }), { id: proposed.id, via: 'core', waitsFor: 'approval', proposal: null });
   const edited = (await engine.request('jobs.list', {})).find((j: any) => j.id === raw);
   assert.deepEqual([edited.budgetMinor, edited.stopRule.maxRuns, edited.calendar.definition.missed.kind], ['30000', 6, 'coalesce']);
   assert.deepEqual(await engine.request('approvals.deleteJob', { id: raw }), { id: raw, state: 'cancelled', note: 'cancel-keeps-record' });

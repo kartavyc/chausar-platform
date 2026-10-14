@@ -10,7 +10,6 @@ import { check, ChausarError } from '../contracts.ts';
 import type { PreparedAction } from '../actions.ts';
 import type { Job } from '../jobs.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
-import { optionalCall } from './adapters.ts';
 import { nowMs, isoAt, parseId, visibleActions } from './work-queue.ts';
 import type { Amount, Env } from './work-queue.ts';
 import { installed } from './work-jobs-sheet.ts';
@@ -84,6 +83,10 @@ function queueIdOf(value: unknown): string {
   check(parseId(id).source === 'job', 'INVALID_JOB_REPLY', 'The proposed job could not be read back.');
   return id;
 }
+/** The card `jobsx.propose` returns (`Proposal`): it waits for `jobsx.approveProposal` with this digest. */
+function proposalOf(value: unknown): { id: string; digest: string } | null {
+  return record(value) && value.status === 'proposed' && typeof value.id === 'string' && typeof value.digest === 'string' ? { id: value.id, digest: value.digest } : null;
+}
 
 /**
  * WK-08 meters, from the job alone. Model use is the job's own spent and budget. Clock time is
@@ -132,9 +135,10 @@ export const workJobMethods: Readonly<Record<string, MethodSpec>> = {
     if (Object.hasOwn(payload, 'sentence')) {
       check(Object.keys(payload).length === 1 && typeof payload.sentence === 'string' && payload.sentence.trim().length >= 5 && payload.sentence.length <= 500,
         'INVALID_JOB_PROPOSAL', 'Say the job in one sentence of up to 500 characters.');
-      const result = await optionalCall(host, 'jobsx.propose', { sentence: payload.sentence.trim() });
-      if (!result.available) throw new ChausarError('PROPOSAL_FROM_SENTENCE_NOT_BUILT', 'Proposing a job from one sentence is not built yet.');
-      return { id: queueIdOf(result.value) };
+      if (!(await sentenceAvailable(host))) throw new ChausarError('PROPOSAL_FROM_SENTENCE_NOT_BUILT', 'Proposing a job from one sentence is not built yet.');
+      // jobsx.propose { sentence } makes a proposal (a card waiting for jobsx.approveProposal), not a job.
+      const proposal = await host.call('jobsx.propose', { sentence: payload.sentence.trim() });
+      return { id: queueIdOf(proposal), proposal: proposalOf(proposal) };
     }
     const { template, budgetMinor, maxRuns, missedRun, schedule } = templatePayload(payload);
     const at = nowMs(host);
