@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 dist/
 /release/
 coverage/
@@ -19,3 +19,5 @@ exports/
 *.zip
 .DS_Store
 Thumbs.db
+# Vite and vitest caches
+.vite/
