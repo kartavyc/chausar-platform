@@ -257,7 +257,7 @@ Screens: place modules in `app/ui/src/screens/reports/`, `tools/` and `trust/`, 
 
 ## 4. What is still missing
 
-- **Reachability (frame-today)**: on desktop the retained lesson review still draws `reports/weekahead` before any place module (`retainedSurface` in `app/ui/src/screens/retained/RetainedPlace.tsx`, used by `bootstrap.tsx`), so the week ahead, the Friday review and Rhythm are reached only at the enterprise `reports/briefs` until frame-today changes that precedence.
+- **Reachability**: resolved in round 2 — the host now lets a lane's place module win its address, so the week ahead, the Friday review and Rhythm are reached at `reports/weekahead`; the retained lesson review keeps its own address. Outside links open through the host's link dialog (`openLink`, SH-10), report pages print through the guarded shell port (`print('page')`), and Vault places frame-today's recovery contact (`RecoveryContactSettings`), so `trustx.setRecoveryContact` remains only for older callers.
 - **Needs a person**: a CA must check `platform/runtime/reports-ext/due-dates.v1.json` (shipped `reviewed: false`; 10 of 25 sources could not be opened and are marked unconfirmed: EPFO, ESIC, Maharashtra and Karnataka professional tax, MCA, two income-tax rows), and decide whether extensions such as CBDT Circular 07/2026 are shown; the 43B(h) and TReDS notes; the model terms in `tools-terms.v1.json`; a native reader's review of Hindi and Hinglish.
 - **Other lanes**: connectors-ext issues no calculation receipts for bank totals, GSTR-3B turnover or the GSTR-2B match, so those lines are "not counted" and the three connector pages stay "ready, not tested". jobs-ext has no daily amount limit, so Do limits by count. hosted-link gives no per-message cost and no log of messages whose result was lost, and cannot verify a mail address. models-ext's meters do not measure voice minutes or the month's spend; there is no method listing pending plugin network requests or tool requests, so TL-07's sheet is never raised; small-app action buttons send an empty payload. Core has no `devices.*` methods, so TR-07 shows only this computer's sync role. No core method discards a waiting model send (it expires).
 - **The outbound check** covers the model gateway only; plugin network calls (models-ext), the learning upload (learning-ext) and hosted-link's allowance client are not routed through it.
@@ -271,8 +271,8 @@ Each screen was checked against every Shows, You can, States and Rules line of t
 |---|---|---|---|
 | RP-01 Packs | `reports/packs` | met | — |
 | RP-02 A report page | `reports/packs?sheet=<pack>.<page>` | met | Tally export refused; PDF through Print |
-| RP-03 The week ahead | `reports/weekahead`, `reports/briefs` | met in the module | not reached on desktop (frame-today precedence) |
-| RP-04 The Friday review | same | met in the module | Approve and Not now stay in Work · Approvals |
+| RP-03 The week ahead | `reports/weekahead`, `reports/briefs` | met | — |
+| RP-04 The Friday review | same | met | Approve and Not now stay in Work · Approvals |
 | RP-05 Rhythm and delivery | `?sheet=rhythm` | met | delivery depends on the hosted relay |
 | RP-06 Due dates | `reports/duedates` | met | table needs a CA |
 | RP-07 Exports | `reports/exports` | met | — |
