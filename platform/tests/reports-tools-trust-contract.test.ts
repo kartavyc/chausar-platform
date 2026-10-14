@@ -55,7 +55,9 @@ test('every reportsx and trustx reply passes the validator of the screen that dr
   await pass('reportsx.rhythm', {}, reports.validateRhythm);
   await pass('reportsx.setRhythm', { dailyClosing: true }, reports.validateRhythm);
   await pass('reportsx.setDueProfile', { kind: 'trader', gstMode: 'regular', state: 'MH' }, reports.validateDueProfile);
-  await pass('reportsx.due', {}, reports.validateDue);
+  const due = reports.validateDue(await pass('reportsx.due', { from: '2026-10-14', days: 60, profile: { kind: 'retail', gstMode: 'regular', state: 'MH' } }, reports.validateDue));
+  // The source date and check reach the screen as the engine sends them.
+  if (!due.rows.length || !due.rows.every(row => typeof row.source.confirmed === 'boolean') || !due.rows.some(row => row.source.confirmed && row.source.date !== null)) failures.push('reportsx.due source date and check');
   await pass('reportsx.exportAll', { confirmed: true }, reports.validateExportRecord);
   await pass('reportsx.exports', {}, reports.validateExports);
   const receiptId = (await call('reportsx.page', { pack: 'lender', page: 'key-financials', period: september })).receiptIds[0];

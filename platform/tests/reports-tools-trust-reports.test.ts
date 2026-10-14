@@ -60,9 +60,9 @@ test('packs give each page a state from registered calculations and receipt cove
   assert.deepEqual(ca.gstModes, ['regular', 'composition']); assert.deepEqual(lender.gstModes, ['regular', 'composition', 'none']); assert.ok(investor.gstModes.includes('none'));
   assert.equal(pageOf(lender, 'key-financials').state, 'ready-tested');
   assert.equal(pageOf(lender, 'receivables-ageing').state, 'ready-tested');
-  assert.deepEqual(pageOf(lender, 'bank-summary'), { id: 'bank-summary', title: 'Bank statement summary', state: 'not-started', reason: 'Needs bank statements.' });
-  assert.equal(pageOf(lender, 'gst-turnover').reason, 'Needs GSTR-1 and GSTR-3B returns from the GST connector.');
-  assert.equal(pageOf(ca, 'purchases-gstr2b').state, 'not-started'); assert.equal(pageOf(ca, 'purchases-gstr2b').reason, 'Needs GSTR-2B from the GST connector.');
+  assert.deepEqual(pageOf(lender, 'bank-summary'), { id: 'bank-summary', title: 'Bank statement summary', state: 'not-started', reason: 'No bank statement is imported yet.' });
+  assert.equal(pageOf(lender, 'gst-turnover').reason, 'Needs a GSTR-1 or GSTR-3B return imported through the GST connector.');
+  assert.equal(pageOf(ca, 'purchases-gstr2b').state, 'not-started'); assert.equal(pageOf(ca, 'purchases-gstr2b').reason, 'Needs a GSTR-2B imported through the GST connector.');
   // Facts that are not reconciled to a source total make the same pages computed but untested.
   await engine.vault!.update(state => { for (const item of state.imports) item.coverage.reconciled = false; });
   const after = (await engine.request('reportsx.packs', {})).packs[0];
@@ -95,8 +95,8 @@ test('every printed figure opens its calculation receipt; missing values are mis
   const months = monthly.sections[0].lines; assert.equal(months.length, 12); assert.equal(months.at(-1).id, '2026-09'); assert.equal(months.at(-1).figure.exact, '112525');
   assert.deepEqual(months[0].figure, { kind: 'missing', missing: 'absent' }); assert.ok(months.every((l: any) => l.figure.kind === 'missing' || l.figure.exact !== '0'));
   const gst = await engine.request('reportsx.page', { pack: 'lender', page: 'gst-turnover', period: september });
-  assert.equal(gst.state, 'not-started'); assert.deepEqual(lineOf(gst, 'compare', 'gst').figure, { kind: 'missing', missing: 'not-loaded-yet' });
-  assert.ok(gst.sections[0].gaps.some((gap: string) => gap.includes('Needs GSTR-1 and GSTR-3B')));
+  assert.equal(gst.state, 'not-started'); assert.deepEqual(gst.sections.map((s: any) => [s.id, s.lines.length]), [['not-started', 0]]);
+  assert.deepEqual(gst.gaps, ['Needs a GSTR-1 or GSTR-3B return imported through the GST connector.']);
   const projections = await engine.request('reportsx.page', { pack: 'lender', page: 'projections', period: september });
   const forecast = projections.sections.find((s: any) => s.id === 'forecast');
   assert.equal(forecast.projection, true); assert.equal(projections.sections[0].projection, false);
@@ -226,18 +226,30 @@ test('Friday review and rhythm settings validate, preview without digits and ref
 test('due dates are worked out from the sourced table for a profile, mark old checks and say what is not covered', async t => {
   const { engine } = await fixture(t, false);
   const due = await engine.request('reportsx.due', { from: '2026-10-14', days: 30, profile: { kind: 'services', gstMode: 'regular', state: 'MH' } });
-  assert.equal(due.caNote, 'Not yet checked by a CA.'); assert.equal(due.covered, true); assert.equal(due.table.version, 'due-dates.v1');
+  assert.equal(due.caNote, 'This table has not been checked by a CA yet. Each row links to the official source.'); assert.equal(due.covered, true); assert.equal(due.table.version, 'due-dates.v1');
   const ids = due.rows.map((row: any) => row.id);
   for (const id of ['pf-ecr:2026-10-15', 'esi:2026-10-15', 'gstr3b-monthly:2026-10-20', 'gstr3b-qrmp-22:2026-10-22', 'itr-audit:2026-10-31', 'tds-return:2026-10-31', 'pt-mh-employer:2026-10-31', 'tds-deposit:2026-11-07', 'gstr1-monthly:2026-11-11'])
     assert.ok(ids.includes(id), id);
   assert.ok(!ids.some((id: string) => id.startsWith('gstr3b-qrmp-24') || id.startsWith('pt-ka') || id.startsWith('cmp08')));
   assert.deepEqual(ids, [...ids].sort((a: string, b: string) => a.split(':')[1].localeCompare(b.split(':')[1]) || a.localeCompare(b)));
   const row = due.rows.find((r: any) => r.id === 'gstr3b-monthly:2026-10-20');
-  assert.equal(row.checkOld, false); assert.equal(row.lastChecked, '2026-10-14'); assert.match(row.source.url, /^https:\/\/www\.gst\.gov\.in\//); assert.deepEqual(row.appliesTo.gstModes, ['regular']);
+  assert.equal(row.checkOld, false); assert.equal(row.lastChecked, '2026-10-14'); assert.deepEqual(row.appliesTo.gstModes, ['regular']);
+  assert.deepEqual(row.source, { title: 'CBIC Notification No. 82/2020-Central Tax: CGST Rules, rule 59(2) (IFF) and rule 61 (GSTR-3B by the 20th, 22nd or 24th)',
+    url: 'https://gstcouncil.gov.in/sites/default/files/2024-05/notfctn-82-central-tax-english-2020.pdf', date: '2020-11-10', confirmed: true });
+  // Every source is a specific official page, never a site's home page, unless it is marked as not confirmed.
+  for (const item of due.rows) {
+    assert.match(item.source.url, /^https:\/\/[a-z0-9.-]+\.gov\.in\//); assert.equal(typeof item.source.confirmed, 'boolean');
+    assert.ok(item.source.date === null || /^\d{4}-\d{2}-\d{2}$/.test(item.source.date));
+    if (item.source.confirmed) assert.ok(new URL(item.source.url).pathname.length > 1, item.id);
+  }
   const april = await engine.request('reportsx.due', { from: '2027-04-01', days: 40, profile: { kind: 'retail', gstMode: 'composition', state: 'KA' } });
   const aprilIds = april.rows.map((r: any) => r.id);
   assert.ok(aprilIds.includes('tds-deposit:2027-04-30') && !aprilIds.includes('tds-deposit:2027-04-07'));
-  assert.ok(aprilIds.includes('cmp08:2027-04-18') && aprilIds.includes('gstr4:2027-04-30') && aprilIds.includes('pt-ka-enrolment:2027-04-30'));
+  assert.ok(aprilIds.includes('cmp08:2027-04-18') && !aprilIds.some((id: string) => id.startsWith('gstr4')) && aprilIds.includes('pt-ka-enrolment:2027-04-30'));
+  const june = await engine.request('reportsx.due', { from: '2027-06-01', days: 30, profile: { kind: 'retail', gstMode: 'composition', state: 'KA' } });
+  assert.ok(june.rows.some((r: any) => r.id === 'gstr4:2027-06-30' && r.source.confirmed === true && r.source.date === '2024-07-10'));
+  const companies = await engine.request('reportsx.due', { from: '2026-10-14', days: 60, profile: { kind: 'retail', gstMode: 'none', state: 'DL' } });
+  assert.deepEqual(companies.rows.filter((r: any) => r.id.startsWith('mca-')).map((r: any) => r.id), ['mca-aoc4:2026-10-30', 'mca-mgt7:2026-11-29']);
   assert.ok(!aprilIds.some((id: string) => id.startsWith('gstr3b')) && april.rows.every((r: any) => r.checkOld === true));
   const uncovered = await engine.request('reportsx.due', { from: '2026-10-14', profile: { kind: 'agriculture', gstMode: 'none', state: 'MH' } });
   assert.equal(uncovered.covered, false); assert.deepEqual(uncovered.rows, []); assert.ok(uncovered.coveredKinds.includes('services'));

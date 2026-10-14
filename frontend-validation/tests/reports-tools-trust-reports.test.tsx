@@ -79,10 +79,10 @@ const RHYTHM = {
   testMode: true, relay: 'not-available',
 };
 const DUE = {
-  caNote: 'Not yet checked by a CA.', table: { version: '2026.10', publishedAt: '2026-10-01' }, profile: { kind: 'retail', gstMode: 'regular', state: 'MH' },
+  caNote: 'This table has not been checked by a CA yet. Each row links to the official source.', table: { version: '2026.10', publishedAt: '2026-10-01' }, profile: { kind: 'retail', gstMode: 'regular', state: 'MH' },
   covered: true, coveredKinds: ['retail', 'wholesale'],
   rows: [
-    { id: 'gstr3b-sep', what: 'GSTR-3B for September', dueOn: '2026-10-20', source: { title: 'GST portal', url: 'https://www.gst.gov.in/' }, lastChecked: '2026-10-01', checkOld: false, appliesTo: { kinds: ['retail'], gstModes: ['regular'], states: ['MH', 'KA'] } },
+    { id: 'gstr3b-sep', what: 'GSTR-3B for September', dueOn: '2026-10-20', source: { title: 'Notification 82/2020-Central Tax', url: 'https://gstcouncil.gov.in/n82.pdf', date: '2020-11-10', confirmed: true }, lastChecked: '2026-10-01', checkOld: false, appliesTo: { kinds: ['retail'], gstModes: ['regular'], states: ['MH', 'KA'] } },
     { id: 'tds-q2', what: 'TDS return for Q2', dueOn: '2026-10-31', source: { title: 'Income Tax', url: 'http://insecure.example/' }, lastChecked: '2026-08-01', checkOld: true, appliesTo: { kinds: ['retail', 'wholesale'], gstModes: ['regular', 'composition'], states: ['MH'] } },
   ],
 };
@@ -213,6 +213,47 @@ test('RP-02 export: a file shows its name, size and check number; PDF and Tally 
   expect(m.sent('reportsx.export').length).toBe(3);
 });
 
+test('RP-02 period: the financial year to date by default, then a month, a quarter or from and to, sent to the page and to exports and shown in the header', async () => {
+  const m = mount({ sub: 'packs', sheet: 'lender.ready-for-loan', replies: { ...ALL,
+    'reportsx.page': (p: Record<string, unknown>) => ({ ...PAGE, period: p['period'] ?? PAGE.period }),
+    'reportsx.export': (p: Record<string, unknown>) => ({ format: p['format'], name: 'f.csv', path: '/out/f.csv', bytes: 10, sha256: SHA, encrypted: false, textCellsProtected: true }) } });
+  const sheet = within(await screen.findByRole('region', { name: 'Ready for a loan?' }));
+  expect(sheet.getByText(/^This financial year to date: 1 Apr 2026 to 30 Sept? 2026/)).toBeTruthy();
+  expect(m.sent('reportsx.page')[0]?.payload['period']).toBeUndefined();
+  await userEvent.click(sheet.getByRole('radio', { name: 'A quarter' }));
+  await userEvent.click(sheet.getByRole('radio', { name: 'July to September' }));
+  await userEvent.click(sheet.getByRole('button', { name: 'Show this period' }));
+  await waitFor(() => expect(m.sent('reportsx.page').at(-1)?.payload['period']).toEqual({ from: expect.stringMatching(/-07-01$/), to: expect.stringMatching(/-09-30$/) }));
+  expect(await sheet.findByText(/^A quarter: 1 Jul/)).toBeTruthy();
+  await userEvent.click(sheet.getByRole('radio', { name: 'From and to' }));
+  const from = sheet.getByLabelText('From'), to = sheet.getByLabelText('To');
+  await userEvent.clear(from); await userEvent.type(from, '2026-09-30');
+  await userEvent.clear(to); await userEvent.type(to, '2026-09-01');
+  const asked = m.sent('reportsx.page').length;
+  await userEvent.click(sheet.getByRole('button', { name: 'Show this period' }));
+  expect(await sheet.findByText('The start date must be on or before the end date.')).toBeTruthy();
+  expect(m.sent('reportsx.page').length).toBe(asked);
+  await userEvent.clear(from); await userEvent.type(from, '2026-09-01');
+  await userEvent.clear(to); await userEvent.type(to, '2026-09-30');
+  await userEvent.click(sheet.getByRole('button', { name: 'Show this period' }));
+  await waitFor(() => expect(m.sent('reportsx.page').at(-1)?.payload['period']).toEqual({ from: '2026-09-01', to: '2026-09-30' }));
+  expect(await sheet.findByText(/^From and to: 1 Sept? 2026 to 30 Sept? 2026/)).toBeTruthy();
+  await userEvent.click(sheet.getByRole('button', { name: 'Export · CSV' }));
+  await waitFor(() => expect(m.sent('reportsx.export')[0]?.payload).toEqual({ pack: 'lender', page: 'ready-for-loan', language: 'en', period: { from: '2026-09-01', to: '2026-09-30' }, format: 'csv' }));
+});
+
+test('RP-02 period words in Hindi; a period over two years is a sentence, not a request', async () => {
+  const m = mount({ sub: 'packs', sheet: 'lender.ready-for-loan', language: 'hi', replies: ALL });
+  await screen.findByRole('heading', { level: 3 });
+  await userEvent.click(screen.getByRole('radio', { name: 'से और तक' }));
+  const from = screen.getByLabelText('से'), to = screen.getByLabelText('तक');
+  await userEvent.clear(from); await userEvent.type(from, '2022-01-01');
+  await userEvent.clear(to); await userEvent.type(to, '2026-01-01');
+  await userEvent.click(screen.getByRole('button', { name: 'यह अवधि दिखाएँ' }));
+  expect(await screen.findByText('अधिकतम दो साल की अवधि चुनें।')).toBeTruthy();
+  expect(m.sent('reportsx.page').every((c) => c.payload['period'] === undefined)).toBe(true);
+});
+
 test('RP-02 viewer: can print, cannot export', async () => {
   mount({ sub: 'packs', sheet: 'lender.ready-for-loan', viewer: true, role: 'viewer', replies: ALL });
   await screen.findByRole('region', { name: 'Ready for a loan?' });
@@ -333,10 +374,14 @@ test('changedFields keeps only what differs', () => {
 
 test('RP-06 due dates: CA line, rows with source, last checked, what they apply to; profile saved by an admin', async () => {
   const m = mount({ sub: 'duedates', replies: { ...ALL, 'reportsx.setDueProfile': (p: Record<string, unknown>) => p } });
-  expect(await screen.findByText('Not yet checked by a CA.')).toBeTruthy();
+  expect(await screen.findByText('This table has not been checked by a CA yet. Each row links to the official source.')).toBeTruthy();
   expect(screen.getByText('GSTR-3B for September')).toBeTruthy();
   expect(screen.getByText('Due 20 Oct 2026')).toBeTruthy();
-  expect(screen.getByRole('link', { name: 'GST portal' }).getAttribute('href')).toBe('https://www.gst.gov.in/');
+  expect(screen.getByRole('link', { name: 'Notification 82/2020-Central Tax' }).getAttribute('href')).toBe('https://gstcouncil.gov.in/n82.pdf');
+  expect(screen.getByText('Source dated 10 Nov 2020')).toBeTruthy();
+  // An older reply without the source date or check reads as undated and not confirmed.
+  expect(screen.getByText('The source states no date.')).toBeTruthy();
+  expect(screen.getAllByText('This source could not be opened and checked yet; it is the closest official page found.').length).toBe(1);
   expect(screen.queryByRole('link', { name: 'Income Tax' })).toBeNull();
   expect(screen.getByText('Checked more than 30 days ago.')).toBeTruthy();
   expect(screen.getByText('States: MH, KA')).toBeTruthy();
@@ -353,7 +398,7 @@ test('RP-06 due dates: CA line, rows with source, last checked, what they apply 
 
 test('RP-06 a kind not covered says so with the covered list; an accountant reads the profile; Hindi', async () => {
   mount({ sub: 'duedates', role: 'accountant', language: 'hi', replies: { ...ALL, 'reportsx.due': { ...DUE, covered: false, profile: { kind: 'restaurant', gstMode: 'none', state: 'GJ' }, rows: [] } } });
-  expect(await screen.findByText('अभी किसी CA ने नहीं जाँचा।')).toBeTruthy();
+  expect(await screen.findByText('इस तालिका को अभी किसी CA ने नहीं जाँचा है। हर पंक्ति आधिकारिक स्रोत से जुड़ी है।')).toBeTruthy();
   expect(screen.getByText('इस तरह के व्यवसाय की नियत तारीख़ें अभी शामिल नहीं हैं।')).toBeTruthy();
   expect(screen.getByText('अभी शामिल: retail, wholesale')).toBeTruthy();
   expect(screen.getByText('restaurant · GST नहीं · GJ')).toBeTruthy();

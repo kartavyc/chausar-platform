@@ -47,9 +47,11 @@ export interface Rhythm extends RhythmSettings {
 }
 export interface DueProfile { kind: string; gstMode: GstMode; state: string }
 export interface DueRow {
-  id: string; what: string; dueOn: string; source: { title: string; url: string }; lastChecked: string; checkOld: boolean;
+  id: string; what: string; dueOn: string; source: DueSource; lastChecked: string; checkOld: boolean;
   appliesTo: { kinds: string[]; gstModes: string[]; states: string[] };
 }
+/** `date` is the notification or circular date (null when none is stated); `confirmed` false means the page could not be checked. An older engine sends neither. */
+export interface DueSource { title: string; url: string; date: string | null; confirmed: boolean }
 export interface DueDates { caNote: string; table: { version: string; publishedAt: string }; profile: DueProfile | null; covered: boolean; coveredKinds: string[]; rows: DueRow[] }
 export interface ExportRecord { id: string; at: string; locked: boolean; encrypted: boolean; folder: string; stores: { name: string; rows: number; checkNumber: string; file: string }[] }
 export interface FileRef { name: string; path: string; bytes: number; sha256: string }
@@ -250,7 +252,11 @@ export function validateDue(reply: unknown): DueDates {
       const x = rec(v, p), source = rec(x['source'], `${p}.source`), applies = rec(x['appliesTo'], `${p}.appliesTo`);
       return {
         id: id(x['id'], `${p}.id`), what: str(x['what'], `${p}.what`, 500), dueOn: isoDate(x['dueOn'], `${p}.dueOn`),
-        source: { title: str(source['title'], `${p}.source.title`, 300), url: str(source['url'], `${p}.source.url`, 2000) },
+        source: {
+          title: str(source['title'], `${p}.source.title`, 300), url: str(source['url'], `${p}.source.url`, 2000),
+          date: source['date'] === undefined || source['date'] === null ? null : isoDate(source['date'], `${p}.source.date`),
+          confirmed: source['confirmed'] === undefined ? false : bool(source['confirmed'], `${p}.source.confirmed`),
+        },
         lastChecked: isoDate(x['lastChecked'], `${p}.lastChecked`), checkOld: bool(x['checkOld'], `${p}.checkOld`),
         appliesTo: { kinds: strings(applies['kinds'], `${p}.appliesTo.kinds`, 100), gstModes: strings(applies['gstModes'], `${p}.appliesTo.gstModes`, 3), states: strings(applies['states'], `${p}.appliesTo.states`, 50) },
       };

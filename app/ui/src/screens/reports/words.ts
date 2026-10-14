@@ -26,7 +26,10 @@ type Key =
   | 'exportAll' | 'exportWarning' | 'lockedChoice' | 'confirmTitle' | 'confirm' | 'cancel' | 'exportingAll' | 'exportDone' | 'exportedAt'
   | 'stores' | 'storeName' | 'storeRows' | 'storeCheck' | 'locked' | 'notLocked' | 'encrypted' | 'earlier' | 'noExports' | 'ownerOnly' | 'folder' | 'askLink'
   | 'ask' | 'askNote' | 'question' | 'receiptId' | 'reason' | 'make' | 'fileName' | 'sendsNothing' | 'needQuestion' | 'needReason' | 'badReceipt' | 'askReadOnly'
-  | 'notBuilt' | 'unknownSheet' | 'on' | 'off' | 'notSet';
+  | 'notBuilt' | 'unknownSheet' | 'on' | 'off' | 'notSet'
+  | 'period' | 'period.fytd' | 'period.last-fy' | 'period.month' | 'period.quarter' | 'period.custom' | 'period.badDate' | 'period.badOrder' | 'period.tooLong'
+  | 'periodMonth' | 'periodFyStart' | 'periodQuarter' | 'quarter.1' | 'quarter.2' | 'quarter.3' | 'quarter.4' | 'periodFrom' | 'periodTo' | 'periodShow' | 'periodHead'
+  | 'sourceDate' | 'sourceUndated' | 'sourceUnconfirmed';
 
 export const WORDS: Catalogue<Key> = {
   en: {
@@ -45,6 +48,13 @@ export const WORDS: Catalogue<Key> = {
     'refused.RELAY_NOT_AVAILABLE': 'The relay is a paid, hosted part: planned, not available yet.',
     'refused.ACCESS_DENIED': 'Your seat is not allowed to do this.', 'refused.notBuilt': 'This is not built yet.',
     'refused.other': 'That did not work. Code: {code}',
+    period: 'Period', 'period.fytd': 'This financial year to date', 'period.last-fy': 'Last financial year', 'period.month': 'A month',
+    'period.quarter': 'A quarter', 'period.custom': 'From and to', 'period.badDate': 'Choose real dates for the period.',
+    'period.badOrder': 'The start date must be on or before the end date.', 'period.tooLong': 'Choose a period of at most two years.',
+    periodMonth: 'Month', periodFyStart: 'Financial year starting in (year)', periodQuarter: 'Quarter',
+    'quarter.1': 'April to June', 'quarter.2': 'July to September', 'quarter.3': 'October to December', 'quarter.4': 'January to March',
+    periodFrom: 'From', periodTo: 'To', periodShow: 'Show this period', periodHead: '{kind}: {period}',
+    sourceDate: 'Source dated {date}', sourceUndated: 'The source states no date.', sourceUnconfirmed: 'This source could not be opened and checked yet; it is the closest official page found.',
     periodLine: '{from} to {to}', noPeriod: 'No period', madeAt: 'Made {when}', at: '{date}, {time} UTC',
     projection: 'Projection', projectionNote: 'A projection, not a fact. It is kept apart from the facts above.',
     gap: 'Gap: {gap}', pageGaps: 'Gaps in the data', notes: 'Notes', source: 'Source: {title}', checkedOn: 'Checked on {date}', notLegal: 'Not legal advice.',
@@ -71,7 +81,7 @@ export const WORDS: Catalogue<Key> = {
     preview: 'The exact message, shown before the first one is sent', save: 'Save', saving: 'Saving…', saved: 'Saved.', nothingChanged: 'Nothing has changed yet.',
     rhythmReadOnly: 'Your seat can read these settings, not change them.', badTime: 'Write the time as HH:MM, for example 08:30.',
     badFy: 'Write the date as MM-DD, for example 04-01.', badDays: 'Choose at least one day.',
-    caNote: 'Not yet checked by a CA.', dueOn: 'Due {date}', lastChecked: 'Last checked {date}', checkOld: 'Checked more than 30 days ago.',
+    caNote: 'This table has not been checked by a CA yet. Each row links to the official source.', dueOn: 'Due {date}', lastChecked: 'Last checked {date}', checkOld: 'Checked more than 30 days ago.',
     appliesKinds: 'Kinds of business: {list}', appliesGst: 'GST modes: {list}', appliesStates: 'States: {list}',
     notCovered: 'Due dates for this kind of business are not covered yet.', coveredKinds: 'Covered now: {list}', dueNone: 'Nothing is due in this window.',
     profile: 'Your business', kind: 'Kind of business', gstMode: 'GST mode', stateCode: 'State (two letters)', noProfile: 'No business profile is set yet.',
@@ -105,6 +115,13 @@ export const WORDS: Catalogue<Key> = {
     'refused.RELAY_NOT_AVAILABLE': 'रिले एक सशुल्क, होस्ट किया गया हिस्सा है: योजना में है, अभी उपलब्ध नहीं।',
     'refused.ACCESS_DENIED': 'आपकी सीट को यह करने की अनुमति नहीं है।', 'refused.notBuilt': 'यह अभी बना नहीं है।',
     'refused.other': 'यह नहीं हो सका। कोड: {code}',
+    period: 'अवधि', 'period.fytd': 'इस वित्त वर्ष में अब तक', 'period.last-fy': 'पिछला वित्त वर्ष', 'period.month': 'एक महीना',
+    'period.quarter': 'एक तिमाही', 'period.custom': 'से और तक', 'period.badDate': 'अवधि के लिए सही तारीख़ें चुनें।',
+    'period.badOrder': 'शुरू की तारीख़ आख़िरी तारीख़ से पहले या उसी दिन होनी चाहिए।', 'period.tooLong': 'अधिकतम दो साल की अवधि चुनें।',
+    periodMonth: 'महीना', periodFyStart: 'वित्त वर्ष जिस साल शुरू हुआ (वर्ष)', periodQuarter: 'तिमाही',
+    'quarter.1': 'अप्रैल से जून', 'quarter.2': 'जुलाई से सितंबर', 'quarter.3': 'अक्टूबर से दिसंबर', 'quarter.4': 'जनवरी से मार्च',
+    periodFrom: 'से', periodTo: 'तक', periodShow: 'यह अवधि दिखाएँ', periodHead: '{kind}: {period}',
+    sourceDate: 'स्रोत की तारीख़ {date}', sourceUndated: 'स्रोत में कोई तारीख़ नहीं दी गई है।', sourceUnconfirmed: 'यह स्रोत अभी खोलकर जाँचा नहीं जा सका; यह मिला सबसे नज़दीकी आधिकारिक पेज है।',
     periodLine: '{from} से {to}', noPeriod: 'कोई अवधि नहीं', madeAt: 'बना {when}', at: '{date}, {time} UTC',
     projection: 'अनुमान', projectionNote: 'यह अनुमान है, तथ्य नहीं। इसे ऊपर के तथ्यों से अलग रखा गया है।',
     gap: 'कमी: {gap}', pageGaps: 'डेटा में कमियाँ', notes: 'टिप्पणियाँ', source: 'स्रोत: {title}', checkedOn: '{date} को जाँचा गया', notLegal: 'यह क़ानूनी सलाह नहीं है।',
@@ -131,7 +148,7 @@ export const WORDS: Catalogue<Key> = {
     preview: 'पहला संदेश भेजने से पहले दिखाया गया ठीक वही संदेश', save: 'सहेजें', saving: 'सहेजा जा रहा है…', saved: 'सहेजा गया।', nothingChanged: 'अभी कुछ नहीं बदला है।',
     rhythmReadOnly: 'आपकी सीट ये सेटिंग पढ़ सकती है, बदल नहीं सकती।', badTime: 'समय HH:MM में लिखें, जैसे 08:30।',
     badFy: 'तारीख़ MM-DD में लिखें, जैसे 04-01।', badDays: 'कम से कम एक दिन चुनें।',
-    caNote: 'अभी किसी CA ने नहीं जाँचा।', dueOn: 'देय {date}', lastChecked: 'आख़िरी जाँच {date}', checkOld: '30 दिन से ज़्यादा पहले जाँचा गया।',
+    caNote: 'इस तालिका को अभी किसी CA ने नहीं जाँचा है। हर पंक्ति आधिकारिक स्रोत से जुड़ी है।', dueOn: 'देय {date}', lastChecked: 'आख़िरी जाँच {date}', checkOld: '30 दिन से ज़्यादा पहले जाँचा गया।',
     appliesKinds: 'व्यवसाय के प्रकार: {list}', appliesGst: 'GST प्रकार: {list}', appliesStates: 'राज्य: {list}',
     notCovered: 'इस तरह के व्यवसाय की नियत तारीख़ें अभी शामिल नहीं हैं।', coveredKinds: 'अभी शामिल: {list}', dueNone: 'इस अवधि में कुछ देय नहीं है।',
     profile: 'आपका व्यवसाय', kind: 'व्यवसाय का प्रकार', gstMode: 'GST प्रकार', stateCode: 'राज्य (दो अक्षर)', noProfile: 'व्यवसाय की प्रोफ़ाइल अभी तय नहीं है।',

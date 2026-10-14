@@ -1,6 +1,7 @@
 /**
- * RP-06 Due dates: "Not yet checked by a CA." at the top, then each date with what is due,
- * when, its official source as a link, when it was last checked and which kind of
+ * RP-06 Due dates: "This table has not been checked by a CA yet." at the top, then each date
+ * with what is due, when, its official source as a link with the source's own date (and a
+ * plain note when that source could not be checked), when it was last checked and which kind of
  * business, GST mode and state it applies to. Every date comes from the engine's
  * published table; nothing here works one out. The owner or a cofounder sets the small
  * business profile. It works with no data connected.
@@ -47,6 +48,8 @@ export function DueDates({ language, view, member, viewer, rpc }: PlaceRenderPro
                           {href !== null ? <a href={href} target="_blank" rel="noopener noreferrer">{row.source.title}</a> : <span>{row.source.title}</span>}
                           {' · '}{fill(w.lastChecked, { date: day(row.lastChecked, language) })}
                         </span>
+                        <span className={s.quiet}>{row.source.date !== null ? fill(w.sourceDate, { date: day(row.source.date, language) }) : w.sourceUndated}</span>
+                        {!row.source.confirmed && <span className={s.quiet}>{w.sourceUnconfirmed}</span>}
                         {row.checkOld && <span className={s.quiet}>{w.checkOld}</span>}
                         <span className={s.quiet}>{fill(w.appliesKinds, { list: row.appliesTo.kinds.join(', ') })}</span>
                         <span className={s.quiet}>{fill(w.appliesGst, { list: row.appliesTo.gstModes.map((m) => gstWord(m, w)).join(', ') })}</span>
