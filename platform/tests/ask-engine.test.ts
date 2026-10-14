@@ -280,6 +280,15 @@ test('a forecast is shown only when it beats the baseline, and needs 24 months',
   assert.deepEqual([result.error.forecastMinor, result.error.baselineMinor], ['0', '10000']);
   assert.deepEqual(result.method.testedOn, { from: '2026-04', to: '2026-09' });
   assert.equal(result.label2, 'projection');
+  assert.equal(result.reused, false);
+  const counts = () => { const v = (engine as any).vault.read(); return [v.receipts.length, v.answers.length]; };
+  const before = counts();
+  const again = await ask(engine, 'askx.forecast', { operationId: 'earned', today: TODAY });
+  assert.deepEqual([again.reused, again.evaluationId, again.history.map((h: any) => h.receiptId)], [true, result.evaluationId, result.history.map((h: any) => h.receiptId)]);
+  assert.deepEqual(counts(), before, 'Unchanged inputs add no receipts and no evaluation.');
+  await ask(engine, 'sources.import', source('late-history', [['late-sale', 'sale', '2026-09-20', '1.00', 'customer-a', 'inv-late']]));
+  const changed = await ask(engine, 'askx.forecast', { operationId: 'earned', today: TODAY });
+  assert.equal(changed.reused, false, 'A new row is a new input: the months are worked out again.');
   const flatEngine = await workspace(t);
   await ask(flatEngine, 'sources.import', source('flat', months.map(m => [`flat-${m}`, 'sale', `${m}-15`, '700.00', 'customer-a', `inv-${m}`] as Row)));
   const flat = await ask(flatEngine, 'askx.forecast', { operationId: 'earned', today: TODAY });

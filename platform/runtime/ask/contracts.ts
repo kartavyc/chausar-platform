@@ -164,6 +164,8 @@ export type ForecastReply =
     next: { month: string; forecastMinor: string | null; baselineMinor: string; rangeMinor: string | null };
     method: { forecast: string; baseline: string; learnedFrom: { from: string; to: string }; testedOn: { from: string; to: string } };
     evaluationId: string; label2: 'projection';
+    /** True when the monthly receipts (and evaluation) of an earlier run with identical inputs were reused. */
+    reused: boolean;
   };
 
 export type DecisionDraft = { id: string; memberId: string; sentence: string; reviewDate: string; receiptIds: string[]; createdAt: string; origin: 'typed' | 'forwarded'; decidedOn?: string };
@@ -210,6 +212,8 @@ export type AskState = {
   drafts: DecisionDraft[];
   /** The day a decision was actually made, when it was recorded later. */
   decided?: { decisionId: string; decidedOn: string }[];
+  /** Monthly receipts of earlier forecast runs, keyed by every input they depend on. */
+  forecastRuns?: { key: string; memberId: string; asOf: string; receipts: { month: string; receiptId: string }[]; evaluationId: string; at: string }[];
   gst: { toleranceMinor: string };
 };
 

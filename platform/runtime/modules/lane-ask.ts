@@ -73,7 +73,9 @@ export const askModule: EngineModule = {
     const checks = own.checks.length, why = own.why.length;
     own.checks = own.checks.filter(c => !touched(c.sourceIds) && !c.results.some(r => r.receiptId !== null && reason.removedIds.has(r.receiptId)));
     own.why = own.why.filter(w => !touched(w.sourceIds));
-    return removed + (checks - own.checks.length) + (why - own.why.length);
+    // Retained forecast receipts are only a cache: any deletion drops them all.
+    const runs = own.forecastRuns?.length ?? 0; own.forecastRuns = [];
+    return runs + removed + (checks - own.checks.length) + (why - own.why.length);
   },
   async tick(ctx, host) { return tickChecks(ctx, host); },
 };
