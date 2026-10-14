@@ -1,4 +1,4 @@
-import { createPublicKey, createHash, verify as verifySignature, type KeyObject } from 'node:crypto';
+import { createPrivateKey, createPublicKey, createHash, verify as verifySignature, type KeyObject } from 'node:crypto';
 import { constants } from 'node:fs';
 import { open, readFile, lstat, rename, unlink, link } from 'node:fs/promises';
 import { join, isAbsolute, dirname, basename } from 'node:path';
@@ -77,6 +77,23 @@ function validateManifest(value:any):asserts value is ReleaseManifest {
   const host=url!.hostname.replace(/^\[|\]$/g,'');
   check(url!.protocol==='https:' && !url!.username && !url!.password && !url!.hash && (!url!.port||url!.port==='443') && !isIP(host) && host.includes('.') && !/(?:^|\.)(localhost|local|internal|test)$/.test(host) && value.url===url!.href, 'INVALID_RELEASE_URL','Release artifacts must use canonical public HTTPS URLs without credentials.');
 }
+/** Exported so the release signing script refuses a manifest the updater would refuse. Returns a checked copy. */
+export function validateReleaseManifest(value:unknown):ReleaseManifest {
+  let copy:any;try{copy=structuredClone(value);}catch{check(false,'INVALID_MANIFEST','The release manifest is not plain data.');}
+  validateManifest(copy);return copy;
+}
+/**
+ * The one pinned-key parser for manifests and channel documents. A private key passed where the public key belongs is
+ * refused: createPublicKey would silently derive its public half, which means the signing secret ships inside the app.
+ */
+export function releasePublicKey(key:string|KeyObject):KeyObject {
+  let privateText=false;
+  if(typeof key==='string'){try{createPrivateKey(key);privateText=true;}catch{}}
+  check(!privateText,'INVALID_UPDATE_KEY','Pin the release public key; a private key must never ship in the app.');
+  let value:KeyObject|undefined;try{value=typeof key==='string'?createPublicKey(key):key;}catch{}
+  check(value&&typeof value==='object'&&value.type==='public'&&value.asymmetricKeyType==='ed25519','INVALID_UPDATE_KEY','Pin an explicit Ed25519 release public key.');
+  return value;
+}
 async function regular(path:string):Promise<boolean> {
   try { const stat=await lstat(path);check(stat.isFile()&&!stat.isSymbolicLink(),'UNSAFE_STAGE','The staging path must be a regular file without symbolic links.');return true; }
   catch(error:any){if(error.code==='ENOENT')return false;throw error;}
@@ -124,8 +141,7 @@ export class ReleaseUpdater {
   #directory:string;
   #http:BoundedHttp;
   constructor(options:{publicKey:string|KeyObject;version:string;stageDirectory:string;http?:BoundedHttp}) {
-    this.#key=typeof options.publicKey==='string'?createPublicKey(options.publicKey):options.publicKey;
-    check(this.#key.type==='public' && this.#key.asymmetricKeyType==='ed25519','INVALID_UPDATE_KEY','Pin an explicit Ed25519 release public key.');
+    this.#key=releasePublicKey(options.publicKey);
     versionParts(options.version);check(isAbsolute(options.stageDirectory),'UNSAFE_STAGE','Choose an absolute private staging directory.');
     this.#version=options.version;this.#directory=options.stageDirectory;this.#http=options.http??boundedHttp;
   }
@@ -180,7 +196,8 @@ export class ReleaseUpdater {
       const pendingPath=join(directory,'pending-release.json');
       if(await regular(pendingPath)) {
         check((await lstat(pendingPath)).size<=65536,'UNSAFE_STAGE','The pending release record exceeds its limit.');const raw=await readFile(pendingPath,'utf8');
-        const pending=JSON.parse(raw),prior=this.#authenticate(pending.manifest,pending.signature);
+        let pending:any;try{pending=JSON.parse(raw);}catch{check(false,'UNSAFE_STAGE','The pending release record is not valid JSON.');}
+        const prior=this.#authenticate(pending.manifest,pending.signature);
         check(compareVersions(verified.version,prior.version)>=0,'RELEASE_DOWNGRADE_REFUSED','A newer signed release has already been staged.');
         if(compareVersions(verified.version,prior.version)===0)check(canonicalReleaseManifest(verified)===canonicalReleaseManifest(prior),'RELEASE_VERSION_CONFLICT','The same version was signed with different release contents.');
       }

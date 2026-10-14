@@ -16,6 +16,18 @@ export type EngineKeychainHostDependencies = {
 export type KeychainHelperManifest = { format: 'chausar.keychain-helper.v1'; platform: 'win32' | 'darwin' | 'linux';
   architecture: 'x64' | 'arm64'; executable: string; sha256: string };
 
+/** The single helper-manifest rule, shared with native/keychain-status.ts so the status report cannot drift from
+ * what custody enrollment accepts: exact keys, pinned helper name (never a path) and target, lowercase SHA-256. */
+export function validKeychainHelperManifest(value: unknown, platform: string, architecture: string): value is KeychainHelperManifest {
+  const manifest = value as KeychainHelperManifest;
+  return Boolean(manifest) && typeof manifest === 'object' && !Array.isArray(manifest)
+    && Object.keys(manifest).sort().join(',') === 'architecture,executable,format,platform,sha256'
+    && manifest.format === 'chausar.keychain-helper.v1' && ['win32', 'darwin', 'linux'].includes(platform)
+    && manifest.platform === platform && ['x64', 'arm64'].includes(architecture) && manifest.architecture === architecture
+    && manifest.executable === (platform === 'win32' ? 'chausar-keychain.exe' : 'chausar-keychain')
+    && typeof manifest.sha256 === 'string' && /^[a-f0-9]{64}$/.test(manifest.sha256);
+}
+
 async function readManifest(path: string): Promise<Uint8Array> {
   await safeDirectory(dirname(path));
   const before = await lstat(path);
@@ -53,11 +65,7 @@ export async function loadEngineKeychain(environment: NodeJS.ProcessEnv, depende
     check(bytes.byteLength > 0 && bytes.byteLength <= 4096, 'KEYCHAIN_MANIFEST_INVALID', 'Native custody manifest exceeds its bound.');
     manifest = JSON.parse(Buffer.from(bytes).toString('utf8'));
   } catch { check(false, 'KEYCHAIN_MANIFEST_INVALID', 'A configured native custody manifest must be readable and valid.'); }
-  check(manifest! && Object.keys(manifest!).sort().join(',') === 'architecture,executable,format,platform,sha256'
-    && manifest!.format === 'chausar.keychain-helper.v1' && ['win32', 'darwin', 'linux'].includes(platform)
-    && manifest!.platform === platform && ['x64', 'arm64'].includes(architecture) && manifest!.architecture === architecture
-    && manifest!.executable === (platform === 'win32' ? 'chausar-keychain.exe' : 'chausar-keychain')
-    && typeof manifest!.sha256 === 'string' && /^[a-f0-9]{64}$/.test(manifest!.sha256),
+  check(validKeychainHelperManifest(manifest!, platform, architecture),
   'KEYCHAIN_MANIFEST_INVALID', 'Native custody manifest must pin the exact helper and running platform/architecture.');
   return PlatformKeychain.create({ platform, architecture, executable: join(dirname(path), manifest!.executable), sha256: manifest!.sha256,
     ...dependencies.keychainProcess });
