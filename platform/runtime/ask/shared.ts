@@ -197,3 +197,8 @@ export function asText(value: unknown): string { return typeof value === 'string
 export function words(value: string): string[] {
   return value.toLowerCase().normalize('NFKC').split(/[^\p{L}\p{N}\p{M}]+/u).filter(Boolean);
 }
+
+export function list<T>(value: unknown, max: number, item: (entry: unknown, index: number) => T): T[] {
+  check(Array.isArray(value) && value.length <= max, 'ASK_INVALID', 'Send a short list.');
+  return value.map(item);
+}

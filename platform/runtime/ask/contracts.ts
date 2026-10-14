@@ -149,6 +149,8 @@ export type PlanReply = {
 
 export type ForecastReply =
   | { state: 'not-enough-history'; months: number; needed: number }
+  /** History exists but has a month with no reconciled rows, so the test cannot run. */
+  | { state: 'cannot-test'; code: 'ASK_FORECAST_GAPS' }
   | {
     state: 'ready';
     answer: 'forecast' | 'baseline';
@@ -161,7 +163,7 @@ export type ForecastReply =
     evaluationId: string; label2: 'projection';
   };
 
-export type DecisionDraft = { id: string; memberId: string; sentence: string; reviewDate: string; receiptIds: string[]; createdAt: string; origin: 'typed' | 'forwarded'; draft: unknown; digest: string };
+export type DecisionDraft = { id: string; memberId: string; sentence: string; reviewDate: string; receiptIds: string[]; createdAt: string; origin: 'typed' | 'forwarded' };
 export type InboxReply = {
   drafts: { id: string; sentence: string; reviewDate: string; origin: 'typed' | 'forwarded'; createdAt: string; receiptIds: string[] }[];
   due: { id: string; text: string; reviewDate: string }[];
@@ -257,7 +259,7 @@ export type Gst2bLineReply = {
  *   askx.decisions.draft { sentence!, reviewDate!, receiptIds }            → { id }
  *   askx.decisions.confirm { draftId! }                                    → { decisionId }
  *   askx.decisions.discard { draftId! }                                    → { removed: true }
- *   askx.decisions.forward { text! }   (phone allowed; becomes a draft only) → { id }
+ *   askx.decisions.forward { text!, reviewDate } (phone allowed; becomes a draft only) → { id }
  *   askx.decisions.list  {}                                                → DecisionsReply
  *   askx.decisions.get   { decisionId! }                                   → DecisionReply
  *   askx.decisions.review { decisionId!, outcome!: 'accepted'|'rejected'|'continue'|'completed', notes, nextReviewDate } → DecisionReply

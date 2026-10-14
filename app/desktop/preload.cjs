@@ -40,7 +40,7 @@ const laneRefusals = [
 
   /* frame-today */ [],
 
-  /* ask */ [],
+  /* ask */ ['ASK_INVALID', 'ASK_NOT_FOUND', 'ASK_NO_DICTIONARY', 'ASK_NO_CALCULATION', 'ASK_STOPPED_BY_RULE', 'ASK_REFUSED', 'ASK_CHANGED', 'ASK_STALE', 'ASK_NOT_GROUPABLE', 'ASK_BRIDGE_NOT_EXACT', 'ASK_CANNOT_REBUILD', 'ASK_NOT_FORECASTABLE', 'ASK_FAILED'],
 
   /* work-books */ [],
 

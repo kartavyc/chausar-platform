@@ -1,0 +1,84 @@
+/**
+ * AS-12: a forecast that says how much to trust it, shown only when it beats the simple baseline.
+ *
+ * One receipt per complete calendar month of history is worked out through the published sum.
+ * The engine's forecast evaluation then backtests the linear trend against the last observed
+ * month on the latest months, held back one at a time. When the trend's error is lower, the next
+ * month's trend value is the answer, with a range from the largest held-back error; otherwise
+ * the baseline is the answer and the page says so. Under 24 months there is no test at all.
+ *
+ * The evaluation runs in the engine's restated-diagnostic mode: it scores the current books'
+ * view of past months, not what was known at the time. The method line says so.
+ */
+import { check, now, type Context } from '../contracts.ts';
+import type { ModuleHost } from '../modules/types.ts';
+import type { CalculationReceipt } from '../calculator.ts';
+import type { SavedForecastEvaluation } from '../forecast-contracts.ts';
+import type { ForecastReply } from './contracts.ts';
+import { addMonths, businessToday, codeOf, core, currentDictionary, input, monthEnd, monthStart, translate } from './shared.ts';
+import { operationOf } from './menu.ts';
+
+export const NEEDED_MONTHS = 24;
+const HELD_BACK = 6;
+
+/** Exact least-squares line through (0, y0) … (n-1, yn-1), evaluated at x, truncated toward zero. */
+export function trendAt(values: readonly bigint[], x: bigint): bigint {
+  const n = BigInt(values.length); check(n >= 2n, 'ASK_INVALID', 'A trend needs at least two months.');
+  let sx = 0n, sy = 0n, sxy = 0n, sxx = 0n;
+  values.forEach((y, i) => { const xi = BigInt(i); sx += xi; sy += y; sxy += xi * y; sxx += xi * xi; });
+  const slopeN = n * sxy - sx * sy, slopeD = n * sxx - sx * sx;
+  // value = (sy - slope*sx)/n + slope*x = (sy*D - N*sx + N*x*n) / (n*D)
+  return (sy * slopeD - slopeN * sx + slopeN * x * n) / (n * slopeD);
+}
+
+const truncate = (exact: { numerator: string; denominator: string } | null) => exact === null ? null : String(BigInt(exact.numerator) / BigInt(exact.denominator));
+
+export async function forecast(ctx: Context, payload: unknown, host: ModuleHost): Promise<ForecastReply> {
+  const request = input(payload, ['operationId', 'today'], ['operationId']);
+  const dictionary = currentDictionary(host, ctx);
+  check(dictionary, 'ASK_NO_DICTIONARY', 'Publish what your words mean before asking for numbers.');
+  const operation = operationOf(dictionary, request.operationId);
+  check(operation, 'ASK_NO_CALCULATION', 'No published calculation has this name.');
+  check(operation.type === 'sum' && (operation.definitions.length === 1 || operation.id === 'net_sales'), 'ASK_NOT_FORECASTABLE', 'Only a published sum of money can be forecast.');
+  const today = businessToday(host, request.today), kinds = new Set(dictionary.definitions.filter(d => operation.definitions.includes(d.name)).map(d => d.kind));
+  const state = host.store.read(), member = state.members.find(m => m.id === ctx.memberId);
+  const facts = state.facts.filter(f => kinds.has(f.kind) && !f.deletedAt && !f.supersededAt && (member?.branches.includes('*') || f.branch && member?.branches.includes(f.branch)));
+  const first = facts.map(f => f.validFrom.slice(0, 7)).sort()[0];
+  const [ty, tm] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))], [ly, lm] = addMonths(ty, tm, -1);
+  const months: [number, number][] = [];
+  if (first) { let [y, m] = [Number(first.slice(0, 4)), Number(first.slice(5, 7))]; while (y * 12 + m <= ly * 12 + lm && months.length < 240) { months.push([y, m]); [y, m] = addMonths(y, m, 1); } }
+  if (months.length < NEEDED_MONTHS) return { state: 'not-enough-history', months: months.length, needed: NEEDED_MONTHS };
+  const sourceIds = [...new Set(facts.map(f => f.sourceId))].sort(), asOf = now();
+  const history: { month: string; minor: string; receiptId: string }[] = [];
+  for (const [y, m] of months) {
+    const receipt = await core<CalculationReceipt>(host, 'calculation.run', { operation: operation.id, sourceIds, period: { from: monthStart(y, m), to: monthEnd(y, m) }, asOf });
+    history.push({ month: monthStart(y, m).slice(0, 7), minor: receipt.valueMinor, receiptId: receipt.id });
+  }
+  const held = history.slice(-HELD_BACK), origins = held.map((target, k) => {
+    const cutoffIndex = history.length - HELD_BACK + k - 1, [cy, cm] = months[cutoffIndex]!, [ny, nm] = addMonths(cy, cm, 1);
+    return { id: `origin-${k + 1}`, eventCutoff: monthEnd(cy, cm), knowledgeCut: `${monthStart(ny, nm)}T00:00:00.000Z`,
+      trainingReceiptIds: history.slice(0, cutoffIndex + 1).map(h => h.receiptId), targets: [{ horizonMonths: 1, receiptId: target.receiptId }] };
+  });
+  let evaluation: SavedForecastEvaluation;
+  try {
+    evaluation = await host.call('forecasts.evaluate', { version: 1, mode: 'restated-diagnostic', operation: operation.id, dictionaryHash: dictionary.hash, sourceIds, branch: null,
+      horizonsMonths: [1], cadenceMonths: 1, minimumTrainingMonths: 12, method: 'linear-trend-v1', benchmark: 'last-observed-v1', availabilityLagMs: 0, origins }) as SavedForecastEvaluation;
+  } catch (error) {
+    const code = codeOf(error);
+    if (['FORECAST_COVERAGE_GAP', 'FORECAST_GAP', 'FORECAST_HISTORY_REQUIRED'].includes(code)) return { state: 'cannot-test', code: 'ASK_FORECAST_GAPS' };
+    throw translate(error);
+  }
+  const horizon = evaluation.horizons[0]!, wins = horizon.comparison === 'lower-absolute-error';
+  const values = history.map(h => BigInt(h.minor)), next = trendAt(values, BigInt(values.length));
+  const spread = evaluation.folds.reduce((top, fold) => { const e = BigInt(fold.candidate.absoluteErrorMinor); return e > top ? e : top; }, 0n);
+  const [fy, fm] = addMonths(ly, lm, 1);
+  return {
+    state: 'ready', answer: wins ? 'forecast' : 'baseline', operationId: operation.id, label: operation.label, history,
+    heldBack: evaluation.folds.map(fold => ({ month: fold.targetPeriod.from.slice(0, 7), actualMinor: fold.actualMinor, forecastMinor: fold.candidate.minor, baselineMinor: fold.benchmark.minor })),
+    error: { forecastMinor: truncate(horizon.candidate.meanAbsoluteErrorMinor) ?? '0', baselineMinor: truncate(horizon.benchmark.meanAbsoluteErrorMinor) ?? '0' },
+    next: { month: monthStart(fy, fm).slice(0, 7), forecastMinor: wins ? String(next) : null, baselineMinor: history.at(-1)!.minor, rangeMinor: wins ? String(spread) : null },
+    method: { forecast: 'linear-trend-v1', baseline: 'last-observed-v1', learnedFrom: { from: history[0]!.month, to: history.at(-1)!.month },
+      testedOn: { from: held[0]!.month, to: held.at(-1)!.month } },
+    evaluationId: evaluation.id, label2: 'projection',
+  };
+}
