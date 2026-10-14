@@ -5,6 +5,11 @@ import { sharingMethods, purgeSharing } from '../learning-ext/sharing.ts';
 import { recipeMethods, purgeRecipes } from '../learning-ext/recipes.ts';
 import { accountsMethods, purgeAccounts } from '../learning-ext/accounts.ts';
 import { dictionaryMethods, purgeDictionary, dictionaryTick } from '../learning-ext/dictionary.ts';
+import { dictionaryMcpTools } from '../learning-ext/dictionary-layers.ts';
+import { registerMcpReadTools } from '../mcp.ts';
+
+// The dictionary's three read-only layers join the existing verified-numbers MCP server.
+registerMcpReadTools(dictionaryMcpTools);
 
 /** Lane-owned engine methods. Only the owning lane edits this file. */
 export const learningExtModule: EngineModule = {

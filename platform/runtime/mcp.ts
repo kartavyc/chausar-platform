@@ -11,6 +11,9 @@ export type JSONRPCResponse = { jsonrpc: '2.0'; id: string | number | null; resu
 export type RegisteredCalculation = { name: string; description: string; inputSchema: any; calculate: (arguments_: Record<string, unknown>, context: Context) => Promise<{ value: unknown; receipt: any }> | { value: unknown; receipt: any } };
 /** A read-only, number-free tool (for example the dictionary layers). It never writes, approves or evaluates expressions. */
 export type RegisteredReadTool = { name: string; description: string; inputSchema: any; read: (arguments_: Record<string, unknown>, context: Context) => unknown };
+/** Read tools that engine modules contribute at load (for example the dictionary layers); each MCPService adds them for its store. */
+const readToolProviders = new Set<(store: StateStore) => RegisteredReadTool[]>();
+export function registerMcpReadTools(provider: (store: StateStore) => RegisteredReadTool[]): void { readToolProviders.add(provider); }
 type Session = { identity: string; phase: 'initializing' | 'ready'; protocol: string };
 const receiptSchema = { type: 'object', additionalProperties: false, required: ['receiptId'], properties: {
   receiptId: { type: 'string', minLength: 1, maxLength: 200 },
@@ -58,7 +61,7 @@ export class MCPService {
   constructor(store: StateStore, options: { calculations: RegisteredCalculation[]; receiptReader?: (context: Context, id: string) => any; readTools?: RegisteredReadTool[] }) {
     this.store = store; this.calculations = new Map(); this.sessions = new Map(); this.receiptReader = options.receiptReader;
     for (const c of options.calculations) { check(/^[a-z][a-z0-9_]{0,63}$/.test(c.name) && !this.calculations.has(c.name) && !receiptTools.some(tool => tool.name === c.name), 'INVALID_MCP_TOOL', 'Calculations must have unique registered tool names outside the reserved receipt tools.'); check(c.inputSchema?.type === 'object' && c.inputSchema.additionalProperties === false, 'INVALID_MCP_TOOL', 'Registered calculation arguments must have a closed object schema.'); this.calculations.set(c.name, c); }
-    for (const t of options.readTools ?? []) { check(/^[a-z][a-z0-9_]{0,63}$/.test(t.name) && !this.calculations.has(t.name) && !this.readTools.has(t.name) && !receiptTools.some(tool => tool.name === t.name) && typeof t.read === 'function', 'INVALID_MCP_TOOL', 'Read tools must have unique registered names outside calculations and receipt tools.'); check(t.inputSchema?.type === 'object' && t.inputSchema.additionalProperties === false, 'INVALID_MCP_TOOL', 'Registered read tool arguments must have a closed object schema.'); this.readTools.set(t.name, t); }
+    for (const t of [...(options.readTools ?? []), ...[...readToolProviders].flatMap(provider => provider(store))]) { check(/^[a-z][a-z0-9_]{0,63}$/.test(t.name) && !this.calculations.has(t.name) && !this.readTools.has(t.name) && !receiptTools.some(tool => tool.name === t.name) && typeof t.read === 'function', 'INVALID_MCP_TOOL', 'Read tools must have unique registered names outside calculations and receipt tools.'); check(t.inputSchema?.type === 'object' && t.inputSchema.additionalProperties === false, 'INVALID_MCP_TOOL', 'Registered read tool arguments must have a closed object schema.'); this.readTools.set(t.name, t); }
   }
   scope(context: Context) { return digest({ memberId: context.memberId, role: context.role, epoch: context.epoch }); }
   receipt(context: Context, receipt: any) {
