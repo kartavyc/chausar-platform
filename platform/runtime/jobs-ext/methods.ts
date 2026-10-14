@@ -7,7 +7,7 @@ import { lane, peekLane, pushTimeline, bound, inApp, isLaneJob, ownsJob, rupees,
 import type { JobsExtState, LaneJob, TimelineEntry } from './state.ts';
 import { TEMPLATES, template, skillFile } from './templates.ts';
 import { validRule, coreCatchup, upcoming, ledgerMissed } from './catch-up.ts';
-import { routePrice } from './adapters.ts';
+import { optionalCall, routePrice } from './adapters.ts';
 import { availability, approveProposal, dismissProposal, proposeCard, proposeEdit, detect, visibleProposal, activeJobs, jobCap } from './proposals.ts';
 import { runLaneJob, logResultDecision } from './run.ts';
 import { purgeProcedures } from '../procedures/service.ts';
@@ -187,10 +187,16 @@ export const jobsMethods: Record<string, MethodSpec> = {
     if (resume) await jobsOf(host).resume(ctx, resume);
     return step;
   } },
-  'jobsx.consent.record': { permission: 'approve', handler: (ctx, p, host) => { inApp(ctx); return host.store.update(state => {
+  'jobsx.consent.record': { permission: 'approve', handler: async (ctx, p, host) => { inApp(ctx);
     check(typeof p.customerId === 'string' && /^[A-Za-z0-9._\/-]{1,64}$/.test(p.customerId), 'INVALID_REQUEST', 'Name the customer by its reference.');
     check(p.channel === 'mail' || p.channel === 'whatsapp', 'INVALID_REQUEST', 'Choose mail or WhatsApp.');
     check(typeof p.agreed === 'boolean' && typeof p.source === 'string' && p.source.trim().length > 0 && p.source.length <= 200, 'INVALID_REQUEST', 'Say whether the customer agreed, and where that came from.');
+    // One register: with work-books installed its customer record holds the agreement and the stop word, and
+    // consentFor reads it first. The lane's own row below stays as history and as the register without work-books.
+    const on = nowIso(host).slice(0, 10);
+    const written = await optionalCall(host, 'records.setOptIn', { id: p.customerId, channel: p.channel, answer: p.agreed ? 'yes' : 'no', source: p.source.trim(), on });
+    if (written.available && p.stopped === true) await host.call('records.stop', { id: p.customerId, on });
+    return host.store.update(state => {
     const at = nowIso(host); const row = { customerId: p.customerId, channel: p.channel, agreed: p.agreed, source: p.source.trim(), at, ...(p.stopped === true ? { stoppedAt: at } : {}), sourceIds: [] as string[] };
     const ns = lane(state); ns.consent.push(row); bound(ns.consent, 5000); audit(state, 'jobsx.consent.recorded', { channel: p.channel, agreed: p.agreed, stopped: p.stopped === true });
     return row;
