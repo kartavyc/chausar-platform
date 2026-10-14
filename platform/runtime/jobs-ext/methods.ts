@@ -256,7 +256,8 @@ export const jobsMethods: Record<string, MethodSpec> = {
 export async function jobsTick(ctx: Context, host: ModuleHost, scheduler: SchedulerHost): Promise<unknown[]> {
   const results: unknown[] = []; const jobs = jobsOf(host); const now = jobs.clock(); const today = new Date(now).toISOString().slice(0, 10);
   const ns = peekLane(host.store.read());
-  if (ns.lastDetection?.[ctx.memberId] !== today) { try { results.push({ detected: (await detect(host, ctx)).length }); } catch (error) { results.push({ module: 'jobs-ext', error: { code: (error as any).code ?? 'DETECTION_FAILED' } }); } }
+  // Proposals appear in jobsx.list as approvals; tick results report only job runs.
+  if (ns.lastDetection?.[ctx.memberId] !== today) { try { await detect(host, ctx); } catch { /* a failed detection is tried again on the next tick */ } }
   for (const job of jobs.list(ctx)) {
     const meta = ns.jobs[job.id];
     if (!isLaneJob(job) || !meta || meta.deletedAt || meta.setAside) continue;
