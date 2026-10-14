@@ -287,3 +287,102 @@ export const NOT_BUILT_CODES: readonly string[] = ['UNKNOWN_METHOD', 'INVALID_RE
 export function notBuilt(error: unknown): boolean {
   return isRec(error) && typeof error['code'] === 'string' && NOT_BUILT_CODES.includes(error['code']);
 }
+
+/* ----------------------------------------------------------- FR-11 an idea */
+
+/**
+ * `todayx.idea.start` {} (prepare), `todayx.idea.tell` { text, section?, answers?, guess? } (prepare),
+ * `todayx.idea.correct` { claimId, text?, guess?, withdraw? } (prepare) and `todayx.idea.get` {} (read),
+ * each → IdeaReply. Built without a model: every line is the owner's text as typed, in the section
+ * the owner picked. No number is written by anything but the owner; a standard unknown is blank
+ * until told, or a range only with its official source and the date it was checked.
+ */
+export type IdeaSection = 'business' | 'sale' | 'plan' | 'unknown';
+export const IDEA_SECTIONS: readonly IdeaSection[] = ['business', 'sale', 'plan', 'unknown'];
+export type IdeaUnknown = 'price' | 'sale-cost' | 'first-customers' | 'licences';
+export const IDEA_UNKNOWNS: readonly IdeaUnknown[] = ['price', 'sale-cost', 'first-customers', 'licences'];
+export type IdeaLabel = 'told-by-owner' | 'assumption';
+export interface IdeaLine { readonly claimId: string; readonly text: string; readonly label: IdeaLabel }
+export interface IdeaTold {
+  readonly claimId: string;
+  readonly at: string;
+  /** The owner's words, shown as written. */
+  readonly text: string;
+  readonly section: IdeaSection;
+  readonly answers: IdeaUnknown | null;
+  readonly label: IdeaLabel;
+  readonly status: 'active' | 'corrected' | 'withdrawn';
+  readonly replaces: string | null;
+  readonly correctedBy: string | null;
+}
+export interface IdeaUnknownRow {
+  readonly id: IdeaUnknown;
+  readonly section: IdeaSection;
+  readonly state: 'blank' | 'told' | 'range';
+  readonly lines: readonly IdeaLine[];
+  /** Only with its source and the date a person checked it; text as the source prints it. */
+  readonly range: { readonly low: string; readonly high: string; readonly unit: string; readonly source: string; readonly checkedOn: string; readonly label: 'assumption' } | null;
+}
+export type IdeaReply =
+  | { readonly state: 'not-started' }
+  | {
+    readonly state: 'drafting';
+    readonly startedAt: string;
+    readonly conversation: readonly IdeaTold[];
+    readonly business: readonly IdeaLine[];
+    readonly sale: readonly IdeaLine[];
+    readonly plan: readonly IdeaLine[];
+    readonly unknownsTold: readonly IdeaLine[];
+    readonly unknowns: readonly IdeaUnknownRow[];
+    readonly writtenBy: 'owner-only';
+  };
+export type IdeaDraft = Extract<IdeaReply, { state: 'drafting' }>;
+
+/** The refusal codes of the idea methods. */
+export const IDEA_REFUSALS = ['IDEA_APP_ONLY', 'IDEA_FOUNDER_ONLY', 'IDEA_NOT_STARTED', 'IDEA_FULL', 'IDEA_CLAIM_NOT_FOUND', 'IDEA_CLAIM_DECIDED'] as const;
+
+const IDEA_LABELS = ['told-by-owner', 'assumption'] as const;
+function ideaTold(v: unknown): v is IdeaTold {
+  return isRec(v) && isStr(v['claimId']) && isIsoDate(v['at']) && isStr(v['text']) && v['text'].length <= 500 && oneOf(IDEA_SECTIONS)(v['section'])
+    && (v['answers'] === null || oneOf(IDEA_UNKNOWNS)(v['answers'])) && oneOf(IDEA_LABELS)(v['label'])
+    && oneOf(['active', 'corrected', 'withdrawn'] as const)(v['status']) && (v['replaces'] === null || isStr(v['replaces'])) && (v['correctedBy'] === null || isStr(v['correctedBy']));
+}
+
+/**
+ * Checks the shape and the rule: every line on the draft is an active statement in the
+ * conversation with exactly the owner's words, so no line can carry a number the owner did not type.
+ */
+export function isIdeaReply(v: unknown): v is IdeaReply {
+  if (!isRec(v)) return false;
+  if (v['state'] === 'not-started') return Object.keys(v).length === 1;
+  if (v['state'] !== 'drafting' || !isIsoDate(v['startedAt']) || v['writtenBy'] !== 'owner-only') return false;
+  const conversation = v['conversation'];
+  if (!Array.isArray(conversation) || !conversation.every(ideaTold)) return false;
+  const active = new Map((conversation as IdeaTold[]).filter(item => item.status === 'active').map(item => [item.claimId, item]));
+  const line = (where: IdeaSection, answers: IdeaUnknown | null) => (l: unknown): boolean => {
+    if (!isRec(l) || !isStr(l['claimId']) || !isStr(l['text']) || !oneOf(IDEA_LABELS)(l['label'])) return false;
+    const told = active.get(l['claimId']);
+    return told !== undefined && told.text === l['text'] && told.label === l['label'] && told.section === where && told.answers === answers;
+  };
+  for (const section of ['business', 'sale', 'plan'] as const) {
+    const lines = v[section];
+    if (!Array.isArray(lines) || !lines.every(line(section, null))) return false;
+  }
+  if (!Array.isArray(v['unknownsTold']) || !v['unknownsTold'].every(line('unknown', null))) return false;
+  const unknowns = v['unknowns'];
+  if (!Array.isArray(unknowns) || unknowns.length !== IDEA_UNKNOWNS.length) return false;
+  return unknowns.every((u, index) => {
+    if (!isRec(u) || u['id'] !== IDEA_UNKNOWNS[index] || !oneOf(IDEA_SECTIONS)(u['section']) || !Array.isArray(u['lines'])) return false;
+    if (!u['lines'].every(line(u['section'] as IdeaSection, u['id'] as IdeaUnknown))) return false;
+    const range = u['range'];
+    const rangeOk = range === null || (isRec(range) && isStr(range['low']) && isStr(range['high']) && isStr(range['unit'])
+      && isStr(range['source']) && range['source'].trim() !== '' && isIsoDate(range['checkedOn']) && range['label'] === 'assumption');
+    if (!rangeOk) return false;
+    switch (u['state']) {
+      case 'blank': return u['lines'].length === 0 && range === null;
+      case 'told': return u['lines'].length > 0 && range === null;
+      case 'range': return u['lines'].length === 0 && range !== null;
+      default: return false;
+    }
+  });
+}

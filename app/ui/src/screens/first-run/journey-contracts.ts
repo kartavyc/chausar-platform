@@ -7,9 +7,11 @@
  *   FR-01/02  todayx.identity.check, todayx.identity.save (after the vault)
  *   FR-03/04  workspace.create and its recovery kit, through the host controller only
  *   FR-05     models.list, models.configure (an API key goes through the host's own adapter)
- *   FR-07     sources.preview, sources.import, sources.workbookPreview, sources.workbookImport
+ *   FR-07     sources.preview, sources.import, sources.workbookPreview, sources.workbookImport;
+ *             proposed meanings: learningx.dictionaryProposals, learningx.dictionaryBuild (proposals.ts)
  *   FR-08     ui.context, ontology.packs, ontology.get, ontology.publish, through the existing slice
  *   FR-09     ontology.get (the published menu), calculation.run, receipts.get
+ *   FR-11     todayx.idea.start, todayx.idea.tell, todayx.idea.correct (todayx.idea.get to read)
  *   FR-12     todayx.setupChecklist
  *   FR-13     workspace.recover, workspace.restore
  *   every step  todayx.firstRun.status
@@ -21,7 +23,7 @@
 
 import { ReplyValidationError } from '../../bridge/validate.ts';
 import { notBuilt } from '../../bridge/todayx-contract.ts';
-import type { IdentityCard, IdentityField } from '../../bridge/todayx-contract.ts';
+import type { IdeaSection, IdeaUnknown, IdentityCard, IdentityField } from '../../bridge/todayx-contract.ts';
 
 /* ------------------------------------------------------------------ the port */
 
@@ -84,6 +86,14 @@ export type JourneyPayloads = {
   'receipts.get': { readonly id: string };
   'workspace.recover': { readonly folder: string; readonly recoveryCode: string; readonly passphrase: string };
   'workspace.restore': { readonly folder: string; readonly backupFile: string; readonly passphrase: string };
+  /** FR-07 proposed meanings (learning-ext; may be absent): read the drafts, or build one from the held sheet. */
+  'learningx.dictionaryProposals': { readonly limit?: number };
+  'learningx.dictionaryBuild': { readonly files: readonly { readonly content: string }[] };
+  /** FR-11 an idea (todayx). */
+  'todayx.idea.start': Record<string, never>;
+  'todayx.idea.get': Record<string, never>;
+  'todayx.idea.tell': { readonly text: string; readonly section?: IdeaSection; readonly answers?: IdeaUnknown; readonly guess?: boolean };
+  'todayx.idea.correct': { readonly claimId: string; readonly text?: string; readonly guess?: boolean; readonly withdraw?: true };
 };
 export type JourneyMethod = keyof JourneyPayloads;
 

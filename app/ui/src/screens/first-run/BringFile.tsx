@@ -24,6 +24,8 @@ import {
   type ColumnRole, type DateFormat, type ExpectedTotals, type ImportResult, type JourneyFailure, type JourneyPort, type MappingRecipe, type SheetPreview,
 } from './journey-contracts.ts';
 import { Act, Actions, FailureLine, Note, Status, StepHeader } from './JourneyParts';
+import { ProposedMeanings } from './ProposedMeanings';
+import type { ProposalsOutcome } from './proposals.ts';
 import s from './Journey.module.css';
 
 export type PickedFile =
@@ -42,6 +44,8 @@ export interface BringFileProps {
   readonly company: string;
   readonly onTaken: () => void;
   readonly onWaits: () => void;
+  /** FR-07's "Proposed meanings (draft)" after the file is taken. Absent: the list is not drawn. */
+  readonly propose?: ((file: PickedFile) => Promise<ProposalsOutcome>) | undefined;
 }
 
 type Phase =
@@ -73,7 +77,7 @@ async function fromInput(file: File): Promise<PickedFile | null> {
   return null;
 }
 
-export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company, onTaken, onWaits }: BringFileProps) {
+export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company, onTaken, onWaits, propose }: BringFileProps) {
   const t = useT();
   const inputId = useId();
   const dateName = useId();
@@ -329,6 +333,7 @@ export function BringFile({ rpc, pickFile, held, onHold, meaningsAgreed, company
             <li>{t('FR-07.group.refused', { count: count(String(phase.result.coverage.rejectedRows)) })}</li>
           </ul>
           {phase.result.duplicate && <Note k="FR-07.duplicate" />}
+          {file !== null && propose !== undefined && <ProposedMeanings file={file} propose={propose} />}
           <Actions><Act variant="filled" label="FR.journey.continue.btn" onClick={onTaken} /></Actions>
         </div>
       )}

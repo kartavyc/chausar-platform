@@ -5,6 +5,7 @@ import { addDays, capabilities, faultReport, firstRun, frameOf, help, phoneMessa
 import { activityFilter, activityPage, auditEvents, modelEvents } from '../frame-today/activity.ts';
 import { checkIdentity, identityCard, identityFields } from '../frame-today/identity.ts';
 import { setupChecklist } from '../frame-today/setup-rules.ts';
+import { ideaCorrect, ideaGet, ideaStart, ideaTell } from '../frame-today/idea.ts';
 
 const keys = (payload: Record<string, unknown>, allowed: readonly string[]) =>
   check(Object.keys(payload).every(key => allowed.includes(key)), 'INVALID_TODAYX_REQUEST', 'This request has fields it does not use.');
@@ -83,9 +84,13 @@ export const frameTodayModule: EngineModule = {
     'todayx.help': { permission: 'read', handler: (_ctx, payload) => { keys(payload, []); return help(); } },
     'todayx.faultReport': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return faultReport(ctx, host); } },
     'todayx.phoneMessages': { permission: 'read', handler: (_ctx, payload, host) => { keys(payload, []); return phoneMessages(host); } },
+    'todayx.idea.start': { permission: 'prepare', handler: ideaStart },
+    'todayx.idea.tell': { permission: 'prepare', handler: ideaTell },
+    'todayx.idea.correct': { permission: 'prepare', handler: ideaCorrect },
+    'todayx.idea.get': { permission: 'read', handler: ideaGet },
   },
   /**
-   * Nothing this module keeps is derived from a source: the identity card is typed by a person,
+   * Nothing this module keeps is derived from a source: the identity card and the idea (FR-11) are typed by a person,
    * and the clock, lock and dismissal settings are workspace preferences. Activity and status are
    * computed on each call from records the engine itself purges, so no cache can outlive a source.
    */

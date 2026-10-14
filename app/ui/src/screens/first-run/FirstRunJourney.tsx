@@ -27,6 +27,8 @@ import { BringFile, type PickedFile } from './BringFile';
 import { FirstAnswer } from './FirstAnswer';
 import { Identity } from './Identity';
 import { Idea } from './Idea';
+import { ProposedMeanings } from './ProposedMeanings';
+import { proposalCache, type ProposalsOutcome } from './proposals.ts';
 import { Model, type SaveRouteKey } from './Model';
 import { Recover } from './Recover';
 import { Vault, type JourneyVaultState } from './Vault';
@@ -67,8 +69,9 @@ export interface FirstRunJourneyProps {
   readonly now?: (() => number) | undefined;
 }
 
-function Task({ state, host, hostState, props, heldFile, setHeldFile, identityCode, dispatch }: {
+function Task({ state, host, hostState, props, heldFile, setHeldFile, identityCode, dispatch, propose }: {
   state: JourneyState;
+  propose: (file: PickedFile) => Promise<ProposalsOutcome>;
   identityCode: string;
   host: JourneyHost;
   hostState: JourneyVaultState;
@@ -104,11 +107,12 @@ function Task({ state, host, hostState, props, heldFile, setHeldFile, identityCo
     case 'file':
       return <BringFile rpc={props.rpc} pickFile={props.pickFile} held={heldFile} onHold={setHeldFile} meaningsAgreed={isDone(state, 'meanings')}
         company={hostState.context?.workspace.name ?? ''} onTaken={() => { setHeldFile(null); dispatch({ type: 'file-taken' }); }}
-        onWaits={() => dispatch({ type: 'file-waits' })} />;
+        onWaits={() => dispatch({ type: 'file-waits' })} propose={propose} />;
     case 'meanings':
       return (
         <>
           {state.fileWaiting && <Note k="FR-08.journey.waiting" role="status" />}
+          {state.fileWaiting && heldFile !== null && <ProposedMeanings file={heldFile} propose={propose} />}
           <div data-first-run-screen="meanings">
             <FirstRunTask controller={host.firstRun} language={props.language} view={props.view} intents={{
               onContinue: handoff => { if (host.completeFirstRun(handoff)) dispatch({ type: 'meanings-agreed' }); },
@@ -139,6 +143,8 @@ export function FirstRunJourney(props: FirstRunJourneyProps) {
   const hostState = useSyncExternalStore(host.subscribe, host.snapshot, host.snapshot);
   const [heldFile, setHeldFile] = useState<PickedFile | null>(null);
   const [identityCode, setIdentityCode] = useState('INVALID_REPLY');
+  // One draft per held sheet for the life of the journey, whichever step shows it.
+  const propose = useMemo(() => proposalCache(rpc), [rpc]);
   const mounted = useRef(false);
   const task = useRef<HTMLDivElement>(null);
   const shownScreen = useRef(state.screen);
@@ -201,7 +207,7 @@ export function FirstRunJourney(props: FirstRunJourneyProps) {
     <FirstRunText language={language}>
       <FirstRunStep language={language} onLanguage={onLanguage} steps={journeySteps(state)} blocked={blockedOf(state)} left={leftOf(state)}>
         <div ref={task} tabIndex={-1} data-first-run-journey={state.screen} style={{ outline: 'none' }}>
-          <Task state={state} host={host} hostState={hostState} props={props} heldFile={heldFile} setHeldFile={setHeldFile} identityCode={identityCode} dispatch={store.dispatch} />
+          <Task state={state} host={host} hostState={hostState} props={props} heldFile={heldFile} setHeldFile={setHeldFile} identityCode={identityCode} dispatch={store.dispatch} propose={propose} />
         </div>
       </FirstRunStep>
     </FirstRunText>

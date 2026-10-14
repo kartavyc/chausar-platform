@@ -10,6 +10,7 @@ import { moduleState, peekModuleState, type ModuleHost } from '../modules/types.
 import { moduleMethods } from '../modules/registry.ts';
 import { auditEvents } from './activity.ts';
 import type { IdentityCard } from './identity.ts';
+import type { IdeaState } from './idea.ts';
 
 export const MODULE_ID = 'frame-today';
 export type FrameState = {
@@ -18,8 +19,10 @@ export type FrameState = {
   /** Per member: when that seat last dismissed the jobs-paused banner. */
   jobsPausedDismissedAt: Record<string, string>;
   identity: IdentityCard | null;
+  /** FR-11: the founder's idea, as typed. Absent in workspaces written before it existed. */
+  idea?: IdeaState | null;
 };
-export const initFrame = (): FrameState => ({ clock: null, autoLockMinutes: 10, jobsPausedDismissedAt: {}, identity: null });
+export const initFrame = (): FrameState => ({ clock: null, autoLockMinutes: 10, jobsPausedDismissedAt: {}, identity: null, idea: null });
 export const frameOf = (state: State): FrameState => ({ ...initFrame(), ...peekModuleState<FrameState>(state, MODULE_ID) });
 export async function updateFrame<T>(host: ModuleHost, ctx: Context, permission: 'read' | 'prepare' | 'admin', change: (frame: FrameState, state: State) => T): Promise<T> {
   return host.store.update(state => {
