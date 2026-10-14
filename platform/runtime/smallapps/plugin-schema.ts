@@ -57,6 +57,22 @@ export function schemaProblems(schema: unknown, path = '', depth = 0): string[] 
   return problems;
 }
 
+/**
+ * The schema without its annotations (title, description, default, examples, $schema, $comment): those are outside
+ * text, so a screen gets only the enforced keywords. Property names are format-checked; enum strings are data the
+ * caller must match, so a screen shows them quoted.
+ */
+export function stripAnnotations(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(stripAnnotations);
+  if (!plain(schema)) return schema;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(schema)) {
+    if (ANNOTATIONS.has(key)) continue;
+    out[key] = key === 'properties' && plain(value) ? Object.fromEntries(Object.entries(value).map(([name, child]) => [name, stripAnnotations(child)])) : key === 'enum' ? value : stripAnnotations(value);
+  }
+  return out;
+}
+
 /** True when the tool takes any argument at all; such tools receive their arguments as bytes in linear memory. */
 export const takesArguments = (schema: Record<string, any>) => plain(schema.properties) && Object.keys(schema.properties).length > 0;
 

@@ -8,6 +8,7 @@ import { modelsExtHostOptions, pluginCredentialBroker } from '../runtime/models-
 import { Engine } from '../runtime/engine.ts';
 import { installSyntheticProductionStorage } from './fixtures/synthetic-production-engine.ts';
 
+const KEY_ID = 'a'.repeat(64);
 const publicKey = () => generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('base64');
 
 test('installed-app options come only from CHAUSAR_* settings and never carry a secret', async () => {
@@ -17,7 +18,7 @@ test('installed-app options come only from CHAUSAR_* settings and never carry a 
     const key = publicKey();
     const options = modelsExtHostOptions({ directory, demo: false, env: { CHAUSAR_BENCH_TRANSCRIPTS: '/srv/transcripts', CHAUSAR_SPEECH_BENCH_FIXTURES: clips,
       CHAUSAR_PLUGIN_PUBLISHER_KEYS: JSON.stringify([{ publisherId: 'acme', publicKey: key }]),
-      CHAUSAR_PLUGIN_CREDENTIALS: JSON.stringify([{ plugin: 'acme/rates', site: 'api.example.com', header: 'Authorization', env: 'CHAUSAR_ACME_KEY' }]),
+      CHAUSAR_PLUGIN_CREDENTIALS: JSON.stringify([{ keyId: KEY_ID, plugin: 'rates', site: 'api.example.com', header: 'Authorization', env: 'CHAUSAR_ACME_KEY' }]),
       CHAUSAR_ACME_KEY: 'Bearer secret-value' } });
     assert.equal(options.benchTranscripts, '/srv/transcripts'); assert.deepEqual(options.speechBench, { schema: 'synthetic' });
     assert.deepEqual(options.publisherKeys, [{ publisherId: 'acme', publicKey: key }]);
@@ -25,22 +26,28 @@ test('installed-app options come only from CHAUSAR_* settings and never carry a 
     assert.equal(options.pluginSigningKey, undefined); assert.equal(options.clock, undefined); assert.equal(options.pluginTransport, undefined);
     assert.deepEqual(modelsExtHostOptions({ directory, demo: true, env: { CHAUSAR_BENCH_TRANSCRIPTS: '/srv/transcripts' } }), {});
     const bad = modelsExtHostOptions({ directory, demo: false, env: { CHAUSAR_BENCH_TRANSCRIPTS: 'relative/path', CHAUSAR_SPEECH_BENCH_FIXTURES: join(directory, 'missing.json'),
-      CHAUSAR_PLUGIN_PUBLISHER_KEYS: '{not json', CHAUSAR_PLUGIN_CREDENTIALS: JSON.stringify([{ plugin: 'acme/rates', site: 'api.example.com', header: 'Authorization', env: 'HOME' }]) } });
+      CHAUSAR_PLUGIN_PUBLISHER_KEYS: '{not json', CHAUSAR_PLUGIN_CREDENTIALS: JSON.stringify([{ keyId: KEY_ID, plugin: 'rates', site: 'api.example.com', header: 'Authorization', env: 'HOME' }]) } });
     assert.deepEqual(bad, {});
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
-test('plugin credentials are read from the named variable at request time, only for the exact plugin and site', () => {
+test('plugin credentials are bound to the verified publisher key id and plugin name, read from the named variable at request time', () => {
   let env: Record<string, string | undefined> = {};
-  const broker = pluginCredentialBroker([{ plugin: 'acme/rates', site: 'api.example.com', header: 'X-Api-Key', env: 'CHAUSAR_ACME_KEY' }], () => env)!;
-  assert.equal(broker({ plugin: 'acme/rates', site: 'api.example.com' }), null);
+  const broker = pluginCredentialBroker([{ keyId: KEY_ID, plugin: 'rates', site: 'api.example.com', header: 'X-Api-Key', env: 'CHAUSAR_ACME_KEY' }], () => env)!;
+  assert.equal(broker({ keyId: KEY_ID, plugin: 'rates', site: 'api.example.com' }), null);
   env = { CHAUSAR_ACME_KEY: 'k1' };
-  assert.deepEqual(broker({ plugin: 'acme/rates', site: 'api.example.com' }), { 'X-Api-Key': 'k1' });
-  assert.equal(broker({ plugin: 'acme/rates', site: 'evil.example.com' }), null);
-  assert.equal(broker({ plugin: 'other/rates', site: 'api.example.com' }), null);
+  assert.deepEqual(broker({ keyId: KEY_ID, plugin: 'rates', site: 'api.example.com' }), { 'X-Api-Key': 'k1' });
+  assert.equal(broker({ keyId: KEY_ID, plugin: 'rates', site: 'evil.example.com' }), null);
+  assert.equal(broker({ keyId: KEY_ID, plugin: 'other', site: 'api.example.com' }), null);
+  // M3: a plugin that merely claims the same publisher and name but was signed with another key gets nothing.
+  assert.equal(broker({ keyId: 'b'.repeat(64), plugin: 'rates', site: 'api.example.com' }), null);
   env = { CHAUSAR_ACME_KEY: 'k1\r\nX-Injected: 1' };
-  assert.equal(broker({ plugin: 'acme/rates', site: 'api.example.com' }), null);
-  assert.equal(pluginCredentialBroker([{ plugin: 'acme/rates', site: 'http://api.example.com', header: 'X', env: 'CHAUSAR_A' }], () => env), undefined);
+  assert.equal(broker({ keyId: KEY_ID, plugin: 'rates', site: 'api.example.com' }), null);
+  assert.equal(pluginCredentialBroker([{ keyId: KEY_ID, plugin: 'rates', site: 'http://api.example.com', header: 'X', env: 'CHAUSAR_A' }], () => env), undefined);
+  // The old self-declared `publisher/name` shape, a rule without a key id, or a malformed key id is refused as a whole.
+  assert.equal(pluginCredentialBroker([{ plugin: 'acme/rates', site: 'api.example.com', header: 'X', env: 'CHAUSAR_A' }], () => env), undefined);
+  assert.equal(pluginCredentialBroker([{ keyId: 'acme', plugin: 'rates', site: 'api.example.com', header: 'X', env: 'CHAUSAR_A' }], () => env), undefined);
+  assert.equal(pluginCredentialBroker([{ keyId: KEY_ID, plugin: 'acme/rates', site: 'api.example.com', header: 'X', env: 'CHAUSAR_A' }], () => env), undefined);
 });
 
 test('the engine builds the options itself when the host passes none', async t => {
