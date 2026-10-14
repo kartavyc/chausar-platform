@@ -85,7 +85,7 @@ All writing methods refuse phone sessions (`OPEN_DESKTOP`) and requests that rea
 
 ## Full suite
 
-`npm test` on `55d6f5f`: 4,163 tests, 4,132 passed, 4 failed, 27 skipped. The four failures are in `platform/tests/benchmark-sharding.test.ts` and fail identically on the base branch (`claude/clever-goldberg-49qobq`); they are not caused by this lane. `desktop-host-bundle-join.test.ts` needs `--experimental-vm-modules` and fails under a plain `node --test` (also on the base).
+`npm test` on `3d2f7bc` (after round 2): 4,230 tests, 4,199 passed, 1 failed, 30 skipped. The failure is `vault-encrypted-custody-bigint-identity.test.ts` ("unsafe-collision"), which fails the same way on the base branch `claude/clever-goldberg-49qobq`; it depends on file-system inode numbers and is not touched by this lane. The skipped release tests are the real-binary ones (`release-postgres-real`, `release-enterprise-postgres`), which run only when pointed at a staged runtime or a real database, and did run here (see below). `desktop-host-bundle-join.test.ts` needs `--experimental-vm-modules`, which `npm test` supplies.
 
 ## Real Linux runs: PostgreSQL
 
