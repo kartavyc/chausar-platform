@@ -945,13 +945,26 @@ export class Engine {
     if (vault.read().actions.some(action => action.status === 'executing')) await this.services.actions.recoverInterrupted(this.context);
     if (this.services.jobRunner && vault.read().jobs.some(job => job.status === 'running')) await this.services.jobRunner.recoverInterrupted(this.context);
   } catch (error) { await vault.close(); this.vault = null; this.services = {}; throw error; } }
+  #moduleOptions = new Map<string, Readonly<Record<string, unknown>>>();
+  /** Host-supplied module options win; otherwise the module builds its own once from trusted inputs. */
+  private moduleOptions(moduleId: string): Readonly<Record<string, unknown>> {
+    const supplied = this.options.modules?.[moduleId];
+    if (supplied) return Object.freeze({ ...supplied });
+    let built = this.#moduleOptions.get(moduleId);
+    if (!built) {
+      const engineModule = engineModules.find(candidate => candidate.id === moduleId);
+      built = Object.freeze({ ...(engineModule?.hostOptions?.({ directory: this.options.directory, demo: this.#demo, env: Object.freeze({ ...process.env }) }) ?? {}) });
+      this.#moduleOptions.set(moduleId, built);
+    }
+    return built;
+  }
   /** The narrow host handed to an engine module for one call. */
   moduleHost(moduleId: string, ctx: Context): ModuleHost {
     const engine = this;
     return Object.freeze({
       get store() { return engine.store(); },
       services: this.services, demo: this.#demo, directory: this.options.directory,
-      options: Object.freeze({ ...(this.options.modules?.[moduleId] ?? {}) }),
+      options: this.moduleOptions(moduleId),
       call: (method: string, payload: Record<string, unknown>) => engine.requestAs(ctx, method, payload),
     });
   }
