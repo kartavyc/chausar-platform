@@ -23,6 +23,7 @@
   "askx.plan",
   "askx.rebuild",
   "askx.receipt",
+  "askx.receipt.export",
   "askx.run",
   "askx.save",
   "askx.saveRef",
@@ -35,6 +36,7 @@
   "askx.unsave",
   "askx.wanted",
   "askx.whatIf",
+  "askx.whatIf.get",
   "askx.why.get",
   "askx.why.guess",
   "askx.why.start"

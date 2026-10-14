@@ -163,9 +163,10 @@ test('a branch-limited seat is stopped by a rule, and a viewer cannot save', asy
   const broad = await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
   const member = await ask(engine, 'members.add', { id: 'viewer-main', name: 'Branch viewer', role: 'viewer', branches: ['main'] });
   (engine as any).context = { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' };
-  assert.deepEqual(await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', branch: 'west', today: TODAY }), { kind: 'refused', code: 'ASK_STOPPED_BY_RULE' });
+  assert.deepEqual(await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', branch: 'west', today: TODAY }), { kind: 'refused', code: 'ASK_STOPPED_BY_RULE', rule: 'branch' });
   await assert.rejects(ask(engine, 'askx.receipt', { receiptId: broad.receiptId }), code('ASK_STOPPED_BY_RULE'));
-  assert.deepEqual(await ask(engine, 'askx.sourceRows', { receiptId: broad.receiptId }), { tab: 'counted', total: 0, offset: 0, rows: [], hidden: true });
+  // Someone else's receipt never opens, not even as a count.
+  await assert.rejects(ask(engine, 'askx.sourceRows', { receiptId: broad.receiptId }), code('ASK_STOPPED_BY_RULE'));
   const own = await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
   assert.equal(own.figures[0].minor, '125025');
   await assert.rejects(ask(engine, 'askx.save', { receiptId: own.receiptId }), code('FORBIDDEN'));
@@ -513,4 +514,32 @@ test('review: the number guard knows dates, years and ordinals by structure, and
     ['In FY 2026-28 it was ₹1,250.25.', ['28']], ['September 5 customers paid.', ['5']], ['Rs2026 in 2026.', ['2026']], ['₹ 30 September', ['30']],
   ];
   for (const [text, expected] of caught) assert.deepEqual(unmatched(text), expected, text);
+});
+
+test('review: a seat whose own receipt now holds hidden rows sees its rows and a count, plus the gap fields', async t => {
+  const engine = await workspace(t);
+  const rows: Row[] = [...SEPT, ['w2', 'sale', '2026-09-08', '10.00', 'c', 'i2', 'delivered', 'west'], ['w3', 'sale', '2026-09-09', '10.00', 'c', 'i3', 'delivered', 'west']];
+  await ask(engine, 'sources.import', source('september', rows));
+  const cofounder = await ask(engine, 'members.add', { id: 'co', name: 'Cofounder', role: 'cofounder', branches: ['*'] });
+  as(engine, cofounder);
+  const answer = await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
+  assert.equal(answer.explanation.reason, 'no-model');
+  const receipt = await ask(engine, 'askx.receipt', { receiptId: answer.receiptId });
+  assert.deepEqual([receipt.meaning.version, receipt.meaning.publishedBy, receipt.demo], [2, 'owner', true]);
+  const csv = await ask(engine, 'askx.receipt.export', { receiptId: answer.receiptId });
+  assert.equal(csv.csv.trim().split('\r\n').length, 1 + 4);
+  // The owner narrows the cofounder's branches without changing the seat's epoch.
+  as(engine, { id: 'owner', role: 'owner', epoch: 1 });
+  await (engine as any).vault.update((state: any) => { state.members.find((m: any) => m.id === 'co').branches = ['main']; });
+  as(engine, cofounder);
+  const shown = await ask(engine, 'askx.sourceRows', { receiptId: answer.receiptId });
+  assert.deepEqual([shown.hidden, shown.hiddenCount, shown.rule, shown.total], [true, 3, 'branch', 1]);
+  as(engine, { id: 'owner', role: 'owner', epoch: 1 });
+  const what = await ask(engine, 'askx.whatIf', { periodId: 'last-month', priceChangeBps: '500', today: TODAY });
+  const back = await ask(engine, 'askx.whatIf.get', { receiptId: what.withChange.receiptId });
+  assert.deepEqual([back.assumption.afterBps, back.withChange.minor], ['500', what.withChange.minor]);
+  const saved = await ask(engine, 'askx.saveRef', { kind: 'what-if', refId: what.withChange.receiptId, question: 'Price up five percent' });
+  const found = await ask(engine, 'askx.search', { query: 'price' });
+  assert.deepEqual(found.groups[0].hits[0].ref, { savedKind: 'what-if', receiptId: what.withChange.receiptId, refId: what.withChange.receiptId });
+  assert.ok(saved.id);
 });

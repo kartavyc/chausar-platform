@@ -29,7 +29,7 @@ export async function search(ctx: Context, payload: unknown, host: ModuleHost): 
   };
   const groups: SearchReply['groups'] = [];
   const add = (kind: SearchReply['groups'][number]['kind'], hits: SearchReply['groups'][number]['hits']) => { if (hits.length) groups.push({ kind, hits: hits.slice(0, LIMIT) }); };
-  add('saved', own.saved.filter(s => s.memberId === ctx.memberId).flatMap(s => hit(s.id, s.question ?? s.operationId ?? '')));
+  add('saved', own.saved.filter(s => s.memberId === ctx.memberId).flatMap(s => hit(s.id, s.question ?? s.operationId ?? '').map(h => ({ ...h, ref: { savedKind: s.kind, receiptId: s.receiptId, refId: s.refId } }))));
   add('check', own.checks.filter(c => c.memberId === ctx.memberId).flatMap(c => hit(c.id, c.question)));
   add('why', own.why.filter(w => w.memberId === ctx.memberId).flatMap(w => [...hit(w.id, w.label), ...w.guesses.flatMap(g => hit(w.id, g.text))]));
   const optional = async (method: string) => { try { return await host.call(method, {}) as any[]; } catch (error) { if (['UNKNOWN_METHOD', 'FORBIDDEN'].includes(codeOf(error))) return []; throw translate(error); } };

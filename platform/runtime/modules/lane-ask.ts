@@ -3,11 +3,11 @@ import { peekModuleState } from './types.ts';
 import type { AskState } from '../ask/contracts.ts';
 import { input } from '../ask/shared.ts';
 import { menu, suggest, understand, wanted } from '../ask/menu.ts';
-import { answer, guard, receiptView, run, sent, sourceRows } from '../ask/answers.ts';
+import { answer, exportReceipt, guard, receiptView, run, sent, sourceRows } from '../ask/answers.ts';
 import { rebuild, save, saved, saveRef, unsave } from '../ask/saved.ts';
 import { getCheck, listChecks, removeCheck, runChecks, saveCheck, tickChecks } from '../ask/checks.ts';
 import { get as whyGet, guess as whyGuess, start as whyStart } from '../ask/why.ts';
-import { plan, whatIf } from '../ask/whatif.ts';
+import { plan, whatIf, whatIfGet } from '../ask/whatif.ts';
 import { forecast } from '../ask/forecast.ts';
 import { confirm, discard, draft, getDecision, inbox, listDecisions, review } from '../ask/decisions.ts';
 import { search } from '../ask/search.ts';
@@ -44,6 +44,8 @@ export const askModule: EngineModule = {
     'askx.why.get': read(whyGet),
     'askx.why.guess': prepare(whyGuess),
     'askx.whatIf': read(whatIf),
+    'askx.whatIf.get': read(whatIfGet),
+    'askx.receipt.export': read(exportReceipt),
     'askx.plan': read(plan),
     'askx.forecast': read(forecast),
     'askx.decisions.inbox': read(inbox),

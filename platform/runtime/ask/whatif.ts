@@ -14,7 +14,7 @@ import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
 import type { Period } from '../memory.ts';
 import type { PlanReply, WhatIfReply } from './contracts.ts';
-import { businessToday, core, currentDictionary, identifier, input, list, minorString, namedPeriod, period } from './shared.ts';
+import { businessToday, core, currentDictionary, identifier, input, list, minorString, namedPeriod, period, requireId } from './shared.ts';
 
 function periodFrom(host: ModuleHost, request: Record<string, any>): Period {
   return request.period !== undefined ? period(request.period) : namedPeriod(request.periodId ?? 'last-month', businessToday(host, request.today));
@@ -75,4 +75,14 @@ export async function plan(ctx: Context, payload: unknown, host: ModuleHost): Pr
   return { label: 'experimental', feasible: best !== null, tried: tried.length, clash,
     limits: limits.map(limit => ({ ...limit, tight: tight(limit.index), alone: alone(limit.index) })),
     recommended: best ? { bps: String(best.bps), scenarioMinor: String(best.scenario), changeMinor: String(best.change), receiptId: best.receiptId } : null };
+}
+
+/** A saved what-if read back from its receipt, under current access. */
+export async function whatIfGet(_ctx: Context, payload: unknown, host: ModuleHost): Promise<WhatIfReply> {
+  const request = input(payload, ['receiptId'], ['receiptId']);
+  const receipt = await core<CalculationReceipt>(host, 'receipts.get', { id: requireId(request.receiptId) });
+  check(receipt.operation === 'scenario' && receipt.period, 'ASK_NOT_FOUND', 'This is not a what-if.');
+  return { label: 'what-if', assumption: { name: 'price', beforeBps: '0', afterBps: figure(receipt, 'priceChangeBps') },
+    books: { minor: figure(receipt, 'baseline'), receiptId: receipt.id }, withChange: { minor: figure(receipt, 'scenario'), receiptId: receipt.id },
+    change: { minor: figure(receipt, 'change'), receiptId: receipt.id }, period: receipt.period, branch: receipt.branch };
 }

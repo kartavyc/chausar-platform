@@ -124,7 +124,7 @@ export async function getDecision(_ctx: Context, payload: unknown, host: ModuleH
     known.push({ receiptId, label: receipt.operation, minor: figure?.minor ?? null, asOf: receipt.asOf });
   }
   return { id: found.id, text: String(found.text), createdAt: found.createdAt, reviewDate: found.reviewDate, status: found.status === 'closed' ? 'closed' : 'open',
-    recordedLater: later(host, found.id), revision: journal(found) ? found.revision : null, known, journal: journal(found),
+    recordedLater: later(host, found.id), replaced: journal(found) && found.revisions.length > 0, cancelled: cancelled(found), revision: journal(found) ? found.revision : null, known, journal: journal(found),
     reviews: (found.reviews ?? []).map((r: any) => ({ at: r.at, outcome: r.outcome, notes: typeof r.notes === 'string' ? r.notes : null, nextReviewDate: typeof r.nextReviewDate === 'string' ? r.nextReviewDate : null })) };
 }
 

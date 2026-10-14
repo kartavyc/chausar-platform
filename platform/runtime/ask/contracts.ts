@@ -58,11 +58,14 @@ export type AnswerReply = {
   /** Months of the period with no rows loaded at all. Words on screen, never a zero. */
   monthsNotLoaded: string[];
   labels: ('seed' | 'what-if' | 'stale')[];
-  explanation: { source: 'template' | 'model'; text: string; replaced: boolean };
+  /** Why a template was used: no model was asked (the menu), or the guard replaced a model's text. */
+  explanation: { source: 'template' | 'model'; text: string; replaced: boolean; reason: 'no-model' | 'guard-replaced' | null };
   guard: { status: 'passed' | 'replaced'; lines: GuardLine[] };
   sent: 'nothing';
 };
-export type RunReply = AnswerReply | { kind: 'refused'; code: string } | { kind: 'not-applicable'; reason: 'composition' | 'unregistered' };
+/** Which kind of rule stopped an answer (AS-09). A fixed word, never the rule's own text. */
+export type RuleKind = 'branch' | 'source' | 'seat' | 'access' | 'marking';
+export type RunReply = AnswerReply | { kind: 'refused'; code: string; rule?: RuleKind } | { kind: 'not-applicable'; reason: 'composition' | 'unregistered' };
 
 export type ReceiptReply = {
   receiptId: string;
@@ -87,18 +90,26 @@ export type ReceiptReply = {
   notCounted: number;
   fx: { from: string; to: string; rate: string; on: string | null }[];
   sent: { kind: 'nothing' } | { kind: 'model'; available: boolean };
+  /** The published meaning this receipt used. */
+  meaning: { version: number; publishedBy: string; publishedAt: string } | null;
+  /** True in a demo workspace: every date and figure is synthetic. */
+  demo: boolean;
 };
 export type SourceRowsReply = {
   tab: 'counted' | 'left-out';
   total: number;
   offset: number;
   rows: { rowId: string; sourceId: string; sourceRow: number | null; cells: { name: string; value: string }[]; amountMinor: string | null; reason: string | null }[];
-  /** True when this seat may not see some rows of the receipt; nothing about them is shown. */
+  /** True when this seat may not see some rows of the receipt. */
   hidden: boolean;
+  /** How many rows are hidden, given only when three or more (part 10), never which. */
+  hiddenCount: number | null;
+  /** The kind of rule that hides them, when known. */
+  rule: RuleKind | null;
 };
 export type SentReply =
   | { kind: 'nothing'; why: 'menu' | 'no-model-record' }
-  | { kind: 'sent'; routeId: string; sendLevel: string; bytes: number; costMinor: string | null; text: string | null; digest: string; removed: boolean; at: string; boundary: string };
+  | { kind: 'sent'; routeId: string; sendLevel: string; bytes: number; costMinor: string | null; text: string | null; digest: string; removed: boolean; at: string; boundary: string; retentionDays: number };
 
 export type SavedKind = 'answer' | 'why' | 'what-if' | 'forecast';
 export type SavedItem = {
@@ -176,7 +187,11 @@ export type InboxReply = {
 };
 export type DecisionsReply = { items: { id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; replaced: boolean; cancelled: boolean; reviews: number; receiptIds: string[] }[] };
 
-export type SearchReply = { query: string; groups: { kind: 'saved' | 'decision' | 'investigation' | 'check' | 'why'; hits: { id: string; text: string; marks: [number, number][] }[] }[] };
+export type SearchReply = { query: string; groups: { kind: 'saved' | 'decision' | 'investigation' | 'check' | 'why'; hits: {
+  id: string; text: string; marks: [number, number][];
+  /** For a saved hit: what it opens. */
+  ref?: { savedKind: SavedKind; receiptId: string | null; refId: string | null };
+}[] }[] };
 export type WantedReply = {
   calculations: { text: string; count: number; lastAt: string }[];
   actions: { text: string; count: number; lastAt: string }[];
@@ -223,7 +238,7 @@ export type CheckReply = {
   results: CheckItem['results'];
 };
 export type DecisionReply = {
-  id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; revision: number | null;
+  id: string; text: string; createdAt: string; reviewDate: string; status: 'open' | 'closed'; recordedLater: boolean; replaced: boolean; cancelled: boolean; revision: number | null;
   /** What was known then: each receipt as it stood on the day the decision was made. */
   known: { receiptId: string; label: string; minor: string | null; asOf: string }[];
   /** What happened after, in order. */
@@ -264,6 +279,8 @@ export type Gst2bLineReply = {
  *   askx.why.get         { whyId! }                                        → WhyReply
  *   askx.why.guess       { whyId!, text!, forReceiptIds, againstReceiptIds } → WhyReply
  *   askx.whatIf          { period | periodId, priceChangeBps!, branch, today } → WhatIfReply
+ *   askx.whatIf.get      { receiptId! }  (a saved what-if read back)          → WhatIfReply
+ *   askx.receipt.export  { receiptId! }  (rows counted and left out as CSV)   → { fileName, csv }
  *   askx.plan            { period | periodId, limits!: [{ figure, op, minor }], fromBps!, toBps!, stepBps!, today } → PlanReply
  *   askx.forecast        { operationId!, today }                           → ForecastReply
  *   askx.decisions.inbox {}                                                → InboxReply

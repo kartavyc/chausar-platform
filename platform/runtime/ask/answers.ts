@@ -11,7 +11,7 @@ import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt, CalculationRequest } from '../calculator.ts';
 import { canSeeFact, type Period } from '../memory.ts';
 import type { AnswerReply, Gap, GuardLine, ReceiptReply, RunReply, SentReply, SourceRowsReply } from './contracts.ts';
-import { asText, businessToday, codeOf, core, currentDictionary, headlineKey, identifier, input, isRuleCode, minorString, monthsOf, namedPeriod, period, priorPeriod, requireId, seedDictionary, text, translate } from './shared.ts';
+import { asText, ruleKind, businessToday, codeOf, core, currentDictionary, headlineKey, identifier, input, isRuleCode, minorString, monthsOf, namedPeriod, period, priorPeriod, requireId, seedDictionary, text, translate } from './shared.ts';
 import { isPeriodId, operationOf, recordAsked } from './menu.ts';
 import { guardLines } from './guard.ts';
 export { asciiDigits, guardLines } from './guard.ts';
@@ -57,7 +57,7 @@ export function answerOf(host: ModuleHost, ctx: Context, receipt: CalculationRec
     figures: receipt.figures.map(f => ({ key: f.key, label: f.label, minor: f.minor, unit: f.unit })),
     rows: { read: receipt.coverage.selectedRows, counted: receipt.coverage.countedRows, excluded: receipt.coverage.excludedRows },
     completeness: receipt.coverage.completeness, gaps: gapsOf(receipt), monthsNotLoaded: monthsNotLoaded(host, ctx, receipt), labels,
-    explanation: { source: 'template', text: receipt.explanation, replaced: false },
+    explanation: { source: 'template', text: receipt.explanation, replaced: false, reason: 'no-model' },
     guard: { status: lines.every(line => line.matched) ? 'passed' : 'replaced', lines }, sent: 'nothing',
   };
 }
@@ -84,7 +84,7 @@ export async function run(ctx: Context, payload: unknown, host: ModuleHost): Pro
   try { receipt = await host.call('calculation.run', calculation as unknown as Record<string, unknown>) as CalculationReceipt; }
   catch (error) {
     const code = codeOf(error);
-    if (isRuleCode(code)) return { kind: 'refused', code: 'ASK_STOPPED_BY_RULE' };
+    if (isRuleCode(code)) return { kind: 'refused', code: 'ASK_STOPPED_BY_RULE', rule: ruleKind(code) };
     throw translate(error);
   }
   await recordAsked(host, ctx.memberId, operation.id, isPeriodId(request.periodId) && request.period === undefined ? request.periodId : null, corrected);
@@ -105,7 +105,7 @@ export async function guard(ctx: Context, payload: unknown, host: ModuleHost) {
   const written = text(request.text, 8000), lines = guardLines(written, receipt), passed = lines.every(line => line.matched);
   void ctx;
   return { status: passed ? 'passed' as const : 'replaced' as const, lines,
-    explanation: passed ? { source: 'model' as const, text: written, replaced: false } : { source: 'template' as const, text: receipt.explanation, replaced: true } };
+    explanation: passed ? { source: 'model' as const, text: written, replaced: false, reason: null } : { source: 'template' as const, text: receipt.explanation, replaced: true, reason: 'guard-replaced' as const } };
 }
 
 function sourcesOf(host: ModuleHost, receipt: CalculationReceipt): ReceiptReply['sources'] {
@@ -146,7 +146,13 @@ export async function receiptView(ctx: Context, payload: unknown, host: ModuleHo
       rate: `${asText((row.normalization.rate as any)?.numerator)}/${asText((row.normalization.rate as any)?.denominator)}`, on: null }] : [])
       .filter((entry, index, list) => list.findIndex(other => other.from === entry.from && other.rate === entry.rate) === index),
     sent: conversation ? { kind: 'model', available: true } : { kind: 'nothing' },
+    meaning: meaningOf(host, ctx, receipt), demo: host.store.read().workspace.demo === true || host.demo,
   };
+}
+
+function meaningOf(host: ModuleHost, ctx: Context, receipt: CalculationReceipt): ReceiptReply['meaning'] {
+  const found = (host.services.ontology.history(ctx) as { version: number; hash: string; publishedBy: string; publishedAt: string }[]).find(d => d.hash === receipt.dictionaryHash);
+  return found ? { version: found.version, publishedBy: found.publishedBy, publishedAt: found.publishedAt } : null;
 }
 
 const INTERNAL = /^_/;
@@ -156,11 +162,18 @@ export async function sourceRows(ctx: Context, payload: unknown, host: ModuleHos
   const offset = Number.isSafeInteger(request.offset) && request.offset >= 0 ? request.offset : 0;
   const limit = Number.isSafeInteger(request.limit) && request.limit > 0 && request.limit <= 200 ? request.limit : 50;
   let receipt: CalculationReceipt;
+  let hiddenCount = 0, rule: SourceRowsReply['rule'] = null;
   try { receipt = await host.call('receipts.get', { id: requireId(request.receiptId) }) as CalculationReceipt; }
   catch (error) {
-    // The receipt holds rows this seat may not see: say how many, never which.
-    if (codeOf(error) === 'RECEIPT_FORBIDDEN') return { tab, total: 0, offset: 0, rows: [], hidden: true };
-    throw translate(error);
+    // The seat's own receipt now holds rows it may not see: show the rows it can, and how many it cannot.
+    const own = codeOf(error) === 'RECEIPT_FORBIDDEN' ? host.store.read().receipts.find(r => r?.id === request.receiptId && r.memberId === ctx.memberId && r.epoch === ctx.epoch) as CalculationReceipt | undefined : undefined;
+    if (!own) throw translate(error);
+    const visible = (id: string) => { const fact = host.store.read().facts.find(f => f.id === id); return !!fact && !fact.deletedAt && canSeeFact(host.store, ctx, fact); };
+    const ids = new Set([...own.rowIds, ...own.exclusions.map(e => e.rowId)]);
+    const hiddenIds = [...ids].filter(id => !visible(id)); hiddenCount = hiddenIds.length;
+    const member = host.store.read().members.find(m => m.id === ctx.memberId);
+    rule = hiddenIds.some(id => { const f = host.store.read().facts.find(x => x.id === id); return f && !(member?.branches.includes('*') || f.branch && member?.branches.includes(f.branch)); }) ? 'branch' : 'source';
+    receipt = { ...own, rows: own.rows.filter(r => visible(r.factId)), exclusions: own.exclusions.filter(e => visible(e.rowId)) };
   }
   const facts = new Map(host.store.read().facts.map(fact => [fact.id, fact]));
   const cells = (id: string) => Object.entries(facts.get(id)?.fields ?? {}).filter(([name]) => !INTERNAL.test(name)).map(([name, value]) => ({ name, value: asText(value).slice(0, 500) }));
@@ -172,7 +185,7 @@ export async function sourceRows(ctx: Context, payload: unknown, host: ModuleHos
         amountMinor: typeof fact?.fields.amountMinor === 'string' && /^-?\d+$/.test(fact.fields.amountMinor) ? fact.fields.amountMinor : null, reason: e.reason };
     });
   void ctx;
-  return { tab, total: all.length, offset, rows: all.slice(offset, offset + limit), hidden: false };
+  return { tab, total: all.length, offset, rows: all.slice(offset, offset + limit), hidden: hiddenCount > 0, hiddenCount: hiddenCount >= 3 ? hiddenCount : null, rule: hiddenCount > 0 ? rule : null };
 }
 
 /** The exact words that left the computer for one answer, while retained; then only the fingerprint. */
@@ -190,5 +203,22 @@ export async function sent(ctx: Context, payload: unknown, host: ModuleHost): Pr
   const kept = typeof preview.payload === 'string' && Number.isFinite(days) && days >= 1 && Date.parse(at) >= Date.now() - days * 86_400_000;
   return { kind: 'sent', routeId: String(preview.routeId), sendLevel: String(preview.send ?? state.policy.send), bytes: typeof preview.payload === 'string' ? Buffer.byteLength(preview.payload) : 0,
     costMinor: typeof preview.estimatedCostMinor === 'string' && /^\d+$/.test(preview.estimatedCostMinor) ? preview.estimatedCostMinor : null,
-    text: kept ? preview.payload : null, digest: String(preview.digest), removed: !kept, at, boundary: String(preview.receiptBoundary ?? 'application-to-provider-http') };
+    text: kept ? preview.payload : null, digest: String(preview.digest), removed: !kept, at, boundary: String(preview.receiptBoundary ?? 'application-to-provider-http'), retentionDays: Number.isFinite(days) ? days : 0 };
+}
+
+/** The rows behind a number as CSV: counted and left out, cells as written, formulas neutralised. */
+export async function exportReceipt(ctx: Context, payload: unknown, host: ModuleHost) {
+  const request = input(payload, ['receiptId'], ['receiptId']);
+  const counted = await sourceRows(ctx, { receiptId: request.receiptId, tab: 'counted', limit: 200 }, host);
+  const left = await sourceRows(ctx, { receiptId: request.receiptId, tab: 'left-out', limit: 200 }, host);
+  const all = async (tab: 'counted' | 'left-out', first: SourceRowsReply) => {
+    const rows = [...first.rows];
+    while (rows.length < first.total) rows.push(...(await sourceRows(ctx, { receiptId: request.receiptId, tab, offset: rows.length, limit: 200 }, host)).rows);
+    return rows;
+  };
+  const cell = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replaceAll('"', '""')}"`;
+  const lines = ['"counted","source","row","amount_paise","reason","cells"'];
+  for (const [tab, first] of [['counted', counted], ['left-out', left]] as const) for (const row of await all(tab, first))
+    lines.push([cell(tab === 'counted' ? 'yes' : 'no'), cell(row.sourceId), `"${row.sourceRow ?? ''}"`, `"${row.amountMinor ?? ''}"`, cell(row.reason ?? ''), cell(row.cells.map(c => `${c.name}=${c.value}`).join('; '))].join(','));
+  return { fileName: `receipt-${request.receiptId}.csv`, csv: lines.join('\r\n') + '\r\n' };
 }

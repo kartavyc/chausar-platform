@@ -202,3 +202,12 @@ export function list<T>(value: unknown, max: number, item: (entry: unknown, inde
   check(Array.isArray(value) && value.length <= max, 'ASK_INVALID', 'Send a short list.');
   return value.map(item);
 }
+
+/** The kind of rule behind a core access refusal. */
+export function ruleKind(code: string): 'branch' | 'source' | 'seat' | 'access' | 'marking' {
+  if (code.includes('BRANCH')) return 'branch';
+  if (code.startsWith('SOURCE_')) return 'source';
+  if (code.includes('MARKING')) return 'marking';
+  if (code === 'ACCESS_REVOKED') return 'access';
+  return 'seat';
+}
