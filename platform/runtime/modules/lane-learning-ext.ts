@@ -22,4 +22,13 @@ export const learningExtModule: EngineModule = {
     return derived + purgeLog(state, { ...reason, removedIds: collect }) + purgeSharing(state, reason) + purgeRecipes(state, reason);
   },
   tick: (ctx, host, scheduler) => dictionaryTick(ctx, host, scheduler),
+  /**
+   * The installed app opens sharing only when its environment names the reviewed intake
+   * (`CHAUSAR_LEARNING_INTAKE_URL`); demo launches never do. `CHAUSAR_LEARNING_FOUNDER_SWITCH=1`
+   * shows the two closed boxes, which still refuse until the consent text is reviewed.
+   */
+  hostOptions({ demo, env }) {
+    const url = env.CHAUSAR_LEARNING_INTAKE_URL?.trim();
+    return { ...(!demo && url ? { intake: { url } } : {}), ...(env.CHAUSAR_LEARNING_FOUNDER_SWITCH === '1' ? { founderSwitch: true } : {}) };
+  },
 };

@@ -60,7 +60,7 @@ Every method is in `platform/runtime/modules/lane-learning-ext.ts`, listed in `a
 
 Refusal codes a screen can tell apart (on the lane's line of `laneRefusals` in `app/desktop/preload.cjs`): SHARING_DISABLED, BOX_NOT_OPEN, NOTHING_TO_SHARE, PREVIEW_CHANGED, SHARING_BLOCKED, CONSENT_REQUIRED, BATCH_ALREADY_ATTEMPTED, INTAKE_NOT_OPEN, DELETE_UNKNOWN, APP_CONSENT_REQUIRED, NO_LIBRARY_MATCH, RECIPE_GRAMMAR, ANSWER_KEY_FAILED, EDIT_STALE, APP_APPROVAL_REQUIRED, DICTIONARY_REQUIRED, PROPOSAL_STALE, ALREADY_DECIDED, EDITS_PENDING, OWNER_REQUIRED.
 
-Trusted host options (`modules['learning-ext']`, never an RPC payload): `intake: { url, transport?, timeoutMs? }` opens production sharing; the URL must be HTTPS, or loopback for local runs. `founderSwitch: true` shows the two closed boxes, which still refuse.
+Trusted host options (`modules['learning-ext']`, or `hostOptions` from the environment; never an RPC payload): `intake: { url, transport?, timeoutMs? }` opens production sharing; the URL must be HTTPS, or loopback for local runs. `founderSwitch: true` shows the two closed boxes, which still refuse.
 
 Purge: deleting or revoking a source removes the decisions, account sets, saved recipes, sharing previews, builder proposals and edits derived from it.
 
@@ -81,10 +81,20 @@ Purge: deleting or revoking a source removes the decisions, account sets, saved 
 
 ## Core edits
 
-- `platform/runtime/mcp.ts`: an optional `readTools` list on `MCPService` (new type `RegisteredReadTool`). These are number-free, read-only tools with closed schemas and unique names, listed with the read-only annotations. A call re-authorizes after the read. Additive.
-- `platform/runtime/engine.ts`: one import and `readTools: dictionaryMcpTools(store)` in the existing `MCPService` construction.
-- `platform/tests/acceptance.test.ts` and `platform/tests/mcp-receipt-public-acceptance.test.ts`: the exact MCP tool-name lists now include the three dictionary tools.
+- `platform/runtime/mcp.ts` (additive): a new type `RegisteredReadTool`, an optional `readTools` constructor option, and `registerMcpReadTools(provider)`.
+  - These tools are number-free and read-only, with closed schemas and unique names. They are listed with the existing read-only annotations, and each call re-authorizes after the read.
+  - The lane module registers the dictionary layers when it loads, so `engine.ts` is unchanged.
+- `platform/tests/acceptance.test.ts` and `platform/tests/mcp-receipt-public-acceptance.test.ts`: their exact MCP tool-name lists now include the three dictionary tools.
 - `app/desktop/preload.cjs`: the lane's own `laneRefusals` line.
+
+## Installed app wiring
+
+`learningExtModule.hostOptions` builds the trusted options from the engine's environment, so `main.cjs` needs no edit:
+
+- `CHAUSAR_LEARNING_INTAKE_URL=https://…` opens production sharing to that intake. It is ignored in demo, and an address that is neither HTTPS nor this computer is refused (`INTAKE_MISCONFIGURED`).
+- `CHAUSAR_LEARNING_FOUNDER_SWITCH=1` shows the two closed boxes, which still refuse.
+
+Without the intake variable, the app shows "Sharing is not open yet. Nothing is sent."
 
 ## Still missing (founder boundaries and later work)
 

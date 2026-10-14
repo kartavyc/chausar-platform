@@ -95,3 +95,11 @@ test('number-like sample values are shapes at every send level', async () => {
   assert.equal(JSON.stringify(fields.status).includes('4,500.00'), false);
   assert.ok(fields.customerId.values.includes('c-1'));
 });
+
+test('the installed app opens sharing only through its trusted environment, never in demo', () => {
+  const options = (env: Record<string, string>, demo = false) => learningExtModule.hostOptions!({ directory: '/tmp/x', demo, env });
+  assert.deepEqual(options({}), {});
+  assert.deepEqual(options({ CHAUSAR_LEARNING_INTAKE_URL: 'https://intake.example.com' }), { intake: { url: 'https://intake.example.com' } });
+  assert.deepEqual(options({ CHAUSAR_LEARNING_INTAKE_URL: 'https://intake.example.com' }, true), {});
+  assert.deepEqual(options({ CHAUSAR_LEARNING_FOUNDER_SWITCH: '1' }), { founderSwitch: true });
+});

@@ -83,7 +83,7 @@ test('three read-only layers: schema, samples governed by the send level, and th
   assert.deepEqual(west.fields.customerId.values, ['cust-2']);
 
   // The same layers as MCP read tools, with closed schemas and read-only annotations.
-  const mcp = new MCPService(store, { calculations: [], readTools: dictionaryMcpTools(store) });
+  const mcp = new MCPService(store, { calculations: [] });
   await mcp.handle(owner, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'synthetic' } } });
   await mcp.handle(owner, { jsonrpc: '2.0', method: 'notifications/initialized' });
   const list = await mcp.handle(owner, { jsonrpc: '2.0', id: 2, method: 'tools/list' }) as any;
@@ -91,7 +91,7 @@ test('three read-only layers: schema, samples governed by the send level, and th
   assert.ok(list.result.tools.every((t: any) => t.annotations.readOnlyHint && !t.annotations.destructiveHint));
   const extra = await mcp.handle(owner, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'dictionary_schema', arguments: { write: true } } }) as any;
   assert.equal(extra.error.data.code, 'INVALID_ARGUMENTS');
-  assert.throws(() => new MCPService(store, { calculations: [], readTools: [...dictionaryMcpTools(store), dictionaryMcpTools(store)[0]] }), { code: 'INVALID_MCP_TOOL' });
+  assert.throws(() => new MCPService(store, { calculations: [], readTools: [dictionaryMcpTools(store)[0]] }), { code: 'INVALID_MCP_TOOL' });
   assert.throws(() => new MCPService(store, { calculations: [], readTools: [{ ...dictionaryMcpTools(store)[0], name: 'open_receipt' }] }), { code: 'INVALID_MCP_TOOL' });
 });
 
