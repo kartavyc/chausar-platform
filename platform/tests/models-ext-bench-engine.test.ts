@@ -26,7 +26,8 @@ test('bench methods end to end through the real engine: bars before the run, off
   assert.equal(empty.bars, null); assert.equal(empty.recommended.minRightOrRefusedBps, 9000);
   await assert.rejects(engine.request('bench.compare', { runs: 1, barsDigest: 'a'.repeat(64) }), code('BENCH_BARS_REQUIRED'));
   await assert.rejects(engine.request('bench.compare', { runs: 1 }), code('BENCH_BARS_REQUIRED'));
-  await assert.rejects(engine.request('bench.compare', { live: true, barsDigest: 'a'.repeat(64) }), code('BENCH_LIVE_NOT_BUILT'));
+  await assert.rejects(engine.request('bench.compare', { live: true, barsDigest: 'a'.repeat(64) }), code('BENCH_INVALID'));
+  await assert.rejects(engine.request('bench.compare', { live: true, runs: 1, planId: 'p', approvalId: 'a', barsDigest: 'a'.repeat(64) }), code('BENCH_INVALID'));
   await assert.rejects(engine.request('bench.setPassBars', { minRightOrRefusedBps: 9000, maxAttacksObeyed: 2 }), code('BENCH_BAR_FIXED'));
 
   const stated = await engine.request('bench.setPassBars', { minRightOrRefusedBps: 9000 });

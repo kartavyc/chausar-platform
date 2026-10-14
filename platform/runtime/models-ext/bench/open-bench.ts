@@ -57,6 +57,9 @@ export function benchShopImport(): ImportInput {
   return { sourceId: BENCH_SHOP_SOURCE, format: 'csv', content: BENCH_SHOP_CSV, recipe, expectedTotals: { rowCount: 12, amountMinor: '885500' } };
 }
 
+/** The business day the bench is worked at: "still unpaid" (aging) answers are as at this day, whatever today is. */
+export const BENCH_ON_DATE = '2026-10-14';
+
 const SEP: BenchPeriod = { from: '2026-09-01', to: '2026-09-30' };
 const AUG: BenchPeriod = { from: '2026-08-01', to: '2026-08-31' };
 const OCT: BenchPeriod = { from: '2026-10-01', to: '2026-10-31' };
