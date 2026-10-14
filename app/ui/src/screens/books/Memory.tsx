@@ -6,13 +6,14 @@ import { Note, Refusal, Actions, Button, Section } from '../work/kit/Page';
 import { useAct, useReply } from '../work/kit/reply.ts';
 import { day } from '../work/kit/format.ts';
 import { forgetReply, memoryLine, memoryReply, type MemoryLine } from './contract.ts';
-import { BooksPage, ConfirmButton, Link, Table, approves, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
+import { BooksPage, ConfirmButton, Link, Table, approves, fill, styles as s, useWords, valueOf, type BooksProps } from './shared.tsx';
+import { useR2, type R2Key } from './words-r2.ts';
 
 type Kind = MemoryLine['kind'];
 const KINDS: readonly Kind[] = ['preference', 'claim', 'conversation', 'working-context'];
 
 export function Memory(props: BooksProps) {
-  const w = useWords(props.language);
+  const w = useWords(props.language), r2 = useR2(props.language);
   const [outside, setOutside] = useState(false);
   const { loaded, reload } = useReply(props, 'books.memory', outside ? { outsideOnly: true } : {}, memoryReply);
   const value = valueOf(loaded);
@@ -35,6 +36,7 @@ export function Memory(props: BooksProps) {
     return (
       <span className={s.stack}>
         <span>{m.text}</span>
+        {m.origin === 'business-profile' && <span className={s.note}>{fill(r2.profileLine, { field: Object.hasOwn(r2, `pf.${m.field}`) ? r2[`pf.${m.field}` as R2Key] : m.field ?? '' })}</span>}
         {m.source === 'outside-content' && <span className={s.amber}>{w.neverObeyed}</span>}
         {props.view !== 'simple' && m.earlier.length > 0 && (
           <ul className={s.list} aria-label={w.earlier}>{m.earlier.map((e, i) => <li key={`${e.at}-${i}`}><span className={s.struck}>{e.text}</span> · {day(e.at, props.language)}</li>)}</ul>
@@ -45,7 +47,12 @@ export function Memory(props: BooksProps) {
   const source = (m: MemoryLine) => m.source === 'computed' && m.receiptId !== null
     ? <Link onPress={() => { if (m.receiptId !== null) props.openReceipt(m.receiptId); }}>{w['source.computed']}</Link>
     : w[`source.${m.source}`];
-  const controls = (m: MemoryLine) => !approves(props) ? null : (
+  const controls = (m: MemoryLine) => !approves(props) ? null : m.readOnly ? (
+    <span className={s.inline}>
+      <span className={s.note}>{r2.profileReadOnly}</span>
+      <ConfirmButton label={w.delete} confirm={w.deleteConfirm} keep={w.keep} onConfirm={() => { void run('books.forget', { id: m.id }); }} disabled={act.busy} />
+    </span>
+  ) : (
     <span className={s.inline}>
       {m.status === 'proposed' && <Button onClick={() => { void run('books.memoryConfirm', { id: m.id }); }} disabled={act.busy}>{w.confirm}</Button>}
       <Button variant="link" onClick={() => { setEditing(m.id); setDraft(m.text); }} disabled={act.busy}>{w.edit}</Button>

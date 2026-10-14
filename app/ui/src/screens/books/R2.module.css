@@ -1,0 +1,9 @@
+.ink { color: var(--fg); font-weight: var(--fw-medium); }
+.grey { color: var(--mute); }
+.address { font-family: var(--fm); font-size: var(--fs-note); word-break: break-all; user-select: all; padding: var(--sp2); border: var(--hair) solid var(--line); }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--sp3); }
+.box { display: flex; flex-direction: column; gap: var(--sp1); }
+.boxName { color: var(--fg2); font-size: var(--fs-note); }
+.check { display: inline-flex; gap: var(--sp2); align-items: center; min-height: var(--target); }
+.cellButton { font: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline dotted; color: inherit; }
+.panel { border-inline-start: var(--hair) solid var(--line); padding-inline-start: var(--sp3); display: flex; flex-direction: column; gap: var(--sp1); }

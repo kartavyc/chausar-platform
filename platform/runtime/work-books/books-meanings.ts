@@ -49,7 +49,7 @@ function savedAnswersUsing(state: State, name: string): number {
   return state.answers.filter(a => typeof a?.receiptId === 'string' && (receipts.get(a.receiptId)?.definitions ?? []).some((d: Definition) => d?.name === name)).length;
 }
 const draftDigest = (draft: Pick<Draft, 'id' | 'name' | 'before' | 'after'>, baseHash: string) => hash(canonical({ id: draft.id, name: draft.name, before: draft.before, after: draft.after, baseHash }));
-function metaOf(books: BooksState, draftId: string): DraftMeta { const meta = books.draftMeta.find(m => m.draftId === draftId); check(meta, 'DRAFT_NOT_FOUND', 'This draft was not found.'); return meta; }
+export function metaOf(books: BooksState, draftId: string): DraftMeta { const meta = books.draftMeta.find(m => m.draftId === draftId); check(meta, 'DRAFT_NOT_FOUND', 'This draft was not found.'); return meta; }
 function findDraft(books: BooksState, draftId: unknown): Draft {
   const draft = typeof draftId === 'string' ? books.drafts.find(d => d.id === draftId) : undefined; check(draft, 'DRAFT_NOT_FOUND', 'This draft was not found.'); return draft;
 }
@@ -68,7 +68,7 @@ function activeCosigners(state: State, meta: DraftMeta): number { return meta.co
  * inside the transaction that claims the draft, so a discard, a changed draft or a co-signer
  * who lost access between the read and the release refuses the release.
  */
-function assertPublishable(state: State, draft: Draft, meta: DraftMeta, digest: unknown) {
+export function assertPublishable(state: State, draft: Draft, meta: DraftMeta, digest: unknown) {
   check(open(draft), 'DRAFT_CLOSED', 'This draft is already published or discarded.');
   check(digest === draft.digest, 'PREVIEW_CHANGED', 'The draft changed since you read it. Read it again.');
   check(activeApprovers(state) <= 1 || activeCosigners(state, meta) > 0, 'COSIGN_REQUIRED', 'A second person must co-sign this change before it is published.');

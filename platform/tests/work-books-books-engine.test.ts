@@ -34,7 +34,8 @@ test('Books methods run through the real engine: sources, meanings, draft and pu
 
   const sources = await engine.request('books.sources', { endMonth: '2026-09' });
   assert.deepEqual(sources.rows.map((r: any) => [r.sourceId, r.rows, r.months.at(-1).state, r.months.at(-2).state]), [['shop-export', 4, 'loaded', 'not-loaded-yet']]);
-  assert.equal(typeof sources.freshness.available, 'boolean'); // depends on whether connectors-ext is installed
+  // connectors-ext is installed: its freshness is merged; a file-only source keeps its own months and gains no connection.
+  assert.deepEqual(sources.freshness, { available: true }); assert.equal(sources.rows[0].connection, undefined);
 
   const before = await engine.request('calculation.run', { operation: 'billed', period });
   assert.equal(before.totalMinor, '270000');
