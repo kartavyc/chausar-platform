@@ -41,6 +41,8 @@ import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, Scen
 import type { LessonReviewState, RetainedScenarioState, RetainedState, ScenarioContinuation, ScenarioDetailOrigin, ScenarioListOrigin, ScenarioRowOrigin } from './retained-controller.ts';
 import { hostMessage, hostMissingWords } from './text.ts';
 import { useFrameReads } from './frame-reads.ts';
+import { useHostAskLine } from './ask-line.tsx';
+import type { AskQuestion } from '../bridge/voice-contract.ts';
 import { shellBanners, demoClockState, notBuiltFromCapabilities } from '../app/shell-banners.ts';
 import { statusLine, statusSentences } from '../app/status-line.ts';
 import { HelpSheet } from '../app/HelpSheet';
@@ -91,6 +93,8 @@ export interface HostMountOptions {
    * and places get no `openLink`, so outside addresses stay text.
    */
   readonly shell?: ShellPort;
+  /** Every question the ask line sends to Ask, with its "About:" reference as data (SH-04). */
+  readonly onQuestion?: (question: AskQuestion) => void;
 }
 export interface MountedHost {
   /** Detaches the surface while retaining the injected host and any pending attempt. */
@@ -207,7 +211,9 @@ function receiptView(value: CalculationReceiptEvidence, language: Language, time
   try { return receiptViewFromEvidence(value, { language, timeZone }); } catch { return null; }
 }
 
-function ReceiptPanel({ selection, language, timeZone, origin, onClose, rpc }: {
+function ReceiptPanel({ selection, language, timeZone, origin, onClose, rpc, speak }: {
+  /** "Read it aloud" (SH-05), while voice is on. */
+  speak?: ReactNode;
   selection: HostReceiptSelection;
   language: Language;
   timeZone: string | null;
@@ -225,6 +231,7 @@ function ReceiptPanel({ selection, language, timeZone, origin, onClose, rpc }: {
   return <Sheet kind={hostMessage(language, 'receipt')} title={selection.id} origin={origin} onClose={onClose}>
     {selection.kind === 'ready' && view !== null ? <>
       <Receipt receipt={view} onReceipt={openEvery} />
+      {speak}
       <details ref={every}><summary>{hostMessage(language, 'receiptEvery')}</summary><ReceiptBody value={selection.value} language={language} /></details>
     </> : selection.kind === 'ready' ? <ReceiptBody value={selection.value} language={language} /> :
       <p role="status">{hostMessage(language, selection.kind === 'loading' ? 'receiptLoading' : 'receiptFailed')}</p>}
@@ -389,8 +396,9 @@ function HostLinkDialog({ url, shell, onClose }: { url: string | null; shell: Sh
   }} />;
 }
 
-function AuthorizedWorkspace({ controller, state, context, language, view, setLanguage, setView, onLegacyReturn, scenarioSelection, shell }: {
+function AuthorizedWorkspace({ controller, state, context, language, view, setLanguage, setView, onLegacyReturn, scenarioSelection, shell, onQuestion }: {
   shell: ShellPort | null;
+  onQuestion?: ((question: AskQuestion) => void) | undefined;
   controller: HostController;
   state: HostState;
   context: UiContext;
@@ -431,6 +439,8 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const conversationEnabled = !viewer && selectedRoute !== undefined && settings !== null && settings.routeId === selectedRoute.id;
   /** The frame's own checked reads: banners, status line, worth a look, capabilities, offline help. */
   const frame = useFrameReads(controller.places, contextKey);
+  const askLine = useHostAskLine({ rpc: controller.places, language, viewer, owner: context.member.role === 'owner', navigate, current: () => parseAddress(window.location.hash),
+    onSaved: id => { if (conversationEnabled) selectSaved(id); else navigate({ place: 'ask', sub: 'saved' }); }, onQuestion });
   const [clockBusy, setClockBusy] = useState(false);
   const projection = useMemo(() => {
     if (state.today === null || controller.timeZone === null) return { kind: 'missing' } as const;
@@ -441,6 +451,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const onAddress = useCallback((address: Address | null) => {
     const previous = active.current;
     active.current = address;
+    askLine.onAddress(address);
     const receipt = controller.snapshot().receipt;
     if (receipt !== null && (address === null || !sameAddress(receipt.address, address))) controller.closeReceipt();
     const current = localSheetRef.current;
@@ -467,7 +478,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     // surface at rest: the sheet opens only from a live press, never from the address alone.
     const owned = current !== null && address !== null && sameAddress(current.address, address);
     if (address !== null && !owned && (address.sheet === WHAT_IF_SHEET || address.sheet === PROOF_SHEET || address.sheet === PROVENANCE_SHEET || address.sheet === LESSON_SHEET || address.sheet?.startsWith('today-'))) navigate(withoutSheet(address));
-  }, [controller]);
+  }, [controller, askLine.onAddress]);
   const stillAuthorized = () => {
     const current = controller.snapshot();
     return current.phase === 'ready' && current.context?.contextKey === context.contextKey && current.selectedRouteId === state.selectedRouteId;
@@ -848,7 +859,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   const sheet: AppProps['sheet'] = state.receipt !== null ? {
     address: state.receipt.address,
-    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} timeZone={workspaceZone} origin={origin.current} onClose={closeSheet} rpc={controller.places} />,
+    content: <ReceiptPanel key={state.receipt.id} selection={state.receipt} language={language} timeZone={workspaceZone} origin={origin.current} onClose={closeSheet} rpc={controller.places} speak={askLine.speak(state.receipt.id)} />,
   } : localSheet === null ? undefined : localSheet.todayView !== undefined && consumer !== null ? {
     address: localSheet.address,
     content: <TodayDestination timeZone={workspaceZone} receiptDetailRpc={controller.places} detail={localSheet.todayView.detail} page={localSheet.todayView.page} origin={localSheet.todayOrigin ?? null}
@@ -901,7 +912,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     } : {}),
     // The idle lock never depends on a read succeeding: without the shell reply it keeps the 10-minute default.
     idleLock: { minutes: frame.reads.shell?.autoLockMinutes ?? 10, onIdle: () => { void controller.lock(); } },
-    ask: { onAsk: () => navigate(ASK), noModel: !conversationEnabled,
+    ask: { ...askLine.ask, onAsk: () => navigate(ASK), noModel: !conversationEnabled,
       ...(viewer ? { readOnly: { holder: hostMessage(language, 'roleViewer') } } : {}) },
     status: frame.reads.status !== null ? statusLine(frame.reads.status, language) : {
       sources: { text: hostMessage(language, projection.kind === 'ready' ? 'sourcesReady' : 'sourcesMissing'), address: { place: 'books', sub: 'sources' } },
@@ -924,6 +935,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       onOpenTile: (id, tileOrigin) => launchToday(todayCurrent, 'today-record', tileOrigin, current => consumer.tile(todayCurrent, id, current)),
       onOpenEvent: (id, rowOrigin) => launchToday(todayCurrent, 'today-record', rowOrigin, current => consumer.event(todayCurrent, id, current)),
       onSeeAll: () => launchToday(todayCurrent, 'today-review', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.page(todayCurrent, false, current)),
+      ...(askLine.cashVoice !== undefined ? { cashVoice: askLine.cashVoice } : {}),
       ...(viewer ? {} : todayCurrent.phase === 'ready' && consumer.input?.display && consumer.input.configuration ? {
         preparingTiles: todayCurrent.preparing,
         onPrepareTiles: () => {
@@ -934,12 +946,12 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       } : {}),
       ...(!viewer && (context.member.role === 'owner' || context.member.role === 'cofounder') ? { onOpenActivity: () => launchToday(todayCurrent, 'today-record', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.activity(todayCurrent, current)) } : {}),
     } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } },
-    sheet, onAddress, onHelp: showHelp,
+    sheet: askLine.sheet ?? sheet, onAddress, onHelp: showHelp,
     renderPlace: address => {
       const placeProps = (at: Address) => ({ address: at, language, view, member: { id: context.member.id, role: context.member.role }, viewer,
         rpc: controller.places, live, openReceipt: (id: string) => openReceipt(id),
         navigate: (next: Address | null) => { if (!stillAuthorized()) return; if (next === null) { if (active.current !== null) navigate(withoutSheet(active.current)); } else navigate(next); },
-        ...(openLink !== undefined ? { openLink } : {}) });
+        ...(openLink !== undefined ? { openLink } : {}), setAbout: askLine.setAboutAt(at) });
       const retainedNode = retainedSurface(address) !== null
         ? <RetainedPlace address={address} retained={controller.retained} scenarioSelection={scenarioSelection} live={live}
           onOpenScenario={(selection, rowOrigin, binding) => { openScenarioRow(selection, rowOrigin, binding); }} onOverview={() => showSavedOverview()}
@@ -1140,7 +1152,7 @@ function HostWorkspace({ controller, options, onLegacyReturn }: {
           : authorized && state.context !== null
           ? <AuthorizedWorkspace key={JSON.stringify([state.context.contextKey, state.selectedRouteId])}
             controller={controller} state={state} context={state.context} language={language} view={view}
-            setLanguage={chooseLanguage} setView={chooseView} onLegacyReturn={onLegacyReturn} scenarioSelection={options.scenarioSelection ?? null} shell={options.shell ?? null} />
+            setLanguage={chooseLanguage} setView={chooseView} onLegacyReturn={onLegacyReturn} scenarioSelection={options.scenarioSelection ?? null} shell={options.shell ?? null} onQuestion={options.onQuestion} />
           : <div style={{ padding: 'var(--sp6)' }}>
             <p role="status">{hostMessage(language, state.phase === 'loading' ? 'loading' : 'unavailable')}</p>
             {state.code !== undefined && <p>{hostMessage(language, 'code', { code: state.code })}</p>}

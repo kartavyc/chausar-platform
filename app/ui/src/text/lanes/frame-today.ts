@@ -1,3 +1,67 @@
 /** Words the frame-today lane adds to the shared catalogue, in English and Hindi (same keys).
  *  Only the owning lane edits this file. Keys must not repeat a key in text/en.json or another lane's file. */
-export const words: { readonly en: Readonly<Record<string, string>>; readonly hi: Readonly<Record<string, string>> } = { en: {}, hi: {} };
+
+/** Round 4: the ask line's suggestions, telling, and talking to it (SH-04, SH-05). */
+export const askLine: { readonly en: Readonly<Record<string, string>>; readonly hi: Readonly<Record<string, string>> } = {
+  en: {
+    'SH-04.suggestions': 'Suggestions',
+    'SH-04.telling.kind': 'Memory',
+    'SH-04.telling.title': 'Remember this?',
+    'SH-04.telling.note': 'Chausar keeps this as something you told it. Nothing is kept until you confirm.',
+    'SH-04.telling.confirm': 'Confirm',
+    'SH-04.telling.saved': 'Remembered, as told by you.',
+    'SH-04.telling.proposed': 'Kept as a line to confirm. The owner confirms it in Books, Memory.',
+    'SH-04.telling.viewer': 'A viewer seat cannot add to what Chausar remembers.',
+    'SH-04.telling.failed': 'It could not be kept. Nothing was stored.',
+    'SH-05.notBuilt': 'Voice is not built yet on this computer.',
+    'SH-05.local': 'Speech is turned into text on this computer.',
+    'SH-05.paid': 'Paid speech: {cost} a minute. {minutes} minutes this month, {spent}.',
+    'SH-05.paid.notCounted': 'Paid speech: {minutes} minutes this month. The cost is not counted.',
+    'SH-05.reading': 'Reading what was heard',
+    'SH-05.question': 'Your question: {text}',
+    'SH-05.flips': '“{word}” changes the meaning.',
+    'SH-05.askThis': 'Ask this',
+    'SH-05.approval': 'Paid speech waits for the owner’s approval, up to {cap} for this hold.',
+    'SH-05.openModels': 'Open Trust, Models',
+    'SH-05.localOnly': 'Send is set to nothing or shape only, so speech stays on this computer. Choose a local speech provider in Trust.',
+    'SH-05.failed': 'What was said could not be read. Type the question instead.',
+    'SH-05.changed': 'What was heard has changed. Say it again.',
+    'SH-05.speak': 'Read it aloud',
+    'SH-05.speaking': 'Speaking the answer',
+    'SH-05.stopSpeaking': 'Stop speaking',
+    'SH-05.speakFailed': 'The answer could not be read aloud.',
+  },
+  hi: {
+    'SH-04.suggestions': 'सुझाव',
+    'SH-04.telling.kind': 'याद',
+    'SH-04.telling.title': 'इसे याद रखें?',
+    'SH-04.telling.note': 'Chausar इसे आपकी कही बात के रूप में रखता है। पुष्टि करने तक कुछ नहीं रखा जाता।',
+    'SH-04.telling.confirm': 'पुष्टि करें',
+    'SH-04.telling.saved': 'याद रखा गया, आपकी कही बात के रूप में।',
+    'SH-04.telling.proposed': 'पुष्टि के लिए एक पंक्ति के रूप में रखा गया। मालिक इसे Books, याद में पुष्टि करते हैं।',
+    'SH-04.telling.viewer': 'दर्शक सीट Chausar की याद में कुछ नहीं जोड़ सकती।',
+    'SH-04.telling.failed': 'इसे रखा नहीं जा सका। कुछ भी सहेजा नहीं गया।',
+    'SH-05.notBuilt': 'इस कंप्यूटर पर आवाज़ अभी बनी नहीं है।',
+    'SH-05.local': 'बोली इसी कंप्यूटर पर शब्दों में बदली जाती है।',
+    'SH-05.paid': 'सशुल्क बोली: {cost} प्रति मिनट। इस महीने {minutes} मिनट, {spent}।',
+    'SH-05.paid.notCounted': 'सशुल्क बोली: इस महीने {minutes} मिनट। लागत गिनी नहीं गई।',
+    'SH-05.reading': 'जो सुना गया उसे पढ़ा जा रहा है',
+    'SH-05.question': 'आपका सवाल: {text}',
+    'SH-05.flips': '“{word}” से अर्थ बदल जाता है।',
+    'SH-05.askThis': 'यही पूछें',
+    'SH-05.approval': 'सशुल्क बोली मालिक की मंज़ूरी का इंतज़ार कर रही है, इस बार अधिकतम {cap}।',
+    'SH-05.openModels': 'Trust, मॉडल खोलें',
+    'SH-05.localOnly': 'भेजना कुछ नहीं या केवल ढाँचे पर है, इसलिए बोली इसी कंप्यूटर पर रहती है। Trust में कोई स्थानीय बोली प्रदाता चुनें।',
+    'SH-05.failed': 'जो कहा गया उसे पढ़ा नहीं जा सका। सवाल टाइप करें।',
+    'SH-05.changed': 'जो सुना गया था वह बदल गया है। फिर से कहें।',
+    'SH-05.speak': 'ज़ोर से पढ़ें',
+    'SH-05.speaking': 'जवाब बोला जा रहा है',
+    'SH-05.stopSpeaking': 'बोलना रोकें',
+    'SH-05.speakFailed': 'जवाब ज़ोर से पढ़ा नहीं जा सका।',
+  },
+};
+
+export const words: { readonly en: Readonly<Record<string, string>>; readonly hi: Readonly<Record<string, string>> } = {
+  en: { ...askLine.en },
+  hi: { ...askLine.hi },
+};

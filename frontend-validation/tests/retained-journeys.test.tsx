@@ -316,7 +316,7 @@ function transport() {
   } };
   const count = (method: string) => calls.filter(call => call.method === method).length;
   const methods = (from = 0) => calls.slice(from).map(call => call.method);
-  const retainedOrDomain = (from = 0) => methods(from).filter(method => !method.startsWith('todayx.') && !['ui.context', 'ontology.get', 'dashboard.get', 'receipts.get', 'models.list', 'workspace.lock'].includes(method));
+  const retainedOrDomain = (from = 0) => methods(from).filter(method => !method.startsWith('todayx.') && !['ui.context', 'ontology.get', 'dashboard.get', 'receipts.get', 'models.list', 'workspace.lock', 'voice.status'].includes(method));
   const payloads = (method: string) => calls.filter(call => call.method === method).map(call => call.payload);
   /** Holds the next raw call of `method` after it was issued (it is counted first). */
   const hold = (method: string) => { const held = gate(); behavior.holds[method] = held; return () => { held.release(); }; };
