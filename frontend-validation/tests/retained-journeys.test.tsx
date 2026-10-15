@@ -450,6 +450,9 @@ afterEach(async () => {
 });
 
 /* ---------- Saved what-if: table, chart, sheet ---------- */
+/** The ask line's suggestion reads, sent on its debounce after typing (SH-04); not the journey's own calls. */
+const ASK_LINE_TYPING_READS = ['askx.suggest', 'records.search', 'askx.search'];
+
 test('one native header cell per option sits over its own body cell; exact provenance is in the sheet, not at rest', async () => {
   const fixture = await mounted();
   const table = await openedScenario(fixture);
@@ -1117,7 +1120,7 @@ test('from a grounded answer on Ask, New the saved-answer reference and its stil
   // The old figure opened nothing: no receipt read, no sheet, no receipt address, no model request and no discovery after the press.
   expect(window.location.hash).toBe('#/ask/saved'); expect(sheetElement()).toBeNull();
   expect(fixture.count('receipts.get')).toBe(globalReads);
-  expect(fixture.methods(before).filter(method => method !== 'ui.context' && method !== 'models.probe')).toEqual(['conversation.get']);
+  expect(fixture.methods(before).filter(method => !method.startsWith('todayx.') && !['ui.context', 'models.probe', 'voice.status', ...ASK_LINE_TYPING_READS].includes(method))).toEqual(['conversation.get']);
   expect(fixture.count('scenarios.discover')).toBe(0);
   // The fresh figure of the selected saved answer opens its receipt at Saved; closing it returns to that same saved answer, not to the grounded one.
   await fixture.user.click(button(/^Earned: INR 9\.00\./, page()));
@@ -1222,7 +1225,7 @@ test('a saved grounded turn selected on Saved: fresh Preview writing opens its r
     expect(selected.kind).toBe('answer');
     if (selected.kind === 'answer') expect(selected.saved.id).toBe(NEXT_GROUNDED_SAVED_ID);
   });
-  expect(fixture.methods(replacing).filter(method => method !== 'ui.context' && method !== 'models.probe')).toEqual(['conversation.get']);
+  expect(fixture.methods(replacing).filter(method => !method.startsWith('todayx.') && !['ui.context', 'models.probe', 'voice.status', ...ASK_LINE_TYPING_READS].includes(method))).toEqual(['conversation.get']);
   expect(fixture.count('conversation.synthesis.preview')).toBe(1); expect(sent()).toBe(dispatched);
   expect(window.location.hash).toBe('#/ask/saved'); expect(sheetElement()).toBeNull();
   expect(fixture.count('receipts.get')).toBe(fixture.globalReads); expect(fixture.count('scenarios.discover')).toBe(0);
