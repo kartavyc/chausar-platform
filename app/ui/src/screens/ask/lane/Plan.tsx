@@ -15,7 +15,7 @@ import { Label } from '../../../parts/Label';
 import { RowList } from '../../../parts/RowList';
 import { bool, fail, id, int, list, minor, obj, oneOf } from './client.ts';
 import { AskPage, bpsFigure, countWords, fill, moneyFigure, moneyText, useAsk, useWords, type AskView } from './kit';
-import { catalogue, hundredths, Part, PERIOD_IDS, PERIOD_WORDS, Problem, useSend, type PeriodId } from './analysis';
+import { catalogue, hundredths, Part, PERIOD_IDS, PERIOD_WORDS, Problem, StopButton, useSend, type PeriodId } from './analysis';
 import s from './analysis.module.css';
 
 type Fig = 'scenario' | 'change';
@@ -116,7 +116,7 @@ export function PlanScreen(_props: { view: Extract<AskView, { kind: 'plan' }> })
             </div>
           </Part>
           <Choice<PeriodId> label={w.period} options={PERIOD_IDS.map(p => ({ value: p, label: periods[p] }))} value={periodId} onChange={setPeriodId} />
-          <div><Button variant="filled" submit disabled={run.busy || !ready}>{run.busy ? w.working : w.find}</Button></div>
+          <div className={s.actions}><Button variant="filled" submit disabled={run.busy || !ready}>{run.busy ? w.working : w.find}</Button>{run.busy && <StopButton />}</div>
           <Problem code={run.problem} />
         </form>
       )}

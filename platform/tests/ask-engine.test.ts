@@ -164,9 +164,11 @@ test('a branch-limited seat is stopped by a rule, and a viewer cannot save', asy
   const member = await ask(engine, 'members.add', { id: 'viewer-main', name: 'Branch viewer', role: 'viewer', branches: ['main'] });
   (engine as any).context = { memberId: member.id, role: member.role, epoch: member.epoch, channel: 'desktop' };
   assert.deepEqual(await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', branch: 'west', today: TODAY }), { kind: 'refused', code: 'ASK_STOPPED_BY_RULE', rule: 'branch' });
-  await assert.rejects(ask(engine, 'askx.receipt', { receiptId: broad.receiptId }), code('ASK_STOPPED_BY_RULE'));
-  // Someone else's receipt never opens, not even as a count.
-  await assert.rejects(ask(engine, 'askx.sourceRows', { receiptId: broad.receiptId }), code('ASK_STOPPED_BY_RULE'));
+  // Someone else's receipt and an unknown id give the same answer, so an id cannot be probed.
+  for (const method of ['askx.receipt', 'askx.sourceRows', 'askx.sent', 'askx.answer', 'askx.save', 'askx.checks.save']) {
+    await assert.rejects(ask(engine, method, { receiptId: broad.receiptId }), code(method.endsWith('save') ? 'FORBIDDEN' : 'ASK_NOT_FOUND'), method);
+    if (!method.endsWith('save')) await assert.rejects(ask(engine, method, { receiptId: 'receipt_00000000-0000-4000-8000-000000000000' }), code('ASK_NOT_FOUND'), method);
+  }
   const own = await ask(engine, 'askx.run', { operationId: 'earned', periodId: 'last-month', today: TODAY });
   assert.equal(own.figures[0].minor, '125025');
   await assert.rejects(ask(engine, 'askx.save', { receiptId: own.receiptId }), code('FORBIDDEN'));
@@ -346,7 +348,7 @@ test('purchases against GSTR-2B: four groups, the IMS list, a safe export, and n
   await ask(engine, 'sources.import', source('gst', rows));
   const match = await ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY });
   assert.equal(match.state, 'ready');
-  assert.deepEqual(match.groups.map((g: any) => [g.group, g.count]), [['matched', 1], ['differs-inside', 1], ['differs-outside', 1], ['in-2b-only', 1], ['books-only', 1]]);
+  assert.deepEqual(match.groups.map((g: any) => [g.group, g.count]), [['matched', 1], ['differs-inside', 1], ['differs-outside', 1], ['probable', 0], ['in-2b-only', 1], ['books-only', 1]]);
   assert.equal(match.lines.find((l: any) => l.group === 'differs-outside').differenceMinor, '6000');
   assert.deepEqual(match.ims.map((i: any) => i.action).sort(), ['accept', 'accept', 'pending', 'reject']);
   const line = await ask(engine, 'askx.gst2b.line', { periodId: 'last-month', today: TODAY, lineId: match.lines.find((l: any) => l.group === 'differs-outside').id });
@@ -594,4 +596,138 @@ test('review 2: narrowed access withholds kept figures; one confirm records once
   await ask(engine, 'askx.why.start', { operationId: 'earned', period: sept });
   assert.equal(JSON.stringify([(engine as any).vault.read().unsupported, (engine as any).vault.read().extensions.ask]), before, 'A viewer seat writes nothing to the lane or the wanted list.');
   as(engine, { id: 'owner', role: 'owner', epoch: 1 });
+});
+
+test('round 4: GSTR-2B through the connectors lane’s own recipe and matcher, with probable matches and source choice', async t => {
+  const engine = await workspace(t);
+  const { readFile } = await import('node:fs/promises');
+  const text = await readFile(new URL('../../fixtures/connectors/gst-downloads/gstr2b-sep-2026.json', import.meta.url), 'utf8');
+  const preview = await ask(engine, 'connectorsx.importPreview', { recipeId: 'gst.gstr2b-b2b', sourceId: 'gstr2b-sep', company: 'Synthetic Traders', text });
+  await ask(engine, 'connectorsx.importCommit', { envelopeId: preview.id });
+  const twoB = (engine as any).vault.read().facts.filter((f: any) => f.sourceId === 'gstr2b-sep');
+  assert.ok(twoB.length === 5 && twoB.every((f: any) => f.kind === 'purchase'), 'The connectors recipe writes GSTR-2B lines as purchases in their own source.');
+  const register: Row[] = [
+    ['p1', 'purchase', '2026-09-02', '10000.00', '', 'SP/0012', 'settled', 'main', '29ABCDE1234F1ZW', '1800.00'],
+    ['p2', 'purchase', '2026-09-05', '20000.50', '', 'KST-101', 'settled', 'main', '27PQRSX5678K1ZY', '3600.00'],
+    ['p3', 'purchase', '2026-09-18', '4100.00', '', 'KST-102', 'settled', 'main', '27PQRSX5678K1ZY', '720.00'],
+    ['p4', 'purchase', '2026-09-21', '1000.00', '', '45', 'settled', 'main', '24LMNOP4321Q1ZA', '180.00'],
+    ['p5', 'purchase', '2026-09-22', '700.00', '', 'SP/0099', 'settled', 'main', '29ABCDE1234F1ZW', '126.00'],
+  ];
+  await ask(engine, 'sources.import', source('purchase-register', register));
+  const match = await ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY });
+  assert.deepEqual([match.state, match.via, match.sources], ['ready', 'connectors', { register: 'purchase-register', gstr2b: 'gstr2b-sep' }]);
+  assert.deepEqual(match.groups.map((g: any) => [g.group, g.count]), [['matched', 1], ['differs-inside', 1], ['differs-outside', 1], ['probable', 1], ['in-2b-only', 1], ['books-only', 1]]);
+  assert.equal(match.matchReceiptId, null, 'Until the core lane serves match receipts, lines open their rows.');
+  const probable = match.lines.find((l: any) => l.group === 'probable');
+  assert.deepEqual(match.ims.find((i: any) => i.lineId === probable.id), { lineId: probable.id, action: 'pending', reason: 'probable-match' });
+  const inside = match.lines.find((l: any) => l.group === 'differs-inside');
+  assert.deepEqual([inside.booksMinor, inside.twoBMinor, inside.differenceMinor], ['2000050', '2000000', '-50']);
+  const opened = await ask(engine, 'askx.gst2b.line', { periodId: 'last-month', today: TODAY, lineId: inside.id });
+  assert.deepEqual([opened.books.sourceId, opened.twoB.sourceId, opened.rule.key], ['purchase-register', 'gstr2b-sep', 'supplier-gstin-invoice-and-financial-year']);
+  await ask(engine, 'sources.import', source('second-register', [['q1', 'purchase', '2026-09-03', '10.00', '', 'Z-1', 'settled', 'main', '29ABCDE1234F1ZW', '1.80']]));
+  const choose = await ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY });
+  assert.deepEqual(choose, { state: 'choose-sources', period: sept, registerSources: ['purchase-register', 'second-register'], gstr2bSources: ['gstr2b-sep'] });
+  const chosen = await ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY, registerSourceId: 'purchase-register' });
+  assert.equal(chosen.groups.find((g: any) => g.group === 'matched').count, 1);
+  await assert.rejects(ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY, registerSourceId: 'nobody' }), code('ASK_NOT_FOUND'));
+});
+
+test('round 4: change, stop, needs-data, telling not asking, the rule’s words and provenance', async t => {
+  const { statementOf } = await import('../runtime/ask/menu.ts');
+  const { provenanceOf } = await import('../runtime/ask/answers.ts');
+  const engine = await workspace(t);
+  await ask(engine, 'sources.import', source('september', SEPT));
+  // AS-02: a change moves the proposal and is kept as structure only.
+  const changed = await ask(engine, 'askx.change', { operationId: 'billed', periodId: 'last-month', today: TODAY, change: { operationId: 'received', periodId: 'this-month' } });
+  assert.deepEqual([changed.kind, changed.proposal.operationId, changed.proposal.period], ['proposal', 'received', { from: '2026-10-01', to: TODAY }]);
+  // Browsing the change lists records nothing; the run that follows records the correction once.
+  assert.deepEqual((engine as any).vault.read().extensions?.ask?.corrections ?? [], []);
+  await assert.rejects(ask(engine, 'askx.change', { operationId: 'billed', today: TODAY, change: { periodId: 'this-month', period: sept } }), code('ASK_INVALID'));
+  await assert.rejects(ask(engine, 'askx.change', { operationId: 'billed', periodId: 'someday', today: TODAY, change: {} }), code('ASK_INVALID'));
+  // SH-04: a stop asked for during a long answer ends it; a stop from before a run started never does,
+  // and a stop in one workspace never reaches another.
+  const { stop, checkStop, stopToken } = await import('../runtime/ask/round4.ts');
+  const hostA: any = { store: { read: () => ({ workspace: { id: 'workspace-a' } }) } }, hostB: any = { store: { read: () => ({ workspace: { id: 'workspace-b' } }) } };
+  stop(owner, {}, hostA);
+  const tokenA = stopToken(owner, hostA), tokenB = stopToken(owner, hostB);
+  assert.doesNotThrow(() => checkStop(tokenA), 'A stop asked for before the run began does not end it.');
+  stop(owner, {}, hostA);
+  assert.throws(() => checkStop(tokenA), code('ASK_STOPPED'));
+  assert.doesNotThrow(() => checkStop(tokenB), 'Another workspace is not stopped.');
+  assert.doesNotThrow(() => checkStop(null), 'The scheduler’s own runs are not stopped by a person.');
+  assert.deepEqual(Object.keys(await ask(engine, 'askx.stop')).sort(), ['at', 'stopped']);
+  // AS-08: a question about data that is not loaded names the data.
+  const gst = await ask(engine, 'askx.understand', { question: 'How much ITC did we lose?', today: TODAY });
+  assert.deepEqual([gst.kind, gst.reason, gst.need, gst.loaded], ['no-match', 'needs-data', 'gstr2b', false]);
+  assert.deepEqual([(await ask(engine, 'askx.understand', { question: 'What is our TDS credit?', today: TODAY })).need], ['form26as']);
+  // Telling, not asking: proposed to Memory, changes nothing until confirmed.
+  assert.deepEqual(statementOf('Customer A always pays late'), { text: 'Customer A always pays late', kind: 'preference' });
+  assert.deepEqual(statementOf('Remember that the shop is closed on Sundays'), { text: 'the shop is closed on Sundays', kind: 'claim' });
+  assert.equal(statementOf('What was billed last month?'), null);
+  assert.equal(statementOf('billed last month'), null);
+  const told = await ask(engine, 'askx.understand', { question: 'Remember that customer A pays by cheque', today: TODAY });
+  assert.deepEqual(told, { kind: 'statement', text: 'customer A pays by cheque', memoryKind: 'claim' });
+  const proposed = await ask(engine, 'askx.tell', { text: told.text, kind: told.memoryKind });
+  assert.equal(proposed.state, 'proposed');
+  const memory = await ask(engine, 'books.memory', {});
+  assert.ok(JSON.stringify(memory).includes('customer A pays by cheque'));
+  // AS-09: until the trust lane serves trust.explain, the rule's words are "not built".
+  assert.deepEqual(await ask(engine, 'askx.explainRule', { rule: 'branch' }), { state: 'not-built' });
+  await assert.rejects(ask(engine, 'askx.explainRule', { rule: 'anything' }), code('ASK_INVALID'));
+  // AS-05: provenance is read field by field; malformed parts are left out, never invented.
+  assert.equal(provenanceOf(undefined), null);
+  assert.deepEqual(provenanceOf({ recipes: [{ sourceId: 's', recipeId: 'r', acceptedBy: 'owner', acceptedAt: '2026-10-01T00:00:00.000Z' }, { sourceId: 7 }],
+    meaning: { publishedBy: 'owner', reviewedBy: 'acct', coSignedBy: null }, forecast: { method: 'linear-trend-v1', learnedFrom: { from: 'x' } },
+    allowedBy: { ruleId: 'rule-1', check: 'branch-scope', device: 'desktop', memberId: 'owner', at: '2026-10-01T00:00:00.000Z' } }),
+  { recipes: [{ sourceId: 's', recipeId: 'r', acceptedBy: 'owner', acceptedAt: '2026-10-01T00:00:00.000Z' }], meaning: { publishedBy: 'owner', reviewedBy: 'acct', coSignedBy: null, reviewedAt: null },
+    forecast: null, allowedBy: { ruleId: 'rule-1', check: 'branch-scope', device: 'desktop', memberId: 'owner', at: '2026-10-01T00:00:00.000Z' } });
+  const answer = await ask(engine, 'askx.run', { operationId: 'billed', periodId: 'last-month', today: TODAY });
+  assert.equal((await ask(engine, 'askx.receipt', { receiptId: answer.receiptId })).provenance, null);
+});
+
+test('round 4: the rule’s words from Trust are passed through only in the agreed shape', async () => {
+  const { explainRule } = await import('../runtime/ask/round4.ts');
+  let sent: any = null;
+  const host = (reply: unknown): any => ({ options: {}, store: { read: () => ({}) }, call: async (method: string, payload: any) => { assert.equal(method, 'trust.explain'); sent = payload; return reply; } });
+  const good = { ruleId: 'marking:accountant:personal+confidential', text: 'Personal and confidential records are hidden from the accountant seat.', changeableBy: 'owner' };
+  assert.deepEqual(await explainRule(owner, { rule: 'marking', language: 'hi' }, host(good)), { state: 'ready', ...good });
+  assert.deepEqual(sent, { rule: 'marking', language: 'hi' });
+  for (const bad of [{ ...good, ruleId: 'x y' }, { ...good, text: '' }, { ...good, changeableBy: 'anyone' }, { ...good, text: 'x'.repeat(1001) }, null])
+    await assert.rejects(explainRule(owner, { rule: 'marking' }, host(bad)), code('ASK_REFUSED'));
+});
+
+test('round 4 review: questions stay questions, partial seats get no GST advice, other lanes’ replies are checked', async t => {
+  const { statementOf } = await import('../runtime/ask/menu.ts');
+  const { provenanceOf } = await import('../runtime/ask/answers.ts');
+  const { fromConnectors } = await import('../runtime/ask/gst2b.ts');
+  for (const q of ['हमारे पास कितना स्टॉक है', 'स्टॉक कितना है', 'सबसे बड़ा ग्राहक कौन है', 'ग्राहक A ने कितना भुगतान किया है', 'GST paid last month', 'Salary paid in September',
+    'Total tax paid this year', 'Customers who have not paid', 'Our bank balance is how much', 'ITC was claimed how much', 'Customers who never paid'])
+    assert.equal(statementOf(q), null, q);
+  assert.deepEqual(statementOf('याद रखो कि ग्राहक A चेक से भुगतान करता है'), { text: 'ग्राहक A चेक से भुगतान करता है', kind: 'claim' });
+  assert.equal(statementOf('ग्राहक A चेक से भुगतान करता है'), null, 'Hindi needs the explicit "remember".');
+  const engine = await workspace(t);
+  // Data needs are read before statements, so a terse question about missing data stays a question.
+  assert.equal((await ask(engine, 'askx.understand', { question: 'Stock that is running low', today: TODAY })).reason, 'needs-data');
+  const gst = await ask(engine, 'askx.understand', { question: 'पिछले महीने जीएसटी कितना था', today: TODAY });
+  assert.deepEqual([gst.kind, gst.reason, gst.need], ['no-match', 'needs-data', 'gstr2b']);
+  // A seat that cannot see every purchase in the period gets no portal advice.
+  await ask(engine, 'sources.import', source('purchases', [['p1', 'purchase', '2026-09-02', '10.00', '', 'A-1', 'settled', 'main', '29ABCDE1234F1ZW', '1.80'],
+    ['p2', 'purchase', '2026-09-03', '10.00', '', 'A-2', 'settled', 'west', '29ABCDE1234F1ZW', '1.80'], ['g1', 'gstr2b', '2026-09-02', '10.00', '', 'A-1', 'settled', 'main', '29ABCDE1234F1ZW', '1.80']]));
+  const accountant = await ask(engine, 'members.add', { id: 'acct-r4', name: 'Main accountant', role: 'accountant', branches: ['main'] });
+  as(engine, accountant);
+  await assert.rejects(ask(engine, 'askx.gst2b', { periodId: 'last-month', today: TODAY }), code('ASK_STOPPED_BY_RULE'));
+  await assert.rejects(ask(engine, 'askx.gst2b.exportIms', { periodId: 'last-month', today: TODAY }), code('ASK_STOPPED_BY_RULE'));
+  // Another member's forecast id and an unknown one give the same answer.
+  await assert.rejects(ask(engine, 'askx.saveRef', { kind: 'forecast', refId: 'forecast_00000000-0000-4000-8000-000000000000' }), code('ASK_NOT_FOUND'));
+  as(engine, { id: 'owner', role: 'owner', epoch: 1 });
+  // A malformed reply from the connectors lane is refused, never shown as a raw error.
+  const empty = { mode: 'matched', matched: [], amountMismatch: [], inBooksOnly: [], in2bOnly: [], probable: [], invalid: [] };
+  for (const bad of [{ ...empty, matched: [{ supplierGstin: 'X', invoiceNumber: 'I', financialYear: '2026-27' }] }, { ...empty, in2bOnly: [{ supplierGstin: 'X', invoiceNumber: 'I', invoiceDate: 7, receipt: { entityId: 'e' } }] },
+    { ...empty, inBooksOnly: [{ supplierGstin: {}, invoiceNumber: 'I', invoiceDate: '2026-09-01', receipt: { entityId: 'e' } }] }, { mode: 'other' }])
+    assert.throws(() => fromConnectors(bad, () => null, 0n), code('ASK_REFUSED'));
+  // Another lane's words: control and direction characters, bad dates and another member's decision are left out.
+  const p = provenanceOf({ recipes: [{ sourceId: 's', recipeId: 'r‮', acceptedBy: 'owner' }, { sourceId: 's', recipeId: 'r', acceptedBy: '<script>', acceptedAt: 'not a date' }],
+    meaning: { publishedBy: 'owner\u0007' }, forecast: { method: 'm', learnedFrom: { from: '2026-09', to: '2026-01' }, testedOn: { from: '2026-01', to: '2026-02' } },
+    allowedBy: { ruleId: 'r', check: 'c', device: 'desktop', memberId: 'someone-else', at: '2026-10-01T00:00:00.000Z' } }, 'owner');
+  assert.deepEqual(p, { recipes: [{ sourceId: 's', recipeId: 'r', acceptedBy: null, acceptedAt: null }], meaning: null, forecast: null, allowedBy: null });
 });
