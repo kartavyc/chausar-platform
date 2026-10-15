@@ -488,6 +488,16 @@ export function createRelayModule(deps: HostedDeps, options: RelayOptions): Rela
       return queueTemplate(accountId, deviceId, event, channel, key, offer);
     });
 
+    // A desktop whose send got no reply asks, without sending anything, whether the relay received that key.
+    router.add('GET', '/v1/relay/messages/by-key/:idempotencyKey', async request => {
+      const { accountId } = await deps.authenticate(request);
+      const key = request.params.idempotencyKey;
+      check(/^[A-Za-z0-9_-]{8,100}$/.test(key), 'INVALID_REQUEST', 'The idempotency key is not valid.');
+      const { rows: [row] } = await deps.sql.query(`SELECT id, status FROM relay_messages WHERE account_id = $1 AND idempotency_key = $2 AND kind = 'template'`, [accountId, key]);
+      check(row, 'MESSAGE_NOT_FOUND', 'There is no such message.', 404);
+      return ok({ messageId: row.id, status: row.status });
+    });
+
     router.add('GET', '/v1/relay/messages/:messageId', async request => {
       const { accountId } = await deps.authenticate(request);
       const { rows: [row] } = await deps.sql.query(`SELECT * FROM relay_messages WHERE id = $1 AND account_id = $2 AND kind = 'template'`, [request.params.messageId, accountId]);

@@ -34,8 +34,15 @@ const LINK_PLACEHOLDER = 'x'.repeat(48);
 type Pairing = { accountId: string; deviceId: string; sessionToken: string; sessionExpiresAt: string; pairedAt: string; phoneMasked: string };
 type Offer = { offerId: string; actionId: string; digest: string; revision: number; memberId: string; epoch: number; channel: Channel; entryId: string;
   messageId: string | null; createdAt: string; expiresAt: string; used: boolean; usedAt?: string; envelopeId?: string; outcome?: string };
-type LogEntry = { id: string; event: MessageEvent; channel: Channel; status: 'unknown' | 'queued' | 'failed'; at: string; buttons: 'open-only' | 'approve-not-now-open';
-  actionId: string | null; offerId: string | null; memberId: string; idempotencyKey: string; messageId: string | null; pendingOffer?: { approve: SealedBlob; notNow: SealedBlob }; errorCode?: string };
+/**
+ * One message this desktop asked the relay to send. `unknown`: no reply came back; `failed`: refused, or the relay
+ * reports the send failed; `not-sent`: the relay confirmed it never received it (message-log.ts). The relay's own
+ * statuses (`queued`, `sent`, `delivered`, `read`) are copied in by a check. `checkedAt`: the last relay lookup.
+ */
+export type LogStatus = 'unknown' | 'queued' | 'failed' | 'not-sent' | 'sent' | 'delivered' | 'read';
+export type LogEntry = { id: string; event: MessageEvent; channel: Channel; status: LogStatus; at: string; buttons: 'open-only' | 'approve-not-now-open';
+  actionId: string | null; offerId: string | null; memberId: string; idempotencyKey: string; messageId: string | null; pendingOffer?: { approve: SealedBlob; notNow: SealedBlob }; errorCode?: string;
+  checkedAt?: string };
 type ChannelRecord = { channel: Channel; enabled: boolean; optInAt: string | null; textSha256: string | null; relay: ChannelRow | null };
 type Upload = { backupId: string; status: 'unknown' | 'stored' | 'failed'; sizeBytes: number; sha256: string; createdAt: string };
 export type HostedLinkState = {
@@ -246,6 +253,8 @@ export async function messageSend(ctx: Context, payload: Record<string, any>, ho
   const time = at(c), sentAt = time.toISOString();
   const entry = await change(host, (m, state) => {
     check(m.pairing?.accountId === pairing.accountId && m.relayKey, 'HOSTED_NOT_PAIRED', 'Pair this computer with Chausar first.');
+    // Only an `unknown` entry is resent, with its own key and blobs (the relay deduplicates it). An entry a check
+    // found `not-sent` is never resent: sending again makes a new entry with a new key and freshly sealed buttons.
     const retry = m.messages.find(item => item.status === 'unknown' && item.event === event && item.channel === channel && item.actionId === actionId && item.memberId === ctx.memberId);
     if (retry) return { entry: structuredClone(retry), reason: null as string | null, offer: m.offers.find(o => o.offerId === retry.offerId) ?? null, retried: true };
     // Mail has no owner binding (a forwarded mail would approve), so mail only ever carries Open the app.

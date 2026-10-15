@@ -4,6 +4,7 @@ import * as drive from '../hosted-link/drive-sync.ts';
 import * as documents from '../hosted-link/documents.ts';
 import { allowanceCredential, allowanceRevoke } from '../hosted-link/allowance-credential.ts';
 import * as extras from '../hosted-link/relay-extras.ts';
+import * as messageLog from '../hosted-link/message-log.ts';
 
 /** Lane-owned engine methods. Only the owning lane edits this file. */
 export const hostedLinkModule: EngineModule = {
@@ -20,6 +21,8 @@ export const hostedLinkModule: EngineModule = {
     'phone.templates.preview': { permission: 'read', handler: hosted.templatesPreview },
     'phone.messages.counts': { permission: 'read', external: true, handler: hosted.messageCounts },
     'phone.messages.send': { permission: 'admin', external: true, handler: hosted.messageSend },
+    'phone.messages.log': { permission: 'read', handler: messageLog.messagesLog },
+    'phone.messages.check': { permission: 'admin', external: true, handler: messageLog.messagesCheck },
     'phone.relay.collect': { permission: 'admin', external: true, handler: hosted.relayCollect },
     'phone.verify': { permission: 'read', external: true, handler: extras.phoneVerify },
     'hosted.messageStatuses': { permission: 'read', external: true, handler: extras.messageStatuses },
@@ -43,10 +46,11 @@ export const hostedLinkModule: EngineModule = {
     'phone.documents.list': { permission: 'read', handler: documents.documentsList },
     'phone.documents.preview': { permission: 'admin', handler: documents.documentsPreview },
     'phone.documents.discard': { permission: 'admin', handler: documents.documentsDiscard },
+    'phone.documents.done': { permission: 'admin', handler: documents.documentsDone },
   },
   purge: (state, reason) => hosted.purgeOffers(state, reason) + documents.purgeDocuments(state, reason),
   tick: async (ctx, host) => {
     try { drive.reattach(host, ctx); } catch { /* the next status call reports it */ }
-    return [...await documents.tickDocuments(ctx, host), ...await hosted.tickCollect(ctx, host)];
+    return [...await documents.tickDocuments(ctx, host), ...await messageLog.tickMessageLog(ctx, host), ...await hosted.tickCollect(ctx, host)];
   },
 };

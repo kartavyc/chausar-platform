@@ -2,8 +2,9 @@
  * Documents sent from the phone (PH-05, experimental). The relay keeps a document the owner sent on WhatsApp or
  * Telegram only as bytes sealed to this install's X25519 key. Collecting downloads, opens and checks each one,
  * acknowledges it (the relay deletes it) and holds it here as an untrusted outside file awaiting review: it is
- * not imported and adds no business facts. Previewing hands it to the normal import preview, marked as outside
- * data; importing stays the normal `sources.import` confirm. A held file is kept re-encrypted under a key that
+ * not imported and adds no business facts. Previewing a CSV hands it to the normal import preview, marked as
+ * outside data; a PDF or photo goes to the statement or bill reader the person chooses. Importing or booking
+ * stays the callee's own confirm. A held file is kept re-encrypted under a key that
  * lives in the vault, in a folder this module owns, and is deleted on discard or once it has been imported.
  */
 import { createCipheriv, createDecipheriv, createHash, createPrivateKey, createPublicKey, diffieHellman, generateKeyPairSync, hkdfSync, randomBytes } from 'node:crypto';
@@ -221,23 +222,69 @@ function heldOf(host: ModuleHost, localId: unknown): HeldDocument {
   check(held, 'DOCUMENT_NOT_FOUND', 'That document is no longer waiting for review.');
   return held;
 }
+/** What the callee readers take (connectors-ext `imports.preview` for a PDF statement, work-books `books.billRead`). */
+export const MAX_READ_BYTES = 4 * 1024 * 1024;
+const ROUTE_CHOICE = 'Choose: a bank statement or a bill.';
+const ABSENT = new Set(['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE']);
+export type DocumentRoute = 'csv' | 'statement' | 'bill';
+/** The route a held document takes, from its type and the person's choice. Refused before any byte is read. */
+export function documentRoute(mediaType: MediaType, as: unknown): DocumentRoute {
+  check(as === undefined || as === 'statement' || as === 'bill', 'INVALID_REQUEST', ROUTE_CHOICE);
+  if (mediaType === 'text/csv') { check(as === undefined, 'DOCUMENT_ROUTE_INVALID', 'A CSV file is previewed as an import. Leave the choice out.'); return 'csv'; }
+  if (mediaType === 'application/pdf') { check(as !== undefined, 'DOCUMENT_ROUTE_REQUIRED', ROUTE_CHOICE); return as as DocumentRoute; }
+  check(as !== 'statement', 'DOCUMENT_ROUTE_INVALID', 'A photo can be read only as a bill.');
+  check(as === 'bill', 'DOCUMENT_ROUTE_REQUIRED', 'Choose: read this photo as a bill.');
+  return 'bill';
+}
+type Confirm = { method: string; input: Record<string, unknown>; add?: string[] };
+/** The confirm a person may run after checking a reader's reply. This module never calls it. */
+function confirmOf(route: 'statement' | 'bill', sourceId: string, reply: any): Confirm | null {
+  if (route === 'statement') {
+    if (typeof reply?.id !== 'string' || reply?.fr07?.state === 'refused') return null;
+    return { method: 'imports.commit', input: { sourceId, envelopeId: reply.id } };
+  }
+  if (typeof reply?.readId !== 'string' || typeof reply?.digest !== 'string') return null;
+  // books.billConfirm also takes the fields as the person checked and corrected them; the reading itself is only a proposal.
+  return { method: 'books.billConfirm', input: { readId: reply.readId, digest: reply.digest }, add: ['fields'] };
+}
 /**
- * The normal import preview, exactly as for a file brought on this computer, with the caller marked as having
- * read outside data. Nothing is imported: confirming is the normal `sources.import` with the returned input.
+ * PH-05. A CSV file goes to the normal import preview, exactly as for a file brought on this computer, with the
+ * caller marked as having read outside data; confirming is the normal `sources.import` with the returned input.
+ * A PDF the person chose to read as a bank statement goes to connectors-ext `imports.preview`; a PDF, JPEG or PNG
+ * the person chose to read as a bill goes to work-books `books.billRead`. Those readers run as the person at the
+ * desktop (they refuse a tainted caller): the person chose to read this file. Their reply is returned verbatim,
+ * marked untrusted, with the confirm the person may run; nothing is imported or booked here.
  */
 export async function documentsPreview(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
-  desktopOnly(ctx); input(payload, ['documentId'], ['recipe', 'expectedTotals']);
+  desktopOnly(ctx); input(payload, ['documentId'], ['as', 'recipe', 'expectedTotals']);
   await settle(host);
   const held = heldOf(host, payload.documentId);
-  check(held.mediaType === 'text/csv', 'DOCUMENT_PREVIEW_UNAVAILABLE', 'Only a CSV file can be previewed for import today. Keep this document for later or discard it.');
+  const route = documentRoute(held.mediaType, payload.as);
   const d = read(host);
+  if (route === 'csv') {
+    const plain = await readHeld(host, d.localKey!, held);
+    const content = new TextDecoder('utf-8', { fatal: true }).decode(plain);
+    const importInput: ImportInput = { sourceId: held.sourceId, format: 'csv', content,
+      ...(payload.recipe === undefined ? {} : { recipe: payload.recipe }), ...(payload.expectedTotals === undefined ? {} : { expectedTotals: payload.expectedTotals }) };
+    const preview = (host.services.imports as ImportService).preview({ ...ctx, sourceTainted: true }, structuredClone(importInput));
+    return { documentId: held.localId, route, untrusted: true as const, name: NAMES[held.channel], mediaType: held.mediaType, outside: true, sourceTainted: true, imported: false, experimental: true,
+      label: DOCUMENT_LABEL, preview, confirm: { method: 'sources.import', input: importInput } as Confirm | null };
+  }
+  check(payload.recipe === undefined && payload.expectedTotals === undefined, 'INVALID_REQUEST', 'A recipe and expected totals apply only to a CSV file.');
+  check(held.sizeBytes <= MAX_READ_BYTES, 'DOCUMENT_TOO_LARGE_TO_READ', 'This file is larger than four megabytes, the most this computer reads. Discard it, or bring a smaller copy on this computer.');
   const plain = await readHeld(host, d.localKey!, held);
-  const content = new TextDecoder('utf-8', { fatal: true }).decode(plain);
-  const importInput: ImportInput = { sourceId: held.sourceId, format: 'csv', content,
-    ...(payload.recipe === undefined ? {} : { recipe: payload.recipe }), ...(payload.expectedTotals === undefined ? {} : { expectedTotals: payload.expectedTotals }) };
-  const preview = (host.services.imports as ImportService).preview({ ...ctx, sourceTainted: true }, structuredClone(importInput));
-  return { documentId: held.localId, name: NAMES[held.channel], mediaType: held.mediaType, outside: true, sourceTainted: true, imported: false, experimental: true, label: DOCUMENT_LABEL,
-    preview, confirm: { method: 'sources.import', input: importInput } };
+  const bytesBase64 = plain.toString('base64'); plain.fill(0);
+  const method = route === 'statement' ? 'imports.preview' : 'books.billRead';
+  const request = route === 'statement' ? { sourceId: held.sourceId, kind: 'pdf', bytesBase64 } : { bytesBase64, mime: held.mediaType };
+  let preview: unknown;
+  try { preview = await host.call(method, request); }
+  catch (error) {
+    if (error instanceof ChausarError && ABSENT.has(error.code)) throw new ChausarError('DOCUMENT_READER_UNAVAILABLE', 'This build cannot read this kind of file yet. Keep the document for later or discard it.');
+    throw error;
+  }
+  await change(host, (_d, state) => audit(state, 'hosted.document.read', { localId: held.localId, route }));
+  return { documentId: held.localId, route, untrusted: true as const, name: NAMES[held.channel], mediaType: held.mediaType, outside: true, sourceTainted: true, imported: false, experimental: true,
+    label: DOCUMENT_LABEL, preview, confirm: confirmOf(route, held.sourceId, preview) };
 }
 export async function documentsDiscard(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   desktopOnly(ctx); input(payload, ['documentId']);
@@ -245,6 +292,18 @@ export async function documentsDiscard(ctx: Context, payload: Record<string, any
   await change(host, (d, state) => { d.held = d.held.filter(item => item.localId !== held.localId); audit(state, 'hosted.document.discarded', { localId: held.localId, channel: held.channel }); });
   await rm(heldPath(host, held.localId), { force: true });
   return { documentId: held.localId, discarded: true };
+}
+/**
+ * The person finished with a held document (for example after `books.billConfirm` stored the bill, or after
+ * reading a statement they chose not to import): it is removed like a discard and recorded as done. A CSV or
+ * statement that was imported is cleared on its own by the next collect, preview or list.
+ */
+export async function documentsDone(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  desktopOnly(ctx); input(payload, ['documentId']);
+  const held = heldOf(host, payload.documentId);
+  await change(host, (d, state) => { d.held = d.held.filter(item => item.localId !== held.localId); audit(state, 'hosted.document.done', { localId: held.localId, channel: held.channel }); });
+  await rm(heldPath(host, held.localId), { force: true });
+  return { documentId: held.localId, done: true };
 }
 
 // Engine lifecycle
