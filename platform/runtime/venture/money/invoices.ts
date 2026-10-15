@@ -8,7 +8,8 @@ import {
 } from '../records.ts';
 import { booksReceiptFor, BILLED_COVERS_MORE, EXPERIMENTAL_NOTE } from './books.ts';
 import { documentText } from './document.ts';
-import { addDaysUtc, todayUtc } from './dates.ts';
+import { addDaysUtc } from './dates.ts';
+import { localDayAt } from '../local-day.ts';
 import { insertBooksFact, invoiceFact } from './facts.ts';
 import { buildPriceReceipt, receiptFigure, receiptTaxable } from './quote.ts';
 import { halfRateBps, stateName, taxDecision } from './tax.ts';
@@ -136,8 +137,7 @@ export async function prepareInvoice(deps: VentureDeps, ctx: Context, payload: u
   const body = exactPayload(payload, ['orderId', 'dueInDays', 'issueDate'], ['orderId']);
   const orderId = recordId(body.orderId, 'Order');
   const dueInDays = body.dueInDays === undefined ? 15 : smallInteger(body.dueInDays, 'Days until due', 0, 90);
-  const issueDate = body.issueDate === undefined ? todayUtc(deps.clock) : isoDate(body.issueDate, 'Issue date');
-  const dueDate = addDaysUtc(issueDate, dueInDays);
+  const given = body.issueDate === undefined ? null : isoDate(body.issueDate, 'Issue date');
 
   return ventureAction(deps, ctx, 'prepare', 'invoice.prepare', tx => {
     const venture = tx.venture;
@@ -159,6 +159,9 @@ export async function prepareInvoice(deps: VentureDeps, ctx: Context, payload: u
     const receipt = buildPriceReceipt(tx, { type: 'invoice', invoiceId }, { quantity: order.quantity }, blueprint, offer, client);
     const backOffice = blueprint.backOffice;
     const country = venture.country;
+    // An issue date the owner leaves out is today on their own calendar, not the UTC day.
+    const issueDate = given ?? localDayAt(tx.now, country);
+    const dueDate = addDaysUtc(issueDate, dueInDays);
     const decision = taxDecision(backOffice, client, country);
     check(decision.treatment === receipt.inputs.taxTreatment, 'INVALID_VENTURE_REQUEST', 'The tax treatment changed while pricing.');
     const invoice: InvoiceRecord = {

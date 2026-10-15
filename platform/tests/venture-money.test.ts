@@ -14,6 +14,8 @@ import type {
   TermRecord, VentureDeps, VentureHandler, VentureMethod, VentureRecord, VentureResults, VentureStorage,
 } from '../runtime/venture/contracts.ts';
 import { computePrice, handlers, taxTreatmentFor } from '../runtime/venture/money/index.ts';
+import { booksPeriods } from '../runtime/venture/money/dates.ts';
+import { localDayAt, ventureTimeZone } from '../runtime/venture/local-day.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
 // Rule 23: the fixed clock is at or before real time; business dates are passed explicitly.
@@ -773,13 +775,105 @@ test('delivery writes a sale fact and the books summary proves billed, received 
     "The back office's receivable aging compares invoices without tax to cash with tax, so use these invoice balances for taxed invoices.",
     EXPERIMENTAL,
   ]);
-  // September holds nothing; the default period runs from the venture's creation date to today.
+  // September holds nothing. The default period is all time: it starts at the first dated entry (the invoice issued
+  // on 1 October, before the business was started in Chausar on 15 October) and ends today, so nothing is left out.
   const september = await call(env, 'venture.books.summary', { from: '2026-09-01', to: '2026-09-30' });
   assert.deepEqual(september.figures.map(f => f.minor), ['0', '0', '0']);
+  assert.equal(september.periodKey, 'custom');
   const defaults = await call(env, 'venture.books.summary', {});
-  assert.deepEqual(defaults.period, { from: '2026-10-15', to: '2026-10-15' });
+  assert.deepEqual(defaults.period, { from: '2026-10-01', to: '2026-10-15' });
+  assert.equal(defaults.periodKey, 'all');
+  assert.deepEqual(defaults.figures.map(f => f.minor), ['249900', '294882', '249900']);
   await assert.rejects(call(env, 'venture.books.summary', { from: '2026-10-31', to: '2026-10-01' }), code('INVALID_VENTURE_REQUEST'));
   await assert.rejects(call(env, 'venture.books.summary', { from: '2026-10-31', extra: 1 }), code('INVALID_VENTURE_REQUEST'));
+});
+
+test('books periods: whole calendar months and years, and all time stretches to every dated entry', () => {
+  // Today 15 October 2026, started the same day, no entries: all time is that one day.
+  assert.deepEqual(booksPeriods('2026-10-15', '2026-10-15', []), [
+    { key: 'all', label: 'All time', from: '2026-10-15', to: '2026-10-15' },
+    { key: 'this-month', label: 'This month', from: '2026-10-01', to: '2026-10-31' },
+    { key: 'last-month', label: 'Last month', from: '2026-09-01', to: '2026-09-30' },
+    { key: 'this-year', label: 'This year', from: '2026-01-01', to: '2026-12-31' },
+  ]);
+  // A back-dated invoice on 20 August and a payment dated 2 November widen all time on both sides.
+  assert.deepEqual(booksPeriods('2026-10-15', '2026-10-15', ['2026-08-20', '2026-11-02'])[0], { key: 'all', label: 'All time', from: '2026-08-20', to: '2026-11-02' });
+  // Month ends: last month from 31 March is all of February 2026 (28 days); from 10 January it is December 2025.
+  assert.deepEqual(booksPeriods('2026-03-31', '2026-03-01', []).find(p => p.key === 'last-month'), { key: 'last-month', label: 'Last month', from: '2026-02-01', to: '2026-02-28' });
+  assert.deepEqual(booksPeriods('2026-01-10', '2026-01-02', []).find(p => p.key === 'last-month'), { key: 'last-month', label: 'Last month', from: '2025-12-01', to: '2025-12-31' });
+  // February 2024 had 29 days.
+  assert.deepEqual(booksPeriods('2024-02-10', '2024-02-01', []).find(p => p.key === 'this-month'), { key: 'this-month', label: 'This month', from: '2024-02-01', to: '2024-02-29' });
+});
+
+test('one day basis: today, the invoice date and the books period are the local day of the owner', async () => {
+  const env = await setup('IN');
+  await seedTerms(env);
+  await seedBlueprint(env, INDIA_READY);
+  const { order } = await orderFor(env, { name: 'Cafe Aroma Demo', countryCode: 'IN', stateCode: '27' });
+  // 20:00 UTC on 14 October is 01:30 on 15 October in India (UTC+5:30): the owner's day is the 15th.
+  env.deps.clock = () => new Date('2026-10-14T20:00:00.000Z');
+  const draft = await call(env, 'venture.invoice.prepare', { orderId: order.id });
+  assert.equal(draft.invoice.issueDate, '2026-10-15');
+  assert.equal(draft.invoice.dueDate, '2026-10-30'); // 15 October plus the default 15 days
+  const summary = await call(env, 'venture.books.summary', {});
+  assert.equal(summary.today, '2026-10-15');
+  assert.equal(summary.timeZone, 'Asia/Kolkata');
+  assert.deepEqual(summary.periods?.find(p => p.key === 'this-month'), { key: 'this-month', label: 'This month', from: '2026-10-01', to: '2026-10-31' });
+
+  // 15:30 UTC on 14 October is 00:30 on 15 October in Tokyo (UTC+9); another country (XX) keeps the UTC day.
+  assert.equal(localDayAt('2026-10-14T15:30:00.000Z', { code: 'JP' }), '2026-10-15');
+  assert.equal(localDayAt('2026-10-14T15:30:00.000Z', { code: 'XX' }), '2026-10-14');
+  assert.equal(ventureTimeZone({ code: 'XX' }), 'UTC');
+  // 02:00 UTC on 15 October is 22:00 on 14 October in New York (UTC-4 in October): the owner's day is the 14th.
+  const us = await setup('US');
+  us.deps.clock = () => new Date('2026-10-15T02:00:00.000Z');
+  const usSummary = await call(us, 'venture.books.summary', {});
+  assert.equal(usSummary.today, '2026-10-14');
+  assert.equal(usSummary.timeZone, 'America/New_York');
+  // The business was started at 10:00 UTC on 15 October (the 15th in New York); all time still ends today.
+  assert.deepEqual(usSummary.period, { from: '2026-10-14', to: '2026-10-14' });
+});
+
+test('back-dated invoices and payments show in the period the owner picks that holds them', async () => {
+  const env = await setup('IN');
+  await seedTerms(env);
+  await seedBlueprint(env, INDIA_READY);
+  const { order } = await orderFor(env, { name: 'Cafe Aroma Demo', countryCode: 'IN', stateCode: '27' });
+  // Issued 20 August and paid 2 September, both before the business was started in Chausar on 15 October.
+  const draft = await call(env, 'venture.invoice.prepare', { orderId: order.id, issueDate: '2026-08-20', dueInDays: 30 });
+  const issued = await call(env, 'venture.invoice.issue', { invoiceId: draft.invoice.id, digest: draft.invoice.digest });
+  await call(env, 'venture.payment.record', { invoiceId: issued.invoice.id, amount: '2948.82', receivedOn: '2026-09-02', method: 'upi' });
+  // Hand-worked: billed 2,499.00 without tax = 249900; GST 18% of 249900 = 44982; received with tax 249900 + 44982 = 294882.
+  const minors = (summary: { figures: { minor: string }[] }) => summary.figures.map(f => f.minor);
+
+  const all = await call(env, 'venture.books.summary', {});
+  assert.equal(all.periodKey, 'all');
+  assert.deepEqual(all.period, { from: '2026-08-20', to: '2026-10-15' });
+  assert.deepEqual(minors(all), ['249900', '294882', '0']); // nothing delivered yet, so nothing earned
+  assert.deepEqual(all.periods?.[0], { key: 'all', label: 'All time', from: '2026-08-20', to: '2026-10-15' });
+
+  const lastMonth = await call(env, 'venture.books.summary', { period: 'last-month' });
+  assert.equal(lastMonth.periodKey, 'last-month');
+  assert.deepEqual(lastMonth.period, { from: '2026-09-01', to: '2026-09-30' });
+  assert.deepEqual(minors(lastMonth), ['0', '294882', '0']); // the September payment only
+
+  const thisMonth = await call(env, 'venture.books.summary', { period: 'this-month' });
+  assert.deepEqual(thisMonth.period, { from: '2026-10-01', to: '2026-10-31' });
+  assert.deepEqual(minors(thisMonth), ['0', '0', '0']);
+
+  const year = await call(env, 'venture.books.summary', { period: 'this-year' });
+  assert.deepEqual(year.period, { from: '2026-01-01', to: '2026-12-31' });
+  assert.deepEqual(minors(year), ['249900', '294882', '0']);
+
+  const august = await call(env, 'venture.books.summary', { from: '2026-08-01', to: '2026-08-31' });
+  assert.equal(august.periodKey, 'custom');
+  assert.deepEqual(minors(august), ['249900', '0', '0']); // the August invoice only
+  // Only one end given: the other comes from all time.
+  const sinceSeptember = await call(env, 'venture.books.summary', { from: '2026-09-01' });
+  assert.deepEqual(sinceSeptember.period, { from: '2026-09-01', to: '2026-10-15' });
+
+  await assert.rejects(call(env, 'venture.books.summary', { period: 'last-week' }), code('INVALID_VENTURE_REQUEST'));
+  await assert.rejects(call(env, 'venture.books.summary', { period: 'this-month', from: '2026-10-01' }), code('INVALID_VENTURE_REQUEST'));
 });
 
 // ---------------------------------------------------------------------------

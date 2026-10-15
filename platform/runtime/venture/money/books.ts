@@ -1,11 +1,12 @@
 // The books: the existing calculator proves billed, received and earned from the facts the venture wrote.
 // Every calculator call here runs after a venture transaction has committed, never inside one.
-import { check, type Context } from '../../contracts.ts';
+import { check, type Context, type State } from '../../contracts.ts';
 import { formatMinor } from '../../currency.ts';
 import { exactPayload, isoDate, listRecords, readVenture } from '../records.ts';
-import { todayUtc } from './dates.ts';
+import { localDayAt, ventureTimeZone } from '../local-day.ts';
+import { BOOKS_PERIOD_KEYS, booksPeriods, todayLocal } from './dates.ts';
 import { newestFirst } from './shared.ts';
-import type { BooksFigure, BooksSummary, IsoDate, MinorString, VentureDeps } from '../contracts.ts';
+import type { BooksFigure, BooksPeriodKey, BooksSummary, IsoDate, MinorString, VentureDeps, VentureRecord } from '../contracts.ts';
 
 export const EXPERIMENTAL_NOTE = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
 export const BOOKS_TAX_NOTE = 'Billed and earned leave out tax. Received is the cash that came in, tax included.';
@@ -45,12 +46,33 @@ export async function booksReceiptFor(
   }
 }
 
-/** venture.books.summary (level read): billed, received and earned for a period, each with its calculator receipt. */
+/** The business dates the books count: invoice issue dates, payment dates and delivery dates. */
+function entryDates(state: State, ventureId: string): IsoDate[] {
+  const days: IsoDate[] = [];
+  for (const invoice of listRecords(state, 'venture-invoice', ventureId)) if (invoice.status !== 'draft' && invoice.issueDate !== null) days.push(invoice.issueDate);
+  for (const payment of listRecords(state, 'venture-payment', ventureId)) days.push(payment.receivedOn);
+  for (const order of listRecords(state, 'venture-order', ventureId)) if (order.deliveredOn !== null) days.push(order.deliveredOn);
+  return days;
+}
+
+/**
+ * venture.books.summary { period? | from?, to? } (level read): billed, received and earned for a period, each with its
+ * calculator receipt. period picks one of the choices in `periods` ('all' when nothing is given); from and to give
+ * exact days instead, and a missing one is taken from 'all'. Every default day is on the owner's calendar.
+ */
 export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unknown): Promise<BooksSummary> {
-  const body = exactPayload(payload, ['from', 'to']);
+  const body = exactPayload(payload, ['period', 'from', 'to']);
   const { state, venture } = readVenture(deps, ctx);
-  const from = body.from === undefined ? venture.at.slice(0, 10) : isoDate(body.from, 'From');
-  const to = body.to === undefined ? todayUtc(deps.clock) : isoDate(body.to, 'To');
+  const custom = body.from !== undefined || body.to !== undefined;
+  check(body.period === undefined || (typeof body.period === 'string' && (BOOKS_PERIOD_KEYS as readonly string[]).includes(body.period)),
+    'INVALID_VENTURE_REQUEST', 'Choose all time, this month, last month or this year.');
+  check(!(custom && body.period !== undefined), 'INVALID_VENTURE_REQUEST', 'Choose a period or give dates, not both.');
+  const today = todayLocal(deps.clock, venture.country);
+  const periods = booksPeriods(today, startDay(venture), entryDates(state, venture.id));
+  const periodKey: BooksPeriodKey = body.period === undefined ? 'all' : body.period as BooksPeriodKey;
+  const chosen = periods.find(p => p.key === periodKey) ?? periods[0];
+  const from = body.from === undefined ? chosen.from : isoDate(body.from, 'From');
+  const to = body.to === undefined ? chosen.to : isoDate(body.to, 'To');
   check(from <= to, 'INVALID_VENTURE_REQUEST', 'The start date must be on or before the end date.');
 
   const figures: BooksFigure[] = [];
@@ -78,5 +100,13 @@ export async function booksSummary(deps: VentureDeps, ctx: Context, payload: unk
 
   const notes = [BOOKS_TAX_NOTE, BOOKS_AGING_NOTE];
   if (deps.storage === 'experimental-file') notes.push(EXPERIMENTAL_NOTE);
-  return { period: { from, to }, currency: venture.country.currency, figures, openInvoices, notes };
+  return {
+    period: { from, to }, periodKey: custom ? 'custom' : periodKey, periods, today, timeZone: ventureTimeZone(venture.country),
+    currency: venture.country.currency, figures, openInvoices, notes,
+  };
+}
+
+/** The day the business was started, on the owner's calendar. */
+function startDay(venture: VentureRecord): IsoDate {
+  return localDayAt(venture.at, venture.country);
 }

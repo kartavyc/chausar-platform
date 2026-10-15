@@ -639,8 +639,16 @@ export type InvoiceView = {
   notes: string[]; // e.g. what is missing for a tax invoice, why a books receipt is absent
 };
 export type BooksFigure = { operation: 'billed' | 'received' | 'earned'; label: string; receiptId: string; minor: MinorString; display: string; stale: boolean };
+/** A books period the Money place can choose; the engine works out its dates on the owner's local calendar. */
+export type BooksPeriodKey = 'all' | 'this-month' | 'last-month' | 'this-year';
+export type BooksPeriodChoice = { key: BooksPeriodKey; label: string; from: IsoDate; to: IsoDate };
 export type BooksSummary = {
   period: { from: IsoDate; to: IsoDate };
+  // The next four are always set by the engine; optional only so older fixtures still type.
+  periodKey?: BooksPeriodKey | 'custom'; // 'custom' when the request gave from or to
+  periods?: BooksPeriodChoice[]; // every choice with its dates, in the order to show them
+  today?: IsoDate; // the owner's local day, in timeZone
+  timeZone?: string; // IANA zone for the venture's country; 'UTC' for another country
   currency: string;
   figures: BooksFigure[];
   openInvoices: { invoiceId: string; number: string; clientName: string; balanceMinor: MinorString; balanceDisplay: string; dueDate: IsoDate }[];
@@ -1009,7 +1017,7 @@ export type VenturePayloads = {
   'venture.invoice.get': { invoiceId: string };
   'venture.invoice.list': Empty;
   'venture.payment.record': { invoiceId: string; amount: string; receivedOn: IsoDate; method: PaymentMethod };
-  'venture.books.summary': { from?: IsoDate; to?: IsoDate };
+  'venture.books.summary': { period?: BooksPeriodKey; from?: IsoDate; to?: IsoDate };
   'venture.build.brief': { useTemplate?: boolean };
   'venture.build.handoff': { builder: BuilderId };
   'venture.build.handoffOpened': { handoffId: string };
