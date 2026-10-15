@@ -7,7 +7,7 @@
 globalThis.ChausarLaunch = Object.freeze({
   version: 1,
   create(kit) {
-    const { h, request, navigate, renderShell, renderSetup, showRecoveryKit, openExternal, saveText, state } = kit;
+    const { h, request, navigate, renderShell, renderSetup, showRecoveryKit, openExternal, reserveTab, saveText, state } = kit;
 
     // ---------------------------------------------------------------------------------------------
     // Fixed words
@@ -33,6 +33,7 @@ globalThis.ChausarLaunch = Object.freeze({
     const UNIT_WORDS = { month: 'per month', project: 'per project', hour: 'per hour' };
     const RAIL_NAMES = { razorpay: 'Razorpay', cashfree: 'Cashfree', paypal: 'PayPal', stripe: 'Stripe', 'lemon-squeezy': 'Lemon Squeezy', paddle: 'Paddle' };
     const BUILDER_NAMES = { lovable: 'Lovable', replit: 'Replit', bolt: 'Bolt', v0: 'v0' };
+    const LINK_BUILDERS = ['lovable', 'replit'];
     const PRESET_NAMES = {
       'anthropic-haiku-5-5': 'Claude Haiku 5.5', 'anthropic-sonnet-5-5': 'Claude Sonnet 5.5', 'openai-gpt-6-luna': 'GPT-6 Luna',
       'claude-code-cli': 'Claude Code', 'codex-cli': 'Codex', 'built-in-templates': 'built-in templates',
@@ -220,9 +221,13 @@ globalThis.ChausarLaunch = Object.freeze({
       const slug = plain(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 64).replace(/-+$/, '');
       return /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(slug) ? slug : 'main';
     }
+    function folderWords(folder) { return `Chausar keeps this business in the workspace folder ${folder}. To open it again you need this folder name and your passphrase.`; }
     async function modelStatus() { try { return await request('venture.models.status'); } catch { return null; } }
     function servedByModel(status, tier = 'main') { const current = status?.tiers?.[tier]; return Boolean(current && current.presetId !== 'built-in-templates' && current.usable); }
-    function recordingNote(models) { return models?.replay?.active ? note(RECORDING_LINE, 'launch-note launch-recording') : null; }
+    const replaying = models => models?.replay?.active === true;
+    function recordingNote(models) { return replaying(models) ? note(RECORDING_LINE, 'launch-note launch-recording') : null; }
+    /** Who writes, in words: the connected model, or in a demo the synthetic recording that answers in its place. */
+    function writtenBy(models, presetId, model) { return replaying(models) ? 'from a synthetic recording' : `with ${presetName(presetId, model)}`; }
 
     // ---------------------------------------------------------------------------------------------
     // Onboarding: Idea, Plan, Keep it safe, then the plan in the vault and Build. No rail.
@@ -366,16 +371,18 @@ globalThis.ChausarLaunch = Object.freeze({
           extra: h('p', { class: 'launch-row-more' }, offer.description.value),
         }))), priceBlock),
         section('Steps', stepRows(preview.deliverySteps)),
-        section('You approve', h('p', {}, preview.approvals.map(item => item.value).join('; '), '. ', tag(preview.approvals[0]))),
+        section('You approve', approvalLines(preview.approvals)),
         section('Back office', h('p', {}, `Invoices and books in ${country.currency}. Payments by ${RAIL_NAMES[preview.backOffice.paymentRail] || preview.backOffice.paymentRail}.`),
           h('p', {}, taxChip, ' ', link('Change', () => { taxBody.hidden = !taxBody.hidden; })), taxBody),
         section(null, link('Tell us more (optional)', () => { extraBody.hidden = !extraBody.hidden; }), extraBody),
         actions(keep, quiet('Start over', () => { ob.preview = null; ob.tax = null; ob.rate = null; ob.price = ''; ob.extra = {}; void showIdea(); })),
         status);
     }
+    /** One line per approval, each with its own label. */
+    function approvalLines(approvals, cls = 'launch-approval') { return (approvals || []).map(item => h('p', { class: cls }, item.value, ' ', tag(item))); }
     function stepRows(steps) {
       return rows(...steps.map(step => row({
-        mark: step.doneBy === 'you' ? 'you' : 'cha', title: step.title.value, note: DONE_BY[step.doneBy] || step.doneBy,
+        mark: step.doneBy === 'you' ? 'you' : 'cha', title: step.title.value, label: LABEL_WORDS[step.title.label] || 'assumption', note: DONE_BY[step.doneBy] || step.doneBy,
         side: step.capability === 'planned' ? chip('planned: agent') : null,
       })));
     }
@@ -388,16 +395,23 @@ globalThis.ChausarLaunch = Object.freeze({
       const confirm = h('input', { type: 'password', value: '', minlength: 12, required: true, autocomplete: 'new-password' });
       const status = statusLine();
       const submit = h('button', { class: 'launch-btn', type: 'submit' }, 'Keep it');
+      /** The engine has no list of workspaces, so the owner must know this folder name to open or recover the business later. */
+      const workingNameNow = () => name.value.trim() || 'My service business';
+      const folderLine = note('');
+      const paintFolder = () => folderLine.replaceChildren(folderWords(folderFor(workingNameNow())));
+      name.addEventListener('input', paintFolder);
+      paintFolder();
       const keepForm = h('form', {
         class: 'launch-form',
         onsubmit: event => {
           event.preventDefault();
           return act(submit, status, async () => {
-            const workingName = name.value.trim() || 'My service business';
+            const workingName = workingNameNow();
+            const folder = folderFor(workingName);
             if (passphrase.value.length < 12) throw new Error('Use a passphrase of at least 12 characters.');
             if (passphrase.value !== confirm.value) throw new Error('The two passphrases do not match.');
             let result;
-            try { result = await request('workspace.create', { name: workingName, passphrase: passphrase.value, pack: 'services', folder: folderFor(workingName) }); }
+            try { result = await request('workspace.create', { name: workingName, passphrase: passphrase.value, pack: 'services', folder }); }
             finally { passphrase.value = ''; confirm.value = ''; }
             ob.workingName = workingName;
             ob.vaultOpen = true;
@@ -405,10 +419,10 @@ globalThis.ChausarLaunch = Object.freeze({
             state.workspace = result?.workspace || state.status?.workspace || { name: workingName };
             const recovery = result?.recoveryKit || result?.recoveryCode;
             const next = () => { void runSetup({ host: null, skipCreate: false }); };
-            if (recovery) showRecoveryKit(recovery, result, next); else next();
+            if (recovery) showRecoveryKit(recovery, { ...result, folder }, next); else next();
           });
         },
-      }, field('Working name', name), field('Passphrase', passphrase), field('Confirm passphrase', confirm),
+      }, field('Working name', name), folderLine, field('Passphrase', passphrase), field('Confirm passphrase', confirm),
       note(PASSPHRASE_LINE), note(TEN_YEARS_LINE), experimental() ? warn(EXPERIMENTAL) : null,
       actions(submit, link('Back to the plan', () => showPlan())), status);
       frame('keep', head(null, 'Keep your plan safe'), keepForm);
@@ -547,7 +561,7 @@ globalThis.ChausarLaunch = Object.freeze({
       const rewrite = quiet('Rewrite with AI', () => act(rewrite, status, async () => {
         const current = await request('venture.models.status');
         if (!servedByModel(current, 'main')) { void openAiSheet(refresh); return; }
-        await busy(host, `Writing your plan with ${presetName(current.tiers.main.presetId, current.tiers.main.model)}`, async () => {
+        await busy(host, `Writing your plan ${writtenBy(current, current.tiers.main.presetId, current.tiers.main.model)}`, async () => {
           await request('venture.blueprint.draft', {});
           await quoteAgain();
         });
@@ -562,7 +576,7 @@ globalThis.ChausarLaunch = Object.freeze({
         section('Offers', rows(...offerRows), fold('About the offers', open, ...plan.offers.map(offer => note(`${offer.name.value}: ${offer.description.value}`)))),
         section('Steps', stepRows(plan.deliverySteps), fold('How each step works', open, ...plan.deliverySteps.map(step => note(`${step.title.value}: ${step.note}`)))),
         missing,
-        fold('You approve', open, note(plan.approvals.map(item => item.value).join('; ')), tag(plan.approvals[0])),
+        fold('You approve', open, approvalLines(plan.approvals, 'launch-note launch-approval')),
         fold('Back office', open, note(`Invoices and books in ${backOffice.currency}. ${taxWords} Payments by ${RAIL_NAMES[backOffice.paymentRail] || backOffice.paymentRail}.`), tag(backOffice.taxRegistered), ready),
         mode === 'place' ? fold('What your business knows', false, note(`Active: ${active.join(', ') || 'none yet'}. Proposed: ${proposed.join(', ') || 'none'}.`),
           ...(view.terms || []).map(term => note(`${term.name}: ${term.meaning}`))) : null,
@@ -716,7 +730,7 @@ globalThis.ChausarLaunch = Object.freeze({
       flow.append(content, actions(link('Go to your business', goHome)));
       try {
         const models = await modelStatus();
-        const words = servedByModel(models) ? `Writing your build brief with ${presetName(models.tiers.main.presetId, models.tiers.main.model)}` : 'Writing your build brief from built-in templates';
+        const words = servedByModel(models) ? `Writing your build brief ${writtenBy(models, models.tiers.main.presetId, models.tiers.main.model)}` : 'Writing your build brief from built-in templates';
         await busy(content, words, () => request('venture.build.brief', {}));
         const status = await request('venture.build.status');
         content.replaceChildren(...buildBody({ status, models, mode: 'onboarding', refresh: showBuildStepAgain }));
@@ -751,13 +765,27 @@ globalThis.ChausarLaunch = Object.freeze({
         actions(quiet('Save brief', () => saveText('brief.md', brief.markdown, 'text/markdown')))));
     }
 
-    /** Opens a builder only from the owner's click; marks it opened only after the browser took the link. */
+    const dropTab = tab => { if (tab) { try { tab.close(); } catch { /* already closed */ } } };
+    /** Opens a builder only from the owner's click; marks it opened only after the browser took the link or the copy worked.
+        Lovable and Replit open a link. In a browser the tab is opened here, inside the click and before the request,
+        because a browser blocks a tab opened after a wait without saying so. Bolt and v0 get the brief copied. */
     async function handOff(builder, notesHost) {
-      const plan = await request('venture.build.handoff', { builder });
+      const tab = LINK_BUILDERS.includes(builder) ? reserveTab() : null;
+      let plan;
+      try { plan = await request('venture.build.handoff', { builder }); }
+      catch (error) { dropTab(tab); throw error; }
       notesHost.replaceChildren(...(plan.notes || []).map(item => note(item)));
-      if (plan.status === 'planned') return;
-      if (plan.mode === 'link') await openExternal(plan.url);
-      else await copyText(plan.clipboardText || '');
+      if (plan.status === 'planned') { dropTab(tab); return; }
+      if (plan.mode === 'link') await openExternal(plan.url, tab);
+      else {
+        dropTab(tab);
+        const text = plan.clipboardText || '';
+        try { await copyText(text); }
+        catch (error) {
+          notesHost.append(...errorNodes(error), actions(quiet('Save brief', () => saveText('brief.md', text, 'text/markdown'))));
+          return;
+        }
+      }
       await request('venture.build.handoffOpened', { handoffId: plan.handoffId });
       notesHost.append(note(plan.mode === 'link' ? `${BUILDER_NAMES[builder] || builder} opened in your browser.` : `Brief copied. Paste it into ${BUILDER_NAMES[builder] || builder}.`, 'launch-note launch-done'));
     }
@@ -1022,7 +1050,7 @@ globalThis.ChausarLaunch = Object.freeze({
       const body = h('div', { class: 'launch-more-body' });
       const status = statusLine();
       const paintActions = () => {
-        const draft = quiet('Draft a reply', () => act(draft, status, async () => { openRunSheet(await request('venture.delivery.run', { orderId: order.id }), client); }));
+        const draft = quiet('Draft a reply', () => act(draft, status, async () => { await openRunSheet(await request('venture.delivery.run', { orderId: order.id }), client); }));
         const deliver = order.status === 'delivered' || order.status === 'cancelled' ? null : quiet('Mark delivered', () => {
           const date = h('input', { type: 'date', value: engineDate() });
           const confirm = quiet('Mark delivered', () => act(confirm, status, async () => { await request('venture.order.deliver', { orderId: order.id, deliveredOn: date.value }); await reread(); }));
@@ -1172,7 +1200,7 @@ globalThis.ChausarLaunch = Object.freeze({
         section('Draft replies', (runs.value || []).length ? rows(...runs.value.slice(0, 5).map(run => row({
           mark: run.status === 'waiting-for-you' || run.status === 'ready-for-review' ? 'wait' : 'you', title: clientOf[run.orderId] || 'A client',
           note: `${RUN_WORDS[run.status] || run.status}${run.practice ? ', practice' : ''}${run.servedBy === 'template' ? ', outline' : ''}`,
-          side: quiet('Review', () => openRunSheet(run, clientOf[run.orderId] || 'A client')),
+          side: quiet('Review', () => openRunSheet(run, clientOf[run.orderId] || 'A client', models)),
         }))) : note(runs.error ? plain(runs.error.message) : 'No draft replies yet. Draft one from an order on Clients.')),
         fold('How an agent works', false, ...(playbook.value ? [rows(...playbook.value.steps.map(step => row({ mark: step.doneBy === 'you' ? 'you' : 'cha', title: step.title, note: DONE_BY[step.doneBy] || step.doneBy })))] : errorNodes(playbook.error))),
         fold('What agents can do today', false, ...capabilityNodes));
@@ -1219,7 +1247,10 @@ globalThis.ChausarLaunch = Object.freeze({
       })), result];
     }
 
-    function openRunSheet(run, client) {
+    /** The draft reply sheet. In a demo with recordings it says, above the payload and the draft, that a synthetic recording answers. */
+    async function openRunSheet(run, client, knownModels = null) {
+      const models = knownModels || await modelStatus();
+      const replay = replaying(models);
       const body = h('div', { class: 'launch-run' });
       const paint = current => {
         const status = statusLine();
@@ -1231,7 +1262,7 @@ globalThis.ChausarLaunch = Object.freeze({
           const approve = filled('Approve and send', () => act(approve, status, async () => {
             let next;
             try {
-              next = await busy(body, `Writing a draft reply with ${model}`, () => request('venture.delivery.approve', { runId: current.id, digest: current.preview.digest }));
+              next = await busy(body, `Writing a draft reply ${writtenBy(models, current.preview.presetId, current.preview.model)}`, () => request('venture.delivery.approve', { runId: current.id, digest: current.preview.digest }));
             } catch (error) {
               if (error?.code !== 'REQUEST_TIMEOUT') throw error;
               const list = await request('venture.delivery.list');
@@ -1241,12 +1272,15 @@ globalThis.ChausarLaunch = Object.freeze({
             paint(next);
           }), { disabled: true });
           agree.addEventListener('change', () => { approve.disabled = !agree.checked; });
-          parts.push(note(`This is exactly what will be sent to ${model}`, 'launch-strong'), h('pre', { class: 'launch-pre' }, current.preview.payloadText),
+          parts.push(recordingNote(models),
+            note(replay ? `This is exactly what Chausar would send to ${model}. In this demo a synthetic recording answers instead.` : `This is exactly what will be sent to ${model}`, 'launch-strong'),
+            h('pre', { class: 'launch-pre' }, current.preview.payloadText),
             note(`Most it can cost: ${current.preview.estimatedMaxCostDisplay}. This approval runs out at ${timeText(current.preview.expiresAt)}.`),
-            h('label', { class: 'launch-check' }, agree, h('span', {}, 'Send this exact text once.')), actions(approve), status);
+            h('label', { class: 'launch-check' }, agree, h('span', {}, replay ? 'Approve this exact text once.' : 'Send this exact text once.')), actions(approve), status);
         } else {
           const text = current.editedText || current.renderedText || '';
           if (current.servedBy === 'template' && !text.startsWith(OUTLINE_LINE)) parts.push(note(OUTLINE_LINE, 'launch-strong'));
+          if (current.servedBy === 'model') parts.push(recordingNote(models));
           if (text) parts.push(h('pre', { class: 'launch-pre' }, text));
           if (current.checks?.length) parts.push(fold('Checks', false, rows(...current.checks.map(check => row({ mark: check.passed ? 'cha' : 'unsure', title: CHECK_WORDS[check.check] || check.check, note: check.passed ? 'passed' : check.detail })))));
           if (current.status === 'ready-for-review') parts.push(...reviewControls(current, status, paint));
@@ -1258,7 +1292,7 @@ globalThis.ChausarLaunch = Object.freeze({
           }
           parts.push(status);
         }
-        body.replaceChildren(...parts);
+        fill(body, ...parts);
       };
       paint(run);
       sheet(`Draft reply for ${client}`, body, () => { if (onLaunchPage()) void navigate(state.page); });

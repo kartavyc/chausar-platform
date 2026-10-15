@@ -22,6 +22,7 @@ const LAUNCH_IDS = ['today', 'business', 'build', 'clients', 'agents', 'money', 
 const BACK_OFFICE_IDS = ['conversation', 'brief', 'sources', 'dictionary', 'memory', 'decisions', 'actions', 'jobs', 'trust', 'models', 'plugins', 'activity'];
 const EXPERIMENTAL = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
 const KEY = 'sk-ant-demo-0000000000000000000000';
+const RECORDING = 'AI answers here come from a synthetic recording.';
 
 type Handler = (event: { target: Element; currentTarget: Element; preventDefault(): void }) => unknown;
 class Element {
@@ -216,9 +217,23 @@ function fakeEngine(options: EngineOptions = {}) {
 // ---------------------------------------------------------------------------------------------
 // The harness: real preload, real IPC contract, both renderer scripts in one vm context
 // ---------------------------------------------------------------------------------------------
-async function harness(engine: EngineOptions = {}, options: { openExternal?: (url: string) => unknown; clipboard?: boolean | 'refuse'; timers?: boolean } = {}) {
+/** A browser tab the page opened with window.open: it records where the page sent it and whether it was closed. */
+type FakeTab = { opener: unknown; closed: boolean; url: string | null; location: { replace(url: string): void }; close(): void };
+function makeTab(): FakeTab {
+  const tab: FakeTab = { opener: { page: 'chausar' }, closed: false, url: null, location: { replace: (url: string) => { tab.url = url; } }, close: () => { tab.closed = true; } };
+  return tab;
+}
+/** Blob and URL for saveText: each saved file is kept so a test can read its name, type and text. */
+class FakeBlob { readonly text: string; readonly type: string; constructor(parts: unknown[], options: { type?: string } = {}) { this.text = parts.map(String).join(''); this.type = options.type ?? ''; } }
+type HarnessOptions = { openExternal?: (url: string) => unknown; clipboard?: boolean | 'refuse'; timers?: boolean; browser?: { open: () => FakeTab | null } };
+async function harness(engine: EngineOptions = {}, options: HarnessOptions = {}) {
   const fake = fakeEngine(engine);
   const calls: { method: string; payload: any }[] = [], rejected: unknown[] = [], opened: string[] = [], externalInvokes: unknown[] = [], clipboard: string[] = [];
+  const anchors: Element[] = [], blobs = new Map<string, FakeBlob>(), opens: { args: unknown[]; callsBefore: number }[] = [];
+  const TestURL = class extends URL {};
+  Object.defineProperty(TestURL, 'createObjectURL', { value: (blob: FakeBlob) => { const id = `blob:chausar-test/${blobs.size + 1}`; blobs.set(id, blob); return id; } });
+  Object.defineProperty(TestURL, 'revokeObjectURL', { value: () => {} });
+  const saved = () => anchors.filter(node => node.attributes.download).map(node => ({ filename: node.attributes.download, type: blobs.get(node.attributes.href)?.type, text: blobs.get(node.attributes.href)?.text }));
   const ipcRenderer = {
     async invoke(channel: string, envelope: unknown) {
       if (channel === 'chausar:open-external') {
@@ -241,26 +256,38 @@ async function harness(engine: EngineOptions = {}, options: { openExternal?: (ur
   const body = new Element('body'), app = new Element('div'), notifications = new Element('div');
   app.id = 'app'; notifications.id = 'notifications'; body.append(app, notifications);
   const document = {
-    body, createElement: (tag: string) => new Element(tag), createTextNode: (value: unknown) => { const node = new Element('#text'); node.textContent = String(value); return node; },
+    body, createElement: (tag: string) => { const node = new Element(tag); if (tag === 'a') anchors.push(node); return node; },
+    createTextNode: (value: unknown) => { const node = new Element('#text'); node.textContent = String(value); return node; },
     createElementNS: (namespace: string, tag: string) => { const node = new Element(tag); node.namespaceURI = namespace; return node; },
     getElementById: (id: string) => descendants(body).find(node => node.id === id) ?? null, querySelectorAll: (selector: string) => body.querySelectorAll(selector),
   };
   const navigator = options.clipboard === false ? undefined : { language: 'en-IN', clipboard: { writeText: async (value: string) => { if (options.clipboard === 'refuse') throw new Error("Failed to execute 'writeText' on 'Clipboard': Write permission denied."); clipboard.push(value); } } };
+  const window: Record<string, unknown> = { location: { origin: 'chausar://app', hash: '', pathname: '/index.html', search: '' }, history: { replaceState() {} }, addEventListener() {} };
+  if (options.browser) window.open = (...args: unknown[]) => { opens.push({ args, callsBefore: calls.length }); return options.browser!.open(); };
+  else window.chausar = exposed;
+  /** The paired browser's transport: the same fake engine behind /api/rpc, answered as the local server answers. */
+  const browserFetch = async (path: string, init: { body: string }) => {
+    assert.equal(path, '/api/rpc');
+    const call = JSON.parse(init.body) as { method: string; payload: any };
+    calls.push(call);
+    try { const result = await fake.dispatch(call.method, call.payload); return { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify({ result: result ?? null })) }; }
+    catch (error: any) { return { ok: false, status: 400, json: async () => ({ error: { code: error.code, message: error.message } }) }; }
+  };
   const context = vm.createContext({
-    document, Node: Element, navigator, crypto: { randomUUID }, URL, URLSearchParams, structuredClone, console,
-    window: { chausar: exposed, location: { origin: 'chausar://app', hash: '', pathname: '/index.html', search: '' }, history: { replaceState() {} }, addEventListener() {} },
+    document, Node: Element, navigator, crypto: { randomUUID }, URL: TestURL, URLSearchParams, structuredClone, console, Blob: FakeBlob, window,
     setTimeout: options.timers ? (callback: () => void) => { callback(); return 1; } : () => 0, clearTimeout() {},
-    fetch() { throw new Error('Unexpected network in the launch renderer tests.'); },
+    fetch: options.browser ? browserFetch : () => { throw new Error('Unexpected network in the launch renderer tests.'); },
   });
   vm.runInContext(launchSource, context, { filename: join(root, 'app/renderer/launch.js') });
   assert.match(appSource, /\bboot\(\);\s*$/);
   vm.runInContext(appSource.replace(/\bboot\(\);\s*$/, '') + '\n;globalThis.__launchTest = { launch, boot, navigate, renderShell, applyWorkspaceStatus, renderModels, openExternal, request, state, EXTERNAL_ORIGINS, evidenceChanges: [...evidenceChanges] };', context, { filename: join(root, 'app/renderer/app.js') });
   const renderer = context.__launchTest;
+  if (options.browser) renderer.state.token = 'paired-browser-token';
   const after = (method: string) => calls.slice(calls.findIndex(call => call.method === method));
-  return { renderer, calls, rejected, opened, externalInvokes, clipboard, body, app, world: fake.world, after };
+  return { renderer, calls, rejected, opened, externalInvokes, clipboard, body, app, world: fake.world, after, anchors, opens, saved };
 }
 /** Boots straight into the shell with a business, then opens one place. */
-async function place(id: string, engine: EngineOptions = {}, options = {}) {
+async function place(id: string, engine: EngineOptions = {}, options: HarnessOptions = {}) {
   const h = await harness({ open: true, venture: true, ...engine }, options);
   await h.renderer.boot(); await flush();
   if (id !== 'today') { await h.renderer.navigate(id); await flush(); }
@@ -300,6 +327,33 @@ test('"Show my plan" sends exactly the idea and country and shows the plan with 
   assert.equal(descendants(h.app).filter(node => node.className === 'launch-btn').length, 1, 'one filled button');
 });
 
+test('every plan step and every approval carries its own label, before and after the plan is kept', async () => {
+  const told = <T extends { label: string }>(line: T) => ({ ...line, label: 'told-by-you' });
+  const preview = {
+    ...F.preview,
+    deliverySteps: F.preview.deliverySteps.map((step, index) => (index === 1 ? { ...step, title: told(step.title) } : step)),
+    approvals: [F.preview.approvals[0], told(F.preview.approvals[1])],
+  };
+  const labelsIn = (host: Element, title: string) => {
+    const part = find(host, node => (node.className === 'launch-section' || node.tagName === 'details') && node.children[0]?.textContent === title, `Expected the "${title}" part.`);
+    return {
+      steps: descendants(part).filter(node => node.className === 'launch-row').map(row => descendants(row).find(node => node.className.split(' ').includes('launch-row-label'))?.textContent),
+      approvals: descendants(part).filter(node => node.className.split(' ').includes('launch-approval')).map(line => [line.children[0].textContent, line.children.at(-1)!.textContent]),
+    };
+  };
+  const h = await harness({ overrides: { 'venture.preview': () => preview } });
+  await h.renderer.boot(); await flush();
+  await type(find(h.app, node => node.tagName === 'textarea'), 'Monthly bookkeeping for cafes.');
+  await click(button(h.app, 'Show my plan'));
+  assert.deepEqual(labelsIn(h.app, 'Steps').steps, ['assumption', 'told by you', 'assumption', 'assumption']);
+  assert.deepEqual(labelsIn(h.app, 'You approve').approvals, [['Every monthly report before it reaches a client', 'assumption'], ['Any message that asks a client for money', 'told by you']]);
+
+  const kept = { ...F.blueprintDraftView, blueprint: { ...F.blueprintDraftView.blueprint, deliverySteps: preview.deliverySteps, approvals: preview.approvals } };
+  const owned = await place('business', { blueprint: 'draft', overrides: { 'venture.blueprint.get': () => kept } });
+  assert.deepEqual(labelsIn(owned.content, 'Steps').steps, ['assumption', 'told by you', 'assumption', 'assumption']);
+  assert.deepEqual(labelsIn(owned.content, 'You approve').approvals, [['Every monthly report before it reaches a client', 'assumption'], ['Any message that asks a client for money', 'told by you']]);
+});
+
 test('keeping the plan creates a services vault, then sets up the business in order with typed answers', async () => {
   const h = await harness();
   await h.renderer.boot(); await flush();
@@ -315,7 +369,10 @@ test('keeping the plan creates a services vault, then sets up the business in or
 
   assert.ok(text(h.app).includes('Chausar keeps your records for ten years, as tax rules expect.'));
   assert.ok(text(h.app).includes(EXPERIMENTAL), 'experimental notice on Keep it safe');
+  const folderLine = (folder: string) => `Chausar keeps this business in the workspace folder ${folder}. To open it again you need this folder name and your passphrase.`;
+  assert.ok(text(h.app).includes(folderLine('my-service-business')), 'the folder is shown before the owner keeps the plan');
   await type(control(h.app, 'Working name'), 'Ledger Cafe Books');
+  assert.ok(text(h.app).includes(folderLine('ledger-cafe-books')), 'the folder follows the working name as it is typed');
   await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
   await type(control(h.app, 'Confirm passphrase'), 'long-enough-passphrase');
   await find(h.app, node => node.tagName === 'form').dispatch('submit'); await flush();
@@ -323,6 +380,13 @@ test('keeping the plan creates a services vault, then sets up the business in or
   assert.equal(control(h.app, 'Passphrase').value, '', 'passphrase cleared');
 
   const kit = openDialog(h.body);
+  assert.ok(text(kit).includes('Workspace folder: ledger-cafe-books.'), 'the recovery kit screen names the folder');
+  await click(descendants(kit).find(node => node.tagName === 'button' && node.textContent.includes('Save recovery kit'))!);
+  const [savedKit] = h.saved();
+  assert.equal(savedKit.filename, 'chausar-recovery-kit.txt');
+  assert.match(savedKit.text!, /^Chausar recovery kit\nWorkspace: Ledger Cafe Books\nWorkspace folder: ledger-cafe-books\n/);
+  assert.ok(savedKit.text!.includes('DEMO-RECOVERY-CODE'), 'the saved kit holds the folder and the code together');
+  assert.equal(descendants(kit).find(node => node.className === 'recovery-secret')!.textContent, 'DEMO-RECOVERY-CODE', 'the code itself stays alone, so it can be pasted into Recover');
   await tick(find(kit, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
   await click(button(kit, 'Enter my workspace')); await flush();
   const sequence = h.after('venture.create').slice(0, 11);
@@ -500,6 +564,55 @@ test('a refused link never marks the builder opened', async () => {
   assert.deepEqual(h.opened, ['https://razorpay.com/']);
 });
 
+test('in a paired browser, Open in Lovable opens the tab inside the click, before any request, then sends the link there', async () => {
+  const tab = makeTab();
+  const h = await place('build', {}, { browser: { open: () => tab } });
+  assert.ok(text(h.content).includes('Hand your brief') || text(h.content).includes('Open in Lovable'), 'the build place loaded over /api/rpc');
+  const before = h.calls.length;
+  await click(button(h.content, 'Open in Lovable'));
+  assert.deepEqual(h.opens.map(item => item.args), [['', '_blank']]);
+  assert.equal(h.opens[0].callsBefore, before, 'the tab opens before venture.build.handoff is asked for');
+  assert.equal(tab.opener, null, 'the builder page gets no handle back to Chausar');
+  assert.equal(tab.url, new URL(F.handoffPlans.lovable.url).href);
+  assert.equal(tab.closed, false);
+  assert.deepEqual(h.calls.slice(before), [{ method: 'venture.build.handoff', payload: { builder: 'lovable' } }, { method: 'venture.build.handoffOpened', payload: { handoffId: 'vho_lovable' } }]);
+  assert.ok(text(h.content).includes('Lovable opened in your browser.'));
+
+  const cards = await place('connections', {}, { browser: { open: () => makeTab() } });
+  await click(button(find(cards.content, node => node.dataset.connector === 'bolt'), 'Open'));
+  assert.equal(cards.opens.length, 0, 'a copy handoff opens no tab');
+  await click(button(find(cards.content, node => node.dataset.connector === 'razorpay'), 'Visit site'));
+  assert.equal(cards.opens.length, 0, 'a vendor page opens from the click itself, with no waiting first');
+  const visit = cards.anchors.find(node => node.attributes.href === 'https://razorpay.com/');
+  assert.ok(visit, 'the vendor page opened through a temporary link');
+  assert.equal(visit.attributes.target, '_blank');
+  assert.equal(visit.attributes.rel, 'noopener noreferrer');
+});
+
+test('in a paired browser, a blocked tab sends nothing, and a failed handoff or a refused link closes the tab and sends nothing', async () => {
+  const blocked = await place('build', {}, { browser: { open: () => null } });
+  const before = blocked.calls.length;
+  await click(button(blocked.content, 'Open in Lovable'));
+  assert.equal(blocked.calls.length, before, 'no request at all');
+  assert.ok(text(blocked.content).includes('Your browser blocked the new tab. Allow pop-ups for Chausar and try again.'));
+
+  const failingTab = makeTab();
+  const failing = await place('build', { overrides: { 'venture.build.handoff': () => { throw Object.assign(new Error('Write the brief again first.'), { code: 'BRIEF_STALE' }); } } }, { browser: { open: () => failingTab } });
+  await click(button(failing.content, 'Open in Lovable'));
+  assert.equal(failingTab.closed, true, 'the empty tab is closed');
+  assert.equal(failingTab.url, null);
+  assert.equal(failing.calls.some(call => call.method === 'venture.build.handoffOpened'), false);
+  assert.ok(text(failing.content).includes('Write the brief again first.'));
+
+  const refusedTab = makeTab();
+  const refused = await place('build', { overrides: { 'venture.build.handoff': () => ({ ...F.handoffPlans.lovable, url: 'https://lovable.example/#prompt=x' }) } }, { browser: { open: () => refusedTab } });
+  await click(button(refused.content, 'Open in Lovable'));
+  assert.equal(refusedTab.closed, true);
+  assert.equal(refusedTab.url, null, 'an unlisted site never loads');
+  assert.equal(refused.calls.some(call => call.method === 'venture.build.handoffOpened'), false);
+  assert.ok(text(refused.content).includes('Chausar opens only its listed partner sites.'));
+});
+
 test('Bolt on Connections copies the brief, then marks the handoff opened; a failed copy sends nothing', async () => {
   const h = await place('connections');
   const bolt = find(h.content, node => node.dataset.connector === 'bolt');
@@ -514,10 +627,14 @@ test('Bolt on Connections copies the brief, then marks the handoff opened; a fai
   assert.ok(text(noClipboard.content).includes('This window cannot copy. Use Save instead.'));
 
   const refused = await place('connections', {}, { clipboard: 'refuse' });
-  await click(button(find(refused.content, node => node.dataset.connector === 'bolt'), 'Open'));
+  const refusedBolt = find(refused.content, node => node.dataset.connector === 'bolt');
+  await click(button(refusedBolt, 'Open'));
   assert.equal(refused.calls.some(call => call.method === 'venture.build.handoffOpened'), false);
   assert.ok(text(refused.content).includes('This window could not copy. Use Save instead.'), 'a refused copy is told in plain words');
   assert.equal(text(refused.content).includes('writeText'), false);
+  await click(button(refusedBolt, 'Save brief'));
+  assert.deepEqual(refused.saved(), [{ filename: 'brief.md', type: 'text/markdown', text: F.handoffPlans.bolt.clipboardText }], 'the card offers Save beside the refused copy');
+  assert.equal(refused.calls.some(call => call.method === 'venture.build.handoffOpened'), false, 'saving is not opening');
 
   const visit = await place('connections');
   await click(button(find(visit.content, node => node.dataset.connector === 'razorpay'), 'Visit site'));
@@ -721,11 +838,14 @@ test('a shadow stage offers one move to the next stage', async () => {
 });
 
 test('a waiting draft shows the exact payload and sends it once after the box is ticked', async () => {
-  const h = await place('agents');
+  const live = { ...F.modelsConnected, replay: { active: false, label: null } };
+  const h = await place('agents', { overrides: { 'venture.models.status': () => live } });
   const waiting = descendants(h.content).filter(node => node.className === 'launch-row' && /waiting for you/.test(node.textContent))[0];
   await click(button(waiting, 'Review'));
   const sheet = openDialog(h.body);
   assert.ok(text(sheet).includes('This is exactly what will be sent to Claude Sonnet 5.5'));
+  assert.equal(text(sheet).includes(RECORDING), false, 'no recording line when real calls are made');
+  assert.ok(text(sheet).includes('Send this exact text once.'));
   assert.ok(text(sheet).includes(F.waitingRun.preview!.payloadText));
   const approve = button(sheet, 'Approve and send');
   assert.equal(approve.disabled, true);
@@ -733,6 +853,50 @@ test('a waiting draft shows the exact payload and sends it once after the box is
   await click(approve);
   assert.deepEqual(h.calls.filter(call => call.method === 'venture.delivery.approve').map(call => call.payload), [{ runId: 'vdr_wait', digest: F.waitingRun.preview!.digest }]);
   assert.ok(text(sheet).includes('Practice draft. Not for the client.'), 'the result appears where the action was');
+  assert.equal(text(sheet).includes(RECORDING), false);
+});
+
+test('in a demo with recordings, a draft reply opened from Clients says a synthetic recording answers, waiting and ready', async () => {
+  let release: () => void = () => {};
+  const pending = new Promise<void>(accept => { release = accept; });
+  const h = await place('clients', { overrides: { 'venture.delivery.approve': async () => { await pending; return F.practiceRun; } } }, { timers: true });
+  await click(button(h.content, 'Draft a reply'));
+  const sheet = openDialog(h.body);
+  const recordingBefore = (tag: string) => {
+    const nodes = descendants(sheet);
+    const line = nodes.findIndex(node => node.tagName === 'p' && node.textContent === RECORDING);
+    const target = nodes.findIndex(node => node.tagName === tag);
+    assert.ok(line >= 0, 'the recording line is on the sheet');
+    assert.ok(target > line, `the recording line sits above the ${tag}`);
+  };
+  recordingBefore('pre');
+  assert.ok(text(sheet).includes('This is exactly what Chausar would send to Claude Sonnet 5.5. In this demo a synthetic recording answers instead.'));
+  assert.equal(text(sheet).includes('will be sent to'), false, 'nothing claims a send to the model in a demo');
+  assert.ok(text(sheet).includes('Approve this exact text once.'));
+  assert.ok(text(sheet).includes(F.waitingRun.preview!.payloadText));
+
+  await tick(find(sheet, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
+  void button(sheet, 'Approve and send').dispatch('click'); await flush();
+  assert.ok(text(sheet).includes('Writing a draft reply from a synthetic recording'));
+  assert.equal(text(sheet).includes('with Claude Sonnet 5.5'), false);
+  release(); await flush(12);
+  assert.ok(text(sheet).includes('Practice draft. Not for the client.'), 'the ready draft is shown where the action was');
+  recordingBefore('pre');
+
+  const outline = await place('agents');
+  await click(button(descendants(outline.content).filter(node => node.className === 'launch-row' && /outline/.test(node.textContent))[0], 'Review'));
+  assert.equal(text(openDialog(outline.body)).includes(RECORDING), false, 'a template outline had no AI, so no recording line');
+});
+
+test('in a demo with recordings, rewriting the plan says a synthetic recording writes it', async () => {
+  let release: () => void = () => {};
+  const pending = new Promise<void>(accept => { release = accept; });
+  const h = await place('business', { blueprint: 'draft', overrides: { 'venture.blueprint.draft': async () => { await pending; return F.blueprintDraftView; } } }, { timers: true });
+  void button(h.content, 'Rewrite with AI').dispatch('click'); await flush();
+  assert.ok(text(h.content).includes('Writing your plan from a synthetic recording'));
+  assert.equal(text(h.content).includes('with Claude Sonnet 5.5'), false);
+  release(); await flush(12);
+  assert.ok(text(h.content).includes('Accept plan'));
 });
 
 test('an approval that times out re-reads the stored draft instead of showing an error', async () => {
@@ -827,7 +991,7 @@ test('clients and orders: add a client and an order with typed text, draft a rep
   const orders = await place('clients');
   await click(button(orders.content, 'Draft a reply'));
   assert.deepEqual(orders.calls.find(call => call.method === 'venture.delivery.run')!.payload, { orderId: 'vor_1' });
-  assert.ok(text(openDialog(orders.body)).includes('This is exactly what will be sent to Claude Sonnet 5.5'));
+  assert.ok(text(openDialog(orders.body)).includes('This is exactly what Chausar would send to Claude Sonnet 5.5. In this demo a synthetic recording answers instead.'));
   await click(button(openDialog(orders.body), 'Close'));
   const again = await place('clients');
   await click(button(again.content, 'Mark delivered'));
