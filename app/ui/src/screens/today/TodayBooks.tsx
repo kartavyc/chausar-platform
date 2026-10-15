@@ -25,6 +25,7 @@ import type { TodayScreenProps } from './shared';
 import { ClosingRow, attentionRows, useWorth, TodayReviewLink, TodayConsumerLedger, TodayProducerSections } from './shared';
 import { CLOSE_STEP_ORDER, type CloseStep, type CloseStepState } from './TodayData.ts';
 import { allowsTodayMutation, todayIntentsForState } from './permissions.ts';
+import { ClosingSwitch } from './ClosingSwitch';
 import s from './Today.module.css';
 
 const MAIN = '[data-queue-main]';
@@ -111,6 +112,7 @@ export function TodayBooks({ data, intents: offeredIntents, sheetId, onNavigate 
       </div>
       {data.queueMissing !== undefined && <p className={s.missing}>{t('TODAY_ENGINE.queueMissing')}</p>}
       <ClosingRow data={data} />
+      <ClosingSwitch data={data} intents={intents} />
 
       {/* A table is drawn only with rows in it: column headers over no cells say nothing (axe th-has-data-cells). */}
       {queue.length === 0 ? (

@@ -136,6 +136,8 @@ export interface TodayIntents {
   onUpdate?: (() => void) | undefined;
   /** Simple: the day's cash, as something the owner said. The text is data. */
   onSaveClosing?: ((text: string) => void) | undefined;
+  /** Daily closing on or off (`todayx.closing.set`). Supplied only to a seat that may change it. */
+  onSetClosing?: ((on: boolean) => void) | undefined;
   /** Simple: the day's cash by voice (TD-02, SH-05). Off unless supplied with `on: true`. */
   cashVoice?: CashVoiceCapability | undefined;
   /** Books: a queue row opens its sheet. */

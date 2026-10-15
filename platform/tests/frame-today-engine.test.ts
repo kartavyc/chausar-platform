@@ -90,7 +90,7 @@ test('status, capabilities, first run, checklist, help and phone replies pass th
   valid(isCapabilitiesReply, capabilities);
   const group = (name: string) => capabilities.groups.find((g: any) => g.group === name);
   assert.equal(group('todayx').state, 'live');
-  assert.equal(group('todayx').methods, '31');
+  assert.equal(group('todayx').methods, '35');
   assert.equal(group('today').state, 'live');
   assert.equal(group('actions').state, 'live');
   assert.equal(group('askx').day, 5);
@@ -207,7 +207,7 @@ test('worth a look shows at most five rows from real refusals', async t => {
   assert.equal(worth.state, 'ready');
   assert.equal(worth.rows.length, 5);
   assert.equal(worth.rows[0].kind, 'setup');
-  assert.ok(worth.rows.slice(1).every((row: any) => row.kind === 'file-refused' && row.opens === '#/books/sources'));
+  assert.ok(worth.rows.slice(1).every((row: any) => row.kind === 'file-refused' && row.opens === '#/books/sources'), JSON.stringify(worth.rows));
   assert.ok(worth.rows.every((row: any) => !('figure' in row)));
 });
 

@@ -16,6 +16,7 @@ export function todayIntentsForState(state: ScreenState, intents: TodayIntents):
     onResumeSetup: undefined,
     onUpdate: undefined,
     onSaveClosing: undefined,
+    onSetClosing: undefined,
     cashVoice: undefined,
   };
 }

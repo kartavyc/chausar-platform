@@ -29,5 +29,9 @@
   "todayx.recoveryContact.request",
   "todayx.receiptDetail",
   "todayx.closing",
-  "todayx.closing.set"
+  "todayx.closing.set",
+  "todayx.review",
+  "todayx.closeStatus",
+  "todayx.cash.save",
+  "todayx.cash.week"
 ]
