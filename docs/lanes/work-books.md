@@ -1100,3 +1100,13 @@ This supersedes, above: "BK-08 has no worked-example drawing and no date used", 
 core deletion supported; BK-08 example and date supported; WK-14 stays experimental (no computer that can be driven
 was available to test a real start). Still missing: `books.setRate` does not mark earlier answers stale (no core-data
 method for it).
+
+### Core-gateway-auth merged (base 86662c2f): the second ask against the real methods
+
+`platform/tests/work-books-second-ask-engine.test.ts` runs Work's queue through the merged engine with a production-like
+local vault and a synthetic money connector that never runs. The owner's sheet says `{ by: 'passphrase', whose:
+'vault-passphrase' }`; approving without an answer refuses `REAUTH_REQUIRED`, a wrong one `SECOND_ASK_FAILED` (nothing
+approved), and the passphrase approves exactly that action with one `secondAsk.granted` entry and no secret kept. A
+cofounder with no approval secret gets `setFirst` and `APPROVAL_SECRET_NOT_SET` (no grant asked); after
+`secondAsk.setSecret` the sheet says `own-secret` and only their own secret approves. Five wrong answers show
+`lockedUntil` on the sheet and refuse `SECOND_ASK_LOCKED`. WK-02's second ask is supported.
