@@ -6,6 +6,7 @@ import { MODULE_ID } from './part.ts';
 import type { ModulePart } from './part.ts';
 import { ROUTE_CATALOGUE } from './catalogue.ts';
 import { DAY, DIGITS, PRICE_TABLE, ageDays, findPrice, paisePerMillion, requestCostMinor, validPrice } from './pricing.ts';
+import { validateEndpoint } from '../gateway.ts';
 import type { FxSetting, PriceEntry } from './pricing.ts';
 
 type RoutesState = { fx?: FxSetting; overrides: PriceEntry[] };
@@ -85,6 +86,81 @@ function cost(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
     costMinor: requestCostMinor(payload.inputTokens, payload.outputTokens, perMillion.inputPerMillionMinor, perMillion.outputPerMillionMinor) };
 }
 
+/** The trusted host clock when one is given (tests, fixtures), else the system clock. */
+function clockNow(host: ModuleHost): Date {
+  const clock = host.options.clock;
+  if (clock === undefined) return new Date();
+  check(typeof clock === 'function', 'CLOCK_INVALID', 'The configured clock is not usable.');
+  const value = clock(), at = value instanceof Date ? value : new Date(value);
+  check(Number.isFinite(at.getTime()), 'CLOCK_INVALID', 'The configured clock is not usable.');
+  return at;
+}
+/** Calendar month of an instant in the workspace's time zone (India when none is set). */
+export function monthOf(at: Date | string, timeZone = 'Asia/Kolkata'): string {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit' }).formatToParts(typeof at === 'string' ? new Date(at) : at);
+  return `${parts.find(p => p.type === 'year')!.value}-${parts.find(p => p.type === 'month')!.value}`;
+}
+const zoneOf = (state: State) => { const zone = (state.workspace as any).timeZone; return typeof zone === 'string' && zone.length > 0 ? zone : 'Asia/Kolkata'; };
+
+/** Model spend this month across every route: measured where the provider reported usage, else the reservation. */
+function monthSpend(state: State, month: string) {
+  const zone = zoneOf(state);
+  const calls = state.modelReceipts.filter(r => r.routeId && ['completed', 'failed', 'dispatching'].includes(r.status) && typeof (r.dispatchedAt ?? r.createdAt) === 'string'
+    && monthOf(r.dispatchedAt ?? r.createdAt, zone) === month);
+  const measured = calls.filter(r => typeof r.actualCostMinor === 'string'), reserved = calls.filter(r => typeof r.actualCostMinor !== 'string');
+  const measuredMinor = sum(measured.map(r => r.actualCostMinor)), reservedMinor = sum(reserved.map(r => r.costReservedMinor ?? '0'));
+  return { month, timeZone: zone, calls: calls.length, spendMinor: String(measuredMinor + reservedMinor), measuredMinor: String(measuredMinor), reservedMinor: String(reservedMinor) };
+}
+
+/** jobs-ext's unit price: one unit is one model request. */
+function price(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
+  keys(payload, ['routeId']);
+  check(typeof payload.routeId === 'string' && payload.routeId.length > 0 && payload.routeId.length <= 120, 'INVALID_REQUEST', 'Name one model route.');
+  const route = (host.services.gateway.listRoutes(ctx) as any[]).find(item => item.id === payload.routeId);
+  check(route, 'ROUTE_NOT_FOUND', 'Model route was not found.');
+  check(!route.kind.endsWith('-cli'), 'ROUTE_ESTIMATE_UNAVAILABLE', 'This route runs on your plan, not per request, so it has no price per request.');
+  const pricedAt = clockNow(host).toISOString();
+  if (route.kind === 'ollama') return { routeId: route.id, unitMinor: '0', basis: 'zero', pricedAt };
+  const measured = host.store.read().modelReceipts.filter(r => r.routeId === route.id && r.status === 'completed' && typeof r.actualCostMinor === 'string');
+  if (measured.length) {
+    const total = sum(measured.map(r => r.actualCostMinor));
+    return { routeId: route.id, unitMinor: String((total + BigInt(measured.length) - 1n) / BigInt(measured.length)), basis: 'measured', pricedAt };
+  }
+  return { routeId: route.id, unitMinor: route.maxCostMinor, basis: 'estimate', pricedAt };
+}
+
+type OllamaHttp = (request: { url: string; timeoutMs: number; maxBytes: number }) => Promise<{ status: number; body: string }>;
+async function ollamaGet(request: { url: string; timeoutMs: number; maxBytes: number }) {
+  const response = await fetch(request.url, { method: 'GET', redirect: 'error', signal: AbortSignal.timeout(request.timeoutMs) });
+  const reader = response.body?.getReader(); const chunks: Uint8Array[] = []; let size = 0;
+  if (reader) try { while (true) { const { done, value } = await reader.read(); if (done) break; size += value.length; check(size <= request.maxBytes, 'RESPONSE_TOO_LARGE', 'The local model list was too large.'); chunks.push(value); } } finally { reader.releaseLock(); }
+  return { status: response.status, body: Buffer.concat(chunks).toString('utf8') };
+}
+
+/** FR-05: the models installed in the local Ollama, read from loopback only. Nothing leaves the machine. */
+async function localList(payload: Record<string, any>, host: ModuleHost) {
+  keys(payload, ['endpoint']);
+  check(!host.demo, 'DEMO_PROVIDER_DISABLED', 'Synthetic demo mode keeps model providers disabled.');
+  const configured = host.store.read().routes.find(r => r.kind === 'ollama' && r.enabled)?.endpoint;
+  const base = new URL(validateEndpoint(payload.endpoint ?? configured ?? 'http://127.0.0.1:11434/api/chat', 'ollama'));
+  const url = `${base.origin}/api/tags`;
+  const http = (host.options.ollamaHttp as OllamaHttp | undefined) ?? ollamaGet;
+  let reply: { status: number; body: string };
+  try { reply = await http({ url, timeoutMs: 3000, maxBytes: 1048576 }); }
+  catch (error) {
+    if (error instanceof ChausarError && error.code === 'RESPONSE_TOO_LARGE') throw error;
+    return { endpoint: base.origin, reachable: false, models: [], words: 'No local model service answered on this computer. Install Ollama and pull a model, then try again.' };
+  }
+  if (reply.status !== 200) return { endpoint: base.origin, reachable: false, models: [], words: 'The local model service did not list its models.' };
+  let data: any; try { data = JSON.parse(reply.body); } catch { throw new ChausarError('LOCAL_LIST_INVALID', 'The local model service returned an unreadable list.'); }
+  check(data && Array.isArray(data.models) && data.models.length <= 500, 'LOCAL_LIST_INVALID', 'The local model service returned an unreadable list.');
+  const models = data.models.filter((m: any) => m && typeof m.name === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(m.name)).map((m: any) => ({
+    name: m.name, sizeBytes: Number.isSafeInteger(m.size) && m.size >= 0 ? m.size : null,
+    modifiedAt: typeof m.modified_at === 'string' && Number.isFinite(Date.parse(m.modified_at)) ? new Date(m.modified_at).toISOString() : null,
+    family: typeof m.details?.family === 'string' && /^[a-z0-9._-]{1,40}$/i.test(m.details.family) ? m.details.family : null }));
+  return { endpoint: base.origin, reachable: true, models, skipped: data.models.length - models.length };
+}
+
 /** Route fields the gateway accepts back on reconfiguration. Credentials are untouched. */
 const ROUTE_FIELDS = ['id', 'kind', 'model', 'endpoint', 'command', 'enabled', 'budgetMinor', 'maxCostMinor', 'maxOutputTokens', 'inputPerMillionMinor', 'outputPerMillionMinor', 'credentialEnv', 'label'];
 function routeConfig(route: any, change: Record<string, unknown>) {
@@ -150,7 +226,7 @@ export const routesPart: ModulePart = {
     'modelsx.meters': { permission: 'read', handler: (ctx, payload, host) => {
       keys(payload, []); const state = host.store.read();
       const meters = (host.services.gateway.listRoutes(ctx) as any[]).map(route => meter(state, route));
-      return { at: now(), currency: 'INR', routes: meters,
+      return { at: now(), currency: 'INR', routes: meters, month: monthSpend(state, monthOf(clockNow(host), zoneOf(state))),
         totals: { budgetMinor: String(sum(meters.map(m => m.budgetMinor))), consumedMinor: String(sum(meters.map(m => m.consumedMinor))),
           measuredMinor: String(sum(meters.map(m => m.measuredMinor))) } };
     } },
@@ -165,6 +241,8 @@ export const routesPart: ModulePart = {
         reservedMinor: String(sum(found.map((r: any) => r.costReservedMinor ?? '0'))), measuredMinor: String(sum(measured.map((r: any) => r.actualCostMinor))),
         unmeasured: found.length - measured.length, note: found.length - measured.length ? 'Some calls have no measured cost; their reservation is counted instead.' : 'Every call was measured.' };
     } },
+    'modelsx.price': { permission: 'read', handler: (ctx, payload, host) => price(ctx, payload, host) },
+    'modelsx.localList': { permission: 'read', handler: (_ctx, payload, host) => localList(payload, host) },
     'modelsx.connectAllowance': { permission: 'admin', external: true, handler: (ctx, payload, host) => connectAllowance(ctx, payload, host) },
   },
 };
