@@ -181,7 +181,7 @@ test('a paired assistant token works on /mcp only; each call, refused ones inclu
   assert.ok(view.assistants[0].lastCall);
   // The record keeps structure only: no arguments, no values.
   const records = (f.vault().read().extensions as any)[LANE].tools.mcpCalls as any[]; assert.equal(records.length, 3);
-  assert.deepEqual(Object.keys(records[0]).sort(), ['at', 'code', 'id', 'memberId', 'method', 'outcome', 'receiptId', 'tool']);
+  assert.deepEqual(Object.keys(records[0]).sort(), ['at', 'code', 'id', 'memberId', 'method', 'outcome', 'receiptId', 'removed', 'tool']);
   assert.ok(records.every(r => !JSON.stringify(r).includes('synthetic-hooks-shop') && !JSON.stringify(r).includes('delete_source')));
   // Revoking takes the token away from /mcp too.
   await f.rpc('trustx.revokeAssistant', { id: paired.id });

@@ -10,7 +10,7 @@ import type { Context, Fact, State, StateStore } from '../runtime/contracts.ts';
 import { canSeeFact, insertFacts, selectFacts } from '../runtime/memory.ts';
 import { visibleFacts } from '../runtime/trust.ts';
 import { coreState } from '../runtime/trust-ext/core-state.ts';
-import { MCP_PROTOCOL_VERSION } from '../runtime/mcp.ts';
+import { MCP_PROTOCOL_VERSION, flushMcpCalls, registerMcpCallHook, type McpCallRecord } from '../runtime/mcp.ts';
 import '../runtime/core-data/trust-rules.ts';
 import '../runtime/trust-ext/core-hooks.ts';
 
@@ -174,6 +174,13 @@ test('a numbers-only assistant gets answers with withheld and unsendable fields 
   const owner = await open(f.owner, 'owner');
   const full = (await owner('calculate', { operation: 'billed' })).structuredContent;
   assert.equal(full.value, '7000'); assert.equal(Object.hasOwn(full, 'removed'), false);
+  // The call record carries what was removed (fields, reasons and counts only), so Trust can show it (TL-08).
+  await flushMcpCalls(); const records: McpCallRecord[] = []; registerMcpCallHook((_store, record) => { records.push(record); });
+  await ask('calculate', { operation: 'billed' }); await owner('calculate', { operation: 'billed' }); await flushMcpCalls();
+  const mine = records.filter(r => r.outcome === 'answered');
+  assert.deepEqual(mine.find(r => r.memberId === paired.id)?.removed, [{ field: 'amountMinor', why: 'personal', count: 1 }, { field: 'dueDate', why: 'confidential', count: 1 }]);
+  assert.equal(Object.hasOwn(mine.find(r => r.memberId === 'owner')!, 'removed'), false);
+  assert.equal(JSON.stringify(records).includes('C1'), false);
 });
 
 // Synthetic large books: the hook stays cheap per fact.

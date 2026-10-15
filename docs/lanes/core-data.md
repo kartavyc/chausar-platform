@@ -211,6 +211,10 @@ All three refuse `SOURCE_REVOKED`, `FORBIDDEN_BRANCH`, `INVALID_CALCULATION`, `I
 **MCP replies** (`mcp.handle`) gain `removed: { field, why: 'personal'|'financial'|'confidential'|'withheld'|'send-level', count }[]`.
 - It is always present for a numbers-only assistant. For anyone else it appears only when something was removed.
 - A stored receipt whose counted measure is now withheld refuses `RECEIPT_CHANGED`.
+- `why` is exactly one of these five values. Staff "own entries" hides whole facts, never a field, so it never appears in `removed`.
+- The numbers server's call record (`McpCallRecord`, passed to `registerMcpCallHook`) carries the answered reply's `removed` (fields, reasons and counts, never values) whenever the reply listed it.
+- **`trust.keep.enforced` activity details** are stable: `{ kinds: { kind, removed, held }[] }`, plus `memberId` when run by `keep.enforce`.
+- **GSTR-2B tolerance:** there is no stored tolerance setting. The caller chooses `toleranceMinor` per request.
 
 ### Encrypted workbooks
 
