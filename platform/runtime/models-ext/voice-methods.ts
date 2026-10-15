@@ -4,13 +4,20 @@
  * Voice is off by default; the setting lives in this namespace under `voice`. Every transcription goes through
  * SpeechService (browser transcript, local whisper, upload, Sarvam, Bhashini), every reading through `interpretSpeech`,
  * and every confirmation through the same code as `modelsx.speechConfirm`. When Send is `nothing` or `shape`, only
- * providers on this computer run (`VOICE_LOCAL_ONLY`). No raw audio is kept: SpeechService drops the bytes once a
- * preview is sent or fails, and this part drops them from previews that are cancelled or never sent.
+ * providers on this computer run (`VOICE_LOCAL_ONLY`): local whisper, and the browser transcript only when the trusted
+ * host says the browser recognises speech on the device (`browserSpeechOnDevice`); Chromium's Web Speech sends audio to
+ * its own service, so by default the browser counts as "may use the network". No raw audio is kept: SpeechService drops
+ * the bytes once a preview is sent or fails, and the sweep drops them everywhere else (see SpeechService.expireUnsent).
  *
- * Live voice runs only here: `voice.start {live}` records the session, passes SpeechService a per-call trusted flag
- * (the core `speech.*` path stays refused with LIVE_VOICE_CAP_NOT_ENFORCED), and the session is closed at its cap:
- * `voice.stop` records the minutes used, and a session past `endsAt` is closed and charged the cap on the next voice call.
- * The renderer (app/ui/src/screens/voice/live-client.ts) hangs up by itself at `endsAt`.
+ * Live voice runs only here, and only when the trusted host says its renderer is the desktop live client that hangs up
+ * at the cap (`liveVoiceClient`, set by host-options.ts for the installed app); otherwise LIVE_VOICE_CAP_NOT_ENFORCED.
+ * `voice.start {live}` records the session before the preview (one open live session per person), passes SpeechService
+ * a per-call trusted flag (the core `speech.*` path stays refused), and the session is closed at its cap.
+ * Budget: the receipt's `costReservedMinor` stays the approved cap for good, so a quick `voice.stop` frees nothing while
+ * the call may go on. Usage: the minutes are measured on a monotonic clock held in engine memory per session
+ * (`performance.now()`), never on the wall clock, and written to `liveMinutesMs`/`liveChargedMinor` for meters only.
+ * After a restart that origin is gone: the wall clock is used, never below zero and never below one session-secret
+ * lifetime (the call could have connected with it). The renderer (app/ui/src/screens/voice/live-client.ts) hangs up at `endsAt`.
  */
 import { audit, check, ChausarError, newId } from '../contracts.ts';
 import type { Context, State } from '../contracts.ts';
@@ -20,14 +27,15 @@ import type { ModulePart } from './part.ts';
 import { MODULE_ID } from './part.ts';
 import { CLOUD_SPEECH_KINDS, dropAudio } from '../speech.ts';
 import type { SpeechKind, SpeechService, SpeechTrusted } from '../speech.ts';
-import { LIVE_MAX_MS, SARVAM_MAX_MS } from '../speech-providers.ts';
+import { LIVE_MAX_MS, LIVE_SECRET_SECONDS, SARVAM_MAX_MS } from '../speech-providers.ts';
 import { interpretSpeech } from '../speech-understood.ts';
 import { speakFigures } from '../speech-spoken.ts';
 import { catalogue, confirmReading } from './speech-methods.ts';
 import { isVoiceMonth, voiceMonth, voiceUsage } from './voice-usage.ts';
+import { workspaceZone } from './months.ts';
 
 type Capture = 'browser-transcript' | 'record-audio' | 'live-session';
-type SessionStatus = 'listening' | 'awaiting-approval' | 'live' | 'heard' | 'confirmed' | 'closed' | 'expired' | 'failed';
+type SessionStatus = 'listening' | 'awaiting-approval' | 'opening' | 'live' | 'heard' | 'confirmed' | 'closed' | 'expired' | 'failed';
 type VoiceSession = { id: string; memberId: string; epoch: number; providerId: string; kind: SpeechKind; capture: Capture; status: SessionStatus; createdAt: number;
   ratePerMinuteMinor: string; capMs: number | null; previewId?: string; receiptId?: string; startedAt?: number; endsAt?: number; closedBy?: 'stop' | 'cap' | 'voice-off'; heardRecorded?: boolean; confirmationId?: string };
 type Speaking = { utteranceId: string; memberId: string; receiptId: string; at: number };
@@ -60,6 +68,21 @@ function clockMs(host: ModuleHost): number {
   const value = clock(); const ms = value instanceof Date ? value.getTime() : typeof value === 'string' ? Date.parse(value) : value;
   check(typeof ms === 'number' && Number.isFinite(ms), 'VOICE_CLOCK_INVALID', 'The configured clock is not usable.'); return ms;
 }
+/** Monotonic milliseconds: a trusted host function in tests, else performance.now(). Never moved by a change of the system clock. */
+function monotonicMs(host: ModuleHost): number {
+  const value = typeof host.options.monotonic === 'function' ? host.options.monotonic() : performance.now();
+  check(typeof value === 'number' && Number.isFinite(value), 'VOICE_CLOCK_INVALID', 'The configured clock is not usable.'); return value;
+}
+/** Monotonic start of each open live session, in engine memory only, per SpeechService (so per engine): gone after a restart. */
+const liveOrigins = new WeakMap<object, Map<string, number>>();
+const originsOf = (host: ModuleHost) => { const key = speechService(host); let map = liveOrigins.get(key); if (!map) liveOrigins.set(key, map = new Map()); return map; };
+/** Time a live session has run: the monotonic clock when its origin is known; after a restart the wall clock, floored at one secret lifetime. */
+function liveElapsedMs(host: ModuleHost, session: VoiceSession, wallAt: number): number {
+  const origin = host.services.speech ? originsOf(host).get(session.id) : undefined;
+  if (origin !== undefined) return Math.max(0, monotonicMs(host) - origin);
+  return Math.max(0, wallAt - session.startedAt!, Math.min(LIVE_SECRET_SECONDS * 1000, session.capMs!));
+}
+const liveClient = (host: ModuleHost) => check(host.options.liveVoiceClient === true, 'LIVE_VOICE_CAP_NOT_ENFORCED', 'Live voice stays off until this app can end a session at its approved minute cap.');
 function speechService(host: ModuleHost): SpeechService { check(host.services.speech, 'SPEECH_UNAVAILABLE', 'Speech is not available in this workspace.'); return host.services.speech; }
 /** Trusted transports for tests and fixtures only; the installed app passes none and the real ones are used. */
 function transports(host: ModuleHost): SpeechTrusted {
@@ -72,6 +95,14 @@ const voiceOn = (host: ModuleHost) => check(peekVoice(host.store.read()).enabled
 const desktop = (ctx: Context) => check(ctx.channel === 'desktop', 'VOICE_DESKTOP_ONLY', 'Voice runs inside the desktop app.');
 const notDemo = (host: ModuleHost) => check(!host.demo, 'DEMO_PROVIDER_DISABLED', 'Synthetic demo mode keeps speech providers disabled. Use typed questions.');
 const localOnly = (state: State) => state.policy.send === 'nothing' || state.policy.send === 'shape';
+/** Whether a provider turns speech into text on this computer: local whisper always; the browser only when the trusted host says so. */
+const onDevice = (host: ModuleHost, kind: SpeechKind) => kind === 'local-command' || (kind === 'browser-transcript' && host.options.browserSpeechOnDevice === true);
+const allowedNow = (host: ModuleHost, state: State, kind: SpeechKind) => !localOnly(state) || onDevice(host, kind);
+const PROVIDER_WORDS = {
+  device: 'Turned into text on this computer only.',
+  browser: 'Turned into text by the browser\'s speech service, which may send your voice off this computer. Chausar receives text only.',
+  cloud: 'Your recording leaves this computer for the provider, once, after an owner approves it.',
+};
 
 async function providerFor(ctx: Context, host: ModuleHost, id: unknown) {
   check(id === undefined || (typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id)), 'INVALID_REQUEST', 'Name the speech provider.');
@@ -80,15 +111,21 @@ async function providerFor(ctx: Context, host: ModuleHost, id: unknown) {
   check(provider?.enabled, 'SPEECH_UNAVAILABLE', 'Configure and turn on that speech provider first.');
   return provider as { id: string; kind: SpeechKind; label?: string; ratePerMinuteMinor: string; credentialConfigured: boolean };
 }
-const publicProvider = (p: { id: string; kind: SpeechKind; label?: string; ratePerMinuteMinor?: string }) => ({
-  id: p.id, kind: p.kind, label: p.label ?? null, local: !CLOUD_SPEECH_KINDS.includes(p.kind), ratePerMinuteMinor: CLOUD_SPEECH_KINDS.includes(p.kind) ? p.ratePerMinuteMinor ?? null : null });
+const publicProvider = (host: ModuleHost, p: { id: string; kind: SpeechKind; label?: string; ratePerMinuteMinor?: string }) => {
+  const local = onDevice(host, p.kind);
+  return { id: p.id, kind: p.kind, label: p.label ?? null, local, words: local ? PROVIDER_WORDS.device : p.kind === 'browser-transcript' ? PROVIDER_WORDS.browser : PROVIDER_WORDS.cloud,
+    ratePerMinuteMinor: CLOUD_SPEECH_KINDS.includes(p.kind) ? p.ratePerMinuteMinor ?? null : null };
+};
 
-/** Ends a live session: minutes on the engine clock, never past the cap, charged at the session's rate onto its receipt. */
-function closeLive(state: State, session: VoiceSession, at: number, by: 'stop' | 'cap' | 'voice-off') {
-  const minutesMs = Math.max(0, Math.min(at - session.startedAt!, session.capMs!)); const cost = charge(minutesMs, session.ratePerMinuteMinor);
-  session.status = 'closed'; session.closedBy = by;
+/**
+ * Ends a live session after `measuredMs` (never past the cap). The measured minutes and their charge go to
+ * `liveMinutesMs`/`liveChargedMinor` for usage and meters; `costReservedMinor`, which the budget counts, stays the approved cap.
+ */
+function closeLive(host: ModuleHost, state: State, session: VoiceSession, measuredMs: number, by: 'stop' | 'cap' | 'voice-off') {
+  const minutesMs = Math.max(0, Math.min(measuredMs, session.capMs!)); const cost = charge(minutesMs, session.ratePerMinuteMinor);
+  session.status = 'closed'; session.closedBy = by; if (host.services.speech) originsOf(host).delete(session.id);
   const receipt = state.modelReceipts.find(r => r.id === session.receiptId);
-  if (receipt) Object.assign(receipt, { liveMinutesMs: minutesMs, liveEndedAt: iso(session.startedAt! + minutesMs), liveChargedMinor: cost, liveClosedBy: by, costReservedMinor: cost });
+  if (receipt) Object.assign(receipt, { liveMinutesMs: minutesMs, liveEndedAt: iso(session.startedAt! + minutesMs), liveChargedMinor: cost, liveClosedBy: by });
   audit(state, 'voice.live.closed', { sessionId: session.id, providerId: session.providerId, minutesMs, costMinor: cost, closedBy: by });
   return { minutesMs, costMinor: cost, closedBy: by };
 }
@@ -96,16 +133,20 @@ function dropPreview(state: State, previewId: string | undefined, status: 'expir
   const preview = state.modelReceipts.find(r => r.id === previewId && r.kind === 'speech-preview');
   if (preview) { if (preview.status === 'preview') preview.status = status; dropAudio(preview); }
 }
-const due = (session: VoiceSession, at: number) => (session.status === 'live' && session.endsAt! <= at) || (['listening', 'awaiting-approval'].includes(session.status) && session.createdAt + IDLE_MS <= at);
+const OPEN: readonly SessionStatus[] = ['listening', 'awaiting-approval', 'opening'];
+const due = (host: ModuleHost, session: VoiceSession, at: number) => (session.status === 'live' && liveElapsedMs(host, session, at) >= session.capMs!) || (OPEN.includes(session.status) && session.createdAt + IDLE_MS <= at);
+/** A person has another live session in one of `statuses`: any unfinished one when starting, one opening or running when opening. */
+const liveBusy = (voice: VoiceNamespace, memberId: string, except?: string, statuses: readonly SessionStatus[] = ['awaiting-approval', 'opening', 'live']) =>
+  voice.sessions.some(s => s.id !== except && s.memberId === memberId && s.capture === 'live-session' && statuses.includes(s.status));
 
 /** Closes live sessions past their cap (charged the cap) and drops idle sessions and unsent recordings. Runs on every voice call. */
 export async function sweepVoice(host: ModuleHost, at = clockMs(host)) {
   const state = host.store.read(); const voice = peekVoice(state);
-  if (voice.sessions.some(s => due(s, at)) || voice.speaking.some(s => s.at + IDLE_MS <= at)) await host.store.update(next => {
+  if (voice.sessions.some(s => due(host, s, at)) || voice.speaking.some(s => s.at + IDLE_MS <= at)) await host.store.update(next => {
     const ns = voiceState(next);
     for (const session of ns.sessions) {
-      if (!due(session, at)) continue;
-      if (session.status === 'live') closeLive(next, session, session.endsAt!, 'cap');
+      if (!due(host, session, at)) continue;
+      if (session.status === 'live') closeLive(host, next, session, session.capMs!, 'cap');
       else { session.status = 'expired'; dropPreview(next, session.previewId, 'expired'); }
     }
     ns.speaking = ns.speaking.filter(s => s.at + IDLE_MS > at);
@@ -164,16 +205,22 @@ async function recordOnto(ctx: Context, host: ModuleHost, session: VoiceSession,
   return transcribeSession(ctx, host, updated);
 }
 
-async function newSession(ctx: Context, host: ModuleHost, provider: { id: string; kind: SpeechKind; ratePerMinuteMinor: string }, capture: Capture, capMs: number | null) {
-  const session: VoiceSession = { id: newId('voice_session'), memberId: ctx.memberId, epoch: ctx.epoch, providerId: provider.id, kind: provider.kind, capture, status: 'listening',
+async function newSession(ctx: Context, host: ModuleHost, provider: { id: string; kind: SpeechKind; ratePerMinuteMinor: string }, capture: Capture, capMs: number | null, status: SessionStatus = 'listening') {
+  const session: VoiceSession = { id: newId('voice_session'), memberId: ctx.memberId, epoch: ctx.epoch, providerId: provider.id, kind: provider.kind, capture, status,
     createdAt: clockMs(host), ratePerMinuteMinor: provider.ratePerMinuteMinor || '0', capMs };
-  await host.store.update(state => { voiceState(state).sessions.push(session); });
+  await host.store.update(state => {
+    const voice = voiceState(state);
+    if (capture === 'live-session') check(!liveBusy(voice, ctx.memberId), 'VOICE_LIVE_BUSY', 'A live voice session is already open. Stop it first.');
+    voice.sessions.push(session);
+  });
   return structuredClone(session);
 }
 const captureOf = (kind: SpeechKind): Capture => kind === 'browser-transcript' ? 'browser-transcript' : kind === 'live-voice' ? 'live-session' : 'record-audio';
 const recordLimit = (kind: SpeechKind) => kind === 'browser-transcript' ? null : kind === 'sarvam-stt' ? SARVAM_MAX_MS : 300000;
 function assertAllowed(host: ModuleHost, kind: SpeechKind) {
-  check(!(localOnly(host.store.read()) && CLOUD_SPEECH_KINDS.includes(kind)), 'VOICE_LOCAL_ONLY', 'Send is set to nothing or shape, so speech is turned into text on this computer only.');
+  check(allowedNow(host, host.store.read(), kind), 'VOICE_LOCAL_ONLY', kind === 'browser-transcript'
+    ? 'Send is set to nothing or shape, and the browser\'s speech service may send your voice off this computer. Use local whisper, or change Send.'
+    : 'Send is set to nothing or shape, so speech is turned into text on this computer only.');
 }
 
 async function start(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
@@ -181,22 +228,30 @@ async function start(ctx: Context, payload: Record<string, any>, host: ModuleHos
   if (payload.sessionId !== undefined) {
     onlyKeys(payload, ['sessionId', 'approvalId']); check(idOf(payload.approvalId, 'speech_approval_'), 'INVALID_REQUEST', 'Give the approval for this live session.');
     const session = sessionOf(ctx, host, payload.sessionId);
-    check(session.capture === 'live-session' && session.status === 'awaiting-approval', 'VOICE_SESSION_CLOSED', 'This live session cannot be started again.');
-    assertAllowed(host, session.kind); const provider = await providerFor(ctx, host, session.providerId);
+    check(session.capture === 'live-session' && session.status === 'awaiting-approval' && session.previewId, 'VOICE_SESSION_CLOSED', 'This live session cannot be started again.');
+    liveClient(host); assertAllowed(host, session.kind); const provider = await providerFor(ctx, host, session.providerId);
+    // Checked and claimed in one update: only one of this person's live sessions can be opening or running.
+    await patchSession(host, session.id, (s, state) => {
+      check(s.status === 'awaiting-approval', 'VOICE_SESSION_CLOSED', 'This live session cannot be started again.');
+      check(!liveBusy(voiceState(state), ctx.memberId, s.id, ['opening', 'live']), 'VOICE_LIVE_BUSY', 'A live voice session is already open. Stop it first.'); s.status = 'opening';
+    });
     let result: any;
     try { result = await speechService(host).transcribe(ctx, { previewId: session.previewId!, approvalId: payload.approvalId }, { ...transports(host), liveCapEnforced: true }); }
     catch (error) {
-      if (host.store.read().modelReceipts.find(r => r.id === session.previewId)?.status !== 'preview') await patchSession(host, session.id, s => { s.status = 'failed'; });
+      const unsent = host.store.read().modelReceipts.find(r => r.id === session.previewId)?.status === 'preview';
+      await patchSession(host, session.id, s => { if (s.status === 'opening') s.status = unsent ? 'awaiting-approval' : 'failed'; });
       throw error;
     }
-    const startedAt = clockMs(host); const endsAt = startedAt + session.capMs!;
+    const startedAt = clockMs(host); const endsAt = startedAt + session.capMs!; const origin = monotonicMs(host);
     await patchSession(host, session.id, (s, state) => {
-      s.status = 'live'; s.receiptId = s.previewId; s.startedAt = startedAt; s.endsAt = endsAt;
+      // Voice was switched off (or the session swept) while the secret was being fetched: the secret is never handed out.
+      check(s.status === 'opening', 'VOICE_SESSION_CLOSED', 'This live session was closed before it opened.');
+      s.status = 'live'; s.receiptId = s.previewId; s.startedAt = startedAt; s.endsAt = endsAt; originsOf(host).set(s.id, origin);
       const receipt = state.modelReceipts.find(r => r.id === s.previewId); if (receipt) Object.assign(receipt, { voiceSessionId: s.id, liveStartedAt: iso(startedAt), liveEndsAt: iso(endsAt) });
       audit(state, 'voice.live.started', { sessionId: s.id, providerId: s.providerId, capMs: s.capMs, endsAt: iso(endsAt) });
     });
     // The secret goes to the renderer in this reply only; state keeps the session times, never the secret.
-    return { sessionId: session.id, capture: session.capture, provider: publicProvider(provider), capMs: session.capMs,
+    return { sessionId: session.id, capture: session.capture, provider: publicProvider(host, provider), capMs: session.capMs,
       live: { clientSecret: result.live.clientSecret, expiresAt: result.live.expiresAt, connectEndpoint: result.live.connectEndpoint, model: result.live.model, capMs: session.capMs, endsAt: iso(endsAt) } };
   }
   check(payload.live === undefined || typeof payload.live === 'boolean', 'INVALID_REQUEST', 'Live is true or false.');
@@ -206,15 +261,18 @@ async function start(ctx: Context, payload: Record<string, any>, host: ModuleHos
   if (!live) {
     check(payload.capMs === undefined, 'INVALID_REQUEST', 'A minute cap applies to live voice only.');
     const session = await newSession(ctx, host, provider, captureOf(provider.kind), recordLimit(provider.kind));
-    return { sessionId: session.id, capture: session.capture, provider: publicProvider(provider), capMs: session.capMs };
+    return { sessionId: session.id, capture: session.capture, provider: publicProvider(host, provider), capMs: session.capMs };
   }
+  liveClient(host);
   const capMs = payload.capMs ?? DEFAULT_LIVE_CAP_MS;
   check(Number.isSafeInteger(capMs) && capMs >= 1000 && capMs <= LIVE_MAX_MS, 'INVALID_LIVE_CAP', 'Give a live voice minute cap, up to thirty minutes.');
-  check(!peekVoice(host.store.read()).sessions.some(s => s.memberId === ctx.memberId && s.capture === 'live-session' && ['awaiting-approval', 'live'].includes(s.status)), 'VOICE_LIVE_BUSY', 'A live voice session is already open. Stop it first.');
-  const preview: any = await speechService(host).preview(ctx, { providerId: provider.id, durationMs: capMs }, { liveCapEnforced: true });
-  const session = await newSession(ctx, host, provider, 'live-session', capMs);
-  await patchSession(host, session.id, s => { s.previewId = preview.id; s.status = 'awaiting-approval'; });
-  return { sessionId: session.id, capture: session.capture, provider: publicProvider(provider), capMs, approval: { previewId: preview.id, digest: preview.digest, costCapMinor: preview.estimatedCostMinor } };
+  // Busy is checked and the session recorded in one update, before the preview, so two starts at once cannot both pass.
+  const session = await newSession(ctx, host, provider, 'live-session', capMs, 'awaiting-approval');
+  let preview: any;
+  try { preview = await speechService(host).preview(ctx, { providerId: provider.id, durationMs: capMs }, { liveCapEnforced: true }); }
+  catch (error) { await patchSession(host, session.id, s => { if (s.status === 'awaiting-approval' && !s.previewId) s.status = 'failed'; }); throw error; }
+  await patchSession(host, session.id, s => { s.previewId = preview.id; });
+  return { sessionId: session.id, capture: session.capture, provider: publicProvider(host, provider), capMs, approval: { previewId: preview.id, digest: preview.digest, costCapMinor: preview.estimatedCostMinor } };
 }
 
 async function stop(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
@@ -234,7 +292,7 @@ async function stop(ctx: Context, payload: Record<string, any>, host: ModuleHost
     const result = await host.store.update(state => {
       const s = voiceState(state).sessions.find(x => x.id === session.id)!;
       const receipt = state.modelReceipts.find(r => r.id === s.receiptId);
-      const closed = s.status === 'live' ? closeLive(state, s, at, 'stop') : { minutesMs: receipt?.liveMinutesMs, costMinor: receipt?.liveChargedMinor, closedBy: s.closedBy };
+      const closed = s.status === 'live' ? closeLive(host, state, s, liveElapsedMs(host, s, at), 'stop') : { minutesMs: receipt?.liveMinutesMs, costMinor: receipt?.liveChargedMinor, closedBy: s.closedBy };
       s.heardRecorded = true;
       if (heardText !== null && receipt) { receipt.transcript = heardText; s.status = 'heard'; }
       return closed;
@@ -245,6 +303,7 @@ async function stop(ctx: Context, payload: Record<string, any>, host: ModuleHost
   if (session.capture === 'browser-transcript') {
     check(typeof payload.transcript === 'string' && payload.audioBase64 === undefined && payload.approvalId === undefined, 'INVALID_TRANSCRIPT', 'Give the words the browser heard.');
     check(Number.isSafeInteger(payload.durationMs), 'INVALID_REQUEST', 'Give the length heard in milliseconds.');
+    assertAllowed(host, session.kind);
     if (heardText === null) { await patchSession(host, session.id, s => { s.status = 'closed'; s.closedBy = 'stop'; }); return heardReply(session.id, null, null); }
     const result: any = await speechService(host).transcribe(ctx, { providerId: session.providerId, transcript: heardText, browserProvider: 'voice' });
     await patchSession(host, session.id, (s, state) => {
@@ -259,20 +318,33 @@ async function stop(ctx: Context, payload: Record<string, any>, host: ModuleHost
     assertAllowed(host, session.kind); return transcribeSession(ctx, host, session, payload.approvalId);
   }
   check(payload.approvalId === undefined, 'INVALID_REQUEST', 'Give the recording first.');
-  return recordOnto(ctx, host, session, recording(payload));
+  assertAllowed(host, session.kind); return recordOnto(ctx, host, session, recording(payload));
+}
+
+/**
+ * The provider used when voice is switched on without naming one: the one chosen before, else the browser, when it may
+ * run under Send; when Send is nothing or shape and the browser may use the network, local whisper; else a plain refusal.
+ */
+async function defaultProvider(ctx: Context, host: ModuleHost) {
+  const state = host.store.read(); const chosen = peekVoice(state).providerId;
+  if (!localOnly(state)) return providerFor(ctx, host, undefined);
+  const providers = ((await speechService(host).providers(ctx)) as Awaited<ReturnType<typeof providerFor>>[]).filter((p: any) => p.enabled && onDevice(host, p.kind));
+  const pick = providers.find(p => p.id === chosen) ?? providers.find(p => p.kind === 'browser-transcript') ?? providers.find(p => p.kind === 'local-command');
+  check(pick, 'VOICE_NO_LOCAL_PROVIDER', 'Send is set to nothing or shape, and nothing on this computer turns speech into text yet. Set up local whisper, or change Send.');
+  return pick;
 }
 
 async function setEnabled(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   onlyKeys(payload, ['enabled', 'providerId']); notDemo(host); desktop(ctx);
   check(!ctx.sourceTainted, 'VOICE_TAINTED_CONTEXT', 'A request that has read outside text cannot change voice settings.');
   check(typeof payload.enabled === 'boolean', 'INVALID_REQUEST', 'Enabled is true or false.');
-  const provider = payload.enabled || payload.providerId !== undefined ? await providerFor(ctx, host, payload.providerId) : null;
+  const provider = payload.providerId !== undefined ? await providerFor(ctx, host, payload.providerId) : payload.enabled ? await defaultProvider(ctx, host) : null;
   const at = clockMs(host);
   return host.store.update(state => {
     const ns = voiceState(state); ns.enabled = payload.enabled; if (provider) ns.providerId = provider.id;
     if (!ns.enabled) for (const session of ns.sessions) {
-      if (session.status === 'live') closeLive(state, session, Math.min(at, session.endsAt!), 'voice-off');
-      else if (['listening', 'awaiting-approval'].includes(session.status)) { session.status = 'closed'; session.closedBy = 'voice-off'; dropPreview(state, session.previewId, 'dropped'); }
+      if (session.status === 'live') closeLive(host, state, session, liveElapsedMs(host, session, at), 'voice-off');
+      else if (OPEN.includes(session.status)) { session.status = 'closed'; session.closedBy = 'voice-off'; dropPreview(state, session.previewId, 'dropped'); }
     }
     if (!ns.enabled) ns.speaking = [];
     audit(state, 'voice.settings', { enabled: ns.enabled, providerId: ns.providerId });
@@ -286,10 +358,12 @@ async function status(ctx: Context, payload: Record<string, any>, host: ModuleHo
   const provider = voice.providerId ? (await speechService(host).providers(ctx)).find((p: any) => p.id === voice.providerId) ?? null : null;
   const live = voice.sessions.find(s => s.memberId === ctx.memberId && s.status === 'live');
   const speaking = voice.speaking.find(s => s.memberId === ctx.memberId);
-  const mode = !voice.enabled || !provider?.enabled ? 'off' : provider.kind === 'browser-transcript' ? 'browser' : provider.kind === 'local-command' ? 'local' : 'paid';
-  return { enabled: voice.enabled, mode, send: state.policy.send, localOnly: localOnly(state), provider: provider ? publicProvider(provider) : null,
+  // A provider Send does not allow now is not running: mode 'off', with the refusal the microphone would give.
+  const blocked = voice.enabled && provider?.enabled && !allowedNow(host, state, provider.kind) ? 'VOICE_LOCAL_ONLY' : null;
+  const mode = !voice.enabled || !provider?.enabled || blocked ? 'off' : provider.kind === 'browser-transcript' ? 'browser' : provider.kind === 'local-command' ? 'local' : 'paid';
+  return { enabled: voice.enabled, mode, blocked, send: state.policy.send, localOnly: localOnly(state), provider: provider ? publicProvider(host, provider) : null,
     live: live ? { sessionId: live.id, startedAt: iso(live.startedAt!), capMs: live.capMs, endsAt: iso(live.endsAt!) } : null,
-    speaking: speaking ? { utteranceId: speaking.utteranceId } : null, usage: voiceUsage(state, voiceMonth(at)) };
+    speaking: speaking ? { utteranceId: speaking.utteranceId } : null, usage: voiceUsage(state, voiceMonth(at, workspaceZone(state)), workspaceZone(state)) };
 }
 
 export const voicePart: ModulePart = {
@@ -300,7 +374,8 @@ export const voicePart: ModulePart = {
     'voice.start': { permission: 'prepare', handler: start },
     'voice.stop': { permission: 'prepare', handler: stop },
     'voice.confirm': { permission: 'prepare', handler: async (ctx, payload, host) => {
-      onlyKeys(payload, ['sessionId', 'digest', 'text']); voiceOn(host); await sweepVoice(host);
+      onlyKeys(payload, ['sessionId', 'digest', 'text']); voiceOn(host); desktop(ctx);
+      check(!ctx.sourceTainted, 'VOICE_TAINTED_CONTEXT', 'A request that has read outside text cannot confirm what was said.'); await sweepVoice(host);
       check(typeof payload.digest === 'string' && /^[a-f0-9]{64}$/.test(payload.digest), 'INVALID_REQUEST', 'Confirm the exact reading you were shown.');
       check(payload.text === undefined || (typeof payload.text === 'string' && payload.text.trim().length > 0 && payload.text.length <= 10000), 'INVALID_TRANSCRIPT', 'Give the changed words, under ten thousand characters.');
       const session = sessionOf(ctx, host, payload.sessionId);
@@ -309,9 +384,10 @@ export const voicePart: ModulePart = {
       check(receipt && typeof receipt.transcript === 'string', 'SPEECH_RECEIPT_NOT_FOUND', 'That transcript is not available.');
       // An edit is re-read here: the digest must be the reading of the edited words the person was shown.
       const text: string = payload.text ?? receipt.transcript;
-      const confirmed = await confirmReading(ctx, host, text, receipt.id, payload.digest, payload.text !== undefined && payload.text !== receipt.transcript);
+      const edited = payload.text !== undefined && payload.text !== receipt.transcript;
+      const confirmed = await confirmReading(ctx, host, text, receipt.id, payload.digest, edited);
       await patchSession(host, session.id, s => { s.status = 'confirmed'; s.confirmationId = confirmed.confirmationId; });
-      return { confirmationId: confirmed.confirmationId, text, understood: confirmed.understood, digest: confirmed.digest, receiptId: receipt.id };
+      return { confirmationId: confirmed.confirmationId, text, edited, understood: confirmed.understood, digest: confirmed.digest, receiptId: receipt.id };
     } },
     'voice.dropNote': { permission: 'prepare', handler: async (ctx, payload, host) => {
       onlyKeys(payload, ['audioBase64', 'mimeType', 'durationMs', 'providerId']); notDemo(host); voiceOn(host); desktop(ctx); await sweepVoice(host);
@@ -327,8 +403,10 @@ export const voicePart: ModulePart = {
       check(payload.language === undefined || payload.language === 'en' || payload.language === 'hi', 'INVALID_REQUEST', 'Speak in en or hi.');
       const language: 'en' | 'hi' = payload.language ?? 'en';
       // The calculator's own receipt, read as this caller with every access check; its written explanation is never read.
-      const receipt = await host.call('receipts.get', { id: payload.receiptId }) as { figures: any[]; stale?: boolean };
-      const segments = speakFigures({ figures: Array.isArray(receipt?.figures) ? receipt.figures : [], stale: receipt?.stale === true }, language);
+      const receipt = await host.call('receipts.get', { id: payload.receiptId }) as { operation?: string; figures: any[]; stale?: boolean };
+      // Answers, not receipts, are marked stale when the meaning or sources change: an answer built on this receipt counts too.
+      const stale = receipt?.stale === true || host.store.read().answers.some(answer => answer.receiptId === payload.receiptId && answer.stale === true);
+      const segments = speakFigures({ operation: typeof receipt?.operation === 'string' ? receipt.operation : undefined, figures: Array.isArray(receipt?.figures) ? receipt.figures : [], stale }, language);
       const utteranceId = newId('voice_utterance'); const at = clockMs(host);
       await host.store.update(state => { const ns = voiceState(state); ns.speaking = [...ns.speaking.filter(s => s.memberId !== ctx.memberId), { utteranceId, memberId: ctx.memberId, receiptId: payload.receiptId, at }]; });
       return { utteranceId, language, segments, receiptId: payload.receiptId };
@@ -341,7 +419,8 @@ export const voicePart: ModulePart = {
     } },
     'voice.usage': { permission: 'read', handler: async (ctx, payload, host) => {
       onlyKeys(payload, ['month']); check(payload.month === undefined || isVoiceMonth(payload.month), 'INVALID_REQUEST', 'Give the month as YYYY-MM.');
-      const at = clockMs(host); await sweepVoice(host, at); return voiceUsage(host.store.read(), payload.month ?? voiceMonth(at));
+      const at = clockMs(host); await sweepVoice(host, at); const state = host.store.read(), zone = workspaceZone(state);
+      return voiceUsage(state, payload.month ?? voiceMonth(at, zone), zone);
     } },
     'modelsx.speechKey': { permission: 'admin', handler: async (ctx, payload, host) => {
       onlyKeys(payload, ['providerId', 'secret']); notDemo(host);

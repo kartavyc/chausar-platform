@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { lstat, mkdtemp, readdir, writeFile, rm } from 'node:fs/promises';
 import { join, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { authorize, audit, check, ChausarError, hash, newId, now } from './contracts.ts';
@@ -46,6 +46,28 @@ export type SpeechOptions = { http?: (request: { endpoint: string; headers: Reco
 export type SpeechTrusted = { liveCapEnforced?: boolean; http?: SpeechOptions['http']; process?: SpeechOptions['process'] };
 /** Removes the audio bytes from a preview or receipt, keeping only their digest. */
 export function dropAudio(record: Record<string, any>) { if ('payloadBase64' in record) { delete record.payloadBase64; record.audioDropped = true; } }
+/** Each provider request (and the local whisper run) is given two minutes. */
+export const SPEECH_TIMEOUT_MS = 120000;
+/** A dispatch makes at most two requests (Bhashini), so one still running after this long was cut off by a crash or restart. */
+export const SPEECH_IN_FLIGHT_MS = 2 * SPEECH_TIMEOUT_MS + 60000;
+const SPEECH_DIR = /^chausar-speech-[A-Za-z0-9]{6}$/;
+/**
+ * Removes local whisper working folders (`chausar-speech-*` under `root`) older than `maxAgeMs`: a crash between
+ * writing the recording and the `finally` that deletes it would otherwise leave the audio on disk. Only real
+ * folders with the exact mkdtemp name are removed; links and anything else are left alone. Never throws.
+ */
+export async function removeStaleSpeechDirs(root = tmpdir(), nowMs = Date.now(), maxAgeMs = 3600000): Promise<number> {
+  let removed = 0;
+  try {
+    for (const entry of await readdir(root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !SPEECH_DIR.test(entry.name)) continue;
+      const path = join(root, entry.name);
+      try { const info = await lstat(path); if (info.isDirectory() && info.mtimeMs + maxAgeMs <= nowMs) { await rm(path, { recursive: true, force: true }); removed++; } } catch { /* gone or unreadable: leave it */ }
+    }
+  } catch { /* no temp folder to read */ }
+  return removed;
+}
+let staleDirsSwept = false;
 
 const AUDIO_EXTENSIONS = { 'audio/wav': 'wav', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'audio/ogg': 'ogg' } as const;
 type AudioMime = keyof typeof AUDIO_EXTENSIONS;
@@ -66,8 +88,14 @@ async function upload(request: { endpoint: string; headers: Record<string, strin
 }
 
 export class SpeechService {
-  store: StateStore; options: SpeechOptions; #credentials = new Map<string, string>();
+  store: StateStore; options: SpeechOptions; #credentials = new Map<string, string>(); #swept = false;
   constructor(store: StateStore, options: SpeechOptions = {}) { this.store = store; this.options = options; }
+  /** First use in this process: audio left in receipts by an older version or a crash is dropped, and stale whisper folders go. */
+  async #firstUse() {
+    if (this.#swept) return; this.#swept = true;
+    await this.expireUnsent(600000);
+    if (!staleDirsSwept) { staleDirsSwept = true; await removeStaleSpeechDirs(); }
+  }
   #provider(id: unknown): StoredSpeechProvider | undefined { return typeof id === 'string' ? storedProviders(this.store.read()).find(p => p.id === id) : undefined; }
   async configure(context: Context, config: SpeechProvider, secret?: string) {
     authorize(this.store, context, 'admin');
@@ -116,7 +144,7 @@ export class SpeechService {
   }
   async providers(context: Context) { authorize(this.store, context); return Promise.all(storedProviders(this.store.read()).map(p => this.#public(p))); }
   async preview(context: Context, input: SpeechInput, trusted: SpeechTrusted = {}) {
-    authorize(this.store, context, 'prepare'); const provider = this.#provider(input.providerId);
+    authorize(this.store, context, 'prepare'); await this.#firstUse(); const provider = this.#provider(input.providerId);
     check(provider?.enabled, 'SPEECH_UNAVAILABLE', 'Configure a speech provider first.');
     const sourceIds = input.sourceIds || []; assertSourceAccess(this.store.read(), context, sourceIds);
     if (provider.kind === 'browser-transcript') {
@@ -179,7 +207,7 @@ export class SpeechService {
     return provider;
   }
   async transcribe(context: Context, input: { previewId?: string; approvalId?: string; providerId?: string; transcript?: string; browserProvider?: string }, trusted: SpeechTrusted = {}) {
-    authorize(this.store, context, 'prepare');
+    authorize(this.store, context, 'prepare'); await this.#firstUse();
     if (!input.previewId) {
       const provider = this.#provider(input.providerId); check(provider?.enabled && provider.kind === 'browser-transcript', 'SPEECH_UNAVAILABLE', 'Select browser transcript or create an audio preview.');
       check(typeof input.transcript === 'string' && input.transcript.trim().length > 0 && input.transcript.length <= 10000, 'INVALID_TRANSCRIPT', 'Supply a browser transcript.');
@@ -203,14 +231,14 @@ export class SpeechService {
         check(approval && !approval.used && approval.previewId === preview.id && approval.digest === preview.digest && approval.endpoint === preview.endpoint && Date.parse(approval.expiresAt) > Date.now() && approver?.active && approver.epoch === approval.approverEpoch && ['owner', 'cofounder'].includes(approver.role), 'OUTBOUND_APPROVAL_REQUIRED', 'An owner must approve this exact audio upload.'); approval.used = true; current.approvalId = approval.id;
       }
       const spent = state.modelReceipts.filter(r => r.providerId === provider.id).reduce((sum, r) => sum + BigInt(r.costReservedMinor || '0'), 0n);
-      check(spent + BigInt(preview.estimatedCostMinor) <= BigInt(provider.budgetMinor!), 'BUDGET_EXCEEDED', 'The speech rupee budget is exhausted.'); current.status = 'dispatching'; current.attempts = 1; current.costReservedMinor = preview.estimatedCostMinor;
+      check(spent + BigInt(preview.estimatedCostMinor) <= BigInt(provider.budgetMinor!), 'BUDGET_EXCEEDED', 'The speech rupee budget is exhausted.'); current.status = 'dispatching'; current.dispatchedAt = now(); current.attempts = 1; current.costReservedMinor = preview.estimatedCostMinor;
     });
     let directory: string | undefined;
     try {
       let transcript: string | undefined; let live: { value: string; expiresAt: string } | undefined; const details: Record<string, unknown> = {}; this.#current(context, preview);
       if (provider.kind !== 'local-command') {
         const send = async (endpoint: string, headers: Record<string, string>, body: Uint8Array) => {
-          const result = await (trusted.http || this.options.http || upload)({ endpoint, headers, body, redirect: 'error', timeoutMs: 120000 });
+          const result = await (trusted.http || this.options.http || upload)({ endpoint, headers, body, redirect: 'error', timeoutMs: SPEECH_TIMEOUT_MS });
           check((!result.endpoint || result.endpoint === endpoint) && !(result.status >= 300 && result.status < 400), 'REDIRECT_REFUSED', 'Speech redirects are refused.'); check(result.status >= 200 && result.status < 300, 'SPEECH_FAILED', 'The speech provider failed without a retry.'); return result;
         };
         const payload = Buffer.from(preview.payloadBase64, 'base64');
@@ -228,7 +256,7 @@ export class SpeechService {
         const mimeType: unknown = preview.mimeType; check(isAudioMime(mimeType), 'INVALID_AUDIO', 'Use a supported recording type.');
         directory = await mkdtemp(join(tmpdir(), 'chausar-speech-')); const extension = AUDIO_EXTENSIONS[mimeType]; const audioPath = join(directory, `recording.${extension}`); await writeFile(audioPath, Buffer.from(preview.payloadBase64, 'base64'), { mode: 0o600 });
         this.#current(context, preview);
-        const result = await (trusted.process || this.options.process || defaultProcess)({ command: provider.command!, args: ['-m', provider.model!, '-f', audioPath, '-nt', '-np', '-nf', '-l', 'auto'], cwd: directory, env: { PATH: process.env.PATH || '', SystemRoot: process.env.SystemRoot || '' }, stdin: '', timeoutMs: 120000, schema: {} });
+        const result = await (trusted.process || this.options.process || defaultProcess)({ command: provider.command!, args: ['-m', provider.model!, '-f', audioPath, '-nt', '-np', '-nf', '-l', 'auto'], cwd: directory, env: { PATH: process.env.PATH || '', SystemRoot: process.env.SystemRoot || '' }, stdin: '', timeoutMs: SPEECH_TIMEOUT_MS, schema: {} });
         check(result.exitCode === 0, 'SPEECH_FAILED', 'The local speech command failed without a retry.'); transcript = result.stdout.trim();
       }
       if (live) {
@@ -266,11 +294,28 @@ export class SpeechService {
     this.#credentials.set(provider.id, secret);
     return { providerId: provider.id, credentialConfigured: true, revision: provider.revision, enabled: provider.enabled };
   }
-  /** Previews never sent lose their audio once `maxAgeMs` has passed: status `expired`, digest kept, bytes gone. */
+  /**
+   * Keeps raw audio only where it is still needed, digest always kept:
+   * - a preview never sent keeps its bytes for `maxAgeMs`, then becomes `expired`;
+   * - a dispatch still in flight keeps them for SPEECH_IN_FLIGHT_MS; one older was cut off by a crash or restart and becomes
+   *   `failed` (`SPEECH_INTERRUPTED`), its reservation kept;
+   * - every other record (completed, failed, expired, from any version) loses them at once.
+   * Runs on every voice call, on the module tick and on this service's first use, so it is also the migration for older workspaces.
+   */
   async expireUnsent(maxAgeMs: number, nowMs = Date.now()) {
-    const stale = (r: any) => r.kind === 'speech-preview' && r.status === 'preview' && 'payloadBase64' in r && Date.parse(r.createdAt) + maxAgeMs <= nowMs;
+    const age = (at: unknown) => { const ms = typeof at === 'string' ? Date.parse(at) : NaN; return Number.isFinite(ms) ? nowMs - ms : Infinity; };
+    const stale = (r: any) => r.kind === 'speech-preview' && 'payloadBase64' in r
+      && (r.status === 'preview' ? age(r.createdAt) >= maxAgeMs : r.status === 'dispatching' ? age(r.dispatchedAt ?? r.createdAt) >= SPEECH_IN_FLIGHT_MS : true);
     if (!this.store.read().modelReceipts.some(stale)) return 0;
-    return this.store.update(state => { const expired = state.modelReceipts.filter(stale); for (const r of expired) { r.status = 'expired'; dropAudio(r); } return expired.length; });
+    return this.store.update(state => {
+      const expired = state.modelReceipts.filter(stale);
+      for (const r of expired) {
+        if (r.status === 'preview') r.status = 'expired';
+        else if (r.status === 'dispatching') { r.status = 'failed'; r.errorCode = 'SPEECH_INTERRUPTED'; }
+        dropAudio(r);
+      }
+      return expired.length;
+    });
   }
   clearCredentials() { this.#credentials.clear(); }
 }

@@ -30,19 +30,21 @@ const whisper: SpeechProvider = { id: 'whisper', kind: 'local-command', command:
 const live: SpeechProvider = { id: 'live', kind: 'live-voice', model: 'gpt-4o-transcribe', ratePerMinuteMinor: '1500', budgetMinor: '1000000' };
 const noAudio = (state: State) => assert.equal(JSON.stringify(state).includes(audioBase64.slice(0, 40)) || state.modelReceipts.some(r => 'payloadBase64' in r && r.kind === 'speech-preview' && r.status !== 'preview'), false);
 
-function fixture(options: { stdout?: string; exitCode?: number; reply?: (endpoint: string) => { status: number; body: string } } = {}) {
-  const store = new MemoryStore(); let at = T0; const calls: string[] = []; const processes: string[] = [];
+// `onDevice` stands for a trusted host that says its browser recognises speech on the device; `liveClient` for the desktop live client.
+function fixture(options: { stdout?: string; exitCode?: number; reply?: (endpoint: string) => { status: number; body: string }; onDevice?: boolean; liveClient?: boolean } = {}) {
+  const store = new MemoryStore(); let at = T0; let mono = 5000; const calls: string[] = []; const processes: string[] = [];
   const speech = new SpeechService(store);
   const receipts = new Map<string, unknown>();
   const host: ModuleHost = {
     store, services: { speech }, demo: false, directory: '/nowhere',
-    options: { clock: () => at,
+    options: { clock: () => at, monotonic: () => mono, browserSpeechOnDevice: options.onDevice ?? true, liveVoiceClient: options.liveClient ?? true,
       speechHttp: async (request: { endpoint: string }) => { calls.push(request.endpoint); return options.reply?.(request.endpoint) ?? { status: 200, body: JSON.stringify({ transcript: 'do lakh ka payment nahi aaya', language_code: 'hi-IN' }) }; },
       speechProcess: async (request: { args: string[] }) => { processes.push(request.args.join(' ')); return { exitCode: options.exitCode ?? 0, stdout: options.stdout ?? 'teen hazaar rupaye bhejo\n', stderr: '' }; } },
     call: async (method: string, payload: Record<string, unknown>) => { assert.equal(method, 'receipts.get'); const r = receipts.get(String(payload.id)); if (!r) throw Object.assign(new Error('missing'), { code: 'RECEIPT_NOT_FOUND' }); return structuredClone(r); },
   };
   const run = (method: string, payload: Record<string, unknown> = {}, ctx: Context = owner): Promise<any> => Promise.resolve(voicePart.methods[method]!.handler(ctx, payload, host));
-  return { store, speech, host, run, calls, processes, receipts, tick: (ms: number) => { at += ms; }, now: () => at };
+  // tick moves both clocks; shiftWall moves only the system clock (a person or NTP changing it).
+  return { store, speech, host, run, calls, processes, receipts, tick: (ms: number) => { at += ms; mono += ms; }, shiftWall: (ms: number) => { at += ms; }, now: () => at };
 }
 
 test('voice is off by default: only status, usage and providers answer; switching needs the desktop app and an untainted request', async () => {
@@ -63,7 +65,7 @@ test('voice is off by default: only status, usage and providers answer; switchin
   await assert.rejects(f.run('voice.usage', { month: '2031-13' }), code('INVALID_REQUEST'));
   assert.deepEqual(await f.run('voice.setEnabled', { enabled: true }), { enabled: true, providerId: 'browser' });
   const on = await f.run('voice.status');
-  assert.deepEqual([on.enabled, on.mode, on.provider], [true, 'browser', { id: 'browser', kind: 'browser-transcript', label: 'Browser transcript', local: true, ratePerMinuteMinor: null }]);
+  assert.deepEqual([on.enabled, on.mode, on.blocked, on.provider], [true, 'browser', null, { id: 'browser', kind: 'browser-transcript', label: 'Browser transcript', local: true, words: 'Turned into text on this computer only.', ratePerMinuteMinor: null }]);
   assert.ok(f.store.state.activity.some(e => e.event === 'voice.settings'));
 });
 
@@ -83,7 +85,7 @@ test('browser transcript: heard, understood, confirmed; an edit is re-read; noth
   const edited = 'do lakh ka payment aaya';
   await assert.rejects(f.run('voice.confirm', { sessionId: started.sessionId, digest: stopped.understood.digest, text: edited }), code('UNDERSTOOD_CHANGED'));
   const confirmed = await f.run('voice.confirm', { sessionId: started.sessionId, digest: interpretSpeech(edited).digest, text: edited });
-  assert.equal(confirmed.text, edited); assert.equal(confirmed.understood, '2,00,000 ka payment aaya'); assert.match(confirmed.confirmationId, /^speech_confirmation_/);
+  assert.equal(confirmed.text, edited); assert.equal(confirmed.edited, true); assert.equal(confirmed.understood, '2,00,000 ka payment aaya'); assert.match(confirmed.confirmationId, /^speech_confirmation_/);
   await assert.rejects(f.run('voice.confirm', { sessionId: started.sessionId, digest: interpretSpeech(edited).digest }), code('VOICE_NOTHING_HEARD'));
   const stored = (f.store.state.extensions as any)['models-ext'].speech.confirmations.at(-1);
   assert.deepEqual([stored.edited, stored.receiptId], [true, stopped.receiptId]);
@@ -138,7 +140,7 @@ test('Send nothing or shape keeps voice on this computer: cloud providers refuse
 
 test('paid upload: the exact recording is approved before it leaves, costs are counted, unsent recordings expire without audio', async () => {
   const f = fixture(); f.store.state.policy.send = 'samples'; await f.speech.configure(owner, sarvam, 'sarvam-key'); await f.run('voice.setEnabled', { enabled: true, providerId: 'sarvam' });
-  assert.deepEqual((await f.run('voice.status')).provider, { id: 'sarvam', kind: 'sarvam-stt', label: null, local: false, ratePerMinuteMinor: '50' });
+  assert.deepEqual((await f.run('voice.status')).provider, { id: 'sarvam', kind: 'sarvam-stt', label: null, local: false, words: 'Your recording leaves this computer for the provider, once, after an owner approves it.', ratePerMinuteMinor: '50' });
   const note = await f.run('voice.dropNote', { audioBase64, mimeType: 'audio/wav', durationMs: 12000 });
   assert.equal(note.heard, null); assert.equal(note.approval.costCapMinor, '10'); assert.match(note.approval.digest, /^[a-f0-9]{64}$/); assert.equal(f.calls.length, 0);
   await assert.rejects(f.run('voice.stop', { sessionId: note.sessionId }), code('OUTBOUND_APPROVAL_REQUIRED'));
@@ -210,6 +212,8 @@ test('live voice runs only through voice.start: the session is recorded, closed 
   assert.equal((await f.run('voice.status')).live, null);
   const receipt = f.store.state.modelReceipts.find(r => r.id === second.approval.previewId);
   assert.deepEqual([receipt.liveMinutesMs, receipt.liveChargedMinor, receipt.liveClosedBy, receipt.costReservedMinor], [60000, '1500', 'cap', '1500']);
+  // The first session was stopped after half a minute, but its budget reservation stays the approved two-minute cap.
+  assert.deepEqual([f.store.state.modelReceipts.find(r => r.id === started.approval.previewId).liveChargedMinor, f.store.state.modelReceipts.find(r => r.id === started.approval.previewId).costReservedMinor], ['750', '3000']);
   // The renderer's own stop after its hang-up still hands over the words, once, and cannot add minutes.
   const late = await f.run('voice.stop', { sessionId: second.sessionId, transcript: 'teen hazaar', durationMs: 999999 });
   assert.deepEqual(late.live, { minutesMs: 60000, costMinor: '1500', closedBy: 'cap' }); assert.equal(late.heard, 'teen hazaar');
@@ -232,11 +236,12 @@ test('speak: every number comes from the receipt figures, in Indian words for en
       { key: 'odd', label: 'Top 5 customers', minor: '12345678', display: '₹1,23,456.78', unit: 'money', currency: 'INR' }] });
   const hi = await f.run('voice.speak', { receiptId: 'calc_1', language: 'hi' });
   assert.deepEqual(hi.segments, [
-    { text: 'Billed: do lakh rupaye.', figureKey: 'value' },
-    { text: 'Margin in basis points (truncated): barah dashamlav shunya paanch pratishat.', figureKey: 'marginBps' },
+    { text: 'Aankda: do lakh rupaye.', figureKey: 'value' },
+    { text: 'Margin: ek hazaar do sau paanch basis points.', figureKey: 'marginBps' },
     { text: 'Aankda: ek lakh teis hazaar chaar sau chhappan rupaye aur athattar paise.', figureKey: 'odd' }]);
   const en = await f.run('voice.speak', { receiptId: 'calc_1' });
-  assert.equal(en.language, 'en'); assert.equal(en.segments[0].text, 'Billed: two lakh rupees.');
+  assert.equal(en.language, 'en'); assert.equal(en.segments[0].text, 'Figure: two lakh rupees.');
+  assert.equal(en.segments[1].text, 'Margin: one thousand two hundred five basis points.');
   assert.equal(en.segments[2].text, 'Figure: one lakh twenty-three thousand four hundred fifty-six rupees and seventy-eight paise.');
   for (const segment of [...hi.segments, ...en.segments]) assert.doesNotMatch(segment.text, /\d/);
   assert.deepEqual((await f.run('voice.status')).speaking, { utteranceId: en.utteranceId });
@@ -244,7 +249,7 @@ test('speak: every number comes from the receipt figures, in Indian words for en
   assert.equal((await f.run('voice.status')).speaking, null);
   await assert.rejects(f.run('voice.speak', { receiptId: 'calc_1', language: 'fr' }), code('INVALID_REQUEST'));
   await assert.rejects(f.run('voice.speak', { receiptId: 'missing' }), code('RECEIPT_NOT_FOUND'));
-  assert.deepEqual(speakFigures({ figures: [], stale: true }, 'en'), [{ text: 'These figures are out of date.' }, { text: 'This answer has no figures to read aloud.' }]);
+  assert.deepEqual(speakFigures({ figures: [], stale: true }, 'en'), [{ text: 'These figures are out of date. Recalculate before relying on them.' }, { text: 'This answer has no figures to read aloud.' }]);
 });
 
 test('spoken amounts read back to the same figure through "what it understood"', () => {
@@ -282,11 +287,14 @@ test('engine: voice end to end on synthetic production storage, through the real
   const directory = await mkdtemp(join(tmpdir(), 'chausar-mx-'));
   let at = T0; const secret = { value: 'ek_engine_live_secret_1', expires_at: Math.floor(T0 / 1000) + 60 };
   const engine = new Engine({ directory, ...installSyntheticProductionStorage(directory, ['main'], t.mock),
-    modules: { 'models-ext': { clock: () => at, speechHttp: async () => ({ status: 200, body: JSON.stringify(secret) }) } } });
+    modules: { 'models-ext': { clock: () => at, monotonic: () => at, liveVoiceClient: true, speechHttp: async () => ({ status: 200, body: JSON.stringify(secret) }) } } });
   try {
     await engine.request('workspace.create', { name: 'Test Shop', passphrase: 'correct horse battery staple 42', demo: false, pack: 'ecommerce' });
     await assert.rejects(engine.request('voice.start', {}), code('VOICE_OFF'));
     assert.equal((await engine.request('voice.status', {})).enabled, false);
+    // Send is nothing: the browser may send audio to its own service and no local whisper is set up, so voice cannot be switched on.
+    await assert.rejects(engine.request('voice.setEnabled', { enabled: true }), code('VOICE_NO_LOCAL_PROVIDER'));
+    await engine.request('trust.update', { send: 'samples' });
     await engine.request('voice.setEnabled', { enabled: true });
     const started = await engine.request('voice.start', {});
     const heard = await engine.request('voice.stop', { sessionId: started.sessionId, transcript: 'do lakh ka bill nahi bhejo', durationMs: 3000 });

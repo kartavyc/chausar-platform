@@ -1,8 +1,10 @@
 /**
  * Spoken answers for `voice.speak`: every number said aloud is a calculator receipt figure turned into words in the
  * Indian system (crore, lakh, thousand), in English or romanised Hindi ("do lakh rupaye"). Exact: BigInt only.
- * No written explanation is read, so no number can come from free text. The words read back through
- * `interpretSpeech` to the same amount, which the tests check.
+ * No written explanation is read, and no label either: each figure is named by a fixed spoken label for its key
+ * (and, for a single total, for the operation), so no word or number can come from owner or outside text. Each
+ * amount is said in the figure's declared unit: rupees for money, basis points for basis points. Rupee words read
+ * back through `interpretSpeech` to the same amount, which the tests check.
  */
 import { check } from './contracts.ts';
 import { HINDI_ROMAN_WORDS } from './speech-understood.ts';
@@ -64,24 +66,49 @@ function hundredths(value: bigint, language: SpokenLanguage): string {
   return `${negative ? 'minus ' : ''}${numberWords(abs / 100n, language)}${fraction}`;
 }
 
-const WORDS: Record<SpokenLanguage, { none: string; stale: string; figure: string }> = {
-  en: { none: 'This answer has no figures to read aloud.', stale: 'These figures are out of date.', figure: 'Figure' },
-  hi: { none: 'Is jawab mein padhne ke liye koi aankda nahi hai.', stale: 'Ye aankde purane hain.', figure: 'Aankda' },
+/** Basis points said as basis points, the figure's own unit: 1205 → "one thousand two hundred five basis points". */
+export function spokenBasisPointsCount(minor: string, language: SpokenLanguage): string {
+  check(/^-?\d{1,30}$/.test(minor), 'INVALID_NUMBER', 'Basis points are whole numbers.');
+  const value = BigInt(minor); const abs = value < 0n ? -value : value;
+  return `${value < 0n ? 'minus ' : ''}${numberWords(abs, language)} ${abs === 1n ? 'basis point' : 'basis points'}`;
+}
+
+const WORDS: Record<SpokenLanguage, { none: string; stale: string; figure: string; total: string; other: string }> = {
+  en: { none: 'This answer has no figures to read aloud.', stale: 'These figures are out of date. Recalculate before relying on them.', figure: 'Figure', total: 'Total', other: 'an amount in another currency, not read aloud' },
+  hi: { none: 'Is jawab mein padhne ke liye koi aankda nahi hai.', stale: 'Ye aankde purane hain. Bharosa karne se pehle dobara ginein.', figure: 'Aankda', total: 'Kul', other: 'doosri mudra mein rakam, padhi nahi gayi' },
 };
+/** Fixed spoken names of the calculator's figure keys. A key not listed is said as "Figure". */
+const FIGURE_LABELS: Record<SpokenLanguage, Record<string, string>> = {
+  en: { earned: 'Earned', refunds: 'Refunds', netSales: 'Net sales', costs: 'Imported costs', contribution: 'Contribution', marginBps: 'Margin',
+    current: 'Current earned revenue', previous: 'Prior earned revenue', change: 'Change', changeBps: 'Change', baseline: 'Measured baseline', scenario: 'Scenario revenue',
+    priceChangeBps: 'Assumed price change', notDue: 'Not yet due', days1to30: 'Overdue up to thirty days', days31to60: 'Overdue thirty-one to sixty days',
+    days61to90: 'Overdue sixty-one to ninety days', over90: 'Overdue more than ninety days', outstanding: 'Outstanding receivables', unallocated: 'Unallocated receipts or credits' },
+  hi: { earned: 'Kamaya', refunds: 'Refund', netSales: 'Net bikri', costs: 'Darj kharch', contribution: 'Yogdaan', marginBps: 'Margin',
+    current: 'Is avadhi ki kamai', previous: 'Pichhli avadhi ki kamai', change: 'Badlaav', changeBps: 'Badlaav', baseline: 'Maapi gayi aadhar kamai', scenario: 'Anumaanit kamai',
+    priceChangeBps: 'Maana gaya daam badlaav', notDue: 'Abhi due nahi', days1to30: 'Tees din tak overdue', days31to60: 'Iktees se saath din overdue',
+    days61to90: 'Iksath se nabbe din overdue', over90: 'Nabbe din se zyada overdue', outstanding: 'Baaki receivables', unallocated: 'Bina milaan ki raseedein' },
+};
+/** Fixed spoken names of a single total, by the receipt's operation. Any other operation's total is said as "Total". */
+const TOTAL_LABELS: Record<SpokenLanguage, Record<string, string>> = {
+  en: { billed: 'Billed', received: 'Received', earned: 'Earned', refunds: 'Refunds', costs: 'Costs', purchases: 'Purchases', revenue: 'Revenue earned', net_sales: 'Net sales' },
+  hi: { billed: 'Bill kiya', received: 'Mila', earned: 'Kamaya', refunds: 'Refund', costs: 'Kharch', purchases: 'Khareed', revenue: 'Kamai', net_sales: 'Net bikri' },
+};
+const own = (table: Record<string, string>, key: unknown) => typeof key === 'string' && Object.hasOwn(table, key) ? table[key] : undefined;
 
 /**
- * Segments for one calculator receipt. Each figure is one segment carrying its `figureKey`; its amount is spelled from
- * `figure.minor`. A label holding a digit is replaced by a fixed word, so no number reaches speech except a figure's own.
+ * Segments for one calculator receipt: "out of date" first when it is stale, then one segment per figure carrying its
+ * `figureKey`. The label is fixed per key (never the figure's own label text) and the amount is spelled from
+ * `figure.minor` in the figure's unit, so nothing but a figure's own value reaches speech as a number.
  */
-export function speakFigures(receipt: { figures: readonly SpokenFigure[]; stale?: boolean }, language: SpokenLanguage): SpokenSegment[] {
+export function speakFigures(receipt: { operation?: string; figures: readonly SpokenFigure[]; stale?: boolean }, language: SpokenLanguage): SpokenSegment[] {
   const words = WORDS[language]; const segments: SpokenSegment[] = [];
   if (receipt.stale) segments.push({ text: words.stale });
   for (const figure of receipt.figures) {
-    const label = typeof figure.label === 'string' && figure.label.length <= 120 && !/[\p{N}]/u.test(figure.label) ? figure.label : words.figure;
+    const label = figure.key === 'total' ? own(TOTAL_LABELS[language], receipt.operation) ?? words.total : own(FIGURE_LABELS[language], figure.key) ?? words.figure;
     let amount: string;
     if (figure.unit === 'money' && (figure.currency ?? 'INR') === 'INR') amount = spokenRupees(figure.minor, language);
-    else if (figure.unit === 'basis-points') amount = spokenBasisPoints(figure.minor, language);
-    else { check(/^-?\d{1,40}$/.test(figure.minor), 'INVALID_MINOR_UNITS', 'Amounts are whole minor units.'); amount = `${hundredths(BigInt(figure.minor), language)} ${figure.currency ?? ''}`.trim(); }
+    else if (figure.unit === 'basis-points') amount = spokenBasisPointsCount(figure.minor, language);
+    else amount = words.other;
     segments.push({ text: `${label}: ${amount}.`, figureKey: figure.key });
   }
   if (receipt.figures.length === 0) segments.push({ text: words.none });

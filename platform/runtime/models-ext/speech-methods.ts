@@ -23,7 +23,7 @@ const onlyKeys = (payload: Record<string, unknown>, keys: string[]) => check(Obj
 
 const CATALOGUE: Record<SpeechKind, { label: string; status: 'supported' | 'experimental'; privacyGate: string; cost: 'free' | 'per-minute'; needsFounderAccount: boolean; account: string | null; limits: string; docs: string | null }> = {
   'browser-transcript': { label: 'Browser speech (text only)', status: 'supported', cost: 'free', needsFounderAccount: false, account: null, docs: null,
-    privacyGate: 'Chausar receives text only. The browser may send your voice to its own speech service.', limits: 'Up to ten thousand characters of text.' },
+    privacyGate: 'Chausar receives text only. The browser may send your voice to its own speech service, so with Send at nothing or shape it runs only where this app says the browser recognises speech on this computer.', limits: 'Up to ten thousand characters of text.' },
   'local-command': { label: 'Local whisper.cpp (slower, free)', status: 'supported', cost: 'free', needsFounderAccount: false, account: null, docs: 'https://github.com/ggml-org/whisper.cpp/blob/master/examples/cli/README.md',
     privacyGate: 'Audio stays on this computer. Someone installs whisper-cli and a model file and checks them first.', limits: 'wav, mp3 or ogg, up to five minutes.' },
   'api-upload': { label: 'Recorded upload (OpenAI-compatible)', status: 'experimental', cost: 'per-minute', needsFounderAccount: true, account: 'An API key for the transcription service.', docs: 'https://platform.openai.com/docs/api-reference/audio/createTranscription',
