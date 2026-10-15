@@ -41,7 +41,8 @@ export function structuralEvent(input: unknown): StructuralEvent {
     if (record[key] === undefined) continue;
     const list = record[key];
     check(Array.isArray(list) && list.length <= 50 && list.every(item => (EVENT_LISTS[key] as readonly unknown[]).includes(item)), 'INVALID_LEARNING_EVENT', 'A learning event uses only registered words.');
-    event[key] = [...new Set(list as string[])].sort();
+    // An empty list says nothing: it is left out, so one shape has exactly one form.
+    if ((list as string[]).length) event[key] = [...new Set(list as string[])].sort();
   }
   if (record.fields !== undefined) {
     check(Array.isArray(record.fields) && record.fields.length <= 1000, 'INVALID_LEARNING_EVENT', 'Learning structures have at most 1,000 fields.');
@@ -51,7 +52,7 @@ export function structuralEvent(input: unknown): StructuralEvent {
       const field = canonicalFieldName(name), kind = canonicalFieldType(type);
       if (field && kind) pairs.set(`${field}:${kind}`, [field, kind]);
     }
-    event.fields = [...pairs.values()].sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
+    if (pairs.size) event.fields = [...pairs.values()].sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
   }
   return event as StructuralEvent;
 }
