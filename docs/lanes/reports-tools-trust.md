@@ -261,7 +261,7 @@ waits for the second person); allowed sources are one admin's change. Hindi sent
 ### What this lane assumes from other lanes (round 4)
 
 - core-gateway-auth `models.setLadder { order: routeId[] }` (admin) → `{ order }` or the reordered route list; refusal `LADDER_INVALID`.
-- release `shell.startAtLogin` (admin): `{}` reads, `{ enabled }` sets; reply `{ enabled, supported? }`; `SHELL_UNAVAILABLE` without a desktop shell.
+- release (merged in the base): `shell.startAtLogin {}` → `{ platform, mechanism, enabled, path, matches }`; `shell.setStartAtLogin { enabled, confirmed: true }` (admin) → the same shape, sent only after the screen asks once more, owner and cofounder only; `SERVICE_UNAVAILABLE` / `OPEN_DESKTOP` read as "set in the desktop app", an absent method as "not installed"; `matches: false` says the entry starts another copy. The wake plan (`native.wake.plan`) is not drawn here: jobs-ext's `jobsx.setWake` is the switch this screen uses.
 - jobs-ext `jobsx.setWake { enabled }` → `{ enabled }`.
 - core-sync-jobs `devices.list {}` → `{ devices: [{ id, name, kind: 'computer'|'phone'|'home-box', holdsPen, thisComputer, lastReadAt }] }`; `devices.pen {}` → `{ deviceId, thisComputer, readOnly }`; `devices.handOver { deviceId }` → `{ deviceId, state: 'handed-over'|'waiting' }`; `devices.remove { deviceId }` → `{ removed: true, keyChanged }`; `sync.setup { kind: 'folder', path }` → `{ kind, enabled }`.
 - models-ext `smallapps.pendingRequests` (its round-4 contract); `smallapps.open` action cards carry `payloadSchema`.

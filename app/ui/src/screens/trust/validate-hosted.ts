@@ -30,11 +30,16 @@ function count(value: unknown, path: string): number {
 }
 
 // ---------- TR-12 This computer ----------
-/** `shell.startAtLogin` (release; assumed): `{}` reads, `{ enabled }` sets; both reply `{ enabled, supported? }`. */
-export interface StartAtLogin { enabled: boolean; supported: boolean }
+/** `shell.startAtLogin {}` and `shell.setStartAtLogin { enabled, confirmed: true }` (release, round 4) reply
+ *  `{ platform, mechanism, enabled, path, matches }`. `matches` is false when the entry starts another copy of Chausar. */
+export interface StartAtLogin { enabled: boolean; mechanism: 'windows-run-key' | 'macos-launch-agent' | 'linux-xdg-autostart'; matches: boolean | null }
+const LOGIN_MECHANISMS = ['windows-run-key', 'macos-launch-agent', 'linux-xdg-autostart'] as const;
 export function validateStartAtLogin(reply: unknown): StartAtLogin {
   const r = rec(reply);
-  return { enabled: bool(r['enabled'], 'reply.enabled'), supported: r['supported'] === undefined ? true : bool(r['supported'], 'reply.supported') };
+  if (typeof r['platform'] !== 'string' || !(LOGIN_MECHANISMS as readonly unknown[]).includes(r['mechanism'])) throw new ShapeError('reply.mechanism');
+  if (r['path'] !== null && typeof r['path'] !== 'string') throw new ShapeError('reply.path');
+  return { enabled: bool(r['enabled'], 'reply.enabled'), mechanism: r['mechanism'] as StartAtLogin['mechanism'],
+    matches: r['matches'] === null ? null : bool(r['matches'], 'reply.matches') };
 }
 /** `jobsx.background`: the switch, whether it was ever asked, and the wake timer's state. `wake.on` is read when jobs-ext adds it. */
 export interface Background { backgroundMode: boolean; asked: boolean; wake: { available: boolean; on: boolean; experimental: boolean } }

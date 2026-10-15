@@ -10,7 +10,7 @@ import { State } from '../../patterns/States';
 import { words } from '../../places/types.ts';
 import { useEngine, useSend, type Loaded } from './kit/engine.ts';
 import { Group, screenState } from './kit/Screen';
-import { Tag, type P } from './common';
+import { AskTwice, Tag, type P } from './common';
 import { rtt } from './rtt.ts';
 import { Said } from './rtt-parts';
 import { validateBackground, validateSetBackground, validateSetWake, validateStartAtLogin, type Background, type StartAtLogin } from './validate-hosted.ts';
@@ -27,14 +27,15 @@ export function ComputerSettings({ p }: { p: P }) {
   );
 }
 
-/** Codes that mean "no desktop shell here" rather than a fault. */
-const NO_SHELL: ReadonlySet<string> = new Set(['SHELL_UNAVAILABLE', 'SHELL_PORT_MISSING']);
+/** Codes that mean "not the installed desktop app" rather than a fault. */
+const NO_SHELL: ReadonlySet<string> = new Set(['SHELL_UNAVAILABLE', 'SHELL_PORT_MISSING', 'SERVICE_UNAVAILABLE', 'OPEN_DESKTOP']);
 
 function StartAtLoginGroup({ p }: { p: P }) {
   const say = rtt(p.language);
   const { state, reload } = useEngine(p.rpc, 'shell.startAtLogin', {}, validateStartAtLogin);
   const { sent, send } = useSend(p.rpc, validateStartAtLogin);
-  const set = async (enabled: boolean) => { if (await send('shell.startAtLogin', { enabled }) !== null && p.live(p.address)) reload(); };
+  // Release's write asks for the person's confirmation in the request; the screen asks once more before sending it.
+  const set = async (enabled: boolean) => { if (await send('shell.setStartAtLogin', { enabled, confirmed: true }) !== null && p.live(p.address)) reload(); };
   return (
     <Group title={say('RTT.vault.loginTitle')} note={say('RTT.vault.loginNote')}>
       {state.kind === 'not-built' ? <p className={s.quiet} data-login="not-built">{say('RTT.vault.loginNotBuilt')}</p>
@@ -48,11 +49,13 @@ function StartAtLoginGroup({ p }: { p: P }) {
 
 function LoginBody({ p, x, busy, onSet }: { p: P; x: StartAtLogin; busy: boolean; onSet: (on: boolean) => void }) {
   const say = rtt(p.language);
-  if (!x.supported) return <p className={s.quiet} data-login="unsupported">{say('RTT.vault.loginUnsupported')}</p>;
+  const label = say(x.enabled ? 'RTT.vault.turnOffLogin' : 'RTT.vault.turnOnLogin');
   return (
     <div className={s.stack}>
       <p className={s.text} data-login={x.enabled ? 'on' : 'off'}>{say(x.enabled ? 'RTT.vault.loginOn' : 'RTT.vault.loginOff')}</p>
-      <span><Button variant="quiet" disabled={busy} onClick={() => onSet(!x.enabled)}>{say(x.enabled ? 'RTT.vault.turnOffLogin' : 'RTT.vault.turnOnLogin')}</Button></span>
+      {x.enabled && x.matches === false && <p className={s.problem} data-login="other-copy">{say('RTT.vault.loginOtherCopy')}</p>}
+      <span><AskTwice label={label} ask={say(x.enabled ? 'RTT.vault.loginAskOff' : 'RTT.vault.loginAskOn')} confirmLabel={label}
+        onConfirm={() => onSet(!x.enabled)} language={p.language} disabled={busy} /></span>
     </div>
   );
 }
