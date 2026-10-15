@@ -20,6 +20,7 @@
   "modelsx.speechCatalogue",
   "modelsx.speechConfirm",
   "modelsx.speechInterpret",
+  "modelsx.speechKey",
   "modelsx.speechRevoke",
   "smallapps.create",
   "smallapps.get",
@@ -49,5 +50,15 @@
   "smallapps.records.list",
   "smallapps.records.update",
   "smallapps.remove",
-  "smallapps.validate"
+  "smallapps.validate",
+  "voice.confirm",
+  "voice.dropNote",
+  "voice.providers",
+  "voice.setEnabled",
+  "voice.speak",
+  "voice.start",
+  "voice.status",
+  "voice.stop",
+  "voice.stopSpeaking",
+  "voice.usage"
 ]

@@ -3,11 +3,12 @@ import { MODULE_ID } from '../models-ext/part.ts';
 import { routesPart } from '../models-ext/routes-methods.ts';
 import { benchPart } from '../models-ext/bench-methods.ts';
 import { speechPart } from '../models-ext/speech-methods.ts';
+import { voicePart } from '../models-ext/voice-methods.ts';
 import { smallAppsPart } from '../smallapps/methods.ts';
 import { pluginWrapPart } from '../smallapps/plugin-methods.ts';
 import { modelsExtHostOptions } from '../models-ext/host-options.ts';
 
-const parts = [routesPart, benchPart, speechPart, smallAppsPart, pluginWrapPart];
+const parts = [routesPart, benchPart, speechPart, voicePart, smallAppsPart, pluginWrapPart];
 
 /** Lane-owned engine methods. Only the owning lane edits this file. */
 export const modelsExtModule: EngineModule = {
