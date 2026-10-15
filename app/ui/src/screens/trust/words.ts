@@ -287,7 +287,7 @@ export const MODELS = cat({
   'health.timed-out': 'timed out', 'health.error': 'error',
   keeps: 'What it keeps', keepsFor: 'For how long', trains: 'Trains on it', yes: 'Yes', no: 'No', country: 'Country', terms: 'Terms', readOn: 'Read on {date}',
   termsLink: 'Read the terms', noTerms: 'Terms not recorded for this route.',
-  lastCost: 'Last answer', noLastCost: 'No answer yet', spend: 'Spent this month', cap: 'Monthly limit', noCap: 'No limit set', notShown: 'shown to the owner and cofounder', notCounted: 'not counted yet', capNote: 'The limit is recorded. Requests are not yet stopped when it is reached.',
+  lastCost: 'Last answer', noLastCost: 'No answer yet', spend: 'Spent this month', cap: 'Monthly limit', noCap: 'No limit set', notShown: 'shown to the owner and cofounder', notCounted: 'not counted yet', capNote: 'A request is not sent when this month’s spend plus the most it can cost would pass the limit.',
   capField: 'Monthly limit, in rupees', capHint: 'Leave it empty for no limit.', setCap: 'Set the limit', badCap: 'Type rupees with at most two decimals, like 1,234.50.',
   costTitle: 'Cost', voiceTitle: 'Voice', voiceNone: 'No speech provider', voiceProvider: 'Speech provider', minutes: 'Minutes this month',
 }, {
@@ -296,7 +296,7 @@ export const MODELS = cat({
   'health.timed-out': 'समय ख़त्म', 'health.error': 'गड़बड़ी',
   keeps: 'क्या रखता है', keepsFor: 'कब तक', trains: 'इस पर सीखता है', yes: 'हाँ', no: 'नहीं', country: 'देश', terms: 'शर्तें', readOn: '{date} को पढ़ी गईं',
   termsLink: 'शर्तें पढ़ें', noTerms: 'इस रास्ते की शर्तें दर्ज नहीं हैं।',
-  lastCost: 'पिछला जवाब', noLastCost: 'अभी कोई जवाब नहीं', spend: 'इस महीने ख़र्च', cap: 'मासिक सीमा', noCap: 'कोई सीमा तय नहीं', notShown: 'मालिक और सह-संस्थापक को दिखता है', notCounted: 'अभी गिना नहीं गया', capNote: 'सीमा दर्ज है। सीमा पूरी होने पर अनुरोध अभी रोके नहीं जाते।',
+  lastCost: 'पिछला जवाब', noLastCost: 'अभी कोई जवाब नहीं', spend: 'इस महीने ख़र्च', cap: 'मासिक सीमा', noCap: 'कोई सीमा तय नहीं', notShown: 'मालिक और सह-संस्थापक को दिखता है', notCounted: 'अभी गिना नहीं गया', capNote: 'जब इस महीने का ख़र्च और अनुरोध की अधिकतम लागत मिलकर सीमा पार करें, तो अनुरोध नहीं भेजा जाता।',
   capField: 'मासिक सीमा, रुपयों में', capHint: 'कोई सीमा न रखनी हो तो खाली छोड़ें।', setCap: 'सीमा तय करें', badCap: 'ज़्यादा से ज़्यादा दो दशमलव के साथ रुपये लिखें, जैसे 1,234.50।',
   costTitle: 'लागत', voiceTitle: 'आवाज़', voiceNone: 'कोई आवाज़ सेवा नहीं', voiceProvider: 'आवाज़ सेवा', minutes: 'इस महीने के मिनट',
 });

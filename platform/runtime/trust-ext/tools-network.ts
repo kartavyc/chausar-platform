@@ -59,7 +59,7 @@ export async function modelsView(ctx: Context, host: ModuleHost) {
     }),
     // Spend counts every member's requests only for owner and cofounder, who see them all. Voice minutes come
     // from models-ext's meters and stay null ("not counted yet") until that method gives them.
-    spendThisMonthMinor: ['owner', 'cofounder'].includes(ctx.role) ? spent : null, monthlyCapMinor: tools(state).modelCap ?? null, capEnforced: false as const,
+    spendThisMonthMinor: ['owner', 'cofounder'].includes(ctx.role) ? spent : null, monthlyCapMinor: tools(state).modelCap ?? null, capEnforced: true as const,
     voice: { provider: voice, minutesThisMonth: meters.minutesThisMonth },
   };
 }

@@ -30,7 +30,7 @@ const REFUSALS: Readonly<Record<string, MK>> = {
   FX_NOT_SET: 'refuse.fxNotSet', PRICING_NOT_APPLICABLE: 'refuse.notPerToken', ROUTE_NOT_FOUND: 'refuse.routeGone',
   INVALID_SPEECH_PROVIDER: 'refuse.speechSettings', INVALID_CREDENTIAL: 'refuse.key', RATE_REQUIRED: 'refuse.rate', SPEECH_UNAVAILABLE: 'refuse.speechOff',
   LIVE_VOICE_NOT_VERIFIED: 'refuse.speechSettings', INVALID_BUDGET: 'refuse.budget', BENCH_BARS_REQUIRED: 'refuse.bars', BENCH_BARS_CHANGED: 'refuse.barsChanged',
-  INVALID_USAGE: 'refuse.tokens', MANAGED_UNAVAILABLE: 'refuse.allowance', INVALID_ROUTE: 'refuse.route', LADDER_INVALID: 'refuse.ladder',
+  INVALID_USAGE: 'refuse.tokens', MANAGED_UNAVAILABLE: 'refuse.allowance', INVALID_ROUTE: 'refuse.route', INVALID_LADDER: 'refuse.ladder',
 };
 
 export function refusalWord(code: string): MK | null { return REFUSALS[code] ?? null; }
