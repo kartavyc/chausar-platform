@@ -16,8 +16,8 @@ import {
 } from '../runtime/venture/contracts.ts';
 import { assertNoNumbers, digest, doneClaimFindings, houseStyleFindings, ventureAction } from '../runtime/venture/records.ts';
 import { handlers, listCountries, previewPlan } from '../runtime/venture/core/index.ts';
-import { classifyIdea, serviceTemplate, templateStrings } from '../runtime/venture/core/service-types.ts';
-import { blueprintDigest, structureFromBlueprint } from '../runtime/venture/core/blueprint.ts';
+import { classifyIdea, offerWords, serviceTemplate, templateStrings } from '../runtime/venture/core/service-types.ts';
+import { BLUEPRINT_INSTRUCTIONS, blueprintDigest, structureFromBlueprint } from '../runtime/venture/core/blueprint.ts';
 import { validateInterviewOutput } from '../runtime/venture/core/interview.ts';
 import { VentureTestStore } from './venture-test-store.ts';
 
@@ -886,4 +886,79 @@ test('reads and writes need the right role, and a refused write changes nothing'
   const before = h.store.read().conversations.length;
   await assert.rejects(h.call('venture.blueprint.draft', { useTemplate: 'yes' }), codeOf('INVALID_VENTURE_REQUEST'));
   assert.equal(h.store.read().conversations.length, before);
+});
+
+test('template offer words follow how the owner charges, and stay an assumption', async () => {
+  const assumption = (value: string) => ({ value, label: 'assumption', by: 'template' });
+  const offerLine = (offer: any) => ({ name: offer.name, description: offer.description, model: offer.pricing.model, unit: offer.pricing.quantityUnit });
+
+  // Per hour: the bookkeeping plan's first offer is 'Bookkeeping hours', never 'Monthly books'. offer_2 keeps its project words.
+  const hourly = setup();
+  await interviewed(hourly, { model: 'hourly' });
+  const hourlyPlan = (await hourly.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
+  assert.deepEqual(offerLine(hourlyPlan.offers[0]), {
+    name: assumption('Bookkeeping hours'), description: assumption('Bank matching, bill sorting and short reports, booked by the hour.'), model: 'hourly', unit: 'hour',
+  });
+  assert.deepEqual(offerLine(hourlyPlan.offers[1]), {
+    name: assumption('Catch up'), description: assumption('Past months put in order before the regular service starts.'), model: 'project', unit: 'project',
+  });
+
+  // Per project and per month.
+  const project = setup();
+  await interviewed(project, { model: 'project' });
+  const projectPlan = (await project.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
+  assert.deepEqual(projectPlan.offers[0].name, assumption('Bookkeeping project'));
+  const monthly = setup();
+  await interviewed(monthly, { model: 'monthly' });
+  const monthlyPlan = (await monthly.call('venture.blueprint.draft', { useTemplate: true })).blueprint;
+  assert.deepEqual(monthlyPlan.offers[0].name, assumption('Monthly books'));
+
+  // Changing the pricing on the plan rewords template words; the owner's own words stay.
+  let view = await monthly.call('venture.blueprint.update', { patch: { offers: [{ id: 'offer_1', pricingModel: 'hourly' }] } });
+  assert.deepEqual(view.blueprint.offers[0].name, assumption('Bookkeeping hours'));
+  assert.deepEqual(view.blueprint.offers[0].description, assumption('Bank matching, bill sorting and short reports, booked by the hour.'));
+  view = await monthly.call('venture.blueprint.update', { patch: { offers: [{ id: 'offer_2', pricingModel: 'monthly' }] } });
+  assert.deepEqual(view.blueprint.offers[1].name, assumption('Monthly catch up'));
+  view = await monthly.call('venture.blueprint.update', { patch: { offers: [{ id: 'offer_1', name: 'Cafe books' }] } });
+  view = await monthly.call('venture.blueprint.update', { patch: { offers: [{ id: 'offer_1', pricingModel: 'project' }] } });
+  assert.deepEqual(view.blueprint.offers[0].name, { value: 'Cafe books', label: 'told-by-you', by: 'owner' });
+  assert.deepEqual(view.blueprint.offers[0].description, assumption('Bank matching, bill sorting and a short report for one stretch of time you choose.'));
+  // A name and a new pricing in one change: the owner's name wins.
+  view = await monthly.call('venture.blueprint.update', { patch: { offers: [{ id: 'offer_2', name: 'Old months', pricingModel: 'hourly' }] } });
+  assert.deepEqual(view.blueprint.offers[1].name, { value: 'Old months', label: 'told-by-you', by: 'owner' });
+  assert.deepEqual(view.blueprint.offers[1].description, assumption('Past months put in order, booked by the hour.'));
+
+  // The AI is told the pricing of each offer and asked to word the offers to fit it.
+  const ai = setup();
+  await interviewed(ai, { model: 'hourly' });
+  await ai.call('venture.blueprint.draft', {});
+  const task = ai.models.asked.find(t => t.purpose === 'blueprint')!;
+  assert.match(BLUEPRINT_INSTRUCTIONS, /fit how it is charged/);
+  assert.deepEqual((task.input as any).structure.offers, [{ id: 'offer_1', pricingModel: 'hourly' }, { id: 'offer_2', pricingModel: 'project' }]);
+
+  // The instant plan takes the choice too, so it can be asked again when the owner picks how to charge.
+  const preview = previewPlan({ idea: 'Monthly bookkeeping for cafes in Pune', countryCode: 'IN', pricingModel: 'hourly' });
+  assert.deepEqual(offerLine(preview.offers[0]), {
+    name: assumption('Bookkeeping hours'), description: assumption('Bank matching, bill sorting and short reports, booked by the hour.'), model: 'hourly', unit: 'hour',
+  });
+  assert.deepEqual(previewPlan({ idea: 'Monthly bookkeeping for cafes in Pune', countryCode: 'IN' }).offers[0].name, assumption('Monthly books'));
+  assert.throws(() => previewPlan({ idea: 'Monthly bookkeeping for cafes in Pune', countryCode: 'IN', pricingModel: 'weekly' }), codeOf('INVALID_VENTURE_REQUEST'));
+
+  // Every type and slot: monthly words name the month, hourly words the hour, and nothing else says monthly.
+  for (const type of SERVICE_TYPES) {
+    for (const index of [0, 1]) {
+      const month = offerWords(type, index, 'monthly');
+      assert.match(month.name, /^Monthly /, `${type} ${index}`);
+      for (const model of ['project', 'hourly'] as const) {
+        const words = offerWords(type, index, model);
+        assert.doesNotMatch(`${words.name} ${words.description}`, /\bmonthly\b|each month|per month/i, `${type} ${index} ${model}`);
+        if (model === 'hourly') assert.match(`${words.name} ${words.description}`, /hour/i, `${type} ${index}`);
+      }
+      const names = (['monthly', 'project', 'hourly'] as const).map(model => offerWords(type, index, model).name);
+      assert.equal(new Set(names).size, 3, `${type} ${index} has three different names`);
+    }
+    // The starting words are the monthly first offer and the second offer at its own pricing.
+    const template = serviceTemplate(type);
+    assert.deepEqual(template.offers, [offerWords(type, 0, 'monthly'), offerWords(type, 1, SECOND_OFFER_MODEL[type])]);
+  }
 });

@@ -974,7 +974,7 @@ type Empty = Record<string, never>;
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 export type VenturePayloads = {
   'venture.countries': Empty;
-  'venture.preview': { idea: string; countryCode: CountryCode };
+  'venture.preview': { idea: string; countryCode: CountryCode; pricingModel?: PricingModel };
   'venture.create': { idea: string; countryCode: CountryCode; workingName?: string };
   'venture.get': Empty;
   'venture.events': { afterSeq?: number; limit?: number };

@@ -14,7 +14,7 @@ import type {
 } from '../contracts.ts';
 import { interviewDone, isPricingModel, priceQuestionText, storedQuestion, taxRateQuestion, UNIT_OF } from './interview.ts';
 import { blueprintView, interviewOf, latestBlueprint, nextBlueprintVersion } from './lookups.ts';
-import { serviceTemplate } from './service-types.ts';
+import { offerWords, serviceTemplate } from './service-types.ts';
 import { cleanSacCode, cleanTaxId, cleanTaxState, withTaxInvoiceFields } from './tax-fields.ts';
 import { DEFAULT_WORKING_NAME, labelled, optionalFlag, ownerPrice, styledWords, toldByYou } from './words.ts';
 
@@ -158,7 +158,7 @@ export function statusAtLeast(current: VentureStatus, wanted: VentureStatus): Ve
 // Words (model or template)
 // ---------------------------------------------------------------------------
 
-export const BLUEPRINT_INSTRUCTIONS = "Write the words for a one-page service business plan. The structure is fixed: keep every id exactly as given and write only names, descriptions and titles. Step three is the step an agent drafts from the client's message; the other steps are done by the owner for now. Never write digits, prices, percentages or amounts. Plain words, no dashes, no hype.";
+export const BLUEPRINT_INSTRUCTIONS = "Write the words for a one-page service business plan. The structure is fixed: keep every id exactly as given and write only names, descriptions and titles. Name and describe each offer to fit how it is charged, as given by its pricingModel: per month, per project or per hour. Step three is the step an agent drafts from the client's message; the other steps are done by the owner for now. Never write digits, prices, percentages or amounts. Plain words, no dashes, no hype.";
 
 export const BLUEPRINT_SCHEMA: Json = {
   type: 'object', additionalProperties: false,
@@ -217,14 +217,20 @@ export function validateBlueprintOutput(raw: unknown, allowed: readonly string[]
   return { name, oneLiner, customer, offers, steps, approvals };
 }
 
-/** Template words for the plan; the name is the owner's working name. */
-export function templateWords(venture: VentureRecord, type: ServiceType): BlueprintModelOutput {
+/**
+ * Template words for the plan; the name is the owner's working name. Each offer is worded for how it is charged in
+ * the structure (the owner's choice for offer_1), so an hourly offer never reads 'Monthly ...'.
+ */
+export function templateWords(venture: VentureRecord, type: ServiceType, models?: readonly PricingModel[]): BlueprintModelOutput {
   const template = serviceTemplate(type);
   return {
     name: venture.workingName,
     oneLiner: template.oneLiner,
     customer: template.customer,
-    offers: OFFER_IDS.map((id, index) => ({ id, name: template.offers[index].name, description: template.offers[index].description })),
+    offers: OFFER_IDS.map((id, index) => {
+      const words = models?.[index] ? offerWords(type, index, models[index]) : template.offers[index];
+      return { id, name: words.name, description: words.description };
+    }),
     steps: STEP_IDS.map((id, index) => ({ id, title: template.steps[index] })),
     approvals: [...template.approvals],
   };
@@ -387,6 +393,10 @@ function applyOfferPatches(blueprint: BlueprintRecord, value: unknown, country: 
       check(isPricingModel(model), 'INVALID_VENTURE_REQUEST', 'Choose per month, per project or per hour.');
       offer.pricing.model = model;
       offer.pricing.quantityUnit = UNIT_OF[model];
+      // Template words follow the new pricing; the owner's own words and the AI's words stay as they are.
+      const words = offerWords(blueprint.serviceType, OFFER_IDS.indexOf(id as typeof OFFER_IDS[number]), model);
+      if (!has(change, 'name') && offer.name.by === 'template') offer.name = labelled(words.name, 'assumption', 'template');
+      if (!has(change, 'description') && offer.description.by === 'template') offer.description = labelled(words.description, 'assumption', 'template');
       if (id === OFFER_IDS[0]) mirror.pricingModel = model;
     }
     if (has(change, 'unitPrice')) {
@@ -498,7 +508,7 @@ export async function blueprintDraft(deps: VentureDeps, ctx: Context, payload: u
   const planned = carryOver(structureOf(venture, interview), latestBlueprint(state, venture.id), venture.acceptedBlueprintId !== null, venture.country);
   const plannedHash = digest(planned);
 
-  const fromTemplate = () => templateWords(venture, planned.serviceType);
+  const fromTemplate = () => templateWords(venture, planned.serviceType, planned.offers.map(o => o.pricing.model));
   let output: BlueprintModelOutput;
   let by: 'model' | 'template';
   let callIds: string[] = [];
