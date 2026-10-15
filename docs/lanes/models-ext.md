@@ -290,3 +290,26 @@ Codex and Claude CLI routes refuse `ROUTE_ESTIMATE_UNAVAILABLE`, because they ru
 - **`smallapps.pluginMcpRefresh`** (prepare, external, desktop) `{id}` prepares an MCP `tools/list`. It is approved and sent through `pluginApproveRemote` and `pluginCallRemote`, and the reply is a review diff. Nothing is installed.
 - **MCP version.** A remote MCP plugin is pinned to one protocol version when it is wrapped. There is no automatic fallback, because a fallback would send requests nobody approved.
 - **`smallapps.pressAction`** adds an optional `connectionId`. The reply's `approval` carries `secondAsk`, `approveWith` and `reauthWith`, or the reply is `{action: null, alreadyDone}`.
+
+### Round 4 review (all fixed, each with a regression test)
+
+An adversarial review of round 4 found 11 issues. Contract effects (all additive):
+- **Voice status.** `voice.status` gains `blocked: 'VOICE_LOCAL_ONLY' | null`, and `provider` gains `words`. `mode` is `'off'` when the chosen provider is blocked.
+- **Browser speech.** It may use the network (Chromium sends audio to its speech service), so when Send is `nothing` or `shape` it is refused unless the host asserts on-device recognition (`browserSpeechOnDevice`). `voice.setEnabled` then picks local whisper, or refuses `VOICE_NO_LOCAL_PROVIDER`.
+- **Live voice.**
+  - It needs the trusted host option `liveVoiceClient`, which the installed desktop worker sets; otherwise it refuses `LIVE_VOICE_CAP_NOT_ENFORCED`.
+  - The approved cap stays reserved against the speech budget.
+  - Measured minutes, timed with a monotonic clock, feed only usage and meters.
+  - Only one live session can be open at a time, even under concurrent starts.
+- **Voice confirm.** `voice.confirm` is desktop-only and refuses a tainted context. It returns `edited`.
+- **Voice speak.**
+  - It announces a stale answer first.
+  - It speaks fixed labels per figure key, never owner text.
+  - Basis points are spoken as basis points, and a non-INR amount is not read aloud.
+- **Audio retention.** Raw audio is dropped from every speech record except a recent in-flight dispatch. A dispatch stuck past 5 minutes becomes `failed` with `SPEECH_INTERRUPTED`, and stale whisper temp folders are removed.
+- **Months.** Voice and model spend share one month function that follows the workspace time zone, with an invalid zone falling back to India.
+- **Small apps.**
+  - An app made from a tainted or off-desktop context is `madeBy: 'outside'`, and a tainted presser always presses tainted.
+  - A repeated press is idempotent only while the earlier action is still prepared. After it is finished it prepares afresh, at most 8 times. While it is approved, executing or unknown, the reply says so: `{ action: null, existing: {id, connector, operation, status, through}, words }`.
+- **`modelsx.localList`.** The `endpoint` override is limited to an owner or cofounder on the desktop and untainted (`LOCAL_ENDPOINT_APP_ONLY`).
+- **`smallapps.pendingRequests`.** The view across members needs an owner or cofounder on the desktop, untainted. Reading never writes.
