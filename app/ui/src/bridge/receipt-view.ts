@@ -160,6 +160,8 @@ export interface ReceiptDetailOptions {
   readonly timeZone: string;
   /** The words for each kind of allowing decision, from the screen's catalogue. */
   readonly allowedByWords: Readonly<Record<ReceiptAllowedByKind, string>>;
+  /** TD-02: the words for a period with no cash told ("cash sales not captured") and its count ("not counted"). */
+  readonly cashWords?: { readonly reason: string; readonly rows: string };
 }
 
 /**
@@ -193,5 +195,7 @@ export function withReceiptDetail(view: ReceiptView, detail: ReceiptDetailReply,
     ...(detail.route.costPaise !== null ? { cost: money(detail.route.costPaise) } : {}),
   };
   const question = view.workedOut.question ?? detail.question?.trim();
-  return { ...view, workedOut: { ...view.workedOut, ...(question ? { question } : {}) }, smallPrint: p };
+  // A period with no cash told: cash sales are left out, never counted as zero.
+  const leftOut = detail.cash === 'not-captured' && options.cashWords ? [...view.leftOut, { reason: options.cashWords.reason, rows: { exact: null, display: options.cashWords.rows } }] : view.leftOut;
+  return { ...view, workedOut: { ...view.workedOut, ...(question ? { question } : {}) }, leftOut, smallPrint: p };
 }

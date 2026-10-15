@@ -20,6 +20,7 @@ import { todayIntentsForState } from './permissions.ts';
 import { ClosingRow, RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayReviewLink, TodayProducerSections, type TodayScreenProps, TodayState } from './shared';
 import { CashVoice } from './CashVoice';
 import { cashWeek } from './cash.ts';
+import { ClosingSwitch } from './ClosingSwitch';
 import s from './Today.module.css';
 
 export function TodaySimple({ data, intents: offeredIntents, onNavigate }: TodayScreenProps) {
@@ -73,6 +74,7 @@ export function TodaySimple({ data, intents: offeredIntents, onNavigate }: Today
       </div>
 
       <ClosingRow data={data} />
+      <ClosingSwitch data={data} intents={intents} />
 
       <WorthSection rows={worth} hidden={hidden} offered={offered} missing={worthSource.missing} showAll={worthSource.showAll} onToggle={worthSource.toggle}
         onOpen={worthSource.onOpen} opens={worthSource.opens} onReceipt={intents.onReceipt} labelId={worthId} />

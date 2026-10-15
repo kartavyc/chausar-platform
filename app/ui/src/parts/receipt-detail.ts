@@ -32,6 +32,7 @@ export function receiptWithDetail(view: ReceiptView | null, detail: ReceiptDetai
   t: (key: string) => string): ReceiptView | null {
   if (view === null || detail === null || timeZone === null) return view;
   try {
-    return withReceiptDetail(view, detail, { language, timeZone, allowedByWords: { 'read-access': t('RECEIPT.allowed.read-access'), 'send-approved': t('RECEIPT.allowed.send-approved') } });
+    return withReceiptDetail(view, detail, { language, timeZone, allowedByWords: { 'read-access': t('RECEIPT.allowed.read-access'), 'send-approved': t('RECEIPT.allowed.send-approved') },
+      cashWords: { reason: t('MISSING.cash-not-captured'), rows: t('MISSING.not-counted') } });
   } catch { return view; }
 }

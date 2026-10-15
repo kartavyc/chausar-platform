@@ -45,6 +45,7 @@ import type { LessonDecisionIntent, LessonReviewView, RetainedScenarioView, Scen
 import type { LessonReviewState, RetainedScenarioState, RetainedState, ScenarioContinuation, ScenarioDetailOrigin, ScenarioListOrigin, ScenarioRowOrigin } from './retained-controller.ts';
 import { hostMessage, hostMissingWords } from './text.ts';
 import { useFrameReads } from './frame-reads.ts';
+import { useTodayRound4Host, ROUND4_SHEETS, type Round4SheetKind } from './today-round4-host.tsx';
 import { useHostAskLine } from './ask-line.tsx';
 import type { AskQuestion } from '../bridge/voice-contract.ts';
 import { shellBanners, demoClockState, notBuiltFromCapabilities } from '../app/shell-banners.ts';
@@ -366,7 +367,7 @@ function LessonPanel({ id, scope, lessons, context, origin, onClose, onAdjacent,
  * provenance that replaced that detail; a trusted pin's proof or provenance, opened from the page, carries none. */
 type LocalSheet = {
   readonly address: Address;
-  readonly kind: 'about' | 'reference' | 'help' | 'demo-clock' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof';
+  readonly kind: 'about' | 'reference' | 'help' | 'demo-clock' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof' | Round4SheetKind;
   readonly id?: string;
   readonly chosen?: ScenarioSelection;
   readonly todayView?: TodayConsumerState;
@@ -449,6 +450,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const conversationEnabled = !viewer && selectedRoute !== undefined && settings !== null && settings.routeId === selectedRoute.id;
   /** The frame's own checked reads: banners, status line, worth a look, capabilities, offline help. */
   const frame = useFrameReads(controller.places, contextKey);
+  /** Round 4 Today: approvals and phone documents joined, the close, cash, the closing switch, grouped stepping. */
+  const round4 = useTodayRound4Host({ rpc: controller.places, contextKey, language, view, role: context.member.role, navigate, rereadFrame: frame.reread,
+    openSheet: (kind, from) => openRound4Sheet(kind, from), onReceipt: id => openReceipt(id) });
   const askLine = useHostAskLine({ rpc: controller.places, language, viewer, owner: context.member.role === 'owner', navigate, current: () => parseAddress(window.location.hash),
     onSaved: id => { if (conversationEnabled) selectSaved(id); else navigate({ place: 'ask', sub: 'saved' }); }, onQuestion });
   const [clockBusy, setClockBusy] = useState(false);
@@ -839,7 +843,13 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   };
   /** The workspace time zone, from the host or the trusted Today configuration; never the machine's. */
   const workspaceZone = controller.timeZone ?? consumer?.input?.display?.timeZone ?? null;
-  const data: TodayData = { ...baseData, ...(frame.reads.worth !== null ? { worth: frame.reads.worth } : {}), ...(frame.reads.closing !== null ? { closing: frame.reads.closing } : {}) };
+  const data: TodayData = round4.project({ ...baseData, ...(frame.reads.worth !== null ? { worth: frame.reads.worth } : {}), ...(frame.reads.closing !== null ? { closing: frame.reads.closing } : {}) });
+  const openRound4Sheet = (kind: Round4SheetKind, from: HTMLElement | null) => {
+    if (!stillAuthorized() || active.current === null) return;
+    origin.current = from; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
+    const selection: LocalSheet = { address: withSheet(active.current, kind), kind };
+    localSheetRef.current = selection; setLocalSheet(selection); navigate(selection.address);
+  };
   const showDemoClock = () => {
     if (!stillAuthorized() || active.current === null) return;
     origin.current = currentOrigin(); returnSavedId.current = null; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
@@ -894,6 +904,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
     address: localSheet.address,
     content: <LessonPanel key={localSheet.id} id={localSheet.id} scope={`${formatAddress(localSheet.address)}:${contextKey}`} lessons={retained.lessons} context={context}
       origin={origin.current} onClose={closeLesson} onAdjacent={(id, binding) => openLesson(id, origin.current, binding)} onDecide={decideLesson} />,
+  } : ROUND4_SHEETS.includes(localSheet.kind as Round4SheetKind) ? {
+    address: localSheet.address,
+    content: round4.content(localSheet.kind, origin.current, closeSheet),
   } : {
     address: localSheet.address,
     content: <Sheet kind={localSheet.kind === 'demo-clock' ? t('SH-03.clock.title') : hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')}
@@ -938,7 +951,8 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       selectedRoute === undefined ? hostMessage(language, 'routeMissing') : hostMessage(language, 'routeSelected', { label: selectedRoute.label }),
     ],
     capabilities: {},
-    today: { data, intents: consumer !== null && todayCurrent !== null ? {
+    counts: round4.counts(data),
+    today: { data, intents: round4.intents(consumer !== null && todayCurrent !== null ? {
       onReview: (id, rowOrigin) => {
         const rows = todayCurrent.response?.review.state === 'available' ? todayCurrent.response.review.value.rows : [];
         const row = rows[Number(id.replace(/^review-/, ''))];
@@ -959,7 +973,7 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
         },
       } : {}),
       ...(!viewer && (context.member.role === 'owner' || context.member.role === 'cofounder') ? { onOpenActivity: () => launchToday(todayCurrent, 'today-record', document.activeElement instanceof HTMLElement ? document.activeElement : null, current => consumer.activity(todayCurrent, current)) } : {}),
-    } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) } },
+    } : { onReview: id => showReference(id), onReceipt: id => openReceipt(id) }) },
     sheet: askLine.sheet ?? sheet, onAddress, onHelp: showHelp,
     renderPlace: address => {
       const placeProps = (at: Address) => ({ address: at, language, view, member: { id: context.member.id, role: context.member.role }, viewer,

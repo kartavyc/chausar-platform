@@ -6,7 +6,8 @@
  * had one. A request to the AI model shows its route and its cost. A run that read
  * outside text carries the mark "read outside text".
  *
- * Filters: state, person and day; each asks the engine again. "Show more" reads the next
+ * Filters: state, person, day, job and record (a customer, an invoice, a source, an action);
+ * each asks the engine again. The job and record choices list what the pages read so far named. "Show more" reads the next
  * page with the engine's cursor. Any line opens its proof: a receipt opens the receipt
  * sheet; an action or a model request goes to its address when the event names one, and
  * otherwise shows its record id in a sheet. Nothing here changes anything, so a viewer
@@ -58,7 +59,13 @@ interface Filters {
   readonly state: ActivityState | null;
   readonly actor: string | null;
   readonly day: string | null;
+  readonly job: string | null;
+  readonly record: string | null;
 }
+/** The event values that name a record, as the engine's record filter reads them. */
+export const ACTIVITY_RECORD_VALUES = ['customer', 'invoice', 'record', 'source', 'action', 'receipt', 'import', 'lesson'] as const;
+const FILTER_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/;
+const FILTER_CHOICES = 6;
 
 type Load =
   | { readonly phase: 'loading' }
@@ -91,11 +98,11 @@ export function whenOf(at: string, language: Language, t: (key: string, values?:
 export function ActivityPlace({ address, language, view, rpc, live, openReceipt, navigate }: PlaceRenderProps) {
   const t = useT();
   const titleId = useId();
-  const [filters, setFilters] = useState<Filters>({ state: null, actor: null, day: null });
+  const [filters, setFilters] = useState<Filters>({ state: null, actor: null, day: null, job: null, record: null });
   const [load, setLoad] = useState<Load>({ phase: 'loading' });
   const [proof, setProof] = useState<{ event: ActivityEvent; origin: HTMLElement | null } | null>(null);
   /* Every person and day seen so far, so a filter never removes its own choices. */
-  const seen = useRef<{ actors: Map<string, string>; days: Set<string> }>({ actors: new Map(), days: new Set() });
+  const seen = useRef<{ actors: Map<string, string>; days: Set<string>; jobs: Set<string>; records: Set<string> }>({ actors: new Map(), days: new Set(), jobs: new Set(), records: new Set() });
   const generation = useRef(0);
   /* The workspace zone from `ui.context`; null (shown as UTC) until a checked reply names one. */
   const [zone, setZone] = useState<string | null>(null);
@@ -119,6 +126,8 @@ export function ActivityPlace({ address, language, view, rpc, live, openReceipt,
     if (f.state !== null) payload['state'] = f.state;
     if (f.actor !== null) payload['actor'] = f.actor;
     if (f.day !== null) payload['day'] = f.day;
+    if (f.job !== null) payload['job'] = f.job;
+    if (f.record !== null) payload['record'] = f.record;
     try {
       const reply = await rpc.request(ACTIVITY_METHOD, payload);
       if (mine !== generation.current || !live(address)) return;
@@ -129,6 +138,9 @@ export function ActivityPlace({ address, language, view, rpc, live, openReceipt,
       for (const event of reply.events) {
         seen.current.actors.set(actorKey(event), actorWords(event));
         seen.current.days.add(event.at.slice(0, 10));
+        const job = event.values['job'];
+        if (job !== undefined && FILTER_ID.test(job)) seen.current.jobs.add(job);
+        for (const key of ACTIVITY_RECORD_VALUES) { const record = event.values[key]; if (record !== undefined && FILTER_ID.test(record)) seen.current.records.add(record); }
       }
       setLoad({ phase: 'ready', events: [...prior, ...reply.events], nextCursor: reply.nextCursor, total: reply.total, more: false });
     } catch (error) {
@@ -191,6 +203,10 @@ export function ActivityPlace({ address, language, view, rpc, live, openReceipt,
   const stateOptions = [{ value: 'all', label: t('TD-04.filter.all') }, ...ACTIVITY_STATES.map((st) => ({ value: st, label: t(`STEPSTATE.${st}`) }))];
   const actorOptions = [{ value: 'all', label: t('TD-04.filter.everyone') }, ...[...seen.current.actors].map(([value, label]) => ({ value, label }))];
   const dayOptions = [{ value: 'all', label: t('TD-04.filter.allDays') }, ...[...seen.current.days].sort().reverse().map((day) => ({ value: day, label: date(day, 'short', language) }))];
+  /* The newest few named so far (and the chosen one), so the row of words stays short. */
+  const recent = (values: Set<string>, chosen: string | null) => { const list = [...values].slice(0, FILTER_CHOICES); return chosen !== null && !list.includes(chosen) ? [...list, chosen] : list; };
+  const jobOptions = [{ value: 'all', label: t('FT4.activity.allJobs') }, ...recent(seen.current.jobs, filters.job).map((job) => ({ value: job, label: job }))];
+  const recordOptions = [{ value: 'all', label: t('FT4.activity.allRecords') }, ...recent(seen.current.records, filters.record).map((record) => ({ value: record, label: record }))];
   const choose = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
   const filtersSet = filters.state !== null || filters.actor !== null || filters.day !== null;
   const filterChoices = (
@@ -198,6 +214,8 @@ export function ActivityPlace({ address, language, view, rpc, live, openReceipt,
       <Choice label={t('TD-04.filter.state')} options={stateOptions} value={filters.state ?? 'all'} onChange={(v) => choose({ state: v === 'all' ? null : (v as ActivityState) })} />
       <Choice label={t('TD-04.filter.person')} options={actorOptions} value={filters.actor ?? 'all'} onChange={(v) => choose({ actor: v === 'all' ? null : v })} />
       <Choice label={t('TD-04.filter.day')} options={dayOptions} value={filters.day ?? 'all'} onChange={(v) => choose({ day: v === 'all' ? null : v })} />
+      {jobOptions.length > 1 && <Choice label={t('FT4.activity.job')} options={jobOptions} value={filters.job ?? 'all'} onChange={(v) => choose({ job: v === 'all' ? null : v })} />}
+      {recordOptions.length > 1 && <Choice label={t('FT4.activity.record')} options={recordOptions} value={filters.record ?? 'all'} onChange={(v) => choose({ record: v === 'all' ? null : v })} />}
     </div>
   );
 

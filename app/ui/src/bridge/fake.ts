@@ -36,6 +36,7 @@ import {
 import type { FakeScenarioName, TodayxState } from './fixtures/todayx.ts';
 import { learningxFakeHandlers } from './fixtures/learningx.ts';
 import { createFakeIdea } from './fixtures/idea.ts';
+import { cashWeekFixture, closeStatusFixture, todayReviewFixture } from './fixtures/today-r4.ts';
 import { R4_PRE_VAULT, r4Handlers } from './fixtures/r4.ts';
 
 export type FakeScenario = FakeScenarioName;
@@ -56,6 +57,9 @@ export interface FakeEngineOptions {
   readonly scenario?: FakeScenario;
   /** The demo clock's starting day, `YYYY-MM-DD`. */
   readonly clock?: string;
+  /** Round 4 Today: serve `todayx.review`, `todayx.closeStatus` and `todayx.cash.*` (off by default, so
+   *  earlier previews keep their pages). Other lanes' methods come from `fixtures/today-r4.ts`. */
+  readonly today4?: boolean;
   /** Two workspace folders (main and second-shop), each with its own passphrase. The locked scenario always has two. */
   readonly twoWorkspaces?: boolean;
   /** Folders that start with a PIN set (round 4 fixture, `FAKE_PIN`). */
@@ -149,6 +153,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   /* TD-01 daily closing: off until an owner turns it on, as in the engine. */
   let closingOn = false;
   const store = new Map<string, unknown>();
+  /* Round 4: cash told by the owner, by day, as whole paise. */
+  const cashTold = new Map<string, string>();
+  const today4 = options.today4 === true;
+  const round4 = (method: string) => { if (!today4) throw fakeRefusal('UNKNOWN_METHOD', `The fake engine serves ${method} only with today4.`); };
   const calls: string[] = [];
   /* Core `learning.sharing`: off until an owner turns it on, as in the engine. */
   let sharingOn = false;
@@ -372,7 +380,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   }
   function closingReply() {
     const loaded = populated();
-    return { on: closingOn, day: date, parts: { cash: 'not-loaded-yet', bank: loaded ? 'done' : 'not-loaded-yet', entries: loaded ? 'not-done' : 'not-loaded-yet' } };
+    return { on: closingOn, day: date, parts: { cash: cashTold.has(date) ? 'done' : 'not-loaded-yet', bank: loaded ? 'done' : 'not-loaded-yet', entries: loaded ? 'not-done' : 'not-loaded-yet' } };
   }
 
   const handlers: Readonly<Record<string, FakeHandler>> = {
@@ -477,6 +485,28 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       if (seat.role !== 'owner' && seat.role !== 'cofounder') throw fakeRefusal('FORBIDDEN', 'Only an owner turns daily closing on or off.');
       if (typeof payload['on'] !== 'boolean') throw fakeRefusal('INVALID_TODAYX_REQUEST', 'Say whether daily closing is on.');
       closingOn = payload['on']; return closingReply();
+    },
+    // Round 4 (with `today4`): the joined review items, the month's close and the cash told by the owner.
+    'todayx.review': () => {
+      round4('todayx.review');
+      const decided = store.get('today4.decided'), done = decided instanceof Set ? decided as Set<string> : new Set<string>();
+      return todayReviewFixture(seat.role, date, done, populated() && store.get('today4.document') !== 'discarded' && store.get('today4.document') !== 'imported');
+    },
+    'todayx.closeStatus': () => { round4('todayx.closeStatus'); return closeStatusFixture(date); },
+    'todayx.cash.week': () => { round4('todayx.cash.week'); return cashWeekFixture(date, cashTold); },
+    'todayx.cash.save': payload => {
+      round4('todayx.cash.save'); mutating();
+      if (seat.role === 'viewer') throw fakeRefusal('FORBIDDEN', 'Your role can only read.');
+      if (Object.keys(payload).some(key => key !== 'day' && key !== 'paise') || payload['day'] !== date || typeof payload['paise'] !== 'string' || !/^(0|[1-9][0-9]{0,14})$/.test(payload['paise'])) throw fakeRefusal('INVALID_TODAYX_REQUEST', 'Give today and the cash as whole paise.');
+      cashTold.set(date, payload['paise']);
+      return cashWeekFixture(date, cashTold);
+    },
+    // Confirming a document from the phone is the normal import, served here for that synthetic document only.
+    'sources.import': payload => {
+      round4('sources.import'); mutating();
+      if (payload['sourceId'] !== 'phone-document-demo' || payload['format'] !== 'csv') throw fakeRefusal('UNKNOWN_METHOD', 'The fake engine does not read files.');
+      store.set('today4.document', 'imported');
+      return { id: 'import_phone_document_demo', coverage: { sourceRows: 3, importedRows: 3, rejectedRows: 0, expectedRows: null, reconciled: false }, totalsMinor: '1250000', duplicate: false };
     },
   };
 

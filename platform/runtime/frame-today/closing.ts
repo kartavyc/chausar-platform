@@ -3,8 +3,8 @@
  * preference kept in this module's state, off by default. Each part's state comes from what
  * the engine holds for the business day:
  *
- * - cash: the engine keeps no cash capture yet (briefs.saveClosing does not exist), so it is
- *   always `not-loaded-yet`; the screen may show the cash the host captured itself.
+ * - cash: today's cash as the owner told it (`todayx.cash.save`, cash.ts). Told: `done`.
+ *   Not told yet: `not-loaded-yet`.
  * - bank: visible bank statement imports. None: `not-loaded-yet`. One read today and
  *   reconciled against its own totals: `done`. Otherwise `not-done`.
  * - entries: every other visible source. None: `not-loaded-yet`. One read today: `done`.
@@ -28,5 +28,6 @@ export async function closing(_ctx: Context, host: ModuleHost): Promise<ClosingR
   const bankState: ClosingPart = bank.length === 0 ? 'not-loaded-yet'
     : bank.some(item => readOn(item, day) && item.coverage?.reconciled === true) ? 'done' : 'not-done';
   const entriesState: ClosingPart = entries.length === 0 ? 'not-loaded-yet' : entries.some(item => readOn(item, day)) ? 'done' : 'not-done';
-  return { on: frameOf(state).dailyClosing === true, day, parts: { cash: 'not-loaded-yet', bank: bankState, entries: entriesState } };
+  const cash: ClosingPart = Object.hasOwn(frameOf(state).cash ?? {}, day) ? 'done' : 'not-loaded-yet';
+  return { on: frameOf(state).dailyClosing === true, day, parts: { cash, bank: bankState, entries: entriesState } };
 }

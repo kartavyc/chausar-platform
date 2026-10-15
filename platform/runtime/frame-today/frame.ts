@@ -12,6 +12,7 @@ import { auditEvents } from './activity.ts';
 import type { IdentityCard } from './identity.ts';
 import type { IdeaState } from './idea.ts';
 import type { RecoveryContact } from './recovery.ts';
+import type { CashEntry } from './cash.ts';
 
 export const MODULE_ID = 'frame-today';
 export type FrameState = {
@@ -26,6 +27,8 @@ export type FrameState = {
   recoveryContact: RecoveryContact | null;
   /** TD-01: the daily closing row. Off until an admin turns it on. */
   dailyClosing?: boolean;
+  /** TD-02: each business day's cash as the owner told it (todayx.cash.save). Absent until told. */
+  cash?: Record<string, CashEntry>;
 };
 export const initFrame = (): FrameState => ({ clock: null, autoLockMinutes: 10, jobsPausedDismissedAt: {}, identity: null, idea: null, recoveryContact: null, dailyClosing: false });
 export const frameOf = (state: State): FrameState => ({ ...initFrame(), ...peekModuleState<FrameState>(state, MODULE_ID) });
@@ -205,29 +208,7 @@ export async function firstRun(ctx: Context, host: ModuleHost) {
   return { steps: Object.fromEntries(STEPS.map(step => [step, done[step] ? 'done' : 'not-done'])), blocked, leftThisComputer, firstMissing: STEPS.find(step => !done[step]) ?? null };
 }
 
-/* ------------------------------------------------------------------ worth a look */
-
-export async function worthALook(ctx: Context, host: ModuleHost) {
-  const state = host.store.read();
-  const sources: any = await quiet(() => host.call('sources.list', {}));
-  if (!Array.isArray(sources) || sources.length === 0) return { rows: [], state: 'not-loaded-yet' as const };
-  const rows: { id: string; kind: string; subject: string | null; at: string | null; opens: string | null }[] = [];
-  for (const event of auditEvents(host.store, ctx)) if (event.type === 'source.refused')
-    rows.push({ id: event.id, kind: 'file-refused', subject: event.values.source ?? null, at: event.at, opens: '#/books/sources' });
-  const due: any = await quiet(() => host.call('decisions.journal.due', { dueOn: businessToday(state) }));
-  for (const decision of Array.isArray(due) ? due : []) if (typeof decision?.id === 'string')
-    rows.push({ id: decision.id, kind: 'decision-due', subject: typeof decision.text === 'string' && decision.text.length <= 200 ? decision.text : null,
-      at: isIso(decision.reviewDate) ? decision.reviewDate : null, opens: '#/ask/decisions' });
-  const jobs: any = await quiet(() => host.call('jobs.list', {}));
-  for (const job of Array.isArray(jobs) ? jobs : []) for (const [index, entry] of (Array.isArray(job?.ledger) ? job.ledger : []).entries())
-    if (entry?.event === 'catchup-skipped' && typeof job.id === 'string') rows.push({ id: `${job.id}:${index}`, kind: 'missed-while-asleep', subject: null, at: isIso(entry.at) ? entry.at : null, opens: '#/work/jobs' });
-  // Approvals carry no expiry and updates.status reports no ready release yet: those kinds stay empty.
-  rows.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
-  const setup = await firstRun(ctx, host);
-  // "Setup not finished" always keeps a place when first run is incomplete.
-  const picked = setup.firstMissing ? [{ id: `setup-${setup.firstMissing}`, kind: 'setup', subject: null, at: null, opens: '#/first-run' }, ...rows] : rows;
-  return { rows: picked.slice(0, 5), state: 'ready' as const };
-}
+/* worth a look: ./worth.ts (every kind, round 4). */
 
 /* ------------------------------------------------------------------ help, fault report, phone */
 
