@@ -114,6 +114,29 @@ Purge: deleting or revoking a source removes the decisions, account sets, saved 
   - At send level "nothing", `dictionary_schema` withholds the names of fields the owner added.
   - A residual covert channel remains: the *count* of each distinct event in a batch. Anyone who can record decisions could encode a few bits per batch through counts. It is bounded by the per-person quota, the author counts shown in the preview, and owner consent.
 
+## Round 4
+
+- **Books place, "Learning".** The lane's first screens: dictionary edits, first-dictionary adoption, the answer key, and model asks. See "Screens" below.
+- **Count channel reduced.** A batch now holds each distinct event once, with a `times` word: `one`, `few` (2–9) or `many` (10 or more).
+  - The intake refuses repeated events and events without `times`.
+  - Neither the order nor the exact count of decisions leaves the computer. What remains is which distinct shapes are present, plus a three-level frequency.
+- **Books account feed.** `learningx.accountsProposals` returns the shape work-books' `accounts.list` already reads.
+- **Canary on the upload.** When core exports `runOutboundChecks` from `gateway.ts` (core-gateway-auth, ROUND4 item 2), the upload runs the same outbound checks as a model send before anything leaves. A block refuses the batch with `CANARY_BLOCKED`. Until then nothing changes.
+
+## Round 4 contracts
+
+- **`learningx.accountsProposals`** (read, payload `{}`): `{ proposals: [{ name, class, accountClass, at, setId }] }`.
+  - Only the latest **decided** class per account name, across the sets the caller may see.
+  - `class` is in the Books taxonomy (`asset`, `liability`, `equity`, `income`, `expense`, `receivable`, `payable`, `bank`, `cash`, `tax`). `accountClass` is this lane's class.
+  - Suspense has no Books class and is never offered. Undecided proposals are not offered.
+- **`learningx.accountsPropose`** (prepare): payload `{ accounts: [{ id, name, parentGroup?, sourceId? }] (1–5000), modelProposals?: [{ id, accountClass, confidence, evidence }] }`. Returns a set:
+  - `{ id, at, sourceIds, proposals, counts: { total, decided, needsQuestion } }`;
+  - each of `proposals` is `{ accountId, name, parentGroup?, sourceId?, accountClass | null, confidence: 'high'|'medium'|'low', needsQuestion, evidence: [{ kind, detail, accountClass }], decision | null }`.
+- **`learningx.accountsList`** (read, `{}`): `{ sets: [set as above] }`. Viewers see only sets they made.
+- **`learningx.accountsDecide`** (prepare): `{ setId, decisions: [{ accountId, choice: 'accepted'|'corrected'|'rejected', accountClass? }] }`. Returns `{ setId, decisions: [{ accountId, choice, accountClass, decisionId }] }`.
+  - An account another person decided is changed only by them or the owner (`ALREADY_DECIDED`).
+- **Outbound checks (assumption on core-gateway-auth):** `export async function runOutboundChecks(store, context, { receiptId, endpoint, payload }): Promise<void>` in `gateway.ts`, which runs the registered `OutboundCheck`s and throws when one blocks.
+
 ## Core edits
 
 - `platform/runtime/gateway.ts` (additive): `GatewayTask` and `previewTask(ctx, task)`, a structured task from in-process code only, always previewed and owner-approved. `execute` also gains an overload with a `{ validate }` argument: a task preview runs only with its validator, and the output must pass the validator before the receipt completes. The existing RPC `preview` is unchanged.

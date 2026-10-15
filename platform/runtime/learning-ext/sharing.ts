@@ -13,6 +13,7 @@ import { audit, check, newId, now, type Context, type State } from '../contracts
 import { canonical, current, digest } from '../actions.ts';
 import { parseCsv } from '../ingest.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
+import * as gateway from '../gateway.ts';
 import { area, peekArea } from './state.ts';
 import { logAuthor, visibleDecisions, type LogView } from './log.ts';
 import { batchBytes, scanText, VALUE_PATTERNS } from './structure.ts';
@@ -114,10 +115,13 @@ export function intakeStatus(state: State, host: ModuleHost) {
   };
 }
 
-async function send(host: ModuleHost, batch: Batch, publicName: string | null, contributor: string) {
+async function send(ctx: Context, host: ModuleHost, batch: Batch, publicName: string | null, contributor: string) {
   const options = intakeOf(host);
   check(options, 'INTAKE_NOT_OPEN', 'Sharing is not open yet. Nothing is sent.');
   const body = `{"batch":${batch.bytes.replace(/\n/g, '')},"contributor":${JSON.stringify({ publicName })}}`;
+  // The outbound checks the gateway runs before a model send (the canary among them) run on the upload too, once core exports them.
+  const outbound = (gateway as { runOutboundChecks?: (store: ModuleHost['store'], context: Context, outgoing: { receiptId: string; endpoint: string; payload: string }) => Promise<void> }).runOutboundChecks;
+  if (outbound) { try { await outbound(host.store, ctx, { receiptId: batch.id, endpoint: options.url, payload: body }); } catch { return { status: 'refused' as const, refusal: 'CANARY_BLOCKED' }; } }
   const response = await transportOf(options)({ method: 'POST', path: '/v1/batches', headers: { 'content-type': 'application/json', 'idempotency-key': batch.id, authorization: `Bearer ${contributor}`, 'x-deletion-token': batch.deletionToken }, body });
   if (response.status === 200 || response.status === 201) {
     const reply = JSON.parse(response.body);
@@ -142,7 +146,7 @@ async function deliver(ctx: Context, host: ModuleHost, batchId: string) {
   });
   let outcome: { status: 'sent' | 'refused' | 'unknown'; reference?: string; credits?: number; refusal?: string };
   if (reserved.batch.mode === 'test-inbox') outcome = { status: 'sent', reference: `test-inbox:${reserved.batch.id}` };
-  else { try { outcome = await send(host, reserved.batch, reserved.publicName, reserved.contributor); } catch (error) { if ((error as any)?.code === 'INTAKE_NOT_OPEN') throw error; outcome = { status: 'unknown' }; } }
+  else { try { outcome = await send(ctx, host, reserved.batch, reserved.publicName, reserved.contributor); } catch (error) { if ((error as any)?.code === 'INTAKE_NOT_OPEN') throw error; outcome = { status: 'unknown' }; } }
   return host.store.update(state => {
     const area = sharing(state), batch = area.batches.find(item => item.id === batchId)!;
     batch.status = outcome.status; batch.settledAt = now();
