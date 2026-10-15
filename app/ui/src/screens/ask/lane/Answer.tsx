@@ -179,7 +179,7 @@ function AnswerBody({ answer: a }: { answer: AnswerReply }) {
       </div>
       {act.kind === 'done' && <p className={s.note} role="status">{w[act.what]}</p>}
       {act.kind === 'not-built' && <State state={{ kind: 'not-built' }} />}
-      {act.kind === 'refused' && <Refusal code={act.code} rule={act.rule} />}
+      {act.kind === 'refused' && <Refusal code={act.code} rule={act.rule} receiptId={a.receiptId} />}
     </div>
   );
 }

@@ -47,7 +47,8 @@ export type CaseOutcome = {
 export type LaneResult = {
   jobId: string; run: number; deliveredAt: string; digest: string;
   done: string[]; open: string[]; recommendations: string[];
-  figures: { key: string; label: string; minor: string; display: string; receiptId: string }[];
+  /** `minor` is whole paise unless `unit` says otherwise (a quantity from core-data's stock measure). */
+  figures: { key: string; label: string; minor: string; display: string; receiptId: string; unit?: string }[];
   cases: CaseOutcome[]; receiptIds: string[]; sourceIds: string[];
 };
 
@@ -94,8 +95,9 @@ export type JobCard = {
   gstSources?: { registerSourceId: string; gstr2bSourceId: string };
 };
 
-export type AutonomyKind = { on: boolean; dailyCount: number };
-export type AutonomyRun = { kind: string; actionId: string; at: string };
+/** A kind's switch, its daily count and its daily amount limit in whole paise ('0': nothing that touches money runs on its own). */
+export type AutonomyKind = { on: boolean; dailyCount: number; dailyAmountMinor?: string };
+export type AutonomyRun = { kind: string; actionId: string; at: string; amountMinor?: string; claim?: string };
 
 export type JobsExtSettings = {
   activeJobCap: number; failureLimit: number; backgroundMode: boolean; backgroundAsked: boolean;
@@ -118,6 +120,8 @@ export type JobsExtState = {
   /** Procedures and their run traces live in their own sub-namespace (platform/runtime/procedures). */
   procedures: unknown;
   lastDetection?: Record<string, string>;
+  /** Missed-run notes of core-run jobs (`<jobId>:<at>`) that their owner marked as read. */
+  seenCoreMissed?: string[];
 };
 
 export const defaultSettings = (): JobsExtSettings => ({

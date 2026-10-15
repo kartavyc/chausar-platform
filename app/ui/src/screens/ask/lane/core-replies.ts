@@ -38,6 +38,8 @@ export interface MenuReply {
   readonly gst2b: 'offered' | 'not-applicable';
   readonly today: string;
   readonly periods: readonly PeriodChoice[];
+  /** Branches this seat can see rows in (AS-02, AS-11). */
+  readonly branches: readonly string[];
 }
 export function menuReply(value: unknown): MenuReply {
   const v = obj(value);
@@ -53,6 +55,7 @@ export function menuReply(value: unknown): MenuReply {
       }, 500) };
     }, 20),
     gst2b: oneOf(v.gst2b, ['offered', 'not-applicable'] as const), today: date(v.today), periods: list(v.periods, periodChoice, 20),
+    branches: list(v.branches, b => str(b, 200), 200),
   };
 }
 
@@ -69,7 +72,13 @@ export type UnderstandReply =
   | { readonly kind: 'proposal'; readonly proposal: Proposal; readonly options: { readonly operations: readonly { operationId: string; label: string }[]; readonly periods: readonly PeriodChoice[]; readonly branches: readonly string[] } }
   | { readonly kind: 'choose'; readonly choices: readonly { operationId: string; label: string; meaning: string | null }[]; readonly periodId: PeriodId | null }
   | { readonly kind: 'no-match'; readonly reason: 'no-calculation' | 'unknown-word' | 'action'; readonly word: string | null; readonly nearby: readonly { operationId: string; label: string }[] }
+  /** AS-08: the data a question needs. `loaded`: it is there, but no calculation covers the question yet. */
+  | { readonly kind: 'no-match'; readonly reason: 'needs-data'; readonly word: null; readonly need: DataNeed; readonly loaded: boolean; readonly nearby: readonly { operationId: string; label: string }[] }
+  /** Telling, not asking (SH-04, BK-17): offered to Memory through askx.tell. */
+  | { readonly kind: 'statement'; readonly text: string; readonly memoryKind: 'preference' | 'claim' }
   | { readonly kind: 'refused'; readonly code: string };
+export const DATA_NEEDS = ['gstr2b', 'form26as', 'stock', 'bank-statement', 'payroll'] as const;
+export type DataNeed = (typeof DATA_NEEDS)[number];
 const code = (v: unknown) => { const c = str(v, 64); if (!/^[A-Z][A-Z0-9_]{1,63}$/.test(c)) fail(); return c; };
 const optPeriodId = (v: unknown): PeriodId | null => v === null ? null : oneOf(v, PERIOD_IDS);
 export function understandReply(value: unknown): UnderstandReply {
@@ -86,10 +95,53 @@ export function understandReply(value: unknown): UnderstandReply {
     case 'choose':
       return { kind: 'choose', choices: list(v.choices, c => { const o = obj(c); return { ...opRef(o), meaning: optStr(o.meaning, 2000) }; }, 10), periodId: optPeriodId(v.periodId) };
     case 'no-match':
+      if (v.reason === 'needs-data') {
+        if (v.word !== null) fail();
+        return { kind: 'no-match', reason: 'needs-data', word: null, need: oneOf(v.need, DATA_NEEDS), loaded: bool(v.loaded), nearby: list(v.nearby, opRef, 10) };
+      }
       return { kind: 'no-match', reason: oneOf(v.reason, ['no-calculation', 'unknown-word', 'action'] as const), word: optStr(v.word, 200), nearby: list(v.nearby, opRef, 10) };
+    case 'statement': {
+      const text = str(v.text, 2000);
+      if (text.trim().length === 0) fail();
+      return { kind: 'statement', text, memoryKind: oneOf(v.memoryKind, ['preference', 'claim'] as const) };
+    }
     case 'refused': return { kind: 'refused', code: code(v.code) };
     default: return fail();
   }
+}
+
+/** askx.tell: the statement became a proposed Memory line, or Memory is not built yet. */
+export type TellReply = { readonly state: 'proposed'; readonly memoryId: string; readonly status: string } | { readonly state: 'not-built' };
+export function tellReply(value: unknown): TellReply {
+  const v = obj(value);
+  if (v.state === 'not-built') return { state: 'not-built' };
+  if (v.state !== 'proposed') fail();
+  return { state: 'proposed', memoryId: id(v.memoryId), status: str(v.status, 64) };
+}
+
+/** askx.explainRule (AS-09): the rule's own words from Trust, or not built yet. */
+const RULE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:+-]{0,199}$/;
+export type RuleExplain = { readonly state: 'ready'; readonly ruleId: string; readonly text: string; readonly changeableBy: 'owner' | 'owner-or-cofounder' } | { readonly state: 'not-built' };
+export function ruleExplainReply(value: unknown): RuleExplain {
+  const v = obj(value);
+  if (v.state === 'not-built') return { state: 'not-built' };
+  if (v.state !== 'ready') fail();
+  const ruleId = str(v.ruleId, 200), text = str(v.text, 1000);
+  if (!RULE_ID.test(ruleId) || text.trim().length === 0) fail();
+  return { state: 'ready', ruleId, text, changeableBy: oneOf(v.changeableBy, ['owner', 'owner-or-cofounder'] as const) };
+}
+
+/** reportsx.askPerson: a page saved for a person. Read loosely; it must say it was not sent. */
+export function askPersonReply(value: unknown): { readonly sent: false } {
+  const v = obj(value);
+  if (v.sent !== false) fail();
+  return { sent: false };
+}
+
+/** askx.stop: the running answer of this member was asked to stop. */
+export function stopReply(value: unknown): { readonly stopped: true } {
+  if (obj(value).stopped !== true) fail();
+  return { stopped: true };
 }
 
 export interface AnswerFigure { readonly key: string; readonly label: string; readonly minor: string; readonly unit: Unit }
@@ -168,6 +220,25 @@ export interface ReceiptReply {
   readonly meaning: { readonly version: number; readonly publishedBy: string; readonly publishedAt: string } | null;
   /** True in a demo workspace: every date and figure is synthetic. */
   readonly demo: boolean;
+  /** AS-05 provenance, null until the core lane records it. */
+  readonly provenance: Provenance | null;
+}
+export interface Provenance {
+  readonly recipes: readonly { sourceId: string; recipeId: string; acceptedBy: string | null; acceptedAt: string | null }[];
+  readonly meaning: { readonly publishedBy: string; readonly reviewedBy: string | null; readonly coSignedBy: string | null; readonly reviewedAt: string | null } | null;
+  readonly forecast: { readonly method: string; readonly learnedFrom: Period; readonly testedOn: Period } | null;
+  readonly allowedBy: { readonly ruleId: string; readonly check: string; readonly device: 'desktop' | 'phone' | 'mcp'; readonly memberId: string; readonly at: string } | null;
+}
+const optDate = (v: unknown) => v === null ? null : date(v);
+function provenance(value: unknown): Provenance | null {
+  if (value === null) return null;
+  const v = obj(value), m = v.meaning === null ? null : obj(v.meaning), f = v.forecast === null ? null : obj(v.forecast), a = v.allowedBy === null ? null : obj(v.allowedBy);
+  return {
+    recipes: list(v.recipes, r => { const o = obj(r); return { sourceId: id(o.sourceId), recipeId: str(o.recipeId, 200), acceptedBy: o.acceptedBy === null ? null : str(o.acceptedBy, 200), acceptedAt: optDate(o.acceptedAt) }; }, 200),
+    meaning: m === null ? null : { publishedBy: str(m.publishedBy, 200), reviewedBy: m.reviewedBy === null ? null : str(m.reviewedBy, 200), coSignedBy: m.coSignedBy === null ? null : str(m.coSignedBy, 200), reviewedAt: optDate(m.reviewedAt) },
+    forecast: f === null ? null : { method: str(f.method, 200), learnedFrom: period(f.learnedFrom), testedOn: period(f.testedOn) },
+    allowedBy: a === null ? null : { ruleId: str(a.ruleId, 200), check: str(a.check, 200), device: oneOf(a.device, ['desktop', 'phone', 'mcp'] as const), memberId: str(a.memberId, 200), at: date(a.at) },
+  };
 }
 export function receiptReply(value: unknown): ReceiptReply {
   const v = obj(value), c = obj(v.chain), ver = obj(v.versions), a = obj(v.allowedBy), s = obj(v.sent), mn = v.meaning === null ? null : obj(v.meaning);
@@ -188,7 +259,7 @@ export function receiptReply(value: unknown): ReceiptReply {
     fx: list(v.fx, x => { const o = obj(x); return { from: str(o.from, 10), to: str(o.to, 10), rate: str(o.rate, 60), on: o.on === null ? null : date(o.on) }; }, 50),
     sent: s.kind === 'nothing' ? { kind: 'nothing' } : s.kind === 'model' ? { kind: 'model', available: bool(s.available) } : fail(),
     meaning: mn === null ? null : { version: int(mn.version), publishedBy: str(mn.publishedBy, 200), publishedAt: date(mn.publishedAt) },
-    demo: bool(v.demo),
+    demo: bool(v.demo), provenance: provenance(v.provenance),
   };
 }
 
