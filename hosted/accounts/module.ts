@@ -160,6 +160,12 @@ export function createAccountsModule(deps: HostedDeps, options: { otp: OtpProvid
           const at = device.revoked_at ? isoOf(device.revoked_at)! : clock().toISOString();
           if (!device.revoked_at) await tx.query('UPDATE devices SET revoked_at = $2 WHERE id = $1', [deviceId, at]);
           await tx.query('DELETE FROM sessions WHERE device_id = $1', [deviceId]);
+          // A revoked device's recovery contact (relay/recovery.ts) ends with it: K and the contact's address are
+          // deleted and its open links stop working. The relay's sweep catches any revoke made another way.
+          const { rows: enrolments } = await tx.query(`UPDATE recovery_enrolments SET status = 'revoked', key_sealed = NULL, contact_sealed = NULL, updated_at = $2
+            WHERE device_id = $1 AND status = 'active' RETURNING id`, [deviceId, clock().toISOString()]);
+          if (enrolments.length) await tx.query(`UPDATE recovery_requests SET status = 'replaced', token_hash = NULL, updated_at = $2
+            WHERE enrolment_id = ANY($1::text[]) AND status IN ('queued', 'sent', 'confirmed')`, [enrolments.map(row => row.id), clock().toISOString()]);
           return at;
         });
         return ok({ deviceId, revokedAt });

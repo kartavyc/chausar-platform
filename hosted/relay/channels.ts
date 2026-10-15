@@ -18,6 +18,8 @@ export interface WhatsAppChannel {
   sendTemplate(fetch: Fetch, to: string, message: OutboundTemplate): Promise<string>;
   /** Free-form text: only inside the service window after an inbound message. */
   sendText(fetch: Fetch, to: string, text: string): Promise<string>;
+  /** A named fixed template outside the event catalogue (the recovery templates), with an optional URL button token. */
+  sendFixedTemplate?(fetch: Fetch, to: string, name: string, linkToken: string | null): Promise<string>;
 }
 export interface TelegramChannel {
   readonly channel: 'telegram';
@@ -69,6 +71,12 @@ export function whatsappChannel(config: { phoneNumberId: string; accessToken: st
     async sendText(fetch, to, text) {
       recipient(to, /^[1-9][0-9]{7,14}$/);
       return sent(await post(fetch, url, auth, { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: false, body: text } }));
+    },
+    async sendFixedTemplate(fetch, to, name, linkToken) {
+      recipient(to, /^[1-9][0-9]{7,14}$/);
+      check(/^chausar_[a-z_]{1,100}$/.test(name), 'RELAY_CONFIG_INVALID', 'The template name is not valid.', 500);
+      const components = linkToken === null ? [] : [{ type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: linkToken }] }];
+      return sent(await post(fetch, url, auth, { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'template', template: { name, language: { code: 'en' }, components } }));
     },
   };
 }

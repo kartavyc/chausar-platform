@@ -120,6 +120,8 @@ test('every runtime browser import resolves within the closed portable module gr
     assert.ok(seen.has('/app/companion/shared/web-runtime.ts'));
     assert.ok(seen.has('/platform/runtime/phone/client.ts'));
     assert.ok(seen.has('/platform/runtime/phone/cache.ts'));
-    assert.ok(seen.size <= 10, 'Unexpectedly broadened browser module graph');
+    // Nine base modules plus the experimental phone page's shared model and web renderer.
+    assert.ok(seen.has('/app/companion/shared/phone-page.ts') && seen.has('/app/companion/web/phone-page.mjs'));
+    assert.ok(seen.size <= 11, 'Unexpectedly broadened browser module graph');
   });
 });

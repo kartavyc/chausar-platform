@@ -1,6 +1,8 @@
 import { PhoneError, copyBrief, isId, requirePhone, sameBinding } from '../../../platform/runtime/phone/contracts.ts';
 import type { PhoneClient } from '../../../platform/runtime/phone/client.ts';
 import type { DeviceBinding } from '../../../platform/runtime/phone/contracts.ts';
+import { emptyPhonePage } from './phone-page.ts';
+import type { PhonePageExperiments, PhonePageState } from './phone-page.ts';
 import type { CompanionDeviceIdentity, CompanionDocumentPicker, CompanionReceiptReader, CompanionScreen, CompanionScreenController, CompanionViewState, SelectedDocument } from './view-contracts.ts';
 
 export class CompanionAdapterError extends Error {
@@ -35,12 +37,16 @@ export class CompanionController implements CompanionScreenController {
   private workspaceSessionId?: string;
   private retainedRequests = new Set<string>();
   private state: CompanionViewState;
-  constructor(options: { client: PhoneClient; identity: CompanionDeviceIdentity; picker: CompanionDocumentPicker; receipts: CompanionReceiptReader; crypto: Crypto; mode: 'demo' | 'live'; requestId?: () => string }) {
+  /** Experimental pages stay off unless the host switches them on explicitly. */
+  private readonly phonePageEnabled: boolean;
+  constructor(options: { client: PhoneClient; identity: CompanionDeviceIdentity; picker: CompanionDocumentPicker; receipts: CompanionReceiptReader; crypto: Crypto; mode: 'demo' | 'live'; requestId?: () => string; experiments?: PhonePageExperiments }) {
+    this.phonePageEnabled = options.experiments?.phonePage === true;
     this.client = options.client; this.identity = options.identity; this.picker = options.picker; this.receipts = options.receipts; this.crypto = options.crypto;
     let sequence = 0; const instance = Date.now().toString(36); this.requestId = options.requestId ?? (() => `request_${instance}_${++sequence}`);
-    this.state = immutable({ mode: options.mode, screen: 'pairing', client: this.client.snapshot(), busy: [], ...noWorkspace });
+    this.state = immutable({ mode: options.mode, screen: 'pairing', client: this.client.snapshot(), busy: [], ...this.emptyWorkspace() });
     this.client.subscribe(() => this.syncResults());
   }
+  private emptyWorkspace() { return { ...noWorkspace, ...(this.phonePageEnabled ? { phonePage: emptyPhonePage() } : {}) }; }
   getState() { return this.state; }
   subscribe(listener: () => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private update(patch: Partial<CompanionViewState> = {}) {
@@ -63,15 +69,30 @@ export class CompanionController implements CompanionScreenController {
     }
     if (!lost && binding) { this.workspaceBinding = binding; if (sessionId) this.workspaceSessionId = sessionId; }
     this.retainedRequests = identities;
-    const view = { ...this.state, ...patch, ...(lost || cleared ? noWorkspace : {}), client, busy: [...this.busy.keys()] };
+    const view = { ...this.state, ...patch, ...(lost || cleared ? this.emptyWorkspace() : {}), client, busy: [...this.busy.keys()] };
     if (lost && cleared && !removing) view.notice = { tone: 'error', text: errorText(new PhoneError(pairing.status === 'revoked' ? 'ACCESS_REVOKED' : pairing.status === 'expired' ? 'SESSION_EXPIRED' : 'UNPAIRED')) };
     if (client.connection !== 'online' || lost) {
       view.receipt = undefined; view.approval = undefined;
       if (view.brief?.freshness === 'current') view.brief = undefined;
     }
+    if (view.phonePage) view.phonePage = this.phonePageFacts(view.phonePage, client, lost);
     this.state = immutable(view);
     for (const listener of this.listeners) { try { listener(); } catch { /* Rendering failures do not change request delivery. */ } }
   }
+  /** Offline or lost access: the saved view becomes read only and loses any open decision. */
+  private phonePageFacts(page: PhonePageState, client: CompanionViewState['client'], lost: boolean): PhonePageState {
+    const pairing = client.pairing; let next = page;
+    if (!lost && pairing.status === 'paired') {
+      const seen = pairing.authority.validatedAt;
+      if (Number.isFinite(Date.parse(seen)) && (!next.lastSeenAt || Date.parse(seen) > Date.parse(next.lastSeenAt))) next = { ...next, lastSeenAt: seen };
+    }
+    if (client.connection !== 'online' || lost) {
+      if (next.confirm) next = { ...next, confirm: undefined };
+      if (next.review?.freshness === 'current') next = { ...next, review: { items: next.review.items, freshness: 'saved' } };
+    }
+    return next;
+  }
+  private requirePhonePage() { requirePhone(this.phonePageEnabled && this.state.phonePage, 'INVALID_REQUEST'); return this.state.phonePage; }
   private async run(key: string, work: (lifetime: number) => Promise<void>) {
     if (this.busy.has(key)) return;
     const lifetime = this.lifetime; const action = ++this.actionSerial; this.busy.set(key, action); this.update({ notice: undefined });
@@ -91,7 +112,7 @@ export class CompanionController implements CompanionScreenController {
     this.update({ messages, uploads });
   }
   navigate(screen: CompanionScreen) {
-    requirePhone(['pairing', 'briefs', 'chat', 'uploads', 'approvals', 'activity', 'device', 'receipt'].includes(screen), 'INVALID_REQUEST');
+    requirePhone(['pairing', 'briefs', 'chat', 'uploads', 'approvals', 'activity', 'device', 'receipt'].includes(screen) || (screen === 'phone-page' && this.phonePageEnabled), 'INVALID_REQUEST');
     this.navigationVersion += 1; this.update({ screen, ...(screen === 'briefs' ? { brief: undefined } : {}), ...(screen === 'approvals' ? { approval: undefined } : {}), ...(screen !== 'receipt' ? { receipt: undefined } : {}) });
   }
   dismissNotice() { this.update({ notice: undefined }); }
@@ -180,14 +201,69 @@ export class CompanionController implements CompanionScreenController {
       }
     });
   }
+  /**
+   * Experimental phone page: approval.list rows + brief.list titles + the last
+   * engine validation time. Offline it reads saved brief titles and keeps the
+   * last loaded rows, read only.
+   */
+  async loadPhonePage() {
+    this.requirePhonePage();
+    await this.run('phone-page', async lifetime => {
+      const offline = this.client.snapshot().connection === 'offline';
+      if (offline) {
+        const briefs = await this.client.listCachedBriefs(); this.current(lifetime);
+        const page = this.requirePhonePage();
+        this.update({ phonePage: { ...page, headlines: briefs.map(brief => ({ title: brief.title, generatedAt: brief.generatedAt })) } });
+        return;
+      }
+      let review: PhonePageState['review']; let reviewUnavailable = false;
+      try { review = { items: await this.client.listApprovals(), freshness: 'current' }; }
+      catch (error) { if (error instanceof PhoneError && ['OPEN_DESKTOP', 'CAPABILITY_FORBIDDEN'].includes(error.code)) reviewUnavailable = true; else throw error; }
+      this.current(lifetime);
+      const briefs = await this.client.listBriefs(); this.current(lifetime);
+      const page = this.requirePhonePage();
+      this.update({ phonePage: { ...page, review, reviewUnavailable, confirm: undefined, headlines: briefs.map(brief => ({ title: brief.title, generatedAt: brief.generatedAt })) } });
+    });
+  }
+  /** Fresh inspect; only a 'simple-reversible' preview with a single-use token can be confirmed. */
+  async approveOnPhone(approvalId: string) {
+    this.requirePhonePage();
+    await this.run('phone-approve', async lifetime => {
+      const row = this.state.phonePage?.review;
+      requirePhone(row?.freshness === 'current' && row.items.some(item => item.approvalId === approvalId && item.eligibility === 'simple-reversible'), 'OPEN_DESKTOP');
+      const preview = await this.client.inspectApproval(approvalId); this.current(lifetime);
+      const page = this.requirePhonePage();
+      if (preview.eligibility !== 'simple-reversible') {
+        const items = (page.review?.items ?? []).map(item => item.approvalId === approvalId ? { ...item, eligibility: 'open-desktop' as const } : item);
+        this.update({ phonePage: { ...page, confirm: undefined, ...(page.review ? { review: { ...page.review, items } } : {}) }, notice: { tone: 'info', text: 'This one is decided in the app.' } });
+        return;
+      }
+      this.update({ phonePage: { ...page, confirm: { approvalId, title: preview.title, expiresAt: preview.expiresAt } } });
+    });
+  }
+  async confirmPhoneApproval() {
+    this.requirePhonePage();
+    await this.run('phone-decision', async lifetime => {
+      const confirm = this.state.phonePage?.confirm; requirePhone(confirm, 'VALIDATION_REQUIRED');
+      const page = this.requirePhonePage(); this.update({ phonePage: { ...page, confirm: undefined } });
+      const requestId = this.requestId(); const task = this.client.decideApproval(requestId, confirm.approvalId, 'approve'); this.update();
+      const completed = await this.tracked(task, requestId); this.current(lifetime);
+      if (!completed) return;
+      let review: PhonePageState['review'];
+      try { review = { items: await this.client.listApprovals(), freshness: 'current' }; } catch { review = undefined; }
+      this.current(lifetime); const latest = this.requirePhonePage();
+      this.update({ phonePage: { ...latest, ...(review ? { review } : {}) }, notice: { tone: 'success', text: 'Approved. The app shows the result.' } });
+    });
+  }
+  dismissPhoneApproval() { const page = this.requirePhonePage(); this.update({ phonePage: { ...page, confirm: undefined } }); }
   async revokeDevice() {
     if (this.busy.has('device')) return;
     this.lifetime += 1; this.busy.clear();
-    await this.run('device', async lifetime => { await this.client.revoke(); this.current(lifetime); this.update({ ...noWorkspace, screen: 'pairing', notice: { tone: 'success', text: 'This device was removed from the workspace.' } }); });
+    await this.run('device', async lifetime => { await this.client.revoke(); this.current(lifetime); this.update({ ...this.emptyWorkspace(), screen: 'pairing', notice: { tone: 'success', text: 'This device was removed from the workspace.' } }); });
   }
   async forgetDevice() {
     if (this.busy.has('device')) return;
     this.lifetime += 1; this.busy.clear();
-    await this.run('device', async lifetime => { await this.client.forgetDevice(); this.current(lifetime); this.update({ ...noWorkspace, screen: 'pairing', notice: { tone: 'info', text: "This phone's saved connection and briefs were erased. Server access is removed only after an online revoke." } }); });
+    await this.run('device', async lifetime => { await this.client.forgetDevice(); this.current(lifetime); this.update({ ...this.emptyWorkspace(), screen: 'pairing', notice: { tone: 'info', text: "This phone's saved connection and briefs were erased. Server access is removed only after an online revoke." } }); });
   }
 }

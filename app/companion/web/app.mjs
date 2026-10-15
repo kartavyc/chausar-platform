@@ -1,4 +1,6 @@
 import { requestLabel } from '../shared/view-contracts.ts';
+import { phonePageView, phonePageWords } from '../shared/phone-page.ts';
+import { renderPhonePage } from './phone-page.mjs';
 
 // This UI consumes the same controller as the native apps. It has no relay URL,
 // embedded account credential, approval queue, or independent authority state.
@@ -11,6 +13,10 @@ const screens = [
   ['activity', 'Activity', 'M3 12h4l3-8 4 16 3-8h4'],
   ['device', 'Device', 'M6 2h12v20H6z M10 18h4'],
 ];
+// PH-04 is experimental: the preview server adds this meta tag only when started
+// with --phone-page. Without it the page, its tab and its controller methods are off.
+const phonePageOn = document.querySelector('meta[name="chausar-experiment"]')?.getAttribute('content') === 'phone-page';
+if (phonePageOn) screens.unshift(['phone-page', 'Phone page', 'M7 2h10v20H7z M10 6h4 M10 10h4 M10 14h2']);
 let controller;
 let state;
 let chatDraft = '';
@@ -104,6 +110,7 @@ function proofButtons(ids) {
 }
 function navigate(screen) {
   confirmation = undefined; fileError = ''; controller.navigate(screen);
+  if (screen === 'phone-page') run(() => controller.loadPhonePage());
   requestAnimationFrame(() => document.querySelector('#screen-title')?.focus({ preventScroll: true }));
 }
 
@@ -326,6 +333,13 @@ function receiptScreen() {
     details([['Receipt', receipt.id], ['Generated', time(receipt.generatedAt)], ['Source', receipt.source], ['Method', receipt.method], ['Coverage', receipt.coverage]]),
     element('p', 'brief-summary', receipt.details)));
 }
+function phonePageScreen() {
+  const view = phonePageView(state, Date.now());
+  if (!view) return empty('Not switched on', 'This experimental page is off.');
+  return renderPhonePage({ document, view, words: phonePageWords.en, busy: isBusy(), run,
+    formatTime: time, formatCount: count => new Intl.NumberFormat().format(count),
+    actions: { refresh: () => controller.loadPhonePage(), approve: id => controller.approveOnPhone(id), confirm: () => controller.confirmPhoneApproval(), notNow: () => controller.dismissPhoneApproval() } });
+}
 function render() {
   if (!controller) return;
   state = controller.getState();
@@ -351,7 +365,7 @@ function render() {
   });
   noticeElement.replaceChildren();
   if (state.notice) append(noticeElement, append(element('div', `notice ${state.notice.tone}`), element('span', '', state.notice.text), button('Dismiss', () => controller.dismissNotice(), { className: 'quiet' })));
-  const views = { pairing: pairingScreen, briefs: briefsScreen, chat: chatScreen, uploads: uploadsScreen, approvals: approvalsScreen, activity: activityScreen, device: deviceScreen, receipt: receiptScreen };
+  const views = { 'phone-page': phonePageScreen, pairing: pairingScreen, briefs: briefsScreen, chat: chatScreen, uploads: uploadsScreen, approvals: approvalsScreen, activity: activityScreen, device: deviceScreen, receipt: receiptScreen };
   screenElement.replaceChildren((views[state.screen] || pairingScreen)());
   const busyText = state.busy.length ? ' Working…' : '';
   announce(`${statusText}.${busyText}${state.notice ? ` ${state.notice.text}` : ''}`);
@@ -366,6 +380,9 @@ function render() {
 function updateApprovalExpiry() {
   const expiredSession = state?.client.pairing.status === 'paired' && Date.parse(state.client.pairing.authority.expiresAt) <= Date.now();
   if (expiredSession !== sessionExpired) { sessionExpired = expiredSession; render(); }
+  if (state?.screen === 'phone-page' && state.phonePage?.confirm && Date.parse(state.phonePage.confirm.expiresAt) <= Date.now()) {
+    const node = document.getElementById('phone-confirm-approve'); if (node) node.disabled = true;
+  }
   if (state?.screen !== 'approvals' || !state.approval) return;
   const expired = Date.parse(state.approval.expiresAt) <= Date.now();
   if (expired) {
@@ -375,7 +392,7 @@ function updateApprovalExpiry() {
 }
 try {
   const { createWebPreviewController } = await import('../shared/web-runtime.ts');
-  controller = await createWebPreviewController();
+  controller = await createWebPreviewController({ experiments: { phonePage: phonePageOn } });
   buildShell(); controller.subscribe(render); render(); await controller.start();
   window.addEventListener('offline', () => controller.disconnect());
   window.addEventListener('online', () => run(() => controller.reconnect()));
