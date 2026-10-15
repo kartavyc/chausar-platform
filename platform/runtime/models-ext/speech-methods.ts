@@ -16,14 +16,14 @@ import { BHASHINI_DOCS, LIVE_VOICE_DOCS, SARVAM_DOCS, SARVAM_MAX_MS } from '../s
 import { interpretSpeech } from '../speech-understood.ts';
 import { BENCH_KINDS, runSpeechBench } from '../speech-bench.ts';
 
-type Confirmation = { id: string; digest: string; understood: string; receiptId: string | null; memberId: string; epoch: number; createdAt: string; negations: number; numbers: { display: string; integer: string | null; paise: string | null }[]; ambiguities: number };
+type Confirmation = { id: string; digest: string; understood: string; receiptId: string | null; memberId: string; epoch: number; createdAt: string; negations: number; numbers: { display: string; integer: string | null; paise: string | null }[]; ambiguities: number; edited?: true };
 type SpeechNamespace = { confirmations?: Confirmation[]; benchRuns?: { id: string; ranAt: string; memberId: string; fixturesDigest: string; providers: unknown[] }[] };
 const speechState = (state: State) => { const ns = speechNamespace(state) as SpeechNamespace; ns.confirmations ??= []; ns.benchRuns ??= []; return ns as Required<SpeechNamespace>; };
 const onlyKeys = (payload: Record<string, unknown>, keys: string[]) => check(Object.keys(payload).every(k => keys.includes(k)), 'INVALID_REQUEST', 'Unknown speech request field.');
 
 const CATALOGUE: Record<SpeechKind, { label: string; status: 'supported' | 'experimental'; privacyGate: string; cost: 'free' | 'per-minute'; needsFounderAccount: boolean; account: string | null; limits: string; docs: string | null }> = {
   'browser-transcript': { label: 'Browser speech (text only)', status: 'supported', cost: 'free', needsFounderAccount: false, account: null, docs: null,
-    privacyGate: 'Chausar receives text only. The browser may send your voice to its own speech service.', limits: 'Up to ten thousand characters of text.' },
+    privacyGate: 'Chausar receives text only. The browser may send your voice to its own speech service, so with Send at nothing or shape it runs only where this app says the browser recognises speech on this computer.', limits: 'Up to ten thousand characters of text.' },
   'local-command': { label: 'Local whisper.cpp (slower, free)', status: 'supported', cost: 'free', needsFounderAccount: false, account: null, docs: 'https://github.com/ggml-org/whisper.cpp/blob/master/examples/cli/README.md',
     privacyGate: 'Audio stays on this computer. Someone installs whisper-cli and a model file and checks them first.', limits: 'wav, mp3 or ogg, up to five minutes.' },
   'api-upload': { label: 'Recorded upload (OpenAI-compatible)', status: 'experimental', cost: 'per-minute', needsFounderAccount: true, account: 'An API key for the transcription service.', docs: 'https://platform.openai.com/docs/api-reference/audio/createTranscription',
@@ -33,10 +33,10 @@ const CATALOGUE: Record<SpeechKind, { label: string; status: 'supported' | 'expe
   'bhashini-asr': { label: 'Bhashini speech recognition', status: 'experimental', cost: 'per-minute', needsFounderAccount: true, account: 'A Bhashini integrator userID and ULCA API key.', docs: BHASHINI_DOCS,
     privacyGate: 'Needs the samples privacy setting. An owner approves the exact recording and the endpoint in the app. Chausar asks Bhashini where to send without audio, and stops if the answer differs from what was approved.', limits: 'wav recordings, up to five minutes.' },
   'live-voice': { label: 'Paid live voice', status: 'experimental', cost: 'per-minute', needsFounderAccount: true, account: 'An OpenAI API key with realtime access.', docs: LIVE_VOICE_DOCS,
-    privacyGate: 'Needs the samples privacy setting. An owner approves the minute cap and its cost in the app. Chausar hands the app a one-minute session secret; it never streams audio itself.', limits: 'A minute cap up to thirty minutes. Minutes used are not measured.' },
+    privacyGate: 'Needs the samples privacy setting. An owner approves the minute cap and its cost in the app. Chausar hands the app a one-minute session secret; it never streams audio itself. Live voice runs only through voice.start.', limits: 'A minute cap up to thirty minutes. The app hangs up at the cap; minutes are counted on this computer\'s clock.' },
 };
 
-async function catalogue(ctx: Context, host: ModuleHost) {
+export async function catalogue(ctx: Context, host: ModuleHost) {
   const configured: any[] = await host.services.speech?.providers(ctx) ?? [];
   return {
     providers: SPEECH_KINDS.map(kind => {
@@ -52,12 +52,29 @@ async function catalogue(ctx: Context, host: ModuleHost) {
   };
 }
 
-function transcriptOf(ctx: Context, host: ModuleHost, payload: Record<string, any>): { text: string; receiptId: string | null } {
+export function transcriptOf(ctx: Context, host: ModuleHost, payload: Record<string, any>): { text: string; receiptId: string | null } {
   check((typeof payload.text === 'string') !== (typeof payload.receiptId === 'string'), 'INVALID_REQUEST', 'Give either the transcript text or a speech receipt.');
   if (typeof payload.text === 'string') return { text: payload.text, receiptId: null };
   const receipt = host.store.read().modelReceipts.find(r => r.id === payload.receiptId && ['speech-receipt', 'speech-preview'].includes(r.kind) && r.memberId === ctx.memberId);
   check(receipt && (receipt.kind === 'speech-receipt' || receipt.status === 'completed') && typeof receipt.transcript === 'string', 'SPEECH_RECEIPT_NOT_FOUND', 'That transcript is not available.');
   return { text: receipt.transcript, receiptId: receipt.id };
+}
+
+/**
+ * Records the person's yes to the exact reading of `text`, re-read here so the digest they were shown must still match.
+ * `voice.confirm` passes an edited text with the receipt it came from; `edited` marks that the words differ from the transcript.
+ */
+export async function confirmReading(ctx: Context, host: ModuleHost, text: string, receiptId: string | null, digest: string, edited = false) {
+  const reading = interpretSpeech(text);
+  check(reading.digest === digest, 'UNDERSTOOD_CHANGED', 'The reading changed. Check it again before confirming.');
+  check(reading.unclear.length === 0, 'SPEECH_UNCLEAR', 'Part of this was not heard clearly. Say it again or type it.');
+  return host.store.update(state => {
+    const ns = speechState(state);
+    const confirmation: Confirmation = { id: newId('speech_confirmation'), digest: reading.digest, understood: reading.understood, receiptId, memberId: ctx.memberId, epoch: ctx.epoch, createdAt: now(),
+      negations: reading.negations.length, numbers: reading.numbers.map(n => ({ display: n.display, integer: n.integer, paise: n.paise })), ambiguities: reading.ambiguities.length, ...(edited ? { edited: true } : {}) };
+    ns.confirmations.push(confirmation); ns.confirmations.splice(0, Math.max(0, ns.confirmations.length - 500));
+    return { confirmationId: confirmation.id, digest: confirmation.digest, understood: confirmation.understood, receiptId, confirmedAt: confirmation.createdAt };
+  });
 }
 
 export const speechPart: ModulePart = {
@@ -69,16 +86,7 @@ export const speechPart: ModulePart = {
     } },
     'modelsx.speechConfirm': { permission: 'prepare', handler: async (ctx, payload, host) => {
       onlyKeys(payload, ['text', 'receiptId', 'digest']); check(typeof payload.digest === 'string' && /^[a-f0-9]{64}$/.test(payload.digest), 'INVALID_REQUEST', 'Confirm the exact reading you were shown.');
-      const { text, receiptId } = transcriptOf(ctx, host, payload); const reading = interpretSpeech(text);
-      check(reading.digest === payload.digest, 'UNDERSTOOD_CHANGED', 'The reading changed. Check it again before confirming.');
-      check(reading.unclear.length === 0, 'SPEECH_UNCLEAR', 'Part of this was not heard clearly. Say it again or type it.');
-      return host.store.update(state => {
-        const ns = speechState(state);
-        const confirmation: Confirmation = { id: newId('speech_confirmation'), digest: reading.digest, understood: reading.understood, receiptId, memberId: ctx.memberId, epoch: ctx.epoch, createdAt: now(),
-          negations: reading.negations.length, numbers: reading.numbers.map(n => ({ display: n.display, integer: n.integer, paise: n.paise })), ambiguities: reading.ambiguities.length };
-        ns.confirmations.push(confirmation); ns.confirmations.splice(0, Math.max(0, ns.confirmations.length - 500));
-        return { confirmationId: confirmation.id, digest: confirmation.digest, understood: confirmation.understood, receiptId, confirmedAt: confirmation.createdAt };
-      });
+      const { text, receiptId } = transcriptOf(ctx, host, payload); return confirmReading(ctx, host, text, receiptId, payload.digest);
     } },
     'modelsx.speechRevoke': { permission: 'admin', handler: async (ctx, payload, host) => {
       onlyKeys(payload, ['providerId']); check(typeof payload.providerId === 'string' && payload.providerId.length <= 80, 'INVALID_REQUEST', 'Name the speech provider to revoke.');

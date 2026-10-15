@@ -34,5 +34,9 @@
   "todayx.updates",
   "todayx.updates.stage",
   "todayx.updates.apply",
-  "todayx.updates.dismiss"
+  "todayx.updates.dismiss",
+  "todayx.review",
+  "todayx.closeStatus",
+  "todayx.cash.save",
+  "todayx.cash.week"
 ]

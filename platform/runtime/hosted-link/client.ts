@@ -251,6 +251,27 @@ export class HostedClient {
     valid(r.messageId === messageId && MESSAGE_EVENTS.includes(r.event) && CHANNELS.includes(r.channel) && ['queued', 'sent', 'delivered', 'read', 'failed'].includes(r.status)
       && ['open-only', 'approve-not-now-open'].includes(r.buttons) && [null, 'approve', 'not-now'].includes(r.decided) && isoOrNull(r.expiresAt)); return r as any;
   }
+  /**
+   * Whether the relay ever received a message with this idempotency key (this account only). Sends nothing.
+   * Null only for the relay's own `MESSAGE_NOT_FOUND` 404: any other refusal (a server without this route, a proxy)
+   * is thrown, so it can never be read as "never received".
+   */
+  async messageByKey(token: string, idempotencyKey: string): Promise<{ messageId: string; status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' } | null> {
+    check(/^[A-Za-z0-9_-]{8,100}$/.test(idempotencyKey), 'INVALID_REQUEST', 'Use a message from this computer\'s log.');
+    const reply = await this.#send('GET', `/v1/relay/messages/by-key/${idempotencyKey}`, { token });
+    if (reply.status === 404) {
+      let code: unknown = null;
+      try { const raw = await reply.text(); if (raw.length <= 8192) code = JSON.parse(raw)?.error?.code; } catch { code = null; }
+      if (code === 'MESSAGE_NOT_FOUND') return null;
+      throw new ChausarError('HOSTED_REQUEST_FAILED', 'The hosted service refused the request.');
+    }
+    if (!reply.ok) await refusal(reply);
+    valid(reply.status === 200 && !(Number(reply.headers.get('content-length') ?? '0') > MAX_JSON_REPLY));
+    let value: unknown;
+    try { const raw = await reply.text(); valid(raw.length <= MAX_JSON_REPLY); value = JSON.parse(raw); } catch (error) { if (error instanceof ChausarError) throw error; valid(false); }
+    const r = shape(value, ['messageId', 'status']);
+    valid(ID.test(r.messageId ?? '') && ['queued', 'sent', 'delivered', 'read', 'failed'].includes(r.status)); return r as any;
+  }
   async counts(token: string, month: string): Promise<Counts> {
     check(/^\d{4}-(?:0[1-9]|1[0-2])$/.test(month), 'INVALID_REQUEST', 'Use a month as year and month.');
     const r = shape(await this.#json('GET', `/v1/relay/counts?month=${month}`, { token }), ['month', 'sent', 'budget', 'costPaise', 'costState', 'byChannel']);

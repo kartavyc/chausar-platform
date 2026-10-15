@@ -1,7 +1,7 @@
 import type { EngineModule } from './types.ts';
 import { audit, check, now, type Context } from '../contracts.ts';
 import type { ModuleHost } from './types.ts';
-import { addDays, capabilities, faultReport, firstRun, frameOf, help, phoneMessages, shell, status, updateFrame, validDay, worthALook } from '../frame-today/frame.ts';
+import { addDays, capabilities, faultReport, firstRun, frameOf, help, phoneMessages, shell, status, updateFrame, validDay } from '../frame-today/frame.ts';
 import { activityFilter, activityPage, auditEvents, modelEvents } from '../frame-today/activity.ts';
 import { checkIdentity, identityCard, identityFields } from '../frame-today/identity.ts';
 import { setupChecklist } from '../frame-today/setup-rules.ts';
@@ -11,6 +11,10 @@ import { recoveryContactInput, recoveryContactReply, requestRecoveryThroughConta
 import { composeReceiptDetail } from '../frame-today/receipt-detail.ts';
 import { closing } from '../frame-today/closing.ts';
 import { apply as applyUpdate, dismiss as dismissUpdate, stage as stageUpdate, updates } from '../frame-today/updates.ts';
+import { worthALookAll } from '../frame-today/worth.ts';
+import { todayReview } from '../frame-today/review.ts';
+import { closeStatus } from '../frame-today/close-status.ts';
+import { cashCaptured, cashInUse, cashSave, cashWeek, purgeCash } from '../frame-today/cash.ts';
 
 const keys = (payload: Record<string, unknown>, allowed: readonly string[]) =>
   check(Object.keys(payload).every(key => allowed.includes(key)), 'INVALID_TODAYX_REQUEST', 'This request has fields it does not use.');
@@ -67,7 +71,7 @@ export const frameTodayModule: EngineModule = {
     } },
     'todayx.status': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return status(ctx, host); } },
     'todayx.capabilities': { permission: 'read', handler: (_ctx, payload) => { keys(payload, []); return capabilities(); } },
-    'todayx.worthALook': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return worthALook(ctx, host); } },
+    'todayx.worthALook': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return worthALookAll(ctx, host); } },
     'todayx.activity': { permission: 'read', handler: async (ctx, payload, host) => {
       const filter = activityFilter(payload);
       const receipts = (() => { try { return host.services.gateway?.receipts(ctx) ?? []; } catch { return []; } })();
@@ -137,7 +141,10 @@ export const frameTodayModule: EngineModule = {
       const receipt: any = await host.call('receipts.get', { id: payload.receiptId });
       const sources: any = await host.call('sources.list', {}).catch(() => []);
       const models = (() => { try { return host.services.gateway?.receipts(ctx) ?? []; } catch { return []; } })();
-      return composeReceiptDetail(host.store.read(), ctx, receipt, Array.isArray(sources) ? sources : [], models);
+      const detail = composeReceiptDetail(host.store.read(), ctx, receipt, Array.isArray(sources) ? sources : [], models);
+      // TD-02: while cash is captured here, a receipt for a period with no cash told says so.
+      const period = receipt?.period;
+      return period && validDay(period.from) && validDay(period.to) && cashInUse(host) && !cashCaptured(host, period.from, period.to) ? { ...detail, cash: 'not-captured' } : detail;
     } },
     'todayx.closing': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return closing(ctx, host); } },
     'todayx.closing.set': { permission: 'admin', handler: async (ctx, payload, host) => {
@@ -146,12 +153,18 @@ export const frameTodayModule: EngineModule = {
       await updateFrame(host, ctx, 'admin', (frame, state) => { frame.dailyClosing = payload.on; audit(state, 'closing.daily-set', { memberId: ctx.memberId, on: payload.on }); });
       return closing(ctx, host);
     } },
+    // Round 4 (TD-01..TD-03, PH-05).
+    'todayx.review': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return todayReview(ctx, host); } },
+    'todayx.closeStatus': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return closeStatus(ctx, host); } },
+    'todayx.cash.save': { permission: 'prepare', handler: cashSave },
+    'todayx.cash.week': { permission: 'read', handler: (_ctx, payload, host) => { keys(payload, []); return cashWeek(host); } },
   },
   /**
    * Nothing this module keeps is derived from a source: the identity card and the idea (FR-11) are typed by a person,
    * and the clock, lock and dismissal settings are workspace preferences. Activity and status are
    * computed on each call from records the engine itself purges, so no cache can outlive a source.
+   * Told cash (TD-02) is kept until the workspace retention period passes.
    */
-  purge: () => 0,
+  purge: (state, reason) => purgeCash(frameOf(state).cash, reason.cutoff),
 };
 

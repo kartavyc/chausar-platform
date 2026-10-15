@@ -20,8 +20,10 @@
  * OpenAI Realtime ephemeral client secret (paid live voice, experimental):
  *   https://developers.openai.com/api/reference/resources/realtime/subresources/client_secrets/methods/create
  *   https://developers.openai.com/api/docs/guides/realtime-webrtc
- *   POST https://api.openai.com/v1/realtime/client_secrets `{ expires_after: { anchor: 'created_at', seconds: 10..7200 }, session: { type: 'realtime', model } }`;
- *   reply `{ value: 'ek_…', expires_at: <epoch seconds>, session }`. The renderer connects to /v1/realtime/calls itself.
+ *   POST https://api.openai.com/v1/realtime/client_secrets `{ expires_after: { anchor: 'created_at', seconds: 10..7200 },
+ *   session: { type: 'transcription', audio: { input: { transcription: { model } } } } }` (a transcription session: input text only, no answers);
+ *   reply `{ value: 'ek_…', expires_at: <epoch seconds>, session }`. The renderer connects to /v1/realtime/calls itself
+ *   (app/ui/src/screens/voice/live-client.ts: POST the SDP offer, `Authorization: Bearer <ek_…>`, `Content-Type: application/sdp`).
  */
 import { check, ChausarError } from './contracts.ts';
 
@@ -62,8 +64,9 @@ export function bhashiniConfigBody(language: string, pipelineId: string): string
 export function bhashiniComputeBody(language: string, serviceId: string, samplingRate: number, audioBase64: string): string {
   return JSON.stringify({ pipelineTasks: [{ taskType: 'asr', config: { language: { sourceLanguage: language }, serviceId, audioFormat: 'wav', samplingRate } }], inputData: { audio: [{ audioContent: audioBase64 }] } });
 }
+/** A transcription-only session: the provider turns the person's speech into text and never answers, so no model words reach the app. */
 export function liveSecretBody(model: string): string {
-  return JSON.stringify({ expires_after: { anchor: 'created_at', seconds: LIVE_SECRET_SECONDS }, session: { type: 'realtime', model } });
+  return JSON.stringify({ expires_after: { anchor: 'created_at', seconds: LIVE_SECRET_SECONDS }, session: { type: 'transcription', audio: { input: { transcription: { model } } } } });
 }
 
 export function parseJson(body: string): any {

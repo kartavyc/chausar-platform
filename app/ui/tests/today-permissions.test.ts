@@ -17,7 +17,7 @@ function retainedHostIntents(): TodayIntents {
     onSeeAll: () => {},
     onResumeSetup: () => {},
     onUpdate: () => {},
-    onSaveClosing: () => {},
+    onSaveClosing: async () => 'saved' as const,
     onOpenQueueRow: () => {},
     onLens: () => {},
   };

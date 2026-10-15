@@ -13,6 +13,7 @@ import { useLanguage } from '../../app/text';
 import { useRef } from 'react';
 import type { PlaceRpc } from '../../places/types.ts';
 import { receiptWithDetail, useReceiptDetail } from '../../parts/receipt-detail.ts';
+import styles from './Today.module.css';
 
 export interface TodayDestinationProps {
   readonly detail: TodayDetail | null;
@@ -58,7 +59,7 @@ export function TodayDestination({ detail, page, origin, onClose, onReview, onNe
     </> : detail !== null ? <>
       {detail.kind === 'activity' && <p>{t('TODAY_ENGINE.activityPartial')}</p>}
       {view !== null && <Receipt receipt={view} onReceipt={openEvery} />}
-      <details ref={every} open={view === null}><summary>{t('TODAY_ENGINE.every')}</summary>
+      <details ref={every} className={styles.every} open={view === null}><summary>{t('TODAY_ENGINE.every')}</summary>
       <p>{t('TODAY_ENGINE.sourceWords')}</p>
       {detail.receiptIds.map(id => <p key={id}><Button variant="link" aria-label={t('TODAY_ENGINE.proof', { id })} onClick={event => onReceipt(id, event.currentTarget)}>{t('TODAY_ENGINE.proofShort')}</Button> <span>{id}</span></p>)}
       <RecordedValue value={detail.record} />

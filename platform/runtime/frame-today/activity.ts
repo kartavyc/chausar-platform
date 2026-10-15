@@ -30,6 +30,13 @@ const TYPES: Record<string, string> = {
   'action.interrupted': 'action.unknown', 'action.deleted-while-executing': 'action.unknown',
   'job.step-dispatched': 'job.step', 'job.step-settled': 'job.step', 'job.step-unknown': 'job.step', 'job.cancelled': 'job.stopped',
   'dictionary.published': 'dictionary.published', 'trust.member.created': 'member.joined', 'auth.invitation.accepted': 'member.joined',
+  // Round 4 (TD-04): lesson decided, backup done, update checked, lock and unlock. An event the core
+  // records under one of these sentence codes passes through as it is; these are the other names it
+  // or a lane records the same fact under.
+  'memory.lesson-decided': 'lesson.decided', 'lesson.decision-recorded': 'lesson.decided',
+  'workspace.backup': 'backup.done', 'workspace.backed-up': 'backup.done', 'hosted.backup.uploaded': 'backup.done',
+  'updates.checked': 'update.checked', 'release.update-checked': 'update.checked',
+  'workspace.locked': 'lock', 'vault.locked': 'lock', 'workspace.unlocked': 'unlock', 'vault.unlocked': 'unlock',
 };
 /** Model dispatch audits duplicate the model receipts, which carry route and cost. */
 const SKIPPED = new Set(['model.dispatch.prepared', 'model.dispatch.completed']);
@@ -41,7 +48,10 @@ const STATES: Record<string, ActivityState> = {
 const VALUE_KEYS: Record<string, string> = {
   sourceId: 'source', rowCount: 'rows', routeId: 'route', actionId: 'action', connector: 'system', jobId: 'job', version: 'version',
   lessonId: 'lesson', receiptId: 'receipt', importId: 'import', operation: 'operation', outcome: 'outcome', status: 'status', reasonCode: 'reason', pack: 'pack',
+  customerId: 'customer', invoiceId: 'invoice', recordId: 'record',
 };
+/** The values that name a record (TD-04 "by record": a customer, an invoice, a source, an action). */
+export const RECORD_VALUES = ['customer', 'invoice', 'record', 'source', 'action', 'receipt', 'import', 'lesson'] as const;
 const SAFE_VALUE = /^(?:[A-Za-z][A-Za-z0-9]*_[0-9a-f-]{8,64}|[A-Z][A-Z0-9_]{1,63}|[a-z][a-z0-9-]{0,40}|-?(?:0|[1-9][0-9]{0,30}))$/;
 const SAFE_TYPE = /^[a-z][a-z0-9.-]{0,63}$/;
 
@@ -126,10 +136,14 @@ function decode(text: unknown): Cursor {
 const newerFirst = (a: Cursor, b: Cursor) => a.at < b.at ? 1 : a.at > b.at ? -1 : a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
 
 /** `actor` is a named person's or job's name as written, otherwise an actor kind. */
-export type ActivityFilter = { cursor?: string; state?: ActivityState; actor?: string; day?: string };
+/** `job` is a job id; `record` is a record id (a customer, an invoice, a source, an action, a receipt). */
+export type ActivityFilter = { cursor?: string; state?: ActivityState; actor?: string; day?: string; job?: string; record?: string };
+const FILTER_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/;
 export function activityFilter(payload: Record<string, unknown>): ActivityFilter {
-  const allowed = ['cursor', 'state', 'actor', 'day'];
-  check(Object.keys(payload).every(key => allowed.includes(key)), 'INVALID_TODAYX_REQUEST', 'Use only cursor, state, actor and day.');
+  const allowed = ['cursor', 'state', 'actor', 'day', 'job', 'record'];
+  check(Object.keys(payload).every(key => allowed.includes(key)), 'INVALID_TODAYX_REQUEST', 'Use only cursor, state, actor, day, job and record.');
+  check(payload.job === undefined || (typeof payload.job === 'string' && FILTER_ID.test(payload.job)), 'INVALID_TODAYX_REQUEST', 'Choose a job by its id.');
+  check(payload.record === undefined || (typeof payload.record === 'string' && FILTER_ID.test(payload.record)), 'INVALID_TODAYX_REQUEST', 'Choose a record by its id.');
   check(payload.state === undefined || (ACTIVITY_STATES as readonly unknown[]).includes(payload.state), 'INVALID_TODAYX_REQUEST', 'Choose a known activity state.');
   check(payload.actor === undefined || (typeof payload.actor === 'string' && payload.actor.length > 0 && payload.actor.length <= 200), 'INVALID_TODAYX_REQUEST', 'Choose an actor by name or kind.');
   check(payload.day === undefined || (typeof payload.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(payload.day) && !Number.isNaN(Date.parse(payload.day))), 'INVALID_TODAYX_REQUEST', 'Give the day as YYYY-MM-DD.');
@@ -138,7 +152,8 @@ export function activityFilter(payload: Record<string, unknown>): ActivityFilter
 }
 
 export function activityPage(events: readonly ActivityEvent[], filter: ActivityFilter) {
-  const matching = events.filter(e => (!filter.state || e.state === filter.state) && (!filter.actor || (e.actor.name ?? e.actor.kind) === filter.actor || e.actor.kind === filter.actor) && (!filter.day || e.at.startsWith(filter.day)))
+  const matching = events.filter(e => (!filter.state || e.state === filter.state) && (!filter.actor || (e.actor.name ?? e.actor.kind) === filter.actor || e.actor.kind === filter.actor) && (!filter.day || e.at.startsWith(filter.day))
+    && (!filter.job || e.values.job === filter.job) && (!filter.record || RECORD_VALUES.some(key => e.values[key] === filter.record)))
     .sort(newerFirst);
   const after = filter.cursor === undefined ? null : decode(filter.cursor);
   const rest = after ? matching.filter(e => newerFirst(e, after) > 0) : matching;

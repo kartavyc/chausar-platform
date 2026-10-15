@@ -1,0 +1,19 @@
+{
+  "$comment": "Allowed share of differing pixels (frontend-validation/visual/diff.mjs: a channel off by more than 32 of 255) per reference picture, in either theme, with the reason the difference is not zero. Each was set on 15 October 2026 from the measured ratio plus about 1.5 points of room for font hinting; a picture that goes over means the layout moved and the pair needs a look. The preview draws the fake engine's synthetic data, so words, names, amounts and counts always differ from the pictures.",
+  "pictures": {
+    "S01-Today": { "maxRatio": 0.075, "reason": "Data: the demo workspace shows two banners (Demo clock, Jobs paused) that push the page down 82 px; the fake producer's rows, the partial-scope line, no review count, figures not prepared above the fold, a different status line and no microphone on the ask line. The rail and page column line up with the picture." },
+    "S14-Today-Simple": { "maxRatio": 0.07, "reason": "Data: two taller Hindi banners push the page down; English record names from the fake engine; no cash field or seven-day cash chart (no owner-entry cash producer yet, its missing words drawn instead); the rail lists Today's sub-places under Today, which the picture's Simple rail does not." },
+    "S15-Today-Books": { "maxRatio": 0.08, "reason": "Data: two banners; the scoped producer gives a ledger of rows, not the picture's queue table with party, source text and amounts, and the month's close is not known; the rail lists Today's sub-places, which the picture's Books rail does not." },
+    "S09-Setup": { "maxRatio": 0.06, "reason": "Data: the fake engine's starter pack proposes different meanings and file names from the picture's, and the step text is this build's catalogue wording." },
+    "S02-Answer": { "maxRatio": 0.09, "reason": "Other lane (ask), not built yet in the preview: the page shows the route choice and the not-built state, not the picture's answer and receipt sheet." },
+    "S04-Approval": { "maxRatio": 0.065, "reason": "Other lane (work-books), not built yet in the preview: approvals.list is not served by the fake engine, so the list and the open approval sheet are absent." },
+    "S05-Job": { "maxRatio": 0.06, "reason": "Other lane (work-books), not built yet in the preview: no job is served, so the goal, progress and step costs are absent." },
+    "S06-Sources": { "maxRatio": 0.06, "reason": "Other lane (work-books), not built yet in the preview: the month-by-month sources grid is absent." },
+    "S07-Meaning": { "maxRatio": 0.065, "reason": "Other lane (work-books), not built yet in the preview: the meaning and its tried change are absent." },
+    "S08-History": { "maxRatio": 0.065, "reason": "Other lane (work-books): drawn, with the fake engine's data instead of the picture's March figures." },
+    "S10-Trust": { "maxRatio": 0.06, "reason": "Other lane (reports-tools-trust), not built yet in the preview: the four rules and today's network ledger are absent." },
+    "S11-People": { "maxRatio": 0.05, "reason": "Other lane (reports-tools-trust), not built yet in the preview: the people and machines list is absent." },
+    "S12-SmallApp": { "maxRatio": 0.055, "reason": "Other lane (reports-tools-trust), not built yet in the preview: the small app is absent." },
+    "S13-Plugin": { "maxRatio": 0.065, "reason": "Other lane (reports-tools-trust), not built yet in the preview: the plugin list and its install sheet are absent." }
+  }
+}

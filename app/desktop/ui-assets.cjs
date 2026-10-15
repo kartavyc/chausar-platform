@@ -7,7 +7,8 @@ const legacyDocument = Object.freeze(['app/ui/host/index-legacy.html', 'text/htm
 const definitions = Object.freeze({
   '/ui/index.html': ['app/ui/host/index.html', 'text/html; charset=utf-8', 16000],
   '/ui/shell.js': ['app/ui/host/shell.js', 'text/javascript; charset=utf-8', 32000],
-  '/ui/host.js': ['app/ui/public/host.js', 'text/javascript; charset=utf-8', 2500000],
+  // 3 MB: the minified host passed 2 MB with the round 4 seams and neared 2.5 MB with the round 4 lanes (scripts/build-ui-host.mjs keeps the same bound).
+  '/ui/host.js': ['app/ui/public/host.js', 'text/javascript; charset=utf-8', 3000000],
   '/ui/host.css': ['app/ui/public/host.css', 'text/css; charset=utf-8', 200000],
   ...Object.fromEntries(['InstrumentSans-400', 'InstrumentSans-500', 'InstrumentSans-600',
     'DMMono-400', 'DMMono-500', 'IBMPlexMono-500',

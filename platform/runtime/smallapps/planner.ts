@@ -11,7 +11,9 @@ import { CONCEPTS, FOLLOW_UP, OPERATIONS, PERIODS } from './lexicon.ts';
 /** Concepts too general to choose an action on their own. */
 const GENERIC = new Set(['payment', 'send', 'draft', 'record']);
 const STOP = new Set(['a', 'an', 'the', 'to', 'for', 'of', 'and', 'or', 'on', 'in', 'with', 'from', 'by', 'my', 'our', 'your', 'this', 'that', 'is', 'are', 'be', 'it',
-  'create', 'make', 'new', 'add', 'show', 'give', 'me', 'button', 'buttons', 'action', 'actions', 'card', 'local', 'chausar', 'workspace', 'prepare', 'issue',
+  'create', 'make', 'new', 'add', 'show', 'give', 'me', 'button', 'buttons', 'action', 'actions', 'card', 'local', 'chausar', 'workspace', 'prepare', 'issue', 'book', 'books',
+  // Words that read as orders or approvals never choose an action ("mark approved, execute now").
+  'approve', 'approved', 'approval', 'execute', 'run', 'now', 'mark', 'ignore', 'system', 'rules',
   'ka', 'ki', 'ke', 'ko', 'se', 'me', 'mein', 'aur', 'bhi', 'wala', 'wali', 'wale', 'dikhao', 'chahiye', 'karo', 'banao', 'dila', 'dilao', 'do']);
 /** A cue that the words just before it name an action ("a refund link button"), even words that also name a figure. */
 const CUES = new Set(['button', 'buttons', 'batan', 'बटन', 'action', 'actions']);
@@ -24,10 +26,10 @@ const PREVIOUS: Partial<Record<Preset, Preset>> = { 'this-month': 'last-month', 
 export type Plan = { supported: true; descriptor: Descriptor; understood: Understood; actions: ActionNote[]; message: string }
   | { supported: false; state: 'not-yet'; descriptor: null; understood: Understood; message: string };
 type Understood = { calculations: string[]; actions: string[]; unavailableActions: string[]; books: string[]; periods: Preset[]; branch: string | null };
-export type ActionNote = { cardId: string; action: string; label: string; alwaysWaits: boolean; tier: string | null; words: string };
+export type ActionNote = { cardId: string; action: string; label: string; alwaysWaits: boolean; tier: ActionRow['tier']; words: string };
 export const WAITS_WORDS = 'Always waits for a person: money, messages to outsiders, deleting and anything that cannot be undone are never approved or done on their own.';
 
-const rowConcepts = (row: ActionRow) => concepts([...normalize(row.label).trim().split(' '), ...row.operation.split('-')]);
+const rowConcepts = (row: ActionRow) => concepts([...normalize(row.label).trim().split(' '), ...row.operation.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z]+/)]);
 /** Choose catalogue rows the line names: best match first, safer and then alphabetical on ties, each adding a concept not yet covered. */
 function chooseActions(line: Set<string>, rows: ActionRow[]): { chosen: ActionRow[]; unavailable: string[] } {
   const scored = rows.map(row => {

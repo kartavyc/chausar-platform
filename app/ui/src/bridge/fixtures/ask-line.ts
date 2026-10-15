@@ -113,6 +113,7 @@ export function voiceHandlers(options: VoiceFixtureOptions = {}): Readonly<Recor
       on(context);
       const session = sessions.get(String(payload['sessionId']));
       if (!session || session.digest === null || session.digest !== payload['digest']) throw context.refuse('UNDERSTOOD_CHANGED', 'What was heard changed.');
+      if (payload['text'] !== undefined && payload['text'] !== session.text) throw context.refuse('UNDERSTOOD_CHANGED', 'What was heard changed.');
       sessions.delete(String(payload['sessionId']));
       return { confirmationId: `voice_confirmation_${next}`, text: session.text, digest: session.digest };
     },

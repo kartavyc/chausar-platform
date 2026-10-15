@@ -462,6 +462,8 @@ export interface ReceiptDetailReply {
   readonly numberGuard?: { readonly passed: boolean; readonly matched: string; readonly of: string };
   readonly allowedBy: { readonly kind: ReceiptAllowedByKind; readonly ruleId?: string; readonly step?: 1 | 2 | 3 | 4 | 5; readonly person?: string; readonly device?: string; readonly at?: string };
   readonly route?: { readonly kind: string; readonly sendLevel: 'nothing' | 'shape' | 'samples'; readonly costPaise: string | null };
+  /** Round 4 (TD-02): the receipt's period has no cash told by the owner, while cash is captured. */
+  readonly cash?: 'not-captured';
 }
 
 const isName = (v: unknown, max = 200): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= max && !/[\u0000-\u001f]/.test(v);
@@ -469,7 +471,8 @@ const onlyKeys = (v: Rec, required: readonly string[], optional: readonly string
   required.every(k => Object.hasOwn(v, k)) && Object.keys(v).every(k => required.includes(k) || optional.includes(k));
 
 export function isReceiptDetailReply(v: unknown): v is ReceiptDetailReply {
-  if (!isRec(v) || !onlyKeys(v, ['receiptId', 'allowedBy'], ['question', 'sources', 'recipe', 'meaning', 'rate', 'numberGuard', 'route'])) return false;
+  if (!isRec(v) || !onlyKeys(v, ['receiptId', 'allowedBy'], ['question', 'sources', 'recipe', 'meaning', 'rate', 'numberGuard', 'route', 'cash'])) return false;
+  if (v['cash'] !== undefined && v['cash'] !== 'not-captured') return false;
   if (!isName(v['receiptId']) || !/^[A-Za-z0-9_.:-]{1,200}$/.test(v['receiptId'])) return false;
   if ('question' in v && !isName(v['question'], 8000)) return false;
   const s = v['sources'];
@@ -633,3 +636,143 @@ export function isRouteStateProbe(v: unknown): v is RouteStateProbe {
 export const FAULT_REPORT_SEND_UNAVAILABLE = 'FAULT_REPORT_SEND_UNAVAILABLE';
 /** Round 4 refusal codes the frame-today lane lets through to its screens (its `laneRefusals` line). */
 export const TODAYX_R4_REFUSALS = [FAULT_REPORT_SEND_UNAVAILABLE, 'UPDATES_STATUS_UNAVAILABLE', 'UPDATE_REPLY_INVALID', ...NOT_SIGNED, ...OLDER, 'UPDATE_WITHDRAWN'] as const;
+/* ======================================================================= round 4 (Today) */
+
+/**
+ * `todayx.review` {} → the review items Today joins beside the core `today.*` rows (TD-01, TD-03,
+ * PH-05), from the work-books lane's `approvals.list`, jobs-ext's `jobsx.proposals` and hosted-link's
+ * `phone.documents.list`. `items` and `groups` are only what this seat may act on now; `core` items
+ * are also core `today.review` rows, and the host keeps those rows instead. `count` counts every item
+ * that is not core (a summary row counts its items); `waiting` is what waits for another person.
+ */
+export const TODAY_REVIEW_SOURCES = ['action', 'job', 'release', 'lesson', 'acceptance', 'writeback', 'bill', 'proposal'] as const;
+export type TodayReviewSource = (typeof TODAY_REVIEW_SOURCES)[number];
+export const TODAY_REVIEW_KINDS = ['message', 'record-change', 'money', 'prepare-only', 'job', 'group'] as const;
+export const TODAY_REVIEW_WHAT = ['start-job', 'change-job', 'accept-result', 'publish-meaning', 'review-lesson', 'bill-zoho', 'bill-tally'] as const;
+export interface TodayReviewItem {
+  readonly id: string;
+  readonly source: TodayReviewSource;
+  readonly kind: (typeof TODAY_REVIEW_KINDS)[number];
+  readonly tier: 'tier-2' | 'tier-1' | 'prepare-only';
+  /** The work-books lane's English line, built from the prepared request; shown as written. */
+  readonly title: string;
+  readonly touches: string | null;
+  readonly amountPaise: string | null;
+  readonly since: string;
+  readonly what?: { readonly kind: (typeof TODAY_REVIEW_WHAT)[number]; readonly name: string | null };
+  readonly core: boolean;
+}
+export interface TodayReviewGroup {
+  readonly id: string;
+  /** 2 to 10 approval ids, opened one after another. */
+  readonly ids: readonly string[];
+  readonly source: TodayReviewSource;
+  readonly kind: (typeof TODAY_REVIEW_KINDS)[number];
+  readonly what?: { readonly kind: (typeof TODAY_REVIEW_WHAT)[number]; readonly name: null };
+  readonly count: string;
+  readonly since: string;
+}
+export interface PhoneDocumentRow { readonly documentId: string; readonly channel: 'whatsapp' | 'telegram'; readonly mediaType: string; readonly receivedAt: string }
+export interface TodayReviewReply {
+  readonly approvals: 'ready' | 'not-built';
+  readonly items: readonly TodayReviewItem[];
+  readonly groups: readonly TodayReviewGroup[];
+  readonly documents: 'ready' | 'not-built';
+  readonly phoneDocuments: readonly PhoneDocumentRow[];
+  readonly count: string;
+  readonly waiting: string;
+}
+const reviewWhat = (w: unknown, nameNull = false) => isRec(w) && onlyKeys(w, ['kind', 'name']) && oneOf(TODAY_REVIEW_WHAT)(w['kind']) && (w['name'] === null || (!nameNull && isName(w['name'], 400)));
+const approvalId = (v: unknown): v is string => isStr(v) && /^[a-z]+:[A-Za-z0-9_.:-]{1,290}$/.test(v);
+function reviewItem(v: unknown): v is TodayReviewItem {
+  return isRec(v) && onlyKeys(v, ['id', 'source', 'kind', 'tier', 'title', 'touches', 'amountPaise', 'since', 'core'], ['what']) && approvalId(v['id'])
+    && oneOf(TODAY_REVIEW_SOURCES)(v['source']) && oneOf(TODAY_REVIEW_KINDS)(v['kind']) && oneOf(['tier-2', 'tier-1', 'prepare-only'] as const)(v['tier'])
+    && isName(v['title'], 400) && (v['touches'] === null || isName(v['touches'], 400)) && (v['amountPaise'] === null || (isStr(v['amountPaise']) && /^-?(0|[1-9][0-9]{0,30})$/.test(v['amountPaise'])))
+    && isIsoDate(v['since']) && typeof v['core'] === 'boolean' && (v['what'] === undefined || reviewWhat(v['what']));
+}
+function reviewGroup(v: unknown): v is TodayReviewGroup {
+  if (!isRec(v) || !onlyKeys(v, ['id', 'ids', 'source', 'kind', 'count', 'since'], ['what']) || !isStr(v['id']) || !v['id'].startsWith('group:')) return false;
+  const ids = v['ids'];
+  return Array.isArray(ids) && ids.length >= 2 && ids.length <= 10 && ids.every(approvalId) && new Set(ids).size === ids.length && isDigits(v['count']) && v['count'] === String(ids.length)
+    && oneOf(TODAY_REVIEW_SOURCES)(v['source']) && oneOf(TODAY_REVIEW_KINDS)(v['kind']) && isIsoDate(v['since']) && (v['what'] === undefined || reviewWhat(v['what'], true));
+}
+function phoneDocumentRow(v: unknown): v is PhoneDocumentRow {
+  return isRec(v) && onlyKeys(v, ['documentId', 'channel', 'mediaType', 'receivedAt']) && isStr(v['documentId']) && /^[A-Za-z0-9_-]{1,200}$/.test(v['documentId'])
+    && oneOf(['whatsapp', 'telegram'] as const)(v['channel']) && isName(v['mediaType'], 100) && isIsoDate(v['receivedAt']);
+}
+export function isTodayReviewReply(v: unknown): v is TodayReviewReply {
+  if (!isRec(v) || !onlyKeys(v, ['approvals', 'items', 'groups', 'documents', 'phoneDocuments', 'count', 'waiting'])) return false;
+  if (!oneOf(['ready', 'not-built'] as const)(v['approvals']) || !oneOf(['ready', 'not-built'] as const)(v['documents']) || !isDigits(v['count']) || !isDigits(v['waiting'])) return false;
+  const items = v['items'], groups = v['groups'], docs = v['phoneDocuments'];
+  if (!Array.isArray(items) || !items.every(reviewItem) || !Array.isArray(groups) || !groups.every(reviewGroup) || !Array.isArray(docs) || !docs.every(phoneDocumentRow)) return false;
+  // One per item: an approval appears once, as a row or inside one summary row.
+  const ids = [...(items as TodayReviewItem[]).map(item => item.id), ...(groups as TodayReviewGroup[]).flatMap(group => group.ids)];
+  return new Set(ids).size === ids.length;
+}
+
+/**
+ * `todayx.closeStatus` {} → the month's close for Books Today (TD-03): one state per part, from
+ * records only. `month` is `YYYY-MM`, the month before the business day. No figure is carried.
+ * `not-sure` (additive): a read behind the part failed, so its state is not known.
+ */
+export const CLOSE_STATUS_PARTS = ['bank', 'gstr2b', 'tds', 'trial-balance'] as const;
+export const CLOSE_STATUS_STATES = ['done', 'in-progress', 'not-started', 'needs-you', 'not-applicable', 'not-loaded-yet', 'not-sure'] as const;
+export type CloseStatusState = (typeof CLOSE_STATUS_STATES)[number];
+export interface CloseStatusReply {
+  readonly month: string;
+  readonly parts: Readonly<Record<(typeof CLOSE_STATUS_PARTS)[number], CloseStatusState>>;
+  readonly notApplicable?: 'composition' | 'unregistered';
+}
+export function isCloseStatusReply(v: unknown): v is CloseStatusReply {
+  if (!isRec(v) || !onlyKeys(v, ['month', 'parts'], ['notApplicable']) || !(isStr(v['month']) && /^\d{4}-(0[1-9]|1[0-2])$/.test(v['month']))) return false;
+  const parts = v['parts'];
+  if (!isRec(parts) || !onlyKeys(parts, CLOSE_STATUS_PARTS) || !CLOSE_STATUS_PARTS.every(p => oneOf(CLOSE_STATUS_STATES)(parts[p]))) return false;
+  return v['notApplicable'] === undefined || (oneOf(['composition', 'unregistered'] as const)(v['notApplicable']) && parts['gstr2b'] === 'not-applicable');
+}
+
+/**
+ * `todayx.cash.week` {} and `todayx.cash.save` { day, paise } (prepare) → the seven days ending on
+ * the business day, each the cash told by the owner (whole paise) or null when not told (TD-02).
+ */
+export interface CashWeekReply {
+  readonly day: string;
+  readonly label: 'told-by-owner';
+  readonly days: readonly { readonly day: string; readonly paise: string | null; readonly entryId: string | null }[];
+}
+const isDay = (v: unknown): v is string => isStr(v) && /^\d{4}-\d{2}-\d{2}$/.test(v) && isIsoDate(v);
+export function isCashWeekReply(v: unknown): v is CashWeekReply {
+  if (!isRec(v) || !onlyKeys(v, ['day', 'label', 'days']) || !isDay(v['day']) || v['label'] !== 'told-by-owner') return false;
+  const days = v['days'];
+  if (!Array.isArray(days) || days.length !== 7) return false;
+  const last = days[6];
+  if (!isRec(last) || last['day'] !== v['day']) return false;
+  return days.every((d, i) => {
+    if (!isRec(d) || !onlyKeys(d, ['day', 'paise', 'entryId']) || !isDay(d['day'])) return false;
+    const before = i === 0 ? null : days[i - 1];
+    if (before !== null && !(isRec(before) && isStr(before['day']) && d['day'] > before['day'])) return false;
+    return d['paise'] === null ? d['entryId'] === null : isDigits(d['paise']) && isStr(d['entryId']) && /^cash_[A-Za-z0-9_]{1,80}$/.test(d['entryId']);
+  });
+}
+
+/**
+ * hosted-link's `phone.documents.preview` { documentId } (admin) → the normal import preview of a
+ * document sent from the phone, marked outside data. Nothing is stored: confirming is the normal
+ * `sources.import` with `confirm.input`. Only the fields the confirm row uses are typed; the preview
+ * itself is checked with first run's `validatePreview`.
+ */
+export interface PhoneDocumentPreviewReply {
+  readonly documentId: string;
+  readonly mediaType: string;
+  readonly outside: true;
+  readonly sourceTainted: true;
+  readonly imported: false;
+  readonly preview: unknown;
+  readonly confirm: { readonly method: 'sources.import'; readonly input: Readonly<Record<string, unknown>> };
+}
+export function isPhoneDocumentPreviewReply(v: unknown): v is PhoneDocumentPreviewReply {
+  if (!isRec(v) || !isStr(v['documentId']) || !isName(v['mediaType'], 100) || v['outside'] !== true || v['sourceTainted'] !== true || v['imported'] !== false || !isRec(v['preview'])) return false;
+  const confirm = v['confirm'];
+  if (!isRec(confirm) || confirm['method'] !== 'sources.import') return false;
+  const input = confirm['input'];
+  return isRec(input) && isStr(input['sourceId']) && isStr(input['format']);
+}

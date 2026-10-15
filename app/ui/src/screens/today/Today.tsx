@@ -25,7 +25,8 @@ import { LensRow } from '../../patterns/Lens';
 import { TodaySimple } from './TodaySimple';
 import { TodayBooks } from './TodayBooks';
 import { todayIntentsForState } from './permissions.ts';
-import { ClosingRow, RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayPrepare, TodayReviewLink, TodayStat, type TodayScreenProps } from './shared';
+import { ClosingRow, RowExpansion, attentionRows, opensInPlace, useInPlaceRows, useSystemRows, useWorth, WorthSection, TodayPrepare, TodayReviewLink, TodayStat, type TodayScreenProps, TodayState } from './shared';
+import { ClosingSwitch } from './ClosingSwitch';
 import s from './Today.module.css';
 
 export type { TodayScreenProps } from './shared';
@@ -81,7 +82,7 @@ function TodayGuided({ data, intents: offeredIntents, onNavigate }: TodayScreenP
         }
       />
 
-      <State state={data.state} />
+      <TodayState state={data.state} />
 
       {nothingAwaits ? (
         <State state={{ kind: 'empty' }} emptyKey="ST.empty.review" />
@@ -101,6 +102,7 @@ function TodayGuided({ data, intents: offeredIntents, onNavigate }: TodayScreenP
       </div>
 
       <ClosingRow data={data} />
+      <ClosingSwitch data={data} intents={intents} />
 
       {!nothingAwaits && worthSection}
 

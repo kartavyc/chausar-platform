@@ -47,6 +47,7 @@ import { hostMessage, hostMissingWords } from './text.ts';
 import { useFrameReads } from './frame-reads.ts';
 import { FaultReportSheetBody, RouteStatesPanel, UpdatesSheetBody, useCrashPrompt, useUpdates } from './frame-r4.tsx';
 import { todayUpdateRow } from '../app/updates-model.ts';
+import { useTodayRound4Host, ROUND4_SHEETS, type Round4SheetKind } from './today-round4-host.tsx';
 import { useHostAskLine } from './ask-line.tsx';
 import type { AskQuestion } from '../bridge/voice-contract.ts';
 import { shellBanners, demoClockState, notBuiltFromCapabilities } from '../app/shell-banners.ts';
@@ -368,7 +369,7 @@ function LessonPanel({ id, scope, lessons, context, origin, onClose, onAdjacent,
  * provenance that replaced that detail; a trusted pin's proof or provenance, opened from the page, carries none. */
 type LocalSheet = {
   readonly address: Address;
-  readonly kind: 'about' | 'reference' | 'help' | 'demo-clock' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof' | 'updates' | 'fault-report';
+  readonly kind: 'about' | 'reference' | 'help' | 'demo-clock' | 'what-if' | 'what-if-proof' | 'what-if-provenance' | 'lesson' | 'today-review' | 'today-record' | 'today-proof' | Round4SheetKind | 'updates' | 'fault-report';
   readonly id?: string;
   readonly chosen?: ScenarioSelection;
   readonly todayView?: TodayConsumerState;
@@ -455,6 +456,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   const updates = useUpdates(controller.places, contextKey);
   const crashed = useCrashPrompt(shell);
   const [crashAnswered, setCrashAnswered] = useState(false);
+  /** Round 4 Today: approvals and phone documents joined, the close, cash, the closing switch, grouped stepping. */
+  const round4 = useTodayRound4Host({ rpc: controller.places, contextKey, language, view, role: context.member.role, navigate, rereadFrame: frame.reread,
+    openSheet: (kind, from) => openRound4Sheet(kind, from), onReceipt: id => openReceipt(id) });
   const askLine = useHostAskLine({ rpc: controller.places, language, viewer, owner: context.member.role === 'owner', navigate, current: () => parseAddress(window.location.hash),
     onSaved: id => { if (conversationEnabled) selectSaved(id); else navigate({ place: 'ask', sub: 'saved' }); }, onQuestion });
   const [clockBusy, setClockBusy] = useState(false);
@@ -858,7 +862,13 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
   /** The workspace time zone, from the host or the trusted Today configuration; never the machine's. */
   const workspaceZone = controller.timeZone ?? consumer?.input?.display?.timeZone ?? null;
   const updateRow = todayUpdateRow(updates.reply);
-  const data: TodayData = { ...baseData, ...(updateRow !== undefined ? { update: updateRow } : {}), ...(frame.reads.worth !== null ? { worth: frame.reads.worth } : {}), ...(frame.reads.closing !== null ? { closing: frame.reads.closing } : {}) };
+  const data: TodayData = round4.project({ ...baseData, ...(updateRow !== undefined ? { update: updateRow } : {}), ...(frame.reads.worth !== null ? { worth: frame.reads.worth } : {}), ...(frame.reads.closing !== null ? { closing: frame.reads.closing } : {}) });
+  const openRound4Sheet = (kind: Round4SheetKind, from: HTMLElement | null) => {
+    if (!stillAuthorized() || active.current === null) return;
+    origin.current = from; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
+    const selection: LocalSheet = { address: withSheet(active.current, kind), kind };
+    localSheetRef.current = selection; setLocalSheet(selection); navigate(selection.address);
+  };
   const showDemoClock = () => {
     if (!stillAuthorized() || active.current === null) return;
     origin.current = currentOrigin(); returnSavedId.current = null; dropLessonSelection(); dropChosenScenario(); controller.retained.cancelPending(); controller.closeReceipt();
@@ -919,6 +929,9 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       {localSheet.kind === 'updates' ? <UpdatesSheetBody updates={updates} />
         : <FaultReportSheetBody rpc={controller.places} shell={shell} crash={crashed && !crashAnswered} onAnswered={() => setCrashAnswered(true)} />}
     </Sheet>,
+  } : ROUND4_SHEETS.includes(localSheet.kind as Round4SheetKind) ? {
+    address: localSheet.address,
+    content: round4.content(localSheet.kind, origin.current, closeSheet),
   } : {
     address: localSheet.address,
     content: <Sheet kind={localSheet.kind === 'demo-clock' ? t('SH-03.clock.title') : hostMessage(language, localSheet.kind === 'help' ? 'helpTitle' : localSheet.kind === 'about' ? 'aboutTitle' : 'reference')}
@@ -968,7 +981,8 @@ function AuthorizedWorkspace({ controller, state, context, language, view, setLa
       selectedRoute === undefined ? hostMessage(language, 'routeMissing') : hostMessage(language, 'routeSelected', { label: selectedRoute.label }),
     ],
     capabilities: {},
-    today: { data, intents: { ...(viewer ? {} : { onUpdate: () => showFrameSheet('updates') }), ...(consumer !== null && todayCurrent !== null ? {
+    counts: round4.counts(data),
+    today: { data, intents: { ...(viewer ? {} : { onUpdate: () => showFrameSheet('updates') }), ...round4.intents(consumer !== null && todayCurrent !== null ? {
       onReview: (id, rowOrigin) => {
         const rows = todayCurrent.response?.review.state === 'available' ? todayCurrent.response.review.value.rows : [];
         const row = rows[Number(id.replace(/^review-/, ''))];

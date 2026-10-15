@@ -13,6 +13,7 @@
 import type { ColumnsChart } from '../../app/presentation.ts';
 import { isFigure } from '../../app/presentation.ts';
 import { BAR_MAX, BAR_RADIUS, HIT_RADIUS, exactExtent, exactLinear, includeZero, toExact } from './scale.ts';
+import { useT } from '../../app/text';
 import { Mark, MissingList, Target, moveAmongMarks } from './marks';
 import s from './charts.module.css';
 
@@ -27,6 +28,7 @@ export interface ColumnsProps {
 const LABEL_H = 18;
 
 export function Columns({ chart, onReceipt, width = 200, height = 48, className }: ColumnsProps) {
+  const t = useT();
   const n = Math.max(chart.values.length, 1);
   const exacts = chart.values.map((v) => (isFigure(v.value) ? toExact(v.value.exact) : null));
   const domain = includeZero(exactExtent(exacts) ?? { min: 0n, max: 0n });
@@ -68,19 +70,31 @@ export function Columns({ chart, onReceipt, width = 200, height = 48, className 
              mark with its written amount; it is never drawn as a zero. */
           const yv = exact === null ? null : y(exact);
           const below = yv !== null && yv > y0;
+          const bar = yv !== null && (
+            <rect
+              className={[s.bar, ink ? s.ink : s.dim, 'm-grow'].join(' ')}
+              style={{ transformOrigin: below ? 'center top' : 'center bottom' }}
+              x={cx - barW / 2}
+              y={Math.min(yv, y0)}
+              width={barW}
+              height={Math.abs(yv - y0)}
+              rx={BAR_RADIUS}
+            />
+          );
+          /* Told by the owner: no receipt to open, so the bar is not a button. */
+          if (v.value.told) {
+            const words = t('CHART.told', { label: v.label, amount: v.value.display });
+            return (
+              <g key={v.id} role="img" aria-label={words} data-told="">
+                <title>{words}</title>
+                {bar}
+                {labelEl}
+              </g>
+            );
+          }
           return (
             <Mark key={v.id} label={v.label} display={v.value.display} spoken={v.value.spoken} receiptId={v.value.receiptId} onReceipt={onReceipt}>
-              {yv !== null && (
-                <rect
-                  className={[s.bar, ink ? s.ink : s.dim, 'm-grow'].join(' ')}
-                  style={{ transformOrigin: below ? 'center top' : 'center bottom' }}
-                  x={cx - barW / 2}
-                  y={Math.min(yv, y0)}
-                  width={barW}
-                  height={Math.abs(yv - y0)}
-                  rx={BAR_RADIUS}
-                />
-              )}
+              {bar}
               <Target cx={cx} cy={targetY} />
               {labelEl}
             </Mark>

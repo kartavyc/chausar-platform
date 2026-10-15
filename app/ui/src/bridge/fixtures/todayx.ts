@@ -72,6 +72,9 @@ export function activityReply(scenario: FakeScenarioName, date: string, payload:
   if (typeof payload['state'] === 'string') events = events.filter(event => event.state === payload['state']);
   if (typeof payload['actor'] === 'string') events = events.filter(event => event.actor.kind === payload['actor']);
   if (typeof payload['day'] === 'string') events = events.filter(event => event.at.startsWith(payload['day'] as string));
+  // Round 4: by job (the job id) and by record (a customer, an invoice, a source, an action, a receipt).
+  if (typeof payload['job'] === 'string') events = events.filter(event => event.values['job'] === payload['job']);
+  if (typeof payload['record'] === 'string') events = events.filter(event => ['customer', 'invoice', 'record', 'source', 'action', 'receipt', 'import', 'lesson'].some(key => event.values[key] === payload['record']));
   const filtered = events.length !== EVENTS(date).length;
   const second = payload['cursor'] === 'activity_page_2';
   const page = second ? events.slice(4) : events.slice(0, 4);

@@ -67,6 +67,35 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+/* Simple: charts one at a time and large (build.md part 4), so one tile to a line. */
+:global(:root[data-view='simple']) .tiles,
+:global(:root[data-view='simple']) .tilesFour {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* In the narrow layout (the frame under 1024, which marks itself) charts stack: one tile to a line. */
+:global([data-frame-narrow='true']) .tiles,
+:global([data-frame-narrow='true']) .tilesFour {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* A partial scope: its missing words, with the note on why folded under them. */
+.scopeNote > summary {
+  min-height: var(--target);
+  cursor: pointer;
+}
+.scopeDetail {
+  margin: 0;
+  font-size: var(--fs-note2);
+  color: var(--mute);
+}
+
+/* The disclosure of every field in the record sheet: a 24 pixel target. */
+.every > summary {
+  min-height: var(--target);
+  cursor: pointer;
+}
+
 /* Measure the content column: narrow screens keep each exact figure and its chart
    together rather than allowing amount ink to run into its neighbour. */
 @container today (max-width: 480px) {
@@ -137,6 +166,13 @@
 
 .cashChart {
   justify-self: end;
+}
+
+/* Books: a table wider than the page scrolls sideways inside its own box (narrow layout, down to 360). */
+.tableBox {
+  max-width: 100%;
+  overflow-x: auto;
+  outline-offset: calc(-1 * var(--focus));
 }
 
 /* Books: the queue table */
@@ -257,6 +293,13 @@
   color: var(--mute);
 }
 
+/* Activity in Simple: the filters folded under one word */
+.filterFold > summary {
+  min-height: var(--target);
+  cursor: pointer;
+  color: var(--fg2);
+}
+
 /* Activity: the filters above the time line */
 .filters {
   display: flex;
@@ -314,4 +357,23 @@
   margin: 0;
   font-size: var(--fs-title);
   font-weight: var(--fw-medium);
+}
+
+/* Round 4: the closing switch, grouped stepping results and its second-ask note. */
+.closingSwitch {
+  margin-block-start: var(--sp2);
+}
+.groupResults {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp1);
+}
+.groupAsk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp2);
+  margin-block-start: var(--sp2);
 }
