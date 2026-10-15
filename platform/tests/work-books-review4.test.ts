@@ -154,10 +154,11 @@ test('review 4 #4: records.timelineMore hides write-back journal entries sent fr
 // ---------------------------------------------------------------- 7. tainted context cannot reapply deletions
 
 test('review 4 #7: approvals.reapplyDeletions refuses a tainted request before calling core-data', async () => {
-  const { call, calls } = await setup({ 'deletion.reapply': () => ({ reapplied: 1 }) });
-  await assert.rejects(call({ ...owner, sourceTainted: true } as Context, 'approvals.reapplyDeletions', {}), code('TAINTED_APPROVAL'));
+  const { call, calls } = await setup({ 'deletion.reapply': () => ({ at: '2026-10-15T15:00:00.000Z', complete: true, kinds: [{ kind: 'customer', cameBack: 1, deleted: 1, remaining: 0, state: 'deleted', reason: null }] }) });
+  await assert.rejects(call({ ...owner, sourceTainted: true } as Context, 'approvals.reapplyDeletions', { confirmation: 'Synthetic shop' }), code('TAINTED_APPROVAL'));
   assert.ok(!calls.includes('deletion.reapply'));
-  assert.deepEqual(await call(owner, 'approvals.reapplyDeletions', {}), { reapplied: 1 });
+  const again = await call(owner, 'approvals.reapplyDeletions', { confirmation: 'Synthetic shop' });
+  assert.deepEqual([again.reapplied, again.remaining, again.complete], [1, 0, true]);
 });
 
 // ---------------------------------------------------------------- 8. BK-20 recount (and, after core-data's round 4, no full-access rule)
