@@ -348,6 +348,9 @@ test('every plan step and every approval carries its own label, before and after
   await click(button(h.app, 'Show my plan'));
   assert.deepEqual(labelsIn(h.app, 'Steps').steps, ['assumption', 'told by you', 'assumption', 'assumption']);
   assert.deepEqual(labelsIn(h.app, 'You approve').approvals, [['Every monthly report before it reaches a client', 'assumption'], ['Any message that asks a client for money', 'told by you']]);
+  // Chausar takes no payments itself, so the back office line never says it does.
+  assert.ok(text(h.app).includes('Clients pay through Razorpay links on your site, and you record each payment here.'));
+  assert.equal(text(h.app).includes('Payments by'), false);
 
   const kept = { ...F.blueprintDraftView, blueprint: { ...F.blueprintDraftView.blueprint, deliverySteps: preview.deliverySteps, approvals: preview.approvals } };
   const owned = await place('business', { blueprint: 'draft', overrides: { 'venture.blueprint.get': () => kept } });
@@ -940,6 +943,16 @@ test('a practice draft cannot be accepted, copied or saved; a template outline s
   await click(button(sheet, 'Accept'));
   assert.deepEqual(h.calls.find(call => call.method === 'venture.delivery.review')!.payload, { runId: 'vdr_outline', verdict: 'accepted' });
   assert.equal(buttons(sheet, 'Copy').length, 1, 'an accepted draft can be copied');
+});
+
+test('the kept plan names the payment links honestly and writes tax names in plain case', async () => {
+  const draft = F.blueprintDraftView.blueprint;
+  const salesTax = { ...F.blueprintDraftView, offerReceipts: {}, blueprint: { ...draft, backOffice: { ...draft.backOffice, taxLabel: 'Sales tax', taxRegistered: { value: false, label: 'told-by-you' as const, by: 'owner' as const }, paymentRail: 'stripe' } } };
+  const h = await place('business', { blueprint: 'draft', overrides: { 'venture.blueprint.get': () => salesTax } });
+  await click(find(h.content, node => node.tagName === 'summary' && node.textContent === 'Back office'));
+  assert.ok(text(h.content).includes('Tax: not registered for sales tax.'));
+  assert.ok(text(h.content).includes('Clients pay through Stripe links on your site, and you record each payment here.'));
+  assert.equal(text(h.content).includes('Payments by'), false);
 });
 
 test('a draft with a failed check offers Edit and Reject, not Accept', async () => {

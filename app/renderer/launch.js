@@ -32,6 +32,10 @@ globalThis.ChausarLaunch = Object.freeze({
     const PRICING = [['monthly', 'Per month'], ['project', 'Per project'], ['hourly', 'Per hour']];
     const UNIT_WORDS = { month: 'per month', project: 'per project', hour: 'per hour' };
     const RAIL_NAMES = { razorpay: 'Razorpay', cashfree: 'Cashfree', paypal: 'PayPal', stripe: 'Stripe', 'lemon-squeezy': 'Lemon Squeezy', paddle: 'Paddle' };
+    // Chausar does not take payments: the site carries pay links and the owner records each payment.
+    // Tax names read lower case inside a sentence unless they are letters like GST or VAT.
+    const taxInSentence = label => /^[A-Z]{2,}/.test(label || '') ? label : String(label || '').toLowerCase();
+    const railWords = rail => `Clients pay through ${RAIL_NAMES[rail] || rail} links on your site, and you record each payment here.`;
     const BUILDER_NAMES = { lovable: 'Lovable', replit: 'Replit', bolt: 'Bolt', v0: 'v0' };
     const LINK_BUILDERS = ['lovable', 'replit'];
     const PRESET_NAMES = {
@@ -372,7 +376,7 @@ globalThis.ChausarLaunch = Object.freeze({
         }))), priceBlock),
         section('Steps', stepRows(preview.deliverySteps)),
         section('You approve', approvalLines(preview.approvals)),
-        section('Back office', h('p', {}, `Invoices and books in ${country.currency}. Payments by ${RAIL_NAMES[preview.backOffice.paymentRail] || preview.backOffice.paymentRail}.`),
+        section('Back office', h('p', {}, `Invoices and books in ${country.currency}. ${railWords(preview.backOffice.paymentRail)}`),
           h('p', {}, taxChip, ' ', link('Change', () => { taxBody.hidden = !taxBody.hidden; })), taxBody),
         section(null, link('Tell us more (optional)', () => { extraBody.hidden = !extraBody.hidden; }), extraBody),
         actions(keep, quiet('Start over', () => { ob.preview = null; ob.tax = null; ob.rate = null; ob.price = ''; ob.extra = {}; void showIdea(); })),
@@ -542,7 +546,7 @@ globalThis.ChausarLaunch = Object.freeze({
       const taxFigure = Object.values(receipts).map(receipt => figureOf(receipt, 'tax')).find(Boolean);
       const taxWords = backOffice.taxRegistered.value
         ? (taxFigure ? `Tax: ${taxFigure.label}.` : `Tax: ${backOffice.taxLabel}, registered.`)
-        : `Tax: not registered for ${backOffice.taxLabel}.`;
+        : `Tax: not registered for ${taxInSentence(backOffice.taxLabel)}.`;
       const needsTaxFields = backOffice.taxRegistered.value && backOffice.invoiceKind === 'tax-invoice';
       const missing = needsTaxFields && backOffice.taxInvoiceMissing.length
         ? h('p', { class: 'launch-note' }, `For a tax invoice, add: ${backOffice.taxInvoiceMissing.join(', ')}. `, link('Add them', () => openTaxSheet(ctx)))
@@ -577,7 +581,7 @@ globalThis.ChausarLaunch = Object.freeze({
         section('Steps', stepRows(plan.deliverySteps), fold('How each step works', open, ...plan.deliverySteps.map(step => note(`${step.title.value}: ${step.note}`)))),
         missing,
         fold('You approve', open, approvalLines(plan.approvals, 'launch-note launch-approval')),
-        fold('Back office', open, note(`Invoices and books in ${backOffice.currency}. ${taxWords} Payments by ${RAIL_NAMES[backOffice.paymentRail] || backOffice.paymentRail}.`), tag(backOffice.taxRegistered), ready),
+        fold('Back office', open, note(`Invoices and books in ${backOffice.currency}. ${taxWords} ${railWords(backOffice.paymentRail)}`), tag(backOffice.taxRegistered), ready),
         mode === 'place' ? fold('What your business knows', false, note(`Active: ${active.join(', ') || 'none yet'}. Proposed: ${proposed.join(', ') || 'none'}.`),
           ...(view.terms || []).map(term => note(`${term.name}: ${term.meaning}`))) : null,
         actions(accept, quiet('Change plan', () => openChangeSheet(ctx)), rewrite, plan.status === 'accepted' && mode === 'place' ? link('Go to Build', () => navigate('build')) : null),
@@ -656,7 +660,7 @@ globalThis.ChausarLaunch = Object.freeze({
         field('Name', name), field('One line', oneLiner), field("Who it's for", customer),
         ...offerControls.map(control => h('div', { class: 'launch-sheet-group' }, note(control.offer.name.value, 'launch-strong'),
           field('Offer name', control.name), field('What it includes', control.description), field('How you charge', control.pricing), field('New price', control.price))),
-        note(`Do you charge ${backOffice.taxLabel}?`, 'launch-strong'),
+        note(`Do you charge ${taxInSentence(backOffice.taxLabel)}?`, 'launch-strong'),
         choiceRow([['no', 'No'], ['yes', 'Yes']], registered ? 'yes' : 'no', value => { registered = value === 'yes'; rateField.hidden = !registered; }),
         rateField, actions(save), status));
     }
