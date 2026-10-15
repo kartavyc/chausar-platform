@@ -23,6 +23,8 @@ globalThis.ChausarLaunch = Object.freeze({
     const OUTLINE_LINE = "Template outline. No AI wrote this and it doesn't read the client's request.";
     const PRACTICE_LINE = 'Practice draft. Not for the client.';
     const RECORDING_LINE = 'AI answers here come from a synthetic recording.';
+    const BOTH_RECORDED_LINE = 'AI answers and GitHub reads here come from a synthetic recording.';
+    const REPLIT_LINE = 'Replit receives the brief when its page opens.';
     // Built-in templates say so wherever they wrote the words, as the Add your AI sheet promises.
     const TEMPLATE_LINE = 'Written from built-in templates, not by AI.';
     const PASSPHRASE_LINE = 'Chausar locks your business with this passphrase. Nobody can reset it, so keep the recovery code you see next.';
@@ -50,7 +52,24 @@ globalThis.ChausarLaunch = Object.freeze({
     const CAPABILITY_WORDS = { available: 'available', 'needs-setup': 'needs setup', unverified: 'unverified', planned: 'planned', unavailable: 'unavailable' };
     const STAGE_WORDS = { rehearsal: 'Rehearsal', shadow: 'Shadow', 'approve-each': 'Approve each draft', 'approve-sample': 'Approve a sample', 'auto-spot-check': 'Auto with spot checks' };
     const STAGE_ORDER = ['rehearsal', 'shadow', 'approve-each', 'approve-sample', 'auto-spot-check'];
-    const RUN_WORDS = { 'waiting-for-you': 'waiting for you', 'ready-for-review': 'ready to review', accepted: 'accepted', edited: 'edited', rejected: 'rejected', failed: 'failed' };
+    /** A draft the engine treats as practice now. The engine says so in practiceNow; an older answer falls back to its rule:
+        made as practice, or an agent draft read at any stage but approve each. */
+    function practiceDraft(run, stage) {
+      if (typeof run?.practiceNow === 'boolean') return run.practiceNow;
+      return run?.practice === true || (run?.servedBy === 'model' && stage !== 'approve-each');
+    }
+    /** The engine refuses Accept on a practice draft and after any failed check, so the screen only offers Accept when it can work. */
+    function acceptRefused(run, stage) {
+      if (typeof run?.canAccept === 'boolean') return !run.canAccept;
+      return practiceDraft(run, stage) || (run?.checks || []).some(check => !check.passed);
+    }
+    /** Whether a draft belongs on Today: the engine's awaitingYou, or the same rule worked out from the stage. */
+    function awaitingOwner(run, stage) {
+      if (typeof run?.awaitingYou === 'boolean') return run.awaitingYou;
+      if (run?.status === 'waiting-for-you') return true;
+      return run?.status === 'ready-for-review' && (!practiceDraft(run, stage) || stage === 'shadow');
+    }
+    const RUN_WORDS = { 'waiting-for-you': 'to approve', 'ready-for-review': 'to review', accepted: 'accepted', edited: 'edited', rejected: 'rejected', failed: 'failed' };
     const ORDER_WORDS = { open: 'open', invoiced: 'invoiced', delivered: 'delivered', cancelled: 'cancelled' };
     const BUILD_WORDS = {
       'waiting-for-repo': 'Waiting for the repo', 'repo-connected': 'Repo connected', 'builder-making-changes': 'The builder is making changes',
@@ -239,6 +258,11 @@ globalThis.ChausarLaunch = Object.freeze({
       return dialog;
     }
 
+    /** The weekday and date for a day the engine names, in the same day basis as every other date on screen. */
+    function dayLine(iso) {
+      const date = new Date(`${String(iso).slice(0, 10)}T00:00:00Z`);
+      return Number.isNaN(date.getTime()) ? plain(iso) : date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+    }
     function dayText(iso) {
       if (!iso) return '';
       const date = new Date(`${String(iso).slice(0, 10)}T00:00:00Z`);
@@ -251,8 +275,21 @@ globalThis.ChausarLaunch = Object.freeze({
         ? date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
         : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
     }
-    /** Today's date as the engine counts it (UTC), offered in a date field the owner can change, so a new payment falls inside the engine's default Money period. */
-    function engineDate() { return new Date().toISOString().slice(0, 10); }
+    /** The business's time zone, as the books summary names it. Every date the engine fills in is a day in this zone. */
+    let ownerZone = null;
+    function rememberDay(summary) { if (typeof summary?.timeZone === 'string' && summary.timeZone) ownerZone = summary.timeZone; }
+    /** Today on the owner's calendar, the engine's day basis, offered in date fields the owner can change. Before any
+        books summary named the zone, it is this computer's own day. */
+    function engineDate() {
+      const now = new Date();
+      if (ownerZone) {
+        try {
+          const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: ownerZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now).map(part => [part.type, part.value]));
+          if (parts.year && parts.month && parts.day) return `${parts.year}-${parts.month}-${parts.day}`;
+        } catch { /* an unknown zone falls back to this computer's day */ }
+      }
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
     async function copyText(value) {
       if (typeof navigator === 'undefined' || typeof navigator.clipboard?.writeText !== 'function') throw new Error('This window cannot copy. Use Save instead.');
       try { await navigator.clipboard.writeText(value); }
@@ -322,7 +359,7 @@ globalThis.ChausarLaunch = Object.freeze({
         if (!value) throw new Error('Write one sentence about the business you want to start.');
         ob.idea = value;
         if (ob.preview?.idea !== value || ob.preview?.country?.code !== ob.countryCode) { ob.tax = null; ob.rate = null; ob.extra = {}; }
-        ob.preview = await request('venture.preview', { idea: value, countryCode: ob.countryCode || 'XX' });
+        ob.preview = await request('venture.preview', previewPayload(value));
         showPlan();
       }));
       idea.addEventListener('input', () => { ob.idea = idea.value; });
@@ -356,13 +393,20 @@ globalThis.ChausarLaunch = Object.freeze({
       }));
     }
 
+    /** What venture.preview needs: the idea, the country, and how the owner charges once they chose other than per month. */
+    function previewPayload(idea) {
+      const ob = onboarding();
+      const payload = { idea, countryCode: ob.countryCode || 'XX' };
+      if (ob.pricing && ob.pricing !== 'monthly') payload.pricingModel = ob.pricing;
+      return payload;
+    }
     /** Step two: the plan from built-in templates, before any vault. Price and tax are set here, inline. */
     function showPlan() {
       const ob = onboarding();
       frame('plan', draftPlanBody(ob.preview, { inVault: ob.vaultOpen, onKeep: () => (ob.vaultOpen ? runSetup({ host: null, skipCreate: false }) : showKeepSafe()) }));
     }
 
-    function draftPlanBody(preview, { inVault, onKeep }) {
+    function draftPlanBody(preview, { inVault, onKeep, onRepaint = showPlan }) {
       const ob = onboarding();
       const country = preview.country;
       const tax = country.tax;
@@ -375,7 +419,16 @@ globalThis.ChausarLaunch = Object.freeze({
       amount.addEventListener('input', () => { ob.price = amount.value; });
       const priceBlock = h('div', { class: 'launch-price-set' },
         h('p', { class: 'launch-strong' }, 'Set your price'),
-        choiceRow(PRICING, ob.pricing, value => { ob.pricing = value; }),
+        choiceRow(PRICING, ob.pricing, value => {
+          ob.pricing = value;
+          ob.price = amount.value;
+          // The offer's name and words follow how it is charged, so the plan is asked for again.
+          void act(null, status, async () => {
+            const again = await request('venture.preview', { ...previewPayload(preview.idea || ob.idea), pricingModel: value });
+            ob.preview = { ...again, idea: again.idea || preview.idea || ob.idea };
+            onRepaint();
+          });
+        }),
         h('div', { class: 'launch-amount' }, field('Your price', amount), h('span', { class: 'launch-currency' }, country.currency)),
         note('Chausar works out tax and totals, with receipts, when you keep this plan.'));
 
@@ -418,7 +471,7 @@ globalThis.ChausarLaunch = Object.freeze({
         section('Offers', rows(...preview.offers.map(offer => row({
           mark: 'off', title: offer.name.value, label: LABEL_WORDS[offer.name.label] || 'assumption',
         }))), fold('About the offers', false, ...preview.offers.map(offer => note(`${offer.name.value}: ${offer.description.value}`))), priceBlock),
-        section('Steps', stepRows(preview.deliverySteps)),
+        fold('Steps', false, stepRows(preview.deliverySteps)),
         fold('You approve', false, approvalLines(preview.approvals, 'launch-note launch-approval')),
         fold('Back office', false, note(`Invoices and books in ${country.currency}. ${railWords(preview.backOffice.paymentRail)}`)),
         h('p', { class: 'launch-tax-line' }, taxChip, ' ', toggle('Change', taxBody)), taxBody,
@@ -443,7 +496,7 @@ globalThis.ChausarLaunch = Object.freeze({
     /** Step three: keep it safe. The passphrase is asked only now, in a password field inside its form. */
     function showKeepSafe() {
       const ob = onboarding();
-      const name = textInput(ob.workingName || 'My service business', { maxlength: 80, autocomplete: 'organization', required: true });
+      const name = textInput(ob.workingName || '', { maxlength: 80, autocomplete: 'organization', placeholder: 'My service business' });
       const passphrase = h('input', { type: 'password', value: '', minlength: 12, required: true, autocomplete: 'new-password' });
       const confirm = h('input', { type: 'password', value: '', minlength: 12, required: true, autocomplete: 'new-password' });
       const status = statusLine();
@@ -561,9 +614,10 @@ globalThis.ChausarLaunch = Object.freeze({
         ob.vaultOpen = true;
         ob.idea = view.venture.idea;
         ob.countryCode = view.venture.country.code;
-        ob.preview = await request('venture.preview', { idea: view.venture.idea, countryCode: view.venture.country.code });
+        ob.preview = await request('venture.preview', previewPayload(view.venture.idea));
         const after = mode === 'place' ? () => navigate('business') : showOwnedPlan;
-        host.replaceChildren(draftPlanBody(ob.preview, { inVault: true, onKeep: () => runSetup({ host, skipCreate: true, after }) }));
+        const repaint = () => host.replaceChildren(draftPlanBody(ob.preview, { inVault: true, onKeep: () => runSetup({ host, skipCreate: true, after }), onRepaint: repaint }));
+        repaint();
         return;
       }
       host.replaceChildren(planBody({ view, blueprintView, models, mode, host }));
@@ -621,19 +675,23 @@ globalThis.ChausarLaunch = Object.freeze({
         await refresh();
       }));
 
+      // At rest: the name, the one line, the offers with their prices, and the folds. The longer words open in place.
+      const source = plan.source === 'model' ? '' : ', from built-in templates';
       return h('div', { class: 'launch-plan-body' },
-        head(`Plan, version ${plan.version}, ${plan.status === 'accepted' ? 'accepted' : 'not accepted yet'}`, plan.name.value),
+        head(`Version ${plan.version}, ${plan.status === 'accepted' ? 'accepted' : 'not accepted yet'}${source}`, plan.name.value),
         h('p', { class: 'launch-lead' }, plan.oneLiner.value, ' ', tag(plan.oneLiner)),
-        h('p', {}, h('span', { class: 'launch-label' }, 'for'), ' ', plan.customer.value, ' ', tag(plan.customer)),
-        plan.source === 'model' ? recordingNote(models) : note(TEMPLATE_LINE),
-        section('Offers', rows(...offerRows), fold('About the offers', open, ...plan.offers.map(offer => note(`${offer.name.value}: ${offer.description.value}`)))),
-        section('Steps', stepRows(plan.deliverySteps), fold('How each step works', open, ...plan.deliverySteps.map(step => note(`${step.title.value}: ${step.note}`)))),
+        plan.source === 'model' ? recordingNote(models) : null,
+        section('Offers', rows(...offerRows)),
         missing,
+        fold('More about the plan', open,
+          h('p', { class: 'launch-note' }, h('span', { class: 'launch-label' }, 'for'), ' ', plan.customer.value, ' ', tag(plan.customer)),
+          ...plan.offers.map(offer => note(`${offer.name.value}: ${offer.description.value}`)),
+          mode === 'place' ? note(`What your business knows. Active: ${active.join(', ') || 'none yet'}. Proposed: ${proposed.join(', ') || 'none'}.`) : null,
+          ...(mode === 'place' ? (view.terms || []).map(term => note(`${term.name}: ${term.meaning}`)) : [])),
+        fold('Steps', open, stepRows(plan.deliverySteps), ...plan.deliverySteps.map(step => note(`${step.title.value}: ${step.note}`))),
         fold('You approve', open, approvalLines(plan.approvals, 'launch-note launch-approval')),
         fold('Back office', open, note(`Invoices and books in ${backOffice.currency}. ${taxWords} ${railWords(backOffice.paymentRail)}`), tag(backOffice.taxRegistered), ready),
-        mode === 'place' ? fold('What your business knows', false, note(`Active: ${active.join(', ') || 'none yet'}. Proposed: ${proposed.join(', ') || 'none'}.`),
-          ...(view.terms || []).map(term => note(`${term.name}: ${term.meaning}`))) : null,
-        actions(accept, quiet('Change plan', () => openChangeSheet(ctx)), rewrite, plan.status === 'accepted' && mode === 'place' ? link('Go to Build', () => navigate('build')) : null),
+        actions(accept, quiet('Change plan', () => openChangeSheet(ctx)), rewrite),
         status);
     }
 
@@ -801,21 +859,25 @@ globalThis.ChausarLaunch = Object.freeze({
       } catch (error) { content.replaceChildren(...errorNodes(error, showBuildStepAgain)); }
     }
 
-    /** The opening words of the brief: its first section, cut short. "See all" shows every line. */
+    /** The opening words of the brief: its first section, cut short. "Read it" shows every line. */
     function openingLines(markdown) {
       const lines = plain(markdown).split('\n').map(item => item.trim()).filter(Boolean);
       const start = lines.findIndex(item => /^##\s*1\./.test(item));
       const paragraph = start >= 0 ? (lines[start + 1] || '') : (lines[1] || lines[0] || '');
-      return paragraph.length > 120 ? `${paragraph.slice(0, 120).replace(/\s+\S*$/, '')}…` : paragraph;
+      return paragraph.length > 80 ? `${paragraph.slice(0, 80).replace(/\s+\S*$/, '')}…` : paragraph;
     }
     function briefState(brief) {
       if (brief.lint?.ok) return `${Number(brief.chars).toLocaleString('en-US')} of 9,000 characters, checks passed.`;
       const finding = brief.lint?.findings?.[0];
       return `Not ready to hand over: ${finding?.message || 'the brief check failed.'}`;
     }
-    function openBriefSheet(brief) {
-      sheet('Your build brief', h('div', {}, h('pre', { class: 'launch-pre' }, brief.markdown),
-        actions(quiet('Save brief', () => saveText('brief.md', brief.markdown, 'text/markdown')))));
+    /** The whole brief, with its size, Copy, Save and Write it again. */
+    function openBriefSheet(brief, writeAgain) {
+      const status = statusLine();
+      const again = quiet('Write it again', () => act(again, status, async () => { closeSheet(); await writeAgain(); }));
+      sheet('Your build brief', h('div', {}, note(briefState(brief)), h('pre', { class: 'launch-pre' }, brief.markdown),
+        actions(quiet('Copy brief', () => act(null, status, async () => { await copyText(brief.markdown); status.replaceChildren(note('Brief copied.')); })),
+          quiet('Save brief', () => saveText('brief.md', brief.markdown, 'text/markdown')), again), status));
     }
 
     const dropTab = tab => { if (tab) { try { tab.close(); } catch { /* already closed */ } } };
@@ -843,16 +905,24 @@ globalThis.ChausarLaunch = Object.freeze({
       notesHost.append(note(plan.mode === 'link' ? `${BUILDER_NAMES[builder] || builder} opened in your browser.` : `Brief copied. Paste it into ${BUILDER_NAMES[builder] || builder}.`, 'launch-note launch-done'));
     }
 
+    /** GitHub's own words when its answers come from a recording rather than the real repo. */
+    const githubRecording = status => (status.follow?.lastStatus?.cannotSay || []).filter(item => /synthetic recording/i.test(item));
+
     function buildBody(ctx) {
       const { status, models, mode, refresh } = ctx;
       const brief = status.brief;
       const out = [head(mode === 'onboarding' ? 'Build' : null, mode === 'onboarding' ? 'Hand your brief to a builder' : 'Build')];
       const briefStatus = statusLine();
+      const writeBrief = async () => {
+        await busy(briefStatus, 'Writing your build brief', () => request('venture.build.brief', {}));
+        await refresh();
+      };
+      // When the brief and GitHub both answer from recordings, one line says so for the page instead of two.
+      const modelRecorded = Boolean(brief) && brief.wordsBy === 'model' && replaying(models);
+      const together = modelRecorded && githubRecording(status).length > 0;
+      if (together) out.push(note(BOTH_RECORDED_LINE, 'launch-note launch-recording'));
       if (!brief) {
-        const write = filled('Write the build brief', () => act(write, briefStatus, async () => {
-          await busy(briefStatus, 'Writing your build brief', () => request('venture.build.brief', {}));
-          await refresh();
-        }));
+        const write = filled('Write the build brief', () => act(write, briefStatus, writeBrief));
         out.push(section(null, note('No build brief yet. Chausar writes it from your accepted plan.'), actions(write), briefStatus));
       } else {
         const notesHost = h('div', { class: 'launch-handoff-notes' });
@@ -860,25 +930,22 @@ globalThis.ChausarLaunch = Object.freeze({
         const open = (builder, button) => act(button, handoffStatus, () => handOff(builder, notesHost));
         const lovable = filled('Open in Lovable', () => open('lovable', lovable));
         const replit = quiet('Open in Replit', () => open('replit', replit));
-        const copy = quiet('Copy brief', () => act(copy, handoffStatus, async () => { await copyText(brief.markdown); handoffStatus.replaceChildren(note('Brief copied.')); }));
-        const again = link('Write it again', () => act(again, briefStatus, async () => {
-          await busy(briefStatus, 'Writing your build brief', () => request('venture.build.brief', {}));
-          await refresh();
-        }));
-        if (!brief.lint?.ok) { lovable.disabled = true; replit.disabled = true; }
+        const ok = brief.lint?.ok === true;
+        const again = ok ? null : link('Write it again', () => act(again, briefStatus, writeBrief));
+        if (!ok) { lovable.disabled = true; replit.disabled = true; }
+        const source = brief.wordsBy === 'model' ? (together ? null : recordingNote(models)) : note(TEMPLATE_LINE);
         out.push(
           section('Your brief', h('p', { class: 'launch-brief' }, openingLines(brief.markdown)),
-            h('p', { class: 'launch-note' }, briefState(brief), ' ', link('See all', () => openBriefSheet(brief)), ' ', again),
-            brief.wordsBy === 'model' ? recordingNote(models) : note(TEMPLATE_LINE), briefStatus),
-          section('Builders',
-            actions(lovable, replit, copy, quiet('Save brief', () => saveText('brief.md', brief.markdown, 'text/markdown'))),
-            note('Replit receives your brief as soon as its page opens.'), notesHost, handoffStatus,
-            status.handoffs?.length ? h('div', { class: 'launch-rows launch-handoffs' }, ...status.handoffs.slice(0, 4).map(handoff => row({
+            h('p', { class: 'launch-note' }, ok ? 'Checks passed.' : briefState(brief), ' ', link('Read it', () => openBriefSheet(brief, writeBrief)), again ? ' ' : null, again),
+            source, briefStatus),
+          section(null,
+            actions(lovable, replit), note(REPLIT_LINE), notesHost, handoffStatus,
+            status.handoffs?.length ? fold('Opened before', false, h('div', { class: 'launch-rows launch-handoffs' }, ...status.handoffs.slice(0, 4).map(handoff => row({
               mark: handoff.openedAt ? 'you' : 'off', title: BUILDER_NAMES[handoff.builder] || handoff.builder,
               note: handoff.openedAt ? `opened ${timeText(handoff.openedAt)}` : 'prepared, not opened',
-            }))) : null));
+            })))) : null));
       }
-      out.push(status.follow ? section('GitHub', followStatus(status, refresh)) : section('Follow the build on GitHub', followForm(status, refresh)));
+      out.push(status.follow ? section('GitHub', followStatus(status, refresh, together)) : section('Follow the build on GitHub', followForm(status, refresh)));
       return out;
     }
 
@@ -902,7 +969,8 @@ globalThis.ChausarLaunch = Object.freeze({
         actions(follow), result);
     }
 
-    function followStatus(status, refresh) {
+    /** What GitHub showed: the state word at rest; the last change, checks and limits in one fold. */
+    function followStatus(status, refresh, recordedAbove = false) {
       const follow = status.follow;
       const current = follow.lastStatus;
       const result = statusLine();
@@ -912,21 +980,27 @@ globalThis.ChausarLaunch = Object.freeze({
       }));
       const formHost = h('div');
       const repoName = `${follow.repo.owner}/${follow.repo.name}`;
-      if (!current) return h('div', {}, note(`Following ${repoName}. Not read yet.`), actions(check), result);
-      const synthetic = (current.cannotSay || []).filter(item => /synthetic recording/i.test(item));
+      const changeRepo = link('Change repo', () => { formHost.replaceChildren(followForm(status, refresh)); });
+      if (!current) return h('div', {}, note(`Following ${repoName}. Not read yet.`), actions(check, changeRepo), result, formHost);
+      const synthetic = githubRecording(status);
       const limits = (current.cannotSay || []).filter(item => !/synthetic recording/i.test(item));
       const marker = current.briefMarker === 'older' && current.briefMarkerVersion ? `Brief marker from version ${current.briefMarkerVersion}` : MARKER_WORDS[current.briefMarker] || '';
       const address = current.deployment ? h('p', {}, 'Address a host recorded: ', h('span', { class: 'launch-mono' }, current.deployment.url), ' ',
         link('Copy', () => act(null, result, async () => { await copyText(current.deployment.url); result.replaceChildren(note('Address copied.')); }))) : null;
+      const recorded = synthetic.map(item => note(item, 'launch-note launch-recording'));
       return h('div', { class: 'launch-follow' },
         h('p', { class: 'launch-strong' }, `${BUILD_WORDS[current.word] || current.word}${current.syncConflictBranch ? ` on ${current.syncConflictBranch}` : ''}`, ' ', h('span', { class: 'launch-mono launch-unit' }, repoName)),
-        current.lastCommit ? note(`Last change: ${current.lastCommit.message}. By ${BY_WORDS[current.lastCommit.by] || current.lastCommit.by}, ${timeText(current.lastCommit.at)}.`) : note('No changes read yet.'),
-        note(`${marker}. ${UI_RUN_WORDS[current.checks] || ''}.`),
         WORKFLOW_WORDS[current.uiWorkflow] ? warn(WORKFLOW_WORDS[current.uiWorkflow]) : null,
-        address,
-        ...synthetic.map(item => note(item, 'launch-note launch-recording')),
-        limits.length ? fold("What Chausar can't see", false, ...limits.map(item => note(item))) : null,
-        actions(check, link('Change repo', () => { formHost.replaceChildren(followForm(status, refresh)); })), result, formHost);
+        ...(recordedAbove ? [] : recorded),
+        fold('Details', false,
+          current.lastCommit ? note(`Last change: ${current.lastCommit.message}. By ${BY_WORDS[current.lastCommit.by] || current.lastCommit.by}, ${timeText(current.lastCommit.at)}.`) : note('No changes read yet.'),
+          note(`${marker}. ${UI_RUN_WORDS[current.checks] || ''}.`),
+          address,
+          ...(recordedAbove ? recorded : []),
+          limits.length ? h('p', { class: 'launch-strong' }, "What Chausar can't see") : null,
+          ...limits.map(item => note(item)),
+          actions(changeRepo)),
+        actions(check), result, formHost);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -969,13 +1043,28 @@ globalThis.ChausarLaunch = Object.freeze({
       consent.agree.addEventListener('change', () => { connect.disabled = !consent.agree.checked; });
       return section('Recommended', h('div', { class: 'launch-recommended', 'data-preset': 'recommended' },
         h('p', { class: 'launch-strong' }, RECOMMENDED),
+        verificationOf(haiku) ? note(verificationOf(haiku), 'launch-note launch-unverified') : null,
         field('Your Anthropic key', key, KEY_LINE), haiku.keyHint ? note(haiku.keyHint) : null, consent.node,
         sonnet.consentText !== haiku.consentText ? h('p', { class: 'launch-consent-text' }, sonnet.consentText) : null,
         actions(connect), status));
     }
+    /** What the engine says about a preset nobody has tried on a live account yet; null for the built-in templates. */
+    const verificationOf = preset => (preset?.verification === 'not-live-verified' && typeof preset.verificationNote === 'string' && preset.verificationNote ? preset.verificationNote : null);
+    /** The availability reason without the verification note, when the engine already put it there, so it shows once. */
+    function reasonWithout(reason, verified) {
+      const text = plain(reason);
+      return verified && text.includes(verified) ? text.replace(verified, '').replace(/\s+/g, ' ').trim() : text;
+    }
     function presetRow(preset, done) {
       const status = statusLine();
-      const summary = h('summary', {}, h('span', { class: 'launch-row-title' }, preset.label), ' ', h('span', { class: 'launch-label' }, AVAILABILITY_WORDS[preset.availability] || preset.availability), ' ', h('span', { class: 'launch-row-note' }, preset.availabilityReason));
+      // "ready" is never shown bare for a preset Chausar has not tried on a live account: its note sits right beside it.
+      const verified = verificationOf(preset);
+      const reason = reasonWithout(preset.availabilityReason, verified);
+      const beside = verified && preset.availability === 'ready' && !/not yet (tried|checked)/i.test(reason) ? verified : null;
+      const summary = h('summary', {}, h('span', { class: 'launch-row-title' }, preset.label), ' ',
+        h('span', { class: 'launch-label' }, AVAILABILITY_WORDS[preset.availability] || preset.availability),
+        beside ? h('span', { class: 'launch-row-note launch-unverified' }, beside) : null, ' ',
+        h('span', { class: 'launch-row-note' }, beside ? reason : plain(preset.availabilityReason)));
       if (preset.id === 'built-in-templates') {
         const keep = quiet('Keep using templates', () => act(keep, status, async () => {
           await request('venture.models.connect', { presetId: preset.id, consentDigest: preset.consentDigest });
@@ -1031,34 +1120,40 @@ globalThis.ChausarLaunch = Object.freeze({
       const view = await ventureOrNull();
       if (!view) return noVenture();
       const [runs, invoices, books, events] = await Promise.all([
-        settle(request('venture.delivery.list')), settle(request('venture.invoice.list')), settle(request('venture.books.summary', {})), settle(lastEvents(6))]);
+        settle(request('venture.delivery.list')), settle(request('venture.invoice.list')), settle(request('venture.books.summary', { period: 'this-month' })), settle(lastEvents(6))]);
+      rememberDay(books.value);
       // Like items share one row, so four waiting drafts read as one line with how many there are.
+      // A practice draft stops being news once the business approves each draft: it can't be accepted any more.
+      const stage = view.venture.launchStage;
       const kinds = [
-        ['waiting', 'A draft reply waits for your approval', 'draft replies wait for your approval', 'agents'],
-        ['practice', 'A practice draft is ready to review', 'practice drafts are ready to review', 'agents'],
-        ['ready', 'A draft reply is ready to review', 'draft replies are ready to review', 'agents'],
-        ['invoice', 'A draft invoice is ready to issue', 'draft invoices are ready to issue', 'clients'],
+        ['waiting', 'A draft to approve', 'drafts to approve', 'agents'],
+        ['practice', 'A practice draft to review', 'practice drafts to review', 'agents'],
+        ['ready', 'A draft to review', 'drafts to review', 'agents'],
+        ['invoice', 'A draft invoice to issue', 'draft invoices to issue', 'clients'],
       ];
       const counts = { waiting: 0, practice: 0, ready: 0, invoice: 0 };
       for (const run of runs.value || []) {
+        if (!awaitingOwner(run, stage)) continue;
         if (run.status === 'waiting-for-you') counts.waiting++;
-        else if (run.status === 'ready-for-review') counts[run.practice ? 'practice' : 'ready']++;
+        else if (run.status === 'ready-for-review') counts[practiceDraft(run, stage) ? 'practice' : 'ready']++;
       }
       for (const invoice of invoices.value || []) if (invoice.status === 'draft') counts.invoice++;
+      // The row's words are the button, so nothing at rest says "Review" four times.
       const waiting = kinds.filter(([kind]) => counts[kind] > 0).map(([kind, one, many, place]) => row({
-        mark: 'wait', title: counts[kind] === 1 ? one : `${counts[kind]} ${many}`, side: quiet('Review', () => navigate(place)),
+        mark: 'wait', title: link(counts[kind] === 1 ? one : `${counts[kind]} ${many}`, () => navigate(place)),
       }));
       const shown = waiting.slice(0, 4);
-      if (view.next) shown.push(row({ mark: 'now', title: view.next.label, note: 'next step', side: quiet('Open', () => goToItem({ id: view.next.item, place: view.next.place })) }));
-      const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-      return page(head(today, 'Today'),
+      if (view.next) shown.push(row({ mark: 'now', title: link(view.next.label, () => goToItem({ id: view.next.item, place: view.next.place })) }));
+      // The figures are money already, so the heading names only the period: "This month".
+      const period = books.value ? periodWords(books.value) : null;
+      const moneyTitle = period ? `${period.charAt(0).toUpperCase()}${period.slice(1)}` : 'Money';
+      return page(head(dayLine(books.value?.today || engineDate()), 'Today'),
         section('Awaiting you', shown.length ? rows(...shown) : note('Nothing awaits you.')),
-        section('Launch checklist',
-          h('p', { class: 'launch-count' }, h('span', { class: 'launch-fig' }, `${view.done} of ${view.total}`), ' ',
-            h('span', { class: 'launch-strip', role: 'img', 'aria-label': `${view.done} of ${view.total} steps done` }, view.checklist.map(item => square(item.done ? 'you' : 'off')))),
-          fold('See every step', false, rows(...view.checklist.map(item => row({ mark: item.done ? 'you' : 'off', title: item.label, note: item.done ? 'done' : 'not yet', side: item.done ? null : link('Open', () => goToItem(item)) }))))),
-        section('Money', books.value ? moneyFigures(books.value) : note(plain(books.error?.message))),
-        events.value?.length ? section('Earlier', h('ol', { class: 'launch-timeline' }, events.value.map(event => h('li', {}, square('cha'), h('span', { class: 'launch-time' }, timeText(event.at)), h('span', {}, EVENT_WORDS[event.name] || event.name))))) : null);
+        section(moneyTitle, books.value ? moneyFigures(books.value) : note(plain(books.error?.message))),
+        fold(h('span', { class: 'launch-count' }, `Checklist, ${view.done} of ${view.total}`, ' ',
+          h('span', { class: 'launch-strip', role: 'img', 'aria-label': `${view.done} of ${view.total} steps done` }, view.checklist.map(item => square(item.done ? 'you' : 'off')))), false,
+        rows(...view.checklist.map(item => row({ mark: item.done ? 'you' : 'off', title: item.label, note: item.done ? 'done' : 'not yet', side: item.done ? null : link('Open', () => goToItem(item)) })))),
+        events.value?.length ? fold('Earlier', false, h('ol', { class: 'launch-timeline' }, events.value.map(event => h('li', {}, square('cha'), h('span', { class: 'launch-time' }, timeText(event.at)), h('span', {}, EVENT_WORDS[event.name] || event.name))))) : null);
     }
     function moneyFigures(summary) {
       return h('div', { class: 'launch-figures' }, summary.figures.map(item => h('div', { class: 'launch-figure' },
@@ -1218,30 +1313,40 @@ globalThis.ChausarLaunch = Object.freeze({
         settle(request('venture.capabilities')), modelStatus(), settle(request('venture.delivery.playbook')),
         settle(request('venture.order.list')), settle(request('venture.client.list'))]);
       const titles = Object.fromEntries((scenarios.value || []).map(scenario => [scenario.id, scenario.title]));
-      const rehearsal = launchStatus.value?.rehearsal?.length
+      const templateEntries = launchStatus.value?.rehearsal?.length
         ? launchStatus.value.rehearsal
         : (scenarios.value || []).filter(scenario => scenario.source === 'template').map(scenario => ({ scenarioId: scenario.id, runId: null, passed: null, judged: false }));
+      // Practice cases made from a rejected or edited draft rehearse with the rest.
+      const caseEntries = (scenarios.value || []).filter(scenario => scenario.source === 'signal' && !templateEntries.some(entry => entry.scenarioId === scenario.id))
+        .map(scenario => ({ scenarioId: scenario.id, runId: null, passed: null, judged: false, fromReview: true }));
+      const rehearsal = [...templateEntries, ...caseEntries];
       const stored = await Promise.all(rehearsal.map(entry => (entry.runId ? settle(request('venture.simulation.get', { runId: entry.runId })) : Promise.resolve({ value: null }))));
       const rowHosts = {};
+      const outcomes = {};
+      const rehearsalSummary = h('span', {});
+      const paintSummary = () => { rehearsalSummary.textContent = rehearsalWords(rehearsal.map(entry => outcomes[entry.scenarioId])); };
+      const paintRow = (host, entry, run, known) => { outcomes[entry.scenarioId] = paintRehearsal(host, entry.scenarioId, titles[entry.scenarioId] || entry.scenarioId, run, known); paintSummary(); };
       const rehearsalRows = rehearsal.map((entry, index) => {
         const host = h('div', { class: 'launch-rehearsal', 'data-scenario': entry.scenarioId });
         rowHosts[entry.scenarioId] = host;
-        paintRehearsal(host, entry.scenarioId, titles[entry.scenarioId] || entry.scenarioId, stored[index].value, entry);
+        paintRow(host, entry, stored[index].value, entry);
         return host;
       });
+      const rehearsalFold = fold(rehearsalSummary, false, h('div', { class: 'launch-rows' }, rehearsalRows));
       const ladderHost = h('div', { class: 'launch-ladder' });
-      const paintLadder = status => ladderHost.replaceChildren(...ladderNodes(status));
+      const paintLadder = status => fill(ladderHost, ...ladderNodes(status));
       if (launchStatus.value) paintLadder(launchStatus.value); else ladderHost.replaceChildren(...errorNodes(launchStatus.error));
       const rehearseStatus = statusLine();
       const rehearse = filled('Rehearse', () => act(rehearse, rehearseStatus, async () => {
+        rehearsalFold.open = true;
         for (const entry of rehearsal) {
           const host = rowHosts[entry.scenarioId];
           const title = titles[entry.scenarioId] || entry.scenarioId;
           try {
             const run = await busy(host, `Rehearsing with a practice client: ${title}`, () => request('venture.simulation.run', { scenarioIds: [entry.scenarioId] }), 2);
-            paintRehearsal(host, entry.scenarioId, title, run, null);
+            paintRow(host, entry, run, null);
           } catch (error) {
-            if (error?.code === 'REQUEST_TIMEOUT') await recoverRehearsal(host, entry.scenarioId, title);
+            if (error?.code === 'REQUEST_TIMEOUT') { outcomes[entry.scenarioId] = await recoverRehearsal(host, entry.scenarioId, title); paintSummary(); }
             else host.replaceChildren(row({ mark: 'unsure', title, extra: h('div', {}, ...errorNodes(error)) }));
           }
         }
@@ -1250,29 +1355,48 @@ globalThis.ChausarLaunch = Object.freeze({
       }));
       const clientOf = Object.fromEntries((orders.value || []).map(order => [order.id, (clients.value || []).find(client => client.id === order.clientId)?.name || 'A client']));
       const mainTier = models?.tiers?.main, fastTier = models?.tiers?.fast;
-      const aiWords = servedByModel(models, 'main') || servedByModel(models, 'fast')
-        ? `AI: ${presetName(mainTier?.presetId, mainTier?.model)} for drafts, ${presetName(fastTier?.presetId, fastTier?.model)} for quick work.`
-        : 'No AI connected. Built-in templates write outlines.';
+      const served = servedByModel(models, 'main') || servedByModel(models, 'fast');
+      const aiWords = served ? `AI: ${presetName(mainTier?.presetId, mainTier?.model)}.` : 'No AI connected. Built-in templates write outlines.';
       const capabilityNodes = capabilities.value
         ? [rows(...capabilities.value.map(item => row({ mark: item.state === 'available' ? 'cha' : 'off', title: item.label, note: CAPABILITY_WORDS[item.state] || item.state, extra: h('p', { class: 'launch-row-more' }, item.reason) })))]
         : errorNodes(capabilities.error);
-      return page(head(`Stage: ${STAGE_WORDS[view.venture.launchStage] || view.venture.launchStage}`, 'Agents'),
-        h('p', {}, aiWords, ' ', link(servedByModel(models) ? 'Change' : 'Add your AI', () => openAiSheet(reread))), recordingNote(models),
-        section('Rehearsal', h('div', { class: 'launch-rows' }, rehearsalRows), actions(rehearse), rehearseStatus),
-        section('Launch', ladderHost),
-        section('Draft replies', (runs.value || []).length ? rows(...runs.value.slice(0, 5).map(run => row({
-          mark: run.status === 'waiting-for-you' || run.status === 'ready-for-review' ? 'wait' : 'you', title: clientOf[run.orderId] || 'A client',
-          note: `${RUN_WORDS[run.status] || run.status}${run.practice ? ', practice' : ''}${run.servedBy === 'template' ? ', outline' : ''}`,
-          side: quiet('Review', () => openRunSheet(run, clientOf[run.orderId] || 'A client', models)),
-        }))) : note(runs.error ? plain(runs.error.message) : 'No draft replies yet. Draft one from an order on Clients.')),
-        fold('How an agent works', false, ...(playbook.value ? [rows(...playbook.value.steps.map(step => row({ mark: step.doneBy === 'you' ? 'you' : 'cha', title: step.title, note: DONE_BY[step.doneBy] || step.doneBy })))] : errorNodes(playbook.error))),
-        fold('What agents can do today', false, ...capabilityNodes));
+      const stage = view.venture.launchStage;
+      // The client's name is the button: one word fewer per row than a Review button beside it.
+      const draftRow = run => {
+        const client = clientOf[run.orderId] || 'A client';
+        return row({
+          mark: run.status === 'waiting-for-you' || run.status === 'ready-for-review' ? 'wait' : 'you',
+          title: link(client, () => openRunSheet(run, client, models)),
+          note: `${RUN_WORDS[run.status] || run.status}${practiceDraft(run, stage) ? ', practice' : ''}${run.servedBy === 'template' ? ', outline' : ''}`,
+        });
+      };
+      const drafts = runs.value || [];
+      return page(head(`Stage: ${STAGE_WORDS[stage] || stage}`, 'Agents'),
+        h('p', {}, aiWords, ' ', link(served ? 'Change' : 'Add your AI', () => openAiSheet(reread))), recordingNote(models),
+        section(null, rehearsalFold, actions(rehearse), rehearseStatus),
+        section(null, ladderHost),
+        section('Draft replies', drafts.length ? rows(...drafts.slice(0, 3).map(draftRow)) : note(runs.error ? plain(runs.error.message) : 'No draft replies yet. Draft one from an order on Clients.'),
+          drafts.length > 3 ? fold(`${drafts.length - 3} older`, false, rows(...drafts.slice(3, 12).map(draftRow))) : null),
+        fold('How agents work', false,
+          served ? note(`${presetName(mainTier?.presetId, mainTier?.model)} writes plans and drafts; ${presetName(fastTier?.presetId, fastTier?.model)} does quick work.`) : null,
+          ...(playbook.value ? [rows(...playbook.value.steps.map(step => row({ mark: step.doneBy === 'you' ? 'you' : 'cha', title: step.title, note: DONE_BY[step.doneBy] || step.doneBy })))] : errorNodes(playbook.error)),
+          section('What agents can do today', ...capabilityNodes)));
     }
+    /** One line for the folded rehearsal rows, counted from what each row shows. */
+    function rehearsalWords(results) {
+      const passed = results.filter(item => item === 'passed').length;
+      const judged = results.filter(item => item === 'passed' || item === 'failed').length;
+      if (judged) return `Rehearsal: ${passed} of ${results.length} passed`;
+      if (results.some(item => item === 'outline')) return 'Rehearsal: template outlines, not judged';
+      return 'Rehearsal: not rehearsed yet';
+    }
+    /** Draws one rehearsal row and says what it shows: passed, failed, outline or none. */
     function paintRehearsal(host, scenarioId, title, run, entry) {
       if (!run) {
         const unjudged = entry?.runId && entry.judged === false;
-        host.replaceChildren(row({ mark: entry?.passed && !unjudged ? 'cha' : 'off', title, note: !entry?.runId ? 'not rehearsed yet' : unjudged ? 'template outline, not judged' : entry.passed ? 'passed' : 'failed' }));
-        return;
+        const words = !entry?.runId ? (entry?.fromReview ? 'practice case from your review' : 'not rehearsed yet') : unjudged ? 'template outline, not judged' : entry.passed ? 'passed' : 'failed';
+        host.replaceChildren(row({ mark: entry?.passed && !unjudged ? 'cha' : 'off', title, note: words }));
+        return !entry?.runId ? 'none' : unjudged ? 'outline' : entry.passed ? 'passed' : 'failed';
       }
       const episodes = (run.episodes || []).filter(episode => episode.scenarioId === scenarioId);
       const passed = episodes.length ? episodes.every(episode => episode.passed) : run.passed;
@@ -1285,33 +1409,39 @@ globalThis.ChausarLaunch = Object.freeze({
         side: outlineOnly ? null : h('span', { class: 'launch-fig' }, run.costDisplay),
         extra: outlineOnly ? h('p', { class: 'launch-row-more' }, 'Template outline, not judged') : null,
       }));
+      return outlineOnly ? 'outline' : passed ? 'passed' : 'failed';
     }
     async function recoverRehearsal(host, scenarioId, title) {
       try {
         const status = await request('venture.launch.status');
         const entry = (status.rehearsal || []).find(item => item.scenarioId === scenarioId);
-        if (!entry?.runId) { host.replaceChildren(row({ mark: 'wait', title, extra: h('div', {}, ...errorNodes({ code: 'REQUEST_TIMEOUT' }, () => recoverRehearsal(host, scenarioId, title))) })); return; }
-        paintRehearsal(host, scenarioId, title, await request('venture.simulation.get', { runId: entry.runId }), entry);
-      } catch (error) { host.replaceChildren(row({ mark: 'unsure', title, extra: h('div', {}, ...errorNodes(error)) })); }
+        if (!entry?.runId) { host.replaceChildren(row({ mark: 'wait', title, extra: h('div', {}, ...errorNodes({ code: 'REQUEST_TIMEOUT' }, () => recoverRehearsal(host, scenarioId, title))) })); return 'none'; }
+        return paintRehearsal(host, scenarioId, title, await request('venture.simulation.get', { runId: entry.runId }), entry);
+      } catch (error) { host.replaceChildren(row({ mark: 'unsure', title, extra: h('div', {}, ...errorNodes(error)) })); return 'none'; }
     }
+    /** The next move at rest, the whole ladder in a fold. The stage itself is already in the page's eyebrow. */
     function ladderNodes(status) {
       const at = STAGE_ORDER.indexOf(status.stage);
       const next = STAGE_ORDER[at + 1];
       const result = statusLine();
-      return [rows(...STAGE_ORDER.map((stage, index) => {
-        const info = (status.stages || []).find(item => item.stage === stage) || { allowed: false, reason: '', status: 'available' };
-        let side = null, words = null;
+      const infoOf = stage => (status.stages || []).find(item => item.stage === stage) || { allowed: false, reason: '', status: 'available' };
+      const nextInfo = next ? infoOf(next) : null;
+      let nextNode = null;
+      if (next && nextInfo.status !== 'planned') {
+        if (nextInfo.allowed) {
+          const move = quiet(`Move to ${STAGE_WORDS[next].toLowerCase()}`, () => act(move, result, async () => { await request('venture.launch.advance', { to: next }); await reread(); }));
+          nextNode = actions(move);
+        } else nextNode = rows(row({ mark: 'off', title: STAGE_WORDS[next], note: nextInfo.reason }));
+      }
+      return [nextNode, fold('Launch stages', false, rows(...STAGE_ORDER.map((stage, index) => {
+        const info = infoOf(stage);
+        let words = null;
         if (stage === status.stage) words = 'current';
         else if (info.status === 'planned') words = 'planned';
         else if (index < at) words = 'done';
-        if (stage === next && info.status !== 'planned') {
-          if (info.allowed) {
-            const move = quiet(`Move to ${STAGE_WORDS[stage].toLowerCase()}`, () => act(move, result, async () => { await request('venture.launch.advance', { to: stage }); await reread(); }));
-            side = move;
-          } else words = info.reason;
-        }
-        return row({ mark: stage === status.stage ? 'now' : index < at ? 'you' : 'off', title: STAGE_WORDS[stage], note: words, side });
-      })), result];
+        else if (stage === next) words = 'next';
+        return row({ mark: stage === status.stage ? 'now' : index < at ? 'you' : 'off', title: STAGE_WORDS[stage], note: words });
+      }))), result];
     }
 
     /** The draft reply sheet. In a demo with recordings it says, above the payload and the draft, that a synthetic recording answers. */
@@ -1319,11 +1449,15 @@ globalThis.ChausarLaunch = Object.freeze({
       const models = knownModels || await modelStatus();
       const replay = replaying(models);
       const body = h('div', { class: 'launch-run' });
+      const stage = state.venture?.venture?.launchStage;
       const paint = current => {
         const status = statusLine();
         const parts = [];
-        if (current.practice) parts.push(warn(PRACTICE_LINE));
-        if (current.status === 'waiting-for-you' && current.preview) {
+        const practice = practiceDraft(current, stage);
+        if (practice) parts.push(warn(PRACTICE_LINE));
+        if (current.status === 'waiting-for-you' && current.preview && current.canApprove === false) {
+          parts.push(recordingNote(models), note("Chausar can't send this one now: its approval ran out or the launch stage changed. Draft it again from the order."), status);
+        } else if (current.status === 'waiting-for-you' && current.preview) {
           const model = presetName(current.preview.presetId, current.preview.model);
           const agree = h('input', { type: 'checkbox' });
           const approve = filled('Approve and send', () => act(approve, status, async () => {
@@ -1350,10 +1484,11 @@ globalThis.ChausarLaunch = Object.freeze({
           if (current.servedBy === 'model') parts.push(recordingNote(models));
           if (text) parts.push(h('pre', { class: 'launch-pre' }, text));
           if (current.checks?.length) parts.push(fold('Checks', false, rows(...current.checks.map(check => row({ mark: check.passed ? 'cha' : 'unsure', title: CHECK_WORDS[check.check] || check.check, note: check.passed ? 'passed' : check.detail })))));
-          if (current.status === 'ready-for-review') parts.push(...reviewControls(current, status, paint));
+          if (current.status === 'ready-for-review') parts.push(...reviewControls(current, status, paint, stage));
           else if (current.verdict) parts.push(note(`You ${current.verdict.choice} this draft${current.verdict.reason ? `: ${(REASON_WORDS.find(([id]) => id === current.verdict.reason) || [])[1] || current.verdict.reason}` : ''}.`));
           else if (current.status === 'failed') parts.push(note('This draft failed. Draft it again from the order.'));
-          if (!current.practice && (current.status === 'accepted' || current.status === 'edited') && text) {
+          if (current.status === 'rejected' || current.status === 'edited') parts.push(practiseControl(current, status));
+          if (!practice && (current.status === 'accepted' || current.status === 'edited') && text) {
             parts.push(actions(quiet('Copy', () => act(null, status, async () => { await copyText(text); status.replaceChildren(note('Copied.')); })),
               quiet('Save', () => saveText('draft-reply.txt', text, 'text/plain'))));
           }
@@ -1364,12 +1499,42 @@ globalThis.ChausarLaunch = Object.freeze({
       paint(run);
       sheet(`Draft reply for ${client}`, body, () => (onLaunchPage() ? navigate(state.page) : undefined));
     }
-    function reviewControls(run, status, paint) {
+    /** The signal a review left behind: the engine's own field when it sends one, else the newest signal-recorded event for this draft. */
+    async function signalFor(run) {
+      if (typeof run.signalId === 'string' && run.signalId) return run.signalId;
+      const probe = await request('venture.events', { limit: 1 });
+      let before = Number(probe?.lastSeq) || 0;
+      // Up to five pages of the newest events, owner reviews first; a check that failed when the draft was made is the fallback.
+      let fallback = null;
+      for (let count = 0; count < 5 && before > 0; count++) {
+        const from = Math.max(0, before - 100);
+        const batch = (await request('venture.events', { afterSeq: from, limit: 100 }))?.events || [];
+        for (const event of [...batch].reverse()) {
+          if (event.name !== 'signal-recorded' || event.data?.runId !== run.id || typeof event.data?.signalId !== 'string') continue;
+          if (event.data.source === 'owner-rejected' || event.data.source === 'owner-edited') return event.data.signalId;
+          fallback = fallback || event.data.signalId;
+        }
+        before = from;
+      }
+      if (fallback) return fallback;
+      throw new Error("Chausar couldn't find your review of this draft in the recent history, so it can't make a practice case from it.");
+    }
+    /** "Practise this": turns a rejected or edited draft into a rehearsal case. The engine leaves the client's words out of it. */
+    function practiseControl(run, status) {
+      const practise = quiet('Practise this', () => act(practise, status, async () => {
+        const scenario = await request('venture.simulation.fromSignal', { signalId: await signalFor(run) });
+        practise.remove();
+        status.replaceChildren(note(`Added to rehearsal on Agents: ${plain(scenario?.title) || 'a practice case'}.`, 'launch-note launch-done'));
+      }));
+      return actions(practise);
+    }
+    function reviewControls(run, status, paint, stage) {
       const editHost = h('div');
       const review = (payload, button) => act(button, status, async () => { paint(await request('venture.delivery.review', { runId: run.id, ...payload })); });
       // The engine refuses Accept on a practice draft and after any failed check, so the sheet only offers it when it can work.
       const failedCheck = (run.checks || []).some(check => !check.passed);
-      const accept = run.practice || failedCheck ? null : filled('Accept', () => review({ verdict: 'accepted' }, accept));
+      const practice = practiceDraft(run, stage);
+      const accept = acceptRefused(run, stage) ? null : filled('Accept', () => review({ verdict: 'accepted' }, accept));
       const edit = quiet('Edit', () => {
         const text = h('textarea', { rows: 10, maxlength: 20000, value: run.renderedText || '' });
         const save = quiet('Save edit', () => review({ verdict: 'edited', editedText: text.value }, save));
@@ -1377,17 +1542,66 @@ globalThis.ChausarLaunch = Object.freeze({
       });
       const reasons = picker(REASON_WORDS, 'other');
       const reject = quiet('Reject', () => review({ verdict: 'rejected', reason: reasons.value }, reject));
-      return [failedCheck && !run.practice ? note("A check failed, so this draft can't be accepted as it is. Edit it or reject it.") : null,
+      // The engine's own reason when it gives one; a practice draft already says so at the top of the sheet.
+      const blocked = practice ? null : typeof run.acceptBlocked === 'string' && run.acceptBlocked ? run.acceptBlocked
+        : failedCheck ? "A check failed, so this draft can't be accepted as it is. Edit it or reject it." : null;
+      return [blocked ? note(blocked) : null,
         actions(accept, edit), editHost, h('div', { class: 'launch-reject' }, field('Why reject it', reasons), actions(reject))];
+    }
+
+    /** The books period payload for a choice: an engine period key, or the owner's own from and to. */
+    function periodPayload(choice) {
+      if (choice?.key === 'custom') return { from: choice.from, to: choice.to };
+      return { period: choice?.key || 'this-month' };
+    }
+    /** "1 Oct to 31 Oct 2026": the year once when both days share it. */
+    function rangeText(from, to) {
+      if (String(from).slice(0, 4) !== String(to).slice(0, 4)) return `${dayText(from)} to ${dayText(to)}`;
+      return `${dayText(from).replace(/\s\d{4}$/, '')} to ${dayText(to)}`;
+    }
+    /** The engine's period label for a summary, lower case, for a heading like "Money, this month". */
+    function periodWords(summary) {
+      if (summary?.periodKey === 'custom') return rangeText(summary.period.from, summary.period.to);
+      const chosen = (summary?.periods || []).find(item => item.key === summary.periodKey);
+      return chosen ? chosen.label.toLowerCase() : null;
     }
 
     async function renderMoney() {
       const view = await ventureOrNull();
       if (!view) return noVenture();
-      const summary = await request('venture.books.summary', {});
-      return page(head(`${dayText(summary.period.from)} to ${dayText(summary.period.to)}`, 'Money'),
+      const choice = state.moneyPeriod || { key: 'this-month' };
+      const summary = await request('venture.books.summary', periodPayload(choice));
+      rememberDay(summary);
+      const status = statusLine();
+      // The engine names the periods and works out their dates on the owner's calendar; "Choose dates" sends the owner's own.
+      const periods = Array.isArray(summary.periods) ? summary.periods : [];
+      let periodNode = null;
+      if (periods.length) {
+        const current = summary.periodKey === 'custom' ? 'custom' : summary.periodKey || choice.key;
+        const pick = picker([...periods.map(item => [item.key, item.label]), ['custom', 'Choose dates']], current);
+        pick.setAttribute('aria-label', 'Period');
+        const datesHost = h('div', { class: 'launch-dates', hidden: current !== 'custom' });
+        const from = h('input', { type: 'date', value: summary.period.from });
+        const to = h('input', { type: 'date', value: summary.period.to });
+        const show = quiet('Show', () => act(show, status, async () => {
+          const next = { key: 'custom', from: from.value, to: to.value };
+          await request('venture.books.summary', periodPayload(next));
+          state.moneyPeriod = next;
+          await navigate('money');
+        }));
+        datesHost.append(field('From', from), field('To', to), actions(show));
+        pick.addEventListener('change', () => {
+          if (pick.value === 'custom') { datesHost.hidden = false; return; }
+          state.moneyPeriod = { key: pick.value };
+          void navigate('money');
+        });
+        periodNode = h('div', { class: 'launch-period' }, pick, datesHost);
+      }
+      const notes = (summary.notes || []).filter(item => item !== EXPERIMENTAL);
+      return page(head(rangeText(summary.period.from, summary.period.to), 'Money'),
+        periodNode, status,
         moneyFigures(summary),
-        summary.notes?.[0] ? note(summary.notes[0]) : null,
+        notes.length ? fold('About these figures', false, ...notes.map(item => note(item))) : null,
         experimental() ? warn(EXPERIMENTAL) : null,
         section('Open invoices', summary.openInvoices.length ? rows(...summary.openInvoices.map(item => row({
           mark: 'wait', title: `${item.number} · ${item.clientName}`, note: `due ${dayText(item.dueDate)}`,
@@ -1396,7 +1610,7 @@ globalThis.ChausarLaunch = Object.freeze({
             onclick: async () => { try { openInvoiceSheet(await request('venture.invoice.get', { invoiceId: item.invoiceId })); } catch (error) { sheet('Invoice', h('div', {}, ...errorNodes(error))); } },
           }, item.balanceDisplay),
         }))) : note('No open invoices.')),
-        actions(link('See the books in the back office', () => navigate('brief'))));
+        actions(link('Back office books', () => navigate('brief'))));
     }
 
     async function renderConnections() {
@@ -1411,9 +1625,16 @@ globalThis.ChausarLaunch = Object.freeze({
         if (!group) { group = { category: card.category, label: card.categoryLabel, cards: [] }; groups.push(group); }
         group.cards.push(card);
       }
-      return page(head(`${cards.length} tools, each with what Chausar does today`, 'Connections'),
+      // The starters at rest, every other tool one fold away, grouped as before.
+      return page(head(null, 'Connections'),
         section('Start with these', h('div', { class: 'launch-rows' }, starters.map(connectorCard))),
-        section('Every group', ...groups.map(group => fold(`${group.label} · ${group.cards.length}`, false, h('div', { class: 'launch-rows' }, group.cards.map(connectorCard))))));
+        fold(`All ${cards.length} tools`, false, ...groups.map(group => fold(`${group.label} · ${group.cards.length}`, false, h('div', { class: 'launch-rows' }, group.cards.map(connectorCard))))));
+    }
+    /** "planned: handoff", "planned: read" read as one chip, "planned: handoff, read". */
+    function chipWords(chips) {
+      const planned = chips.filter(item => /^planned: /.test(item)).map(item => item.slice('planned: '.length));
+      const rest = chips.filter(item => !/^planned: /.test(item));
+      return planned.length ? [...rest, `planned: ${planned.join(', ')}`] : rest;
     }
     function connectorCard(card) {
       const status = statusLine();
@@ -1424,9 +1645,9 @@ globalThis.ChausarLaunch = Object.freeze({
       const visit = card.vendorUrl ? link('Visit site', () => act(null, status, () => openExternal(card.vendorUrl))) : null;
       return h('div', { class: 'launch-card', 'data-connector': card.id },
         h('details', {}, h('summary', {}, card.name), h('div', { class: 'launch-more-body' }, note(card.note), card.regionNote ? note(card.regionNote) : null,
-          ...card.modes.map(mode => note(`${mode.status === 'planned' ? 'Planned: ' : ''}${mode.mode}. ${mode.what}`)))),
-        h('span', { class: 'launch-chips' }, card.chips.map(chip)),
-        h('span', { class: 'launch-card-actions' }, open, visit), status);
+          ...card.modes.map(mode => note(`${mode.status === 'planned' ? 'Planned: ' : ''}${mode.mode}. ${mode.what}`)), visit ? actions(visit) : null)),
+        h('span', { class: 'launch-chips' }, chipWords(card.chips).map(chip)),
+        h('span', { class: 'launch-card-actions' }, open), status);
     }
 
     // ---------------------------------------------------------------------------------------------

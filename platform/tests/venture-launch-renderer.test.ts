@@ -10,7 +10,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { EVIDENCE_METHODS, EXTERNAL_ORIGINS, INDIA_STATES } from '../runtime/venture/contracts.ts';
-import type { DeliveryRunRecord } from '../runtime/venture/contracts.ts';
+import type { BooksPeriodChoice, BooksSummary, DeliveryRunRecord, DeliveryRunView, ModelPreset, Scenario, VentureEventRecord } from '../runtime/venture/contracts.ts';
 import { houseStyleFindings } from '../runtime/venture/records.ts';
 import * as F from './fixtures/venture/renderer/results.ts';
 
@@ -24,6 +24,27 @@ const BACK_OFFICE_IDS = ['conversation', 'brief', 'sources', 'dictionary', 'memo
 const EXPERIMENTAL = "This build keeps your business in experimental storage. Practise here; don't issue real invoices yet.";
 const KEY = 'sk-ant-demo-0000000000000000000000';
 const RECORDING = 'AI answers here come from a synthetic recording.';
+const BOTH_RECORDED = 'AI answers and GitHub reads here come from a synthetic recording.';
+const CLIENT = 'Cafe Aroma Demo';
+/** The fixtures' business is in India, so the engine's day basis is Asia/Kolkata. */
+const ZONE = 'Asia/Kolkata';
+function ownerDay(zone = ZONE) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+const PERIODS: BooksPeriodChoice[] = [
+  { key: 'all', label: 'All time', from: '2026-10-01', to: '2026-10-31' }, { key: 'this-month', label: 'This month', from: '2026-10-01', to: '2026-10-31' },
+  { key: 'last-month', label: 'Last month', from: '2026-09-01', to: '2026-09-30' }, { key: 'this-year', label: 'This year', from: '2026-01-01', to: '2026-12-31' },
+];
+/** The books summary as the engine now answers it: a named period or the owner's own dates, on the owner's calendar. */
+function booksFor(payload: { period?: string; from?: string; to?: string }): BooksSummary {
+  const custom = payload.from !== undefined || payload.to !== undefined;
+  const chosen = PERIODS.find(item => item.key === (payload.period ?? 'all'))!;
+  return {
+    ...F.booksSummary, period: { from: payload.from ?? chosen.from, to: payload.to ?? chosen.to }, periodKey: custom ? 'custom' : chosen.key,
+    periods: PERIODS, today: ownerDay(), timeZone: ZONE,
+  };
+}
 
 type Handler = (event: { target: Element; currentTarget: Element; preventDefault(): void }) => unknown;
 class Element {
@@ -128,6 +149,13 @@ function visibleText(node: Element): string[] {
 }
 function wordCount(node: Element) { return visibleText(node).join(' ').split(/\s+/).filter(token => /[\p{L}\p{N}]/u.test(token)).length; }
 function text(node: Element) { return node.textContent; }
+/** A draft reply row on Agents whose words match; the client's name on it is the button that opens the draft. */
+function draftRow(node: Element, words: RegExp) {
+  const found = descendants(node).filter(item => item.className === 'launch-row' && words.test(item.textContent))[0];
+  assert.ok(found, `Expected a draft row matching ${words}.`);
+  return found;
+}
+async function openDraft(node: Element, words: RegExp) { await click(button(draftRow(node, words), CLIENT)); }
 
 // ---------------------------------------------------------------------------------------------
 // The fake engine
@@ -195,7 +223,7 @@ function fakeEngine(options: EngineOptions = {}) {
       case 'venture.invoice.get': return world.invoice === 'draft' ? F.invoiceDraftView : F.invoiceIssuedView;
       case 'venture.invoice.issue': world.invoice = 'issued'; return F.invoiceIssuedView;
       case 'venture.payment.record': return F.invoiceIssuedView;
-      case 'venture.books.summary': return F.booksSummary;
+      case 'venture.books.summary': return booksFor(payload);
       case 'receipts.get': return F.calculatorReceipt;
       case 'venture.delivery.playbook': return F.playbook;
       case 'venture.simulation.scenarios': return F.scenarios;
@@ -375,6 +403,8 @@ test('keeping the plan creates a services vault, then sets up the business in or
   assert.ok(text(h.app).includes(EXPERIMENTAL), 'experimental notice on Keep it safe');
   const folderLine = (folder: string) => `Chausar keeps this business in the workspace folder ${folder}. To open it again you need this folder name and your passphrase.`;
   assert.ok(text(h.app).includes(folderLine('my-service-business')), 'the folder is shown before the owner keeps the plan');
+  assert.equal(control(h.app, 'Working name').value, '', 'the example name is a placeholder, so typing starts a fresh name');
+  assert.equal(control(h.app, 'Working name').attributes.placeholder, 'My service business');
   await type(control(h.app, 'Working name'), 'Ledger Cafe Books');
   assert.ok(text(h.app).includes(folderLine('ledger-cafe-books')), 'the folder follows the working name as it is typed');
   await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
@@ -418,6 +448,8 @@ test('without a price the price question is skipped and no quote is asked for', 
   await type(find(h.app, node => node.tagName === 'textarea'), 'Podcast editing for small creators.');
   await click(button(h.app, 'Show my plan'));
   await click(button(h.app, 'Per hour'));
+  assert.deepEqual(h.calls.at(-1), { method: 'venture.preview', payload: { idea: 'Podcast editing for small creators.', countryCode: 'IN', pricingModel: 'hourly' } }, 'the plan is asked for again, worded for hourly work');
+  assert.equal(find(h.app, node => node.className === 'launch-choice on').textContent, 'Per hour', 'the choice stays after the plan is drawn again');
   await click(button(h.app, 'Keep this plan'));
   await type(control(h.app, 'Passphrase'), 'long-enough-passphrase');
   await type(control(h.app, 'Confirm passphrase'), 'long-enough-passphrase');
@@ -448,8 +480,7 @@ test('an open vault with no business resumes at the idea and keeps the plan with
 // ---------------------------------------------------------------------------------------------
 test('Add your AI connects the recommended pair with consent, a key outside any form, and the Luna model id', async () => {
   const h = await place('today');
-  const next = descendants(h.content).filter(node => node.className === 'launch-row' && node.textContent.startsWith('Add your AI (optional)'))[0];
-  await click(button(next, 'Open'));
+  await click(button(h.content, 'Add your AI (optional)'));
   const sheet = openDialog(h.body);
   assert.ok(text(sheet).includes('Which AI should do the work?'));
   assert.ok(text(sheet).includes('AI answers here come from a synthetic recording.'));
@@ -497,6 +528,29 @@ test('Add your AI connects the recommended pair with consent, a key outside any 
   assert.equal(h.rejected.length, 0);
 });
 
+test('Add your AI says beside ready that the Anthropic rows were not checked with a live key, once', async () => {
+  const LIVE = 'Not yet checked with a live key.';
+  const noted = (preset: ModelPreset): ModelPreset => ({
+    ...preset,
+    verificationNote: preset.verification === 'built-in' ? null : preset.needsKey ? LIVE : 'Not yet checked on a real task.',
+    availabilityReason: preset.id.startsWith('anthropic-') ? `Uses your Anthropic key. ${LIVE}` : preset.availabilityReason,
+  });
+  const h = await place('today', { overrides: { 'venture.models.presets': () => F.presets.map(noted) } });
+  await click(button(h.content, 'Add your AI (optional)'));
+  const sheet = openDialog(h.body);
+  for (const id of ['anthropic-haiku-5-5', 'anthropic-sonnet-5-5']) {
+    const summary = find(find(sheet, node => node.dataset.preset === id), node => node.tagName === 'summary');
+    const parts = summary.children.filter(node => node.tagName !== '#text').map(node => node.textContent);
+    assert.deepEqual(parts.slice(1), ['ready', LIVE, 'Uses your Anthropic key.'], `${id}: the note sits beside ready and shows once`);
+  }
+  const recommended = find(sheet, node => node.dataset.preset === 'recommended');
+  assert.ok(text(recommended).includes(LIVE), 'the recommended pair says it too');
+  const luna = find(find(sheet, node => node.dataset.preset === 'openai-gpt-6-luna'), node => node.tagName === 'summary');
+  assert.equal(text(luna).includes(LIVE), false, 'an unverified row already says why in its own words');
+  const templates = find(find(sheet, node => node.dataset.preset === 'built-in-templates'), node => node.tagName === 'summary');
+  assert.equal(/Not yet/.test(text(templates)), false, 'the built-in templates need no such note');
+});
+
 // ---------------------------------------------------------------------------------------------
 // 5 and 6: the plan with receipts, and Build
 // ---------------------------------------------------------------------------------------------
@@ -537,7 +591,8 @@ test('Build shows the brief first and opens Lovable only through the link opener
   const lovable = nodes.findIndex(node => node.tagName === 'button' && node.textContent === 'Open in Lovable');
   assert.ok(opening >= 0 && lovable > opening, 'brief text comes before the Open buttons');
   assert.match(nodes[opening].textContent, /A calm site for a bookkeeping studio/);
-  assert.ok(text(h.content).includes('Replit receives your brief as soon as its page opens.'));
+  assert.ok(text(h.content).includes('Replit receives the brief when its page opens.'));
+  assert.ok(visibleText(h.content).includes('Replit receives the brief when its page opens.'), 'the Replit note shows at rest, before any click');
   await click(nodes[lovable]);
   const handoff = h.calls.findIndex(call => call.method === 'venture.build.handoff');
   assert.deepEqual(h.calls[handoff].payload, { builder: 'lovable' });
@@ -668,6 +723,17 @@ test('the followed build shows status words, whose account changed it, and the s
   const h = await place('build');
   for (const words of ['Repo connected', 'Last change: Add the services page. By Lovable', 'Brief marker found. UI check passed.', 'These answers come from a synthetic recording, not your real repo.', "What Chausar can't see", 'Check GitHub now']) assert.ok(text(h.content).includes(words), words);
   assert.equal(descendants(h.content).some(node => node.tagName === 'a'), false, 'no links are drawn from engine data');
+  // The brief and GitHub both answer from recordings here, so one line at rest says so for the page.
+  const atRest = visibleText(h.content);
+  assert.equal(atRest.filter(words => words === BOTH_RECORDED).length, 1, 'one recording line at rest');
+  assert.equal(atRest.includes(RECORDING), false, 'not a second line for the brief');
+  assert.ok(atRest.includes('Repo connected') && atRest.includes('Details'), 'the state word at rest, the rest one fold away');
+
+  // GitHub alone answering from a recording keeps its own words at rest.
+  const live = { ...F.modelsConnected, replay: { active: false, label: null } };
+  const githubOnly = await place('build', { overrides: { 'venture.models.status': () => live } });
+  assert.ok(visibleText(githubOnly.content).includes('These answers come from a synthetic recording, not your real repo.'));
+  assert.equal(text(githubOnly.content).includes(BOTH_RECORDED), false);
   await click(button(h.content, 'Check GitHub now'));
   assert.ok(h.calls.some(call => call.method === 'venture.build.sync'));
 });
@@ -782,14 +848,22 @@ test('without launch.js the app keeps its old setup screen and shell', async () 
 // ---------------------------------------------------------------------------------------------
 // 10: words at rest
 // ---------------------------------------------------------------------------------------------
-test('each of the seven places stays at or under 120 visible words with one filled button at most', async t => {
+/**
+ * Words at rest with the fixtures, as counted on 16 October after the second pass. The founder's taste is 35 to 45
+ * words on a screen at rest, 60 at most; each place may not grow past its count here without a reason.
+ */
+const WORDS_AT_REST: Record<string, number> = { today: 50, business: 52, build: 55, clients: 20, agents: 52, money: 57, connections: 31 };
+const WORDS_CEILING = 60;
+
+test('each of the seven places stays at its recorded words at rest, 60 at most, with one filled button at most', async t => {
   for (const id of LAUNCH_IDS) {
     const h = await place(id);
     const words = wordCount(h.content);
     t.diagnostic(`${id}: ${words} words at rest`);
-    if (process.env.P7_SHOW_WORDS) t.diagnostic(visibleText(h.content).join(' ').replace(/s+/g, ' '));
+    if (process.env.P7_SHOW_WORDS) t.diagnostic(visibleText(h.content).join(' ').replace(/\s+/g, ' '));
     assert.ok(words > 10, `${id} rendered (${words} words)`);
-    assert.ok(words <= 120, `${id} shows ${words} words at rest: ${visibleText(h.content).join(' ').replace(/s+/g, ' ')}`);
+    assert.ok(WORDS_AT_REST[id] <= WORDS_CEILING, `${id}: the recorded count is under the ceiling`);
+    assert.ok(words <= WORDS_AT_REST[id], `${id} shows ${words} words at rest, more than ${WORDS_AT_REST[id]}: ${visibleText(h.content).join(' ').replace(/\s+/g, ' ')}`);
     assert.ok(descendants(h.content).filter(node => node.className === 'launch-btn').length <= 1, `${id}: one filled button at most`);
     assert.equal(text(h.content).includes('The engine could not load this view'), false, `${id} loaded`);
     assert.equal(descendants(h.content).some(node => node.className === 'footer-note'), false, `${id}: no back office footer`);
@@ -844,8 +918,7 @@ test('a shadow stage offers one move to the next stage', async () => {
 test('a waiting draft shows the exact payload and sends it once after the box is ticked', async () => {
   const live = { ...F.modelsConnected, replay: { active: false, label: null } };
   const h = await place('agents', { overrides: { 'venture.models.status': () => live } });
-  const waiting = descendants(h.content).filter(node => node.className === 'launch-row' && /waiting for you/.test(node.textContent))[0];
-  await click(button(waiting, 'Review'));
+  await openDraft(h.content, /to approve/);
   const sheet = openDialog(h.body);
   assert.ok(text(sheet).includes('This is exactly what will be sent to Claude Sonnet 5.5'));
   assert.equal(text(sheet).includes(RECORDING), false, 'no recording line when real calls are made');
@@ -888,7 +961,7 @@ test('in a demo with recordings, a draft reply opened from Clients says a synthe
   recordingBefore('pre');
 
   const outline = await place('agents');
-  await click(button(descendants(outline.content).filter(node => node.className === 'launch-row' && /outline/.test(node.textContent))[0], 'Review'));
+  await openDraft(outline.content, /outline/);
   assert.equal(text(openDialog(outline.body)).includes(RECORDING), false, 'a template outline had no AI, so no recording line');
 });
 
@@ -907,8 +980,7 @@ test('an approval that times out re-reads the stored draft instead of showing an
   const timeout = () => { throw Object.assign(new Error('The engine did not answer in time.'), { code: 'REQUEST_TIMEOUT' }); };
   const approveTimedOut = async (list?: () => unknown, onApprove?: () => void) => {
     const h = await place('agents', { overrides: { 'venture.delivery.approve': () => { onApprove?.(); return timeout(); }, ...(list ? { 'venture.delivery.list': list } : {}) } });
-    const waiting = descendants(h.content).filter(node => node.className === 'launch-row' && /waiting for you/.test(node.textContent))[0];
-    await click(button(waiting, 'Review'));
+    await openDraft(h.content, /to approve/);
     const sheet = openDialog(h.body);
     await tick(find(sheet, node => node.tagName === 'input' && node.attributes.type === 'checkbox'));
     await click(button(sheet, 'Approve and send'));
@@ -927,8 +999,7 @@ test('an approval that times out re-reads the stored draft instead of showing an
 
 test('a practice draft cannot be accepted, copied or saved; a template outline says no AI wrote it', async () => {
   const h = await place('agents');
-  const practice = descendants(h.content).filter(node => node.className === 'launch-row' && /ready to review, practice/.test(node.textContent))[0];
-  await click(button(practice, 'Review'));
+  await openDraft(h.content, /to review, practice/);
   let sheet = openDialog(h.body);
   assert.ok(text(sheet).includes('Practice draft. Not for the client.'));
   for (const label of ['Accept', 'Copy', 'Save']) assert.equal(buttons(sheet, label).length, 0, `no ${label} on a practice draft`);
@@ -936,8 +1007,7 @@ test('a practice draft cannot be accepted, copied or saved; a template outline s
   assert.equal(buttons(sheet, 'Reject').length, 1);
   await click(button(sheet, 'Close'));
 
-  const outline = descendants(h.content).filter(node => node.className === 'launch-row' && /outline/.test(node.textContent))[0];
-  await click(button(outline, 'Review'));
+  await openDraft(h.content, /outline/);
   sheet = openDialog(h.body);
   assert.ok(text(sheet).includes("Template outline. No AI wrote this and it doesn't read the client's request."));
   await click(button(sheet, 'Accept'));
@@ -958,8 +1028,7 @@ test('the kept plan names the payment links honestly and writes tax names in pla
 test('a draft with a failed check offers Edit and Reject, not Accept', async () => {
   const failed: DeliveryRunRecord = { ...F.outlineRun, id: 'vdr_failed', checks: [{ check: 'required-sections', passed: false, detail: 'The Next steps section is missing.' }] };
   const h = await place('agents', { overrides: { 'venture.delivery.list': () => [failed] } });
-  const outline = descendants(h.content).filter(node => node.className === 'launch-row' && /outline/.test(node.textContent))[0];
-  await click(button(outline, 'Review'));
+  await openDraft(h.content, /outline/);
   const sheet = openDialog(h.body);
   assert.equal(buttons(sheet, 'Accept').length, 0, 'the engine refuses Accept after a failed check, so the sheet does not offer it');
   assert.equal(buttons(sheet, 'Edit').length, 1);
@@ -994,7 +1063,7 @@ test('the money place and the invoice sheet show the experimental notice; issuin
   const payment = clients.calls.find(call => call.method === 'venture.payment.record')!.payload;
   assert.equal(payment.amount, '2948.82', 'the amount goes to the engine as typed');
   assert.equal(payment.method, 'bank-transfer');
-  assert.equal(payment.receivedOn, new Date().toISOString().slice(0, 10), 'the date field starts at the engine date (UTC)');
+  assert.equal(payment.receivedOn, ownerDay(), "the date field starts at the owner's day, the engine's day basis");
 });
 
 test('clients and orders: add a client and an order with typed text, draft a reply, mark delivered', async () => {
@@ -1043,10 +1112,132 @@ test('while a model writes, the screen shows a still outline and one line of wor
 
 test('Today lists what awaits the owner, the checklist as 7 of 12, the money line and the day line', async () => {
   const h = await place('today');
-  for (const words of ['A draft reply waits for your approval', 'A practice draft is ready to review', 'A draft invoice is ready to issue', 'Add your AI (optional)', '7 of 12', 'Billed (without tax)', 'Received (with tax)', 'Earned (without tax)', 'Plan accepted', 'GitHub checked']) {
+  for (const words of ['A draft to approve', 'A practice draft to review', 'A draft to review', 'A draft invoice to issue', 'Add your AI (optional)', 'Checklist, 7 of 12', 'This month', 'Billed (without tax)', 'Received (with tax)', 'Earned (without tax)', 'Plan accepted', 'GitHub checked']) {
     assert.ok(text(h.content).includes(words), words);
   }
+  assert.equal(buttons(h.content, 'Review').length, 0, 'each row is its own button');
   assert.deepEqual(h.calls.filter(call => call.method === 'venture.events').map(call => call.payload), [{ limit: 1 }, { afterSeq: 8, limit: 6 }]);
+  assert.deepEqual(h.calls.find(call => call.method === 'venture.books.summary')!.payload, { period: 'this-month' });
+  const day = new Date(`${ownerDay()}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  assert.equal(find(h.content, node => node.className === 'launch-eyebrow').textContent, day, "the day line is the owner's day, as the engine counts it");
   await click(button(h.content, 'INR 2,948.82'));
   assert.deepEqual(h.calls.at(-1), { method: 'receipts.get', payload: { id: 'rcpt_received_1' } });
+  await click(button(h.content, 'A draft to approve'));
+  assert.equal(h.renderer.state.page, 'agents');
+});
+
+test('once the business approves each draft, Today drops practice drafts and the sheet offers Accept only where the engine takes it', async () => {
+  const approveEach = { ...F.ventureView, venture: { ...F.ventureView.venture, launchStage: 'approve-each' as const } };
+  // An older answer without the engine's flags: the screen works the same rule out from the stage.
+  const plain = await place('today', { overrides: { 'venture.get': () => approveEach, 'venture.delivery.list': () => [F.practiceRun, F.outlineRun] } });
+  assert.equal(text(plain.content).includes('practice draft'), false, 'no practice draft on Today at approve each');
+  assert.ok(text(plain.content).includes('A draft to review'));
+
+  // The engine's flags win: a practice draft read now, an outline it takes, and one blocked by a failed check.
+  const view = (run: DeliveryRunRecord, flags: Partial<DeliveryRunView>): DeliveryRunView => ({ ...run, practiceNow: false, awaitingYou: true, canApprove: false, canAccept: true, acceptBlocked: null, ...flags });
+  const blockedReason = 'This draft failed a check: The Next steps section is missing. Edit it or reject it.';
+  const runs = [
+    view(F.practiceRun, { practiceNow: true, awaitingYou: false, canAccept: false, acceptBlocked: 'This is a practice draft.' }),
+    view(F.outlineRun, {}),
+    view({ ...F.outlineRun, id: 'vdr_blocked', checks: [{ check: 'required-sections', passed: false, detail: 'The Next steps section is missing.' }] }, { canAccept: false, acceptBlocked: blockedReason }),
+  ];
+  const flagged = await place('today', { overrides: { 'venture.get': () => approveEach, 'venture.delivery.list': () => runs } });
+  assert.equal(text(flagged.content).includes('practice draft'), false);
+  assert.ok(text(flagged.content).includes('2 drafts to review'));
+
+  const agents = await place('agents', { overrides: { 'venture.get': () => approveEach, 'venture.delivery.list': () => runs } });
+  const rowsNow = descendants(agents.content).filter(node => node.className === 'launch-row' && node.textContent.startsWith(CLIENT));
+  await click(button(rowsNow[0], CLIENT));
+  let sheet = openDialog(agents.body);
+  assert.ok(text(sheet).includes('Practice draft. Not for the client.'));
+  assert.equal(buttons(sheet, 'Accept').length, 0, 'a practice draft has no Accept');
+  assert.equal(text(sheet).includes('This is a practice draft.'), false, 'the practice line says it once');
+  await click(button(sheet, 'Close'));
+  await click(button(rowsNow[2], CLIENT));
+  sheet = openDialog(agents.body);
+  assert.equal(buttons(sheet, 'Accept').length, 0, 'the engine would refuse it, so no Accept');
+  assert.ok(text(sheet).includes(blockedReason), "the engine's own reason is shown");
+  await click(button(sheet, 'Close'));
+  await click(button(rowsNow[1], CLIENT));
+  assert.equal(buttons(openDialog(agents.body), 'Accept').length, 1, 'Accept where the engine takes it');
+
+  // A waiting draft the engine would not send now (its approval ran out) offers no Approve.
+  const expired = await place('agents', { overrides: { 'venture.delivery.list': () => [view(F.waitingRun, { awaitingYou: false, canApprove: false })] } });
+  assert.equal(text(expired.content).includes('to approve'), true);
+  await openDraft(expired.content, /to approve/);
+  const expiredSheet = openDialog(expired.body);
+  assert.equal(buttons(expiredSheet, 'Approve and send').length, 0);
+  assert.ok(text(expiredSheet).includes("Chausar can't send this one now"));
+  const expiredToday = await place('today', { overrides: { 'venture.delivery.list': () => [view(F.waitingRun, { awaitingYou: false, canApprove: false })] } });
+  assert.equal(text(expiredToday.content).includes('to approve'), false, 'Today leaves out a draft that can no longer be sent');
+
+  // At shadow, an agent draft that was not made as practice still can't be accepted: the engine treats it as practice.
+  const stale = { ...F.practiceRun, id: 'vdr_stale', practice: false };
+  const shadow = await place('agents', { overrides: { 'venture.delivery.list': () => [stale] } });
+  await openDraft(shadow.content, /practice/);
+  assert.equal(buttons(openDialog(shadow.body), 'Accept').length, 0);
+});
+
+test('Practise this turns a rejected or edited draft into a rehearsal case through venture.simulation.fromSignal', async () => {
+  const signal = (seq: number, runId: string, source: string, signalId: string): VentureEventRecord => ({ ...F.events[0], id: `vev_${seq}`, seq, name: 'signal-recorded', data: { signalId, runId, source, reason: null } });
+  const history = [signal(15, 'vdr_outline', 'check-failed', 'vsg_check'), signal(16, 'vdr_outline', 'owner-rejected', 'vsg_owner'), signal(17, 'vdr_other', 'owner-edited', 'vsg_other')];
+  const caseScenario: Scenario = { ...F.scenarios[0], id: 'signal-vsg_owner', title: 'A client like the draft you rejected', source: 'signal', signalId: 'vsg_owner' };
+  const events = (_method: string, payload: Record<string, any>) => (payload.limit === 1 && !payload.afterSeq ? { events: [], lastSeq: 17 } : { events: [...F.events, ...history].filter(event => event.seq > (payload.afterSeq ?? 0)), lastSeq: 17 });
+  const h = await place('agents', { overrides: { 'venture.events': events, 'venture.simulation.fromSignal': () => caseScenario } });
+  await openDraft(h.content, /outline/);
+  const sheet = openDialog(h.body);
+  assert.equal(buttons(sheet, 'Practise this').length, 0, 'nothing to practise before a review');
+  await click(button(sheet, 'Reject'));
+  await click(button(sheet, 'Practise this'));
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.simulation.fromSignal').map(call => call.payload), [{ signalId: 'vsg_owner' }], "the owner's review, not the earlier check");
+  assert.ok(text(sheet).includes('Added to rehearsal on Agents: A client like the draft you rejected.'));
+  assert.equal(buttons(sheet, 'Practise this').length, 0, 'made once');
+
+  const edited = await place('agents', { overrides: { 'venture.events': events } });
+  await openDraft(edited.content, /outline/);
+  const editSheet = openDialog(edited.body);
+  await click(button(editSheet, 'Edit'));
+  await type(control(editSheet, 'Your edit'), 'A shorter reply.');
+  await click(button(editSheet, 'Save edit'));
+  assert.equal(buttons(editSheet, 'Practise this').length, 1, 'an edited draft can be practised too');
+
+  const missing = await place('agents', { overrides: { 'venture.events': () => ({ events: [], lastSeq: 0 }) } });
+  await openDraft(missing.content, /outline/);
+  const lost = openDialog(missing.body);
+  await click(button(lost, 'Reject'));
+  await click(button(lost, 'Practise this'));
+  assert.equal(missing.calls.some(call => call.method === 'venture.simulation.fromSignal'), false, 'no signal, no request');
+  assert.ok(text(lost).includes("Chausar couldn't find your review of this draft"));
+
+  // The case rehearses with the others on Agents.
+  const later = await place('agents', { overrides: { 'venture.simulation.scenarios': () => [...F.scenarios, caseScenario] } });
+  const caseRow = find(later.content, node => node.dataset.scenario === 'signal-vsg_owner');
+  assert.ok(text(caseRow).includes('practice case from your review'));
+  await click(button(later.content, 'Rehearse')); await flush();
+  assert.ok(later.calls.some(call => call.method === 'venture.simulation.run' && call.payload.scenarioIds[0] === 'signal-vsg_owner'));
+});
+
+test("Money offers the engine's periods and the owner's own dates, and heads the page with the chosen days", async () => {
+  const h = await place('money');
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.books.summary').at(-1)!.payload, { period: 'this-month' });
+  const pick = find(h.content, node => node.tagName === 'select' && node.attributes['aria-label'] === 'Period');
+  assert.deepEqual(descendants(pick).filter(node => node.tagName === 'option').map(node => node.textContent), ['All time', 'This month', 'Last month', 'This year', 'Choose dates']);
+  assert.equal(pick.value, 'this-month');
+  assert.equal(find(h.content, node => node.className === 'launch-eyebrow').textContent, '1 Oct to 31 Oct 2026');
+  pick.value = 'last-month'; await pick.dispatch('change'); await flush();
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.books.summary').at(-1)!.payload, { period: 'last-month' });
+  let content = find(h.app, node => node.id === 'page-content');
+  assert.equal(find(content, node => node.tagName === 'select').value, 'last-month');
+
+  const custom = find(content, node => node.tagName === 'select');
+  const before = h.calls.length;
+  custom.value = 'custom'; await custom.dispatch('change'); await flush();
+  assert.equal(h.calls.length, before, 'choosing dates sends nothing until Show');
+  await type(control(content, 'From'), '2026-10-05');
+  await type(control(content, 'To'), '2026-10-12');
+  await click(button(content, 'Show'));
+  assert.deepEqual(h.calls.filter(call => call.method === 'venture.books.summary').map(call => call.payload).slice(-2), [{ from: '2026-10-05', to: '2026-10-12' }, { from: '2026-10-05', to: '2026-10-12' }]);
+  content = find(h.app, node => node.id === 'page-content');
+  assert.equal(find(content, node => node.tagName === 'select').value, 'custom');
+  assert.equal(find(content, node => node.className === 'launch-eyebrow').textContent, '5 Oct to 12 Oct 2026');
 });

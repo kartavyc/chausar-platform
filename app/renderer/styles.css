@@ -173,6 +173,14 @@
 .launch-sheet-title:focus{outline:none}
 .launch-sheet-group{margin-top:22px;padding-top:6px;border-top:1px solid var(--l-line)}
 @keyframes launch-sheet-in{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+.launch-more>summary .launch-count{display:inline-flex;margin:0}
+.launch-row-title>.launch-link{font-size:15px;text-align:left}
+.launch-row-note.launch-unverified{color:var(--l-fg2)}
+.launch-period{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin:4px 0 8px}
+.launch-period>select{min-height:32px;padding:4px 0;border:0;border-bottom:1px solid var(--l-mute);border-radius:0;background:var(--l-bg);color:var(--l-fg);font:15px/1.4 var(--l-font)}
+.launch-dates{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0 20px}
+.launch-dates .launch-field{flex:0 1 180px;margin:6px 0}
+.launch-dates .launch-actions{margin:6px 0}
 @media (max-width:680px){.launch-flow{padding:28px 16px 64px}.launch-top{padding:0 16px}.launch-title{font-size:26px}.launch-row{grid-template-columns:14px minmax(0,1fr)}.launch-row-side{grid-column:2;justify-self:start}.launch-card{grid-template-columns:minmax(0,1fr)}.launch-sheet{padding:22px 16px}.launch-steps{gap:6px 14px;font-size:12.5px}.launch-timeline{flex-direction:column;gap:8px}.launch-order>.launch-more-body{padding-left:0}}
 /* the recovery kit on the launch screens: the same quiet sheet, not the back office card */
 html:has(.launch-root) .modal{--l-bg:var(--paper);--l-fg:var(--ink);--l-mute:var(--muted);--l-line:var(--line);--l-line2:#d5dade;--l-font:system-ui,"Segoe UI",sans-serif;--l-mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
