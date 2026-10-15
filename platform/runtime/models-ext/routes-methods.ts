@@ -7,6 +7,7 @@ import type { ModulePart } from './part.ts';
 import { ROUTE_CATALOGUE } from './catalogue.ts';
 import { DAY, DIGITS, PRICE_TABLE, ageDays, findPrice, paisePerMillion, requestCostMinor, validPrice } from './pricing.ts';
 import { validateEndpoint } from '../gateway.ts';
+import { voiceMeters } from './voice-usage.ts';
 import type { FxSetting, PriceEntry } from './pricing.ts';
 
 type RoutesState = { fx?: FxSetting; overrides: PriceEntry[] };
@@ -109,7 +110,9 @@ function monthSpend(state: State, month: string) {
     && monthOf(r.dispatchedAt ?? r.createdAt, zone) === month);
   const measured = calls.filter(r => typeof r.actualCostMinor === 'string'), reserved = calls.filter(r => typeof r.actualCostMinor !== 'string');
   const measuredMinor = sum(measured.map(r => r.actualCostMinor)), reservedMinor = sum(reserved.map(r => r.costReservedMinor ?? '0'));
-  return { month, timeZone: zone, calls: calls.length, spendMinor: String(measuredMinor + reservedMinor), measuredMinor: String(measuredMinor), reservedMinor: String(reservedMinor) };
+  const voice = voiceMeters(state, month), voiceCost = voice.voiceCostMinor === NOT_COUNTED ? 0n : BigInt(voice.voiceCostMinor);
+  return { month, timeZone: zone, calls: calls.length, modelSpendMinor: String(measuredMinor + reservedMinor), spendMinor: String(measuredMinor + reservedMinor + voiceCost),
+    measuredMinor: String(measuredMinor), reservedMinor: String(reservedMinor), voiceMinutesMs: voice.voiceMinutesMs, voiceCostMinor: voice.voiceCostMinor };
 }
 
 /** jobs-ext's unit price: one unit is one model request. */

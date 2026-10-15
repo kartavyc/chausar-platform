@@ -161,6 +161,7 @@ test('engine: modelsx.price in jobs-ext shape, the local model list and this mon
     const month = (await engine.request('modelsx.meters', {})).month;
     assert.deepEqual({ month: month.month, calls: month.calls, spend: month.spendMinor, measured: month.measuredMinor, reserved: month.reservedMinor },
       { month: '2031-03', calls: 1, spend: '40', measured: '40', reserved: '0' });
+    assert.deepEqual([month.modelSpendMinor, month.voiceMinutesMs, month.voiceCostMinor], ['40', 0, '0']);
     const list = await engine.request('modelsx.localList', {});
     assert.equal(list.reachable, true); assert.equal(list.endpoint, 'http://127.0.0.1:11434'); assert.deepEqual(seen, ['http://127.0.0.1:11434/api/tags']);
     assert.deepEqual(list.models, [{ name: 'llama3.2:3b', sizeBytes: 2019393189, modifiedAt: '2026-09-01T10:00:00.000Z', family: 'llama' }]); assert.equal(list.skipped, 1);
