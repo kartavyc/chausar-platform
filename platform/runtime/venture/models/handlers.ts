@@ -58,7 +58,7 @@ async function connect(deps: VentureDeps, ctx: Context, payload: unknown): Promi
   if (apiKey !== null) deps.secrets.set(secretName, apiKey);
   try {
     await ventureAction(deps, ctx, 'admin', 'models.connect', tx => {
-      for (const older of tx.list('venture-model-connection') as unknown as ConnectionRecord[]) {
+      for (const older of tx.list('venture-model-connection')) {
         if (older.presetId === presetId && older.status === 'connected') replaceRecord(tx, { ...older, status: 'disconnected' as const });
       }
       const connection: ConnectionRecord = {
@@ -88,13 +88,13 @@ async function disconnect(deps: VentureDeps, ctx: Context, payload: unknown): Pr
   const input = exactPayload(payload, ['connectionId'], ['connectionId']);
   const connectionId = identifier(input.connectionId, 'connectionId');
   const result = await ventureAction(deps, ctx, 'admin', 'models.disconnect', tx => {
-    const connection = tx.find('venture-model-connection', connectionId) as unknown as ConnectionRecord | undefined;
+    const connection = tx.find('venture-model-connection', connectionId);
     check(connection, 'INVALID_VENTURE_REQUEST', 'This AI connection was not found.');
     if (connection.status === 'connected') {
       replaceRecord(tx, { ...connection, status: 'disconnected' as const });
       tx.emit('model-disconnected', { presetId: connection.presetId, connectionId });
     }
-    const stillUsed = (tx.list('venture-model-connection') as unknown as ConnectionRecord[])
+    const stillUsed = tx.list('venture-model-connection')
       .some(item => item.id !== connection.id && item.presetId === connection.presetId && item.status === 'connected');
     return { presetId: connection.presetId, stillUsed };
   });
@@ -124,7 +124,7 @@ async function calls(deps: VentureDeps, ctx: Context, payload: unknown): Promise
   const list = newestFirst(listCalls(state, venture.id).filter(call => purpose === null || call.purpose === purpose))
     .slice(0, limit)
     .map(call => viewCall(call, nowMs));
-  return list as unknown as VentureResults['venture.models.calls'];
+  return list;
 }
 
 export const handlers: VentureHandlerTable = {

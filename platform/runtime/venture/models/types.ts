@@ -1,53 +1,14 @@
 // Chausar venture launcher, package P2 (models): record shapes and shared constants.
 //
-// Why local record types: in contracts.ts, ModelConnectionRecord and ModelCallRecord each add
-// `kind: ModelRouteKind` on top of RecordBase, whose `kind` is the record kind. The two literal
-// types cannot both hold, so TypeScript reduces both record types to `never`. The vault needs
-// `kind` to be the record kind, so this package stores the route kind as `routeKind` and keeps
-// these local shapes until the integrator renames the contract field (see docs/venture/models.md).
+// The record shapes are the contract types. The route kind is stored as `routeKind`, because
+// `kind` is the record kind that the vault and listRecords use.
 import type {
-  IsoTime, MicroString, ModelPresetId, ModelPurpose, ModelRouteKind, ModelTier, RecordBase,
+  ModelCallRecord, ModelConnectionRecord, ModelConnectionView, ModelRouteKind,
 } from '../contracts.ts';
 
-export type ConnectionRecord = RecordBase<'venture-model-connection'> & {
-  presetId: ModelPresetId;
-  routeKind: ModelRouteKind;
-  model: string | null;
-  endpoint: string;
-  tiers: ModelTier[];
-  consentDigest: string;
-  consentedAt: IsoTime;
-  monthlyCapMicros: MicroString;
-  status: 'connected' | 'disconnected';
-};
-
-export type ConnectionView = ConnectionRecord & { keyLoaded: boolean; usable: boolean; reason: string };
-
-export type CallRecord = RecordBase<'venture-model-call'> & {
-  purpose: ModelPurpose;
-  tier: ModelTier;
-  presetId: ModelPresetId;
-  connectionId: string | null;
-  routeKind: ModelRouteKind;
-  model: string | null;
-  consent: 'standing' | 'approved-preview';
-  endpoint: string;
-  payloadText: string;
-  payloadDigest: string;
-  payloadTruncated: boolean;
-  containsClientData: boolean;
-  status: 'preview' | 'dispatching' | 'completed' | 'failed' | 'expired';
-  approvedDigest: string | null;
-  approvedAt: IsoTime | null;
-  approvedBy: string | null;
-  estimatedMaxCostMicros: MicroString;
-  priceConfirmed: boolean;
-  usage: Usage | null;
-  costMicros: MicroString | null;
-  outputDigest: string | null;
-  error: { code: string; message: string } | null;
-  replay: boolean;
-};
+export type ConnectionRecord = ModelConnectionRecord;
+export type ConnectionView = ModelConnectionView;
+export type CallRecord = ModelCallRecord;
 
 export type Usage = { inputTokens: number; outputTokens: number };
 

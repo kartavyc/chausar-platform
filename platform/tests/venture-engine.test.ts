@@ -28,10 +28,7 @@ function recordingTransport(): ModelTransport & { requests: ModelHttpRequest[] }
     },
   };
 }
-// ModelConnectionView in contracts.ts collapses to never (its route 'kind' clashes with the record 'kind'; see docs/venture/shell.md),
-// so these tests read connections through this narrow local shape.
-type ConnectionView = { presetId: string; status: string; keyLoaded: boolean };
-type StatusView = Omit<ModelStatusView, 'connections'> & { connections: ConnectionView[] };
+type StatusView = ModelStatusView;
 const noGitHub: GitHubTransport = { kind: 'fixture', read: async () => ({ status: 404, etag: null, body: '{"message":"Not Found"}', rateRemaining: null }) };
 
 async function engineOn(t: any, transport: ModelTransport = recordingTransport()) {

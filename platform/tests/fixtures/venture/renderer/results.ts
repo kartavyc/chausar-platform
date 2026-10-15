@@ -160,13 +160,10 @@ export const presets: ModelPreset[] = [
   { id: 'codex-cli', label: 'Codex on this computer', kind: 'codex-cli', model: 'gpt-6-luna', modelEditable: false, tiers: ['fast', 'main'], needsKey: false, keyHint: null, runsOn: 'this-computer', priceTable: null, consentText: cliConsent('Codex'), consentDigest: hex('5'), verification: 'not-live-verified', availability: 'needs-setup', availabilityReason: 'Needs the reviewed Codex host profile. See docs/venture/models.md.' },
   { id: 'built-in-templates', label: 'Built-in templates (no AI)', kind: 'template', model: null, modelEditable: false, tiers: ['fast', 'main'], needsKey: false, keyHint: null, runsOn: 'chausar-engine', priceTable: null, consentText: 'Chausar will use its built-in templates. Nothing is sent to any AI service.', consentDigest: hex('6'), verification: 'built-in', availability: 'ready', availabilityReason: 'Nothing is sent anywhere.' },
 ];
-// ModelConnectionRecord declares `kind` twice (the record kind from RecordBase and the route kind), so the
-// contract type reduces to never and no literal can satisfy it. The hand-off note asks the integrator to rename
-// the route field; until then this fixture is typed through unknown and carries the record kind.
-const connection = (id: string, presetId: ModelPreset['id'], model: string, tier: 'fast' | 'main', consentDigest: string) => ({
-  ...base, id, kind: 'venture-model-connection', presetId, model, endpoint: 'https://api.anthropic.com/v1/messages', tiers: [tier], consentDigest, consentedAt: at,
+const connection = (id: string, presetId: ModelPreset['id'], model: string, tier: 'fast' | 'main', consentDigest: string): ModelStatusView['connections'][number] => ({
+  ...base, id, kind: 'venture-model-connection', presetId, routeKind: 'anthropic-messages', model, endpoint: 'https://api.anthropic.com/v1/messages', tiers: [tier], consentDigest, consentedAt: at,
   monthlyCapMicros: '5000000', status: 'connected', keyLoaded: true, usable: true, reason: 'Ready.',
-}) as unknown as ModelStatusView['connections'][number];
+});
 export const modelsConnected: ModelStatusView = {
   connections: [connection('vmc_haiku', 'anthropic-haiku-5-5', 'claude-haiku-5-5', 'fast', hex('1')), connection('vmc_sonnet', 'anthropic-sonnet-5-5', 'claude-sonnet-5-5', 'main', hex('2'))],
   tiers: { fast: { presetId: 'anthropic-haiku-5-5', model: 'claude-haiku-5-5', usable: true, reason: 'Ready.' }, main: { presetId: 'anthropic-sonnet-5-5', model: 'claude-sonnet-5-5', usable: true, reason: 'Ready.' } },

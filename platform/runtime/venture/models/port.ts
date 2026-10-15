@@ -56,20 +56,20 @@ type Prepared =
 type Pending = { prepared: Prepared; expiresAtMs: number };
 
 // ---------------------------------------------------------------------------
-// Record access (local types: see types.ts for why)
+// Record access
 // ---------------------------------------------------------------------------
 
 export function listConnections(state: State, ventureId: string): ConnectionRecord[] {
-  return listRecords(state, 'venture-model-connection', ventureId) as unknown as ConnectionRecord[];
+  return listRecords(state, 'venture-model-connection', ventureId);
 }
 export function listCalls(state: State, ventureId: string): CallRecord[] {
-  return listRecords(state, 'venture-model-call', ventureId) as unknown as CallRecord[];
+  return listRecords(state, 'venture-model-call', ventureId);
 }
 function txConnections(tx: VentureTx): ConnectionRecord[] {
-  return tx.list('venture-model-connection') as unknown as ConnectionRecord[];
+  return tx.list('venture-model-connection');
 }
 function txCalls(tx: VentureTx): CallRecord[] {
-  return tx.list('venture-model-call') as unknown as CallRecord[];
+  return tx.list('venture-model-call');
 }
 export function putRecord<T>(tx: VentureTx, record: T): T {
   return tx.put(record as any) as unknown as T;
@@ -255,7 +255,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
     const costMicros = parsed.usage ? callCostMicros(parsed.usage, table) : failure ? null : table ? call.estimatedMaxCostMicros : '0';
     const outputDigest = parsed.ok ? digest(parsed.value) : null;
     await ventureAction(actionDeps, ctx, level, 'models.result', tx => {
-      const current = tx.find('venture-model-call', call.id) as unknown as CallRecord | undefined;
+      const current = tx.find('venture-model-call', call.id);
       check(current, 'INVALID_VENTURE_REQUEST', 'This model call record no longer exists.');
       replaceRecord(tx, { ...current, status: failure ? 'failed' : 'completed', usage: parsed.usage, costMicros, outputDigest, error: failure });
     });
@@ -328,7 +328,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       }
       const spentText = String(spent);
       return {
-        connections: views as unknown as ModelStatusView['connections'],
+        connections: views,
         tiers,
         spentThisMonthMicros: spentText,
         spentThisMonthDisplay: costDisplay(spentText, !estimate),
@@ -415,7 +415,7 @@ export function createModelPort(options: ModelPortOptions): ModelPort {
       const call = await ventureAction(actionDeps, ctx, 'approve', 'models.approve', tx => {
         sweep(tx);
         const nowMs = Date.parse(tx.now);
-        const current = tx.find('venture-model-call', callId) as unknown as CallRecord | undefined;
+        const current = tx.find('venture-model-call', callId);
         const held = pending.get(callId);
         const stale = new ChausarError('APPROVAL_STALE', MESSAGES.approvalStale);
         if (!current || current.status !== 'preview' || current.approvedDigest !== null || current.payloadDigest !== approvedDigest || !held) throw stale;

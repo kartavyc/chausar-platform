@@ -11,7 +11,7 @@ import { numberGuard } from '../runtime/calculator.ts';
 import { EXTERNAL_ORIGINS, STEP_PLAN } from '../runtime/venture/contracts.ts';
 import type {
   BlueprintView, BooksSummary, BriefRecord, BuildStatus, CapabilityStatus, ClientRecord, ConnectorCard, CountryProfile, DeliveryRunRecord,
-  HandoffPlan, HandoffRecord, InterviewView, InvoiceView, LaunchStatus, ModelPreset, OrderRecord, PlanPreview, PriceReceiptRecord,
+  HandoffPlan, HandoffRecord, InterviewView, InvoiceView, LaunchStatus, ModelCallRecord, ModelPreset, ModelStatusView, OrderRecord, PlanPreview, PriceReceiptRecord,
   SimulationRunRecord, VentureEventRecord, VentureView,
 } from '../runtime/venture/contracts.ts';
 import { createReplayTransport } from '../runtime/venture/models/index.ts';
@@ -38,13 +38,8 @@ const CANNOT_SAY = [
 ];
 const OUTLINE_LINE = "Template outline. No AI wrote this and it doesn't read the client's request.";
 
-// ModelCallRecord and ModelStatusView's connections collapse to never in contracts.ts (their route 'kind' clashes with
-// the record 'kind'; see docs/venture/shell.md), so the test reads them through these narrow local shapes.
-type CallRecord = {
-  id: string; purpose: string; consent: string; status: string; payloadText: string; containsClientData: boolean;
-  replay: boolean; approvedBy: string | null;
-};
-type StatusView = { tiers: Record<'fast' | 'main', { presetId: string }>; replay: { active: boolean; label: string | null }; sendPolicy: string };
+type CallRecord = ModelCallRecord;
+type StatusView = ModelStatusView;
 
 const code = (expected: string) => (error: any) => { assert.equal(error?.code, expected, error?.stack ?? error?.message); return true; };
 const figure = (receipt: PriceReceiptRecord, key: string) => {
