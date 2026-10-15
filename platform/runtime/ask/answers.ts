@@ -9,7 +9,7 @@
 import { ChausarError, check, hash, type Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt, CalculationRequest } from '../calculator.ts';
-import { canSeeFact, type Period } from '../memory.ts';
+import { canSeeFact, validDate, type Period } from '../memory.ts';
 import type { AnswerReply, Gap, GuardLine, ReceiptReply, RunReply, SentReply, SourceRowsReply } from './contracts.ts';
 import { asText, ruleKind, businessToday, codeOf, core, currentDictionary, headlineKey, identifier, input, isRuleCode, minorString, monthsOf, namedPeriod, period, priorPeriod, requireId, seedDictionary, text, translate , openReceipt } from './shared.ts';
 import { isPeriodId, operationOf, recordAsked } from './menu.ts';
@@ -147,23 +147,28 @@ export async function receiptView(ctx: Context, payload: unknown, host: ModuleHo
       .filter((entry, index, list) => list.findIndex(other => other.from === entry.from && other.rate === entry.rate) === index),
     sent: conversation ? { kind: 'model', available: true } : { kind: 'nothing' },
     meaning: meaningOf(host, ctx, receipt), demo: host.store.read().workspace.demo === true || host.demo,
-    provenance: provenanceOf((receipt as { provenance?: unknown }).provenance),
+    provenance: provenanceOf((receipt as { provenance?: unknown }).provenance, receipt.memberId),
   };
 }
 
-const str = (v: unknown, max = 200) => typeof v === 'string' && v.length > 0 && v.length <= max ? v : null;
-const span = (v: any) => v && str(v.from, 10) && str(v.to, 10) ? { from: v.from as string, to: v.to as string } : null;
+// Another lane's words: plain printable text only (no control or direction characters), ids as ids, dates as dates.
+const str = (v: unknown, max = 200) => typeof v === 'string' && v.length > 0 && v.length <= max && !/[\p{Cc}\p{Cf}]/u.test(v) ? v : null;
+const ident = (v: unknown) => typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:+-]{0,199}$/.test(v) ? v : null;
+const instant = (v: unknown) => typeof v === 'string' && v.length <= 40 && /^\d{4}-\d{2}-\d{2}(?:T[\d:.]+(?:Z|[+-]\d{2}:\d{2}))?$/.test(v) && Number.isFinite(Date.parse(v)) ? v : null;
+const month = (v: unknown) => typeof v === 'string' && (/^\d{4}-\d{2}$/.test(v) || validDate(v)) ? v : null;
+const span = (v: any) => v && month(v.from) && month(v.to) && v.from <= v.to ? { from: v.from as string, to: v.to as string } : null;
 /** The core lane's provenance on a receipt (AS-05), read field by field; anything else is left out. */
-export function provenanceOf(value: unknown): ReceiptReply['provenance'] {
+export function provenanceOf(value: unknown, memberId: string | null = null): ReceiptReply['provenance'] {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const v = value as Record<string, any>;
-  const recipes = Array.isArray(v.recipes) ? v.recipes.slice(0, 50).flatMap((r: any) => str(r?.sourceId) && str(r?.recipeId)
-    ? [{ sourceId: r.sourceId, recipeId: r.recipeId, acceptedBy: str(r.acceptedBy), acceptedAt: str(r.acceptedAt, 40) }] : []) : [];
-  const meaning = v.meaning && str(v.meaning.publishedBy) ? { publishedBy: v.meaning.publishedBy as string, reviewedBy: str(v.meaning.reviewedBy), coSignedBy: str(v.meaning.coSignedBy), reviewedAt: str(v.meaning.reviewedAt, 40) } : null;
+  const recipes = Array.isArray(v.recipes) ? v.recipes.slice(0, 50).flatMap((r: any) => ident(r?.sourceId) && ident(r?.recipeId)
+    ? [{ sourceId: r.sourceId, recipeId: r.recipeId, acceptedBy: ident(r.acceptedBy), acceptedAt: instant(r.acceptedAt) }] : []) : [];
+  const meaning = v.meaning && ident(v.meaning.publishedBy) ? { publishedBy: v.meaning.publishedBy as string, reviewedBy: ident(v.meaning.reviewedBy), coSignedBy: ident(v.meaning.coSignedBy), reviewedAt: instant(v.meaning.reviewedAt) } : null;
   const forecast = v.forecast && str(v.forecast.method, 100) && span(v.forecast.learnedFrom) && span(v.forecast.testedOn)
     ? { method: v.forecast.method as string, learnedFrom: span(v.forecast.learnedFrom)!, testedOn: span(v.forecast.testedOn)! } : null;
   const a = v.allowedBy;
-  const allowedBy = a && str(a.ruleId) && str(a.check) && ['desktop', 'phone', 'mcp'].includes(a.device) && str(a.memberId) && str(a.at, 40)
+  // The decision that allowed a receipt is this receipt's member's own, or it is left out.
+  const allowedBy = a && ident(a.ruleId) && ident(a.check) && ['desktop', 'phone', 'mcp'].includes(a.device) && ident(a.memberId) && (memberId === null || a.memberId === memberId) && instant(a.at)
     ? { ruleId: a.ruleId as string, check: a.check as string, device: a.device as 'desktop' | 'phone' | 'mcp', memberId: a.memberId as string, at: a.at as string } : null;
   return { recipes, meaning, forecast, allowedBy };
 }
@@ -184,8 +189,11 @@ export async function sourceRows(ctx: Context, payload: unknown, host: ModuleHos
   try { receipt = await host.call('receipts.get', { id: requireId(request.receiptId) }) as CalculationReceipt; }
   catch (error) {
     // The seat's own receipt now holds rows it may not see: show the rows it can, and how many it cannot.
-    const own = codeOf(error) === 'RECEIPT_FORBIDDEN' ? host.store.read().receipts.find(r => r?.id === request.receiptId && r.memberId === ctx.memberId && r.epoch === ctx.epoch) as CalculationReceipt | undefined : undefined;
-    if (!own) throw new ChausarError('ASK_NOT_FOUND', 'This item is no longer available.');
+    const mine = host.store.read().receipts.find(r => r?.id === request.receiptId && r.memberId === ctx.memberId) as CalculationReceipt | undefined;
+    if (!mine) throw new ChausarError('ASK_NOT_FOUND', 'This item is no longer available.');
+    // The seat's own receipt from before its access changed is stopped by the rule, as everywhere else.
+    const own = codeOf(error) === 'RECEIPT_FORBIDDEN' && mine.epoch === ctx.epoch ? mine : undefined;
+    if (!own) throw translate(error);
     const visible = (id: string) => { const fact = host.store.read().facts.find(f => f.id === id); return !!fact && !fact.deletedAt && canSeeFact(host.store, ctx, fact); };
     const ids = new Set([...own.rowIds, ...own.exclusions.map(e => e.rowId)]);
     const hiddenIds = [...ids].filter(id => !visible(id)); hiddenCount = hiddenIds.length;

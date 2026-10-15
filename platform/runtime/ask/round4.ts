@@ -10,8 +10,9 @@
 import { ChausarError, check, now, type Context } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { RuleKind, UnderstandReply } from './contracts.ts';
-import { businessToday, codeOf, currentDictionary, identifier, input, namedPeriod, period, text, translate } from './shared.ts';
-import { isPeriodId, operationOf, proposalReply, recordAsked } from './menu.ts';
+import { businessToday, codeOf, currentDictionary, identifier, input, namedPeriod, openReceipt, period, text, translate } from './shared.ts';
+import { canSeeFact } from '../memory.ts';
+import { isPeriodId, operationOf, proposalReply } from './menu.ts';
 
 const NOT_BUILT = new Set(['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE']);
 
@@ -22,30 +23,39 @@ export async function change(ctx: Context, payload: unknown, host: ModuleHost): 
   const before = operationOf(dictionary, request.operationId);
   check(before, 'ASK_NO_CALCULATION', 'No published calculation has this name.');
   const to = input(request.change, ['operationId', 'period', 'periodId', 'branch']);
+  check(!(to.period !== undefined && to.periodId !== undefined) && !(request.period !== undefined && request.periodId !== undefined), 'ASK_INVALID', 'Choose a named period or dates, not both.');
+  check(request.periodId === undefined || isPeriodId(request.periodId), 'ASK_INVALID', 'Choose a named period.');
+  check(to.periodId === undefined || isPeriodId(to.periodId), 'ASK_INVALID', 'Choose a named period.');
   const today = businessToday(host, request.today);
   const operation = to.operationId === undefined ? before : operationOf(dictionary, to.operationId);
   check(operation, 'ASK_NO_CALCULATION', 'No published calculation has this name.');
-  const periodId = to.periodId !== undefined ? (check(isPeriodId(to.periodId), 'ASK_INVALID', 'Choose a named period.'), to.periodId) : to.period !== undefined ? null : isPeriodId(request.periodId) ? request.periodId : null;
+  const keepPeriod = to.period === undefined && to.periodId === undefined;
+  const periodId = to.periodId ?? (keepPeriod ? request.periodId ?? null : null);
   const chosen = to.period !== undefined ? period(to.period) : periodId !== null ? namedPeriod(periodId, today) : request.period !== undefined ? period(request.period) : namedPeriod('last-month', today);
   const branch = to.branch !== undefined ? to.branch : request.branch ?? null;
   check(branch === null || identifier(branch), 'ASK_INVALID', 'Choose a branch by its name.');
-  // The correction is kept as structure only: which calculation replaced which, and whether the period or group moved.
-  await recordAsked(host, ctx.memberId, ctx.role, operation.id, periodId, { operationId: before.id,
-    periodChanged: to.period !== undefined || to.periodId !== undefined, groupChanged: to.branch !== undefined });
+  // Nothing is recorded here: browsing the lists is not a correction. The run that follows sends
+  // `correctedFrom`, and that is recorded once, as structure only.
   return proposalReply(host, ctx, dictionary, operation, chosen, periodId, branch, today);
 }
 
-/** Stop requests by member, held in this process only. A long loop checks it between steps. */
+/**
+ * Stop requests, held in this process only, per workspace, member and permission epoch. A run
+ * takes the current count when it starts; a stop raises it, and the run ends at its next step.
+ * A count cannot be stale the way a clock can: a stop asked for before a run started never ends it.
+ */
 const stops = new Map<string, number>();
-export function stop(ctx: Context, payload: unknown) {
+const stopKey = (ctx: Context, host: ModuleHost) => `${host.store.read().workspace.id}\u0000${ctx.memberId}\u0000${ctx.epoch}`;
+export function stop(ctx: Context, payload: unknown, host: ModuleHost) {
   input(payload, []);
-  stops.set(ctx.memberId, Date.now());
+  const key = stopKey(ctx, host); stops.set(key, (stops.get(key) ?? 0) + 1);
   return { stopped: true as const, at: now() };
 }
-/** Throws ASK_STOPPED when this member asked to stop after `startedAt`. */
-export function checkStop(ctx: Context, startedAt: number) {
-  const at = stops.get(ctx.memberId);
-  if (at !== undefined && at >= startedAt) throw new ChausarError('ASK_STOPPED', 'Stopped as you asked. Nothing was saved from the unfinished answer.');
+/** The token a run takes when it starts. */
+export const stopToken = (ctx: Context, host: ModuleHost) => ({ key: stopKey(ctx, host), at: stops.get(stopKey(ctx, host)) ?? 0 });
+/** Throws ASK_STOPPED when this member asked to stop after the run took its token. */
+export function checkStop(token: { key: string; at: number } | null) {
+  if (token !== null && (stops.get(token.key) ?? 0) > token.at) throw new ChausarError('ASK_STOPPED', 'Stopped as you asked. The unfinished answer was not kept.');
 }
 
 export async function tell(ctx: Context, payload: unknown, host: ModuleHost) {
@@ -69,8 +79,12 @@ export async function explainRule(ctx: Context, payload: unknown, host: ModuleHo
   const request = input(payload, ['rule', 'receiptId', 'sourceId', 'language'], ['rule']);
   check(request.language === undefined || request.language === 'en' || request.language === 'hi', 'ASK_INVALID', 'Choose English or Hindi.');
   check(RULES.includes(request.rule), 'ASK_INVALID', 'Name the kind of rule.');
-  for (const name of ['receiptId', 'sourceId'] as const) if (request[name] !== undefined) check(identifier(request[name]), 'ASK_INVALID', 'Choose one item by its identifier.');
-  void ctx;
+  // Trust is told only about a receipt or source this seat can already open, so it cannot be used to probe ids.
+  if (request.receiptId !== undefined) await openReceipt(host, ctx, request.receiptId);
+  if (request.sourceId !== undefined) {
+    check(identifier(request.sourceId), 'ASK_INVALID', 'Choose one item by its identifier.');
+    check(host.store.read().facts.some(f => f.sourceId === request.sourceId && !f.deletedAt && canSeeFact(host.store, ctx, f)), 'ASK_NOT_FOUND', 'This item is no longer available.');
+  }
   let reply: { ruleId?: unknown; text?: unknown; changeableBy?: unknown };
   try { reply = await host.call('trust.explain', { ...request }) as typeof reply; }
   catch (error) {
@@ -78,7 +92,7 @@ export async function explainRule(ctx: Context, payload: unknown, host: ModuleHo
     throw translate(error);
   }
   // The rule's words come from Trust as fixed text; anything else is refused rather than shown.
-  check(typeof reply?.ruleId === 'string' && RULE_ID.test(reply.ruleId) && typeof reply.text === 'string' && reply.text.trim().length > 0 && reply.text.length <= 1000
+  check(typeof reply?.ruleId === 'string' && RULE_ID.test(reply.ruleId) && typeof reply.text === 'string' && reply.text.trim().length > 0 && reply.text.length <= 1000 && !/[\p{Cc}\p{Cf}]/u.test(reply.text)
     && (reply.changeableBy === 'owner' || reply.changeableBy === 'owner-or-cofounder'), 'ASK_REFUSED', 'Trust explained the rule in a shape this page does not read.');
   return { state: 'ready' as const, ruleId: reply.ruleId as string, text: reply.text as string, changeableBy: reply.changeableBy as 'owner' | 'owner-or-cofounder' };
 }

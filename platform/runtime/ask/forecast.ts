@@ -18,7 +18,7 @@ import type { SavedForecastEvaluation } from '../forecast-contracts.ts';
 import type { AskState, ForecastReply } from './contracts.ts';
 import { addMonths, askState, businessToday, peekAsk, codeOf, core, currentDictionary, input, monthEnd, monthStart, translate } from './shared.ts';
 import { operationOf } from './menu.ts';
-import { checkStop } from './round4.ts';
+import { checkStop, stopToken } from './round4.ts';
 
 export const NEEDED_MONTHS = 24;
 const HELD_BACK = 6;
@@ -58,14 +58,14 @@ export async function forecast(ctx: Context, payload: unknown, host: ModuleHost)
   const definitionHash = hash(dictionary.definitions.filter(d => operation.definitions.includes(d.name)));
   const key = runKey(state, ctx, { operationId: operation.id, branch, sourceIds, dictionaryHash: dictionary.hash, definitionHash, kinds: [...kinds].sort(), months: months.map(([y, m]) => monthStart(y, m)) });
   const previous = peekAsk(state).forecastRuns?.find(run => run.key === key && run.memberId === ctx.memberId);
+  const token = stopToken(ctx, host);
   let history = previous ? await reopen(host, previous.receipts) : null;
   const reused = history !== null;
   const asOf = reused ? previous!.asOf : now();
   if (!history) {
     history = [];
-    const started = Date.now();
     for (const [y, m] of months) {
-      checkStop(ctx, started);
+      checkStop(token);
       const receipt = await core<CalculationReceipt>(host, 'calculation.run', { operation: operation.id, sourceIds, period: { from: monthStart(y, m), to: monthEnd(y, m) }, asOf, ...(branch === null ? {} : { branch }) });
       history.push({ month: monthStart(y, m).slice(0, 7), minor: receipt.valueMinor, receiptId: receipt.id });
     }
@@ -78,6 +78,7 @@ export async function forecast(ctx: Context, payload: unknown, host: ModuleHost)
   let evaluation: SavedForecastEvaluation | null = null;
   // A saved evaluation is reused only when the engine replays it and its evidence still verifies.
   if (reused && previous!.evaluationId) { try { evaluation = await host.call('forecasts.get', { id: previous!.evaluationId }) as SavedForecastEvaluation; } catch { evaluation = null; } }
+  checkStop(token);
   if (!evaluation) try {
     evaluation = await host.call('forecasts.evaluate', { version: 1, mode: 'restated-diagnostic', operation: operation.id, dictionaryHash: dictionary.hash, sourceIds, branch,
       horizonsMonths: [1], cadenceMonths: 1, minimumTrainingMonths: 12, method: 'linear-trend-v1', benchmark: 'last-observed-v1', availabilityLagMs: 0, origins }) as SavedForecastEvaluation;

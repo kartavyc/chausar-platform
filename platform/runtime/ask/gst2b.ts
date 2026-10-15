@@ -14,9 +14,9 @@
  *
  * Chausar never acts in the GST portal. Amounts are exact paise; the difference is a BigInt.
  */
-import { check, hash, type Context, type Fact } from '../contracts.ts';
+import { ChausarError, check, hash, type Context, type Fact } from '../contracts.ts';
 import type { ModuleHost } from '../modules/types.ts';
-import { canSeeFact, type Period } from '../memory.ts';
+import { canSeeFact, validDate, type Period } from '../memory.ts';
 import type { Gst2bGroup, Gst2bLineReply, Gst2bReply } from './contracts.ts';
 import { askState, asText, businessToday, codeOf, currentDictionary, identifier, input, minorString, namedPeriod, peekAsk, period, requireId, translate } from './shared.ts';
 
@@ -73,10 +73,13 @@ const tolerance = (host: ModuleHost) => BigInt(peekAsk(host.store.read()).gst.to
 
 /** The GSTR-2B sources the connectors lane read, and the other sources holding purchases. */
 async function sourcesOf(ctx: Context, host: ModuleHost, p: Period) {
-  let envelopes: { sourceId?: unknown; recipeId?: unknown }[] = [];
+  let envelopes: { sourceId?: unknown; recipeId?: unknown; status?: unknown; committed?: unknown }[] = [];
   try { envelopes = await host.call('connectorsx.envelopes', { limit: 400 }) as typeof envelopes; }
   catch (error) { if (!['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE'].includes(codeOf(error))) throw translate(error); }
-  const gstr2b = [...new Set(envelopes.filter(e => typeof e?.recipeId === 'string' && e.recipeId.startsWith('gst.gstr2b') && typeof e.sourceId === 'string').map(e => e.sourceId as string))].sort();
+  // Only 2B reads that passed their checks and were imported, and only sources holding purchases in the period.
+  const withPurchases = new Set(host.store.read().facts.filter(f => f.kind === BOOK_KIND && !f.deletedAt && f.validFrom >= p.from && f.validFrom <= p.to && canSeeFact(host.store, ctx, f)).map(f => f.sourceId));
+  const gstr2b = [...new Set(envelopes.filter(e => typeof e?.recipeId === 'string' && e.recipeId.startsWith('gst.gstr2b') && typeof e.sourceId === 'string'
+    && (e as { status?: unknown }).status === 'accepted' && (e as { committed?: unknown }).committed && withPurchases.has(e.sourceId)).map(e => e.sourceId as string))].sort();
   const register = [...new Set(host.store.read().facts.filter(f => f.kind === BOOK_KIND && !f.deletedAt && !gstr2b.includes(f.sourceId)
     && f.validFrom >= p.from && f.validFrom <= p.to && canSeeFact(host.store, ctx, f)).map(f => f.sourceId))].sort();
   return { gstr2b, register };
@@ -93,6 +96,15 @@ const fyOf = (date: string) => { const y = Number(date.slice(0, 4)), start = Num
 
 /** Maps the connectors lane's match result onto this page's lines. Tolerance applies only to amounts that differ. */
 export function fromConnectors(result: any, find: (side: 'register' | 'gstr2b', entityId: string) => Fact | null, tol: bigint): Matched {
+  try { return mapConnectors(result, find, tol); }
+  catch (error) { if (codeOf(error).startsWith('ASK_')) throw error; throw new ChausarError('ASK_REFUSED', 'The GSTR-2B match came back in a shape this page does not read.'); }
+}
+const isText = (v: unknown, max = 100) => typeof v === 'string' && v.length > 0 && v.length <= max;
+// The connectors lane's entity ids hold the supplier and invoice (`gst-downloads:GSTIN|SP/0012`): text, not a plain id.
+const ref = (v: any) => v && typeof v === 'object' && isText(v.entityId, 300) && !/[\p{Cc}\p{Cf}]/u.test(v.entityId) ? v : (() => { throw new ChausarError('ASK_REFUSED', 'The GSTR-2B match came back in a shape this page does not read.'); })();
+const lineText = (...values: unknown[]) => { check(values.every(v => isText(v)), 'ASK_REFUSED', 'The GSTR-2B match came back in a shape this page does not read.'); };
+const dateText = (v: unknown) => { check(typeof v === 'string' && validDate(v), 'ASK_REFUSED', 'The GSTR-2B match came back in a shape this page does not read.'); return v as string; };
+function mapConnectors(result: any, find: (side: 'register' | 'gstr2b', entityId: string) => Fact | null, tol: bigint): Matched {
   check(result && result.mode === 'matched' && Array.isArray(result.matched) && Array.isArray(result.amountMismatch) && Array.isArray(result.inBooksOnly)
     && Array.isArray(result.in2bOnly) && Array.isArray(result.probable) && Array.isArray(result.invalid), 'ASK_REFUSED', 'The GSTR-2B match came back in a shape this page does not read.');
   const lines: Line[] = [];
@@ -103,6 +115,12 @@ export function fromConnectors(result: any, find: (side: 'register' | 'gstr2b', 
       books: register ? find('register', register.entityId) : null, twoB: gstr2b ? find('gstr2b', gstr2b.entityId) : null,
       booksMinor: books?.[0] ?? null, booksTax: books?.[1] ?? null, twoBMinor: twoB?.[0] ?? null, twoBTax: twoB?.[1] ?? null });
   };
+  for (const m of result.matched) lineText(m?.supplierGstin, m?.invoiceNumber, m?.financialYear);
+  for (const m of result.amountMismatch) lineText(m?.supplierGstin, m?.invoiceNumber, m?.financialYear);
+  for (const o of [...result.inBooksOnly, ...result.in2bOnly]) { lineText(o?.supplierGstin, o?.invoiceNumber); dateText(o?.invoiceDate); ref(o?.receipt); }
+  for (const pm of result.probable) { lineText(pm?.supplierGstin, pm?.register?.invoiceNumber); dateText(pm?.register?.invoiceDate); ref(pm?.register?.receipt); ref(pm?.gstr2b?.receipt); }
+  for (const m of [...result.matched, ...result.amountMismatch]) { ref(m.receipt?.register); ref(m.receipt?.gstr2b); }
+  check(Number.isSafeInteger(result.invalid.length), 'ASK_REFUSED', 'The GSTR-2B match came back in a shape this page does not read.');
   for (const m of result.matched) push('matched', m.supplierGstin, m.invoiceNumber, m.financialYear, m.receipt.register, m.receipt.gstr2b,
     [minorOrNull(m.taxableMinor), minorOrNull(m.taxMinor)], [minorOrNull(m.taxableMinor), minorOrNull(m.taxMinor)]);
   for (const m of result.amountMismatch) {
@@ -126,6 +144,10 @@ async function prepare(ctx: Context, request: Record<string, any>, p: Period, ho
   const dictionary = currentDictionary(host, ctx);
   check(dictionary, 'ASK_NO_DICTIONARY', 'Publish what your words mean before asking for numbers.');
   if (dictionary.gstMode !== 'regular') return { state: 'not-applicable', reason: dictionary.gstMode };
+  // A seat that cannot see every purchase in the period would get wrong portal advice
+  // (an invoice in the books shown as "not in books"): it is stopped by the rule, not given a partial list.
+  const hidden = host.store.read().facts.some(f => f.kind === BOOK_KIND && !f.deletedAt && !f.supersededAt && f.validFrom >= p.from && f.validFrom <= p.to && !canSeeFact(host.store, ctx, f));
+  if (hidden) throw new ChausarError('ASK_STOPPED_BY_RULE', 'A rule in Trust stops this answer for your seat.');
   const tol = tolerance(host), found = await sourcesOf(ctx, host, p);
   const local = () => {
     const facts = legacy(ctx, host, p, dictionary.currency);
@@ -134,7 +156,7 @@ async function prepare(ctx: Context, request: Record<string, any>, p: Period, ho
   let registerSourceId = request.registerSourceId as string | undefined, gstr2bSourceId = request.gstr2bSourceId as string | undefined;
   if (registerSourceId !== undefined) check(found.register.includes(registerSourceId), 'ASK_NOT_FOUND', 'This source holds no purchases you can see in the period.');
   if (gstr2bSourceId !== undefined) check(found.gstr2b.includes(gstr2bSourceId), 'ASK_NOT_FOUND', 'This source is not a GSTR-2B read you can see.');
-  if (!found.gstr2b.length) return local();
+  if (!found.gstr2b.length) { check(request.registerSourceId === undefined && request.gstr2bSourceId === undefined, 'ASK_NOT_FOUND', 'There is no GSTR-2B read to match with.'); return local(); }
   registerSourceId ??= found.register.length === 1 ? found.register[0] : undefined;
   gstr2bSourceId ??= found.gstr2b.length === 1 ? found.gstr2b[0] : undefined;
   if (registerSourceId === undefined || gstr2bSourceId === undefined) {
@@ -161,7 +183,11 @@ async function receiptsFor(host: ModuleHost, prepared: Extract<Prepared, { state
     const reply = await host.call('coredata.gst2bReceipt', { registerSourceId: prepared.chosen.registerSourceId, gstr2bSourceId: prepared.chosen.gstr2bSourceId,
       period: prepared.p, toleranceMinor: String(prepared.tol) }) as { receiptId?: unknown; lines?: unknown };
     check(identifier(reply?.receiptId) && Array.isArray(reply.lines) && reply.lines.every((l: any) => typeof l?.key === 'string' && identifier(l.receiptId)), 'ASK_REFUSED', 'The match receipt came back in a shape this page does not read.');
-    return { matchReceiptId: reply.receiptId as string, byKey: new Map((reply.lines as { key: string; receiptId: string }[]).map(l => [l.key, l.receiptId])) };
+    // A key two lines share opens no line receipt: a line never opens another line's receipt.
+    const keys = (reply.lines as { key: string; receiptId: string }[]), seen = new Map<string, number>();
+    for (const l of [...keys.map(k => k.key), ...prepared.matched.lines.map(l => l.key)]) seen.set(l, (seen.get(l) ?? 0) + 1);
+    const lineKeys = new Map<string, number>(); for (const l of prepared.matched.lines) lineKeys.set(l.key, (lineKeys.get(l.key) ?? 0) + 1);
+    return { matchReceiptId: reply.receiptId as string, byKey: new Map(keys.filter(k => lineKeys.get(k.key) === 1 && keys.filter(o => o.key === k.key).length === 1).map(l => [l.key, l.receiptId])) };
   } catch (error) {
     if (['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE'].includes(codeOf(error))) return { matchReceiptId: null, byKey: new Map() };
     throw translate(error);

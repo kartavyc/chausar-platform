@@ -7,7 +7,7 @@
  * access and keeps the new receipt. When a source it used is deleted, its derived values are
  * removed and only the question and the deletion date remain.
  */
-import { check, newId, now, type Context, type Fact } from '../contracts.ts';
+import { ChausarError, check, newId, now, type Context, type Fact } from '../contracts.ts';
 import { canSeeFact } from '../memory.ts';
 import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
@@ -81,7 +81,10 @@ export async function saveRef(ctx: Context, payload: unknown, host: ModuleHost) 
     const figure = receipt.figures.find(f => f.key === 'scenario');
     headline = figure ? { kind: 'money', minor: figure.minor } : null; receiptId = receipt.id; operationId = receipt.operation; workedOutAt = receipt.createdAt; sourceIds = [...receipt.sourceIds];
   } else {
-    const forecast = await core<any>(host, 'forecasts.get', { id: refId });
+    // Another member's forecast and an unknown one give the same answer.
+    let forecast: any;
+    try { forecast = await host.call('forecasts.get', { id: refId }); }
+    catch (error) { if (['FORECAST_NOT_FOUND', 'FORECAST_FORBIDDEN', 'INVALID_FORECAST'].includes(codeOf(error))) throw new ChausarError('ASK_NOT_FOUND', 'This item is no longer available.'); throw translate(error); }
     operationId = forecast.operation; workedOutAt = forecast.createdAt; sourceIds = [...forecast.sourceIds];
   }
   const answer = receiptId ? host.store.read().answers.find(a => a?.receiptId === receiptId && a.request) : undefined;

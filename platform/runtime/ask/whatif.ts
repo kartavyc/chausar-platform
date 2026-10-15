@@ -14,7 +14,7 @@ import type { ModuleHost } from '../modules/types.ts';
 import type { CalculationReceipt } from '../calculator.ts';
 import type { Period } from '../memory.ts';
 import type { PlanReply, WhatIfReply } from './contracts.ts';
-import { checkStop } from './round4.ts';
+import { checkStop, stopToken } from './round4.ts';
 import { businessToday, core, currentDictionary, identifier, input, list, minorString, namedPeriod, period, requireId , openReceipt } from './shared.ts';
 
 function periodFrom(host: ModuleHost, request: Record<string, any>): Period {
@@ -60,9 +60,9 @@ export async function plan(ctx: Context, payload: unknown, host: ModuleHost): Pr
     return limit.op === 'atLeast' ? value >= bound : value <= bound;
   };
   const tried: { bps: bigint; scenario: bigint; change: bigint; receiptId: string; ok: boolean[] }[] = [];
-  const started = Date.now();
+  const token = stopToken(ctx, host);
   for (let bps = from; bps <= to; bps += step) {
-    checkStop(ctx, started);
+    checkStop(token);
     const receipt = await scenario(host, p, String(bps));
     const s = BigInt(figure(receipt, 'scenario')), c = BigInt(figure(receipt, 'change'));
     tried.push({ bps, scenario: s, change: c, receiptId: receipt.id, ok: limits.map(limit => meets(limit, s, c)) });

@@ -117,9 +117,6 @@ export async function understand(ctx: Context, payload: unknown, host: ModuleHos
     return { kind: 'choose', periodId, choices: found.ids.map(id => dictionary.operations.find(operation => operation.id === id)!).map(operation => ({
       operationId: operation.id, label: operation.label, meaning: dictionary.definitions.find(definition => definition.name === operation.definitions[0])?.meaning ?? null })) };
   }
-  // Telling, not asking: a statement goes to Memory as a proposed line, never into a calculation.
-  const statement = statementOf(question);
-  if (statement) return { kind: 'statement', text: statement.text, memoryKind: statement.kind };
   // A question about data that is not loaded says which data it needs.
   const need = NEEDS.find(([, terms]) => tokens.some(token => terms.includes(token)) || terms.some(term => term.includes(' ') && lowered.includes(term)));
   if (need) {
@@ -130,6 +127,9 @@ export async function understand(ctx: Context, payload: unknown, host: ModuleHos
     });
     return { kind: 'no-match', reason: 'needs-data', word: null, need: need[0], loaded, nearby: nearby([]) };
   }
+  // Telling, not asking: a statement goes to Memory as a proposed line, never into a calculation.
+  const statement = statementOf(question);
+  if (statement) return { kind: 'statement', text: statement.text, memoryKind: statement.kind };
   // No calculation. One or two unknown words is a business word Chausar does not know.
   const word = found.unknown.length > 0 && found.unknown.length <= 2 ? found.unknown.join(' ') : null;
   if (keeps(ctx)) await remember(host, state => {
@@ -169,19 +169,26 @@ async function dataLoaded(ctx: Context, host: ModuleHost, need: Need): Promise<b
   return recipes.some(r => /payroll|keka|greythr/i.test(r));
 }
 
-const QUESTION_WORDS = new Set(['what', 'how', 'which', 'who', 'when', 'why', 'where', 'is', 'are', 'was', 'were', 'did', 'do', 'does', 'show', 'list', 'give', 'tell', 'can', 'could', 'should',
-  'क्या', 'कितना', 'कितनी', 'कितने', 'कौन', 'कब', 'क्यों', 'कहाँ', 'कैसे', 'दिखाओ', 'बताओ', 'बताएँ']);
+/** A question word anywhere makes it a question; these only count as the first word. */
+const QUESTION_WORDS = new Set(['what', 'how', 'which', 'who', 'whom', 'whose', 'when', 'why', 'where', 'क्या', 'कितना', 'कितनी', 'कितने', 'कौन', 'कब', 'क्यों', 'कहाँ', 'कैसे']);
+const QUESTION_STARTS = new Set(['is', 'are', 'was', 'were', 'did', 'do', 'does', 'show', 'list', 'give', 'tell', 'can', 'could', 'should', 'total', 'दिखाओ', 'बताओ', 'बताएँ']);
 const REMEMBER = /^\s*(?:please\s+)?(?:remember|note|keep in mind)(?:\s+that)?[\s,:]+|^\s*याद रख(?:ो|ें|िए)\s*(?:कि)?\s*/iu;
 const PREFERENCE = /\b(?:prefer|always|never|please|i like|we like|i want|we want)\b|पसंद|हमेशा|कभी नहीं/iu;
-const TELLING = /\b(?:is|are|was|were|has|have|had|pays|paid|owes|buys|sells|closes|opens|always|never|usually|prefers?)\b|\s(?:है|हैं|था|थे|थी|करता|करती|करते)(?:\s|$|।)/u;
-/** A sentence that tells Chausar something rather than asking it. "Remember that…" always counts. */
+// Words that tell rather than ask. "paid" and similar past forms are left out: "GST paid last month" is a short question.
+const TELLING = /\b(?:is|are|has|have|always|never|usually|prefers?|closes|opens|owes)\b/u;
+/**
+ * A sentence that tells Chausar something rather than asking it. "Remember that…" (or "याद रखो कि…")
+ * always counts. Without it, only an English sentence with a telling word, three or more words, no
+ * question mark and no question word anywhere counts; a Hindi sentence needs the explicit "याद रखो".
+ */
 export function statementOf(question: string): { text: string; kind: 'preference' | 'claim' } | null {
   const trimmed = question.trim(), told = REMEMBER.test(trimmed);
   const body = trimmed.replace(REMEMBER, '').trim();
   if (!body) return null;
   if (!told) {
-    const first = words(body)[0] ?? '';
-    if (/[?？]\s*$/.test(body) || QUESTION_WORDS.has(first) || words(body).length < 3 || !TELLING.test(` ${body.toLowerCase()} `)) return null;
+    const all = words(body), first = all[0] ?? '';
+    if (/[?？]/.test(body) || /[\u0900-\u097F]/u.test(body) || all.some(w => QUESTION_WORDS.has(w)) || QUESTION_STARTS.has(first)
+      || all.length < 3 || !TELLING.test(` ${body.toLowerCase()} `)) return null;
   }
   return { text: body.slice(0, 2000), kind: PREFERENCE.test(body) ? 'preference' : 'claim' };
 }
