@@ -164,3 +164,22 @@ test('smuggling: identifiers in loose formats are masked, and column titles with
   assert.ok(names.some((name: any) => name?.state === 'withheld')); assert.equal(names.includes('ravisLedger'), false);
   store.state.policy.send = 'shape'; assert.ok((schemaLayer(store, owner) as any).fields.some((field: any) => field.name === 'ravisLedger'));
 });
+
+test('Books reads decided account classes in its own taxonomy through learningx.accountsProposals', async () => {
+  const store = await seeded();
+  const set = await call(store, 'learningx.accountsPropose', { accounts: [{ id: 'a1', name: 'Sales 18%', parentGroup: 'Sales Accounts' }, { id: 'a2', name: 'Suspense', parentGroup: 'Suspense A/c' }, { id: 'a3', name: 'GST Payable', parentGroup: 'Duties & Taxes' }] });
+  await call(store, 'learningx.accountsDecide', { setId: set.id, decisions: [{ accountId: 'a1', choice: 'accepted' }, { accountId: 'a2', choice: 'accepted' }, { accountId: 'a3', choice: 'corrected', accountClass: 'current-liabilities' }] });
+  const { proposals } = await call(store, 'learningx.accountsProposals');
+  assert.deepEqual(proposals.map((p: any) => [p.name, p.class, p.accountClass]), [['GST Payable', 'liability', 'current-liabilities'], ['Sales 18%', 'income', 'sales']]);
+});
+
+test('smuggling: a batch holds each distinct event once with a times word, never an exact count', async () => {
+  const store = await seeded(); store.state.policy.sharing = true;
+  for (let i = 0; i < 5; i++) await call(store, 'learningx.record', { event: { kind: 'action', choice: 'accepted', reason: 'routed' } });
+  for (let i = 0; i < 12; i++) await call(store, 'learningx.record', { event: { kind: 'action', choice: 'accepted', reason: 'fallback' } });
+  await call(store, 'learningx.record', { event: { kind: 'action', choice: 'accepted', reason: 'stop-rule', times: 'many' } });
+  const preview = await call(store, 'learningx.preview', {});
+  const events = preview.bytes.split('\n').slice(1, -1).map((line: string) => JSON.parse(line.replace(/,$/, '')));
+  assert.equal(preview.count, 19);
+  assert.deepEqual(events.filter((event: any) => event.kind === 'action').map((event: any) => [event.reason, event.times]), [['fallback', 'many'], ['routed', 'few'], ['stop-rule', 'one']]);
+});

@@ -16,7 +16,7 @@ import type { MethodSpec, ModuleHost } from '../modules/types.ts';
 import { area, peekArea } from './state.ts';
 import { logAuthor, visibleDecisions, type LogView } from './log.ts';
 import { batchBytes, scanText, VALUE_PATTERNS } from './structure.ts';
-import { BOXES, LEARNING_SCHEMA, OPEN_BOXES, type Box, type StructuralBatch } from './vocabulary.ts';
+import { BOXES, LEARNING_SCHEMA, OPEN_BOXES, type Box, type StructuralBatch, type StructuralEvent } from './vocabulary.ts';
 
 export type IntakeRequest = { method: 'GET' | 'POST' | 'DELETE'; path: string; headers: Record<string, string>; body?: string };
 export type IntakeTransport = (request: IntakeRequest) => Promise<{ status: number; body: string }>;
@@ -60,7 +60,12 @@ function compose(state: State, ctx: Context, boxes: Box[], only?: string[]) {
   // Events go out in canonical order, never recorded order, so the sequence of decisions cannot carry a message.
   const decisions = visibleDecisions(state, ctx).filter(item => boxes.includes(boxOf(item)) && (only ? only.includes(item.id) : !done.has(item.id)))
     .map(item => ({ item, key: canonical(item.event) })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : a.item.id < b.item.id ? -1 : 1).map(entry => entry.item);
-  const batch: StructuralBatch = { schema: LEARNING_SCHEMA, boxes, events: decisions.map(item => item.event) };
+  // Each distinct event goes out once, with how often it occurred as a word (one, few, many): neither the order nor the exact
+  // count of decisions can carry a message, and the library still learns which shapes are common.
+  const groups = new Map<string, { event: StructuralEvent; n: number }>();
+  for (const item of decisions) { const { times: _times, ...event } = item.event, key = canonical(event); const group = groups.get(key); if (group) group.n++; else groups.set(key, { event, n: 1 }); }
+  const events = [...groups.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([, group]) => ({ ...group.event, times: group.n === 1 ? 'one' as const : group.n < 10 ? 'few' as const : 'many' as const }));
+  const batch: StructuralBatch = { schema: LEARNING_SCHEMA, boxes, events };
   const bytes = batchBytes(batch), lines = bytes.split('\n');
   // The first and last lines are fixed text; every event line is scanned, digits included.
   const blocked = scanText(lines.slice(1, -1).join('\n')).map(hit => ({ line: hit.line + 1, code: hit.code }));
