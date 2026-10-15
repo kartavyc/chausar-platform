@@ -733,6 +733,14 @@ export class Vault implements StateStore {
     try { const key = await unwrap(secret, this.#envelope.passphrase, this.#envelope.id, 'passphrase'); try { return key.length === this.#key.length && timingSafeEqual(key, this.#key); } finally { key.fill(0); } }
     catch { return false; }
   }
+  /** Trusted custody enrolment (PIN quick unlock): after the passphrase verifies, lend a copy of this vault's key to the
+   *  hook's `store`, cleared when it settles. False when the passphrase is wrong; the key never leaves otherwise. */
+  async registerKeyWithPassphrase(secret: string, hook: KeychainHook): Promise<boolean> {
+    if (!(await this.verifyPassphrase(secret))) return false;
+    this.#ready(); await registerKey(hook, this.#envelope.id, this.#key); return true;
+  }
+  /** Digest of the public passphrase wrapper: it changes whenever the passphrase does (recovery), so derived custody can expire. */
+  passphraseBinding(): string { this.#ready(); return hash(this.#envelope.passphrase); }
   /** Fresh identity metadata for trusted custody checks, without cloning State. */
   readIdentity(): Readonly<{ vaultId: string; workspaceId: string; revision: number }> {
     this.#ready();

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { check, ChausarError, type Context } from '../contracts.ts';
 import { boundedHttp, type BoundedHttp } from '../connectors.ts';
 import type { CredentialRequest } from '../adapters/read-kit.ts';
+import { secretCustody } from '../gateway-auth/secret-store.ts'; // core-gateway-auth: OS keychain custody for the store key
 
 /**
  * Connector credentials live outside workspace state, so exports, backups, sync and learning
@@ -40,6 +41,7 @@ export class ConnectorCredentialStore {
     if (process.platform !== 'win32') chmodSync(this.#directory, 0o700);
   }
   #key(create: boolean): Buffer | null {
+    const custody = secretCustody.key(this.#directory, create); if (custody !== undefined) return custody; // core-gateway-auth: keychain-held key; undefined keeps the file key below
     const path = join(this.#directory, '.key');
     if (!existsSync(path)) {
       if (!create) return null;
