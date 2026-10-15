@@ -29,5 +29,10 @@
   "todayx.recoveryContact.request",
   "todayx.receiptDetail",
   "todayx.closing",
-  "todayx.closing.set"
+  "todayx.closing.set",
+  "todayx.faultReport.send",
+  "todayx.updates",
+  "todayx.updates.stage",
+  "todayx.updates.apply",
+  "todayx.updates.dismiss"
 ]

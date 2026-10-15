@@ -165,7 +165,9 @@ async function fixture(t: TestContext, options: FixtureOptions = {}) {
     instanceLockCalls: () => instanceLockCalls,
     navigateLegacy() { const window = windows.at(-1); assert.ok(window); let prevented = false;
       window.webContents.emit('will-navigate', { preventDefault() { prevented = true; } }, 'chausar://app/index.html');
-      assert.equal(prevented, false); window.webContents.mainFrame.url = 'chausar://app/index.html'; },
+      assert.equal(prevented, false); window.webContents.mainFrame.url = 'chausar://app/index.html';
+      // Electron commits the navigation with did-navigate; only then does main trust the legacy document.
+      window.webContents.emit('did-navigate', {}, 'chausar://app/index.html'); },
   };
 }
 

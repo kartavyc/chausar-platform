@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 import { authorize, check, now, type Context, type State } from '../contracts.ts';
 import { moduleState, peekModuleState, type ModuleHost } from '../modules/types.ts';
 import { moduleMethods } from '../modules/registry.ts';
-import { auditEvents } from './activity.ts';
+import { auditEvents, visibleAudit } from './activity.ts';
 import type { IdentityCard } from './identity.ts';
 import type { IdeaState } from './idea.ts';
 import type { RecoveryContact } from './recovery.ts';
@@ -26,6 +26,8 @@ export type FrameState = {
   recoveryContact: RecoveryContact | null;
   /** TD-01: the daily closing row. Off until an admin turns it on. */
   dailyClosing?: boolean;
+  /** SH-08: the last update this workspace applied, from which version, and when; cleared when dismissed. */
+  update?: { version: string; from: string; at: string } | null;
 };
 export const initFrame = (): FrameState => ({ clock: null, autoLockMinutes: 10, jobsPausedDismissedAt: {}, identity: null, idea: null, recoveryContact: null, dailyClosing: false });
 export const frameOf = (state: State): FrameState => ({ ...initFrame(), ...peekModuleState<FrameState>(state, MODULE_ID) });
@@ -74,8 +76,49 @@ async function jobsPausedSince(host: ModuleHost): Promise<string | null> {
   return latest;
 }
 
-/** `updates.status` reports expiry or withdrawal only once the release lane adds it; until then this stays empty. */
-async function updateNeeded(host: ModuleHost) {
+/** A method another lane serves: its reply, `absent` when no lane registers it, or null when it failed. */
+const ABSENT = new Set(['UNKNOWN_METHOD', 'METHOD_UNAVAILABLE']);
+export async function optional(host: ModuleHost, method: string, payload: Record<string, unknown> = {}): Promise<{ absent: true } | { absent: false; value: any } | null> {
+  try { return { absent: false, value: await host.call(method, payload) }; }
+  catch (error: any) { return ABSENT.has(error?.code) ? { absent: true } : null; }
+}
+const valueOf = (reply: Awaited<ReturnType<typeof optional>>): any => reply && !reply.absent ? reply.value : null;
+const title = (text: unknown): text is string => typeof text === 'string' && text.trim().length > 0 && text.length <= 200 && !/[\u0000-\u001f]/.test(text);
+
+/** SH-03 "Chausar is driving": the driving lane's `session.status`, while a session holds a window. */
+const DRIVING = new Set(['driving', 'sign-in', 'paused-by-you', 'step-failed']);
+export async function drivingNow(host: ModuleHost) {
+  const status = valueOf(await optional(host, 'session.status'));
+  return DRIVING.has(status?.state) && title(status?.window?.title) ? { kind: 'driving' as const, program: status.window.title as string } : null;
+}
+
+/** SH-03 "Sending is closed": work-books' `approvals.afterRestore`. Only the actions this caller may see are counted. */
+async function sendingClosed(host: ModuleHost) {
+  const restore = valueOf(await optional(host, 'approvals.afterRestore'));
+  if (restore?.sendingClosed !== true) return null;
+  const seen = Array.isArray(restore.items) ? restore.items.length : 0;
+  return { kind: 'sending-closed' as const, restoredFrom: isIso(restore.restoredFrom) ? restore.restoredFrom as string : null, unchecked: seen > 0 ? String(seen) : null };
+}
+
+/** SH-03 "No connection": core-gateway-auth's `network.online`. Absent, it never shows. */
+async function noConnection(host: ModuleHost) {
+  return valueOf(await optional(host, 'network.online'))?.online === false ? { kind: 'no-connection' as const } : null;
+}
+
+/**
+ * SH-03/SH-08 "Update needed": the release lane's `release.status` (an expired preview build, a withdrawn
+ * release, or a vault a newer build wrote). The core `updates.status` is read only when release is absent.
+ */
+export async function updateNeeded(host: ModuleHost) {
+  const release = await optional(host, 'release.status');
+  if (release === null) return null;
+  if (!release.absent) {
+    const status = release.value;
+    if (status?.vaultCompatible === false) return { kind: 'update-needed' as const, reason: 'vault-newer' as const, date: null };
+    if (status?.withdrawn === true) return { kind: 'update-needed' as const, reason: 'withdrawn' as const, date: null };
+    if (status?.build?.updateNeeded === true) return { kind: 'update-needed' as const, reason: 'expired' as const, date: isIso(status.build.expiresAt) ? status.build.expiresAt as string : null };
+    return null;
+  }
   const status: any = await quiet(() => host.call('updates.status', {}));
   const reason = status?.state === 'expired' || status?.expired === true ? 'expired' : status?.state === 'withdrawn' || status?.withdrawn === true ? 'withdrawn' : null;
   if (!reason) return null;
@@ -87,15 +130,16 @@ export async function shell(ctx: Context, host: ModuleHost) {
   const state = host.store.read(), frame = frameOf(state), demo = state.workspace.demo === true;
   const clock = demo && frame.clock ? { mode: 'demo' as const, date: frame.clock.date } : { mode: 'real' as const };
   const banners: unknown[] = [];
-  // 'driving' (screen control) and 'no-connection' have no engine state yet, so they never show.
+  // Each source belongs to another lane: one that is absent or fails shows no banner, never an error.
+  const [drive, holder, sending, paused, update, offline] = await Promise.all([drivingNow(host), penHolder(host), sendingClosed(host), jobsPausedSince(host), updateNeeded(host), noConnection(host)]);
+  if (drive) banners.push(drive);
   if (clock.mode === 'demo') banners.push({ kind: 'demo-clock', date: clock.date });
-  const holder = await penHolder(host);
   if (holder) banners.push({ kind: 'read-only', holder });
-  // 'sending-closed' needs a restore record with unchecked actions; the engine keeps none yet.
-  const paused = await jobsPausedSince(host), dismissed = frame.jobsPausedDismissedAt[ctx.memberId];
+  if (sending) banners.push(sending);
+  const dismissed = frame.jobsPausedDismissedAt[ctx.memberId];
   if (paused && (!dismissed || paused > dismissed)) banners.push({ kind: 'jobs-paused' });
-  const update = await updateNeeded(host);
   if (update) banners.push(update);
+  if (offline) banners.push(offline);
   return { workspace: { demo }, clock, banners, autoLockMinutes: frame.autoLockMinutes };
 }
 
@@ -242,7 +286,6 @@ const KIND = /^[a-z][a-z0-9-]{0,40}$/;
 export async function faultReport(ctx: Context, host: ModuleHost) {
   const status: any = await quiet(() => host.call('workspace.status', {}));
   check(typeof status?.version === 'string' && /^[0-9A-Za-z.+-]{1,40}$/.test(status.version), 'FAULT_REPORT_UNAVAILABLE', 'The app version could not be read for the fault report.');
-  const state = host.store.read();
   const recent = auditEvents(host.store, ctx).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 50);
   const eventKinds = [...new Set(recent.map(event => event.type))];
   const routes: any = await quiet(() => host.call('models.list', {}));
@@ -250,8 +293,10 @@ export async function faultReport(ctx: Context, host: ModuleHost) {
     kind: typeof route?.kind === 'string' && KIND.test(route.kind) ? route.kind : 'other',
     state: route?.enabled === false ? 'off' : String(route?.kind ?? '').endsWith('-cli') ? 'cli-unverified' : route?.credentialConfigured ? 'ready' : 'no-credential' }));
   const codes: string[] = [];
-  for (const receipt of state.modelReceipts.slice(-50)) if (typeof receipt?.errorCode === 'string' && CODE.test(receipt.errorCode)) codes.push(receipt.errorCode);
-  for (const item of state.activity.slice(-50)) for (const key of ['reasonCode', 'errorCode']) {
+  // Only what this caller may see: the gateway's receipts for this seat and the same audit records `todayx.activity` shows it.
+  const receipts: readonly any[] = (() => { try { return host.services.gateway?.receipts(ctx) ?? []; } catch { return []; } })();
+  for (const receipt of receipts.slice(-50)) if (typeof receipt?.errorCode === 'string' && CODE.test(receipt.errorCode)) codes.push(receipt.errorCode);
+  for (const item of visibleAudit(host.store, ctx).slice(-50)) for (const key of ['reasonCode', 'errorCode']) {
     const code = item?.details?.[key];
     if (typeof code === 'string' && CODE.test(code)) codes.push(code);
     // Lower-case reason tokens (for example an import refused for 'reconciliation') become codes.

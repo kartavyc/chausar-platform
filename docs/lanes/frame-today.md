@@ -201,3 +201,29 @@ An independent read-only review covered the IPC surface, CSP and serving, render
 | Before-the-vault methods answered any member once a vault was open; viewers read the identity card | low | `todayx.workspaces`, `todayx.diskCheck`, `todayx.device.set` need an admin once a vault is open; `todayx.identity.get` needs a preparing seat. A seat's own banner dismissal and reading the idea stay read-level, as designed |
 
 Checked and sound: trusted-sender checks, the shell channels' rate limit and print options, the protocol handler's exact file map, the loopback server's CSP and legacy flag, the disk probe (fixed arguments, no shell), the device file, receipt detail reading as the caller, `react-intl` given catalogue keys only, and no secret in state, storage, logs or the URL. Not fixed (hunches, fail-closed): a cancelled legacy navigation leaves the window refusing IPC until restart; the fault report reads recent activity without filtering by caller (codes only).
+
+## Round 4: banners, updates, route states, tray, fault report
+
+| Item | What exists now | Label |
+|---|---|---|
+| SH-03 banners | `todayx.shell` reads `session.status` (driving), `approvals.afterRestore` (sending closed; count of the actions this seat may see, no restore date until one is served), `network.online` (no connection) and `release.status` (update needed: expired build, withdrawn release, vault written by a newer build). Core `updates.status` is read only when no lane serves `release.status`. An absent or failing source shows no banner. | supported (driving and no-connection: experimental, their lanes are not built) |
+| SH-08 updates | `todayx.updates` state read over `release.status`; `todayx.updates.stage` and `.apply` call `release.stageUpdate` / `release.applyUpdate` with exactly `{ confirmed: true }`; the attempt is remembered so the next start says "The update did not finish. Your data is as it was."; `.dismiss` forgets it. Today's "Update ready. Your data is saved first." row opens the Updates sheet (steps in words: checking, saving a copy, updating; then restart). Refusals in words: not signed, older, withdrawn, older than the vault, Mac cannot update itself, owner only. The sheet is reachable from About and the Update needed banner. | experimental (no signed feed or release key in this build) |
+| SH-09 route states | `app/RouteStates.tsx` (`RouteStateRow` for the ask lane to place where the answer would be, `RouteStates` list); drawn on Ask, New under the route picker from `models.probe`, read once per context. "Sign in again" is a button only when a sign-in method is supplied; none exists, so the row says signing in from here is not built. | experimental (fixture-only until core-gateway-auth serves `models.probe`) |
+| SH-07 tray | `main.cjs`: the review count from `today.review` (shown only when the count is complete), Pause jobs / Resume jobs (the host job lifecycle reports the computer as not awake while paused, so the engine runs no job), Stop while `session.status` reports driving (`session.stop`), "Paused while locked" after a workspace that was open is locked. Re-read on engine status, on workspace/approval/job requests and once a minute. | supported (desktop test with synthetic Electron) |
+| Cancelled navigation | `selectedDocument` changes only on `did-navigate` of the pending legacy address; `did-fail-load` clears it. | supported |
+| Links before a vault | `shell.openExternal` is allowed while no workspace folder exists (`todayx.workspaces` empty) only from `chausar://app/ui/index.html`; https, ASCII, one a second and the renderer dialog still apply. The first-run journey does not pass `openLink` to its screens yet. | supported (main side) |
+| SH-11 fault report | `shell.saveText('fault-report', text)` writes the shown text through the system save dialog (fixed name, no path from the renderer). `todayx.faultReport.send` refuses `FAULT_REPORT_SEND_UNAVAILABLE` (needs a reporting endpoint: founder). Main writes a marker beside the vaults folder at start and removes it on a clean quit; on the next start the fault report opens once with Send report / Don't send. `todayx.faultReport` now reads only this caller's audit records and model receipts. | supported (send: typed refusal) |
+
+### Round 4 contracts
+
+| Method | Payload | Reply | Owner | Present? |
+|---|---|---|---|---|
+| `session.status` | `{}` | `{ state: 'idle'\|'driving'\|'sign-in'\|'paused-by-you'\|'stopped-by-key'\|'stopped'\|'step-failed'\|'done', window: { id, title } \| null, steps }` (as work-books' `work-driving.ts`) | driving | absent (banner and tray Stop never show) |
+| `session.stop` | `{}` | any | driving | absent |
+| `approvals.afterRestore` | `{}` | `{ sendingClosed: boolean, items: [...], restoredFrom?: ISO }` (`restoredFrom` not served yet) | work-books | present |
+| `network.online` | `{}` | `{ online: boolean }` | core-gateway-auth | absent |
+| `release.status` | `{}` | `{ configured, version, channel, build: { expiresAt, updateNeeded }, vaultCompatible, candidate: { version } \| null, withdrawn?: boolean }` (`withdrawn` not served yet) | release | present |
+| `release.stageUpdate` / `release.applyUpdate` | `{ confirmed: true }` | `{ staged, version, installMode }` / `{ applied, version, restartRequired }` | release | present |
+| `models.probe` | `{}` | `{ routes: [{ routeId, label, kind, state: 'ready'\|'signed-out'\|'not-installed'\|'version-not-tested'\|'timed-out'\|'error'\|'chat-only'\|'answers-only'\|'skipped-send', send: { route, yours } \| null, resumesAt: ISO \| null }], checkedAt }` | core-gateway-auth | fixture-only |
+| `today.review` (tray) | `{ limit: 1 }` | `{ count: number \| null, ... }` | core | present |
+| `todayx.updates`, `.stage`, `.apply`, `.dismiss`, `todayx.faultReport.send` | see `todayx-contract.ts` | | frame-today | present |

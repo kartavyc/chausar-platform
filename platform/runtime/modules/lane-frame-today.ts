@@ -10,9 +10,14 @@ import { deviceInput, diskCheck, readDevice, systemProbe, workspaceFolders, writ
 import { recoveryContactInput, recoveryContactReply, requestRecoveryThroughContact } from '../frame-today/recovery.ts';
 import { composeReceiptDetail } from '../frame-today/receipt-detail.ts';
 import { closing } from '../frame-today/closing.ts';
+import { apply as applyUpdate, dismiss as dismissUpdate, stage as stageUpdate, updates } from '../frame-today/updates.ts';
 
 const keys = (payload: Record<string, unknown>, allowed: readonly string[]) =>
   check(Object.keys(payload).every(key => allowed.includes(key)), 'INVALID_TODAYX_REQUEST', 'This request has fields it does not use.');
+const confirmedOnly = (payload: Record<string, unknown>) => {
+  keys(payload, ['confirmed']);
+  check(payload.confirmed === true, 'CONFIRMATION_REQUIRED', 'Review the update and confirm it in the app.');
+};
 
 async function clockSet(ctx: Context, payload: Record<string, any>, host: ModuleHost) {
   keys(payload, ['date']);
@@ -90,6 +95,16 @@ export const frameTodayModule: EngineModule = {
     'todayx.setupChecklist': { permission: 'read', handler: (_ctx, payload, host) => { keys(payload, []); return setupChecklist(frameOf(host.store.read()).identity); } },
     'todayx.help': { permission: 'read', handler: (_ctx, payload) => { keys(payload, []); return help(); } },
     'todayx.faultReport': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return faultReport(ctx, host); } },
+    // SH-11: sending needs a reporting endpoint, which does not exist yet. Saving the text as a file is the desktop's own path.
+    'todayx.faultReport.send': { permission: 'read', handler: (_ctx, payload) => {
+      keys(payload, []);
+      check(false, 'FAULT_REPORT_SEND_UNAVAILABLE', 'There is no place to send a fault report yet. Save it as a file and send it yourself.');
+    } },
+    // SH-08 over the release lane: the state, then stage ("checking") and apply ("saving a copy", "updating"), each confirmed.
+    'todayx.updates': { permission: 'read', handler: (ctx, payload, host) => { keys(payload, []); return updates(ctx, host); } },
+    'todayx.updates.stage': { permission: 'admin', external: true, handler: (ctx, payload, host) => { confirmedOnly(payload); return stageUpdate(ctx, host); } },
+    'todayx.updates.apply': { permission: 'admin', handler: (ctx, payload, host) => { confirmedOnly(payload); return applyUpdate(ctx, host); } },
+    'todayx.updates.dismiss': { permission: 'admin', handler: (ctx, payload, host) => { keys(payload, []); return dismissUpdate(ctx, host); } },
     'todayx.phoneMessages': { permission: 'read', handler: (_ctx, payload, host) => { keys(payload, []); return phoneMessages(host); } },
     'todayx.idea.start': { permission: 'prepare', handler: ideaStart },
     'todayx.idea.tell': { permission: 'prepare', handler: ideaTell },

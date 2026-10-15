@@ -57,7 +57,7 @@ function values(details: Record<string, unknown>): Record<string, string> {
 }
 
 /** The same visibility rule as `activity.list`: owners with every branch see everything, others their own records. */
-function visibleAudit(store: StateStore, ctx: Context, state: State) {
+export function visibleAudit(store: StateStore, ctx: Context, state: State = store.read()) {
   const member = authorize(store, ctx);
   return state.activity.filter(item => {
     const details = item.details ?? {};

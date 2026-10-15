@@ -1,13 +1,13 @@
 const { app, BrowserWindow, ipcMain, protocol, session, dialog, Tray, Menu, nativeImage, powerMonitor } = require('electron');
-const { readFile, writeFile, mkdir, lstat } = require('node:fs/promises');
+const { readFile, writeFile, mkdir, lstat, unlink } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
 const { REQUEST_CHANNEL, STATUS_CHANNEL, validateRequest, assertTrustedSender, publicError } = require('./ipc-contract.cjs');
-const { join, resolve } = require('node:path');
+const { join, resolve, dirname } = require('node:path');
 const { randomBytes } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const { createServer } = require('node:net');
 const { readUiAsset } = require('./ui-assets.cjs');
-const { registerShellHandlers } = require('./shell-ipc.cjs');
+const { registerShellHandlers, createCrashMarker } = require('./shell-ipc.cjs');
 const { bindDemoProfile, assertDemoProfile } = require('./demo-profile.cjs');
 const packageMetadata = require('../../package.json');
 const demo = packageMetadata.chausarPreview === true || process.argv.includes('--demo');
@@ -60,12 +60,19 @@ let previewStopResult; const previewStopErrors = [];
 let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
 let selectedDocument = legacyRenderer ? 'chausar://app/index.html' : 'chausar://app/ui/index.html';
+// A switch to the legacy renderer is only pending until the frame commits it (did-navigate); a cancelled or failed
+// navigation leaves the current document trusted, so the window never ends up refusing its own IPC.
+let pendingDocument = null;
+// SH-07 tray: jobs paused from the tray (until resumed or restart), and whether a workspace was open this run.
+let trayJobsPaused = false; let workspaceSeenOpen = false;
+// SH-11: the unclean-exit marker, beside the vaults folder; removed on a clean quit.
+let crashMarker = null;
 const root = resolve(__dirname, '../..');
 const renderer = join(root, 'app/renderer');
 const engineRoot = app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked') : root;
 function reportJobLifecycle() {
   if (engine?.state !== 'ready') return Promise.resolve();
-  return engine.updateJobLifecycle({ awake: !stopping && hostAwake, windowOpen: !stopping && !!window && !window.isDestroyed(), backgroundEnabled: !stopping && backgroundRequested });
+  return engine.updateJobLifecycle({ awake: !stopping && hostAwake && !trayJobsPaused, windowOpen: !stopping && !!window && !window.isDestroyed(), backgroundEnabled: !stopping && backgroundRequested });
 }
 function lifecycleChanged() {
   void reportJobLifecycle().catch(error => {
@@ -129,24 +136,61 @@ async function startEngine() {
   }
   if (!demo && !environment.CHAUSAR_PYTHON) environment.CHAUSAR_PYTHON = process.platform === 'win32' ? join(binaries, 'python/python.exe') : join(binaries, 'python/bin/python3');
   if (stopping) return;
+  crashMarker = createCrashMarker({ path: join(dirname(environment.CHAUSAR_VAULT_DIRECTORY), 'chausar-running.marker'), readFile, writeFile, unlink });
+  await crashMarker.start();
   engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment });
-  engine.on('status', status => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); });
+  engine.on('status', status => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); refreshTray(); });
   await engine.start();
   await reportJobLifecycle();
 }
 // --- release lane: a version on trial (started by the launcher) is committed once a workspace has opened ---
 function confirmUpdateTrial() { if (process.env.CHAUSAR_INSTALL_ROOT && engine?.state === 'ready') void engine.request('release.status', {}).catch(() => {}); }
 // --- end release lane ---
+// --- frame-today: the tray (SH-07). Facts are read from the engine as the desktop owner; a fact it cannot read is left out. ---
+const DRIVING_STATES = ['driving', 'sign-in', 'paused-by-you', 'step-failed'];
+async function trayFacts() {
+  const facts = { count: null, locked: false, driving: false };
+  if (stopping || engine?.state !== 'ready') return facts;
+  try { const status = await engine.request('workspace.status', {}); if (status?.open === true) workspaceSeenOpen = true; else facts.locked = workspaceSeenOpen; } catch {}
+  if (facts.locked || !workspaceSeenOpen) return facts;
+  // Today's review count is a number only when every producer answered; otherwise no count is shown.
+  try { const review = await engine.request('today.review', { limit: 1 }); if (Number.isSafeInteger(review?.count) && review.count >= 0) facts.count = review.count; } catch {}
+  // Stop is offered only while the driving lane reports a session holding a window.
+  try { const session = await engine.request('session.status', {}); facts.driving = DRIVING_STATES.includes(session?.state); } catch {}
+  return facts;
+}
+function openWindow() { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else createWindow(); }
+function trayMenu(facts) {
+  return [
+    { label: 'Open Chausar', click: openWindow },
+    ...(facts.count === null ? [] : [{ label: facts.count === 1 ? '1 thing awaits your review' : `${facts.count} things await your review`, enabled: false }]),
+    // Locked: jobs that need a key or a model wait; the engine runs nothing that needs the vault.
+    facts.locked ? { label: 'Paused while locked', enabled: false }
+      : { label: trayJobsPaused ? 'Resume jobs' : 'Pause jobs', click: () => { trayJobsPaused = !trayJobsPaused; lifecycleChanged(); refreshTray(); } },
+    ...(facts.driving ? [{ label: 'Stop', click: () => { void engine?.request('session.stop', {}).catch(() => {}).finally(() => refreshTray()); } }] : []),
+    { type: 'separator' },
+    { label: 'Quit Chausar and stop jobs', click: () => app.quit() },
+  ];
+}
+let trayRead = 0;
+function refreshTray() {
+  if (!tray) return;
+  const mine = ++trayRead;
+  void trayFacts().then(facts => { if (tray && mine === trayRead && !stopping) tray.setContextMenu(Menu.buildFromTemplate(trayMenu(facts))); }, () => {});
+}
 function createBackgroundTray() {
   if (!backgroundRequested) return;
   const icon = nativeImage.createFromPath(join(__dirname, 'icon.png'));
   if (icon.isEmpty()) throw new Error('The background-mode tray icon is missing.');
   tray = new Tray(icon);
   tray.setToolTip(demoMode ? 'Chausar Preview — synthetic data' : 'Chausar');
-  const open = () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } else createWindow(); };
-  tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Open Chausar', click: open }, { type: 'separator' }, { label: 'Quit Chausar and stop jobs', click: () => app.quit() }]));
-  tray.on('double-click', open);
+  tray.setContextMenu(Menu.buildFromTemplate(trayMenu({ count: null, locked: false, driving: false })));
+  tray.on('double-click', openWindow);
+  refreshTray();
+  // Read again once a minute while running; the timer never keeps the app alive.
+  if (typeof setInterval === 'function') setInterval(refreshTray, 60_000).unref?.();
 }
+// --- end frame-today tray ---
 function createWindow() {
   // Worker readiness precedes workspace bootstrap. Every opening path waits
   // for the full startup task, including activate and second-instance events.
@@ -156,9 +200,12 @@ function createWindow() {
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => {
-    if (legacyAvailable && selectedDocument === 'chausar://app/ui/index.html' && url === 'chausar://app/index.html') selectedDocument = url;
+    if (legacyAvailable && selectedDocument === 'chausar://app/ui/index.html' && url === 'chausar://app/index.html') pendingDocument = url;
     else event.preventDefault();
   });
+  // The trusted document changes only when the main frame commits the allowed navigation; a cancelled or failed one keeps the current one.
+  window.webContents.on('did-navigate', (_event, url) => { if (pendingDocument !== null && url === pendingDocument) selectedDocument = url; pendingDocument = null; });
+  window.webContents.on('did-fail-load', (_event, _code, _description, _url, isMainFrame) => { if (isMainFrame !== false) pendingDocument = null; });
   window.once('ready-to-show', () => {
     window.show();
     if (previewLifecycle) {
@@ -194,12 +241,17 @@ if (singleInstance) app.whenReady().then(async () => {
       const request = validateRequest(input);
       const result = await engine.request(request.method, request.payload);
       if (/^workspace\.(open|create|recover|restore)$/.test(request.method)) confirmUpdateTrial(); // release lane
+      if (/^(workspace\.|approvals\.|today\.resolve|jobs)/.test(request.method)) refreshTray(); // frame-today tray
       return { ok: true, result };
     } catch (error) { return { ok: false, error: publicError(error) }; }
   });
-  // SH-10 and FR-04: shell.openExternal and shell.print on their own channels, trusted frame only.
+  // SH-10, FR-04 and SH-11: shell.openExternal, shell.print, shell.saveText and the crash question on their own channels, trusted frame only.
   registerShellHandlers({ ipcMain, shell: require('electron').shell, contents: () => window?.webContents, document: () => selectedDocument,
-    workspaceOpen: async () => engine?.state === 'ready' && (await engine.request('workspace.status', {}))?.open === true });
+    workspaceOpen: async () => engine?.state === 'ready' && (await engine.request('workspace.status', {}))?.open === true,
+    // First run: no workspace folder exists yet (the trusted desktop's own pre-vault list).
+    noVaultYet: async () => engine?.state === 'ready' && (await engine.request('todayx.workspaces', {}))?.folders?.length === 0,
+    dialog: { showSaveDialog: options => (window && !window.isDestroyed() ? dialog.showSaveDialog(window, options) : dialog.showSaveDialog(options)) },
+    writeFile, crash: { crashed: () => crashMarker?.crashed() === true, answered: () => crashMarker?.answered() } });
   try { startupTask = startEngine().then(() => bootstrapPreviewWorkspace()); await startupTask; if (stopping) return; startupComplete = true; confirmUpdateTrial(); createBackgroundTray(); createWindow(); }
   catch (error) { if (!stopping) { console.error(startupDiagnostic(error, 'ready-startup')); dialog.showErrorBox('Chausar could not start', error.message); app.quit(); } }
 });
@@ -212,7 +264,7 @@ app.on('before-quit', event => {
   startupTask.catch(error => { if (previewLifecycle) previewStopErrors.push('PREVIEW_STARTUP_FAILED'); console.error(publicError(error).message); }).then(() => reportJobLifecycle()).catch(error => { if (previewLifecycle) previewStopErrors.push('LIFECYCLE_STOP_FAILED'); console.error(publicError(error).message); }).then(() => engine?.stop()).then(result => {
     previewStopResult = result;
     if (result && !result.graceful) console.error('The engine required termination; unfinished actions need reconciliation.');
-  }).catch(error => { if (previewLifecycle) previewStopErrors.push('ENGINE_STOP_FAILED'); console.error(publicError(error).message); }).then(() => database?.close()).catch(error => { if (previewLifecycle) previewStopErrors.push('DATABASE_CLOSE_FAILED'); console.error(publicError(error).message); }).finally(() => {
+  }).catch(error => { if (previewLifecycle) previewStopErrors.push('ENGINE_STOP_FAILED'); console.error(publicError(error).message); }).then(() => database?.close()).catch(error => { if (previewLifecycle) previewStopErrors.push('DATABASE_CLOSE_FAILED'); console.error(publicError(error).message); }).then(() => crashMarker?.clean()).finally(() => {
     if (!previewLifecycle) { tray?.destroy(); app.quit(); return; }
     try { tray?.destroy(); } catch (error) { previewStopErrors.push('TRAY_CLOSE_FAILED'); console.error(publicError(error).message); }
     try { previewLifecycle.stopped({ engineResult: previewStopResult, errors: previewStopErrors }); } catch (error) { console.error(publicError(error).message); }

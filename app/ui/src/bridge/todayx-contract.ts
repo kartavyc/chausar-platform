@@ -21,9 +21,9 @@ export type ShellBanner =
   | { readonly kind: 'driving'; readonly program: string }
   | { readonly kind: 'demo-clock'; readonly date: string }
   | { readonly kind: 'read-only'; readonly holder: string }
-  | { readonly kind: 'sending-closed'; readonly restoredFrom: string; readonly unchecked: string }
+  | { readonly kind: 'sending-closed'; readonly restoredFrom: string | null; readonly unchecked: string | null }
   | { readonly kind: 'jobs-paused' }
-  | { readonly kind: 'update-needed'; readonly reason: 'expired' | 'withdrawn'; readonly date: string | null }
+  | { readonly kind: 'update-needed'; readonly reason: 'expired' | 'withdrawn' | 'vault-newer'; readonly date: string | null }
   | { readonly kind: 'no-connection' };
 
 /** `todayx.shell` {} → the whole-app conditions, in the fixed banner order. */
@@ -174,8 +174,8 @@ function banner(v: unknown): v is ShellBanner {
     case 'driving': return isStr(v['program']);
     case 'demo-clock': return isIsoDate(v['date']);
     case 'read-only': return isStr(v['holder']);
-    case 'sending-closed': return isIsoDate(v['restoredFrom']) && isDigits(v['unchecked']);
-    case 'update-needed': return oneOf(['expired', 'withdrawn'] as const)(v['reason']) && (v['date'] === null || isIsoDate(v['date']));
+    case 'sending-closed': return (v['restoredFrom'] === null || isIsoDate(v['restoredFrom'])) && isDigitsOrNull(v['unchecked']);
+    case 'update-needed': return oneOf(['expired', 'withdrawn', 'vault-newer'] as const)(v['reason']) && (v['date'] === null || isIsoDate(v['date']));
     default: return true;
   }
 }
@@ -556,3 +556,84 @@ export function isSpeechConfirmReply(v: unknown): v is SpeechConfirmReply {
   return isRec(v) && onlyKeys(v, ['confirmationId', 'digest', 'understood', 'receiptId', 'confirmedAt']) && isName(v['confirmationId'])
     && isStr(v['digest']) && /^[a-f0-9]{64}$/.test(v['digest']) && speechText(v['understood']) && (v['receiptId'] === null || isName(v['receiptId'])) && isIsoDate(v['confirmedAt']);
 }
+
+/* ----------------------------------------------------------- Round 4: SH-08 updates */
+
+/**
+ * `todayx.updates` {} → where the person stands with updates, read from the release lane's `release.status`.
+ * `not-built` when no lane serves `release.status`. `canUpdate` is true only for an owner or co-founder on the desktop.
+ * `todayx.updates.stage` { confirmed: true } (admin) → release.stageUpdate { confirmed: true }: "checking".
+ * `todayx.updates.apply` { confirmed: true } (admin) → release.applyUpdate { confirmed: true }: "saving a copy", "updating".
+ * `todayx.updates.dismiss` {} (admin) → UpdatesReply: forgets a rolled-back attempt once read.
+ */
+export type UpdatesState = 'not-built' | 'not-configured' | 'current' | 'ready' | 'restart' | 'rolled-back' | 'older-than-vault' | 'update-needed';
+export const UPDATES_STATES: readonly UpdatesState[] = ['not-built', 'not-configured', 'current', 'ready', 'restart', 'rolled-back', 'older-than-vault', 'update-needed'];
+export interface UpdatesReply {
+  readonly state: UpdatesState;
+  readonly version: string | null;
+  readonly channel: 'stable' | 'preview' | null;
+  readonly expiresAt: string | null;
+  readonly candidate: string | null;
+  readonly platform: 'windows' | 'mac' | 'linux' | 'other';
+  readonly canUpdate: boolean;
+}
+export interface UpdateStepReply { readonly step: 'checked' | 'manual' | 'restart'; readonly version: string }
+const isVersion = (v: unknown): v is string => typeof v === 'string' && /^[0-9A-Za-z.+-]{1,40}$/.test(v);
+export function isUpdatesReply(v: unknown): v is UpdatesReply {
+  return isRec(v) && onlyKeys(v, ['state', 'version', 'channel', 'expiresAt', 'candidate', 'platform', 'canUpdate']) && oneOf(UPDATES_STATES)(v['state'])
+    && (v['version'] === null || isVersion(v['version'])) && (v['channel'] === null || v['channel'] === 'stable' || v['channel'] === 'preview')
+    && (v['expiresAt'] === null || isIsoDate(v['expiresAt'])) && (v['candidate'] === null || isVersion(v['candidate']))
+    && oneOf(['windows', 'mac', 'linux', 'other'] as const)(v['platform']) && typeof v['canUpdate'] === 'boolean'
+    && (v['state'] !== 'ready' || v['candidate'] !== null);
+}
+export function isUpdateStepReply(v: unknown): v is UpdateStepReply {
+  return isRec(v) && onlyKeys(v, ['step', 'version']) && oneOf(['checked', 'manual', 'restart'] as const)(v['step']) && isVersion(v['version']);
+}
+/** Why an update was refused, from the release lane's codes. Anything else is a plain failure. */
+export type UpdateRefusal = 'not-signed' | 'older' | 'withdrawn' | 'older-than-vault' | 'manual' | 'owner-only' | 'failed';
+const NOT_SIGNED = ['INVALID_RELEASE_SIGNATURE', 'UPDATE_FEED_SIGNATURE_INVALID', 'UPDATE_FEED_UNSIGNED', 'UPDATE_MANIFEST_MISMATCH', 'RELEASE_HASH_MISMATCH'] as const;
+const OLDER = ['RELEASE_DOWNGRADE_REFUSED', 'SCHEMA_DOWNGRADE_REFUSED', 'UPDATE_FEED_ROLLBACK'] as const;
+export function updateRefusal(error: unknown): UpdateRefusal {
+  const code = isRec(error) && typeof error['code'] === 'string' ? error['code'] : '';
+  return (NOT_SIGNED as readonly string[]).includes(code) ? 'not-signed' : (OLDER as readonly string[]).includes(code) ? 'older' : code === 'UPDATE_WITHDRAWN' ? 'withdrawn'
+    : code === 'VAULT_NEWER_THAN_APP' ? 'older-than-vault' : code === 'NATIVE_INSTALLER_REQUIRED' ? 'manual' : code === 'FORBIDDEN' ? 'owner-only' : 'failed';
+}
+
+/* ----------------------------------------------------------- Round 4: SH-09 route states */
+
+/**
+ * `models.probe` {} (core-gateway-auth; fixture-only until that lane serves it) → each route's state, checked
+ * once on request. Never a silent retry and never an automatic switch: the reply only describes.
+ * `send` is present only for `skipped-send`: what the route would be sent and the workspace's Send setting.
+ * `resumesAt` is when a job waiting on the route tries again, or null.
+ */
+export type RouteState = 'ready' | 'signed-out' | 'not-installed' | 'version-not-tested' | 'timed-out' | 'error' | 'chat-only' | 'answers-only' | 'skipped-send';
+export const ROUTE_STATES: readonly RouteState[] = ['ready', 'signed-out', 'not-installed', 'version-not-tested', 'timed-out', 'error', 'chat-only', 'answers-only', 'skipped-send'];
+export type SendLevel = 'nothing' | 'shape' | 'samples';
+export interface RouteProbe {
+  readonly routeId: string;
+  readonly label: string;
+  readonly kind: string;
+  readonly state: RouteState;
+  readonly send: { readonly route: SendLevel; readonly yours: SendLevel } | null;
+  readonly resumesAt: string | null;
+}
+export interface RouteProbeReply { readonly routes: readonly RouteProbe[]; readonly checkedAt: string }
+const SEND_LEVELS: readonly SendLevel[] = ['nothing', 'shape', 'samples'];
+function routeProbe(v: unknown): v is RouteProbe {
+  if (!isRec(v) || !onlyKeys(v, ['routeId', 'label', 'kind', 'state', 'send', 'resumesAt']) || !isName(v['routeId']) || !isName(v['label']) || !isName(v['kind'], 40)) return false;
+  if (!oneOf(ROUTE_STATES)(v['state']) || !(v['resumesAt'] === null || isIsoDate(v['resumesAt']))) return false;
+  const send = v['send'];
+  if (v['state'] === 'skipped-send') return isRec(send) && onlyKeys(send, ['route', 'yours']) && oneOf(SEND_LEVELS)(send['route']) && oneOf(SEND_LEVELS)(send['yours']);
+  return send === null;
+}
+export function isRouteProbeReply(v: unknown): v is RouteProbeReply {
+  return isRec(v) && onlyKeys(v, ['routes', 'checkedAt']) && Array.isArray(v['routes']) && v['routes'].length <= 50 && v['routes'].every(routeProbe) && isIsoDate(v['checkedAt']);
+}
+
+/* ----------------------------------------------------------- Round 4: SH-11 send, refusals */
+
+/** `todayx.faultReport.send` {} always refuses with this code until a reporting endpoint exists (needs the founder). */
+export const FAULT_REPORT_SEND_UNAVAILABLE = 'FAULT_REPORT_SEND_UNAVAILABLE';
+/** Round 4 refusal codes the frame-today lane lets through to its screens (its `laneRefusals` line). */
+export const TODAYX_R4_REFUSALS = [FAULT_REPORT_SEND_UNAVAILABLE, 'UPDATES_STATUS_UNAVAILABLE', 'UPDATE_REPLY_INVALID', ...NOT_SIGNED, ...OLDER, 'UPDATE_WITHDRAWN'] as const;

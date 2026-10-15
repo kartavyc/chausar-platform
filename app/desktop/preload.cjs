@@ -38,7 +38,7 @@ const refusalCodes = new Set([
 const laneRefusals = [
   ['UNKNOWN_METHOD', 'INVALID_REQUEST', 'METHOD_UNAVAILABLE', 'OPEN_DESKTOP', 'DEMO_EXTERNAL_DISABLED'],
 
-  /* frame-today */ ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST', 'IDEA_APP_ONLY', 'IDEA_FOUNDER_ONLY', 'IDEA_NOT_STARTED', 'IDEA_FULL', 'IDEA_CLAIM_NOT_FOUND', 'IDEA_CLAIM_DECIDED', 'RECOVERY_CONTACT_INVALID', 'RECOVERY_CONTACT_RELAY_REQUIRED', 'UNLOCK_FAILED', 'VAULT_OPEN', 'VAULT_BUSY'],
+  /* frame-today */ ['DEMO_CLOCK_REAL_WORKSPACE', 'DEMO_CLOCK_ALREADY_SET', 'DEMO_CLOCK_NOT_SET', 'IDENTITY_INVALID', 'FAULT_REPORT_UNAVAILABLE', 'INVALID_TODAYX_REQUEST', 'IDEA_APP_ONLY', 'IDEA_FOUNDER_ONLY', 'IDEA_NOT_STARTED', 'IDEA_FULL', 'IDEA_CLAIM_NOT_FOUND', 'IDEA_CLAIM_DECIDED', 'RECOVERY_CONTACT_INVALID', 'RECOVERY_CONTACT_RELAY_REQUIRED', 'UNLOCK_FAILED', 'VAULT_OPEN', 'VAULT_BUSY', 'FAULT_REPORT_SEND_UNAVAILABLE', 'UPDATES_STATUS_UNAVAILABLE', 'UPDATE_REPLY_INVALID', 'INVALID_RELEASE_SIGNATURE', 'UPDATE_FEED_SIGNATURE_INVALID', 'UPDATE_FEED_UNSIGNED', 'UPDATE_MANIFEST_MISMATCH', 'RELEASE_HASH_MISMATCH', 'RELEASE_DOWNGRADE_REFUSED', 'SCHEMA_DOWNGRADE_REFUSED', 'UPDATE_FEED_ROLLBACK', 'UPDATE_WITHDRAWN'],
 
   /* ask */ ['ASK_INVALID', 'ASK_NOT_FOUND', 'ASK_NO_DICTIONARY', 'ASK_NO_CALCULATION', 'ASK_STOPPED_BY_RULE', 'ASK_REFUSED', 'ASK_CHANGED', 'ASK_STALE', 'ASK_NOT_GROUPABLE', 'ASK_BRIDGE_NOT_EXACT', 'ASK_CANNOT_REBUILD', 'ASK_NOT_FORECASTABLE', 'ASK_FAILED'],
 
@@ -124,5 +124,15 @@ contextBridge.exposeInMainWorld('chausar', Object.freeze({
   print: async kind => {
     if (kind !== 'recovery-kit' && kind !== 'page') return 'refused';
     try { return await ipcRenderer.invoke('chausar:shell-print', kind) === 'printed' ? 'printed' : 'refused'; } catch { return 'refused'; }
+  },
+  // SH-11 (frame-today): the shown fault report to a file through the system save dialog, and the after-crash question.
+  saveText: async (kind, text) => {
+    if (kind !== 'fault-report' || typeof text !== 'string' || text.length === 0 || text.length > 65536) return 'refused';
+    try { const result = await ipcRenderer.invoke('chausar:shell-save-text', kind, text); return result === 'saved' || result === 'cancelled' ? result : 'refused'; } catch { return 'refused'; }
+  },
+  crashState: async () => { try { return await ipcRenderer.invoke('chausar:shell-crash-state') === 'crashed' ? 'crashed' : 'clean'; } catch { return 'clean'; } },
+  crashAnswer: async answer => {
+    if (answer !== 'send' && answer !== 'dont-send') return 'refused';
+    try { return await ipcRenderer.invoke('chausar:shell-crash-answer', answer) === 'answered' ? 'answered' : 'refused'; } catch { return 'refused'; }
   },
 }));

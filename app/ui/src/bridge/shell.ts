@@ -11,16 +11,28 @@
 
 export type PrintKind = 'recovery-kit' | 'page';
 export type OpenOutcome = 'opened' | 'refused';
+/** SH-11: the only kind of text the shell saves. */
+export type SaveKind = 'fault-report';
+export type SaveOutcome = 'saved' | 'cancelled' | 'refused';
+export type CrashState = 'crashed' | 'clean';
 
 export interface ShellPort {
   openExternal(url: string): Promise<OpenOutcome>;
   print(kind: PrintKind): Promise<void>;
+  /** SH-11: the shown text to a file the person picks in the system save dialog. No path ever leaves the renderer. */
+  saveText?(kind: SaveKind, text: string): Promise<SaveOutcome>;
+  /** SH-11: whether the last run ended without a clean quit, and the person's answer, which clears it. */
+  crashState?(): Promise<CrashState>;
+  crashAnswer?(answer: 'send' | 'dont-send'): Promise<void>;
 }
 
-/** The two preload functions on `window.chausar`, when that preload has them. */
+/** The preload functions on `window.chausar`, when that preload has them. */
 export interface DesktopShellBridge {
   readonly openExternal?: (url: string) => Promise<unknown>;
   readonly print?: (kind: PrintKind) => Promise<unknown>;
+  readonly saveText?: (kind: SaveKind, text: string) => Promise<unknown>;
+  readonly crashState?: () => Promise<unknown>;
+  readonly crashAnswer?: (answer: 'send' | 'dont-send') => Promise<unknown>;
 }
 
 /** What the browser fallback uses; `window` by default. */
@@ -31,6 +43,7 @@ export interface BrowserShell {
 }
 
 export const MAX_EXTERNAL_URL_LENGTH = 2048;
+export const MAX_SAVE_LENGTH = 64 * 1024;
 const OPEN_INTERVAL_MS = 1000;
 const PRINT_KINDS: readonly string[] = ['recovery-kit', 'page'];
 
@@ -86,6 +99,31 @@ export function createShellPort(desktop: DesktopShellBridge | null, browser: Bro
         else browser?.print();
       } catch { /* The dialog closed or never opened: nothing to report. */ }
       finally { if (dataset) delete dataset['print']; }
+    },
+    async saveText(kind: SaveKind, text: string): Promise<SaveOutcome> {
+      if (kind !== 'fault-report' || typeof text !== 'string' || text.length === 0 || text.length > MAX_SAVE_LENGTH) return 'refused';
+      if (desktop !== null) {
+        if (typeof desktop.saveText !== 'function') return 'refused';
+        try { const result = await desktop.saveText(kind, text); return result === 'saved' || result === 'cancelled' ? result : 'refused'; } catch { return 'refused'; }
+      }
+      // The browser keeps its own download prompt: a text file with the fixed name, nothing else.
+      const doc = typeof document === 'undefined' ? null : document;
+      if (doc === null || typeof URL.createObjectURL !== 'function') return 'refused';
+      try {
+        const href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+        const link = doc.createElement('a');
+        link.href = href; link.download = 'chausar-fault-report.txt'; link.rel = 'noopener';
+        link.click(); URL.revokeObjectURL(href);
+        return 'saved';
+      } catch { return 'refused'; }
+    },
+    async crashState(): Promise<CrashState> {
+      if (desktop === null || typeof desktop.crashState !== 'function') return 'clean';
+      try { return await desktop.crashState() === 'crashed' ? 'crashed' : 'clean'; } catch { return 'clean'; }
+    },
+    async crashAnswer(answer: 'send' | 'dont-send'): Promise<void> {
+      if (desktop === null || typeof desktop.crashAnswer !== 'function' || (answer !== 'send' && answer !== 'dont-send')) return;
+      try { await desktop.crashAnswer(answer); } catch { /* The question comes back on the next start. */ }
     },
   });
 }

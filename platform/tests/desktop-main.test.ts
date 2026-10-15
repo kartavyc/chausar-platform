@@ -197,10 +197,12 @@ test('packaged preview forces synthetic worker and enforces the isolated window 
 });
 
 test('background process exposes Open/Quit and drains once without startup persistence', async () => {
-  const d = await desktop(['--background']); assert.equal(d.menus.length, 1); d.windows[0].emit('closed');
+  // The tray menu is built at once and again after its facts are read (frame-today SH-07); Open and Quit are always there.
+  const d = await desktop(['--background']); assert.ok(d.menus.length >= 1); d.windows[0].emit('closed');
+  assert.equal(d.menus[0][0].label, 'Open Chausar');
   d.app.emit('window-all-closed'); assert.equal(d.app.quits, 0);
   d.app.emit('second-instance'); assert.equal(d.windows.length, 2);
-  d.menus[0][2].click(); assert.equal(d.app.quits, 1);
+  d.menus[0].find((item: any) => item.label === 'Quit Chausar and stop jobs').click(); assert.equal(d.app.quits, 1);
   let prevented = false; d.app.emit('before-quit', { preventDefault: () => { prevented = true; } }); await flush();
   assert.equal(prevented, true); assert.equal(d.engines[0].stops, 1);
 });
