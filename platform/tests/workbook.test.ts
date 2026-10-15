@@ -76,6 +76,6 @@ test('numeric precision, booleans, sparse gaps and rich strings stay determinist
   const workbook = readWorkbook(zip(data), { sheet: 'Sales' }); assert.deepEqual(workbook.sheets[0].rows, [['0.00000000000000000001', '', 'true'], ['', '', ''], ['46000', '', 'Hello World']]); assert.match(workbook.warnings[0], /formatting is not applied/);
 });
 test('binary XLS, malformed XML, duplicate cells, missing strings and error cells are explicitly refused', () => {
-  const binary = Buffer.alloc(22); Buffer.from('d0cf11e0a1b11ae1', 'hex').copy(binary); assert.throws(() => readWorkbook(binary), { code: 'UNSUPPORTED_WORKBOOK' });
+  const binary = Buffer.alloc(22); Buffer.from('d0cf11e0a1b11ae1', 'hex').copy(binary); assert.throws(() => readWorkbook(binary), { code: 'WORKBOOK_CFB_INVALID' }); // a truncated OLE header; a whole binary XLS is refused as UNSUPPORTED_WORKBOOK in core-data-workbook-encrypted.test.ts
   for (const sheet of ['<worksheet><sheetData>', '<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c><c r="A1"><v>2</v></c></row></sheetData></worksheet>', '<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>999</v></c></row></sheetData></worksheet>', '<worksheet><sheetData><row r="1"><c r="A1" t="e"><v>#DIV/0!</v></c></row></sheetData></worksheet>']) assert.throws(() => readWorkbook(zip(files(sheet))));
 });

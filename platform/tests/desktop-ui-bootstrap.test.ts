@@ -280,7 +280,7 @@ test('explicit packaged first-run preview leaves creation to the host and admits
   assert.equal(receipt.dictionaryHash, published.published.hash); assert.equal(receipt.ontologyVersion, published.published.version);
   assert.equal(receipt.valueMinor, '0'); assert.equal(receipt.totalMinor, '0'); assert.deepEqual(receipt.rows, []);
   assert.deepEqual(receipt.coverage, { selectedRows: 0, countedRows: 0, excludedRows: 0, unresolvedConflicts: 0, importIds: [],
-    completeness: 'empty', gaps: ['No visible facts were counted. An empty selection is not proof that the business activity was zero.'] });
+    completeness: 'empty', gaps: ['No visible facts were counted. An empty selection is not proof that the business activity was zero.'], notCounted: 0 });
   assert.deepEqual(await d.rpc('receipts.get', { id: receipt.id }), receipt);
   assert.equal(d.harnesses[0].requests.filter(request => request.method === 'calculation.run').length, 1);
   assert.equal(d.harnesses[0].requests.filter(request => request.method === 'receipts.get').length, 1);

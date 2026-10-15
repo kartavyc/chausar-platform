@@ -386,12 +386,13 @@ export function readHistoricalWorkspaceState(value: WorkspaceInterchange): State
 /** Same saved request/asOf and access: only the new receipt id and creation time may vary. */
 export function compareRecalculatedReceipt(original: CalculationReceipt, recalculated: CalculationReceipt) {
   const normalize = (receipt: CalculationReceipt) => {
-    const { id: _id, createdAt: _createdAt, ...semantic } = receipt;
+    // Provenance is issuance metadata (who accepted, reviewed and allowed it, and when), like id and createdAt.
+    const { id: _id, createdAt: _createdAt, provenance: _provenance, ...semantic } = receipt;
     return JSON.parse(canonicalInterchangeJson(semantic));
   };
   const baseline = normalize(original); const current = normalize(recalculated);
   const changedFields = [...new Set([...Object.keys(baseline), ...Object.keys(current)])].sort()
     .filter(key => !same(baseline[key] ?? null, current[key] ?? null) || ((key in baseline) !== (key in current)));
-  return { equivalent: changedFields.length === 0, changedFields, ignoredFields: ['id', 'createdAt'] as const,
+  return { equivalent: changedFields.length === 0, changedFields, ignoredFields: ['id', 'createdAt', 'provenance'] as const,
     baselineDigest: interchangeDigest(baseline), recalculatedDigest: interchangeDigest(current) };
 }

@@ -1,8 +1,9 @@
-import { authorize, audit, check, guardChange, hash, newId, now, sourceHidden } from './contracts.ts';
+import { authorize, audit, check, factWithheld, guardChange, hash, newId, now, sourceHidden } from './contracts.ts';
 import type { Context, Fact, Member, State, StateStore, TrustPolicy } from './contracts.ts';
 import { prepareInvoicePurge } from './invoice-follow-up-lineage.ts';
 import { assertLearningDecisionRecord, type LearningDecision } from './learning.ts';
 import { coreLifecycleIds, privateSourceExists, privateSourceIds, purgePrivateState } from './private-state-lifecycle.ts';
+import { noteSourceDeletion } from './core-data/deletion-register.ts';
 
 export function sourceAllowed(state: State, context: Context, sourceId: string): boolean {
   const member = state.members.find(m => m.id === context.memberId);
@@ -29,8 +30,25 @@ export function visibleFacts(store: StateStore, context: Context, sourceIds?: st
   return state.facts.filter(f => !f.deletedAt && !f.supersededAt &&
     Date.parse(f.learnedAt) >= cutoff && sourceOk(f.sourceId) &&
     (!sourceIds || sourceIds.includes(f.sourceId)) &&
-    (member.branches.includes('*') || (Boolean(f.branch) && member.branches.includes(f.branch!))));
+    (member.branches.includes('*') || (Boolean(f.branch) && member.branches.includes(f.branch!)))).flatMap(f => factFor(state, member, f) ?? []);
 }
+
+/** A fact as this member may see it (TR-02, TR-06): null when hidden, the fact itself when nothing is withheld, otherwise a copy without the withheld fields that names them. */
+export function factFor(state: State, member: Member, fact: Fact): Fact | null {
+  const withheld = factWithheld(state, member, fact); if (withheld === true) return null; if (!withheld) return fact;
+  const names = Object.keys(withheld).filter(name => Object.hasOwn(fact.fields, name)).sort(); if (!names.length) return fact;
+  const fields = { ...fact.fields }; for (const name of names) delete fields[name];
+  return { ...fact, fields, withheld: names };
+}
+/** True when a marking withholds what counting this row reads (its measure, status or currency): the row is excluded as withheld (a missing state, not zero) and the total is partial. */
+export function withheldMeasure(row: Fact, field: string, excluded: { rowId: string; reason: string }[], missing: Set<string>): boolean {
+  if (!row.withheld?.some(name => name === field || name === 'status' || name === 'currency')) return false;
+  excluded.push({ rowId: row.id, reason: 'withheld' }); missing.add(row.id); return true;
+}
+
+/** Retention for the kinds kept outside facts (TR-04 keep periods), run inside the clean-up's store update; each returns how many it removed. */
+const retentionHooks = new Set<(state: State, at: Date) => number>();
+export function registerRetentionHook(hook: (state: State, at: Date) => number): void { retentionHooks.add(hook); }
 
 export function trustFingerprint(state: State, context: Context, sourceIds: string[]): string {
   const member = state.members.find(m => m.id === context.memberId);
@@ -146,6 +164,7 @@ export class TrustService {
       for (const artifact of [...facts, ...imports]) state.tombstones.push({ id: newId('tombstone'), kind: 'content', contentHash: artifact.contentHash || artifact.hash || hash(artifact), sourceId, deletedAt: now() });
       for (const event of refusals) state.tombstones.push({ id: newId('tombstone'), kind: 'content', contentHash: event.importIdentity!.contentHash, sourceId, deletedAt: now() });
       state.tombstones.push({ id: newId('tombstone'), kind: 'source', sourceId, deletedAt: now() });
+      noteSourceDeletion(this.store, state, sourceId); // core-data: the deletion register outside the vault (WK-15)
       state.facts = state.facts.filter(f => f.sourceId !== sourceId);
       let removed = facts.length + invoicePurge.answersRemoved + invoicePurge.mandatesRemoved;
       for (const key of ['imports', 'receipts', 'answers', 'decisions', 'actions', 'jobs', 'learning', 'conflicts', 'merges', 'conversations', 'modelReceipts'] as const) {
@@ -179,6 +198,7 @@ export class TrustService {
       }
       const retainedIds = coreLifecycleIds(state);
       removed += purgePrivateState(state, { removedIds: [...previousIds].filter(id => !retainedIds.has(id)), expiredFactIds: expiredFacts, cutoff, at: at.toISOString() });
+      for (const hook of retentionHooks) removed += hook(state, at);
       audit(state, 'trust.retention.cleaned', { removed, cutoff: new Date(cutoff).toISOString() }); return { removed };
     });
   }

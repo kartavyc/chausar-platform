@@ -29,9 +29,11 @@ export type Context = { memberId: string; role: Role; epoch: number; channel?: '
 export type TrustPolicy = { send: 'nothing' | 'shape' | 'samples'; autonomy: boolean; allowedSources: string[]; retentionDays: number; sharing: boolean };
 /** `scope: 'mcp'` marks a numbers-only member (a paired assistant): only the numbers server accepts its sessions. */
 export type Member = { id: string; name: string; role: Role; active: boolean; epoch: number; branches: string[]; scope?: 'mcp' };
-export type Fact = { id: string; entityId: string; sourceId: string; sourceRow: number; kind: string; validFrom: string; validTo: string | null; learnedAt: string; supersededAt: string | null; fields: Record<string, unknown>; deletedAt?: string; branch?: string };
+export type Fact = { id: string; entityId: string; sourceId: string; sourceRow: number; kind: string; validFrom: string; validTo: string | null; learnedAt: string; supersededAt: string | null; fields: Record<string, unknown>; deletedAt?: string; branch?: string;
+  /** The member who entered this fact through the app (appends and imports), recorded at write time; absent on older rows. */ enteredBy?: string;
+  /** On a read copy only, never stored: the field names withheld from this reader by a marking. */ withheld?: string[] };
 export type State = {
-  schemaVersion: number; revision: number; workspace: { id: string; name: string; currency: string; demo: boolean; createdAt: string };
+  schemaVersion: number; revision: number; workspace: { id: string; name: string; currency: string; demo: boolean; createdAt: string; /** IANA zone set by `workspace.setTimeZone`; absent until set. */ timeZone?: string };
   members: Member[]; policy: TrustPolicy; ontology: any; facts: Fact[]; imports: any[]; receipts: any[]; answers: any[]; decisions: any[];
   actions: any[]; jobs: any[]; learning: any[]; plugins: any[]; modelReceipts: any[]; activity: any[]; conflicts: any[]; merges: any[]; tombstones: any[];
   conversations: any[]; routes: any[]; sessions: any[]; unsupported: any[]; schedules: any[]; sourceRules: any[];
@@ -61,12 +63,19 @@ type CoreHooks = {
   seatEnded: (state: State, memberId: string) => boolean;
   /** True when the member's seat may not see data from this source (markings). */
   sourceHidden: (state: State, member: Member, sourceId: string) => boolean;
+  /** What a member may not see of one fact: `true` hides it; otherwise the withheld field names, each with why (null when nothing). */
+  factWithheld: (state: State, member: Member, fact: Fact) => true | Readonly<Record<string, string>> | null;
 };
-const coreHooks: { [K in keyof CoreHooks]: Set<CoreHooks[K]> } = { change: new Set(), seatEnded: new Set(), sourceHidden: new Set() };
+const coreHooks: { [K in keyof CoreHooks]: Set<CoreHooks[K]> } = { change: new Set(), seatEnded: new Set(), sourceHidden: new Set(), factWithheld: new Set() };
 /** Engine modules register these guards at load (late-bound to avoid import cycles). */
 export function registerCoreHook<K extends keyof CoreHooks>(kind: K, hook: CoreHooks[K]): void { (coreHooks[kind] as Set<CoreHooks[K]>).add(hook); }
 export function guardChange(state: State, context: Context, change: CoreChange): void { for (const hook of coreHooks.change) hook(state, context, change); }
 export function sourceHidden(state: State, member: Member, sourceId: string): boolean { for (const hook of coreHooks.sourceHidden) if (hook(state, member, sourceId)) return true; return false; }
+export function factWithheld(state: State, member: Member, fact: Fact): true | Readonly<Record<string, string>> | null {
+  let fields: Record<string, string> | null = null;
+  for (const hook of coreHooks.factWithheld) { const found = hook(state, member, fact); if (found === true) return true; if (found) fields = { ...(fields ?? {}), ...found }; }
+  return fields;
+}
 export function authorize(store: StateStore, context: Context, permission: 'read' | 'prepare' | 'approve' | 'admin' = 'read'): Member {
   const state = store.read(); const member = state.members.find(m => m.id === context.memberId);
   check(member?.active && member.epoch === context.epoch && member.role === context.role, 'ACCESS_REVOKED', 'Your workspace access has changed. Sign in again.');
