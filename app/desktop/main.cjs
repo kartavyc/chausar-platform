@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, protocol, session, dialog, Tray, Menu, nativeImage, powerMonitor } = require('electron');
 const { readFile, writeFile, mkdir, lstat } = require('node:fs/promises');
 const { EngineHarness } = require('./engine-harness.cjs');
-const { REQUEST_CHANNEL, STATUS_CHANNEL, validateRequest, assertTrustedSender, publicError } = require('./ipc-contract.cjs');
+const { REQUEST_CHANNEL, STATUS_CHANNEL, EVENT_CHANNEL, validateRequest, assertTrustedSender, publicError } = require('./ipc-contract.cjs');
 const { join, resolve } = require('node:path');
 const { randomBytes } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
@@ -56,6 +56,9 @@ try {
 protocol.registerSchemesAsPrivileged([{ scheme: 'chausar', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 if (!singleInstance) app.quit();
 let window; let engine; let database; let tray; let demoMode = demo; let stopping = false; let startupComplete = false; let startupTask = Promise.resolve();
+// --- driving lane: WK-14 strip, tray Stop and the driver switch (app/desktop/driving-main.cjs) ---
+require('./driving-main.cjs').registerDriving({ getEngine: () => engine, demo });
+// --- end driving lane ---
 let previewStopResult; const previewStopErrors = [];
 let hostAwake = false;
 const backgroundRequested = process.argv.includes('--background');
@@ -139,6 +142,7 @@ async function startEngine() {
   if (stopping) return;
   engine = new EngineHarness({ workerPath: join(engineRoot, 'platform/runtime/worker.ts'), environment });
   engine.on('status', status => { if (window && !window.isDestroyed()) window.webContents.send(STATUS_CHANNEL, status); });
+  engine.on('engine-event', event => { if (window && !window.isDestroyed()) window.webContents.send(EVENT_CHANNEL, { seq: event.seq }); }); // core-sync-jobs (round 4)
   await engine.start();
   await reportJobLifecycle();
 }

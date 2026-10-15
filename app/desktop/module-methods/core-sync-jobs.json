@@ -1,1 +1,17 @@
-[]
+[
+  "devices.list",
+  "devices.pen",
+  "devices.handOver",
+  "devices.takePen",
+  "devices.remove",
+  "devices.read",
+  "devices.send",
+  "devices.join",
+  "seats.inviteVerify",
+  "sync.setup",
+  "jobs.review.set",
+  "jobs.personStep.done",
+  "jobs.childResults",
+  "jobs.meters",
+  "events.subscribe"
+]

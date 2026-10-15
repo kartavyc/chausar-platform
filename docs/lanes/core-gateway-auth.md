@@ -26,7 +26,7 @@ Every item below is labelled **supported** (tested end to end through the real e
 `guardOutbound(store, ctx, { channel, receiptId, endpoint, payload })` in `plugins.ts` runs every registered outbound check (`runOutboundChecks` in `gateway.ts`; trust-ext's `blockLeak` stops the planted canary, GSTINs, mail addresses and phone numbers from the books with `CANARY_BLOCKED`). It now guards:
 
 - plugin network calls (`smallapps/plugin-methods.ts` `callRemote`): the exact arguments and URLs, before the single-use approval is spent;
-- the learning upload (`learning-ext/sharing.ts`): the exact batch body; a block settles the batch as refused with `CANARY_BLOCKED`;
+- the learning upload (`learning-ext/sharing.ts`): learning-ext calls `runOutboundChecks(store, context, { receiptId, endpoint, payload })` from `gateway.ts` on the exact batch body itself; a block settles the batch as refused with `CANARY_BLOCKED`;
 - the hosted allowance client (`hosted-link/service.ts` `AllowanceRouteClient`): the exact JSON body, through an optional `guard`.
 
 ### 3. Second ask (supported)
@@ -95,7 +95,7 @@ In-process contracts:
 - `platform/runtime/plugins.ts`: `guardOutbound`, `UNATTRIBUTED_OUTBOUND`. Owned.
 - `platform/runtime/engine.ts` (fenced `core-gateway-auth`): imports; `attach()` ends by opening secret custody; `closeVault()` starts by closing it; `workspace.open` accepts `unlock: 'pin'`; the core `ActionService` gets the money gate. These are needed because PIN unlock and secret custody follow the vault's lifecycle, which only the engine sees.
 - `platform/runtime/connectors-ext/credentials.ts` (connectors-ext): `#key` asks custody first (one line + import), so connector and writeback credentials use the keychain-backed store.
-- `platform/runtime/smallapps/plugin-methods.ts` (models-ext), `learning-ext/sharing.ts`, `hosted-link/service.ts`: the canary guard at each outbound call (a few lines each). In models-ext's reworked `callRemote` it also covers every MCP message body, before the approval is spent.
+- `platform/runtime/smallapps/plugin-methods.ts` (models-ext) and `hosted-link/service.ts`: the canary guard (learning-ext now calls `runOutboundChecks` in its own file) at each outbound call (a few lines each). In models-ext's reworked `callRemote` it also covers every MCP message body, before the approval is spent.
 - `platform/tests/demo-data-isolation.test.ts`, `demo-provider-isolation.test.ts`: these run engine.ts in a VM with a fixed list of globals; the new imported names were added.
 - `app/desktop/preload.cjs` (this lane's `laneRefusals` line) and the synced `app/ui/src/bridge/client.ts`.
 

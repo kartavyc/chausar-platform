@@ -41,6 +41,8 @@ export const ACTION_IMPACTS = ['reversible', 'message', 'money', 'destructive'] 
 export const ACTION_OUTCOMES = ['done', 'refused', 'unknown', 'read-back-matched', 'read-back-mismatch'] as const;
 export const PROCEDURE_STEPS = ['calculator', 'question', 'action', 'agent-lookup'] as const;
 export const EDIT_KINDS = ['add-field', 'add-definition', 'remove-definition', 'change-meaning', 'change-nulls', 'change-label', 'change-sign', 'change-kind'] as const;
+/** How often a distinct event occurred in a batch, as a word: a batch never carries an exact count. */
+export const TIMES = ['one', 'few', 'many'] as const;
 export const EVIDENCE_KINDS = ['name-keyword', 'parent-group', 'library', 'model', 'owner'] as const;
 
 /** Sharing boxes. The last two exist behind a founder switch and stay closed until a lawyer has read the consent text. */
@@ -63,12 +65,12 @@ export type StructuralEvent = {
   kind: DecisionKind; choice: Choice; reason?: Reason; system?: SystemFamily; shape?: ReportShape;
   fields?: [FieldName, FieldType][]; accountClass?: AccountClass; proposedClass?: AccountClass; confidence?: Confidence;
   evidence?: typeof EVIDENCE_KINDS[number][]; impact?: typeof ACTION_IMPACTS[number]; outcome?: typeof ACTION_OUTCOMES[number];
-  steps?: typeof PROCEDURE_STEPS[number][]; edit?: typeof EDIT_KINDS[number];
+  steps?: typeof PROCEDURE_STEPS[number][]; edit?: typeof EDIT_KINDS[number]; times?: typeof TIMES[number];
 };
 export type StructuralBatch = { schema: typeof LEARNING_SCHEMA; boxes: Box[]; events: StructuralEvent[] };
 
 export const EVENT_VOCABULARY = {
   kind: DECISION_KINDS, choice: CHOICES, reason: REASONS, system: SYSTEMS, shape: REPORT_SHAPES, accountClass: ACCOUNT_CLASSES,
-  proposedClass: ACCOUNT_CLASSES, confidence: CONFIDENCE, impact: ACTION_IMPACTS, outcome: ACTION_OUTCOMES, edit: EDIT_KINDS,
+  proposedClass: ACCOUNT_CLASSES, confidence: CONFIDENCE, impact: ACTION_IMPACTS, outcome: ACTION_OUTCOMES, edit: EDIT_KINDS, times: TIMES,
 } as const;
 export const EVENT_LISTS = { evidence: EVIDENCE_KINDS, steps: PROCEDURE_STEPS } as const;

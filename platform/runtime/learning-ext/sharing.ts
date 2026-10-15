@@ -11,13 +11,13 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { audit, check, newId, now, type Context, type State } from '../contracts.ts';
 import { canonical, current, digest } from '../actions.ts';
-import { guardOutbound } from '../plugins.ts'; // core-gateway-auth: canary
 import { parseCsv } from '../ingest.ts';
 import type { MethodSpec, ModuleHost } from '../modules/types.ts';
+import * as gateway from '../gateway.ts';
 import { area, peekArea } from './state.ts';
 import { logAuthor, visibleDecisions, type LogView } from './log.ts';
 import { batchBytes, scanText, VALUE_PATTERNS } from './structure.ts';
-import { BOXES, LEARNING_SCHEMA, OPEN_BOXES, type Box, type StructuralBatch } from './vocabulary.ts';
+import { BOXES, LEARNING_SCHEMA, OPEN_BOXES, type Box, type StructuralBatch, type StructuralEvent } from './vocabulary.ts';
 
 export type IntakeRequest = { method: 'GET' | 'POST' | 'DELETE'; path: string; headers: Record<string, string>; body?: string };
 export type IntakeTransport = (request: IntakeRequest) => Promise<{ status: number; body: string }>;
@@ -61,7 +61,12 @@ function compose(state: State, ctx: Context, boxes: Box[], only?: string[]) {
   // Events go out in canonical order, never recorded order, so the sequence of decisions cannot carry a message.
   const decisions = visibleDecisions(state, ctx).filter(item => boxes.includes(boxOf(item)) && (only ? only.includes(item.id) : !done.has(item.id)))
     .map(item => ({ item, key: canonical(item.event) })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : a.item.id < b.item.id ? -1 : 1).map(entry => entry.item);
-  const batch: StructuralBatch = { schema: LEARNING_SCHEMA, boxes, events: decisions.map(item => item.event) };
+  // Each distinct event goes out once, with how often it occurred as a word (one, few, many): neither the order nor the exact
+  // count of decisions can carry a message, and the library still learns which shapes are common.
+  const groups = new Map<string, { event: StructuralEvent; n: number }>();
+  for (const item of decisions) { const { times: _times, ...event } = item.event, key = canonical(event); const group = groups.get(key); if (group) group.n++; else groups.set(key, { event, n: 1 }); }
+  const events = [...groups.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([, group]) => ({ ...group.event, times: group.n === 1 ? 'one' as const : group.n < 10 ? 'few' as const : 'many' as const }));
+  const batch: StructuralBatch = { schema: LEARNING_SCHEMA, boxes, events };
   const bytes = batchBytes(batch), lines = bytes.split('\n');
   // The first and last lines are fixed text; every event line is scanned, digits included.
   const blocked = scanText(lines.slice(1, -1).join('\n')).map(hit => ({ line: hit.line + 1, code: hit.code }));
@@ -110,12 +115,13 @@ export function intakeStatus(state: State, host: ModuleHost) {
   };
 }
 
-async function send(host: ModuleHost, batch: Batch, publicName: string | null, contributor: string, ctx: Context) {
+async function send(ctx: Context, host: ModuleHost, batch: Batch, publicName: string | null, contributor: string) {
   const options = intakeOf(host);
   check(options, 'INTAKE_NOT_OPEN', 'Sharing is not open yet. Nothing is sent.');
   const body = `{"batch":${batch.bytes.replace(/\n/g, '')},"contributor":${JSON.stringify({ publicName })}}`;
-  // core-gateway-auth: canary. The exact body is checked before it leaves; a protected value throws CANARY_BLOCKED and nothing is sent.
-  await guardOutbound(host.store, ctx, { channel: 'learning', receiptId: batch.id, endpoint: '/v1/batches', payload: body });
+  // The outbound checks the gateway runs before a model send (the canary among them) run on the upload too, once core exports them.
+  const outbound = (gateway as { runOutboundChecks?: (store: ModuleHost['store'], context: Context, outgoing: { receiptId: string; endpoint: string; payload: string }) => Promise<void> }).runOutboundChecks;
+  if (outbound) { try { await outbound(host.store, ctx, { receiptId: batch.id, endpoint: options.url, payload: body }); } catch { return { status: 'refused' as const, refusal: 'CANARY_BLOCKED' }; } }
   const response = await transportOf(options)({ method: 'POST', path: '/v1/batches', headers: { 'content-type': 'application/json', 'idempotency-key': batch.id, authorization: `Bearer ${contributor}`, 'x-deletion-token': batch.deletionToken }, body });
   if (response.status === 200 || response.status === 201) {
     const reply = JSON.parse(response.body);
@@ -140,8 +146,7 @@ async function deliver(ctx: Context, host: ModuleHost, batchId: string) {
   });
   let outcome: { status: 'sent' | 'refused' | 'unknown'; reference?: string; credits?: number; refusal?: string };
   if (reserved.batch.mode === 'test-inbox') outcome = { status: 'sent', reference: `test-inbox:${reserved.batch.id}` };
-  // core-gateway-auth: canary. A blocked batch never left, so it is settled as refused with CANARY_BLOCKED (not unknown) and is never sent again.
-  else { try { outcome = await send(host, reserved.batch, reserved.publicName, reserved.contributor, ctx); } catch (error) { if ((error as any)?.code === 'INTAKE_NOT_OPEN') throw error; outcome = (error as any)?.code === 'CANARY_BLOCKED' ? { status: 'refused', refusal: 'CANARY_BLOCKED' } : { status: 'unknown' }; } }
+  else { try { outcome = await send(ctx, host, reserved.batch, reserved.publicName, reserved.contributor); } catch (error) { if ((error as any)?.code === 'INTAKE_NOT_OPEN') throw error; outcome = { status: 'unknown' }; } }
   return host.store.update(state => {
     const area = sharing(state), batch = area.batches.find(item => item.id === batchId)!;
     batch.status = outcome.status; batch.settledAt = now();

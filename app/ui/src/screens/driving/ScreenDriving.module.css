@@ -1,0 +1,14 @@
+/* Layout for Work, Screen driving. Colours and spacing come from tokens only. */
+.page { display: flex; flex-direction: column; gap: var(--sp4); min-width: 0; }
+.section { display: flex; flex-direction: column; gap: var(--sp2); padding-top: var(--sp3); border-top: var(--hair) solid var(--line2); }
+.h { font-size: var(--fs-read); font-weight: var(--fw-medium); margin: 0; }
+.p { margin: 0; }
+.meta { color: var(--mute); font-size: var(--fs-note2); margin: 0; }
+.fig { font-family: var(--fm); }
+.asWritten { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.item { display: flex; flex-direction: column; gap: var(--sp1); padding: var(--sp2) 0; border-bottom: var(--hair) solid var(--line2); }
+.line { display: flex; flex-wrap: wrap; gap: var(--sp2); align-items: baseline; justify-content: space-between; }
+.steps { margin: 0; padding-inline-start: var(--sp4); display: flex; flex-direction: column; gap: var(--sp1); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--sp2); align-items: center; }
+.alert { margin: 0; color: var(--red); }

@@ -203,8 +203,33 @@ function labelDataset(state: State, ctx: Context, payload: Record<string, unknow
   };
 }
 
+/** This lane's classes in the Books taxonomy (work-books `CLASSES`). Suspense has no Books class and is never offered. */
+const BOOKS_CLASS: Partial<Record<AccountClass, string>> = {
+  sales: 'income', 'indirect-income': 'income', purchases: 'expense', 'direct-expenses': 'expense', 'indirect-expenses': 'expense', bank: 'bank', cash: 'cash',
+  'duties-taxes': 'tax', loans: 'liability', 'current-liabilities': 'liability', capital: 'equity', 'fixed-assets': 'asset', 'current-assets': 'asset', stock: 'asset',
+  'sundry-debtors': 'receivable', 'sundry-creditors': 'payable',
+};
 export const accountsMethods: Record<string, MethodSpec> = {
   'learningx.accountsPropose': { permission: 'prepare', handler: (ctx, payload, host) => host.store.update(state => proposeSet(state, ctx, payload)) },
+  /**
+   * The Books accounts screen's feed (work-books `accounts.list`): the latest decided class per
+   * account name, in the Books taxonomy (`class`) and in this lane's (`accountClass`). Undecided
+   * proposals are not offered: Books proposes "from earlier decisions in this workspace" only.
+   */
+  'learningx.accountsProposals': {
+    permission: 'read', handler: (ctx, payload, host) => {
+      const state = host.store.read(); current(state, ctx); record(payload, []);
+      const latest = new Map<string, { name: string; class: string; accountClass: AccountClass; at: string; setId: string }>();
+      for (const set of (peekArea<AccountsArea>(state, 'accounts')?.sets ?? []).filter(item => setVisible(state, ctx, item)))
+        for (const proposal of set.proposals) {
+          const decision = set.decisions[proposal.accountId], books = decision?.accountClass ? BOOKS_CLASS[decision.accountClass] : undefined;
+          if (!decision?.accountClass || !books) continue;
+          const earlier = latest.get(proposal.name);
+          if (!earlier || earlier.at <= decision.at) latest.set(proposal.name, { name: proposal.name, class: books, accountClass: decision.accountClass, at: decision.at, setId: set.id });
+        }
+      return { proposals: [...latest.values()].sort((a, b) => a.name.localeCompare(b.name)) };
+    },
+  },
   'learningx.accountsList': {
     permission: 'read', handler: (ctx, payload, host) => {
       const state = host.store.read(); current(state, ctx); record(payload, []);

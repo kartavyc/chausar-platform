@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createInterface } from 'node:readline';
-import { authorize, audit, check, ChausarError, hash, newId, now } from './contracts.ts';
+import { authorize, audit, check, ChausarError, factWithheld, hash, newId, now } from './contracts.ts';
 import type { Context, State, StateStore } from './contracts.ts';
 import { ActionService, canonical, current, digest, sourceAccess } from './actions.ts';
 import { assertSourceAccess } from './trust.ts';
@@ -15,7 +15,7 @@ export type RegisteredReadTool = { name: string; description: string; inputSchem
 const readToolProviders = new Set<(store: StateStore) => RegisteredReadTool[]>();
 export function registerMcpReadTools(provider: (store: StateStore) => RegisteredReadTool[]): void { readToolProviders.add(provider); }
 /** A per-call record: the member, the registered tool (null for anything else), the receipt and how the call ended. */
-export type McpCallRecord = { memberId: string; method: 'tools/call' | 'other'; tool: string | null; receiptId: string | null; outcome: 'answered' | 'failed' | 'refused'; code: string | null };
+export type McpCallRecord = { memberId: string; method: 'tools/call' | 'other'; tool: string | null; receiptId: string | null; outcome: 'answered' | 'failed' | 'refused'; code: string | null; removed?: McpRemoved[] };
 const callHooks = new Set<(store: StateStore, record: McpCallRecord) => void | Promise<void>>();
 /** Engine modules register at load to keep each tool call and refused request; a hook failure never changes the reply. */
 export function registerMcpCallHook(hook: (store: StateStore, record: McpCallRecord) => void | Promise<void>): void { callHooks.add(hook); }
@@ -73,6 +73,40 @@ function validateArguments(schema: any, args: unknown): Record<string, unknown> 
   }
   return JSON.parse(canonical(input));
 }
+/** TL-08: one kind of thing the disclosure check removed from an answer: the field, why (exactly `personal`, `financial`, `confidential`, `withheld` or `send-level`) and how many; never a value. */
+export type McpRemoved = { field: string; why: string; count: number };
+const markedRowFields = ['customerId', 'invoiceId', 'orderId', 'dueDate', 'status'];
+/** Below the samples send level, a numbers-only assistant gets no value that names a record. */
+const namingRowFields = ['entityId', 'customerId', 'invoiceId', 'orderId'];
+/**
+ * Removes from receipt rows what the reader may not see: fields a marking withholds from its seat, and for a numbers-only assistant (`scope: 'mcp'`) the
+ * values naming records unless Send allows samples. A counted row whose measure is now withheld refuses the receipt: the number must be calculated again.
+ * With `full`, rows the calculation excluded as withheld are counted too. The figures are never changed, so the number guard still holds.
+ */
+export function discloseRows(state: State, context: Context, receipt: any, rows: any[], full: boolean): { rows: any[]; removed: McpRemoved[]; scoped: boolean } {
+  const member = state.members.find(m => m.id === context.memberId); const counts = new Map<string, McpRemoved>();
+  if (!member) return { rows, removed: [], scoped: false };
+  const add = (field: string, why: string) => { const key = `${field}\u0000${why}`; const item = counts.get(key) ?? { field, why, count: 0 }; item.count++; counts.set(key, item); };
+  const facts = new Map(state.facts.map(f => [f.id, f])); const send = member.scope === 'mcp' && state.policy.send !== 'samples';
+  const measure = (kind: string, row?: any) => row?.measureField ?? (Array.isArray(receipt?.definitions) ? receipt.definitions.find((d: any) => d?.kind === kind)?.field : undefined) ?? 'amountMinor';
+  const shown = rows.map(row => {
+    const fact = facts.get(row?.factId); const rule = fact ? factWithheld(state, member, fact) : null; let copy = row;
+    // A withheld field may already be missing from the row (the read left it out); it is still listed when the fact holds it.
+    const drop = (key: string, why: string, held = false) => { if (!Object.hasOwn(copy, key)) { if (held) add(key, why); return; } if (copy === row) copy = { ...row }; delete copy[key]; add(key, why); };
+    check(rule !== true, 'RECEIPT_FORBIDDEN', 'This receipt contains rows outside your current access.');
+    if (rule) {
+      check(!rule[measure(fact!.kind, row)] && !rule.status && !rule.currency, 'RECEIPT_CHANGED', 'Markings changed since this number was calculated. Calculate it again.');
+      for (const key of markedRowFields) if (rule[key]) drop(key, rule[key], Object.hasOwn(fact!.fields, key));
+    }
+    if (send) for (const key of namingRowFields) drop(key, 'send-level');
+    return copy;
+  });
+  if (full) for (const exclusion of Array.isArray(receipt?.exclusions) ? receipt.exclusions : []) if (exclusion?.reason === 'withheld') {
+    const fact = facts.get(exclusion.rowId); const rule = fact ? factWithheld(state, member, fact) : null; const field = fact ? measure(fact.kind) : 'amountMinor';
+    add(field, rule && rule !== true ? rule[field] ?? rule.status ?? rule.currency ?? 'withheld' : 'withheld');
+  }
+  return { rows: shown, removed: [...counts.values()].sort((a, b) => a.field.localeCompare(b.field) || a.why.localeCompare(b.why)), scoped: member.scope === 'mcp' };
+}
 export class MCPService {
   store: StateStore; calculations: Map<string, RegisteredCalculation>; sessions: Map<string, Session>;
   receiptReader?: (context: Context, id: string) => any;
@@ -114,9 +148,9 @@ export class MCPService {
     return { receipt, receiptDigest };
   }
   /** One record per tool call or refused request for the registered hooks, structure only (no arguments, no values). */
-  async #record(context: Context, request: JSONRPCRequest, outcome: McpCallRecord['outcome'], code: string | null, receiptId: unknown = null) {
+  async #record(context: Context, request: JSONRPCRequest, outcome: McpCallRecord['outcome'], code: string | null, receiptId: unknown = null, removed?: McpRemoved[]) {
     const name = request?.params?.name; const tool = typeof name === 'string' && (this.calculations.has(name) || this.readTools.has(name) || receiptTools.some(t => t.name === name)) ? name : null;
-    const record: McpCallRecord = { memberId: context.memberId, method: request?.method === 'tools/call' ? 'tools/call' : 'other', tool, receiptId: typeof receiptId === 'string' && receiptId.length <= 200 ? receiptId : null, outcome, code };
+    const record: McpCallRecord = { memberId: context.memberId, method: request?.method === 'tools/call' ? 'tools/call' : 'other', tool, receiptId: typeof receiptId === 'string' && receiptId.length <= 200 ? receiptId : null, outcome, code, ...(removed ? { removed: removed.map(({ field, why, count }) => ({ field, why, count })) } : {}) };
     const waiting = pendingCalls.get(this.store) ?? { records: [] as McpCallRecord[], timer: undefined as NodeJS.Timeout | undefined };
     pendingCalls.set(this.store, waiting); waiting.records.push(record);
     if (waiting.records.length >= MCP_FLUSH_RECORDS) await flushMcpCalls(this.store);
@@ -146,19 +180,23 @@ export class MCPService {
         check(calculation || receiptTool || readTool, 'UNKNOWN_TOOL', 'This read-only calculation or receipt tool is not registered.');
         const args = validateArguments((calculation || receiptTool || readTool)!.inputSchema, request.params.arguments ?? {});
         try {
-          const verified = async (structuredContent: any) => { await this.#record(context, request, 'answered', null, readTool ? null : structuredContent?.receipt?.id ?? structuredContent?.receiptId); return respond({ content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: false }); };
+          const verified = async (structuredContent: any) => { await this.#record(context, request, 'answered', null, readTool ? null : structuredContent?.receipt?.id ?? structuredContent?.receiptId, Array.isArray(structuredContent?.removed) ? structuredContent.removed : undefined); return respond({ content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: false }); };
+          // TL-08: what the reader may not see leaves the receipt and is listed; the digest still pins the stored receipt.
+          const shown = (receipt: any) => { const out = discloseRows(this.store.read(), context, receipt, Array.isArray(receipt.rows) ? receipt.rows : [], true);
+            return { receipt: out.rows.some((row, i) => row !== receipt.rows[i]) ? { ...receipt, rows: out.rows } : receipt, removed: out.removed, listed: out.scoped || out.removed.length > 0 }; };
           if (readTool) { const structuredContent = await readTool.read(args, { ...context, channel: 'mcp' }); authorize(this.store, context); return verified(structuredContent); }
           if (receiptTool) {
             const { receipt, receiptDigest } = this.retainedReceipt(context, args);
-            if (receiptTool.name === 'open_receipt') return verified({ receipt, receiptDigest });
+            if (receiptTool.name === 'open_receipt') { const view = shown(receipt); return verified({ receipt: view.receipt, receiptDigest, ...(view.listed ? { removed: view.removed } : {}) }); }
             check(Array.isArray(receipt.rows), 'UNVERIFIED_NUMBER', 'This receipt has no retained counted rows.');
             const offset = (args.offset ?? 0) as number, limit = (args.limit ?? 50) as number;
-            const rows = structuredClone(receipt.rows.slice(offset, offset + limit));
-            return verified({ receiptId: receipt.id, receiptDigest, offset, limit, totalRows: receipt.rows.length, rows, nextOffset: offset + rows.length < receipt.rows.length ? offset + rows.length : null });
+            const page = discloseRows(this.store.read(), context, receipt, structuredClone(receipt.rows.slice(offset, offset + limit)), false); const rows = page.rows;
+            return verified({ receiptId: receipt.id, receiptDigest, offset, limit, totalRows: receipt.rows.length, rows, nextOffset: offset + rows.length < receipt.rows.length ? offset + rows.length : null, ...(page.scoped || page.removed.length ? { removed: page.removed } : {}) });
           }
           const output = await calculation!.calculate(args, { ...context, channel: 'mcp' }); authorize(this.store, context); const receipt = this.receipt(context, output.receipt);
           check(typeof output.value === 'string' && /^-?\d+$/.test(output.value) && [receipt.totalMinor, receipt.valueMinor, ...(receipt.figures ?? []).map((figure: any) => figure.minor)].includes(output.value), 'UNVERIFIED_NUMBER', 'The exact minor-unit value must appear in its receipt.');
-          return verified({ value: output.value, unit: 'minor', receipt, receiptDigest: digest(receipt) });
+          const view = shown(receipt);
+          return verified({ value: output.value, unit: 'minor', receipt: view.receipt, receiptDigest: digest(receipt), ...(view.listed ? { removed: view.removed } : {}) });
         }
         catch (error) {
           authorize(this.store, context);
